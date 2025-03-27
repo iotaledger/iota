@@ -148,7 +148,7 @@ deactivate
 activate
 	public(package) fun
 	0x3::validator
-adjust_stake_and_gas_price
+adjust_next_epoch_commission_rate
 	public(package) fun
 	0x3::validator
 request_add_stake
@@ -161,12 +161,6 @@ request_add_stake_at_genesis_with_receipt
 	public(package) fun
 	0x3::validator
 request_withdraw_stake
-	public(package) fun
-	0x3::validator
-request_set_gas_price
-	public(package) fun
-	0x3::validator
-set_candidate_gas_price
 	public(package) fun
 	0x3::validator
 request_set_commission_rate
@@ -619,7 +613,7 @@ calculate_total_active_stakes
 calculate_total_committee_stakes
 	fun
 	0x3::validator_set
-adjust_stake_and_gas_price
+adjust_next_epoch_commission_rate
 	fun
 	0x3::validator_set
 compute_slashed_validators
@@ -722,12 +716,6 @@ request_add_validator
 	public(package) fun
 	0x3::iota_system_state_inner
 request_remove_validator
-	public(package) fun
-	0x3::iota_system_state_inner
-request_set_gas_price
-	public(package) fun
-	0x3::iota_system_state_inner
-set_candidate_validator_gas_price
 	public(package) fun
 	0x3::iota_system_state_inner
 request_set_commission_rate

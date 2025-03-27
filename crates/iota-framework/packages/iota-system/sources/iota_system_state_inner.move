@@ -21,7 +21,9 @@ module iota_system::iota_system_state_inner {
 
     // same as in validator_set
     const COMMITTEE_VALIDATOR_ONLY: u8 = 1;
+    #[allow(unused_const)]
     const ACTIVE_OR_PENDING_VALIDATOR: u8 = 2;
+    #[allow(unused_const)]
     const ANY_VALIDATOR: u8 = 3;
 
     const SYSTEM_STATE_VERSION_V1: u64 = 1;
@@ -407,32 +409,6 @@ module iota_system::iota_system_state_inner {
         };
 
         self.validators.request_remove_validator(ctx)
-    }
-
-    /// A validator can call this function to submit a new gas price quote, to be
-    /// used for the reference gas price calculation at the end of the epoch.
-    public(package) fun request_set_gas_price(
-        self: &mut IotaSystemStateV2,
-        cap: &UnverifiedValidatorOperationCap,
-        new_gas_price: u64,
-    ) {
-        // Verify the represented address is an active or pending validator, and the capability is still valid.
-        let verified_cap = self.validators.verify_cap(cap, ACTIVE_OR_PENDING_VALIDATOR);
-        let validator = self.validators.get_validator_mut_with_verified_cap(&verified_cap, false /* include_candidate */);
-
-        validator.request_set_gas_price(verified_cap, new_gas_price);
-    }
-
-    /// This function is used to set new gas price for candidate validators
-    public(package) fun set_candidate_validator_gas_price(
-        self: &mut IotaSystemStateV2,
-        cap: &UnverifiedValidatorOperationCap,
-        new_gas_price: u64,
-    ) {
-        // Verify the represented address is an active or pending validator, and the capability is still valid.
-        let verified_cap = self.validators.verify_cap(cap, ANY_VALIDATOR);
-        let candidate = self.validators.get_validator_mut_with_verified_cap(&verified_cap, true /* include_candidate */);
-        candidate.set_candidate_gas_price(verified_cap, new_gas_price)
     }
 
     /// A validator can call this function to set a new commission rate, updated at the end of
