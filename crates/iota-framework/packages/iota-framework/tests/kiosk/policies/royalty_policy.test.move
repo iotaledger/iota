@@ -8,7 +8,6 @@ module iota::royalty_policy;
 
 use iota::coin::{Self, Coin};
 use iota::iota::IOTA;
-use iota::royalty_policy;
 use iota::transfer_policy::{Self as policy, TransferPolicy, TransferPolicyCap, TransferRequest};
 use iota::transfer_policy_tests as test;
 
