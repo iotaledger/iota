@@ -8,7 +8,7 @@ module iota_system::validator {
 
     use iota::balance::Balance;
     use iota::iota::IOTA;
-    use iota_system::validator_cap::{Self, ValidatorOperationCap};
+    use iota_system::validator_cap::{Self};
     use iota_system::staking_pool::{Self, PoolTokenExchangeRate, StakedIota, StakingPoolV1};
     use std::string::String;
     use iota::url::Url;
@@ -265,9 +265,8 @@ module iota_system::validator {
         self.staking_pool.activate_staking_pool(activation_epoch);
     }
 
-    /// Process pending stake and pending withdraws, and update the gas price.
-    public(package) fun adjust_stake_and_gas_price(self: &mut ValidatorV1) {
-        self.gas_price = self.next_epoch_gas_price;
+    /// Update the commission rate.
+    public(package) fun adjust_next_epoch_commission_rate(self: &mut ValidatorV1) {
         self.commission_rate = self.next_epoch_commission_rate;
     }
 
@@ -362,33 +361,6 @@ module iota_system::validator {
             }
         );
         withdrawn_stake
-    }
-
-    /// Request to set new gas price for the next epoch.
-    /// Need to present a `ValidatorOperationCap`.
-    public(package) fun request_set_gas_price(
-        self: &mut ValidatorV1,
-        verified_cap: ValidatorOperationCap,
-        new_price: u64,
-    ) {
-        assert!(new_price <= MAX_VALIDATOR_GAS_PRICE, EGasPriceHigherThanThreshold);
-        let validator_address = *verified_cap.verified_operation_cap_address();
-        assert!(validator_address == self.metadata.iota_address, EInvalidCap);
-        self.next_epoch_gas_price = new_price;
-    }
-
-    /// Set new gas price for the candidate validator.
-    public(package) fun set_candidate_gas_price(
-        self: &mut ValidatorV1,
-        verified_cap: ValidatorOperationCap,
-        new_price: u64
-    ) {
-        assert!(is_preactive(self), ENotValidatorCandidate);
-        assert!(new_price <= MAX_VALIDATOR_GAS_PRICE, EGasPriceHigherThanThreshold);
-        let validator_address = *verified_cap.verified_operation_cap_address();
-        assert!(validator_address == self.metadata.iota_address, EInvalidCap);
-        self.next_epoch_gas_price = new_price;
-        self.gas_price = new_price;
     }
 
     /// Request to set new commission rate for the next epoch.
@@ -505,6 +477,7 @@ module iota_system::validator {
         &self.operation_cap_id
     }
 
+    #[deprecated]
     public fun next_epoch_gas_price(self: &ValidatorV1): u64 {
         self.next_epoch_gas_price
     }

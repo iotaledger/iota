@@ -21,6 +21,44 @@ use crate::{
     store::{PgIndexerAnalyticalStore, PgIndexerStore},
 };
 
+/// Type to create hooks to alter initial indexer DB state in tests.
+/// Those hooks are meant to be called after DB reset (if it occurs) and before
+/// indexer is started.
+///
+/// Example:
+///
+/// ```ignore
+/// let emulate_insertion_order_set_earlier_by_optimistic_indexing: DBInitHook =
+///     Box::new(move |pg_store: &PgIndexerStore| {
+///         transactional_blocking_with_retry!(
+///             &pg_store.blocking_cp(),
+///             |conn| {
+///                 insert_or_ignore_into!(
+///                     tx_insertion_order::table,
+///                     (
+///                         tx_insertion_order::dsl::tx_digest.eq(digest.inner().to_vec()),
+///                         tx_insertion_order::dsl::insertion_order.eq(123),
+///                     ),
+///                     conn
+///                 );
+///                 Ok::<(), IndexerError>(())
+///             },
+///             Duration::from_secs(60)
+///         )
+///             .unwrap()
+///     });
+///
+/// let (_, pg_store, _) = start_simulacrum_rest_api_with_write_indexer(
+///     Arc::new(sim),
+///     data_ingestion_path,
+///     None,
+///     Some("indexer_ingestion_tests_db"),
+///     Some(emulate_insertion_order_set_earlier_by_optimistic_indexing),
+/// )
+/// .await;
+/// ```
+pub type DBInitHook = Box<dyn FnOnce(&PgIndexerStore) + Send>;
+
 pub enum IndexerTypeConfig {
     Reader { reader_mode_rpc_url: String },
     Writer { snapshot_config: SnapshotLagConfig },
@@ -44,6 +82,7 @@ impl IndexerTypeConfig {
 pub async fn start_test_indexer(
     db_url: String,
     reset_db: bool,
+    db_init_hook: Option<DBInitHook>,
     rpc_url: String,
     reader_writer_config: IndexerTypeConfig,
     data_ingestion_path: Option<PathBuf>,
@@ -51,6 +90,7 @@ pub async fn start_test_indexer(
     start_test_indexer_impl(
         db_url,
         reset_db,
+        db_init_hook,
         rpc_url,
         reader_writer_config,
         data_ingestion_path,
@@ -64,6 +104,7 @@ pub async fn start_test_indexer(
 pub async fn start_test_indexer_impl(
     db_url: String,
     reset_db: bool,
+    db_init_hook: Option<DBInitHook>,
     rpc_url: String,
     reader_writer_config: IndexerTypeConfig,
     data_ingestion_path: Option<PathBuf>,
@@ -84,6 +125,12 @@ pub async fn start_test_indexer_impl(
     };
 
     let store = create_pg_store(config.get_db_url().unwrap(), reset_db);
+    if config.reset_db {
+        crate::db::reset_database(&mut store.blocking_cp().get().unwrap()).unwrap();
+    }
+    if let Some(db_init_hook) = db_init_hook {
+        db_init_hook(&store);
+    }
 
     let registry = prometheus::Registry::default();
     let handle = match reader_writer_config {
@@ -100,12 +147,6 @@ pub async fn start_test_indexer_impl(
             tokio::spawn(async move { Indexer::start_reader(&config, &registry, db_url).await })
         }
         IndexerTypeConfig::Writer { snapshot_config } => {
-            if config.reset_db {
-                let blocking_pool =
-                    new_connection_pool_with_config(&db_url, Some(5), Default::default()).unwrap();
-                crate::db::reset_database(&mut blocking_pool.get().unwrap()).unwrap();
-            }
-
             let store_clone = store.clone();
 
             init_metrics(&registry);
@@ -123,13 +164,7 @@ pub async fn start_test_indexer_impl(
             })
         }
         IndexerTypeConfig::AnalyticalWorker => {
-            let blocking_pool =
-                new_connection_pool_with_config(&db_url, Some(5), Default::default()).unwrap();
-            if config.reset_db {
-                crate::db::reset_database(&mut blocking_pool.get().unwrap()).unwrap();
-            }
-
-            let store = PgIndexerAnalyticalStore::new(blocking_pool);
+            let store = PgIndexerAnalyticalStore::new(store.blocking_cp());
 
             init_metrics(&registry);
             let indexer_metrics = IndexerMetrics::new(&registry);
