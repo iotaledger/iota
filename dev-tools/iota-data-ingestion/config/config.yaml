@@ -22,14 +22,12 @@ path: "./test-checkpoints"
 # 3. HTTP access is preferred over local filesystem
 remote-store-url: "http://localhost:9000/api/v1"
 
-# DynamoDbProgressStore config
+# Path to the progress store JSON file.
 #
-progress-store:
-  aws-access-key-id: "test"
-  aws-secret-access-key: "test"
-  aws-region: "us-east-1"
-  # DynamoDB table name
-  table-name: "checkpoint-progress"
+# The ingestion pipeline uses this file to persist its progress,
+# ensuring state is preserved across restarts.
+#
+progress-store-path: "/iota/output/ingestion_progress.json"
 
 # Workers Configs
 #
