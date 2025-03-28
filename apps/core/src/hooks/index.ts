@@ -56,6 +56,7 @@ export * from './useSendCoinTransaction';
 export * from './useGetClockTimestamp';
 export * from './useAssetGasBudgetEstimation';
 export * from './useRecognizedPackages';
+export * from './useGetLatestIotaSystemState';
 
 export * from './stake';
 export * from './ui';

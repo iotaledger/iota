@@ -12,8 +12,8 @@ import {
     DELEGATED_STAKES_QUERY_STALE_TIME,
     useFormatCoin,
     StakedCard,
+    useGetLatestIotaSystemState,
 } from '@iota/core';
-import { useIotaClientQuery } from '@iota/dapp-kit';
 import { useMemo } from 'react';
 import { useActiveAddress } from '_hooks';
 import {
@@ -44,7 +44,7 @@ export function ValidatorsCard() {
     });
     const navigate = useNavigate();
 
-    const { data: system } = useIotaClientQuery('getLatestIotaSystemState');
+    const { data: system } = useGetLatestIotaSystemState();
     const activeValidators = system?.activeValidators;
     const delegatedStake = delegatedStakeData ? formatDelegatedStake(delegatedStakeData) : [];
 

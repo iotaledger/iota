@@ -13,6 +13,7 @@ import {
     useMultiGetObjects,
     Feature,
     useFeatureEnabledByNetwork,
+    useGetLatestIotaSystemState,
 } from '@iota/core';
 import {
     Badge,
@@ -40,7 +41,7 @@ import { useNetworkContext } from '~/contexts/networkContext';
 
 function ValidatorPageResult(): JSX.Element {
     const [network] = useNetworkContext();
-    const { data, isPending, isSuccess, isError } = useIotaClientQuery('getLatestIotaSystemState');
+    const { data, isPending, isSuccess, isError } = useGetLatestIotaSystemState();
     const isFixedGasPrice = useFeatureEnabledByNetwork(Feature.FixedGasPrice, network as Network);
     const activeValidatorsData = data?.activeValidators;
     const numberOfValidators = activeValidatorsData?.length || 0;

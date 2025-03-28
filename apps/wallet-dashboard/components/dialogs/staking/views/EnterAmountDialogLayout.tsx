@@ -1,7 +1,13 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { CoinFormat, useFormatCoin, useStakeTxnInfo, Validator } from '@iota/core';
+import {
+    CoinFormat,
+    useFormatCoin,
+    useGetLatestIotaSystemState,
+    useStakeTxnInfo,
+    Validator,
+} from '@iota/core';
 import {
     Button,
     ButtonType,
@@ -17,7 +23,6 @@ import {
 } from '@iota/apps-ui-kit';
 import { Field, type FieldProps, useFormikContext } from 'formik';
 import { Exclamation, Loader } from '@iota/apps-ui-icons';
-import { useIotaClientQuery } from '@iota/dapp-kit';
 import { StakedInfo } from './StakedInfo';
 import { DialogLayout, DialogLayoutBody, DialogLayoutFooter } from '../../layout';
 
@@ -54,7 +59,7 @@ export function EnterAmountDialogLayout({
     handleClose,
     handleStake,
 }: EnterAmountDialogLayoutProps): JSX.Element {
-    const { data: system } = useIotaClientQuery('getLatestIotaSystemState');
+    const { data: system } = useGetLatestIotaSystemState();
     const { values, errors } = useFormikContext<FormValues>();
     const amount = values.amount;
 

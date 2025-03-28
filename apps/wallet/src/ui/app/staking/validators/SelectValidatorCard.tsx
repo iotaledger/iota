@@ -3,8 +3,12 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { ampli } from '_src/shared/analytics/ampli';
-import { calculateStakeShare, useGetValidatorsApy, Validator } from '@iota/core';
-import { useIotaClientQuery } from '@iota/dapp-kit';
+import {
+    calculateStakeShare,
+    useGetLatestIotaSystemState,
+    useGetValidatorsApy,
+    Validator,
+} from '@iota/core';
 import cl from 'clsx';
 import { useMemo, useState } from 'react';
 import { Button, InfoBox, InfoBoxStyle, InfoBoxType, LoadingIndicator } from '@iota/apps-ui-kit';
@@ -24,7 +28,7 @@ export function SelectValidatorCard() {
 
     const navigate = useNavigate();
 
-    const { data, isPending, isError, error } = useIotaClientQuery('getLatestIotaSystemState');
+    const { data, isPending, isError, error } = useGetLatestIotaSystemState();
     const { data: rollingAverageApys } = useGetValidatorsApy();
 
     const selectValidator = (validator: Validator) => {
