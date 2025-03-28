@@ -1,5 +1,19 @@
 # @iota/create-dapp
 
+## 0.3.3
+
+### Patch Changes
+
+-   85419b2: Remove license header requirements for template files
+-   Updated dependencies [1a4505b]
+-   Updated dependencies [e629a39]
+-   Updated dependencies [b06e657]
+-   Updated dependencies [2717145]
+-   Updated dependencies [3fe0747]
+-   Updated dependencies [e213517]
+    -   @iota/iota-sdk@0.6.0
+    -   @iota/dapp-kit@0.4.1
+
 ## 0.3.2
 
 ### Patch Changes
