@@ -26,7 +26,7 @@ use iota_json_rpc_types::{
     IotaTransactionBlockResponse, IotaTransactionKind, MoveCallMetrics, MoveFunctionName,
     NetworkMetrics, TransactionFilter,
 };
-use iota_mainnet_unlocks::TokenUnlocksStore;
+use iota_mainnet_unlocks::AggregatedUnlocksStore;
 use iota_package_resolver::{Package, PackageStore, PackageStoreWithLruCache, Resolver};
 use iota_types::{
     TypeTag,
@@ -84,7 +84,7 @@ pub struct IndexerReader {
     pool: ConnectionPool,
     package_resolver: PackageResolver,
     package_obj_type_cache: Arc<Mutex<SizedCache<String, Option<ObjectID>>>>,
-    token_unlocks_store: TokenUnlocksStore,
+    token_unlocks_store: AggregatedUnlocksStore,
 }
 
 impl Clone for IndexerReader {
@@ -133,7 +133,7 @@ impl IndexerReader {
             pool,
             package_resolver,
             package_obj_type_cache,
-            token_unlocks_store: TokenUnlocksStore::load()?,
+            token_unlocks_store: AggregatedUnlocksStore::load()?,
         })
     }
 

@@ -5,7 +5,7 @@ set -euo pipefail
 REPO="iotaledger/new_supply"
 RAW_BASE="https://raw.githubusercontent.com/$REPO/main"
 # Name of the output JSON file where aggregated data will be stored
-OUTPUT="mainnet_unlocks.json"
+OUTPUT="mainnet_unlocks_aggregated.json"
 # Create a temporary directory to store downloaded CSV files
 TMP_DIR="$(mktemp -d)"
 

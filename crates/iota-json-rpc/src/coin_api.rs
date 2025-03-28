@@ -11,7 +11,7 @@ use chrono::Utc;
 use iota_core::authority::AuthorityState;
 use iota_json_rpc_api::{CoinReadApiOpenRpc, CoinReadApiServer, JsonRpcMetrics, cap_page_limit};
 use iota_json_rpc_types::{Balance, CoinPage, IotaCirculatingSupplySummary, IotaCoinMetadata};
-use iota_mainnet_unlocks::TokenUnlocksStore;
+use iota_mainnet_unlocks::AggregatedUnlocksStore;
 use iota_metrics::spawn_monitored_task;
 use iota_open_rpc::Module;
 use iota_storage::{indexes::TotalBalance, key_value_store::TransactionKeyValueStore};
@@ -56,7 +56,7 @@ pub fn parse_to_type_tag(coin_type: Option<String>) -> Result<TypeTag, IotaRpcIn
 pub struct CoinReadApi {
     // Trait object w/ Box as we do not need to share this across multiple threads
     internal: Box<dyn CoinReadInternal + Send + Sync>,
-    token_unlocks_store: TokenUnlocksStore,
+    token_unlocks_store: AggregatedUnlocksStore,
 }
 
 impl CoinReadApi {
@@ -71,7 +71,7 @@ impl CoinReadApi {
                 transaction_kv_store,
                 metrics,
             )),
-            token_unlocks_store: TokenUnlocksStore::load()?,
+            token_unlocks_store: AggregatedUnlocksStore::load()?,
         })
     }
 }
@@ -537,6 +537,7 @@ mod tests {
             let kv_store = kv_store.unwrap_or_else(|| Arc::new(MockKeyValueStore::new()));
             Self {
                 internal: Box::new(CoinReadInternalImpl::new_for_tests(state, Some(kv_store))),
+                token_unlocks_store: AggregatedUnlocksStore::load().unwrap(),
             }
         }
     }
@@ -1250,6 +1251,7 @@ mod tests {
 
             let coin_read_api = CoinReadApi {
                 internal: Box::new(mock_internal),
+                token_unlocks_store: AggregatedUnlocksStore::load().unwrap(),
             };
 
             let response = coin_read_api.get_coin_metadata(coin_name.clone()).await;
@@ -1308,6 +1310,7 @@ mod tests {
 
             let coin_read_api = CoinReadApi {
                 internal: Box::new(mock_internal),
+                token_unlocks_store: AggregatedUnlocksStore::load().unwrap(),
             };
 
             let response = coin_read_api.get_coin_metadata(coin_name.clone()).await;
@@ -1370,6 +1373,7 @@ mod tests {
                 });
             let coin_read_api = CoinReadApi {
                 internal: Box::new(mock_internal),
+                token_unlocks_store: AggregatedUnlocksStore::load().unwrap(),
             };
 
             let response = coin_read_api.get_total_supply(coin_name.clone()).await;
@@ -1437,6 +1441,7 @@ mod tests {
 
             let coin_read_api = CoinReadApi {
                 internal: Box::new(mock_internal),
+                token_unlocks_store: AggregatedUnlocksStore::load().unwrap(),
             };
 
             let response = coin_read_api.get_total_supply(coin_name.clone()).await;

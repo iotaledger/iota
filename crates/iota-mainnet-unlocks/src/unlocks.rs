@@ -7,13 +7,13 @@ use anyhow::{Context, Result};
 use chrono::{DateTime, Utc};
 use serde::Deserialize;
 
-/// File name of the mainnet token unlock data.
-const MAINNET_UNLOCK_FILE_NAME: &str = "mainnet_unlocks.json";
+/// File name of the mainnet unlock data.
+const AGGREGATED_MAINNET_UNLOCKS_FILE: &str = "mainnet_unlocks_aggregated.json";
 
-/// Represents a token unlock entry.
+/// Represents a single entry in the aggregated unlock data.
 /// It defines how many tokens still remain locked at a specific point in time.
 #[derive(Debug, Clone, Deserialize)]
-pub struct StillLockedTokensEntry {
+pub struct StillLockedEntry {
     /// UTC timestamp at which the tokens are still locked.
     pub timestamp: DateTime<Utc>,
     /// Total locked amount (nano-units) still locked at the timestamp.
@@ -22,19 +22,19 @@ pub struct StillLockedTokensEntry {
 
 /// In-memory store holding the aggregated token unlock data.
 #[derive(Debug, Clone)]
-pub struct TokenUnlocksStore {
+pub struct AggregatedUnlocksStore {
     // Each entry represents the total number of tokens still locked at the specific point in time.
-    entries: BTreeMap<DateTime<Utc>, StillLockedTokensEntry>,
+    entries: BTreeMap<DateTime<Utc>, StillLockedEntry>,
 }
 
-impl TokenUnlocksStore {
+impl AggregatedUnlocksStore {
     /// Loads the aggregated token unlock data from the given JSON file at the
     /// crate root.
     pub fn load() -> Result<Self> {
         let crate_dir = env!("CARGO_MANIFEST_DIR");
         let path = PathBuf::from(crate_dir)
             .join("data")
-            .join(MAINNET_UNLOCK_FILE_NAME);
+            .join(AGGREGATED_MAINNET_UNLOCKS_FILE);
 
         let data = fs::read_to_string(&path)
             .with_context(|| format!("could not read locked supply file: {:?}", path))?;
@@ -44,11 +44,17 @@ impl TokenUnlocksStore {
 
     /// Parses the given JSON string into a `TokenUnlocksStore`.
     pub fn from_json(json: &str) -> Result<Self> {
-        let parsed: Vec<StillLockedTokensEntry> =
+        let parsed: Vec<StillLockedEntry> =
             serde_json::from_str(json).context("invalid JSON format in unlock data")?;
 
         let mut map = BTreeMap::new();
         for entry in parsed {
+            if map.contains_key(&entry.timestamp) {
+                return Err(anyhow::anyhow!(
+                    "duplicate entry found for timestamp: {}",
+                    entry.timestamp
+                ));
+            }
             map.insert(entry.timestamp, entry);
         }
 
@@ -81,7 +87,7 @@ mod tests {
 
     #[test]
     fn test_no_entries() {
-        let store = TokenUnlocksStore::from_json("[]").unwrap();
+        let store = AggregatedUnlocksStore::from_json("[]").unwrap();
         assert_eq!(store.still_locked_tokens(Utc::now()), 0);
     }
 
@@ -92,7 +98,7 @@ mod tests {
                 { "timestamp": "2000-01-01T00:00:00Z", "amount_still_locked": 999 }
             ]
         "#;
-        let store = TokenUnlocksStore::from_json(json).unwrap();
+        let store = AggregatedUnlocksStore::from_json(json).unwrap();
 
         let before = Utc.with_ymd_and_hms(1999, 12, 31, 23, 59, 59).unwrap();
         let exact = Utc.with_ymd_and_hms(2000, 1, 1, 0, 0, 0).unwrap();
@@ -112,7 +118,7 @@ mod tests {
                 { "timestamp": "2025-01-01T00:00:00Z", "amount_still_locked": 100 }
             ]
         "#;
-        let store = TokenUnlocksStore::from_json(json).unwrap();
+        let store = AggregatedUnlocksStore::from_json(json).unwrap();
 
         let t0 = Utc.with_ymd_and_hms(2022, 12, 31, 0, 0, 0).unwrap(); // before all
         let t0_between = Utc.with_ymd_and_hms(2023, 6, 1, 0, 0, 0).unwrap(); // between entry 1 and 2
@@ -137,7 +143,7 @@ mod tests {
                 { "timestamp": "2025-01-01T00:00:00Z", "amount_still_locked": 0 }
             ]
         "#;
-        let store = TokenUnlocksStore::from_json(json).unwrap();
+        let store = AggregatedUnlocksStore::from_json(json).unwrap();
 
         let t1 = Utc.with_ymd_and_hms(2024, 1, 1, 0, 0, 0).unwrap(); // between entries
         let t2 = Utc.with_ymd_and_hms(2025, 1, 1, 0, 0, 0).unwrap(); // entry with zero
@@ -156,7 +162,7 @@ mod tests {
                 { "timestamp": "2030-01-01T00:00:00Z", "amount_still_locked": 100 }
             ]
         "#;
-        let store = TokenUnlocksStore::from_json(json).unwrap();
+        let store = AggregatedUnlocksStore::from_json(json).unwrap();
 
         let t_before = Utc.with_ymd_and_hms(2019, 1, 1, 0, 0, 0).unwrap();
         let t_mid = Utc.with_ymd_and_hms(2025, 1, 1, 0, 0, 0).unwrap(); // between entries
@@ -176,7 +182,7 @@ mod tests {
                 { "timestamp": "2023-11-01T00:00:00Z", "amount_still_locked": 100 }
             ]
         "#;
-        let store = TokenUnlocksStore::from_json(json).unwrap();
+        let store = AggregatedUnlocksStore::from_json(json).unwrap();
 
         let t_exact_mid = Utc.with_ymd_and_hms(2023, 10, 15, 0, 0, 0).unwrap();
         let t_between = Utc.with_ymd_and_hms(2023, 10, 20, 0, 0, 0).unwrap();
@@ -192,7 +198,7 @@ mod tests {
                 { "timestamp": "2022-06-01T00:00:00Z", "amount_still_locked": 888 }
             ]
         "#;
-        let store = TokenUnlocksStore::from_json(json).unwrap();
+        let store = AggregatedUnlocksStore::from_json(json).unwrap();
 
         let far_before = Utc.with_ymd_and_hms(2000, 1, 1, 0, 0, 0).unwrap();
         let just_before = Utc.with_ymd_and_hms(2022, 5, 31, 23, 59, 59).unwrap();
@@ -212,13 +218,13 @@ mod tests {
                 { "timestamp": "2023-10-01T00:00:00Z", "amount_still_locked": 200 }
             ]
         "#;
-        let store = TokenUnlocksStore::from_json(json).unwrap();
+        let store = AggregatedUnlocksStore::from_json(json).unwrap();
         // The entries should be sorted internally; thus, querying a date between
         // the earliest and the next entry should return the correct value.
-        let query_before = Utc.with_ymd_and_hms(2023, 06, 01, 0, 0, 0).unwrap();
+        let query_before = Utc.with_ymd_and_hms(2023, 6, 1, 0, 0, 0).unwrap();
         assert_eq!(store.still_locked_tokens(query_before), 300);
         // Querying exactly at a later entry should return its value.
-        let query_exact = Utc.with_ymd_and_hms(2023, 10, 01, 0, 0, 0).unwrap();
+        let query_exact = Utc.with_ymd_and_hms(2023, 10, 1, 0, 0, 0).unwrap();
         assert_eq!(store.still_locked_tokens(query_exact), 200);
     }
 }
