@@ -82,6 +82,7 @@ use iota_json_rpc_api::JsonRpcMetrics;
 use iota_macros::{fail_point, fail_point_async, replay_log};
 use iota_metrics::{
     RegistryService,
+    hardware_metrics::register_hardware_metrics,
     metrics_network::{MetricsMakeCallbackHandler, NetworkConnectionMetrics, NetworkMetrics},
     server_timing_middleware, spawn_monitored_task,
 };
@@ -427,6 +428,13 @@ impl IotaNode {
             "Initializing iota-node listening on {}", config.network_address
         );
 
+        let genesis = config.genesis()?.clone();
+
+        let chain_identifier = ChainIdentifier::from(*genesis.checkpoint().digest());
+        // It's ok if the value is already set due to data races.
+        let _ = CHAIN_IDENTIFIER.set(chain_identifier);
+        info!("IOTA chain identifier: {chain_identifier}");
+
         // Initialize metrics to track db usage before creating any stores
         DBMetrics::init(&prometheus_registry);
 
@@ -437,8 +445,22 @@ impl IotaNode {
         #[cfg(not(msim))]
         iota_metrics::thread_stall_monitor::start_thread_stall_monitor();
 
-        // Clone the genesis
-        let genesis = config.genesis()?.clone();
+        // Register hardware metrics.
+        register_hardware_metrics(&registry_service, &config.db_path)
+            .expect("Failed registering hardware metrics");
+        // Register uptime metric
+        prometheus_registry
+            .register(iota_metrics::uptime_metric(
+                if is_validator {
+                    "validator"
+                } else {
+                    "fullnode"
+                },
+                software_version,
+                &chain_identifier.to_string(),
+            ))
+            .expect("Failed registering uptime metric");
+
         // If genesis come with some migration data then load them into memory from the
         // file path specified in config.
         let migration_tx_data = if genesis.contains_migrations() {
@@ -592,10 +614,6 @@ impl IotaNode {
             None
         };
 
-        let chain_identifier = ChainIdentifier::from(*genesis.checkpoint().digest());
-        // It's ok if the value is already set due to data races.
-        let _ = CHAIN_IDENTIFIER.set(chain_identifier);
-
         info!("creating archive reader");
         // Create network
         // TODO only configure validators as seed/preferred peers for validators and not
@@ -629,8 +647,7 @@ impl IotaNode {
             &config,
             &trusted_peer_change_tx,
             epoch_store.epoch_start_state(),
-        )
-        .expect("Initial trusted peers must be set");
+        );
 
         info!("start state archival");
         // Start archiving local state to remote store
@@ -1627,7 +1644,7 @@ impl IotaNode {
 
             cur_epoch_store.record_epoch_reconfig_start_time_metric();
 
-            let _ = send_trusted_peer_change(
+            send_trusted_peer_change(
                 &self.config,
                 &self.trusted_peer_change_tx,
                 &new_epoch_start_state,
@@ -1921,18 +1938,15 @@ impl IotaNode {
 fn send_trusted_peer_change(
     config: &NodeConfig,
     sender: &watch::Sender<TrustedPeerChangeEvent>,
-    epoch_state_state: &EpochStartSystemState,
-) -> Result<(), watch::error::SendError<TrustedPeerChangeEvent>> {
-    sender
-        .send(TrustedPeerChangeEvent {
-            new_peers: epoch_state_state.get_validator_as_p2p_peers(config.authority_public_key()),
-        })
-        .tap_err(|err| {
-            warn!(
-                "Failed to send validator peer information to state sync: {:?}",
-                err
-            );
-        })
+    new_epoch_start_state: &EpochStartSystemState,
+) {
+    let new_committee =
+        new_epoch_start_state.get_validator_as_p2p_peers(config.authority_public_key());
+
+    sender.send_modify(|event| {
+        core::mem::swap(&mut event.new_committee, &mut event.old_committee);
+        event.new_committee = new_committee;
+    })
 }
 
 fn build_kv_store(
