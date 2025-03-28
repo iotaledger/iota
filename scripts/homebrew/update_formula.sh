@@ -18,8 +18,8 @@ auth_url="https://${GH_TOKEN}@github.com/${org}"
 
 checksums=${ROOT}/checksum.txt
 
-macos_arm64_checksum=$(sed -En 's/^.*macos-arm64.*([0-9a-f]{64})$/\1/p' "${checksums}")
-linux_x86_64_checksum=$(sed -En 's/^.*linux-x86_64.*([0-9a-f]{64})$/\1/p' "${checksums}")
+macos_arm64_checksum=$(sed -En 's/^([0-9a-f]{64}).*macos-arm64.*$/\1/p' "${checksums}")
+linux_x86_64_checksum=$(sed -En 's/^([0-9a-f]{64}).*linux-x86_64.*$/\1/p' "${checksums}")
 source_checksum=$(curl -sL "$server_url/$repository/archive/refs/tags/$tag.tar.gz" | shasum -a 256 | cut -d " " -f 1)
 
 git clone "${auth_url}"/homebrew-tap homebrew-tap

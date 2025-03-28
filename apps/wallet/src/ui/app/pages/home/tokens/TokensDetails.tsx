@@ -245,7 +245,6 @@ export function TokenDetails() {
                                 type={ButtonType.Secondary}
                                 icon={<ArrowBottomLeft />}
                                 size={ButtonSize.Small}
-                                disabled={activeAccount?.isLocked}
                             />
                             <Button
                                 onClick={onSendClick}

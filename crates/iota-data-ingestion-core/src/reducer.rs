@@ -2,18 +2,28 @@
 // Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::collections::HashMap;
+use std::{collections::HashMap, sync::Arc};
 
 use async_trait::async_trait;
+use backoff::{ExponentialBackoff, backoff::Backoff};
 use futures::StreamExt;
 use iota_types::messages_checkpoint::CheckpointSequenceNumber;
 use tokio::sync::mpsc;
 use tokio_stream::wrappers::ReceiverStream;
+use tokio_util::sync::CancellationToken;
 
 use crate::{
-    IngestionError, IngestionResult, MAX_CHECKPOINTS_IN_PROGRESS, Worker,
+    IngestionError, IngestionResult, MAX_CHECKPOINTS_IN_PROGRESS, Worker, util::reset_backoff,
     worker_pool::WorkerPoolStatus,
 };
+
+/// Represents the outcome of a commit operation with retry logic.
+pub enum CommitStatus {
+    /// Commit succeeded, continue processing.
+    Success,
+    /// Processing should stop due to shutdown signal.
+    Shutdown,
+}
 
 /// Processes and commits batches of messages produced by workers.
 ///
@@ -41,7 +51,66 @@ pub trait Reducer<Mapper: Worker>: Send + Sync {
     /// # Note
     /// Messages within each batch are guaranteed to be ordered by checkpoint
     /// sequence number.
-    async fn commit(&self, batch: Vec<Mapper::Message>) -> Result<(), Mapper::Error>;
+    async fn commit(&self, batch: &[Mapper::Message]) -> Result<(), Mapper::Error>;
+
+    /// Attempts to commit a batch of messages with exponential backoff retries
+    /// on failure.
+    ///
+    /// This function repeatedly calls the [`commit`](Reducer::commit) method of
+    /// the provided [`Reducer`] until either:
+    /// - The commit succeeds, returning `CommitStatus::Success`.
+    /// - A cancellation signal is received via the [`CancellationToken`],
+    ///   returning `CommitStatus::Shutdown`.
+    /// - All retry attempts are exhausted within backoff's maximum elapsed
+    ///   time, causing a panic.
+    ///
+    /// # Retry Mechanism:
+    /// - Uses [`ExponentialBackoff`](backoff::ExponentialBackoff) to introduce
+    ///   increasing delays between retry attempts.
+    /// - Checks for cancellation both before and after each commit attempt.
+    /// - If a cancellation signal is received during a backoff delay, the
+    ///   function exits immediately with `CommitStatus::Shutdown`.
+    ///
+    /// # Panics:
+    /// - If all retry attempts are exhausted within backoff's the maximum
+    ///   elapsed time, indicating a persistent failure.
+    async fn commit_with_retry(
+        &self,
+        batch: &[Mapper::Message],
+        mut backoff: ExponentialBackoff,
+        token: &CancellationToken,
+    ) -> CommitStatus {
+        loop {
+            // check for cancellation before attempting commit.
+            if token.is_cancelled() {
+                return CommitStatus::Shutdown;
+            }
+            // attempt to commit.
+            match self.commit(batch).await {
+                Ok(_) => return CommitStatus::Success,
+                Err(err) => {
+                    let err = IngestionError::Reducer(format!("failed to commit batch: {err}"));
+                    tracing::warn!("transient reducer commit error {err:?}");
+                    // check for cancellation after failed commit.
+                    if token.is_cancelled() {
+                        return CommitStatus::Shutdown;
+                    }
+                }
+            }
+            // get next backoff duration or panic if max retries exceeded
+            let duration = backoff
+                .next_backoff()
+                .expect("max retry attempts exceeded: commit operation failed");
+            // if cancellation occurs during backoff wait, exit early with Shutdown.
+            // Otherwise (if timeout expires), continue with the next retry attempt
+            if tokio::time::timeout(duration, token.cancelled())
+                .await
+                .is_ok()
+            {
+                return CommitStatus::Shutdown;
+            }
+        }
+    }
 
     /// Determines if the current batch should be closed and committed.
     ///
@@ -88,6 +157,8 @@ pub(crate) async fn reduce<W: Worker>(
     watermark_receiver: mpsc::Receiver<(CheckpointSequenceNumber, W::Message)>,
     executor_progress_sender: mpsc::Sender<WorkerPoolStatus>,
     reducer: Box<dyn Reducer<W>>,
+    backoff: Arc<ExponentialBackoff>,
+    token: CancellationToken,
 ) -> IngestionResult<()> {
     // convert to a stream of MAX_CHECKPOINTS_IN_PROGRESS size. This way, each
     // iteration of the loop will process all ready messages.
@@ -102,6 +173,8 @@ pub(crate) async fn reduce<W: Worker>(
     // track the next unprocessed checkpoint number for reporting progress
     // after each chunk of messages is received from the stream.
     let mut progress_update = None;
+    // flag to indicate a shutdown has been triggered.
+    let mut trigger_shutdown = false;
 
     while let Some(update_batch) = stream.next().await {
         unprocessed.extend(update_batch.into_iter());
@@ -112,14 +185,19 @@ pub(crate) async fn reduce<W: Worker>(
             // `reducer.should_close_batch` policy, once a batch is collected it gets
             // committed and a new batch is created with the current message.
             if reducer.should_close_batch(&batch, Some(&message)) {
-                reducer
-                    .commit(std::mem::take(&mut batch))
+                match reducer
+                    .commit_with_retry(&std::mem::take(&mut batch), reset_backoff(&backoff), &token)
                     .await
-                    .map_err(|err| {
-                        IngestionError::Reducer(format!("failed to commit batch: {err}"))
-                    })?;
-                batch = vec![message];
-                progress_update = Some(current_checkpoint_number);
+                {
+                    CommitStatus::Success => {
+                        batch = vec![message];
+                        progress_update = Some(current_checkpoint_number);
+                    }
+                    CommitStatus::Shutdown => {
+                        trigger_shutdown = true;
+                        break;
+                    }
+                };
             } else {
                 // Add message to existing batch since no commit needed.
                 batch.push(message);
@@ -129,12 +207,16 @@ pub(crate) async fn reduce<W: Worker>(
         // Handle final batch processing.
         // Check if the final batch should be committed.
         // None parameter indicates no more messages available.
-        if reducer.should_close_batch(&batch, None) {
-            reducer
-                .commit(std::mem::take(&mut batch))
+        if reducer.should_close_batch(&batch, None) && !trigger_shutdown {
+            match reducer
+                .commit_with_retry(&std::mem::take(&mut batch), reset_backoff(&backoff), &token)
                 .await
-                .map_err(|err| IngestionError::Reducer(format!("failed to commit batch: {err}")))?;
-            progress_update = Some(current_checkpoint_number);
+            {
+                CommitStatus::Success => {
+                    progress_update = Some(current_checkpoint_number);
+                }
+                CommitStatus::Shutdown => trigger_shutdown = true,
+            }
         }
         // report progress update to executor.
         if let Some(watermark) = progress_update {
@@ -143,6 +225,12 @@ pub(crate) async fn reduce<W: Worker>(
                 .await
                 .map_err(|_| IngestionError::Channel("unable to send worker pool progress updates to executor, receiver half closed".into()))?;
             progress_update = None;
+        }
+
+        // Check for shutdown signal after progress update to ensure progress
+        // is reported even during shutdown.
+        if trigger_shutdown {
+            break;
         }
     }
     Ok(())

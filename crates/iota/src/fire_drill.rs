@@ -34,7 +34,6 @@ use iota_types::{
     base_types::{IotaAddress, ObjectRef},
     committee::EpochId,
     crypto::{IotaKeyPair, generate_proof_of_possession, get_authority_key_pair, get_key_pair},
-    iota_system_state::iota_system_state_summary::IotaSystemStateSummary,
     multiaddr::{Multiaddr, Protocol},
     transaction::{CallArg, TEST_ONLY_GAS_UNIT_FOR_GENERIC, Transaction, TransactionData},
 };
@@ -161,23 +160,19 @@ async fn update_next_epoch_metadata(
     new_config.protocol_key_pair =
         KeyPairWithPath::new(IotaKeyPair::Ed25519(new_protocol_key_pair));
 
-    let iota_system_state = iota_client
+    // needs to be active_validators instead of committee_members here, so that
+    // every validator can update their own metadata
+    let self_active_validator = iota_client
         .governance_api()
         .get_latest_iota_system_state()
-        .await?;
-    let validators = match iota_system_state {
-        IotaSystemStateSummary::V1(v1) => v1.active_validators,
-        IotaSystemStateSummary::V2(v2) => v2.active_validators,
-        _ => panic!("unsupported IotaSystemStateSummary"),
-    };
-
-    let self_validator = validators
-        .iter()
+        .await?
+        .iter_active_validators()
         .find(|v| v.iota_address == iota_address)
-        .unwrap();
+        .ok_or_else(|| anyhow::anyhow!("Could not find validator with address {iota_address}"))?
+        .clone();
 
     // Network address
-    let mut new_network_address = Multiaddr::try_from(self_validator.net_address.clone()).unwrap();
+    let mut new_network_address = Multiaddr::try_from(self_active_validator.net_address.clone())?;
     info!("Current network address: {:?}", new_network_address);
     let http = new_network_address.pop().unwrap();
     // pop out tcp
@@ -207,7 +202,7 @@ async fn update_next_epoch_metadata(
 
     // primary address
     let mut new_primary_addresses =
-        Multiaddr::try_from(self_validator.primary_address.clone()).unwrap();
+        Multiaddr::try_from(self_active_validator.primary_address.clone())?;
     info!("Current primary address: {:?}", new_primary_addresses);
     // pop out udp
     new_primary_addresses.pop().unwrap();

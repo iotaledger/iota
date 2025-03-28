@@ -16,7 +16,6 @@ use iota_test_transaction_builder::{
 };
 use iota_types::{
     effects::TransactionEffectsAPI,
-    iota_system_state::iota_system_state_summary::IotaSystemStateSummary,
     quorum_driver_types::{
         ExecuteTransactionRequestType, ExecuteTransactionRequestV1, ExecuteTransactionResponseV1,
         FinalizedEffects, IsTransactionExecutedLocally, QuorumDriverError,
@@ -369,21 +368,19 @@ async fn execute_transaction_v1_staking_transaction() -> Result<(), anyhow::Erro
     let handle = &test_cluster.fullnode_handle.iota_node;
     let orchestrator = handle.with(|n| n.transaction_orchestrator().as_ref().unwrap().clone());
 
-    let validator_address = match context
+    // Here we test the staking transaction to a committee member.
+    let committee_member_address = context
         .get_client()
         .await?
         .governance_api()
         .get_latest_iota_system_state()
         .await?
-    {
-        IotaSystemStateSummary::V1(v1) => v1.active_validators,
-        IotaSystemStateSummary::V2(v2) => v2.active_validators,
-        _ => panic!("unsupported IotaSystemStateSummary"),
-    }
-    .first()
-    .unwrap()
-    .iota_address;
-    let transaction = make_staking_transaction(context, validator_address).await;
+        .iter_committee_members()
+        .next()
+        .unwrap()
+        .iota_address;
+
+    let transaction = make_staking_transaction(context, committee_member_address).await;
 
     let request = ExecuteTransactionRequestV1 {
         transaction,

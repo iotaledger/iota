@@ -61,7 +61,6 @@ use iota_types::{
     base_types::*,
     committee::QUORUM_THRESHOLD,
     crypto::AuthorityPublicKeyBytes,
-    iota_system_state::iota_system_state_summary::IotaSystemStateSummary,
     messages_checkpoint::{CheckpointCommitment, ECMHLiveObjectSetDigest},
     messages_grpc::{
         LayoutGenerationOption, ObjectInfoRequest, ObjectInfoRequestKind, ObjectInfoResponse,
@@ -99,7 +98,8 @@ pub enum SnapshotVerifyMode {
     Strict,
 }
 
-// This functions requires at least one of genesis or fullnode_rpc to be `Some`.
+// Make clients for fetching relevant data (objects, transactions, checkpoints)
+// from the current committee members.
 async fn make_clients(
     iota_client: &Arc<IotaClient>,
 ) -> Result<BTreeMap<AuthorityName, (Multiaddr, NetworkAuthorityClient)>> {
@@ -107,24 +107,19 @@ async fn make_clients(
     net_config.connect_timeout = Some(Duration::from_secs(5));
     let mut authority_clients = BTreeMap::new();
 
-    let active_validators = match iota_client
+    let state = iota_client
         .governance_api()
         .get_latest_iota_system_state()
-        .await?
-    {
-        IotaSystemStateSummary::V1(v1) => v1.active_validators,
-        IotaSystemStateSummary::V2(v2) => v2.iter_committee_members().cloned().collect::<Vec<_>>(),
-        _ => panic!("unsupported IotaSystemStateSummary"),
-    };
+        .await?;
 
-    for validator in active_validators {
-        let net_addr = Multiaddr::try_from(validator.net_address).unwrap();
+    for committee_member in state.iter_committee_members() {
+        let net_addr = Multiaddr::try_from(committee_member.net_address.clone())?;
         let channel = net_config
             .connect_lazy(&net_addr)
             .map_err(|err| anyhow!(err.to_string()))?;
         let client = NetworkAuthorityClient::new(channel);
         let public_key_bytes =
-            AuthorityPublicKeyBytes::from_bytes(&validator.authority_pubkey_bytes)?;
+            AuthorityPublicKeyBytes::from_bytes(&committee_member.authority_pubkey_bytes)?;
         authority_clients.insert(public_key_bytes, (net_addr.clone(), client));
     }
 
