@@ -3424,7 +3424,7 @@
       "name": "iotax_getCirculatingSupply",
       "tags": [
         {
-          "name": "Extended API"
+          "name": "Coin Query API"
         }
       ],
       "description": "Return the circulating supply summary. Exclusively served by the indexer.",

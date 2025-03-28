@@ -7026,7 +7026,6 @@ dependencies = [
  "cached",
  "chrono",
  "clap",
- "csv",
  "diesel",
  "diesel_migrations",
  "downcast",
