@@ -65,6 +65,7 @@ impl Datasource<CheckpointTxnData> for IotaCheckpointDatasource {
             worker,
             TransactionDigest::random().to_string(),
             self.concurrency,
+            Default::default(),
         );
         executor.register(worker_pool).await?;
         let checkpoint_path = self.checkpoint_path.clone();

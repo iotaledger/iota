@@ -100,7 +100,7 @@ impl HistoricalReducer {
 
 #[async_trait]
 impl Reducer<RelayWorker> for HistoricalReducer {
-    async fn commit(&self, batch: Vec<Arc<CheckpointData>>) -> Result<(), anyhow::Error> {
+    async fn commit(&self, batch: &[Arc<CheckpointData>]) -> Result<(), anyhow::Error> {
         if batch.is_empty() {
             anyhow::bail!("commit batch can't be empty");
         }

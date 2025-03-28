@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 module iota_system::voting_power {
-    use iota_system::validator::{ValidatorV1, get_validator_by_committee_index};
+    use iota_system::validator::ValidatorV1;
 
     public struct VotingPowerInfoV1 has drop {
         validator_index: u64,
@@ -56,14 +56,9 @@ module iota_system::voting_power {
         threshold: u64,
     ): (vector<VotingPowerInfoV1>, u64) {
         let total_committee_stake = total_committee_stake(validators, committee_members);
-        let mut i = 0;
-        let committee_len = committee_members.length();
         let mut total_power = 0;
         let mut result = vector[];
-        while (i < committee_len) {
-            let validator_index = committee_members[i];
-            let validator = get_validator_by_committee_index(validators, validator_index);
-
+        validators.take_do_with_ix_ref!(committee_members, |_,validator_index, validator| {
             let stake = validator.total_stake();
             let adjusted_stake = stake as u128 * (TOTAL_VOTING_POWER as u128) / (total_committee_stake as u128);
             let voting_power = (adjusted_stake as u64).min(threshold);
@@ -74,22 +69,13 @@ module iota_system::voting_power {
             };
             insert(&mut result, info);
             total_power = total_power + voting_power;
-            i = i + 1;
-        };
+        });
         (result, TOTAL_VOTING_POWER - total_power)
     }
 
     /// Calculate the total committee validator stake.
-    fun total_committee_stake(validators: &vector<ValidatorV1>, committee_members: &vector<u64>): u64 {
-        let mut stake = 0;
-        let committee_length = committee_members.length();
-        let mut i = 0;
-        while (i < committee_length) {
-            let v = get_validator_by_committee_index(validators, committee_members[i]);
-            stake = stake + v.total_stake();
-            i = i + 1;
-        };
-        stake
+    public(package) fun total_committee_stake(validators: &vector<ValidatorV1>, committee_members: &vector<u64>): u64 {
+        validators.take_fold_ref!(committee_members, 0, |stake, validator| stake + validator.total_stake())
     }
 
     /// Insert `new_info` to `info_list` as part of insertion sort, such that `info_list` is always sorted
@@ -149,20 +135,17 @@ module iota_system::voting_power {
     /// Check a few invariants that must hold after setting the voting power.
     fun check_invariants(committee_members: &vector<u64>, validators: &vector<ValidatorV1>) {
         // First check that the total voting power must be TOTAL_VOTING_POWER.
-        let mut i = 0;
-        let committee_length = committee_members.length();
-        let mut total = 0;
-        while (i < committee_length) {
-        let voting_power = get_validator_by_committee_index(validators, committee_members[i]).voting_power();
+        let total_voting_power = validators.take_fold_ref!(committee_members, 0, |total, v| {
+            let voting_power = v.voting_power();
             assert!(voting_power > 0, EInvalidVotingPower);
-            total = total + voting_power;
-            i = i + 1;
-        };
-        assert!(total == TOTAL_VOTING_POWER, ETotalPowerMismatch);
+            total + voting_power
+        });
+        assert!(total_voting_power == TOTAL_VOTING_POWER, ETotalPowerMismatch);
 
         // Second check that if validator A's stake is larger than B's stake, A's voting power must be no less
         // than B's voting power; similarly, if A's stake is less than B's stake, A's voting power must be no larger
         // than B's voting power.
+        let committee_length = committee_members.length();
         let mut a = 0;
         while (a < committee_length) {
             let mut b = a + 1;

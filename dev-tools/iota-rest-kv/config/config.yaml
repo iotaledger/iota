@@ -3,7 +3,7 @@
 # The Rest Api address
 server-address: "0.0.0.0:3555"
 
-# remote Object Store config for more info:
+# Remote Object Store config for more info:
 # - https://docs.iota.org/operator/archives#set-up-archival-fallback
 #
 # The object store config should point to the same object store the

@@ -1,4 +1,21 @@
-## IOTA Metrics
+# IOTA Metrics
+
+Metrics are exposed on the `/metrics` endpoint of a running IOTA node.
+They are then scraped by prometheus and displayed in the Grafana UI.
+
+To only see metrics exposed on the endpoint `/metrics`, you need to:
+
+- launch a local swarm via `RUST_LOG="off,iota_swarm=info,iota_node=info" cargo run --bin iota -- start --force-regenesis`
+- search the beginning of the logs for `Prometheus` (the full log line should look like `Started Prometheus HTTP endpoint. To query metrics use curl -s http://127.0.0.1:51426/metrics` )
+- run the curl command you found, containing the right port to reach the prometheus endpoint
+
+To launch the full grafana UI, you need to:
+
+- launch a private network via docker (See ../../dev-tools/iota-private-network/README.md)
+- then launch the grafana UI via docker (See ../../dev-tools/grafana-local/README.md)
+  You can then find the grafana UI at http://localhost:3000
+
+## Implementation
 
 The `iota-metrics` crate defines a `Metrics` struct with various [`IntGaugeVec`] metrics to monitor running tasks,
 pending futures, channel sizes, and scope activities. A gauge is a type of metric that represents a single numerical value

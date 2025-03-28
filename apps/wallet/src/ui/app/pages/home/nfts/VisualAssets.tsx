@@ -76,7 +76,6 @@ export function VisualAssets({ items }: VisualAssetsProps) {
                         <NFTDisplayCard
                             objectId={object.objectId}
                             isHoverable={!isKioskOwnerToken(kioskClient.network, object)}
-                            hideLabel
                             icon={<VisibilityOff />}
                             onIconClick={(e) => handleHideAsset(e, object)}
                         />

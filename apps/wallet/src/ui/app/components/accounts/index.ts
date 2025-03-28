@@ -9,7 +9,6 @@ export * from './AccountListItem';
 export * from './AccountMultiSelect';
 export * from './AccountsFormContext';
 export * from './AutoLockSelector';
-export * from './EditableAccountName';
 export * from './ImportPrivateKeyForm';
 export * from './ImportRecoveryPhraseForm';
 export * from './ImportSeedForm';
