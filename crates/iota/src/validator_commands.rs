@@ -1062,95 +1062,69 @@ pub async fn get_validator_summary(
         .await?;
     if res.error.is_none() {
         let object_id = res.data.expect("no data in result").object_id;
-        // TODO: get dynamic field object with BCS directly and remove this request when https://github.com/iotaledger/iota/pull/6095 is merged
-        let validator = client
-            .read_api()
-            .get_object_with_options(object_id, IotaObjectDataOptions::default().with_bcs())
-            .await?
-            .into_object()?
-            .bcs
-            .expect("missing bcs")
-            .try_into_move()
-            .expect("invalid move type")
-            .deserialize::<Field<IotaAddress, Validator>>()?;
-
-        let name = DynamicFieldName {
-            type_: TypeTag::U64,
-            value: IotaMoveValue::String("1".to_string()).to_json_value(),
-        };
-        let res = client
-            .read_api()
-            .get_dynamic_field_object(*validator.value.inner.id.object_id(), name)
-            .await?;
-        let object_id = res.data.expect("no data in result").object_id;
-
-        // TODO: get dynamic field object with BCS directly and remove this request when https://github.com/iotaledger/iota/pull/6095 is merged
-        let validator = client
-            .read_api()
-            .get_object_with_options(object_id, IotaObjectDataOptions::default().with_bcs())
-            .await?
-            .into_object()?
-            .bcs
-            .expect("missing bcs")
-            .try_into_move()
-            .expect("invalid move type")
-            .deserialize::<Field<u64, ValidatorV1>>()?;
-        return Ok(Some((
-            ValidatorStatus::Candidate,
-            validator.value.into_iota_validator_summary(),
-        )));
+        let validator_summary =
+            get_validator_summary_from_validator_wrapper(client, object_id).await?;
+        return Ok(Some((ValidatorStatus::Candidate, validator_summary)));
     };
 
     // Check inactive
-
-    // TODO pagination
-    let res = client
-        .read_api()
-        .get_dynamic_fields(inactive_pools_id, None, None)
-        .await?;
-    for dynamic_field_info in res.data {
-        let validator = client
+    let mut cursor = None;
+    let mut has_next_page = true;
+    while has_next_page {
+        let page = client
             .read_api()
-            .get_object_with_options(
-                dynamic_field_info.object_id,
-                IotaObjectDataOptions::default().with_bcs(),
-            )
-            .await?
-            .into_object()?
-            .bcs
-            .expect("missing bcs")
-            .try_into_move()
-            .expect("invalid move type")
-            .deserialize::<Field<IotaAddress, Validator>>()?;
-
-        let name = DynamicFieldName {
-            type_: TypeTag::U64,
-            value: IotaMoveValue::String("1".to_string()).to_json_value(),
-        };
-        let res = client
-            .read_api()
-            .get_dynamic_field_object(*validator.value.inner.id.object_id(), name)
+            .get_dynamic_fields(inactive_pools_id, cursor, None)
             .await?;
-        let object_id = res.data.expect("no data in result").object_id;
-
-        // TODO: get dynamic field object with BCS directly and remove this request when https://github.com/iotaledger/iota/pull/6095 is merged
-        let validator = client
-            .read_api()
-            .get_object_with_options(object_id, IotaObjectDataOptions::default().with_bcs())
-            .await?
-            .into_object()?
-            .bcs
-            .expect("missing bcs")
-            .try_into_move()
-            .expect("invalid move type")
-            .deserialize::<Field<u64, ValidatorV1>>()?;
-        let validator_summary = validator.value.into_iota_validator_summary();
-        if validator_summary.iota_address == validator_address {
-            return Ok(Some((ValidatorStatus::Inactive, validator_summary)));
+        for dynamic_field_info in page.data {
+            let validator_summary =
+                get_validator_summary_from_validator_wrapper(client, dynamic_field_info.object_id)
+                    .await?;
+            if validator_summary.iota_address == validator_address {
+                return Ok(Some((ValidatorStatus::Inactive, validator_summary)));
+            }
         }
+        has_next_page = page.has_next_page;
+        cursor = page.next_cursor;
     }
 
     Ok(None)
+}
+
+async fn get_validator_summary_from_validator_wrapper(
+    client: &IotaClient,
+    validator_object_id: ObjectID,
+) -> anyhow::Result<IotaValidatorSummary> {
+    let validator = client
+        .read_api()
+        .get_object_with_options(
+            validator_object_id,
+            IotaObjectDataOptions::default().with_bcs(),
+        )
+        .await?
+        .into_object()?
+        .bcs
+        .expect("missing bcs")
+        .try_into_move()
+        .expect("invalid move type")
+        .deserialize::<Field<IotaAddress, Validator>>()?;
+
+    let object_id = iota_types::dynamic_field::derive_dynamic_field_id(
+        *validator.value.inner.id.object_id(),
+        &TypeTag::U64,
+        &bcs::to_bytes(&1u64)?,
+    )?;
+    let validator = client
+        .read_api()
+        .get_object_with_options(object_id, IotaObjectDataOptions::default().with_bcs())
+        .await?
+        .into_object()?
+        .bcs
+        .expect("missing bcs")
+        .try_into_move()
+        .expect("invalid move type")
+        .deserialize::<Field<u64, ValidatorV1>>()?;
+
+    Ok(validator.value.into_iota_validator_summary())
 }
 
 async fn display_metadata(
