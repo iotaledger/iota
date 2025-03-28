@@ -133,7 +133,7 @@ impl IndexerReader {
             pool,
             package_resolver,
             package_obj_type_cache,
-            token_unlocks_store: TokenUnlocksStore::load(),
+            token_unlocks_store: TokenUnlocksStore::load()?,
         })
     }
 

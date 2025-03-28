@@ -4,6 +4,7 @@
 
 use std::{collections::HashMap, sync::Arc};
 
+use anyhow::Result;
 use async_trait::async_trait;
 use cached::{SizedCache, proc_macro::cached};
 use chrono::Utc;
@@ -63,15 +64,15 @@ impl CoinReadApi {
         state: Arc<AuthorityState>,
         transaction_kv_store: Arc<TransactionKeyValueStore>,
         metrics: Arc<JsonRpcMetrics>,
-    ) -> Self {
-        Self {
+    ) -> Result<Self> {
+        Ok(Self {
             internal: Box::new(CoinReadInternalImpl::new(
                 state,
                 transaction_kv_store,
                 metrics,
             )),
-            token_unlocks_store: TokenUnlocksStore::load(),
-        }
+            token_unlocks_store: TokenUnlocksStore::load()?,
+        })
     }
 }
 

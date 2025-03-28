@@ -7312,6 +7312,7 @@ dependencies = [
 name = "iota-mainnet-unlocks"
 version = "0.11.0-alpha"
 dependencies = [
+ "anyhow",
  "chrono",
  "iota-proc-macros",
  "serde",
