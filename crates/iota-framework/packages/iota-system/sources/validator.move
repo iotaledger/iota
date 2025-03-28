@@ -804,32 +804,6 @@ module iota_system::validator {
         &self.staking_pool
     }
 
-    public(package) fun get_validator_by_committee_index(
-        validators: &vector<ValidatorV1>,
-        committee_member_index: u64,
-    ): &ValidatorV1 {
-            let validators_length = validators.length();
-            assert!(
-                committee_member_index < validators_length,
-                ECommitteeMembersOutOfRange,
-            );
-
-            &validators[committee_member_index]
-    }
-
-    public(package) fun get_validator_by_committee_index_mut(
-        validators: &mut vector<ValidatorV1>,
-        committee_member_index: u64,
-    ): &mut ValidatorV1 {
-            let validators_length = validators.length();
-            assert!(
-                committee_member_index < validators_length,
-                ECommitteeMembersOutOfRange,
-            );
-
-            return &mut validators[committee_member_index]
-    }
-
     /// Create a new validator from the given `ValidatorMetadataV1`, called by both `new` and `new_for_testing`.
     fun new_from_metadata(
         metadata: ValidatorMetadataV1,

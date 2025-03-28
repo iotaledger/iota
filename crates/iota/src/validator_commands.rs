@@ -975,6 +975,7 @@ impl IotaValidatorCommandResponse {
 #[derive(Debug, Hash, PartialEq, Eq)]
 pub enum ValidatorStatus {
     Active,
+    CommitteeMember,
     Pending,
 }
 
@@ -986,29 +987,50 @@ pub async fn get_validator_summary(
         .governance_api()
         .get_latest_iota_system_state()
         .await?;
-    let (active_validators, pending_active_validators_id) = match iota_system_state {
-        IotaSystemStateSummary::V1(v1) => (v1.active_validators, v1.pending_active_validators_id),
-        IotaSystemStateSummary::V2(v2) => (v2.active_validators, v2.pending_active_validators_id),
-        _ => panic!("unsupported IotaSystemStateSummary"),
-    };
+    let (committee_members, active_validators, pending_active_validators_id) =
+        match iota_system_state {
+            IotaSystemStateSummary::V1(v1) => {
+                (None, v1.active_validators, v1.pending_active_validators_id)
+            }
+            IotaSystemStateSummary::V2(v2) => (
+                Some(v2.committee_members),
+                v2.active_validators,
+                v2.pending_active_validators_id,
+            ),
+            _ => panic!("unsupported IotaSystemStateSummary"),
+        };
 
     let mut status = None;
     let mut active_validators = active_validators
         .into_iter()
-        .map(|s| (s.iota_address, s))
+        .enumerate()
+        .map(|(index, summary)| {
+            let committee_member = committee_members
+                .as_ref()
+                .map(|members| members.contains(&(index as u64)))
+                // There was no committee in IotaSystemStateSummary::V1, so for consistency
+                // we just set all validators also as committee_member.
+                .unwrap_or(true);
+            (summary.iota_address, (summary, committee_member))
+        })
         .collect::<BTreeMap<_, _>>();
-    let validator_info = if active_validators.contains_key(&validator_address) {
-        status = Some(ValidatorStatus::Active);
-        Some(active_validators.remove(&validator_address).unwrap())
-    } else {
-        // Check pending validators
-        get_pending_candidate_summary(validator_address, client, pending_active_validators_id)
-            .await?
-            .map(|v| v.into_iota_validator_summary())
-            .tap_some(|_s| status = Some(ValidatorStatus::Pending))
+    let validator_info =
+        if let Some((_, committee_member)) = active_validators.get(&validator_address) {
+            if *committee_member {
+                status = Some(ValidatorStatus::CommitteeMember);
+            } else {
+                status = Some(ValidatorStatus::Active);
+            }
+            Some(active_validators.remove(&validator_address).unwrap().0)
+        } else {
+            // Check pending validators
+            get_pending_candidate_summary(validator_address, client, pending_active_validators_id)
+                .await?
+                .map(|v| v.into_iota_validator_summary())
+                .tap_some(|_s| status = Some(ValidatorStatus::Pending))
 
-        // TODO also check candidate and inactive validators
-    };
+            // TODO also check candidate and inactive validators
+        };
     if validator_info.is_none() {
         return Ok(None);
     }
