@@ -26,14 +26,12 @@ path: "./test-checkpoints"
 # IOTA Node Rest API URL
 remote-store-url: "http://localhost:9000/api/v1"
 
-# DynamoDbProgressStore config
+# Path to the progress store JSON file.
 #
-progress-store:
-  aws-access-key-id: "test"
-  aws-secret-access-key: "test"
-  aws-region: "us-east-1"
-  # DynamoDB table name
-  table-name: "checkpoint-progress"
+# The ingestion pipeline uses this file to persist its progress,
+# ensuring state is preserved across restarts.
+#
+progress-store-path: "/iota/output/ingestion_progress.json"
 
 # Workers Configs
 #
@@ -124,36 +122,12 @@ Before starting the service, you need to set up the required AWS components. The
 aws --profile localstack s3 mb s3://checkpoints
 ```
 
-### 2. Set up DynamoDB
-
-Create the DynamoDB table:
-
-```bash
-aws --profile localstack dynamodb create-table \
-    --table-name checkpoint-progress \
-    --attribute-definitions AttributeName=task_name,AttributeType=S \
-    --key-schema AttributeName=task_name,KeyType=HASH \
-    --provisioned-throughput ReadCapacityUnits=5,WriteCapacityUnits=5
-```
-
-Initialize the required record:
-
-```bash
-aws --profile localstack dynamodb put-item \
-    --table-name checkpoint-progress \
-    --item '{
-        "task_name": {"S": "local-blob-storage"},
-        "nstate": {"N": "0"}
-    }'
-```
-
-### 3. Verify Resources
+### 2. Verify Resources
 
 Verify that the resources were created correctly:
 
 ```bash
 aws --profile localstack s3 ls
-aws --profile localstack dynamodb list-tables
 ```
 
 ## Troubleshooting
