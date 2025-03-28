@@ -264,14 +264,14 @@ pub mod setup_postgres {
             e
         })?;
         info!("Postgres database connection pool is created at {}", db_url);
-        if indexer_config.reset_db {
-            let mut conn = get_pool_connection(&blocking_cp).map_err(|e| {
-                error!(
-                    "Failed getting Postgres connection from connection pool with error {:?}",
-                    e
-                );
+        let mut conn = get_pool_connection(&blocking_cp).map_err(|e| {
+            error!(
+                "Failed getting Postgres connection from connection pool with error {:?}",
                 e
-            })?;
+            );
+            e
+        })?;
+        if indexer_config.reset_db {
             reset_database(&mut conn).map_err(|e| {
                 let db_err_msg = format!(
                     "Failed resetting database with url: {:?} and error: {:?}",
@@ -281,6 +281,10 @@ pub mod setup_postgres {
                 IndexerError::PostgresReset(db_err_msg)
             })?;
             info!("Reset Postgres database complete.");
+        } else {
+            conn.run_migrations(&MIGRATIONS.migrations().unwrap())
+                .map_err(|e| anyhow!("Failed to run migrations {e}"))?;
+            info!("Database migrations are up to date.");
         }
         let indexer_metrics = IndexerMetrics::new(&registry);
         iota_metrics::init_metrics(&registry);
