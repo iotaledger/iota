@@ -171,6 +171,11 @@ export function StakeFormComponent({ validatorAddress, epoch, onSuccess }: Stake
     }, [maxAmountTxGasBudget]);
 
     const gasUnstakeBuffer = (maxAmountTxTotalGas + maxAmountTxStorageRebate) * BigInt(2); // 2x gas budget need for unstaking
+    const [gasUnstakeBufferFormatted, gasUnstakeBufferSymbol] = useFormatCoin({
+        balance: gasUnstakeBuffer,
+        format: CoinFormat.FULL,
+    });
+
     const maxTokenBalance = coinBalance - gasUnstakeBuffer;
     const [maxTokenFormatted, symbol] = useFormatCoin({
         balance: maxTokenBalance,
@@ -239,6 +244,14 @@ export function StakeFormComponent({ validatorAddress, epoch, onSuccess }: Stake
                     <InfoBox
                         type={InfoBoxType.Error}
                         supportingText="You have selected an amount that will leave you with insufficient funds to pay for gas fees for unstaking or any other transactions."
+                        style={InfoBoxStyle.Elevated}
+                        icon={<Exclamation />}
+                    />
+                ) : null}
+                {isMaxAmountSet ? (
+                    <InfoBox
+                        type={InfoBoxType.Warning}
+                        supportingText={`We've reserved ${gasUnstakeBufferFormatted} ${gasUnstakeBufferSymbol} to ensure you have enough balance to unstake later. This helps prevent failed transactions due to insufficient gas.`}
                         style={InfoBoxStyle.Elevated}
                         icon={<Exclamation />}
                     />

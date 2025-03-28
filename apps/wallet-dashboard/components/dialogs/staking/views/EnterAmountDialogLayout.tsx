@@ -32,6 +32,7 @@ interface EnterAmountDialogLayoutProps {
     showInfo: boolean;
     infoTitle?: string;
     infoMessage: string;
+    infoType?: InfoBoxType;
     isLoading: boolean;
     onBack: () => void;
     handleClose: () => void;
@@ -50,6 +51,7 @@ export function EnterAmountDialogLayout({
     showInfo,
     infoTitle,
     infoMessage,
+    infoType,
     isLoading,
     isStakeDisabled,
     onBack,
@@ -113,7 +115,7 @@ export function EnterAmountDialogLayout({
                                 <div className="mt-md">
                                     <InfoBox
                                         title={infoTitle}
-                                        type={InfoBoxType.Error}
+                                        type={infoType ?? InfoBoxType.Error}
                                         supportingText={infoMessage}
                                         style={InfoBoxStyle.Elevated}
                                         icon={<Exclamation />}

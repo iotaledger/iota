@@ -18,7 +18,7 @@ import { useSignAndExecuteTransaction } from '@iota/dapp-kit';
 import { EnterAmountDialogLayout } from './EnterAmountDialogLayout';
 import { ampli } from '@/lib/utils/analytics';
 import { useEffect } from 'react';
-import { ButtonPill } from '@iota/apps-ui-kit';
+import { ButtonPill, InfoBoxType } from '@iota/apps-ui-kit';
 
 export interface FormValues {
     amount: string;
@@ -84,14 +84,17 @@ export function EnterAmountView({
     const caption = maxAmountTxGasBudget
         ? `${maxTokenFormatted} ${maxTokenFormattedSymbol} Available`
         : '--';
-    const infoMessage =
-        'You have selected an amount that will leave you with insufficient funds to pay for gas fees for unstaking or any other transactions.';
 
     const hasAmount = values.amount.length > 0;
     const amount = safeParseAmount(coinType === IOTA_TYPE_ARG ? values.amount : '0', decimals);
     const gasUnstakeBuffer = (maxAmountTxTotalGas + maxAmountTxStorageRebate) * BigInt(2); // 2x gas budget need for unstaking
 
     const amountWithGas = amount !== null ? amount + gasUnstakeBuffer : 0n;
+    const [gasUnstakeBufferFormatted, gasUnstakeBufferSymbol] = useFormatCoin({
+        balance: gasUnstakeBuffer,
+        format: CoinFormat.FULL,
+    });
+
     const canPay = amount !== null ? maxTokenBalance >= amount + gasUnstakeBuffer : false;
     const hasEnoughRemainingBalance = !(hasAmount && !canPay);
     const isMaxAmountSet = maxTokenBalance === amountWithGas;
@@ -130,14 +133,35 @@ export function EnterAmountView({
         );
     }
 
+    const infoBox = (() => {
+        if (!hasEnoughRemainingBalance) {
+            return {
+                message:
+                    'You have selected an amount that will leave you with insufficient funds to pay for gas fees for unstaking or any other transactions.',
+            };
+        }
+
+        if (isMaxAmountSet) {
+            return {
+                message: `We've reserved ${gasUnstakeBufferFormatted} ${gasUnstakeBufferSymbol} to ensure you have enough balance to unstake later. This helps prevent failed transactions due to insufficient gas.`,
+                type: InfoBoxType.Warning,
+            };
+        }
+
+        return {
+            message: '',
+        };
+    })();
+
     return (
         <EnterAmountDialogLayout
             selectedValidator={selectedValidator}
             totalGas={gasSummary?.totalGas}
             senderAddress={senderAddress}
             caption={caption}
-            showInfo={!hasEnoughRemainingBalance}
-            infoMessage={infoMessage}
+            showInfo={!!infoBox.message}
+            infoMessage={infoBox.message}
+            infoType={infoBox.type}
             isLoading={isTransactionLoading}
             onBack={onBack}
             handleClose={handleClose}
