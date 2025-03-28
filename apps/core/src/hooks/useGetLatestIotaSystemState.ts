@@ -25,41 +25,43 @@ export function useGetLatestIotaSystemState() {
             const protocolConfig = await iotaClient.getProtocolConfig();
             const isV2Supported = Number(protocolConfig.maxSupportedProtocolVersion) >= 5;
 
-            const iotaSystemStateSummay: IotaSystemStateSummary = isV2Supported
+            const iotaSystemStateSummary: IotaSystemStateSummary = isV2Supported
                 ? await iotaClient.getLatestIotaSystemStateV2()
                 : {
                       V1: await iotaClient.getLatestIotaSystemState(),
                   };
 
-            return 'V2' in iotaSystemStateSummay
+            return 'V2' in iotaSystemStateSummary
                 ? {
-                      activeValidators: iotaSystemStateSummay.V2.activeValidators,
-                      committeeMembers: iotaSystemStateSummay.V2.committeeMembers.map(
+                      activeValidators: iotaSystemStateSummary.V2.activeValidators,
+                      committeeMembers: iotaSystemStateSummary.V2.committeeMembers.map(
                           (committeeMemberIndex) =>
-                              iotaSystemStateSummay.V2.activeValidators[
+                              iotaSystemStateSummary.V2.activeValidators[
                                   Number(committeeMemberIndex)
                               ],
                       ),
-                      atRiskValidators: iotaSystemStateSummay.V2.atRiskValidators,
-                      epoch: iotaSystemStateSummay.V2.epoch,
-                      epochDurationMs: iotaSystemStateSummay.V2.epochDurationMs,
-                      epochStartTimestampMs: iotaSystemStateSummay.V2.epochStartTimestampMs,
-                      pendingActiveValidatorsId: iotaSystemStateSummay.V2.pendingActiveValidatorsId,
+                      atRiskValidators: iotaSystemStateSummary.V2.atRiskValidators,
+                      epoch: iotaSystemStateSummary.V2.epoch,
+                      epochDurationMs: iotaSystemStateSummary.V2.epochDurationMs,
+                      epochStartTimestampMs: iotaSystemStateSummary.V2.epochStartTimestampMs,
+                      pendingActiveValidatorsId:
+                          iotaSystemStateSummary.V2.pendingActiveValidatorsId,
                       pendingActiveValidatorsSize:
-                          iotaSystemStateSummay.V2.pendingActiveValidatorsSize,
-                      protocolVersion: iotaSystemStateSummay.V2.protocolVersion,
+                          iotaSystemStateSummary.V2.pendingActiveValidatorsSize,
+                      protocolVersion: iotaSystemStateSummary.V2.protocolVersion,
                   }
                 : {
-                      activeValidators: iotaSystemStateSummay.V1.activeValidators,
-                      committeeMembers: iotaSystemStateSummay.V1.activeValidators,
-                      atRiskValidators: iotaSystemStateSummay.V1.atRiskValidators,
-                      epoch: iotaSystemStateSummay.V1.epoch,
-                      epochDurationMs: iotaSystemStateSummay.V1.epochDurationMs,
-                      epochStartTimestampMs: iotaSystemStateSummay.V1.epochStartTimestampMs,
-                      pendingActiveValidatorsId: iotaSystemStateSummay.V1.pendingActiveValidatorsId,
+                      activeValidators: iotaSystemStateSummary.V1.activeValidators,
+                      committeeMembers: iotaSystemStateSummary.V1.activeValidators,
+                      atRiskValidators: iotaSystemStateSummary.V1.atRiskValidators,
+                      epoch: iotaSystemStateSummary.V1.epoch,
+                      epochDurationMs: iotaSystemStateSummary.V1.epochDurationMs,
+                      epochStartTimestampMs: iotaSystemStateSummary.V1.epochStartTimestampMs,
+                      pendingActiveValidatorsId:
+                          iotaSystemStateSummary.V1.pendingActiveValidatorsId,
                       pendingActiveValidatorsSize:
-                          iotaSystemStateSummay.V1.pendingActiveValidatorsSize,
-                      protocolVersion: iotaSystemStateSummay.V1.protocolVersion,
+                          iotaSystemStateSummary.V1.pendingActiveValidatorsSize,
+                      protocolVersion: iotaSystemStateSummary.V1.protocolVersion,
                   };
         },
     });
