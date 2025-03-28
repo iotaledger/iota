@@ -3,14 +3,18 @@
 
 'use client';
 
-import { Toaster } from '@/components';
 import { GrowthBookProvider } from '@growthbook/growthbook-react';
 import { IotaClientProvider, lightTheme, darkTheme, WalletProvider } from '@iota/dapp-kit';
 import { getAllNetworks, getDefaultNetwork } from '@iota/iota-sdk/client';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ReactQueryDevtools } from '@tanstack/react-query-devtools';
 import { useState } from 'react';
-import { KioskClientProvider, StardustIndexerClientProvider, useLocalStorage } from '@iota/core';
+import {
+    KioskClientProvider,
+    StardustIndexerClientProvider,
+    useLocalStorage,
+    Toaster,
+} from '@iota/core';
 import { growthbook } from '@/lib/utils';
 import { ThemeProvider } from '@iota/core';
 import { createIotaClient } from '@/lib/utils/defaultRpcClient';
@@ -52,7 +56,7 @@ export function AppProviders({ children }: React.PropsWithChildren) {
                             >
                                 <ThemeProvider appId="iota-dashboard">
                                     {children}
-                                    <Toaster />
+                                    <Toaster containerClassName="!z-[999999] !right-8" />
                                 </ThemeProvider>
                             </WalletProvider>
                         </KioskClientProvider>

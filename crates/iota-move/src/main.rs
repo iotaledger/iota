@@ -18,7 +18,6 @@ bin_version::bin_version!();
 #[command(
     name = env!("CARGO_BIN_NAME"),
     about = "IOTA Move CLI",
-    rename_all = "kebab-case",
     author,
     version = VERSION,
 )]

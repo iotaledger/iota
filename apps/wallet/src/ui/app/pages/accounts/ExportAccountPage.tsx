@@ -7,7 +7,7 @@ import { useMutation } from '@tanstack/react-query';
 import { Navigate, useNavigate, useParams } from 'react-router-dom';
 import { VerifyPasswordModal, HideShowDisplayBox, Loading, Overlay } from '_components';
 import { InfoBox, InfoBoxStyle, InfoBoxType } from '@iota/apps-ui-kit';
-import { Info } from '@iota/apps-ui-icons';
+import { Warning } from '@iota/apps-ui-icons';
 
 export function ExportAccountPage() {
     const { accountID } = useParams();
@@ -27,6 +27,7 @@ export function ExportAccountPage() {
                 })
             ).keyPair;
         },
+        gcTime: 0,
     });
     const navigate = useNavigate();
     if (!account && !isPending) {
@@ -38,8 +39,8 @@ export function ExportAccountPage() {
                 {exportMutation.data ? (
                     <div className="flex flex-col gap-md">
                         <InfoBox
-                            icon={<Info />}
-                            type={InfoBoxType.Default}
+                            icon={<Warning />}
+                            type={InfoBoxType.Warning}
                             title="Do not share your private key"
                             supportingText="Your account derived from it can be controlled fully."
                             style={InfoBoxStyle.Default}

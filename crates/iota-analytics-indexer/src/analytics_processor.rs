@@ -56,7 +56,7 @@ impl<S: Serialize + ParquetSchema + 'static> Worker for AnalyticsProcessor<S> {
 
     async fn process_checkpoint(
         &self,
-        checkpoint_data: &CheckpointData,
+        checkpoint_data: Arc<CheckpointData>,
     ) -> Result<Self::Message, Self::Error> {
         // get epoch id, checkpoint sequence number and timestamp, those are important
         // indexes when operating on data

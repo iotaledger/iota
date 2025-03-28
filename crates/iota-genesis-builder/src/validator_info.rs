@@ -27,7 +27,7 @@ pub struct ValidatorInfo {
     pub authority_key: AuthorityPublicKeyBytes,
     pub protocol_key: NetworkPublicKey,
     pub network_key: NetworkPublicKey,
-    pub gas_price: u64,
+    pub gas_price: u64, // unused as of protocol version 5, but keeping for backwards compatibility
     pub commission_rate: u64,
     pub network_address: Multiaddr,
     pub p2p_address: Multiaddr,

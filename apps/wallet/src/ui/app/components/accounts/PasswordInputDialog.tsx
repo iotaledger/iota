@@ -4,7 +4,6 @@
 
 import { useZodForm } from '@iota/core';
 import { useState } from 'react';
-import { toast } from 'react-hot-toast';
 import { v4 as uuidV4 } from 'uuid';
 import { z } from 'zod';
 import { useAccountSources, useBackgroundClient } from '_hooks';
@@ -54,13 +53,16 @@ export function PasswordModalDialog({
         defaultValues: {
             password: '',
         },
+        shouldUnregister: true,
     });
+
     const {
         register,
         setError,
         reset,
         formState: { isSubmitting, isValid },
     } = form;
+
     const backgroundService = useBackgroundClient();
     const [formID] = useState(() => uuidV4());
     const { data: allAccountsSources } = useAccountSources();
@@ -74,18 +76,10 @@ export function PasswordModalDialog({
             if (verify) {
                 await backgroundService.verifyPassword({ password });
             }
-            try {
-                await onSubmit(password);
-                reset();
-            } catch (e) {
-                toast.error((e as Error).message || 'Something went wrong');
-            }
+            await onSubmit(password);
+            reset();
         } catch (e) {
-            setError(
-                'password',
-                { message: (e as Error).message || 'Wrong password' },
-                { shouldFocus: true },
-            );
+            setError('password', { message: (e as Error).message }, { shouldFocus: true });
         }
     }
 
@@ -112,7 +106,7 @@ export function PasswordModalDialog({
                                             <Link
                                                 to="/accounts/forgot-password"
                                                 onClick={onClose}
-                                                className="absolute top-0 text-body-sm text-neutral-40 no-underline"
+                                                className="absolute top-0 text-body-sm text-neutral-40 no-underline dark:text-neutral-60"
                                             >
                                                 Forgot Password?
                                             </Link>

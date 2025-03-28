@@ -15,6 +15,15 @@ query getCurrentEpoch {
                     ...RPC_VALIDATOR_FIELDS
                 }
             }
+            committeeMembers {
+                pageInfo {
+                    hasNextPage
+                    endCursor
+                }
+                nodes {
+                    ...RPC_VALIDATOR_FIELDS
+                }
+            }
         }
         totalTransactions
         firstCheckpoint: checkpoints(first: 1) {
@@ -32,6 +41,15 @@ query paginateEpochValidators($id: UInt53!, $after: String) {
     epoch(id: $id) {
         validatorSet {
             activeValidators(after: $after) {
+                pageInfo {
+                    hasNextPage
+                    endCursor
+                }
+                nodes {
+                    ...RPC_VALIDATOR_FIELDS
+                }
+            }
+            committeeMembers(after: $after) {
                 pageInfo {
                     hasNextPage
                     endCursor

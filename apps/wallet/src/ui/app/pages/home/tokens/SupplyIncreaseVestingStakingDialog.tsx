@@ -24,7 +24,7 @@ export function SupplyIncreaseVestingStakingDialog({
             : SupplyIncreaseVestingStakingImage;
 
     function navigateToDashboard() {
-        window.open(WALLET_DASHBOARD_URL, '_blank');
+        window.open(WALLET_DASHBOARD_URL, '_blank', 'noopener noreferrer');
     }
     return (
         <Dialog open={open} onOpenChange={setOpen}>

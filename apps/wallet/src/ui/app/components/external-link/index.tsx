@@ -18,7 +18,7 @@ export function ExternalLink({ href, className, children, title, onClick }: Exte
             href={href}
             target="_blank"
             className={className}
-            rel="noreferrer"
+            rel="noreferrer noopener"
             title={title}
             onClick={onClick}
         >
