@@ -19,6 +19,7 @@ feature_flags:
   convert_type_argument_error: true
   consensus_round_prober: true
   consensus_distributed_vote_scoring_strategy: true
+  consensus_linearize_subdag_v2: true
   variant_nodes: true
   consensus_smart_ancestor_selection: true
   consensus_round_prober_probe_accepted_rounds: true
@@ -294,3 +295,4 @@ checkpoint_summary_version_specific_data: 1
 max_soft_bundle_size: 5
 bridge_should_try_to_finalize_committee: true
 max_accumulated_txn_cost_per_object_in_mysticeti_commit: 10
+consensus_gc_depth: 60

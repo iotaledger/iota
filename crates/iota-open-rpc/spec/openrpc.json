@@ -1306,7 +1306,7 @@
                 "accept_zklogin_in_multisig": false,
                 "bridge": false,
                 "consensus_distributed_vote_scoring_strategy": true,
-                "consensus_linearize_subdag_v2": false,
+                "consensus_linearize_subdag_v2": true,
                 "consensus_round_prober": true,
                 "consensus_round_prober_probe_accepted_rounds": true,
                 "consensus_smart_ancestor_selection": true,
@@ -1445,7 +1445,9 @@
                 "consensus_bad_nodes_stake_threshold": {
                   "u64": "20"
                 },
-                "consensus_gc_depth": null,
+                "consensus_gc_depth": {
+                  "u32": "60"
+                },
                 "consensus_max_num_transactions_in_block": {
                   "u64": "512"
                 },
