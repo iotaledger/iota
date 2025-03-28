@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use std::{
-    collections::HashMap,
+    collections::{HashMap, HashSet},
     sync::{Arc, RwLock},
     time::Duration,
 };
@@ -74,7 +74,8 @@ pub struct NodeInfo {
 #[derive(Clone, Debug, Default)]
 /// Contains a new list of available trusted peers.
 pub struct TrustedPeerChangeEvent {
-    pub new_peers: Vec<PeerInfo>,
+    pub new_committee: Vec<PeerInfo>,
+    pub old_committee: Vec<PeerInfo>,
 }
 
 struct DiscoveryEventLoop {
@@ -178,10 +179,10 @@ impl DiscoveryEventLoop {
             .discovery_config
             .allowlisted_peers
             .iter()
-            .map(|sp| (sp.peer_id, sp.address.clone()))
-            .chain(self.config.seed_peers.iter().filter_map(|ap| {
-                ap.peer_id
-                    .map(|peer_id| (peer_id, Some(ap.address.clone())))
+            .map(|ap| (ap.peer_id, ap.address.clone()))
+            .chain(self.config.seed_peers.iter().filter_map(|sp| {
+                sp.peer_id
+                    .map(|peer_id| (peer_id, Some(sp.address.clone())))
             }))
         {
             let anemo_address = if let Some(address) = address {
@@ -212,18 +213,61 @@ impl DiscoveryEventLoop {
         }
     }
 
-    // TODO: we don't boot out old committee member yets, however we may want to do
-    // this in the future along with other network management work.
-    /// Handles a [`TrustedPeerChangeEvent`] by adding the new trusted peers to
-    /// known peers list.
+    /// Handles a [`TrustedPeerChangeEvent`] by updating the known peers with
+    /// the latest trusted new peers without deleting the allowlisted peers.
     fn handle_trusted_peer_change_event(
         &mut self,
         trusted_peer_change_event: TrustedPeerChangeEvent,
     ) {
-        for peer_info in trusted_peer_change_event.new_peers {
-            debug!(?peer_info, "Add committee member as preferred peer.");
-            self.network.known_peers().insert(peer_info);
+        let TrustedPeerChangeEvent {
+            new_committee,
+            old_committee,
+        } = trusted_peer_change_event;
+
+        let new_peer_ids = new_committee
+            .iter()
+            .map(|peer| peer.peer_id)
+            .collect::<HashSet<_>>();
+
+        // Remove peers from old_committee who are not in new_committee and are not in
+        // self.allowlisted_peers.
+        let to_remove = old_committee
+            .iter()
+            .map(|peer_info| &peer_info.peer_id)
+            .filter(|old_peer_id| {
+                !new_peer_ids.contains(old_peer_id)
+                    && !self.allowlisted_peers.contains_key(old_peer_id)
+            });
+
+        // Add the new_committee to the known peers skipping self peer.
+        // This will update the PeerInfo for those who are already in the
+        // committee and have updated their PeerInfo.
+        let to_insert = new_committee
+            .into_iter()
+            .filter(|peer_info| !self.network.peer_id().eq(&peer_info.peer_id));
+
+        let (removed, updated_or_inserted) = self
+            .network
+            .known_peers()
+            .batch_update(to_remove, to_insert.clone());
+
+        // Actually removed, may differ from `to_remove`
+        let removed: Vec<_> = removed
+            .into_iter()
+            .filter_map(|removed| removed.map(|info| info.peer_id))
+            .collect();
+        let mut updated = Vec::new();
+        let mut inserted = Vec::new();
+        for (replaced_val, to_insert_val) in updated_or_inserted.into_iter().zip(to_insert) {
+            if replaced_val.is_some() {
+                updated.push(to_insert_val.peer_id);
+            } else {
+                inserted.push(to_insert_val.peer_id);
+            }
         }
+        debug!(
+            "Trusted peer change event: removed {removed:?}, updated {updated:?}, inserted {inserted:?}",
+        );
     }
 
     /// Handles a [`PeerEvent`].

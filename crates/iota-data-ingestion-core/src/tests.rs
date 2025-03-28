@@ -39,7 +39,7 @@ async fn add_worker_pool<W: Worker + 'static>(
     worker: W,
     concurrency: usize,
 ) -> IngestionResult<()> {
-    let worker_pool = WorkerPool::new(worker, "test".to_string(), concurrency);
+    let worker_pool = WorkerPool::new(worker, "test".to_string(), concurrency, Default::default());
     indexer.register(worker_pool).await?;
     Ok(())
 }
@@ -104,7 +104,7 @@ impl Worker for TestWorker {
 /// This worker implementation always returns an error when processing a
 /// checkpoint.
 ///
-/// Useful for testing graceful shutdown logic and behaviours.
+/// Useful for testing graceful shutdown logic.
 #[derive(Clone)]
 struct FaultyWorker;
 
@@ -144,10 +144,34 @@ impl FixedBatchSizeReducer {
 
 #[async_trait]
 impl Reducer<TestWorker> for FixedBatchSizeReducer {
-    async fn commit(&self, _batch: Vec<()>) -> Result<(), IngestionError> {
+    async fn commit(&self, _batch: &[()]) -> Result<(), IngestionError> {
         self.commit_count.fetch_add(1, Ordering::SeqCst);
         Ok(())
     }
+    fn should_close_batch(&self, batch: &[()], _next_item: Option<&()>) -> bool {
+        batch.len() >= self.batch_size
+    }
+}
+
+/// This reducer implementation always returns an error when committing a batch.
+///
+/// Useful for testing graceful shutdown logic.
+struct FaultyReducer {
+    batch_size: usize,
+}
+
+impl FaultyReducer {
+    fn new(batch_size: usize) -> Self {
+        Self { batch_size }
+    }
+}
+
+#[async_trait]
+impl Reducer<TestWorker> for FaultyReducer {
+    async fn commit(&self, _batch: &[()]) -> Result<(), IngestionError> {
+        Err(IngestionError::Reducer("unable to commit data".into()))
+    }
+
     fn should_close_batch(&self, batch: &[()], _next_item: Option<&()>) -> bool {
         batch.len() >= self.batch_size
     }
@@ -196,7 +220,7 @@ async fn basic_flow() {
 // The test uses `FaultyWorker` which always fails, simulating a worst-case
 // scenario where all workers are unable to process checkpoints.
 #[tokio::test]
-async fn graceful_shutdown() {
+async fn graceful_shutdown_faulty_worker() {
     let mut bundle = create_executor_bundle().await;
     // all worker pool's workers will not be able to process any checkpoint
     add_worker_pool(&mut bundle.executor, FaultyWorker, 5)
@@ -232,7 +256,13 @@ async fn worker_pool_with_reducer() {
     let commit_count = reducer.commit_count.clone();
     let mut bundle = create_executor_bundle().await;
     // Create worker pool with reducer
-    let pool = WorkerPool::new_with_reducer(TestWorker, "test".to_string(), 5, reducer);
+    let pool = WorkerPool::new_with_reducer(
+        TestWorker,
+        "test".to_string(),
+        5,
+        Default::default(),
+        reducer,
+    );
     bundle.executor.register(pool).await.unwrap();
 
     let path = temp_dir();
@@ -251,6 +281,51 @@ async fn worker_pool_with_reducer() {
     assert_eq!(commit_count.load(Ordering::SeqCst), 4);
     assert!(result.is_ok());
     assert_eq!(result.unwrap().get("test"), Some(&20));
+}
+
+// Tests the graceful shutdown behavior when reducer encounter persistent
+// failures.
+//
+// This test verifies that:
+// 1. When Reducer::commit implementation continuously fails.
+// 2. The exponential backoff retry mechanism would normally create a loop until
+//    the successful value is returned.
+// 3. The graceful shutdown logic successfully breaks these retry loops upon
+//    cancellation.
+// 4. The Reducer exit cleanly without committing any batch.
+//
+// The test uses `FaultyReducer` which always fails, simulating a worst-case
+// scenario where all WorkerPools are unable to send progress data to
+// IndexerExecutor.
+#[tokio::test]
+async fn graceful_shutdown_faulty_reducer() {
+    // create a reducer with max batch of 5
+    let reducer = FaultyReducer::new(5);
+    let mut bundle = create_executor_bundle().await;
+    // Create worker pool with reducer
+    let pool = WorkerPool::new_with_reducer(
+        TestWorker,
+        "test".to_string(),
+        5,
+        Default::default(),
+        reducer,
+    );
+    bundle.executor.register(pool).await.unwrap();
+
+    let path = temp_dir();
+    for checkpoint_number in 0..20 {
+        let bytes = mock_checkpoint_data_bytes(checkpoint_number);
+        std::fs::write(path.join(format!("{}.chk", checkpoint_number)), bytes).unwrap();
+    }
+    let result = run(
+        bundle.executor,
+        Some(path),
+        Some(Duration::from_secs(1)),
+        bundle.token,
+    )
+    .await;
+    assert!(result.is_ok());
+    assert_eq!(result.unwrap().get("test"), Some(&0));
 }
 
 fn temp_dir() -> std::path::PathBuf {

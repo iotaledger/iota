@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { useZodForm, toast } from '@iota/core';
+import { useZodForm } from '@iota/core';
 import { useState } from 'react';
 import { v4 as uuidV4 } from 'uuid';
 import { z } from 'zod';
@@ -53,13 +53,16 @@ export function PasswordModalDialog({
         defaultValues: {
             password: '',
         },
+        shouldUnregister: true,
     });
+
     const {
         register,
         setError,
         reset,
         formState: { isSubmitting, isValid },
     } = form;
+
     const backgroundService = useBackgroundClient();
     const [formID] = useState(() => uuidV4());
     const { data: allAccountsSources } = useAccountSources();
@@ -73,18 +76,10 @@ export function PasswordModalDialog({
             if (verify) {
                 await backgroundService.verifyPassword({ password });
             }
-            try {
-                await onSubmit(password);
-                reset();
-            } catch (e) {
-                toast.error((e as Error).message || 'Something went wrong');
-            }
+            await onSubmit(password);
+            reset();
         } catch (e) {
-            setError(
-                'password',
-                { message: (e as Error).message || 'Wrong password' },
-                { shouldFocus: true },
-            );
+            setError('password', { message: (e as Error).message }, { shouldFocus: true });
         }
     }
 
