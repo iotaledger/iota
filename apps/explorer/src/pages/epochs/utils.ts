@@ -47,7 +47,6 @@ export function useEpochProgress(suffix: string = 'left'): EpochProgress {
             if (isExpired) {
                 // End time expired, start refetching
                 pollingNextEpochTimer.current = setInterval(() => {
-                    console.log('refetching');
                     refetch();
                 }, 5000);
             }
