@@ -4,6 +4,7 @@
 
 use std::{str::FromStr, time::Duration};
 
+use backoff::{ExponentialBackoff, backoff::Backoff};
 use object_store::{
     ClientOptions, ObjectStore, RetryConfig, aws::AmazonS3ConfigKey, gcp::GoogleConfigKey,
 };
@@ -206,4 +207,15 @@ pub fn create_remote_store_client_with_ops(
         }
         Ok(Box::new(builder.build()?))
     }
+}
+
+/// Creates a new [`ExponentialBackoff`] instance based on the configured
+/// template.
+///
+/// Returns a fresh backoff instance that has been reset to its initial
+/// state, ensuring consistent retry behavior for each new operation.
+pub(crate) fn reset_backoff(backoff: &ExponentialBackoff) -> ExponentialBackoff {
+    let mut backoff = backoff.clone();
+    backoff.reset();
+    backoff
 }

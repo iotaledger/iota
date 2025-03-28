@@ -179,25 +179,22 @@ module iota_system::iota_system {
         self.request_remove_validator(ctx)
     }
 
-    /// A validator can call this entry function to submit a new gas price quote, to be
-    /// used for the reference gas price calculation at the end of the epoch.
+    #[deprecated]
     public entry fun request_set_gas_price(
-        wrapper: &mut IotaSystemState,
-        cap: &UnverifiedValidatorOperationCap,
-        new_gas_price: u64,
+        _wrapper: &mut IotaSystemState,
+        _cap: &UnverifiedValidatorOperationCap,
+        _new_gas_price: u64,
     ) {
-        let self = load_system_state_mut(wrapper);
-        self.request_set_gas_price(cap, new_gas_price)
+        // This function is deprecated and should not be used.
     }
 
-    /// This entry function is used to set new gas price for candidate validators
+    #[deprecated]
     public entry fun set_candidate_validator_gas_price(
-        wrapper: &mut IotaSystemState,
-        cap: &UnverifiedValidatorOperationCap,
-        new_gas_price: u64,
+        _wrapper: &mut IotaSystemState,
+        _cap: &UnverifiedValidatorOperationCap,
+        _new_gas_price: u64,
     ) {
-        let self = load_system_state_mut(wrapper);
-        self.set_candidate_validator_gas_price(cap, new_gas_price)
+        // This function is deprecated and should not be used.
     }
 
     /// A validator can call this entry function to set a new commission rate, updated at the end of

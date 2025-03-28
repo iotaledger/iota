@@ -2,6 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use either::Either;
 use fastcrypto::{encoding::Base64, traits::ToFromBytes};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -373,6 +374,19 @@ impl IotaSystemStateSummary {
             Self::V2(v2) => v2.get_iota_committee_for_benchmarking(),
         }
     }
+    pub fn iter_committee_members(&self) -> impl Iterator<Item = &IotaValidatorSummary> {
+        match self {
+            Self::V1(v1) => Either::Left(v1.active_validators.iter()),
+            Self::V2(v2) => Either::Right(v2.iter_committee_members()),
+        }
+    }
+
+    pub fn iter_active_validators(&self) -> impl Iterator<Item = &IotaValidatorSummary> {
+        match self {
+            Self::V1(v1) => Either::Left(v1.active_validators.iter()),
+            Self::V2(v2) => Either::Right(v2.active_validators.iter()),
+        }
+    }
 }
 
 impl IotaSystemStateSummaryV1 {
@@ -409,14 +423,8 @@ impl IotaSystemStateSummaryV2 {
         })
     }
 
-    pub fn into_iter_committee_members(self) -> impl Iterator<Item = IotaValidatorSummary> {
-        let active_validators = self.active_validators;
-        self.committee_members.into_iter().map(move |index| {
-            active_validators
-                .get(index as usize)
-                .expect("committee corrupt")
-                .to_owned()
-        })
+    pub fn to_committee_members(&self) -> Vec<IotaValidatorSummary> {
+        self.iter_committee_members().cloned().collect()
     }
 
     pub fn get_iota_committee_for_benchmarking(&self) -> CommitteeWithNetworkMetadata {
