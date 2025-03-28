@@ -553,21 +553,18 @@ async fn test_inactive_validator_pool_read() {
     // Pick the first validator.
     let validator = test_cluster.swarm.validator_node_handles().pop().unwrap();
     let address = validator.with(|node| node.get_config().iota_address());
+
+    // Here we fetch the staking pool id of the committee members from the system
+    // state.
     let staking_pool_id = test_cluster.fullnode_handle.iota_node.with(|node| {
-        match node
-            .state()
+        node.state()
             .get_iota_system_state_object_for_testing()
             .unwrap()
             .into_iota_system_state_summary()
-        {
-            IotaSystemStateSummary::V1(v1) => v1.active_validators,
-            IotaSystemStateSummary::V2(v2) => v2.active_validators,
-            _ => panic!("unsupported IotaSystemStateSummary"),
-        }
-        .iter()
-        .find(|v| v.iota_address == address)
-        .unwrap()
-        .staking_pool_id
+            .iter_committee_members()
+            .find(|v| v.iota_address == address)
+            .unwrap()
+            .staking_pool_id
     });
     test_cluster.fullnode_handle.iota_node.with(|node| {
         let system_state = node
@@ -875,14 +872,14 @@ async fn safe_mode_reconfig_test() {
     // Check that time is properly set even in safe mode.
     assert!(system_state.epoch_start_timestamp_ms() >= prev_epoch_start_timestamp + EPOCH_DURATION);
 
-    // Try a staking transaction.
-    let validator_address = match system_state.into_iota_system_state_summary() {
-        IotaSystemStateSummary::V1(v1) => v1.active_validators,
-        IotaSystemStateSummary::V2(v2) => v2.active_validators,
-        _ => panic!("unsupported IotaSystemStateSummary"),
-    }[0]
-    .iota_address;
-    let txn = make_staking_transaction(&test_cluster.wallet, validator_address).await;
+    // Try a staking transaction to a committee member.
+    let committee_member_address = system_state
+        .into_iota_system_state_summary()
+        .iter_committee_members()
+        .next()
+        .unwrap()
+        .iota_address;
+    let txn = make_staking_transaction(&test_cluster.wallet, committee_member_address).await;
     test_cluster.execute_transaction(txn).await;
 
     // Now remove the override and check that in the next epoch we are no longer in

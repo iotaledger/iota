@@ -1,0 +1,57 @@
+name: Upload Docs to S3
+
+on:
+  push:
+    branches:
+      - devnet
+      - testnet
+
+jobs:
+  build-and-upload-docs:
+    runs-on: ubuntu-latest
+    env:
+      S3_BUCKET: files.iota.org/iota-wiki/iota
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v3
+
+      - name: Build Rust documentation
+        run: cargo test --manifest-path crates/iota-framework/Cargo.toml
+
+      # ----------- Build TypeScript and GraphQL Docs with pnpm -----------
+      - name: Set up Node
+        uses: actions/setup-node@v3
+        with:
+          node-version: "22.x"
+
+      - name: Install pnpm
+        run: corepack enable && corepack prepare pnpm@latest --activate
+
+      - name: Install dependencies
+        run: pnpm install
+
+      - name: Build SDK and BCS
+        run: pnpm sdk build && pnpm bcs build
+
+      - name: Generate TypeScript docs
+        run: pnpm --filter iota-docs generate-ts-docs
+
+      - name: Generate GraphQl docs
+        run: pnpm --filter iota-docs generate-graphql-docs
+
+      - name: Compress generated docs
+        run: |
+          tar czvf ${{ github.ref_name }}.tar.gz docs/generated-docs/*
+
+      # ----------- Configure AWS Credentials -----------
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v3
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: eu-central-1 # Change if needed
+
+      # ----------- Upload Docs to S3 -----------
+      - name: Upload Rust docs to S3
+        run: aws s3 cp ${{ github.ref_name }}.tar.gz s3://$S3_BUCKET/${{ github.ref_name }}.tar.gz --acl public-read

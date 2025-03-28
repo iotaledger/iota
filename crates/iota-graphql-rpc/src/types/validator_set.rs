@@ -65,6 +65,10 @@ pub(crate) struct ValidatorSet {
 
     #[graphql(skip)]
     pub checkpoint_viewed_at: u64,
+
+    #[graphql(skip)]
+    /// The current list of committee_members.
+    pub committee_members: Option<Vec<Validator>>,
 }
 
 type CValidator = JsonCursor<ConsistentIndexCursor>;
@@ -84,6 +88,42 @@ impl ValidatorSet {
 
         let mut connection = Connection::new(false, false);
         let Some(validators) = &self.active_validators else {
+            return Ok(connection);
+        };
+
+        let Some((prev, next, _, cs)) =
+            page.paginate_consistent_indices(validators.len(), self.checkpoint_viewed_at)?
+        else {
+            return Ok(connection);
+        };
+
+        connection.has_previous_page = prev;
+        connection.has_next_page = next;
+
+        for c in cs {
+            let mut validator = validators[c.ix].clone();
+            validator.checkpoint_viewed_at = c.c;
+            connection
+                .edges
+                .push(Edge::new(c.encode_cursor(), validator));
+        }
+
+        Ok(connection)
+    }
+
+    /// The current set of committee members.
+    async fn committee_members(
+        &self,
+        ctx: &Context<'_>,
+        first: Option<u64>,
+        before: Option<CValidator>,
+        last: Option<u64>,
+        after: Option<CValidator>,
+    ) -> Result<Connection<String, Validator>> {
+        let page = Page::from_params(ctx.data_unchecked(), first, after, last, before)?;
+
+        let mut connection = Connection::new(false, false);
+        let Some(validators) = &self.committee_members else {
             return Ok(connection);
         };
 

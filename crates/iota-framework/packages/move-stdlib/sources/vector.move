@@ -84,10 +84,8 @@ module std::vector {
     }
 
     /// Pushes all of the elements of the `other` vector into the `lhs` vector.
-    public fun append<Element>(lhs: &mut vector<Element>, mut other: vector<Element>) {
-        other.reverse();
-        while (!other.is_empty()) lhs.push_back(other.pop_back());
-        other.destroy_empty();
+    public fun append<Element>(lhs: &mut vector<Element>, other: vector<Element>) {
+        other.do!(|e| lhs.push_back(e));
     }
 
     /// Return `true` if the vector `v` has no elements and `false` otherwise.
@@ -153,7 +151,7 @@ module std::vector {
     /// This is O(1), but does not preserve ordering of elements in the vector.
     /// Aborts if `i` is out of bounds.
     public fun swap_remove<Element>(v: &mut vector<Element>, i: u64): Element {
-        assert!(!v.is_empty(), EINDEX_OUT_OF_BOUNDS);
+        assert!(v.length() != 0, EINDEX_OUT_OF_BOUNDS);
         let last_idx = v.length() - 1;
         v.swap(i, last_idx);
         v.pop_back()
@@ -173,7 +171,7 @@ module std::vector {
     /// Does not preserve the order of elements in the vector (starts from the end of the vector).
     public macro fun destroy<$T>($v: vector<$T>, $f: |$T|) {
         let mut v = $v;
-        while (!v.is_empty()) $f(v.pop_back());
+        while (v.length() != 0) $f(v.pop_back());
         v.destroy_empty();
     }
 
@@ -182,7 +180,7 @@ module std::vector {
     public macro fun do<$T>($v: vector<$T>, $f: |$T|) {
         let mut v = $v;
         v.reverse();
-        while (!v.is_empty()) $f(v.pop_back());
+        v.length().do!(|_| $f(v.pop_back()));
         v.destroy_empty();
     }
 
@@ -264,6 +262,13 @@ module std::vector {
         acc
     }
 
+    /// Concatenate the vectors of `v` into a single vector, keeping the order of the elements.
+    public fun flatten<T>(v: vector<vector<T>>): vector<T> {
+        let mut r = vector[];
+        v.do!(|u| r.append(u));
+        r
+    }
+    
     /// Whether any element in the vector `v` satisfies the predicate `f`.
     /// If the vector is empty, returns `false`.
     public macro fun any<$T>($v: &vector<$T>, $f: |&$T| -> bool): bool {
@@ -282,6 +287,165 @@ module std::vector {
             v.do_ref!(|e| if (!$f(e)) return 'all false);
             true
         }
+    }
+
+    /// Perform an action `f` on the `ix[i]`-th element of the vector `v`
+    /// for each `i` in `ix`. The vector `v` is not modified.
+    ///
+    /// Pseudocode: for each `i` call `f(&v[ix[i]])`.
+    public macro fun take_do_ref<$T>($v: &vector<$T>, $ix: &vector<u64>, $f: |&$T|) {
+        let v = $v;
+        let ix = $ix;
+        let v_len = v.length();
+        ix.do_ref!(|i| {
+            assert!(*i < v_len);
+            $f(&v[*i]);
+        });
+    }
+
+    /// Perform a mutating action `f` on the `ix[i]`-th element of the vector
+    /// `v` for each `i` in `ix`. The vector `v` can be modified.
+    ///
+    /// Pseudocode: for each `i` call `f(&mut v[ix[i]])`.
+    public macro fun take_do_mut<$T>($v: &mut vector<$T>, $ix: &vector<u64>, $f: |&mut $T|) {
+        let v = $v;
+        let ix = $ix;
+        let v_len = v.length();
+        ix.do_ref!(|i| {
+            assert!(*i < v_len);
+            $f(&mut v[*i]);
+        });
+    }
+
+    /// Perform an action `f` on the index `i`, value of `ix[i]` and
+    /// the `ix[i]`-th element of the vector `v` for each `i` in `ix`.
+    /// The vector `v` is not modified.
+    ///
+    /// Pseudocode: for each `i` call `f(i, ix[i], &v[ix[i]])`.
+    public macro fun take_do_with_ix_ref<$T>($v: &vector<$T>, $ix: &vector<u64>, $f: |u64, u64, &$T|) {
+        let v = $v;
+        let ix = $ix;
+        let v_len = v.length();
+        ix.length().do!(|k| {
+            let i = ix[k];
+            assert!(i < v_len);
+            $f(k, i, &v[i]);
+        });
+    }
+
+    /// Perform a mutating action `f` on the index `i`, value of `ix[i]` and
+    /// the `ix[i]`-th element of the vector `v` for each `i` in `ix`.
+    /// The vector `v` can be modified.
+    ///
+    /// Pseudocode: for each `i` call `f(i, ix[i], &mut v[ix[i]])`.
+    public macro fun take_do_with_ix_mut<$T>($v: &mut vector<$T>, $ix: &vector<u64>, $f: |u64, u64, &mut $T|) {
+        let v = $v;
+        let ix = $ix;
+        let v_len = v.length();
+        ix.length().do!(|k| {
+            let i = ix[k];
+            assert!(i < v_len);
+            $f(k, i, &mut v[i]);
+        });
+    }
+
+    /// Find the smallest `i` such that `f(&v[ix[i]])` is true and return `some(ix[i])`.
+    /// Return `none` if `f` is false for all `i`.
+    /// Note: this is different from `find_index!($v, $f)` because `ix` serves as a filter.
+    public macro fun take_find_index<$T>($v: &vector<$T>, $ix: &vector<u64>, $f: |&$T| -> bool): Option<u64> {
+        'take_find_index: {
+            take_do_with_ix_ref!($v, $ix, |_,i,x| {
+                if ($f(x)) return 'take_find_index option::some(i);
+            });
+            option::none()
+        }
+    }
+
+    /// Map the `ix[i]`-th element of the vector `v` with a function `f`
+    /// for each `i` in `ix` and collect the resulting values into a new vector.
+    /// The vector `v` is not modified.
+    ///
+    /// Pseudocode: for each `i` return vector `u` such that `u[i] = f(&v[ix[i]])`.
+    public macro fun take_map_ref<$T, $U>($v: &vector<$T>, $ix: &vector<u64>, $f: |&$T| -> $U): vector<$U> {
+        let mut u = vector::empty<$U>();
+        take_do_ref!($v, $ix, |x| u.push_back($f(x)));
+        u
+    }
+
+    /// Take copies of every `ix[i]`-th element of the vector `v`
+    /// for each `i` in `ix` and collect them into a new vector.
+    /// The vector `v` is not modified.
+    ///
+    /// Pseudocode: for each `i` return vector `u` such that `u[i] = v[ix[i]]`.
+    public macro fun take_collect<$T: copy>($v: &vector<$T>, $ix: &vector<u64>): vector<$T> {
+        take_map_ref!($v, $ix, |x| *x)
+    }
+
+    /// Select the first `min(n,v.length())` largest values in `v` with respect to
+    /// comparator `less_than` and return the corresponding indices.
+    /// The returned values are not necessarily ordered.
+    public macro fun take_top_n<$T>($v: &vector<$T>, $n: u64, $less_than: |&$T, &$T| -> bool): vector<u64> {
+        let v = $v;
+        let v_len = v.length();
+        let n = $n;
+
+        'take_top_n: {
+
+            if (v_len <= n) {
+                return 'take_top_n vector::tabulate!(v_len, |i| i)
+            } else if (n == 0) {
+                return 'take_top_n vector::empty<u64>()
+            };
+
+            // 0 < n < v_len
+            // unroll the first iteration
+            // indices of top min(n,i) elements in descending order
+            let mut ix = vector[0_u64];
+            let mut i = 1;
+
+            while (i < v_len) {
+                let x = &v[i];
+                let mut j = ix.length() - 1;
+                if (i < n) {
+                    // i == ix.length() == j + 1
+                    // not enough elements, put x into ix anyway
+                    ix.push_back(i);
+                };
+
+                // compare the smallest of the top min(n,i) elements and the current one
+                if ($less_than(&v[ix[j]], x)) {
+                    if (i < n) {
+                        // index of x is already at pos j+1 in ix
+                        // i == j + 1
+                        ix.swap(i, j);
+                    } else {
+                        // overwrite the smallest with the index of new larger value
+                        *ix.borrow_mut(j) = i;
+                    };
+                    // x == v[ix[j]]
+                    while (j > 0 && $less_than(&v[ix[j-1]], x)) {
+                        ix.swap(j, j - 1);
+                        j = j - 1;
+                    };
+                };
+
+                i = i + 1;
+            };
+
+            ix
+        }
+    }
+
+    /// Folds every `ix[i]`-th element of the vector `v` for each `i` in `ix`
+    /// into an accumulator with initial value `init` by applying function `f`
+    /// and returns the resulting accumulator.
+    /// The vector `v` is not modified.
+    public macro fun take_fold_ref<$T, $Acc>($v: &vector<$T>, $ix: &vector<u64>, $init: $Acc, $f: |$Acc, &$T| -> $Acc): $Acc {
+        let mut acc = $init;
+        take_do_ref!($v, $ix, |x| {
+            acc = $f(acc, x);
+        });
+        acc
     }
 
     /// Destroys two vectors `v1` and `v2` by calling `f` to each pair of elements.

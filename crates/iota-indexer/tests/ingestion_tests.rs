@@ -7,17 +7,20 @@
 mod common;
 #[cfg(feature = "pg_integration")]
 mod ingestion_tests {
-    use std::sync::Arc;
+    use std::{sync::Arc, time::Duration};
 
-    use diesel::{ExpressionMethods, QueryDsl, RunQueryDsl};
+    use diesel::{ExpressionMethods, QueryDsl, RunQueryDsl, connection::BoxableConnection};
     use iota_indexer::{
         db::get_pool_connection,
         errors::{Context, IndexerError},
+        insert_or_ignore_into,
         models::{
             objects::{StoredObject, StoredObjectSnapshot},
             transactions::StoredTransaction,
         },
-        schema::{objects, objects_snapshot, transactions},
+        schema::{objects, objects_snapshot, transactions, tx_insertion_order},
+        store::PgIndexerStore,
+        transactional_blocking_with_retry,
     };
     use iota_types::{
         IOTA_FRAMEWORK_PACKAGE_ID, base_types::IotaAddress, effects::TransactionEffectsAPI,
@@ -62,6 +65,7 @@ mod ingestion_tests {
             data_ingestion_path,
             None,
             Some("indexer_ingestion_tests_db"),
+            None,
         )
         .await;
 
@@ -112,6 +116,7 @@ mod ingestion_tests {
             data_ingestion_path,
             None,
             Some("indexer_ingestion_tests_db"),
+            None,
         )
         .await;
 
@@ -167,6 +172,7 @@ mod ingestion_tests {
             data_ingestion_path,
             None,
             Some("indexer_ingestion_tests_db"),
+            None,
         )
         .await;
 
@@ -216,6 +222,109 @@ mod ingestion_tests {
         );
         assert_eq!(snapshot_object.owner_type, Some(1));
         assert_eq!(snapshot_object.owner_id, Some(gas_owner_id.to_vec()));
+        Ok(())
+    }
+
+    #[tokio::test]
+    pub async fn test_tx_insertion_order_table() -> Result<(), IndexerError> {
+        let mut sim = Simulacrum::new();
+        let data_ingestion_path = tempdir().unwrap().into_path();
+        sim.set_data_ingestion_path(data_ingestion_path.clone());
+
+        // Execute a simple transaction.
+        let transfer_recipient = IotaAddress::random_for_testing_only();
+        let (transaction, _) = sim.transfer_txn(transfer_recipient);
+        let (effects, err) = sim.execute_transaction(transaction.clone()).unwrap();
+        assert!(err.is_none());
+
+        // Create a checkpoint which should include the transaction we executed.
+        sim.create_checkpoint();
+
+        let (_, pg_store, _) = start_simulacrum_rest_api_with_write_indexer(
+            Arc::new(sim),
+            data_ingestion_path,
+            None,
+            Some("indexer_ingestion_tests_db"),
+            None,
+        )
+        .await;
+
+        indexer_wait_for_checkpoint(&pg_store, 1).await;
+
+        let digest = effects.transaction_digest();
+
+        // Read the transaction from the database directly.
+        let actual_insertion_order = read_only_blocking!(&pg_store.blocking_cp(), |conn| {
+            tx_insertion_order::table
+                .filter(tx_insertion_order::tx_digest.eq(digest.inner().to_vec()))
+                .select(tx_insertion_order::insertion_order)
+                .first::<i64>(conn)
+        })
+        .context("Failed reading tx insertion order from PostgresDB")?;
+
+        assert_eq!(actual_insertion_order, 2);
+        Ok(())
+    }
+
+    #[tokio::test]
+    pub async fn test_tx_insertion_order_table_for_existing_digest() -> Result<(), IndexerError> {
+        let mut sim = Simulacrum::new();
+        let data_ingestion_path = tempdir().unwrap().into_path();
+        sim.set_data_ingestion_path(data_ingestion_path.clone());
+
+        // Execute a simple transaction.
+        let transfer_recipient = IotaAddress::random_for_testing_only();
+        let (transaction, _) = sim.transfer_txn(transfer_recipient);
+        let (effects, err) = sim.execute_transaction(transaction.clone()).unwrap();
+        assert!(err.is_none());
+        // Create a checkpoint which should include the transaction we executed.
+        sim.create_checkpoint();
+        let digest = *effects.transaction_digest();
+
+        let pre_existing_insertion_order = 123;
+        let emulate_insertion_order_set_earlier_by_optimistic_indexing =
+            move |pg_store: &PgIndexerStore| {
+                transactional_blocking_with_retry!(
+                    &pg_store.blocking_cp(),
+                    |conn| {
+                        insert_or_ignore_into!(
+                            tx_insertion_order::table,
+                            (
+                                tx_insertion_order::dsl::tx_digest.eq(digest.inner().to_vec()),
+                                tx_insertion_order::dsl::insertion_order
+                                    .eq(pre_existing_insertion_order),
+                            ),
+                            conn
+                        );
+                        Ok::<(), IndexerError>(())
+                    },
+                    Duration::from_secs(60)
+                )
+                .unwrap()
+            };
+
+        let (_, pg_store, _) = start_simulacrum_rest_api_with_write_indexer(
+            Arc::new(sim),
+            data_ingestion_path,
+            None,
+            Some("indexer_ingestion_tests_db"),
+            Some(Box::new(
+                emulate_insertion_order_set_earlier_by_optimistic_indexing,
+            )),
+        )
+        .await;
+        indexer_wait_for_checkpoint(&pg_store, 1).await;
+
+        // Read the transaction from the database directly.
+        let actual_insertion_order = read_only_blocking!(&pg_store.blocking_cp(), |conn| {
+            tx_insertion_order::table
+                .filter(tx_insertion_order::tx_digest.eq(digest.inner().to_vec()))
+                .select(tx_insertion_order::insertion_order)
+                .first::<i64>(conn)
+        })
+        .context("Failed reading tx insertion order from PostgresDB")?;
+
+        assert_eq!(actual_insertion_order, pre_existing_insertion_order);
         Ok(())
     }
 }

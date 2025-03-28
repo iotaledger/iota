@@ -7,12 +7,7 @@ use std::path::PathBuf;
 use clap::*;
 
 #[derive(Parser)]
-#[command(
-    name = "iota-graphql-rpc",
-    about = "IOTA GraphQL RPC",
-    rename_all = "kebab-case",
-    author
-)]
+#[command(name = "iota-graphql-rpc", about = "IOTA GraphQL RPC", author)]
 pub enum Command {
     /// Output a TOML config (suitable for passing into the --config parameter
     /// of the start-server command) with all values set to their defaults.

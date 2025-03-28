@@ -21,7 +21,6 @@ bin_version::bin_version!();
 
 #[derive(Parser)]
 #[command(
-    rename_all = "kebab-case", 
     version = VERSION,
     group(ArgGroup::new("exclusive").required(false)), 
     name = env!("CARGO_BIN_NAME"))
@@ -103,8 +102,6 @@ fn main() {
         config.network_address = listen_address;
     }
 
-    let is_validator = config.consensus_config().is_some();
-
     let admin_interface_address = config.admin_interface_address;
 
     // Run node in a separate runtime so that admin/monitoring functions continue to
@@ -146,23 +143,6 @@ fn main() {
 
     runtimes.metrics.spawn(async move {
         let node = node_once_cell.get().await;
-        let chain_identifier = match node.state().get_chain_identifier() {
-            Some(chain_identifier) => chain_identifier.to_string(),
-            None => "unknown".to_string(),
-        };
-
-        info!("IOTA chain identifier: {chain_identifier}");
-        prometheus_registry
-            .register(iota_metrics::uptime_metric(
-                if is_validator {
-                    "validator"
-                } else {
-                    "fullnode"
-                },
-                VERSION,
-                chain_identifier.as_str(),
-            ))
-            .unwrap();
 
         iota_node::admin::run_admin_server(node, admin_interface_address, filter_handle).await
     });
