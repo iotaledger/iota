@@ -34,6 +34,7 @@ import { FormDataValues } from '../interfaces';
 import { INITIAL_VALUES } from '../constants';
 import { DialogLayoutBody, DialogLayoutFooter } from '../../layout';
 import { useEffect } from 'react';
+import { useCurrentAccount } from '@iota/dapp-kit';
 
 interface EnterValuesFormProps {
     coin: CoinBalance;
@@ -107,8 +108,10 @@ export function EnterValuesFormView({
         IOTA_TYPE_ARG,
         activeAddress,
     );
-
-    const { data: coinsBalance, isPending: coinsBalanceIsPending } = useGetAllBalances();
+    const activeAccount = useCurrentAccount();
+    const { data: coinsBalance, isPending: coinsBalanceIsPending } = useGetAllBalances(
+        activeAccount?.address,
+    );
 
     const iotaCoins = iotaCoinsData;
     const coins = coinsData;

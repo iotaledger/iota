@@ -5,8 +5,8 @@
 import { Loading } from '_components';
 import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 import { Link } from 'react-router-dom';
-import { CoinItem } from '@iota/core';
-import { useGetAllBalances } from '../../hooks';
+import { CoinItem, useGetAllBalances } from '@iota/core';
+import { useActiveAddress } from '../../hooks';
 
 interface ActiveCoinsCardProps {
     activeCoinType: string;
@@ -17,7 +17,8 @@ export function ActiveCoinsCard({
     activeCoinType = IOTA_TYPE_ARG,
     showActiveCoin = true,
 }: ActiveCoinsCardProps) {
-    const { data: coins, isPending } = useGetAllBalances();
+    const address = useActiveAddress();
+    const { data: coins, isPending } = useGetAllBalances(address);
 
     const activeCoin = coins?.find(({ coinType }) => coinType === activeCoinType);
 

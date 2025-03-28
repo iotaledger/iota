@@ -1,19 +1,20 @@
 // Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { useCurrentAccount, useIotaClientQuery } from '@iota/dapp-kit';
-import { COINS_QUERY_REFETCH_INTERVAL, COINS_QUERY_STALE_TIME } from '../constants';
+import { useIotaClientQuery } from '@iota/dapp-kit';
 import { filterAndSortTokenBalances } from '../utils';
+import { useCoinsReFetchingConfig } from './';
 
-export function useGetAllBalances() {
-    const selectedAddress = useCurrentAccount()?.address;
+export function useGetAllBalances(address: string | null | undefined) {
+    const { staleTime, refetchInterval } = useCoinsReFetchingConfig();
+
     return useIotaClientQuery(
         'getAllBalances',
-        { owner: selectedAddress! },
+        { owner: address! },
         {
-            enabled: !!selectedAddress,
-            refetchInterval: COINS_QUERY_REFETCH_INTERVAL,
-            staleTime: COINS_QUERY_STALE_TIME,
+            enabled: !!address,
+            refetchInterval,
+            staleTime,
             select: filterAndSortTokenBalances,
         },
     );

@@ -44,7 +44,7 @@ export function MyCoins(): React.JSX.Element {
     const account = useCurrentAccount();
     const activeAccountAddress = account?.address;
 
-    const { data: coinBalances } = useGetAllBalances();
+    const { data: coinBalances } = useGetAllBalances(activeAccountAddress);
     const { recognized, unrecognized } = useSortedCoinsByCategories(coinBalances ?? []);
 
     function openSendTokenDialog(coin: CoinBalance): void {

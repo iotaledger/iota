@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { ExplorerLinkType, Loading, UnlockAccountButton } from '_components';
-import { useActiveAccount, useAppSelector, useExplorerLink, useGetAllBalances } from '_hooks';
+import { useActiveAccount, useActiveAddress, useAppSelector, useExplorerLink } from '_hooks';
 import { FaucetRequestButton } from '_src/ui/app/shared/faucet/FaucetRequestButton';
 import { useFeature } from '@growthbook/growthbook-react';
 import {
@@ -19,6 +19,7 @@ import {
     STARDUST_NFT_OUTPUT_TYPE,
     useGetStardustSharedBasicObjects,
     useGetStardustSharedNftObjects,
+    useGetAllBalances,
     toast,
 } from '@iota/core';
 import {
@@ -77,8 +78,14 @@ export function TokenDetails() {
         type: ExplorerLinkType.Address,
         address: activeAccountAddress,
     });
-
-    const { data: coinBalances, isPending, isLoading, isFetched, isError } = useGetAllBalances();
+    const address = useActiveAddress();
+    const {
+        data: coinBalances,
+        isPending,
+        isLoading,
+        isFetched,
+        isError,
+    } = useGetAllBalances(address);
     const coinBalance = coinBalances?.find((balance) => balance.coinType === activeCoinType);
 
     const { data: delegatedStake } = useGetDelegatedStake({

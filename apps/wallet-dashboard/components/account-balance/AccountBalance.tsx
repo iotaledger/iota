@@ -28,7 +28,7 @@ export function AccountBalance() {
     const [formatted, symbol] = useFormatCoin({ balance: coinBalance?.totalBalance });
     const [isSendTokenDialogOpen, setIsSendTokenDialogOpen] = useState(false);
     const explorerLink = `${explorer}/address/${address}`;
-    const { data: coinBalances } = useGetAllBalances();
+    const { data: coinBalances } = useGetAllBalances(account?.address);
 
     function openSendTokenDialog(): void {
         setIsSendTokenDialogOpen(true);

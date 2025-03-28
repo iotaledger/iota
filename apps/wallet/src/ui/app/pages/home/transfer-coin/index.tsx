@@ -5,18 +5,13 @@
 import { Overlay } from '_components';
 import { ampli } from '_src/shared/analytics/ampli';
 import { getSignerOperationErrorMessage } from '_src/ui/app/helpers/errorMessages';
-import {
-    useSigner,
-    useActiveAccount,
-    useUnlockedGuard,
-    usePinnedCoinTypes,
-    useGetAllBalances,
-} from '_hooks';
+import { useSigner, useActiveAccount, useUnlockedGuard, usePinnedCoinTypes } from '_hooks';
 import {
     CoinSelector,
     useSortedCoinsByCategories,
     useSendCoinTransaction,
     toast,
+    useGetAllBalances,
 } from '@iota/core';
 import * as Sentry from '@sentry/react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
@@ -37,7 +32,7 @@ export function TransferCoinPage() {
     const address = activeAccount?.address || '';
     const queryClient = useQueryClient();
 
-    const { data: coinsBalance, isPending: coinsBalanceIsPending } = useGetAllBalances();
+    const { data: coinsBalance, isPending: coinsBalanceIsPending } = useGetAllBalances(address);
     const selectedCoinType = searchParams.get('type') || coinsBalance?.[0]?.coinType || '';
 
     const [pinnedCoinTypes] = usePinnedCoinTypes();

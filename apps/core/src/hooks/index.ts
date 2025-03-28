@@ -57,6 +57,7 @@ export * from './useGetClockTimestamp';
 export * from './useAssetGasBudgetEstimation';
 export * from './useRecognizedPackages';
 export * from './useGetAllBalances';
+export * from './useCoinsReFetchingConfig';
 
 export * from './stake';
 export * from './ui';
