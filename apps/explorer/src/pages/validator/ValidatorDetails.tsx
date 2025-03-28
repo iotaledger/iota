@@ -32,7 +32,7 @@ function ValidatorDetails(): JSX.Element {
     const validatorData = useMemo(() => {
         if (!data) return null;
         return (
-            data.activeValidators.find(
+            data.committeeMembers.find(
                 ({ iotaAddress, stakingPoolId }) => iotaAddress === id || stakingPoolId === id,
             ) || null
         );
@@ -40,7 +40,7 @@ function ValidatorDetails(): JSX.Element {
 
     const atRiskRemainingEpochs = getAtRiskRemainingEpochs(data, id);
 
-    const numberOfValidators = data?.activeValidators.length ?? null;
+    const numberOfValidators = data?.committeeMembers.length ?? null;
     const { data: rollingAverageApys, isPending: validatorsApysLoading } = useGetValidatorsApy();
 
     const { data: validatorEvents, isPending: validatorsEventsLoading } = useGetValidatorsEvents({

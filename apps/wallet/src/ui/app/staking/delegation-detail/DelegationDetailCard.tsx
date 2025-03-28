@@ -82,7 +82,7 @@ export function DelegationDetailCard({ validatorAddress, stakedId }: DelegationD
 
     const validatorData = useMemo(() => {
         if (!system) return null;
-        return system.activeValidators.find((av) => av.iotaAddress === validatorAddress);
+        return system.committeeMembers.find((av) => av.iotaAddress === validatorAddress);
     }, [validatorAddress, system]);
 
     const delegationData = useMemo(() => {
@@ -109,7 +109,7 @@ export function DelegationDetailCard({ validatorAddress, stakedId }: DelegationD
     }).toString()}`;
 
     // check if the validator is in the active validator list, if not, is inactive validator
-    const hasInactiveValidatorDelegation = !system?.activeValidators?.find(
+    const hasInactiveValidatorDelegation = !system?.committeeMembers?.find(
         ({ stakingPoolId }) => stakingPoolId === validatorData?.stakingPoolId,
     );
 

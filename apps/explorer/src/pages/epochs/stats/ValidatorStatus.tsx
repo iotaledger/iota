@@ -23,8 +23,8 @@ export function ValidatorStatus(): JSX.Element | null {
     const { theme } = useTheme();
 
     const nextRefGasPrice = useMemo(
-        () => (!isFixedGasPrice ? getRefGasPrice(data?.activeValidators) : 0n),
-        [data?.activeValidators, isFixedGasPrice],
+        () => (!isFixedGasPrice ? getRefGasPrice(data?.committeeMembers) : 0n),
+        [data?.committeeMembers, isFixedGasPrice],
     );
 
     if (!data) return null;
@@ -36,7 +36,7 @@ export function ValidatorStatus(): JSX.Element | null {
 
     const chartData = [
         {
-            value: data.activeValidators.length,
+            value: data.committeeMembers.length,
             label: 'Active',
             gradient: {
                 deg: 315,

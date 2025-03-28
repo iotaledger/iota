@@ -37,15 +37,15 @@ export function SelectValidatorCard() {
 
     const totalStake = useMemo(() => {
         if (!data) return 0;
-        return data.activeValidators.reduce(
+        return data.committeeMembers.reduce(
             (acc, curr) => (acc += BigInt(curr.stakingPoolIotaBalance)),
             0n,
         );
     }, [data]);
 
     const validatorsRandomOrder = useMemo(
-        () => [...(data?.activeValidators || [])].sort(() => 0.5 - Math.random()),
-        [data?.activeValidators],
+        () => [...(data?.committeeMembers || [])].sort(() => 0.5 - Math.random()),
+        [data?.committeeMembers],
     );
     const validatorList: Validator[] = useMemo(() => {
         const sortedAsc = validatorsRandomOrder.map((validator) => {

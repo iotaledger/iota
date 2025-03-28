@@ -28,8 +28,8 @@ type TopValidatorsCardProps = {
 export function TopValidatorsCard({ limit, showIcon }: TopValidatorsCardProps): JSX.Element {
     const { data, isPending, isSuccess, isError } = useGetLatestIotaSystemState();
 
-    const topActiveValidators =
-        data?.activeValidators.slice(0, limit || NUMBER_OF_VALIDATORS) ?? [];
+    const topCommitteeMembers =
+        data?.committeeMembers.slice(0, limit || NUMBER_OF_VALIDATORS) ?? [];
 
     const tableColumns = generateValidatorsTableColumns({
         atRiskValidators: [],
@@ -40,7 +40,7 @@ export function TopValidatorsCard({ limit, showIcon }: TopValidatorsCardProps): 
         includeColumns: ['Name', 'Address', 'Stake'],
     });
 
-    if (isError || (!isPending && !data.activeValidators.length)) {
+    if (isError || (!isPending && !data.committeeMembers.length)) {
         return (
             <InfoBox
                 title="Failed loading data"
@@ -80,7 +80,7 @@ export function TopValidatorsCard({ limit, showIcon }: TopValidatorsCardProps): 
                             <TableCard
                                 sortTable
                                 defaultSorting={[{ id: 'stakingPoolIotaBalance', desc: true }]}
-                                data={topActiveValidators}
+                                data={topCommitteeMembers}
                                 columns={tableColumns}
                             />
                         </ErrorBoundary>

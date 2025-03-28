@@ -42,7 +42,6 @@ import {
 import {
     Theme,
     useFormatCoin,
-    useGetActiveValidatorsInfo,
     useTheme,
     useCountdownByTimestamp,
     Feature,
@@ -68,7 +67,6 @@ export default function VestingDashboardPage(): JSX.Element {
     const router = useRouter();
     const { data: system } = useGetLatestIotaSystemState();
     const [isVestingScheduleDialogOpen, setIsVestingScheduleDialogOpen] = useState(false);
-    const { data: activeValidators } = useGetActiveValidatorsInfo();
     const { mutateAsync: signAndExecuteTransaction } = useSignAndExecuteTransaction();
     const { theme } = useTheme();
 
@@ -139,7 +137,7 @@ export default function VestingDashboardPage(): JSX.Element {
     const [formattedNextPayout, nextPayoutSymbol] = useFormatCoin({ balance: nextPayout?.amount });
 
     function getValidatorByAddress(validatorAddress: string): IotaValidatorSummary | undefined {
-        return activeValidators?.find(
+        return system?.committeeMembers?.find(
             (activeValidator) => activeValidator.iotaAddress === validatorAddress,
         );
     }

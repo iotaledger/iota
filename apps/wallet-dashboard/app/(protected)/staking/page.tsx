@@ -44,7 +44,7 @@ import { IotaSignAndExecuteTransactionOutput } from '@iota/wallet-standard';
 function StakingDashboardPage(): React.JSX.Element {
     const account = useCurrentAccount();
     const { data: system } = useGetLatestIotaSystemState();
-    const activeValidators = system?.activeValidators;
+    const committeeMembers = system?.committeeMembers;
     const iotaClient = useIotaClient();
 
     const {
@@ -84,14 +84,14 @@ function StakingDashboardPage(): React.JSX.Element {
             return delegation.stakes.map((d) => ({
                 ...d,
                 // flag any inactive validator for the stakeIota object
-                // if the stakingPoolId is not found in the activeValidators list flag as inactive
-                inactiveValidator: !activeValidators?.find(
+                // if the stakingPoolId is not found in the committeeMembers list flag as inactive
+                inactiveValidator: !committeeMembers?.find(
                     ({ stakingPoolId }) => stakingPoolId === delegation.stakingPool,
                 ),
                 validatorAddress: delegation.validatorAddress,
             }));
         });
-    }, [activeValidators, delegatedStakeData]);
+    }, [committeeMembers, delegatedStakeData]);
 
     // Check if there are any inactive validators
     const hasInactiveValidatorDelegation = delegations?.some(
