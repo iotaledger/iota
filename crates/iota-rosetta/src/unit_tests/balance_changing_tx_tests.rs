@@ -26,7 +26,6 @@ use iota_types::{
     TypeTag,
     base_types::{IotaAddress, ObjectID, ObjectRef},
     gas_coin::GasCoin,
-    iota_system_state::iota_system_state_summary::IotaSystemStateSummary,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     quorum_driver_types::ExecuteTransactionRequestType,
     transaction::{
@@ -491,24 +490,24 @@ async fn test_stake_iota() {
     let sender = get_random_address(&network.get_addresses(), vec![]);
     let coin1 = get_random_iota(&client, sender, vec![]).await;
     let coin2 = get_random_iota(&client, sender, vec![coin1.0]).await;
-    let system_state = client
+
+    // We test the staking transaction to a committee member.
+    let committee_member_address = client
         .governance_api()
         .get_latest_iota_system_state()
         .await
-        .unwrap();
-    let active_validators = match system_state {
-        IotaSystemStateSummary::V1(v1) => v1.active_validators,
-        IotaSystemStateSummary::V2(v2) => v2.active_validators,
-        _ => panic!("unsupported IotaSystemStateSummary"),
-    };
-    let validator = active_validators[0].iota_address;
+        .unwrap()
+        .iter_committee_members()
+        .next()
+        .unwrap()
+        .iota_address;
     let tx = client
         .transaction_builder()
         .request_add_stake(
             sender,
             vec![coin1.0, coin2.0],
             Some(1000000000),
-            validator,
+            committee_member_address,
             None,
             10_000_000,
         )
@@ -543,24 +542,24 @@ async fn test_stake_iota_with_none_amount() {
     let sender = get_random_address(&network.get_addresses(), vec![]);
     let coin1 = get_random_iota(&client, sender, vec![]).await;
     let coin2 = get_random_iota(&client, sender, vec![coin1.0]).await;
-    let system_state = client
+
+    // We test the staking transaction to a committee member with none amount.
+    let committee_member_address = client
         .governance_api()
         .get_latest_iota_system_state()
         .await
-        .unwrap();
-    let active_validators = match system_state {
-        IotaSystemStateSummary::V1(v1) => v1.active_validators,
-        IotaSystemStateSummary::V2(v2) => v2.active_validators,
-        _ => panic!("unsupported IotaSystemStateSummary"),
-    };
-    let validator = active_validators[0].iota_address;
+        .unwrap()
+        .iter_committee_members()
+        .next()
+        .unwrap()
+        .iota_address;
     let tx = client
         .transaction_builder()
         .request_add_stake(
             sender,
             vec![coin1.0, coin2.0],
             None,
-            validator,
+            committee_member_address,
             None,
             rgp * TEST_ONLY_GAS_UNIT_FOR_STAKING,
         )
@@ -623,17 +622,17 @@ async fn test_delegation_parsing() -> Result<(), anyhow::Error> {
     let client = network.wallet.get_client().await.unwrap();
     let sender = get_random_address(&network.get_addresses(), vec![]);
     let gas = get_random_iota(&client, sender, vec![]).await;
-    let system_state = client
+
+    // We test the parsing of delegation to a committee member.
+    let committee_member_address = client
         .governance_api()
         .get_latest_iota_system_state()
         .await
-        .unwrap();
-    let active_validators = match system_state {
-        IotaSystemStateSummary::V1(v1) => v1.active_validators,
-        IotaSystemStateSummary::V2(v2) => v2.active_validators,
-        _ => anyhow::bail!("unsupported IotaSystemStateSummary"),
-    };
-    let validator = active_validators[0].iota_address;
+        .unwrap()
+        .iter_committee_members()
+        .next()
+        .unwrap()
+        .iota_address;
 
     let ops: Operations = serde_json::from_value(json!(
         [{
@@ -641,7 +640,7 @@ async fn test_delegation_parsing() -> Result<(), anyhow::Error> {
             "type":"Stake",
             "account": { "address" : sender.to_string() },
             "amount" : { "value": "-100000" , "currency": { "symbol": "IOTA", "decimals": 9}},
-            "metadata": { "Stake" : {"validator": validator.to_string()} }
+            "metadata": { "Stake" : {"validator": committee_member_address.to_string()} }
         }]
     ))
     .unwrap();

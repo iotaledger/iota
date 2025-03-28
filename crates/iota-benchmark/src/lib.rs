@@ -231,7 +231,10 @@ pub trait ValidatorProxy {
 
     fn clone_new(&self) -> Box<dyn ValidatorProxy + Send + Sync>;
 
-    async fn get_validators(&self) -> Result<Vec<IotaAddress>, anyhow::Error>;
+    /// This crate benchmarks committee performance, such as
+    /// transaction execution (`execute_bench_transaction`).
+    /// Therefore, we return the committee members here.
+    async fn get_committee(&self) -> Result<Vec<IotaAddress>, anyhow::Error>;
 }
 
 // TODO: Eventually remove this proxy because we shouldn't rely on validators to
@@ -622,14 +625,13 @@ impl ValidatorProxy for LocalValidatorAggregatorProxy {
         })
     }
 
-    async fn get_validators(&self) -> Result<Vec<IotaAddress>, anyhow::Error> {
-        let active_validators = match self.get_latest_system_state_object().await? {
-            IotaSystemStateSummary::V1(v1) => v1.active_validators,
-            IotaSystemStateSummary::V2(v2) => v2.active_validators,
-            _ => panic!("unsupported IotaSystemStateSummary"),
-        };
-
-        Ok(active_validators.iter().map(|v| v.iota_address).collect())
+    async fn get_committee(&self) -> Result<Vec<IotaAddress>, anyhow::Error> {
+        Ok(self
+            .get_latest_system_state_object()
+            .await?
+            .iter_committee_members()
+            .map(|v| v.iota_address)
+            .collect())
     }
 }
 
@@ -787,20 +789,13 @@ impl ValidatorProxy for FullNodeProxy {
         })
     }
 
-    async fn get_validators(&self) -> Result<Vec<IotaAddress>, anyhow::Error> {
-        let active_validators = match self
+    async fn get_committee(&self) -> Result<Vec<IotaAddress>, anyhow::Error> {
+        Ok(self
             .iota_client
             .governance_api()
             .get_latest_iota_system_state()
             .await?
-        {
-            IotaSystemStateSummary::V1(v1) => v1.active_validators,
-            IotaSystemStateSummary::V2(v2) => v2.active_validators,
-            _ => panic!("unsupported IotaSystemStateSummary"),
-        };
-
-        Ok(active_validators
-            .into_iter()
+            .iter_committee_members()
             .map(|v| v.iota_address)
             .collect())
     }

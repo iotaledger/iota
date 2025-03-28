@@ -74,7 +74,7 @@ pub const MAX_CHECKPOINTS_IN_PROGRESS: usize = 10000;
 ///         CancellationToken::new(),
 ///     );
 ///     // register a worker pool with 5 workers to process checkpoints in parallel
-///     let worker_pool = WorkerPool::new(CustomWorker, "local_reader".to_string(), concurrency);
+///     let worker_pool = WorkerPool::new(CustomWorker, "local_reader".to_string(), concurrency, Default::default());
 ///     // register the worker pool to the executor.
 ///     executor.register(worker_pool).await.unwrap();
 ///     // run the ingestion pipeline.
@@ -328,7 +328,12 @@ pub async fn setup_single_workflow<W: Worker + 'static>(
     let progress_store = ShimProgressStore(initial_checkpoint_number);
     let token = CancellationToken::new();
     let mut executor = IndexerExecutor::new(progress_store, 1, metrics, token.child_token());
-    let worker_pool = WorkerPool::new(worker, "workflow".to_string(), concurrency);
+    let worker_pool = WorkerPool::new(
+        worker,
+        "workflow".to_string(),
+        concurrency,
+        Default::default(),
+    );
     executor.register(worker_pool).await?;
     Ok((
         executor.run(
