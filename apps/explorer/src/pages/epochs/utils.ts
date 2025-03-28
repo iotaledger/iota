@@ -19,8 +19,7 @@ export function useEpochProgress(suffix: string = 'left'): EpochProgress {
     const start = data?.epochStartTimestampMs ? Number(data.epochStartTimestampMs) : undefined;
     const duration = data?.epochDurationMs ? Number(data.epochDurationMs) : undefined;
     const end = start !== undefined && duration !== undefined ? start + duration : undefined;
-    const lastEpoch = useRef<number | null>(null);
-    const refetchEpochInterval = useRef<NodeJS.Timeout | null>(null);
+    const pollingNextEpochTimer = useRef<NodeJS.Timeout | null>(null);
     const currentEpoch = data?.epoch ? Number(data.epoch) : undefined;
 
     const time = useTimeAgo({
@@ -32,49 +31,43 @@ export function useEpochProgress(suffix: string = 'left'): EpochProgress {
     // Effect to handle refetch logic
     useEffect(() => {
         // Clear any existing interval first
-        if (refetchEpochInterval.current) {
-            clearInterval(refetchEpochInterval.current);
-            refetchEpochInterval.current = null;
+        if (pollingNextEpochTimer.current) {
+            clearTimeout(pollingNextEpochTimer.current);
+            clearInterval(pollingNextEpochTimer.current);
+            pollingNextEpochTimer.current = null;
         }
 
         if (!end) return;
 
-        // Store current epoch if it exists
-        if (currentEpoch !== undefined && lastEpoch.current !== currentEpoch) {
-            lastEpoch.current = currentEpoch;
-        }
-
-        // Check if end time has expired
-        const checkAndSetupInterval = () => {
+        const pollingNextEpoch = () => {
+            // Check if end time has expired
             const now = Date.now();
             const isExpired = now >= end;
 
-            if (isExpired && !refetchEpochInterval.current) {
+            if (isExpired) {
                 // End time expired, start refetching
-                refetchEpochInterval.current = setInterval(() => {
+                pollingNextEpochTimer.current = setInterval(() => {
+                    console.log('refetching');
                     refetch();
                 }, 5000);
             }
         };
 
-        checkAndSetupInterval();
-
-        // Set up a timer to check again when end time is reached
+        // Set up a timer start checking new epoch when end time is reached
         const timeToEnd = end - Date.now();
         if (timeToEnd > 0) {
-            const timeoutId = setTimeout(() => {
-                checkAndSetupInterval();
+            pollingNextEpochTimer.current = setTimeout(() => {
+                pollingNextEpoch();
             }, timeToEnd);
-
-            return () => {
-                clearTimeout(timeoutId);
-            };
+        } else {
+            pollingNextEpoch();
         }
 
         return () => {
-            if (refetchEpochInterval.current) {
-                clearInterval(refetchEpochInterval.current);
-                refetchEpochInterval.current = null;
+            if (pollingNextEpochTimer.current) {
+                clearTimeout(pollingNextEpochTimer.current);
+                clearInterval(pollingNextEpochTimer.current);
+                pollingNextEpochTimer.current = null;
             }
         };
     }, [end, refetch, currentEpoch]);
