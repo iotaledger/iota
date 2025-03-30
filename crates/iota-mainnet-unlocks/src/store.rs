@@ -5,14 +5,15 @@ use std::{collections::BTreeMap, fs, path::PathBuf};
 
 use anyhow::{Context, Result};
 use chrono::{DateTime, Utc};
-use serde::Deserialize;
+use csv::ReaderBuilder;
+use serde::{Deserialize, Serialize};
 
 /// File name of the mainnet unlock data.
-const AGGREGATED_MAINNET_UNLOCKS_FILE: &str = "mainnet_unlocks_aggregated.json";
+pub const INPUT_FILE: &str = "aggregated_mainnet_unlocks.csv";
 
-/// Represents a single entry in the aggregated unlock data.
+/// Represents a single entry in the store.
 /// It defines how many tokens still remain locked at a specific point in time.
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct StillLockedEntry {
     /// UTC timestamp at which the tokens are still locked.
     pub timestamp: DateTime<Utc>,
@@ -33,29 +34,33 @@ impl MainnetUnlocksStore {
     /// crate root.
     pub fn new() -> Result<Self> {
         let crate_dir = env!("CARGO_MANIFEST_DIR");
-        let path = PathBuf::from(crate_dir)
-            .join("data")
-            .join(AGGREGATED_MAINNET_UNLOCKS_FILE);
+        let path = PathBuf::from(crate_dir).join("data").join(INPUT_FILE);
 
         let data = fs::read_to_string(&path)
             .with_context(|| format!("could not read locked supply file: {:?}", path))?;
 
-        Self::from_json(&data)
+        Self::from_csv_str(&data)
     }
 
-    /// Parses the given JSON string into a `MainnetUnlocksStore`.
-    fn from_json(json: &str) -> Result<Self> {
-        let parsed: Vec<StillLockedEntry> =
-            serde_json::from_str(json).context("invalid JSON format in unlock data")?;
+    /// Parses the given CSV string into a `MainnetUnlocksStore`.
+    fn from_csv_str(csv_str: &str) -> Result<Self> {
+        let mut rdr = ReaderBuilder::new()
+            .has_headers(true)
+            .from_reader(csv_str.as_bytes());
 
         let mut map = BTreeMap::new();
-        for entry in parsed {
+
+        for result in rdr.deserialize() {
+            let entry: StillLockedEntry =
+                result.context("failed to deserialize CSV row into StillLockedEntry")?;
+
             if map.contains_key(&entry.timestamp) {
                 return Err(anyhow::anyhow!(
                     "duplicate entry found for timestamp: {}",
                     entry.timestamp
                 ));
             }
+
             map.insert(entry.timestamp, entry);
         }
 
@@ -86,20 +91,23 @@ mod tests {
 
     use super::*;
 
+    fn store(csv: &str) -> MainnetUnlocksStore {
+        MainnetUnlocksStore::from_csv_str(csv).unwrap()
+    }
+
     #[test]
     fn test_no_entries() {
-        let store = MainnetUnlocksStore::from_json("[]").unwrap();
+        let store = store("timestamp,amount_still_locked\n");
         assert_eq!(store.still_locked_tokens(Utc::now()), 0);
     }
 
     #[test]
     fn test_single_entry() {
-        let json = r#"
-            [
-                { "timestamp": "2000-01-01T00:00:00Z", "amount_still_locked": 999 }
-            ]
+        let csv = r#"
+            timestamp,amount_still_locked
+            2000-01-01T00:00:00Z,999
         "#;
-        let store = MainnetUnlocksStore::from_json(json).unwrap();
+        let store = store(csv.trim());
 
         let before = Utc.with_ymd_and_hms(1999, 12, 31, 23, 59, 59).unwrap();
         let exact = Utc.with_ymd_and_hms(2000, 1, 1, 0, 0, 0).unwrap();
@@ -112,43 +120,41 @@ mod tests {
 
     #[test]
     fn test_multiple_entries() {
-        let json = r#"
-            [
-                { "timestamp": "2023-01-01T00:00:00Z", "amount_still_locked": 300 },
-                { "timestamp": "2024-01-01T00:00:00Z", "amount_still_locked": 200 },
-                { "timestamp": "2025-01-01T00:00:00Z", "amount_still_locked": 100 }
-            ]
+        let csv = r#"
+            timestamp,amount_still_locked
+            2023-01-01T00:00:00Z,300
+            2024-01-01T00:00:00Z,200
+            2025-01-01T00:00:00Z,100
         "#;
-        let store = MainnetUnlocksStore::from_json(json).unwrap();
+        let store = store(csv.trim());
 
-        let t0 = Utc.with_ymd_and_hms(2022, 12, 31, 0, 0, 0).unwrap(); // before all
-        let t0_between = Utc.with_ymd_and_hms(2023, 6, 1, 0, 0, 0).unwrap(); // between entry 1 and 2
-        let t1 = Utc.with_ymd_and_hms(2023, 1, 1, 0, 0, 0).unwrap(); // first entry
-        let t2 = Utc.with_ymd_and_hms(2024, 1, 1, 0, 0, 0).unwrap(); // second entry
-        let t3 = Utc.with_ymd_and_hms(2025, 1, 1, 0, 0, 0).unwrap(); // third entry
-        let t4 = Utc.with_ymd_and_hms(2026, 1, 1, 0, 0, 0).unwrap(); // after all
+        let t0 = Utc.with_ymd_and_hms(2022, 12, 31, 0, 0, 0).unwrap();
+        let t0_between = Utc.with_ymd_and_hms(2023, 6, 1, 0, 0, 0).unwrap();
+        let t1 = Utc.with_ymd_and_hms(2023, 1, 1, 0, 0, 0).unwrap();
+        let t2 = Utc.with_ymd_and_hms(2024, 1, 1, 0, 0, 0).unwrap();
+        let t3 = Utc.with_ymd_and_hms(2025, 1, 1, 0, 0, 0).unwrap();
+        let t4 = Utc.with_ymd_and_hms(2026, 1, 1, 0, 0, 0).unwrap();
 
-        assert_eq!(store.still_locked_tokens(t0), 300); // first entry is retroactively valid
+        assert_eq!(store.still_locked_tokens(t0), 300);
         assert_eq!(store.still_locked_tokens(t1), 300);
         assert_eq!(store.still_locked_tokens(t0_between), 300);
         assert_eq!(store.still_locked_tokens(t2), 200);
         assert_eq!(store.still_locked_tokens(t3), 100);
-        assert_eq!(store.still_locked_tokens(t4), 100); // last entry remains valid
+        assert_eq!(store.still_locked_tokens(t4), 100);
     }
 
     #[test]
     fn test_zero_at_latest_entry() {
-        let json = r#"
-            [
-                { "timestamp": "2023-01-01T00:00:00Z", "amount_still_locked": 1000 },
-                { "timestamp": "2025-01-01T00:00:00Z", "amount_still_locked": 0 }
-            ]
+        let csv = r#"
+            timestamp,amount_still_locked
+            2023-01-01T00:00:00Z,1000
+            2025-01-01T00:00:00Z,0
         "#;
-        let store = MainnetUnlocksStore::from_json(json).unwrap();
+        let store = store(csv.trim());
 
-        let t1 = Utc.with_ymd_and_hms(2024, 1, 1, 0, 0, 0).unwrap(); // between entries
-        let t2 = Utc.with_ymd_and_hms(2025, 1, 1, 0, 0, 0).unwrap(); // entry with zero
-        let t3 = Utc.with_ymd_and_hms(2026, 1, 1, 0, 0, 0).unwrap(); // after all
+        let t1 = Utc.with_ymd_and_hms(2024, 1, 1, 0, 0, 0).unwrap();
+        let t2 = Utc.with_ymd_and_hms(2025, 1, 1, 0, 0, 0).unwrap();
+        let t3 = Utc.with_ymd_and_hms(2026, 1, 1, 0, 0, 0).unwrap();
 
         assert_eq!(store.still_locked_tokens(t1), 1000);
         assert_eq!(store.still_locked_tokens(t2), 0);
@@ -157,33 +163,31 @@ mod tests {
 
     #[test]
     fn test_gap_between_entries() {
-        let json = r#"
-            [
-                { "timestamp": "2020-01-01T00:00:00Z", "amount_still_locked": 1000 },
-                { "timestamp": "2030-01-01T00:00:00Z", "amount_still_locked": 100 }
-            ]
+        let csv = r#"
+            timestamp,amount_still_locked
+            2020-01-01T00:00:00Z,1000
+            2030-01-01T00:00:00Z,100
         "#;
-        let store = MainnetUnlocksStore::from_json(json).unwrap();
+        let store = store(csv.trim());
 
         let t_before = Utc.with_ymd_and_hms(2019, 1, 1, 0, 0, 0).unwrap();
-        let t_mid = Utc.with_ymd_and_hms(2025, 1, 1, 0, 0, 0).unwrap(); // between entries
-        let t_after = Utc.with_ymd_and_hms(2040, 1, 1, 0, 0, 0).unwrap(); // after all
+        let t_mid = Utc.with_ymd_and_hms(2025, 1, 1, 0, 0, 0).unwrap();
+        let t_after = Utc.with_ymd_and_hms(2040, 1, 1, 0, 0, 0).unwrap();
 
-        assert_eq!(store.still_locked_tokens(t_before), 1000); // retroactively valid
+        assert_eq!(store.still_locked_tokens(t_before), 1000);
         assert_eq!(store.still_locked_tokens(t_mid), 1000);
         assert_eq!(store.still_locked_tokens(t_after), 100);
     }
 
     #[test]
     fn test_dense_entry() {
-        let json = r#"
-            [
-                { "timestamp": "2023-10-01T00:00:00Z", "amount_still_locked": 300 },
-                { "timestamp": "2023-10-15T00:00:00Z", "amount_still_locked": 200 },
-                { "timestamp": "2023-11-01T00:00:00Z", "amount_still_locked": 100 }
-            ]
+        let csv = r#"
+            timestamp,amount_still_locked
+            2023-10-01T00:00:00Z,300
+            2023-10-15T00:00:00Z,200
+            2023-11-01T00:00:00Z,100
         "#;
-        let store = MainnetUnlocksStore::from_json(json).unwrap();
+        let store = store(csv.trim());
 
         let t_exact_mid = Utc.with_ymd_and_hms(2023, 10, 15, 0, 0, 0).unwrap();
         let t_between = Utc.with_ymd_and_hms(2023, 10, 20, 0, 0, 0).unwrap();
@@ -194,12 +198,11 @@ mod tests {
 
     #[test]
     fn test_first_entry_is_retrospective() {
-        let json = r#"
-            [
-                { "timestamp": "2022-06-01T00:00:00Z", "amount_still_locked": 888 }
-            ]
+        let csv = r#"
+            timestamp,amount_still_locked
+            2022-06-01T00:00:00Z,888
         "#;
-        let store = MainnetUnlocksStore::from_json(json).unwrap();
+        let store = store(csv.trim());
 
         let far_before = Utc.with_ymd_and_hms(2000, 1, 1, 0, 0, 0).unwrap();
         let just_before = Utc.with_ymd_and_hms(2022, 5, 31, 23, 59, 59).unwrap();
@@ -212,19 +215,17 @@ mod tests {
 
     #[test]
     fn test_unsorted_input() {
-        let json = r#"
-            [
-                { "timestamp": "2023-11-01T00:00:00Z", "amount_still_locked": 100 },
-                { "timestamp": "2023-01-01T00:00:00Z", "amount_still_locked": 300 },
-                { "timestamp": "2023-10-01T00:00:00Z", "amount_still_locked": 200 }
-            ]
+        let csv = r#"
+            timestamp,amount_still_locked
+            2023-11-01T00:00:00Z,100
+            2023-01-01T00:00:00Z,300
+            2023-10-01T00:00:00Z,200
         "#;
-        let store = MainnetUnlocksStore::from_json(json).unwrap();
-        // The entries should be sorted internally; thus, querying a date between
-        // the earliest and the next entry should return the correct value.
+        let store = store(csv.trim());
+
         let query_before = Utc.with_ymd_and_hms(2023, 6, 1, 0, 0, 0).unwrap();
         assert_eq!(store.still_locked_tokens(query_before), 300);
-        // Querying exactly at a later entry should return its value.
+
         let query_exact = Utc.with_ymd_and_hms(2023, 10, 1, 0, 0, 0).unwrap();
         assert_eq!(store.still_locked_tokens(query_exact), 200);
     }

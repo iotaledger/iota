@@ -3,12 +3,12 @@
 
 /// Provides functionality for loading and querying token unlock data over time.
 ///
-/// This module defines a `TokenUnlocksStore` which maintains an in-memory
+/// This module defines a `MainnetUnlocksStore` which maintains an in-memory
 /// mapping of timestamps to the amount of still-locked tokens at that point in
 /// time.
 ///
 /// The unlock data is used to answer questions like:
 /// - "How many tokens are still locked at a specific timestamp?"
-pub mod unlocks;
+pub mod store;
 
-pub use unlocks::{MainnetUnlocksStore, StillLockedEntry};
+pub use store::{MainnetUnlocksStore, StillLockedEntry};
