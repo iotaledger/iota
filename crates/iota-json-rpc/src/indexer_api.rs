@@ -391,6 +391,7 @@ impl<R: ReadApiServer> IndexerApiServer for IndexerApi<R> {
         &self,
         parent_object_id: ObjectID,
         name: DynamicFieldName,
+        options: Option<IotaObjectDataOptions>,
     ) -> RpcResult<IotaObjectResponse> {
         async move {
             let (name_type, name_bcs_value) = self.extract_values_from_dynamic_field_name(name)?;
@@ -399,10 +400,12 @@ impl<R: ReadApiServer> IndexerApiServer for IndexerApi<R> {
                 .state
                 .get_dynamic_field_object_id(parent_object_id, name_type, &name_bcs_value)
                 .map_err(Error::from)?;
-            // TODO(chris): add options to `get_dynamic_field_object` API as well
+
+            let options = options.or_else(|| Some(IotaObjectDataOptions::full_content()));
+
             if let Some(id) = id {
                 self.read_api
-                    .get_object(id, Some(IotaObjectDataOptions::full_content()))
+                    .get_object(id, options)
                     .await
                     .map_err(|e| Error::Internal(anyhow!(e)))
             } else {

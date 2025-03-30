@@ -145,11 +145,12 @@ impl ReadApi {
         &self,
         parent_object_id: ObjectID,
         name: DynamicFieldName,
+        options: Option<IotaObjectDataOptions>,
     ) -> IotaRpcResult<IotaObjectResponse> {
         Ok(self
             .api
             .http
-            .get_dynamic_field_object(parent_object_id, name)
+            .get_dynamic_field_object(parent_object_id, name, options)
             .await?)
     }
 

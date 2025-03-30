@@ -45,7 +45,7 @@ async fn main() -> Result<(), anyhow::Error> {
         println!(" *** First Dynamic Field ***");
         let dynamic_field = client
             .read_api()
-            .get_dynamic_field_object(parent_object_id, dynamic_field_info.name)
+            .get_dynamic_field_object(parent_object_id, dynamic_field_info.name, None)
             .await?;
         println!("{dynamic_field:?}");
         println!(" *** First Dynamic Field ***\n");
