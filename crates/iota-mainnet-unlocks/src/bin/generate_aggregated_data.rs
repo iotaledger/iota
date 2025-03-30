@@ -1,7 +1,11 @@
 // Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{collections::BTreeMap, path::PathBuf, process::Command};
+use std::{
+    collections::BTreeMap,
+    path::{Path, PathBuf},
+    process::Command,
+};
 
 use anyhow::{Context, Result};
 use chrono::{DateTime, Utc};
@@ -27,7 +31,7 @@ fn clone_repo(tmp_dir: &TempDir) -> Result<PathBuf> {
     let repo_path = tmp_dir.path().join("new_supply");
 
     let status = Command::new("git")
-        .args(&[
+        .args([
             "clone",
             "--depth",
             "1",
@@ -47,7 +51,7 @@ fn clone_repo(tmp_dir: &TempDir) -> Result<PathBuf> {
 /// Reads and aggregates the CSV unlock data from the cloned repository.
 /// Returns a BTreeMap keyed by unlock date (as a String) with the aggregated
 /// token amount (in nano-units).
-fn aggregate_unlocks(repo_path: &PathBuf) -> Result<BTreeMap<String, u64>> {
+fn aggregate_unlocks(repo_path: &Path) -> Result<BTreeMap<String, u64>> {
     let mut locked_by_date: BTreeMap<String, u64> = BTreeMap::new();
 
     for folder in FOLDERS {
