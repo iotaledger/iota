@@ -43,7 +43,7 @@ impl MainnetUnlocksStore {
         Self::from_json(&data)
     }
 
-    /// Parses the given JSON string into a `TokenUnlocksStore`.
+    /// Parses the given JSON string into a `MainnetUnlocksStore`.
     fn from_json(json: &str) -> Result<Self> {
         let parsed: Vec<StillLockedEntry> =
             serde_json::from_str(json).context("invalid JSON format in unlock data")?;
