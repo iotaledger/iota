@@ -187,7 +187,7 @@ impl CoinReadApiServer for CoinReadApi {
 
         let chain = self
             .inner
-            .spawn_blocking(|this| this.get_chain_identifier_in_blocking_task())
+            .get_chain_identifier_in_blocking_task()
             .await?
             .chain();
 

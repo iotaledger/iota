@@ -140,9 +140,6 @@ pub enum IndexerError {
 
     #[error(transparent)]
     Ingestion(#[from] IngestionError),
-
-    #[error("Indexer failed to find genesis checkpoint.")]
-    GenesisCheckpointNotAvailable,
 }
 
 pub trait Context<T> {

@@ -52,7 +52,7 @@ use crate::{
     errors::IndexerError,
     models::{
         address_metrics::StoredAddressMetrics,
-        checkpoints::StoredCheckpoint,
+        checkpoints::{StoredChainIdentifier, StoredCheckpoint},
         display::StoredDisplay,
         epoch::StoredEpochInfo,
         events::StoredEvent,
@@ -67,8 +67,9 @@ use crate::{
         tx_indices::TxSequenceNumber,
     },
     schema::{
-        address_metrics, addresses, checkpoints, display, epochs, events, objects, objects_history,
-        objects_snapshot, objects_version, packages, pruner_cp_watermark, transactions, tx_digests,
+        address_metrics, addresses, chain_identifier, checkpoints, display, epochs, events,
+        objects, objects_history, objects_snapshot, objects_version, packages, pruner_cp_watermark,
+        transactions, tx_digests,
     },
     store::{diesel_macro::*, package_resolver::IndexerStorePackageResolver},
     types::{IndexerResult, OwnerType},
@@ -471,13 +472,32 @@ impl IndexerReader {
         Ok(system_state)
     }
 
-    pub fn get_chain_identifier_in_blocking_task(&self) -> Result<ChainIdentifier, IndexerError> {
-        let cp = self
-            .get_checkpoint_from_db(CheckpointId::SequenceNumber(0))?
-            .ok_or(IndexerError::GenesisCheckpointNotAvailable)?;
-        let cp_digest = CheckpointDigest::try_from(cp.checkpoint_digest)?;
+    pub async fn get_chain_identifier_in_blocking_task(
+        &self,
+    ) -> Result<ChainIdentifier, IndexerError> {
+        self.spawn_blocking(|this| this.get_chain_identifier())
+            .await
+    }
 
-        Ok(ChainIdentifier::from(cp_digest))
+    pub fn get_chain_identifier(&self) -> Result<ChainIdentifier, IndexerError> {
+        let stored_chain_identifier = run_query!(&self.pool, |conn| {
+            chain_identifier::dsl::chain_identifier
+                .first::<StoredChainIdentifier>(conn)
+                .optional()
+        })?
+        .ok_or(IndexerError::PostgresRead(
+            "chain identifier not found".to_string(),
+        ))?;
+
+        let checkpoint_digest =
+            CheckpointDigest::try_from(stored_chain_identifier.checkpoint_digest).map_err(|e| {
+                IndexerError::PersistentStorageDataCorruption(format!(
+                    "failed to decode chain identifier with err: {:?}",
+                    e
+                ))
+            })?;
+
+        Ok(checkpoint_digest.into())
     }
 
     pub fn get_checkpoint_from_db(

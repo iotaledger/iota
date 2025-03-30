@@ -7316,7 +7316,6 @@ dependencies = [
  "csv",
  "regex",
  "serde",
- "serde_json",
  "tempfile",
 ]
 
