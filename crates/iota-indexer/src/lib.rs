@@ -177,7 +177,7 @@ pub async fn build_json_rpc_server(
     builder.register_module(MoveUtilsApi::new(reader.clone()))?;
     builder.register_module(GovernanceReadApi::new(reader.clone()))?;
     builder.register_module(ReadApi::new(reader.clone()))?;
-    builder.register_module(CoinReadApi::new(reader.clone()))?;
+    builder.register_module(CoinReadApi::new(reader.clone())?)?;
     builder.register_module(ExtendedApi::new(reader.clone()))?;
 
     let default_socket_addr: SocketAddr = SocketAddr::new(

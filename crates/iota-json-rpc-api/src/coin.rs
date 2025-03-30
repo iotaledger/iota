@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use iota_json_rpc_types::{Balance, CoinPage, IotaCirculatingSupplySummary, IotaCoinMetadata};
+use iota_json_rpc_types::{Balance, CoinPage, IotaCirculatingSupply, IotaCoinMetadata};
 use iota_open_rpc_macros::open_rpc;
 use iota_types::{
     balance::Supply,
@@ -84,5 +84,5 @@ pub trait CoinReadApi {
     /// Return the circulating supply summary. Exclusively served by the
     /// indexer.
     #[method(name = "getCirculatingSupply")]
-    async fn get_circulating_supply(&self) -> RpcResult<IotaCirculatingSupplySummary>;
+    async fn get_circulating_supply(&self) -> RpcResult<IotaCirculatingSupply>;
 }

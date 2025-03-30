@@ -22,15 +22,16 @@ pub struct StillLockedEntry {
 
 /// In-memory store holding the aggregated token unlock data.
 #[derive(Debug, Clone)]
-pub struct AggregatedUnlocksStore {
+pub struct MainnetUnlocksStore {
     // Each entry represents the total number of tokens still locked at the specific point in time.
     entries: BTreeMap<DateTime<Utc>, StillLockedEntry>,
 }
 
-impl AggregatedUnlocksStore {
+impl MainnetUnlocksStore {
+    /// Creates a new store with the aggregated unlock data for mainnet.
     /// Loads the aggregated token unlock data from the given JSON file at the
     /// crate root.
-    pub fn load() -> Result<Self> {
+    pub fn new() -> Result<Self> {
         let crate_dir = env!("CARGO_MANIFEST_DIR");
         let path = PathBuf::from(crate_dir)
             .join("data")
@@ -43,7 +44,7 @@ impl AggregatedUnlocksStore {
     }
 
     /// Parses the given JSON string into a `TokenUnlocksStore`.
-    pub fn from_json(json: &str) -> Result<Self> {
+    fn from_json(json: &str) -> Result<Self> {
         let parsed: Vec<StillLockedEntry> =
             serde_json::from_str(json).context("invalid JSON format in unlock data")?;
 
@@ -63,9 +64,9 @@ impl AggregatedUnlocksStore {
 
     /// Returns the total amount of tokens (in nano-units) that are still locked
     /// at the given timestamp.
-    pub fn still_locked_tokens(&self, timestamp: DateTime<Utc>) -> u64 {
+    pub fn still_locked_tokens(&self, date_time: DateTime<Utc>) -> u64 {
         self.entries
-            .range(..=timestamp)
+            .range(..=date_time)
             .next_back()
             .map(|(_, entry)| entry.amount_still_locked)
             .unwrap_or_else(|| {
@@ -87,7 +88,7 @@ mod tests {
 
     #[test]
     fn test_no_entries() {
-        let store = AggregatedUnlocksStore::from_json("[]").unwrap();
+        let store = MainnetUnlocksStore::from_json("[]").unwrap();
         assert_eq!(store.still_locked_tokens(Utc::now()), 0);
     }
 
@@ -98,7 +99,7 @@ mod tests {
                 { "timestamp": "2000-01-01T00:00:00Z", "amount_still_locked": 999 }
             ]
         "#;
-        let store = AggregatedUnlocksStore::from_json(json).unwrap();
+        let store = MainnetUnlocksStore::from_json(json).unwrap();
 
         let before = Utc.with_ymd_and_hms(1999, 12, 31, 23, 59, 59).unwrap();
         let exact = Utc.with_ymd_and_hms(2000, 1, 1, 0, 0, 0).unwrap();
@@ -118,7 +119,7 @@ mod tests {
                 { "timestamp": "2025-01-01T00:00:00Z", "amount_still_locked": 100 }
             ]
         "#;
-        let store = AggregatedUnlocksStore::from_json(json).unwrap();
+        let store = MainnetUnlocksStore::from_json(json).unwrap();
 
         let t0 = Utc.with_ymd_and_hms(2022, 12, 31, 0, 0, 0).unwrap(); // before all
         let t0_between = Utc.with_ymd_and_hms(2023, 6, 1, 0, 0, 0).unwrap(); // between entry 1 and 2
@@ -143,7 +144,7 @@ mod tests {
                 { "timestamp": "2025-01-01T00:00:00Z", "amount_still_locked": 0 }
             ]
         "#;
-        let store = AggregatedUnlocksStore::from_json(json).unwrap();
+        let store = MainnetUnlocksStore::from_json(json).unwrap();
 
         let t1 = Utc.with_ymd_and_hms(2024, 1, 1, 0, 0, 0).unwrap(); // between entries
         let t2 = Utc.with_ymd_and_hms(2025, 1, 1, 0, 0, 0).unwrap(); // entry with zero
@@ -162,7 +163,7 @@ mod tests {
                 { "timestamp": "2030-01-01T00:00:00Z", "amount_still_locked": 100 }
             ]
         "#;
-        let store = AggregatedUnlocksStore::from_json(json).unwrap();
+        let store = MainnetUnlocksStore::from_json(json).unwrap();
 
         let t_before = Utc.with_ymd_and_hms(2019, 1, 1, 0, 0, 0).unwrap();
         let t_mid = Utc.with_ymd_and_hms(2025, 1, 1, 0, 0, 0).unwrap(); // between entries
@@ -182,7 +183,7 @@ mod tests {
                 { "timestamp": "2023-11-01T00:00:00Z", "amount_still_locked": 100 }
             ]
         "#;
-        let store = AggregatedUnlocksStore::from_json(json).unwrap();
+        let store = MainnetUnlocksStore::from_json(json).unwrap();
 
         let t_exact_mid = Utc.with_ymd_and_hms(2023, 10, 15, 0, 0, 0).unwrap();
         let t_between = Utc.with_ymd_and_hms(2023, 10, 20, 0, 0, 0).unwrap();
@@ -198,7 +199,7 @@ mod tests {
                 { "timestamp": "2022-06-01T00:00:00Z", "amount_still_locked": 888 }
             ]
         "#;
-        let store = AggregatedUnlocksStore::from_json(json).unwrap();
+        let store = MainnetUnlocksStore::from_json(json).unwrap();
 
         let far_before = Utc.with_ymd_and_hms(2000, 1, 1, 0, 0, 0).unwrap();
         let just_before = Utc.with_ymd_and_hms(2022, 5, 31, 23, 59, 59).unwrap();
@@ -218,7 +219,7 @@ mod tests {
                 { "timestamp": "2023-10-01T00:00:00Z", "amount_still_locked": 200 }
             ]
         "#;
-        let store = AggregatedUnlocksStore::from_json(json).unwrap();
+        let store = MainnetUnlocksStore::from_json(json).unwrap();
         // The entries should be sorted internally; thus, querying a date between
         // the earliest and the next entry should return the correct value.
         let query_before = Utc.with_ymd_and_hms(2023, 6, 1, 0, 0, 0).unwrap();

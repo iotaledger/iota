@@ -18,3 +18,4 @@ serde_json.workspace = true
 
 # internal dependencies
 iota-proc-macros.workspace = true
+iota-types.workspace = true

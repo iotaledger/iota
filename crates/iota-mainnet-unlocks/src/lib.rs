@@ -11,4 +11,4 @@
 /// - "How many tokens are still locked at a specific timestamp?"
 pub mod unlocks;
 
-pub use unlocks::{AggregatedUnlocksStore, StillLockedEntry};
+pub use unlocks::{MainnetUnlocksStore, StillLockedEntry};

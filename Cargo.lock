@@ -7314,6 +7314,7 @@ dependencies = [
  "anyhow",
  "chrono",
  "iota-proc-macros",
+ "iota-types",
  "serde",
  "serde_json",
 ]

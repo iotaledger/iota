@@ -9,7 +9,6 @@ use std::{
 
 use anyhow::{Result, anyhow};
 use cached::{Cached, SizedCache};
-use chrono::Utc;
 use diesel::{
     ExpressionMethods, JoinOnDsl, NullableExpressionMethods, OptionalExtension, PgConnection,
     QueryDsl, RunQueryDsl, SelectableHelper, TextExpressionMethods,
@@ -21,12 +20,10 @@ use diesel::{
 use fastcrypto::encoding::{Encoding, Hex};
 use iota_json_rpc_types::{
     AddressMetrics, Balance, CheckpointId, Coin as IotaCoin, DisplayFieldsResponse, EpochInfo,
-    EventFilter, IotaCirculatingSupplySummary, IotaCoinMetadata, IotaEvent, IotaMoveValue,
-    IotaObjectDataFilter, IotaTransactionBlockEffects, IotaTransactionBlockEffectsAPI,
-    IotaTransactionBlockResponse, IotaTransactionKind, MoveCallMetrics, MoveFunctionName,
-    NetworkMetrics, TransactionFilter,
+    EventFilter, IotaCoinMetadata, IotaEvent, IotaMoveValue, IotaObjectDataFilter,
+    IotaTransactionBlockEffects, IotaTransactionBlockEffectsAPI, IotaTransactionBlockResponse,
+    IotaTransactionKind, MoveCallMetrics, MoveFunctionName, NetworkMetrics, TransactionFilter,
 };
-use iota_mainnet_unlocks::AggregatedUnlocksStore;
 use iota_package_resolver::{Package, PackageStore, PackageStoreWithLruCache, Resolver};
 use iota_types::{
     TypeTag,
@@ -34,7 +31,7 @@ use iota_types::{
     base_types::{IotaAddress, ObjectID, SequenceNumber, VersionNumber},
     coin::{CoinMetadata, TreasuryCap},
     committee::EpochId,
-    digests::TransactionDigest,
+    digests::{ChainIdentifier, TransactionDigest},
     dynamic_field::{DynamicFieldInfo, DynamicFieldName, visitor as DFV},
     effects::TransactionEvents,
     event::EventID,
@@ -43,6 +40,7 @@ use iota_types::{
         iota_system_state_summary::{IotaSystemStateSummary, IotaValidatorSummary},
     },
     is_system_package,
+    messages_checkpoint::CheckpointDigest,
     object::{Object, ObjectRead, PastObjectRead, bounded_visitor::BoundedVisitor},
 };
 use itertools::Itertools;
@@ -73,7 +71,7 @@ use crate::{
         objects_snapshot, objects_version, packages, pruner_cp_watermark, transactions, tx_digests,
     },
     store::{diesel_macro::*, package_resolver::IndexerStorePackageResolver},
-    types::{IndexerResult, IotaSystemStateSummaryView, OwnerType},
+    types::{IndexerResult, OwnerType},
 };
 
 pub const TX_SEQUENCE_NUMBER_STR: &str = "tx_sequence_number";
@@ -84,7 +82,6 @@ pub struct IndexerReader {
     pool: ConnectionPool,
     package_resolver: PackageResolver,
     package_obj_type_cache: Arc<Mutex<SizedCache<String, Option<ObjectID>>>>,
-    token_unlocks_store: AggregatedUnlocksStore,
 }
 
 impl Clone for IndexerReader {
@@ -93,7 +90,6 @@ impl Clone for IndexerReader {
             pool: self.pool.clone(),
             package_resolver: self.package_resolver.clone(),
             package_obj_type_cache: self.package_obj_type_cache.clone(),
-            token_unlocks_store: self.token_unlocks_store.clone(),
         }
     }
 }
@@ -133,7 +129,6 @@ impl IndexerReader {
             pool,
             package_resolver,
             package_obj_type_cache,
-            token_unlocks_store: AggregatedUnlocksStore::load()?,
         })
     }
 
@@ -474,6 +469,15 @@ impl IndexerReader {
                 ))
             })?;
         Ok(system_state)
+    }
+
+    pub fn get_chain_identifier_in_blocking_task(&self) -> Result<ChainIdentifier, IndexerError> {
+        let cp = self
+            .get_checkpoint_from_db(CheckpointId::SequenceNumber(0))?
+            .ok_or(IndexerError::GenesisCheckpointNotAvailable)?;
+        let cp_digest = CheckpointDigest::try_from(cp.checkpoint_digest)?;
+
+        Ok(ChainIdentifier::from(cp_digest))
     }
 
     pub fn get_checkpoint_from_db(
@@ -1957,31 +1961,6 @@ impl IndexerReader {
                     treasury_cap_obj_id
                 )))?;
         Ok(TreasuryCap::try_from(treasury_cap_obj_object)?.total_supply)
-    }
-
-    /// Get the circulating supply summary in a blocking task.
-    pub async fn get_circulating_supply_summary_in_blocking_task(
-        &self,
-    ) -> Result<IotaCirculatingSupplySummary, IndexerError> {
-        let total_supply = self
-            .spawn_blocking(|this| this.get_latest_iota_system_state())
-            .await?
-            .iota_total_supply();
-
-        let now = Utc::now();
-        let locked_supply = self.token_unlocks_store.still_locked_tokens(now);
-        let circulating_supply = total_supply - locked_supply;
-
-        // Convert NANOS to IOTA
-        let circulating_supply_value = circulating_supply as f64 / 1_000_000_000.0;
-        let circulating_supply_percentage =
-            circulating_supply_value / (total_supply as f64 / 1_000_000_000.0);
-
-        Ok(IotaCirculatingSupplySummary {
-            value: circulating_supply_value,
-            circulating_supply_percentage,
-            timestamp: now,
-        })
     }
 
     pub fn get_consistent_read_range(&self) -> Result<(i64, i64), IndexerError> {
