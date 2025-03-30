@@ -3691,6 +3691,13 @@
           "schema": {
             "$ref": "#/components/schemas/DynamicFieldName"
           }
+        },
+        {
+          "name": "options",
+          "description": "Options for specifying the content to be returned",
+          "schema": {
+            "$ref": "#/components/schemas/ObjectDataOptions"
+          }
         }
       ],
       "result": {
@@ -3713,6 +3720,18 @@
               "value": {
                 "type": "0x0000000000000000000000000000000000000000000000000000000000000009::test::TestField",
                 "value": "some_value"
+              }
+            },
+            {
+              "name": "options",
+              "value": {
+                "showType": true,
+                "showOwner": true,
+                "showPreviousTransaction": true,
+                "showDisplay": false,
+                "showContent": true,
+                "showBcs": false,
+                "showStorageRebate": true
               }
             }
           ],

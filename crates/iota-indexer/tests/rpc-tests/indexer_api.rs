@@ -740,7 +740,7 @@ fn test_get_dynamic_field_objects() -> Result<(), anyhow::Error> {
 
         // Verify that the dynamic field was successfully added
         let dynamic_fields = client
-            .get_dynamic_field_object(bag_object_ref.0, name)
+            .get_dynamic_field_object(bag_object_ref.0, name, None)
             .await
             .expect("Failed to get dynamic field object");
 
