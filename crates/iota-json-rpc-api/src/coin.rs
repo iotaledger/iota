@@ -81,8 +81,7 @@ pub trait CoinReadApi {
         coin_type: String,
     ) -> RpcResult<Supply>;
 
-    /// Return the circulating supply summary. Exclusively served by the
-    /// indexer.
+    /// Return the circulating supply summary.
     #[method(name = "getCirculatingSupply")]
     async fn get_circulating_supply(&self) -> RpcResult<IotaCirculatingSupply>;
 }
