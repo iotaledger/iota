@@ -3427,7 +3427,7 @@
           "name": "Coin Query API"
         }
       ],
-      "description": "Return the circulating supply summary. Exclusively served by the indexer.",
+      "description": "Return the circulating supply summary.",
       "params": [],
       "result": {
         "name": "IotaCirculatingSupply",
