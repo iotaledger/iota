@@ -3430,10 +3430,10 @@
       "description": "Return the circulating supply summary. Exclusively served by the indexer.",
       "params": [],
       "result": {
-        "name": "IotaCirculatingSupplySummary",
+        "name": "IotaCirculatingSupply",
         "required": true,
         "schema": {
-          "$ref": "#/components/schemas/IotaCirculatingSupplySummary"
+          "$ref": "#/components/schemas/IotaCirculatingSupply"
         }
       }
     },
@@ -7666,29 +7666,31 @@
           }
         }
       },
-      "IotaCirculatingSupplySummary": {
+      "IotaCirculatingSupply": {
         "description": "Provides a summary of the circulating IOTA supply.",
         "type": "object",
         "required": [
+          "atCheckpoint",
           "circulatingSupplyPercentage",
-          "timestamp",
           "value"
         ],
         "properties": {
+          "atCheckpoint": {
+            "description": "Timestamp (UTC) when the circulating supply was calculated.",
+            "type": "integer",
+            "format": "uint64",
+            "minimum": 0.0
+          },
           "circulatingSupplyPercentage": {
             "description": "Percentage of total supply that is currently circulating (range: 0.0 to 1.0).",
             "type": "number",
             "format": "double"
           },
-          "timestamp": {
-            "description": "Timestamp (UTC) when the circulating supply was calculated.",
-            "type": "integer",
-            "format": "int64"
-          },
           "value": {
-            "description": "Circulating supply in IOTA at the given timestamp.",
-            "type": "number",
-            "format": "double"
+            "description": "Circulating supply in NANOS at the given timestamp.",
+            "type": "integer",
+            "format": "uint64",
+            "minimum": 0.0
           }
         }
       },
