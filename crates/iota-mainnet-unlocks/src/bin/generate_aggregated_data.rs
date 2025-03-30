@@ -59,7 +59,7 @@ fn aggregate_unlocks(repo_path: &Path) -> Result<BTreeMap<String, u64>> {
         println!("Processing file: {:?}", csv_path);
 
         let mut rdr = Reader::from_path(&csv_path)
-            .with_context(|| format!("Failed to open CSV file: {:?}", csv_path))?;
+            .with_context(|| format!("failed to open CSV file: {csv_path:?}"))?;
 
         // Iterate over CSV records (header is skipped automatically).
         for result in rdr.records() {
@@ -75,7 +75,7 @@ fn aggregate_unlocks(repo_path: &Path) -> Result<BTreeMap<String, u64>> {
             // Convert token amount to a u64 and then to nano-units.
             let tokens: u64 = tokens_str
                 .parse()
-                .with_context(|| format!("Invalid token amount: {}", tokens_str))?;
+                .with_context(|| format!("invalid token amount: {tokens_str}"))?;
             let nanos = tokens * 1000;
 
             *locked_by_date.entry(unlock_date).or_insert(0) += nanos;
@@ -95,11 +95,11 @@ fn format_date(ts: &str, re: &Regex) -> Result<DateTime<Utc>> {
         s.push('Z');
         s
     } else {
-        format!("{}Z", cleaned)
+        format!("{cleaned}Z")
     };
 
     Ok(DateTime::parse_from_rfc3339(&iso)
-        .context(format!("failed to parse timestamp: {}", iso))?
+        .context(format!("failed to parse timestamp: {iso}",))?
         .with_timezone(&Utc))
 }
 

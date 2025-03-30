@@ -492,8 +492,7 @@ impl IndexerReader {
         let checkpoint_digest =
             CheckpointDigest::try_from(stored_chain_identifier.checkpoint_digest).map_err(|e| {
                 IndexerError::PersistentStorageDataCorruption(format!(
-                    "failed to decode chain identifier with err: {:?}",
-                    e
+                    "failed to decode chain identifier with err: {e:?}"
                 ))
             })?;
 
