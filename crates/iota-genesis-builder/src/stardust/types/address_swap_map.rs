@@ -156,7 +156,7 @@ impl AddressSwapMap {
     pub fn from_csv(file_path: &str) -> Result<AddressSwapMap, anyhow::Error> {
         let current_dir = std::env::current_dir()?;
         let file_path = current_dir.join(file_path);
-        let mut reader = csv::ReaderBuilder::new().from_path(file_path)?;
+        let mut reader = csv::ReaderBuilder::new().comment(Some(b'#')).from_path(file_path)?;
         let mut addresses = HashMap::new();
 
         verify_headers(reader.headers()?)?;
