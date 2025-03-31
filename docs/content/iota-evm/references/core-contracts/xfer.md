@@ -16,7 +16,7 @@ prevent
 
 ## Entry Point
 
-### `transferAccountToChain(g GasReserve)`
+### `transferAccountToChain`
 
 Transfers the specified allowance from the sender SC's L2 account on
 the target chain to the sender SC's L2 account on the origin chain.
@@ -29,9 +29,10 @@ function then transfers it into the caller's L2 account on that chain.
 
 #### Parameters
 
-- `g` (`uint64`): Optional gas amount to reserve in the allowance for
-  the internal call to transferAllowanceTo(). Default 100 (MinGasFee).
-  But better to provide it so that it matches the fee structure.
+| Name               | Type    | Optional  | Description |
+|--------------------|---------|-----------|-------------|
+| optionalGasReserve | uint64  | Yes       | Gas amount to reserve in the allowance for
+  the internal call to transferAllowanceTo(). Default 100 (MinGasFee). |
 
 ### IMPORTANT CONSIDERATIONS
 
