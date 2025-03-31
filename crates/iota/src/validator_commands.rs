@@ -1029,16 +1029,15 @@ pub async fn get_validator_summary(
         .collect::<BTreeMap<_, _>>();
 
     // Check active and committee members
-    if let Some((_, committee_member)) = active_validators.get(&validator_address) {
-        let status = if *committee_member {
+    if let Some((validator_summary, committee_member)) =
+        active_validators.remove(&validator_address)
+    {
+        let status = if committee_member {
             ValidatorStatus::CommitteeMember
         } else {
             ValidatorStatus::Active
         };
-        return Ok(Some((
-            status,
-            active_validators.remove(&validator_address).unwrap().0,
-        )));
+        return Ok(Some((status, validator_summary)));
     }
 
     // Check pending validators
