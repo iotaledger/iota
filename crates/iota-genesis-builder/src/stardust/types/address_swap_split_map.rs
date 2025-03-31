@@ -2,9 +2,12 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use std::collections::HashMap;
+use std::fs::File;
 
 use iota_sdk::types::block::address::Address;
 use iota_types::base_types::IotaAddress;
+
+use iota_config::genesis::custom_csv_reader;
 
 type OriginAddress = Address;
 type Destination = (IotaAddress, u64, u64);
@@ -141,9 +144,7 @@ impl AddressSwapSplitMap {
     pub fn from_csv(file_path: &str) -> Result<AddressSwapSplitMap, anyhow::Error> {
         let current_dir = std::env::current_dir()?;
         let file_path = current_dir.join(file_path);
-        let mut reader = csv::ReaderBuilder::new()
-            .comment(Some(b'#'))
-            .from_path(file_path)?;
+        let mut reader = custom_csv_reader(File::open(file_path)?);
         let mut address_swap_split_map: AddressSwapSplitMap = Default::default();
 
         let headers = reader.headers()?;

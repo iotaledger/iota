@@ -521,9 +521,7 @@ impl TokenDistributionSchedule {
     /// Comments are optional, and start with a `#` character.
     /// Only entries that start with this character are treated as comments.
     pub fn from_csv<R: std::io::Read>(reader: R) -> Result<Self> {
-        let mut reader = csv::ReaderBuilder::new()
-            .comment(Some(b'#'))
-            .from_reader(reader);
+        let mut reader = custom_csv_reader(reader);
         let mut allocations: Vec<TokenAllocation> =
             reader.deserialize().collect::<Result<_, _>>()?;
 
@@ -709,9 +707,7 @@ impl Delegations {
     /// Comments are optional, and start with a `#` character.
     /// Only entries that start with this character are treated as comments.
     pub fn from_csv<R: std::io::Read>(reader: R) -> Result<Self> {
-        let mut reader = csv::ReaderBuilder::new()
-            .comment(Some(b'#'))
-            .from_reader(reader);
+        let mut reader = custom_csv_reader(reader);
 
         let mut delegations = Self::default();
         for delegation in reader.deserialize::<Delegation>() {
@@ -756,4 +752,12 @@ impl Delegations {
 
         Ok(())
     }
+}
+
+/// Helper function to create a CSV reader with custom settings.
+/// In this case, it sets the comment character to `#`.
+pub fn custom_csv_reader<R: std::io::Read>(reader: R) -> csv::Reader<R> {
+    csv::ReaderBuilder::new()
+        .comment(Some(b'#'))
+        .from_reader(reader)
 }

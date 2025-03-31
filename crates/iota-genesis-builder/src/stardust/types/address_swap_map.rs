@@ -3,8 +3,10 @@
 
 use std::collections::HashMap;
 
+use iota_config::genesis::custom_csv_reader;
 use iota_sdk::types::block::address::Address as StardustAddress;
 use iota_types::{base_types::IotaAddress, object::Owner, stardust::stardust_to_iota_address};
+use std::fs::File;
 
 type OriginAddress = IotaAddress;
 
@@ -159,9 +161,7 @@ impl AddressSwapMap {
     pub fn from_csv(file_path: &str) -> Result<AddressSwapMap, anyhow::Error> {
         let current_dir = std::env::current_dir()?;
         let file_path = current_dir.join(file_path);
-        let mut reader = csv::ReaderBuilder::new()
-            .comment(Some(b'#'))
-            .from_path(file_path)?;
+        let mut reader = custom_csv_reader(File::open(file_path)?);
         let mut addresses = HashMap::new();
 
         verify_headers(reader.headers()?)?;
