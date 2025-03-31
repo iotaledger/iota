@@ -140,6 +140,8 @@ impl AddressSwapMap {
     /// iota1qp8h9augeh6tk3uvlxqfapuwv93atv63eqkpru029p6sgvr49eufyz7katr,0xa12b4d6ec3f9a28437d5c8f3e96ba72d3c4e8f5ac98d17b1a3b8e9f2c71d4a3c
     /// iota1qp7h2lkjhs6tk3uvlxqfjhlfw34atv63eqkpru356p6sgvr76eufyz1opkh,0x42d8c182eb1f3b2366d353eed4eb02a31d1d7982c0fd44683811d7036be3a85e
     /// ```
+    /// 
+    /// Comments are optional, and start with a `#` character.
     ///
     /// # Parameters
     /// - `file_path`: The relative path to the CSV file containing the address
