@@ -53,25 +53,11 @@ pub async fn main() {
         )
         .expect("error serializing summary checkpoint to bcs");
 
-        serde_json::to_writer_pretty(
-            &mut fs::File::create(format!("{}/{ckp}.sum.json", config.cache_dir.display()))
-                .expect("error creating file"),
-            &summary,
-        )
-        .expect("error serializing summary checkpoint to json");
-
         bcs::serialize_into(
             &mut fs::File::create(format!("{}/{ckp}.chk", config.cache_dir.display()))
                 .expect("error creating file"),
             &full,
         )
         .expect("error serializing full checkpoint to bcs");
-
-        serde_json::to_writer_pretty(
-            &mut fs::File::create(format!("{}/{ckp}.chk.json", config.cache_dir.display()))
-                .expect("error creating file"),
-            &full,
-        )
-        .expect("error serializing full checkpoint to json");
     }
 }
