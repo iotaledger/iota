@@ -142,7 +142,7 @@ mod tests {
 
     use crate::{
         block::{BlockRef, Round, VerifiedBlock},
-        commit::CertifiedCommit,
+        commit::CertifiedCommits,
         context::Context,
         core::CoreSignals,
         core_thread::{CoreError, CoreThreadDispatcher},
@@ -174,7 +174,7 @@ mod tests {
 
         async fn add_certified_commits(
             &self,
-            _commit: Vec<CertifiedCommit>,
+            _commits: CertifiedCommits,
         ) -> Result<BTreeSet<BlockRef>, CoreError> {
             todo!()
         }
