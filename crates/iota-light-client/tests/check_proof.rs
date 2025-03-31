@@ -30,7 +30,7 @@ const FIXTURE_2: &str = "469.chk";
 
 async fn read_test_data() -> (Committee, CheckpointData) {
     let config = Config {
-        cache_dir: PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(FIXTURES_DIR),
+        checkpoints_sync_dir: PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(FIXTURES_DIR),
         ..Default::default()
     };
     let checkpoint_list =

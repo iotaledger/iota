@@ -159,7 +159,7 @@ pub async fn get_verified_effects_and_events(
         Committee::new(prev_ckp.epoch().checked_add(1).unwrap(), current_committee)
     } else {
         // Since we did not find a small committee checkpoint we use the genesis
-        let mut genesis_path = config.cache_dir.clone();
+        let mut genesis_path = config.checkpoints_sync_dir.clone();
         genesis_path.push(&config.genesis_filename);
         Genesis::load(&genesis_path)?
             .committee()
@@ -262,7 +262,7 @@ pub async fn get_verified_checkpoint(
         Committee::new(prev_ckp.epoch().checked_add(1).unwrap(), current_committee)
     } else {
         // Since we did not find a small committee checkpoint we use the genesis
-        let mut genesis_path = config.cache_dir.clone();
+        let mut genesis_path = config.checkpoints_sync_dir.clone();
         genesis_path.push(&config.genesis_filename);
         Genesis::load(&genesis_path)?
             .committee()

@@ -12,12 +12,14 @@ use iota_light_client::{
 use iota_rest_api::Client;
 use tracing::info;
 
-const TEST_FILES_DIR: &str = "tests/fixtures";
+const FIXTURES_DIR: &str = "tests/fixtures";
 
 #[tokio::main]
 pub async fn main() {
-    let mut config = Config::default();
-    config.cache_dir = PathBuf::from(format!("{}/{TEST_FILES_DIR}", env!("CARGO_MANIFEST_DIR")));
+    let config = Config {
+        checkpoints_sync_dir: PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(FIXTURES_DIR),
+        ..Default::default()
+    };
 
     let checkpoint_list = sync_checkpoint_list_to_latest(&config)
         .await
@@ -47,15 +49,21 @@ pub async fn main() {
             .expect("error downloading full checkpoint");
 
         bcs::serialize_into(
-            &mut fs::File::create(format!("{}/{ckp}.sum", config.cache_dir.display()))
-                .expect("error creating file"),
+            &mut fs::File::create(format!(
+                "{}/{ckp}.sum",
+                config.checkpoints_sync_dir.display()
+            ))
+            .expect("error creating file"),
             &summary,
         )
         .expect("error serializing summary checkpoint to bcs");
 
         bcs::serialize_into(
-            &mut fs::File::create(format!("{}/{ckp}.chk", config.cache_dir.display()))
-                .expect("error creating file"),
+            &mut fs::File::create(format!(
+                "{}/{ckp}.chk",
+                config.checkpoints_sync_dir.display()
+            ))
+            .expect("error creating file"),
             &full,
         )
         .expect("error serializing full checkpoint to bcs");

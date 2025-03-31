@@ -327,7 +327,7 @@ pub async fn check_and_sync_checkpoints(config: &Config) -> anyhow::Result<()> {
     write_checkpoint_list(config, &checkpoints_list)?;
 
     // Load the genesis committee
-    let mut genesis_path = config.cache_dir.clone();
+    let mut genesis_path = config.checkpoints_sync_dir.clone();
     genesis_path.push(&config.genesis_filename);
     let genesis_committee = Genesis::load(&genesis_path)?
         .committee()
@@ -340,7 +340,7 @@ pub async fn check_and_sync_checkpoints(config: &Config) -> anyhow::Result<()> {
     for ckp_id in &checkpoints_list.checkpoints {
         // check if there is a file with this name ckp_id.yaml in the
         // checkpoint_summary_dir
-        let mut checkpoint_path = config.cache_dir.clone();
+        let mut checkpoint_path = config.checkpoints_sync_dir.clone();
         checkpoint_path.push(format!("{}.yaml", ckp_id));
 
         // If file exists read the file otherwise download it from the server
@@ -397,7 +397,7 @@ mod tests {
     fn create_test_config() -> (Config, TempDir) {
         let temp_dir = TempDir::new().unwrap();
         let config = Config {
-            cache_dir: temp_dir.path().to_path_buf(),
+            checkpoints_sync_dir: temp_dir.path().to_path_buf(),
             ..Default::default()
         };
         (config, temp_dir)

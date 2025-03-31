@@ -12,10 +12,12 @@ use iota_config::object_storage_config::ObjectStoreConfig;
 use serde::{Deserialize, Serialize};
 use url::Url;
 
-// The config file for the light client
+/// The config file for the light client.
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct Config {
-    pub cache_dir: PathBuf,
+    /// The directory containing synced full checkpoints and checkpoint
+    /// summaries.
+    pub checkpoints_sync_dir: PathBuf,
     pub genesis_filename: String,
     pub full_node_url: String,
     pub graphql_url: Option<String>,
@@ -26,7 +28,7 @@ pub struct Config {
 impl Default for Config {
     fn default() -> Self {
         Self {
-            cache_dir: std::env::current_dir()
+            checkpoints_sync_dir: std::env::current_dir()
                 .expect("error getting current directory")
                 .join("checkpoints_localnet"),
             full_node_url: "http://localhost:9000".to_string(),
@@ -48,7 +50,7 @@ impl Config {
 
     pub fn validate(&self) -> Result<()> {
         Url::parse(&self.full_node_url).map_err(|_| anyhow!("Invalid full node URL"))?;
-        if !self.cache_dir.is_dir() {
+        if !self.checkpoints_sync_dir.is_dir() {
             bail!("Checkpoint directory does not exist");
         }
         if let Some(url) = &self.object_store_url {
@@ -73,11 +75,11 @@ impl Config {
     }
 
     pub fn checkpoint_list_path(&self) -> PathBuf {
-        self.cache_dir.join("checkpoints.yaml")
+        self.checkpoints_sync_dir.join("checkpoints.yaml")
     }
 
     pub fn genesis_file_path(&self) -> PathBuf {
-        self.cache_dir.join(&self.genesis_filename)
+        self.checkpoints_sync_dir.join(&self.genesis_filename)
     }
 
     pub fn checkpoint_path<'a>(
@@ -85,7 +87,7 @@ impl Config {
         seq: u64,
         custom_path: impl Into<Option<&'a str>>,
     ) -> PathBuf {
-        let mut path = self.cache_dir.clone();
+        let mut path = self.checkpoints_sync_dir.clone();
         if let Some(custom) = custom_path.into() {
             path.push(custom);
         }
@@ -106,7 +108,7 @@ mod tests {
         std::fs::File::create(temp_dir.path().join("genesis.blob")).unwrap();
         std::fs::File::create(temp_dir.path().join("checkpoints.yaml")).unwrap();
         let config = Config {
-            cache_dir: temp_dir.path().to_path_buf(),
+            checkpoints_sync_dir: temp_dir.path().to_path_buf(),
             full_node_url: "http://localhost:9000".to_string(),
             object_store_url: Some("http://localhost:9001".to_string()),
             archive_store_config: Some(ObjectStoreConfig {
