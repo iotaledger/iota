@@ -7,6 +7,7 @@ use iota_types::{
     coin::CoinMetadata,
     error::IotaError,
     iota_serde::{BigInt, SequenceNumber as AsSequenceNumber},
+    messages_checkpoint::CheckpointSequenceNumber,
     object::Object,
 };
 use schemars::JsonSchema;
@@ -98,4 +99,18 @@ impl TryFrom<Object> for IotaCoinMetadata {
             icon_url,
         })
     }
+}
+
+/// Provides a summary of the circulating IOTA supply.
+#[serde_as]
+#[derive(Serialize, Deserialize, Debug, Clone, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct IotaCirculatingSupply {
+    /// Circulating supply in NANOS at the given timestamp.
+    pub value: u64,
+    /// Percentage of total supply that is currently circulating (range: 0.0 to
+    /// 1.0).
+    pub circulating_supply_percentage: f64,
+    /// Timestamp (UTC) when the circulating supply was calculated.
+    pub at_checkpoint: CheckpointSequenceNumber,
 }
