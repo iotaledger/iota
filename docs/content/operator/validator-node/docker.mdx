@@ -10,13 +10,9 @@ import Genesis from '../../_snippets/operator/genesis.mdx'
 import ValidatorRequirements from '../../_snippets/operator/validator-requirements-tab.mdx'
 import ValidatorPorts from '../../_snippets/operator/validator-ports.mdx'
 import ValidatorGenerateInfo from '../../_snippets/operator/validator-generate-info.mdx'
+import ValidatorDownloadConfig from '../../_snippets/operator/validator-download-config.mdx'
+import ValidatorP2P from '../../_snippets/operator/validator-p2p.mdx'
 import ValidatorJoinMonitor from '../../_snippets/operator/validator-join-monitor.mdx'
-
-# IOTA Validator Setup Guide
-
-This guide walks you through the essential steps to set up an IOTA validator node.
-
-## Hardware Requirements
 
 <ValidatorRequirements/ >
 
@@ -35,7 +31,7 @@ Perform these steps on the server that will be running the validator instance.
 
 ### 2.1. Download `docker-compose.yml`
 
-Download the validator configuration file template:
+Download the docker compose file:
 
 ```bash
 curl -fLJO https://github.com/iotaledger/iota/raw/refs/heads/develop/setups/validator/docker-compose.yml
@@ -43,35 +39,11 @@ curl -fLJO https://github.com/iotaledger/iota/raw/refs/heads/develop/setups/vali
 
 ### 2.2. Download Configuration Template
 
-Download the validator configuration file template:b
-
-<Tabs groupId="network">
-    <TabItem label="Mainnet" value="mainnet">
-      ```bash
-      curl -fLJ -o validator.yaml https://github.com/iotaledger/iota/raw/refs/heads/develop/setups/validator/validator-mainnet.yaml
-      ```
-    </TabItem>
-    <TabItem label="Testnet" value="testnet">
-      ```bash
-      curl -fLJ -o validator.yaml https://github.com/iotaledger/iota/raw/refs/heads/develop/setups/validator/validator-testnet.yaml
-      ```
-    </TabItem>
-</Tabs>
+<ValidatorDownloadConfig />
 
 ### 2.3. Configure P2P Settings
 
-Configure the P2P settings in your `validator.yaml` file by following these steps:
-
-1. Update the external address:
-
-```yaml
-p2p-config:
-  external-address: /dns/<YOUR-DOMAIN>/udp/8084
-```
-
-> **Note**:
-> Replace `<YOUR-DOMAIN>` with the hostname you used while generating the validator info.
-> This address must be accessible from the internet.
+<ValidatorP2P />
 
 ### 2.4. Download Genesis Blobs
 
