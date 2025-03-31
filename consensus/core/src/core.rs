@@ -37,7 +37,9 @@ use crate::{
         SignedBlock, Slot, VerifiedBlock,
     },
     block_manager::BlockManager,
-    commit::{CertifiedCommit, CommitAPI, CommittedSubDag, DecidedLeader, Decision},
+    commit::{
+        CertifiedCommit, CertifiedCommits, CommitAPI, CommittedSubDag, DecidedLeader, Decision,
+    },
     commit_observer::CommitObserver,
     context::Context,
     dag_state::DagState,
@@ -364,15 +366,21 @@ impl Core {
     #[tracing::instrument(skip_all)]
     pub(crate) fn add_certified_commits(
         &mut self,
-        commits: Vec<CertifiedCommit>,
+        certified_commits: CertifiedCommits,
     ) -> ConsensusResult<BTreeSet<BlockRef>> {
         let _scope = monitored_scope("Core::add_certified_commits");
 
         // We want to enable the commit process logic when GC is enabled.
         if self.dag_state.read().gc_enabled() {
+            let votes = certified_commits.votes().to_vec();
             let commits = self
-                .validate_certified_commits(commits)
+                .validate_certified_commits(certified_commits.commits().to_vec())
                 .expect("Certified commits validation failed");
+
+            // Accept the certified commit votes. This is optimistically done to increase
+            // the chances of having votes available when this node will need to
+            // sync commits to other nodes.
+            self.block_manager.try_accept_blocks(votes);
 
             // Try to commit the new blocks. Take into account the trusted commit that has
             // been provided.
@@ -390,7 +398,8 @@ impl Core {
         }
 
         // If GC is not enabled then process blocks as usual.
-        let blocks = commits
+        let blocks = certified_commits
+            .commits()
             .iter()
             .flat_map(|commit| commit.blocks())
             .cloned()
@@ -3501,7 +3510,7 @@ mod test {
 
         // The corresponding blocks of the certified commits should be accepted and
         // stored before linearizing and committing the DAG.
-        core.add_certified_commits(certified_commits.clone())
+        core.add_certified_commits(CertifiedCommits::new(certified_commits.clone(), vec![]))
             .expect("Should not fail");
 
         let commits = store.scan_commits((6..=10).into()).unwrap();
