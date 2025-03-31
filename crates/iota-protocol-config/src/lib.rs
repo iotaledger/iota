@@ -43,6 +43,8 @@ pub const MAX_PROTOCOL_VERSION: u64 = 7;
 //            Enable probing for accepted rounds in round prober for testnet.
 //            Switch to distributed vote scoring in consensus in testnet.
 //            Enable zstd compression for consensus tonic network in testnet.
+//            Enable consensus garbage collection for testnet
+//            Enable the new consensus commit rule for testnet.
 
 #[derive(Copy, Clone, Debug, Hash, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ProtocolVersion(u64);
@@ -1192,7 +1194,12 @@ impl ProtocolConfig {
     }
 
     pub fn gc_depth(&self) -> u32 {
-        self.consensus_gc_depth.unwrap_or(0)
+        if cfg!(msim) {
+            // exercise a very low gc_depth
+            5
+        } else {
+            self.consensus_gc_depth.unwrap_or(0)
+        }
     }
 
     pub fn consensus_linearize_subdag_v2(&self) -> bool {
@@ -1803,6 +1810,12 @@ impl ProtocolConfig {
         cfg.feature_flags.consensus_round_prober = false;
         cfg.feature_flags
             .consensus_distributed_vote_scoring_strategy = false;
+        cfg.feature_flags.consensus_linearize_subdag_v2 = false;
+        cfg.feature_flags.variant_nodes = false;
+        cfg.feature_flags.consensus_smart_ancestor_selection = false;
+        cfg.feature_flags
+            .consensus_round_prober_probe_accepted_rounds = false;
+        cfg.feature_flags.consensus_zstd_compression = false;
 
         // Devnet
         if chain != Chain::Mainnet && chain != Chain::Testnet {
@@ -1936,6 +1949,7 @@ impl ProtocolConfig {
                         // Enable distributed vote scoring.
                         cfg.feature_flags
                             .consensus_distributed_vote_scoring_strategy = true;
+                        cfg.feature_flags.consensus_linearize_subdag_v2 = true;
                         // Enable smart ancestor selection for testnet
                         cfg.feature_flags.consensus_smart_ancestor_selection = true;
                         // Enable probing for accepted rounds in round prober for testnet
@@ -1943,6 +1957,10 @@ impl ProtocolConfig {
                             .consensus_round_prober_probe_accepted_rounds = true;
                         // Enable zstd compression for consensus in testnet
                         cfg.feature_flags.consensus_zstd_compression = true;
+                        // Assuming a round rate of max 15/sec, then using a gc depth of 60 allow
+                        // blocks within a window of ~4 seconds
+                        // to be included before be considered garbage collected.
+                        cfg.consensus_gc_depth = Some(60);
                     }
                 }
                 // Use this template when making changes:

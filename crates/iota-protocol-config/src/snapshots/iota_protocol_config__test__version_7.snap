@@ -17,6 +17,13 @@ feature_flags:
   disallow_new_modules_in_deps_only_packages: true
   native_charging_v2: true
   convert_type_argument_error: true
+  consensus_round_prober: true
+  consensus_distributed_vote_scoring_strategy: true
+  consensus_linearize_subdag_v2: true
+  variant_nodes: true
+  consensus_smart_ancestor_selection: true
+  consensus_round_prober_probe_accepted_rounds: true
+  consensus_zstd_compression: true
 max_tx_size_bytes: 131072
 max_input_objects: 2048
 max_size_written_objects: 5000000
@@ -290,3 +297,4 @@ max_soft_bundle_size: 5
 bridge_should_try_to_finalize_committee: true
 max_accumulated_txn_cost_per_object_in_mysticeti_commit: 10
 max_committee_members_count: 50
+consensus_gc_depth: 60
