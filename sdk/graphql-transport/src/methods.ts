@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { fromB64, toB58 } from '@iota/bcs';
+import { fromB64 } from '@iota/bcs';
 import type {
     MoveValue,
     ProtocolConfigValue,
@@ -946,6 +946,7 @@ export const RPC_METHODS: {
             nextCursor: (pagination.last ? pageInfo.startCursor : pageInfo.endCursor) as never,
             data: events.map((event) => ({
                 bcs: event.bcs,
+                bcsEncoding: 'base64',
                 id: {
                     eventSeq: '', // TODO
                     txDigest: '', // TODO
@@ -1034,7 +1035,8 @@ export const RPC_METHODS: {
 
         return {
             data: fields.map((field) => ({
-                bcsName: field.name?.bcs && toB58(fromB64(field.name.bcs)),
+                bcsName: field.name?.bcs,
+                bcsEncoding: 'base64',
                 digest: (field.value?.__typename === 'MoveObject'
                     ? field.value.digest
                     : undefined)!,

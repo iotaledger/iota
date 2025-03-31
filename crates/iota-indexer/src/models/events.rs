@@ -5,7 +5,7 @@
 use std::{str::FromStr, sync::Arc};
 
 use diesel::prelude::*;
-use iota_json_rpc_types::{IotaEvent, type_and_fields_from_move_event_data};
+use iota_json_rpc_types::{BcsEvent, IotaEvent, type_and_fields_from_move_event_data};
 use iota_package_resolver::{PackageStore, Resolver};
 use iota_types::{
     base_types::{IotaAddress, ObjectID},
@@ -135,7 +135,7 @@ impl StoredEvent {
             transaction_module: Identifier::from_str(&self.module)?,
             sender,
             type_,
-            bcs: self.bcs,
+            bcs: BcsEvent::new(self.bcs),
             parsed_json,
             timestamp_ms: Some(self.timestamp_ms as u64),
         })
