@@ -518,7 +518,7 @@ impl TokenDistributionSchedule {
     /// The file is encoded such that the final entry in the CSV file is used to
     /// denote the allocation to the stake subsidy fund.
     pub fn from_csv<R: std::io::Read>(reader: R) -> Result<Self> {
-        let mut reader = csv::Reader::from_reader(reader);
+        let mut reader = csv::ReaderBuilder::new().comment(Some(b'#')).from_reader(reader);
         let mut allocations: Vec<TokenAllocation> =
             reader.deserialize().collect::<Result<_, _>>()?;
 
@@ -701,7 +701,7 @@ impl Delegations {
     /// <delegator1-address>,<validator-2-address>,3000000000000000,5000000000
     /// <delegator2-address>,<validator-3-address>,4500000000000000,5000000000`
     pub fn from_csv<R: std::io::Read>(reader: R) -> Result<Self> {
-        let mut reader = csv::Reader::from_reader(reader);
+        let mut reader = csv::ReaderBuilder::new().comment(Some(b'#')).from_reader(reader);
 
         let mut delegations = Self::default();
         for delegation in reader.deserialize::<Delegation>() {
