@@ -160,32 +160,30 @@ export function StakeFormComponent({ validatorAddress, epoch, onSuccess }: Stake
         activeAddress,
     );
     const maxAmountTxGasBudget = BigInt(maxAmountTransactionData?.gasSummary?.budget ?? 0n);
-    const maxAmountTxTotalGas = BigInt(maxAmountTransactionData?.gasSummary?.totalGas ?? 0n);
-    const maxAmountTxStorageRebate = BigInt(
-        maxAmountTransactionData?.gasSummary?.storageRebate ?? 0n,
-    );
-
     // do not remove: gasBudget field is used in the validation schema apps/core/src/utils/stake/createValidationSchema.ts
     useEffect(() => {
         setFieldValue('gasBudget', maxAmountTxGasBudget);
     }, [maxAmountTxGasBudget]);
 
-    const gasUnstakeBuffer = (maxAmountTxTotalGas + maxAmountTxStorageRebate) * BigInt(2); // 2x gas budget need for unstaking
+    const gasUnstakeBuffer = maxAmountTxGasBudget * BigInt(2); // 2x gas budget needed for unstaking
     const [gasUnstakeBufferFormatted, gasUnstakeBufferSymbol] = useFormatCoin({
         balance: gasUnstakeBuffer,
         format: CoinFormat.FULL,
     });
 
-    const maxTokenBalance = coinBalance - gasUnstakeBuffer;
-    const [maxTokenFormatted, symbol] = useFormatCoin({
-        balance: maxTokenBalance,
+    // for user we show available amount as available_balance - gas_budget
+    const availableBalance = coinBalance - maxAmountTxGasBudget;
+    const [availableBalanceFormatted, symbol] = useFormatCoin({
+        balance: availableBalance,
         format: CoinFormat.FULL,
     });
 
-    const amountWithGas = parseAmount(amount, decimals) + gasUnstakeBuffer;
-    const hasEnoughRemainingBalance = maxTokenBalance >= amountWithGas;
+    // User must have enough balance to pay gas upfront, even if they'll receive a rebate later.
+    // we keep 3x the gas budget, 2x for unstaking and 1x for the transaction
+    const hasEnoughRemainingBalance =
+        coinBalance >= parseAmount(amount, decimals) + maxAmountTxGasBudget + gasUnstakeBuffer;
 
-    const isMaxAmountSet = maxTokenBalance === amountWithGas;
+    const isMaxAmountSet = amountWithoutDecimals === availableBalance - gasUnstakeBuffer;
 
     const isLoading =
         loadingIotaBalances ||
@@ -194,9 +192,8 @@ export function StakeFormComponent({ validatorAddress, epoch, onSuccess }: Stake
         isStakeTokenTransactionPending;
 
     function onActionClick() {
-        const maxSafeAmount = maxTokenBalance - gasUnstakeBuffer;
+        const maxSafeAmount = availableBalance - gasUnstakeBuffer;
         const maxSafeAmountFormatted = formatBalance(maxSafeAmount, decimals, CoinFormat.FULL);
-
         setFieldValue('amount', maxSafeAmountFormatted, true);
     }
 
@@ -228,7 +225,7 @@ export function StakeFormComponent({ validatorAddress, epoch, onSuccess }: Stake
                                 value={amount}
                                 caption={
                                     maxAmountTxGasBudget
-                                        ? `${maxTokenFormatted} ${symbol} Available`
+                                        ? `${availableBalanceFormatted} ${symbol} Available`
                                         : '--'
                                 }
                                 prefix={isMaxAmountSet ? '~' : undefined}

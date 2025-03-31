@@ -66,41 +66,40 @@ export function EnterAmountView({
         senderAddress,
     );
     const maxAmountTxGasBudget = BigInt(maxAmountTransactionData?.gasSummary?.budget ?? 0n);
-    const maxAmountTxTotalGas = BigInt(maxAmountTransactionData?.gasSummary?.totalGas ?? 0n);
-    const maxAmountTxStorageRebate = BigInt(
-        maxAmountTransactionData?.gasSummary?.storageRebate ?? 0n,
-    );
 
     useEffect(() => {
         setFieldValue('gasBudget', maxAmountTxGasBudget);
     }, [maxAmountTxGasBudget, setFieldValue]);
 
-    const maxTokenBalance = coinBalance - maxAmountTxGasBudget;
-    const [maxTokenFormatted, maxTokenFormattedSymbol] = useFormatCoin({
-        balance: maxTokenBalance,
-        format: CoinFormat.FULL,
-    });
-
-    const caption = maxAmountTxGasBudget
-        ? `${maxTokenFormatted} ${maxTokenFormattedSymbol} Available`
-        : '--';
-
-    const hasAmount = values.amount.length > 0;
-    const amount = safeParseAmount(coinType === IOTA_TYPE_ARG ? values.amount : '0', decimals);
-    const gasUnstakeBuffer = (maxAmountTxTotalGas + maxAmountTxStorageRebate) * BigInt(2); // 2x gas budget need for unstaking
-
-    const amountWithGas = amount !== null ? amount + gasUnstakeBuffer : 0n;
+    const gasUnstakeBuffer = maxAmountTxGasBudget * BigInt(2); // 2x gas budget needed for unstaking
     const [gasUnstakeBufferFormatted, gasUnstakeBufferSymbol] = useFormatCoin({
         balance: gasUnstakeBuffer,
         format: CoinFormat.FULL,
     });
 
-    const canPay = amount !== null ? maxTokenBalance >= amount + gasUnstakeBuffer : false;
-    const hasEnoughRemainingBalance = !(hasAmount && !canPay);
-    const isMaxAmountSet = maxTokenBalance === amountWithGas;
+    // for user we show available amount as available_balance - gas_budget
+    const availableBalance = coinBalance - maxAmountTxGasBudget;
+    const [availableBalanceFormatted, availableBalanceFormattedSymbol] = useFormatCoin({
+        balance: availableBalance,
+        format: CoinFormat.FULL,
+    });
+
+    const amount = safeParseAmount(coinType === IOTA_TYPE_ARG ? values.amount : '0', decimals);
+
+    const isMaxAmountSet = amountWithoutDecimals === availableBalance - gasUnstakeBuffer;
+
+    // User must have enough balance to pay gas upfront, even if they'll receive a rebate later.
+    // we keep 3x the gas budget, 2x for unstaking and 1x for the transaction
+    const hasEnoughRemainingBalance = amount
+        ? coinBalance >= amount + maxAmountTxGasBudget + gasUnstakeBuffer
+        : true;
+
+    const caption = maxAmountTxGasBudget
+        ? `${availableBalanceFormatted} ${availableBalanceFormattedSymbol} Available`
+        : '--';
 
     function onActionClick() {
-        const maxSafeAmount = maxTokenBalance - gasUnstakeBuffer;
+        const maxSafeAmount = availableBalance - gasUnstakeBuffer;
         const maxSafeAmountFormatted = formatBalance(maxSafeAmount, decimals, CoinFormat.FULL);
 
         setFieldValue('amount', maxSafeAmountFormatted, true);
