@@ -101,11 +101,9 @@ impl<T> CommonHandler<T> {
                         if cancel.is_cancelled() {
                             return Ok(());
                         }
-                        unprocessed.extend(
-                            tuple_chunk
-                                .into_iter()
-                                .map(|(cp_seq, data)| (cp_seq, (cp_seq, data))),
-                        );
+                        for (cp_seq, data) in tuple_chunk {
+                            unprocessed.insert(cp_seq, (cp_seq, data));
+                        }
                     }
                     Some(None) => break, // Stream has ended
                     None => {}           // No new data tuple available right now
