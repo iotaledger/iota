@@ -105,7 +105,7 @@ export function EpochDetail() {
             />
         );
 
-    const tableData = [...epochData.validators].sort(() => 0.5 - Math.random());
+    const tableData = epochData.validators;
 
     const { fundInflow, fundOutflow, netInflow } = getEpochStorageFundFlow(
         epochData.endOfEpochInfo,
@@ -205,7 +205,12 @@ export function EpochDetail() {
                                 />
                             ) : null}
                             {activeTabId === EpochTabs.Validators && tableData && tableColumns ? (
-                                <TableCard data={tableData} columns={tableColumns} />
+                                <TableCard
+                                    sortTable
+                                    defaultSorting={[{ id: 'stakingPoolIotaBalance', desc: true }]}
+                                    data={tableData}
+                                    columns={tableColumns}
+                                />
                             ) : null}
                         </div>
                     </Panel>

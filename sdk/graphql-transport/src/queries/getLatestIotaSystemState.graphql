@@ -48,6 +48,15 @@ query getLatestIotaSystemState {
                     ...RPC_VALIDATOR_FIELDS
                 }
             }
+            committeeMembers {
+                pageInfo {
+                    hasNextPage
+                    endCursor
+                }
+                nodes {
+                    ...RPC_VALIDATOR_FIELDS
+                }
+            }
 
             inactivePoolsSize
             pendingActiveValidatorsSize

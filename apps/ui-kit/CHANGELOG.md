@@ -1,5 +1,24 @@
 # @iota/apps-ui-kit
 
+## 0.3.0
+
+### Minor Changes
+
+-   3b8b320: update input styles for darkmode
+-   b28a0be: Improve search input behavior:
+
+    -   Allow navigation through suggestions with arrow up/down keys
+    -   Select suggestion on Enter
+
+### Patch Changes
+
+-   b83b198: improve darkmode styles for destructive button
+-   b06e657: Improve styling for small screens
+-   9f4c5e4: Enhance snackbar and infobox with warning type. Update styles for default type.
+-   2bd31a2: fix tooltip max-width
+-   Updated dependencies [8f73b75]
+    -   @iota/apps-ui-icons@0.2.2
+
 ## 0.2.2
 
 ### Patch Changes

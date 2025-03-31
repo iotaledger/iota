@@ -4632,6 +4632,10 @@ type ValidatorSet {
 	The current set of active validators.
 	"""
 	activeValidators(first: Int, before: String, last: Int, after: String): ValidatorConnection!
+	"""
+	The current set of committee members.
+	"""
+	committeeMembers(first: Int, before: String, last: Int, after: String): ValidatorConnection!
 }
 
 """

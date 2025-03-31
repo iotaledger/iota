@@ -133,17 +133,17 @@ We will obtain some tokens from the faucet for gas fees.
 
 Contact the IOTA Foundation with your validator information obtained in Step 5.
 
-### 10. Join the Committee
+### 10. Join the Validators
 
-Before joining the committee, ensure:
+Before joining the validators, ensure:
 
 - Your node is fully synced with the network
 - IOTA Foundation has already delegated the staking tokens for your validator
 
-Once your node is ready, submit your request to join the committee:
+Once your node is ready, submit your request to join the validators:
 
 ```bash
-./join_committee.sh
+./join_validators.sh
 ```
 
 ### 11. Monitor Validator Status
@@ -152,7 +152,7 @@ Once your node is ready, submit your request to join the committee:
 docker run --rm -v ./iota_config:/root/.iota/iota_config iotaledger/iota-tools:testnet /bin/sh -c "/usr/local/bin/iota validator display-metadata" | grep status
 ```
 
-You should see your node's status is `pending` now, it will become active and join the committee starting from the next epoch.
+You should see your node's status is `pending` now, it will become active and join the validators starting from the next epoch.
 
 ```
 <YOUR-VALIDATOR_ADDRESS>'s validator status: Pending

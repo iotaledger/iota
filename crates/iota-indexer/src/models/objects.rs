@@ -9,10 +9,10 @@ use iota_json_rpc::coin_api::parse_to_struct_tag;
 use iota_json_rpc_types::{Balance, Coin as IotaCoin};
 use iota_package_resolver::{PackageStore, Resolver};
 use iota_types::{
-    base_types::{ObjectID, ObjectRef},
+    base_types::{ObjectID, ObjectRef, SequenceNumber},
     digests::ObjectDigest,
     dynamic_field::{DynamicFieldType, Field},
-    object::{Object, ObjectRead},
+    object::{Object, ObjectRead, PastObjectRead},
 };
 use move_core_types::annotated_value::MoveTypeLayout;
 use serde::de::DeserializeOwned;
@@ -158,6 +158,82 @@ pub struct StoredHistoryObject {
     pub coin_type: Option<String>,
     pub coin_balance: Option<i64>,
     pub df_kind: Option<i16>,
+}
+
+impl StoredHistoryObject {
+    pub async fn try_into_past_object_read(
+        self,
+        package_resolver: Arc<Resolver<impl PackageStore>>,
+    ) -> Result<PastObjectRead, IndexerError> {
+        let object_status = ObjectStatus::try_from(self.object_status).map_err(|_| {
+            IndexerError::PersistentStorageDataCorruption(format!(
+                "Object {} has an invalid object status: {}",
+                ObjectID::from_bytes(self.object_id.clone()).unwrap(),
+                self.object_status
+            ))
+        })?;
+
+        if let ObjectStatus::WrappedOrDeleted = object_status {
+            let object_ref = (
+                ObjectID::from_bytes(self.object_id.clone())?,
+                SequenceNumber::from_u64(self.object_version as u64),
+                ObjectDigest::OBJECT_DIGEST_DELETED,
+            );
+            return Ok(PastObjectRead::ObjectDeleted(object_ref));
+        }
+
+        let object: Object = self.try_into()?;
+        let object_ref = object.compute_object_reference();
+
+        let Some(move_object) = object.data.try_as_move().cloned() else {
+            return Ok(PastObjectRead::VersionFound(object_ref, object, None));
+        };
+
+        let move_type_layout = package_resolver
+            .type_layout(move_object.type_().clone().into())
+            .await
+            .map_err(|e| {
+                IndexerError::ResolveMoveStruct(format!(
+                    "failed to convert into object read for obj {}:{}, type: {}. error: {e}",
+                    object.id(),
+                    object.version(),
+                    move_object.type_(),
+                ))
+            })?;
+
+        let move_struct_layout = match move_type_layout {
+            MoveTypeLayout::Struct(s) => Ok(s),
+            _ => Err(IndexerError::ResolveMoveStruct(
+                "MoveTypeLayout is not a Struct".to_string(),
+            )),
+        }?;
+
+        Ok(PastObjectRead::VersionFound(
+            object_ref,
+            object,
+            Some(*move_struct_layout),
+        ))
+    }
+}
+
+impl TryFrom<StoredHistoryObject> for Object {
+    type Error = IndexerError;
+
+    fn try_from(o: StoredHistoryObject) -> Result<Self, Self::Error> {
+        let serialized_object = o.serialized_object.ok_or_else(|| {
+            IndexerError::Serde(format!(
+                "Failed to deserialize object: {:?}, error: object is None",
+                o.object_id
+            ))
+        })?;
+
+        bcs::from_bytes(&serialized_object).map_err(|e| {
+            IndexerError::Serde(format!(
+                "Failed to deserialize object: {:?}, error: {e}",
+                o.object_id
+            ))
+        })
+    }
 }
 
 impl From<IndexedObject> for StoredHistoryObject {
@@ -327,7 +403,7 @@ impl StoredObject {
         let move_struct_layout = match move_type_layout {
             MoveTypeLayout::Struct(s) => Ok(s),
             _ => Err(IndexerError::ResolveMoveStruct(
-                "MoveTypeLayout is not Struct".to_string(),
+                "MoveTypeLayout is not a Struct".to_string(),
             )),
         }?;
 

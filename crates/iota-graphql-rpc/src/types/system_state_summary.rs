@@ -29,6 +29,7 @@ pub(crate) struct SystemStateSummary {
 /// A subset of the information wrapped in [`NativeSystemStateSummary`].
 pub(crate) struct NativeStateValidatorInfo {
     pub active_validators: Vec<IotaValidatorSummary>,
+    pub committee_members: Vec<u64>,
     pub at_risk_validators: Vec<(NativeIotaAddress, u64)>,
     pub validator_report_records: Vec<(NativeIotaAddress, Vec<NativeIotaAddress>)>,
     pub pending_removals: Vec<u64>,
@@ -92,10 +93,16 @@ impl NativeStateValidatorInfo {
         requested_for_epoch: u64,
     ) -> ValidatorSet {
         let active_validators = self.to_validators_mut(checkpoint_viewed_at, requested_for_epoch);
+        let committee_members = self
+            .committee_members
+            .into_iter()
+            .map(|i| active_validators[i as usize].clone())
+            .collect();
 
         ValidatorSet {
             total_stake: Some(BigInt::from(total_stake)),
             active_validators: Some(active_validators),
+            committee_members: Some(committee_members),
             pending_removals: Some(self.pending_removals),
             pending_active_validators_id: Some(self.pending_active_validators_id.into()),
             pending_active_validators_size: Some(self.pending_active_validators_size),
@@ -114,6 +121,7 @@ impl From<NativeSystemStateSummary> for NativeStateValidatorInfo {
     fn from(summary: NativeSystemStateSummary) -> Self {
         let (
             active_validators,
+            committee_members,
             at_risk_validators,
             validator_report_records,
             pending_removals,
@@ -126,22 +134,29 @@ impl From<NativeSystemStateSummary> for NativeStateValidatorInfo {
             validator_candidates_id,
             validator_candidates_size,
         ) = match summary {
-            NativeSystemStateSummary::V1(inner) => (
-                inner.active_validators,
-                inner.at_risk_validators,
-                inner.validator_report_records,
-                inner.pending_removals,
-                inner.pending_active_validators_id,
-                inner.pending_active_validators_size,
-                inner.staking_pool_mappings_id,
-                inner.staking_pool_mappings_size,
-                inner.inactive_pools_id,
-                inner.inactive_pools_size,
-                inner.validator_candidates_id,
-                inner.validator_candidates_size,
-            ),
+            NativeSystemStateSummary::V1(inner) => {
+                let committee_members = (0..inner.active_validators.len())
+                    .map(|i| i as u64)
+                    .collect();
+                (
+                    inner.active_validators,
+                    committee_members,
+                    inner.at_risk_validators,
+                    inner.validator_report_records,
+                    inner.pending_removals,
+                    inner.pending_active_validators_id,
+                    inner.pending_active_validators_size,
+                    inner.staking_pool_mappings_id,
+                    inner.staking_pool_mappings_size,
+                    inner.inactive_pools_id,
+                    inner.inactive_pools_size,
+                    inner.validator_candidates_id,
+                    inner.validator_candidates_size,
+                )
+            }
             NativeSystemStateSummary::V2(inner) => (
                 inner.active_validators,
+                inner.committee_members,
                 inner.at_risk_validators,
                 inner.validator_report_records,
                 inner.pending_removals,
@@ -158,6 +173,7 @@ impl From<NativeSystemStateSummary> for NativeStateValidatorInfo {
         };
         Self {
             active_validators,
+            committee_members,
             at_risk_validators,
             validator_report_records,
             pending_removals,

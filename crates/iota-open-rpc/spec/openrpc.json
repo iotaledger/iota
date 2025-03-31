@@ -800,6 +800,7 @@
                   "parsedJson": {
                     "test": "example value"
                   },
+                  "bcsEncoding": "base64",
                   "bcs": ""
                 }
               ],
@@ -1804,6 +1805,7 @@
                 "max_checkpoint_size_bytes": {
                   "u64": "31457280"
                 },
+                "max_committee_members_count": null,
                 "max_deferral_rounds_for_congestion_control": {
                   "u64": "10"
                 },
@@ -3788,7 +3790,8 @@
                     "type": "0x0000000000000000000000000000000000000000000000000000000000000009::test::TestField",
                     "value": "some_value"
                   },
-                  "bcsName": "2F1KQ3miNpBx1RzoRr1MVYMraK7RV",
+                  "bcsEncoding": "base64",
+                  "bcsName": "FDB4OTo6dGVzdDo6VGVzdEZpZWxk",
                   "type": "DynamicField",
                   "objectType": "test",
                   "objectId": "0x82b2fd67344691abd0efc771941b948ad35360b08e449fbbc28b0641175bf60b",
@@ -3800,7 +3803,8 @@
                     "type": "0x0000000000000000000000000000000000000000000000000000000000000009::test::TestField",
                     "value": "some_value"
                   },
-                  "bcsName": "2F1KQ3miNpBx1RzoRr1MVYMraK7RV",
+                  "bcsEncoding": "base64",
+                  "bcsName": "FDB4OTo6dGVzdDo6VGVzdEZpZWxk",
                   "type": "DynamicField",
                   "objectType": "test",
                   "objectId": "0x21564fc5a68ace997461b098c1d1f3ccbde241d8fdf562db36bc1423ee10cecb",
@@ -3812,7 +3816,8 @@
                     "type": "0x0000000000000000000000000000000000000000000000000000000000000009::test::TestField",
                     "value": "some_value"
                   },
-                  "bcsName": "2F1KQ3miNpBx1RzoRr1MVYMraK7RV",
+                  "bcsEncoding": "base64",
+                  "bcsName": "FDB4OTo6dGVzdDo6VGVzdEZpZWxk",
                   "type": "DynamicField",
                   "objectType": "test",
                   "objectId": "0x7e00acf5386662fa062483ba507b1e9e3039750f0a270f2e12441ad7f611a5f7",
@@ -4574,6 +4579,7 @@
                   "sender": "0x84bd999f9ff7a1804872957fafa528628a24386298faa98850887f64da841b87",
                   "type": "0x3::test::Test<0x3::test::Test>",
                   "parsedJson": "some_value",
+                  "bcsEncoding": "base64",
                   "bcs": ""
                 },
                 {
@@ -4586,6 +4592,7 @@
                   "sender": "0x279efd098d59a66a3d9adc87cce81fe9ec69dc8105b2b60140589ec8be44c29f",
                   "type": "0x3::test::Test<0x3::test::Test>",
                   "parsedJson": "some_value",
+                  "bcsEncoding": "base64",
                   "bcs": ""
                 },
                 {
@@ -4598,6 +4605,7 @@
                   "sender": "0x289be027d2a94f744b4c59fda7b528f9c59f430eaba84b8bee9b43a30f9cc83f",
                   "type": "0x3::test::Test<0x3::test::Test>",
                   "parsedJson": "some_value",
+                  "bcsEncoding": "base64",
                   "bcs": ""
                 },
                 {
@@ -4610,6 +4618,7 @@
                   "sender": "0xa395759ca37c6e1ffc179184e98a6f9a2da5d78f6e34b0e5044ed52a6bc0a1bc",
                   "type": "0x3::test::Test<0x3::test::Test>",
                   "parsedJson": "some_value",
+                  "bcsEncoding": "base64",
                   "bcs": ""
                 }
               ],
@@ -6456,8 +6465,45 @@
       },
       "DynamicFieldInfo": {
         "type": "object",
+        "oneOf": [
+          {
+            "type": "object",
+            "required": [
+              "bcsEncoding",
+              "bcsName"
+            ],
+            "properties": {
+              "bcsEncoding": {
+                "type": "string",
+                "enum": [
+                  "base64"
+                ]
+              },
+              "bcsName": {
+                "$ref": "#/components/schemas/Base64"
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "bcsEncoding",
+              "bcsName"
+            ],
+            "properties": {
+              "bcsEncoding": {
+                "type": "string",
+                "enum": [
+                  "base58"
+                ]
+              },
+              "bcsName": {
+                "$ref": "#/components/schemas/Base58"
+              }
+            }
+          }
+        ],
         "required": [
-          "bcsName",
           "digest",
           "name",
           "objectId",
@@ -6466,9 +6512,6 @@
           "version"
         ],
         "properties": {
-          "bcsName": {
-            "$ref": "#/components/schemas/Base58"
-          },
           "digest": {
             "$ref": "#/components/schemas/ObjectDigest"
           },
@@ -6649,6 +6692,13 @@
           "validators"
         ],
         "properties": {
+          "committeeMembers": {
+            "description": "Committee validators. Each element is an index pointing to `validators`.",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BigInt_for_uint64"
+            }
+          },
           "endOfEpochInfo": {
             "description": "The end of epoch information.",
             "anyOf": [
@@ -6767,8 +6817,45 @@
       },
       "Event": {
         "type": "object",
+        "oneOf": [
+          {
+            "type": "object",
+            "required": [
+              "bcs",
+              "bcsEncoding"
+            ],
+            "properties": {
+              "bcs": {
+                "$ref": "#/components/schemas/Base64"
+              },
+              "bcsEncoding": {
+                "type": "string",
+                "enum": [
+                  "base64"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "bcs",
+              "bcsEncoding"
+            ],
+            "properties": {
+              "bcs": {
+                "$ref": "#/components/schemas/Base58"
+              },
+              "bcsEncoding": {
+                "type": "string",
+                "enum": [
+                  "base58"
+                ]
+              }
+            }
+          }
+        ],
         "required": [
-          "bcs",
           "id",
           "packageId",
           "parsedJson",
@@ -6777,14 +6864,6 @@
           "type"
         ],
         "properties": {
-          "bcs": {
-            "description": "Base 58 encoded bcs bytes of the move event",
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/Base58"
-              }
-            ]
-          },
           "id": {
             "description": "Sequential event ID, ie (transaction seq number, event seq number). 1) Serves as a unique event ID for each fullnode 2) Also serves to sequence events for the purposes of pagination and querying. A higher id is an event seen later by that fullnode. This ID is the \"cursor\" for event querying.",
             "allOf": [
@@ -8730,6 +8809,7 @@
         "required": [
           "activeValidators",
           "atRiskValidators",
+          "committeeMembers",
           "epoch",
           "epochDurationMs",
           "epochStartTimestampMs",
@@ -8787,6 +8867,13 @@
               ],
               "maxItems": 2,
               "minItems": 2
+            }
+          },
+          "committeeMembers": {
+            "description": "List of committee validators in the current epoch. Each element is an index pointing to `active_validators`.",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BigInt_for_uint64"
             }
           },
           "epoch": {
@@ -8993,7 +9080,7 @@
             ]
           },
           "totalStake": {
-            "description": "Total amount of stake from all active validators at the beginning of the epoch.",
+            "description": "Total amount of stake from all committee validators at the beginning of the epoch.",
             "allOf": [
               {
                 "$ref": "#/components/schemas/BigInt_for_uint64"
