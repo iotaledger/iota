@@ -3,7 +3,7 @@
 
 use std::{collections::HashMap, fs::File};
 
-use iota_config::genesis::custom_csv_reader;
+use iota_config::genesis::csv_reader_with_comments;
 use iota_sdk::types::block::address::Address;
 use iota_types::base_types::IotaAddress;
 
@@ -142,7 +142,7 @@ impl AddressSwapSplitMap {
     pub fn from_csv(file_path: &str) -> Result<AddressSwapSplitMap, anyhow::Error> {
         let current_dir = std::env::current_dir()?;
         let file_path = current_dir.join(file_path);
-        let mut reader = custom_csv_reader(File::open(file_path)?);
+        let mut reader = csv_reader_with_comments(File::open(file_path)?);
         let mut address_swap_split_map: AddressSwapSplitMap = Default::default();
 
         let headers = reader.headers()?;
