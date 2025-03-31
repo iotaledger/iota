@@ -65,8 +65,7 @@ fn aggregate_unlocks(repo_path: &Path) -> Result<BTreeMap<String, u64>> {
         for result in rdr.records() {
             let record = result?;
             if record.len() < 2 {
-                eprintln!("Skipping invalid record: {:?}", record);
-                continue;
+                return Err(anyhow::anyhow!("invalid record: {record:?}"));
             }
 
             let tokens_str = record.get(0).unwrap().trim();

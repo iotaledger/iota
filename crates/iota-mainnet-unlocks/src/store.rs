@@ -54,14 +54,12 @@ impl MainnetUnlocksStore {
             let entry: StillLockedEntry =
                 result.context("failed to deserialize CSV row into StillLockedEntry")?;
 
-            if map.contains_key(&entry.timestamp) {
+            if let Some(old_entry) = map.insert(entry.timestamp, entry) {
                 return Err(anyhow::anyhow!(
                     "duplicate entry found for timestamp: {}",
-                    entry.timestamp
+                    old_entry.timestamp
                 ));
             }
-
-            map.insert(entry.timestamp, entry);
         }
 
         Ok(Self { entries: map })
@@ -207,10 +205,12 @@ mod tests {
         let far_before = Utc.with_ymd_and_hms(2000, 1, 1, 0, 0, 0).unwrap();
         let just_before = Utc.with_ymd_and_hms(2022, 5, 31, 23, 59, 59).unwrap();
         let exact = Utc.with_ymd_and_hms(2022, 6, 1, 0, 0, 0).unwrap();
+        let just_after = Utc.with_ymd_and_hms(2022, 6, 1, 0, 0, 1).unwrap();
 
         assert_eq!(store.still_locked_tokens(far_before), 888);
         assert_eq!(store.still_locked_tokens(just_before), 888);
         assert_eq!(store.still_locked_tokens(exact), 888);
+        assert_eq!(store.still_locked_tokens(just_after), 888);
     }
 
     #[test]
