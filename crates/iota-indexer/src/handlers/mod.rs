@@ -91,7 +91,7 @@ impl<T> CommonHandler<T> {
 
             // Try to fetch new data tuple from the stream
             if unprocessed.len() >= UNPROCESSED_CHECKPOINT_SIZE_LIMIT {
-                tracing::info!(
+                tracing::debug!(
                     "Unprocessed checkpoint size reached limit {UNPROCESSED_CHECKPOINT_SIZE_LIMIT}, skip reading from stream..."
                 );
             } else {
@@ -101,9 +101,11 @@ impl<T> CommonHandler<T> {
                         if cancel.is_cancelled() {
                             return Ok(());
                         }
-                        for (cp_seq, data) in tuple_chunk {
-                            unprocessed.insert(cp_seq, (cp_seq, data));
-                        }
+                        unprocessed.extend(
+                            tuple_chunk
+                                .into_iter()
+                                .map(|(cp_seq, data)| (cp_seq, (cp_seq, data))),
+                        );
                     }
                     Some(None) => break, // Stream has ended
                     None => {}           // No new data tuple available right now
@@ -121,7 +123,8 @@ impl<T> CommonHandler<T> {
                 }
             }
 
-            if !tuple_batch.is_empty() {
+            if !tuple_batch.is_empty() && checkpoint_lag_limiter != 0 {
+                let tuple_batch = std::mem::take(&mut tuple_batch);
                 let (last_checkpoint_seq, _data) = tuple_batch.last().unwrap();
                 let last_checkpoint_seq = last_checkpoint_seq.to_owned();
                 let batch = tuple_batch
@@ -135,7 +138,6 @@ impl<T> CommonHandler<T> {
                     ))
                 })?;
                 self.handler.set_watermark_hi(last_checkpoint_seq).await?;
-                tuple_batch = vec![];
             }
         }
         Err(IndexerError::ChannelClosed(format!(
