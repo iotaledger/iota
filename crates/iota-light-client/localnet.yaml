@@ -5,3 +5,4 @@ full_node_url: "http://localhost:9000"
 graphql_url: "http://localhost:9125"
 object_store_url: ~
 archive_store_config: ~
+sync_before_check: true

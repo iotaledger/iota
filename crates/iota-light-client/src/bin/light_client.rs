@@ -24,30 +24,30 @@ use tracing::info;
 #[command(author, version, about, long_about = None)]
 struct Args {
     /// Sets a custom config file
-    #[arg(short, long, value_name = "FILE")]
+    #[arg(short, long, value_name = "PATH")]
     config: Option<PathBuf>,
 
     #[command(subcommand)]
-    command: Option<SCommands>,
+    command: Option<LightClientCommand>,
 }
 
 #[derive(Subcommand, Debug)]
-pub enum SCommands {
-    /// Sync all end-of-epoch checkpoints
-    Sync {},
+pub enum LightClientCommand {
+    /// Sync light client
+    Sync,
 
-    /// Checks a specific transaction using the light client
-    Transaction {
-        /// Transaction hash
-        #[arg(short, long, value_name = "TID")]
-        tid: String,
+    /// Check a transaction for inclusion
+    CheckTransaction {
+        /// Transaction digest
+        #[arg(value_name = "TRANSACTION_DIGEST")]
+        transaction_digest: String,
     },
 
-    /// Checks a specific object using the light client
-    Object {
-        /// Transaction hash
-        #[arg(short, long, value_name = "OID")]
-        oid: String,
+    /// Check an object for inclusion
+    CheckObject {
+        /// Object ID
+        #[arg(value_name = "OBJECT_ID")]
+        object_id: String,
     },
 }
 
@@ -65,23 +65,32 @@ pub async fn main() {
         .unwrap_or_else(|e| panic!("Unable to load config from {}: {e}", path.display()));
 
     // Print config parameters
-    println!("Checkpoint Dir: {}", config.cache_dir.display());
+    println!(
+        "Checkpoint Sync Dir: {}",
+        config.checkpoints_sync_dir.display()
+    );
 
     let remote_package_store = RemotePackageStore::new(config.clone());
     let resolver = Resolver::new(remote_package_store);
 
     match args.command {
-        Some(SCommands::Transaction { tid }) => {
+        Some(LightClientCommand::CheckTransaction { transaction_digest }) => {
+            if config.sync_before_check {
+                check_and_sync_checkpoints(&config)
+                    .await
+                    .expect("Failed to sync checkpoints");
+            }
+
             let (effects, events) = get_verified_effects_and_events(
                 &config,
-                TransactionDigest::from_str(&tid).unwrap(),
+                TransactionDigest::from_str(&transaction_digest).unwrap(),
             )
             .await
             .unwrap();
 
             let exec_digests = effects.execution_digests();
             println!(
-                "Executed TID: {} Effects: {}",
+                "Executed Digest: {} Effects: {}",
                 exec_digests.transaction, exec_digests.effects
             );
 
@@ -108,10 +117,16 @@ pub async fn main() {
                 println!("No events found");
             }
         }
-        Some(SCommands::Object { oid }) => {
-            let oid = ObjectID::from_str(&oid).unwrap();
-            let object = get_verified_object(&config, oid).await.unwrap();
-            info!("Successfully verified object: {}", oid);
+        Some(LightClientCommand::CheckObject { object_id }) => {
+            if config.sync_before_check {
+                check_and_sync_checkpoints(&config)
+                    .await
+                    .expect("Failed to sync checkpoints");
+            }
+
+            let object_id = ObjectID::from_str(&object_id).unwrap();
+            let object = get_verified_object(&config, object_id).await.unwrap();
+            info!("Successfully verified object: {}", object_id);
 
             if let Data::Move(move_object) = &object.data {
                 let object_type = move_object.type_().clone();
@@ -138,7 +153,7 @@ pub async fn main() {
             }
         }
 
-        Some(SCommands::Sync {}) => {
+        Some(LightClientCommand::Sync) => {
             check_and_sync_checkpoints(&config)
                 .await
                 .expect("Failed to sync checkpoints");

@@ -25,6 +25,7 @@ pub struct Config {
     pub graphql_url: Option<String>,
     pub object_store_url: Option<String>,
     pub archive_store_config: Option<ObjectStoreConfig>,
+    pub sync_before_check: bool,
 }
 
 impl Default for Config {
@@ -37,6 +38,7 @@ impl Default for Config {
             object_store_url: None,
             archive_store_config: None,
             graphql_url: Some("http://localhost:9125".to_string()),
+            sync_before_check: false,
         }
     }
 }
@@ -118,7 +120,7 @@ mod tests {
                 ..Default::default()
             }),
             graphql_url: Some("http://localhost:9003".to_string()),
-            genesis_filename: "genesis.blob".to_string(),
+            sync_before_check: false,
         };
         (config, temp_dir)
     }

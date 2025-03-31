@@ -13,6 +13,10 @@ path = "src/lib.rs"
 name = "iota-light-client"
 path = "src/bin/light_client.rs"
 
+[[bin]]
+name = "generate-chk-snapshots"
+path = "src/bin/generate_chk_snapshots.rs"
+
 [dependencies]
 # external dependencies
 anyhow.workspace = true
