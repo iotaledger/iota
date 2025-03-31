@@ -73,7 +73,7 @@ iota validator make-validator-info \
 This command generates a `validator.info` file and 4 key pair files in the same directory where the command was executed. All keys but the `account.key` will need to be copied over to the validator node and included in the YAML configuration of the node. See [Validator Node Configuration](https://docs.iota.org/operator/validator-node/configuration)
 
 - `account.key` contains an ed25519 private key _(keep this one private)_
-- `network.key` contains an ed25519 private key _(_copy over to the validator node)_
+- `network.key` contains an ed25519 private key _(copy over to the validator node)_
 - `authority.key` contains a BLS12381 private key _(copy over to the validator node)_
 - `protocol.key`contains an ed25519 private key _(copy over to the validator node)_
 - `validator.info` contains the validator information, e.g.:
