@@ -122,7 +122,7 @@ impl AddressSwapSplitMap {
     /// iota1qrukjnd6jhgwc0ls6dgt574sxuulcsmq5lnzhtv4jmlwkydhe2zvy69t7jj,0x1336d143de5eb55bcb069f55da5fc9f0c84e368022fd2bbe0125b1093b446313,107667149000,107667149000
     /// iota1qr4chj9jwhauvegqy40sdhj93mzmvc3mg9cmzlv2y6j8vpyxpvug2y6h5jd,0x83b5ed87bac715ecb09017a72d531ccc3c43bcb58edeb1ce383f1c46cfd79bec,388647312000,0
     /// ```
-    /// 
+    ///
     /// Comments are optional, and start with a `#` character.
     ///
     /// # Parameters
@@ -140,7 +140,9 @@ impl AddressSwapSplitMap {
     pub fn from_csv(file_path: &str) -> Result<AddressSwapSplitMap, anyhow::Error> {
         let current_dir = std::env::current_dir()?;
         let file_path = current_dir.join(file_path);
-        let mut reader = csv::ReaderBuilder::new().comment(Some(b'#')).from_path(file_path)?;
+        let mut reader = csv::ReaderBuilder::new()
+            .comment(Some(b'#'))
+            .from_path(file_path)?;
         let mut address_swap_split_map: AddressSwapSplitMap = Default::default();
 
         let headers = reader.headers()?;
