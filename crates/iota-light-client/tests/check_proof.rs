@@ -10,7 +10,7 @@ use std::{
 
 use anyhow::anyhow;
 use iota_light_client::{
-    checkpoint::{CheckpointsList, read_checkpoint_list},
+    checkpoint::{CheckpointList, read_checkpoint_list},
     config::Config,
     construct::construct_proof,
     proof::{Proof, ProofTarget, verify_proof},
@@ -20,36 +20,26 @@ use iota_types::{
     effects::TransactionEffectsAPI,
     event::{Event, EventID},
     full_checkpoint_content::CheckpointData,
+    messages_checkpoint::CertifiedCheckpointSummary,
     object::Object,
 };
 
-const TEST_FILES_DIR: &str = "test_files";
-
-async fn read_full_checkpoint(checkpoint_path: &PathBuf) -> anyhow::Result<CheckpointData> {
-    println!("Reading checkpoint from {:?}", checkpoint_path);
-    let mut reader = fs::File::open(checkpoint_path.clone())?;
-    let mut buffer = Vec::new();
-    reader.read_to_end(&mut buffer)?;
-    let data: CheckpointData =
-        bcs::from_bytes(&buffer).map_err(|e| anyhow!("Unable to parse checkpoint file: {}", e))?;
-    Ok(data)
-}
+const FIXTURES_DIR: &str = "tests/fixtures";
+const FIXTURE_1: &str = "235.sum";
+const FIXTURE_2: &str = "469.chk";
 
 async fn read_test_data() -> (Committee, CheckpointData) {
-    let mut dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-    dir.push(TEST_FILES_DIR);
-
-    let mut config = Config::default();
-    config.checkpoint_summary_dir = dir;
-
-    let checkpoints_list: CheckpointsList =
+    let config = Config {
+        cache_dir: PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(FIXTURES_DIR),
+        ..Default::default()
+    };
+    let checkpoint_list =
         read_checkpoint_list(&config).expect("reading the checkpoints.yaml should not fail");
-
-    let committee_seq = checkpoints_list
+    let committee_seq = checkpoint_list
         .checkpoints()
         .first()
         .expect("there should be a first checkpoint in the checkpoints.yaml");
-    let seq = checkpoints_list
+    let seq = checkpoint_list
         .checkpoints()
         .get(1)
         .expect("there should be a second checkpoint in the checkpoints.yaml");
@@ -58,38 +48,50 @@ async fn read_test_data() -> (Committee, CheckpointData) {
 }
 
 async fn read_data(committee_seq: u64, seq: u64) -> (Committee, CheckpointData) {
-    let mut dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-    dir.push(format!("{}/{}.chk", TEST_FILES_DIR, committee_seq));
-
-    let committee_checkpoint = read_full_checkpoint(&dir).await.unwrap();
-
-    let prev_committee = committee_checkpoint
-        .checkpoint_summary
+    let checkpoint_summary_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join(FIXTURES_DIR)
+        .join(format!("{committee_seq}.sum"));
+    let summary = read_checkpoint_summary(&checkpoint_summary_path)
+        .await
+        .unwrap();
+    let prev_committee = summary
         .end_of_epoch_data
         .as_ref()
-        .ok_or(anyhow!("Expected checkpoint to be end-of-epoch"))
+        .ok_or(anyhow!(
+            "Expected all checkpoints to be end-of-epoch checkpoints"
+        ))
         .unwrap()
         .next_epoch_committee
         .iter()
         .cloned()
         .collect();
 
-    // Make a committee object using this
-    let committee = Committee::new(
-        committee_checkpoint
-            .checkpoint_summary
-            .epoch()
-            .checked_add(1)
-            .unwrap(),
-        prev_committee,
-    );
+    let committee = Committee::new(summary.epoch().checked_add(1).unwrap(), prev_committee);
 
-    let mut d = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-    d.push(format!("{}/{}.chk", TEST_FILES_DIR, seq));
-
-    let full_checkpoint = read_full_checkpoint(&d).await.unwrap();
+    let full_checkpoint_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join(FIXTURES_DIR)
+        .join(format!("{seq}.chk"));
+    let full_checkpoint = read_full_checkpoint(&full_checkpoint_path).await.unwrap();
 
     (committee, full_checkpoint)
+}
+
+async fn read_checkpoint_summary(
+    checkpoint_path: &PathBuf,
+) -> anyhow::Result<CertifiedCheckpointSummary> {
+    let mut reader = fs::File::open(checkpoint_path.clone()).unwrap();
+    let metadata = fs::metadata(&checkpoint_path).unwrap();
+    let mut buffer = vec![0; metadata.len() as usize];
+    reader.read_exact(&mut buffer).unwrap();
+    bcs::from_bytes(&buffer).map_err(|_| anyhow!("Unable to parse checkpoint summary file"))
+}
+
+async fn read_full_checkpoint(checkpoint_path: &PathBuf) -> anyhow::Result<CheckpointData> {
+    let mut reader = fs::File::open(checkpoint_path.clone())?;
+    let metadata = fs::metadata(checkpoint_path)?;
+    let mut buffer = vec![0; metadata.len() as usize];
+    reader.read_exact(&mut buffer)?;
+    bcs::from_bytes(&buffer).map_err(|_| anyhow!("Unable to parse full checkpoint file"))
 }
 
 #[tokio::test]
@@ -145,7 +147,7 @@ async fn test_incorrect_new_committee() {
     let committee_proof = Proof {
         checkpoint_summary: full_checkpoint.checkpoint_summary.clone(),
         contents_proof: None,
-        targets: ProofTarget::new().set_committee(committee.clone()), // WRONG
+        targets: ProofTarget::new().set_committee(committee.clone()), // WRONG,
     };
 
     assert!(verify_proof(&committee, &committee_proof).is_err());

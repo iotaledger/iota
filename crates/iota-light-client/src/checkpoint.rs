@@ -9,7 +9,7 @@ use std::{
     sync::Arc,
 };
 
-use anyhow::{Result, anyhow};
+use anyhow::{Result, anyhow, bail};
 use getset::Getters;
 use iota_archival::read_manifest;
 use iota_config::genesis::Genesis;
@@ -31,20 +31,26 @@ use crate::{
 };
 
 // The list of checkpoints at the end of each epoch
-#[derive(Debug, Clone, Deserialize, Serialize, Getters)]
+#[derive(Debug, Clone, Default, Deserialize, Serialize, Getters)]
 #[getset(get = "pub")]
-pub struct CheckpointsList {
+pub struct CheckpointList {
     // List of end of epoch checkpoints
     checkpoints: Vec<u64>,
 }
 
-pub fn read_checkpoint_list(config: &Config) -> Result<CheckpointsList> {
+impl CheckpointList {
+    pub fn len(&self) -> usize {
+        self.checkpoints.len()
+    }
+}
+
+pub fn read_checkpoint_list(config: &Config) -> Result<CheckpointList> {
     let checkpoints_path = config.checkpoint_list_path();
     let reader = fs::File::open(checkpoints_path)?;
     Ok(serde_yaml::from_reader(reader)?)
 }
 
-pub fn write_checkpoint_list(config: &Config, checkpoints_list: &CheckpointsList) -> Result<()> {
+pub fn write_checkpoint_list(config: &Config, checkpoints_list: &CheckpointList) -> Result<()> {
     let checkpoints_path = config.checkpoint_list_path();
     let mut writer = fs::File::create(checkpoints_path)?;
     let bytes = serde_yaml::to_vec(checkpoints_list)?;
@@ -94,12 +100,12 @@ fn write_checkpoint_general(
 
 /// Downloads the list of end of epoch checkpoints from the archive store or the
 /// GraphQL endpoint
-pub async fn sync_checkpoint_list_to_latest(config: &Config) -> anyhow::Result<CheckpointsList> {
+pub async fn sync_checkpoint_list_to_latest(config: &Config) -> anyhow::Result<CheckpointList> {
     // Check if we have any source configured
     if config.graphql_url.is_none() && config.archive_store_config.is_none() {
-        return Err(anyhow!(
+        bail!(
             "No checkpoint sources configured - both GraphQL URL and Archive Store config are missing"
-        ));
+        );
     }
 
     // Try getting checkpoints from GraphQL if URL is configured
@@ -109,15 +115,11 @@ pub async fn sync_checkpoint_list_to_latest(config: &Config) -> anyhow::Result<C
             Ok(list) => list,
             Err(e) => {
                 info!("Failed to get checkpoints from GraphQL: {}", e);
-                CheckpointsList {
-                    checkpoints: vec![],
-                }
+                CheckpointList::default()
             }
         }
     } else {
-        CheckpointsList {
-            checkpoints: vec![],
-        }
+        CheckpointList::default()
     };
 
     // Try getting checkpoints from archive store if configured
@@ -126,33 +128,27 @@ pub async fn sync_checkpoint_list_to_latest(config: &Config) -> anyhow::Result<C
             Ok(list) => list,
             Err(e) => {
                 info!("Failed to get checkpoints from archive: {}", e);
-                CheckpointsList {
-                    checkpoints: vec![],
-                }
+                CheckpointList::default()
             }
         }
     } else {
-        CheckpointsList {
-            checkpoints: vec![],
-        }
+        CheckpointList::default()
     };
 
     // Verify we have at least some checkpoints
     if graphql_list.checkpoints.is_empty() && archive_list.checkpoints.is_empty() {
-        return Err(anyhow!(
-            "Could not retrieve any checkpoints from configured sources"
-        ));
+        bail!("Could not retrieve any checkpoints from configured sources");
     }
 
     let merged_checkpoints = merge_checkpoint_lists(&graphql_list, &archive_list);
-    Ok(CheckpointsList {
+    Ok(CheckpointList {
         checkpoints: merged_checkpoints,
     })
 }
 
 /// Merges two checkpoint lists, removing duplicates and ensuring the result is
 /// sorted
-fn merge_checkpoint_lists(list1: &CheckpointsList, list2: &CheckpointsList) -> Vec<u64> {
+fn merge_checkpoint_lists(list1: &CheckpointList, list2: &CheckpointList) -> Vec<u64> {
     // Combine both lists into a HashSet to remove duplicates
     let unique_checkpoints: HashSet<u64> = list1
         .checkpoints
@@ -171,13 +167,13 @@ fn merge_checkpoint_lists(list1: &CheckpointsList, list2: &CheckpointsList) -> V
 /// Downloads the list of end of epoch checkpoints from the full node
 async fn sync_checkpoint_list_to_latest_using_fullnode(
     config: &Config,
-) -> anyhow::Result<CheckpointsList> {
+) -> anyhow::Result<CheckpointList> {
     info!("Syncing checkpoints from full node");
     // Download the checkpoint from the server
     let rest_client = Client::new(config.full_node_url.as_str());
 
     // Get the local checkpoint list
-    let mut checkpoints_list: CheckpointsList = read_checkpoint_list(config)?;
+    let mut checkpoints_list: CheckpointList = read_checkpoint_list(config)?;
     let latest_in_list = if let Some(latest_in_list) = checkpoints_list.checkpoints.last() {
         *latest_in_list
     } else {
@@ -236,7 +232,7 @@ async fn sync_checkpoint_list_to_latest_using_fullnode(
 /// Downloads the list of end of epoch checkpoints from the archive store
 async fn sync_checkpoint_list_to_latest_using_archive(
     config: &Config,
-) -> anyhow::Result<CheckpointsList> {
+) -> anyhow::Result<CheckpointList> {
     info!("Syncing checkpoints from archive store");
     let Some(archive_store_config) = &config.archive_store_config else {
         return Err(anyhow!("Archive store config is not provided"));
@@ -249,20 +245,20 @@ async fn sync_checkpoint_list_to_latest_using_archive(
     let manifest = read_manifest(remote_object_store).await?;
     let checkpoints = manifest.get_all_end_of_epoch_checkpoint_seq_numbers()?;
     // write_checkpoint_list(config, &CheckpointsList { checkpoints })?;
-    Ok(CheckpointsList { checkpoints })
+    Ok(CheckpointList { checkpoints })
 }
 
 /// Downloads the list of end of epoch checkpoints from the object store
 async fn sync_checkpoint_list_to_latest_using_object_store(
     config: &Config,
-) -> anyhow::Result<CheckpointsList> {
+) -> anyhow::Result<CheckpointList> {
     info!("Syncing checkpoints from object store");
     // Get the local checkpoint list, or create an empty one if it doesn't exist
     let mut checkpoints_list = match read_checkpoint_list(config) {
         Ok(list) => list,
         Err(e) => {
             info!("Could not read existing checkpoint list, starting with empty list: {e}");
-            CheckpointsList {
+            CheckpointList {
                 checkpoints: vec![],
             }
         }
@@ -331,7 +327,7 @@ pub async fn check_and_sync_checkpoints(config: &Config) -> anyhow::Result<()> {
     write_checkpoint_list(config, &checkpoints_list)?;
 
     // Load the genesis committee
-    let mut genesis_path = config.checkpoint_summary_dir.clone();
+    let mut genesis_path = config.cache_dir.clone();
     genesis_path.push(&config.genesis_filename);
     let genesis_committee = Genesis::load(&genesis_path)?
         .committee()
@@ -344,7 +340,7 @@ pub async fn check_and_sync_checkpoints(config: &Config) -> anyhow::Result<()> {
     for ckp_id in &checkpoints_list.checkpoints {
         // check if there is a file with this name ckp_id.yaml in the
         // checkpoint_summary_dir
-        let mut checkpoint_path = config.checkpoint_summary_dir.clone();
+        let mut checkpoint_path = config.cache_dir.clone();
         checkpoint_path.push(format!("{}.yaml", ckp_id));
 
         // If file exists read the file otherwise download it from the server
@@ -401,7 +397,7 @@ mod tests {
     fn create_test_config() -> (Config, TempDir) {
         let temp_dir = TempDir::new().unwrap();
         let config = Config {
-            checkpoint_summary_dir: temp_dir.path().to_path_buf(),
+            cache_dir: temp_dir.path().to_path_buf(),
             ..Default::default()
         };
         (config, temp_dir)
@@ -410,7 +406,7 @@ mod tests {
     #[test]
     fn test_checkpoint_list_read_write() {
         let (config, _temp_dir) = create_test_config();
-        let test_list = CheckpointsList {
+        let test_list = CheckpointList {
             checkpoints: vec![1, 2, 3],
         };
 

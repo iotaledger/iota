@@ -61,15 +61,11 @@ pub async fn main() {
     let path = args
         .config
         .unwrap_or_else(|| panic!("Need a config file path"));
-    let reader = fs::File::open(path.clone())
-        .unwrap_or_else(|_| panic!("Unable to load config from {}", path.display()));
-    let config: Config = serde_yaml::from_reader(reader).unwrap();
+    let config = Config::load(&path)
+        .unwrap_or_else(|e| panic!("Unable to load config from {}: {e}", path.display()));
 
     // Print config parameters
-    println!(
-        "Checkpoint Dir: {}",
-        config.checkpoint_summary_dir.display()
-    );
+    println!("Checkpoint Dir: {}", config.cache_dir.display());
 
     let remote_package_store = RemotePackageStore::new(config.clone());
     let resolver = Resolver::new(remote_package_store);
@@ -150,157 +146,5 @@ pub async fn main() {
         _ => {
             println!("No command...");
         }
-    }
-}
-
-// Make a test namespace
-#[cfg(test)]
-mod tests {
-    use std::path::{Path, PathBuf};
-
-    use anyhow::anyhow;
-    use iota_light_client::verifier::extract_verified_effects_and_events;
-    use iota_types::{
-        committee::Committee,
-        crypto::AuthorityQuorumSignInfo,
-        effects::TransactionEvents,
-        event::Event,
-        full_checkpoint_content::CheckpointData,
-        message_envelope::Envelope,
-        messages_checkpoint::{CheckpointSummary, FullCheckpointContents},
-    };
-
-    use super::*;
-
-    async fn read_full_checkpoint(checkpoint_path: &PathBuf) -> anyhow::Result<CheckpointData> {
-        Ok(bcs::from_reader(fs::File::open(checkpoint_path)?)?)
-    }
-
-    // clippy ignore dead-code
-    #[expect(dead_code)]
-    async fn write_full_checkpoint(
-        checkpoint_path: &Path,
-        checkpoint: &CheckpointData,
-    ) -> anyhow::Result<()> {
-        bcs::serialize_into(&mut fs::File::create(checkpoint_path)?, &checkpoint)?;
-        Ok(())
-    }
-
-    // TODO: why is this function here with hardcoded indexes?
-    // Can't this be done like in "read_test_data"?
-    // Maybe move "read_test_data" to some other place, so we don't need
-    // to duplicate the code here.
-    async fn read_data() -> (Committee, CheckpointData) {
-        let mut d = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-        d.push("example_config/528.json");
-
-        let checkpoint: Envelope<CheckpointSummary, AuthorityQuorumSignInfo<true>> =
-            serde_json::from_reader(&fs::File::open(&d).unwrap())
-                .map_err(|_| anyhow!("Unable to parse checkpoint summary file"))
-                .unwrap();
-
-        let prev_committee = checkpoint
-            .end_of_epoch_data
-            .as_ref()
-            .ok_or(anyhow!(
-                "Expected all checkpoints to be end-of-epoch checkpoints"
-            ))
-            .unwrap()
-            .next_epoch_committee
-            .iter()
-            .cloned()
-            .collect();
-
-        // Make a committee object using this
-        let committee = Committee::new(checkpoint.epoch().checked_add(1).unwrap(), prev_committee);
-
-        let mut d = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-        d.push("example_config/788.chk");
-
-        let full_checkpoint = read_full_checkpoint(&d).await.unwrap();
-
-        (committee, full_checkpoint)
-    }
-
-    #[tokio::test]
-    async fn test_checkpoint_all_good() {
-        let (committee, full_checkpoint) = read_data().await;
-
-        let tx_digest_0 = *full_checkpoint.transactions[0].transaction.digest();
-
-        extract_verified_effects_and_events(&full_checkpoint, &committee, tx_digest_0).unwrap();
-    }
-
-    #[tokio::test]
-    async fn test_checkpoint_bad_committee() {
-        let (mut committee, full_checkpoint) = read_data().await;
-
-        let tx_digest_0 = *full_checkpoint.transactions[0].transaction.digest();
-
-        // Change committee
-        committee.epoch += 10;
-
-        assert!(
-            extract_verified_effects_and_events(&full_checkpoint, &committee, tx_digest_0,)
-                .is_err()
-        );
-    }
-
-    #[tokio::test]
-    async fn test_checkpoint_no_transaction() {
-        let (committee, full_checkpoint) = read_data().await;
-
-        assert!(
-            extract_verified_effects_and_events(
-                &full_checkpoint,
-                &committee,
-                // tx does not exist
-                TransactionDigest::from_str("11111111111111111111111111111111").unwrap(),
-            )
-            .is_err()
-        );
-    }
-
-    #[tokio::test]
-    async fn test_checkpoint_bad_contents() {
-        let (committee, mut full_checkpoint) = read_data().await;
-
-        let tx_digest_0 = *full_checkpoint.transactions[0].transaction.digest();
-
-        // Change contents
-        let random_contents = FullCheckpointContents::random_for_testing();
-        full_checkpoint.checkpoint_contents = random_contents.checkpoint_contents();
-
-        assert!(
-            extract_verified_effects_and_events(&full_checkpoint, &committee, tx_digest_0,)
-                .is_err()
-        );
-    }
-
-    #[tokio::test]
-    async fn test_checkpoint_bad_events() {
-        let (committee, mut full_checkpoint) = read_data().await;
-
-        // Add a random event to the transaction, so the event digest doesn't match
-        let tx0 = &mut full_checkpoint.transactions[0];
-        let tx_digest_0 = *tx0.transaction.digest();
-
-        if tx0.events.is_none() {
-            // if there are no events yet, add them
-            tx0.events = Some(TransactionEvents {
-                data: vec![Event::random_for_testing()],
-            });
-        } else {
-            tx0.events
-                .as_mut()
-                .unwrap()
-                .data
-                .push(Event::random_for_testing());
-        }
-
-        assert!(
-            extract_verified_effects_and_events(&full_checkpoint, &committee, tx_digest_0,)
-                .is_err()
-        );
     }
 }

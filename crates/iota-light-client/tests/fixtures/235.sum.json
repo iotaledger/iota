@@ -1,10 +1,10 @@
 {
   "data": {
-    "epoch": 1,
-    "sequence_number": 528,
-    "network_total_transactions": 2316,
-    "content_digest": "4Vp72xpiXb9UqY9U5JxKRuyphDVxxjbsz833nFekCsLp",
-    "previous_digest": "46Yic5WRk9aFANVfjdd59YvSNpgHbbqFupYg6LUZp6t7",
+    "epoch": 0,
+    "sequence_number": 235,
+    "network_total_transactions": 1023,
+    "content_digest": "5SkBqE761z13m9puk2r4XoSrFJagsobVuUSbMAeA7do7",
+    "previous_digest": "9FRC1jp5TaPUEKdMLgAVw3a5uk6W1zdEB2zwcdpaHX94",
     "epoch_rolling_gas_cost_summary": {
       "computationCost": "0",
       "computationCostBurned": "0",
@@ -12,32 +12,28 @@
       "storageRebate": "0",
       "nonRefundableStorageFee": "0"
     },
-    "timestamp_ms": 1731087154542,
+    "timestamp_ms": 1743372171693,
     "checkpoint_commitments": [],
     "end_of_epoch_data": {
       "nextEpochCommittee": [
         [
           "jc/20VUECmVvSBmxMRG1LFdGqGunLzlfuv4uw4R9HoFA5iSnUf32tfIFC8cgXPnTAATJCwx0Cv/TJs5nPMKyOi0k1T4q/rKG38Zo/UBgCJ1tKxe3md02+Q0zLlSnozjU",
-          "2500"
+          "3333"
         ],
         [
           "mfJe9h+AMrkUY2RgmCxcxvE07x3a52ZX8sv+wev8jQlzdAgN9vzw3Li8Sw2OCvXYDrv/K0xZn1T0LWMS38MUJ2B4wcw0fru+xRmL4lhRPzhrkw0CwnSagD4jMJVevRoQ",
-          "2500"
+          "3333"
         ],
         [
           "rd7vlNiYyI5A297/kcXxBfnPLHR/tvK8N+wD1ske2y4aV4z1RL6LCTHiXyQ9WbDDDZihbOO6HWzx1/UEJpkusK2zE0sFW+gUDS218l+wDYP45CIr8B/WrJOh/0152ljy",
-          "2500"
-        ],
-        [
-          "s/1e+1yHJAOkrRPxGZUTYG0jNUqEUkmuoVdWTCP/PBXGyeZSty10DoysuTy8wGhrDsDMDBx2C/tCtDZRn8WoBUt2UzqXqfI5h9CX75ax8lJrsgc/oQp3GZQXcjR+8nT0",
-          "2500"
+          "3334"
         ]
       ],
-      "nextEpochProtocolVersion": "1",
+      "nextEpochProtocolVersion": "4",
       "epochCommitments": [
         {
           "ECMHLiveObjectSetDigest": {
-            "digest": "C4emJ4QDne9bar95SWEF6MsbyRDY7jf3o18YSKUWTe2G"
+            "digest": "G1kkoYQUM9do1299prmxKTyNaFrcoyVJokYaPi3E9ARc"
           }
         }
       ],
@@ -45,12 +41,20 @@
     },
     "version_specific_data": [
       0,
+      1,
+      105,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
       0
     ]
   },
   "auth_signature": {
-    "epoch": 1,
-    "signature": "l/Aj6W6FGHe+E23yLCFyTaoPm3LWXqWE6yIRzX79SNifh1q5D9Ude1H7yRHsOaE2",
+    "epoch": 0,
+    "signature": "qfyuaHnTDOpk5moTZ/cJ7ptuWYEQyxMkOIy/gBR0934Qy1mNBswQGtk92Rknq37V",
     "signers_map": [
       58,
       48,
@@ -62,11 +66,9 @@
       0,
       0,
       0,
-      2,
+      1,
       0,
       16,
-      0,
-      0,
       0,
       0,
       0,

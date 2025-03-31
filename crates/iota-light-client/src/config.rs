@@ -7,20 +7,35 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use anyhow::{Result, anyhow};
+use anyhow::{Result, anyhow, bail};
 use iota_config::object_storage_config::ObjectStoreConfig;
 use serde::{Deserialize, Serialize};
 use url::Url;
 
 // The config file for the light client
-#[derive(Clone, Debug, Default, Deserialize, Serialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct Config {
-    pub checkpoint_summary_dir: PathBuf,
+    pub cache_dir: PathBuf,
+    pub genesis_filename: String,
     pub full_node_url: String,
+    pub graphql_url: Option<String>,
     pub object_store_url: Option<String>,
     pub archive_store_config: Option<ObjectStoreConfig>,
-    pub graphql_url: Option<String>,
-    pub genesis_filename: String,
+}
+
+impl Default for Config {
+    fn default() -> Self {
+        Self {
+            cache_dir: std::env::current_dir()
+                .expect("error getting current directory")
+                .join("checkpoints_localnet"),
+            full_node_url: "http://localhost:9000".to_string(),
+            object_store_url: None,
+            archive_store_config: None,
+            graphql_url: Some("http://localhost:9125".to_string()),
+            genesis_filename: "genesis.blob".to_string(),
+        }
+    }
 }
 
 impl Config {
@@ -33,8 +48,8 @@ impl Config {
 
     pub fn validate(&self) -> Result<()> {
         Url::parse(&self.full_node_url).map_err(|_| anyhow!("Invalid full node URL"))?;
-        if !self.checkpoint_summary_dir.is_dir() {
-            return Err(anyhow!("Checkpoint summary directory does not exist"));
+        if !self.cache_dir.is_dir() {
+            bail!("Checkpoint directory does not exist");
         }
         if let Some(url) = &self.object_store_url {
             Url::parse(url).map_err(|_| anyhow!("Invalid object store URL"))?;
@@ -42,25 +57,40 @@ impl Config {
         if let Some(url) = &self.graphql_url {
             Url::parse(url).map_err(|_| anyhow!("Invalid GraphQL URL"))?;
         }
-
+        if !self.checkpoint_list_path().is_file() {
+            bail!(
+                "Checkpoint list file is missing at {}",
+                self.checkpoint_list_path().display()
+            );
+        }
+        if !self.genesis_file_path().is_file() {
+            bail!(
+                "Genesis file is missing at {}",
+                self.genesis_file_path().display()
+            );
+        }
         Ok(())
     }
 
     pub fn checkpoint_list_path(&self) -> PathBuf {
-        self.checkpoint_summary_dir.join("checkpoints.yaml")
+        self.cache_dir.join("checkpoints.yaml")
     }
 
-    pub fn checkpoint_path(&self, seq: u64, custom_path: Option<&str>) -> PathBuf {
-        let mut path = self.checkpoint_summary_dir.clone();
-        if let Some(custom) = custom_path {
+    pub fn genesis_file_path(&self) -> PathBuf {
+        self.cache_dir.join(&self.genesis_filename)
+    }
+
+    pub fn checkpoint_path<'a>(
+        &self,
+        seq: u64,
+        custom_path: impl Into<Option<&'a str>>,
+    ) -> PathBuf {
+        let mut path = self.cache_dir.clone();
+        if let Some(custom) = custom_path.into() {
             path.push(custom);
         }
         path.push(format!("{}.yaml", seq));
         path
-    }
-
-    pub fn genesis_path(&self) -> PathBuf {
-        self.checkpoint_summary_dir.join(&self.genesis_filename)
     }
 }
 
@@ -73,10 +103,12 @@ mod tests {
 
     fn create_test_config() -> (Config, TempDir) {
         let temp_dir = TempDir::new().unwrap();
+        std::fs::File::create(temp_dir.path().join("genesis.blob")).unwrap();
+        std::fs::File::create(temp_dir.path().join("checkpoints.yaml")).unwrap();
         let config = Config {
-            checkpoint_summary_dir: temp_dir.path().to_path_buf(),
+            cache_dir: temp_dir.path().to_path_buf(),
             full_node_url: "http://localhost:9000".to_string(),
-            object_store_url: "http://localhost:9001".to_string(),
+            object_store_url: Some("http://localhost:9001".to_string()),
             archive_store_config: Some(ObjectStoreConfig {
                 object_store: Some(ObjectStoreType::File),
                 directory: Some(temp_dir.path().to_path_buf()),
@@ -112,7 +144,7 @@ mod tests {
     #[test]
     fn test_genesis_path() {
         let (config, _temp_dir) = create_test_config();
-        let genesis_path = config.genesis_path();
+        let genesis_path = config.genesis_file_path();
         assert_eq!(genesis_path.file_name().unwrap(), "genesis.blob");
     }
 }

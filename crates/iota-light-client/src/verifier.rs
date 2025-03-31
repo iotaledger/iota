@@ -19,7 +19,7 @@ use iota_types::{
 use tracing::info;
 
 use crate::{
-    checkpoint::{CheckpointsList, read_checkpoint, read_checkpoint_list},
+    checkpoint::{CheckpointList, read_checkpoint, read_checkpoint_list},
     config::Config,
     object_store::IotaObjectStore,
 };
@@ -124,7 +124,7 @@ pub async fn get_verified_effects_and_events(
         .map_err(|e| anyhow!(format!("Cannot get full checkpoint: {e}")))?;
 
     // Load the list of stored checkpoints
-    let checkpoints_list: CheckpointsList = read_checkpoint_list(config)?;
+    let checkpoints_list: CheckpointList = read_checkpoint_list(config)?;
 
     // find the stored checkpoint before the seq checkpoint
     let prev_ckp_id = checkpoints_list
@@ -159,7 +159,7 @@ pub async fn get_verified_effects_and_events(
         Committee::new(prev_ckp.epoch().checked_add(1).unwrap(), current_committee)
     } else {
         // Since we did not find a small committee checkpoint we use the genesis
-        let mut genesis_path = config.checkpoint_summary_dir.clone();
+        let mut genesis_path = config.cache_dir.clone();
         genesis_path.push(&config.genesis_filename);
         Genesis::load(&genesis_path)?
             .committee()
@@ -227,7 +227,7 @@ pub async fn get_verified_checkpoint(
         .map_err(|e| anyhow!(format!("Cannot get full checkpoint: {e}")))?;
 
     // Load the list of stored checkpoints
-    let checkpoints_list: CheckpointsList = read_checkpoint_list(config)?;
+    let checkpoints_list: CheckpointList = read_checkpoint_list(config)?;
 
     // find the stored checkpoint before the seq checkpoint
     let prev_ckp_id = checkpoints_list
@@ -262,7 +262,7 @@ pub async fn get_verified_checkpoint(
         Committee::new(prev_ckp.epoch().checked_add(1).unwrap(), current_committee)
     } else {
         // Since we did not find a small committee checkpoint we use the genesis
-        let mut genesis_path = config.checkpoint_summary_dir.clone();
+        let mut genesis_path = config.cache_dir.clone();
         genesis_path.push(&config.genesis_filename);
         Genesis::load(&genesis_path)?
             .committee()
@@ -298,47 +298,45 @@ mod tests {
 
     use iota_types::{
         crypto::AuthorityQuorumSignInfo,
+        event::Event,
         message_envelope::Envelope,
-        messages_checkpoint::{CheckpointSummary, FullCheckpointContents},
+        messages_checkpoint::{
+            CertifiedCheckpointSummary, CheckpointSummary, FullCheckpointContents,
+        },
     };
 
     use super::*;
+
+    const FIXTURES_DIR: &str = "tests/fixtures";
+    const FIXTURE_1: &str = "235.sum";
+    const FIXTURE_2: &str = "469.chk";
+
+    async fn read_checkpoint_summary(
+        checkpoint_path: &PathBuf,
+    ) -> anyhow::Result<CertifiedCheckpointSummary> {
+        let mut reader = fs::File::open(checkpoint_path.clone()).unwrap();
+        let metadata = fs::metadata(&checkpoint_path).unwrap();
+        let mut buffer = vec![0; metadata.len() as usize];
+        reader.read_exact(&mut buffer).unwrap();
+        bcs::from_bytes(&buffer).map_err(|_| anyhow!("Unable to parse checkpoint summary file"))
+    }
 
     async fn read_full_checkpoint(checkpoint_path: &PathBuf) -> anyhow::Result<CheckpointData> {
         let mut reader = fs::File::open(checkpoint_path.clone())?;
         let metadata = fs::metadata(checkpoint_path)?;
         let mut buffer = vec![0; metadata.len() as usize];
         reader.read_exact(&mut buffer)?;
-        bcs::from_bytes(&buffer).map_err(|_| anyhow!("Unable to parse checkpoint file"))
-    }
-
-    // clippy ignore dead-code
-    #[allow(dead_code)]
-    async fn write_full_checkpoint(
-        checkpoint_path: &Path,
-        checkpoint: &CheckpointData,
-    ) -> anyhow::Result<()> {
-        let mut writer = fs::File::create(checkpoint_path)?;
-        let bytes = bcs::to_bytes(&checkpoint)
-            .map_err(|_| anyhow!("Unable to serialize checkpoint summary"))?;
-        writer.write_all(&bytes)?;
-        Ok(())
+        bcs::from_bytes(&buffer).map_err(|_| anyhow!("Unable to parse full checkpoint file"))
     }
 
     async fn read_data() -> (Committee, CheckpointData) {
-        let mut d = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-        d.push("test_files/528.chk");
-
-        let mut reader = fs::File::open(d.clone()).unwrap();
-        let metadata = fs::metadata(&d).unwrap();
-        let mut buffer = vec![0; metadata.len() as usize];
-        reader.read_exact(&mut buffer).unwrap();
-        let checkpoint: Envelope<CheckpointSummary, AuthorityQuorumSignInfo<true>> =
-            bcs::from_bytes(&buffer)
-                .map_err(|_| anyhow!("Unable to parse checkpoint file"))
-                .unwrap();
-
-        let prev_committee = checkpoint
+        let checkpoint_summary_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join(FIXTURES_DIR)
+            .join(FIXTURE_1);
+        let summary_checkpoint = read_checkpoint_summary(&checkpoint_summary_path)
+            .await
+            .unwrap();
+        let prev_committee = summary_checkpoint
             .end_of_epoch_data
             .as_ref()
             .ok_or(anyhow!(
@@ -349,14 +347,14 @@ mod tests {
             .iter()
             .cloned()
             .collect();
-
-        // Make a committee object using this
-        let committee = Committee::new(checkpoint.epoch().checked_add(1).unwrap(), prev_committee);
-
-        let mut d = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-        d.push("test_files/788.chk");
-
-        let full_checkpoint = read_full_checkpoint(&d).await.unwrap();
+        let committee = Committee::new(
+            summary_checkpoint.epoch().checked_add(1).unwrap(),
+            prev_committee,
+        );
+        let full_checkpoint_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join(FIXTURES_DIR)
+            .join(FIXTURE_2);
+        let full_checkpoint = read_full_checkpoint(&full_checkpoint_path).await.unwrap();
 
         (committee, full_checkpoint)
     }
@@ -364,30 +362,22 @@ mod tests {
     #[tokio::test]
     async fn test_checkpoint_all_good() {
         let (committee, full_checkpoint) = read_data().await;
+        let tx_digest_0 = *full_checkpoint.transactions[0].transaction.digest();
 
-        extract_verified_effects_and_events(
-            &full_checkpoint,
-            &committee,
-            TransactionDigest::from_str("8RiKBwuAbtu8zNCtz8SrcfHyEUzto6zi6cMVA9t4WhWk").unwrap(),
-        )
-        .unwrap();
+        extract_verified_effects_and_events(&full_checkpoint, &committee, tx_digest_0).unwrap();
     }
 
     #[tokio::test]
     async fn test_checkpoint_bad_committee() {
         let (mut committee, full_checkpoint) = read_data().await;
+        let tx_digest_0 = *full_checkpoint.transactions[0].transaction.digest();
 
         // Change committee
         committee.epoch += 10;
 
         assert!(
-            extract_verified_effects_and_events(
-                &full_checkpoint,
-                &committee,
-                TransactionDigest::from_str("8RiKBwuAbtu8zNCtz8SrcfHyEUzto6zi6cMVA9t4WhWk")
-                    .unwrap(),
-            )
-            .is_err()
+            extract_verified_effects_and_events(&full_checkpoint, &committee, tx_digest_0,)
+                .is_err()
         );
     }
 
@@ -399,8 +389,8 @@ mod tests {
             extract_verified_effects_and_events(
                 &full_checkpoint,
                 &committee,
-                TransactionDigest::from_str("8RiKBwuAbtu8zNCtz8SrcfHyEUzto6zj6cMVA9t4WhWk")
-                    .unwrap(),
+                // tx does not exist
+                TransactionDigest::from_str("11111111111111111111111111111111").unwrap(),
             )
             .is_err()
         );
@@ -409,47 +399,41 @@ mod tests {
     #[tokio::test]
     async fn test_checkpoint_bad_contents() {
         let (committee, mut full_checkpoint) = read_data().await;
+        let tx_digest_0 = *full_checkpoint.transactions[0].transaction.digest();
 
         // Change contents
         let random_contents = FullCheckpointContents::random_for_testing();
         full_checkpoint.checkpoint_contents = random_contents.checkpoint_contents();
 
         assert!(
-            extract_verified_effects_and_events(
-                &full_checkpoint,
-                &committee,
-                TransactionDigest::from_str("8RiKBwuAbtu8zNCtz8SrcfHyEUzto6zj6cMVA9t4WhWk")
-                    .unwrap(),
-            )
-            .is_err()
+            extract_verified_effects_and_events(&full_checkpoint, &committee, tx_digest_0,)
+                .is_err()
         );
     }
 
     #[tokio::test]
     async fn test_checkpoint_bad_events() {
         let (committee, mut full_checkpoint) = read_data().await;
+        // Add a random event to the transaction, so the event digest doesn't match
+        let tx0 = &mut full_checkpoint.transactions[0];
+        let tx_digest_0 = *tx0.transaction.digest();
 
-        let event = full_checkpoint.transactions[4]
-            .events
-            .as_ref()
-            .unwrap()
-            .data[0]
-            .clone();
-
-        for t in &mut full_checkpoint.transactions {
-            if let Some(events) = &mut t.events {
-                events.data.push(event.clone());
-            }
+        if tx0.events.is_none() {
+            // if there are no events yet, add them
+            tx0.events = Some(TransactionEvents {
+                data: vec![Event::random_for_testing()],
+            });
+        } else {
+            tx0.events
+                .as_mut()
+                .unwrap()
+                .data
+                .push(Event::random_for_testing());
         }
 
         assert!(
-            extract_verified_effects_and_events(
-                &full_checkpoint,
-                &committee,
-                TransactionDigest::from_str("8RiKBwuAbtu8zNCtz8SrcfHyEUzto6zj6cMVA9t4WhWk")
-                    .unwrap(),
-            )
-            .is_err()
+            extract_verified_effects_and_events(&full_checkpoint, &committee, tx_digest_0,)
+                .is_err()
         );
     }
 }

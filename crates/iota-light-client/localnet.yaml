@@ -1,7 +1,7 @@
-full_node_url: "http://localhost:9000"
 # Provide an existing directory that contains the genesis file of the network
-checkpoint_summary_dir: ""
+checkpoint_dir: ""
 genesis_filename: "genesis.blob"
-object_store_url: ~
+full_node_url: "http://localhost:9000"
 graphql_url: "http://localhost:9125"
+object_store_url: ~
 archive_store_config: ~
