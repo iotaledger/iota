@@ -11,13 +11,13 @@ import {
     isKioskOwnerToken,
     useKioskClient,
     useNftDetails,
+    toast,
 } from '@iota/core';
 import { DetailsView, SendView, KioskDetailsView } from './views';
 import { IotaObjectData, IotaTransactionBlockResponse } from '@iota/iota-sdk/client';
 import { AssetsDialogView } from './constants';
 import { TransactionDetailsView } from '../send-token';
 import { DialogLayout } from '../layout';
-import toast from 'react-hot-toast';
 import { ampli } from '@/lib/utils/analytics';
 
 interface AssetsDialogProps {
@@ -109,7 +109,7 @@ export function AssetDialog({ onClose, asset, refetchAssets }: AssetsDialogProps
 
     function onBack() {
         if (!chosenKioskAsset) {
-            return;
+            onClose();
         }
         setChosenKioskAsset(null);
         setView(AssetsDialogView.KioskDetails);

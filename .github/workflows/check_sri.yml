@@ -1,0 +1,51 @@
+name: Check Subresource Integrity
+
+on:
+  workflow_dispatch:
+  workflow_call:
+
+jobs:
+  check-hash:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v2
+
+      - name: Run hash check script for webassets.iota.org
+        run: |
+          /bin/bash << 'EOF'
+          # Fetch the current CSS file from webassets.iota.org and calculate its SHA-384 hash
+          NEW_HASH=$(curl -s -A "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36" \
+              -H "Accept: text/css,*/*;q=0.1" \
+              -H "Referer: https://webassets.iota.org/" \
+              -L "https://webassets.iota.org/api/protected?face=alliance-no2" | openssl dgst -sha384 -binary | openssl base64 -A)
+          echo "🔍 New hash obtained: sha384-$NEW_HASH"
+          # Define the scope to search for files
+          FOLDER_SCOPE="apps/*"
+          # Find all HTML and CSS files that contain links to webassets.iota.org
+          FILES=$(grep -rl "webassets.iota.org" $FOLDER_SCOPE --include=\*.html --include=\*.css)
+          # Loop through each file that contains references to webassets.iota.org
+          OUTDATED=false
+          for FILE in $FILES; do
+              # Extract the integrity value from the file (assuming it's in the form sha384-...)
+              INTEGRITY_HASH=$(grep -oP 'integrity="sha384-\K[^"]+' "$FILE")
+              # Compare the extracted hash with the new hash
+              if [[ "$INTEGRITY_HASH" == "$NEW_HASH" ]]; then
+                  echo "✅ The file $FILE has the correct integrity hash."
+              else
+                  echo "❌ ERROR: The file $FILE has an outdated or incorrect integrity hash. 🚨"
+                  OUTDATED=true
+              fi
+          done
+          # If any file is outdated, exit with an error
+          if [ "$OUTDATED" = true ]; then
+              echo -e "\n"
+              echo "⚠️ The CSS file hash at webassets.iota.org has changed."
+              echo "Please update the affected files with the new hash: sha384-$NEW_HASH"
+              echo -e "______________________________________________________________"
+              exit 1
+          else
+              echo "✅ All integrity hashes are up to date."
+          fi
+          EOF

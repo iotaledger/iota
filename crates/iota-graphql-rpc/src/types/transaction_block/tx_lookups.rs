@@ -399,7 +399,11 @@ fn select_kind(
         // Otherwise, we can ignore the sender always, and just query the `tx_kinds` table.
         _ => filter!(
             select_tx(None, bound, "tx_kinds"),
-            format!("tx_kind = {}", kind as i16)
+            if TransactionBlockKindInput::SystemTx == kind {
+                "tx_kind != 1".to_string()
+            } else {
+                format!("tx_kind = {}", kind as i16)
+            }
         ),
     }
 }

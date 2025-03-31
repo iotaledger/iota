@@ -34,19 +34,19 @@ export RESTART_POSTGRES=${RESTART_POSTGRES:-true}
 
 # the possible steps for RUN_ONLY_STEP are:
 VALID_STEPS=(
-    "unused_deps"
-    "test_extra"
-    "stress_new_tests_check_for_flakiness"
-    "audit_deps"
-    "audit_deps_external"
     "run_tests"
     "run_simtests"
     "rust_crates"
     "external_crates"
-    "simtests"
     "tests_using_postgres"
+    "simtests"
+    "stress_new_tests_check_for_flakiness"
     "move_examples_rdeps_tests"
     "move_examples_rdeps_simtests"
+    "test_extra"
+    "unused_deps"
+    "audit_deps"
+    "audit_deps_external"
 )
 
 EXCLUDE_SET_EXTERNAL=(
@@ -58,12 +58,18 @@ EXCLUDE_SET_EXTERNAL=(
 TEST_TYPE_NEXTEST="nextest"
 TEST_TYPE_SIMTEST="simtest"
 
-# filter_set for tests that depend on Postgres
-FILTERSET_TESTS_PORTGRES=(
-    "(package(iota-graphql-rpc) and (binary(e2e_tests) or binary(examples_validation_tests) or test(test_query_cost)))"
-    "package(iota-graphql-e2e-tests)"
-    "(package(iota-cluster-test) and binary(local_cluster_test))"
-    "(package(iota-indexer) and (binary(ingestion_tests) or binary(rpc-tests)))"
+# filter_set for tests that depend on postgres and "pg_integration" feature
+FILTERSET_TESTS_POSTGRES_PG_INTEGRATION=(
+    "(package(iota-cluster-test) and (test(test_iota_cluster)))"
+    "(package(iota-graphql-e2e-tests) and (binary(tests)))"
+    "(package(iota-graphql-rpc) and (binary(e2e_tests) or (test(test_query_cost)) or binary(examples_validation_tests)))"
+    "(package(iota-indexer) and (binary(ingestion_tests)))"
+)
+
+# filter_set for tests that depend on postgres and "shared_test_runtime" feature.
+# those tests are incompatible with nextest due to their shared state and should be run with "cargo test"
+FILTERSET_TESTS_POSTGRES_SHARED_TEST_RUNTIME=(
+    "(package(iota-indexer) and (binary(rpc-tests)))"
 )
 
 # filter_set for tests that depend on the Move examples
@@ -187,22 +193,22 @@ function build_filterset_included_rdeps() {
 # If no crates have changed, an empty filter set is returned, because we want to run all tests in that case.
 function build_filterset_changed_crates() {
     local test_only_changed_crates="${1:false}"
-    local changed_crates="${2:-}"
+    local changed_crates=${2}
 
     if [ "$test_only_changed_crates" == "false" ]; then
         # test all crates (return empty filter_set)
         return
     fi
 
-    # detected changed crates if "changed_crates" variable is unset (achieved by "+x")
-    if [ -z "${changed_crates+x}" ]; then
+    # detected changed crates if "changed_crates" variable is unset
+    if [ -z "${changed_crates}" ]; then
         changed_crates=$(search_changed_crates)
     fi
 
     # if no crates were changed, we want to run all tests.
     # because changes that trigger the workflow but which aren't explicitly in a crate can potentially affect the entire workspace
     # returning an empty filter_set does that
-    echo $(build_filterset_included_rdeps "${changed_crates}")
+    echo $(build_filterset_included_rdeps ${changed_crates})
 }
 
 # build_filterset_excluded builds a filter set for tests that should be excluded
@@ -257,10 +263,13 @@ function build_filterset_tests() {
     local run_tests_using_postgres=${2:-false}
     local run_move_examples_rdeps_tests=${3:-false}
     local test_only_changed_crates=${4:-false}
-    local changed_crates_rust=${5:-}
+    local changed_crates_rust=${5}
 
     local filter_set=""
-    local exclude_set=""
+
+    # we always exclude the following tests, because they need shared state and are incompatible with nextest.
+    # they are run separately after the nextest tests via "cargo test"
+    local exclude_set=$(build_filterset_excluded "${FILTERSET_TESTS_POSTGRES_SHARED_TEST_RUNTIME[@]}")
 
     if [ "$run_rust_tests" == "true" ]; then
         local changed_crates_rust_filter=$(build_filterset_changed_crates "${test_only_changed_crates}" "${changed_crates_rust}")
@@ -268,10 +277,10 @@ function build_filterset_tests() {
     fi
 
     if [ "$run_tests_using_postgres" == "true" ]; then
-        local postgres_tests_filter=$(build_filterset_included "${FILTERSET_TESTS_PORTGRES[@]}")
+        local postgres_tests_filter=$(build_filterset_included "${FILTERSET_TESTS_POSTGRES_PG_INTEGRATION[@]}")
         filter_set=$(append_filter_item_or "$filter_set" "$postgres_tests_filter")
     else
-        local postgres_tests_exclude_filter=$(build_filterset_excluded "${FILTERSET_TESTS_PORTGRES[@]}")
+        local postgres_tests_exclude_filter=$(build_filterset_excluded "${FILTERSET_TESTS_POSTGRES_PG_INTEGRATION[@]}")
         exclude_set=$(append_filter_item_and "$exclude_set" "$postgres_tests_exclude_filter")
     fi
 
@@ -435,7 +444,7 @@ function filter_and_run_tests() {
     local test_only_changed_crates=${TEST_ONLY_CHANGED_CRATES:-false}
     local changed_crates_rust=${CI_CHANGED_CRATES}
     local changed_crates_external=${CI_CHANGED_EXTERNAL_CRATES}
-    local restart_postgres=${RESTART_POSTGRES:-false}
+    local restart_postgres=${RESTART_POSTGRES:-true}
 
     # check if all conditions are false and early return
     if [ "$run_rust_tests" == "false" ] && [ "$run_external_crates" == "false" ] && [ "$run_tests_using_postgres" == "false" ] && [ "$run_move_examples_rdeps_tests" == "false" ]; then
@@ -478,7 +487,12 @@ function filter_and_run_tests() {
 
     if [ "$test_type" == $TEST_TYPE_NEXTEST ] && [ "$run_tests_using_postgres" == "true" ]; then
         # Iota-indexer's RPC tests, which depend on a shared runtime, are incompatible with nextest due to its process-per-test execution model.
-        # cargo test, on the other hand, allows tests to share state and resources by default.
+        # "cargo test", on the other hand, allows tests to share state and resources by default.
+        #
+        # Normally the following line can't be run with "all-features", because it would execute the "pg_integration" tests as well,
+        # which rather should be run by "cargo nextest" and also not in parallel. "shared_test_runtime" feature flag should actually be used here,
+        # but since we filter by "rpc-tests", there are no "shared_test_runtime" tests in the scope and it is fine to run with "all-features" here,
+        # which reduces compilation time because we already run the nextest tests with "all-features" beforehand.
         print_and_run_command "cargo test --profile simulator --package iota-indexer --test rpc-tests --all-features ${ENABLE_NO_CAPTURE:+--nocapture}"
     fi
 }
@@ -495,7 +509,6 @@ function rust_crates() {
     # we run this in a subshell to avoid polluting the environment with the variables set in this function
     (
         export CI_IS_RUST=true
-        export CI_CHANGED_CRATES=${CI_CHANGED_CRATES}
 
         run_tests
     )
@@ -505,7 +518,6 @@ function external_crates() {
     # we run this in a subshell to avoid polluting the environment with the variables set in this function
     (
         export CI_IS_EXTERNAL_CRATES=true
-        export CI_CHANGED_EXTERNAL_CRATES=${CI_CHANGED_EXTERNAL_CRATES}
 
         run_tests
     )
@@ -515,7 +527,6 @@ function simtests() {
     # we run this in a subshell to avoid polluting the environment with the variables set in this function
     (
         export CI_IS_RUST=true
-        export CI_CHANGED_CRATES=${CI_CHANGED_CRATES}
 
         run_simtests
     )
@@ -561,6 +572,11 @@ if [ -n "$RUN_ONLY_STEP" ]; then
     fi
 else
     for step in "${VALID_STEPS[@]}"; do
+        if [ "$step" == "run_tests" ] || [ "$step" == "run_simtests" ]; then
+            # skip these steps, because they are called anyway via the other commands
+            continue
+        fi
+
         echo "Running step: $step"
         $step
     done

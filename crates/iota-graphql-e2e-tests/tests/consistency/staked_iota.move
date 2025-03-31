@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-//# init --protocol-version 4 --simulator --accounts C
+//# init --protocol-version 5 --simulator --accounts C
 
 //# run-graphql
 {
@@ -38,7 +38,7 @@
 
 //# advance-epoch
 
-//# view-object 3,0
+//# view-object 3,1
 
 //# view-object 7,0
 
@@ -56,7 +56,7 @@
   }
 }
 
-//# run-graphql --cursors @{obj_3_0,1} @{obj_7_0,1}
+//# run-graphql --cursors @{obj_3_1,1} @{obj_7_0,1}
 # Even though there is a stake created after the initial one, the cursor locks the upper bound to
 # checkpoint 1 - at that point in time, we did not have any additional stakes.
 {
@@ -102,10 +102,10 @@
   }
 }
 
-//# run-graphql --cursors @{obj_3_0,3} @{obj_7_0,3}
+//# run-graphql --cursors @{obj_3_1,3} @{obj_7_0,3}
 # The second stake was created at checkpoint 3, and thus will be visible.
 {
-  coins_after_obj_3_0_chkpt_3: address(address: "@{C}") {
+  coins_after_obj_3_1_chkpt_3: address(address: "@{C}") {
     stakedIotas(after: "@{cursor_1}") {
       edges {
         cursor
@@ -115,7 +115,7 @@
       }
     }
   }
-  coins_before_obj_3_0_chkpt_3: address(address: "@{C}") {
+  coins_before_obj_3_1_chkpt_3: address(address: "@{C}") {
     stakedIotas(before: "@{cursor_1}") {
       edges {
         cursor

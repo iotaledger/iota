@@ -181,15 +181,27 @@ export interface DryRunTransactionBlockResponse {
     input: TransactionBlockData;
     objectChanges: IotaObjectChange[];
 }
-export interface DynamicFieldInfo {
-    bcsName: string;
-    digest: string;
-    name: DynamicFieldName;
-    objectId: string;
-    objectType: string;
-    type: DynamicFieldType;
-    version: string;
-}
+export type DynamicFieldInfo =
+    | {
+          digest: string;
+          name: DynamicFieldName;
+          objectId: string;
+          objectType: string;
+          type: DynamicFieldType;
+          version: string;
+          bcsEncoding: 'base64';
+          bcsName: string;
+      }
+    | {
+          digest: string;
+          name: DynamicFieldName;
+          objectId: string;
+          objectType: string;
+          type: DynamicFieldType;
+          version: string;
+          bcsEncoding: 'base58';
+          bcsName: string;
+      };
 export interface DynamicFieldName {
     type: string;
     value: unknown;
@@ -235,6 +247,8 @@ export interface EndOfEpochInfo {
     totalStakeRewardsDistributed: string;
 }
 export interface EpochInfo {
+    /** Committee validators. Each element is an index pointing to `validators`. */
+    committeeMembers?: string[];
     /** The end of epoch information. */
     endOfEpochInfo?: EndOfEpochInfo | null;
     /** Epoch number */
@@ -263,28 +277,51 @@ export interface EpochMetrics {
     /** The first checkpoint ID of the epoch. */
     firstCheckpointId: string;
 }
-export interface IotaEvent {
-    /** Base 58 encoded bcs bytes of the move event */
-    bcs: string;
-    /**
-     * Sequential event ID, ie (transaction seq number, event seq number). 1) Serves as a unique event ID
-     * for each fullnode 2) Also serves to sequence events for the purposes of pagination and querying. A
-     * higher id is an event seen later by that fullnode. This ID is the "cursor" for event querying.
-     */
-    id: EventId;
-    /** Move package where this event was emitted. */
-    packageId: string;
-    /** Parsed json value of the event */
-    parsedJson: unknown;
-    /** Sender's IOTA address. */
-    sender: string;
-    /** UTC timestamp in milliseconds since epoch (1/1/1970) */
-    timestampMs?: string | null;
-    /** Move module where this event was emitted. */
-    transactionModule: string;
-    /** Move event type. */
-    type: string;
-}
+export type IotaEvent =
+    | {
+          /**
+           * Sequential event ID, ie (transaction seq number, event seq number). 1) Serves as a unique event ID
+           * for each fullnode 2) Also serves to sequence events for the purposes of pagination and querying. A
+           * higher id is an event seen later by that fullnode. This ID is the "cursor" for event querying.
+           */
+          id: EventId;
+          /** Move package where this event was emitted. */
+          packageId: string;
+          /** Parsed json value of the event */
+          parsedJson: unknown;
+          /** Sender's IOTA address. */
+          sender: string;
+          /** UTC timestamp in milliseconds since epoch (1/1/1970) */
+          timestampMs?: string | null;
+          /** Move module where this event was emitted. */
+          transactionModule: string;
+          /** Move event type. */
+          type: string;
+          bcs: string;
+          bcsEncoding: 'base64';
+      }
+    | {
+          /**
+           * Sequential event ID, ie (transaction seq number, event seq number). 1) Serves as a unique event ID
+           * for each fullnode 2) Also serves to sequence events for the purposes of pagination and querying. A
+           * higher id is an event seen later by that fullnode. This ID is the "cursor" for event querying.
+           */
+          id: EventId;
+          /** Move package where this event was emitted. */
+          packageId: string;
+          /** Parsed json value of the event */
+          parsedJson: unknown;
+          /** Sender's IOTA address. */
+          sender: string;
+          /** UTC timestamp in milliseconds since epoch (1/1/1970) */
+          timestampMs?: string | null;
+          /** Move module where this event was emitted. */
+          transactionModule: string;
+          /** Move event type. */
+          type: string;
+          bcs: string;
+          bcsEncoding: 'base58';
+      };
 export type IotaEventFilter =
     /** Query by sender address. */
     | {
@@ -482,6 +519,14 @@ export interface IotaChangeEpoch {
     storage_charge: string;
     storage_rebate: string;
 }
+export interface IotaChangeEpochV2 {
+    computation_charge: string;
+    computation_charge_burned: string;
+    epoch: string;
+    epoch_start_timestamp_ms: string;
+    storage_charge: string;
+    storage_rebate: string;
+}
 export interface CoinMetadata {
     /** Number of decimal places the coin uses. */
     decimals: number;
@@ -500,6 +545,9 @@ export type IotaEndOfEpochTransactionKind =
     | 'AuthenticatorStateCreate'
     | {
           ChangeEpoch: IotaChangeEpoch;
+      }
+    | {
+          ChangeEpochV2: IotaChangeEpochV2;
       }
     | {
           AuthenticatorStateExpire: IotaAuthenticatorStateExpire;
@@ -657,11 +705,23 @@ export interface MoveCallIotaTransaction {
     type_arguments?: string[];
 }
 /**
- * This is the JSON-RPC type for the IOTA system state object. It flattens all fields to make them
- * top-level fields such that it as minimum dependencies to the internal data structures of the IOTA
- * system state type.
+ * This is the JSON-RPC type for IOTA system state objects. It is an enum type that can represent
+ * either V1 or V2 system state objects.
  */
-export interface IotaSystemStateSummary {
+export type IotaSystemStateSummary =
+    | {
+          V1: IotaSystemStateSummaryV1;
+      }
+    | {
+          V2: IotaSystemStateSummaryV2;
+      };
+/**
+ * This is the JSON-RPC type for the
+ * [`IotaSystemStateV1`](super::iota_system_state_inner_v1::IotaSystemStateV1) object. It flattens all
+ * fields to make them top-level fields such that it as minimum dependencies to the internal data
+ * structures of the IOTA system state type.
+ */
+export interface IotaSystemStateSummaryV1 {
     /** The list of active validators in the current epoch. */
     activeValidators: IotaValidatorSummary[];
     /** Map storing the number of epochs for which each validator has been below the low stake threshold. */
@@ -760,6 +820,118 @@ export interface IotaSystemStateSummary {
      */
     validatorVeryLowStakeThreshold: string;
 }
+/**
+ * This is the JSON-RPC type for the
+ * [`IotaSystemStateV2`](super::iota_system_state_inner_v2::IotaSystemStateV2) object. It flattens all
+ * fields to make them top-level fields such that it as minimum dependencies to the internal data
+ * structures of the IOTA system state type.
+ */
+export interface IotaSystemStateSummaryV2 {
+    /** The list of active validators in the current epoch. */
+    activeValidators: IotaValidatorSummary[];
+    /** Map storing the number of epochs for which each validator has been below the low stake threshold. */
+    atRiskValidators: [string, string][];
+    /**
+     * List of committee validators in the current epoch. Each element is an index pointing to
+     * `active_validators`.
+     */
+    committeeMembers: string[];
+    /** The current epoch ID, starting from 0. */
+    epoch: string;
+    /** The duration of an epoch, in milliseconds. */
+    epochDurationMs: string;
+    /** Unix timestamp of the current epoch start */
+    epochStartTimestampMs: string;
+    /**
+     * ID of the object that maps from a staking pool ID to the inactive validator that has that pool as
+     * its staking pool.
+     */
+    inactivePoolsId: string;
+    /** Number of inactive staking pools. */
+    inactivePoolsSize: string;
+    /** The current IOTA supply. */
+    iotaTotalSupply: string;
+    /** The `TreasuryCap<IOTA>` object ID. */
+    iotaTreasuryCapId: string;
+    /**
+     * Maximum number of active validators at any moment. We do not allow the number of validators in any
+     * epoch to go above this.
+     */
+    maxValidatorCount: string;
+    /**
+     * Minimum number of active validators at any moment. We do not allow the number of validators in any
+     * epoch to go under this.
+     */
+    minValidatorCount: string;
+    /** Lower-bound on the amount of stake required to become a validator. */
+    minValidatorJoiningStake: string;
+    /** ID of the object that contains the list of new validators that will join at the end of the epoch. */
+    pendingActiveValidatorsId: string;
+    /** Number of new validators that will join at the end of the epoch. */
+    pendingActiveValidatorsSize: string;
+    /** Removal requests from the validators. Each element is an index pointing to `active_validators`. */
+    pendingRemovals: string[];
+    /** The current protocol version, starting from 1. */
+    protocolVersion: string;
+    /** The reference gas price for the current epoch. */
+    referenceGasPrice: string;
+    /**
+     * Whether the system is running in a downgraded safe mode due to a non-recoverable bug. This is set
+     * whenever we failed to execute advance_epoch, and ended up executing advance_epoch_safe_mode. It can
+     * be reset once we are able to successfully execute advance_epoch.
+     */
+    safeMode: boolean;
+    /** Amount of computation charges accumulated (and not yet distributed) during safe mode. */
+    safeModeComputationCharges: string;
+    /** Amount of burned computation charges accumulated during safe mode. */
+    safeModeComputationChargesBurned: string;
+    /** Amount of non-refundable storage fee accumulated during safe mode. */
+    safeModeNonRefundableStorageFee: string;
+    /** Amount of storage charges accumulated (and not yet distributed) during safe mode. */
+    safeModeStorageCharges: string;
+    /** Amount of storage rebates accumulated (and not yet burned) during safe mode. */
+    safeModeStorageRebates: string;
+    /** ID of the object that maps from staking pool's ID to the iota address of a validator. */
+    stakingPoolMappingsId: string;
+    /** Number of staking pool mappings. */
+    stakingPoolMappingsSize: string;
+    /**
+     * The non-refundable portion of the storage fund coming from non-refundable storage rebates and any
+     * leftover staking rewards.
+     */
+    storageFundNonRefundableBalance: string;
+    /** The storage rebates of all the objects on-chain stored in the storage fund. */
+    storageFundTotalObjectStorageRebates: string;
+    /** The current version of the system state data structure type. */
+    systemStateVersion: string;
+    /** Total amount of stake from all committee validators at the beginning of the epoch. */
+    totalStake: string;
+    /**
+     * ID of the object that stores preactive validators, mapping their addresses to their `Validator`
+     * structs.
+     */
+    validatorCandidatesId: string;
+    /** Number of preactive validators. */
+    validatorCandidatesSize: string;
+    /**
+     * A validator can have stake below `validator_low_stake_threshold` for this many epochs before being
+     * kicked out.
+     */
+    validatorLowStakeGracePeriod: string;
+    /**
+     * Validators with stake amount below `validator_low_stake_threshold` are considered to have low stake
+     * and will be escorted out of the validator set after being below this threshold for more than
+     * `validator_low_stake_grace_period` number of epochs.
+     */
+    validatorLowStakeThreshold: string;
+    /** A map storing the records of validator reporting each other. */
+    validatorReportRecords: [string, string[]][];
+    /**
+     * Validators with stake below `validator_very_low_stake_threshold` will be removed immediately at
+     * epoch change, no grace period.
+     */
+    validatorVeryLowStakeThreshold: string;
+}
 /** A single transaction in a programmable transaction block. */
 export type IotaTransaction =
     /** A call to either an entry or a public Move function */
@@ -798,6 +970,18 @@ export type IotaTransaction =
           MakeMoveVec: [string | null, IotaArgument[]];
       };
 export type IotaTransactionBlockBuilderMode = 'Commit' | 'DevInspect';
+/**
+ * Represents the type of a transaction. All transactions except `ProgrammableTransaction` are
+ * considered system transactions.
+ */
+export type IotaTransactionKind =
+    | 'ProgrammableTransaction'
+    | 'Genesis'
+    | 'ConsensusCommitPrologueV1'
+    | 'AuthenticatorStateUpdateV1'
+    | 'RandomnessStateUpdate'
+    | 'EndOfEpochTransaction'
+    | 'SystemTransaction';
 /**
  * This is the JSON-RPC type for the IOTA validator. It flattens all inner structures to top-level
  * fields so that they are decoupled from the internal definitions.
@@ -1576,10 +1760,10 @@ export type TransactionFilter =
           };
       } /** Query by transaction kind */
     | {
-          TransactionKind: string;
+          TransactionKind: IotaTransactionKind;
       } /** Query transactions of any given kind in the input. */
     | {
-          TransactionKindIn: string[];
+          TransactionKindIn: IotaTransactionKind[];
       };
 export interface TransferObjectParams {
     objectId: string;

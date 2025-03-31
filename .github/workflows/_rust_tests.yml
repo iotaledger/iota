@@ -61,7 +61,7 @@ jobs:
     if: |
       !cancelled() && (inputs.isRust || inputs.isPgIntegration || inputs.isMoveExampleUsedByOthers)
     timeout-minutes: 90
-    runs-on: [self-hosted] # Run on either x64 or arm64
+    runs-on: [self-hosted-x64]
     env:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgrespw
@@ -108,7 +108,7 @@ jobs:
           fi
 
           if [ -n "${{ inputs.changedExternalCrates }}" ]; then
-            export CI_CHANGED_EXTERNAL_CRATES=${{ inputs.changedExternalCrates }}
+            export CI_CHANGED_EXTERNAL_CRATES="${{ inputs.changedExternalCrates }}"
           else
             unset CI_CHANGED_EXTERNAL_CRATES
           fi
@@ -167,7 +167,7 @@ jobs:
           fi
 
           if [ -n "${{ inputs.changedExternalCrates }}" ]; then
-            export CI_CHANGED_EXTERNAL_CRATES=${{ inputs.changedExternalCrates }}
+            export CI_CHANGED_EXTERNAL_CRATES="${{ inputs.changedExternalCrates }}"
           else
             unset CI_CHANGED_EXTERNAL_CRATES
           fi

@@ -2,6 +2,7 @@
 extend-ignore-identifiers-re = [
   # Short git hashes
   "^[a-f0-9]{7}$",
+  "^[a-f0-9]{12}$",
   # Base64
   "^[a-zA-Z0-9_]{43}$",
   "^[a-zA-Z0-9_]{44}$",

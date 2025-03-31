@@ -29,7 +29,7 @@ export function useGetStardustMigratableObjects(address: string) {
     const sharedBasicOutputObjects = stardustSharedObjectsData?.basic ?? [];
     const sharedNftOutputObjects = stardustSharedObjectsData?.nfts ?? [];
 
-    const epochMs = Number(currentEpochMs) || 0;
+    const epochMs = currentEpochMs || 0;
 
     const { migratable: migratableBasicOutputs, timelocked: timelockedBasicOutputs } =
         groupStardustObjectsByMigrationStatus(

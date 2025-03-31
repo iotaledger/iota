@@ -746,6 +746,13 @@ impl RestStateReader for PersistedStoreInnerReadOnlyWrapper {
     ) -> iota_types::storage::error::Result<Option<iota_types::storage::CoinInfo>> {
         todo!()
     }
+
+    fn get_epoch_last_checkpoint(
+        &self,
+        _epoch_id: EpochId,
+    ) -> iota_types::storage::error::Result<Option<VerifiedCheckpoint>> {
+        todo!()
+    }
 }
 
 impl PersistedStoreInnerReadOnlyWrapper {

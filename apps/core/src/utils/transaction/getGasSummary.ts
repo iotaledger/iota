@@ -3,6 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 import type {
     DryRunTransactionBlockResponse,
+    IotaGasData,
     IotaTransactionBlockResponse,
     TransactionEffects,
 } from '@iota/iota-sdk/client';
@@ -14,18 +15,17 @@ export function getGasSummary(
     const { effects } = transaction;
     if (!effects) return null;
     const totalGas = getTotalGasUsed(effects);
-
-    const sender = 'transaction' in transaction ? transaction.transaction?.data.sender : undefined;
-
-    const gasData = 'transaction' in transaction ? transaction.transaction?.data.gasData : {};
-
-    const owner =
-        'transaction' in transaction
-            ? transaction.transaction?.data.gasData.owner
-            : typeof effects.gasObject.owner === 'object' &&
-                'AddressOwner' in effects.gasObject.owner
-              ? effects.gasObject.owner.AddressOwner
-              : '';
+    let sender = undefined;
+    let owner = '';
+    let gasData = {} as IotaGasData;
+    if ('transaction' in transaction && transaction.transaction?.data) {
+        sender = transaction.transaction?.data.sender;
+        gasData = transaction.transaction.data.gasData;
+    } else if ('input' in transaction) {
+        sender = transaction.input.sender;
+        gasData = transaction.input.gasData;
+    }
+    owner = gasData?.owner ?? '';
 
     return {
         ...effects.gasUsed,

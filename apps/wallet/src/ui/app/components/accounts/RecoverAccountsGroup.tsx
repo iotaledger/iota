@@ -25,7 +25,7 @@ export function RecoverAccountsGroup({
     return (
         <div className="flex w-full flex-col items-stretch gap-xs">
             <div className="flex h-10 w-full flex-nowrap items-center justify-between">
-                <span className="text-label-lg text-neutral-40">{title}</span>
+                <span className="text-label-lg text-neutral-40 dark:text-neutral-60">{title}</span>
                 <div className="flex items-center overflow-visible">
                     {showRecover && !recoverDone ? (
                         <Button
@@ -37,7 +37,7 @@ export function RecoverAccountsGroup({
                     ) : null}
                     {recoverDone ? (
                         <Tooltip text="Recovery process done" position={TooltipPosition.Left}>
-                            <CheckmarkFilled className="h-4 w-4 text-primary-30" />
+                            <CheckmarkFilled className="h-4 w-4 text-primary-30 dark:text-primary-80" />
                         </Tooltip>
                     ) : null}
                 </div>

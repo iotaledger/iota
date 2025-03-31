@@ -142,7 +142,6 @@ impl IndexerFeatureArgs {
 }
 
 #[derive(Parser)]
-#[command(rename_all = "kebab-case")]
 pub enum IotaCommand {
     /// Start a local network in two modes: saving state between re-runs and not
     /// saving state between re-runs. Please use (--help) to see the full
@@ -155,7 +154,6 @@ pub enum IotaCommand {
     /// generate the genesis blob, and start the network.
     ///
     /// Note that if you want to start an indexer, Postgres DB is required.
-    #[command(name = "start")]
     Start {
         /// Config directory that will be used to store network config, node db,
         /// keystore.
@@ -231,7 +229,6 @@ pub enum IotaCommand {
         delegator: Option<IotaAddress>,
     },
     /// Bootstrap and initialize a new iota network
-    #[command(name = "genesis")]
     Genesis {
         #[arg(long, help = "Start genesis with a given config file")]
         from_config: Option<PathBuf>,
@@ -290,7 +287,6 @@ pub enum IotaCommand {
         cmd: KeyToolCommand,
     },
     /// Start IOTA interactive console.
-    #[command(name = "console")]
     Console {
         /// Sets the file storing the state of our user accounts (an empty one
         /// will be created if missing)
@@ -298,7 +294,6 @@ pub enum IotaCommand {
         config: Option<PathBuf>,
     },
     /// Client for interacting with the IOTA network.
-    #[command(name = "client")]
     Client {
         /// Sets the file storing the state of our user accounts (an empty one
         /// will be created if missing)
@@ -313,7 +308,6 @@ pub enum IotaCommand {
         accept_defaults: bool,
     },
     /// A tool for validators and validator candidates.
-    #[command(name = "validator")]
     Validator {
         /// Sets the file storing the state of our user accounts (an empty one
         /// will be created if missing)
@@ -328,7 +322,6 @@ pub enum IotaCommand {
         accept_defaults: bool,
     },
     /// Tool to build and test Move applications.
-    #[command(name = "move")]
     Move {
         /// Path to a package which the command should be run with respect to.
         #[arg(long = "path", short = 'p', global = true)]
@@ -362,7 +355,7 @@ pub enum IotaCommand {
         fire_drill: FireDrill,
     },
     /// Invoke IOTA's move-analyzer via CLI
-    #[command(name = "analyzer", hide = true)]
+    #[command(hide = true)]
     Analyzer,
     /// Generate completion files for various shells
     #[cfg(feature = "gen-completions")]
@@ -813,6 +806,7 @@ async fn start(
             pg_address.clone(),
             // reset the existing db
             true,
+            None,
             fullnode_url.clone(),
             IndexerTypeConfig::writer_mode(None),
             data_ingestion_dir.clone(),
@@ -824,6 +818,7 @@ async fn start(
         start_test_indexer(
             pg_address.clone(),
             false,
+            None,
             fullnode_url.clone(),
             IndexerTypeConfig::reader_mode(indexer_address.to_string()),
             data_ingestion_dir.clone(),
@@ -835,6 +830,7 @@ async fn start(
         start_test_indexer(
             pg_address.clone(),
             false,
+            None,
             fullnode_url.clone(),
             IndexerTypeConfig::AnalyticalWorker,
             data_ingestion_dir,

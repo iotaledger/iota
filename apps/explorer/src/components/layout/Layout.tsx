@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { KioskClientProvider, useCookieConsentBanner, ThemeProvider } from '@iota/core';
+import { KioskClientProvider, useCookieConsentBanner, ThemeProvider, Toaster } from '@iota/core';
 import { IotaClientProvider, WalletProvider } from '@iota/dapp-kit';
 import type { Network } from '@iota/iota-sdk/client';
 import { ReactQueryDevtools } from '@tanstack/react-query-devtools';
@@ -11,7 +11,6 @@ import { Outlet, ScrollRestoration } from 'react-router-dom';
 import { NetworkContext } from '~/contexts';
 import { useInitialPageView, useNetwork } from '~/hooks';
 import { createIotaClient, persistableStorage, SupportedNetworks } from '~/lib/utils';
-import { Toaster } from '../toaster';
 
 export function Layout(): JSX.Element {
     const [network, setNetwork] = useNetwork();

@@ -41,7 +41,7 @@ pub const MAX_CHECKPOINTS_IN_PROGRESS: usize = 10000;
 /// use iota_types::full_checkpoint_content::CheckpointData;
 /// use prometheus::Registry;
 /// use tokio_util::sync::CancellationToken;
-/// use std::path::PathBuf;
+/// use std::{path::PathBuf, sync::Arc};
 ///
 /// struct CustomWorker;
 ///
@@ -52,7 +52,7 @@ pub const MAX_CHECKPOINTS_IN_PROGRESS: usize = 10000;
 ///
 ///     async fn process_checkpoint(
 ///         &self,
-///         checkpoint: &CheckpointData,
+///         checkpoint: Arc<CheckpointData>,
 ///     ) -> Result<Self::Message, Self::Error> {
 ///         // custom processing logic.
 ///         println!(
@@ -74,7 +74,7 @@ pub const MAX_CHECKPOINTS_IN_PROGRESS: usize = 10000;
 ///         CancellationToken::new(),
 ///     );
 ///     // register a worker pool with 5 workers to process checkpoints in parallel
-///     let worker_pool = WorkerPool::new(CustomWorker, "local_reader".to_string(), concurrency);
+///     let worker_pool = WorkerPool::new(CustomWorker, "local_reader".to_string(), concurrency, Default::default());
 ///     // register the worker pool to the executor.
 ///     executor.register(worker_pool).await.unwrap();
 ///     // run the ingestion pipeline.
@@ -142,6 +142,12 @@ impl<P: ProgressStore> IndexerExecutor<P> {
         watermark: CheckpointSequenceNumber,
     ) -> IngestionResult<()> {
         self.progress_store.save(task_name, watermark).await
+    }
+    pub async fn read_watermark(
+        &mut self,
+        task_name: String,
+    ) -> IngestionResult<CheckpointSequenceNumber> {
+        self.progress_store.load(task_name).await
     }
 
     /// Main executor loop.
@@ -268,6 +274,8 @@ async fn components_graceful_shutdown(
 ///
 /// # Example
 /// ```rust,no_run
+/// use std::sync::Arc;
+///
 /// use async_trait::async_trait;
 /// use iota_data_ingestion_core::{IngestionError, Worker, setup_single_workflow};
 /// use iota_types::full_checkpoint_content::CheckpointData;
@@ -281,7 +289,7 @@ async fn components_graceful_shutdown(
 ///
 ///     async fn process_checkpoint(
 ///         &self,
-///         checkpoint: &CheckpointData,
+///         checkpoint: Arc<CheckpointData>,
 ///     ) -> Result<Self::Message, Self::Error> {
 ///         // custom processing logic.
 ///         println!(
@@ -296,7 +304,7 @@ async fn components_graceful_shutdown(
 /// async fn main() {
 ///     let (executor, _) = setup_single_workflow(
 ///         CustomWorker,
-///         "https://checkpoints.testnet.iota.cafe".to_string(),
+///         "https://api.testnet.iota.cafe/api/v1".to_string(),
 ///         0,    // initial checkpoint number.
 ///         5,    // concurrency.
 ///         None, // extra reader options.
@@ -320,7 +328,12 @@ pub async fn setup_single_workflow<W: Worker + 'static>(
     let progress_store = ShimProgressStore(initial_checkpoint_number);
     let token = CancellationToken::new();
     let mut executor = IndexerExecutor::new(progress_store, 1, metrics, token.child_token());
-    let worker_pool = WorkerPool::new(worker, "workflow".to_string(), concurrency);
+    let worker_pool = WorkerPool::new(
+        worker,
+        "workflow".to_string(),
+        concurrency,
+        Default::default(),
+    );
     executor.register(worker_pool).await?;
     Ok((
         executor.run(

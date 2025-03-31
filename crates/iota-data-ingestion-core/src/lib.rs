@@ -26,6 +26,7 @@
 
 mod errors;
 mod executor;
+pub mod history;
 mod metrics;
 mod progress_store;
 mod reader;
@@ -35,7 +36,10 @@ mod tests;
 mod util;
 mod worker_pool;
 
-use std::fmt::{Debug, Display};
+use std::{
+    fmt::{Debug, Display},
+    sync::Arc,
+};
 
 use async_trait::async_trait;
 pub use errors::{IngestionError, IngestionResult};
@@ -95,7 +99,7 @@ pub trait Worker: Send + Sync {
     ///   checkpoint order.
     async fn process_checkpoint(
         &self,
-        checkpoint: &CheckpointData,
+        checkpoint: Arc<CheckpointData>,
     ) -> Result<Self::Message, Self::Error>;
 
     /// A hook that allows preprocessing a checkpoint before it's fully
@@ -108,7 +112,7 @@ pub trait Worker: Send + Sync {
     /// # Default implementation
     ///
     /// By default it returns `Ok(())`.
-    fn preprocess_hook(&self, _: &CheckpointData) -> Result<(), Self::Error> {
+    fn preprocess_hook(&self, _: Arc<CheckpointData>) -> Result<(), Self::Error> {
         Ok(())
     }
 }
