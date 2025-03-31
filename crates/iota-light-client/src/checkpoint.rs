@@ -45,13 +45,13 @@ impl CheckpointList {
 }
 
 pub fn read_checkpoint_list(config: &Config) -> Result<CheckpointList> {
-    let checkpoints_path = config.checkpoint_list_path();
+    let checkpoints_path = config.checkpoints_filepath();
     let reader = fs::File::open(checkpoints_path)?;
     Ok(serde_yaml::from_reader(reader)?)
 }
 
 pub fn write_checkpoint_list(config: &Config, checkpoints_list: &CheckpointList) -> Result<()> {
-    let checkpoints_path = config.checkpoint_list_path();
+    let checkpoints_path = config.checkpoints_filepath();
     let mut writer = fs::File::create(checkpoints_path)?;
     let bytes = serde_yaml::to_vec(checkpoints_list)?;
     writer
@@ -327,9 +327,7 @@ pub async fn check_and_sync_checkpoints(config: &Config) -> anyhow::Result<()> {
     write_checkpoint_list(config, &checkpoints_list)?;
 
     // Load the genesis committee
-    let mut genesis_path = config.checkpoints_sync_dir.clone();
-    genesis_path.push(&config.genesis_filename);
-    let genesis_committee = Genesis::load(&genesis_path)?
+    let genesis_committee = Genesis::load(&config.genesis_filepath())?
         .committee()
         .map_err(|e| anyhow!(format!("Cannot load Genesis: {e}")))?;
 

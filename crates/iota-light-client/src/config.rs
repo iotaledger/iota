@@ -12,13 +12,15 @@ use iota_config::object_storage_config::ObjectStoreConfig;
 use serde::{Deserialize, Serialize};
 use url::Url;
 
+const GENESIS_FILE_NAME: &str = "genesis.blob";
+const CHECKPOINTS_FILE_NAME: &str = "checkpoints.yaml";
+
 /// The config file for the light client.
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct Config {
     /// The directory containing synced full checkpoints and checkpoint
     /// summaries.
     pub checkpoints_sync_dir: PathBuf,
-    pub genesis_filename: String,
     pub full_node_url: String,
     pub graphql_url: Option<String>,
     pub object_store_url: Option<String>,
@@ -35,7 +37,6 @@ impl Default for Config {
             object_store_url: None,
             archive_store_config: None,
             graphql_url: Some("http://localhost:9125".to_string()),
-            genesis_filename: "genesis.blob".to_string(),
         }
     }
 }
@@ -59,27 +60,27 @@ impl Config {
         if let Some(url) = &self.graphql_url {
             Url::parse(url).map_err(|_| anyhow!("Invalid GraphQL URL"))?;
         }
-        if !self.checkpoint_list_path().is_file() {
+        if !self.checkpoints_filepath().is_file() {
             bail!(
-                "Checkpoint list file is missing at {}",
-                self.checkpoint_list_path().display()
+                "Sync file is missing at {}",
+                self.checkpoints_filepath().display()
             );
         }
-        if !self.genesis_file_path().is_file() {
+        if !self.genesis_filepath().is_file() {
             bail!(
                 "Genesis file is missing at {}",
-                self.genesis_file_path().display()
+                self.genesis_filepath().display()
             );
         }
         Ok(())
     }
 
-    pub fn checkpoint_list_path(&self) -> PathBuf {
-        self.checkpoints_sync_dir.join("checkpoints.yaml")
+    pub fn checkpoints_filepath(&self) -> PathBuf {
+        self.checkpoints_sync_dir.join(CHECKPOINTS_FILE_NAME)
     }
 
-    pub fn genesis_file_path(&self) -> PathBuf {
-        self.checkpoints_sync_dir.join(&self.genesis_filename)
+    pub fn genesis_filepath(&self) -> PathBuf {
+        self.checkpoints_sync_dir.join(GENESIS_FILE_NAME)
     }
 
     pub fn checkpoint_path<'a>(
@@ -132,7 +133,7 @@ mod tests {
     fn test_checkpoint_paths() {
         let (config, _temp_dir) = create_test_config();
 
-        let list_path = config.checkpoint_list_path();
+        let list_path = config.checkpoints_filepath();
         assert_eq!(list_path.file_name().unwrap(), "checkpoints.yaml");
 
         let checkpoint_path = config.checkpoint_path(123, None);
@@ -146,7 +147,7 @@ mod tests {
     #[test]
     fn test_genesis_path() {
         let (config, _temp_dir) = create_test_config();
-        let genesis_path = config.genesis_file_path();
+        let genesis_path = config.genesis_filepath();
         assert_eq!(genesis_path.file_name().unwrap(), "genesis.blob");
     }
 }
