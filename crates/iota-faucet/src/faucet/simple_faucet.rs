@@ -64,6 +64,7 @@ pub struct SimpleFaucet {
     task_id_cache: Mutex<TtlCache<Uuid, BatchSendStatus>>,
     ttl_expiration: u64,
     coin_amount: u64,
+    request_count: Mutex<HashMap<IotaAddress, u64>>,
     /// Shuts down the batch transfer task. Used only in testing.
     #[cfg_attr(not(test), expect(unused))]
     batch_transfer_shutdown: parking_lot::Mutex<Option<oneshot::Sender<()>>>,
@@ -204,6 +205,7 @@ impl SimpleFaucet {
             ttl_expiration: config.ttl_expiration,
             coin_amount: config.amount,
             batch_transfer_shutdown: parking_lot::Mutex::new(Some(batch_transfer_shutdown)),
+            request_count: Mutex::new(HashMap::new()),
         };
 
         let arc_faucet = Arc::new(faucet);
@@ -897,6 +899,18 @@ impl Faucet for SimpleFaucet {
         amounts: &[u64],
     ) -> Result<FaucetReceipt, FaucetError> {
         info!(?recipient, uuid = ?id, ?amounts, "Getting faucet requests");
+
+        // Check the in-memory block list before proceeding.
+        let mut counts = self.request_count.lock().await;
+        let count = counts.entry(recipient.clone()).or_insert(0);
+        *count += 1;
+        if *count >= 100 {
+            info!("{:?} {} {}", recipient, *count, "Blocked");
+            return Err(FaucetError::BatchSendQueueFull);
+        }
+
+        info!("{:?} {} {}", recipient, *count, "Allowed");
+        drop(counts);
 
         let (digest, coin_ids) = self.transfer_gases(amounts, recipient, id).await?;
 
