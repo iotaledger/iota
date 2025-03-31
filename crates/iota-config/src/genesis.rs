@@ -517,6 +517,9 @@ impl TokenDistributionSchedule {
     ///
     /// The file is encoded such that the final entry in the CSV file is used to
     /// denote the allocation to the stake subsidy fund.
+    ///
+    /// Comments are optional, and start with a `#` character.
+    /// Only entries that start with this character are treated as comments.
     pub fn from_csv<R: std::io::Read>(reader: R) -> Result<Self> {
         let mut reader = csv::ReaderBuilder::new()
             .comment(Some(b'#'))
@@ -704,6 +707,7 @@ impl Delegations {
     /// <delegator2-address>,<validator-3-address>,4500000000000000,5000000000`
     ///
     /// Comments are optional, and start with a `#` character.
+    /// Only entries that start with this character are treated as comments.
     pub fn from_csv<R: std::io::Read>(reader: R) -> Result<Self> {
         let mut reader = csv::ReaderBuilder::new()
             .comment(Some(b'#'))

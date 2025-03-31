@@ -142,6 +142,7 @@ impl AddressSwapMap {
     /// ```
     ///
     /// Comments are optional, and start with a `#` character.
+    /// Only entries that start with this character are treated as comments.
     ///
     /// # Parameters
     /// - `file_path`: The relative path to the CSV file containing the address
