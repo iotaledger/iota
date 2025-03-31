@@ -1,13 +1,11 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::collections::HashMap;
-use std::fs::File;
-
-use iota_sdk::types::block::address::Address;
-use iota_types::base_types::IotaAddress;
+use std::{collections::HashMap, fs::File};
 
 use iota_config::genesis::custom_csv_reader;
+use iota_sdk::types::block::address::Address;
+use iota_types::base_types::IotaAddress;
 
 type OriginAddress = Address;
 type Destination = (IotaAddress, u64, u64);
