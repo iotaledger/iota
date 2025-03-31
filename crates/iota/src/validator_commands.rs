@@ -24,7 +24,8 @@ use iota_bridge::{
 };
 use iota_genesis_builder::validator_info::GenesisValidatorInfo;
 use iota_json_rpc_types::{
-    IotaObjectDataOptions, IotaTransactionBlockResponse, IotaTransactionBlockResponseOptions,
+    IotaData, IotaMoveValue, IotaObjectDataOptions, IotaTransactionBlockResponse,
+    IotaTransactionBlockResponseOptions,
 };
 use iota_keys::{
     key_derive::generate_new_key,
@@ -36,15 +37,16 @@ use iota_keys::{
 };
 use iota_sdk::{IotaClient, wallet_context::WalletContext};
 use iota_types::{
-    IOTA_SYSTEM_PACKAGE_ID,
+    IOTA_SYSTEM_PACKAGE_ID, TypeTag,
     base_types::{IotaAddress, ObjectID, ObjectRef},
     crypto::{
         AuthorityKeyPair, AuthorityPublicKey, AuthorityPublicKeyBytes, DEFAULT_EPOCH_ID,
         IotaKeyPair, NetworkKeyPair, NetworkPublicKey, Signable, SignatureScheme,
         generate_proof_of_possession, get_authority_key_pair,
     },
-    dynamic_field::Field,
+    dynamic_field::{DynamicFieldName, Field},
     iota_system_state::{
+        Validator,
         iota_system_state_inner_v1::{UnverifiedValidatorOperationCap, ValidatorV1},
         iota_system_state_summary::{IotaSystemStateSummary, IotaValidatorSummary},
     },
@@ -62,7 +64,6 @@ use tabled::{
         object::{Column, Columns},
     },
 };
-use tap::tap::TapOptional;
 use url::{ParseError, Url};
 
 use crate::fire_drill::get_gas_obj_ref;
@@ -976,6 +977,8 @@ impl IotaValidatorCommandResponse {
 pub enum ValidatorStatus {
     Active,
     CommitteeMember,
+    Candidate,
+    Inactive,
     Pending,
 }
 
@@ -987,20 +990,30 @@ pub async fn get_validator_summary(
         .governance_api()
         .get_latest_iota_system_state()
         .await?;
-    let (committee_members, active_validators, pending_active_validators_id) =
-        match iota_system_state {
-            IotaSystemStateSummary::V1(v1) => {
-                (None, v1.active_validators, v1.pending_active_validators_id)
-            }
-            IotaSystemStateSummary::V2(v2) => (
-                Some(v2.committee_members),
-                v2.active_validators,
-                v2.pending_active_validators_id,
-            ),
-            _ => panic!("unsupported IotaSystemStateSummary"),
-        };
+    let (
+        committee_members,
+        active_validators,
+        pending_active_validators_id,
+        validator_candidates_id,
+        inactive_pools_id,
+    ) = match iota_system_state {
+        IotaSystemStateSummary::V1(v1) => (
+            None,
+            v1.active_validators,
+            v1.pending_active_validators_id,
+            v1.validator_candidates_id,
+            v1.inactive_pools_id,
+        ),
+        IotaSystemStateSummary::V2(v2) => (
+            Some(v2.committee_members),
+            v2.active_validators,
+            v2.pending_active_validators_id,
+            v2.validator_candidates_id,
+            v2.inactive_pools_id,
+        ),
+        _ => panic!("unsupported IotaSystemStateSummary"),
+    };
 
-    let mut status = None;
     let mut active_validators = active_validators
         .into_iter()
         .enumerate()
@@ -1014,29 +1027,103 @@ pub async fn get_validator_summary(
             (summary.iota_address, (summary, committee_member))
         })
         .collect::<BTreeMap<_, _>>();
-    let validator_info =
-        if let Some((_, committee_member)) = active_validators.get(&validator_address) {
-            if *committee_member {
-                status = Some(ValidatorStatus::CommitteeMember);
-            } else {
-                status = Some(ValidatorStatus::Active);
-            }
-            Some(active_validators.remove(&validator_address).unwrap().0)
-        } else {
-            // Check pending validators
-            get_pending_candidate_summary(validator_address, client, pending_active_validators_id)
-                .await?
-                .map(|v| v.into_iota_validator_summary())
-                .tap_some(|_s| status = Some(ValidatorStatus::Pending))
 
-            // TODO also check candidate and inactive validators
+    // Check active and committee members
+    if let Some((validator_summary, committee_member)) =
+        active_validators.remove(&validator_address)
+    {
+        let status = if committee_member {
+            ValidatorStatus::CommitteeMember
+        } else {
+            ValidatorStatus::Active
         };
-    if validator_info.is_none() {
-        return Ok(None);
+        return Ok(Some((status, validator_summary)));
     }
-    // status is safe unwrap because it has to be Some when the code reaches here
-    // validator_info is safe to unwrap because of the above check
-    Ok(Some((status.unwrap(), validator_info.unwrap())))
+
+    // Check pending validators
+    let pending_validator_summary =
+        get_pending_candidate_summary(validator_address, client, pending_active_validators_id)
+            .await?
+            .map(|v| v.into_iota_validator_summary());
+
+    if let Some(pending_validator_summary) = pending_validator_summary {
+        return Ok(Some((ValidatorStatus::Pending, pending_validator_summary)));
+    }
+
+    // Check candidates
+    let name = DynamicFieldName {
+        type_: TypeTag::Address,
+        value: IotaMoveValue::Address(validator_address).to_json_value(),
+    };
+    let res = client
+        .read_api()
+        .get_dynamic_field_object(validator_candidates_id, name)
+        .await?;
+    if res.error.is_none() {
+        let object_id = res.data.expect("no data in result").object_id;
+        let validator_summary =
+            get_validator_summary_from_validator_wrapper(client, object_id).await?;
+        return Ok(Some((ValidatorStatus::Candidate, validator_summary)));
+    };
+
+    // Check inactive
+    let mut cursor = None;
+    let mut has_next_page = true;
+    while has_next_page {
+        let page = client
+            .read_api()
+            .get_dynamic_fields(inactive_pools_id, cursor, None)
+            .await?;
+        for dynamic_field_info in page.data {
+            let validator_summary =
+                get_validator_summary_from_validator_wrapper(client, dynamic_field_info.object_id)
+                    .await?;
+            if validator_summary.iota_address == validator_address {
+                return Ok(Some((ValidatorStatus::Inactive, validator_summary)));
+            }
+        }
+        has_next_page = page.has_next_page;
+        cursor = page.next_cursor;
+    }
+
+    Ok(None)
+}
+
+async fn get_validator_summary_from_validator_wrapper(
+    client: &IotaClient,
+    validator_object_id: ObjectID,
+) -> anyhow::Result<IotaValidatorSummary> {
+    let validator = client
+        .read_api()
+        .get_object_with_options(
+            validator_object_id,
+            IotaObjectDataOptions::default().with_bcs(),
+        )
+        .await?
+        .into_object()?
+        .bcs
+        .expect("missing bcs")
+        .try_into_move()
+        .expect("invalid move type")
+        .deserialize::<Field<IotaAddress, Validator>>()?;
+
+    let object_id = iota_types::dynamic_field::derive_dynamic_field_id(
+        *validator.value.inner.id.object_id(),
+        &TypeTag::U64,
+        &bcs::to_bytes(&1u64)?,
+    )?;
+    let validator = client
+        .read_api()
+        .get_object_with_options(object_id, IotaObjectDataOptions::default().with_bcs())
+        .await?
+        .into_object()?
+        .bcs
+        .expect("missing bcs")
+        .try_into_move()
+        .expect("invalid move type")
+        .deserialize::<Field<u64, ValidatorV1>>()?;
+
+    Ok(validator.value.into_iota_validator_summary())
 }
 
 async fn display_metadata(
@@ -1045,7 +1132,7 @@ async fn display_metadata(
     json: bool,
 ) -> anyhow::Result<()> {
     match get_validator_summary(client, validator_address).await? {
-        None => println!("{validator_address} is not an active or pending Validator"),
+        None => println!("{validator_address} is not a validator"),
         Some((status, info)) => {
             println!("{validator_address}'s validator status: {status:?}");
             if json {
