@@ -166,6 +166,7 @@ pub(crate) struct NodeMetrics {
     pub(crate) block_manager_missing_blocks: IntGauge,
     pub(crate) block_manager_missing_blocks_by_authority: IntCounterVec,
     pub(crate) block_manager_missing_ancestors_by_authority: IntCounterVec,
+    pub(crate) block_manager_gced_blocks: IntCounterVec,
     pub(crate) block_manager_gc_unsuspended_blocks: IntCounterVec,
     pub(crate) block_manager_skipped_blocks: IntCounterVec,
     pub(crate) threshold_clock_round: IntGauge,
@@ -588,6 +589,12 @@ impl NodeMetrics {
             block_manager_missing_ancestors_by_authority: register_int_counter_vec_with_registry!(
                 "block_manager_missing_ancestors_by_authority",
                 "The number of missing ancestors by ancestor authority across received blocks",
+                &["authority"],
+                registry,
+            ).unwrap(),
+            block_manager_gced_blocks: register_int_counter_vec_with_registry!(
+                "block_manager_gced_blocks",
+                "The number of blocks that garbage collected and did not get accepted, counted by block's source authority",
                 &["authority"],
                 registry,
             ).unwrap(),
