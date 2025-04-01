@@ -1547,7 +1547,7 @@ impl IotaTestAdapter {
         unchanged_shared_ids.sort_by_key(|id| self.real_to_fake_object_id(id));
 
         match effects.status() {
-            ExecutionStatus::Success { .. } => {
+            ExecutionStatus::Success => {
                 let events = self
                     .executor
                     .query_tx_events_asc(digest, *QUERY_MAX_RESULT_LIMIT)
@@ -1628,7 +1628,7 @@ impl IotaTestAdapter {
         wrapped_ids.sort_by_key(|id| self.real_to_fake_object_id(id));
 
         match effects.status() {
-            IotaExecutionStatus::Success { .. } => {
+            IotaExecutionStatus::Success => {
                 let events = events
                     .data
                     .into_iter()
