@@ -108,7 +108,7 @@ To restore from a RocksDB snapshot, follow these steps:
 2. Set the `AWS_SNAPSHOT_ENDPOINT` environment variable to the target snapshot URL. If not set, the default values are endpoints provided by the IOTA Foundation with public access:
 3. **Download the snapshot** for your target epoch to your local disk. Snapshots are stored per epoch in S3 buckets. For example, if you're restoring epoch 10:
 
-      <Tabs groupId="network" queryString>
+  <Tabs groupId="network" queryString>
       <TabItem label="Mainnet" value="mainnet">
          ```shell
             iota-tool download-db-snapshot \
@@ -184,7 +184,7 @@ The following steps can be used to restore a node from a Formal snapshot:
          iota-tool download-formal-snapshot \
          --latest \
          --genesis "<PATH-TO-GENESIS-BLOB>" \
-         --network mainnet \
+         --network testnet \
          --path <PATH-TO-NODE-DB> \
          --num-parallel-downloads 50 \
          --verify normal \

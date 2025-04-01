@@ -29,7 +29,7 @@ Perform these steps on the server that will be running the validator instance.
 :::
 
 
-### 2.1. Prepare environment
+### 2.1. Prepare the Environment
 
 ```bash
 sudo useradd iota
@@ -40,7 +40,7 @@ sudo mkdir -p /opt/iota/key-pairs
 sudo chown -R iota:iota /opt/iota
 ```
 
-### 2.1. Build from Source
+### 2.2. Build From Source
 
 First make sure to install all pre-requisites:
 ```bash
@@ -70,7 +70,7 @@ Build and install the `iota-node` and `iota-tool` binaries from source.
     </TabItem>
 </Tabs>
 
-### 2.2. Create systemd service
+### 2.3. Create a `systemd` Service
 
 ```bash
 sudo tee /etc/systemd/system/iota-node.service > /dev/null <<EOF
@@ -90,14 +90,14 @@ WantedBy=multi-user.target
 EOF
 ```
 
-After creating the systemd service you should reload the daemon and enable the service:
+After creating the `systemd` service, you should reload the daemon and enable the service:
 
 ```bash
 sudo systemctl daemon-reload
 sudo systemctl enable iota-node.service
 ```
 
-### 2.3. Download Configuration Template
+### 2.4. Download the Configuration Template
 
 ```bash
 cd /opt/iota/config
@@ -105,11 +105,11 @@ cd /opt/iota/config
 
 <ValidatorDownloadConfig />
 
-### 2.4. Configure P2P Settings
+### 2.5. Configure the P2P Settings
 
 <ValidatorP2P />
 
-### 2.5. Download Genesis Blobs
+### 2.6. Download the Genesis Blobs
 
 ```bash
 cd /opt/iota/config
@@ -117,11 +117,11 @@ cd /opt/iota/config
 
 <Genesis />
 
-### 2.6. Copy Validator Keys
+### 2.7. Copy the Validator Keys
 
 Copy the `protocol.key`, `network.key` and `authority.key` you created previously to the server and place them in `/opt/iota/key-pairs`.
 
-### 2.7. Download the latest Formal Snapshot
+### 2.8. Download the Latest Formal Snapshot
 
 ```bash
 cd /opt/iota
@@ -140,7 +140,7 @@ cd /opt/iota
     </TabItem>
 </Tabs>
 
-### 2.7. Start Your Validator Node
+### 2.9. Start Your Validator Node
 
 ```bash
 sudo systemctl start iota-node
