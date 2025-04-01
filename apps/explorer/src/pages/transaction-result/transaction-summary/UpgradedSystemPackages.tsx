@@ -4,7 +4,14 @@
 
 import { useState } from 'react';
 import { CollapsibleCard, ObjectLink } from '~/components/ui';
-import { Accordion, AccordionContent, AccordionHeader, KeyValueInfo, Title, TitleSize } from '@iota/apps-ui-kit';
+import {
+    Accordion,
+    AccordionContent,
+    AccordionHeader,
+    KeyValueInfo,
+    Title,
+    TitleSize,
+} from '@iota/apps-ui-kit';
 import type { OwnedObjectRef } from '@iota/iota-sdk/client';
 
 export function UpgradedSystemPackages({ data }: { data: OwnedObjectRef[] }): JSX.Element | null {
@@ -27,13 +34,11 @@ export function UpgradedSystemPackages({ data }: { data: OwnedObjectRef[] }): JS
                                 const { objectId } = object.reference;
                                 return (
                                     <div className="flex flex-col gap-y-sm px-md--rs py-xs">
-                                    <KeyValueInfo
-                                        keyText="Package"
-                                        value={
-                                            <ObjectLink objectId={objectId}/>
-                                        }
-                                    />
-                                </div>
+                                        <KeyValueInfo
+                                            keyText="Package"
+                                            value={<ObjectLink objectId={objectId} />}
+                                        />
+                                    </div>
                                 );
                             })}
                         </div>

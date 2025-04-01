@@ -40,9 +40,8 @@ export function VirtualList<T>({
         estimateSize: (index) => {
             if (index > items.length - 1 && hasNextPage) {
                 return 20;
-            } else {
-                return estimateSize(index);
             }
+            return estimateSize(index);
         },
     });
 
@@ -58,7 +57,7 @@ export function VirtualList<T>({
         if (lastItem.index >= items.length - 1 && hasNextPage && !isFetchingNextPage) {
             fetchNextPage();
         }
-    }, [hasNextPage, fetchNextPage, items.length, isFetchingNextPage, virtualizer, virtualItems]);
+    }, [hasNextPage, fetchNextPage, items.length, isFetchingNextPage, virtualItems]);
 
     return (
         <div
@@ -81,12 +80,13 @@ export function VirtualList<T>({
                         <div
                             key={key}
                             className={`absolute w-full  ${onClick ? 'cursor-pointer' : ''}`}
+                            ref={virtualizer.measureElement} // To measure the height of the item
+                            data-index={virtualItem.index}
                             style={{
                                 position: 'absolute',
                                 top: 0,
                                 left: 0,
                                 width: '100%',
-                                height: `${virtualItem.size}px`,
                                 transform: `translateY(${virtualItem.start}px)`,
                             }}
                             onClick={() => onClick && onClick(item)}
