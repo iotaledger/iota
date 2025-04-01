@@ -60,6 +60,9 @@ exclude = [
   "sdk/move-bytecode-template",
 ]
 members = [
+  "consensus-starfish/config",
+  "consensus-starfish/core",
+  "consensus-starfish/simtests",
   "consensus/config",
   "consensus/core",
   "consensus/simtests",
@@ -466,6 +469,9 @@ move-vm-types = { path = "external-crates/move/crates/move-vm-types" }
 prometheus-closure-metric = { path = "crates/prometheus-closure-metric" }
 shared-crypto = { path = "crates/shared-crypto" }
 simulacrum = { path = "crates/simulacrum" }
+starfish-config = { path = "consensus-starfish/config" }
+starfish-core = { path = "consensus-starfish/core" }
+starfish-simtests = { path = "consensus-starfish/simtests" }
 telemetry-subscribers = { path = "crates/telemetry-subscribers" }
 test-cluster = { path = "crates/test-cluster" }
 transaction-fuzzer = { path = "crates/transaction-fuzzer" }
