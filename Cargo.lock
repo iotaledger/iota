@@ -7902,7 +7902,7 @@ dependencies = [
 [[package]]
 name = "iota-rust-sdk"
 version = "0.0.0"
-source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=3e4a47351cdd774dd2895a2552a038fe2f4b6da5#3e4a47351cdd774dd2895a2552a038fe2f4b6da5"
+source = "git+https://github.com/iotaledger/iota-rust-sdk.git?branch=protocol-research/feat/include-gas-price-feedback-for-cancelled-txs#ab76d2e13fc4fdc6f36b284bf6ac5b27d83ff2f6"
 dependencies = [
  "base64ct",
  "bcs",

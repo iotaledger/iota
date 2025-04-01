@@ -194,8 +194,15 @@ pub enum ExecutionFailureStatus {
     #[error("Certificate cannot be executed due to a dependency on a deleted shared object")]
     InputObjectDeleted,
 
-    #[error("Certificate is cancelled due to congestion on shared objects: {congested_objects}")]
-    ExecutionCancelledDueToSharedObjectCongestion { congested_objects: CongestedObjects },
+    #[error(
+        "Certificate is cancelled due to congestion on shared objects: {congested_objects}. \
+        To increase chances of successfully executing transaction with these shared objects,
+        it is recommended to set transaction's gas price to at least {suggested_gas_price}"
+    )]
+    ExecutionCancelledDueToSharedObjectCongestion {
+        congested_objects: CongestedObjects,
+        suggested_gas_price: u64,
+    },
 
     #[error("Address {address:?} is denied for coin {coin_type}")]
     AddressDeniedForCoin {

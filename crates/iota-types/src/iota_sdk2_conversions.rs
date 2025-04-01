@@ -1237,8 +1237,10 @@ impl From<crate::execution_status::ExecutionFailureStatus> for ExecutionError {
             ExecutionFailureStatus::InputObjectDeleted => Self::InputObjectDeleted,
             ExecutionFailureStatus::ExecutionCancelledDueToSharedObjectCongestion {
                 congested_objects,
+                suggested_gas_price,
             } => Self::ExecutionCancelledDueToSharedObjectCongestion {
                 congested_objects: congested_objects.0.into_iter().map(Into::into).collect(),
+                suggested_gas_price,
             },
             ExecutionFailureStatus::AddressDeniedForCoin { address, coin_type } => {
                 Self::AddressDeniedForCoin {
@@ -1427,13 +1429,15 @@ impl From<ExecutionError> for crate::execution_status::ExecutionFailureStatus {
                 Self::SharedObjectOperationNotAllowed
             }
             ExecutionError::InputObjectDeleted => Self::InputObjectDeleted,
-            ExecutionError::ExecutionCancelledDueToSharedObjectCongestion { congested_objects } => {
-                Self::ExecutionCancelledDueToSharedObjectCongestion {
-                    congested_objects: crate::execution_status::CongestedObjects(
-                        congested_objects.into_iter().map(Into::into).collect(),
-                    ),
-                }
-            }
+            ExecutionError::ExecutionCancelledDueToSharedObjectCongestion {
+                congested_objects,
+                suggested_gas_price,
+            } => Self::ExecutionCancelledDueToSharedObjectCongestion {
+                congested_objects: crate::execution_status::CongestedObjects(
+                    congested_objects.into_iter().map(Into::into).collect(),
+                ),
+                suggested_gas_price,
+            },
             ExecutionError::AddressDeniedForCoin { address, coin_type } => {
                 Self::AddressDeniedForCoin {
                     address: address.into(),
