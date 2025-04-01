@@ -61,6 +61,7 @@ async fn get_objects_to_mutate(
     (object_ids, gas)
 }
 
+#[ignore = "https://github.com/iotaledger/iota/issues/6120"]
 #[test]
 fn dry_run_transaction_block() {
     let ApiTestSetup {

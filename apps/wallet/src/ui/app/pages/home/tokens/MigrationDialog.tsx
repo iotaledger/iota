@@ -18,7 +18,7 @@ export function MigrationDialog({ open, setOpen }: MigrationDialogProps) {
     const imgSrc = theme === Theme.Dark ? MigrationDarkImage : MigrationImage;
 
     function navigateToDashboard() {
-        window.open(WALLET_DASHBOARD_URL, '_blank');
+        window.open(WALLET_DASHBOARD_URL, '_blank', 'noopener noreferrer');
     }
     return (
         <Dialog open={open} onOpenChange={setOpen}>

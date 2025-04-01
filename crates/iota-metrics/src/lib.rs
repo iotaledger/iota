@@ -5,6 +5,7 @@
 use std::{
     future::Future,
     net::SocketAddr,
+    path::Path,
     pin::Pin,
     sync::Arc,
     task::{Context, Poll},
@@ -33,6 +34,7 @@ use tracing::{Span, warn};
 use uuid::Uuid;
 
 mod guards;
+pub mod hardware_metrics;
 pub mod histogram;
 pub mod metered_channel;
 pub mod metrics_network;
@@ -572,7 +574,9 @@ pub fn uptime_metric(
     let opts = prometheus::opts!("uptime", "uptime of the node service in seconds")
         .variable_label("process")
         .variable_label("version")
-        .variable_label("chain_identifier");
+        .variable_label("chain_identifier")
+        .variable_label("os_version")
+        .variable_label("is_docker");
 
     let start_time = std::time::Instant::now();
     let uptime = move || start_time.elapsed().as_secs();
@@ -580,11 +584,24 @@ pub fn uptime_metric(
         opts,
         prometheus_closure_metric::ValueType::Counter,
         uptime,
-        &[process, version, chain_identifier],
+        &[
+            process,
+            version,
+            chain_identifier,
+            &sysinfo::System::long_os_version()
+                .unwrap_or_else(|| "os_version_unavailable".to_string()),
+            &is_running_in_docker().to_string(),
+        ],
     )
     .unwrap();
 
     Box::new(metric)
+}
+
+pub fn is_running_in_docker() -> bool {
+    // Check for .dockerenv file instead. This file exists in the debian:__-slim
+    // image we use at runtime.
+    Path::new("/.dockerenv").exists()
 }
 
 pub const METRICS_ROUTE: &str = "/metrics";

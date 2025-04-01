@@ -5,15 +5,49 @@ description: Overview of the IOTA consensus.
 tags: [core-protocol]
 ---
 
-The basic purpose of consensus in blockchains is to agree on a consistent order and ensure the availability of transactions.
+The primary goal of consensus in distributed systems is to establish a consistent order of transactions and ensure their availability. In IOTA, consensus is achieved through a combination of Delegated Proof-of-Stake (dPoS) and the Mysticeti Byzantine Fault Tolerant (BFT) consensus protocol.
 
-On IOTA, consensus has a simple API: validators submit different user transactions to consensus concurrently, and the consensus outputs a consistent stream of transactions across all well-behaving validators.
+IOTA's consensus mechanism ensures:
 
-Byzantine-fault tolerant (BFT) consensus protocols are a rich area of research. The next-generation consensus engine in IOTA is based on the **Mysticeti** protocol.
-The protocol optimizes for both low latency and high throughput because:
-- It allows multiple validators to propose blocks in parallel, utilizing the full bandwidth of the network and providing censorship resistance. These are features of the DAG-based consensus protocols.
-- It takes only three rounds of messages to commit blocks from the DAGs, same as pBFT and matches the theoretical minimum.
-- The commit rule allows voting and certifying leaders on blocks in parallel, further reducing the median and tail latencies.
-- The commit rule also tolerates unavailable leaders without significantly increasing the commit latencies.
+- **Low latency**: Transactions are confirmed quickly due to efficient leader election and consensus mechanisms.
+- **High throughput**: The protocol can process a large number of transactions per second, ensuring scalability.
+- **Fast finality**: Transactions reach finality in a short time, reducing the risk of rollbacks.
+- **Energy efficiency**: Unlike Proof-of-Work (PoW), Mysticeti's consensus mechanism requires minimal computational resources.
+- **Security & decentralization**: The protocol resists common attacks by relying on an honest majority of validators while maintaining a decentralized structure.
 
-For more details including correctness proofs, the [Mysticeti paper](https://arxiv.org/pdf/2310.14821) is the best source.
+## Delegated Proof-of-Stake (dPoS) in IOTA
+
+IOTA employs Delegated Proof-of-Stake (dPoS) as the overarching consensus mechanism. In this model:
+
+- Token holders delegate their voting power to validators.
+- Validators participate in block production and execute the Mysticeti protocol to finalize transactions.
+- Staking rewards serve as the main incentive for validators to behave honestly and secure the network.
+- This structure ensures security and decentralization while maintaining scalability.
+
+## Consensus Committee
+
+Validators that participate in the consensus protocol collectively form the **Consensus Committee**. This committee is responsible for executing the consensus mechanism and finalizing transactions.
+
+### Key Aspects of the Consensus Committee
+
+- **Validator Set**: The consensus committee consists of validators, which are selected based on delegated stake.
+- **Fixed Over an Epoch**: The validator set remains unchanged during an epoch to ensure stability.
+- **Roles of Validators**:
+  - Accept transactions and execute the consensus protocol.
+  - Maintain a consistently ordered ledger state.
+  - Prevent double-spending and conflicts.
+
+For more details on validator staking, refer to the [Validators Staking](../tokenomics/validators-staking.mdx) page. To understand epoch transitions, see the [Epochs](./epochs.mdx) documentation.
+
+## The Mysticeti Protocol
+
+The **Mysticeti** protocol is a _BFT_ consensus protocol optimized for **low-latency** and **high-throughput** using an uncertified _DAG_ structure. It is designed to facilitate efficient and parallel transaction processing while maintaining strong security guarantees.
+
+### Key Features of Mysticeti
+
+- **Parallel Block Proposals**: Multiple validators can propose blocks simultaneously, maximizing network bandwidth and ensuring censorship resistance. This is a core advantage of DAG-based protocols.
+- **Three-Round Commit Rule**: Transactions achieve finality in just three rounds of messages, matching the efficiency of pBFT and reaching the theoretical minimum for BFT consensus.
+- **Optimized Voting**: Unlike traditional leader-based protocols, Mysticeti allows validators to vote on blocks and certify them in parallel, significantly reducing median and tail latencies.
+- **Fault Tolerance**: The protocol tolerates unavailable or faulty validators without significantly increasing commit latencies.
+
+For more technical details, including correctness proofs, refer to the [Mysticeti paper](https://arxiv.org/pdf/2310.14821).

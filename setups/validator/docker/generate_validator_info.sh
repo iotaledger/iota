@@ -52,7 +52,7 @@ read -p "Enter hostname: " HOST_NAME
 IMAGE_URL=${IMAGE_URL:-""}
 PROJECT_URL=${PROJECT_URL:-""}
 
-docker run --rm -v ./iota_config:/root/.iota/iota_config -v "./key-pairs":/iota ${IOTA_DOCKER_IMAGE} /bin/sh -c "RUST_BACKTRACE=full /usr/local/bin/iota validator make-validator-info \"$NAME\" \"$DESCRIPTION\" \"$IMAGE_URL\" \"$PROJECT_URL\" \"$HOST_NAME\" 1000"
+docker run --rm -v ./iota_config:/root/.iota/iota_config -v "./key-pairs":/iota ${IOTA_DOCKER_IMAGE} /bin/sh -c "RUST_BACKTRACE=full /usr/local/bin/iota validator make-validator-info \"$NAME\" \"$DESCRIPTION\" \"$IMAGE_URL\" \"$PROJECT_URL\" \"$HOST_NAME\""
 
 if [ ! "$(ls -A ./key-pairs)" ]; then
     echo "Error: Failed to generate validator info"

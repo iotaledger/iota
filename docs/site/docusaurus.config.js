@@ -295,7 +295,7 @@ const config = {
           {
             type: 'custom-WalletConnectButton',
             position: 'right',
-          }
+          },
         ],
       },
       footer: {

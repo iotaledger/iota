@@ -43,7 +43,12 @@ async fn main() -> Result<()> {
         metrics,
         CancellationToken::new(),
     );
-    let worker_pool = WorkerPool::new(CustomWorker, "local_reader".to_string(), concurrency);
+    let worker_pool = WorkerPool::new(
+        CustomWorker,
+        "local_reader".to_string(),
+        concurrency,
+        Default::default(),
+    );
 
     executor.register(worker_pool).await?;
     executor
