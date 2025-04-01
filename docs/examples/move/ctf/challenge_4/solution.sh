@@ -1,27 +1,43 @@
-# Step 1: Call airdrop to get 1 coin
-iota client call --package 0x7641ee891b657e349e7c34bcb0ad78bbd8ac9e41c7bcd627f822625e7b725f67 --module airdrop --function airdrop --args 0x5c154e5199c1ebbbc839c7bb19d0f44f6e82b8aec0434e7c20c5bacaec246025
+#!/bin/bash
+# Challenge 4 - Airdrop Coin Merge and Flag
 
+# Load environment variables
+source ../.env
+
+# Step 1: Call airdrop to get 1 coin
+iota client call \
+  --package "$CHALLENGE_4_PACKAGE" \
+  --module airdrop \
+  --function airdrop \
+  --args "$CHALLENGE_4_VAULT"
 
 # Step 2: Generate a new address
 iota client new-address ed25519 second-caller
 
 # Step 3: Transfer coin to second-caller
-# Note: replace <coin-object-id> with the actual object id of the coin you minted in step 1.
-iota client transfer --to second-caller --object-id <coin-object-id>
-
+# 🧩 Replace this with the actual coin object ID received in Step 1
+FIRST_COIN_OBJECT=<first-coin-object-id>
+iota client transfer --to second-caller --object-id "$FIRST_COIN_OBJECT"
 
 # Step 4: Switch to second-caller
 iota client switch --address second-caller
 
-# Step 5: Get some funds to pay for the gas
+# Step 5: Get funds for gas
 iota client faucet
 
-# Step 6: Call airdrop to get 1 coin
-iota client call --package 0x7641ee891b657e349e7c34bcb0ad78bbd8ac9e41c7bcd627f822625e7b725f67 --module airdrop --function airdrop --args 0x5c154e5199c1ebbbc839c7bb19d0f44f6e82b8aec0434e7c20c5bacaec246025
+# Step 6: Call airdrop again as second-caller
+iota client call \
+  --package "$CHALLENGE_4_PACKAGE" \
+  --module airdrop \
+  --function airdrop \
+  --args "$CHALLENGE_4_VAULT"
 
-# Step 7: Construct a PTB that merges the coin you received in step 1 with the coin you received in step 6, and then calls get_flag with the resulting coin.
-# Note: replace <first-coin-object> and <second-coin-object> with the actual object id of the coins you received in step 1 and step 6 respectively.
-iota client ptb --assign coin_1 @<first-coin-object> \
-    --assign coin_2 @<second-coin-object> \
-    --merge-coins coin_1 [coin_2]  \
-    --move-call 0x7641ee891b657e349e7c34bcb0ad78bbd8ac9e41c7bcd627f822625e7b725f67::airdrop::get_flag @0x0bcae86c077ed58296e0e35e7459e3cd2722954850c8d2e6205fb415dc142bcf coin_1
+# Step 7: Merge coins and call get_flag
+# 🧩 Replace these with the actual object IDs of the coins received in steps 1 and 6
+SECOND_COIN_OBJECT=<second-coin-object-id>
+
+iota client ptb \
+  --assign coin_1 @"$FIRST_COIN_OBJECT" \
+  --assign coin_2 @"$SECOND_COIN_OBJECT" \
+  --merge-coins coin_1 [coin_2] \
+  --move-call "$CHALLENGE_4_PACKAGE::airdrop::get_flag" @"$CHALLENGE_4_COUNTER" coin_1
