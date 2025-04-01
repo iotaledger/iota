@@ -6,7 +6,7 @@ import { normalizeIotaAddress } from '@iota/iota-sdk/utils';
 import { useQuery, UseQueryResult } from '@tanstack/react-query';
 import { IotaObjectResponse } from '@iota/iota-sdk/client';
 
-const defaultGetPastObjectOptions = {
+const defaultGetObjectOptions = {
     showType: true,
     showContent: true,
     showOwner: true,
@@ -35,6 +35,7 @@ export function useGetObjectOrPastObject(
 
             const getObjectResponse = await client.getObject({
                 id: normalizedObjId,
+                options: defaultGetObjectOptions,
             });
 
             const isNotExistsOrDeleted =
@@ -53,7 +54,7 @@ export function useGetObjectOrPastObject(
                 const pastObjectResponse = await client.tryGetPastObject({
                     id: objectId,
                     version: Number(version) - 1,
-                    options: defaultGetPastObjectOptions,
+                    options: defaultGetObjectOptions,
                 });
 
                 switch (pastObjectResponse?.status) {
