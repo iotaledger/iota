@@ -213,37 +213,37 @@ const iotaEvm = [
                     },
                     {
                         type: 'category',
-                        label: 'NFT',
+                        label: 'Objects',
                         items: [
                             {
                                 label: 'Introduction',
                                 type: 'doc',
-                                id: 'iota-evm/how-tos/core-contracts/nft/introduction',
+                                id: 'iota-evm/how-tos/core-contracts/objects/introduction',
                             },
                             {
                                 type: 'doc',
                                 label: 'Mint an NFT',
-                                id: 'iota-evm/how-tos/core-contracts/nft/mint-nft',
+                                id: 'iota-evm/how-tos/core-contracts/objects/mint-nft',
                             },
                             {
                                 type: 'doc',
                                 label: 'Get NFT Metadata',
-                                id: 'iota-evm/how-tos/core-contracts/nft/get-nft-metadata',
+                                id: 'iota-evm/how-tos/core-contracts/objects/get-nft-metadata',
                             },
                             {
                                 type: 'doc',
                                 label: 'Get NFTs Owned by an Account',
-                                id: 'iota-evm/how-tos/core-contracts/nft/get-L2-nfts',
+                                id: 'iota-evm/how-tos/core-contracts/objects/get-L2-nfts',
                             },
                             {
                                 type: 'doc',
                                 label: 'Get NFTs in Collection',
-                                id: 'iota-evm/how-tos/core-contracts/nft/get-nft-in-collection',
+                                id: 'iota-evm/how-tos/core-contracts/objects/get-nft-in-collection',
                             },
                             {
                                 type: 'doc',
                                 label: 'Get On-Chain NFT Data',
-                                id: 'iota-evm/how-tos/core-contracts/nft/get-nft-data',
+                                id: 'iota-evm/how-tos/core-contracts/objects/get-nft-data',
                             },
                         ],
                     },

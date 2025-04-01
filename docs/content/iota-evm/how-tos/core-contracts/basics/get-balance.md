@@ -11,7 +11,7 @@ teams:
 
 # Get Balance
 
-Once you have your L1 assets on L2, you might want to check their balance. This guide explains how to do so by calling the three functions `getL2BalanceBaseTokens` and `getL2ObjectsCount` for the corresponding token types.
+Once you have your L1 assets on L2, you might want to check their balance. This guide explains how to do so by calling the three functions `getL2BalanceBaseTokens`, `getL2BalanceCoin` and `getL2ObjectsCount` for the corresponding token types.
 
 ## Example Code
 
@@ -27,7 +27,7 @@ ISCAgentID memory agentID = ISC.sandbox.getSenderAccount();
 uint64 baseBalance = ISC.accounts.getL2BalanceBaseTokens(agentID);
 ```
 
-3. To get the number of NFTs, use `ISC.accounts.getL2ObjectsCount` with the `agentID`.
+3. To get the number of NFTs/Objects, use `ISC.accounts.getL2ObjectsCount` with the `agentID`.
 
 ```solidity
 uint256 nfts = ISC.accounts.getL2ObjectsCount(agentID);

@@ -36,7 +36,7 @@ You can think of the smart contract state as a partition of the chain's data sta
 smart contract program itself.
 
 The smart contract also owns an account on the chain, stored as part of the chain state.
-The smart contract account represents the balances of base tokens, native tokens, and NFTs controlled by the smart
+The smart contract account represents the balances of base tokens, and NFTs controlled by the smart
 contract.
 
 The smart contract program can access its state and account through an interface layer called the _Sandbox_.

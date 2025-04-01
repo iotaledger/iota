@@ -38,7 +38,7 @@ import "@iota/iscmagic/ISC.sol";
 ```
 
 The Magic contract also provides proxy ERC20 contracts to manipulate ISC base
-tokens and native tokens on L2.
+tokens and coins on L2.
 
 :::info Reference Docs
 
