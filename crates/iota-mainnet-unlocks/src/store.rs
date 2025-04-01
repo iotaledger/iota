@@ -86,7 +86,7 @@ mod tests {
     #[test]
     fn new() {
         let store = MainnetUnlocksStore::new().unwrap();
-        assert_eq!(store.entries.len(), 55);
+        assert_eq!(store.entries.len(), 105);
     }
 
     fn store(csv: &str) -> MainnetUnlocksStore {
