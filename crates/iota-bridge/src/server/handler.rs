@@ -189,7 +189,7 @@ where
             Err(e) => {
                 match e {
                     // Only cache non-transient errors
-                    BridgeError::GovernanceActionIsNotApproved { .. }
+                    BridgeError::GovernanceActionIsNotApproved
                     | BridgeError::ActionIsNotGovernanceAction(..)
                     | BridgeError::BridgeEventInUnrecognizedIotaPackage
                     | BridgeError::BridgeEventInUnrecognizedEthContract
@@ -641,16 +641,16 @@ mod tests {
         // action_3 is not signable
         assert!(matches!(
             signer_with_cache.sign(action_3.clone()).await.unwrap_err(),
-            BridgeError::GovernanceActionIsNotApproved { .. }
+            BridgeError::GovernanceActionIsNotApproved
         ));
         // error is cached
         let entry_ = signer_with_cache.get_testing_only(action_3.clone()).await;
         assert!(matches!(
             entry_.unwrap().lock().await.clone().unwrap().unwrap_err(),
-            BridgeError::GovernanceActionIsNotApproved { .. }
+            BridgeError::GovernanceActionIsNotApproved
         ));
 
-        // Non governace action is not signable
+        // Non governance action is not signable
         let action_4 = get_test_iota_to_eth_bridge_action(None, None, None, None, None, None, None);
         assert!(matches!(
             signer_with_cache.sign(action_4.clone()).await.unwrap_err(),

@@ -3422,6 +3422,23 @@
       }
     },
     {
+      "name": "iotax_getCirculatingSupply",
+      "tags": [
+        {
+          "name": "Coin Query API"
+        }
+      ],
+      "description": "Return the circulating supply summary.",
+      "params": [],
+      "result": {
+        "name": "IotaCirculatingSupply",
+        "required": true,
+        "schema": {
+          "$ref": "#/components/schemas/IotaCirculatingSupply"
+        }
+      }
+    },
+    {
       "name": "iotax_getCoinMetadata",
       "tags": [
         {
@@ -7717,6 +7734,34 @@
           },
           "storage_rebate": {
             "$ref": "#/components/schemas/BigInt_for_uint64"
+          }
+        }
+      },
+      "IotaCirculatingSupply": {
+        "description": "Provides a summary of the circulating IOTA supply.",
+        "type": "object",
+        "required": [
+          "atCheckpoint",
+          "circulatingSupplyPercentage",
+          "value"
+        ],
+        "properties": {
+          "atCheckpoint": {
+            "description": "Timestamp (UTC) when the circulating supply was calculated.",
+            "type": "integer",
+            "format": "uint64",
+            "minimum": 0.0
+          },
+          "circulatingSupplyPercentage": {
+            "description": "Percentage of total supply that is currently circulating (range: 0.0 to 1.0).",
+            "type": "number",
+            "format": "double"
+          },
+          "value": {
+            "description": "Circulating supply in NANOS at the given timestamp.",
+            "type": "integer",
+            "format": "uint64",
+            "minimum": 0.0
           }
         }
       },

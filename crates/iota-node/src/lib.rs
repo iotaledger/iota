@@ -2043,7 +2043,7 @@ pub async fn build_http_server(
             state.clone(),
             kv_store.clone(),
             metrics.clone(),
-        ))?;
+        )?)?;
 
         // if run_with_range is enabled we want to prevent any transactions
         // run_with_range = None is normal operating conditions
