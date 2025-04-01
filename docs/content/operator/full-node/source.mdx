@@ -19,12 +19,28 @@ import Genesis from './../../_snippets/operator/genesis.mdx'
 
 <Ports/>
 
-## 0. Software requirements
+## 1. Software requirements
 
-IOTA recommends running IOTA full nodes on Linux. IOTA supports the Ubuntu and Debian distributions. You can also run an IOTA full node on macOS.
+- Linux (recommended for running nodes, mandatory for systemd commands below). IOTA recommends Ubuntu or Debian. Building from source also works on macOS.
+# TODO in 6017 build node with stable to double check stable is enough
+- Rust/cargo stable >1.85 . If needed, [update Rust](https://www.rust-lang.org/tools/install).
 
-Make sure to [update Rust](https://www.rust-lang.org/tools/install).
 
+## 2. Run the installer script
+# TODO in 6017 change branch last before merging ??
+# TODO in 6017 fix error in script when downloading with curl: [ Linux / Darwin
+```shell
+curl -sSf https://raw.githubusercontent.com/iotaledger/iota/refs/heads/docs/further-node-operator-docs-improvements/setups/fullnode/systemd/setup.sh | sh
+```
+
+You can override these values when running the script (optional):
+# TODO in 6017 re-check before PR that these var names are still correct (also make this a table)
+- NETWORK: valid values are "testnet" or "mainnet"
+- CLONE_DIR: directory to clone a fresh copy of the iota repo into
+- CONFIG_DIR: directory for storing iota-node config files
+
+
+# TODO in 6017 remove (-> script)
 Use the following command to install additional Linux dependencies.
 
 ```shell
@@ -45,6 +61,7 @@ clang \
 cmake
 ```
 
+# TODO in 6017 remove (-> script)
 ## 1. Clone the IOTA repository
 
 1. The first thing you need to do to set up your full node is clone the IOTA repository, you can use the following command or download it from [GitHub](https://github.com/iotaledger/iota):
@@ -53,32 +70,45 @@ cmake
 git clone https://github.com/iotaledger/iota.git
 ```
 
+# TODO in 6017 remove (-> script)
 2. Once you have download the source code, move into the newly generated `iota` directory and check out the branch associated to the [network](../../developer/getting-started/connect.mdx#iota-networks) you want to run, for example, `testnet`:
 
 ```bash
 git checkout testnet
 ```
 
+# TODO in 6017 remove (-> script)
+## 3. Build `iota-node` Binary
+
+Run the following command to build the `iota-node` binary.
+
+```shell
+cargo build --release --bin iota-node
+```
+
+The built binary is located in `./target/release/iota-node`.
+
+# TODO in 6017 remove (-> script)
 ## 2. Configure the IOTA Full Node
 
 Open a terminal or console in the `iota` directory you downloaded in the previous steps to complete the following:
 
-1. Install the required dependencies by running the following command:
 
-```bash
-cargo install
-```
 
+# TODO in 6017 remove (-> script)
 2. Make a copy of the [full node YAML template](https://github.com/iotaledger/iota/blob/develop/crates/iota-config/data/fullnode-template.yaml):
 
 ```bash
 cp crates/iota-config/data/fullnode-template.yaml fullnode.yaml
 ```
 
+# TODO in 6017 remove (-> script)
 3. Download the genesis and migration blob for the network to use:
 
    <Genesis/>
 
+
+# TODO in 6017 move to troubleshooting paragraph below
 4. (For Testnet or Devnet) Edit the `fullnode.yaml` file to include peer nodes for state synchronization. Append the following to the end of the current configuration:
 
     <Tabs groupId="network" queryString>
@@ -110,6 +140,7 @@ cp crates/iota-config/data/fullnode-template.yaml fullnode.yaml
 
     </Tabs>
 
+# TODO in 6017 remove (-> script)
 5. Set Up Archival Fallback
 
 This allows nodes that fall behind to catch up by downloading archive data rather than relying on synchronization. For more details about archives, see [IOTA Archives](configs/archives).
@@ -126,7 +157,9 @@ state-archive-read-config:
     use-for-pruning-watermark: false
 ```
 
+
 6. (Optional, skip this step to accept the default paths to resources). Edit the `fullnode.yaml` file to use custom paths.
+  # TODO in 6017 double check it's done via yamls ??
     1. Update the `db-path` field with the path to the full node database.
         ```yaml
         db-path: "/db-files/iota-fullnode"`
@@ -141,15 +174,7 @@ state-archive-read-config:
         migration-tx-data-path: "/opt/iota/config/migration.blob"
         ```
 
-## 3. Build `iota-node` Binary
 
-Run the following command to build the `iota-node` binary.
-
-```shell
-cargo build --release --bin iota-node
-```
-
-The built binary is located in `./target/release/iota-node`.
 
 ## 4. Start Services
 
