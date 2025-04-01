@@ -22,12 +22,12 @@ interface UseGetObjectOrPastObject extends IotaObjectResponse {
 
 export function useGetObjectOrPastObject(
     objectId?: string | null,
-    version?: string,
+    pastVersionHint?: string,
 ): UseQueryResult<UseGetObjectOrPastObject> {
     const normalizedObjId = objectId && normalizeIotaAddress(objectId);
     const client = useIotaClient();
     return useQuery({
-        queryKey: ['objectOrPastObject', normalizedObjId, version],
+        queryKey: ['objectOrPastObject', normalizedObjId, pastVersionHint],
         async queryFn() {
             if (!normalizedObjId) {
                 return null;
@@ -40,7 +40,7 @@ export function useGetObjectOrPastObject(
             const isNotExistsOrDeleted =
                 getObjectResponse?.error?.code === 'notExists' ||
                 getObjectResponse?.error?.code === 'deleted';
-            const shouldTryGetPastObject = version !== undefined && isNotExistsOrDeleted;
+            const shouldTryGetPastObject = pastVersionHint !== undefined && isNotExistsOrDeleted;
 
             /**
              * Calls tryGetPastObject and maps cases to a IotaObjectResponse
@@ -81,7 +81,7 @@ export function useGetObjectOrPastObject(
             };
 
             const iotaObjectResponse = shouldTryGetPastObject
-                ? await tryGetPastObject(normalizedObjId, Number(version))
+                ? await tryGetPastObject(normalizedObjId, Number(pastVersionHint))
                 : getObjectResponse;
 
             const isViewingPastVersion = shouldTryGetPastObject;

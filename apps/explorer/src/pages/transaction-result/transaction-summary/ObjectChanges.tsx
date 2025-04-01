@@ -177,7 +177,9 @@ function ObjectDetail({
                     {objectId && (
                         <ObjectLink
                             objectId={objectId}
-                            queryStrings={version !== undefined ? { version } : undefined}
+                            queryStrings={
+                                version !== undefined ? { pastVersionHint: version } : undefined
+                            }
                         />
                     )}
                 </div>

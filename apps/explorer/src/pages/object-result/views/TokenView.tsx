@@ -29,13 +29,13 @@ enum FieldCategory {
 
 function useObjectFieldsCard(id: string) {
     const [searchParams] = useSearchParamsMerged();
-    const version = searchParams.get('version') ?? undefined;
+    const pastVersionHint = searchParams.get('pastVersionHint') ?? undefined;
 
     const {
         data: iotaObjectResponseData,
         isPending,
         isError,
-    } = useGetObjectOrPastObject(id, version);
+    } = useGetObjectOrPastObject(id, pastVersionHint);
 
     const objectType =
         (iotaObjectResponseData?.data?.type ??

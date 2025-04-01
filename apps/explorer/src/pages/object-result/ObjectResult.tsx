@@ -17,8 +17,11 @@ const PACKAGE_TYPE_NAME = 'Move Package';
 export function ObjectResult(): JSX.Element {
     const { id: objID } = useParams();
     const [searchParams] = useSearchParamsMerged();
-    const version = searchParams.get('version') ?? undefined;
-    const { data, isPending, isError, isFetched } = useGetObjectOrPastObject(objID!, version);
+    const pastVersionHint = searchParams.get('pastVersionHint') ?? undefined;
+    const { data, isPending, isError, isFetched } = useGetObjectOrPastObject(
+        objID!,
+        pastVersionHint,
+    );
 
     if (isPending) {
         return (
