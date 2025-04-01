@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use consensus_config::AuthorityIndex;
+use starfish_config::AuthorityIndex;
 use rstest::rstest;
 use tempfile::TempDir;
 
