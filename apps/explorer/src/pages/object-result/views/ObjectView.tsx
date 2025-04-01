@@ -216,10 +216,15 @@ interface ObjectViewProps {
 }
 
 export function ObjectView({ data }: ObjectViewProps): JSX.Element {
-    const [fileType, setFileType] = useState<undefined | string>(undefined);
+    const video = useResolveVideo(data);
     const display = data.data?.display?.data;
     const imgUrl = parseImageURL(display);
-    const video = useResolveVideo(data);
+
+    const { data: imageData } = useQuery({
+        queryKey: ['image-file-type', imgUrl],
+        queryFn: ({ signal }) => genFileTypeMsg(imgUrl, signal!),
+    });
+
     const name = extractName(display);
     const objectType = parseObjectType(data);
     const objOwner = data.data?.owner;
@@ -228,24 +233,13 @@ export function ObjectView({ data }: ObjectViewProps): JSX.Element {
     const lastTransactionBlockDigest = data.data?.previousTransaction;
 
     const heroImageTitle = name || display?.description || trimStdLibPrefix(objectType);
-    const heroImageSubtitle = video ? 'Video' : (fileType ?? '');
+    const heroImageSubtitle = video ? 'Video' : (imageData ?? '');
     const heroImageProps = {
         title: heroImageTitle,
         subtitle: heroImageSubtitle,
         src: imgUrl,
         video: video,
     };
-
-    const { data: imageData } = useQuery({
-        queryKey: ['image-file-type', imgUrl],
-        queryFn: ({ signal }) => genFileTypeMsg(imgUrl, signal!),
-    });
-
-    useEffect(() => {
-        if (imageData) {
-            setFileType(imageData);
-        }
-    }, [imageData]);
 
     return (
         <div className="flex flex-col gap-md">
