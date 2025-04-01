@@ -104,5 +104,11 @@ async fn main() -> Result<(), anyhow::Error> {
     println!("{:?}", total_supply);
     println!(" *** Total Supply ***\n ");
 
+    // IOTA Circulating Supply
+    let circulating_supply = client.coin_read_api().get_circulating_supply().await?;
+    println!(" *** IOTA Circulating Supply *** ");
+    println!("{:?}", circulating_supply);
+    println!(" *** IOTA Circulating Supply ***\n ");
+
     Ok(())
 }
