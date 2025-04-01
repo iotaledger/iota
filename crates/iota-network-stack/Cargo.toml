@@ -15,12 +15,12 @@ eyre.workspace = true
 futures.workspace = true
 http.workspace = true
 http-body.workspace = true
+hyper-util = { version = "0.1.4", features = ["tokio", "server-auto", "service"] }
 multiaddr = "0.17.0"
+once_cell.workspace = true
 pin-project-lite = "0.2.13"
 serde.workspace = true
-once_cell.workspace = true
 snap.workspace = true
-hyper-util = { version = "0.1.4", features = ["tokio", "server-auto", "service"] }
 tokio = { workspace = true, features = ["sync", "rt", "macros"] }
 tokio-stream.workspace = true
 tonic.workspace = true
