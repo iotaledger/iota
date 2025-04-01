@@ -1,7 +1,10 @@
 // Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::str::FromStr;
+use std::{
+    str::FromStr,
+    time::{Duration, UNIX_EPOCH},
+};
 
 use chrono::{Utc, prelude::DateTime};
 use clap::Parser;
@@ -20,7 +23,8 @@ use iota_sdk::{IotaClient, wallet_context::WalletContext};
 use iota_types::{
     IOTA_CLOCK_OBJECT_ID, IOTA_FRAMEWORK_PACKAGE_ID, TypeTag,
     base_types::{IotaAddress, ObjectID},
-    collection_types::{Entry, VecMap},
+    coin::Coin,
+    collection_types::{Entry, LinkedTableNode, VecMap},
     digests::ChainIdentifier,
 };
 use move_core_types::{
@@ -41,9 +45,43 @@ use crate::{
     key_identity::{KeyIdentity, get_identity_address},
 };
 
+const AUCTION_PACKAGE_ADDRESS: &str =
+    "0xe24e72f0623ea19b4b2ec847e2b208033c6f7938b50e31efe4996aa2f23d4477";
+const AUCTION_HOUSE_ID: &str = "0x85f493ba298b68af3e4812385460e21ddc5aa61273efd9dc54aa6919848090e4";
+
+/// Commands related to the auction system
+#[derive(Parser)]
+pub enum AuctionCommand {
+    /// Place a new bid
+    Bid {
+        domain: Domain,
+        coin: ObjectID,
+        #[command(flatten)]
+        opts: OptsWithGas,
+    },
+    /// Claim the name if the auction winner is the sender
+    Claim {
+        domain: Domain,
+        #[command(flatten)]
+        opts: OptsWithGas,
+    },
+    /// Get metadata of an auction
+    Metadata { domain: Domain },
+    /// Start an auction, if it's not started yet, and make the first bid
+    Start {
+        domain: Domain,
+        coin: ObjectID,
+        #[command(flatten)]
+        opts: OptsWithGas,
+    },
+}
+
 /// Tool to register and manage domains and subdomains
 #[derive(Parser)]
 pub enum NameCommand {
+    /// Auction related operations, like bidding and claiming
+    #[command(subcommand)]
+    Auction(AuctionCommand),
     /// Burn an expired IOTA-Names NFT
     Burn {
         /// The full name of the domain. Ex. my-domain.iota
@@ -149,7 +187,76 @@ impl NameCommand {
         self,
         context: &mut WalletContext,
     ) -> Result<NameCommandResult, anyhow::Error> {
+        // TODO remove when we get then through dynamic fields
+        // https://github.com/iotaledger/iota-names/issues/90
+        let auction_package_address = IotaAddress::from_str(AUCTION_PACKAGE_ADDRESS)?;
+        let auction_house_id = ObjectID::from_str(AUCTION_HOUSE_ID)?;
+
         Ok(match self {
+            Self::Auction(AuctionCommand::Bid { domain, coin, opts }) => NameCommandResult::Client(
+                IotaClientCommands::Call {
+                    package: auction_package_address.into(),
+                    module: "auction".to_owned(),
+                    function: "place_bid".to_owned(),
+                    type_args: Default::default(),
+                    args: vec![
+                        IotaJsonValue::from_object_id(auction_house_id),
+                        IotaJsonValue::new(serde_json::to_value(domain.to_string())?)?,
+                        IotaJsonValue::from_object_id(coin),
+                        IotaJsonValue::from_object_id(IOTA_CLOCK_OBJECT_ID),
+                    ],
+                    gas_price: None,
+                    opts,
+                }
+                .execute(context)
+                .await?,
+            ),
+            Self::Auction(AuctionCommand::Claim { domain, opts }) => {
+                let mut args = vec![
+                    "--move-call iota::tx_context::sender".to_string(),
+                    "--assign sender".to_string(),
+                    format!(
+                        "--move-call {}::auction::claim @{} '{domain}' @{IOTA_CLOCK_OBJECT_ID}",
+                        auction_package_address, auction_house_id,
+                    ),
+                    "--assign nft".to_string(),
+                    "--transfer-objects [nft] sender".to_string(),
+                ];
+                opts.append_args(&mut args);
+
+                NameCommandResult::Client(
+                    IotaClientCommands::PTB(PTB { args })
+                        .execute(context)
+                        .await?,
+                )
+            }
+            Self::Auction(AuctionCommand::Metadata { domain }) => {
+                NameCommandResult::AuctionMetadata(get_auction(&domain, context).await?)
+            }
+            Self::Auction(AuctionCommand::Start { domain, coin, opts }) => {
+                let client = context.get_client().await?;
+                let iota_names_config = get_iota_names_config(&client).await?;
+
+                NameCommandResult::Client(
+                    IotaClientCommands::Call {
+                        package: auction_package_address.into(),
+                        module: "auction".to_owned(),
+                        function: "start_auction_and_place_bid".to_owned(),
+                        type_args: Default::default(),
+                        args: vec![
+                            IotaJsonValue::from_object_id(auction_house_id),
+                            IotaJsonValue::from_object_id(iota_names_config.object_id),
+                            IotaJsonValue::new(serde_json::to_value(domain.to_string())?)?,
+                            IotaJsonValue::from_object_id(coin),
+                            IotaJsonValue::from_object_id(IOTA_CLOCK_OBJECT_ID),
+                        ],
+                        gas_price: None,
+                        opts,
+                    }
+                    .execute(context)
+                    .await?,
+                )
+            }
             Self::Burn { domain, opts } => {
                 let nft = get_owned_nft_by_name(&domain, context).await?;
 
@@ -479,6 +586,8 @@ impl NameCommand {
 #[derive(Serialize)]
 #[serde(untagged)]
 pub enum NameCommandResult {
+    Auction(IotaClientCommandResult),
+    AuctionMetadata(Auction),
     Client(IotaClientCommandResult),
     Lookup {
         domain: Domain,
@@ -495,6 +604,30 @@ pub enum NameCommandResult {
 impl std::fmt::Display for NameCommandResult {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
+            Self::Auction(client_result) => client_result.fmt(f),
+            Self::AuctionMetadata(auction) => {
+                let start_datetime = DateTime::<Utc>::from(
+                    UNIX_EPOCH + Duration::from_millis(auction.start_timestamp_ms),
+                )
+                .format("%Y-%m-%d %H:%M:%S.%f UTC")
+                .to_string();
+                let end_datetime = DateTime::<Utc>::from(
+                    UNIX_EPOCH + Duration::from_millis(auction.end_timestamp_ms),
+                )
+                .format("%Y-%m-%d %H:%M:%S.%f UTC")
+                .to_string();
+
+                write!(
+                    f,
+                    "start:\t{start_datetime}\n\
+                    end:\t{end_datetime}\n\
+                    winner:\t{}\n\
+                    bid:\t{} ({})",
+                    auction.winner,
+                    auction.current_bid.balance.value(),
+                    auction.current_bid.id.id.bytes
+                )
+            }
             Self::Client(client_result) => client_result.fmt(f),
             Self::Lookup {
                 domain,
@@ -841,4 +974,47 @@ async fn select_coin_for_payment(
             }
         }
     })
+}
+
+#[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
+pub struct Auction {
+    pub domain: Domain,
+    pub start_timestamp_ms: u64,
+    pub end_timestamp_ms: u64,
+    pub winner: IotaAddress,
+    pub current_bid: Coin,
+    pub nft: IotaNamesRegistration,
+}
+
+#[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
+pub struct AuctionEntry {
+    pub id: ObjectID,
+    pub domain: Domain,
+    pub node: LinkedTableNode<Domain, Auction>,
+}
+
+async fn get_auction(domain: &Domain, context: &mut WalletContext) -> anyhow::Result<Auction> {
+    let client = context.get_client().await?;
+    let iota_names_config = get_iota_names_config(&client).await?;
+    let domain_type_tag = Domain::type_(iota_names_config.package_address);
+    let domain_bytes = bcs::to_bytes(domain).unwrap();
+    // TODO will nbe removed after https://github.com/iotaledger/iota-names/issues/90
+    let object_id = iota_types::dynamic_field::derive_dynamic_field_id(
+        ObjectID::from_str("0xfe3e309abcb96b7bf4cf701b3f0514c9dc9a1b1c670645d908f27c67de4ae81a")?,
+        &TypeTag::Struct(Box::new(domain_type_tag)),
+        &domain_bytes,
+    )?;
+
+    let entry = client
+        .read_api()
+        .get_object_with_options(object_id, IotaObjectDataOptions::new().with_bcs())
+        .await?
+        .into_object()?
+        .bcs
+        .expect("missing bcs")
+        .try_into_move()
+        .expect("invalid move type")
+        .deserialize::<AuctionEntry>()?;
+
+    Ok(entry.node.value)
 }

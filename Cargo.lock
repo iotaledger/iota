@@ -7311,7 +7311,7 @@ dependencies = [
  "iota-types",
  "move-core-types",
  "serde",
- "thiserror",
+ "thiserror 1.0.64",
 ]
 
 [[package]]
