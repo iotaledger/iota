@@ -3,9 +3,9 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import {
-   type BalanceChange,
-   type ObjectChange,
-   type ObjectChangeSummary,
+    type BalanceChange,
+    type ObjectChange,
+    type ObjectChangeSummary,
     VirtualList,
     useRecognizedPackages,
     useTransactionSummary,
