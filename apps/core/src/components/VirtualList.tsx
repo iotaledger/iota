@@ -40,8 +40,9 @@ export function VirtualList<T>({
         estimateSize: (index) => {
             if (index > items.length - 1 && hasNextPage) {
                 return 20;
+            } else {
+                return estimateSize(index);
             }
-            return estimateSize(index);
         },
     });
 
