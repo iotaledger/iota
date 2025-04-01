@@ -18,8 +18,7 @@ export function ObjectResult(): JSX.Element {
     const { id: objID } = useParams();
     const [searchParams] = useSearchParamsMerged();
     const version = searchParams.get('version') ?? undefined;
-    const { data, isPending, isError, isFetched } =
-        useGetObjectOrPastObject(objID!, version);
+    const { data, isPending, isError, isFetched } = useGetObjectOrPastObject(objID!, version);
 
     if (isPending) {
         return (
@@ -33,7 +32,8 @@ export function ObjectResult(): JSX.Element {
         );
     }
 
-    const isPageError = isError || (data?.error && data?.isDeletedVersion === false) || (isFetched && !data);
+    const isPageError =
+        isError || (data?.error && data?.isDeletedVersion === false) || (isFetched && !data);
 
     const resp = data && !isPageError ? translate(data) : null;
     const isPackage = resp ? resp.objType === PACKAGE_TYPE_NAME : false;
