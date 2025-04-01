@@ -129,9 +129,9 @@
         "tmp": "^0.2.3",
         "ts-retry-promise": "^0.8.1",
         "typescript": "^5.5.3",
-        "vite": "^5.3.3",
+        "vite": "^5.4.12",
         "vitest": "^2.1.9",
-        "wait-on": "^7.2.0",
+        "wait-on": "^8.0.1",
         "ws": "^8.18.0"
     },
     "dependencies": {
