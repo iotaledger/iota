@@ -5,6 +5,7 @@
 /sdk/ @iotaledger/tooling
 
 /consensus/ @iotaledger/consensus
+/consensus-starfish/ @iotaledger/consensus
 
 # Crates
 /crates/bin-version/ @iotaledger/dev-tools
