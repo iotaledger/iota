@@ -7,7 +7,6 @@ export * from './useGetValidatorsEvents';
 export * from './useGetValidatorsApy';
 export * from './useGetTransferAmount';
 export * from './useGetObject';
-export * from './useTryGetPastObject';
 export * from './useGetObjectOrPastObject';
 export * from './useGetDynamicFields';
 export * from './useGetTimeBeforeEpochNumber';
