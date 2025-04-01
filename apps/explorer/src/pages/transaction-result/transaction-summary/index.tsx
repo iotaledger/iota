@@ -3,14 +3,14 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import {
-    BalanceChange,
-    ObjectChange,
-    ObjectChangeSummary,
+   type BalanceChange,
+   type ObjectChange,
+   type ObjectChangeSummary,
     VirtualList,
     useRecognizedPackages,
     useTransactionSummary,
 } from '@iota/core';
-import { OwnedObjectRef, type IotaTransactionBlockResponse } from '@iota/iota-sdk/client';
+import type { OwnedObjectRef, IotaTransactionBlockResponse } from '@iota/iota-sdk/client';
 import { BalanceChanges } from './BalanceChanges';
 import { ObjectChanges } from './ObjectChanges';
 import { UpgradedSystemPackages } from './UpgradedSystemPackages';

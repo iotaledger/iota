@@ -33,7 +33,7 @@ export function UpgradedSystemPackages({ data }: { data: OwnedObjectRef[] }): JS
                             {data.map((object) => {
                                 const { objectId } = object.reference;
                                 return (
-                                    <div className="flex flex-col gap-y-sm px-md--rs py-xs">
+                                    <div className="flex flex-col gap-y-sm px-md--rs py-xs" key={objectId}>
                                         <KeyValueInfo
                                             keyText="Package"
                                             value={<ObjectLink objectId={objectId} />}
