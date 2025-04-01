@@ -1,12 +1,14 @@
 // Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{collections::BTreeMap, fs, path::PathBuf};
+use std::collections::BTreeMap;
 
 use anyhow::{Context, Result};
 use chrono::{DateTime, Utc};
 use csv::ReaderBuilder;
 use serde::{Deserialize, Serialize};
+
+use crate::aggregated_data::AGGREGATED_DATA_CSV;
 
 /// File name of the mainnet unlock data.
 pub const INPUT_FILE: &str = "aggregated_mainnet_unlocks.csv";
@@ -30,16 +32,8 @@ pub struct MainnetUnlocksStore {
 
 impl MainnetUnlocksStore {
     /// Creates a new store with the aggregated unlock data for mainnet.
-    /// Loads the aggregated token unlock data from the given JSON file at the
-    /// crate root.
     pub fn new() -> Result<Self> {
-        let crate_dir = env!("CARGO_MANIFEST_DIR");
-        let path = PathBuf::from(crate_dir).join("data").join(INPUT_FILE);
-
-        let data = fs::read_to_string(&path)
-            .with_context(|| format!("could not read locked supply file: {:?}", path))?;
-
-        Self::from_csv_str(&data)
+        Self::from_csv_str(AGGREGATED_DATA_CSV)
     }
 
     /// Parses the given CSV string into a `MainnetUnlocksStore`.
@@ -88,6 +82,12 @@ mod tests {
     use chrono::{TimeZone, Utc};
 
     use super::*;
+
+    #[test]
+    fn new() {
+        let store = MainnetUnlocksStore::new().unwrap();
+        assert_eq!(store.entries.len(), 105);
+    }
 
     fn store(csv: &str) -> MainnetUnlocksStore {
         MainnetUnlocksStore::from_csv_str(csv).unwrap()
