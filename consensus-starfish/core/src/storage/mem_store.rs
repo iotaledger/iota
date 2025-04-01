@@ -7,7 +7,7 @@ use std::{
     ops::Bound::Included,
 };
 
-use consensus_config::AuthorityIndex;
+use starfish_config::AuthorityIndex;
 use parking_lot::RwLock;
 
 use super::{Store, WriteBatch};
