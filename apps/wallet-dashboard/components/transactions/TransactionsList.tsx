@@ -2,8 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { useCurrentAccount } from '@iota/dapp-kit';
-import { VirtualList, TransactionTile } from '@/components';
-import { useQueryTransactionsByAddress } from '@iota/core';
+import { TransactionTile } from '@/components';
+import { VirtualList, useQueryTransactionsByAddress } from '@iota/core';
 import { getExtendedTransaction } from '@/lib/utils/transaction';
 import { IotaTransactionBlockResponse } from '@iota/iota-sdk/client';
 

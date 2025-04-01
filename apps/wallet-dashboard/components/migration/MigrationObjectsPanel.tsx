@@ -24,9 +24,9 @@ import { Close, Warning } from '@iota/apps-ui-icons';
 import clsx from 'clsx';
 import { useState } from 'react';
 import { MigrationObjectDetailsCard } from './migration-object-details-card';
-import { VirtualList } from '../VirtualList';
 import { filterMigrationObjects } from '@/lib/utils';
 import { MigrationObjectLoading } from './MigrationObjectLoading';
+import { VirtualList } from '@iota/core';
 
 const FILTERS = {
     migratable: STARDUST_MIGRATABLE_OBJECTS_FILTER_LIST,
