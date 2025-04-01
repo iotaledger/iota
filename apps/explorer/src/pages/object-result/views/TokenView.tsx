@@ -5,14 +5,22 @@
 import {
     ButtonSegment,
     ButtonSegmentType,
+    InfoBox,
+    InfoBoxStyle,
+    InfoBoxType,
     SegmentedButton,
     SegmentedButtonType,
 } from '@iota/apps-ui-kit';
-import { useGetDynamicFields, useGetObject } from '@iota/core';
+import { useGetDynamicFields, useGetObjectOrPastObject } from '@iota/core';
 import { useIotaClientQuery } from '@iota/dapp-kit';
 import { type IotaObjectResponse } from '@iota/iota-sdk/client';
 import { useState } from 'react';
-import { DynamicFieldsCard, ObjectFieldsCard, TransactionBlocksForAddress } from '~/components';
+import {
+    DynamicFieldsCard,
+    ObjectFieldsCard,
+    TransactionBlocksForAddress,
+    useSearchParamsMerged,
+} from '~/components';
 
 enum FieldCategory {
     Default = 'fields',
@@ -20,7 +28,14 @@ enum FieldCategory {
 }
 
 function useObjectFieldsCard(id: string) {
-    const { data: iotaObjectResponseData, isPending, isError } = useGetObject(id);
+    const [searchParams] = useSearchParamsMerged();
+    const version = searchParams.get('version') ?? undefined;
+
+    const {
+        data: iotaObjectResponseData,
+        isPending,
+        isError,
+    } = useGetObjectOrPastObject(id, version);
 
     const objectType =
         (iotaObjectResponseData?.data?.type ??
@@ -33,7 +48,7 @@ function useObjectFieldsCard(id: string) {
     // Get the normalized struct for the object
     const {
         data: normalizedStructData,
-        isPending: loadingNormalizedStruct,
+        isLoading: loadingNormalizedStruct,
         isError: errorNormalizedMoveStruct,
     } = useIotaClientQuery(
         'getNormalizedMoveStruct',
@@ -58,6 +73,7 @@ function useObjectFieldsCard(id: string) {
 
 interface FieldsContentProps {
     objectId: string;
+    version?: string;
 }
 
 enum FieldCategory {
@@ -77,7 +93,7 @@ export function FieldsContent({ objectId }: FieldsContentProps) {
     const fieldsCount = normalizedStructData?.fields.length;
     const FIELDS_CATEGORIES = [
         {
-            label: `${fieldsCount} Fields`,
+            label: `${fieldsCount ? fieldsCount : ''} Fields`,
             value: FieldCategory.Fields,
         },
         {
@@ -92,6 +108,16 @@ export function FieldsContent({ objectId }: FieldsContentProps) {
 
     const renderDynamicFields = !!dynamicFieldsData?.pages?.[0].data.length;
 
+    if (!fieldsCount && !renderDynamicFields) {
+        return (
+            <InfoBox
+                title="Couldn't load fields for this object."
+                type={InfoBoxType.Warning}
+                style={InfoBoxStyle.Elevated}
+            />
+        );
+    }
+
     return (
         <div>
             <SegmentedButton type={SegmentedButtonType.Transparent}>
@@ -102,7 +128,11 @@ export function FieldsContent({ objectId }: FieldsContentProps) {
                         label={label}
                         selected={activeTab === value}
                         type={ButtonSegmentType.Underlined}
-                        disabled={value === FieldCategory.Dynamic && !renderDynamicFields}
+                        disabled={
+                            (value === FieldCategory.Fields &&
+                                (!fieldsCount || fieldsCount === 0)) ||
+                            (value === FieldCategory.Dynamic && !renderDynamicFields)
+                        }
                     />
                 ))}
             </SegmentedButton>

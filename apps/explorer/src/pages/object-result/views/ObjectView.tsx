@@ -278,7 +278,7 @@ export function ObjectView({ data }: ObjectViewProps): JSX.Element {
                     </div>
                 )}
 
-                {objectType && (
+                {objectType && objectType !== 'unknown' && (
                     <div style={{ gridArea: 'type' }}>
                         <TypeCard objectType={objectType} />
                     </div>

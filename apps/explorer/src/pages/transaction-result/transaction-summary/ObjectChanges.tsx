@@ -149,9 +149,15 @@ interface ObjectDetailProps {
     objectType: string;
     objectId: string;
     display?: DisplayFieldsResponse;
+    version?: string;
 }
 
-function ObjectDetail({ objectType, objectId, display }: ObjectDetailProps): JSX.Element | null {
+function ObjectDetail({
+    objectType,
+    objectId,
+    display,
+    version,
+}: ObjectDetailProps): JSX.Element | null {
     const separator = '::';
     const objectTypeSplit = objectType?.split(separator) || [];
     const typeName = objectTypeSplit.slice(2).join(separator);
@@ -168,7 +174,12 @@ function ObjectDetail({ objectType, objectId, display }: ObjectDetailProps): JSX
             headerContent={
                 <div className="flex shrink-0 items-center gap-xxs">
                     <Badge type={BadgeType.Neutral} label={name} />
-                    {objectId && <ObjectLink objectId={objectId} />}
+                    {objectId && (
+                        <ObjectLink
+                            objectId={objectId}
+                            queryStrings={version !== undefined ? { version } : undefined}
+                        />
+                    )}
                 </div>
             }
             panelContent={
@@ -238,6 +249,7 @@ function ObjectChangeEntries({
                         objectId={change.objectId}
                         objectType={change.objectType}
                         display={change.display}
+                        version={change.version}
                     />
                 )
             ),
