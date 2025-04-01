@@ -16,7 +16,7 @@ module ctf::vault{
         user: address
     }
 
-    public struct Receipt {zero
+    public struct Receipt {
         id: ID,
         a_to_b: bool,
         repay_amount: u64

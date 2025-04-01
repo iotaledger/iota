@@ -23,5 +23,5 @@ fn main() {
     // Deserialize the bytes back into a Pizza struct.
     let pizza: Pizza = bcs::from_bytes(&data).expect("Deserialization failed");
 
-    println!("Expected Pizza Struct: {:?}", pizza);
+    println!("Expected Pizza Struct: {pizza:?}");
 }
