@@ -2,7 +2,6 @@ import React, { useState } from 'react';
 import {
   useSignAndExecuteTransaction,
 } from '@iota/dapp-kit';
-import { getFullnodeUrl } from '@iota/iota-sdk/client';
 import clsx from 'clsx';
 import { useConnectWallet, useWallets } from '@iota/dapp-kit';
 import { handleChallengeSubmit } from "../../utils/ctf-utils"
