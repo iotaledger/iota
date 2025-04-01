@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { useIotaClient } from '@iota/dapp-kit';
-import { IotaObjectResponse } from '@iota/iota-sdk/dist/cjs/client';
+import { IotaObjectResponse } from '@iota/iota-sdk/client';
 import { normalizeIotaAddress } from '@iota/iota-sdk/utils';
 import { useQuery } from '@tanstack/react-query';
 
