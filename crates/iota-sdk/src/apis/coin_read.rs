@@ -7,7 +7,7 @@ use std::{future, sync::Arc};
 use futures::{StreamExt, stream};
 use futures_core::Stream;
 use iota_json_rpc_api::CoinReadApiClient;
-use iota_json_rpc_types::{Balance, Coin, CoinPage, IotaCoinMetadata};
+use iota_json_rpc_types::{Balance, Coin, CoinPage, IotaCirculatingSupply, IotaCoinMetadata};
 use iota_types::{
     balance::Supply,
     base_types::{IotaAddress, ObjectID},
@@ -312,5 +312,26 @@ impl CoinReadApi {
     /// ```
     pub async fn get_total_supply(&self, coin_type: impl Into<String>) -> IotaRpcResult<Supply> {
         Ok(self.api.http.get_total_supply(coin_type.into()).await?)
+    }
+
+    /// Get the circulating supply for IOTA.
+    ///
+    /// # Examples
+    ///
+    /// ```rust,no_run
+    /// use iota_sdk::IotaClientBuilder;
+    ///
+    /// #[tokio::main]
+    /// async fn main() -> Result<(), anyhow::Error> {
+    ///     let iota = IotaClientBuilder::default().build_mainnet().await?;
+    ///     let circulating_supply = iota
+    ///         .coin_read_api()
+    ///         .get_circulating_supply()
+    ///         .await?;
+    ///     Ok(())
+    /// }
+    /// ```
+    pub async fn get_circulating_supply(&self) -> IotaRpcResult<IotaCirculatingSupply> {
+        Ok(self.api.http.get_circulating_supply().await?)
     }
 }

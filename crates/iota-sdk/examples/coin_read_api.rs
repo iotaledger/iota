@@ -15,6 +15,7 @@
 mod utils;
 
 use futures::{future, stream::StreamExt};
+use iota_types::gas_coin::NANOS_PER_IOTA;
 use utils::setup_for_read;
 
 #[tokio::main]
@@ -104,5 +105,10 @@ async fn main() -> Result<(), anyhow::Error> {
     println!("{:?}", total_supply);
     println!(" *** Total Supply ***\n ");
 
+    // IOTA Circulating supply
+    let circulating_supply = client.coin_read_api().get_circulating_supply().await?;
+    println!(" *** IOTA Circulating Supply *** ");
+    println!("{:?}", circulating_supply.value / NANOS_PER_IOTA);
+    println!(" *** IOTA Circulating Supply *** ");
     Ok(())
 }
