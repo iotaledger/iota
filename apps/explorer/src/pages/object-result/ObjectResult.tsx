@@ -18,7 +18,7 @@ export function ObjectResult(): JSX.Element {
     const { id: objID } = useParams();
     const [searchParams] = useSearchParamsMerged();
     const version = searchParams.get('version') ?? undefined;
-    const { data, isPending, isError, isFetched, isViewingPastVersion, isDeletedVersion } =
+    const { data, isPending, isError, isFetched } =
         useGetObjectOrPastObject(objID!, version);
 
     if (isPending) {
@@ -33,7 +33,7 @@ export function ObjectResult(): JSX.Element {
         );
     }
 
-    const isPageError = isError || (data?.error && !isDeletedVersion) || (isFetched && !data);
+    const isPageError = isError || (data?.error && data?.isDeletedVersion === false) || (isFetched && !data);
 
     const resp = data && !isPageError ? translate(data) : null;
     const isPackage = resp ? resp.objType === PACKAGE_TYPE_NAME : false;
@@ -48,9 +48,9 @@ export function ObjectResult(): JSX.Element {
                                 type="Object"
                                 title={resp?.id ?? ''}
                                 error={
-                                    isDeletedVersion
+                                    data?.isDeletedVersion
                                         ? 'This object was deleted with this version.'
-                                        : isViewingPastVersion
+                                        : data?.isViewingPastVersion
                                           ? 'This object was deleted. You are viewing a past version of this object.'
                                           : undefined
                                 }
