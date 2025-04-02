@@ -114,8 +114,7 @@ const config: PlaywrightTestConfig = {
         },
         // Localnet-based dev server:
         {
-            cwd: '../../',
-            command: 'pnpm explorer dev',
+            command: 'pnpm dev',
             port: 3000,
             timeout: 120 * 1000,
             reuseExistingServer: !process.env.CI,
