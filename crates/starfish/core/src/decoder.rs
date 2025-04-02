@@ -1,8 +1,8 @@
 // Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::committee::Committee;
-use crate::crypto::TransactionsCommitment;
+use starfish_config::committee::Committee;
+use starfish_config::crypto::TransactionsCommitment;
 use crate::encoder::{Encoder, ShardEncoder};
 use crate::types::{AuthorityIndex, CachedStatementBlock, Shard, VerifiedStatementBlock};
 use reed_solomon_simd::ReedSolomonDecoder;
