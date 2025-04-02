@@ -1,15 +1,156 @@
 ---
 title: Systemd Setup
+description: Learn how to set up a IOTA Validator using systemd.
 tags: [node-operation]
 teams:
   - iotaledger/node
 ---
 
-import Systemd from './../../../../setups/validator/systemd/README.md';
-import NodeHardwareRequirements from './../../_snippets/node-hardware-requirements.mdx'
+import Genesis from '../../_snippets/operator/genesis.mdx'
+import ValidatorRequirements from '../../_snippets/operator/validator-requirements-tab.mdx'
+import ValidatorPorts from '../../_snippets/operator/validator-ports.mdx'
+import ValidatorGenerateInfo from '../../_snippets/operator/validator-generate-info.mdx'
+import ValidatorDownloadConfig from '../../_snippets/operator/validator-download-config.mdx'
+import ValidatorP2P from '../../_snippets/operator/validator-p2p.mdx'
+import ValidatorJoinMonitor from '../../_snippets/operator/validator-join-monitor.mdx'
+
+<ValidatorRequirements/ >
+
+<ValidatorPorts />
+
+<ValidatorGenerateInfo />
+
+## 2. Setup Validator Node
+
+:::info Note
+
+Perform these steps on the server that will be running the validator instance.
+
+:::
 
 
-<NodeHardwareRequirements/ >
+### 2.1. Prepare the Environment
 
-<Systemd />
+```bash
+sudo useradd iota
+sudo mkdir -p /opt/iota/bin
+sudo mkdir -p /opt/iota/config
+sudo mkdir -p /opt/iota/db
+sudo mkdir -p /opt/iota/key-pairs
+sudo chown -R iota:iota /opt/iota
+```
+
+### 2.2. Build From Source
+
+First make sure to install all pre-requisites:
+```bash
+sudo apt update && sudo apt install -y curl git-all cmake gcc libssl-dev pkg-config libclang-dev libpq-dev build-essential
+```
+
+Build and install the `iota-node` and `iota-tool` binaries from source.
+
+<Tabs groupId="network">
+    <TabItem label="Mainnet" value="mainnet">
+      ```bash
+      git clone https://github.com/iotaledger/iota.git && cd iota
+      git checkout mainnet
+      cargo build --release --bin iota-node --bin iota-tool
+      mv ./target/release/iota-node /opt/iota/bin/iota-node
+      mv ./target/release/iota-tool /opt/iota/bin/iota-tool
+      ```
+    </TabItem>
+    <TabItem label="Testnet" value="testnet">
+      ```bash
+      git clone https://github.com/iotaledger/iota.git && cd iota
+      git checkout testnet
+      cargo build --release --bin iota-node --bin iota-tool
+      mv ./target/release/iota-node /opt/iota/bin/iota-node
+      mv ./target/release/iota-tool /opt/iota/bin/iota-tool
+      ```
+    </TabItem>
+</Tabs>
+
+### 2.3. Create a `systemd` Service
+
+```bash
+sudo tee /etc/systemd/system/iota-node.service > /dev/null <<EOF
+[Unit]
+Description=IOTA Node
+
+[Service]
+User=iota
+WorkingDirectory=/opt/iota/
+Environment=RUST_BACKTRACE=1
+Environment=RUST_LOG=info,iota_core=debug,consensus=debug,jsonrpsee=error
+ExecStart=/opt/iota/bin/iota-node --config-path /opt/iota/config/validator.yaml
+Restart=always
+
+[Install]
+WantedBy=multi-user.target
+EOF
+```
+
+After creating the `systemd` service, you should reload the daemon and enable the service:
+
+```bash
+sudo systemctl daemon-reload
+sudo systemctl enable iota-node.service
+```
+
+### 2.4. Download the Configuration Template
+
+```bash
+cd /opt/iota/config
+```
+
+<ValidatorDownloadConfig />
+
+### 2.5. Configure the P2P Settings
+
+<ValidatorP2P />
+
+### 2.6. Download the Genesis Blobs
+
+```bash
+cd /opt/iota/config
+```
+
+<Genesis />
+
+### 2.7. Copy the Validator Keys
+
+Copy the `protocol.key`, `network.key` and `authority.key` you created previously to the server and place them in `/opt/iota/key-pairs`.
+
+### 2.8. Download the Latest Formal Snapshot
+
+```bash
+cd /opt/iota
+```
+
+<Tabs groupId="network">
+    <TabItem label="Mainnet" value="mainnet">
+      ```bash
+      sudo -u iota /opt/iota/bin/iota-tool download-formal-snapshot --latest --genesis /opt/iota/config/genesis.blob --path /opt/iota/db/authorities_db --num-parallel-downloads 50 --no-sign-request --verify normal --network mainnet --verbose
+      ```
+    </TabItem>
+    <TabItem label="Testnet" value="testnet">
+      ```bash
+      sudo -u iota /opt/iota/bin/iota-tool download-formal-snapshot --latest --genesis /opt/iota/config/genesis.blob --path /opt/iota/db/authorities_db --num-parallel-downloads 50 --no-sign-request --verify normal --network testnet --verbose
+      ```
+    </TabItem>
+</Tabs>
+
+### 2.9. Start Your Validator Node
+
+```bash
+sudo systemctl start iota-node
+```
+
+You can follow the node logs with:
+```bash
+sudo journalctl -u iota-node -f
+```
+
+<ValidatorJoinMonitor />
+
 You can also check the [Monitoring](./monitoring.mdx) about metrics endpoint.

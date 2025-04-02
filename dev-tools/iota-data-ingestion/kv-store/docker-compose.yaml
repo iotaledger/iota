@@ -1,8 +1,8 @@
 services:
-  checkpoints-remote-store:
+  kv-remote-store:
     image: iotaledger/iota-data-ingestion
     volumes:
-      - ./config/config.yaml:/iota/config.yaml:r
+      - ./config.yaml:/iota/config.yaml:r
       - ./output:/iota/output
     command: >
       iota-data-ingestion
