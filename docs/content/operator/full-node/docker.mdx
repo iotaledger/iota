@@ -93,29 +93,4 @@ Run the following command to stop the full node when you finish using it:
 docker compose stop
 ```
 
-## Test and Monitor the Full Node
-
-After the full node starts, you can test the [JSON-RPC interfaces](https://docs.iota.org/iota-api-ref).
-Also, the best way to make sure your Node is working correctly is to use monitoring tools, to learn more, check the [Monitoring](monitoring.mdx) page.
-
-### View Activity on Your Local Full Node with IOTA Explorer
-
-The IOTA Explorer supports connecting to any network as long as it has `https` enabled. To view activity on your local
-full node, open the URL: [https://explorer.rebased.iota.org/](https://explorer.rebased.iota.org/), and select Custom
-RPC URL from the network dropdown in the top right.
-
-### View Resource Usage (CPU and Memory)
-
-To view resource usage details for the full node running in Docker, run the following command:
-
-```shell
-docker stats
-```
-
-This command shows a live data stream of the Docker container's resource usage, such as CPU and memory. To view data for all containers, use the following command:
-
-```shell
-docker stats -a
-```
-
 <Quiz questions={questions} />

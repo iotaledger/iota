@@ -1,6 +1,39 @@
 After a successful setup of a node, the next important step is to set up monitoring for the node.
 Monitoring is important to keep track of the node's health and performance.
 
+
+## Full Node Monitoring
+
+### Test JSON RPC Interface
+After the full node starts, you can test the [JSON-RPC interfaces](https://docs.iota.org/iota-api-ref).
+
+### View Activity on Your Local Full Node with IOTA Explorer
+
+The IOTA Explorer supports connecting to any network as long as it has `https` enabled. To view activity on your local full node, open the URL: [https://explorer.rebased.iota.org/](https://explorer.rebased.iota.org/), and select `Custom RPC URL` from the network dropdown in the top right.
+
+### View Resource Usage (CPU and Memory)
+
+To view resource usage details for the full node, run the following command:
+
+<Tabs groupId="network">
+    <TabItem label="Systemd" value="systemd">
+      ```bash
+      top
+      ```
+    </TabItem>
+    <TabItem label="Docker" value="docker">
+      ```bash
+      docker stats
+      ```
+    </TabItem>
+</Tabs>
+
+This command shows a live data stream of the Docker container's resource usage, such as CPU and memory. To view data for all containers, use the following command:
+
+```shell
+docker stats -a
+```
+
 ## Network Monitoring
 
 ### Node Health Metrics 
