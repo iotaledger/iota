@@ -1,6 +1,5 @@
 #!/bin/bash -e 
 
-
 # INPUTS
 NETWORK=${NETWORK-"testnet"}; VALID_NETWORKS=("testnet" "mainnet")
 CLONE_DIR=${CLONE_DIR-"$(git rev-parse --show-toplevel || echo ".")/.cache/iota-clone"}
@@ -8,16 +7,14 @@ NODE_WORKDIR=${NODE_WORKDIR-"/opt/iota"}
 CONFIG_DIR=${CONFIG_DIR-"$NODE_WORKDIR/config"}
 BIN_DIR=${BIN_DIR-"$NODE_WORKDIR/bin"}
 
-err() {
-    printf "\e[31m[ERROR]: $1\e[0m\n"
-    exit 1
-}
+red() { echo -e "\e[31m$1\e[0m"; }
+info() { printf "\e[32m[INFO]: $1\e[0m\n"; }
 G='\033[0;32m'
 NC='\033[0m'
 
 # Validate inputs
 if [[ ! " ${VALID_NETWORKS[@]} " =~ " $NETWORK " ]]; then
-  err "Invalid network selected: $NETWORK. Env var \$NETWORK must be one of: ${VALID_NETWORKS[*]}"
+  red "[ERROR] Invalid network selected: $NETWORK. Env var \$NETWORK must be one of: ${VALID_NETWORKS[*]}"
   exit 1
 fi
 
@@ -27,19 +24,19 @@ HACK_ROOT="$(git rev-parse --show-toplevel || echo "$CLONE_DIR")"
 
 
 if [  "$(uname -s)" != "Linux" ]; then 
-    err "This script is for systemd so will only work on Linux."
+    red "[ERROR] This script is for systemd so will only work on Linux."
     exit 1
 fi
 # Ensure rust is installed and up to date
 if ! command -v cargo &> /dev/null; then
-    err "Rust & cargo not installed or not found in \$PATH, install with:"
-    err "curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh"
+    red "[ERROR] Rust & cargo not installed or not found in \$PATH, install with:"
+    echo " \$ curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh"
     exit 1
 fi
 
 
 
-echo -e "This script will perform the following:"
+echo -e "This script will perform the following steps:"
 echo -e " ${G}1.${NC} Check rust toolchain version"
 echo -e " ${G}2.${NC} Install system packages (libraries & other dependencies)"
 echo -e " ${G}3.${NC} Clone the iota repo"
@@ -50,7 +47,7 @@ echo -e " ${G}6.${NC} Create systemd service unit file"
 echo -e " ${G}7.${NC} Start the service\n"
 read -p "Continue ? [y/N] " response
 if [[ ! $response =~ ^[Yy]$ ]]; then
-    echo "Install cancelled"
+    red "[ERROR] Install cancelled"
     exit 1
 fi
 
@@ -78,7 +75,7 @@ if [ ! -d "$CLONE_DIR" ]; then
 else
     cd "$CLONE_DIR"
     if [ "$(git remote get-url origin)" != "https://github.com/iotaledger/iota.git" ]; then
-        err "Cloned repo does not have correct origin, please delete then re-run this script."
+        red "[ERROR] Cloned repo does not have correct origin, please delete then re-run this script."
         exit 1
     fi
 fi
@@ -89,11 +86,12 @@ git pull
 
 # Check rustc version is above minimum (needs iota repo cloned before this step)
 MIN_RUSTC_VERSION=$(grep 'channel' "$CLONE_DIR/rust-toolchain.toml" | awk -F '"' '{print $2}' )
+MIN_RUSTC_VERSION="1.89"
 rustc_version=$(rustc --version | sed -n 's/rustc \([0-9]\+\.[0-9]\+\).*/\1/p')
 # checks that the min version is the smallest of both (by sorting)
 if [[ $(echo -e "$rustc_version\n$MIN_RUSTC_VERSION" | sort -V | head -n1) == "$rustc_version" ]]; then 
-    err "Rust compiler version is "$rustc_version". Needs at least version "$MIN_RUSTC_VERSION". Upgrade with:"
-    err "rustup update" # build works on either stable or nightly
+    red "[ERROR] Rust compiler version is "$rustc_version". Needs at least version "$MIN_RUSTC_VERSION". Upgrade with:"
+    echo " \$ rustup update " # build works on either stable or nightly
     exit 1
 fi
 
@@ -104,8 +102,8 @@ cargo build --release --bin iota-node
 
 # Add a IOTA user, create directories for iota-node service
 if id iota &>/dev/null;
-    then echo "[INFO] IOTA user already exists"
-    else echo "Creating IOTA user" && sudo useradd iota
+    then info "IOTA user already exists"
+    else info "Creating IOTA user" && sudo useradd iota
 fi
 sudo mkdir -p "$BIN_DIR"
 sudo mkdir -p "$CONFIG_DIR"

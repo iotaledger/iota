@@ -21,16 +21,19 @@ import Genesis from './../../_snippets/operator/genesis.mdx'
 
 ## 1. Software requirements
 
-- Linux (recommended for running nodes, mandatory for systemd commands below). IOTA recommends Ubuntu or Debian. Building from source also works on macOS.
-# TODO in 6017 build node with stable to double check stable is enough
+- Linux (recommended)
+  - mandatory for systemd commands below.
+  - IOTA recommends Ubuntu or Debian. Building from source also works on macOS.
 - Rust/cargo stable >1.85 . If needed, [update Rust](https://www.rust-lang.org/tools/install).
 
 
 ## 2. Run the installer script
 # TODO in 6017 change branch last before merging ??
-# TODO in 6017 fix error in script when downloading with curl: [ Linux / Darwin
+
+Run this in a new temporary directory (recommended), for instance `mkdir -p $HOME/iota && cd $HOME/iota`:
+
 ```shell
-curl -sSf https://raw.githubusercontent.com/iotaledger/iota/refs/heads/docs/further-node-operator-docs-improvements/setups/fullnode/systemd/setup.sh | sh
+bash -i <(curl -sSf https://raw.githubusercontent.com/iotaledger/iota/refs/heads/docs/further-node-operator-docs-improvements/setups/fullnode/systemd/setup.sh)
 ```
 
 You can override these values when running the script (optional):
@@ -40,72 +43,31 @@ You can override these values when running the script (optional):
 - CONFIG_DIR: directory for storing iota-node config files
 
 
-# TODO in 6017 remove (-> script)
-Use the following command to install additional Linux dependencies.
+The scripts will perform the following steps:
+1. Check your rust toolchain version
+2. Install system packages (libraries & other dependencies):
+  - tzdata, libprotobuf-dev, ca-certificates, build-essential, libssl-dev, libclang-dev, libpq-dev, pkg-config, openssl, protobuf-compiler, git, clang, cmake
+3. Clone the [iota repo](https://github.com/iotaledger/iota), set to the right branch for the [network](../../developer/getting-started/connect.mdx#iota-networks) you chose
+4. Build the iota-node binary
+5. Create a user called iota, make it own directories for service binary, config, data
+6. Create a node config file, download genesis/migration blobs
+6. Create a systemd service unit file
+7. Start the service
 
-```shell
-sudo apt-get update \
-&& sudo apt-get install -y --no-install-recommends \
-tzdata \
-libprotobuf-dev \
-ca-certificates \
-build-essential \
-libssl-dev \
-libclang-dev \
-libpq-dev \
-pkg-config \
-openssl \
-protobuf-compiler \
-git \
-clang \
-cmake
-```
 
-# TODO in 6017 remove (-> script)
-## 1. Clone the IOTA repository
 
-1. The first thing you need to do to set up your full node is clone the IOTA repository, you can use the following command or download it from [GitHub](https://github.com/iotaledger/iota):
 
-```bash
-git clone https://github.com/iotaledger/iota.git
-```
 
-# TODO in 6017 remove (-> script)
-2. Once you have download the source code, move into the newly generated `iota` directory and check out the branch associated to the [network](../../developer/getting-started/connect.mdx#iota-networks) you want to run, for example, `testnet`:
 
-```bash
-git checkout testnet
-```
 
-# TODO in 6017 remove (-> script)
-## 3. Build `iota-node` Binary
-
-Run the following command to build the `iota-node` binary.
-
-```shell
-cargo build --release --bin iota-node
-```
 
 The built binary is located in `./target/release/iota-node`.
 
-# TODO in 6017 remove (-> script)
-## 2. Configure the IOTA Full Node
-
-Open a terminal or console in the `iota` directory you downloaded in the previous steps to complete the following:
 
 
+## TODO in 6017 Check your installation
+## TODO in 6017 service status, logs, stop service
 
-# TODO in 6017 remove (-> script)
-2. Make a copy of the [full node YAML template](https://github.com/iotaledger/iota/blob/develop/crates/iota-config/data/fullnode-template.yaml):
-
-```bash
-cp crates/iota-config/data/fullnode-template.yaml fullnode.yaml
-```
-
-# TODO in 6017 remove (-> script)
-3. Download the genesis and migration blob for the network to use:
-
-   <Genesis/>
 
 
 # TODO in 6017 move to troubleshooting paragraph below
@@ -178,19 +140,19 @@ state-archive-read-config:
 
 ## 4. Start Services
 
-At this point, your IOTA full node is ready to connect to the IOTA network.
-
-1. Open a terminal or console to the `iota` directory and run the following command to start your node:
-
-```bash
-./target/release/iota-node --config-path fullnode.yaml
-```
 
 2. (Optional) Publish/subscribe to notifications using JSON-RPC via websocket.
 
 If your setup is successful, your IOTA full node is now connected to the appropriate network.
 
 Your full node serves the read endpoints of the IOTA JSON-RPC API at: <code>{Networks.iota_localnet.jsonRpcUrl}</code>.
+
+
+
+
+
+
+
 
 ## Troubleshooting
 
