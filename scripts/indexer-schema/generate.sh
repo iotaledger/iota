@@ -76,4 +76,4 @@ docker exec ${CONTAINER_NAME} diesel print-schema \
 $PYTHON_CMD ${REPO}/scripts/indexer-schema/generate_for_all_tables_macro.py "${REPO}/crates/iota-indexer/src/schema.rs"
 
 # Applying the patch may destroy the formatting, fix it
-rustfmt +nightly "${REPO}/crates/iota-indexer/src/schema.rs"
+rustfmt +nightly-2025-04-01 "${REPO}/crates/iota-indexer/src/schema.rs"
