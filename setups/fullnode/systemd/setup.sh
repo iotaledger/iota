@@ -127,7 +127,7 @@ echo "$CONFIG_TEMPLATE" \
 
 # Download genesis/migration blobs for NETWORK
 curl -fLJ https://dbfiles.$NETWORK.iota.cafe/genesis.blob -o "$CONFIG_DIR/genesis.blob"
-if [ "$NETWORK" == "devnet" ]; then
+if [ "$NETWORK" == "mainnet" ]; then
     curl -fLJ https://dbfiles.$NETWORK.iota.cafe/migration.blob -o "$CONFIG_DIR/migration.blob"
 fi
 
