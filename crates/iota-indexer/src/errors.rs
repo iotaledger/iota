@@ -34,7 +34,7 @@ pub enum IndexerError {
     #[error("Stream closed unexpectedly with error: `{0}`")]
     ChannelClosed(String),
 
-    #[error("Indexer failed to convert timestamp to NaiveDateTime with error: `{0}`")]
+    #[error("Indexer failed to convert timestamp to DateTime with error: `{0}`")]
     DateTimeParsing(String),
 
     #[error("Indexer failed to deserialize event from events table with error: `{0}`")]
