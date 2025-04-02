@@ -1,0 +1,145 @@
+## 1. Generate Validator Information
+
+:::info Key Security
+
+It is recommended to run these steps in a secure local environment to avoid
+storing the private key controlling the validator rewards on the node.
+
+:::
+
+
+### How to Generate a New Set of Validator Information
+
+#### 1.1. Install and configure the IOTA CLI
+
+See [Install IOTA](https://docs.iota.org/developer/getting-started/install-iota) on how to install the `iota` CLI and [Connect to an IOTA Network](https://docs.iota.org/developer/getting-started/connect) on how to select the correct environment (Mainnet or Testnet).
+
+#### 1.2. Generate a new key pair
+
+```bash
+iota client new-address
+```
+This generates a new key pair and stores the files within the standard working config folder, `~/.iota/iota_config/` (in Unix).
+You can skip this step if you already have an account configured. If you would like to import an existing keypair see `iota keytool import -h`.
+
+Executing the above command provides the key pair info as output, e.g.:
+
+```bash
+╭──────────────────────────────────────────────────────────────────────────────────────────────────╮
+│ Created new keypair and saved it to keystore.                                                    │
+├────────────────┬─────────────────────────────────────────────────────────────────────────────────┤
+│ alias          │ crazy-pearl                                                                     │
+│ address        │ 0x1ce209a128ab5185db4cab896bc88b255bce3fbdb1a2b3fa8ef1edf911628e3e              │
+│ keyScheme      │ ed25519                                                                         │
+│ recoveryPhrase │ limit chest cloth this possible sister kingdom thunder brother lame know orphan │
+╰────────────────┴─────────────────────────────────────────────────────────────────────────────────╯
+```
+
+- `alias`: A human-readable identifier to use within the CLI scope to refer to a key pair.
+- `address`: The public address representing the key pair.
+- `keyScheme`: The cryptographic scheme used to derive the keypair; the `ed25519` is the standard scheme, used most of the time, while the `BLS12381` scheme is used for the `authority_key`.
+- `recoveryPhrase`: A list of 12 words used by the cryptographic scheme used to derive the key pair.
+
+:::info
+From now on, this key pair will be referred to as `account-key`.
+:::
+
+#### 1.3. Switch to the validator account key
+
+This makes that key pair active in the CLI.
+
+```bash
+iota client switch --address <alias>
+```
+
+#### 1.4. Generate the validator data
+
+Finally, all validator's remaining key pairs and data can be generated using the following command:
+
+```bash
+iota validator make-validator-info \
+    <name> \
+    <description> \
+    <image_url> \
+    <project_url> \
+    <host_name> \
+```
+
+- `name`: A human-readable validator name, e.g., `validator1`.
+- `description`: A human-readable validator description, e.g., `this is a validator`.
+- `image_url`: The validator image URL, e.g., `https://www.iota.org/favicon.png`.
+- `project_url`: The validator project URL, e.g., `https://www.iota.org`.
+- `host_name`: The host name that is used to generate the validator `network_address`, `p2p-address` and `primary_address`, e.g., `validator1.iota.org`.
+
+This command generates a `validator.info` file and 4 key pair files in the same directory where the command was executed. All keys but the `account.key` will need to be copied over to the validator node and included in the YAML configuration of the node. See [Validator Node Configuration](https://docs.iota.org/operator/validator-node/configuration).
+
+- `account.key` contains an ed25519 private key _(keep this one private)_.
+- `network.key` contains an ed25519 private key _(copy over to the validator node)_.
+- `authority.key` contains a BLS12381 private key _(copy over to the validator node)_.
+- `protocol.key`contains an ed25519 private key _(copy over to the validator node)_.
+- `validator.info` contains the validator information, e.g.:
+
+```yaml
+---
+info:
+  name: validator1
+  account-address: "0x547b20ffca39cf1c9f57e7d1ff946d4720df48bb582e89b763b5d488ec23f5fa"
+  authority-key: h93SKC2tFXMDt+lu4SRb3KA668/lJCPREHnzYZelaQ3iAu0RuiHqETBg/1jkV9HFCECvBCrzKjTuVD/bt5yUDon5nPKQmCyYEmx0NRQmxfP7Szpg17YZ388eT+aTnGEK
+  protocol-key: Lm1Iy5KDV0qlMcGVnQNatAMLxhg8FOxE2q/QUkgLAYA=
+  network-key: ADBhWCBOzqIvsDa9cowpSQ4t1nz+ZQYeRLBGQYe1Dy8=
+  gas-price: 1000
+  commission-rate: 200
+  network-address: /dns/validator1.iota.org/tcp/8080/http
+  p2p-address: /dns/validator1.iota.org/udp/8084
+  primary-address: /dns/validator1.iota.org/udp/8081
+  description: validator-description1
+  image-url: "https://www.iota.org/favicon.png"
+  project-url: "https://www.iota.org"
+proof_of_possession: hpep8yY/JCj/zTEv9Ws7Qow3KO+2jrsX/yAUAykfxzS5vsg7vlwsscJpspf4XF/u
+```
+
+Where:
+
+- `name`: human-readable validator name, defined above;
+- `account-address`: The address derived from the `account key` public key.
+- `authority-key`: The public key derived from the `authority key` private key.
+- `protocol-key`: The public key derived from the `protocol key` private key.
+- `network-key`: The public key derived from the `network key` private key.
+- `gas-price`: An unsigned integer value indicating the gas price proposed for the first epoch. This is unused as of protocol version v5.
+- `commission-rate`: The validator commission rate, i.e., the fee charged by the validator for staking services; the default set at 2% (200).
+- `network-address`: The network address of the validator, defined using the `host_name`.
+- `p2p-address`: The address of the validator used for p2p activities such as state sync, defined using the `host_name`.
+- `primary-address`: The primary address of the validator used for the consensus, defined using the `host_name`.
+- `description`: A human-readable validator description, defined above.
+- `image-url`: The validator image URL, defined above.
+- `project-url`: The validator project URL, defined above.
+- `proof_of_possession`: A BLS signature created using the `authority-key`, committed over the following message: `intent || pubkey || address || epoch`. `intent` is serialized to `[5, 0, 0]` representing an intent with scope as "Proof of Possession", `version` as "V0" and `app_id` as "Iota". `pubkey` is the serialized public key bytes of the `authority-key`. `address` is the `account-address`. `epoch` is serialized to `[0, 0, 0, 0, 0, 0, 0, 0]`.
+
+:::note
+You may have noticed that port 8081 is using UDP, which conflicts with the firewall rules.
+This is a known bug, but the node is actually communicating via TCP.
+:::
+
+
+#### 1.5. Register as a Validator Candidate
+
+Submit an on-chain transaction to become a validator candidate. The parameter is the file path to the `validator.info` generated by [Make Validator Info](#make-validator-info).
+
+Make sure your validator account has enough IOTA to cover the gas costs.
+On the Testnet you can use the Faucet to receive the necessary funds.
+
+:::note Environments
+Make sure your client is [configured to use the correct environment](https://docs.iota.org/developer/getting-started/connect#connect-your-cli-to-a-network).
+:::
+
+```bash
+iota validator become-candidate <validator.info file path>
+```
+
+You can verify the status by running:
+
+```bash
+iota validator display-metadata --json true
+```
+
+You should see your validator's status is `Candidate`.
