@@ -318,10 +318,13 @@ pub async fn start_simulacrum_rest_api_with_write_indexer(
         true,
         db_init_hook,
         format!("http://{}", server_url),
-        IndexerTypeConfig::writer_mode(Some(SnapshotLagConfig {
-            snapshot_min_lag: 5,
-            sleep_duration: 0,
-        })),
+        IndexerTypeConfig::writer_mode(
+            Some(SnapshotLagConfig {
+                snapshot_min_lag: 5,
+                sleep_duration: 0,
+            }),
+            None,
+        ),
         Some(data_ingestion_path),
     )
     .await;
