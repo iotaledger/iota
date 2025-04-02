@@ -29,6 +29,7 @@ use iota_types::{
     executable_transaction::{ExecutableTransaction, VerifiedExecutableTransaction},
     iota_system_state::{
         IotaSystemStateTrait, epoch_start_iota_system_state::EpochStartSystemStateTrait,
+        iota_system_state_summary::IotaSystemStateSummary,
     },
     messages_checkpoint::{CheckpointContentsDigest, VerifiedCheckpoint},
     object::Object,
@@ -228,7 +229,7 @@ impl TransactionalAdapter for ValidatorWithFullnode {
     }
 
     async fn get_active_validator_addresses(&self) -> IotaResult<Vec<IotaAddress>> {
-        Ok(self
+        let system_state_summary = self
             .fullnode
             .get_system_state()
             .map_err(|e| {
@@ -237,8 +238,14 @@ impl TransactionalAdapter for ValidatorWithFullnode {
                     e
                 ))
             })?
-            .into_iota_system_state_summary()
-            .active_validators
+            .into_iota_system_state_summary();
+        let active_validators = match system_state_summary {
+            IotaSystemStateSummary::V1(inner) => inner.active_validators,
+            IotaSystemStateSummary::V2(inner) => inner.active_validators,
+            _ => unimplemented!(),
+        };
+
+        Ok(active_validators
             .iter()
             .map(|x| x.iota_address)
             .collect::<Vec<_>>())

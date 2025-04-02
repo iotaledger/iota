@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { type SerializedUIAccount } from '_src/background/accounts/account';
-import { toast } from 'react-hot-toast';
+import { toast } from '@iota/core';
 import { useBackgroundClient } from '_hooks';
 import { PasswordModalDialog } from './PasswordInputDialog';
 
@@ -31,7 +31,7 @@ export function UnlockAccountModal({ onClose, onSuccess, account, open }: Unlock
                         password,
                         id: account.id,
                     });
-                    toast.success('Account unlocked');
+                    toast('Account unlocked');
                     onSuccess();
                 },
                 // this is not necessary for unlocking but will show the wrong password error as a form error

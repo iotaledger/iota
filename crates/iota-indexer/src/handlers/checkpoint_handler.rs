@@ -6,17 +6,15 @@ use std::{collections::BTreeMap, slice, sync::Arc};
 
 use async_trait::async_trait;
 use iota_data_ingestion_core::Worker;
+use iota_json_rpc_types::IotaTransactionKind;
 use iota_metrics::{get_metrics, spawn_monitored_task};
 use iota_rest_api::{CheckpointData, CheckpointTransaction};
 use iota_types::{
     base_types::ObjectID,
     dynamic_field::{DynamicFieldInfo, DynamicFieldType},
     effects::TransactionEffectsAPI,
-    event::SystemEpochInfoEventV1,
-    iota_system_state::{
-        IotaSystemStateTrait, get_iota_system_state,
-        iota_system_state_summary::IotaSystemStateSummary,
-    },
+    event::{SystemEpochInfoEvent, SystemEpochInfoEventV1, SystemEpochInfoEventV2},
+    iota_system_state::{IotaSystemStateTrait, get_iota_system_state},
     messages_checkpoint::{
         CertifiedCheckpointSummary, CheckpointContents, CheckpointSequenceNumber,
     },
@@ -44,7 +42,8 @@ use crate::{
     store::{IndexerStore, PgIndexerStore},
     types::{
         EventIndex, IndexedCheckpoint, IndexedDeletedObject, IndexedEpochInfo, IndexedEvent,
-        IndexedObject, IndexedPackage, IndexedTransaction, IndexerResult, TransactionKind, TxIndex,
+        IndexedObject, IndexedPackage, IndexedTransaction, IndexerResult,
+        IotaSystemStateSummaryView, TxIndex,
     },
 };
 
@@ -98,7 +97,7 @@ impl Worker for CheckpointHandler {
 
     async fn process_checkpoint(
         &self,
-        checkpoint: &CheckpointData,
+        checkpoint: Arc<CheckpointData>,
     ) -> Result<Self::Message, Self::Error> {
         self.metrics
             .latest_fullnode_checkpoint_sequence_number
@@ -125,9 +124,9 @@ impl Worker for CheckpointHandler {
 
         let checkpoint_data = Self::index_checkpoint(
             self.state.clone().into(),
-            checkpoint,
+            &checkpoint,
             Arc::new(self.metrics.clone()),
-            Self::index_packages(slice::from_ref(checkpoint), &self.metrics),
+            Self::index_packages(slice::from_ref(&checkpoint), &self.metrics),
         )
         .await?;
         self.indexed_checkpoint_sender
@@ -170,12 +169,12 @@ impl CheckpointHandler {
         // Genesis epoch
         if *checkpoint_summary.sequence_number() == 0 {
             info!("Processing genesis epoch");
-            let system_state: IotaSystemStateSummary =
+            let system_state =
                 get_iota_system_state(&checkpoint_object_store)?.into_iota_system_state_summary();
             return Ok(Some(EpochToCommit {
                 last_epoch: None,
                 new_epoch: IndexedEpochInfo::from_new_system_state_summary(
-                    system_state,
+                    &system_state,
                     0, // first_checkpoint_id
                     None,
                 ),
@@ -188,22 +187,34 @@ impl CheckpointHandler {
             return Ok(None);
         }
 
-        let system_state: IotaSystemStateSummary =
+        let system_state =
             get_iota_system_state(&checkpoint_object_store)?.into_iota_system_state_summary();
-
-        let epoch_event = transactions
+        let event = transactions
             .iter()
             .flat_map(|t| t.events.as_ref().map(|e| &e.data))
             .flatten()
-            .find(|ev| ev.is_system_epoch_info_event())
+            .find(|ev| ev.is_system_epoch_info_event_v1() || ev.is_system_epoch_info_event_v2())
+            .map(|ev| {
+                if ev.is_system_epoch_info_event_v2() {
+                    SystemEpochInfoEvent::V2(
+                        bcs::from_bytes::<SystemEpochInfoEventV2>(&ev.contents).expect(
+                            "event deserialization should succeed as type was pre-validated",
+                        ),
+                    )
+                } else {
+                    SystemEpochInfoEvent::V1(
+                        bcs::from_bytes::<SystemEpochInfoEventV1>(&ev.contents).expect(
+                            "event deserialization should succeed as type was pre-validated",
+                        ),
+                    )
+                }
+            })
             .unwrap_or_else(|| {
                 panic!(
-                    "Can't find SystemEpochInfoEventV1 in epoch end checkpoint {}",
+                    "Can't find SystemEpochInfoEvent in epoch end checkpoint {}",
                     checkpoint_summary.sequence_number()
                 )
             });
-
-        let event = bcs::from_bytes::<SystemEpochInfoEventV1>(&epoch_event.contents)?;
 
         // Now we just entered epoch X, we want to calculate the diff between
         // TotalTransactionsByEndOfEpoch(X-1) and TotalTransactionsByEndOfEpoch(X-2).
@@ -213,11 +224,12 @@ impl CheckpointHandler {
         // guarantee that the previous epoch's checkpoints have been written to
         // db.
 
-        let network_tx_count_prev_epoch = match system_state.epoch {
+        let epoch = system_state.epoch();
+        let network_tx_count_prev_epoch = match epoch {
             // If first epoch change, this number is 0
             1 => Ok(0),
             _ => {
-                let last_epoch = system_state.epoch - 2;
+                let last_epoch = epoch - 2;
                 state
                     .get_network_total_transactions_by_end_of_epoch(last_epoch)
                     .await
@@ -232,7 +244,7 @@ impl CheckpointHandler {
                 network_tx_count_prev_epoch,
             )),
             new_epoch: IndexedEpochInfo::from_new_system_state_summary(
-                system_state,
+                &system_state,
                 checkpoint_summary.sequence_number + 1, // first_checkpoint_id
                 Some(&event),
             ),
@@ -390,11 +402,7 @@ impl CheckpointHandler {
                 .map(|events| events.data.clone())
                 .unwrap_or_default();
 
-            let transaction_kind = if tx.is_system_tx() {
-                TransactionKind::SystemTransaction
-            } else {
-                TransactionKind::ProgrammableTransaction
-            };
+            let transaction_kind = IotaTransactionKind::from(tx.kind());
 
             db_events.extend(events.iter().enumerate().map(|(idx, event)| {
                 IndexedEvent::from_event(
@@ -440,7 +448,7 @@ impl CheckpointHandler {
                 object_changes,
                 balance_change,
                 events,
-                transaction_kind: transaction_kind.clone(),
+                transaction_kind,
                 successful_tx_num: if fx.status().is_ok() {
                     tx.kind().tx_count() as u64
                 } else {

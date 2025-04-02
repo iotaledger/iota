@@ -12,7 +12,7 @@
       "name": "Apache-2.0",
       "url": "https://raw.githubusercontent.com/iotaledger/iota/main/LICENSE"
     },
-    "version": "0.10.3-rc"
+    "version": "0.11.4-rc"
   },
   "methods": [
     {
@@ -1300,21 +1300,26 @@
             "name": "Result",
             "value": {
               "minSupportedProtocolVersion": "1",
-              "maxSupportedProtocolVersion": "4",
+              "maxSupportedProtocolVersion": "5",
               "protocolVersion": "1",
               "featureFlags": {
                 "accept_zklogin_in_multisig": false,
                 "bridge": false,
+                "convert_type_argument_error": false,
                 "disable_invariant_violation_check_in_swap_loc": true,
+                "disallow_new_modules_in_deps_only_packages": false,
                 "enable_group_ops_native_function_msm": true,
                 "enable_jwk_consensus_updates": false,
                 "enable_poseidon": true,
                 "enable_vdf": true,
                 "hardened_otw_check": true,
+                "native_charging_v2": false,
                 "no_extraneous_module_bytes": true,
                 "passkey_auth": true,
+                "protocol_defined_base_fee": false,
                 "relocate_event_module": false,
                 "rethrow_serialization_type_layout_errors": true,
+                "uncompressed_g1_group_elements": false,
                 "zklogin_auth": false
               },
               "attributes": {
@@ -1327,6 +1332,7 @@
                 "address_to_u256_cost_base": {
                   "u64": "52"
                 },
+                "base_gas_price": null,
                 "base_tx_cost_fixed": {
                   "u64": "1000"
                 },
@@ -1673,6 +1679,7 @@
                 "group_ops_bls12381_g1_sub_cost": {
                   "u64": "52"
                 },
+                "group_ops_bls12381_g1_to_uncompressed_g1_cost": null,
                 "group_ops_bls12381_g2_add_cost": {
                   "u64": "52"
                 },
@@ -1727,6 +1734,10 @@
                 "group_ops_bls12381_scalar_sub_cost": {
                   "u64": "52"
                 },
+                "group_ops_bls12381_uncompressed_g1_sum_base_cost": null,
+                "group_ops_bls12381_uncompressed_g1_sum_cost_per_term": null,
+                "group_ops_bls12381_uncompressed_g1_sum_max_terms": null,
+                "group_ops_bls12381_uncompressed_g1_to_g1_cost": null,
                 "hash_blake2b256_cost_base": {
                   "u64": "52"
                 },
@@ -1793,6 +1804,7 @@
                 "max_checkpoint_size_bytes": {
                   "u64": "31457280"
                 },
+                "max_committee_members_count": null,
                 "max_deferral_rounds_for_congestion_control": {
                   "u64": "10"
                 },
@@ -3409,6 +3421,23 @@
       }
     },
     {
+      "name": "iotax_getCirculatingSupply",
+      "tags": [
+        {
+          "name": "Coin Query API"
+        }
+      ],
+      "description": "Return the circulating supply summary.",
+      "params": [],
+      "result": {
+        "name": "IotaCirculatingSupply",
+        "required": true,
+        "schema": {
+          "$ref": "#/components/schemas/IotaCirculatingSupply"
+        }
+      }
+    },
+    {
       "name": "iotax_getCoinMetadata",
       "tags": [
         {
@@ -3922,13 +3951,13 @@
           "name": "Governance Read API"
         }
       ],
-      "description": "Return the latest IOTA system state object on-chain.",
+      "description": "Return the latest IOTA system state object on networks supporting protocol version `< 5`. These are networks with node software release version `< 0.11`.",
       "params": [],
       "result": {
-        "name": "IotaSystemStateSummary",
+        "name": "IotaSystemStateSummaryV1",
         "required": true,
         "schema": {
-          "$ref": "#/components/schemas/IotaSystemStateSummary"
+          "$ref": "#/components/schemas/IotaSystemStateSummaryV1"
         }
       },
       "examples": [
@@ -3941,6 +3970,23 @@
           }
         }
       ]
+    },
+    {
+      "name": "iotax_getLatestIotaSystemStateV2",
+      "tags": [
+        {
+          "name": "Governance Read API"
+        }
+      ],
+      "description": "Return the latest IOTA system state object on networks supporting protocol version `>= 5`. These are networks with node software release version `>= 0.11`.",
+      "params": [],
+      "result": {
+        "name": "IotaSystemStateSummary",
+        "required": true,
+        "schema": {
+          "$ref": "#/components/schemas/IotaSystemStateSummary"
+        }
+      }
     },
     {
       "name": "iotax_getMoveCallMetrics",
@@ -6621,6 +6667,13 @@
           "validators"
         ],
         "properties": {
+          "committeeMembers": {
+            "description": "Committee validators. Each element is an index pointing to `validators`.",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BigInt_for_uint64"
+            }
+          },
           "endOfEpochInfo": {
             "description": "The end of epoch information.",
             "anyOf": [
@@ -7582,6 +7635,65 @@
           }
         }
       },
+      "IotaChangeEpochV2": {
+        "type": "object",
+        "required": [
+          "computation_charge",
+          "computation_charge_burned",
+          "epoch",
+          "epoch_start_timestamp_ms",
+          "storage_charge",
+          "storage_rebate"
+        ],
+        "properties": {
+          "computation_charge": {
+            "$ref": "#/components/schemas/BigInt_for_uint64"
+          },
+          "computation_charge_burned": {
+            "$ref": "#/components/schemas/BigInt_for_uint64"
+          },
+          "epoch": {
+            "$ref": "#/components/schemas/BigInt_for_uint64"
+          },
+          "epoch_start_timestamp_ms": {
+            "$ref": "#/components/schemas/BigInt_for_uint64"
+          },
+          "storage_charge": {
+            "$ref": "#/components/schemas/BigInt_for_uint64"
+          },
+          "storage_rebate": {
+            "$ref": "#/components/schemas/BigInt_for_uint64"
+          }
+        }
+      },
+      "IotaCirculatingSupply": {
+        "description": "Provides a summary of the circulating IOTA supply.",
+        "type": "object",
+        "required": [
+          "atCheckpoint",
+          "circulatingSupplyPercentage",
+          "value"
+        ],
+        "properties": {
+          "atCheckpoint": {
+            "description": "Timestamp (UTC) when the circulating supply was calculated.",
+            "type": "integer",
+            "format": "uint64",
+            "minimum": 0.0
+          },
+          "circulatingSupplyPercentage": {
+            "description": "Percentage of total supply that is currently circulating (range: 0.0 to 1.0).",
+            "type": "number",
+            "format": "double"
+          },
+          "value": {
+            "description": "Circulating supply in NANOS at the given timestamp.",
+            "type": "integer",
+            "format": "uint64",
+            "minimum": 0.0
+          }
+        }
+      },
       "IotaCoinMetadata": {
         "type": "object",
         "required": [
@@ -7645,6 +7757,18 @@
             "properties": {
               "ChangeEpoch": {
                 "$ref": "#/components/schemas/IotaChangeEpoch"
+              }
+            },
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "required": [
+              "ChangeEpochV2"
+            ],
+            "properties": {
+              "ChangeEpochV2": {
+                "$ref": "#/components/schemas/IotaChangeEpochV2"
               }
             },
             "additionalProperties": false
@@ -8296,7 +8420,36 @@
         }
       },
       "IotaSystemStateSummary": {
-        "description": "This is the JSON-RPC type for the IOTA system state object. It flattens all fields to make them top-level fields such that it as minimum dependencies to the internal data structures of the IOTA system state type.",
+        "description": "This is the JSON-RPC type for IOTA system state objects. It is an enum type that can represent either V1 or V2 system state objects.",
+        "oneOf": [
+          {
+            "type": "object",
+            "required": [
+              "V1"
+            ],
+            "properties": {
+              "V1": {
+                "$ref": "#/components/schemas/IotaSystemStateSummaryV1"
+              }
+            },
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "required": [
+              "V2"
+            ],
+            "properties": {
+              "V2": {
+                "$ref": "#/components/schemas/IotaSystemStateSummaryV2"
+              }
+            },
+            "additionalProperties": false
+          }
+        ]
+      },
+      "IotaSystemStateSummaryV1": {
+        "description": "This is the JSON-RPC type for the [`IotaSystemStateV1`](super::iota_system_state_inner_v1::IotaSystemStateV1) object. It flattens all fields to make them top-level fields such that it as minimum dependencies to the internal data structures of the IOTA system state type.",
         "type": "object",
         "required": [
           "activeValidators",
@@ -8624,6 +8777,352 @@
           }
         }
       },
+      "IotaSystemStateSummaryV2": {
+        "description": "This is the JSON-RPC type for the [`IotaSystemStateV2`](super::iota_system_state_inner_v2::IotaSystemStateV2) object. It flattens all fields to make them top-level fields such that it as minimum dependencies to the internal data structures of the IOTA system state type.",
+        "type": "object",
+        "required": [
+          "activeValidators",
+          "atRiskValidators",
+          "committeeMembers",
+          "epoch",
+          "epochDurationMs",
+          "epochStartTimestampMs",
+          "inactivePoolsId",
+          "inactivePoolsSize",
+          "iotaTotalSupply",
+          "iotaTreasuryCapId",
+          "maxValidatorCount",
+          "minValidatorCount",
+          "minValidatorJoiningStake",
+          "pendingActiveValidatorsId",
+          "pendingActiveValidatorsSize",
+          "pendingRemovals",
+          "protocolVersion",
+          "referenceGasPrice",
+          "safeMode",
+          "safeModeComputationCharges",
+          "safeModeComputationChargesBurned",
+          "safeModeNonRefundableStorageFee",
+          "safeModeStorageCharges",
+          "safeModeStorageRebates",
+          "stakingPoolMappingsId",
+          "stakingPoolMappingsSize",
+          "storageFundNonRefundableBalance",
+          "storageFundTotalObjectStorageRebates",
+          "systemStateVersion",
+          "totalStake",
+          "validatorCandidatesId",
+          "validatorCandidatesSize",
+          "validatorLowStakeGracePeriod",
+          "validatorLowStakeThreshold",
+          "validatorReportRecords",
+          "validatorVeryLowStakeThreshold"
+        ],
+        "properties": {
+          "activeValidators": {
+            "description": "The list of active validators in the current epoch.",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/IotaValidatorSummary"
+            }
+          },
+          "atRiskValidators": {
+            "description": "Map storing the number of epochs for which each validator has been below the low stake threshold.",
+            "type": "array",
+            "items": {
+              "type": "array",
+              "items": [
+                {
+                  "$ref": "#/components/schemas/IotaAddress"
+                },
+                {
+                  "$ref": "#/components/schemas/BigInt_for_uint64"
+                }
+              ],
+              "maxItems": 2,
+              "minItems": 2
+            }
+          },
+          "committeeMembers": {
+            "description": "List of committee validators in the current epoch. Each element is an index pointing to `active_validators`.",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BigInt_for_uint64"
+            }
+          },
+          "epoch": {
+            "description": "The current epoch ID, starting from 0.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/BigInt_for_uint64"
+              }
+            ]
+          },
+          "epochDurationMs": {
+            "description": "The duration of an epoch, in milliseconds.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/BigInt_for_uint64"
+              }
+            ]
+          },
+          "epochStartTimestampMs": {
+            "description": "Unix timestamp of the current epoch start",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/BigInt_for_uint64"
+              }
+            ]
+          },
+          "inactivePoolsId": {
+            "description": "ID of the object that maps from a staking pool ID to the inactive validator that has that pool as its staking pool.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ObjectID"
+              }
+            ]
+          },
+          "inactivePoolsSize": {
+            "description": "Number of inactive staking pools.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/BigInt_for_uint64"
+              }
+            ]
+          },
+          "iotaTotalSupply": {
+            "description": "The current IOTA supply.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/BigInt_for_uint64"
+              }
+            ]
+          },
+          "iotaTreasuryCapId": {
+            "description": "The `TreasuryCap<IOTA>` object ID.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ObjectID"
+              }
+            ]
+          },
+          "maxValidatorCount": {
+            "description": "Maximum number of active validators at any moment. We do not allow the number of validators in any epoch to go above this.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/BigInt_for_uint64"
+              }
+            ]
+          },
+          "minValidatorCount": {
+            "description": "Minimum number of active validators at any moment. We do not allow the number of validators in any epoch to go under this.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/BigInt_for_uint64"
+              }
+            ]
+          },
+          "minValidatorJoiningStake": {
+            "description": "Lower-bound on the amount of stake required to become a validator.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/BigInt_for_uint64"
+              }
+            ]
+          },
+          "pendingActiveValidatorsId": {
+            "description": "ID of the object that contains the list of new validators that will join at the end of the epoch.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ObjectID"
+              }
+            ]
+          },
+          "pendingActiveValidatorsSize": {
+            "description": "Number of new validators that will join at the end of the epoch.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/BigInt_for_uint64"
+              }
+            ]
+          },
+          "pendingRemovals": {
+            "description": "Removal requests from the validators. Each element is an index pointing to `active_validators`.",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BigInt_for_uint64"
+            }
+          },
+          "protocolVersion": {
+            "description": "The current protocol version, starting from 1.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/BigInt_for_uint64"
+              }
+            ]
+          },
+          "referenceGasPrice": {
+            "description": "The reference gas price for the current epoch.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/BigInt_for_uint64"
+              }
+            ]
+          },
+          "safeMode": {
+            "description": "Whether the system is running in a downgraded safe mode due to a non-recoverable bug. This is set whenever we failed to execute advance_epoch, and ended up executing advance_epoch_safe_mode. It can be reset once we are able to successfully execute advance_epoch.",
+            "type": "boolean"
+          },
+          "safeModeComputationCharges": {
+            "description": "Amount of computation charges accumulated (and not yet distributed) during safe mode.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/BigInt_for_uint64"
+              }
+            ]
+          },
+          "safeModeComputationChargesBurned": {
+            "description": "Amount of burned computation charges accumulated during safe mode.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/BigInt_for_uint64"
+              }
+            ]
+          },
+          "safeModeNonRefundableStorageFee": {
+            "description": "Amount of non-refundable storage fee accumulated during safe mode.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/BigInt_for_uint64"
+              }
+            ]
+          },
+          "safeModeStorageCharges": {
+            "description": "Amount of storage charges accumulated (and not yet distributed) during safe mode.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/BigInt_for_uint64"
+              }
+            ]
+          },
+          "safeModeStorageRebates": {
+            "description": "Amount of storage rebates accumulated (and not yet burned) during safe mode.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/BigInt_for_uint64"
+              }
+            ]
+          },
+          "stakingPoolMappingsId": {
+            "description": "ID of the object that maps from staking pool's ID to the iota address of a validator.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ObjectID"
+              }
+            ]
+          },
+          "stakingPoolMappingsSize": {
+            "description": "Number of staking pool mappings.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/BigInt_for_uint64"
+              }
+            ]
+          },
+          "storageFundNonRefundableBalance": {
+            "description": "The non-refundable portion of the storage fund coming from non-refundable storage rebates and any leftover staking rewards.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/BigInt_for_uint64"
+              }
+            ]
+          },
+          "storageFundTotalObjectStorageRebates": {
+            "description": "The storage rebates of all the objects on-chain stored in the storage fund.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/BigInt_for_uint64"
+              }
+            ]
+          },
+          "systemStateVersion": {
+            "description": "The current version of the system state data structure type.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/BigInt_for_uint64"
+              }
+            ]
+          },
+          "totalStake": {
+            "description": "Total amount of stake from all committee validators at the beginning of the epoch.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/BigInt_for_uint64"
+              }
+            ]
+          },
+          "validatorCandidatesId": {
+            "description": "ID of the object that stores preactive validators, mapping their addresses to their `Validator` structs.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ObjectID"
+              }
+            ]
+          },
+          "validatorCandidatesSize": {
+            "description": "Number of preactive validators.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/BigInt_for_uint64"
+              }
+            ]
+          },
+          "validatorLowStakeGracePeriod": {
+            "description": "A validator can have stake below `validator_low_stake_threshold` for this many epochs before being kicked out.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/BigInt_for_uint64"
+              }
+            ]
+          },
+          "validatorLowStakeThreshold": {
+            "description": "Validators with stake amount below `validator_low_stake_threshold` are considered to have low stake and will be escorted out of the validator set after being below this threshold for more than `validator_low_stake_grace_period` number of epochs.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/BigInt_for_uint64"
+              }
+            ]
+          },
+          "validatorReportRecords": {
+            "description": "A map storing the records of validator reporting each other.",
+            "type": "array",
+            "items": {
+              "type": "array",
+              "items": [
+                {
+                  "$ref": "#/components/schemas/IotaAddress"
+                },
+                {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/IotaAddress"
+                  }
+                }
+              ],
+              "maxItems": 2,
+              "minItems": 2
+            }
+          },
+          "validatorVeryLowStakeThreshold": {
+            "description": "Validators with stake below `validator_very_low_stake_threshold` will be removed immediately at epoch change, no grace period.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/BigInt_for_uint64"
+              }
+            ]
+          }
+        }
+      },
       "IotaTransaction": {
         "description": "A single transaction in a programmable transaction block.",
         "oneOf": [
@@ -8808,6 +9307,29 @@
             "type": "string",
             "enum": [
               "DevInspect"
+            ]
+          }
+        ]
+      },
+      "IotaTransactionKind": {
+        "description": "Represents the type of a transaction. All transactions except `ProgrammableTransaction` are considered system transactions.",
+        "oneOf": [
+          {
+            "type": "string",
+            "enum": [
+              "ProgrammableTransaction",
+              "Genesis",
+              "ConsensusCommitPrologueV1",
+              "AuthenticatorStateUpdateV1",
+              "RandomnessStateUpdate",
+              "EndOfEpochTransaction"
+            ]
+          },
+          {
+            "description": "The `SystemTransaction` variant can be used to filter for all types of system transactions.",
+            "type": "string",
+            "enum": [
+              "SystemTransaction"
             ]
           }
         ]
@@ -11709,7 +12231,7 @@
             ],
             "properties": {
               "TransactionKind": {
-                "type": "string"
+                "$ref": "#/components/schemas/IotaTransactionKind"
               }
             },
             "additionalProperties": false
@@ -11724,7 +12246,7 @@
               "TransactionKindIn": {
                 "type": "array",
                 "items": {
-                  "type": "string"
+                  "$ref": "#/components/schemas/IotaTransactionKind"
                 }
               }
             },

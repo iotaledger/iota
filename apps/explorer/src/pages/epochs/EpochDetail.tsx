@@ -29,6 +29,9 @@ import { TokenStats } from './stats/TokenStats';
 import { EpochTopStats } from './stats/EpochTopStats';
 import { getEpochStorageFundFlow } from '~/lib/utils';
 import { Warning } from '@iota/apps-ui-icons';
+import type { Network } from '@iota/iota-sdk/src/client';
+import { useNetworkContext } from '~/contexts/networkContext';
+import { Feature, useFeatureEnabledByNetwork } from '@iota/core';
 
 enum EpochTabs {
     Checkpoints = 'checkpoints',
@@ -36,10 +39,12 @@ enum EpochTabs {
 }
 
 export function EpochDetail() {
+    const [network] = useNetworkContext();
     const [activeTabId, setActiveTabId] = useState(EpochTabs.Checkpoints);
     const { id } = useParams();
     const enhancedRpc = useEnhancedRpcClient();
     const { data: systemState } = useIotaClientQuery('getLatestIotaSystemState');
+    const isFixedGasPrice = useFeatureEnabledByNetwork(Feature.FixedGasPrice, network as Network);
     const { data, isPending, isError } = useQuery({
         queryKey: ['epoch', id],
         queryFn: async () =>
@@ -58,6 +63,20 @@ export function EpochDetail() {
 
     const tableColumns = useMemo(() => {
         if (!epochData?.validators || epochData.validators.length === 0) return null;
+        const includeColumns = [
+            'Name',
+            'Stake',
+            'APY',
+            'Commission',
+            'Last Epoch Rewards',
+            'Voting Power',
+            'Status',
+        ];
+
+        if (!isFixedGasPrice) {
+            includeColumns.push('Proposed next Epoch gas price');
+        }
+
         // todo: enrich this historical validator data when we have
         // at-risk / pending validators for historical epochs
         return generateValidatorsTableColumns({
@@ -65,16 +84,7 @@ export function EpochDetail() {
             validatorEvents: [],
             rollingAverageApys: null,
             showValidatorIcon: true,
-            includeColumns: [
-                'Name',
-                'Stake',
-                'Proposed next Epoch gas price',
-                'APY',
-                'Commission',
-                'Last Epoch Rewards',
-                'Voting Power',
-                'Status',
-            ],
+            includeColumns,
         });
     }, [epochData]);
 
@@ -95,7 +105,7 @@ export function EpochDetail() {
             />
         );
 
-    const tableData = [...epochData.validators].sort(() => 0.5 - Math.random());
+    const tableData = epochData.validators;
 
     const { fundInflow, fundOutflow, netInflow } = getEpochStorageFundFlow(
         epochData.endOfEpochInfo,
@@ -195,7 +205,12 @@ export function EpochDetail() {
                                 />
                             ) : null}
                             {activeTabId === EpochTabs.Validators && tableData && tableColumns ? (
-                                <TableCard data={tableData} columns={tableColumns} />
+                                <TableCard
+                                    sortTable
+                                    defaultSorting={[{ id: 'stakingPoolIotaBalance', desc: true }]}
+                                    data={tableData}
+                                    columns={tableColumns}
+                                />
                             ) : null}
                         </div>
                     </Panel>

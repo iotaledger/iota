@@ -83,3 +83,7 @@ lcov.info
 dev-tools/iota-private-network/data
 dev-tools/iota-private-network/configs/validators/validator*
 dev-tools/iota-private-network/configs/genesis/genesis.blob
+dev-tools/iota-private-network/configs/temp/
+
+# generated-documentation
+docs/generated-docs/**

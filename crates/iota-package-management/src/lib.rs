@@ -80,7 +80,7 @@ pub async fn update_lock_file(
         )
     };
     let install_dir = install_dir.unwrap_or(PathBuf::from("."));
-    let env = context.config().get_active_env().context(
+    let env = context.active_env().context(
         "Could not resolve environment from active wallet context. \
          Try ensure `iota client active-env` is valid.",
     )?;

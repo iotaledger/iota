@@ -61,7 +61,7 @@ impl EpochStartSystemState {
         safe_mode: bool,
         epoch_start_timestamp_ms: u64,
         epoch_duration_ms: u64,
-        active_validators: Vec<EpochStartValidatorInfoV1>,
+        committee_validators: Vec<EpochStartValidatorInfoV1>,
     ) -> Self {
         Self::V1(EpochStartSystemStateV1 {
             epoch,
@@ -70,7 +70,7 @@ impl EpochStartSystemState {
             safe_mode,
             epoch_start_timestamp_ms,
             epoch_duration_ms,
-            active_validators,
+            committee_validators,
         })
     }
 
@@ -88,7 +88,7 @@ impl EpochStartSystemState {
                 safe_mode: state.safe_mode,
                 epoch_start_timestamp_ms: state.epoch_start_timestamp_ms,
                 epoch_duration_ms: state.epoch_duration_ms,
-                active_validators: state.active_validators.clone(),
+                committee_validators: state.committee_validators.clone(),
             }),
         }
     }
@@ -102,7 +102,7 @@ pub struct EpochStartSystemStateV1 {
     safe_mode: bool,
     epoch_start_timestamp_ms: u64,
     epoch_duration_ms: u64,
-    active_validators: Vec<EpochStartValidatorInfoV1>,
+    committee_validators: Vec<EpochStartValidatorInfoV1>,
 }
 
 impl EpochStartSystemStateV1 {
@@ -118,7 +118,7 @@ impl EpochStartSystemStateV1 {
             safe_mode: false,
             epoch_start_timestamp_ms: 0,
             epoch_duration_ms: 1000,
-            active_validators: vec![],
+            committee_validators: vec![],
         }
     }
 }
@@ -149,7 +149,7 @@ impl EpochStartSystemStateTrait for EpochStartSystemStateV1 {
     }
 
     fn get_validator_addresses(&self) -> Vec<IotaAddress> {
-        self.active_validators
+        self.committee_validators
             .iter()
             .map(|validator| validator.iota_address)
             .collect()
@@ -157,7 +157,7 @@ impl EpochStartSystemStateTrait for EpochStartSystemStateV1 {
 
     fn get_iota_committee_with_network_metadata(&self) -> CommitteeWithNetworkMetadata {
         let validators = self
-            .active_validators
+            .committee_validators
             .iter()
             .map(|validator| {
                 (
@@ -178,7 +178,7 @@ impl EpochStartSystemStateTrait for EpochStartSystemStateV1 {
 
     fn get_iota_committee(&self) -> Committee {
         let voting_rights = self
-            .active_validators
+            .committee_validators
             .iter()
             .map(|validator| (validator.authority_name(), validator.voting_power))
             .collect();
@@ -187,7 +187,7 @@ impl EpochStartSystemStateTrait for EpochStartSystemStateV1 {
 
     fn get_consensus_committee(&self) -> ConsensusCommittee {
         let mut authorities = vec![];
-        for validator in self.active_validators.iter() {
+        for validator in self.committee_validators.iter() {
             authorities.push(Authority {
                 stake: validator.voting_power as consensus_config::Stake,
                 address: validator.primary_address.clone(),
@@ -225,7 +225,7 @@ impl EpochStartSystemStateTrait for EpochStartSystemStateV1 {
     }
 
     fn get_validator_as_p2p_peers(&self, excluding_self: AuthorityName) -> Vec<PeerInfo> {
-        self.active_validators
+        self.committee_validators
             .iter()
             .filter(|validator| validator.authority_name() != excluding_self)
             .map(|validator| {
@@ -251,7 +251,7 @@ impl EpochStartSystemStateTrait for EpochStartSystemStateV1 {
     }
 
     fn get_authority_names_to_peer_ids(&self) -> HashMap<AuthorityName, PeerId> {
-        self.active_validators
+        self.committee_validators
             .iter()
             .map(|validator| {
                 let name = validator.authority_name();
@@ -263,7 +263,7 @@ impl EpochStartSystemStateTrait for EpochStartSystemStateV1 {
     }
 
     fn get_authority_names_to_hostnames(&self) -> HashMap<AuthorityName, String> {
-        self.active_validators
+        self.committee_validators
             .iter()
             .map(|validator| {
                 let name = validator.authority_name();
@@ -313,13 +313,13 @@ mod test {
     #[test]
     fn test_iota_and_mysticeti_committee_are_same() {
         // GIVEN
-        let mut active_validators = vec![];
+        let mut committee_validators = vec![];
 
         for i in 0..10 {
             let (iota_address, authority_key): (IotaAddress, AuthorityKeyPair) = get_key_pair();
             let protocol_network_key = NetworkKeyPair::generate(&mut thread_rng());
 
-            active_validators.push(EpochStartValidatorInfoV1 {
+            committee_validators.push(EpochStartValidatorInfoV1 {
                 iota_address,
                 authority_pubkey: authority_key.public().clone(),
                 network_pubkey: protocol_network_key.public().clone(),
@@ -339,7 +339,7 @@ mod test {
             safe_mode: false,
             epoch_start_timestamp_ms: 0,
             epoch_duration_ms: 0,
-            active_validators,
+            committee_validators,
         };
 
         // WHEN

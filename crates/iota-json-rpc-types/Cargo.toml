@@ -10,6 +10,7 @@ publish = false
 # external dependencies
 anyhow.workspace = true
 bcs.workspace = true
+chrono.workspace = true
 colored.workspace = true
 enum_dispatch.workspace = true
 fastcrypto.workspace = true
@@ -19,6 +20,7 @@ schemars.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 serde_with.workspace = true
+strum.workspace = true
 tabled.workspace = true
 tracing.workspace = true
 

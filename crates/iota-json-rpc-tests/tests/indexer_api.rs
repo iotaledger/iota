@@ -440,7 +440,7 @@ async fn test_query_transaction_blocks_pagination() -> Result<(), anyhow::Error>
 
 #[sim_test]
 async fn test_query_transaction_blocks() -> Result<(), anyhow::Error> {
-    let mut cluster = TestClusterBuilder::new().build().await;
+    let cluster = TestClusterBuilder::new().build().await;
     let context = &cluster.wallet;
     let client = context.get_client().await.unwrap();
 

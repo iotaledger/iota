@@ -7,7 +7,11 @@ import { useQueryTransactionsByAddress } from '@iota/core';
 import { getExtendedTransaction } from '@/lib/utils/transaction';
 import { IotaTransactionBlockResponse } from '@iota/iota-sdk/client';
 
-export function TransactionsList() {
+interface TransactionsListProps {
+    overflowClassName?: string;
+}
+
+export function TransactionsList({ overflowClassName }: TransactionsListProps): JSX.Element {
     const currentAccount = useCurrentAccount();
     const { allTransactions, fetchNextPage, hasNextPage, isFetchingNextPage, error } =
         useQueryTransactionsByAddress(currentAccount?.address);
@@ -24,13 +28,14 @@ export function TransactionsList() {
     return (
         <VirtualList
             items={allTransactions || []}
+            getItemKey={(tx) => tx?.digest}
             estimateSize={() => 60}
             render={virtualItem}
             fetchNextPage={fetchNextPage}
             hasNextPage={hasNextPage}
             isFetchingNextPage={isFetchingNextPage}
-            heightClassName="h-[400px] xl:h-[500px]"
-            overflowClassName="overflow-y-auto"
+            heightClassName="h-full"
+            overflowClassName={overflowClassName}
         />
     );
 }

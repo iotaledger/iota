@@ -231,7 +231,10 @@ pub trait ValidatorProxy {
 
     fn clone_new(&self) -> Box<dyn ValidatorProxy + Send + Sync>;
 
-    async fn get_validators(&self) -> Result<Vec<IotaAddress>, anyhow::Error>;
+    /// This crate benchmarks committee performance, such as
+    /// transaction execution (`execute_bench_transaction`).
+    /// Therefore, we return the committee members here.
+    async fn get_committee(&self) -> Result<Vec<IotaAddress>, anyhow::Error>;
 }
 
 // TODO: Eventually remove this proxy because we shouldn't rely on validators to
@@ -622,11 +625,11 @@ impl ValidatorProxy for LocalValidatorAggregatorProxy {
         })
     }
 
-    async fn get_validators(&self) -> Result<Vec<IotaAddress>, anyhow::Error> {
-        let system_state = self.get_latest_system_state_object().await?;
-        Ok(system_state
-            .active_validators
-            .iter()
+    async fn get_committee(&self) -> Result<Vec<IotaAddress>, anyhow::Error> {
+        Ok(self
+            .get_latest_system_state_object()
+            .await?
+            .iter_committee_members()
             .map(|v| v.iota_address)
             .collect())
     }
@@ -786,14 +789,15 @@ impl ValidatorProxy for FullNodeProxy {
         })
     }
 
-    async fn get_validators(&self) -> Result<Vec<IotaAddress>, anyhow::Error> {
-        let validators = self
+    async fn get_committee(&self) -> Result<Vec<IotaAddress>, anyhow::Error> {
+        Ok(self
             .iota_client
             .governance_api()
             .get_latest_iota_system_state()
             .await?
-            .active_validators;
-        Ok(validators.into_iter().map(|v| v.iota_address).collect())
+            .iter_committee_members()
+            .map(|v| v.iota_address)
+            .collect())
     }
 }
 

@@ -48,8 +48,7 @@ pub mod types;
 #[derive(Parser, Clone, Debug)]
 #[command(
     name = "IOTA indexer",
-    about = "An off-fullnode service serving data from IOTA protocol",
-    rename_all = "kebab-case"
+    about = "An off-fullnode service serving data from IOTA protocol"
 )]
 pub struct IndexerConfig {
     #[arg(long)]
@@ -178,7 +177,7 @@ pub async fn build_json_rpc_server(
     builder.register_module(MoveUtilsApi::new(reader.clone()))?;
     builder.register_module(GovernanceReadApi::new(reader.clone()))?;
     builder.register_module(ReadApi::new(reader.clone()))?;
-    builder.register_module(CoinReadApi::new(reader.clone()))?;
+    builder.register_module(CoinReadApi::new(reader.clone())?)?;
     builder.register_module(ExtendedApi::new(reader.clone()))?;
 
     let default_socket_addr: SocketAddr = SocketAddr::new(

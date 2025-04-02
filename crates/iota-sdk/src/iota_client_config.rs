@@ -13,8 +13,9 @@ use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
 
 use crate::{
-    IOTA_DEVNET_GAS_URL, IOTA_DEVNET_URL, IOTA_LOCAL_NETWORK_GAS_URL, IOTA_LOCAL_NETWORK_URL,
-    IOTA_TESTNET_GAS_URL, IOTA_TESTNET_URL, IotaClient, IotaClientBuilder,
+    IOTA_DEVNET_GAS_URL, IOTA_DEVNET_GRAPHQL_URL, IOTA_DEVNET_URL, IOTA_LOCAL_NETWORK_GAS_URL,
+    IOTA_LOCAL_NETWORK_GRAPHQL_URL, IOTA_LOCAL_NETWORK_URL, IOTA_TESTNET_GAS_URL,
+    IOTA_TESTNET_GRAPHQL_URL, IOTA_TESTNET_URL, IotaClient, IotaClientBuilder,
 };
 
 /// Configuration for the IOTA client, containing a
@@ -78,33 +79,36 @@ impl IotaClientConfig {
         self.active_address = address.into();
     }
 
-    /// Get the first [`IotaEnv`] or one by its alias.
-    pub fn get_env(&self, alias: &Option<String>) -> Option<&IotaEnv> {
-        if let Some(alias) = alias {
-            self.envs.iter().find(|env| &env.alias == alias)
-        } else {
-            self.envs.first()
-        }
+    /// Get an [`IotaEnv`] by its alias.
+    pub fn get_env(&self, alias: &str) -> Option<&IotaEnv> {
+        self.envs.iter().find(|env| env.alias == alias)
     }
 
     /// Get the active [`IotaEnv`].
     pub fn get_active_env(&self) -> Result<&IotaEnv, anyhow::Error> {
-        self.get_env(&self.active_env).ok_or_else(|| {
-            anyhow!(
-                "Environment configuration not found for env [{}]",
-                self.active_env.as_deref().unwrap_or("None")
-            )
-        })
+        self.active_env
+            .as_ref()
+            .and_then(|alias| self.get_env(alias))
+            .ok_or_else(|| {
+                anyhow!(
+                    "Environment configuration not found for env [{}]",
+                    self.active_env.as_deref().unwrap_or("None")
+                )
+            })
     }
 
     /// Add an [`IotaEnv`].
     pub fn add_env(&mut self, env: IotaEnv) {
-        if !self
-            .envs
-            .iter()
-            .any(|other_env| other_env.alias == env.alias)
-        {
-            self.envs.push(env)
+        if self.get_env(&env.alias).is_none() {
+            if self
+                .active_env
+                .as_ref()
+                .and_then(|env| self.get_env(env))
+                .is_none()
+            {
+                self.set_active_env(env.alias.clone());
+            }
+            self.envs.push(env);
         }
     }
 }
@@ -116,6 +120,7 @@ impl IotaClientConfig {
 pub struct IotaEnv {
     pub(crate) alias: String,
     pub(crate) rpc: String,
+    pub(crate) graphql: Option<String>,
     pub(crate) ws: Option<String>,
     /// Basic HTTP access authentication in the format of username:password, if
     /// needed.
@@ -129,10 +134,22 @@ impl IotaEnv {
         Self {
             alias: alias.into(),
             rpc: rpc.into(),
+            graphql: None,
             ws: None,
             basic_auth: None,
             faucet: None,
         }
+    }
+
+    /// Set a graphql URL.
+    pub fn with_graphql(mut self, graphql: impl Into<Option<String>>) -> Self {
+        self.set_graphql(graphql);
+        self
+    }
+
+    /// Set a graphql URL.
+    pub fn set_graphql(&mut self, graphql: impl Into<Option<String>>) {
+        self.graphql = graphql.into();
     }
 
     /// Set a websocket URL.
@@ -207,6 +224,7 @@ impl IotaEnv {
         Self {
             alias: "devnet".to_string(),
             rpc: IOTA_DEVNET_URL.into(),
+            graphql: Some(IOTA_DEVNET_GRAPHQL_URL.into()),
             ws: None,
             basic_auth: None,
             faucet: Some(IOTA_DEVNET_GAS_URL.into()),
@@ -218,6 +236,7 @@ impl IotaEnv {
         Self {
             alias: "testnet".to_string(),
             rpc: IOTA_TESTNET_URL.into(),
+            graphql: Some(IOTA_TESTNET_GRAPHQL_URL.into()),
             ws: None,
             basic_auth: None,
             faucet: Some(IOTA_TESTNET_GAS_URL.into()),
@@ -229,6 +248,7 @@ impl IotaEnv {
         Self {
             alias: "local".to_string(),
             rpc: IOTA_LOCAL_NETWORK_URL.into(),
+            graphql: Some(IOTA_LOCAL_NETWORK_GRAPHQL_URL.into()),
             ws: None,
             basic_auth: None,
             faucet: Some(IOTA_LOCAL_NETWORK_GAS_URL.into()),
@@ -241,6 +261,10 @@ impl Display for IotaEnv {
         let mut writer = String::new();
         writeln!(writer, "Active environment: {}", self.alias)?;
         write!(writer, "RPC URL: {}", self.rpc)?;
+        if let Some(graphql) = &self.graphql {
+            writeln!(writer)?;
+            write!(writer, "GraphQL URL: {graphql}")?;
+        }
         if let Some(ws) = &self.ws {
             writeln!(writer)?;
             write!(writer, "Websocket URL: {ws}")?;

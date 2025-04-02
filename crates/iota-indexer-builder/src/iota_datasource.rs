@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::path::PathBuf;
+use std::{path::PathBuf, sync::Arc};
 
 use anyhow::Error;
 use async_trait::async_trait;
@@ -65,6 +65,7 @@ impl Datasource<CheckpointTxnData> for IotaCheckpointDatasource {
             worker,
             TransactionDigest::random().to_string(),
             self.concurrency,
+            Default::default(),
         );
         executor.register(worker_pool).await?;
         let checkpoint_path = self.checkpoint_path.clone();
@@ -131,7 +132,7 @@ impl Worker for IndexerWorker<CheckpointTxnData> {
 
     async fn process_checkpoint(
         &self,
-        checkpoint: &IotaCheckpointData,
+        checkpoint: Arc<IotaCheckpointData>,
     ) -> Result<Self::Message, Self::Error> {
         info!(
             "Received checkpoint [{}] {}: {}",

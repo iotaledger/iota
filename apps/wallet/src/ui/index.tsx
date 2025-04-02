@@ -3,10 +3,13 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import '@fontsource-variable/inter';
-import '@fontsource-variable/red-hat-mono';
 import { ErrorBoundary } from '_components';
-import { initAppType } from '_redux/slices/app';
-import { AppType, getFromLocationSearch } from '_src/ui/app/redux/slices/app/appType';
+import { initAppType, setIsAppViewPopup } from '_redux/slices/app';
+import {
+    AppType,
+    getFromLocationSearch,
+    getIsAppViewPopup,
+} from '_src/ui/app/redux/slices/app/appType';
 import { initAmplitude } from '_src/shared/analytics/amplitude';
 import { setAttributes } from '_src/shared/experimentation/features';
 import { initSentry } from '_src/ui/app/helpers';
@@ -31,7 +34,6 @@ import { persister, queryClient } from './app/helpers/queryClient';
 import { useAppSelector } from '_hooks';
 
 import './styles/global.scss';
-import 'bootstrap-icons/font/bootstrap-icons.scss';
 import { defaultShouldDehydrateQuery, type Query } from '@tanstack/react-query';
 
 async function init() {
@@ -39,6 +41,7 @@ async function init() {
         Object.defineProperty(window, 'store', { value: store });
     }
     store.dispatch(initAppType(getFromLocationSearch()));
+    store.dispatch(setIsAppViewPopup(getIsAppViewPopup()));
     await thunkExtras.background.init(store.dispatch);
     const { network, customRpc } = store.getState().app;
     setAttributes({ network, customRpc });
