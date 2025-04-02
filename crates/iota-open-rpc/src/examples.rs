@@ -8,7 +8,7 @@ use fastcrypto::traits::EncodeDecodeBase64;
 use iota_json::IotaJsonValue;
 use iota_json_rpc::error::Error;
 use iota_json_rpc_types::{
-    Balance, Checkpoint, CheckpointId, CheckpointPage, Coin, CoinPage, DelegatedStake,
+    Balance, BcsEvent, Checkpoint, CheckpointId, CheckpointPage, Coin, CoinPage, DelegatedStake,
     DevInspectArgs, DevInspectResults, DynamicFieldPage, EventFilter, EventPage, IotaCoinMetadata,
     IotaCommittee, IotaData, IotaEvent, IotaExecutionStatus, IotaGetPastObjectRequest,
     IotaMoveAbility, IotaMoveAbilitySet, IotaMoveNormalizedFunction, IotaMoveNormalizedModule,
@@ -777,7 +777,7 @@ impl RpcExampleProvider {
             sender: IotaAddress::from(ObjectID::new(self.rng.gen())),
             type_: parse_iota_struct_tag("0x9::test::TestEvent").unwrap(),
             parsed_json: json!({"test": "example value"}),
-            bcs: vec![],
+            bcs: BcsEvent::new(vec![]),
             timestamp_ms: None,
         };
 
@@ -1154,6 +1154,7 @@ impl RpcExampleProvider {
                 version: SequenceNumber::from_u64(1),
                 digest: ObjectDigest::new(self.rng.gen()),
             })
+            .map(Into::into)
             .collect::<Vec<_>>();
 
         let next_cursor = ObjectID::new(self.rng.gen());
@@ -1312,7 +1313,7 @@ impl RpcExampleProvider {
                 sender: IotaAddress::from(ObjectID::new(self.rng.gen())),
                 type_: StructTag::from_str("0x3::test::Test<0x3::test::Test>").unwrap(),
                 parsed_json: serde_json::Value::String("some_value".to_string()),
-                bcs: vec![],
+                bcs: BcsEvent::new(vec![]),
                 timestamp_ms: None,
             })
             .collect();
