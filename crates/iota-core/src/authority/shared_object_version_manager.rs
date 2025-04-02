@@ -138,8 +138,11 @@ impl SharedObjVerManager {
         // Check if the transaction is cancelled due to congestion.
         let cancellation_info = cancelled_txns.get(tx_digest);
         let congested_objects_info: Option<HashSet<_>> =
-            if let Some(CancelConsensusCertificateReason::CongestionOnObjects(congested_objects)) =
-                &cancellation_info
+            if let Some(CancelConsensusCertificateReason::CongestionOnObjects(
+                congested_objects,
+                // FIX: ROMAN: use this suggested_gas_price somehow
+                suggested_gas_price,
+            )) = &cancellation_info
             {
                 Some(congested_objects.iter().cloned().collect())
             } else {
@@ -164,7 +167,7 @@ impl SharedObjVerManager {
             // any shared objects.
             for SharedInputObject { id, .. } in shared_input_objects.iter() {
                 let assigned_version = match cancellation_info {
-                    Some(CancelConsensusCertificateReason::CongestionOnObjects(_)) => {
+                    Some(CancelConsensusCertificateReason::CongestionOnObjects(..)) => {
                         if congested_objects_info
                             .as_ref()
                             .is_some_and(|info| info.contains(id))
@@ -522,11 +525,11 @@ mod tests {
         let cancelled_txns: BTreeMap<TransactionDigest, CancelConsensusCertificateReason> = [
             (
                 *certs[1].digest(),
-                CancelConsensusCertificateReason::CongestionOnObjects(vec![id1]),
+                CancelConsensusCertificateReason::CongestionOnObjects(vec![id1], 0),
             ),
             (
                 *certs[3].digest(),
-                CancelConsensusCertificateReason::CongestionOnObjects(vec![id2]),
+                CancelConsensusCertificateReason::CongestionOnObjects(vec![id2], 0),
             ),
             (
                 *certs[4].digest(),
