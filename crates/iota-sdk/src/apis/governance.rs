@@ -40,7 +40,7 @@ impl GovernanceApi {
     ///
     /// #[tokio::main]
     /// async fn main() -> Result<(), anyhow::Error> {
-    ///     let iota = IotaClientBuilder::default().build_localnet().await?;
+    ///     let iota = IotaClientBuilder::default().build_testnet().await?;
     ///     let committee_info = iota.governance_api().get_committee_info(None).await?;
     ///     Ok(())
     /// }
