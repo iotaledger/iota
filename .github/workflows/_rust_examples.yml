@@ -40,11 +40,11 @@ jobs:
           shopt -s globstar
           for manifest in ./**/examples/**/Cargo.toml; do
               echo "Checking format for $manifest"
-              cargo +nightly ci-fmt --manifest-path $manifest
+              cargo +nightly-2025-04-01 ci-fmt --manifest-path $manifest
 
               echo "Clippy linting for $manifest"
               cargo clippy --manifest-path $manifest --all-features
 
               echo "Checking unused dependencies of $manifest"
-              cargo +nightly ci-udeps --manifest-path $manifest
+              cargo +nightly-2025-04-01 ci-udeps --manifest-path $manifest
           done
