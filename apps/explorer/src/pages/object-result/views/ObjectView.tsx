@@ -15,7 +15,7 @@ import {
 import { SortByDefault } from '@iota/apps-ui-icons';
 import { useQuery } from '@tanstack/react-query';
 import clsx from 'clsx';
-import { type PropsWithChildren, type ReactNode, useEffect, useState } from 'react';
+import { type PropsWithChildren, type ReactNode, useState } from 'react';
 import { AddressLink, Link, ObjectLink, ObjectVideoImage, TransactionLink } from '~/components/ui';
 import { useResolveVideo } from '~/hooks/useResolveVideo';
 import {
