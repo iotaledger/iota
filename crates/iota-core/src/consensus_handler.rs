@@ -870,7 +870,7 @@ mod tests {
 
             // AND create block for each transaction
             let block = VerifiedBlock::new_for_test(
-                TestBlock::new(100 + i as u32, (i % consensus_committee.size()) as u32)
+                TestBlock::new_v1(100 + i as u32, (i % consensus_committee.size()) as u32)
                     .set_transactions(vec![Transaction::new(transaction_bytes)])
                     .build(),
             );

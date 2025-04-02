@@ -16,7 +16,7 @@ use serde::{Deserialize, Serialize};
 use shared_crypto::intent::{Intent, IntentMessage, IntentScope};
 use starfish_config::{
     AuthorityIndex, DIGEST_LENGTH, DefaultHashFunction, Epoch, ProtocolKeyPair,
-    ProtocolKeySignature, ProtocolPublicKey,
+    ProtocolKeySignature, ProtocolPublicKey, TRANSACTIONS_COMMITMENT_SIZE,
 };
 
 use crate::{
@@ -76,6 +76,7 @@ pub trait BlockAPI {
     fn timestamp_ms(&self) -> BlockTimestampMs;
     fn ancestors(&self) -> &[BlockRef];
     fn transactions(&self) -> &[Transaction];
+    fn transactions_commitment(&self) -> &TransactionsCommitment;
     fn commit_votes(&self) -> &[CommitVote];
     fn misbehavior_reports(&self) -> &[MisbehaviorReport];
     fn shard_data(&self) -> Option<&Bytes>;
@@ -174,11 +175,11 @@ impl BlockAPI for BlockV1 {
     }
 
     fn shard_data(&self) -> Option<&Bytes> {
-        None
+        panic!("BlockV1 has no shard data");
         }
 
     fn acknowledgment_statements(&self) -> &[BlockRef] {
-        &[]
+        panic!("BlockV1 has no acknowledgment statements");
     }
 
 }
@@ -187,7 +188,95 @@ impl BlockAPI for BlockV1 {
 // ====== New BlockV2 Definition =====
 
 
-/// BlockHeader: Contains metadata for a block including the Merkle root of transactions and acknowledgement statements.
+/// BlockHeader: Contains metadata for a block including the Merkle root of transactions (TransactionsCommitment) and acknowledgement statements.
+
+#[derive(Clone, Copy, Eq, Ord, PartialOrd, PartialEq, Default, Hash, Serialize, Deserialize)]
+pub struct TransactionsCommitment([u8; TRANSACTIONS_COMMITMENT_SIZE]);
+
+pub type Blake3Hasher = blake3::Hasher;
+
+pub trait CryptoHash {
+    fn crypto_hash(&self, state: &mut Blake3Hasher);
+}
+
+#[derive(Clone)]
+pub struct Blake3;
+
+impl MerkleHasher for Blake3 {
+    type Hash = [u8; TRANSACTIONS_COMMITMENT_SIZE];
+
+    fn hash(data: &[u8]) -> [u8; TRANSACTIONS_COMMITMENT_SIZE] {
+        let mut hasher = Blake3Hasher::new();
+        hasher.update(data);
+        hasher.finalize().into()
+    }
+}
+pub type Shard = Vec<u8>;
+impl CryptoHash for Shard {
+    fn crypto_hash(&self, state: &mut Blake3Hasher) {
+        state.update(self);
+    }
+}
+
+
+impl TransactionsCommitment {
+    pub fn new_from_encoded_statements(
+        encoded_statements: &Vec<Shard>,
+        authority_index: usize,
+    ) -> (TransactionsCommitment, Vec<u8>) {
+        let mut leaves: Vec<[u8; TRANSACTIONS_COMMITMENT_SIZE]> = Vec::new();
+        for shard in encoded_statements {
+            let mut hasher = Blake3Hasher::new();
+            shard.crypto_hash(&mut hasher);
+            let leaf = hasher.finalize().into();
+            leaves.push(leaf);
+        }
+        let merkle_tree = MerkleTree::<Blake3>::from_leaves(&leaves);
+        let merkle_root = merkle_tree
+            .root()
+            .ok_or("couldn't get the merkle root")
+            .unwrap();
+        let indices_to_prove = vec![authority_index];
+        let merkle_proof = merkle_tree.proof(&indices_to_prove);
+        let merkle_proof_bytes = merkle_proof.to_bytes();
+        (TransactionsCommitment(merkle_root), merkle_proof_bytes)
+    }
+    pub fn check_correctness_merkle_root(
+        encoded_statements: &Vec<Shard>,
+        merkle_root: TransactionsCommitment,
+    ) -> bool {
+        let mut leaves: Vec<[u8; TRANSACTIONS_COMMITMENT_SIZE]> = Vec::new();
+        for shard in encoded_statements {
+            let mut hasher = Blake3Hasher::new();
+            shard.crypto_hash(&mut hasher);
+            let leaf = hasher.finalize().into();
+            leaves.push(leaf);
+        }
+        let computed_merkle_tree = MerkleTree::<Blake3>::from_leaves(&leaves);
+        let computed_merkle_root = computed_merkle_tree
+            .root()
+            .ok_or("couldn't get the merkle root")
+            .unwrap();
+        computed_merkle_root == merkle_root.0
+    }
+    pub fn check_correctness_merkle_leaf(
+        shard: Shard,
+        merkle_root: TransactionsCommitment,
+        proof_bytes: Vec<u8>,
+        tree_size: usize,
+        leaf_index: usize,
+    ) -> Option<bool> {
+        let mut hasher = Blake3Hasher::new();
+        shard.crypto_hash(&mut hasher);
+        let leaf_to_prove: [u8;TRANSACTIONS_COMMITMENT_SIZE] = hasher.finalize().into();
+        let proof = MerkleProof::<Blake3>::try_from(proof_bytes).ok()?;
+        Some(proof.verify(merkle_root.0, &[leaf_index], &[leaf_to_prove], tree_size))
+    }
+}
+
+
+
+
 #[derive(Clone, Default, Deserialize, Serialize)]
 pub struct BlockHeader {
     epoch: Epoch,
@@ -199,10 +288,13 @@ pub struct BlockHeader {
     commit_votes: Vec<CommitVote>,
     misbehavior_reports: Vec<MisbehaviorReport>,
     /// Merkle root commitment of transactions.
-    transactions_commitment: [u8; 32],
+    transactions_commitment: TransactionsCommitment,
     /// Acknowledgement statements.
     acknowledgement_statements: Vec<BlockRef>,
 }
+
+
+
 
 impl BlockHeader {
 
@@ -214,7 +306,7 @@ impl BlockHeader {
         ancestors: Vec<BlockRef>,
         commit_votes: Vec<CommitVote>,
         misbehavior_reports: Vec<MisbehaviorReport>,
-        transactions_commitment: [u8; 32],
+        transactions_commitment: TransactionsCommitment,
         acknowledgement_statements: Vec<BlockRef>,
     ) -> BlockHeader {
         Self {
@@ -241,7 +333,7 @@ impl BlockHeader {
             ancestors: vec![],
             commit_votes: vec![],
             misbehavior_reports: vec![],
-            transactions_commitment: [0u8; 32],
+            transactions_commitment: TransactionsCommitment::default(),
             acknowledgement_statements: vec![],
         }
     }
@@ -268,8 +360,8 @@ impl BlockBody{
 /// BlockV2: Combines header and body, replacing BlockV1
 #[derive(Clone, Default, Deserialize, Serialize)]
 pub struct BlockV2 {
-    header: BlockHeader,
-    body: BlockBody,
+    pub(crate) header: BlockHeader,
+    pub(crate) body: BlockBody,
 }
 
 
@@ -304,6 +396,9 @@ impl BlockAPI for BlockV2 {
             BlockBody::ShardData(_) => &[],
             BlockBody::Empty => &[],
         }
+    }
+    fn transactions_commitment(&self) -> &TransactionsCommitment {
+        &self.header.transactions_commitment
     }
     fn shard_data(&self) -> Option<&Bytes> {
         match &self.body {
@@ -711,6 +806,16 @@ impl fmt::Debug for VerifiedBlock {
             self.commit_votes().len(),
         )
     }
+}
+
+/// Block with extended additional information, such as
+/// local blocks that are excluded from the block's ancestors.
+/// The extended information do not need to be certified or forwarded to other
+/// authorities.
+#[derive(Clone, Debug)]
+pub(crate) struct ExtendedBlock {
+    pub block: VerifiedBlock,
+    pub excluded_ancestors: Vec<BlockRef>,
 }
 
 /// Generates the genesis blocks for the current Committee.

@@ -293,7 +293,7 @@ impl BlockVerifier for NoopBlockVerifier {
 }
 
 #[cfg(test)]
-mod test {
+mod tests {
     use rstest::rstest;
     use starfish_config::AuthorityIndex;
 
