@@ -39,7 +39,7 @@
       {
         "questionText": "Considering the public auditability of all transactions on IOTA, which of the following could be a potential vulnerability for users seeking privacy, even if they use pseudonymous addresses?",
         "answerOptions": [
-          { "answerText": "Validators can track the transaction history and link multiple addresses to a single user.", "isCorrect": true },
+          { "answerText": "Public auditability allows validators to modify past transactions.", "isCorrect": false },
           { "answerText": "Third-party services can provide enhanced privacy by masking user identity during asset transfers.", "isCorrect": false },
           { "answerText": "Pseudonymous addresses are still visible on the blockchain, which could lead to de-anonymization through pattern analysis.", "isCorrect": true },
           { "answerText": "The cryptographic proof provided by validators reveals the private key of the user involved in the transaction.", "isCorrect": false }
