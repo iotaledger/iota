@@ -44,6 +44,9 @@ tonic-rustls = "0.1.0"
 tower.workspace = true
 tower-http.workspace = true
 tracing.workspace = true
+reed-solomon-simd = { version = "2.2.2" }
+eyre = { workspace = true }
+sapling-minibytes = "0.1.0"
 
 # internal dependencies
 iota-common.workspace = true
