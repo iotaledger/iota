@@ -128,6 +128,9 @@ pub(crate) enum ConsensusError {
     #[error("Invalid transaction: {0}")]
     InvalidTransaction(String),
 
+    #[error("Invalid transactions commitment!")]
+    InvalidTransactionsCommitment,
+
     #[error("Ancestors max timestamp {max_timestamp_ms} > block timestamp {block_timestamp_ms}")]
     InvalidBlockTimestamp {
         max_timestamp_ms: u64,

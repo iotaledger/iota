@@ -953,7 +953,7 @@ mod tests {
         // Observe round 15 blocks voting for commit 10 from authorities 0 to 2 in
         // CommitVoteMonitor
         for i in 0..3 {
-            let test_block = TestBlock::new(15, i)
+            let test_block = TestBlock::new_v1(15, i)
                 .set_commit_votes(vec![CommitRef::new(10, CommitDigest::MIN)])
                 .build();
             let block = VerifiedBlock::new_for_test(test_block);
@@ -973,7 +973,7 @@ mod tests {
         // Observe round 40 blocks voting for commit 35 from authorities 0 to 2 in
         // CommitVoteMonitor
         for i in 0..3 {
-            let test_block = TestBlock::new(40, i)
+            let test_block = TestBlock::new_v1(40, i)
                 .set_commit_votes(vec![CommitRef::new(35, CommitDigest::MIN)])
                 .build();
             let block = VerifiedBlock::new_for_test(test_block);

@@ -371,7 +371,7 @@ impl DagBuilder {
             let author = authority.value() as u32;
             let base_ts = round as BlockTimestampMs * 1000;
             let block = VerifiedBlock::new_for_test(
-                TestBlock::new(round, author)
+                TestBlock::new_v1(round, author)
                     .set_ancestors(ancestors)
                     .set_timestamp_ms(base_ts + author as u64)
                     .build(),
@@ -741,7 +741,7 @@ impl<'a> LayerBuilder<'a> {
                 let author = authority.value() as u32;
                 let base_ts = round as BlockTimestampMs * 1000;
                 let block = VerifiedBlock::new_for_test(
-                    TestBlock::new(round, author)
+                    TestBlock::new_v1(round, author)
                         .set_ancestors(ancestors.clone())
                         .set_timestamp_ms(base_ts + (author + round + num_block) as u64)
                         .build(),

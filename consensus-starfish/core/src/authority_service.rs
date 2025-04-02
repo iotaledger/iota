@@ -893,7 +893,7 @@ mod tests {
         let now = context.clock.timestamp_utc_ms();
         let max_drift = context.parameters.max_forward_time_drift;
         let input_block = VerifiedBlock::new_for_test(
-            TestBlock::new(9, 0)
+            TestBlock::new_v1(9, 0)
                 .set_timestamp_ms(now + max_drift.as_millis() as u64)
                 .build(),
         );

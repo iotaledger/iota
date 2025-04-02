@@ -594,7 +594,7 @@ mod test {
         let blocks = (0..NUM_AUTHORITIES)
             .map(|authority| {
                 let round = 110 + (authority as u32 * 10);
-                VerifiedBlock::new_for_test(TestBlock::new(round, authority as u32).build())
+                VerifiedBlock::new_for_test(TestBlock::new_v1(round, authority as u32).build())
             })
             .collect::<Vec<_>>();
 

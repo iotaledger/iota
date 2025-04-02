@@ -47,10 +47,10 @@ async fn read_and_contain_blocks(
     let store = test_store.store();
 
     let written_blocks: Vec<VerifiedBlock> = vec![
-        VerifiedBlock::new_for_test(TestBlock::new(1, 1).build()),
-        VerifiedBlock::new_for_test(TestBlock::new(1, 0).build()),
-        VerifiedBlock::new_for_test(TestBlock::new(1, 2).build()),
-        VerifiedBlock::new_for_test(TestBlock::new(2, 3).build()),
+        VerifiedBlock::new_for_test(TestBlock::new_v1(1, 1).build()),
+        VerifiedBlock::new_for_test(TestBlock::new_v1(1, 0).build()),
+        VerifiedBlock::new_for_test(TestBlock::new_v1(1, 2).build()),
+        VerifiedBlock::new_for_test(TestBlock::new_v1(2, 3).build()),
     ];
     store
         .write(WriteBatch::default().blocks(written_blocks.clone()))
@@ -126,14 +126,14 @@ async fn scan_blocks(
     let store = test_store.store();
 
     let written_blocks = vec![
-        VerifiedBlock::new_for_test(TestBlock::new(9, 0).build()),
-        VerifiedBlock::new_for_test(TestBlock::new(10, 0).build()),
-        VerifiedBlock::new_for_test(TestBlock::new(10, 1).build()),
-        VerifiedBlock::new_for_test(TestBlock::new(11, 1).build()),
-        VerifiedBlock::new_for_test(TestBlock::new(11, 3).build()),
-        VerifiedBlock::new_for_test(TestBlock::new(12, 1).build()),
-        VerifiedBlock::new_for_test(TestBlock::new(13, 2).build()),
-        VerifiedBlock::new_for_test(TestBlock::new(13, 1).build()),
+        VerifiedBlock::new_for_test(TestBlock::new_v1(9, 0).build()),
+        VerifiedBlock::new_for_test(TestBlock::new_v1(10, 0).build()),
+        VerifiedBlock::new_for_test(TestBlock::new_v1(10, 1).build()),
+        VerifiedBlock::new_for_test(TestBlock::new_v1(11, 1).build()),
+        VerifiedBlock::new_for_test(TestBlock::new_v1(11, 3).build()),
+        VerifiedBlock::new_for_test(TestBlock::new_v1(12, 1).build()),
+        VerifiedBlock::new_for_test(TestBlock::new_v1(13, 2).build()),
+        VerifiedBlock::new_for_test(TestBlock::new_v1(13, 1).build()),
     ];
     store
         .write(WriteBatch::default().blocks(written_blocks.clone()))
@@ -158,10 +158,10 @@ async fn scan_blocks(
     }
 
     let additional_blocks = vec![
-        VerifiedBlock::new_for_test(TestBlock::new(14, 2).build()),
-        VerifiedBlock::new_for_test(TestBlock::new(15, 0).build()),
-        VerifiedBlock::new_for_test(TestBlock::new(15, 1).build()),
-        VerifiedBlock::new_for_test(TestBlock::new(16, 3).build()),
+        VerifiedBlock::new_for_test(TestBlock::new_v1(14, 2).build()),
+        VerifiedBlock::new_for_test(TestBlock::new_v1(15, 0).build()),
+        VerifiedBlock::new_for_test(TestBlock::new_v1(15, 1).build()),
+        VerifiedBlock::new_for_test(TestBlock::new_v1(16, 3).build()),
     ];
     store
         .write(WriteBatch::default().blocks(additional_blocks.clone()))

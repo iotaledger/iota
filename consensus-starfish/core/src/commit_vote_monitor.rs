@@ -84,7 +84,7 @@ mod test {
         let blocks = (0..4)
             .map(|i| {
                 VerifiedBlock::new_for_test(
-                    TestBlock::new(10, i)
+                    TestBlock::new_v1(10, i)
                         .set_commit_votes(vec![CommitRef::new(5 + i, CommitDigest::MIN)])
                         .build(),
                 )
@@ -101,7 +101,7 @@ mod test {
         let blocks = (0..2)
             .map(|i| {
                 VerifiedBlock::new_for_test(
-                    TestBlock::new(11, i)
+                    TestBlock::new_v1(11, i)
                         .set_commit_votes(vec![
                             CommitRef::new(6 + i, CommitDigest::MIN),
                             CommitRef::new(7 + i, CommitDigest::MIN),

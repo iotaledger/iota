@@ -1574,7 +1574,7 @@ mod test {
             let mut this_round_blocks = Vec::new();
             for (index, _authority) in context.committee.authorities() {
                 let block = VerifiedBlock::new_for_test(
-                    TestBlock::new(round, index.value() as u32)
+                    TestBlock::new_v1(round, index.value() as u32)
                         .set_ancestors(last_round_blocks.iter().map(|b| b.reference()).collect())
                         .build(),
                 );
@@ -1708,7 +1708,7 @@ mod test {
             };
 
             for (index, _authority) in context.committee.authorities().skip(authorities_to_skip) {
-                let block = TestBlock::new(round, index.value() as u32)
+                let block = TestBlock::new_v1(round, index.value() as u32)
                     .set_ancestors(last_round_blocks.iter().map(|b| b.reference()).collect())
                     .build();
                 this_round_blocks.push(VerifiedBlock::new_for_test(block));
@@ -1968,7 +1968,7 @@ mod test {
         let mut expected_ancestors = BTreeSet::new();
 
         // Adding one block now will trigger the creation of new block for round 1
-        let block_1 = VerifiedBlock::new_for_test(TestBlock::new(1, 1).build());
+        let block_1 = VerifiedBlock::new_for_test(TestBlock::new_v1(1, 1).build());
         expected_ancestors.insert(block_1.reference());
         // Wait for min round delay to allow blocks to be proposed.
         sleep(context.parameters.min_round_delay).await;
@@ -1982,7 +1982,7 @@ mod test {
 
         // Adding another block now forms a quorum for round 1, so block at round 2 will
         // proposed
-        let block_3 = VerifiedBlock::new_for_test(TestBlock::new(1, 2).build());
+        let block_3 = VerifiedBlock::new_for_test(TestBlock::new_v1(1, 2).build());
         expected_ancestors.insert(block_3.reference());
         // Wait for min round delay to allow blocks to be proposed.
         sleep(context.parameters.min_round_delay).await;

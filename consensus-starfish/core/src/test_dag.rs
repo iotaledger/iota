@@ -55,7 +55,7 @@ pub(crate) fn build_dag(
                 let ts = round as BlockTimestampMs / 2 * num_authorities as BlockTimestampMs
                     + author_idx as BlockTimestampMs;
                 let block = VerifiedBlock::new_for_test(
-                    TestBlock::new(round, author_idx)
+                    TestBlock::new_v1(round, author_idx)
                         .set_timestamp_ms(ts)
                         .set_ancestors(ancestors.clone())
                         .build(),
@@ -83,7 +83,7 @@ pub(crate) fn build_dag_layer(
         let round = ancestors.first().unwrap().round + 1;
         let author = authority.value() as u32;
         let block = VerifiedBlock::new_for_test(
-            TestBlock::new(round, author)
+            TestBlock::new_v1(round, author)
                 .set_ancestors(ancestors)
                 .build(),
         );

@@ -1205,7 +1205,7 @@ mod test {
                 let base_ts = round as BlockTimestampMs * 1000;
                 for timestamp in base_ts..base_ts + num_blocks_per_slot as u64 {
                     let block = VerifiedBlock::new_for_test(
-                        TestBlock::new(round, author)
+                        TestBlock::new_v1(round, author)
                             .set_timestamp_ms(timestamp)
                             .build(),
                     );
@@ -1308,7 +1308,7 @@ mod test {
         // Round 10 refs will not have their blocks in DagState.
         let round_10_refs: Vec<_> = (0..4)
             .map(|a| {
-                VerifiedBlock::new_for_test(TestBlock::new(10, a).set_timestamp_ms(1000).build())
+                VerifiedBlock::new_for_test(TestBlock::new_v1(10, a).set_timestamp_ms(1000).build())
                     .reference()
             })
             .collect();
@@ -1317,7 +1317,7 @@ mod test {
         let round_11 = vec![
             // This will connect to round 12.
             VerifiedBlock::new_for_test(
-                TestBlock::new(11, 0)
+                TestBlock::new_v1(11, 0)
                     .set_timestamp_ms(1100)
                     .set_ancestors(round_10_refs.clone())
                     .build(),
@@ -1325,35 +1325,35 @@ mod test {
             // Slot(11, 1) has 3 blocks.
             // This will connect to round 12.
             VerifiedBlock::new_for_test(
-                TestBlock::new(11, 1)
+                TestBlock::new_v1(11, 1)
                     .set_timestamp_ms(1110)
                     .set_ancestors(round_10_refs.clone())
                     .build(),
             ),
             // This will connect to round 13.
             VerifiedBlock::new_for_test(
-                TestBlock::new(11, 1)
+                TestBlock::new_v1(11, 1)
                     .set_timestamp_ms(1111)
                     .set_ancestors(round_10_refs.clone())
                     .build(),
             ),
             // This will not connect to any block.
             VerifiedBlock::new_for_test(
-                TestBlock::new(11, 1)
+                TestBlock::new_v1(11, 1)
                     .set_timestamp_ms(1112)
                     .set_ancestors(round_10_refs.clone())
                     .build(),
             ),
             // This will not connect to any block.
             VerifiedBlock::new_for_test(
-                TestBlock::new(11, 2)
+                TestBlock::new_v1(11, 2)
                     .set_timestamp_ms(1120)
                     .set_ancestors(round_10_refs.clone())
                     .build(),
             ),
             // This will connect to round 12.
             VerifiedBlock::new_for_test(
-                TestBlock::new(11, 3)
+                TestBlock::new_v1(11, 3)
                     .set_timestamp_ms(1130)
                     .set_ancestors(round_10_refs.clone())
                     .build(),
@@ -1368,19 +1368,19 @@ mod test {
         ];
         let round_12 = vec![
             VerifiedBlock::new_for_test(
-                TestBlock::new(12, 0)
+                TestBlock::new_v1(12, 0)
                     .set_timestamp_ms(1200)
                     .set_ancestors(ancestors_for_round_12.clone())
                     .build(),
             ),
             VerifiedBlock::new_for_test(
-                TestBlock::new(12, 2)
+                TestBlock::new_v1(12, 2)
                     .set_timestamp_ms(1220)
                     .set_ancestors(ancestors_for_round_12.clone())
                     .build(),
             ),
             VerifiedBlock::new_for_test(
-                TestBlock::new(12, 3)
+                TestBlock::new_v1(12, 3)
                     .set_timestamp_ms(1230)
                     .set_ancestors(ancestors_for_round_12.clone())
                     .build(),
@@ -1396,19 +1396,19 @@ mod test {
         ];
         let round_13 = vec![
             VerifiedBlock::new_for_test(
-                TestBlock::new(12, 1)
+                TestBlock::new_v1(12, 1)
                     .set_timestamp_ms(1300)
                     .set_ancestors(ancestors_for_round_13.clone())
                     .build(),
             ),
             VerifiedBlock::new_for_test(
-                TestBlock::new(12, 2)
+                TestBlock::new_v1(12, 2)
                     .set_timestamp_ms(1320)
                     .set_ancestors(ancestors_for_round_13.clone())
                     .build(),
             ),
             VerifiedBlock::new_for_test(
-                TestBlock::new(12, 3)
+                TestBlock::new_v1(12, 3)
                     .set_timestamp_ms(1330)
                     .set_ancestors(ancestors_for_round_13.clone())
                     .build(),
@@ -1418,7 +1418,7 @@ mod test {
         // Round 14 anchor block.
         let ancestors_for_round_14 = round_13.iter().map(|b| b.reference()).collect();
         let anchor = VerifiedBlock::new_for_test(
-            TestBlock::new(14, 1)
+            TestBlock::new_v1(14, 1)
                 .set_timestamp_ms(1410)
                 .set_ancestors(ancestors_for_round_14)
                 .build(),
@@ -1472,7 +1472,7 @@ mod test {
 
         for round in 1..=num_rounds {
             for author in 0..num_authorities {
-                let block = VerifiedBlock::new_for_test(TestBlock::new(round, author).build());
+                let block = VerifiedBlock::new_for_test(TestBlock::new_v1(round, author).build());
                 blocks.push(block);
             }
         }
@@ -1533,7 +1533,7 @@ mod test {
 
         for round in 1..=num_rounds {
             for author in 0..num_authorities {
-                let block = VerifiedBlock::new_for_test(TestBlock::new(round, author).build());
+                let block = VerifiedBlock::new_for_test(TestBlock::new_v1(round, author).build());
                 blocks.push(block.clone());
                 dag_state.accept_block(block);
             }
@@ -1600,7 +1600,7 @@ mod test {
         // Create test blocks for round 1 ~ 10 for authority 0
         let mut blocks = Vec::new();
         for round in 1..=10 {
-            let block = VerifiedBlock::new_for_test(TestBlock::new(round, 0).build());
+            let block = VerifiedBlock::new_for_test(TestBlock::new_v1(round, 0).build());
             blocks.push(block.clone());
             dag_state.accept_block(block);
         }
@@ -1720,7 +1720,7 @@ mod test {
 
         for round in 1..=num_rounds {
             for author in 0..num_authorities {
-                let block = VerifiedBlock::new_for_test(TestBlock::new(round, author).build());
+                let block = VerifiedBlock::new_for_test(TestBlock::new_v1(round, author).build());
                 blocks.push(block);
             }
         }
@@ -2162,7 +2162,7 @@ mod test {
 
         // Accept a block
         let block = VerifiedBlock::new_for_test(
-            TestBlock::new(1, 0)
+            TestBlock::new_v1(1, 0)
                 .set_timestamp_ms(1000)
                 .set_ancestors(vec![])
                 .build(),
@@ -2205,7 +2205,7 @@ mod test {
         let mut all_blocks = Vec::new();
         for author in 1..=3 {
             for round in 10..(10 + author) {
-                let block = VerifiedBlock::new_for_test(TestBlock::new(round, author).build());
+                let block = VerifiedBlock::new_for_test(TestBlock::new_v1(round, author).build());
                 all_blocks.push(block.clone());
                 dag_state.accept_block(block);
             }
@@ -2285,7 +2285,7 @@ mod test {
         let (_, dag_builder) = parse_dag(dag_str).expect("Invalid dag");
 
         // Add equivocating block for round 2 authority 3
-        let block = VerifiedBlock::new_for_test(TestBlock::new(2, 2).build());
+        let block = VerifiedBlock::new_for_test(TestBlock::new_v1(2, 2).build());
 
         // Accept all blocks
         for block in dag_builder
@@ -2408,7 +2408,7 @@ mod test {
         let mut all_blocks = Vec::new();
         for author in 1..=3 {
             for round in 1..=author {
-                let block = VerifiedBlock::new_for_test(TestBlock::new(round, author).build());
+                let block = VerifiedBlock::new_for_test(TestBlock::new_v1(round, author).build());
                 all_blocks.push(block.clone());
                 dag_state.accept_block(block);
             }
@@ -2545,7 +2545,7 @@ mod test {
         // WHEN adding one more block at round 5, still round 4 should be returned as
         // quorum
         {
-            let block = VerifiedBlock::new_for_test(TestBlock::new(5, 0).build());
+            let block = VerifiedBlock::new_for_test(TestBlock::new_v1(5, 0).build());
             dag_state.write().accept_block(block);
 
             let round_4_blocks = dag_state.read().get_uncommitted_blocks_at_round(4);
@@ -2586,7 +2586,7 @@ mod test {
                 .persist_layers(dag_state.clone());
 
             // add block 5 for authority 0
-            let block = VerifiedBlock::new_for_test(TestBlock::new(5, 0).build());
+            let block = VerifiedBlock::new_for_test(TestBlock::new_v1(5, 0).build());
             dag_state.write().accept_block(block);
 
             let block = dag_state

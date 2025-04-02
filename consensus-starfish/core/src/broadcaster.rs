@@ -299,7 +299,7 @@ mod test {
         let _broadcaster =
             Broadcaster::new(context.clone(), network_client.clone(), &signals_receiver);
 
-        let block = VerifiedBlock::new_for_test(TestBlock::new(9, 1).build());
+        let block = VerifiedBlock::new_for_test(TestBlock::new_v1(9, 1).build());
         assert!(
             core_signals
                 .new_block(ExtendedBlock {
