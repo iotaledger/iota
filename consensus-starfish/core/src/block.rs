@@ -62,6 +62,7 @@ impl Transaction {
 #[enum_dispatch(BlockAPI)]
 pub enum Block {
     V1(BlockV1),
+    V2(BlockV2)
 }
 
 #[enum_dispatch]
@@ -75,6 +76,8 @@ pub trait BlockAPI {
     fn transactions(&self) -> &[Transaction];
     fn commit_votes(&self) -> &[CommitVote];
     fn misbehavior_reports(&self) -> &[MisbehaviorReport];
+    fn shard_data(&self) -> Option<&Bytes>;
+    fn acknowledgment_statements(&self) -> &[BlockRef];
 }
 
 #[derive(Clone, Default, Deserialize, Serialize)]
@@ -163,7 +166,163 @@ impl BlockAPI for BlockV1 {
     fn misbehavior_reports(&self) -> &[MisbehaviorReport] {
         &self.misbehavior_reports
     }
+
+    fn shard_data(&self) -> Option<&Bytes> {
+        None
+        }
+
+    fn acknowledgment_statements(&self) -> &[BlockRef] {
+        &[]
+    }
+
 }
+
+
+// ====== New BlockV2 Definition =====
+
+
+/// BlockHeader: Contains metadata for a block including the Merkle root of transactions and acknowledgement statements.
+#[derive(Clone, Default, Deserialize, Serialize)]
+pub struct BlockHeader {
+    epoch: Epoch,
+    round: Round,
+    author: AuthorityIndex,
+    // TODO: during verification ensure that timestamp_ms >= ancestors.timestamp
+    timestamp_ms: BlockTimestampMs,
+    ancestors: Vec<BlockRef>,
+    commit_votes: Vec<CommitVote>,
+    misbehavior_reports: Vec<MisbehaviorReport>,
+    /// Merkle root commitment of transactions.
+    transactions_commitment: [u8; 32],
+    /// Acknowledgement statements.
+    acknowledgement_statements: Vec<BlockRef>,
+}
+
+impl BlockHeader {
+
+    pub(crate) fn new(
+        epoch: Epoch,
+        round: Round,
+        author: AuthorityIndex,
+        timestamp_ms: BlockTimestampMs,
+        ancestors: Vec<BlockRef>,
+        commit_votes: Vec<CommitVote>,
+        misbehavior_reports: Vec<MisbehaviorReport>,
+        transactions_commitment: [u8; 32],
+        acknowledgement_statements: Vec<BlockRef>,
+    ) -> BlockHeader {
+        Self {
+            epoch,
+            round,
+            author,
+            timestamp_ms,
+            ancestors,
+            commit_votes,
+            misbehavior_reports,
+            transactions_commitment,
+            acknowledgement_statements,
+        }
+    }
+
+
+    /// Generates a genesis block header.
+    fn genesis(epoch: Epoch, author: AuthorityIndex) -> Self {
+        Self {
+            epoch,
+            round: GENESIS_ROUND,
+            author,
+            timestamp_ms: 0,
+            ancestors: vec![],
+            commit_votes: vec![],
+            misbehavior_reports: vec![],
+            transactions_commitment: [0u8; 32],
+            acknowledgement_statements: vec![],
+        }
+    }
+}
+
+/// BlockData: Contains the body of the block, such as transactions or shard data.
+#[derive(Clone, Default, Deserialize, Serialize)]
+pub enum BlockBody {
+    /// Contains transactions.
+    Transactions(Vec<Transaction>),
+    /// Contains shard data.
+    ShardData(Bytes),
+    /// No additional data.
+    #[default] Empty,
+}
+
+impl BlockBody{
+    /// Creates a new BlockBody with transactions.
+    pub fn new_transactions(transactions: Vec<Transaction>) -> Self {
+        BlockBody::Transactions(transactions)
+    }
+}
+
+/// BlockV2: Combines header and body, replacing BlockV1
+#[derive(Clone, Default, Deserialize, Serialize)]
+pub struct BlockV2 {
+    header: BlockHeader,
+    body: BlockBody,
+}
+
+
+impl BlockAPI for BlockV2 {
+    fn epoch(&self) -> Epoch {
+        self.header.epoch
+    }
+
+    fn round(&self) -> Round {
+        self.header.round
+    }
+
+    fn author(&self) -> AuthorityIndex {
+        self.header.author
+    }
+
+    fn slot(&self) -> Slot {
+        Slot::new(self.header.round, self.header.author)
+    }
+
+    fn timestamp_ms(&self) -> BlockTimestampMs {
+        self.header.timestamp_ms
+    }
+
+    fn ancestors(&self) -> &[BlockRef] {
+        &self.header.ancestors
+    }
+
+    fn transactions(&self) -> &[Transaction] {
+        match &self.body {
+            BlockBody::Transactions(transactions) => transactions,
+            BlockBody::ShardData(_) => &[],
+            BlockBody::Empty => &[],
+        }
+    }
+    fn shard_data(&self) -> Option<&Bytes> {
+        match &self.body {
+            BlockBody::ShardData(bytes) => Some(bytes),
+            BlockBody::Transactions(_) => None,
+            BlockBody::Empty => None,
+        }
+    }
+
+    fn commit_votes(&self) -> &[CommitVote] {
+        &self.header.commit_votes
+    }
+
+    fn misbehavior_reports(&self) -> &[MisbehaviorReport] {
+        &self.header.misbehavior_reports
+    }
+
+    fn acknowledgment_statements(&self) -> &[BlockRef] {
+        &self.header.acknowledgement_statements
+    }
+}
+
+
+
+
 
 /// `BlockRef` uniquely identifies a `VerifiedBlock` via `digest`. It also
 /// contains the slot info (round and author) so it can be used in logic such as
@@ -373,17 +532,32 @@ impl SignedBlock {
     }
 }
 
-/// Digest of a block, covering all `Block` fields without its signature.
+/// Digest of a block, covering all `Block` fields without its signature for BlockV1 and the `BlockHeader` for BlockV2
 /// This is used during Block signing and signature verification.
 /// This should never be used outside of this file, to avoid confusion with
 /// `BlockDigest`.
 #[derive(Serialize, Deserialize)]
 struct InnerBlockDigest([u8; starfish_config::DIGEST_LENGTH]);
 
-/// Computes the digest of a Block, only for signing and verifications.
+/// Computes the digest of a Block for  BlockV1 and t the Block Header For BlockV2, only for signing and verifications.
+
 fn compute_inner_block_digest(block: &Block) -> ConsensusResult<InnerBlockDigest> {
+    let serialized = match block {
+        Block::V1(_) => {
+            // For BlockV1, serialize the entire block.
+            bcs::to_bytes(block)
+                .map_err(ConsensusError::SerializationFailure)?
+        }
+        Block::V2(block_v2) => {
+            // For BlockV2, serialize only the BlockHeader.
+            bcs::to_bytes(&block_v2.header)
+                .map_err(ConsensusError::SerializationFailure)?
+        }
+    };
+
+    // Now hash the serialized bytes to produce the digest.
     let mut hasher = DefaultHashFunction::new();
-    hasher.update(bcs::to_bytes(block).map_err(ConsensusError::SerializationFailure)?);
+    hasher.update(&serialized);
     Ok(InnerBlockDigest(hasher.finalize().into()))
 }
 
