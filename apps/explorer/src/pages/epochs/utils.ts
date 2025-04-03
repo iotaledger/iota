@@ -19,8 +19,8 @@ export function useEpochProgress(suffix: string = 'left'): EpochProgress {
     const start = data?.epochStartTimestampMs ? Number(data.epochStartTimestampMs) : undefined;
     const duration = data?.epochDurationMs ? Number(data.epochDurationMs) : undefined;
     const end = start !== undefined && duration !== undefined ? start + duration : undefined;
-    const pollingNextEpochTimer = useRef<NodeJS.Timeout | null>(null);
-    const currentEpoch = data?.epoch ? Number(data.epoch) : undefined;
+    const pollingNextEpochTimeout = useRef<NodeJS.Timeout | null>(null);
+    const pollingNextEpochInterval = useRef<NodeJS.Timeout | null>(null);
 
     const time = useTimeAgo({
         timeFrom: end || null,
@@ -28,14 +28,22 @@ export function useEpochProgress(suffix: string = 'left'): EpochProgress {
         shouldEnd: true,
     });
 
+    const clearTimers = () => {
+        // Clear any existing interval first
+        if (pollingNextEpochTimeout.current) {
+            clearTimeout(pollingNextEpochTimeout.current);
+            pollingNextEpochTimeout.current = null;
+        }
+
+        if (pollingNextEpochInterval.current) {
+            clearTimeout(pollingNextEpochInterval.current);
+            pollingNextEpochInterval.current = null;
+        }
+    };
+
     // Effect to handle refetch logic
     useEffect(() => {
-        // Clear any existing interval first
-        if (pollingNextEpochTimer.current) {
-            clearTimeout(pollingNextEpochTimer.current);
-            clearInterval(pollingNextEpochTimer.current);
-            pollingNextEpochTimer.current = null;
-        }
+        clearTimers();
 
         if (!end) return;
 
@@ -46,7 +54,7 @@ export function useEpochProgress(suffix: string = 'left'): EpochProgress {
 
             if (isExpired) {
                 // End time expired, start refetching
-                pollingNextEpochTimer.current = setInterval(() => {
+                pollingNextEpochInterval.current = setInterval(() => {
                     refetch();
                 }, 5000);
             }
@@ -55,7 +63,7 @@ export function useEpochProgress(suffix: string = 'left'): EpochProgress {
         // Set up a timer start checking new epoch when end time is reached
         const timeToEnd = end - Date.now();
         if (timeToEnd > 0) {
-            pollingNextEpochTimer.current = setTimeout(() => {
+            pollingNextEpochTimeout.current = setTimeout(() => {
                 pollingNextEpoch();
             }, timeToEnd);
         } else {
@@ -63,13 +71,9 @@ export function useEpochProgress(suffix: string = 'left'): EpochProgress {
         }
 
         return () => {
-            if (pollingNextEpochTimer.current) {
-                clearTimeout(pollingNextEpochTimer.current);
-                clearInterval(pollingNextEpochTimer.current);
-                pollingNextEpochTimer.current = null;
-            }
+            clearTimers();
         };
-    }, [end, refetch, currentEpoch]);
+    }, [end, refetch]);
 
     if (!start || !end) {
         return {
