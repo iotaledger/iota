@@ -3123,6 +3123,7 @@ impl AuthorityPerEpochStore {
                     }
                 }
                 ConsensusCertificateResult::Cancelled((cert, reason)) => {
+                    // NOTE: ROMAN: `suggested_gas_price` is included in `reason`
                     notifications.push(key.clone());
                     assert!(cancelled_txns.insert(*cert.digest(), reason).is_none());
                     verified_certificates.push_back(cert);
@@ -3451,7 +3452,6 @@ impl AuthorityPerEpochStore {
                                         lowest_gas_price_of_non_deferred_tx,
                                     );
                                 let actual_gas_price = certificate.transaction_data().gas_price();
-                                // FIX: ROMAN: should we add +1 to suggested_gas_price
                                 assert!(suggested_gas_price >= actual_gas_price);
                                 debug!(
                                     "Cancelling consensus certificate for transaction {:?} with \

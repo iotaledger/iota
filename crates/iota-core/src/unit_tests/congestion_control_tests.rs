@@ -347,9 +347,7 @@ async fn test_congestion_control_execution_cancellation() {
         &ExecutionStatus::Failure {
             error: ExecutionFailureStatus::ExecutionCancelledDueToSharedObjectCongestion {
                 congested_objects: CongestedObjects(vec![shared_object_1.0]),
-                // FIX: ROMAN: this should get suggested_gas_price from consensus.
-                // maybe the easiest way to include such data in cancelled_objects.
-                suggested_gas_price: 1111,
+                suggested_gas_price: TEST_ONLY_GAS_PRICE,
             },
             command: None
         }
@@ -385,9 +383,7 @@ async fn test_congestion_control_execution_cancellation() {
         execution_error.unwrap().to_execution_status().0,
         ExecutionFailureStatus::ExecutionCancelledDueToSharedObjectCongestion {
             congested_objects: CongestedObjects(vec![shared_object_1.0]),
-            // FIX: ROMAN: this should get suggested_gas_price from consensus.
-            // maybe the easiest way to include such data in cancelled_objects.
-            suggested_gas_price: 1111,
+            suggested_gas_price: TEST_ONLY_GAS_PRICE,
         }
     );
     assert_eq!(&effects, effects_2.data())

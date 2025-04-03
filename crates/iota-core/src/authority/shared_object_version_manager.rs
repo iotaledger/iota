@@ -140,8 +140,7 @@ impl SharedObjVerManager {
         let congested_objects_info: Option<HashSet<_>> =
             if let Some(CancelConsensusCertificateReason::CongestionOnObjects(
                 congested_objects,
-                // FIX: ROMAN: use this suggested_gas_price somehow
-                suggested_gas_price,
+                _suggested_gas_price,
             )) = &cancellation_info
             {
                 Some(congested_objects.iter().cloned().collect())

@@ -336,13 +336,14 @@ mod checked {
                     None,
                 ))
             } else if let Some((cancelled_objects, reason)) = cancelled_objects {
+                // FIX: ROMAN: use suggested_gas_price from consensus here.
+                let suggested_gas_price = 1000;
+
                 match reason {
                     SequenceNumber::CONGESTED => Err(ExecutionError::new(
                         ExecutionErrorKind::ExecutionCancelledDueToSharedObjectCongestion {
                             congested_objects: CongestedObjects(cancelled_objects),
-                            // FIX: ROMAN: this should get recommended_gas_price from consensus.
-                            // maybe the easiest way to include such data in cancelled_objects.
-                            suggested_gas_price: 1111,
+                            suggested_gas_price,
                         },
                         None,
                     )),
