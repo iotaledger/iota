@@ -52,3 +52,35 @@ async fn execute_transaction_transfer() {
 
     assert_eq!(actual, expected);
 }
+
+#[sim_test]
+async fn reexecute_same_transaction() {
+    let test_cluster = TestClusterBuilder::new().build().await;
+
+    let client = Client::new(test_cluster.rpc_url());
+    let address = IotaAddress::random_for_testing_only();
+    let amount = 9;
+    let txn =
+        make_transfer_iota_transaction(&test_cluster.wallet, Some(address), Some(amount)).await;
+
+    let request = ExecuteTransactionQueryParameters {
+        events: false,
+        balance_changes: false,
+        input_objects: true,
+        output_objects: true,
+    };
+
+    let initial_response = client.execute_transaction(&request, &txn).await.unwrap();
+    let reexecution_response = client.execute_transaction(&request, &txn).await.unwrap();
+
+    assert!(reexecution_response.input_objects.is_some());
+    assert!(reexecution_response.output_objects.is_some());
+    assert_eq!(
+        initial_response.input_objects,
+        reexecution_response.input_objects
+    );
+    assert_eq!(
+        initial_response.output_objects,
+        reexecution_response.output_objects
+    );
+}

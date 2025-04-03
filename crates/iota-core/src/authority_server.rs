@@ -518,12 +518,20 @@ impl ValidatorService {
                     None
                 };
 
+                let input_objects = include_input_objects
+                    .then(|| self.state.get_transaction_input_objects(&signed_effects))
+                    .and_then(Result::ok);
+
+                let output_objects = include_output_objects
+                    .then(|| self.state.get_transaction_output_objects(&signed_effects))
+                    .and_then(Result::ok);
+
                 return Ok((
                     Some(vec![HandleCertificateResponseV1 {
                         signed_effects: signed_effects.into_inner(),
                         events,
-                        input_objects: None,
-                        output_objects: None,
+                        input_objects,
+                        output_objects,
                         auxiliary_data: None,
                     }]),
                     Weight::one(),
