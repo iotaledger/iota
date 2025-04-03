@@ -4,21 +4,27 @@
 
 import type { Network } from '@iota/iota-sdk/src/client';
 import { DisplayStats, IOTA_PRIMITIVES_COLOR_PALETTE, Panel, Title } from '@iota/apps-ui-kit';
-import { getRefGasPrice, useTheme, Theme, Feature, useFeatureEnabledByNetwork } from '@iota/core';
-import { useIotaClientQuery } from '@iota/dapp-kit';
+import {
+    getRefGasPrice,
+    useTheme,
+    Theme,
+    Feature,
+    useFeatureEnabledByNetwork,
+    useGetLatestIotaSystemState,
+} from '@iota/core';
 import { useMemo } from 'react';
 import { useNetworkContext } from '~/contexts/networkContext';
 import { RingChart, RingChartLegend } from '~/components/ui';
 
 export function ValidatorStatus(): JSX.Element | null {
     const [network] = useNetworkContext();
-    const { data } = useIotaClientQuery('getLatestIotaSystemState');
+    const { data } = useGetLatestIotaSystemState();
     const isFixedGasPrice = useFeatureEnabledByNetwork(Feature.FixedGasPrice, network as Network);
     const { theme } = useTheme();
 
     const nextRefGasPrice = useMemo(
-        () => (!isFixedGasPrice ? getRefGasPrice(data?.activeValidators) : 0n),
-        [data?.activeValidators, isFixedGasPrice],
+        () => (!isFixedGasPrice ? getRefGasPrice(data?.committeeMembers) : 0n),
+        [data?.committeeMembers, isFixedGasPrice],
     );
 
     if (!data) return null;
@@ -30,7 +36,7 @@ export function ValidatorStatus(): JSX.Element | null {
 
     const chartData = [
         {
-            value: data.activeValidators.length,
+            value: data.committeeMembers.length,
             label: 'Active',
             gradient: {
                 deg: 315,

@@ -42,18 +42,13 @@ import {
 import {
     Theme,
     useFormatCoin,
-    useGetActiveValidatorsInfo,
     useTheme,
     useCountdownByTimestamp,
     Feature,
     toast,
+    useGetLatestIotaSystemState,
 } from '@iota/core';
-import {
-    useCurrentAccount,
-    useIotaClient,
-    useIotaClientQuery,
-    useSignAndExecuteTransaction,
-} from '@iota/dapp-kit';
+import { useCurrentAccount, useIotaClient, useSignAndExecuteTransaction } from '@iota/dapp-kit';
 import { IotaValidatorSummary } from '@iota/iota-sdk/client';
 import { Calendar, StarHex, Warning } from '@iota/apps-ui-icons';
 import { useRouter } from 'next/navigation';
@@ -70,9 +65,8 @@ export default function VestingDashboardPage(): JSX.Element {
     const address = account?.address || '';
     const iotaClient = useIotaClient();
     const router = useRouter();
-    const { data: system } = useIotaClientQuery('getLatestIotaSystemState');
+    const { data: system } = useGetLatestIotaSystemState();
     const [isVestingScheduleDialogOpen, setIsVestingScheduleDialogOpen] = useState(false);
-    const { data: activeValidators } = useGetActiveValidatorsInfo();
     const { mutateAsync: signAndExecuteTransaction } = useSignAndExecuteTransaction();
     const { theme } = useTheme();
 
@@ -143,7 +137,7 @@ export default function VestingDashboardPage(): JSX.Element {
     const [formattedNextPayout, nextPayoutSymbol] = useFormatCoin({ balance: nextPayout?.amount });
 
     function getValidatorByAddress(validatorAddress: string): IotaValidatorSummary | undefined {
-        return activeValidators?.find(
+        return system?.committeeMembers?.find(
             (activeValidator) => activeValidator.iotaAddress === validatorAddress,
         );
     }

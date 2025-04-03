@@ -12,8 +12,8 @@ import {
     DELEGATED_STAKES_QUERY_STALE_TIME,
     useFormatCoin,
     StakedCard,
+    useGetLatestIotaSystemState,
 } from '@iota/core';
-import { useIotaClientQuery } from '@iota/dapp-kit';
 import { useMemo } from 'react';
 import { useActiveAddress } from '_hooks';
 import {
@@ -44,8 +44,8 @@ export function ValidatorsCard() {
     });
     const navigate = useNavigate();
 
-    const { data: system } = useIotaClientQuery('getLatestIotaSystemState');
-    const activeValidators = system?.activeValidators;
+    const { data: system } = useGetLatestIotaSystemState();
+    const committeeMembers = system?.committeeMembers;
     const delegatedStake = delegatedStakeData ? formatDelegatedStake(delegatedStakeData) : [];
 
     // Total active stake for all Staked validators
@@ -58,14 +58,14 @@ export function ValidatorsCard() {
             return delegation.stakes.map((d) => ({
                 ...d,
                 // flag any inactive validator for the stakeIota object
-                // if the stakingPoolId is not found in the activeValidators list flag as inactive
-                inactiveValidator: !activeValidators?.find(
+                // if the stakingPoolId is not found in the committeeMembers list flag as inactive
+                inactiveValidator: !committeeMembers?.find(
                     ({ stakingPoolId }) => stakingPoolId === delegation.stakingPool,
                 ),
                 validatorAddress: delegation.validatorAddress,
             }));
         });
-    }, [activeValidators, delegatedStake]);
+    }, [committeeMembers, delegatedStake]);
 
     // Check if there are any inactive validators
     const hasInactiveValidatorDelegation = delegations?.some(
