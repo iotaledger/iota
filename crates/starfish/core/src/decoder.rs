@@ -1,12 +1,16 @@
 // Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use starfish_config::Committee;
-use crate::encoder::{Encoder, ShardEncoder};
-use reed_solomon_simd::ReedSolomonDecoder;
 use std::collections::HashMap;
-use crate::block::{BlockBody, BlockV2, Shard, TransactionsCommitment};
-use crate::{BlockAPI, Transaction};
+
+use reed_solomon_simd::ReedSolomonDecoder;
+use starfish_config::Committee;
+
+use crate::{
+    BlockAPI, Transaction,
+    block::{BlockBody, BlockV2, Shard, TransactionsCommitment},
+    encoder::{Encoder, ShardEncoder},
+};
 
 pub type Decoder = ReedSolomonDecoder;
 
@@ -37,10 +41,7 @@ impl CachedStatementBlockDecoder for Decoder {
             .iter()
             .position(|x| x.is_some())
             .expect("Expect a shards_collection to contain at least info_length shards");
-        let shard_size = shards_collection[position]
-            .as_ref()
-            .unwrap()
-            .len();
+        let shard_size = shards_collection[position].as_ref().unwrap().len();
         self.reset(info_length, parity_length, shard_size)
             .expect("decoder reset failed");
         for i in 0..info_length {
@@ -51,11 +52,8 @@ impl CachedStatementBlockDecoder for Decoder {
         }
         for i in info_length..total_length {
             if shards_collection[i].is_some() {
-                self.add_recovery_shard(
-                    i - info_length,
-                    shards_collection[i].as_ref().unwrap(),
-                )
-                .expect("adding shard failed")
+                self.add_recovery_shard(i - info_length, shards_collection[i].as_ref().unwrap())
+                    .expect("adding shard failed")
             }
         }
 
@@ -73,8 +71,10 @@ impl CachedStatementBlockDecoder for Decoder {
         drop(result);
 
         let recovered_statements = encoder.encode_shards(data, info_length, parity_length);
-        if TransactionsCommitment::check_correctness_merkle_root(&recovered_statements,
-                                                                 *block.transactions_commitment()) {
+        if TransactionsCommitment::check_correctness_merkle_root(
+            &recovered_statements,
+            *block.transactions_commitment(),
+        ) {
             let transactions = Self::reconstruct_transactions(recovered_statements, info_length);
             block.body = BlockBody::new_transactions(transactions);
             return Some(block);
@@ -88,7 +88,8 @@ impl CachedStatementBlockDecoder for Decoder {
             reconstructed_data.extend(shards[i].clone());
         }
 
-        // Read the first 4 bytes for `bytes_length` to get the size of the original serialized block
+        // Read the first 4 bytes for `bytes_length` to get the size of the original
+        // serialized block
         if reconstructed_data.len() < 4 {
             panic!("Reconstructed data is too short to contain a valid length");
         }
@@ -116,12 +117,8 @@ impl CachedStatementBlockDecoder for Decoder {
 
         // Deserialize the rest of the data into `Vec<BaseStatement>`
         let serialized_block = &reconstructed_data[4..4 + bytes_length];
-        let reconstructed_statements: Vec<Transaction> =
-            bincode::deserialize(serialized_block)
-                .expect("Deserialization of reconstructed data failed");
+        let reconstructed_statements: Vec<Transaction> = bincode::deserialize(serialized_block)
+            .expect("Deserialization of reconstructed data failed");
         reconstructed_statements
     }
 }
-
-
-

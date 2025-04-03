@@ -5,6 +5,7 @@
 use std::{cmp::Ordering, sync::Arc};
 
 use tokio::time::Instant;
+
 use crate::{
     block::{BlockRef, Round},
     context::Context,

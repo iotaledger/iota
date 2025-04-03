@@ -2,8 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use reed_solomon_simd::ReedSolomonEncoder;
-use crate::block::Shard;
-use crate::Transaction;
+
+use crate::{Transaction, block::Shard};
 
 pub type Encoder = ReedSolomonEncoder;
 
@@ -31,7 +31,11 @@ impl ShardEncoder for Encoder {
         info_length: usize,
         parity_length: usize,
     ) -> Vec<Shard> {
-        assert_eq!(data.len(), info_length, "Data length must match info length");
+        assert_eq!(
+            data.len(),
+            info_length,
+            "Data length must match info length"
+        );
         assert!(info_length > 0, "Info length must be greater than 0");
         let shard_bytes = data[0].len();
         self.reset(info_length, parity_length, shard_bytes)

@@ -46,6 +46,8 @@ mod universal_committer;
 #[path = "tests/randomized_tests.rs"]
 mod randomized_tests;
 
+mod decoder;
+mod encoder;
 mod round_prober;
 #[cfg(test)]
 mod test_dag;
@@ -53,8 +55,6 @@ mod test_dag;
 mod test_dag_builder;
 #[cfg(test)]
 mod test_dag_parser;
-mod encoder;
-mod decoder;
 
 /// Exported consensus API.
 pub use authority_node::ConsensusAuthority;
