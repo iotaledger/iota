@@ -114,6 +114,7 @@
         "axios": "^1.8.2",
         "bignumber.js": "^9.1.1",
         "buffer": "^6.0.3",
+        "class-variance-authority": "^0.7.0",
         "clsx": "^2.1.1",
         "dexie": "^3.2.4",
         "dexie-export-import": "^4.0.7",
