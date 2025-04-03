@@ -1,23 +1,25 @@
 // Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use starfish_config::committee::Committee;
-use starfish_config::crypto::TransactionsCommitment;
+use starfish_config::Committee;
 use crate::encoder::{Encoder, ShardEncoder};
-use crate::types::{AuthorityIndex, CachedStatementBlock, Shard, VerifiedStatementBlock};
 use reed_solomon_simd::ReedSolomonDecoder;
 use std::collections::HashMap;
+use crate::block::{BlockBody, BlockV2, Shard, TransactionsCommitment};
+use crate::{BlockAPI, Transaction};
 
 pub type Decoder = ReedSolomonDecoder;
 
 pub trait CachedStatementBlockDecoder {
+    #[allow(dead_code)]
     fn decode_shards(
         &mut self,
         committee: &Committee,
         encoder: &mut Encoder,
-        cached_statement_block: CachedStatementBlock,
-        own_id: AuthorityIndex,
-    ) -> Option<VerifiedStatementBlock>;
+        block: BlockV2,
+        shards_collection: Vec<Option<Shard>>,
+    ) -> Option<BlockV2>;
+    fn reconstruct_transactions(shards: Vec<Shard>, info_length: usize) -> Vec<Transaction>;
 }
 
 impl CachedStatementBlockDecoder for Decoder {
@@ -25,35 +27,33 @@ impl CachedStatementBlockDecoder for Decoder {
         &mut self,
         committee: &Committee,
         encoder: &mut Encoder,
-        cached_block: CachedStatementBlock,
-        own_id: AuthorityIndex,
-    ) -> Option<VerifiedStatementBlock> {
+        mut block: BlockV2,
+        shards_collection: Vec<Option<Shard>>,
+    ) -> Option<BlockV2> {
         let info_length = committee.info_length();
-        let total_length = committee.len();
+        let total_length = committee.size();
         let parity_length = total_length - info_length;
-        let position = cached_block
-            .encoded_statements()
+        let position = shards_collection
             .iter()
-            .position(|x| x.is_some());
-        let position = position
-            .expect("Expect a block in cached blocks with a sufficient number of available shards");
-        let shard_size = cached_block.encoded_statements()[position]
+            .position(|x| x.is_some())
+            .expect("Expect a shards_collection to contain at least info_length shards");
+        let shard_size = shards_collection[position]
             .as_ref()
             .unwrap()
             .len();
         self.reset(info_length, parity_length, shard_size)
             .expect("decoder reset failed");
         for i in 0..info_length {
-            if cached_block.encoded_statements()[i].is_some() {
-                self.add_original_shard(i, cached_block.encoded_statements()[i].as_ref().unwrap())
+            if shards_collection[i].is_some() {
+                self.add_original_shard(i, shards_collection[i].as_ref().unwrap())
                     .expect("adding shard failed")
             }
         }
         for i in info_length..total_length {
-            if cached_block.encoded_statements()[i].is_some() {
+            if shards_collection[i].is_some() {
                 self.add_recovery_shard(
                     i - info_length,
-                    cached_block.encoded_statements()[i].as_ref().unwrap(),
+                    shards_collection[i].as_ref().unwrap(),
                 )
                 .expect("adding shard failed")
             }
@@ -61,8 +61,8 @@ impl CachedStatementBlockDecoder for Decoder {
 
         let mut data: Vec<Shard> = vec![vec![]; info_length];
         for (i, item) in data.iter_mut().enumerate().take(info_length) {
-            if cached_block.encoded_statements()[i].is_some() {
-                *item = cached_block.encoded_statements()[i].clone().unwrap();
+            if shards_collection[i].is_some() {
+                *item = shards_collection[i].clone().unwrap();
             }
         }
         let result = self.decode().expect("Decoding should be correct");
@@ -73,23 +73,55 @@ impl CachedStatementBlockDecoder for Decoder {
         drop(result);
 
         let recovered_statements = encoder.encode_shards(data, info_length, parity_length);
-        let (computed_merkle_root, computed_merkle_proof) =
-            TransactionsCommitment::new_from_encoded_statements(
-                &recovered_statements,
-                own_id as usize,
-            );
-
-        if computed_merkle_root == cached_block.merkle_root() {
-            let mut reconstructed_cached_block = cached_block;
-            for (i, item) in recovered_statements.iter().enumerate().take(total_length) {
-                if reconstructed_cached_block.encoded_statements()[i].is_none() {
-                    reconstructed_cached_block.add_encoded_shard(i, item.clone());
-                }
-            }
-            let storage_block: VerifiedStatementBlock = reconstructed_cached_block
-                .to_verified_block(own_id as usize, computed_merkle_proof, info_length);
-            return Some(storage_block);
+        if TransactionsCommitment::check_correctness_merkle_root(&recovered_statements,
+                                                                 *block.transactions_commitment()) {
+            let transactions = Self::reconstruct_transactions(recovered_statements, info_length);
+            block.body = BlockBody::new_transactions(transactions);
+            return Some(block);
         }
         None
     }
+
+    fn reconstruct_transactions(shards: Vec<Shard>, info_length: usize) -> Vec<Transaction> {
+        let mut reconstructed_data = Vec::new();
+        for i in 0..info_length {
+            reconstructed_data.extend(shards[i].clone());
+        }
+
+        // Read the first 4 bytes for `bytes_length` to get the size of the original serialized block
+        if reconstructed_data.len() < 4 {
+            panic!("Reconstructed data is too short to contain a valid length");
+        }
+
+        let bytes_length = u32::from_le_bytes(
+            reconstructed_data[0..4]
+                .try_into()
+                .expect("Failed to read bytes_length"),
+        ) as usize;
+
+        // Ensure the data length matches the declared length
+        if reconstructed_data.len() < 4 + bytes_length {
+            panic!(
+                "Reconstructed data length does not match the declared bytes_length; {} {}",
+                reconstructed_data.len(),
+                bytes_length
+            );
+        } else {
+            tracing::debug!(
+                "Reconstructed data length {}, bytes_length {}",
+                reconstructed_data.len(),
+                bytes_length
+            );
+        }
+
+        // Deserialize the rest of the data into `Vec<BaseStatement>`
+        let serialized_block = &reconstructed_data[4..4 + bytes_length];
+        let reconstructed_statements: Vec<Transaction> =
+            bincode::deserialize(serialized_block)
+                .expect("Deserialization of reconstructed data failed");
+        reconstructed_statements
+    }
 }
+
+
+
