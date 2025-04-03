@@ -1,8 +1,9 @@
 // Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::types::{BaseStatement, Shard};
 use reed_solomon_simd::ReedSolomonEncoder;
+use crate::block::Shard;
+use crate::Transaction;
 
 pub type Encoder = ReedSolomonEncoder;
 
@@ -14,9 +15,10 @@ pub trait ShardEncoder {
         parity_length: usize,
     ) -> Vec<Shard>;
 
+    #[allow(dead_code)]
     fn encode_statements(
         &mut self,
-        block: Vec<BaseStatement>,
+        block: Vec<Transaction>,
         info_length: usize,
         parity_length: usize,
     ) -> Vec<Shard>;
@@ -29,6 +31,8 @@ impl ShardEncoder for Encoder {
         info_length: usize,
         parity_length: usize,
     ) -> Vec<Shard> {
+        assert_eq!(data.len(), info_length, "Data length must match info length");
+        assert!(info_length > 0, "Info length must be greater than 0");
         let shard_bytes = data[0].len();
         self.reset(info_length, parity_length, shard_bytes)
             .expect("Reset failed");
@@ -43,7 +47,7 @@ impl ShardEncoder for Encoder {
 
     fn encode_statements(
         &mut self,
-        block: Vec<BaseStatement>,
+        block: Vec<Transaction>,
         info_length: usize,
         parity_length: usize,
     ) -> Vec<Shard> {
