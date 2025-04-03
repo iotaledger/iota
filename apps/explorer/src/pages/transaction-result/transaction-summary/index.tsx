@@ -112,13 +112,13 @@ export function TransactionSummary({ transaction }: TransactionSummaryProps): JS
                     switch (item.type) {
                         case ItemType.Balance:
                             return (
-                                <div className="mb-sm">
+                                <div className="mb-sm" key={`balance-${item.owner}-${index}`}>
                                     <BalanceChanges changes={{ [item.owner]: [item.change] }} />
                                 </div>
                             );
                         case ItemType.Object:
                             return (
-                                <div className="mb-sm">
+                                <div className="mb-sm" key={`object-${item.objectId}-${index}`}>
                                     <ObjectChanges
                                         objectSummary={{
                                             ...EMPTY_OBJECT_SUMMARY,
@@ -129,7 +129,7 @@ export function TransactionSummary({ transaction }: TransactionSummaryProps): JS
                             );
                         case ItemType.Package:
                             return (
-                                <div className="mb-sm">
+                                <div className="mb-sm" key={`package-${index}`}>
                                     <UpgradedSystemPackages
                                         data={Array.isArray(item.pkg) ? item.pkg : [item.pkg]}
                                     />
@@ -140,7 +140,6 @@ export function TransactionSummary({ transaction }: TransactionSummaryProps): JS
                     }
                 }}
                 heightClassName="max-h-[1000px] h-full"
-                overflowClassName="overflow-y-auto"
             />
         </div>
     );

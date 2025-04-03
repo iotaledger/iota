@@ -95,7 +95,6 @@ export function MigrationObjectsPanel({
                             {!isLoading && !isErrored && (
                                 <VirtualList
                                     heightClassName="h-[600px]"
-                                    overflowClassName="overflow-y-auto"
                                     items={filteredObjects}
                                     estimateSize={() => 58}
                                     getItemKey={(migrationObject) => migrationObject.uniqueId}

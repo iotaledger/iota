@@ -125,7 +125,6 @@ export function MyCoins(): React.JSX.Element {
                             return virtualItem(!!isRecognized, coin);
                         }}
                         heightClassName="h-full"
-                        overflowClassName="overflow-y-auto"
                     />
                 </div>
             </div>

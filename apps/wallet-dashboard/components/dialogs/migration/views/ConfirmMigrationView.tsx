@@ -171,7 +171,6 @@ export function ConfirmMigrationView({
                                             <div className="flex h-full max-h-[300px] flex-col gap-y-sm pb-sm">
                                                 <VirtualList
                                                     heightClassName="h-full"
-                                                    overflowClassName="overflow-y-auto"
                                                     items={filteredObjects}
                                                     getItemKey={(migrationObject) =>
                                                         migrationObject.uniqueId
