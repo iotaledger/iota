@@ -12,7 +12,7 @@
       "name": "Apache-2.0",
       "url": "https://raw.githubusercontent.com/iotaledger/iota/main/LICENSE"
     },
-    "version": "0.11.4-rc"
+    "version": "0.11.5-beta"
   },
   "methods": [
     {
