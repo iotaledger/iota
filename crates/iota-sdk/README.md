@@ -91,24 +91,28 @@ use iota_sdk::IotaClientBuilder;
 
 #[tokio::main]
 async fn main() -> Result<(), anyhow::Error> {
-    let iota = IotaClientBuilder::default()
-        .build("http://127.0.0.1:9000") // local network address
-        .await?;
-    println!("IOTA local network version: {}", iota.api_version());
+   let iota = IotaClientBuilder::default()
+      .build("http://127.0.0.1:9000") // local network address
+      .await?;
+   println!("IOTA local network version: {}", iota.api_version());
 
-    // local IOTA network, like the above one but using the dedicated function
-    let iota_local = IotaClientBuilder::default().build_localnet().await?;
-    println!("IOTA local network version: {}", iota_local.api_version());
+   // local IOTA network, like the above one but using the dedicated function
+   let iota_local = IotaClientBuilder::default().build_localnet().await?;
+   println!("IOTA local network version: {}", iota_local.api_version());
 
-    // IOTA devnet -- https://api.devnet.iota.cafe
-    let iota_devnet = IotaClientBuilder::default().build_devnet().await?;
-    println!("IOTA devnet version: {}", iota_devnet.api_version());
+   // IOTA devnet -- https://api.devnet.iota.cafe
+   let iota_devnet = IotaClientBuilder::default().build_devnet().await?;
+   println!("IOTA devnet version: {}", iota_devnet.api_version());
 
-    // IOTA testnet -- https://api.testnet.iota.cafe
-    let iota_testnet = IotaClientBuilder::default().build_testnet().await?;
-    println!("IOTA testnet version: {}", iota_testnet.api_version());
+   // IOTA testnet -- https://api.testnet.iota.cafe
+   let iota_testnet = IotaClientBuilder::default().build_testnet().await?;
+   println!("IOTA testnet version: {}", iota_testnet.api_version());
 
-    Ok(())
+   // IOTA mainnet -- https://api.mainnet.iota.cafe
+   let iota_mainnet = IotaClientBuilder::default().build_mainnet().await?;
+   println!("IOTA mainnet version: {}", iota_mainnet.api_version());
+
+   Ok(())
 }
 ```
 
@@ -118,15 +122,16 @@ async fn main() -> Result<(), anyhow::Error> {
 use std::str::FromStr;
 use iota_sdk::types::base_types::IotaAddress;
 use iota_sdk::{ IotaClientBuilder};
+
 #[tokio::main]
 async fn main() -> Result<(), anyhow::Error> {
 
-   let iota_local = IotaClientBuilder::default().build_localnet().await?;
-   println!("IOTA local network version: {}", iota_local.api_version());
+   let iota_testnet = IotaClientBuilder::default().build_testnet().await?;
+   println!("IOTA testnet version: {}", iota_testnet.api_version());
 
    let active_address = IotaAddress::from_str("<YOUR IOTA ADDRESS>")?; // change to your IOTA address
 
-   let total_balance = iota_local
+   let total_balance = iota_testnet
       .coin_read_api()
       .get_all_balances(active_address)
       .await?;
