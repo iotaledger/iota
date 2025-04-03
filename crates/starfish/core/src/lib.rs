@@ -55,7 +55,6 @@ mod test_dag_builder;
 mod test_dag_parser;
 mod encoder;
 mod decoder;
-mod types;
 
 /// Exported consensus API.
 pub use authority_node::ConsensusAuthority;

@@ -5,41 +5,11 @@
 use std::{cmp::Ordering, sync::Arc};
 
 use tokio::time::Instant;
-use starfish_config::Committee;
 use crate::{
     block::{BlockRef, Round},
     context::Context,
     stake_aggregator::{QuorumThreshold, StakeAggregator},
 };
-use crate::types::VerifiedStatementBlock;
-
-pub fn threshold_clock_valid_verified_block(
-    block: &VerifiedStatementBlock,
-    committee: &Committee,
-) -> bool {
-    // get a committee from the creator of the block
-    let round_number = block.reference().round;
-    assert!(round_number > 0);
-
-    // Ensure all includes have a round number smaller than the block round number
-    for include in block.includes() {
-        if include.round >= block.reference().round {
-            return false;
-        }
-    }
-
-    let mut aggregator = StakeAggregator::<QuorumThreshold>::new();
-    let mut is_quorum = false;
-    // Collect the authorities with included blocks at round_number  - 1
-    for include in block.includes() {
-        if include.round == round_number - 1 {
-            is_quorum = aggregator.add(include.authority, committee);
-        }
-    }
-
-    // Ensure the set of authorities with includes has a quorum in the current committee
-    is_quorum
-}
 
 pub(crate) struct ThresholdClock {
     aggregator: StakeAggregator<QuorumThreshold>,
