@@ -352,12 +352,6 @@ validate_metadata_bcs
 get_staking_pool_ref
 	public(package) fun
 	0x3::validator
-get_validator_by_committee_index
-	public(package) fun
-	0x3::validator
-get_validator_by_committee_index_mut
-	public(package) fun
-	0x3::validator
 new_from_metadata
 	fun
 	0x3::validator
@@ -371,7 +365,7 @@ init_voting_power_info
 	fun
 	0x3::voting_power
 total_committee_stake
-	fun
+	public(package) fun
 	0x3::voting_power
 insert
 	fun

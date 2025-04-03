@@ -1,0 +1,13 @@
+Configure the P2P settings in your `validator.yaml` file by following these steps:
+
+1. Update the external address:
+
+```yaml
+p2p-config:
+  external-address: /dns/<YOUR-DOMAIN>/udp/8084
+```
+
+:::note
+Replace `<YOUR-DOMAIN>` with the hostname you used while generating the validator info.
+This address must be accessible from the internet.
+:::

@@ -22,14 +22,14 @@ path: "./test-checkpoints"
 # 3. HTTP access is preferred over local filesystem
 remote-store-url: "http://localhost:9000/api/v1"
 
-# DynamoDbProgressStore config
+# Path to the progress store JSON file.
 #
-progress-store:
-  aws-access-key-id: "test"
-  aws-secret-access-key: "test"
-  aws-region: "us-east-1"
-  # DynamoDB table name
-  table-name: "checkpoint-progress"
+# The ingestion pipeline uses this file to persist its progress,
+# ensuring state is preserved across restarts.
+#
+progress-store-path: "/iota/output/live_ingestion_progress.json"
+
+metrics-port: 8083
 
 # Workers Configs
 #
@@ -38,7 +38,7 @@ tasks:
   #
   # This task is responsible for storing entire checkpoint blobs into an S3 compatible bucket
   # Useful for Indexer's ingestion pipeline as a fallback mechanism for checkpoint synchronization
-  - name: "local-blob-storage"
+  - name: "local-live-storage"
     # Number of workers will process the checkpoints in parallel
     concurrency: 1
     # Task type
@@ -79,27 +79,3 @@ tasks:
       #
       checkpoint-chunk-size-mb: 100
       node-rest-api-url: "http://localhost:9000/api/v1"
-    # Task unique name
-    #
-    # This task is responsible for storing historical data like:
-    # - transaction
-    # - transaction effects
-    # - transaction events
-    # - checkpoint summary
-    # - checkpoint constents
-    #
-    # Primerely is used to provide historical data for Archival IOTA Node
-    # which trough HttpKVStore fetches data trough a REST API which reads
-    # the data this worker srites into
-  - name: "local-kv-storage"
-    # Number of workers will process the checkpoints in parallel
-    concurrency: 1
-    # Task type
-    kv:
-      aws-access-key-id: "test"
-      aws-secret-access-key: "test"
-      aws-region: "us-east-1"
-      table-name: "iota-storage"
-      bucket-name: "iota-storage-bucket"
-      # optional, mostly used for localstack for testing purposes
-      aws-endpoint: "http://0.0.0.0:4566"

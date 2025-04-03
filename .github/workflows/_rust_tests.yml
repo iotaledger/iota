@@ -190,9 +190,9 @@ jobs:
     steps:
       - uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871 # v4.2.1
       - name: Run Cargo Udeps
-        run: cargo +nightly ci-udeps ${{ matrix.flags }}
+        run: cargo +nightly-2025-04-01 ci-udeps ${{ matrix.flags }}
       - name: Run Cargo Udeps (external crates)
-        run: cargo +nightly ci-udeps-external ${{ matrix.flags }}
+        run: cargo +nightly-2025-04-01 ci-udeps-external ${{ matrix.flags }}
 
   test-extra:
     env:
