@@ -101,9 +101,11 @@ export function VirtualList<T>({
                             data-index={virtualItem.index}
                             onClick={() => !isExtraItem && onClick?.(item)}
                         >
-                            {isExtraItem && hasNextPage
-                                ? <LoadingIndicator text="Loading more..." />
-                                : render(item, virtualItem.index)}
+                            {isExtraItem && hasNextPage ? (
+                                <LoadingIndicator text="Loading more..." />
+                            ) : (
+                                render(item, virtualItem.index)
+                            )}
                         </div>
                     );
                 })}
