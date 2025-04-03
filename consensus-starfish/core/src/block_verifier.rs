@@ -7,14 +7,13 @@ use std::{collections::BTreeSet, sync::Arc};
 use crate::{
     Round,
     block::{
-        BlockAPI, BlockRef, BlockTimestampMs, GENESIS_ROUND, SignedBlock, VerifiedBlock,
-        genesis_blocks,
+        Block, BlockAPI, BlockBody, BlockRef, BlockTimestampMs, GENESIS_ROUND, SignedBlock,
+        TransactionsCommitment, VerifiedBlock, genesis_blocks,
     },
     context::Context,
     error::{ConsensusError, ConsensusResult},
     transaction::TransactionVerifier,
 };
-use crate::block::{Block, BlockBody, TransactionsCommitment};
 
 pub(crate) trait BlockVerifier: Send + Sync + 'static {
     /// Verifies a block's metadata and transactions.
@@ -45,9 +44,10 @@ pub(crate) trait BlockVerifier: Send + Sync + 'static {
 /// For `BlockV1`, transaction verification is performed using the provided
 /// `TransactionVerifier`.
 ///
-/// For `BlockV2`, if the block contains full transactions, the `TransactionVerifier`
-/// is used. If it contains a shard and Merkle proof, these need to be checked
-/// against the Merkle root in the block header (TODO: not yet implemented).
+/// For `BlockV2`, if the block contains full transactions, the
+/// `TransactionVerifier` is used. If it contains a shard and Merkle proof,
+/// these need to be checked against the Merkle root in the block header (TODO:
+/// not yet implemented).
 pub(crate) struct SignedBlockVerifier {
     // TODO: Add support for verifying Merkle shard against the commitment root in BlockV2
     context: Arc<Context>,
@@ -204,7 +204,8 @@ impl BlockVerifier for SignedBlockVerifier {
             Block::V2(block_v2) => {
                 match &block_v2.body {
                     BlockBody::Transactions(transactions) => {
-                        let batch: Vec<_> = block_v2.transactions().iter().map(|t| t.data()).collect();
+                        let batch: Vec<_> =
+                            block_v2.transactions().iter().map(|t| t.data()).collect();
                         self.check_transactions(&batch)?;
                         self.transaction_verifier
                             .verify_batch(&batch)

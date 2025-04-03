@@ -5,8 +5,8 @@
 use std::{ops::Bound::Included, time::Duration};
 
 use bytes::Bytes;
-use starfish_config::AuthorityIndex;
 use iota_macros::fail_point;
+use starfish_config::AuthorityIndex;
 use typed_store::{
     Map as _,
     metrics::SamplingInterval,

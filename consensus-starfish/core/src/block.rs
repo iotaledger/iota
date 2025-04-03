@@ -9,9 +9,11 @@ use std::{
     sync::Arc,
 };
 
+use blake3;
 use bytes::Bytes;
 use enum_dispatch::enum_dispatch;
 use fastcrypto::hash::{Digest, HashFunction};
+use rs_merkle::{Hasher as MerkleHasher, MerkleProof, MerkleTree};
 use serde::{Deserialize, Serialize};
 use shared_crypto::intent::{Intent, IntentMessage, IntentScope};
 use starfish_config::{
@@ -25,9 +27,6 @@ use crate::{
     ensure,
     error::{ConsensusError, ConsensusResult},
 };
-use rs_merkle::{Hasher as MerkleHasher, MerkleProof};
-use rs_merkle::MerkleTree;
-use blake3;
 /// Round number of a block.
 pub type Round = u32;
 
@@ -64,7 +63,7 @@ impl Transaction {
 #[enum_dispatch(BlockAPI)]
 pub enum Block {
     V1(BlockV1),
-    V2(BlockV2)
+    V2(BlockV2),
 }
 
 #[enum_dispatch]
@@ -176,19 +175,17 @@ impl BlockAPI for BlockV1 {
 
     fn shard_data(&self) -> Option<&Bytes> {
         panic!("BlockV1 has no shard data");
-        }
+    }
 
     fn acknowledgment_statements(&self) -> &[BlockRef] {
         panic!("BlockV1 has no acknowledgment statements");
     }
-
 }
-
 
 // ====== New BlockV2 Definition =====
 
-
-/// BlockHeader: Contains metadata for a block including the Merkle root of transactions (TransactionsCommitment) and acknowledgement statements.
+/// BlockHeader: Contains metadata for a block including the Merkle root of
+/// transactions (TransactionsCommitment) and acknowledgement statements.
 
 #[derive(Clone, Copy, Eq, Ord, PartialOrd, PartialEq, Default, Hash, Serialize, Deserialize)]
 pub struct TransactionsCommitment([u8; TRANSACTIONS_COMMITMENT_SIZE]);
@@ -217,7 +214,6 @@ impl CryptoHash for Shard {
         state.update(self);
     }
 }
-
 
 impl TransactionsCommitment {
     pub fn new_from_encoded_statements(
@@ -268,14 +264,11 @@ impl TransactionsCommitment {
     ) -> Option<bool> {
         let mut hasher = Blake3Hasher::new();
         shard.crypto_hash(&mut hasher);
-        let leaf_to_prove: [u8;TRANSACTIONS_COMMITMENT_SIZE] = hasher.finalize().into();
+        let leaf_to_prove: [u8; TRANSACTIONS_COMMITMENT_SIZE] = hasher.finalize().into();
         let proof = MerkleProof::<Blake3>::try_from(proof_bytes).ok()?;
         Some(proof.verify(merkle_root.0, &[leaf_index], &[leaf_to_prove], tree_size))
     }
 }
-
-
-
 
 #[derive(Clone, Default, Deserialize, Serialize)]
 pub struct BlockHeader {
@@ -293,11 +286,7 @@ pub struct BlockHeader {
     acknowledgement_statements: Vec<BlockRef>,
 }
 
-
-
-
 impl BlockHeader {
-
     pub(crate) fn new(
         epoch: Epoch,
         round: Round,
@@ -322,7 +311,6 @@ impl BlockHeader {
         }
     }
 
-
     /// Generates a genesis block header.
     fn genesis(epoch: Epoch, author: AuthorityIndex) -> Self {
         Self {
@@ -339,7 +327,8 @@ impl BlockHeader {
     }
 }
 
-/// BlockData: Contains the body of the block, such as transactions or shard data.
+/// BlockData: Contains the body of the block, such as transactions or shard
+/// data.
 #[derive(Clone, Default, Deserialize, Serialize)]
 pub enum BlockBody {
     /// Contains transactions.
@@ -347,10 +336,11 @@ pub enum BlockBody {
     /// Contains shard data.
     ShardData(Bytes),
     /// No additional data.
-    #[default] Empty,
+    #[default]
+    Empty,
 }
 
-impl BlockBody{
+impl BlockBody {
     /// Creates a new BlockBody with transactions.
     pub fn new_transactions(transactions: Vec<Transaction>) -> Self {
         BlockBody::Transactions(transactions)
@@ -363,7 +353,6 @@ pub struct BlockV2 {
     pub(crate) header: BlockHeader,
     pub(crate) body: BlockBody,
 }
-
 
 impl BlockAPI for BlockV2 {
     fn epoch(&self) -> Epoch {
@@ -420,10 +409,6 @@ impl BlockAPI for BlockV2 {
         &self.header.acknowledgement_statements
     }
 }
-
-
-
-
 
 /// `BlockRef` uniquely identifies a `VerifiedBlock` via `digest`. It also
 /// contains the slot info (round and author) so it can be used in logic such as
@@ -633,26 +618,24 @@ impl SignedBlock {
     }
 }
 
-/// Digest of a block, covering all `Block` fields without its signature for BlockV1 and the `BlockHeader` for BlockV2
-/// This is used during Block signing and signature verification.
-/// This should never be used outside of this file, to avoid confusion with
-/// `BlockDigest`.
+/// Digest of a block, covering all `Block` fields without its signature for
+/// BlockV1 and the `BlockHeader` for BlockV2 This is used during Block signing
+/// and signature verification. This should never be used outside of this file,
+/// to avoid confusion with `BlockDigest`.
 #[derive(Serialize, Deserialize)]
 struct InnerBlockDigest([u8; starfish_config::DIGEST_LENGTH]);
 
-/// Computes the digest of a Block for  BlockV1 and t the Block Header For BlockV2, only for signing and verifications.
-
+/// Computes the digest of a Block for  BlockV1 and t the Block Header For
+/// BlockV2, only for signing and verifications.
 fn compute_inner_block_digest(block: &Block) -> ConsensusResult<InnerBlockDigest> {
     let serialized = match block {
         Block::V1(_) => {
             // For BlockV1, serialize the entire block.
-            bcs::to_bytes(block)
-                .map_err(ConsensusError::SerializationFailure)?
+            bcs::to_bytes(block).map_err(ConsensusError::SerializationFailure)?
         }
         Block::V2(block_v2) => {
             // For BlockV2, serialize only the BlockHeader.
-            bcs::to_bytes(&block_v2.header)
-                .map_err(ConsensusError::SerializationFailure)?
+            bcs::to_bytes(&block_v2.header).map_err(ConsensusError::SerializationFailure)?
         }
     };
 
@@ -982,14 +965,12 @@ pub enum MisbehaviorProof {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use std::sync::Arc;
+
     use fastcrypto::error::FastCryptoError;
 
-    use crate::{
-        context::Context,
-        error::ConsensusError,
-    };
+    use super::*;
+    use crate::{context::Context, error::ConsensusError};
 
     #[tokio::test]
     async fn test_sign_and_verify_blockv1() {
@@ -1108,23 +1089,22 @@ mod tests {
     }
     #[test]
     fn test_new_from_encoded_statements_and_check_correctness() {
-        use rand::rngs::StdRng;
-        use rand::{Rng,SeedableRng};
+        use rand::{Rng, SeedableRng, rngs::StdRng};
         // Prepare some fake encoded statements (shards)
         let mut rng = StdRng::seed_from_u64(99);
         let num_shards = 5;
         let encoded_statements: Vec<Shard> = (0..num_shards)
-            .map(|_| {
-                (0..32).map(|_| rng.gen()).collect()
-            })
+            .map(|_| (0..32).map(|_| rng.gen()).collect())
             .collect();
 
         // Choose an authority index to generate a proof for
         let authority_index = 2;
 
         // Call function to create the TransactionsCommitment and Merkle proof
-        let (commitment, proof_bytes) =
-            TransactionsCommitment::new_from_encoded_statements(&encoded_statements, authority_index);
+        let (commitment, proof_bytes) = TransactionsCommitment::new_from_encoded_statements(
+            &encoded_statements,
+            authority_index,
+        );
 
         // Basic checks
         assert_eq!(commitment.0.len(), TRANSACTIONS_COMMITMENT_SIZE);
@@ -1142,30 +1122,39 @@ mod tests {
         assert_eq!(commitment.0, expected_root, "Merkle roots must match");
 
         // Now use the check_correctness_merkle_root function
-        let result = TransactionsCommitment::check_correctness_merkle_root(&encoded_statements, commitment);
+        let result =
+            TransactionsCommitment::check_correctness_merkle_root(&encoded_statements, commitment);
         assert!(result, "Merkle root correctness check should pass");
 
         // Negative test
         let mut tampered = encoded_statements.clone();
         tampered[0][0] ^= 0xFF; // Flip a byte
         let result = TransactionsCommitment::check_correctness_merkle_root(&tampered, commitment);
-        assert!(!result, "Merkle root correctness check should fail for tampered data");
+        assert!(
+            !result,
+            "Merkle root correctness check should fail for tampered data"
+        );
     }
     #[test]
     fn test_check_correctness_merkle_leaf() {
-        use rand::{SeedableRng, Rng};
-        use rand::rngs::StdRng;
+        use rand::{Rng, SeedableRng, rngs::StdRng};
 
         let mut rng = StdRng::seed_from_u64(42);
         let num_shards = 5;
         let encoded_statements: Vec<Shard> = (0..num_shards)
-            .map(|_| (0..TRANSACTIONS_COMMITMENT_SIZE).map(|_| rng.gen()).collect())
+            .map(|_| {
+                (0..TRANSACTIONS_COMMITMENT_SIZE)
+                    .map(|_| rng.gen())
+                    .collect()
+            })
             .collect();
 
         let authority_index = 2;
 
-        let (commitment, proof_bytes) =
-            TransactionsCommitment::new_from_encoded_statements(&encoded_statements, authority_index);
+        let (commitment, proof_bytes) = TransactionsCommitment::new_from_encoded_statements(
+            &encoded_statements,
+            authority_index,
+        );
 
         // Positive test
         let shard = encoded_statements[authority_index].clone();
@@ -1187,7 +1176,11 @@ mod tests {
             num_shards,
             wrong_index,
         );
-        assert_eq!(result, Some(false), "Merkle proof verification should fail for wrong shard");
+        assert_eq!(
+            result,
+            Some(false),
+            "Merkle proof verification should fail for wrong shard"
+        );
 
         // Negative test: invalid proof bytes
         let result = TransactionsCommitment::check_correctness_merkle_leaf(

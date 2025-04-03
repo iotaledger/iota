@@ -11,11 +11,11 @@ workspace = true
 
 [dependencies]
 # external dependencies
+blake3.workspace = true
 fastcrypto.workspace = true
 rand.workspace = true
-serde.workspace = true
 rs_merkle.workspace = true
-blake3.workspace = true
+serde.workspace = true
 
 # internal dependencies
 iota-network-stack.workspace = true
