@@ -34,6 +34,8 @@ pub struct Committee {
     validity_threshold: Stake,
     /// Protocol and network info of each authority.
     authorities: Vec<Authority>,
+    /// info length for encoding f+1
+    info_length: usize,
 }
 
 impl Committee {
@@ -49,12 +51,20 @@ impl Committee {
         assert_ne!(total_stake, 0, "Total stake cannot be zero!");
         let quorum_threshold = 2 * total_stake / 3 + 1;
         let validity_threshold = total_stake.div_ceil(3);
+        let committee_size = authorities.len();
+        let f = (committee_size - 1) / 3;
+        let info_length = match committee_size % 3 {
+            0 => f + 3,
+            1 => f + 1,
+            _ => f + 2,
+        };
         Self {
             epoch,
             total_stake,
             quorum_threshold,
             validity_threshold,
             authorities,
+            info_length,
         }
     }
 
@@ -75,6 +85,10 @@ impl Committee {
 
     pub fn validity_threshold(&self) -> Stake {
         self.validity_threshold
+    }
+
+    pub fn info_length(&self) -> usize {
+        self.info_length
     }
 
     pub fn stake(&self, authority_index: AuthorityIndex) -> Stake {
