@@ -564,7 +564,7 @@ impl fmt::Debug for Slot {
 /// `BlockRef`.
 #[derive(Deserialize, Serialize)]
 pub(crate) struct SignedBlock {
-    pub(crate) inner: Block,
+    inner: Block,
     signature: Bytes,
 }
 
@@ -585,6 +585,10 @@ impl SignedBlock {
         })
     }
 
+    /// Returns a reference to the inner `Block`.
+    pub fn inner(&self) -> &Block {
+        &self.inner
+    }
     pub(crate) fn signature(&self) -> &Bytes {
         &self.signature
     }

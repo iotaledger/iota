@@ -193,7 +193,7 @@ impl BlockVerifier for SignedBlockVerifier {
         }
 
         // === Version-specific verification ===
-        match &block.inner {
+        match &block.inner() {
             Block::V1(block_v1) => {
                 let batch: Vec<_> = block_v1.transactions().iter().map(|t| t.data()).collect();
                 self.check_transactions(&batch)?;
