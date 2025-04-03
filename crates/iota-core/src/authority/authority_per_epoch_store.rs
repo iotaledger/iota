@@ -152,7 +152,7 @@ impl CertLockGuard {
 type JwkAggregator = GenericMultiStakeAggregator<(JwkId, JWK), true>;
 
 pub enum CancelConsensusCertificateReason {
-    CongestionOnObjects(Vec<ObjectID>, u64),
+    CongestionOnObjects(Vec<ObjectID>, /* suggested_gas_price */ u64),
     DkgFailed,
 }
 
@@ -3123,8 +3123,8 @@ impl AuthorityPerEpochStore {
                     }
                 }
                 ConsensusCertificateResult::Cancelled((cert, reason)) => {
-                    // NOTE: ROMAN: `suggested_gas_price` is included in `reason`
                     notifications.push(key.clone());
+                    // NOTE: ROMAN: `suggested_gas_price` is included in `reason`
                     assert!(cancelled_txns.insert(*cert.digest(), reason).is_none());
                     verified_certificates.push_back(cert);
                 }

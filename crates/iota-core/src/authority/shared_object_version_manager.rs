@@ -137,16 +137,14 @@ impl SharedObjVerManager {
 
         // Check if the transaction is cancelled due to congestion.
         let cancellation_info = cancelled_txns.get(tx_digest);
-        let congested_objects_info: Option<HashSet<_>> =
-            if let Some(CancelConsensusCertificateReason::CongestionOnObjects(
-                congested_objects,
-                _suggested_gas_price,
-            )) = &cancellation_info
-            {
-                Some(congested_objects.iter().cloned().collect())
-            } else {
-                None
-            };
+        let congested_objects_info: Option<HashSet<_>> = if let Some(
+            CancelConsensusCertificateReason::CongestionOnObjects(congested_objects, _),
+        ) = &cancellation_info
+        {
+            Some(congested_objects.iter().cloned().collect())
+        } else {
+            None
+        };
         let txn_cancelled = cancellation_info.is_some();
 
         // Make an iterator to update the locks of the transaction's shared objects.
@@ -166,12 +164,15 @@ impl SharedObjVerManager {
             // any shared objects.
             for SharedInputObject { id, .. } in shared_input_objects.iter() {
                 let assigned_version = match cancellation_info {
-                    Some(CancelConsensusCertificateReason::CongestionOnObjects(..)) => {
+                    Some(CancelConsensusCertificateReason::CongestionOnObjects(
+                        _,
+                        suggested_gas_price,
+                    )) => {
                         if congested_objects_info
                             .as_ref()
                             .is_some_and(|info| info.contains(id))
                         {
-                            SequenceNumber::CONGESTED
+                            SequenceNumber::congested_with_offset(*suggested_gas_price)
                         } else {
                             SequenceNumber::CANCELLED_READ
                         }
@@ -521,14 +522,21 @@ mod tests {
         let epoch_store = authority.epoch_store_for_testing();
 
         // Cancel transactions 2 and 4 due to congestion.
+        let suggested_gas_price = 1_001;
         let cancelled_txns: BTreeMap<TransactionDigest, CancelConsensusCertificateReason> = [
             (
                 *certs[1].digest(),
-                CancelConsensusCertificateReason::CongestionOnObjects(vec![id1], 0),
+                CancelConsensusCertificateReason::CongestionOnObjects(
+                    vec![id1],
+                    suggested_gas_price,
+                ),
             ),
             (
                 *certs[3].digest(),
-                CancelConsensusCertificateReason::CongestionOnObjects(vec![id2], 0),
+                CancelConsensusCertificateReason::CongestionOnObjects(
+                    vec![id2],
+                    suggested_gas_price,
+                ),
             ),
             (
                 *certs[4].digest(),
@@ -574,7 +582,10 @@ mod tests {
                 (
                     certs[1].key(),
                     vec![
-                        (id1, SequenceNumber::CONGESTED),
+                        (
+                            id1,
+                            SequenceNumber::congested_with_offset(suggested_gas_price)
+                        ),
                         (id2, SequenceNumber::CANCELLED_READ),
                     ]
                 ),
@@ -583,7 +594,10 @@ mod tests {
                     certs[3].key(),
                     vec![
                         (id1, SequenceNumber::CANCELLED_READ),
-                        (id2, SequenceNumber::CONGESTED)
+                        (
+                            id2,
+                            SequenceNumber::congested_with_offset(suggested_gas_price)
+                        )
                     ]
                 ),
                 (

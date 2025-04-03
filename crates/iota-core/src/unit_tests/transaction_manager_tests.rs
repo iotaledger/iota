@@ -788,7 +788,10 @@ async fn transaction_manager_with_cancelled_transactions() {
             cancelled_transaction.digest(),
             &vec![
                 (shared_object_1.id(), SequenceNumber::CANCELLED_READ),
-                (shared_object_2.id(), SequenceNumber::CONGESTED),
+                (
+                    shared_object_2.id(),
+                    SequenceNumber::congested_with_offset(101),
+                ),
             ],
         )
         .unwrap();

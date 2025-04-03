@@ -341,13 +341,13 @@ async fn test_congestion_control_execution_cancellation() {
     .await;
 
     // Transaction should be cancelled with `shared_object_1` as the congested
-    // object.
+    // object, and the suggested gas price should be TEST_ONLY_GAS_PRICE + 1
     assert_eq!(
         effects.status(),
         &ExecutionStatus::Failure {
             error: ExecutionFailureStatus::ExecutionCancelledDueToSharedObjectCongestion {
                 congested_objects: CongestedObjects(vec![shared_object_1.0]),
-                suggested_gas_price: TEST_ONLY_GAS_PRICE,
+                suggested_gas_price: TEST_ONLY_GAS_PRICE + 1,
             },
             command: None
         }
@@ -357,7 +357,10 @@ async fn test_congestion_control_execution_cancellation() {
     assert_eq!(
         effects.input_shared_objects(),
         vec![
-            InputSharedObject::Cancelled(shared_object_1.0, SequenceNumber::CONGESTED),
+            InputSharedObject::Cancelled(
+                shared_object_1.0,
+                SequenceNumber::congested_with_offset(TEST_ONLY_GAS_PRICE + 1)
+            ),
             InputSharedObject::Cancelled(shared_object_2.0, SequenceNumber::CANCELLED_READ)
         ]
     );
@@ -383,7 +386,7 @@ async fn test_congestion_control_execution_cancellation() {
         execution_error.unwrap().to_execution_status().0,
         ExecutionFailureStatus::ExecutionCancelledDueToSharedObjectCongestion {
             congested_objects: CongestedObjects(vec![shared_object_1.0]),
-            suggested_gas_price: TEST_ONLY_GAS_PRICE,
+            suggested_gas_price: TEST_ONLY_GAS_PRICE + 1,
         }
     );
     assert_eq!(&effects, effects_2.data())

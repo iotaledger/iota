@@ -1135,9 +1135,14 @@ impl SequenceNumber {
     pub const MIN: SequenceNumber = SequenceNumber(u64::MIN);
     pub const MAX: SequenceNumber = SequenceNumber(0x7fff_ffff_ffff_ffff);
     pub const CANCELLED_READ: SequenceNumber = SequenceNumber(SequenceNumber::MAX.value() + 1);
-    pub const CONGESTED: SequenceNumber = SequenceNumber(SequenceNumber::MAX.value() + 2);
     pub const RANDOMNESS_UNAVAILABLE: SequenceNumber =
-        SequenceNumber(SequenceNumber::MAX.value() + 3);
+        SequenceNumber(SequenceNumber::MAX.value() + 2);
+    // NOTE: if you want to add new SequenceNumber constants used for cancellation
+    // reasons, please make sure their offset is less than CONGESTED_BASE_OFFSET
+
+    const CONGESTED_BASE_OFFSET: u64 = 1_000;
+    const CONGESTED_BASE: SequenceNumber =
+        SequenceNumber(SequenceNumber::MAX.value() + Self::CONGESTED_BASE_OFFSET);
 
     pub const fn new() -> Self {
         SequenceNumber(0)
@@ -1149,6 +1154,37 @@ impl SequenceNumber {
 
     pub const fn from_u64(u: u64) -> Self {
         SequenceNumber(u)
+    }
+
+    /// Returns a sequence number used for congested shared objects:
+    /// SequenceNumber::MAX + SequenceNumber::CONGESTED_BASE + offset.
+    /// The offset here is used to capture a suggested gas price for
+    /// cancelled transactions
+    pub fn congested_with_offset(offset: u64) -> Self {
+        let (version, overflows) = Self::CONGESTED_BASE.value().overflowing_add(offset);
+        assert!(
+            !overflows,
+            "the calculated version for a congested shared objects overflows"
+        );
+
+        Self(version)
+    }
+
+    /// Check if this sequence number is used to label a congested shared object
+    pub fn is_congested(&self) -> bool {
+        self >= &Self::CONGESTED_BASE
+    }
+
+    /// Returns the offset used to construct this congested shared object
+    /// sequence number. The offset is used as a suggested gas price for
+    /// cancelled transactions
+    pub fn get_congested_version_offset(&self) -> u64 {
+        assert!(
+            self.is_congested(),
+            "this is not a version used for congested shared objects"
+        );
+
+        self.value() - Self::CONGESTED_BASE.value()
     }
 
     pub fn increment(&mut self) {
@@ -1188,8 +1224,8 @@ impl SequenceNumber {
 
     pub fn is_cancelled(&self) -> bool {
         self == &SequenceNumber::CANCELLED_READ
-            || self == &SequenceNumber::CONGESTED
             || self == &SequenceNumber::RANDOMNESS_UNAVAILABLE
+            || self.is_congested()
     }
 
     pub fn is_valid(&self) -> bool {

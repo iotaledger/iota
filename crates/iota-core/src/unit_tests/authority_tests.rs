@@ -6191,7 +6191,10 @@ async fn test_consensus_handler_congestion_control_transaction_cancellation() {
         .collect::<HashMap<_, _>>();
     assert_eq!(
         [
-            (shared_objects[0].id(), SequenceNumber::CONGESTED),
+            (
+                shared_objects[0].id(),
+                SequenceNumber::congested_with_offset(2001)
+            ),
             (shared_objects[1].id(), SequenceNumber::CANCELLED_READ)
         ]
         .into_iter()
@@ -6223,7 +6226,10 @@ async fn test_consensus_handler_congestion_control_transaction_cancellation() {
     assert_eq!(
         shared_inputs,
         vec![
-            SharedInput::Cancelled((shared_objects[0].id(), SequenceNumber::CONGESTED)),
+            SharedInput::Cancelled((
+                shared_objects[0].id(),
+                SequenceNumber::congested_with_offset(2001)
+            )),
             SharedInput::Cancelled((shared_objects[1].id(), SequenceNumber::CANCELLED_READ))
         ]
     );
@@ -6231,7 +6237,10 @@ async fn test_consensus_handler_congestion_control_transaction_cancellation() {
     // Test get_cancelled_objects.
     let (cancelled_objects, cancellation_reason) = input_objects.get_cancelled_objects().unwrap();
     assert_eq!(cancelled_objects, vec![shared_objects[0].id()]);
-    assert_eq!(cancellation_reason, SequenceNumber::CONGESTED);
+    assert_eq!(
+        cancellation_reason,
+        SequenceNumber::congested_with_offset(2001)
+    );
 
     // Consensus commit prologue contains cancelled txn shared object version
     // assignment.
@@ -6244,7 +6253,7 @@ async fn test_consensus_handler_congestion_control_transaction_cancellation() {
             if assignment == &vec![(
                                 *cancelled_txn.digest(),
                                 vec![
-                                    (shared_objects[0].id(), SequenceNumber::CONGESTED),
+                                    (shared_objects[0].id(), SequenceNumber::congested_with_offset(2001)),
                                     (shared_objects[1].id(), SequenceNumber::CANCELLED_READ)
                                 ]
                             )]
