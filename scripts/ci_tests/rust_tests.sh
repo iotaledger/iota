@@ -384,8 +384,8 @@ function run_cargo_simtest() {
 
 # run cargo-udeps to check for unused dependencies
 function unused_deps() {
-    print_and_run_command "cargo +nightly ci-udeps --all-features"
-    print_and_run_command "cargo +nightly ci-udeps --no-default-features"
+    print_and_run_command "cargo +nightly-2025-04-01 ci-udeps --all-features"
+    print_and_run_command "cargo +nightly-2025-04-01 ci-udeps --no-default-features"
 }
 
 # run extra tests like stresstest, doc tests, doc generation, changed files, etc.

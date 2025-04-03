@@ -806,6 +806,7 @@ async fn start(
             pg_address.clone(),
             // reset the existing db
             true,
+            None,
             fullnode_url.clone(),
             IndexerTypeConfig::writer_mode(None),
             data_ingestion_dir.clone(),
@@ -817,6 +818,7 @@ async fn start(
         start_test_indexer(
             pg_address.clone(),
             false,
+            None,
             fullnode_url.clone(),
             IndexerTypeConfig::reader_mode(indexer_address.to_string()),
             data_ingestion_dir.clone(),
@@ -828,6 +830,7 @@ async fn start(
         start_test_indexer(
             pg_address.clone(),
             false,
+            None,
             fullnode_url.clone(),
             IndexerTypeConfig::AnalyticalWorker,
             data_ingestion_dir,

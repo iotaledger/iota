@@ -17,7 +17,7 @@ use iota_types::{
     digests::{ChainIdentifier, TransactionDigest},
     error::IotaObjectResponseError,
     iota_serde::BigInt,
-    object::ObjectRead,
+    object::{ObjectRead, PastObjectRead},
 };
 use jsonrpsee::{RpcModule, core::RpcResult};
 
@@ -56,6 +56,55 @@ impl ReadApi {
     async fn get_chain_identifier(&self) -> RpcResult<ChainIdentifier> {
         let genesis_checkpoint = self.get_checkpoint(CheckpointId::SequenceNumber(0)).await?;
         Ok(ChainIdentifier::from(genesis_checkpoint.digest))
+    }
+
+    async fn past_object_read_to_response(
+        &self,
+        options: Option<IotaObjectDataOptions>,
+        past_object_read: PastObjectRead,
+    ) -> RpcResult<IotaPastObjectResponse> {
+        let options = options.unwrap_or_default();
+
+        match past_object_read {
+            PastObjectRead::ObjectNotExists(id) => Ok(IotaPastObjectResponse::ObjectNotExists(id)),
+
+            PastObjectRead::ObjectDeleted(object_ref) => {
+                Ok(IotaPastObjectResponse::ObjectDeleted(object_ref.into()))
+            }
+
+            PastObjectRead::VersionFound(object_ref, object, layout) => {
+                let display_fields = if options.show_display {
+                    let rendered_fields = self
+                        .inner
+                        .get_display_fields(&object, &layout)
+                        .await
+                        .map_err(internal_error)?;
+
+                    Some(rendered_fields)
+                } else {
+                    None
+                };
+
+                Ok(IotaPastObjectResponse::VersionFound(
+                    IotaObjectData::new(object_ref, object, layout, options, display_fields)
+                        .map_err(internal_error)?,
+                ))
+            }
+
+            PastObjectRead::VersionNotFound(object_id, version) => {
+                Ok(IotaPastObjectResponse::VersionNotFound(object_id, version))
+            }
+
+            PastObjectRead::VersionTooHigh {
+                object_id,
+                asked_version,
+                latest_version,
+            } => Ok(IotaPastObjectResponse::VersionTooHigh {
+                object_id,
+                asked_version,
+                latest_version,
+            }),
+        }
     }
 }
 
@@ -178,27 +227,53 @@ impl ReadApiServer for ReadApi {
 
     async fn try_get_past_object(
         &self,
-        _object_id: ObjectID,
-        _version: SequenceNumber,
-        _options: Option<IotaObjectDataOptions>,
+        object_id: ObjectID,
+        version: SequenceNumber,
+        options: Option<IotaObjectDataOptions>,
     ) -> RpcResult<IotaPastObjectResponse> {
-        Err(jsonrpsee::types::error::ErrorCode::MethodNotFound.into())
+        let past_object_read = self
+            .inner
+            .get_past_object_read(object_id, version, false)
+            .await?;
+
+        self.past_object_read_to_response(options, past_object_read)
+            .await
     }
 
     async fn try_get_object_before_version(
         &self,
-        _: ObjectID,
-        _: SequenceNumber,
+        object_id: ObjectID,
+        version: SequenceNumber,
     ) -> RpcResult<IotaPastObjectResponse> {
-        Err(jsonrpsee::types::error::ErrorCode::MethodNotFound.into())
+        let past_object_read = self
+            .inner
+            .get_past_object_read(object_id, version, true)
+            .await?;
+
+        self.past_object_read_to_response(None, past_object_read)
+            .await
     }
 
     async fn try_multi_get_past_objects(
         &self,
-        _past_objects: Vec<IotaGetPastObjectRequest>,
-        _options: Option<IotaObjectDataOptions>,
+        past_objects: Vec<IotaGetPastObjectRequest>,
+        options: Option<IotaObjectDataOptions>,
     ) -> RpcResult<Vec<IotaPastObjectResponse>> {
-        Err(jsonrpsee::types::error::ErrorCode::MethodNotFound.into())
+        let mut responses = Vec::with_capacity(past_objects.len());
+
+        for request in past_objects {
+            let past_object_read = self
+                .inner
+                .get_past_object_read(request.object_id, request.version, false)
+                .await?;
+
+            responses.push(
+                self.past_object_read_to_response(options.clone(), past_object_read)
+                    .await?,
+            );
+        }
+
+        Ok(responses)
     }
 
     async fn get_latest_checkpoint_sequence_number(&self) -> RpcResult<BigInt<u64>> {

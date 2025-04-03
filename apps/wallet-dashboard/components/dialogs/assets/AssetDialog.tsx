@@ -109,7 +109,7 @@ export function AssetDialog({ onClose, asset, refetchAssets }: AssetsDialogProps
 
     function onBack() {
         if (!chosenKioskAsset) {
-            return;
+            onClose();
         }
         setChosenKioskAsset(null);
         setView(AssetsDialogView.KioskDetails);

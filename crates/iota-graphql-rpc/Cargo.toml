@@ -21,7 +21,7 @@ bcs.workspace = true
 chrono.workspace = true
 clap.workspace = true
 const-str.workspace = true
-diesel.workspace = true
+diesel = { workspace = true, features = ["i-implement-a-third-party-backend-and-opt-into-breaking-changes"] }
 downcast = "0.11.0"
 either.workspace = true
 fastcrypto = { workspace = true, features = ["copy_key"] }
