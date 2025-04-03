@@ -61,7 +61,7 @@ impl ShardEncoder for Encoder {
         let mut statements_with_len: Vec<u8> = (bytes_length as u32).to_le_bytes().to_vec();
         statements_with_len.append(&mut serialized);
         // increase the length by 4 for u32
-        let mut shard_bytes = (bytes_length + 4 + info_length - 1) / info_length;
+        let mut shard_bytes = (bytes_length + 4).div_ceil(info_length);
 
         // Ensure shard_bytes meets alignment requirements.
         if shard_bytes % 64 != 0 {
