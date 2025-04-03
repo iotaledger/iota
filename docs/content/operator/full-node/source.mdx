@@ -21,16 +21,17 @@ import Genesis from './../../_snippets/operator/genesis.mdx'
 
 ## 1. Software requirements
 
-- Linux (recommended)
-  - mandatory for systemd commands below.
-  - IOTA recommends Ubuntu or Debian. Building from source also works on macOS.
+- Linux (recommended):
+  - mandatory for systemd-related commands below.
+  - The installer script below is tested on Ubuntu and Debian.
+  - Building from source also works on macOS (but systemd-related steps won't)
 - Rust/cargo stable >1.85 . If needed, [update Rust](https://www.rust-lang.org/tools/install).
 
 
 ## 2. Run the installer script
 # TODO in 6017 change branch last before merging ??
 
-Run this in a new temporary directory (recommended), for instance `mkdir -p $HOME/iota && cd $HOME/iota`:
+In a new directory, (e.g. `mkdir -p $HOME/iota && cd $HOME/iota`), run:
 
 ```shell
 bash -i <(curl -sSf https://raw.githubusercontent.com/iotaledger/iota/refs/heads/docs/further-node-operator-docs-improvements/setups/fullnode/systemd/setup.sh)
@@ -41,9 +42,10 @@ You can override these values when running the script (optional):
 - NETWORK: valid values are "testnet" or "mainnet"
 - CLONE_DIR: directory to clone a fresh copy of the iota repo into
 - CONFIG_DIR: directory for storing iota-node config files
+- BIN_DIR: directory for the iota-node binary
 
-
-The scripts will perform the following steps:
+  
+The script will perform the following steps:
 1. Check your rust toolchain version
 2. Install system packages (libraries & other dependencies):
   - tzdata, libprotobuf-dev, ca-certificates, build-essential, libssl-dev, libclang-dev, libpq-dev, pkg-config, openssl, protobuf-compiler, git, clang, cmake
