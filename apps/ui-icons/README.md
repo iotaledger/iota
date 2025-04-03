@@ -3,12 +3,14 @@
 ## Usage
 
 Installation:
+
 ```bash
 # Replace with npm, yarn, bun, etc.
 pnpm install @iota/apps-ui-icons
 ```
 
 Importing:
+
 ```typescript
 import { IotaLogoMark } from '@iota/apps-ui-icons';
 ```
