@@ -25,59 +25,58 @@ import Genesis from './../../_snippets/operator/genesis.mdx'
 ## 1. Software requirements
 
 - Linux (recommended):
-  - mandatory for systemd-related commands below.
-  - The installer script below is tested on Ubuntu and Debian.
-  - Building from source also works on macOS (but systemd-related steps won't)
+  - For this installer to work, use a Linux distribution with `systemd` and `apt-get`.
+  - IOTA recommends and supports Ubuntu or Debian.
+  - Building from source also works on macOS (but systemd-related steps won't).
 - Rust/cargo stable >1.85 . If needed, [update Rust](https://www.rust-lang.org/tools/install).
 
 
 ## 2. Run the installer script
-# TODO in 6017 change branch last before merging ??
 
 In a new directory, (e.g. `mkdir -p $HOME/iota && cd $HOME/iota`), run:
 
+#### TODO in 6017 change branch last before merging ??
 ```shell
 bash -i <(curl -sSf https://raw.githubusercontent.com/iotaledger/iota/refs/heads/docs/further-node-operator-docs-improvements/setups/fullnode/systemd/setup.sh)
 ```
 
-### TODO in 6017 re-check before PR that these var names are still correct (also make this a table)
-### Script options (via environment variables)
+#### Installer script options (via environment variables)
 You can override these values when running the script (optional):
-| ENV VAR | Description | Values | Default Value |
+#### TODO in 6017 re-check before PR that these var names are still correct
+| Env variable | Description | Values | Default Value |
 | --- | --- | --- | --- |
 | NETWORK | The IOTA public network you want your node to connect to | "testnet", "mainnet" | "testnet" |
-| CLONE_DIR | Directory to clone a fresh copy of the iota repo into | - | `/tmp/iota` |
-| CONFIG_DIR | Directory for storing iota-node config files | - | `~/.iota` |
-| BIN_DIR | Directory for the iota-node binary | - | `/usr/local/bin` |
+| CLONE_DIR | Directory to clone a fresh copy of the iota repo into | Path to directory | `$HOME/.cache/iota-clone` |
+| NODE_WORKDIR | Directory for all node data (config, binary, DB) | Path to directory | `/opt/iota` |
+| CONFIG_DIR | Directory for storing iota-node config files | Path to directory | `/opt/iota/config` |
+| BIN_DIR | Directory for the iota-node binary | Path to directory | `/opt/iota/bin` |
 
+To pass env vars to the installer, declare them as follows, in front of the call to the installer:
+```shell
+NETWORK="testnet" CLONE_DIR="$HOME/.cache/iota"  bash -i <(curl https://raw.githubusercontent.com/iotaledger/iota.js/master/installer.sh)
+```
 
-The scripts will perform the following steps:
+The installer will perform the following steps:
 1. Check your rust toolchain version
-2. Install system packages (libraries & other dependencies):
-  - tzdata, libprotobuf-dev, ca-certificates, build-essential, libssl-dev, libclang-dev, libpq-dev, pkg-config, openssl, protobuf-compiler, git, clang, cmake
+2. Install system packages (libraries & other dependencies):  
+  `tzdata`, `libprotobuf-dev`, `ca-certificates`, `build-essential`, `libssl-dev`, `libclang-dev`, `libpq-dev`, `pkg-config`, `openssl`, `protobuf-compiler`, `git`, `clang`, `cmake`
 3. Clone the [iota repo](https://github.com/iotaledger/iota), set to the right branch for the [network](../../developer/getting-started/connect.mdx#iota-networks) you chose
-4. Build the iota-node binary
+4. Build the iota-node binary  
+  The built binary is located at `/opt/iota/bin/iota-node` (or in `$BIN_DIR` if specified)
 5. Create a user called iota, make it own directories for service binary, config, data
-6. Create a node config file, download genesis/migration blobs
-6. Create a systemd service unit file
+6. Create a node config file, download genesis/migration blobs  
+  The config and blob files are located at `/opt/iota/config` (or in `$CONFIG_DIR` if specified)
+6. Create a systemd service unit file  
+  The service definition file is located at `/etc/systemd/system/iota-node.service`
 7. Start the service
 
 
 
+## 3. Check your installation
 
+Your IOTA node should now be running and connected to the network you chose.
 
-
-
-
-The built binary is located in `./target/release/iota-node`.
-
-
-
-## Check your installation
-
-Your IOTA node should now be runnin and connected to the network you chose.
-
-Check that the iota-nod service is active and running:
+Check that the iota-node service is active and running:
 ```shell
 systemctl status iota-node
 ```
@@ -90,16 +89,17 @@ journalctl -u iota-node -f
 If you need to stop the service, you can run `systemctl stop iota-node`
 
 
+### Check your node configuration
+
+The configuration file is at `/opt/iota/config/fullnode.yaml` (or inside `$CONFIG_DIR` if set)
+
+The p2p section should include known public peer nodes, like this:
 
 
 
-# TODO in 6017 move to troubleshooting paragraph below
-4. (For Testnet or Devnet) Edit the `fullnode.yaml` file to include peer nodes for state synchronization. Append the following to the end of the current configuration:
 
-    <Tabs groupId="network" queryString>
-
-    <TabItem label="Testnet" value="testnet">
-
+<Tabs groupId="network" queryString>
+  <TabItem label="Testnet" value="testnet">
     ```yaml
     p2p-config:
       seed-peers:
@@ -108,10 +108,11 @@ If you need to stop the service, you can run `systemctl stop iota-node`
         - address: /dns/access-1.r.testnet.iota.cafe/udp/8084
           peer-id: 8ffd25fa4e86c30c3f8da7092695e8a103462d7a213b815d77d6da7f0a2a52f5
     ```
-    </TabItem>
+  </TabItem>
 
-    <TabItem label="Devnet" value="devnet">
-
+{/* 
+  ### TODO in 6017 add values for mainnet
+  <TabItem label="Mainnet" value="mainnet">
     ```yaml
     p2p-config:
       seed-peers:
@@ -120,55 +121,108 @@ If you need to stop the service, you can run `systemctl stop iota-node`
         - address: /dns/access-1.r.devnet.iota.cafe/udp/8084
           peer-id: 32875c547ea3b44fa08a711646cedb70fa0c97959d236578131505da09723add
     ```
+  </TabItem>
+*/}
+</Tabs>
 
-    </TabItem>
 
-    </Tabs>
 
-# TODO in 6017 remove (-> script)
-5. Set Up Archival Fallback
+The archival section of the config file should look like this:
 
-This allows nodes that fall behind to catch up by downloading archive data rather than relying on synchronization. For more details about archives, see [IOTA Archives](configs/archives).
+<Tabs groupId="network" queryString>
+  <TabItem label="Mainnet" value="mainnet">
+    ```yaml
+    state-archive-read-config:
+      - object-store-config:
+          object-store: "S3"
+          aws-endpoint: "https://archive.mainnet.iota.cafe"
+          aws-virtual-hosted-style-request: true
+          object-store-connection-limit: 20
+          no-sign-request: true
+        concurrency: 5
+        use-for-pruning-watermark: false
+    ```
+  </TabItem>
 
-```yaml
-state-archive-read-config:
-  - object-store-config:
-      object-store: "S3"
-      aws-endpoint: "https://archive.<devnet|testnet|mainnet>.iota.cafe"
-      aws-virtual-hosted-style-request: true
-      object-store-connection-limit: 20
-      no-sign-request: true
-    concurrency: 5
-    use-for-pruning-watermark: false
+  <TabItem label="Testnet" value="testnet">
+    ```yaml
+    state-archive-read-config:
+      - object-store-config:
+          object-store: "S3"
+          aws-endpoint: "https://archive.testnet.iota.cafe"
+          aws-virtual-hosted-style-request: true
+          object-store-connection-limit: 20
+          no-sign-request: true
+        concurrency: 5
+        use-for-pruning-watermark: false
+    ```
+  </TabItem>
+</Tabs>
+
+This allows nodes that fall behind to catch up by downloading archive data rather than relying on synchronization. See [IOTA Archives](configs/archives) for details.
+
+### Reach your node via the RPC endpoint
+
+Your full node serves the read endpoints of the IOTA JSON-RPC API at: <code>{Networks.iota_localnet.jsonRpcUrl}</code>.
+
+Register a new iota client environment with your node's RPC endpoint
+```shell
+iota client new-env --alias=ALIAS --rpc http://127.0.0.1:9000
+iota client switch --env ALIAS
+```
+Then query the chain identifier from the RPC endpoint:
+```shell
+iota client chain-identifier
 ```
 
 
-6. (Optional, skip this step to accept the default paths to resources). Edit the `fullnode.yaml` file to use custom paths.
-  # TODO in 6017 double check it's done via yamls ??
-    1. Update the `db-path` field with the path to the full node database.
-        ```yaml
-        db-path: "/db-files/iota-fullnode"`
-        ```
-    2. Update the `genesis-file-location` with the path to genesis.blob.
-        ```yaml
-        genesis:
-          genesis-file-location: "/iota-fullnode/genesis.blob"
-        ```
-    3. Update the  `migration-tx-data-path` with the path to the migration.blob
-        ```yaml
-        migration-tx-data-path: "/opt/iota/config/migration.blob"
-        ```
+
+## 4. Customize your node's configuration
+
+#### TODO in 6017 links to pruning, archives, networking, snapshots
+
+### 4.2 Networking
+
+To synchronize the state, the node needs to establish connections with other nodes that have already joined the network. Ensure that port 8084 is open and set up an external address for node discovery.
+
+The full node uses the following ports by default:
+
+| Protocol/Port | Reachability     | Purpose                           | Expose port ? |
+| ------------- | ---------------- | --------------------------------- | --------- |
+| UDP/8084      | Inbound/Outbound | Peer-to-peer state sync interface | Needs to be reachable from the internet |
+| TCP/9000      | Outbound         | JSON RPC Address / Web socket     | (optional. Can be private for your use only) |
+| TCP/9184      | Localhost        | Metrics scraping for your monitoring                  | (optional) |
 
 
 
-## 4. Start Services
+### 4.2 Storage and pruning (optional)
+
+Choose how much data and how long your node keeps it by setting custom [pruning settings](https://docs.iota.org/operator/full-node/configs/pruning).
 
 
-2. (Optional) Publish/subscribe to notifications using JSON-RPC via websocket.
+### 4.3 Data storage paths (optional)
 
-If your setup is successful, your IOTA full node is now connected to the appropriate network.
+You can adapt the node's configuration to your needs by changing the `fullnode.yaml` file (at `/opt/iota/config/fullnode.yaml`, or, if set, inside `$CONFIG_DIR`).  
+Don't forget to restart the `iota-node` systemd service after making changes to the configuration.
 
-Your full node serves the read endpoints of the IOTA JSON-RPC API at: <code>{Networks.iota_localnet.jsonRpcUrl}</code>.
+To set paths for data files, change these values in `fullnode.yaml`:
+
+```yaml
+# Set a custom path for storing the node's database
+db-path: "/db-files/iota-fullnode"
+
+# Set a custom path to the genesis blob
+genesis:
+  genesis-file-location: "/iota-fullnode/genesis.blob"
+
+# Set a custom path for the migration blob
+migration-tx-data-path: "/opt/iota/config/migration.blob"
+```
+
+
+
+
+
 
 
 

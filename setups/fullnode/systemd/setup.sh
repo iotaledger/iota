@@ -2,7 +2,7 @@
 
 # INPUTS
 NETWORK=${NETWORK-"testnet"}; VALID_NETWORKS=("testnet" "mainnet")
-CLONE_DIR=${CLONE_DIR-"$(git rev-parse --show-toplevel || echo ".")/.cache/iota-clone"}
+CLONE_DIR=${CLONE_DIR-"$HOME/.cache/iota-clone"}
 NODE_WORKDIR=${NODE_WORKDIR-"/opt/iota"}
 CONFIG_DIR=${CONFIG_DIR-"$NODE_WORKDIR/config"}
 BIN_DIR=${BIN_DIR-"$NODE_WORKDIR/bin"}
@@ -121,7 +121,7 @@ fi )
 echo "$CONFIG_TEMPLATE" \
     | sed "s|/opt/iota/config/genesis.blob|$CONFIG_DIR/genesis.blob|g" \
     | sed "s|/opt/iota/config/migration.blob|$CONFIG_DIR/migration.blob|g" \
-    > "$CONFIG_DIR/fullnode.config.yaml"
+    > "$CONFIG_DIR/fullnode.yaml"
 
 # Download genesis/migration blobs for NETWORK
 curl -fLJ https://dbfiles.$NETWORK.iota.cafe/genesis.blob -o "$CONFIG_DIR/genesis.blob"
@@ -133,7 +133,7 @@ fi
 # Move bin to $BIN_DIR
 cp ./target/release/iota-node "$BIN_DIR/iota-node"
 
-EXEC_START="\"$BIN_DIR/iota-node\" --config-path \"$CONFIG_DIR/fullnode.config.yaml\""
+EXEC_START="\"$BIN_DIR/iota-node\" --config-path \"$CONFIG_DIR/fullnode.yaml\""
 
 # TODO after 6017 remove use of HACK_ROOT local override (once file actually exists in $NETWORK branch/tag)
 SERVICE_TEMPLATE=$( if [ -f "$CLONE_DIR/setups/fullnode/systemd/iota-node.service" ];
