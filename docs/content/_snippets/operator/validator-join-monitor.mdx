@@ -1,0 +1,40 @@
+## 3. Join the Validators
+
+:::info Key Security
+
+The following steps should be executed in the same environment you used while creating the validator keys.
+
+:::
+
+Make sure your validator account created in [Prepare Validator Information](#prepare-validator-information) has enough IOTA to cover the gas costs.
+
+:::note Tesnet Faucet
+On the Testnet you can use the Faucet to receive the necessary funds.
+:::
+
+Before joining the validators, ensure you have enough delegated stake by running the following command:
+
+```bash
+iota validator display-metadata --json true  | grep stakingPoolIotaBalance
+```
+
+You need [at least 2M iota to join the validators](https://docs.iota.org/about-iota/tokenomics/validators-staking#validator-staking-pool-requirements).
+So make sure the `stakingPoolIotaBalance` is at least `2_000_000_000_000_000`.
+
+Once your have enough stake, submit your request to join the validators:
+
+```bash
+iota validator join-validators
+```
+
+## 4. Monitor Validator Status
+
+```bash
+iota validator display-metadata --json true
+```
+
+You should see your validator's status is `Pending` now, it will become active and join the validators starting from next epoch.
+
+```
+<YOUR-VALIDATOR_ADDRESS>'s validator status: Pending
+```

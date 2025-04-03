@@ -1,0 +1,60 @@
+---
+authority-key-pair:
+  path: /opt/iota/key-pairs/authority.key
+protocol-key-pair:
+  path: /opt/iota/key-pairs/protocol.key
+network-key-pair:
+  path: /opt/iota/key-pairs/network.key
+
+db-path: /opt/iota/db/authorities_db
+
+network-address: /ip4/0.0.0.0/tcp/8080/http
+metrics-address: "0.0.0.0:9184"
+admin-interface-address: "127.0.0.1:1337"
+
+consensus-config:
+  db-path: /opt/iota/db/consensus_db
+  internal-worker-address: null
+enable-event-processing: false
+
+p2p-config:
+  listen-address: "0.0.0.0:8084"
+  external-address: /dns/$HOSTNAME/udp/8084 # UPDATE THIS
+  anemo-config:
+    max-concurrent-connections: 0
+  seed-peers:
+    - address: /dns/access-0.r.testnet.iota.cafe/udp/8084
+      peer-id: 46064108d0b689ed89d1f44153e532bb101ce8f8ca3a3d01ab991d4dea122cfc
+    - address: /dns/access-1.r.testnet.iota.cafe/udp/8084
+      peer-id: 8ffd25fa4e86c30c3f8da7092695e8a103462d7a213b815d77d6da7f0a2a52f5
+
+genesis:
+  genesis-file-location: /opt/iota/config/genesis.blob
+
+authority-store-pruning-config:
+  num-latest-epoch-dbs-to-retain: 3
+  epoch-db-pruning-period-secs: 3600
+  num-epochs-to-retain: 1
+  max-checkpoints-in-batch: 5
+  max-transactions-in-batch: 1000
+end-of-epoch-broadcast-channel-capacity: 128
+checkpoint-executor-config:
+  checkpoint-execution-max-concurrency: 200
+  local-execution-timeout-sec: 10
+db-checkpoint-config:
+  perform-db-checkpoints-at-epoch-end: false
+indirect-objects-threshold: 18446744073709551615
+
+metrics:
+  push-interval-seconds: 60
+  push-url: https://metrics-proxy.testnet.iota.cafe:8443/publish/metrics
+
+state-archive-read-config:
+  - object-store-config:
+      object-store: "S3"
+      aws-endpoint: "https://archive.testnet.iota.cafe"
+      aws-virtual-hosted-style-request: true
+      object-store-connection-limit: 20
+      no-sign-request: true
+    concurrency: 5
+    use-for-pruning-watermark: false
