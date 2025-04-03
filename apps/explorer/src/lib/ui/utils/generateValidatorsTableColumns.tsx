@@ -328,7 +328,7 @@ function determineRisk(
         : atRisk === null
           ? isCommitteeMember
               ? 'Committee'
-              : 'Active'
+              : 'Active (not in committee)'
           : atRisk > 1
             ? `At Risk in ${atRisk} epochs`
             : 'At Risk next epoch';
