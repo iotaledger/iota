@@ -27,7 +27,9 @@ remote-store-url: "http://localhost:9000/api/v1"
 # The ingestion pipeline uses this file to persist its progress,
 # ensuring state is preserved across restarts.
 #
-progress-store-path: "/iota/output/ingestion_progress.json"
+progress-store-path: "/iota/output/historical_ingestion_progress.json"
+
+metrics-port: 8082
 
 # Workers Configs
 #
@@ -36,11 +38,11 @@ tasks:
   #
   # This task is responsible for storing entire checkpoint blobs into an S3 compatible bucket
   # Useful for Indexer's ingestion pipeline as a fallback mechanism for checkpoint synchronization
-  - name: "local-blob-storage"
+  - name: "local-historical-storage"
     # Number of workers will process the checkpoints in parallel
     concurrency: 1
     # Task type
-    blob:
+    historical:
       # remote Object Store config for more info:
       # - https://docs.iota.org/operator/archives#set-up-archival-fallback
       #
@@ -52,52 +54,23 @@ tasks:
         aws-secret-access-key: "test"
         aws-allow-http: true
         object-store-connection-limit: 20
-      # Checkpoint upload chunk size (in MB) that determines the upload strategy:
+      # Set the time threshold (in seconds) that determines when to finalize a batch of checkpoints
+      # and upload them as a single file to the object store.
       #
-      # If checkpoint size < checkpoint_chunk_size_mb:
-      #   - Uploads checkpoint using single PUT operation
-      #   - Optimal for smaller checkpoints
+      # This controls how many checkpoints are grouped together in a single file:
+      # - Lower values = More files with fewer checkpoints per file.
+      # - Higher values = Fewer files with more checkpoints per file.
       #
-      # If checkpoint size >= checkpoint_chunk_size_mb:
-      #   - Divides checkpoint into chunks of this size
-      #   - Uploads chunks as multipart
-      #   - Storage service concatenates parts on completion
+      # Current setting (250 seconds):
+      # - With 4-5 checkpoints/second, this should result in approximately 1000-1250 checkpoints per file.
+      # - Provides good balance between file size and lookup efficiency.
       #
-      # Example with 50MB chunk size:
-      #   200MB checkpoint:
-      #   - Splits into 4 parts (50MB each)
-      #   - Multipart upload of each part
-      #   - Parts merged on remote storage
+      # A batch will be finalized when ANY of these conditions are met:
+      # 1. Time since first checkpoint in batch exceeds this value (250 seconds).
+      # 2. An epoch transition occurs.
+      # 3. Checkpoint sequence 1 is reached (special handling for genesis).
       #
-      #   40MB checkpoint:
-      #   - Single PUT upload
-      #   - No chunking needed
+      # Note: Actual checkpoint count per file may vary based on network activity and
+      # checkpoint production rate.
       #
-      # Minimum allowed chunk size is 5MB
-      #
-      checkpoint-chunk-size-mb: 100
-      node-rest-api-url: "http://localhost:9000/api/v1"
-    # Task unique name
-    #
-    # This task is responsible for storing historical data like:
-    # - transaction
-    # - transaction effects
-    # - transaction events
-    # - checkpoint summary
-    # - checkpoint constents
-    #
-    # Primerely is used to provide historical data for Archival IOTA Node
-    # which trough HttpKVStore fetches data trough a REST API which reads
-    # the data this worker srites into
-  - name: "local-kv-storage"
-    # Number of workers will process the checkpoints in parallel
-    concurrency: 1
-    # Task type
-    kv:
-      aws-access-key-id: "test"
-      aws-secret-access-key: "test"
-      aws-region: "us-east-1"
-      table-name: "iota-storage"
-      bucket-name: "iota-storage-bucket"
-      # optional, mostly used for localstack for testing purposes
-      aws-endpoint: "http://0.0.0.0:4566"
+      commit-duration-seconds: 250

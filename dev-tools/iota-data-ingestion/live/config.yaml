@@ -27,7 +27,9 @@ remote-store-url: "http://localhost:9000/api/v1"
 # The ingestion pipeline uses this file to persist its progress,
 # ensuring state is preserved across restarts.
 #
-progress-store-path: "/iota/output/ingestion_progress.json"
+progress-store-path: "/iota/output/live_ingestion_progress.json"
+
+metrics-port: 8083
 
 # Workers Configs
 #
@@ -36,7 +38,7 @@ tasks:
   #
   # This task is responsible for storing entire checkpoint blobs into an S3 compatible bucket
   # Useful for Indexer's ingestion pipeline as a fallback mechanism for checkpoint synchronization
-  - name: "local-blob-storage"
+  - name: "local-live-storage"
     # Number of workers will process the checkpoints in parallel
     concurrency: 1
     # Task type

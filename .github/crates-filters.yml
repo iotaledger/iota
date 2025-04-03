@@ -82,6 +82,8 @@ iota-light-client:
   - "crates/iota-light-client/**"
 iota-macros:
   - "crates/iota-macros/**"
+iota-mainnet-unlocks:
+  - "crates/iota-mainnet-unlocks/**"
 iota-metric-checker:
   - "crates/iota-metric-checker/**"
 iota-metrics:
