@@ -79,6 +79,11 @@ export function EpochDetail() {
         // todo: enrich this historical validator data when we have
         // at-risk / pending validators for historical epochs
         return generateValidatorsTableColumns({
+            committeeMembers:
+                epochData.committeeMembers?.map(
+                    (committeeMemberIndex) =>
+                        epochData.validators[Number(committeeMemberIndex)].iotaAddress,
+                ) ?? [],
             atRiskValidators: [],
             validatorEvents: [],
             rollingAverageApys: null,
