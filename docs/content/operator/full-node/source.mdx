@@ -179,9 +179,7 @@ iota client chain-identifier
 
 ## 4. Customize your node's configuration
 
-#### TODO in 6017 links to pruning, archives, networking, snapshots
-
-### 4.2 Networking
+### 4.1 Networking
 
 To synchronize the state, the node needs to establish connections with other nodes that have already joined the network. Ensure that port 8084 is open and set up an external address for node discovery.
 
@@ -194,13 +192,24 @@ The full node uses the following ports by default:
 | TCP/9184      | Localhost        | Metrics scraping for your monitoring                  | (optional) |
 
 
-
 ### 4.2 Storage and pruning (optional)
 
-Choose how much data and how long your node keeps it by setting custom [pruning settings](https://docs.iota.org/operator/full-node/configs/pruning).
+To keep disk usage in check, you can:
+- prune old transaction data (transactions, effects, events, checkpoints)
+- prune old object versions
+- turn off the built-in blockchain indexer
 
+Learn how to choose and set pruning settings [here](https://docs.iota.org/operator/full-node/configs/pruning).
 
-### 4.3 Data storage paths (optional)
+### 4.3 Archival (optional)
+
+Learn how to set archival settings [here](https://docs.iota.org/operator/full-node/configs/archives).
+
+### 4.4 Snapshots (optional)
+
+Learn how to set snapshot settings [here](https://docs.iota.org/operator/full-node/configs/snapshots).
+
+### 4.5 Data storage paths (optional)
 
 You can adapt the node's configuration to your needs by changing the `fullnode.yaml` file (at `/opt/iota/config/fullnode.yaml`, or, if set, inside `$CONFIG_DIR`).  
 Don't forget to restart the `iota-node` systemd service after making changes to the configuration.
@@ -218,16 +227,6 @@ genesis:
 # Set a custom path for the migration blob
 migration-tx-data-path: "/opt/iota/config/migration.blob"
 ```
-
-
-
-
-
-
-
-
-
-
 
 
 
@@ -254,7 +253,9 @@ Update the metrics address in your fullnode.yaml file to use port `9180`.
 metrics-address: "0.0.0.0:9180"
 ```
 
-## Update Your Full node
+
+
+## Updating Your Full node
 
 Whenever IOTA releases a new version, you must update your full node with the release to ensure compatibility with the network it connects to. For example, if you use IOTA Testnet you should install the version of IOTA running on IOTA Testnet.
 
