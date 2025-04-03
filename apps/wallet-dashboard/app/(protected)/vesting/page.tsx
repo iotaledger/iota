@@ -137,7 +137,7 @@ export default function VestingDashboardPage(): JSX.Element {
     const [formattedNextPayout, nextPayoutSymbol] = useFormatCoin({ balance: nextPayout?.amount });
 
     function getValidatorByAddress(validatorAddress: string): IotaValidatorSummary | undefined {
-        return system?.committeeMembers?.find(
+        return system?.activeValidators?.find(
             (activeValidator) => activeValidator.iotaAddress === validatorAddress,
         );
     }
