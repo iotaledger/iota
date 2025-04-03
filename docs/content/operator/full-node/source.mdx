@@ -37,15 +37,18 @@ In a new directory, (e.g. `mkdir -p $HOME/iota && cd $HOME/iota`), run:
 bash -i <(curl -sSf https://raw.githubusercontent.com/iotaledger/iota/refs/heads/docs/further-node-operator-docs-improvements/setups/fullnode/systemd/setup.sh)
 ```
 
+### TODO in 6017 re-check before PR that these var names are still correct (also make this a table)
+### Script options (via environment variables)
 You can override these values when running the script (optional):
-# TODO in 6017 re-check before PR that these var names are still correct (also make this a table)
-- NETWORK: valid values are "testnet" or "mainnet"
-- CLONE_DIR: directory to clone a fresh copy of the iota repo into
-- CONFIG_DIR: directory for storing iota-node config files
-- BIN_DIR: directory for the iota-node binary
+| ENV VAR | Description | Values | Default Value |
+| --- | --- | --- | --- |
+| NETWORK | The IOTA public network you want your node to connect to | "testnet", "mainnet" | "testnet" |
+| CLONE_DIR | Directory to clone a fresh copy of the iota repo into | - | `/tmp/iota` |
+| CONFIG_DIR | Directory for storing iota-node config files | - | `~/.iota` |
+| BIN_DIR | Directory for the iota-node binary | - | `/usr/local/bin` |
 
-  
-The script will perform the following steps:
+
+The scripts will perform the following steps:
 1. Check your rust toolchain version
 2. Install system packages (libraries & other dependencies):
   - tzdata, libprotobuf-dev, ca-certificates, build-essential, libssl-dev, libclang-dev, libpq-dev, pkg-config, openssl, protobuf-compiler, git, clang, cmake
@@ -67,8 +70,23 @@ The built binary is located in `./target/release/iota-node`.
 
 
 
-## TODO in 6017 Check your installation
-## TODO in 6017 service status, logs, stop service
+## Check your installation
+
+Your IOTA node should now be runnin and connected to the network you chose.
+
+Check that the iota-nod service is active and running:
+```shell
+systemctl status iota-node
+```
+
+Check (and follow) the logs:
+```shell
+journalctl -u iota-node -f
+```
+
+If you need to stop the service, you can run `systemctl stop iota-node`
+
+
 
 
 
