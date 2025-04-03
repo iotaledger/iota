@@ -36,7 +36,7 @@ export function useEpochProgress(suffix: string = 'left'): EpochProgress {
         }
 
         if (pollingNextEpochInterval.current) {
-            clearTimeout(pollingNextEpochInterval.current);
+            clearInterval(pollingNextEpochInterval.current);
             pollingNextEpochInterval.current = null;
         }
     };
