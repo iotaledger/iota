@@ -34,6 +34,7 @@
         "@tanstack/react-query": "^5.50.1",
         "@tanstack/react-query-devtools": "^5.58.0",
         "@tanstack/react-table": "^8.9.3",
+        "@types/d3-array": "^3.0.5",
         "@types/throttle-debounce": "^5.0.0",
         "@visx/axis": "^3.3.0",
         "@visx/curve": "^3.3.0",
