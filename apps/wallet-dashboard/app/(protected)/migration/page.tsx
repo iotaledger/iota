@@ -159,7 +159,9 @@ function MigrationDashboardPage(): JSX.Element {
     const selectedObjects =
         selectedStardustObjectsCategory === StardustOutputMigrationStatus.Migratable
             ? [...migratableBasicOutputs, ...migratableNftOutputs]
-            : [...timelockedBasicOutputs, ...timelockedNftOutputs];
+            : selectedStardustObjectsCategory === StardustOutputMigrationStatus.TimeLocked
+              ? [...timelockedBasicOutputs, ...timelockedNftOutputs]
+              : [];
 
     function openMigrationDialog(): void {
         setIsMigrationDialogOpen(true);
