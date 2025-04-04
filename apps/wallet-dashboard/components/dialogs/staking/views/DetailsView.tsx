@@ -100,15 +100,6 @@ export function DetailsView({
             <Header title="Validator" onClose={handleClose} onBack={handleClose} titleCentered />
             <DialogLayoutBody>
                 <div className="flex w-full flex-col gap-md">
-                    {!isValidatorCommitteeMember && (
-                        <InfoBox
-                            type={InfoBoxType.Warning}
-                            title="Earn with validators in the committee"
-                            supportingText="You are delegating to a validator that is not part of the committee. Stake to a member of the current committee to start earning rewards again."
-                            icon={<Warning />}
-                            style={InfoBoxStyle.Elevated}
-                        />
-                    )}
                     <Card type={CardType.Filled}>
                         <CardImage>
                             <ImageIcon
@@ -120,6 +111,15 @@ export function DetailsView({
                         </CardImage>
                         <CardBody title={validatorName} subtitle={subtitle} isTextTruncated />
                     </Card>
+                    {!isValidatorCommitteeMember && (
+                        <InfoBox
+                            type={InfoBoxType.Warning}
+                            title="Earn with validators in the committee"
+                            supportingText="You are delegating to a validator that is not part of the committee. Stake to a member of the current committee to start earning rewards again."
+                            icon={<Warning />}
+                            style={InfoBoxStyle.Elevated}
+                        />
+                    )}
                     <Panel hasBorder>
                         <div className="flex flex-col gap-y-sm p-md">
                             <KeyValueInfo
