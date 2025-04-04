@@ -4,7 +4,7 @@
 import { test, expect } from '@playwright/test';
 
 test('Page Title', async ({ page }) => {
-    await page.goto('http://localhost:3000');
+    await page.goto('/');
     const title = await page.title();
     expect(title).toBe('IOTA Wallet Dashboard');
 });

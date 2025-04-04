@@ -18,7 +18,7 @@ export default defineConfig({
     /* Shared settings for all the projects below. See https://playwright.dev/docs/api/class-testoptions. */
     use: {
         /* Base URL to use in actions like `await page.goto('/')`. */
-        // baseURL: 'http://127.0.0.1:3000',
+        baseURL: 'http://localhost:3000/',
 
         /* Collect trace when retrying the failed test. See https://playwright.dev/docs/trace-viewer */
         trace: 'on-first-retry',
@@ -41,15 +41,6 @@ export default defineConfig({
     ],
 
     webServer: [
-        // Localnet:
-        // {
-        //     command:
-        //         process.env.E2E_RUN_LOCAL_NET_CMD ??
-        //         'RUST_LOG="consensus=off" cargo run --bin iota start --force-regenesis --with-faucet',
-        //     port: 9123,
-        //     timeout: 120 * 1000,
-        //     reuseExistingServer: !process.env.CI,
-        // },
 
         // Localnet-based dev server:
         {
