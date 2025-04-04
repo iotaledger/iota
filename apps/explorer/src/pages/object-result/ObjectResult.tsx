@@ -30,8 +30,7 @@ export function ObjectResult(): JSX.Element {
         );
     }
 
-    const isPageError =
-        isError || (data?.error && data?.isDeletedVersion === false) || (isFetched && !data);
+    const isPageError = isError || data?.error || (isFetched && !data);
 
     const resp = data && !isPageError ? translate(data) : null;
     const isPackage = resp ? resp.objType === PACKAGE_TYPE_NAME : false;
@@ -46,11 +45,9 @@ export function ObjectResult(): JSX.Element {
                                 type="Object"
                                 title={resp?.id ?? ''}
                                 error={
-                                    data?.isDeletedVersion
-                                        ? 'This object was deleted with this version.'
-                                        : data?.isViewingPastVersion
-                                          ? 'This object was deleted. You are viewing a past version of this object.'
-                                          : undefined
+                                    data?.isViewingPastVersion
+                                        ? 'This object was deleted. You are viewing a past version of this object.'
+                                        : undefined
                                 }
                             />
                             <ErrorBoundary>{data && <ObjectView data={data} />}</ErrorBoundary>

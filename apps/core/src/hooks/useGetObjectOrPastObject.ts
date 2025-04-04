@@ -16,7 +16,6 @@ const defaultGetObjectOptions = {
 };
 
 interface UseGetObjectOrPastObject extends IotaObjectResponse {
-    isDeletedVersion: boolean;
     isViewingPastVersion: boolean;
 }
 
@@ -37,7 +36,7 @@ export function useGetObjectOrPastObject(
                 options: defaultGetObjectOptions,
             });
 
-            const isNotExistsOrDeleted =
+            const shouldTryFindPastVersion =
                 getObjectResponse?.error?.code === 'notExists' ||
                 getObjectResponse?.error?.code === 'deleted';
 
@@ -96,16 +95,14 @@ export function useGetObjectOrPastObject(
                 }
             };
 
-            const iotaObjectResponse = isNotExistsOrDeleted
+            const iotaObjectResponse = shouldTryFindPastVersion
                 ? await tryFindPastVersionOfObject(normalizedObjId)
                 : getObjectResponse;
 
-            const isViewingPastVersion = isNotExistsOrDeleted;
-            const isDeletedVersion =
-                isNotExistsOrDeleted && iotaObjectResponse?.error?.code === 'deleted';
+            const isViewingPastVersion = shouldTryFindPastVersion && iotaObjectResponse.data;
+
             return {
                 ...iotaObjectResponse,
-                isDeletedVersion,
                 isViewingPastVersion,
             };
         },

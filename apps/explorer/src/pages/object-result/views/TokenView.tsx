@@ -5,9 +5,6 @@
 import {
     ButtonSegment,
     ButtonSegmentType,
-    InfoBox,
-    InfoBoxStyle,
-    InfoBoxType,
     SegmentedButton,
     SegmentedButtonType,
 } from '@iota/apps-ui-kit';
@@ -61,7 +58,6 @@ function useObjectFieldsCard(id: string) {
 
 interface FieldsContentProps {
     objectId: string;
-    version?: string;
 }
 
 enum FieldCategory {
@@ -96,16 +92,6 @@ export function FieldsContent({ objectId }: FieldsContentProps) {
 
     const renderDynamicFields = !!dynamicFieldsData?.pages?.[0].data.length;
 
-    if (!fieldsCount && !renderDynamicFields) {
-        return (
-            <InfoBox
-                title="Couldn't load fields for this object."
-                type={InfoBoxType.Warning}
-                style={InfoBoxStyle.Elevated}
-            />
-        );
-    }
-
     return (
         <div>
             <SegmentedButton type={SegmentedButtonType.Transparent}>
@@ -116,11 +102,7 @@ export function FieldsContent({ objectId }: FieldsContentProps) {
                         label={label}
                         selected={activeTab === value}
                         type={ButtonSegmentType.Underlined}
-                        disabled={
-                            (value === FieldCategory.Fields &&
-                                (!fieldsCount || fieldsCount === 0)) ||
-                            (value === FieldCategory.Dynamic && !renderDynamicFields)
-                        }
+                        disabled={value === FieldCategory.Dynamic && !renderDynamicFields}
                     />
                 ))}
             </SegmentedButton>
