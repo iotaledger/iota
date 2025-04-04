@@ -43,7 +43,7 @@ function ValidatorPageResult(): JSX.Element {
     const [network] = useNetworkContext();
     const { data, isPending, isSuccess, isError } = useGetLatestIotaSystemState();
     const isFixedGasPrice = useFeatureEnabledByNetwork(Feature.FixedGasPrice, network as Network);
-    const activeValidators = data?.committeeMembers;
+    const activeValidators = data?.activeValidators;
     const numberOfValidators = activeValidators?.length || 0;
 
     const {
