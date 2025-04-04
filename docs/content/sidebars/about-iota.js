@@ -20,6 +20,7 @@ const aboutIota = [
             'about-iota/iota-architecture/epochs',
             'about-iota/iota-architecture/protocol-upgrades',
             'about-iota/iota-architecture/staking-rewards',
+            'about-iota/iota-architecture/genesis',
         ],
     },
     {

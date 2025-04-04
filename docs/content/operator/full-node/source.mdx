@@ -86,7 +86,7 @@ Check (and follow) the logs:
 journalctl -u iota-node -f
 ```
 
-If you need to stop the service, you can run `systemctl stop iota-node`
+If you need to stop the service, you can run `sudo systemctl stop iota-node`
 
 
 ### Check your node configuration
@@ -94,9 +94,6 @@ If you need to stop the service, you can run `systemctl stop iota-node`
 The configuration file is at `/opt/iota/config/fullnode.yaml` (or inside `$CONFIG_DIR` if set)
 
 The p2p section should include known public peer nodes, like this:
-
-
-
 
 <Tabs groupId="network" queryString>
   <TabItem label="Testnet" value="testnet">
@@ -179,6 +176,11 @@ iota client chain-identifier
 
 ## 4. Customize your node's configuration
 
+After changing any of the settings below, restart your node using:
+```shell
+sudo systemctl restart iota-node
+```
+
 ### 4.1 Networking
 
 To synchronize the state, the node needs to establish connections with other nodes that have already joined the network. Ensure that port 8084 is open and set up an external address for node discovery.
@@ -203,10 +205,12 @@ Learn how to choose and set pruning settings [here](https://docs.iota.org/operat
 
 ### 4.3 Archival (optional)
 
-Learn how to set archival settings [here](https://docs.iota.org/operator/full-node/configs/archives).
+If the peers your node syncs with have already pruned data your node needs, your node can fallback onto using archives (files containing historical data).  
+Learn how to configure archive settings for your node [here](https://docs.iota.org/operator/full-node/configs/archives).
 
 ### 4.4 Snapshots (optional)
 
+If your node fails, it can restart and catch up faster from a database snapshot (rather than replaying all past transactions).  
 Learn how to set snapshot settings [here](https://docs.iota.org/operator/full-node/configs/snapshots).
 
 ### 4.5 Data storage paths (optional)
@@ -227,6 +231,7 @@ genesis:
 # Set a custom path for the migration blob
 migration-tx-data-path: "/opt/iota/config/migration.blob"
 ```
+
 
 
 

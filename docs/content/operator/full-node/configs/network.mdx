@@ -8,14 +8,17 @@ teams:
 
 import NetworkContent from '../../common/network.mdx';
 
-<NetworkContent />
 
 ## Connectivity
 
+To synchronize the state, the node needs to establish connections with other nodes that have already joined the network. Ensure that port 8084 is open and set up an external address for node discovery.
+
 The full node uses the following ports by default:
 
-| Protocol/Port | Reachability     | Purpose                           |
-| ------------- | ---------------- | --------------------------------- |
-| UDP/8084      | Inbound/Outbound | Peer-to-peer state sync interface |
-| TCP/9000      | Outbound         | JSON RPC Address / Web socket     |
-| TCP/9184      | Localhost        | Metrics scraping                  |
+| Protocol/Port | Reachability     | Purpose                           | Expose port ? |
+| ------------- | ---------------- | --------------------------------- | --------- |
+| UDP/8084      | Inbound/Outbound | Peer-to-peer state sync interface | Needs to be reachable from the internet |
+| TCP/9000      | Outbound         | JSON RPC Address / Web socket     | (optional. Can be private for your use only) |
+| TCP/9184      | Localhost        | Metrics scraping for your monitoring                  | (optional) |
+
+<NetworkContent />
