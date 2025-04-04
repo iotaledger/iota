@@ -63,3 +63,17 @@ In a separate terminal, you can now run the end-to-end tests:
 ```bash
 pnpm --filter iota-wallet playwright test
 ```
+
+#### Useful alternatives for running Playwright tests
+
+Run tests in debug mode
+
+```bash
+pnpm --filter iota-wallet playwright test --debug
+```
+
+Open the Playwright Test UI to analyze and run tests interactively
+
+```bash
+pnpm --filter iota-wallet playwright test --ui
+```
