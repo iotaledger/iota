@@ -34,17 +34,17 @@ import {
     DELEGATED_STAKES_QUERY_STALE_TIME,
     StakedCard,
     useFormatCoin,
+    useGetLatestIotaSystemState,
 } from '@iota/core';
-import { useCurrentAccount, useIotaClient, useIotaClientQuery } from '@iota/dapp-kit';
-import { IotaSystemStateSummaryV1 } from '@iota/iota-sdk/client';
-import { Info } from '@iota/apps-ui-icons';
+import { useCurrentAccount, useIotaClient } from '@iota/dapp-kit';
+import { Warning } from '@iota/apps-ui-icons';
 import { useMemo } from 'react';
 import { IotaSignAndExecuteTransactionOutput } from '@iota/wallet-standard';
 
 function StakingDashboardPage(): React.JSX.Element {
     const account = useCurrentAccount();
-    const { data: system } = useIotaClientQuery('getLatestIotaSystemState');
-    const activeValidators = (system as IotaSystemStateSummaryV1)?.activeValidators;
+    const { data: system } = useGetLatestIotaSystemState();
+    const committeeMembers = system?.committeeMembers;
     const iotaClient = useIotaClient();
 
     const {
@@ -84,14 +84,14 @@ function StakingDashboardPage(): React.JSX.Element {
             return delegation.stakes.map((d) => ({
                 ...d,
                 // flag any inactive validator for the stakeIota object
-                // if the stakingPoolId is not found in the activeValidators list flag as inactive
-                inactiveValidator: !activeValidators?.find(
+                // if the stakingPoolId is not found in the committeeMembers list flag as inactive
+                inactiveValidator: !committeeMembers?.find(
                     ({ stakingPoolId }) => stakingPoolId === delegation.stakingPool,
                 ),
                 validatorAddress: delegation.validatorAddress,
             }));
         });
-    }, [activeValidators, delegatedStakeData]);
+    }, [committeeMembers, delegatedStakeData]);
 
     // Check if there are any inactive validators
     const hasInactiveValidatorDelegation = delegations?.some(
@@ -173,10 +173,10 @@ function StakingDashboardPage(): React.JSX.Element {
                                 {hasInactiveValidatorDelegation ? (
                                     <div className="mb-3">
                                         <InfoBox
-                                            type={InfoBoxType.Default}
-                                            title="Earn with active validators"
-                                            supportingText="Unstake IOTA from the inactive validators and stake on an active validator to start earning rewards again."
-                                            icon={<Info />}
+                                            type={InfoBoxType.Warning}
+                                            title="Earn with validators in the committee"
+                                            supportingText="You are delegating to a validator that is not part of the committee. Stake to a member of the current committee to start earning rewards again."
+                                            icon={<Warning />}
                                             style={InfoBoxStyle.Elevated}
                                         />
                                     </div>

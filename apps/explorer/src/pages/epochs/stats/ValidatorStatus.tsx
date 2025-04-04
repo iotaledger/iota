@@ -4,15 +4,21 @@
 
 import type { Network } from '@iota/iota-sdk/src/client';
 import { DisplayStats, IOTA_PRIMITIVES_COLOR_PALETTE, Panel, Title } from '@iota/apps-ui-kit';
-import { getRefGasPrice, useTheme, Theme, Feature, useFeatureEnabledByNetwork } from '@iota/core';
-import { useIotaClientQuery } from '@iota/dapp-kit';
+import {
+    getRefGasPrice,
+    useTheme,
+    Theme,
+    Feature,
+    useFeatureEnabledByNetwork,
+    useGetLatestIotaSystemState,
+} from '@iota/core';
 import { useMemo } from 'react';
 import { useNetworkContext } from '~/contexts/networkContext';
 import { RingChart, RingChartLegend } from '~/components/ui';
 
 export function ValidatorStatus(): JSX.Element | null {
     const [network] = useNetworkContext();
-    const { data } = useIotaClientQuery('getLatestIotaSystemState');
+    const { data } = useGetLatestIotaSystemState();
     const isFixedGasPrice = useFeatureEnabledByNetwork(Feature.FixedGasPrice, network as Network);
     const { theme } = useTheme();
 
@@ -30,8 +36,8 @@ export function ValidatorStatus(): JSX.Element | null {
 
     const chartData = [
         {
-            value: data.activeValidators.length,
-            label: 'Active',
+            value: data.committeeMembers.length,
+            label: 'Committee',
             gradient: {
                 deg: 315,
                 values: [
@@ -47,9 +53,32 @@ export function ValidatorStatus(): JSX.Element | null {
             },
         },
         {
+            value: data.activeValidators.length - data.committeeMembers.length,
+            label: 'Active (not in committee)',
+            gradient: {
+                deg: 315,
+                values: [
+                    {
+                        percent: 0,
+                        color: getHexColorWithOpacity(
+                            IOTA_PRIMITIVES_COLOR_PALETTE.primary[30],
+                            0.6,
+                        ),
+                    },
+                    {
+                        percent: 100,
+                        color: getHexColorWithOpacity(
+                            IOTA_PRIMITIVES_COLOR_PALETTE.primary[30],
+                            0.6,
+                        ),
+                    },
+                ],
+            },
+        },
+        {
             value: Number(data.pendingActiveValidatorsSize ?? 0),
             label: 'New',
-            color: getHexColorWithOpacity(IOTA_PRIMITIVES_COLOR_PALETTE.primary[30], 0.6),
+            color: getHexColorWithOpacity(IOTA_PRIMITIVES_COLOR_PALETTE.primary[30], 0.3),
         },
         {
             value: data.atRiskValidators.length,
