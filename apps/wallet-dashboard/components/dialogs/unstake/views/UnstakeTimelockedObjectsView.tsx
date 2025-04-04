@@ -68,7 +68,7 @@ export function UnstakeTimelockedObjectsView({
     const { mutateAsync: signAndExecuteTransaction, isPending: isTransactionPending } =
         useSignAndExecuteTransaction();
 
-    const validatorInfo = systemState?.committeeMembers?.find(
+    const validatorInfo = systemState?.activeValidators?.find(
         ({ iotaAddress: validatorAddress }) =>
             validatorAddress === groupedTimelockedObjects.validatorAddress,
     );

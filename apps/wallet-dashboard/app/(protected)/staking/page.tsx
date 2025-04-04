@@ -37,7 +37,7 @@ import {
     useGetLatestIotaSystemState,
 } from '@iota/core';
 import { useCurrentAccount, useIotaClient } from '@iota/dapp-kit';
-import { Info } from '@iota/apps-ui-icons';
+import { Warning } from '@iota/apps-ui-icons';
 import { useMemo } from 'react';
 import { IotaSignAndExecuteTransactionOutput } from '@iota/wallet-standard';
 
@@ -173,10 +173,10 @@ function StakingDashboardPage(): React.JSX.Element {
                                 {hasInactiveValidatorDelegation ? (
                                     <div className="mb-3">
                                         <InfoBox
-                                            type={InfoBoxType.Default}
-                                            title="Earn with active validators"
-                                            supportingText="Unstake IOTA from the inactive validators and stake on an active validator to start earning rewards again."
-                                            icon={<Info />}
+                                            type={InfoBoxType.Warning}
+                                            title="Earn with validators in the committee"
+                                            supportingText="You are delegating to a validator that is not part of the committee. Stake to a member of the current committee to start earning rewards again."
+                                            icon={<Warning />}
                                             style={InfoBoxStyle.Elevated}
                                         />
                                     </div>

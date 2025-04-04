@@ -86,5 +86,8 @@ export function useGetStakingValidatorDetails({
         systemDataResult,
         delegatedStakeDataResult,
         commission: getValidatorCommission(validatorData),
+        isCommitteeMember: system?.committeeMembers.find(
+            (committeeMember) => validatorAddress === committeeMember.iotaAddress,
+        ),
     };
 }

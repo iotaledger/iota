@@ -23,8 +23,8 @@ export function ValidatorStatus(): JSX.Element | null {
     const { theme } = useTheme();
 
     const nextRefGasPrice = useMemo(
-        () => (!isFixedGasPrice ? getRefGasPrice(data?.committeeMembers) : 0n),
-        [data?.committeeMembers, isFixedGasPrice],
+        () => (!isFixedGasPrice ? getRefGasPrice(data?.activeValidators) : 0n),
+        [data?.activeValidators, isFixedGasPrice],
     );
 
     if (!data) return null;
@@ -37,7 +37,7 @@ export function ValidatorStatus(): JSX.Element | null {
     const chartData = [
         {
             value: data.committeeMembers.length,
-            label: 'Active',
+            label: 'Committee',
             gradient: {
                 deg: 315,
                 values: [
@@ -53,9 +53,32 @@ export function ValidatorStatus(): JSX.Element | null {
             },
         },
         {
+            value: data.activeValidators.length - data.committeeMembers.length,
+            label: 'Active (not in committee)',
+            gradient: {
+                deg: 315,
+                values: [
+                    {
+                        percent: 0,
+                        color: getHexColorWithOpacity(
+                            IOTA_PRIMITIVES_COLOR_PALETTE.primary[30],
+                            0.6,
+                        ),
+                    },
+                    {
+                        percent: 100,
+                        color: getHexColorWithOpacity(
+                            IOTA_PRIMITIVES_COLOR_PALETTE.primary[30],
+                            0.6,
+                        ),
+                    },
+                ],
+            },
+        },
+        {
             value: Number(data.pendingActiveValidatorsSize ?? 0),
             label: 'New',
-            color: getHexColorWithOpacity(IOTA_PRIMITIVES_COLOR_PALETTE.primary[30], 0.6),
+            color: getHexColorWithOpacity(IOTA_PRIMITIVES_COLOR_PALETTE.primary[30], 0.3),
         },
         {
             value: data.atRiskValidators.length,

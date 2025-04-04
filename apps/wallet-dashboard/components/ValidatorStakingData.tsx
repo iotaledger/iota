@@ -1,6 +1,7 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+import { useIsValidatorCommitteeMember } from '@/hooks';
 import { KeyValueInfo, Panel, TooltipPosition } from '@iota/apps-ui-kit';
 import { formatPercentageDisplay, useGetStakingValidatorDetails } from '@iota/core';
 import { useCurrentAccount } from '@iota/dapp-kit';
@@ -27,10 +28,18 @@ export function ValidatorStakingData({
         stakeId,
         unstake: isUnstake,
     });
+    const { isCommitteeMember } = useIsValidatorCommitteeMember();
 
     return (
         <Panel hasBorder>
             <div className="flex flex-col gap-y-sm p-md">
+                <KeyValueInfo
+                    keyText="Member of Committee"
+                    tooltipPosition={TooltipPosition.Bottom}
+                    tooltipText="If the validator is part of the current committee."
+                    value={isCommitteeMember(validatorAddress) ? 'Yes' : 'No'}
+                    fullwidth
+                />
                 <KeyValueInfo
                     keyText="Staking APY"
                     tooltipPosition={TooltipPosition.Right}

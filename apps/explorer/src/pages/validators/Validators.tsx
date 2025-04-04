@@ -43,8 +43,8 @@ function ValidatorPageResult(): JSX.Element {
     const [network] = useNetworkContext();
     const { data, isPending, isSuccess, isError } = useGetLatestIotaSystemState();
     const isFixedGasPrice = useFeatureEnabledByNetwork(Feature.FixedGasPrice, network as Network);
-    const committeeMembersData = data?.committeeMembers;
-    const numberOfValidators = committeeMembersData?.length || 0;
+    const activeValidators = data?.activeValidators;
+    const numberOfValidators = activeValidators?.length || 0;
 
     const {
         data: validatorEvents,
@@ -129,8 +129,8 @@ function ValidatorPageResult(): JSX.Element {
 
     const tableData = data
         ? Number(data.pendingActiveValidatorsSize) > 0
-            ? committeeMembersData?.concat(sanitizePendingValidatorsData)
-            : committeeMembersData
+            ? activeValidators?.concat(sanitizePendingValidatorsData)
+            : activeValidators
         : [];
 
     const tableColumns = useMemo(() => {
@@ -150,6 +150,7 @@ function ValidatorPageResult(): JSX.Element {
         }
 
         return generateValidatorsTableColumns({
+            committeeMembers: data.committeeMembers.map((validator) => validator.iotaAddress),
             atRiskValidators: data.atRiskValidators,
             validatorEvents,
             rollingAverageApys: validatorsApy || null,
@@ -168,7 +169,7 @@ function ValidatorPageResult(): JSX.Element {
             value: formattedTotalStakedAmount,
             supportingLabel: totalStakedSymbol,
             tooltipText:
-                'The combined IOTA staked by validators and delegators on the network to support validation and generate rewards.',
+                'The combined IOTA staked by validators (committee) and delegators on the network to support validation and generate rewards.',
         },
         {
             title: 'Staking Ratio',

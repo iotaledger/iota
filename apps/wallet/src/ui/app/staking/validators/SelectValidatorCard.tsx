@@ -10,7 +10,7 @@ import {
     Validator,
 } from '@iota/core';
 import cl from 'clsx';
-import { useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { Button, InfoBox, InfoBoxStyle, InfoBoxType, LoadingIndicator } from '@iota/apps-ui-kit';
 import { useNavigate } from 'react-router-dom';
 import { Warning } from '@iota/apps-ui-icons';
@@ -43,28 +43,40 @@ export function SelectValidatorCard() {
         );
     }, [data]);
 
-    const validatorsRandomOrder = useMemo(
-        () => [...(data?.committeeMembers || [])].sort(() => 0.5 - Math.random()),
+    const allValidatorsRandomOrder = useMemo(
+        () => [...(data?.activeValidators || [])].sort(() => 0.5 - Math.random()),
+        [data?.activeValidators],
+    );
+
+    const isAddressCommitteeMember = useCallback(
+        (address: string) =>
+            data?.committeeMembers.some(
+                (committeeMember) => address === committeeMember.iotaAddress,
+            ),
         [data?.committeeMembers],
     );
+
     const validatorList: Validator[] = useMemo(() => {
-        const sortedAsc = validatorsRandomOrder.map((validator) => {
+        const sortedAsc = allValidatorsRandomOrder.map((validator) => {
             const { apy, isApyApproxZero } = rollingAverageApys?.[validator.iotaAddress] ?? {
                 apy: null,
             };
+            const isCommitteeMember = isAddressCommitteeMember(validator.iotaAddress);
             return {
                 name: validator.name,
                 address: validator.iotaAddress,
                 apy,
                 isApyApproxZero,
-                stakeShare: calculateStakeShare(
-                    BigInt(validator.stakingPoolIotaBalance),
-                    BigInt(totalStake),
-                ),
+                stakeShare: isCommitteeMember
+                    ? calculateStakeShare(
+                          BigInt(validator.stakingPoolIotaBalance),
+                          BigInt(totalStake),
+                      )
+                    : 0,
             };
         });
         return sortedAsc;
-    }, [validatorsRandomOrder, rollingAverageApys, totalStake]);
+    }, [allValidatorsRandomOrder, rollingAverageApys, totalStake, isAddressCommitteeMember]);
 
     if (isPending) {
         return (
@@ -96,6 +108,7 @@ export function SelectValidatorCard() {
                             className={cl('group relative w-full cursor-pointer', {
                                 'rounded-xl bg-shader-neutral-light-8':
                                     selectedValidator?.address === validator.address,
+                                'opacity-50': !isAddressCommitteeMember(validator.address),
                             })}
                             key={validator.address}
                         >

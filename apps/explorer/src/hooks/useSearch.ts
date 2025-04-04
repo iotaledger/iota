@@ -114,7 +114,7 @@ const getResultsForValidatorByPoolIdOrIotaAddress = async (
         return null;
 
     // find validator by pool id or iota address
-    const validator = systemStateSummary.committeeMembers?.find(
+    const validator = systemStateSummary.activeValidators?.find(
         ({ stakingPoolId, iotaAddress }) => stakingPoolId === normalized || iotaAddress === query,
     );
 
