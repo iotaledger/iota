@@ -1,7 +1,7 @@
 #!/bin/bash -e 
 
 # INPUTS
-NETWORK=${NETWORK-"testnet"}; VALID_NETWORKS=("testnet" "mainnet")
+NETWORK=${NETWORK-"testnet"}; VALID_NETWORKS=("testnet" "mainnet" "devnet")
 CLONE_DIR=${CLONE_DIR-"$HOME/.cache/iota-clone"}
 NODE_WORKDIR=${NODE_WORKDIR-"/opt/iota"}
 CONFIG_DIR=${CONFIG_DIR-"$NODE_WORKDIR/config"}
@@ -125,7 +125,7 @@ echo "$CONFIG_TEMPLATE" \
 
 # Download genesis/migration blobs for NETWORK
 curl -fLJ https://dbfiles.$NETWORK.iota.cafe/genesis.blob -o "$CONFIG_DIR/genesis.blob"
-if [ "$NETWORK" == "mainnet" ]; then
+if [ "$NETWORK" == "mainnet" ] || [ "$NETWORK" == "devnet" ]; then
     curl -fLJ https://dbfiles.$NETWORK.iota.cafe/migration.blob -o "$CONFIG_DIR/migration.blob"
 fi
 

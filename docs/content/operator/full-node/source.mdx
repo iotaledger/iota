@@ -16,12 +16,14 @@ import Genesis from './../../_snippets/operator/genesis.mdx'
 
 <WarningAdvanced/>
 
-<Ports/>
 
-## 0. Hardware requirements
+## Hardware requirements
 
 <FullnodeRequirements/ >
 
+
+
+<br/>
 ## 1. Software requirements
 
 - Linux (recommended):
@@ -30,7 +32,11 @@ import Genesis from './../../_snippets/operator/genesis.mdx'
   - Building from source also works on macOS (but systemd-related steps won't).
 - Rust/cargo stable >1.85 . If needed, [update Rust](https://www.rust-lang.org/tools/install).
 
+<Ports/>
 
+
+
+<br/>
 ## 2. Run the installer script
 
 In a new directory, (e.g. `mkdir -p $HOME/iota && cd $HOME/iota`), run:
@@ -45,16 +51,18 @@ You can override these values when running the script (optional):
 {/* TODO in 6017 re-check before PR that these var names are still correct */}
 | Env variable | Description | Values | Default Value |
 | --- | --- | --- | --- |
-| NETWORK | The IOTA public network you want your node to connect to | "testnet", "mainnet" | "testnet" |
+| NETWORK | The IOTA public network you want your node to connect to | "testnet", "mainnet", "devnet" | "testnet" |
 | CLONE_DIR | Directory to clone a fresh copy of the iota repo into | Path to directory | `$HOME/.cache/iota-clone` |
 | NODE_WORKDIR | Directory for all node data (config, binary, DB) | Path to directory | `/opt/iota` |
 | CONFIG_DIR | Directory for storing iota-node config files | Path to directory | `/opt/iota/config` |
 | BIN_DIR | Directory for the iota-node binary | Path to directory | `/opt/iota/bin` |
 
+:::info
 To pass env vars to the installer, declare them as follows, in front of the call to the installer:
 ```shell
 NETWORK="testnet" CLONE_DIR="$HOME/.cache/iota"  bash -i <(curl https://raw.githubusercontent.com/iotaledger/iota.js/master/installer.sh)
 ```
+:::
 
 The installer will perform the following steps:
 1. Check your rust toolchain version
@@ -71,14 +79,14 @@ The installer will perform the following steps:
 7. Start the service
 
 
-
+<br/>
 ## 3. Check your installation
 
 Your IOTA node should now be running and connected to the network you chose.
 
 Check that the iota-node service is active and running:
 ```shell
-systemctl status iota-node
+sudo systemctl status iota-node
 ```
 
 Check (and follow) the logs:
@@ -106,10 +114,22 @@ The p2p section should include known public peer nodes, like this:
           peer-id: 8ffd25fa4e86c30c3f8da7092695e8a103462d7a213b815d77d6da7f0a2a52f5
     ```
   </TabItem>
+  
+  {/* 
+    ### TODO in 6017 add values for mainnet
+    <TabItem label="Mainnet" value="mainnet">
+      ```yaml
+      p2p-config:
+        seed-peers:
+          - address: /dns/access-0.r.devnet.iota.cafe/udp/8084
+            peer-id: 01589ac910a5993f80fbc34a6e0c8b2041ddc5526a951c838df3037e11ab0188
+          - address: /dns/access-1.r.devnet.iota.cafe/udp/8084
+            peer-id: 32875c547ea3b44fa08a711646cedb70fa0c97959d236578131505da09723add
+      ```
+    </TabItem>
+  */}
 
-{/* 
-  ### TODO in 6017 add values for mainnet
-  <TabItem label="Mainnet" value="mainnet">
+  <TabItem label="Devnet" value="devnet">
     ```yaml
     p2p-config:
       seed-peers:
@@ -119,9 +139,7 @@ The p2p section should include known public peer nodes, like this:
           peer-id: 32875c547ea3b44fa08a711646cedb70fa0c97959d236578131505da09723add
     ```
   </TabItem>
-*/}
 </Tabs>
-
 
 
 The archival section of the config file should look like this:
@@ -154,6 +172,20 @@ The archival section of the config file should look like this:
         use-for-pruning-watermark: false
     ```
   </TabItem>
+
+  <TabItem label="Devnet" value="devnet">
+    ```yaml
+    state-archive-read-config:
+      - object-store-config:
+          object-store: "S3"
+          aws-endpoint: "https://archive.devnet.iota.cafe"
+          aws-virtual-hosted-style-request: true
+          object-store-connection-limit: 20
+          no-sign-request: true
+        concurrency: 5
+        use-for-pruning-watermark: false
+    ```
+  </TabItem>
 </Tabs>
 
 This allows nodes that fall behind to catch up by downloading archive data rather than relying on synchronization. See [IOTA Archives](configs/archives) for details.
@@ -178,64 +210,12 @@ If you run into issues during the setup, or while checking your install, be sure
 
 
 
-## 4. Customize your node's configuration
-
-After changing any of the settings below, restart your node using:
-```shell
-sudo systemctl restart iota-node
-```
-
-### 4.1 Networking
-
-To synchronize the state, the node needs to establish connections with other nodes that have already joined the network.   
-Ensure that port `8084` is open and set up an external address for node discovery.
-
-See more useful ports and network configuration options [here](configs/network.mdx)
-
-### 4.2 Storage and pruning (optional)
-
-To keep disk usage in check, you can:
-- prune old transaction data (transactions, effects, events, checkpoints)
-- prune old object versions
-- turn off the built-in blockchain indexer
-
-Learn how to choose and set pruning settings [here](configs/pruning.mdx).
-
-### 4.3 Archival (optional)
-
-If the peers your node syncs with have already pruned data your node needs, your node can fallback onto using archives (files containing historical data).  
-Learn how to configure archive settings for your node [here](configs/archives.mdx).
-
-### 4.4 Snapshots (optional)
-
-If your node fails, it can restart and catch up faster from a database snapshot (rather than replaying all past transactions).  
-Learn how to set snapshot settings [here](configs/snapshots.mdx).
-
-### 4.5 Data storage paths (optional)
-
-You can adapt the node's configuration to your needs by changing the `fullnode.yaml` file (at `/opt/iota/config/fullnode.yaml`, or, if set, inside `$CONFIG_DIR`).  
-Don't forget to restart the `iota-node` systemd service after making changes to the configuration.
-
-To set paths for data files, change these values in `fullnode.yaml`:
-
-```yaml
-# Set a custom path for storing the node's database
-db-path: "/db-files/iota-fullnode"
-
-# Set a custom path to the genesis blob
-genesis:
-  genesis-file-location: "/iota-fullnode/genesis.blob"
-
-# Set a custom path for the migration blob
-migration-tx-data-path: "/opt/iota/config/migration.blob"
-```
-
-
+<br/>
 {/* TODO in 6017 re-running installer should update node */}
-## 5. Updating Your Full node
+## 4. Updating Your Full node
 
 When IOTA releases a new version, you must update your full node with the release to ensure compatibility with the network it connects to.  
-Make sure your node stays on the same network (testnet, mainnet, ...) it was previously connected to.
+Make sure your node stays on the same network (testnet, mainnet, devnet, ...) it was previously connected to.
 
 Use the following steps to update your full node:
 
@@ -276,14 +256,17 @@ Use the following steps to update your full node:
 Your full node restarts on: <code>{Networks.iota_localnet.jsonRpcUrl}</code>.
 
 :::info
-
 If your full node is configured to prune transactions, Archival nodes can help ensure lagging peer nodes don't lose any information. For more information, see [IOTA Archives](../common/archives.mdx).
-
-
-
-
-
-
-
 :::
+
+
+
+<br/>
+## 5. Customize your node's configuration
+
+In the [next section](./configuration.mdx), we'll see which options are available to tune the node's configuration to your preferences.
+
+
+
+
 <Quiz questions={questions} />
