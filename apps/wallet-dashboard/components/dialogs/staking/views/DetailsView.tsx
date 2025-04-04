@@ -24,9 +24,11 @@ import {
     BadgeType,
     Divider,
     LoadingIndicator,
+    TooltipPosition,
 } from '@iota/apps-ui-kit';
 import { formatAddress } from '@iota/iota-sdk/utils';
 import { DialogLayout, DialogLayoutFooter, DialogLayoutBody } from '../../layout';
+import { useIsValidatorCommitteeMember } from '@/hooks';
 
 interface StakeDialogProps {
     handleClose: () => void;
@@ -57,6 +59,7 @@ export function DetailsView({
     } = useValidatorInfo({
         validatorAddress,
     });
+    const { isCommitteeMember } = useIsValidatorCommitteeMember();
 
     const iotaEarned = BigInt(stakedDetails?.estimatedReward || 0n);
     const [iotaEarnedFormatted, iotaEarnedSymbol] = useFormatCoin({ balance: iotaEarned });
@@ -104,6 +107,13 @@ export function DetailsView({
                     </Card>
                     <Panel hasBorder>
                         <div className="flex flex-col gap-y-sm p-md">
+                            <KeyValueInfo
+                                keyText="Member of Committee"
+                                tooltipPosition={TooltipPosition.Bottom}
+                                tooltipText="If the validator is part of the current committee."
+                                value={isCommitteeMember(validatorAddress) ? 'Yes' : 'No'}
+                                fullwidth
+                            />
                             <KeyValueInfo
                                 keyText="Your Stake"
                                 value={totalStakeFormatted}
