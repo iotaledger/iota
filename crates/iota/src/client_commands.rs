@@ -3061,7 +3061,7 @@ fn opts_from_cli(opts: HashSet<EmitOption>) -> IotaTransactionBlockResponseOptio
     }
 }
 
-fn parse_emit_option(s: &str) -> Result<HashSet<EmitOption>, String> {
+pub(crate) fn parse_emit_option(s: &str) -> Result<HashSet<EmitOption>, String> {
     let mut options = HashSet::new();
 
     // Split the input string by commas and try to parse each part
