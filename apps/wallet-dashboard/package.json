@@ -12,7 +12,8 @@
         "test": "jest",
         "ampli": "ampli",
         "pull-amplitude": "ampli pull web && node prependLicense.mjs && prettier -w ampli.json lib/utils/analytics/ampli/index.ts",
-        "playwright": "playwright"
+        "playwright": "playwright",
+        "playwright:debug": "PWDEBUG=1 playwright"
     },
     "engines": {
         "node": ">= 20"
