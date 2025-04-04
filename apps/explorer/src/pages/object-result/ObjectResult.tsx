@@ -5,7 +5,7 @@
 import { useGetObjectOrPastObject } from '@iota/core';
 import { useParams } from 'react-router-dom';
 import { ErrorBoundary, PageLayout } from '~/components';
-import { PageHeader, useSearchParamsMerged } from '~/components/ui';
+import { PageHeader } from '~/components/ui';
 import { ObjectView } from '~/pages/object-result/views/ObjectView';
 import { translate, type DataType } from './ObjectResultType';
 import { PkgView, TokenView } from './views';
@@ -16,12 +16,7 @@ const PACKAGE_TYPE_NAME = 'Move Package';
 
 export function ObjectResult(): JSX.Element {
     const { id: objID } = useParams();
-    const [searchParams] = useSearchParamsMerged();
-    const pastVersionHint = searchParams.get('pastVersionHint') ?? undefined;
-    const { data, isPending, isError, isFetched } = useGetObjectOrPastObject(
-        objID!,
-        pastVersionHint,
-    );
+    const { data, isPending, isError, isFetched } = useGetObjectOrPastObject(objID);
 
     if (isPending) {
         return (

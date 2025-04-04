@@ -15,12 +15,7 @@ import { useGetDynamicFields, useGetObjectOrPastObject } from '@iota/core';
 import { useIotaClientQuery } from '@iota/dapp-kit';
 import { type IotaObjectResponse } from '@iota/iota-sdk/client';
 import { useState } from 'react';
-import {
-    DynamicFieldsCard,
-    ObjectFieldsCard,
-    TransactionBlocksForAddress,
-    useSearchParamsMerged,
-} from '~/components';
+import { DynamicFieldsCard, ObjectFieldsCard, TransactionBlocksForAddress } from '~/components';
 
 enum FieldCategory {
     Default = 'fields',
@@ -28,14 +23,7 @@ enum FieldCategory {
 }
 
 function useObjectFieldsCard(id: string) {
-    const [searchParams] = useSearchParamsMerged();
-    const pastVersionHint = searchParams.get('pastVersionHint') ?? undefined;
-
-    const {
-        data: iotaObjectResponseData,
-        isPending,
-        isError,
-    } = useGetObjectOrPastObject(id, pastVersionHint);
+    const { data: iotaObjectResponseData, isPending, isError } = useGetObjectOrPastObject(id);
 
     const objectType =
         (iotaObjectResponseData?.data?.type ??

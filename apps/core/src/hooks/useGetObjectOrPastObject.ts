@@ -22,12 +22,11 @@ interface UseGetObjectOrPastObject extends IotaObjectResponse {
 
 export function useGetObjectOrPastObject(
     objectId?: string | null,
-    pastVersionHint?: string,
 ): UseQueryResult<UseGetObjectOrPastObject> {
     const normalizedObjId = objectId && normalizeIotaAddress(objectId);
     const client = useIotaClient();
     return useQuery({
-        queryKey: ['objectOrPastObject', normalizedObjId, pastVersionHint],
+        queryKey: ['objectOrPastObject', normalizedObjId],
         async queryFn() {
             if (!normalizedObjId) {
                 return null;
@@ -41,53 +40,69 @@ export function useGetObjectOrPastObject(
             const isNotExistsOrDeleted =
                 getObjectResponse?.error?.code === 'notExists' ||
                 getObjectResponse?.error?.code === 'deleted';
-            const shouldTryGetPastObject = pastVersionHint !== undefined && isNotExistsOrDeleted;
 
             /**
              * Calls tryGetPastObject and maps cases to a IotaObjectResponse
              */
-            const tryGetPastObject = async (
+            const tryFindPastVersionOfObject = async (
                 objectId: string,
-                version: number,
             ): Promise<IotaObjectResponse> => {
-                // We get the (deletedVersion - 1) to see the data on the object
+                const txsWithObjectInput = await client.queryTransactionBlocks({
+                    filter: { InputObject: objectId },
+                    options: {
+                        showInput: true,
+                    },
+                });
+
+                let previousVersion: number | null = null;
+
+                if (txsWithObjectInput?.data.length > 0) {
+                    const previousTxData = txsWithObjectInput.data[0].transaction?.data;
+                    if (previousTxData?.transaction.kind === 'ProgrammableTransaction') {
+                        for (const input of previousTxData.transaction.inputs) {
+                            if (
+                                input.type === 'object' &&
+                                // Only works for immOrOwnedObject and receiving object types
+                                (input.objectType === 'immOrOwnedObject' ||
+                                    input.objectType === 'receiving') &&
+                                input.objectId === objectId
+                            ) {
+                                previousVersion = Number(input.version);
+                                break;
+                            }
+                        }
+                    }
+                }
+
+                if (previousVersion === null) {
+                    return {
+                        error: { code: 'display', error: 'Object version not found' },
+                    };
+                }
+
                 const pastObjectResponse = await client.tryGetPastObject({
                     id: objectId,
-                    version: Number(version) - 1,
+                    version: previousVersion,
                     options: defaultGetObjectOptions,
                 });
 
                 switch (pastObjectResponse?.status) {
                     case 'VersionFound':
                         return { data: pastObjectResponse.details };
-                    case 'ObjectNotExists':
+                    default:
                         return {
-                            error: { object_id: pastObjectResponse.details, code: 'notExists' },
+                            error: { code: 'display', error: 'Object version not found' },
                         };
-                    case 'ObjectDeleted':
-                        return {
-                            data: pastObjectResponse.details,
-                            error: {
-                                code: 'deleted',
-                                digest: pastObjectResponse.details.digest,
-                                object_id: pastObjectResponse.details.objectId,
-                                version: pastObjectResponse.details.version,
-                            },
-                        };
-                    case 'VersionNotFound':
-                        return { error: { code: 'display', error: 'Object version not found' } };
-                    case 'VersionTooHigh':
-                        return { error: { code: 'display', error: 'Object version too high' } };
                 }
             };
 
-            const iotaObjectResponse = shouldTryGetPastObject
-                ? await tryGetPastObject(normalizedObjId, Number(pastVersionHint))
+            const iotaObjectResponse = isNotExistsOrDeleted
+                ? await tryFindPastVersionOfObject(normalizedObjId)
                 : getObjectResponse;
 
-            const isViewingPastVersion = shouldTryGetPastObject;
+            const isViewingPastVersion = isNotExistsOrDeleted;
             const isDeletedVersion =
-                shouldTryGetPastObject && iotaObjectResponse?.error?.code === 'deleted';
+                isNotExistsOrDeleted && iotaObjectResponse?.error?.code === 'deleted';
             return {
                 ...iotaObjectResponse,
                 isDeletedVersion,
