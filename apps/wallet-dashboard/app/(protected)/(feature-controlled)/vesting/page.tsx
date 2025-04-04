@@ -15,7 +15,6 @@ import { UnstakeDialogView } from '@/components/dialogs/unstake/enums';
 import { useUnstakeDialog } from '@/components/dialogs/unstake/hooks';
 import { useGetSupplyIncreaseVestingObjects } from '@/hooks';
 import { groupTimelockedStakedObjects, TimelockedStakedObjectsGrouped } from '@/lib/utils';
-import { useFeature } from '@growthbook/growthbook-react';
 import {
     Panel,
     Title,
@@ -45,7 +44,6 @@ import {
     useGetActiveValidatorsInfo,
     useTheme,
     useCountdownByTimestamp,
-    Feature,
     toast,
     useBalance,
     GAS_BUDGET_ERROR_MESSAGES,
@@ -61,8 +59,7 @@ import {
 } from '@iota/dapp-kit';
 import { IotaValidatorSummary } from '@iota/iota-sdk/client';
 import { Calendar, StarHex, Warning } from '@iota/apps-ui-icons';
-import { useRouter } from 'next/navigation';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { StakedTimelockObject } from '@/components';
 import { IotaSignAndExecuteTransactionOutput } from '@iota/wallet-standard';
 import { ampli } from '@/lib/utils/analytics';
@@ -75,7 +72,6 @@ export default function VestingDashboardPage(): JSX.Element {
     const account = useCurrentAccount();
     const address = account?.address || '';
     const iotaClient = useIotaClient();
-    const router = useRouter();
     const { data: system } = useIotaClientQuery('getLatestIotaSystemState');
     const [isVestingScheduleDialogOpen, setIsVestingScheduleDialogOpen] = useState(false);
     const { data: activeValidators } = useGetActiveValidatorsInfo();
@@ -87,8 +83,6 @@ export default function VestingDashboardPage(): JSX.Element {
         theme === Theme.Dark
             ? 'https://files.iota.org/media/tooling/wallet-dashboard-staking-dark.mp4'
             : 'https://files.iota.org/media/tooling/wallet-dashboard-staking-light.mp4';
-
-    const supplyIncreaseVestingEnabled = useFeature<boolean>(Feature.SupplyIncreaseVesting).value;
 
     const {
         nextPayout,
@@ -242,12 +236,6 @@ export default function VestingDashboardPage(): JSX.Element {
             setTxDigest(tx.digest);
         });
     }
-
-    useEffect(() => {
-        if (!supplyIncreaseVestingEnabled) {
-            router.push('/home');
-        }
-    }, [router, supplyIncreaseVestingEnabled]);
 
     if (isTimelockedStakedObjectsLoading) {
         return (
