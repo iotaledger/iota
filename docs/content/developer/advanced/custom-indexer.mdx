@@ -1,7 +1,7 @@
 ---
 title: Custom Indexer
 description: You can build custom indexers using the IOTA micro-data ingestion framework. To create an indexer, you subscribe to a checkpoint stream with full checkpoint content. Establishing a custom indexer helps improve latency, allows pruning the data of your IOTA full node, and provides efficient assemblage of checkpoint data.
-tags: 
+tags:
   - infrastructure
 teams:
   - iotaledger/infrastructure
@@ -122,7 +122,7 @@ Specify both a local and remote store as a fallback to ensure constant data flow
 ```rust
 executor.run(
     PathBuf::from("./chk".to_string()), // path to a local directory
-    Some("https://indexer.testnet.iota.cafe".to_string()), // Remote Checkpoint Store
+    Some("https://api.testnet.iota.cafe/api/v1".to_string()), // Remote Checkpoint Store
     vec![], // optional remote store access options
     ReaderOptions::default(),
     exit_receiver,
@@ -137,7 +137,7 @@ Code for the cargo.toml manifest file for the custom indexer.
 ```toml file=<rootDir>/examples/custom-indexer/rust/Cargo.toml
 ```
 
-## Source Code 
+## Source Code
 
 Find the following source code in the [IOTA repo](https://github.com/iotaledger/iota/tree/main/examples/custom-indexer/rust).
 

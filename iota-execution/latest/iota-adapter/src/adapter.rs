@@ -143,14 +143,6 @@ mod checked {
         Ok(())
     }
 
-    /// Returns an error message for a missing unwrapped object.
-    pub fn missing_unwrapped_msg(id: &ObjectID) -> String {
-        format!(
-            "Unable to unwrap object {}. Was unable to retrieve last known version in the parent sync",
-            id
-        )
-    }
-
     /// Run the bytecode verifier with a meter limit
     ///
     /// This function only fails if the verification does not complete within

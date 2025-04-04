@@ -8,9 +8,21 @@ teams:
 
 The IOTA validator node configuration file is a YAML file (usually named `validator.yaml`) that you can use to configure
 your `iota-node`.
- To simplify the setup process, you can use a validator node configuration file [template](https://github.com/iotaledger/iota/raw/refs/heads/develop/setups/validator/systemd/validator.yaml) and modify it to your needs.
 
-This default template uses default ports, archive and pruning settings, and also covers peering configuration for the selected network. If you're fine with the default settings, you can use the template as is and continue with the node setup either [using Docker](docker.mdx) or [using systemd](systemd.mdx).
+To simplify the setup process, you can use the default validator node configuration file:
+
+<Tabs groupId="network">
+    <TabItem label="Mainnet" value="mainnet">
+        ```yaml file=<rootDir>/setups/validator/validator-mainnet.yaml
+        ```
+    </TabItem>
+    <TabItem label="Testnet" value="testnet">
+        ```yaml file=<rootDir>/setups/validator/validator-testnet.yaml
+        ```
+    </TabItem>
+</Tabs>
+
+This default configuration uses default ports, archive and pruning settings, and also covers peering configuration for the selected network. If you're fine with the default settings, you can use the template as is and continue with the node setup either [using Docker](docker.mdx) or [using systemd](systemd.mdx).
 
 For more specific guidance on how to configure your node to suit your needs, e.g., configure snapshot, refer to the following sections:
 
