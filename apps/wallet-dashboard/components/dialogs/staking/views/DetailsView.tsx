@@ -25,10 +25,14 @@ import {
     Divider,
     LoadingIndicator,
     TooltipPosition,
+    InfoBox,
+    InfoBoxType,
+    InfoBoxStyle,
 } from '@iota/apps-ui-kit';
 import { formatAddress } from '@iota/iota-sdk/utils';
 import { DialogLayout, DialogLayoutFooter, DialogLayoutBody } from '../../layout';
 import { useIsValidatorCommitteeMember } from '@/hooks';
+import { Warning } from '@iota/apps-ui-icons';
 
 interface StakeDialogProps {
     handleClose: () => void;
@@ -89,11 +93,22 @@ export function DetailsView({
         toast.error('An error occurred fetching validator information');
     }
 
+    const isValidatorCommitteeMember = isCommitteeMember(validatorAddress);
+
     return (
         <DialogLayout>
             <Header title="Validator" onClose={handleClose} onBack={handleClose} titleCentered />
             <DialogLayoutBody>
                 <div className="flex w-full flex-col gap-md">
+                    {!isValidatorCommitteeMember && (
+                        <InfoBox
+                            type={InfoBoxType.Warning}
+                            title="Earn with validators in the committee"
+                            supportingText="You are delegating to a validator that is not part of the committee. Stake to a member of the current committee to start earning rewards again."
+                            icon={<Warning />}
+                            style={InfoBoxStyle.Elevated}
+                        />
+                    )}
                     <Card type={CardType.Filled}>
                         <CardImage>
                             <ImageIcon
@@ -111,7 +126,7 @@ export function DetailsView({
                                 keyText="Member of Committee"
                                 tooltipPosition={TooltipPosition.Bottom}
                                 tooltipText="If the validator is part of the current committee."
-                                value={isCommitteeMember(validatorAddress) ? 'Yes' : 'No'}
+                                value={isValidatorCommitteeMember ? 'Yes' : 'No'}
                                 fullwidth
                             />
                             <KeyValueInfo
