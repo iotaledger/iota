@@ -41,7 +41,6 @@ export default defineConfig({
     ],
 
     webServer: [
-
         // Localnet-based dev server:
         {
             command: 'pnpm dev',
