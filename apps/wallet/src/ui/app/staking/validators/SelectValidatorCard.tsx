@@ -43,32 +43,31 @@ export function SelectValidatorCard() {
         );
     }, [data]);
 
-    const validatorsRandomOrder = useMemo(
-        () => [...(data?.committeeMembers || [])].sort(() => 0.5 - Math.random()),
-        [data?.committeeMembers],
+    const allValidatorsRandomOrder = useMemo(
+        () => [...(data?.activeValidators || [])].sort(() => 0.5 - Math.random()),
+        [data?.activeValidators],
     );
 
     const isAddressCommitteeMember = useCallback(
         (address: string) =>
-            data?.committeeMembers.find(
+            data?.committeeMembers.some(
                 (committeeMember) => address === committeeMember.iotaAddress,
             ),
         [data?.committeeMembers],
     );
 
     const validatorList: Validator[] = useMemo(() => {
-        const sortedAsc = validatorsRandomOrder.map((validator) => {
+        const sortedAsc = allValidatorsRandomOrder.map((validator) => {
             const { apy, isApyApproxZero } = rollingAverageApys?.[validator.iotaAddress] ?? {
                 apy: null,
             };
-            const isCommmitteeMember = isAddressCommitteeMember(validator.iotaAddress);
+            const isCommitteeMember = isAddressCommitteeMember(validator.iotaAddress);
             return {
                 name: validator.name,
                 address: validator.iotaAddress,
                 apy,
                 isApyApproxZero,
-                isCommmitteeMember,
-                stakeShare: isCommmitteeMember
+                stakeShare: isCommitteeMember
                     ? calculateStakeShare(
                           BigInt(validator.stakingPoolIotaBalance),
                           BigInt(totalStake),
@@ -77,7 +76,7 @@ export function SelectValidatorCard() {
             };
         });
         return sortedAsc;
-    }, [validatorsRandomOrder, rollingAverageApys, totalStake]);
+    }, [allValidatorsRandomOrder, rollingAverageApys, totalStake]);
 
     if (isPending) {
         return (
