@@ -16,8 +16,8 @@ bcs.workspace = true
 cached.workspace = true
 chrono.workspace = true
 clap.workspace = true
-diesel = { workspace = true, features = ["postgres", "postgres_backend"] }
-diesel_migrations = "2.0.0"
+diesel = { workspace = true, features = ["chrono", "r2d2", "serde_json", "postgres"] }
+diesel_migrations = "2.2.0"
 downcast = "0.11.0"
 fastcrypto = { workspace = true, features = ["copy_key"] }
 futures.workspace = true
