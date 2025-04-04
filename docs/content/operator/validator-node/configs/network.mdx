@@ -6,11 +6,22 @@ teams:
   - iotaledger/node
 ---
 
-import NetworkContent from '../../common/network.mdx';
+
 import ValidatorPorts from '../../../_snippets/operator/validator-ports.mdx'
 
 
-<NetworkContent />
+## Known peers
+
+By default, your config file (`fullnode.yaml`) should include the following known peers: (from public nodes run by IOTA):
+
+<Tabs groupId="network">
+    <TabItem label="Testnet" value="testnet">
+        <TestnetNodeConfig />
+    </TabItem>
+    <TabItem label="Devnet" value="devnet">
+        <DevnetNodeConfig />
+    </TabItem>
+</Tabs>
 
 <ValidatorPorts />
 

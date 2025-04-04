@@ -6,12 +6,13 @@ teams:
   - iotaledger/node
 ---
 
-import NetworkContent from '../../common/network.mdx';
+import TestnetNodeConfig from "../../../_snippets/network-node-config-testnet.mdx";
+import DevnetNodeConfig from "../../../_snippets/network-node-config-devnet.mdx";
 
 
 ## Connectivity
 
-To synchronize the state, the node needs to establish connections with other nodes that have already joined the network. Ensure that port 8084 is open and set up an external address for node discovery.
+To synchronize the state, the node needs to establish connections with other nodes that have already joined the network. Ensure that port `8084` is open and set up an external address for node discovery.
 
 The full node uses the following ports by default:
 
@@ -21,4 +22,16 @@ The full node uses the following ports by default:
 | TCP/9000      | Outbound         | JSON RPC Address / Web socket     | (optional. Can be private for your use only) |
 | TCP/9184      | Localhost        | Metrics scraping for your monitoring                  | (optional) |
 
-<NetworkContent />
+## Known peers
+
+By default, your config file (`fullnode.yaml`) should include the following known peers: (from public nodes run by IOTA):
+
+<Tabs groupId="network">
+    <TabItem label="Testnet" value="testnet">
+        <TestnetNodeConfig />
+    </TabItem>
+    <TabItem label="Devnet" value="devnet">
+        <DevnetNodeConfig />
+    </TabItem>
+</Tabs>
+
