@@ -76,7 +76,7 @@ export function SelectValidatorCard() {
             };
         });
         return sortedAsc;
-    }, [allValidatorsRandomOrder, rollingAverageApys, totalStake]);
+    }, [allValidatorsRandomOrder, rollingAverageApys, totalStake, isAddressCommitteeMember]);
 
     if (isPending) {
         return (
