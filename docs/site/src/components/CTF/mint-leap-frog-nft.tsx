@@ -33,9 +33,8 @@ const MintLeapFrogNFT: React.FC = () => {
   const wallets = useWallets();
   const { mutate } = useConnectWallet();
   const { mutate: signAndExecuteTransaction } = useSignAndExecuteTransaction();
-  
-  const handleSubmit = async () => {
-   await handleMintLeapFrogSubmit({
+  const handleSubmit = () => {
+    handleMintLeapFrogSubmit({
       nft,
       wallets,
       mutate,

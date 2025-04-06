@@ -30,7 +30,7 @@ export const handleChallengeSubmit = async ({
         const client = new IotaClient({ url: NETWORKS.testnet.url });
         const result = await client.getObject({ id: inputText, options: { showType: true } });
 
-        if (result.data.type === expectedObjectType) {
+        if (result.data?.type === expectedObjectType) {
             const message = 'Congratulations! You have successfully completed this level!';
             const wallet = wallets[0];
 
@@ -57,11 +57,11 @@ export const handleChallengeSubmit = async ({
                             {
                                 onSuccess: ({ digest }: any) => {
                                     client.waitForTransaction({ digest, options: { showEffects: true } }).then(() => {
-                                        setDigest(digest)
                                         setResponse({
                                             status: 'success',
                                             description: 'An NFT reward was minted and transferred to your IOTA wallet address for completing the challenge.',
                                             title: 'NFT Minted',
+                                            digest: digest
                                         });
                                         setCoins(message);
                                         setLoading(false);

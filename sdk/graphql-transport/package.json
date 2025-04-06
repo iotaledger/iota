@@ -52,6 +52,7 @@
         "@iota/build-scripts": "workspace:*",
         "@parcel/watcher": "^2.4.1",
         "@types/node": "^20.14.10",
+        "cross-env": "^7.0.3",
         "dotenv": "^16.4.5",
         "graphql-config": "^5.0.3",
         "typescript": "^5.5.3",
