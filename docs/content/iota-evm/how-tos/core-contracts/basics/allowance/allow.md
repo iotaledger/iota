@@ -1,5 +1,5 @@
 ---
-description: How to allow native assets and base token
+description: How to allow coins and other objects
 image: /img/logo/WASP_logo_dark.png
 tags:
   - allowance
@@ -14,7 +14,7 @@ teams:
 # Allow
 
 The allowance concept is well known from the EVM contracts like ERC20.
-In ISC, we have a similar concept for our native assets. You might want to use this, for example, to [send native assets to L1](../send-assets-to-l1.mdx) (which includes sending tokens to other L1 chain accounts).
+In ISC, we have a similar concept for Move objects that you want to use in the EVM. You might want to use this, for example, to [send coins and other objects to L1](../send-assets-to-l1.mdx) (which includes sending them to other L1 chain accounts).
 
 ## Example Code
 

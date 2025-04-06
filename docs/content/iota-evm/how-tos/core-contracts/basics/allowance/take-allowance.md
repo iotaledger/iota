@@ -1,5 +1,5 @@
 ---
-description: How to take the allowance of native assets and base token
+description: How to take the allowance of coins and other objects
 image: /img/logo/WASP_logo_dark.png
 tags:
   - allowance
@@ -13,7 +13,7 @@ teams:
 
 # Take allowed Funds
 
-After having [allowed](allow.md) native assets, you can take the ones you need.
+After having [allowed](allow.md) Move objects, you can take the ones you need.
 
 ## Example Code
 
