@@ -351,7 +351,7 @@ export class ParallelTransactionExecutor {
             await new Promise((resolve) => setTimeout(resolve, timeToNextEpoch));
         }
 
-        const state = await this.#client.getLatestIotaSystemState();
+        const state = await this.#client.getSupportedIotaSystemState();
 
         this.#gasPrice = {
             price: BigInt(state.referenceGasPrice),

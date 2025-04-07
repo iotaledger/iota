@@ -4,7 +4,6 @@
 import {
     CoinFormat,
     useFormatCoin,
-    useGetLatestIotaSystemState,
     useStakeTxnInfo,
     Validator,
 } from '@iota/core';
@@ -25,6 +24,7 @@ import { Field, type FieldProps, useFormikContext } from 'formik';
 import { Exclamation, Loader } from '@iota/apps-ui-icons';
 import { StakedInfo } from './StakedInfo';
 import { DialogLayout, DialogLayoutBody, DialogLayoutFooter } from '../../layout';
+import { useIotaClientQuery } from '@iota/dapp-kit';
 
 interface FormValues {
     amount: string;
@@ -59,7 +59,7 @@ export function EnterAmountDialogLayout({
     handleClose,
     handleStake,
 }: EnterAmountDialogLayoutProps): JSX.Element {
-    const { data: system } = useGetLatestIotaSystemState();
+    const { data: system } = useIotaClientQuery('getSupportedIotaSystemState');
     const { values, errors } = useFormikContext<FormValues>();
     const amount = values.amount;
 

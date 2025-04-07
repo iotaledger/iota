@@ -28,7 +28,7 @@ import { TokenStats } from './stats/TokenStats';
 import { EpochTopStats } from './stats/EpochTopStats';
 import { getEpochStorageFundFlow } from '~/lib/utils';
 import { Warning } from '@iota/apps-ui-icons';
-import { useGetLatestIotaSystemState } from '@iota/core';
+import { useIotaClientQuery } from '@iota/dapp-kit';
 
 enum EpochTabs {
     Checkpoints = 'checkpoints',
@@ -39,7 +39,7 @@ export function EpochDetail() {
     const [activeTabId, setActiveTabId] = useState(EpochTabs.Checkpoints);
     const { id } = useParams();
     const enhancedRpc = useEnhancedRpcClient();
-    const { data: systemState } = useGetLatestIotaSystemState();
+    const { data: systemState } = useIotaClientQuery('getSupportedIotaSystemState');
     const { data, isPending, isError } = useQuery({
         queryKey: ['epoch', id],
         queryFn: async () =>

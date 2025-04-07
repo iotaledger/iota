@@ -104,7 +104,7 @@ export class TestToolbox {
     }
 
     public async getActiveValidators() {
-        return (await this.client.getLatestIotaSystemState()).activeValidators;
+        return (await this.client.getSupportedIotaSystemState()).activeValidators;
     }
 
     public async getPackage(path: string) {

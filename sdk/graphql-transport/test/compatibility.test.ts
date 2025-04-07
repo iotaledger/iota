@@ -491,8 +491,8 @@ describe('GraphQL IotaClient compatibility', () => {
     });
 
     test.skip('getLatestIotaSystemState', async () => {
-        const rpc = await toolbox.client.getLatestIotaSystemState();
-        const graphql = await graphQLClient!.getLatestIotaSystemState();
+        const rpc = await toolbox.client.getSupportedIotaSystemState();
+        const graphql = await graphQLClient!.getSupportedIotaSystemState();
 
         expect(graphql).toEqual(rpc);
     });

@@ -19,7 +19,7 @@ export function StakingCard() {
     const unstake = searchParams.get('unstake') === 'true';
 
     const { data: system, isPending: validatorsIsPending } = useIotaClientQuery(
-        'getLatestIotaSystemState',
+        'getSupportedIotaSystemState',
     );
 
     const handleOnSuccess = useCallback(

@@ -90,6 +90,7 @@ import type {
     DelegatedTimelockedStake,
     GetTimelockedStakesByIdsParams,
     IotaSystemStateSummaryV1,
+    SupportedIotaSystemStateSummary,
 } from './types/index.js';
 
 export interface PaginationArguments<Cursor> {
@@ -539,6 +540,7 @@ export class IotaClient {
     /**
      * Return the latest IOTA system state object on networks supporting protocol version `< 5`.
      * These are networks with node software release version `< 0.11`.
+     * @deprecated Use `getLatestIotaSystemStateSummary` instead.
      */
     async getLatestIotaSystemState(): Promise<IotaSystemStateSummaryV1> {
         return await this.transport.request({
@@ -550,12 +552,44 @@ export class IotaClient {
     /**
      * Return the latest IOTA system state object on networks supporting protocol version `>= 5`.
      * These are networks with node software release version `>= 0.11`.
+     *
+     * You probably want to use `getSupportedIotaSystemState` instead.
      */
     async getLatestIotaSystemStateV2(): Promise<IotaSystemStateSummary> {
-        return await this.transport.request({
+        return await this.transport.request<IotaSystemStateSummary>({
             method: 'iotax_getLatestIotaSystemStateV2',
             params: [],
         });
+    }
+
+    /**
+     * Return the latest supported IOTA system state object.
+     */
+    async getSupportedIotaSystemState(): Promise<SupportedIotaSystemStateSummary> {
+        const protocolConfig = await this.getProtocolConfig();
+        const isV2Supported = Number(protocolConfig.maxSupportedProtocolVersion) >= 5;
+
+        const iotaSystemStateSummary: IotaSystemStateSummary = isV2Supported
+            ? await this.getLatestIotaSystemStateV2()
+            : {
+                  V1: await this.getLatestIotaSystemState(),
+              };
+
+        return 'V2' in iotaSystemStateSummary
+            ? {
+                  ...iotaSystemStateSummary.V2,
+                  committeeMembers: iotaSystemStateSummary.V2.committeeMembers.map(
+                      (committeeMemberIndex) =>
+                          iotaSystemStateSummary.V2.activeValidators[Number(committeeMemberIndex)],
+                  ),
+              }
+            : {
+                  ...iotaSystemStateSummary.V1,
+                  committeeMembers: iotaSystemStateSummary.V1.activeValidators,
+                  safeModeComputationCharges: iotaSystemStateSummary.V1.safeModeStorageCharges,
+                  safeModeComputationChargesBurned:
+                      iotaSystemStateSummary.V1.safeModeStorageCharges,
+              };
     }
 
     /**
