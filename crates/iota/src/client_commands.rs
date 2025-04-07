@@ -570,7 +570,7 @@ pub struct Opts {
 
     /// Select which fields of the response to display.
     /// If not provided, all fields are displayed.
-    /// The fields are: effects, input, events, object_changes,
+    /// The fields are: input, effects, events, object_changes,
     /// balance_changes.
     #[arg(long, required = false, num_args = 0.., value_parser = parse_emit_option, default_value = "effects,input,events,object_changes,balance_changes")]
     pub emit: HashSet<EmitOption>,

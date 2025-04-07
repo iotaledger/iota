@@ -40,7 +40,7 @@ pub struct PTB {
     pub args: Vec<String>,
     /// Select which fields of the response to display.
     /// If not provided, all fields are displayed.
-    /// The fields are: effects, input, events, object_changes,
+    /// The fields are: input, effects, events, object_changes,
     /// balance_changes.
     #[arg(long, required = false, num_args = 0.., value_parser = parse_emit_option, default_value = "effects,input,events,object_changes,balance_changes")]
     pub emit: HashSet<EmitOption>,
@@ -441,7 +441,7 @@ pub fn ptb_description() -> clap::Command {
         .arg(arg!(
             --"emit"
             "Select which fields of the response to display. If not provided, all fields are displayed. \
-            The fields are: effects, input, events, object_changes, balance_changes. \
+            The fields are: input, effects, events, object_changes, balance_changes. \
             This option only works if it's passed as first argument to the command: \
             `iota client ptb --emit=effects --split-coins gas [1000]`
             "
