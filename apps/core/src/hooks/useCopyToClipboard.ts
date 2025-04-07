@@ -31,7 +31,9 @@ export function useCopyToClipboard({
 
                 // Show warning if the address is copied
                 if (showAddressWarning) {
-                    toast.warning('Make sure that the address you copied is the correct one');
+                    toast.warning(
+                        'Double-check the copied address before initiating a transaction',
+                    );
                 }
 
                 if (onSuccess) {
