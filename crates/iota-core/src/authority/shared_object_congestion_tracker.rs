@@ -15,6 +15,9 @@ use crate::authority::transaction_deferral::DeferralKey;
 
 // SharedObjectCongestionTracker stores the accumulated cost of executing
 // transactions on an object, for all transactions in a consensus commit.
+// It also stores the lowest gas price of a non-deferred transaction,
+// only for those shared objects that are referred by a mutable reference
+// in transactions that are not deferred.
 //
 // Cost is an indication of transaction execution latency. When transactions are
 // scheduled by the consensus handler, each scheduled transaction adds cost
@@ -28,9 +31,10 @@ use crate::authority::transaction_deferral::DeferralKey;
 // count.
 #[derive(PartialEq, Eq, Clone, Debug)]
 pub struct SharedObjectCongestionTracker {
-    // TODO: ROMAN: make one HashMap
     object_execution_cost: HashMap<ObjectID, u64>,
-    object_lowest_gas_price_of_non_deferred_tx: HashMap<ObjectID, u64>,
+    // Essentially, this stores the lowest gas price of non-deferred transaction,
+    // in which an object is accessed via a mutable reference
+    object_lowest_gas_price_of_non_deferred_transaction: HashMap<ObjectID, u64>,
     mode: PerObjectCongestionControlMode,
 }
 
@@ -38,7 +42,7 @@ impl SharedObjectCongestionTracker {
     pub fn new(mode: PerObjectCongestionControlMode) -> Self {
         Self {
             object_execution_cost: HashMap::new(),
-            object_lowest_gas_price_of_non_deferred_tx: HashMap::new(),
+            object_lowest_gas_price_of_non_deferred_transaction: HashMap::new(),
             mode,
         }
     }
@@ -53,14 +57,15 @@ impl SharedObjectCongestionTracker {
             object_execution_cost.insert(*object_id, *total_cost);
         }
 
-        let mut object_lowest_gas_price_of_non_deferred_tx = HashMap::new();
+        let mut object_lowest_gas_price_of_non_deferred_transaction = HashMap::new();
         for (object_id, lowest_gas_price) in init_lowest_gas_price_values {
-            object_lowest_gas_price_of_non_deferred_tx.insert(*object_id, *lowest_gas_price);
+            object_lowest_gas_price_of_non_deferred_transaction
+                .insert(*object_id, *lowest_gas_price);
         }
 
         Self {
             object_execution_cost,
-            object_lowest_gas_price_of_non_deferred_tx,
+            object_lowest_gas_price_of_non_deferred_transaction,
             mode,
         }
     }
@@ -78,17 +83,21 @@ impl SharedObjectCongestionTracker {
             .expect("There must be at least one object in shared_input_objects.")
     }
 
-    /// Given a certificate with shared input objects, this function returns
-    /// the lowest gas price of a non-deferred transaction that operates on
-    /// at least one mutable shared object (in these input objects) that
-    /// creates congestion. Note that this function should be called only
-    /// after `should_defer_due_to_object_congestion` was invoked since
-    /// `object_lowest_gas_price_of_non_deferred_tx` is updated only there,
-    /// otherwise this function will return `None`, i.e., inaccurate
-    /// information. This function returns `None` if none of the
-    /// `shared_input_objects` creates congestion, for example, shared
-    /// objects referred immutably.
-    pub fn compute_lowest_gas_price_of_non_deferred_tx(
+    // Given a certificate with shared input objects, this function returns
+    // the lowest gas price of a non-deferred transaction that operates on
+    // at least one mutable shared object (in these input objects) that
+    // creates congestion.
+    //
+    // Note that this function should be called only after
+    // `should_defer_due_to_object_congestion` was invoked since
+    // `object_lowest_gas_price_of_non_deferred_transaction` is updated
+    // only there, otherwise it might return `None`, i.e., inaccurate
+    // information.
+    //
+    // This function returns `None` if none of the
+    // `shared_input_objects` creates congestion, for example, all input
+    // shared objects referred immutably.
+    pub fn compute_lowest_gas_price_of_non_deferred_transaction(
         &self,
         cert: &VerifiedExecutableTransaction,
     ) -> Option<u64> {
@@ -96,7 +105,7 @@ impl SharedObjectCongestionTracker {
             .shared_input_objects()
             .map(|obj| {
                 *self
-                    .object_lowest_gas_price_of_non_deferred_tx
+                    .object_lowest_gas_price_of_non_deferred_transaction
                     .get(&obj.id)
                     .unwrap_or(&u64::MAX)
             })
@@ -119,7 +128,8 @@ impl SharedObjectCongestionTracker {
     }
 
     // Given a transaction, returns the deferral key and the congested objects if
-    // the transaction should be deferred.
+    // the transaction should be deferred. This function also calculates and updates
+    // the lowest gas price of non-deferred transactions.
     pub fn should_defer_due_to_object_congestion(
         &mut self,
         cert: &VerifiedExecutableTransaction,
@@ -138,23 +148,27 @@ impl SharedObjectCongestionTracker {
 
         let (end_cost, cost_overflow) = start_cost.overflowing_add(tx_cost);
         if !cost_overflow && end_cost <= max_accumulated_txn_cost_per_object_in_commit {
-            // This transaction is not deferred, so we should update the lowest gas price
-            // of non-deferred transaction here for all of its input shared objects
-            // accessed by a mutable reference. We don't update
-            // `object_lowest_gas_price_of_non_deferred_tx` if a transaction is deferred,
-            // because if a transaction is deferred, that means at least one of its
-            // congested objects has been seen in non-deferred processed here before.
-            // We update `object_lowest_gas_price_of_non_deferred_tx` only for
-            // mutable shared objects because immutable referred shared object do
-            // not increase object execution cost.
+            // This transaction is not deferred, so
+            // `object_lowest_gas_price_of_non_deferred_transaction` is updated here
+            // for all of the input shared objects accessed by a mutable reference.
+            //
+            // Note that we don't need to update
+            // `object_lowest_gas_price_of_non_deferred_transaction` if a transaction
+            // is deferred due to the following logic: if a transaction is deferred,
+            // that means at least one of its congested objects has already been "seen"
+            // in non-deferred transactions and was processed here before.
+            //
+            // Note that `object_lowest_gas_price_of_non_deferred_transaction` is only
+            // updated  for mutable shared objects because immutable referred shared
+            // object do not increase object execution cost.
             let tx_gas_price = cert.transaction_data().gas_price();
             for object in shared_input_objects.iter() {
                 if object.mutable {
-                    self.object_lowest_gas_price_of_non_deferred_tx
+                    self.object_lowest_gas_price_of_non_deferred_transaction
                         .entry(object.id)
                         .and_modify(|lowest_gas_price| {
                             if tx_gas_price < *lowest_gas_price {
-                                // non-deferred transaction with lower gas price was found
+                                // a non-deferred transaction with lower gas price was found
                                 // for this input shared object
                                 *lowest_gas_price = tx_gas_price;
                             }
@@ -643,11 +657,7 @@ mod object_cost_tests {
                     (object_id_1, expected_object_cost),
                     (object_id_2, expected_object_cost)
                 ],
-                &[
-                    (object_id_0, tx_gas_price),
-                    (object_id_1, tx_gas_price),
-                    // TODO: ROMAN: make one HashMap
-                ],
+                &[(object_id_0, tx_gas_price), (object_id_1, tx_gas_price),],
                 mode
             )
         );
@@ -830,7 +840,7 @@ mod object_cost_tests {
     }
 
     #[rstest]
-    fn test_compute_lowest_gas_price_of_non_deferred_tx(
+    fn test_compute_lowest_gas_price_of_non_deferred_transaction(
         #[values(
             PerObjectCongestionControlMode::TotalGasBudget,
             PerObjectCongestionControlMode::TotalTxCount
@@ -891,19 +901,19 @@ mod object_cost_tests {
         // transaction) to be non-deferred must be the first transaction's gas price
         assert_eq!(
             shared_object_congestion_tracker
-                .compute_lowest_gas_price_of_non_deferred_tx(&tx_1)
+                .compute_lowest_gas_price_of_non_deferred_transaction(&tx_1)
                 .unwrap(),
             tx_1.transaction_data().gas_price()
         );
         assert_eq!(
             shared_object_congestion_tracker
-                .compute_lowest_gas_price_of_non_deferred_tx(&tx_2)
+                .compute_lowest_gas_price_of_non_deferred_transaction(&tx_2)
                 .unwrap(),
             tx_1.transaction_data().gas_price()
         );
         assert_eq!(
             shared_object_congestion_tracker
-                .compute_lowest_gas_price_of_non_deferred_tx(&tx_3)
+                .compute_lowest_gas_price_of_non_deferred_transaction(&tx_3)
                 .unwrap(),
             tx_1.transaction_data().gas_price()
         );
@@ -912,7 +922,7 @@ mod object_cost_tests {
         // at this step
         assert!(
             shared_object_congestion_tracker
-                .compute_lowest_gas_price_of_non_deferred_tx(&tx_4)
+                .compute_lowest_gas_price_of_non_deferred_transaction(&tx_4)
                 .is_none()
         );
 
@@ -933,25 +943,25 @@ mod object_cost_tests {
         // transaction) to be non-deferred must be the second transaction's gas price
         assert_eq!(
             shared_object_congestion_tracker
-                .compute_lowest_gas_price_of_non_deferred_tx(&tx_1)
+                .compute_lowest_gas_price_of_non_deferred_transaction(&tx_1)
                 .unwrap(),
             tx_2.transaction_data().gas_price()
         );
         assert_eq!(
             shared_object_congestion_tracker
-                .compute_lowest_gas_price_of_non_deferred_tx(&tx_2)
+                .compute_lowest_gas_price_of_non_deferred_transaction(&tx_2)
                 .unwrap(),
             tx_2.transaction_data().gas_price()
         );
         assert_eq!(
             shared_object_congestion_tracker
-                .compute_lowest_gas_price_of_non_deferred_tx(&tx_3)
+                .compute_lowest_gas_price_of_non_deferred_transaction(&tx_3)
                 .unwrap(),
             tx_2.transaction_data().gas_price()
         );
         assert_eq!(
             shared_object_congestion_tracker
-                .compute_lowest_gas_price_of_non_deferred_tx(&tx_4)
+                .compute_lowest_gas_price_of_non_deferred_transaction(&tx_4)
                 .unwrap(),
             tx_2.transaction_data().gas_price()
         );
@@ -972,25 +982,25 @@ mod object_cost_tests {
         // transaction) to be non-deferred must be the second transaction's gas price
         assert_eq!(
             shared_object_congestion_tracker
-                .compute_lowest_gas_price_of_non_deferred_tx(&tx_1)
+                .compute_lowest_gas_price_of_non_deferred_transaction(&tx_1)
                 .unwrap(),
             tx_2.transaction_data().gas_price()
         );
         assert_eq!(
             shared_object_congestion_tracker
-                .compute_lowest_gas_price_of_non_deferred_tx(&tx_2)
+                .compute_lowest_gas_price_of_non_deferred_transaction(&tx_2)
                 .unwrap(),
             tx_2.transaction_data().gas_price()
         );
         assert_eq!(
             shared_object_congestion_tracker
-                .compute_lowest_gas_price_of_non_deferred_tx(&tx_3)
+                .compute_lowest_gas_price_of_non_deferred_transaction(&tx_3)
                 .unwrap(),
             tx_2.transaction_data().gas_price()
         );
         assert_eq!(
             shared_object_congestion_tracker
-                .compute_lowest_gas_price_of_non_deferred_tx(&tx_4)
+                .compute_lowest_gas_price_of_non_deferred_transaction(&tx_4)
                 .unwrap(),
             tx_2.transaction_data().gas_price()
         );
@@ -1011,25 +1021,25 @@ mod object_cost_tests {
         // transaction) to be non-deferred must be the second transaction's gas price
         assert_eq!(
             shared_object_congestion_tracker
-                .compute_lowest_gas_price_of_non_deferred_tx(&tx_1)
+                .compute_lowest_gas_price_of_non_deferred_transaction(&tx_1)
                 .unwrap(),
             tx_2.transaction_data().gas_price()
         );
         assert_eq!(
             shared_object_congestion_tracker
-                .compute_lowest_gas_price_of_non_deferred_tx(&tx_2)
+                .compute_lowest_gas_price_of_non_deferred_transaction(&tx_2)
                 .unwrap(),
             tx_2.transaction_data().gas_price()
         );
         assert_eq!(
             shared_object_congestion_tracker
-                .compute_lowest_gas_price_of_non_deferred_tx(&tx_3)
+                .compute_lowest_gas_price_of_non_deferred_transaction(&tx_3)
                 .unwrap(),
             tx_2.transaction_data().gas_price()
         );
         assert_eq!(
             shared_object_congestion_tracker
-                .compute_lowest_gas_price_of_non_deferred_tx(&tx_4)
+                .compute_lowest_gas_price_of_non_deferred_transaction(&tx_4)
                 .unwrap(),
             tx_2.transaction_data().gas_price()
         );
@@ -1074,19 +1084,19 @@ mod object_cost_tests {
         // transaction) to be non-deferred must be the first transaction's gas price
         assert_eq!(
             shared_object_congestion_tracker
-                .compute_lowest_gas_price_of_non_deferred_tx(&tx_1)
+                .compute_lowest_gas_price_of_non_deferred_transaction(&tx_1)
                 .unwrap(),
             tx_1.transaction_data().gas_price()
         );
         assert_eq!(
             shared_object_congestion_tracker
-                .compute_lowest_gas_price_of_non_deferred_tx(&tx_2)
+                .compute_lowest_gas_price_of_non_deferred_transaction(&tx_2)
                 .unwrap(),
             tx_1.transaction_data().gas_price()
         );
         assert_eq!(
             shared_object_congestion_tracker
-                .compute_lowest_gas_price_of_non_deferred_tx(&tx_3)
+                .compute_lowest_gas_price_of_non_deferred_transaction(&tx_3)
                 .unwrap(),
             tx_1.transaction_data().gas_price()
         );
@@ -1108,19 +1118,19 @@ mod object_cost_tests {
         // transaction) to be non-deferred must be the first transaction's gas price
         assert_eq!(
             shared_object_congestion_tracker
-                .compute_lowest_gas_price_of_non_deferred_tx(&tx_1)
+                .compute_lowest_gas_price_of_non_deferred_transaction(&tx_1)
                 .unwrap(),
             tx_1.transaction_data().gas_price()
         );
         assert_eq!(
             shared_object_congestion_tracker
-                .compute_lowest_gas_price_of_non_deferred_tx(&tx_2)
+                .compute_lowest_gas_price_of_non_deferred_transaction(&tx_2)
                 .unwrap(),
             tx_1.transaction_data().gas_price()
         );
         assert_eq!(
             shared_object_congestion_tracker
-                .compute_lowest_gas_price_of_non_deferred_tx(&tx_3)
+                .compute_lowest_gas_price_of_non_deferred_transaction(&tx_3)
                 .unwrap(),
             tx_1.transaction_data().gas_price()
         );
@@ -1142,19 +1152,19 @@ mod object_cost_tests {
         // transaction) to be non-deferred must be the third transaction's gas price
         assert_eq!(
             shared_object_congestion_tracker
-                .compute_lowest_gas_price_of_non_deferred_tx(&tx_1)
+                .compute_lowest_gas_price_of_non_deferred_transaction(&tx_1)
                 .unwrap(),
             tx_3.transaction_data().gas_price()
         );
         assert_eq!(
             shared_object_congestion_tracker
-                .compute_lowest_gas_price_of_non_deferred_tx(&tx_2)
+                .compute_lowest_gas_price_of_non_deferred_transaction(&tx_2)
                 .unwrap(),
             tx_3.transaction_data().gas_price()
         );
         assert_eq!(
             shared_object_congestion_tracker
-                .compute_lowest_gas_price_of_non_deferred_tx(&tx_3)
+                .compute_lowest_gas_price_of_non_deferred_transaction(&tx_3)
                 .unwrap(),
             tx_3.transaction_data().gas_price()
         );
@@ -1222,17 +1232,17 @@ mod object_cost_tests {
         // non-deferred transactions
         assert!(
             shared_object_congestion_tracker
-                .compute_lowest_gas_price_of_non_deferred_tx(&tx_1)
+                .compute_lowest_gas_price_of_non_deferred_transaction(&tx_1)
                 .is_none()
         );
         assert!(
             shared_object_congestion_tracker
-                .compute_lowest_gas_price_of_non_deferred_tx(&tx_2)
+                .compute_lowest_gas_price_of_non_deferred_transaction(&tx_2)
                 .is_none()
         );
         assert!(
             shared_object_congestion_tracker
-                .compute_lowest_gas_price_of_non_deferred_tx(&tx_3)
+                .compute_lowest_gas_price_of_non_deferred_transaction(&tx_3)
                 .is_none()
         );
     }

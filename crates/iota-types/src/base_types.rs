@@ -1158,8 +1158,9 @@ impl SequenceNumber {
 
     /// Returns a sequence number used for congested shared objects:
     /// SequenceNumber::MAX + SequenceNumber::CONGESTED_BASE + offset.
-    /// The offset here is used to capture a suggested gas price for
-    /// cancelled transactions
+    /// The offset here is used for gas price feedback for cancelled
+    /// transactions, namely, to embed the lowest gas price of
+    /// non-cancelled transactions
     pub fn congested_with_offset(offset: u64) -> Self {
         let (version, overflows) = Self::CONGESTED_BASE.value().overflowing_add(offset);
         assert!(
@@ -1176,8 +1177,9 @@ impl SequenceNumber {
     }
 
     /// Returns the offset used to construct this congested shared object
-    /// sequence number. The offset is used as a suggested gas price for
-    /// cancelled transactions
+    /// sequence number. The offset here is used for gas price feedback
+    /// for cancelled transactions, namely, to embed the lowest gas price
+    /// of non-cancelled transactions
     pub fn get_congested_version_offset(&self) -> u64 {
         assert!(
             self.is_congested(),

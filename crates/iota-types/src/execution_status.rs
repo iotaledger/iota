@@ -194,15 +194,11 @@ pub enum ExecutionFailureStatus {
     #[error("Certificate cannot be executed due to a dependency on a deleted shared object")]
     InputObjectDeleted,
 
-    #[error(
-        "Certificate is cancelled due to congestion on shared objects: {congested_objects}. \
-        To increase chances of successfully executing transaction with these shared objects,
-        it is recommended to set transaction's gas price to at least {suggested_gas_price}"
-    )]
-    ExecutionCancelledDueToSharedObjectCongestion {
-        congested_objects: CongestedObjects,
-        suggested_gas_price: u64,
-    },
+    // NOTE: this error is obsolete but kept for backward compatibility;
+    // instead, use `ExecutionCancelledDueToSharedObjectCongestionV1`, which
+    // includes gas price feedback for transactions cancelled due to congestion
+    #[error("Certificate is cancelled due to congestion on shared objects: {congested_objects}.")]
+    ExecutionCancelledDueToSharedObjectCongestion { congested_objects: CongestedObjects },
 
     #[error("Address {address:?} is denied for coin {coin_type}")]
     AddressDeniedForCoin {
@@ -215,6 +211,21 @@ pub enum ExecutionFailureStatus {
 
     #[error("Certificate is cancelled because randomness could not be generated this epoch")]
     ExecutionCancelledDueToRandomnessUnavailable,
+
+    // Certificate is cancelled due to congestion on shared objects.
+    // Except congested shared objects, this error also contains gas
+    // price feedback: the lowest gas price of a non-cancelled transaction
+    // (that operates on at least one of these congested objects)
+    // in the same consensus commit round
+    #[error(
+        "Certificate is cancelled due to congestion on shared objects: {congested_objects}. \
+            The lowest gas price of non-cancelled transaction: \
+            {lowest_gas_price_of_non_cancelled_transaction}."
+    )]
+    ExecutionCancelledDueToSharedObjectCongestionV1 {
+        congested_objects: CongestedObjects,
+        lowest_gas_price_of_non_cancelled_transaction: u64,
+    },
     // NOTE: if you want to add a new enum,
     // please add it at the end for Rust SDK backward compatibility.
 }

@@ -152,7 +152,10 @@ impl CertLockGuard {
 type JwkAggregator = GenericMultiStakeAggregator<(JwkId, JWK), true>;
 
 pub enum CancelConsensusCertificateReason {
-    CongestionOnObjects(Vec<ObjectID>, /* suggested_gas_price */ u64),
+    CongestionOnObjects {
+        congested_objects: Vec<ObjectID>,
+        lowest_gas_price_of_non_cancelled_transaction: u64,
+    },
     DkgFailed,
 }
 
@@ -2870,7 +2873,7 @@ impl AuthorityPerEpochStore {
         let mut shared_input_next_version = HashMap::new();
         for txn in transactions.iter() {
             match cancelled_txns.get(txn.digest()) {
-                Some(CancelConsensusCertificateReason::CongestionOnObjects(..))
+                Some(CancelConsensusCertificateReason::CongestionOnObjects { .. })
                 | Some(CancelConsensusCertificateReason::DkgFailed) => {
                     let assigned_versions = SharedObjVerManager::assign_versions_for_certificate(
                         txn,
@@ -3124,7 +3127,6 @@ impl AuthorityPerEpochStore {
                 }
                 ConsensusCertificateResult::Cancelled((cert, reason)) => {
                     notifications.push(key.clone());
-                    // NOTE: ROMAN: `suggested_gas_price` is included in `reason`
                     assert!(cancelled_txns.insert(*cert.digest(), reason).is_none());
                     verified_certificates.push_back(cert);
                 }
@@ -3440,45 +3442,41 @@ impl AuthorityPerEpochStore {
                                 ConsensusCertificateResult::Deferred(deferral_key)
                             } else {
                                 // Cancel the transaction that has been deferred for too long.
-                                let lowest_gas_price_of_non_deferred_tx =
+
+                                let lowest_gas_price_of_non_cancelled_transaction =
                                     shared_object_congestion_tracker
-                                        .compute_lowest_gas_price_of_non_deferred_tx(&certificate)
+                                        .compute_lowest_gas_price_of_non_deferred_transaction(
+                                            &certificate,
+                                        )
                                         .expect(
                                             "cancelled transaction must have at least one shared \
-                                            object and calculated lowest gas price",
+                                            object and calculated lowest gas price of non-deferred \
+                                            transaction",
                                         );
-                                let suggested_gas_price = self
-                                    .get_suggested_gas_price_for_cancelled_tx(
-                                        lowest_gas_price_of_non_deferred_tx,
-                                    );
                                 let actual_gas_price = certificate.transaction_data().gas_price();
-                                assert!(suggested_gas_price >= actual_gas_price);
+                                assert!(
+                                    lowest_gas_price_of_non_cancelled_transaction
+                                        >= actual_gas_price
+                                );
+
                                 debug!(
                                     "Cancelling consensus certificate for transaction {:?} with \
                                         deferral key {:?} due to congestion on objects {:?}: \
-                                        actual gas price: {}, suggested gas price: {}",
+                                        actual gas price: {}, the lowest gas price of \
+                                        non-cancelled transaction: {}",
                                     certificate.digest(),
                                     deferral_key,
                                     congested_objects,
                                     actual_gas_price,
-                                    suggested_gas_price,
+                                    lowest_gas_price_of_non_cancelled_transaction,
                                 );
-                                // FIX: ROMAN: remove
-                                if self.committee.authority_index(&self.name).unwrap() == 0 {
-                                    error!(
-                                        "cancelled tx: {}, actual gas price: {}, suggested \
-                                            gas price: {}",
-                                        certificate.digest(),
-                                        actual_gas_price,
-                                        suggested_gas_price,
-                                    );
-                                }
+
                                 ConsensusCertificateResult::Cancelled((
                                     certificate,
-                                    CancelConsensusCertificateReason::CongestionOnObjects(
+                                    CancelConsensusCertificateReason::CongestionOnObjects {
                                         congested_objects,
-                                        suggested_gas_price,
-                                    ),
+                                        lowest_gas_price_of_non_cancelled_transaction,
+                                    },
                                 ))
                             }
                         }
@@ -3638,21 +3636,6 @@ impl AuthorityPerEpochStore {
             SequencedConsensusTransactionKind::System(system_transaction) => {
                 Ok(self.process_consensus_system_transaction(system_transaction))
             }
-        }
-    }
-
-    // Given the lowest gas price of non-deferred transactions operating
-    // on congested shared objects that caused transaction cancellation,
-    // return a suggested gas price that this transaction would need to
-    // pay to have higher chances of being non-cancelled
-    fn get_suggested_gas_price_for_cancelled_tx(
-        &self,
-        lowest_gas_price_of_non_deferred_tx: u64,
-    ) -> u64 {
-        if lowest_gas_price_of_non_deferred_tx < self.protocol_config().max_gas_price() {
-            lowest_gas_price_of_non_deferred_tx + 1
-        } else {
-            self.protocol_config().max_gas_price()
         }
     }
 

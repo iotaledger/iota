@@ -137,14 +137,16 @@ impl SharedObjVerManager {
 
         // Check if the transaction is cancelled due to congestion.
         let cancellation_info = cancelled_txns.get(tx_digest);
-        let congested_objects_info: Option<HashSet<_>> = if let Some(
-            CancelConsensusCertificateReason::CongestionOnObjects(congested_objects, _),
-        ) = &cancellation_info
-        {
-            Some(congested_objects.iter().cloned().collect())
-        } else {
-            None
-        };
+        let congested_objects_info: Option<HashSet<_>> =
+            if let Some(CancelConsensusCertificateReason::CongestionOnObjects {
+                congested_objects,
+                lowest_gas_price_of_non_cancelled_transaction: _,
+            }) = &cancellation_info
+            {
+                Some(congested_objects.iter().cloned().collect())
+            } else {
+                None
+            };
         let txn_cancelled = cancellation_info.is_some();
 
         // Make an iterator to update the locks of the transaction's shared objects.
@@ -164,15 +166,17 @@ impl SharedObjVerManager {
             // any shared objects.
             for SharedInputObject { id, .. } in shared_input_objects.iter() {
                 let assigned_version = match cancellation_info {
-                    Some(CancelConsensusCertificateReason::CongestionOnObjects(
-                        _,
-                        suggested_gas_price,
-                    )) => {
+                    Some(CancelConsensusCertificateReason::CongestionOnObjects {
+                        congested_objects: _,
+                        lowest_gas_price_of_non_cancelled_transaction,
+                    }) => {
                         if congested_objects_info
                             .as_ref()
                             .is_some_and(|info| info.contains(id))
                         {
-                            SequenceNumber::congested_with_offset(*suggested_gas_price)
+                            SequenceNumber::congested_with_offset(
+                                *lowest_gas_price_of_non_cancelled_transaction,
+                            )
                         } else {
                             SequenceNumber::CANCELLED_READ
                         }
@@ -522,21 +526,21 @@ mod tests {
         let epoch_store = authority.epoch_store_for_testing();
 
         // Cancel transactions 2 and 4 due to congestion.
-        let suggested_gas_price = 1_001;
+        let lowest_gas_price_of_non_cancelled_transaction = 1_000;
         let cancelled_txns: BTreeMap<TransactionDigest, CancelConsensusCertificateReason> = [
             (
                 *certs[1].digest(),
-                CancelConsensusCertificateReason::CongestionOnObjects(
-                    vec![id1],
-                    suggested_gas_price,
-                ),
+                CancelConsensusCertificateReason::CongestionOnObjects {
+                    congested_objects: vec![id1],
+                    lowest_gas_price_of_non_cancelled_transaction,
+                },
             ),
             (
                 *certs[3].digest(),
-                CancelConsensusCertificateReason::CongestionOnObjects(
-                    vec![id2],
-                    suggested_gas_price,
-                ),
+                CancelConsensusCertificateReason::CongestionOnObjects {
+                    congested_objects: vec![id2],
+                    lowest_gas_price_of_non_cancelled_transaction,
+                },
             ),
             (
                 *certs[4].digest(),
@@ -584,7 +588,9 @@ mod tests {
                     vec![
                         (
                             id1,
-                            SequenceNumber::congested_with_offset(suggested_gas_price)
+                            SequenceNumber::congested_with_offset(
+                                lowest_gas_price_of_non_cancelled_transaction
+                            )
                         ),
                         (id2, SequenceNumber::CANCELLED_READ),
                     ]
@@ -596,7 +602,9 @@ mod tests {
                         (id1, SequenceNumber::CANCELLED_READ),
                         (
                             id2,
-                            SequenceNumber::congested_with_offset(suggested_gas_price)
+                            SequenceNumber::congested_with_offset(
+                                lowest_gas_price_of_non_cancelled_transaction
+                            )
                         )
                     ]
                 ),

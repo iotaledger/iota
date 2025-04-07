@@ -338,9 +338,10 @@ mod checked {
             } else if let Some((cancelled_objects, reason)) = cancelled_objects {
                 match reason {
                     version if version.is_congested() => Err(ExecutionError::new(
-                        ExecutionErrorKind::ExecutionCancelledDueToSharedObjectCongestion {
+                        ExecutionErrorKind::ExecutionCancelledDueToSharedObjectCongestionV1 {
                             congested_objects: CongestedObjects(cancelled_objects),
-                            suggested_gas_price: version.get_congested_version_offset(),
+                            lowest_gas_price_of_non_cancelled_transaction: version
+                                .get_congested_version_offset(),
                         },
                         None,
                     )),
