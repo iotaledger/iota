@@ -51,7 +51,6 @@ function GasAmount({ amount, burnedAmount }: GasProps): JSX.Element | null {
 }
 
 function GasPaymentLinks({ objectIds }: { objectIds: string[] }): JSX.Element {
-
     const handleCopy = async (objectId: string) => {
         useCopyToClipboard({
             textToCopy: objectId,
