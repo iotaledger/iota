@@ -33,7 +33,7 @@ use iota_types::{
 use itertools::Itertools;
 use parking_lot::RwLockReadGuard;
 use prometheus::{
-    Histogram, HistogramVec, IntCounterVec, IntGauge, IntGaugeVec, Registry, opts,
+    Histogram, HistogramVec, IntCounterVec, IntGauge, IntGaugeVec, Registry,
     register_histogram_vec_with_registry, register_histogram_with_registry,
     register_int_counter_vec_with_registry, register_int_gauge_vec_with_registry,
     register_int_gauge_with_registry,
@@ -196,8 +196,7 @@ impl ConsensusAdapterMetrics {
         registry
             .unregister(Box::new(self.sequencing_certificate_inflight.clone()))
             .expect("Failed to unregister sequencing_certificate_inflight");
-        // Use custom method to unregister self.sequencing_acknowledge_latency
-        unregister_histogram_vec(
+            iota_metrics::histogram::HistogramVec::unregister(
             "sequencing_acknowledge_latency",
             "The latency for acknowledgement from sequencing engine. The overall sequencing latency is measured by the sequencing_certificate_latency metric",
             &["retry", "tx_type"],
@@ -237,32 +236,6 @@ impl ConsensusAdapterMetrics {
             .unregister(Box::new(self.sequencing_resubmission_interval_ms.clone()))
             .expect("Failed to unregister sequencing_resubmission_interval_ms");
     }
-}
-
-// HistogramVec from iota-metrics uses asynchronous model to report metrics
-// which makes it difficult to unregister counters in the usual manner. Here we
-// re-create counters so that their `desc()`s match the ones created by
-// HistogramVec and remove them from the registry. Counters can be safely
-// unregistered even if they are still in use.
-fn unregister_histogram_vec(name: &str, desc: &str, labels: &[&str], registry: &Registry) {
-    let sum_name = format!("{}_sum", name);
-    let count_name = format!("{}_count", name);
-
-    let sum = IntCounterVec::new(opts!(sum_name, desc), labels).unwrap();
-    registry
-        .unregister(Box::new(sum))
-        .expect(&format!("{}_sum counter is in prometheus registry", name));
-
-    let count = IntCounterVec::new(opts!(count_name, desc), labels).unwrap();
-    registry
-        .unregister(Box::new(count))
-        .expect(&format!("{}_count counter is in prometheus registry", name));
-
-    let labels: Vec<_> = labels.iter().cloned().chain(["pct"]).collect();
-    let gauge = IntGaugeVec::new(opts!(name, desc), &labels).unwrap();
-    registry
-        .unregister(Box::new(gauge))
-        .expect(&format!("{} gauge is in prometheus registry", name));
 }
 
 #[mockall::automock]
@@ -1340,6 +1313,17 @@ mod adapter_tests {
             }
             assert!(zero_found);
         }
+    }
+
+    #[test]
+    #[should_panic]
+    fn test_reregister_consensus_adapter_metrics() {
+        let registry = Registry::new();
+        // create metric the first time
+        let _metrics = ConsensusAdapterMetrics::new(&registry);
+        // create a new metric in the same registry without unregistering
+        // should panic
+        let _metrics = ConsensusAdapterMetrics::new(&registry);
     }
 
     #[test]
