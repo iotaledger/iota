@@ -374,7 +374,7 @@ export default function VestingDashboardPage(): JSX.Element {
                                                 )
                                             ) {
                                                 toast.error(
-                                                    'Not enough amount available for staking',
+                                                    'Not enough funds available for staking',
                                                 );
                                                 return;
                                             }
