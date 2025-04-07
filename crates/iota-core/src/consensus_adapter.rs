@@ -373,6 +373,13 @@ impl ConsensusAdapter {
         }
     }
 
+    pub fn unregister_consensus_adapter_metrics(
+        &self,
+        registry: &Registry,
+    ) {
+        self.metrics.unregister(registry);
+    }
+
     fn await_submit_delay(
         &self,
         committee: &Committee,
