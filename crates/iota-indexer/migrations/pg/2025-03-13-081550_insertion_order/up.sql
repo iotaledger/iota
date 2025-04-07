@@ -11,7 +11,6 @@ CREATE TABLE tx_insertion_order (
     tx_digest                   BYTEA        PRIMARY KEY,
     insertion_order             BIGINT       NOT NULL DEFAULT nextval('tx_insertion_order_seq')
 );
-LOCK TABLE tx_digests IN SHARE MODE;
 ALTER SEQUENCE tx_insertion_order_seq OWNED BY tx_insertion_order.insertion_order;
 SELECT setval('tx_insertion_order_seq', (SELECT MAX(tx_sequence_number) FROM tx_digests));
 CREATE UNIQUE INDEX tx_insertion_order_insertion_order ON tx_insertion_order (insertion_order);
