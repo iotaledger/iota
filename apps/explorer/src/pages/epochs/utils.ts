@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { useEffect, useRef } from 'react';
+import { useEffect } from 'react';
 import { useGetLatestIotaSystemState, useTimeAgo } from '@iota/core';
 
 interface EpochProgress {
@@ -18,8 +18,6 @@ export function useEpochProgress(suffix: string = 'left'): EpochProgress {
     const start = data?.epochStartTimestampMs ? Number(data.epochStartTimestampMs) : undefined;
     const duration = data?.epochDurationMs ? Number(data.epochDurationMs) : undefined;
     const end = start !== undefined && duration !== undefined ? start + duration : undefined;
-    const pollingNextEpochTimeout = useRef<NodeJS.Timeout | null>(null);
-    const pollingNextEpochInterval = useRef<NodeJS.Timeout | null>(null);
 
     const time = useTimeAgo({
         timeFrom: end || null,
@@ -27,50 +25,36 @@ export function useEpochProgress(suffix: string = 'left'): EpochProgress {
         shouldEnd: true,
     });
 
-    const clearTimers = () => {
-        // Clear any existing interval first
-        if (pollingNextEpochTimeout.current) {
-            clearTimeout(pollingNextEpochTimeout.current);
-            pollingNextEpochTimeout.current = null;
-        }
-
-        if (pollingNextEpochInterval.current) {
-            clearInterval(pollingNextEpochInterval.current);
-            pollingNextEpochInterval.current = null;
-        }
-    };
-
     // Effect to handle refetch logic
     useEffect(() => {
-        clearTimers();
-
         if (!end) return;
 
-        const pollingNextEpoch = () => {
+        let interval: NodeJS.Timeout | null = null;
+        let timeout: NodeJS.Timeout | null = null;
+
+        // Set up a timer start checking new epoch when end time is reached
+        const timeToEnd = end - Date.now();
+
+        timeout = setTimeout(() => {
             // Check if end time has expired
             const now = Date.now();
             const isExpired = now >= end;
 
             if (isExpired) {
                 // End time expired, start refetching
-                pollingNextEpochInterval.current = setInterval(() => {
+                interval = setInterval(() => {
                     refetch();
                 }, 5000);
             }
-        };
-
-        // Set up a timer start checking new epoch when end time is reached
-        const timeToEnd = end - Date.now();
-        if (timeToEnd > 0) {
-            pollingNextEpochTimeout.current = setTimeout(() => {
-                pollingNextEpoch();
-            }, timeToEnd);
-        } else {
-            pollingNextEpoch();
-        }
+        }, timeToEnd);
 
         return () => {
-            clearTimers();
+            if (interval) {
+                clearInterval(interval);
+            }
+            if (timeout) {
+                clearTimeout(timeout);
+            }
         };
     }, [end, refetch]);
 
