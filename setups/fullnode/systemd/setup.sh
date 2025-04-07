@@ -7,7 +7,7 @@ NODE_WORKDIR=${NODE_WORKDIR-"/opt/iota"}
 CONFIG_DIR=${CONFIG_DIR-"$NODE_WORKDIR/config"}
 BIN_DIR=${BIN_DIR-"$NODE_WORKDIR/bin"}
 
-red() { echo -e "\e[31m$1\e[0m"; }
+red() { printf "\e[31m$1\e[0m\n"; }
 info() { printf "\e[32m[INFO]: $1\e[0m\n"; }
 G='\033[0;32m'
 NC='\033[0m'
@@ -19,6 +19,7 @@ if [[ ! " ${VALID_NETWORKS[@]} " =~ " $NETWORK " ]]; then
 fi
 
 
+# This is only temporary, to make the script work locally without waiting for the PR to be merged
 # TODO after 6017 remove once yaml templates merged
 HACK_ROOT="$(git rev-parse --show-toplevel || echo "$CLONE_DIR")"
 
@@ -38,7 +39,7 @@ fi
 echo -e "This script will perform the following steps:"
 echo -e " ${G}1.${NC} Check rust toolchain version"
 echo -e " ${G}2.${NC} Install system packages (libraries & other dependencies)"
-echo -e " ${G}3.${NC} Clone the iota repo, set to the right branch for the network you chose"
+echo -e " ${G}3.${NC} Clone the iota repo, set to the right branch for the network you chose (default: testnet)"
 echo -e " ${G}4.${NC} Build the iota-node binary"
 echo -e " ${G}5.${NC} Create a user called iota, make it own directories for service binary, config and data"
 echo -e " ${G}6.${NC} Create a node config file, download genesis/migration blobs"
@@ -85,10 +86,10 @@ git pull
 
 # Check rustc version is above minimum (needs iota repo cloned before this step)
 MIN_RUSTC_VERSION=$(grep 'channel' "$CLONE_DIR/rust-toolchain.toml" | awk -F '"' '{print $2}' )
-MIN_RUSTC_VERSION="1.89"
 rustc_version=$(rustc --version | sed -n 's/rustc \([0-9]\+\.[0-9]\+\).*/\1/p')
+rustc_version="1.85"
 # checks that the min version is the smallest of both (by sorting)
-if [[ $(echo -e "$rustc_version\n$MIN_RUSTC_VERSION" | sort -V | head -n1) == "$rustc_version" ]]; then 
+if ["$rustc_version" != "$MIN_RUSTC_VERSION" ] && [[ $(echo -e "$rustc_version\n$MIN_RUSTC_VERSION" | sort -V | head -n1) == "$rustc_version" ]]; then 
     red "[ERROR] Rust compiler version is "$rustc_version". Needs at least version "$MIN_RUSTC_VERSION". Upgrade with:"
     echo " \$ rustup update " # build works on either stable or nightly
     exit 1

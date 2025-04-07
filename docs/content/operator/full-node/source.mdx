@@ -190,8 +190,8 @@ Your full node serves the read endpoints of the IOTA JSON-RPC API at: <code>{Net
 
 Register a new iota client environment with your node's RPC endpoint
 ```shell
-iota client new-env --alias=ALIAS --rpc http://127.0.0.1:9000
-iota client switch --env ALIAS
+iota client new-env --alias=local --rpc http://127.0.0.1:9000
+iota client switch --env local
 ```
 Then query the chain identifier from the RPC endpoint:
 ```shell
