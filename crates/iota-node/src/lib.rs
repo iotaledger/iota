@@ -1734,6 +1734,7 @@ impl IotaNode {
                 } else {
                     info!("This node is no longer a validator after reconfiguration");
                     None
+                    // Unregister the consensus adapter metrics
                 }
             } else {
                 let new_epoch_store = self

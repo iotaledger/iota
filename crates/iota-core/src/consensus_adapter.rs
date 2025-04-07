@@ -182,6 +182,58 @@ impl ConsensusAdapterMetrics {
     pub fn new_test() -> Self {
         Self::new(&Registry::default())
     }
+
+    pub fn unregister(&self, registry: &Registry) {
+        registry
+            .unregister(Box::new(self.sequencing_certificate_attempt.clone()))
+            .expect("Failed to unregister sequencing_certificate_attempt");
+        registry
+            .unregister(Box::new(self.sequencing_certificate_success.clone()))
+            .expect("Failed to unregister sequencing_certificate_success");
+        registry
+            .unregister(Box::new(self.sequencing_certificate_failures.clone()))
+            .expect("Failed to unregister sequencing_certificate_failures");
+        registry
+            .unregister(Box::new(self.sequencing_certificate_inflight.clone()))
+            .expect("Failed to unregister sequencing_certificate_inflight");
+        // This is from iota-metrics, not prometheus
+        // registry
+        //     .unregister(Box::new(self.sequencing_acknowledge_latency.clone()))
+        //     .expect("Failed to unregister sequencing_acknowledge_latency");
+        registry
+            .unregister(Box::new(self.sequencing_certificate_latency.clone()))
+            .expect("Failed to unregister sequencing_certificate_latency");
+        registry
+            .unregister(Box::new(
+                self.sequencing_certificate_authority_position.clone(),
+            ))
+            .expect("Failed to unregister sequencing_certificate_authority_position");
+        registry
+            .unregister(Box::new(
+                self.sequencing_certificate_positions_moved.clone(),
+            ))
+            .expect("Failed to unregister sequencing_certificate_positions_moved");
+        registry
+            .unregister(Box::new(
+                self.sequencing_certificate_preceding_disconnected.clone(),
+            ))
+            .expect("Failed to unregister sequencing_certificate_preceding_disconnected");
+        registry
+            .unregister(Box::new(self.sequencing_certificate_processed.clone()))
+            .expect("Failed to unregister sequencing_certificate_processed");
+        registry
+            .unregister(Box::new(self.sequencing_in_flight_semaphore_wait.clone()))
+            .expect("Failed to unregister sequencing_in_flight_semaphore_wait");
+        registry
+            .unregister(Box::new(self.sequencing_in_flight_submissions.clone()))
+            .expect("Failed to unregister sequencing_in_flight_submissions");
+        registry
+            .unregister(Box::new(self.sequencing_estimated_latency.clone()))
+            .expect("Failed to unregister sequencing_estimated_latency");
+        registry
+            .unregister(Box::new(self.sequencing_resubmission_interval_ms.clone()))
+            .expect("Failed to unregister sequencing_resubmission_interval_ms");
+    }
 }
 
 #[mockall::automock]
