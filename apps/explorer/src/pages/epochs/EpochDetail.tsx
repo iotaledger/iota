@@ -2,7 +2,6 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { useIotaClientQuery } from '@iota/dapp-kit';
 import { useQuery } from '@tanstack/react-query';
 import { useMemo, useState } from 'react';
 import { useParams } from 'react-router-dom';
@@ -29,9 +28,7 @@ import { TokenStats } from './stats/TokenStats';
 import { EpochTopStats } from './stats/EpochTopStats';
 import { getEpochStorageFundFlow } from '~/lib/utils';
 import { Warning } from '@iota/apps-ui-icons';
-import type { Network } from '@iota/iota-sdk/src/client';
-import { useNetworkContext } from '~/contexts/networkContext';
-import { Feature, useFeatureEnabledByNetwork } from '@iota/core';
+import { useGetLatestIotaSystemState } from '@iota/core';
 
 enum EpochTabs {
     Checkpoints = 'checkpoints',
@@ -39,12 +36,10 @@ enum EpochTabs {
 }
 
 export function EpochDetail() {
-    const [network] = useNetworkContext();
     const [activeTabId, setActiveTabId] = useState(EpochTabs.Checkpoints);
     const { id } = useParams();
     const enhancedRpc = useEnhancedRpcClient();
-    const { data: systemState } = useIotaClientQuery('getLatestIotaSystemState');
-    const isFixedGasPrice = useFeatureEnabledByNetwork(Feature.FixedGasPrice, network as Network);
+    const { data: systemState } = useGetLatestIotaSystemState();
     const { data, isPending, isError } = useQuery({
         queryKey: ['epoch', id],
         queryFn: async () =>
@@ -73,13 +68,14 @@ export function EpochDetail() {
             'Status',
         ];
 
-        if (!isFixedGasPrice) {
-            includeColumns.push('Proposed next Epoch gas price');
-        }
-
         // todo: enrich this historical validator data when we have
         // at-risk / pending validators for historical epochs
         return generateValidatorsTableColumns({
+            committeeMembers:
+                epochData.committeeMembers?.map(
+                    (committeeMemberIndex) =>
+                        epochData.validators[Number(committeeMemberIndex)].iotaAddress,
+                ) ?? [],
             atRiskValidators: [],
             validatorEvents: [],
             rollingAverageApys: null,
