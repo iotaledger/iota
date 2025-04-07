@@ -330,9 +330,9 @@ pub struct DecodeOrVerifyTxOutput {
 #[serde(rename_all = "camelCase")]
 pub struct Key {
     alias: Option<String>,
-    iota_address: IotaAddress,
-    public_base64_key: String,
-    public_base64_key_with_flag: String,
+    pub(crate) iota_address: IotaAddress,
+    pub(crate) public_base64_key: String,
+    pub(crate) public_base64_key_with_flag: String,
     key_scheme: String,
     flag: u8,
     #[serde(skip_serializing_if = "Option::is_none")]

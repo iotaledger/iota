@@ -95,6 +95,7 @@ use crate::{
     client_ptb::ptb::PTB,
     displays::Pretty,
     key_identity::{KeyIdentity, get_identity_address},
+    keytool::Key,
     verifier_meter::{AccumulatingMeter, Accumulator},
 };
 
@@ -1409,10 +1410,18 @@ impl IotaClientCommands {
                     context.config_mut().set_active_address(address);
                     context.config().save()?;
                 }
+                let key = context
+                    .config()
+                    .keystore()
+                    .get_key(&address)
+                    .map(Key::from)
+                    .expect("missing generated key");
 
                 IotaClientCommandResult::NewAddress(NewAddressOutput {
                     alias,
                     address,
+                    public_base64_key: key.public_base64_key,
+                    public_base64_key_with_flag: key.public_base64_key_with_flag,
                     key_scheme: scheme,
                     recovery_phrase: phrase,
                 })
@@ -2039,6 +2048,14 @@ impl Display for IotaClientCommandResult {
                 builder.push_record(vec!["alias", new_address.alias.as_str()]);
                 builder.push_record(vec!["address", new_address.address.to_string().as_str()]);
                 builder.push_record(vec![
+                    "publicBase64Key",
+                    new_address.public_base64_key.as_str(),
+                ]);
+                builder.push_record(vec![
+                    "publicBase64KeyWithFlag",
+                    new_address.public_base64_key_with_flag.as_str(),
+                ]);
+                builder.push_record(vec![
                     "keyScheme",
                     new_address.key_scheme.to_string().as_str(),
                 ]);
@@ -2062,7 +2079,7 @@ impl Display for IotaClientCommandResult {
                         .with(TableBorder::default().corner_top_right('─')),
                 );
 
-                write!(f, "{}", table)?
+                write!(f, "{table}")?
             }
             IotaClientCommandResult::Object(object_read) => match object_read.object() {
                 Ok(obj) => {
@@ -2406,6 +2423,8 @@ pub struct DynamicFieldOutput {
 pub struct NewAddressOutput {
     pub alias: String,
     pub address: IotaAddress,
+    pub public_base64_key: String,
+    pub public_base64_key_with_flag: String,
     pub key_scheme: SignatureScheme,
     pub recovery_phrase: String,
 }
