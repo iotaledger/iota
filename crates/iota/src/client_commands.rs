@@ -3043,20 +3043,20 @@ pub(crate) async fn prerender_clever_errors(
 fn opts_from_cli(opts: HashSet<EmitOption>) -> IotaTransactionBlockResponseOptions {
     if opts.is_empty() {
         IotaTransactionBlockResponseOptions::new()
-            .with_effects()
             .with_input()
+            .with_effects()
             .with_events()
             .with_object_changes()
             .with_balance_changes()
     } else {
         IotaTransactionBlockResponseOptions {
             show_input: opts.contains(&EmitOption::Input),
+            show_raw_input: false,
+            show_effects: true,
+            show_raw_effects: false,
             show_events: opts.contains(&EmitOption::Events),
             show_object_changes: opts.contains(&EmitOption::ObjectChanges),
             show_balance_changes: opts.contains(&EmitOption::BalanceChanges),
-            show_effects: true,
-            show_raw_effects: false,
-            show_raw_input: false,
         }
     }
 }
