@@ -1343,4 +1343,44 @@ mod adapter_tests {
             assert!(zero_found);
         }
     }
+
+    #[test]
+    fn test_unregister_consensus_adapter_metrics() {
+        let registry = Registry::new();
+
+        // create metric the first time
+        let metrics = ConsensusAdapterMetrics::new(&registry);
+        // use metric
+        metrics
+            .sequencing_certificate_attempt
+            .with_label_values(&["tx"])
+            .inc_by(1);
+        assert_eq!(
+            1,
+            metrics
+                .sequencing_certificate_attempt
+                .with_label_values(&["tx"])
+                .get()
+        );
+        // should not panic
+        metrics.unregister(&registry);
+        // metric can safely be used unregistered
+        metrics
+            .sequencing_certificate_attempt
+            .with_label_values(&["tx"])
+            .inc_by(1);
+
+        // create a new metric in the same registry
+        let metrics = ConsensusAdapterMetrics::new(&registry);
+        // it's fresh
+        assert_eq!(
+            0,
+            metrics
+                .sequencing_certificate_attempt
+                .with_label_values(&["tx"])
+                .get()
+        );
+        // and can be unregistered
+        metrics.unregister(&registry);
+    }
 }
