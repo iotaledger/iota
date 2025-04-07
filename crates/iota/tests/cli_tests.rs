@@ -4664,6 +4664,45 @@ async fn test_ptb_dev_inspect() -> Result<(), anyhow::Error> {
     Ok(())
 }
 
+#[sim_test]
+async fn test_ptb_emit_args() -> Result<(), anyhow::Error> {
+    let mut test_cluster = TestClusterBuilder::new()
+        .with_num_validators(2)
+        .build()
+        .await;
+    let context = &mut test_cluster.wallet;
+
+    let ptb_string = r#"
+    --make-move-vec <u8> "[1]"
+    "#;
+    let args = shlex::split(ptb_string).unwrap();
+    let res = iota::client_ptb::ptb::PTB {
+        args,
+        emit: HashSet::from([EmitOption::Input]),
+    }
+    .execute(context)
+    .await?;
+
+    assert!(res.contains("Transaction Data"));
+    assert!(res.contains("Transaction Effects"));
+
+    let ptb_string = r#"
+        --make-move-vec <u8> "[1]"
+        "#;
+    let args = shlex::split(ptb_string).unwrap();
+    let res = iota::client_ptb::ptb::PTB {
+        args,
+        emit: HashSet::from([EmitOption::Events]),
+    }
+    .execute(context)
+    .await?;
+    // `EmitOption::Input` wasn't provided, so there is no `Transaction Data`
+    assert!(!res.contains("Transaction Data"));
+    assert!(res.contains("Transaction Effects"));
+
+    Ok(())
+}
+
 #[tokio::test]
 async fn test_new_env() -> Result<(), anyhow::Error> {
     let mut test_cluster = TestClusterBuilder::new()
