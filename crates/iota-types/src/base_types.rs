@@ -1138,7 +1138,8 @@ impl SequenceNumber {
     pub const RANDOMNESS_UNAVAILABLE: SequenceNumber =
         SequenceNumber(SequenceNumber::MAX.value() + 2);
     // NOTE: if you want to add new SequenceNumber constants used for cancellation
-    // reasons, please make sure their offset is less than CONGESTED_BASE_OFFSET
+    // reasons different than those used for cancellations due to shared object
+    // congestion, please make sure their offset is less than CONGESTED_BASE_OFFSET
 
     const CONGESTED_BASE_OFFSET: u64 = 1_000;
     const CONGESTED_BASE: SequenceNumber =
