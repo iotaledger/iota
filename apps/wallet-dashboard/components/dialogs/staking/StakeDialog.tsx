@@ -7,10 +7,10 @@ import {
     ExtendedDelegatedStake,
     parseAmount,
     useCoinMetadata,
-    useGetValidatorsApy,
     useBalance,
     createValidationSchema,
     MIN_NUMBER_IOTA_TO_STAKE,
+    useGetLatestIotaSystemState,
 } from '@iota/core';
 import { FormikProvider, useFormik } from 'formik';
 import { useCurrentAccount } from '@iota/dapp-kit';
@@ -79,12 +79,13 @@ export function StakeDialog({
         validateOnMount: true,
     });
 
+    const { data: systemState } = useGetLatestIotaSystemState();
+    const validatorAddresses = (systemState?.activeValidators ?? []).map(
+        (validator) => validator.iotaAddress,
+    );
+
     const amount = formik.values.amount;
     const amountWithoutDecimals = parseAmount(amount, coinDecimals);
-
-    const { data: rollingAverageApys } = useGetValidatorsApy();
-
-    const validators = Object.keys(rollingAverageApys ?? {}) ?? [];
 
     function handleBack(): void {
         setView(StakeDialogView.SelectValidator);
@@ -141,7 +142,7 @@ export function StakeDialog({
                         <SelectValidatorView
                             selectedValidator={selectedValidator}
                             handleClose={handleClose}
-                            validators={validators}
+                            validators={validatorAddresses}
                             onSelect={handleValidatorSelect}
                             onNext={selectValidatorHandleNext}
                         />

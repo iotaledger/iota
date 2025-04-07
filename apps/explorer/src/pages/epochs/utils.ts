@@ -2,9 +2,8 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { useTimeAgo } from '@iota/core';
-import { useIotaClientQuery } from '@iota/dapp-kit';
 import { useEffect, useRef } from 'react';
+import { useGetLatestIotaSystemState, useTimeAgo } from '@iota/core';
 
 interface EpochProgress {
     epoch?: number;
@@ -15,7 +14,7 @@ interface EpochProgress {
 }
 
 export function useEpochProgress(suffix: string = 'left'): EpochProgress {
-    const { data, refetch } = useIotaClientQuery('getLatestIotaSystemState');
+    const { data, refetch } = useGetLatestIotaSystemState();
     const start = data?.epochStartTimestampMs ? Number(data.epochStartTimestampMs) : undefined;
     const duration = data?.epochDurationMs ? Number(data.epochDurationMs) : undefined;
     const end = start !== undefined && duration !== undefined ? start + duration : undefined;

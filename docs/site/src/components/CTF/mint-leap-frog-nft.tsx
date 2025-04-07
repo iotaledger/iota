@@ -41,8 +41,8 @@ const MintLeapFrogNFT: React.FC = () => {
   const { mutate } = useConnectWallet();
   const { mutate: signAndExecuteTransaction } = useSignAndExecuteTransaction();
   const regex = /^0x[a-fA-F0-9]{64}$/;
-  const handleSubmit = async () => {
-   await handleMintLeapFrogSubmit({
+  const handleSubmit = () => {
+    handleMintLeapFrogSubmit({
       nft,
       wallets,
       mutate,
