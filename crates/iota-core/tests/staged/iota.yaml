@@ -503,8 +503,7 @@ ExecutionFailureStatus:
         STRUCT:
           - congested_objects:
               TYPENAME: CongestedObjects
-          - lowest_gas_price_of_non_cancelled_transaction:
-              TYPENAME: U64
+          - lowest_gas_price_of_non_cancelled_transaction: U64
 ExecutionStatus:
   ENUM:
     0:
