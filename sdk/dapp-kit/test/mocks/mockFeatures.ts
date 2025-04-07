@@ -28,4 +28,8 @@ export const iotaFeatures: IotaFeatures = {
         version: '1.0.0',
         reportTransactionEffects: vi.fn(),
     },
+    'iota:connect': {
+        version: '1.0.0',
+        connect: vi.fn(),
+    },
 };
