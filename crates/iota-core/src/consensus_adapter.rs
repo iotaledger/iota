@@ -251,18 +251,18 @@ fn unregister_histogram_vec(name: &str, desc: &str, labels: &[&str], registry: &
     let sum = IntCounterVec::new(opts!(sum_name, desc), labels).unwrap();
     registry
         .unregister(Box::new(sum))
-        .expect("{}_sum counter is in prometheus registry", name);
+        .expect(&format!("{}_sum counter is in prometheus registry", name));
 
     let count = IntCounterVec::new(opts!(count_name, desc), labels).unwrap();
     registry
         .unregister(Box::new(count))
-        .expect("{}_count counter is in prometheus registry", name);
+        .expect(&format!("{}_count counter is in prometheus registry", name));
 
     let labels: Vec<_> = labels.iter().cloned().chain(["pct"]).collect();
     let gauge = IntGaugeVec::new(opts!(name, desc), &labels).unwrap();
     registry
         .unregister(Box::new(gauge))
-        .expect("{} gauge is in prometheus registry", name);
+        .expect(&format!("{} gauge is in prometheus registry", name));
 }
 
 #[mockall::automock]
