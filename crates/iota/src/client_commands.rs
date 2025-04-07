@@ -1413,16 +1413,8 @@ impl IotaClientCommands {
                 let key = context
                     .config()
                     .keystore()
-                    .keys()
-                    .into_iter()
-                    .find_map(|pk| {
-                        let key = Key::from(pk);
-                        if key.iota_address == address {
-                            Some(key)
-                        } else {
-                            None
-                        }
-                    })
+                    .get_key(&address)
+                    .map(Key::from)
                     .expect("missing generated key");
 
                 IotaClientCommandResult::NewAddress(NewAddressOutput {
