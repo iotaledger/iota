@@ -1,5 +1,5 @@
 ---
-'@iota/apps-ui-kit': patch
+'@iota/apps-ui-kit': minor
 ---
 
 add toggle component
