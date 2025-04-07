@@ -2824,12 +2824,12 @@
             }
           },
           {
-            "description": "Certificate is cancelled due to congestion on shared objects",
+            "description": "Certificate is cancelled due to congestion on shared objects.",
             "type": "object",
             "required": [
               "congested_objects",
-              "lowest_gas_price_of_non_cancelled_transaction",
-              "error"
+              "error",
+              "lowest_gas_price_of_non_cancelled_transaction"
             ],
             "properties": {
               "congested_objects": {
@@ -2838,16 +2838,16 @@
                   "$ref": "#/components/schemas/ObjectId"
                 }
               },
-              "lowest_gas_price_of_non_cancelled_transaction": {
-                "description": "Radix-10 encoded 64-bit unsigned integer",
-                "type": "string",
-                "format": "u64"
-              },
               "error": {
                 "type": "string",
                 "enum": [
                   "execution_cancelled_due_to_shared_object_congestion_v1"
                 ]
+              },
+              "lowest_gas_price_of_non_cancelled_transaction": {
+                "type": "integer",
+                "format": "uint64",
+                "minimum": 0.0
               }
             }
           }
