@@ -1,13 +1,13 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { CoinBalance, CoinStruct } from '@iota/iota-sdk/client';
+import { CoinBalance } from '@iota/iota-sdk/client';
 import {
     AddressInput,
     CoinFormat,
     CoinSelector,
-    createValidationSchemaSendTokenForm,
     getGasBudgetErrorMessage,
+    NO_BALANCE_GENERIC_MESSAGE,
     safeParseAmount,
     SendCoinTransaction,
     SendTokenFormInput,
@@ -15,7 +15,6 @@ import {
     useFormatCoin,
     useGetAllBalances,
     useGetAllCoins,
-    useSendCoinTransaction,
 } from '@iota/core';
 import {
     ButtonHtmlType,
@@ -28,98 +27,49 @@ import {
     Header,
 } from '@iota/apps-ui-kit';
 import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
-import { Form, FormikProvider, useFormik, useFormikContext } from 'formik';
+import { Form, useFormikContext } from 'formik';
 import { Exclamation } from '@iota/apps-ui-icons';
 import { FormDataValues } from '../interfaces';
-import { INITIAL_VALUES } from '../constants';
 import { DialogLayoutBody, DialogLayoutFooter } from '../../layout';
-import { useEffect } from 'react';
-import { useCurrentAccount } from '@iota/dapp-kit';
+import { useMemo } from 'react';
+import { UseQueryResult } from '@tanstack/react-query';
 
 interface EnterValuesFormProps {
     coin: CoinBalance;
     activeAddress: string;
-    initialFormValues: FormDataValues;
-    setFormData: React.Dispatch<React.SetStateAction<FormDataValues>>;
-    setSelectedCoin: React.Dispatch<React.SetStateAction<CoinBalance>>;
+    onCoinSelect: (coin: CoinBalance) => void;
     onNext: () => void;
     onClose: () => void;
-}
-
-function totalBalance(coins: CoinStruct[]): bigint {
-    return coins.reduce((partialSum, c) => partialSum + getBalanceFromCoinStruct(c), BigInt(0));
-}
-function getBalanceFromCoinStruct(coin: CoinStruct): bigint {
-    return BigInt(coin.balance);
-}
-
-interface FormInputsProps {
-    coinType: string;
-    formattedTokenBalance: string;
-    coins: CoinStruct[];
-    isMaxActionDisabled: boolean;
-    transactionData?: SendCoinTransaction;
-}
-function FormInputs({
-    coinType,
-    formattedTokenBalance,
-    coins,
-    isMaxActionDisabled,
-    transactionData,
-}: FormInputsProps): React.JSX.Element {
-    const { setFieldValue } = useFormikContext<FormDataValues>();
-
-    async function onMaxTokenButtonClick() {
-        await setFieldValue('amount', formattedTokenBalance);
-    }
-
-    return (
-        <Form autoComplete="off" noValidate className="flex-1">
-            <div className="flex h-full w-full flex-col gap-md">
-                <SendTokenFormInput
-                    name="amount"
-                    coinType={coinType}
-                    coins={coins}
-                    onActionClick={onMaxTokenButtonClick}
-                    isMaxActionDisabled={isMaxActionDisabled}
-                    transactionData={transactionData}
-                />
-                <AddressInput name="to" placeholder="Enter Address" />
-            </div>
-        </Form>
-    );
+    sendCoinTransactionQuery: UseQueryResult<SendCoinTransaction>;
+    coinBalance: bigint;
+    iotaBalance: bigint;
+    showLoading: boolean;
 }
 
 export function EnterValuesFormView({
     coin,
     activeAddress,
-    setFormData,
-    setSelectedCoin,
+    onCoinSelect: onCoinSelect,
     onNext,
-    initialFormValues,
     onClose,
+    sendCoinTransactionQuery,
+    coinBalance,
+    iotaBalance,
+    showLoading,
 }: EnterValuesFormProps): JSX.Element {
+    const formik = useFormikContext<FormDataValues>();
+
     // Get all coins of the type
-    const { data: coinsData, isPending: coinsIsPending } = useGetAllCoins(
+    const { data: coins = [], isPending: coinsIsPending } = useGetAllCoins(
         coin.coinType,
         activeAddress,
     );
-    const { data: iotaCoinsData, isPending: iotaCoinsIsPending } = useGetAllCoins(
-        IOTA_TYPE_ARG,
-        activeAddress,
-    );
-    const activeAccount = useCurrentAccount();
-    const { data: coinsBalance, isPending: coinsBalanceIsPending } = useGetAllBalances(
-        activeAccount?.address,
-    );
+    const { data: coinsBalance, isPending: coinsBalanceIsPending } =
+        useGetAllBalances(activeAddress);
 
-    const iotaCoins = iotaCoinsData;
-    const coins = coinsData;
-    const coinBalance = totalBalance(coins || []);
-    const iotaBalance = totalBalance(iotaCoins || []);
     const coinType = coin.coinType;
 
-    const [tokenBalance, symbol, queryResult] = useFormatCoin({
+    const [tokenBalance, _, queryResult] = useFormatCoin({
         balance: coinBalance,
         coinType,
         format: CoinFormat.FULL,
@@ -128,56 +78,21 @@ export function EnterValuesFormView({
     const coinMetadata = useCoinMetadata(coinType);
     const coinDecimals = coinMetadata.data?.decimals ?? 0;
 
-    const validationSchemaStepOne = createValidationSchemaSendTokenForm(
-        coinBalance,
-        symbol,
-        coinDecimals,
-    );
-
-    const formattedTokenBalance = tokenBalance.replace(/,/g, '');
-
-    const formik = useFormik({
-        initialValues: initialFormValues,
-        validationSchema: validationSchemaStepOne,
-        enableReinitialize: true,
-        validateOnChange: false,
-        validateOnBlur: false,
-        onSubmit: handleFormSubmit,
-    });
-
-    const {
-        data: transactionData,
-        isError: isSendCoinErrored,
-        error: sendCoinError,
-        isLoading: isBuildingTransaction,
-    } = useSendCoinTransaction({
-        coins: coins ?? [],
-        coinType,
-        senderAddress: activeAddress || '',
-        recipientAddress: formik.values.to,
-        amount: formik.values.amount,
-    });
-
-    useEffect(() => {
-        if (!isBuildingTransaction && isSendCoinErrored) {
-            const gasBudgetError = getGasBudgetErrorMessage(sendCoinError);
+    const gasBudgetError = useMemo(() => {
+        const { isLoading, isError } = sendCoinTransactionQuery;
+        if (!isLoading && isError) {
+            const gasBudgetError = getGasBudgetErrorMessage(sendCoinTransactionQuery.error);
             if (gasBudgetError) {
-                formik.setFieldError('gasBudgetEst', gasBudgetError);
+                return gasBudgetError;
             }
         }
 
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [sendCoinError, isSendCoinErrored, isBuildingTransaction]);
+        if (iotaBalance === BigInt(0)) {
+            return NO_BALANCE_GENERIC_MESSAGE;
+        }
+    }, [sendCoinTransactionQuery, iotaBalance]);
 
-    async function handleFormSubmit({ to, amount, gasBudgetEst }: FormDataValues) {
-        const data = {
-            to,
-            amount,
-            gasBudgetEst,
-        };
-        setFormData(data);
-        onNext();
-    }
+    const gasBudgetEst = sendCoinTransactionQuery.data?.gasSummary?.totalGas;
 
     const hasAmount = formik.values.amount.length > 0;
     const amount = safeParseAmount(
@@ -185,14 +100,14 @@ export function EnterValuesFormView({
         coinDecimals,
     );
     const isPayAllIota = amount === coinBalance && coinType === IOTA_TYPE_ARG;
-    const gasAmount = BigInt(formik.values.gasBudgetEst ?? '0');
+    const gasAmount = BigInt(gasBudgetEst ?? '0');
 
     const canPay = amount !== null ? iotaBalance > amount + gasAmount : false;
     const hasEnoughBalance = !(hasAmount && !canPay && !isPayAllIota);
 
     const isMaxActionDisabled = isPayAllIota || queryResult.isPending || !coinBalance;
 
-    if (coinsBalanceIsPending || coinsIsPending || iotaCoinsIsPending) {
+    if (coinsBalanceIsPending || coinsIsPending || showLoading) {
         return (
             <div className="flex h-full w-full items-center justify-center">
                 <LoadingIndicator />
@@ -200,8 +115,13 @@ export function EnterValuesFormView({
         );
     }
 
+    async function onMaxTokenButtonClick() {
+        const formattedTokenBalance = tokenBalance.replace(/,/g, '');
+        await formik.setFieldValue('amount', formattedTokenBalance);
+    }
+
     return (
-        <FormikProvider value={formik}>
+        <>
             <Header title={'Send'} onClose={onClose} />
             <DialogLayoutBody>
                 <div className="flex h-full w-full flex-col gap-md">
@@ -209,53 +129,58 @@ export function EnterValuesFormView({
                         activeCoinType={coin.coinType}
                         coins={coinsBalance ?? []}
                         onClick={(coinType) => {
-                            setFormData(INITIAL_VALUES);
                             const selectedCoin = coinsBalance?.find(
                                 (coinBalance) => coinBalance.coinType === coinType,
                             );
                             if (selectedCoin) {
-                                setSelectedCoin(selectedCoin);
+                                onCoinSelect(selectedCoin);
                             }
                         }}
                     />
 
-                    <FormInputs
-                        isMaxActionDisabled={isMaxActionDisabled}
-                        coinType={coin.coinType}
-                        formattedTokenBalance={formattedTokenBalance}
-                        coins={coins ?? []}
-                        transactionData={transactionData}
-                    />
+                    <Form autoComplete="off" noValidate className="flex-1" onSubmit={onNext}>
+                        <div className="flex h-full w-full flex-col gap-md">
+                            <SendTokenFormInput
+                                name="amount"
+                                coinType={coinType}
+                                coins={coins ?? []}
+                                onActionClick={onMaxTokenButtonClick}
+                                isMaxActionDisabled={isMaxActionDisabled}
+                                totalGas={sendCoinTransactionQuery.data?.gasSummary?.totalGas}
+                            />
+                            <AddressInput name="to" placeholder="Enter Address" />
+                        </div>
+                    </Form>
                 </div>
             </DialogLayoutBody>
             <DialogLayoutFooter>
-                {formik.errors.gasBudgetEst ? (
+                {gasBudgetError ? (
                     <div className="mb-sm">
                         <InfoBox
                             type={InfoBoxType.Error}
-                            supportingText={formik.errors.gasBudgetEst}
+                            supportingText={gasBudgetError}
                             style={InfoBoxStyle.Elevated}
                             icon={<Exclamation />}
                         />
                     </div>
                 ) : null}
                 <Button
-                    onClick={formik.submitForm}
+                    onClick={onNext}
                     htmlType={ButtonHtmlType.Submit}
                     type={ButtonType.Primary}
-                    icon={isBuildingTransaction ? <LoadingIndicator /> : undefined}
+                    icon={sendCoinTransactionQuery.isLoading ? <LoadingIndicator /> : undefined}
                     iconAfterText
                     disabled={
                         !formik.isValid ||
                         formik.isSubmitting ||
                         !hasEnoughBalance ||
-                        formik.values.gasBudgetEst === '' ||
-                        formik.values.gasBudgetEst === undefined
+                        !!gasBudgetError ||
+                        !gasBudgetEst
                     }
                     text="Review"
                     fullWidth
                 />
             </DialogLayoutFooter>
-        </FormikProvider>
+        </>
     );
 }

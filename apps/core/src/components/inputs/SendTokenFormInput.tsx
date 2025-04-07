@@ -3,14 +3,7 @@
 
 import { ButtonPill, Input, InputType } from '@iota/apps-ui-kit';
 import { CoinStruct } from '@iota/iota-sdk/client';
-import {
-    CoinFormat,
-    IOTA_COIN_METADATA,
-    SendCoinTransaction,
-    useCoinMetadata,
-    useFormatCoin,
-} from '../../hooks';
-import { useEffect } from 'react';
+import { CoinFormat, IOTA_COIN_METADATA, useCoinMetadata, useFormatCoin } from '../../hooks';
 import { useField, useFormikContext } from 'formik';
 import { TokenForm } from '../../forms';
 import { parseAmount } from '../../utils';
@@ -22,7 +15,7 @@ export interface SendTokenInputProps {
     onActionClick: () => Promise<void>;
     isMaxActionDisabled?: boolean;
     name: string;
-    transactionData?: SendCoinTransaction;
+    totalGas?: string;
 }
 
 export function SendTokenFormInput({
@@ -31,16 +24,16 @@ export function SendTokenFormInput({
     onActionClick,
     isMaxActionDisabled,
     name,
-    transactionData,
+    totalGas,
 }: SendTokenInputProps) {
-    const { values, setFieldValue, isSubmitting, validateField } = useFormikContext<TokenForm>();
+    const { values, isSubmitting, validateField } = useFormikContext<TokenForm>();
 
     const { data: coinMetadata } = useCoinMetadata(coinType);
     const coinDecimals = coinMetadata?.decimals ?? 0;
     const symbol = coinMetadata?.symbol ?? IOTA_COIN_METADATA.symbol;
 
     const [formattedGasBudgetEstimation, gasToken] = useFormatCoin({
-        balance: transactionData?.gasSummary?.totalGas,
+        balance: totalGas,
         format: CoinFormat.FULL,
     });
 
@@ -61,12 +54,9 @@ export function SendTokenFormInput({
     const totalBalance = coins.reduce((acc, { balance }) => {
         return BigInt(acc) + BigInt(balance);
     }, BigInt(0));
+
     const approximation =
         parseAmount(values.amount, coinDecimals) === totalBalance && coinType === IOTA_TYPE_ARG;
-    // gasBudgetEstimation should change when the amount above changes
-    useEffect(() => {
-        setFieldValue('gasBudgetEst', transactionData?.gasSummary?.totalGas, false);
-    }, [transactionData, setFieldValue, values.amount]);
 
     return (
         <Input
