@@ -9,11 +9,12 @@ services:
       - "9184:9184"
     volumes:
       - ./key-pairs:/opt/iota/key-pairs/:ro
-      - ./validator.yaml:/opt/iota/config/fullnode.yaml:ro
+      - ./validator.yaml:/opt/iota/config/validator.yaml:ro
       - ./genesis.blob:/opt/iota/config/genesis.blob:ro
+      - ./migration.blob:/opt/iota/config/migration.blob:ro
       - ./iotadb:/opt/iota/db:rw
     command: [
       "/usr/local/bin/iota-node",
       "--config-path",
-      "/opt/iota/config/fullnode.yaml",
+      "/opt/iota/config/validator.yaml",
     ]

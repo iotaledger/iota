@@ -15,7 +15,6 @@ import { UnstakeDialogView } from '@/components/dialogs/unstake/enums';
 import { useUnstakeDialog } from '@/components/dialogs/unstake/hooks';
 import { useGetSupplyIncreaseVestingObjects } from '@/hooks';
 import { groupTimelockedStakedObjects, TimelockedStakedObjectsGrouped } from '@/lib/utils';
-import { useFeature } from '@growthbook/growthbook-react';
 import {
     Panel,
     Title,
@@ -42,22 +41,15 @@ import {
 import {
     Theme,
     useFormatCoin,
-    useGetActiveValidatorsInfo,
     useTheme,
     useCountdownByTimestamp,
-    Feature,
     toast,
+    useGetLatestIotaSystemState,
 } from '@iota/core';
-import {
-    useCurrentAccount,
-    useIotaClient,
-    useIotaClientQuery,
-    useSignAndExecuteTransaction,
-} from '@iota/dapp-kit';
+import { useCurrentAccount, useIotaClient, useSignAndExecuteTransaction } from '@iota/dapp-kit';
 import { IotaValidatorSummary } from '@iota/iota-sdk/client';
 import { Calendar, StarHex, Warning } from '@iota/apps-ui-icons';
-import { useRouter } from 'next/navigation';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { StakedTimelockObject } from '@/components';
 import { IotaSignAndExecuteTransactionOutput } from '@iota/wallet-standard';
 import { ampli } from '@/lib/utils/analytics';
@@ -69,10 +61,8 @@ export default function VestingDashboardPage(): JSX.Element {
     const account = useCurrentAccount();
     const address = account?.address || '';
     const iotaClient = useIotaClient();
-    const router = useRouter();
-    const { data: system } = useIotaClientQuery('getLatestIotaSystemState');
+    const { data: system } = useGetLatestIotaSystemState();
     const [isVestingScheduleDialogOpen, setIsVestingScheduleDialogOpen] = useState(false);
-    const { data: activeValidators } = useGetActiveValidatorsInfo();
     const { mutateAsync: signAndExecuteTransaction } = useSignAndExecuteTransaction();
     const { theme } = useTheme();
 
@@ -80,8 +70,6 @@ export default function VestingDashboardPage(): JSX.Element {
         theme === Theme.Dark
             ? 'https://files.iota.org/media/tooling/wallet-dashboard-staking-dark.mp4'
             : 'https://files.iota.org/media/tooling/wallet-dashboard-staking-light.mp4';
-
-    const supplyIncreaseVestingEnabled = useFeature<boolean>(Feature.SupplyIncreaseVesting).value;
 
     const {
         nextPayout,
@@ -143,7 +131,7 @@ export default function VestingDashboardPage(): JSX.Element {
     const [formattedNextPayout, nextPayoutSymbol] = useFormatCoin({ balance: nextPayout?.amount });
 
     function getValidatorByAddress(validatorAddress: string): IotaValidatorSummary | undefined {
-        return activeValidators?.find(
+        return system?.activeValidators?.find(
             (activeValidator) => activeValidator.iotaAddress === validatorAddress,
         );
     }
@@ -219,12 +207,6 @@ export default function VestingDashboardPage(): JSX.Element {
             setTxDigest(tx.digest);
         });
     }
-
-    useEffect(() => {
-        if (!supplyIncreaseVestingEnabled) {
-            router.push('/home');
-        }
-    }, [router, supplyIncreaseVestingEnabled]);
 
     if (isTimelockedStakedObjectsLoading) {
         return (

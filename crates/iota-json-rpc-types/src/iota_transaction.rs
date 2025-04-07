@@ -1329,7 +1329,7 @@ impl Display for IotaExecutionStatus {
 
 impl IotaExecutionStatus {
     pub fn is_ok(&self) -> bool {
-        matches!(self, IotaExecutionStatus::Success { .. })
+        matches!(self, IotaExecutionStatus::Success)
     }
     pub fn is_err(&self) -> bool {
         matches!(self, IotaExecutionStatus::Failure { .. })

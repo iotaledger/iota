@@ -4037,7 +4037,7 @@ async fn test_iter_live_object_set() {
     .await
     .unwrap();
     assert!(
-        matches!(effects.status(), ExecutionStatus::Success { .. }),
+        matches!(effects.status(), ExecutionStatus::Success),
         "{:?}",
         effects.status()
     );
@@ -4058,7 +4058,7 @@ async fn test_iter_live_object_set() {
     .await
     .unwrap();
     assert!(
-        matches!(effects.status(), ExecutionStatus::Success { .. }),
+        matches!(effects.status(), ExecutionStatus::Success),
         "{:?}",
         effects.status()
     );
@@ -4089,7 +4089,7 @@ async fn test_iter_live_object_set() {
     .await
     .unwrap();
     assert!(
-        matches!(effects.status(), ExecutionStatus::Success { .. }),
+        matches!(effects.status(), ExecutionStatus::Success),
         "{:?}",
         effects.status()
     );
@@ -4115,7 +4115,7 @@ async fn test_iter_live_object_set() {
     .await
     .unwrap();
     assert!(
-        matches!(effects.status(), ExecutionStatus::Success { .. }),
+        matches!(effects.status(), ExecutionStatus::Success),
         "{:?}",
         effects.status()
     );
@@ -4136,7 +4136,7 @@ async fn test_iter_live_object_set() {
     .await
     .unwrap();
     assert!(
-        matches!(effects.status(), ExecutionStatus::Success { .. }),
+        matches!(effects.status(), ExecutionStatus::Success),
         "{:?}",
         effects.status()
     );
