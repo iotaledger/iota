@@ -41,7 +41,6 @@ import {
 import {
     Theme,
     useFormatCoin,
-    useGetActiveValidatorsInfo,
     useTheme,
     useCountdownByTimestamp,
     toast,
@@ -50,13 +49,9 @@ import {
     GAS_BALANCE_TOO_LOW_ID,
     MIN_NUMBER_IOTA_TO_STAKE,
     NOT_ENOUGH_BALANCE_ID,
+    useGetLatestIotaSystemState,
 } from '@iota/core';
-import {
-    useCurrentAccount,
-    useIotaClient,
-    useIotaClientQuery,
-    useSignAndExecuteTransaction,
-} from '@iota/dapp-kit';
+import { useCurrentAccount, useIotaClient, useSignAndExecuteTransaction } from '@iota/dapp-kit';
 import { IotaValidatorSummary } from '@iota/iota-sdk/client';
 import { Calendar, StarHex, Warning } from '@iota/apps-ui-icons';
 import { useState } from 'react';
@@ -72,9 +67,8 @@ export default function VestingDashboardPage(): JSX.Element {
     const account = useCurrentAccount();
     const address = account?.address || '';
     const iotaClient = useIotaClient();
-    const { data: system } = useIotaClientQuery('getLatestIotaSystemState');
+    const { data: system } = useGetLatestIotaSystemState();
     const [isVestingScheduleDialogOpen, setIsVestingScheduleDialogOpen] = useState(false);
-    const { data: activeValidators } = useGetActiveValidatorsInfo();
     const { mutateAsync: signAndExecuteTransaction } = useSignAndExecuteTransaction();
     const { theme } = useTheme();
     const { data: balance } = useBalance(address);
@@ -146,7 +140,7 @@ export default function VestingDashboardPage(): JSX.Element {
     const [formattedNextPayout, nextPayoutSymbol] = useFormatCoin({ balance: nextPayout?.amount });
 
     function getValidatorByAddress(validatorAddress: string): IotaValidatorSummary | undefined {
-        return activeValidators?.find(
+        return system?.activeValidators?.find(
             (activeValidator) => activeValidator.iotaAddress === validatorAddress,
         );
     }
