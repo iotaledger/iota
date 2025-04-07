@@ -442,7 +442,7 @@ pub fn ptb_description() -> clap::Command {
             --"emit"
             "Select which fields of the response to display. If not provided, all fields are displayed. \
             The fields are: effects, input, events, object_changes, balance_changes. \
-            This command only works if it's passed as first argument to the command: \
+            This option only works if it's passed as first argument to the command: \
             `iota client ptb --emit=effects --split-coins gas [1000]`
             "
         ))
