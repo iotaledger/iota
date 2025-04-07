@@ -3,7 +3,7 @@
 
 import { useCurrentAccount, useIotaClientContext } from '@iota/dapp-kit';
 import { formatAddress } from '@iota/iota-sdk/utils';
-import { useBalance, useFormatCoin, useGetFiatBalance, toast } from '@iota/core';
+import { useBalance, useFormatCoin, useGetFiatBalance, useCopyToClipboard } from '@iota/core';
 import {
     Address,
     Button,
@@ -37,9 +37,11 @@ export function AccountBalance() {
         setIsReceiveDialogOpen(true);
     }
 
-    function handleOnCopySuccess() {
-        toast('Address copied');
-    }
+    const copyAddress = useCopyToClipboard({
+        textToCopy: account?.address || '',
+        successMessage: 'Address copied',
+        showAddressWarning: true,
+    });
 
     return (
         <>
@@ -59,7 +61,7 @@ export function AccountBalance() {
                                         copyText={address}
                                         isExternal
                                         externalLink={explorerLink}
-                                        onCopySuccess={handleOnCopySuccess}
+                                        onCopy={copyAddress}
                                     />
                                 </div>
                             )}

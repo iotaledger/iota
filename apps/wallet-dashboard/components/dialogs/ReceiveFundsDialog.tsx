@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { Button, Address, Dialog, DialogContent, DialogBody, Header } from '@iota/apps-ui-kit';
-import { QR, useCopyToClipboard, toast } from '@iota/core';
+import { QR, useCopyToClipboard } from '@iota/core';
 
 interface ReceiveFundsDialogProps {
     address: string;
@@ -15,14 +15,11 @@ export function ReceiveFundsDialog({
     open,
     setOpen,
 }: ReceiveFundsDialogProps): React.JSX.Element {
-    const copyToClipboard = useCopyToClipboard();
-
-    async function handleCopyToClipboard() {
-        const success = await copyToClipboard(address);
-        if (success) {
-            toast('Address copied');
-        }
-    }
+    const copyToClipboard = useCopyToClipboard({
+        textToCopy: address,
+        successMessage: 'Address copied',
+        showAddressWarning: true,
+    });
 
     return (
         <Dialog open={open} onOpenChange={setOpen}>
@@ -37,7 +34,7 @@ export function ReceiveFundsDialog({
                     </div>
                 </DialogBody>
                 <div className="flex w-full flex-row justify-center gap-2 px-md--rs pb-md--rs pt-sm--rs">
-                    <Button onClick={handleCopyToClipboard} fullWidth text="Copy Address" />
+                    <Button onClick={() => copyToClipboard} fullWidth text="Copy Address" />
                 </div>
             </DialogContent>
         </Dialog>

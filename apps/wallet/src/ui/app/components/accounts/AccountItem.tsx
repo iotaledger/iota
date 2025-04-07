@@ -5,10 +5,11 @@
 import { formatAddress } from '@iota/iota-sdk/utils';
 import cn from 'clsx';
 import { type ReactNode } from 'react';
-import { useExplorerLink, useAccounts, useCopyToClipboard } from '_hooks';
+import { useExplorerLink, useAccounts } from '_hooks';
 import { ExplorerLinkType } from '_components';
 import { Account } from '@iota/apps-ui-kit';
 import { formatAccountName } from '../../helpers';
+import { useCopyToClipboard } from '@iota/core';
 
 interface AccountItemProps {
     accountID: string;
@@ -30,8 +31,10 @@ export function AccountItem({
     const { data: accounts } = useAccounts();
     const account = accounts?.find((account) => account.id === accountID);
     const accountName = formatAccountName(account?.nickname, account?.address);
-    const copyAddress = useCopyToClipboard(account?.address || '', {
-        copySuccessMessage: 'Address copied',
+    const copyAddress = useCopyToClipboard({
+        textToCopy: account?.address || '',
+        successMessage: 'Address copied',
+        showAddressWarning: true,
     });
     const explorerHref = useExplorerLink({
         type: ExplorerLinkType.Address,

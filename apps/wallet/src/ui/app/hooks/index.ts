@@ -8,7 +8,6 @@ export * from './useInitializedGuard';
 export * from './useFullscreenGuard';
 export * from './useOnKeyboardEvent';
 export * from './useTransactionDryRun';
-export * from './useCopyToClipboard';
 export * from './useExplorerLink';
 export * from './useTransactionData';
 export * from './useActiveAddress';
