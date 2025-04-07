@@ -2,9 +2,9 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { isSupportedChain } from '@iota/wallet-standard';
+import { IotaConnect, isSupportedChain, StandardConnect } from '@iota/wallet-standard';
 import type {
-    StandardConnectInput,
+    IotaConnectMethodInputs,
     StandardConnectOutput,
     WalletAccount,
     WalletWithRequiredFeatures,
@@ -21,9 +21,7 @@ type ConnectWalletArgs = {
 
     /** An optional account address to connect to. Defaults to the first authorized account. */
     accountAddress?: string;
-
-    forceReinitialize?: boolean;
-} & StandardConnectInput;
+} & IotaConnectMethodInputs;
 
 type ConnectWalletResult = StandardConnectOutput;
 
@@ -53,8 +51,10 @@ export function useConnectWallet({
             try {
                 setConnectionStatus('connecting');
 
-                const connectResult =
-                    await wallet.features['standard:connect'].connect(connectArgs);
+                const connectMethod =
+                    wallet.features[IotaConnect] ?? wallet.features[StandardConnect];
+
+                const connectResult = await connectMethod.connect(connectArgs);
                 const connectedIotaAccounts = connectResult.accounts.filter((account) =>
                     account.chains.some(isSupportedChain),
                 );

@@ -37,8 +37,9 @@ import {
     type Wallet,
     type IotaSignTransactionMethod,
     type IotaSignAndExecuteTransactionMethod,
-    type StandardConnectExtendedMethod,
-    type StandardConnectExtendedFeature,
+    type IotaConnectMethod,
+    type StandardConnectFeature,
+    type StandardConnectMethod,
 } from '@iota/wallet-standard';
 import mitt, { type Emitter } from 'mitt';
 import { filter, map, type Observable } from 'rxjs';
@@ -80,7 +81,7 @@ export class IotaWallet implements Wallet {
         return SUPPORTED_CHAINS;
     }
 
-    get features(): StandardConnectExtendedFeature & StandardEventsFeature & IotaFeatures {
+    get features(): StandardConnectFeature & StandardEventsFeature & IotaFeatures {
         return {
             'standard:connect': {
                 version: '1.0.0',
@@ -101,6 +102,10 @@ export class IotaWallet implements Wallet {
             'iota:signPersonalMessage': {
                 version: '1.0.0',
                 signPersonalMessage: this.#signPersonalMessage,
+            },
+            'iota:connect': {
+                version: '1.0.0',
+                connect: this.#iotaConnect,
             },
         };
     }
@@ -173,7 +178,23 @@ export class IotaWallet implements Wallet {
         }
     };
 
-    #connect: StandardConnectExtendedMethod = async (input) => {
+    #connect: StandardConnectMethod = async (input) => {
+        if (!input?.silent) {
+            await mapToPromise(
+                this.#send<AcquirePermissionsRequest, AcquirePermissionsResponse>({
+                    type: 'acquire-permissions-request',
+                    permissions: ALL_PERMISSION_TYPES,
+                }),
+                (response) => response.result,
+            );
+        }
+
+        await this.#connected();
+
+        return { accounts: this.accounts };
+    };
+
+    #iotaConnect: IotaConnectMethod = async (input) => {
         if (!input?.silent) {
             await mapToPromise(
                 this.#send<AcquirePermissionsRequest, AcquirePermissionsResponse>({

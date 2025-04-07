@@ -14,7 +14,7 @@ import type { IotaReportTransactionEffectsFeature } from './iotaReportTransactio
 import type { IotaSignAndExecuteTransactionFeature } from './iotaSignAndExecuteTransaction.js';
 import type { IotaSignPersonalMessageFeature } from './iotaSignPersonalMessage.js';
 import type { IotaSignTransactionFeature } from './iotaSignTransaction.js';
-import type { StandardConnectExtendedFeature } from './standardConnectExtended.js';
+import type { IotaConnectFeature } from './iotaConnect.js';
 
 /**
  * Wallet Standard features that are unique to IOTA, and that all IOTA wallets are expected to implement.
@@ -23,7 +23,7 @@ export type IotaFeatures = IotaSignPersonalMessageFeature &
     IotaSignAndExecuteTransactionFeature &
     IotaSignTransactionFeature &
     Partial<IotaReportTransactionEffectsFeature> &
-    StandardConnectExtendedFeature;
+    IotaConnectFeature;
 
 export type IotaWalletFeatures = StandardConnectFeature &
     StandardEventsFeature &
@@ -49,4 +49,4 @@ export * from './iotaSignTransaction.js';
 export * from './iotaSignAndExecuteTransaction.js';
 export * from './iotaSignPersonalMessage.js';
 export * from './iotaReportTransactionEffects.js';
-export * from './standardConnectExtended.js';
+export * from './iotaConnect.js';

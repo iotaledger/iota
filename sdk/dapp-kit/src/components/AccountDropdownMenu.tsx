@@ -4,6 +4,7 @@
 
 import { formatAddress } from '@iota/iota-sdk/utils';
 import type { WalletAccount } from '@iota/wallet-standard';
+import { IotaConnect } from '@iota/wallet-standard';
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
 import clsx from 'clsx';
 
@@ -37,9 +38,13 @@ export function AccountDropdownMenu({ currentAccount, size = 'lg' }: AccountDrop
     const currentWallet = useWalletStore((state) => state.currentWallet);
     const wallets = useWallets();
 
-    const showManageAccountsButton = currentWallet?.name.includes('IOTA Wallet') ?? false;
+    const hasIotaConnectMethod = !!currentWallet?.features[IotaConnect];
 
-    function manageAccounts() {
+    function handleManageAccountsClick() {
+        if (!hasIotaConnectMethod) {
+            return;
+        }
+
         const wallet = wallets.find(
             (wallet) => getWalletUniqueIdentifier(wallet) === currentWallet?.name,
         );
@@ -77,12 +82,12 @@ export function AccountDropdownMenu({ currentAccount, size = 'lg' }: AccountDrop
                                     />
                                 ))}
                             </div>
-                            {showManageAccountsButton && (
+                            {hasIotaConnectMethod && (
                                 <>
                                     <DropdownMenu.Separator className={styles.separator} />
                                     <DropdownMenu.Item
                                         className={clsx(styles.menuItem)}
-                                        onClick={manageAccounts}
+                                        onClick={handleManageAccountsClick}
                                     >
                                         Manage accounts
                                     </DropdownMenu.Item>
