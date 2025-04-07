@@ -186,17 +186,17 @@ impl ConsensusAdapterMetrics {
     pub fn unregister(&self, registry: &Registry) {
         registry
             .unregister(Box::new(self.sequencing_certificate_attempt.clone()))
-            .expect("Failed to unregister sequencing_certificate_attempt");
+            .expect("sequencing_certificate_attempt is in registry");
         registry
             .unregister(Box::new(self.sequencing_certificate_success.clone()))
-            .expect("Failed to unregister sequencing_certificate_success");
+            .expect("sequencing_certificate_success is in registry");
         registry
             .unregister(Box::new(self.sequencing_certificate_failures.clone()))
-            .expect("Failed to unregister sequencing_certificate_failures");
+            .expect("sequencing_certificate_failures is in registry");
         registry
             .unregister(Box::new(self.sequencing_certificate_inflight.clone()))
-            .expect("Failed to unregister sequencing_certificate_inflight");
-            iota_metrics::histogram::HistogramVec::unregister(
+            .expect("sequencing_certificate_inflight is in registry");
+        iota_metrics::histogram::HistogramVec::unregister(
             "sequencing_acknowledge_latency",
             "The latency for acknowledgement from sequencing engine. The overall sequencing latency is measured by the sequencing_certificate_latency metric",
             &["retry", "tx_type"],
@@ -204,37 +204,37 @@ impl ConsensusAdapterMetrics {
         );
         registry
             .unregister(Box::new(self.sequencing_certificate_latency.clone()))
-            .expect("Failed to unregister sequencing_certificate_latency");
+            .expect("sequencing_certificate_latency is in registry");
         registry
             .unregister(Box::new(
                 self.sequencing_certificate_authority_position.clone(),
             ))
-            .expect("Failed to unregister sequencing_certificate_authority_position");
+            .expect("sequencing_certificate_authority_position is in registry");
         registry
             .unregister(Box::new(
                 self.sequencing_certificate_positions_moved.clone(),
             ))
-            .expect("Failed to unregister sequencing_certificate_positions_moved");
+            .expect("sequencing_certificate_positions_moved is in registry");
         registry
             .unregister(Box::new(
                 self.sequencing_certificate_preceding_disconnected.clone(),
             ))
-            .expect("Failed to unregister sequencing_certificate_preceding_disconnected");
+            .expect("sequencing_certificate_preceding_disconnected is in registry");
         registry
             .unregister(Box::new(self.sequencing_certificate_processed.clone()))
-            .expect("Failed to unregister sequencing_certificate_processed");
+            .expect("sequencing_certificate_processed is in registry");
         registry
             .unregister(Box::new(self.sequencing_in_flight_semaphore_wait.clone()))
-            .expect("Failed to unregister sequencing_in_flight_semaphore_wait");
+            .expect("sequencing_in_flight_semaphore_wait is in registry");
         registry
             .unregister(Box::new(self.sequencing_in_flight_submissions.clone()))
-            .expect("Failed to unregister sequencing_in_flight_submissions");
+            .expect("sequencing_in_flight_submissions is in registry");
         registry
             .unregister(Box::new(self.sequencing_estimated_latency.clone()))
-            .expect("Failed to unregister sequencing_estimated_latency");
+            .expect("sequencing_estimated_latency is in registry");
         registry
             .unregister(Box::new(self.sequencing_resubmission_interval_ms.clone()))
-            .expect("Failed to unregister sequencing_resubmission_interval_ms");
+            .expect("sequencing_resubmission_interval_ms is in registry");
     }
 }
 
