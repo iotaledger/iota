@@ -35,16 +35,15 @@ if ! command -v cargo &> /dev/null; then
 fi
 
 
-
 echo -e "This script will perform the following steps:"
 echo -e " ${G}1.${NC} Check rust toolchain version"
 echo -e " ${G}2.${NC} Install system packages (libraries & other dependencies)"
-echo -e " ${G}3.${NC} Clone the iota repo"
+echo -e " ${G}3.${NC} Clone the iota repo, set to the right branch for the network you chose"
 echo -e " ${G}4.${NC} Build the iota-node binary"
-echo -e " ${G}5.${NC} Create a user called iota, make it own directories for service binary, config, data"
-echo -e " ${G}6.${NC} Create node config file, download genesis/migration blobs"
-echo -e " ${G}6.${NC} Create systemd service unit file"
-echo -e " ${G}7.${NC} Start the service\n"
+echo -e " ${G}5.${NC} Create a user called iota, make it own directories for service binary, config and data"
+echo -e " ${G}6.${NC} Create a node config file, download genesis/migration blobs"
+echo -e " ${G}7.${NC} Create a systemd service unit file"
+echo -e " ${G}8.${NC} Start the service\n"
 read -p "Continue ? [y/N] " response
 if [[ ! $response =~ ^[Yy]$ ]]; then
     red "[ERROR] Install cancelled"
@@ -157,7 +156,3 @@ sudo systemctl start iota-node
 sudo systemctl status iota-node
 # Follow logs with 
 # journalctl -u iota-node -f
-
-
-
-

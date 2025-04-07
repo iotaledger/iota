@@ -26,7 +26,7 @@ If you encounter errors or your full node stops working, run the commands in the
       panicked at error binding to 0.0.0.0:9184: error creating server listener: Address already in use (os error 98)
       ```
 
-      Update the metrics address in your fullnode.yaml file to use port `9180`.
+      Update the metrics address in your `fullnode.yaml` file to use port `9180`.
 
       ```yaml
       metrics-address: "0.0.0.0:9180"
@@ -38,30 +38,29 @@ If you encounter errors or your full node stops working, run the commands in the
     </TabItem>
 </Tabs>
 
-<br/>
+
 ## Inspecting the state of a running node
 
 <Tabs groupId="setup-method">
     <TabItem label="Systemd" value="systemd">
-      ### Looking at the logs for specific errors
+      Looking at the logs for specific errors:
       ```shell
       journalctl -u iota-node -f
       ```
     </TabItem>
 
-
     <TabItem label="Docker" value="docker">
-      ### Looking at the logs for specific errors
+      Looking at the logs for specific errors:
       ```shell
       docker compose logs iota-node -f
       ```
 
-      ### Connecting to a shell inside the container:
+      Connecting to a shell inside the container:
       ```shell
       docker exec -it $CONTAINER_ID /bin/bash
       ```
 
-      ### Inspecting the database:
+      Inspecting the database:
       ```shell
       ls -la iotadb/
       ```
@@ -69,16 +68,13 @@ If you encounter errors or your full node stops working, run the commands in the
 </Tabs>
 
 
-<br/>
 ## Reinstalling the node from scratch
 
-If you continue to see issues, follow the following steps:
-
-
+If you continue to see issues, do the following steps:
 
 <Tabs groupId="setup-method">
     <TabItem label="Systemd" value="systemd">
-      #### 1. Restart the full node
+      Restart the full node:
       {/* TODO in 6017 make script update node using script */}
       ```shell
       sudo systemctl restart iota-node
@@ -87,24 +83,23 @@ If you continue to see issues, follow the following steps:
 
 
     <TabItem label="Docker" value="docker">
-      #### 1. Stop the full node
+      Stop the full node
       ```shell
       docker compose down
       ```
 
-      #### 2. Delete the data folder
-      Make sure to first make a backup of your config files.
+      Delete the data folder
+      Make sure to first make a backup of your config files
       ```shell
       rm -Rf data/
       ```
 
-      ### Reinstall the node from scratch
-      ##### 3.1 Pull the latest version of the container
+      Pull the latest version of the container
       ```shell
       docker compose pull
       ```
 
-      ##### 3.2 Run the respective prepare script again depending on your network.
+      Run the respective prepare script again depending on your network
       <Tabs groupId="network" queryString>
           <TabItem label="Testnet" value="testnet">
             ```shell
@@ -118,7 +113,7 @@ If you continue to see issues, follow the following steps:
           </TabItem>
       </Tabs>
 
-      #### 3.3 Start the container again
+      Start the container again
 
       ```shell
       docker compose up
@@ -127,7 +122,6 @@ If you continue to see issues, follow the following steps:
 </Tabs>
 
 
-<br/>
 ## Local RPC Connectivity Issues
 
 Update the `json-rpc-address` in the full node config to listen on all addresses:
@@ -140,5 +134,3 @@ sed -i 's/127.0.0.1/0.0.0.0/' fullnode.yaml
 -json-rpc-address: "127.0.0.1:9000"
 +json-rpc-address: "0.0.0.0:9000"
 ```
-
-
