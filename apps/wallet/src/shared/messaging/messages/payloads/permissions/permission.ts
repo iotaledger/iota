@@ -18,4 +18,5 @@ export interface Permission {
     createdDate: string;
     responseDate: string | null;
     requestMsgID: string;
+    forceReinitialize?: boolean;
 }

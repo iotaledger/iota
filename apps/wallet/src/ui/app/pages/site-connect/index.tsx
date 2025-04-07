@@ -36,9 +36,19 @@ export function SiteConnectPage() {
     const accounts = accountGroups.list();
     const unlockedAccounts = accounts.filter((account) => !account.isLocked);
     const lockedAccounts = accounts.filter((account) => account.isLocked);
-    const [accountsToConnect, setAccountsToConnect] = useState<SerializedUIAccount[]>(() =>
-        activeAccount && !activeAccount.isLocked ? [activeAccount] : [],
-    );
+    const [accountsToConnect, setAccountsToConnect] =
+        useState<SerializedUIAccount[]>(getSelectedAccounts);
+
+    function getSelectedAccounts(): SerializedUIAccount[] {
+        const previouslySelectedAccountIDs = permissionRequest?.accounts ?? [];
+        if (previouslySelectedAccountIDs.length) {
+            return accounts.filter((account) =>
+                previouslySelectedAccountIDs.includes(account.address),
+            );
+        }
+        return activeAccount && !activeAccount.isLocked ? [activeAccount] : [];
+    }
+
     const handleOnSubmit = useCallback(
         async (allowed: boolean) => {
             if (requestID && accountsToConnect && permissionRequest) {

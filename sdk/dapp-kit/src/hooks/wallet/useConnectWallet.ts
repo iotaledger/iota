@@ -21,6 +21,8 @@ type ConnectWalletArgs = {
 
     /** An optional account address to connect to. Defaults to the first authorized account. */
     accountAddress?: string;
+
+    forceReinitialize?: boolean;
 } & StandardConnectInput;
 
 type ConnectWalletResult = StandardConnectOutput;

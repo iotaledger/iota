@@ -29,8 +29,6 @@ import { fromB64, toB64 } from '@iota/iota-sdk/utils';
 import {
     ReadonlyWalletAccount,
     SUPPORTED_CHAINS,
-    type StandardConnectFeature,
-    type StandardConnectMethod,
     type StandardEventsFeature,
     type StandardEventsListeners,
     type StandardEventsOnMethod,
@@ -39,6 +37,8 @@ import {
     type Wallet,
     type IotaSignTransactionMethod,
     type IotaSignAndExecuteTransactionMethod,
+    type StandardConnectExtendedMethod,
+    type StandardConnectExtendedFeature,
 } from '@iota/wallet-standard';
 import mitt, { type Emitter } from 'mitt';
 import { filter, map, type Observable } from 'rxjs';
@@ -80,7 +80,7 @@ export class IotaWallet implements Wallet {
         return SUPPORTED_CHAINS;
     }
 
-    get features(): StandardConnectFeature & StandardEventsFeature & IotaFeatures {
+    get features(): StandardConnectExtendedFeature & StandardEventsFeature & IotaFeatures {
         return {
             'standard:connect': {
                 version: '1.0.0',
@@ -173,12 +173,13 @@ export class IotaWallet implements Wallet {
         }
     };
 
-    #connect: StandardConnectMethod = async (input) => {
+    #connect: StandardConnectExtendedMethod = async (input) => {
         if (!input?.silent) {
             await mapToPromise(
                 this.#send<AcquirePermissionsRequest, AcquirePermissionsResponse>({
                     type: 'acquire-permissions-request',
                     permissions: ALL_PERMISSION_TYPES,
+                    forceReinitialize: input?.forceReinitialize,
                 }),
                 (response) => response.result,
             );

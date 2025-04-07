@@ -74,6 +74,7 @@ export class ContentScriptConnection extends Connection {
                     payload.permissions,
                     this,
                     msg.id,
+                    payload.forceReinitialize,
                 );
                 if (permission) {
                     this.permissionReply(permission, msg.id);

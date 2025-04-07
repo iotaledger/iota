@@ -2,8 +2,13 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { ALL_PERMISSION_TYPES, isValidPermissionTypes } from '_payloads/permissions';
-import type { Permission, PermissionResponse, PermissionType } from '_payloads/permissions';
+import {
+    ALL_PERMISSION_TYPES,
+    isValidPermissionTypes,
+    type Permission,
+    type PermissionResponse,
+    type PermissionType,
+} from '_payloads/permissions';
 import mitt from 'mitt';
 import { catchError, concatMap, filter, from, mergeWith, share, Subject } from 'rxjs';
 import type { Observable } from 'rxjs';
@@ -124,6 +129,7 @@ class Permissions {
         permissionTypes: readonly PermissionType[],
         connection: ContentScriptConnection,
         requestMsgID: string,
+        forceReinitialize: boolean | undefined,
     ): Promise<Permission | null> {
         if (!isValidPermissionTypes(permissionTypes)) {
             throw new Error(
@@ -151,7 +157,7 @@ class Permissions {
             permissionTypes,
             existingPermission,
         );
-        if (alreadyAllowed && existingPermission) {
+        if (alreadyAllowed && existingPermission && !forceReinitialize) {
             return existingPermission;
         }
         const pRequest = await this.createPermissionRequest(
@@ -161,6 +167,7 @@ class Permissions {
             requestMsgID,
             connection.pagelink,
             existingPermission,
+            forceReinitialize,
         );
         await new Window(Permissions.getUiUrl(pRequest.id)).show();
         return null;
@@ -273,32 +280,36 @@ class Permissions {
         requestMsgID: string,
         pagelink?: string | undefined,
         existingPermission?: Permission | null,
+        forceReinitialize?: boolean,
     ): Promise<Permission> {
         let permissionToStore: Permission;
-        if (existingPermission) {
+        if (existingPermission && !forceReinitialize) {
             existingPermission.responseDate = null;
             existingPermission.requestMsgID = requestMsgID;
             if (existingPermission.allowed) {
-                permissionTypes.forEach((aPermission) => {
-                    if (!existingPermission.permissions.includes(aPermission)) {
-                        existingPermission.permissions.push(aPermission);
+                permissionTypes.forEach((p) => {
+                    if (!existingPermission.permissions.includes(p)) {
+                        existingPermission.permissions.push(p);
                     }
                 });
             } else {
-                existingPermission.permissions = permissionTypes as PermissionType[];
+                existingPermission.permissions = [...permissionTypes];
             }
             existingPermission.allowed = null;
             permissionToStore = existingPermission;
         } else {
+            const previousAccounts =
+                forceReinitialize && existingPermission ? existingPermission.accounts : [];
+
             permissionToStore = {
                 id: uuidV4(),
-                accounts: [],
+                accounts: previousAccounts,
                 allowed: null,
                 createdDate: new Date().toISOString(),
                 origin,
                 favIcon,
                 pagelink,
-                permissions: permissionTypes as PermissionType[],
+                permissions: [...permissionTypes],
                 responseDate: null,
                 requestMsgID,
             };

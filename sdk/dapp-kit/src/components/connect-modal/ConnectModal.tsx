@@ -44,7 +44,7 @@ type UncontrolledModalProps = {
 
 type ConnectModalProps = {
     /** The trigger button that opens the dialog. */
-    trigger: NonNullable<ReactNode>;
+    trigger?: NonNullable<ReactNode>;
 } & (ControlledModalProps | UncontrolledModalProps);
 
 export function ConnectModal({ trigger, open, defaultOpen, onOpenChange }: ConnectModalProps) {
@@ -99,7 +99,7 @@ export function ConnectModal({ trigger, open, defaultOpen, onOpenChange }: Conne
 
     return (
         <Dialog.Root open={open ?? isModalOpen} onOpenChange={handleOpenChange}>
-            <Dialog.Trigger asChild>{trigger}</Dialog.Trigger>
+            {trigger && <Dialog.Trigger asChild>{trigger}</Dialog.Trigger>}
             <Dialog.Portal>
                 <StyleMarker>
                     <Dialog.Overlay className={styles.overlay}>
