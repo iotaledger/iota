@@ -3,7 +3,7 @@
 
 import { useState } from 'react';
 import { EnterValuesFormView, ReviewValuesFormView, TransactionDetailsView } from './views';
-import { CoinBalance, CoinStruct } from '@iota/iota-sdk/client';
+import { CoinBalance } from '@iota/iota-sdk/client';
 import {
     useGetAllCoins,
     useSendCoinTransaction,
@@ -11,6 +11,7 @@ import {
     useCoinMetadata,
     createValidationSchemaSendTokenForm,
     IOTA_COIN_METADATA,
+    sumCoinBalances,
 } from '@iota/core';
 import { Dialog, DialogContent, DialogPosition } from '@iota/apps-ui-kit';
 import { INITIAL_VALUES } from './constants';
@@ -19,10 +20,6 @@ import { ampli } from '@/lib/utils/analytics';
 import { useQueryClient } from '@tanstack/react-query';
 import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 import { FormikProvider, useFormik } from 'formik';
-
-function totalBalance(coins: CoinStruct[]): bigint {
-    return coins.reduce((partialSum, c) => partialSum + BigInt(c.balance), BigInt(0));
-}
 
 interface SendCoinDialogProps {
     coin: CoinBalance;
@@ -54,8 +51,8 @@ function SendTokenDialogBody({
     );
     const queryClient = useQueryClient();
 
-    const coinBalance = totalBalance(coins);
-    const iotaBalance = totalBalance(iotaCoins);
+    const coinBalance = sumCoinBalances(coins);
+    const iotaBalance = sumCoinBalances(iotaCoins);
     const selectedCoinMetadata = useCoinMetadata(coin.coinType);
     const iotaCoinMetadata = useCoinMetadata(IOTA_TYPE_ARG);
     const coinDecimals = selectedCoinMetadata.data?.decimals ?? 0;

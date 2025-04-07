@@ -9,4 +9,4 @@ export const GAS_BUDGET_ERROR_MESSAGES = {
     [NOT_ENOUGH_BALANCE_ID]: 'Not enough balance to create the transaction.',
 };
 
-export const NO_BALANCE_GENERIC_MESSAGE = 'You might not have enough balance to pay for gas fees.';
+export const NO_BALANCE_GENERIC_MESSAGE = 'Make sure you have enough funds and try again.';
