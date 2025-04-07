@@ -679,6 +679,13 @@ describe('GraphQL IotaClient compatibility', () => {
         expect(graphql).toEqual(rpc);
     });
 
+    test.skip('getParticipationMetrics', async () => {
+        const rpc = await toolbox.client.getParticipationMetrics();
+        const graphql = await graphQLClient!.getParticipationMetrics();
+
+        expect(graphql).toEqual(rpc);
+    });
+
     test.skip('getMoveCallMetrics', async () => {
         const rpc = await toolbox.client.getMoveCallMetrics();
         const graphql = await graphQLClient!.getMoveCallMetrics();
