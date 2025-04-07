@@ -1231,6 +1231,7 @@ mod adapter_tests {
         committee::Committee,
         crypto::{AuthorityKeyPair, AuthorityPublicKeyBytes, get_key_pair_from_rng},
     };
+    use prometheus::Registry;
     use rand::{Rng, SeedableRng, rngs::StdRng};
 
     use super::position_submit_certificate;
