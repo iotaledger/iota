@@ -1,6 +1,6 @@
 {
     "name": "@iota/ledgerjs-hw-app-iota",
-    "version": "0.2.1",
+    "version": "0.2.2",
     "description": "Ledger Hardware Wallet IOTA Application API",
     "keywords": [
         "Ledger",

@@ -1,7 +1,6 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { useIotaClientQuery } from '@iota/dapp-kit';
 import { useGetDelegatedStake } from './stake';
 import { useGetValidatorsApy } from './useGetValidatorsApy';
 import {
@@ -15,6 +14,7 @@ import {
     getValidatorCommission,
 } from '../utils';
 import { useFormatCoin } from './useFormatCoin';
+import { useGetLatestIotaSystemState } from './useGetLatestIotaSystemState';
 
 interface UseGetStakingValidatorDetailsArgs {
     accountAddress: string | null;
@@ -29,7 +29,7 @@ export function useGetStakingValidatorDetails({
     validatorAddress,
     unstake,
 }: UseGetStakingValidatorDetailsArgs) {
-    const systemDataResult = useIotaClientQuery('getLatestIotaSystemState');
+    const systemDataResult = useGetLatestIotaSystemState();
 
     const delegatedStakeDataResult = useGetDelegatedStake({
         address: accountAddress || '',
@@ -86,5 +86,8 @@ export function useGetStakingValidatorDetails({
         systemDataResult,
         delegatedStakeDataResult,
         commission: getValidatorCommission(validatorData),
+        isCommitteeMember: system?.committeeMembers.find(
+            (committeeMember) => validatorAddress === committeeMember.iotaAddress,
+        ),
     };
 }

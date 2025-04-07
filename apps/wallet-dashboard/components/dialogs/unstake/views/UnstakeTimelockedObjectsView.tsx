@@ -3,16 +3,9 @@
 
 import { StakeRewardsPanel, ValidatorStakingData } from '@/components';
 import { DialogLayout, DialogLayoutBody, DialogLayoutFooter } from '../../layout';
-import { Validator } from '@iota/core';
+import { useGetLatestIotaSystemState, Validator } from '@iota/core';
 import { useNewUnstakeTimelockedTransaction } from '@/hooks';
-import {
-    Collapsible,
-    TimeUnit,
-    useFormatCoin,
-    useGetActiveValidatorsInfo,
-    useTimeAgo,
-    toast,
-} from '@iota/core';
+import { Collapsible, TimeUnit, useFormatCoin, useTimeAgo, toast } from '@iota/core';
 import {
     ExtendedDelegatedTimelockedStake,
     TimelockedStakedObjectsGrouped,
@@ -54,7 +47,7 @@ export function UnstakeTimelockedObjectsView({
     const reductionSize = useRef(0);
     const [isMaxTransactionSizeError, setIsMaxTransactionSizeError] = useState(false);
     const activeAddress = useCurrentAccount()?.address ?? '';
-    const { data: activeValidators } = useGetActiveValidatorsInfo();
+    const { data: systemState } = useGetLatestIotaSystemState();
 
     const stakes = (() => {
         if (isMaxTransactionSizeError) {
@@ -75,7 +68,7 @@ export function UnstakeTimelockedObjectsView({
     const { mutateAsync: signAndExecuteTransaction, isPending: isTransactionPending } =
         useSignAndExecuteTransaction();
 
-    const validatorInfo = activeValidators?.find(
+    const validatorInfo = systemState?.activeValidators?.find(
         ({ iotaAddress: validatorAddress }) =>
             validatorAddress === groupedTimelockedObjects.validatorAddress,
     );

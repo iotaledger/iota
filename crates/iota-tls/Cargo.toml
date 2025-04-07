@@ -23,8 +23,8 @@ rustls.workspace = true
 tokio.workspace = true
 tokio-rustls.workspace = true
 tower-layer = "0.3.2"
-webpki = { version = "0.102", package = "rustls-webpki", features = ["alloc", "std"] }
-x509-parser = "0.14.0"
+webpki = { version = "0.103", package = "rustls-webpki", features = ["alloc", "ring", "std"] }
+x509-parser = "0.17.0"
 
 [dev-dependencies]
 rand.workspace = true

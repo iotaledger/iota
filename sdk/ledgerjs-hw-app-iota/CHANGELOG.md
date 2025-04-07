@@ -1,5 +1,11 @@
 # @iota/ledgerjs-hw-app-iota
 
+## 0.2.2
+
+### Patch Changes
+
+-   7a58232: Update dependencies
+
 ## 0.2.1
 
 ### Patch Changes

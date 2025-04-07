@@ -9,6 +9,7 @@ import { getFullnodeUrl } from '@iota/iota-sdk/client';
 import clsx from 'clsx';
 import { useConnectWallet, useWallets } from '@iota/dapp-kit';
 import { handleChallengeSubmit } from "../../utils/ctf-utils"
+import PopIn from './pop-in';
 
 interface ChallengeVerifierProps {
   expectedObjectType: string;
@@ -27,23 +28,25 @@ const ChallengeVerifier: React.FC<ChallengeVerifierProps> = ({
 }) => {
   const [inputText, setInputText] = useState('');
   const [coins, setCoins] = useState<string | null>(null);
-  const [setShowPopIn] = useState<boolean>(false);
+  const [showPopIn, setShowPopIn] = useState<boolean>(false);
   const [loading, setLoading] = useState(false);
   const [response, setResponse] = useState<{
     status: 'success' | 'error';
     description: string;
     title: string;
+    digest: string;
   }>({
     status: 'success',
     description: '',
     title: '',
+    digest: ''
   });
 
   const wallets = useWallets();
   const { mutate } = useConnectWallet();
   const { mutate: signAndExecuteTransaction} = useSignAndExecuteTransaction();
-  const handleSubmit = async () => {
-   await handleChallengeSubmit({
+  const handleSubmit = () => {
+    handleChallengeSubmit({
       inputText,
       expectedObjectType,
       nftName,
@@ -78,8 +81,18 @@ const ChallengeVerifier: React.FC<ChallengeVerifierProps> = ({
         >
           {loading ? 'Loading...' : 'Submit Your Challenge'}
         </button>
-        {coins && <p className='mb-0 py-3 px-2 bg-[#353535] rounded-md'>{coins}</p>}
+        {coins && <p className='mb-0 mt-2 p-2 bg-[#353535] rounded-md'>{coins}</p>}
       </div>
+      {showPopIn && (
+        <PopIn
+            status={response.status}
+            description={response.description}
+            title={response.title}
+            setShowPopIn={setShowPopIn}
+            digest={response.digest}
+            showPopIn={showPopIn}
+        />
+      )}
     </div>
   );
 };
