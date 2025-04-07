@@ -23,7 +23,7 @@ In ISC, we have a similar concept for Move objects that you want to use in the E
 Create a function which allows an address or contract to access a specific ID of your account:
 
 ```solidity
-function allow(address _address, bytes32 _allowanceNFTID) public {
+function allow(address _address, bytes32 _allowanceObjectID) public {
 ```
 
 ### 2. Create the `ISCAssets` object
@@ -40,7 +40,7 @@ ISC.sandbox.allow(_address, assets);
 
 ### 3. Use the Assets as Allowance
 
-With that asset, you can call `allow` to allow address to take our NFT:
+With that asset, you can call `allow` to allow address to take our Object:
 
 ```solidity
 ISC.sandbox.allow(_address, assets);

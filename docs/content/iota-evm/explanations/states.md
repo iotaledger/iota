@@ -15,7 +15,7 @@ teams:
 
 The state of the chain consists of:
 
-- A ledger of accounts owning IOTA _digital assets_ (base tokens and NFTs). The chain acts as a custodian
+- A ledger of accounts owning IOTA _digital assets_ (coins and other objects). The chain acts as a custodian
   for those funds on behalf of each account's owner.
 - A collection of arbitrary key/value pairs (the _data state_) that contains use case-specific data stored by the smart
   contracts in the chain.

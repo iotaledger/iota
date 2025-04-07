@@ -1,5 +1,5 @@
 ---
-description: How to get the L2 NFTs owned by an account.
+description: How to get the L2 Objects owned by an account.
 image: /img/logo/WASP_logo_dark.png
 tags:
   - evm
@@ -7,31 +7,31 @@ tags:
 teams:
   - iotaledger/l2-smart-contract
 ---
-import GetNftMetadata from '../../../../_snippets/iota-evm/how-tos/token/get-nft-metadata.md';
+import GetObjectMetadata from '../../../../_snippets/iota-evm/how-tos/token/get-nft-metadata.md';
 import ISCAgentID from '../../../../_snippets/iota-evm/AgentID.md';
 
-# Get NFTs Owned by an Account
+# Get Objects Owned by an Account
 
-This guide will show you how to get the L2 NFTs owned by an account using the [`ISCAccounts.getL2NFTs`].
-<GetNftMetadata/>
+This guide will show you how to get the L2 Objects owned by an account using the [`ISCAccounts.getL2Objects`].
+<GetObjectMetadata/>
 
-## Understanding the `getL2NFTs` Function
+## Understanding the `getL2Objects` Function
 
-The `getL2NFTs` function is a view function provided by the `ISCAccounts` interface. It takes an `ISCAgentID` as an argument and returns an array of `NFTID` objects. This function allows users to query and retrieve the list of L2 NFTs owned by a specified agent.
+The `getL2Objects` function is a view function provided by the `ISCAccounts` interface. It takes an `ISCAgentID` as an argument and returns an array of `ObjectID` objects. This function allows users to query and retrieve the list of L2 Objects owned by a specified agent.
 <ISCAgentID/>
 
-The returned array contains the identifiers of the NFTs, which can then be used to fetch more details about each NFT if needed.
+The returned array contains the identifiers of the Objects, which can then be used to fetch more details about each Object if needed.
 
-## Implement the `getL2NFTs` Function
+## Implement the `getL2Objects` Function
 
-Here’s a sample implementation to retrieve L2 NFTs owned by an account:
+Here’s a sample implementation to retrieve L2 s owned by an account:
 
 ```solidity
-function getOwnedNFTs() public view returns (IotaObjectID[] memory) {
+function getOwnedObjects() public view returns (IotaObjectID[] memory) {
       ISCAgentID memory agentID = ISC.sandbox.getSenderAccount();
-      // Call the getL2NFTs function from the ISCAccounts contract
-      IotaObjectID[] memory ownedNFTs = ISC.accounts.getL2Objects(agentID);
-      return ownedNFTs;
+      // Call the getL2Objects function from the ISCAccounts contract
+      IotaObjectID[] memory ownedObjects = ISC.accounts.getL2Objects(agentID);
+      return ownedObjects;
   }
 ```
 
@@ -43,13 +43,13 @@ pragma solidity >=0.8.24;
 
 import "@iota/iscmagic/ISC.sol";
 
-contract MyNFTContract {
+contract MyObjectContract {
 
-  function getOwnedNFTs() public view returns (IotaObjectID[] memory) {
+  function getOwnedObjects() public view returns (IotaObjectID[] memory) {
       ISCAgentID memory agentID = ISC.sandbox.getSenderAccount();
-      // Call the getL2NFTs function from the ISCAccounts contract
-      IotaObjectID[] memory ownedNFTs = ISC.accounts.getL2Objects(agentID);
-      return ownedNFTs;
+      // Call the getL2Objects function from the ISCAccounts contract
+      IotaObjectID[] memory ownedObjects = ISC.accounts.getL2Objects(agentID);
+      return ownedObjects;
   }
 }
 ```

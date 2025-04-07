@@ -227,11 +227,6 @@ const iotaEvm = [
                             },
                             {
                                 type: 'doc',
-                                label: 'Get NFT Metadata',
-                                id: 'iota-evm/how-tos/core-contracts/objects/get-nft-metadata',
-                            },
-                            {
-                                type: 'doc',
                                 label: 'Get NFTs Owned by an Account',
                                 id: 'iota-evm/how-tos/core-contracts/objects/get-L2-nfts',
                             },
@@ -239,11 +234,6 @@ const iotaEvm = [
                                 type: 'doc',
                                 label: 'Get NFTs in Collection',
                                 id: 'iota-evm/how-tos/core-contracts/objects/get-nft-in-collection',
-                            },
-                            {
-                                type: 'doc',
-                                label: 'Get On-Chain NFT Data',
-                                id: 'iota-evm/how-tos/core-contracts/objects/get-nft-data',
                             },
                         ],
                     },

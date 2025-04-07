@@ -27,10 +27,10 @@ ISCAgentID memory agentID = ISC.sandbox.getSenderAccount();
 uint64 baseBalance = ISC.accounts.getL2BalanceBaseTokens(agentID);
 ```
 
-3. To get the number of NFTs/Objects, use `ISC.accounts.getL2ObjectsCount` with the `agentID`.
+3. To get the number coins/Objects, use `ISC.accounts.getL2ObjectsCount` with the `agentID`.
 
 ```solidity
-uint256 nfts = ISC.accounts.getL2ObjectsCount(agentID);
+uint256 object = ISC.accounts.getL2ObjectsCount(agentID);
 ```
 
 ### Full Example Code
@@ -46,18 +46,18 @@ contract GetBalance {
     event GotAgentID(bytes agentID);
     event GotBaseBalance(uint64 baseBalance);
     event GotNativeTokenBalance(uint256 nativeTokenBalance);
-    event GotNFTIDs(uint256 nftBalance);
+    event GotObjectIDs(uint256 objectBalance);
 
-    function getBalanceBaseTokens() public {
+    function getBalanceCoins() public {
         ISCAgentID memory agentID = ISC.sandbox.getSenderAccount();
         uint64 baseBalance = ISC.accounts.getL2BalanceBaseTokens(agentID);
         emit GotBaseBalance(baseBalance);
     }
 
-    function getBalanceNFTs() public {
+    function getBalanceObject() public {
         ISCAgentID memory agentID = ISC.sandbox.getSenderAccount();
-        uint256 nfts = ISC.accounts.getL2ObjectsCount(agentID);
-        emit GotNFTIDs(nfts);
+        uint256 object = ISC.accounts.getL2ObjectsCount(agentID);
+        emit GotObjectIDs(object);
     }
 
     function getAgentID() public {
