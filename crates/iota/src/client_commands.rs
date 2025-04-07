@@ -571,9 +571,9 @@ pub struct Opts {
 
     /// Select which fields of the response to display.
     /// If not provided, all fields are displayed.
-    /// The fields are: effects, input, events, object_changes,
+    /// The fields are: input, effects, events, object_changes,
     /// balance_changes.
-    #[arg(long, required = false, num_args = 0.., value_parser = parse_emit_option, default_value = "effects,input,events,object_changes,balance_changes")]
+    #[arg(long, required = false, num_args = 0.., value_parser = parse_emit_option, default_value = "input,effects,events,object_changes,balance_changes")]
     pub emit: HashSet<EmitOption>,
 }
 
@@ -668,8 +668,8 @@ impl OptsWithGas {
 #[derive(Clone, Debug, EnumString, Hash, Eq, PartialEq)]
 #[strum(serialize_all = "snake_case")]
 pub enum EmitOption {
-    Effects,
     Input,
+    Effects,
     Events,
     ObjectChanges,
     BalanceChanges,
@@ -3062,25 +3062,25 @@ pub(crate) async fn prerender_clever_errors(
 fn opts_from_cli(opts: HashSet<EmitOption>) -> IotaTransactionBlockResponseOptions {
     if opts.is_empty() {
         IotaTransactionBlockResponseOptions::new()
-            .with_effects()
             .with_input()
+            .with_effects()
             .with_events()
             .with_object_changes()
             .with_balance_changes()
     } else {
         IotaTransactionBlockResponseOptions {
             show_input: opts.contains(&EmitOption::Input),
+            show_raw_input: false,
+            show_effects: true,
+            show_raw_effects: false,
             show_events: opts.contains(&EmitOption::Events),
             show_object_changes: opts.contains(&EmitOption::ObjectChanges),
             show_balance_changes: opts.contains(&EmitOption::BalanceChanges),
-            show_effects: true,
-            show_raw_effects: false,
-            show_raw_input: false,
         }
     }
 }
 
-fn parse_emit_option(s: &str) -> Result<HashSet<EmitOption>, String> {
+pub(crate) fn parse_emit_option(s: &str) -> Result<HashSet<EmitOption>, String> {
     let mut options = HashSet::new();
 
     // Split the input string by commas and try to parse each part
