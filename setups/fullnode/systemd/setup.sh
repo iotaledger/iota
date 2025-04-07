@@ -46,6 +46,8 @@ if ! command -v cargo &> /dev/null; then
 fi
 
 
+
+
 echo -e "This script will perform the following steps:"
 echo -e " ${G}1.${NC} Check rust toolchain version"
 echo -e " ${G}2.${NC} Install system packages (libraries & other dependencies)"
@@ -54,11 +56,16 @@ echo -e " ${G}4.${NC} Build the iota-node binary"
 echo -e " ${G}5.${NC} Create a user called iota, make it own directories for service binary, config and data"
 echo -e " ${G}6.${NC} Create a node config file, download genesis/migration blobs"
 echo -e " ${G}7.${NC} Create a systemd service unit file"
-echo -e " ${G}8.${NC} Start the service\n"
+echo -e " ${G}8.${NC} (Re-)Start the service\n"
 read -p "Continue ? [y/N] " response
 if [[ ! $response =~ ^[Yy]$ ]]; then
     red "[ERROR] Install cancelled"
     exit 1
+fi
+
+if [ "$(systemctl is-active iota-node)" == "active" ]; then 
+    info "stopping existing IOTA node service"
+    systemctl stop iota-node
 fi
 
 
@@ -106,7 +113,7 @@ fi
 
 
 # Build the binaries 
-cargo build --release --bin iota-node 
+# cargo build --release --bin iota-node 
 
 
 # Add a IOTA user, create directories for iota-node service
@@ -127,13 +134,19 @@ write_to_file() {
         if diff -q <(echo -e "$CONTENTS") "$FILE_PATH" >/dev/null; then
             info "$FILE_PATH already exists and matches"
         else
-            read -p "Config file $FILE_PATH already exists, but does not match. Overwrite ? [y/N]" answer
-            if [[ ! $answer =~ ^[Yy]$ ]]; then
-                red "Install cancelled"
-                exit 1
-            fi
-            sudo mkdir -p "$(dirname "$FILE_PATH")"
-            sudo echo -e "$CONTENTS" > "$FILE_PATH"
+            echo -e "Config file $FILE_PATH already exists, but does not match. \n\tOverwrite ? [o]\n\tKeep existing ? [k]\n\tOr cancel ? [any other key]"
+            read -p "" answer
+            case "$answer" in
+                o|O ) 
+                    info "Overwriting $FILE_PATH";             
+                    sudo mkdir -p "$(dirname "$FILE_PATH")"
+                    sudo echo -e "$CONTENTS" > "$FILE_PATH" ;; 
+                k|K ) 
+                    info "Keeping existing $FILE_PATH";; 
+                * ) 
+                    red "Install cancelled"; exit 1;;
+            esac
+
         fi
     else 
         sudo mkdir -p "$(dirname "$FILE_PATH")"
