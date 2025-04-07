@@ -139,6 +139,40 @@ class Permissions {
         );
         if (hasPendingRequest) {
             if (existingPermission) {
+                console.log('has pending requests');
+
+                // close the old window if it exists
+                const existingWindowId = this.#_permissionWindows.get(existingPermission.id);
+                if (existingWindowId) {
+                    try {
+                        await Browser.windows.remove(existingWindowId);
+                    } catch (e) {
+                        // ignore
+                    }
+
+                    const pRequest = await this.createPermissionRequest(
+                        connection.origin,
+                        permissionTypes,
+                        connection.originFavIcon,
+                        requestMsgID,
+                        connection.pagelink,
+                        existingPermission,
+                    );
+                    const pWindow = new Window(Permissions.getUiUrl(pRequest.id));
+                    const windowClosedStream = await pWindow.show();
+
+                    windowClosedStream.subscribe(() => {
+                        this.handleWindowClosureAsRejection(pRequest.id, requestMsgID, connection);
+                    });
+
+                    if (pWindow.id) {
+                        this.#_permissionWindows.set(pRequest.id, pWindow.id);
+                    }
+
+                    console.log('closed prev window, opened new one');
+                    return null;
+                }
+
                 const uiUrl = Permissions.getUiUrl(existingPermission.id);
                 const found = await Tabs.openUrlIfNotActive({ url: uiUrl });
                 if (!found) {
