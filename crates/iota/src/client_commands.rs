@@ -667,8 +667,8 @@ impl OptsWithGas {
 #[derive(Clone, Debug, EnumString, Hash, Eq, PartialEq)]
 #[strum(serialize_all = "snake_case")]
 pub enum EmitOption {
-    Effects,
     Input,
+    Effects,
     Events,
     ObjectChanges,
     BalanceChanges,
