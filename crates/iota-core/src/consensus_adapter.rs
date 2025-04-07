@@ -1315,9 +1315,9 @@ mod adapter_tests {
         }
     }
 
-    #[test]
+    #[tokio::test]
     #[should_panic]
-    fn test_reregister_consensus_adapter_metrics() {
+    async fn test_reregister_consensus_adapter_metrics() {
         let registry = Registry::new();
         // create metric the first time
         let _metrics = ConsensusAdapterMetrics::new(&registry);
@@ -1326,8 +1326,8 @@ mod adapter_tests {
         let _metrics = ConsensusAdapterMetrics::new(&registry);
     }
 
-    #[test]
-    fn test_unregister_consensus_adapter_metrics() {
+    #[tokio::test]
+    async fn test_unregister_consensus_adapter_metrics() {
         let registry = Registry::new();
 
         // create metric the first time
