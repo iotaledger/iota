@@ -103,10 +103,6 @@ function registerUnsafeBurnerWallet(iotaClient: IotaClient) {
                     version: '2.0.0',
                     signAndExecuteTransaction: this.#signAndExecuteTransaction,
                 },
-                'iota:connect': {
-                    version: '1.0.0',
-                    connect: this.#connect,
-                },
             };
         }
 
