@@ -52,14 +52,9 @@ export function useConnectWallet({
                 setConnectionStatus('connecting');
 
                 const standardConnectMethod = wallet.features[StandardConnect].connect;
+                const iotaConnectMethod = wallet.features[IotaConnect]?.connect;
 
-                const iotaConnectMethodWithFallback =
-                    wallet.features[IotaConnect]?.connect ?? standardConnectMethod;
-                const isForceReconnect = !!connectArgs.forceReinitialize;
-
-                const connectMethod = isForceReconnect
-                    ? iotaConnectMethodWithFallback
-                    : standardConnectMethod;
+                const connectMethod = standardConnectMethod || iotaConnectMethod;
 
                 const connectResult = await connectMethod(connectArgs);
                 const connectedIotaAccounts = connectResult.accounts.filter((account) =>

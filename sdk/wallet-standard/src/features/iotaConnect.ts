@@ -8,7 +8,8 @@ export const IotaConnect = 'iota:connect' as const;
 export type IotaConnectFeatureVersion = '1.0.0';
 
 export type IotaConnectFeature = {
-    readonly [IotaConnect]: {
+    // Might not be supported by all the wallets.
+    readonly [IotaConnect]?: {
         readonly version: IotaConnectFeatureVersion;
         readonly connect: IotaConnectMethod;
     };

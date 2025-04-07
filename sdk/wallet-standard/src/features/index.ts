@@ -22,14 +22,14 @@ import type { IotaConnectFeature } from './iotaConnect.js';
 export type IotaFeatures = IotaSignPersonalMessageFeature &
     IotaSignAndExecuteTransactionFeature &
     IotaSignTransactionFeature &
-    Partial<IotaReportTransactionEffectsFeature> &
-    IotaConnectFeature;
+    Partial<IotaReportTransactionEffectsFeature>;
 
 export type IotaWalletFeatures = StandardConnectFeature &
     StandardEventsFeature &
     IotaFeatures &
     // Disconnect is an optional feature:
-    Partial<StandardDisconnectFeature>;
+    Partial<StandardDisconnectFeature> &
+    IotaConnectFeature;
 
 export type WalletWithIotaFeatures = WalletWithFeatures<IotaWalletFeatures>;
 
@@ -40,7 +40,8 @@ export type WalletWithRequiredFeatures = WalletWithFeatures<
     MinimallyRequiredFeatures &
         Partial<IotaFeatures> &
         Partial<StandardDisconnectFeature> &
-        IdentifierRecord<unknown>
+        IdentifierRecord<unknown> &
+        IotaConnectFeature
 >;
 
 export type MinimallyRequiredFeatures = StandardConnectFeature & StandardEventsFeature;
