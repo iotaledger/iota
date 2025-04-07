@@ -1737,7 +1737,7 @@ impl IotaNode {
                     consensus_adapter.unregister_consensus_adapter_metrics(
                         &self.registry_service.default_registry(),
                     );
-                    info!("Unregistered consensus adapter metrics");
+                    debug!("Unregistered consensus adapter metrics");
                     None
                 }
             } else {
