@@ -8,7 +8,7 @@ use iota_json_rpc_api::{
 };
 use iota_json_rpc_types::{
     AddressMetrics, EpochInfo, EpochMetrics, EpochMetricsPage, EpochPage, MoveCallMetrics,
-    NetworkMetrics, Page,
+    NetworkMetrics, Page, ParticipationMetrics,
 };
 use iota_open_rpc::Module;
 use iota_types::iota_serde::BigInt;
@@ -154,6 +154,13 @@ impl ExtendedApiServer for ExtendedApi {
             .spawn_blocking(|this| this.get_latest_checkpoint())
             .await?;
         Ok(latest_checkpoint.network_total_transactions.into())
+    }
+
+    async fn get_participation_metrics(&self) -> RpcResult<ParticipationMetrics> {
+        self.inner
+            .spawn_blocking(|this| this.get_participation_metrics())
+            .await
+            .map_err(Into::into)
     }
 }
 

@@ -35,7 +35,6 @@ export * from './useIotaAddressValidation';
 export * from './useUnlockTimelockedObjectsTransaction';
 export * from './useGetAllOwnedObjects';
 export * from './useGetTimelockedStakedObjects';
-export * from './useGetActiveValidatorsInfo';
 export * from './useGetStakingValidatorDetails';
 export * from './useCursorPagination';
 export * from './useTheme';
@@ -56,6 +55,7 @@ export * from './useSendCoinTransaction';
 export * from './useGetClockTimestamp';
 export * from './useAssetGasBudgetEstimation';
 export * from './useRecognizedPackages';
+export * from './useGetLatestIotaSystemState';
 
 export * from './stake';
 export * from './ui';

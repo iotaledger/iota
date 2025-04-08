@@ -12,7 +12,7 @@ use std::{
 use futures::FutureExt;
 use parking_lot::Mutex;
 use prometheus::{
-    IntCounterVec, IntGaugeVec, Registry, register_int_counter_vec_with_registry,
+    IntCounterVec, IntGaugeVec, Registry, opts, register_int_counter_vec_with_registry,
     register_int_gauge_vec_with_registry,
 };
 use tokio::{
@@ -190,6 +190,32 @@ impl HistogramVec {
             labels,
             channel: self.channel.clone(),
         }
+    }
+
+    // HistogramVec uses asynchronous model to report metrics which makes
+    // it difficult to unregister counters in the usual manner. Here we
+    // re-create counters so that their `desc()`s match the ones created by
+    // HistogramVec and remove them from the registry. Counters can be safely
+    // unregistered even if they are still in use.
+    pub fn unregister(name: &str, desc: &str, labels: &[&str], registry: &Registry) {
+        let sum_name = format!("{}_sum", name);
+        let count_name = format!("{}_count", name);
+
+        let sum = IntCounterVec::new(opts!(sum_name, desc), labels).unwrap();
+        registry
+            .unregister(Box::new(sum))
+            .unwrap_or_else(|_| panic!("{}_sum counter is in prometheus registry", name));
+
+        let count = IntCounterVec::new(opts!(count_name, desc), labels).unwrap();
+        registry
+            .unregister(Box::new(count))
+            .unwrap_or_else(|_| panic!("{}_count counter is in prometheus registry", name));
+
+        let labels: Vec<_> = labels.iter().cloned().chain(["pct"]).collect();
+        let gauge = IntGaugeVec::new(opts!(name, desc), &labels).unwrap();
+        registry
+            .unregister(Box::new(gauge))
+            .unwrap_or_else(|_| panic!("{} gauge is in prometheus registry", name));
     }
 }
 
