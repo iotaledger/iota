@@ -45,6 +45,10 @@ interface ToggleProps {
      * The size of the toggle.
      */
     size?: ToggleSize;
+    /**
+     * The 'data-testid' attribute value (used in e2e tests)
+     */
+    testId?: string;
 }
 
 export const Toggle = forwardRef<HTMLInputElement, ToggleProps>(
@@ -57,6 +61,7 @@ export const Toggle = forwardRef<HTMLInputElement, ToggleProps>(
             onChange,
             name,
             size = ToggleSize.Default,
+            testId,
         }: ToggleProps,
         ref,
     ) => {
@@ -119,6 +124,7 @@ export const Toggle = forwardRef<HTMLInputElement, ToggleProps>(
                     ref={assignRefs}
                     disabled={isDisabled}
                     onChange={handleChange}
+                    data-testid={testId}
                 />
 
                 <span
