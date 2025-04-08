@@ -3,6 +3,7 @@
 
 import type { Meta, StoryObj } from '@storybook/react';
 import { Toggle, ToggleLabelPosition, ToggleSize } from '@/components';
+import { useState } from 'react';
 
 const meta: Meta<typeof Toggle> = {
     component: Toggle,
@@ -44,5 +45,15 @@ type Story = StoryObj<typeof meta>;
 export const Default: Story = {
     args: {
         label: 'Label',
+    },
+    render: (args) => {
+        const [isActive, setIsActive] = useState(args.isActive);
+
+        const handleToggleChange = (newActiveState: boolean) => {
+            console.log('Toggle state changed:', newActiveState);
+            setIsActive(newActiveState);
+        };
+
+        return <Toggle {...args} isActive={isActive} onChange={handleToggleChange} />;
     },
 };

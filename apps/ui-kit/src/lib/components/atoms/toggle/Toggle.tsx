@@ -1,7 +1,7 @@
 // Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { forwardRef, useEffect, useRef, useState } from 'react';
+import { forwardRef, useRef } from 'react';
 import { ToggleLabelPosition, ToggleSize } from './toggle.enums';
 import {
     TOGGLE,
@@ -24,7 +24,7 @@ interface ToggleProps {
     /**
      * The state of the toggle (on or off).
      */
-    isActive?: boolean;
+    isActive: boolean;
     /**
      * Whether the label should be placed before the toggle.
      */
@@ -55,7 +55,7 @@ export const Toggle = forwardRef<HTMLInputElement, ToggleProps>(
     (
         {
             label,
-            isActive = false,
+            isActive,
             labelPosition = ToggleLabelPosition.Right,
             isDisabled = false,
             onChange,
@@ -66,15 +66,9 @@ export const Toggle = forwardRef<HTMLInputElement, ToggleProps>(
         ref,
     ) => {
         const inputRef = useRef<HTMLInputElement | null>(null);
-        const [isToggledOn, setIsToggledOn] = useState(isActive);
-
-        useEffect(() => {
-            setIsToggledOn(isActive);
-        }, [isActive]);
 
         function handleChange(e: React.ChangeEvent<HTMLInputElement>) {
             const newChecked = e.target.checked;
-            setIsToggledOn(newChecked);
             onChange?.(newChecked, e);
         }
 
@@ -90,18 +84,18 @@ export const Toggle = forwardRef<HTMLInputElement, ToggleProps>(
         }
 
         const toggleClasses = cx(TOGGLE, {
-            [TOGGLE_STATES.active]: isToggledOn && !isDisabled,
-            [TOGGLE_STATES.inactive]: !isToggledOn,
-            [TOGGLE_STATES.disabledActive]: isDisabled && isToggledOn,
+            [TOGGLE_STATES.active]: isActive && !isDisabled,
+            [TOGGLE_STATES.inactive]: !isActive,
+            [TOGGLE_STATES.disabledActive]: isDisabled && isActive,
             [TOGGLE_STATES.disabled]: isDisabled,
             [TOGGLE_SIZE[size]]: true,
         });
 
         const thumbClasses = cx(TOGGLE_THUMB, {
-            [TOGGLE_THUMB_POSITION[size].unchecked]: !isToggledOn,
-            [TOGGLE_THUMB_POSITION[size].checked]: isToggledOn,
-            [TOGGLE_THUMB_COLOR.unchecked]: !isToggledOn,
-            [TOGGLE_THUMB_COLOR.checked]: isToggledOn,
+            [TOGGLE_THUMB_POSITION[size].unchecked]: !isActive,
+            [TOGGLE_THUMB_POSITION[size].checked]: isActive,
+            [TOGGLE_THUMB_COLOR.unchecked]: !isActive,
+            [TOGGLE_THUMB_COLOR.checked]: isActive,
             [TOGGLE_THUMB_SIZE[size]]: true,
         });
 
@@ -110,7 +104,7 @@ export const Toggle = forwardRef<HTMLInputElement, ToggleProps>(
             'cursor-not-allowed': isDisabled,
         });
         const labelClasses = cx(TOGGLE_LABEL, {
-            'opacity-40': isDisabled && !isToggledOn,
+            'opacity-40': isDisabled && !isActive,
         });
 
         return (
@@ -120,7 +114,7 @@ export const Toggle = forwardRef<HTMLInputElement, ToggleProps>(
                     name={name}
                     type="checkbox"
                     className="sr-only"
-                    checked={isToggledOn}
+                    checked={isActive}
                     ref={assignRefs}
                     disabled={isDisabled}
                     onChange={handleChange}
