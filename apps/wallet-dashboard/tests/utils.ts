@@ -3,6 +3,7 @@
 
 import type { Page } from '@playwright/test';
 import { Ed25519Keypair } from '@iota/iota-sdk/keypairs/ed25519';
+import { expect } from './fixtures';
 
 export async function createWallet(page: Page, extensionUrl: string) {
     await page.goto(extensionUrl, { waitUntil: 'commit' });
@@ -15,22 +16,14 @@ export async function createWallet(page: Page, extensionUrl: string) {
     await page.getByRole('button', { name: /Create Wallet/ }).click();
     await page.waitForURL(new RegExp(/accounts\/backup/));
 
-    const mnemonicBox = page.getByTestId('mnemonic-display-box');
+    const BOX_TEST_ID = 'mnemonic-display-box';
+    const mnemonicBox = await page.getByTestId(BOX_TEST_ID);
+
+    await expect(mnemonicBox).toBeVisible();
 
     await mnemonicBox.getByRole('button').first().click();
-
-    const mnemonic = await mnemonicBox.getByRole('textbox').innerText();
-
-    console.log(mnemonicBox);
-
-    // await page.getByRole('button', { name: 'Copy' }).click();
-    // await page
-    //     .locator('div')
-    //     .filter({ hasText: /^I saved my mnemonic$/ })
-    //     .nth(1)
-    //     .click();
-
-    // await page.getByRole('button', { name: /Open Wallet/ }).click();
+    const textarea = await mnemonicBox.locator('textarea');
+    const mnemonic = await textarea.inputValue();
 
     const address = deriveAddressFromMnemonic(mnemonic);
 
