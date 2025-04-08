@@ -32,7 +32,7 @@ Returns the record for a given smart contract with Hname `hn` (if it exists).
 | Name | Type              | Description                                      |
 |------|-------------------|--------------------------------------------------|
 | cf   | bool              | Whether or not the contract exists.             |
-| dt   | [ContractRecord](./types.md#struct-contractrecord) | The requested contract record (if it exists). |
+| dt   | [ContractRecord](./types.md#contractrecord) | The requested contract record (if it exists). |
 
 ### `getContractRecords`
 
@@ -42,4 +42,4 @@ Returns the list of all smart contracts deployed on the chain and related record
 
 | Name | Type              | Description                                      |
 |------|-------------------|--------------------------------------------------|
-| records | map[u32][[ContractRecord](./types.md#struct-contractrecord)] | A map of Hname to contract records. |
+| records | map[u32][[ContractRecord](./types.md#contractrecord)] | A map of Hname to contract records. |

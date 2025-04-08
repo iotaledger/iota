@@ -130,7 +130,7 @@ Sets the fee policy for the chain. It can only be invoked by the chain owner.
 
 | Name      | Type                                           | Optional | Description    |
 |-----------|------------------------------------------------|----------|----------------|
-| feePolicy | [FeePolicy](./types.md#struct-feepolicy) | No       | The fee policy |
+| feePolicy | [FeePolicy](./types.md#feepolicy) | No       | The fee policy |
 
 #### Returns
 
@@ -144,7 +144,7 @@ Sets the gas limits for the chain. It can only be invoked by the chain owner.
 
 | Name      | Type        | Optional | Description    |
 |-----------|-------------|----------|----------------|
-| gasLimits | [Limits](./types.md#struct-limits) | No       | The gas limits |
+| gasLimits | [Limits](./types.md#limits) | No       | The gas limits |
 
 #### Returns
 
@@ -158,7 +158,7 @@ Sets the EVM gas ratio for the chain. It can only be invoked by the chain owner.
 
 | Name        | Type                                 | Optional | Description       |
 |-------------|--------------------------------------|----------|-------------------|
-| evmGasRatio | [Ratio32](./types.md#struct-ratio32) | No       | The EVM gas ratio |
+| evmGasRatio | [Ratio32](./types.md#ratio32) | No       | The EVM gas ratio |
 
 #### Returns
 
@@ -301,7 +301,7 @@ _None_
 
 | Name       | Type          | Description |
 |------------|---------------|-------------|
-| chainInfo  | [ChainInfo](./types.md#struct-iscchaininfo) | The chain info |
+| chainInfo  | [ChainInfo](./types.md#iscchaininfo) | The chain info |
 
 ### `getFeePolicy`
 
@@ -315,7 +315,7 @@ _None_
 
 | Name      | Type                                     | Description        |
 |-----------|------------------------------------------|--------------------|
-| feePolicy | [FeePolicy](./types.md#struct-feepolicy) | The gas fee policy |
+| feePolicy | [FeePolicy](./types.md#feepolicy) | The gas fee policy |
 
 ### `getGasLimits`
 
@@ -329,7 +329,7 @@ _None_
 
 | Name      | Type                               | Description    |
 |-----------|------------------------------------|----------------|
-| gasLimits | [Limits](./types.md#struct-limits) | The gas limits |
+| gasLimits | [Limits](./types.md#limits) | The gas limits |
 
 ### `getEVMGasRatio`
 
@@ -343,7 +343,7 @@ _None_
 
 | Name        | Type                                 | Description       |
 |-------------|--------------------------------------|-------------------|
-| evmGasRatio | [Ratio32](./types.md#struct-ratio32) | The EVM gas ratio |
+| evmGasRatio | [Ratio32](./types.md#ratio32) | The EVM gas ratio |
 
 ### `getChainNodes`
 
@@ -358,8 +358,8 @@ _None_
 | Name        | Type                         | Description          |
 |-------------|------------------------------|----------------------|
 | accessNodes | [[u8; 32]]                   | The access node keys |
-| candidates  | [AccessNodeInfo](./types.md#struct-accessnodeinfo) | [`Map`](https://github.com/iotaledger/wasp/blob/develop/packages/kv/collections/map.go)
-  of public key => [AccessNodeInfo](./types.md#struct-accessnodeinfo): The candidates info |
+| candidates  | [AccessNodeInfo](./types.md#accessnodeinfo) | [`Map`](https://github.com/iotaledger/wasp/blob/develop/packages/kv/collections/map.go)
+  of public key => [AccessNodeInfo](./types.md#accessnodeinfo): The candidates info |
 
 ### `getMaintenanceStatus`
 
@@ -402,4 +402,4 @@ _None_
 | Name      | Type                                                         | Description    |
 |-----------|--------------------------------------------------------------|----------------|
 | publicURL | string                                                       | The public URL |
-| metadata  | [PublicChainMetadata](./types.md#struct-publicchainmetadata) | The metadata   |
+| metadata  | [PublicChainMetadata](./types.md#publicchainmetadata) | The metadata   |

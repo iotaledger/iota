@@ -35,7 +35,7 @@ Returns information about the block with index `blockIndex`.
 | Name       | Type                | Description                     |
 |------------|---------------------|---------------------------------|
 | blockIndex | uint32              | The block Index                 |
-| blockInfo  | *[BlockInfo](./types.md#struct-blockinfo)          | The information about the block |
+| blockInfo  | *[BlockInfo](./types.md#blockinfo)          | The information about the block |
 
 ### `getRequestIDsForBlock`
 
@@ -68,7 +68,7 @@ Returns the receipt for the request with the given ID.
 
 | Name           | Type           | Description         |
 |----------------|----------------|---------------------|
-| requestReceipt | [RequestReceipt](./types.md#struct-requestreceipt) | The request receipt |
+| requestReceipt | [RequestReceipt](./types.md#requestreceipt) | The request receipt |
 
 ### `getRequestReceiptsForBlock`
 
@@ -84,7 +84,7 @@ Returns all the receipts in the block with index `blockIndex`.
 
 | Name            | Type                    | Description                  |
 |-----------------|-------------------------|------------------------------|
-| requestReceipts | [RequestReceiptsResponse](./types.md#struct-requestreceiptsresponse) | The request receipt response |
+| requestReceipts | [RequestReceiptsResponse](./types.md#requestreceiptsresponse) | The request receipt response |
 
 ### `isRequestProcessed`
 
@@ -116,7 +116,7 @@ Returns the list of events triggered during the execution of the request with ID
 
 | Name   | Type                               | Description    |
 |--------|------------------------------------|----------------|
-| events | [[Event](./types.md#struct-event)] | List of events |
+| events | [[Event](./types.md#event)] | List of events |
 
 ### `getEventsForBlock`
 
@@ -133,4 +133,4 @@ Returns the list of events triggered during the execution of all requests in the
 | Name       | Type                               | Description     |
 |------------|------------------------------------|-----------------|
 | blockIndex | uint32                             | The block index |
-| events     | [[Event](./types.md#struct-event)] | List of events  |
+| events     | [[Event](./types.md#event)] | List of events  |

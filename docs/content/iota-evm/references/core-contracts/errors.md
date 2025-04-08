@@ -33,7 +33,7 @@ Registers an error message template.
 
 | Name        | Type            | Description                               |
 |-------------|-----------------|-------------------------------------------|
-| vmErrorCode | [VMErrorCode](./types.md#struct-vmerrorcode) | The error code of the registered template |
+| vmErrorCode | [VMErrorCode](./types.md#vmerrorcode) | The error code of the registered template |
 
 ---
 
@@ -47,7 +47,7 @@ Returns the message template stored for a given error code.
 
 | Name        | Type            | Optional | Description                               |
 |-------------|-----------------|----------|-------------------------------------------|
-| vmErrorCode | [VMErrorCode](./types.md#struct-vmerrorcode) | No       | The error code of the registered template |
+| vmErrorCode | [VMErrorCode](./types.md#vmerrorcode) | No       | The error code of the registered template |
 
 #### Returns
 
