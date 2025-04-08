@@ -21,8 +21,6 @@ provide infrastructure for all other smart contracts:
 
 - [`accounts`](../references/core-contracts/accounts.md): Manages the on-chain ledger of accounts.
 
-- [`blob`](../references/core-contracts/blob.md): Responsible for the registry of binary objects of arbitrary size.
-
 - [`blocklog`](../references/core-contracts/blocklog.md): Keeps track of the blocks and receipts of requests that were processed by the chain.
 
 - [`governance`](../references/core-contracts/governance.md): Handles the administrative functions of the chain. For example: rotation of the committee of validators of the chain, fees and other chain-specific configurations.

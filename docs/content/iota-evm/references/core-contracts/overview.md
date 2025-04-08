@@ -18,8 +18,6 @@ provide infrastructure for all other smart contracts:
 
 - [`accounts`](./accounts.md): Manages the on-chain ledger of accounts.
 
-- [`blob`](./blob.md): Responsible for the registry of binary objects of arbitrary size.
-
 - [`blocklog`](./blocklog.md): Keeps track of the blocks and receipts of requests that were processed by the chain.
 
 - [`governance`](./governance.md): Handles the administrative functions of the chain. For example: rotation of the committee of validators of the chain, fees and other chain-specific configurations.

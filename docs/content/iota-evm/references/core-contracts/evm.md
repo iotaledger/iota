@@ -42,7 +42,7 @@ Only the foundry owner can call this endpoint.
 
 | Name     | Type      | Optional | Description   |
 |----------|-----------|----------|---------------|
-| coinType | coin.Type | No       | The coin type |
+| coinType | [CoinType](./types.md#struct-cointype) | No       | The coin type |
 
 #### Returns
 
@@ -104,9 +104,9 @@ Creates a new L1 deposit.
 
 | Name                        | Type           | Optional | Description             |
 |-----------------------------|----------------|----------|-------------------------|
-| l1DepositOriginatorAgentID  | isc.AgentID    | No       | The originator agent ID |
-| targetAddress               | common.Address | No       | The target address      |
-| assets                      | *isc.Assets    | No       | The assets              |
+| l1DepositOriginatorAgentID  | [u8; 32]       | No       | The originator agent ID |
+| targetAddress               | [u8; 32]       | No       | The target address      |
+| assets                      | [Assets](./types.md#struct-assets)    | No       | The assets              |
 
 #### Returns
 

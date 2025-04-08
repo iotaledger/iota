@@ -17,8 +17,6 @@ The `errors` contract keeps a map of error codes to error message templates.
 This allows contracts to store lengthy error strings only once and then reuse them by just providing the error code (and
 optional extra values) when producing an error, thus saving storage and gas.
 
----
-
 ## Entry Points
 
 ### `registerError`
@@ -35,7 +33,7 @@ Registers an error message template.
 
 | Name        | Type            | Description                               |
 |-------------|-----------------|-------------------------------------------|
-| vmErrorCode | isc.VMErrorCode | The error code of the registered template |
+| vmErrorCode | [VMErrorCode](./types.md#struct-vmerrorcode) | The error code of the registered template |
 
 ---
 
@@ -49,29 +47,10 @@ Returns the message template stored for a given error code.
 
 | Name        | Type            | Optional | Description                               |
 |-------------|-----------------|----------|-------------------------------------------|
-| vmErrorCode | isc.VMErrorCode | No       | The error code of the registered template |
+| vmErrorCode | [VMErrorCode](./types.md#struct-vmerrorcode) | No       | The error code of the registered template |
 
 #### Returns
 
 | Name               | Type   | Description                |
 |--------------------|--------|----------------------------|
 | errorMessageFormat | string | The error message template |
-
----
-
-## Schemas
-
-### `ErrorCode`
-
-`ErrorCode` is encoded as the concatenation of:
-
-- The contract hname(`hname`).
-- The error ID, calculated as the hash of the error template(`uint16`).
-
-### `UnresolvedVMError`
-
-`UnresolvedVMError` is encoded as the concatenation of:
-
-- The error code ([`ErrorCode`](#errorcode)).
-- CRC32 checksum of the formatted string (`uint32`).
-- The JSON-encoded list of parameters for the template (`string` prefixed with `uint16` size).

@@ -95,6 +95,38 @@ the target chain to the sender SC's L2 account on the origin chain.
 
 ---
 
+### `setCoinMetadata`
+
+Sets metadata for a specific coin.
+
+:::info
+
+Only callable by the chain owner.
+
+:::
+
+#### Parameters
+
+| Name      | Type         | Optional | Description                |
+|-----------|--------------|----------|----------------------------|
+| coinInfo  | IotaCoinInfo | Yes      | Metadata for the coin.     |
+
+### `deleteCoinMetadata`
+
+Deletes metadata for a specific coin.
+
+:::info
+
+Only callable by the chain owner.
+
+:::
+
+#### Parameters
+
+| Name      | Type      | Optional | Description                |
+|-----------|-----------|----------|----------------------------|
+| coinType  | CoinType  | No       | The type of the coin.      |
+
 ## Views
 
 ### `balance`
@@ -143,7 +175,7 @@ Returns the amount of base tokens owned by any AgentID `optionalAgentID` on the 
 
 | Name                | Type    | Description                              |
 |---------------------|---------|------------------------------------------|
-| evmBaseTokenBalance | big.Int | The amount of base tokens in the account |
+| evmBaseTokenBalance | u64     | The amount of base tokens in the account |
 
 
 ### `balanceCoin`
@@ -155,7 +187,7 @@ Returns the amount of coins with coin ID `coinID` owned by any AgentID `agentID`
 | Name            | Type      | Optional | Description          |
 |-----------------|-----------|----------|----------------------|
 | optionalAgentID | AgentID   | Yes      | The account Agent ID |
-| coinID          | coin.Type | No       | The coin ID          |
+| coinID          | CoinType  | No       | The coin ID          |
 
 #### Returns
 
@@ -187,7 +219,7 @@ Returns the Object IDs for all Objects owned by the given account.
 
 | Name            | Type         | Description                       |
 |-----------------|--------------|-----------------------------------|
-| bcsEncodedBytes | []uint8      | A BSC encoded array of Object IDs |
+| bcsEncodedBytes | [uint8]      | A BSC encoded array of Object IDs |
 
 ### `accountObjectsInCollection`
 
@@ -195,16 +227,16 @@ Returns the Object IDs for all Objects in the given collection/object that are o
 
 #### Parameters
 
-| Name            | Type     | Optional | Description                     |
-|-----------------|----------|----------|---------------------------------|
-| optionalAgentID | AgentID  | Yes      | The account Agent ID            |
-| collectionID    | ObjectID | No       | The Object ID of the collection |
+| Name            | Type        | Optional | Description                     |
+|-----------------|-------------|----------|---------------------------------|
+| optionalAgentID | AgentID     | Yes      | The account Agent ID            |
+| collectionID    | [uint8; 32] | No       | The Object ID of the collection |
 
 #### Returns
 
-| Name            | Type         | Description                       |
-|-----------------|--------------|-----------------------------------|
-| bcsEncodedBytes | []uint8      | A BSC encoded array of Object IDs |
+| Name            | Type    | Description                       |
+|-----------------|---------|-----------------------------------|
+| bcsEncodedBytes | [uint8] | A BSC encoded array of Object IDs |
 
 ### `getAccountNonce`
 
@@ -231,43 +263,10 @@ Returns the Object data for a given ObjectID
 
 | Name     | Type     | Optional | Description   |
 |----------|----------|----------|---------------|
-| objectID | ObjectID | No       | The Object ID |
+| objectID | [u8; 32] | No       | The Object ID |
 
 #### Returns
 
 | Name            | Type    | Description                                 |
 |-----------------|---------|---------------------------------------------|
-| bcsEncodedBytes | []uint8 | The data of the object as bcs encoded bytes |
-## Schemas
-
-### `FoundrySerialNumber`
-
-```
-FoundrySerialNumber = uint32
-```
-
-### `TokenID`
-
-```
-TokenID = [38]byte
-```
-
-### `NFTID`
-
-```
-NFTID = [32]byte
-```
-
-### `MintID`
-
-```
-MintID = [6]byte
-```
-
-### `NFTData`
-
-`NFTData` is encoded as the concatenation of:
-
-- The issuer ([`iotago::Address`](https://github.com/iotaledger/iota.go/blob/develop/address.go)).
-- The NFT metadata: the length (`uint16`) followed by the data bytes.
-- The NFT owner (`AgentID`).
+| bcsEncodedBytes | [uint8] | The data of the object as bcs encoded bytes |

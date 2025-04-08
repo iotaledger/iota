@@ -18,24 +18,6 @@ To avoid having a monotonically increasing state size, only the latest `N`
 blocks (and their events and receipts) are stored. This parameter can be configured
 when deploying the chain.
 
----
-
-## Entry Points
-
-### `retryUnprocessable(u requestID)`
-
-Tries to retry a given request that was marked as "unprocessable".
-
-:::note
-"Unprocessable" requests are on-ledger requests that do not include enough base tokens to cover the deposit fees (example if an user tries to deposit many native tokens in a single output but only includes the minimum possible amount of base tokens). Such requests will be collected into an "unprocessable list" and users are able to deposit more funds onto their on-chain account and retry them afterwards.
-:::
-
-#### Parameters
-
-- `u` ([`isc::RequestID`](https://github.com/iotaledger/wasp/blob/develop/packages/isc/request.go)): The requestID to be retried. (sender of the retry request must match the sender of the "unprocessable" request)
-
----
-
 ## Views
 
 ### `getBlockInfo`
@@ -53,7 +35,7 @@ Returns information about the block with index `blockIndex`.
 | Name       | Type                | Description                     |
 |------------|---------------------|---------------------------------|
 | blockIndex | uint32              | The block Index                 |
-| blockInfo  | *blocklog.BlockInfo | The information about the block |
+| blockInfo  | *[BlockInfo](./types.md#struct-blockinfo)          | The information about the block |
 
 ### `getRequestIDsForBlock`
 
@@ -70,7 +52,7 @@ Returns a list with all request IDs in the block with block index `n`.
 | Name              | Type            | Description         |
 |-------------------|-----------------|---------------------|
 | blockIndex        | uint32          | The block Index     |
-| requestIDsInBlock | []isc.RequestID | The ISC Request IDs |
+| requestIDsInBlock | [[uint8; 32]]   | The ISC Request IDs |
 
 ### `getRequestReceipt`
 
@@ -78,15 +60,15 @@ Returns the receipt for the request with the given ID.
 
 #### Parameters
 
-| Name      | Type          | Optional | Description    |
-|-----------|---------------|----------|----------------|
-| requestID | isc.RequestID | No       | The request ID |
+| Name      | Type        | Optional | Description    |
+|-----------|-------------|----------|----------------|
+| requestID | [uint8; 32] | No       | The request ID |
 
 #### Returns
 
-| Name           | Type                          | Description         |
-|----------------|-------------------------------|---------------------|
-| requestReceipt | blocklog.OutputRequestReceipt | The request receipt |
+| Name           | Type           | Description         |
+|----------------|----------------|---------------------|
+| requestReceipt | [RequestReceipt](./types.md#struct-requestreceipt) | The request receipt |
 
 ### `getRequestReceiptsForBlock`
 
@@ -100,9 +82,9 @@ Returns all the receipts in the block with index `blockIndex`.
 
 #### Response
 
-| Name            | Type                             | Description                  |
-|-----------------|----------------------------------|------------------------------|
-| requestReceipts | blocklog.RequestReceiptsResponse | The request receipt response |
+| Name            | Type                    | Description                  |
+|-----------------|-------------------------|------------------------------|
+| requestReceipts | [RequestReceiptsResponse](./types.md#struct-requestreceiptsresponse) | The request receipt response |
 
 ### `isRequestProcessed`
 
@@ -110,9 +92,9 @@ Returns whether the request with ID `u` has been processed.
 
 #### Parameters
 
-| Name      | Type          | Optional | Description    |
-|-----------|---------------|----------|----------------|
-| requestID | isc.RequestID | No       | The request ID |
+| Name      | Type        | Optional | Description    |
+|-----------|-------------|----------|----------------|
+| requestID | [uint8; 32] | No       | The request ID |
 
 #### Returns
 
@@ -126,15 +108,15 @@ Returns the list of events triggered during the execution of the request with ID
 
 ### Parameters
 
-| Name      | Type          | Optional | Description    |
-|-----------|---------------|----------|----------------|
-| requestID | isc.RequestID | No       | The request ID |
+| Name      | Type        | Optional | Description    |
+|-----------|-------------|----------|----------------|
+| requestID | [uint8; 32] | No       | The request ID |
 
 #### Returns
 
-| Name   | Type         | Description    |
-|--------|--------------|----------------|
-| events | []*isc.Event | List of events |
+| Name   | Type                               | Description    |
+|--------|------------------------------------|----------------|
+| events | [[Event](./types.md#struct-event)] | List of events |
 
 ### `getEventsForBlock`
 
@@ -148,48 +130,7 @@ Returns the list of events triggered during the execution of all requests in the
 
 #### Returns
 
-| Name       | Type         | Description     |
-|------------|--------------|-----------------|
-| blockIndex | uint32       | The block index |
-| events     | []*isc.Event | List of events  |
-
----
-
-## Schemas
-
-### `RequestID`
-
-A `RequestID` is encoded as the concatenation of:
-
-- Transaction ID (`[32]byte`).
-- Transaction output index (`uint16`).
-
-### `BlockInfo`
-
-`BlockInfo` is encoded as the concatenation of:
-
-- The block timestamp (`uint64` UNIX nanoseconds).
-- Amount of requests in the block (`uint16`).
-- Amount of successful requests (`uint16`).
-- Amount of off-ledger requests (`uint16`).
-- Anchor transaction ID ([`iotago::TransactionID`](https://github.com/iotaledger/iota.go/blob/develop/transaction.go)).
-- Anchor transaction sub-essence hash (`[32]byte`).
-- Previous L1 commitment (except for block index 0).
-  - Trie root (`[20]byte`).
-  - Block hash (`[20]byte`).
-- Total base tokens in L2 accounts (`uint64`).
-- Total storage deposit (`uint64`).
-- Gas burned (`uint64`).
-- Gas fee charged (`uint64`).
-
-### `RequestReceipt`
-
-`RequestReceipt` is encoded as the concatenation of:
-
-- Gas budget (`uint64`).
-- Gas burned (`uint64`).
-- Gas fee charged (`uint64`).
-- The request ([`isc::Request`](https://github.com/iotaledger/wasp/blob/develop/packages/isc/request.go)).
-- Whether the request produced an error (`bool`).
-- If the request produced an error, the
-  [`UnresolvedVMError`](./errors.md#unresolvedvmerror).
+| Name       | Type                               | Description     |
+|------------|------------------------------------|-----------------|
+| blockIndex | uint32                             | The block index |
+| events     | [[Event](./types.md#struct-event)] | List of events  |
