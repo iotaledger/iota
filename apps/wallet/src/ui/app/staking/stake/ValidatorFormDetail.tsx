@@ -34,6 +34,7 @@ export function ValidatorFormDetail({ validatorAddress, unstake }: ValidatorForm
         delegatedStakeDataResult,
         systemDataResult,
         commission,
+        isCommitteeMember,
     } = useGetStakingValidatorDetails({
         accountAddress,
         validatorAddress,
@@ -71,6 +72,13 @@ export function ValidatorFormDetail({ validatorAddress, unstake }: ValidatorForm
         <div className="w-full">
             <Panel hasBorder>
                 <div className="flex flex-col gap-y-sm p-md">
+                    <KeyValueInfo
+                        keyText="Member of Committee"
+                        tooltipPosition={TooltipPosition.Bottom}
+                        tooltipText="If the validator is part of the current committee."
+                        value={isCommitteeMember ? 'Yes' : 'No'}
+                        fullwidth
+                    />
                     <KeyValueInfo
                         keyText="Staking APY"
                         tooltipPosition={TooltipPosition.Bottom}
