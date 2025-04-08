@@ -31,9 +31,9 @@ done
 cd "$STARTING_DIR" || exit 1
 
 cleanup () {
-  cd "$MANIFEST_DIR" || return
+  cd "$MANIFEST_DIR" || exit 1
   git checkout Cargo.lock > /dev/null
-  cd "$STARTING_DIR" || return
+  cd "$STARTING_DIR" || exit 1
 }
 
 trap cleanup SIGINT
