@@ -3463,14 +3463,11 @@ impl AuthorityPerEpochStore {
 
                                 debug!(
                                     "Cancelling consensus certificate for transaction {:?} with \
-                                        deferral key {:?} due to congestion on objects {:?}: \
-                                        actual gas price: {}, the lowest gas price of \
-                                        non-cancelled transaction: {}",
+                                        deferral key {deferral_key:?} due to congestion on \
+                                        objects {congested_objects:?}: actual gas price: \
+                                        {actual_gas_price}, the lowest gas price of non-cancelled \
+                                        transaction: {lowest_gas_price_of_non_cancelled_transaction}",
                                     certificate.digest(),
-                                    deferral_key,
-                                    congested_objects,
-                                    actual_gas_price,
-                                    lowest_gas_price_of_non_cancelled_transaction,
                                 );
 
                                 ConsensusCertificateResult::Cancelled((
