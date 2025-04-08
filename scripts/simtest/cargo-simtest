@@ -28,7 +28,7 @@ done
 #   echo "Please commit or revert your changes to Cargo.lock before running cargo simtest"
 #   exit 1
 # fi
-cd "$STARTING_DIR" || exit
+cd "$STARTING_DIR" || exit 1
 
 cleanup () {
   cd "$MANIFEST_DIR" || return
