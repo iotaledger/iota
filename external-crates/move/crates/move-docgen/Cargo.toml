@@ -15,7 +15,6 @@ move-ir-types.workspace = true
 move-model-2.workspace = true
 move-symbol-pool.workspace = true
 
-# external dependencies
 anyhow.workspace = true
 clap.workspace = true
 codespan.workspace = true
