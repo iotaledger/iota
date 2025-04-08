@@ -7,6 +7,6 @@ Make sure to open these ports in your firewall configuration.
 |------|----------|-------------------------------------------------------------|--------- |--------- |
 | 8084 | UDP      | Peer-to-peer state sync interface (external address for node to reach this node) |Needs to be reachable from the internet |Inbound / Outbound |
 | 9000 | TCP      | JSON RPC endpoint / Web socket (optional)                                     | (optional. Can be private for your use only) |Outbound         |
-| 9184 | TCP      | Prometheus metrics (optional. For you monitoring only)                  |(optional) |Localhost        |
+| 9184 | TCP      | Prometheus metrics (For local monitoring only)                  | No. Localhost only |Localhost        |
 
 :::

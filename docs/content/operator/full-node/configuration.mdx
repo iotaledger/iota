@@ -15,8 +15,6 @@ You can modify it to configure your IOTA node.
 If you used the installer script, it will have generated that config file for you, with default ports, archive and pruning settings, and also covers peering configuration for the selected network.
 :::
 
-
-
 ## Customize your node's configuration
 
 ### Networking
@@ -48,7 +46,6 @@ Learn how to configure formal and RocksDB snapshots [here](configs/snapshots.mdx
 ### Data storage paths (optional)
 
 You can adapt the node's configuration to your needs by changing the `fullnode.yaml` file (at `/opt/iota/config/fullnode.yaml`, or, if set, inside `$CONFIG_DIR`).  
-Don't forget to restart the `iota-node` systemd service after making changes to the configuration.
 
 To set paths for data files, change these values in `fullnode.yaml`:
 
@@ -64,7 +61,6 @@ genesis:
 migration-tx-data-path: "/opt/iota/config/migration.blob"
 ```
 
-
 ## Restart your node after making changes
 
 After changing any of the node's settings, restart your node using:
@@ -78,8 +74,7 @@ After changing any of the node's settings, restart your node using:
 
     <TabItem label="Docker" value="docker">
       ```shell
-      docker compose stop
-      docker compose up -d
+      docker compose restart
       ```
     </TabItem>
 </Tabs>
