@@ -28,13 +28,13 @@ Returns information about the block with index `blockIndex`.
 
 | Name       | Type   | Optional | Description                                |
 |------------|--------|----------|--------------------------------------------|
-| blockIndex | uint32 | Yes      | The block index. Default: the latest block |
+| blockIndex | u32 | Yes      | The block index. Default: the latest block |
 
 #### Returns
 
 | Name       | Type                | Description                     |
 |------------|---------------------|---------------------------------|
-| blockIndex | uint32              | The block Index                 |
+| blockIndex | u32              | The block Index                 |
 | blockInfo  | *[BlockInfo](./types.md#blockinfo)          | The information about the block |
 
 ### `getRequestIDsForBlock`
@@ -45,14 +45,14 @@ Returns a list with all request IDs in the block with block index `n`.
 
 | Name       | Type   | Optional | Description                                            |
 |------------|--------|----------|--------------------------------------------------------|
-| blockIndex | uint32 | Yes      | The block index. The default value is the latest block |
+| blockIndex | u32 | Yes      | The block index. The default value is the latest block |
 
 #### Returns
 
 | Name              | Type            | Description         |
 |-------------------|-----------------|---------------------|
-| blockIndex        | uint32          | The block Index     |
-| requestIDsInBlock | [[uint8; 32]]   | The ISC Request IDs |
+| blockIndex        | u32          | The block Index     |
+| requestIDsInBlock | [[u8; 32]]   | The ISC Request IDs |
 
 ### `getRequestReceipt`
 
@@ -62,7 +62,7 @@ Returns the receipt for the request with the given ID.
 
 | Name      | Type        | Optional | Description    |
 |-----------|-------------|----------|----------------|
-| requestID | [uint8; 32] | No       | The request ID |
+| requestID | [u8; 32] | No       | The request ID |
 
 #### Returns
 
@@ -78,7 +78,7 @@ Returns all the receipts in the block with index `blockIndex`.
 
 | Name       | Type   | Optional | Description                                   |
 |------------|--------|----------|-----------------------------------------------|
-| blockIndex | uint32 | Yes      | The block index. Defaults to the latest block |
+| blockIndex | u32 | Yes      | The block index. Defaults to the latest block |
 
 #### Response
 
@@ -94,7 +94,7 @@ Returns whether the request with ID `u` has been processed.
 
 | Name      | Type        | Optional | Description    |
 |-----------|-------------|----------|----------------|
-| requestID | [uint8; 32] | No       | The request ID |
+| requestID | [u8; 32] | No       | The request ID |
 
 #### Returns
 
@@ -110,7 +110,7 @@ Returns the list of events triggered during the execution of the request with ID
 
 | Name      | Type        | Optional | Description    |
 |-----------|-------------|----------|----------------|
-| requestID | [uint8; 32] | No       | The request ID |
+| requestID | [u8; 32] | No       | The request ID |
 
 #### Returns
 
@@ -126,11 +126,11 @@ Returns the list of events triggered during the execution of all requests in the
 
 | Name       | Type   | Optional | Description                                   |
 |------------|--------|----------|-----------------------------------------------|
-| blockIndex | uint32 | Yes      | The block index. Defaults to the latest block |
+| blockIndex | u32 | Yes      | The block index. Defaults to the latest block |
 
 #### Returns
 
 | Name       | Type                               | Description     |
 |------------|------------------------------------|-----------------|
-| blockIndex | uint32                             | The block index |
+| blockIndex | u32                             | The block index |
 | events     | [[Event](./types.md#event)] | List of events  |

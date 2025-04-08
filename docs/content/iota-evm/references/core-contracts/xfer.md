@@ -31,7 +31,7 @@ function then transfers it into the caller's L2 account on that chain.
 
 | Name               | Type    | Optional  | Description |
 |--------------------|---------|-----------|-------------|
-| optionalGasReserve | uint64  | Yes       | Gas amount to reserve in the allowance for
+| optionalGasReserve | u64  | Yes       | Gas amount to reserve in the allowance for
   the internal call to transferAllowanceTo(). Default 100 (MinGasFee). |
 
 ### IMPORTANT CONSIDERATIONS

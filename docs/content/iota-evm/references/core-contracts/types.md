@@ -27,14 +27,14 @@ To call core contracts from Move you have to encode the parameters using BCS. Th
 | Name    | Type       |
 |---------|------------|
 | NoType  | null       |
-| uint16  | uint16     |
-| int64   | [uint8; 8] |
+| uint16  | u16     |
+| int64   | [u8; 8] |
 | string  | string     |
-| uint8   | uint8      |
-| int32   | [uint8; 4] |
-| uint64  | uint64     |
-| int16   | [uint8; 2] |
-| uint32  | uint32     |
+| uint8   | u8      |
+| int32   | [u8; 4] |
+| uint64  | u64     |
+| int16   | [u8; 2] |
+| uint32  | u32     |
 
 ## Maps
 
@@ -102,16 +102,16 @@ To call core contracts from Move you have to encode the parameters using BCS. Th
 
 | Name                  | Type        |
 |-----------------------|-------------|
-| schemaVersion         | uint8       |
-| blockIndex            | uint32      |
-| timestamp             | uint64      |
+| schemaVersion         | u8       |
+| blockIndex            | u32      |
+| timestamp             | u64      |
 | previousAnchor        | [StateAnchor](#stateanchor) |
 | l1Params              | [L1Params](#l1params)    |
-| totalRequests         | uint16      |
-| numSuccessfulRequests | uint16      |
-| numOffLedgerRequests  | uint16      |
-| gasBurned             | uint64      |
-| gasFeeCharged         | uint64      |
+| totalRequests         | u16      |
+| numSuccessfulRequests | u16      |
+| numOffLedgerRequests  | u16      |
+| gasBurned             | u64      |
+| gasFeeCharged         | u64      |
 
 ### `CallTarget`
 
@@ -144,7 +144,7 @@ To call core contracts from Move you have to encode the parameters using BCS. Th
 |---------|-------------------------------|
 | kind    | u8          |
 | evmAddr | [u8, 20]                      |
-| hname   | uint32        |
+| hname   | u32        |
 
 ### `ContractRecord`
 
@@ -179,20 +179,20 @@ To call core contracts from Move you have to encode the parameters using BCS. Th
 
 | Name      | Type   |
 |-----------|--------|
-| code      | uint16 |
-| gasBurned | uint64 |
+| code      | u16 |
+| gasBurned | u64 |
 
 ### `IotaCoinInfo`
 
 | Name        | Type       |
 |-------------|------------|
 | CoinType    | [CoinType](#cointype) |
-| Decimals    | uint8                        |
+| Decimals    | u8                        |
 | Name        | string                       |
 | Symbol      | string                       |
 | Description | string                       |
 | IconURL     | string                       |
-| TotalSupply | uint64                       |
+| TotalSupply | u64                       |
 
 ### `L1Params`
 
@@ -262,8 +262,8 @@ To call core contracts from Move you have to encode the parameters using BCS. Th
 
 | Name | Type   |
 |------|--------|
-| A    | uint32 |
-| B    | uint32 |
+| A    | u32 |
+| B    | u32 |
 
 ### `Referent_AssetsBag`
 
@@ -279,7 +279,7 @@ To call core contracts from Move you have to encode the parameters using BCS. Th
 | senderContract  | [ContractIdentity](#contractidentity) |
 | message         | [Message](#message)       |
 | allowance       | *[Assets](#assets)        |
-| gasBudget       | uint64                           |
+| gasBudget       | u64                           |
 
 ### `RequestReceipt`
 
@@ -287,18 +287,18 @@ To call core contracts from Move you have to encode the parameters using BCS. Th
 |---------------|-----------------------------|
 | Request       | [Request](#request)    |
 | Error         | [IscUnresolvedVMError](#unresolvedvmerror) (optional) |
-| GasBudget     | uint64                      |
-| GasBurned     | uint64                      |
-| GasFeeCharged | uint64                      |
+| GasBudget     | u64                      |
+| GasBurned     | u64                      |
+| GasFeeCharged | u64                      |
 | GasBurnLog    | [GasBurnLog](#gasburnlog) |
-| BlockIndex    | uint32                      |
-| RequestIndex  | uint16                      |
+| BlockIndex    | u32                      |
+| RequestIndex  | u16                      |
 
 ### `RequestReceiptsResponse`
 
 | Name       | Type                 |
 |------------|----------------------|
-| BlockIndex | uint32               |
+| BlockIndex | u32               |
 | Receipts   | [RequestReceipt]     |
 
 ### `StateAnchor`
@@ -319,5 +319,5 @@ To call core contracts from Move you have to encode the parameters using BCS. Th
 
 | Name       | Type   |
 |------------|--------|
-| contractID | uint32 |
-| iD         | uint16 |
+| contractID | u32 |
+| iD         | u16 |

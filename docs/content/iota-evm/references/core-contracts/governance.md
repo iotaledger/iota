@@ -25,20 +25,6 @@ The `governance` contract provides the following functionalities:
 
 ---
 
-## Fee Policy
-
-The Fee Policy looks like the following:
-
-```go
-{
-  GasPerToken Ratio32 // how many gas units are paid for each token
-  EVMGasRatio Ratio32 // the ratio at which EVM gas is converted to ISC gas
-  ValidatorFeeShare uint8 // percentage of the fees that are credited to the validators (0 - 100)
-}
-```
-
----
-
 ## Entry Points
 
 ### `rotateStateController`

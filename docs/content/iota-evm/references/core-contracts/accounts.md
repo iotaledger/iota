@@ -84,7 +84,7 @@ the target chain to the sender SC's L2 account on the origin chain.
 
 | Name               | Type    | Optional  | Description |
 |--------------------|---------|-----------|-------------|
-| optionalGasReserve | uint64  | Yes       | Gas amount to reserve in the allowance for
+| optionalGasReserve | u64  | Yes       | Gas amount to reserve in the allowance for
   the internal call to transferAllowanceTo(). Default 100 (MinGasFee). |
 
 :::note Important Detailed Information
@@ -143,7 +143,7 @@ Returns the fungible tokens owned by the given Agent ID on the chain.
 
 | Name         | Type         | Description           |
 |--------------|--------------|-----------------------|
-| coinBalances | CoinBalances | A map of Coin type => Coin value(`uint64`). An empty token ID (a string of zero length) represents the L1 base token. |
+| coinBalances | CoinBalances | A map of Coin type => Coin value(`u64`). An empty token ID (a string of zero length) represents the L1 base token. |
 
 ### `balanceBaseToken`
 
@@ -159,7 +159,7 @@ Returns the amount of base tokens owned by any AgentID `optionalAgentID` on the 
 
 | Name             | Type   | Description                              |
 |------------------|--------|------------------------------------------|
-| baseTokenBalance | uint64 | The amount of base tokens in the account |
+| baseTokenBalance | u64 | The amount of base tokens in the account |
 
 ### `balanceBaseTokenEVM`
 
@@ -193,7 +193,7 @@ Returns the amount of coins with coin ID `coinID` owned by any AgentID `agentID`
 
 | Name        | Type    | Description                              |
 |-------------|---------|------------------------------------------|
-| coinBalance | uint64  | The amount of coins in the account       |
+| coinBalance | u64  | The amount of coins in the account       |
 
 ### `totalAssets`
 
@@ -203,7 +203,7 @@ Returns the sum of all fungible tokens controlled by the chain.
 
 | Name         | Type         | Description           |
 |--------------|--------------|-----------------------|
-| coinBalances | CoinBalances | A map of Coin type => Coin value(`uint64`). An empty token ID (a string of zero length) represents the L1 base token. |
+| coinBalances | CoinBalances | A map of Coin type => Coin value(`u64`). An empty token ID (a string of zero length) represents the L1 base token. |
 
 ### `accountObjects`
 
@@ -219,7 +219,7 @@ Returns the Object IDs for all Objects owned by the given account.
 
 | Name            | Type         | Description                       |
 |-----------------|--------------|-----------------------------------|
-| bcsEncodedBytes | [uint8]      | A BSC encoded array of Object IDs |
+| bcsEncodedBytes | [u8]      | A BSC encoded array of Object IDs |
 
 ### `accountObjectsInCollection`
 
@@ -230,13 +230,13 @@ Returns the Object IDs for all Objects in the given collection/object that are o
 | Name            | Type        | Optional | Description                     |
 |-----------------|-------------|----------|---------------------------------|
 | optionalAgentID | AgentID     | Yes      | The account Agent ID            |
-| collectionID    | [uint8; 32] | No       | The Object ID of the collection |
+| collectionID    | [u8; 32] | No       | The Object ID of the collection |
 
 #### Returns
 
 | Name            | Type    | Description                       |
 |-----------------|---------|-----------------------------------|
-| bcsEncodedBytes | [uint8] | A BSC encoded array of Object IDs |
+| bcsEncodedBytes | [u8] | A BSC encoded array of Object IDs |
 
 ### `getAccountNonce`
 
@@ -253,7 +253,7 @@ The account nonce is used to issue off-ledger requests.
 
 | Name  | Type   | Description       |
 |-------|--------|-------------------|
-| nonce | uint64 | The account Nonce |
+| nonce | u64 | The account Nonce |
 
 ### `objectBCS`
 
@@ -269,4 +269,4 @@ Returns the Object data for a given ObjectID
 
 | Name            | Type    | Description                                 |
 |-----------------|---------|---------------------------------------------|
-| bcsEncodedBytes | [uint8] | The data of the object as bcs encoded bytes |
+| bcsEncodedBytes | [u8] | The data of the object as bcs encoded bytes |

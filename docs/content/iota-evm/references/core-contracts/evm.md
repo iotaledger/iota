@@ -76,7 +76,7 @@ Calls a contract on the EVM.
 
 | Name           | Type    | Description           |
 |----------------|---------|-----------------------|
-| functionResult | []uint8 | The result of the call |
+| functionResult | []u8 | The result of the call |
 
 ### `registerERC721NFTCollection`
 
@@ -128,4 +128,4 @@ _None_
 
 | Name    | Type   | Description  |
 |---------|--------|--------------|
-| chainID | uint16 | The chain ID |
+| chainID | u16 | The chain ID |
