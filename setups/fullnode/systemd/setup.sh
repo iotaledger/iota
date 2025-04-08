@@ -113,7 +113,7 @@ fi
 
 
 # Build the binaries 
-# cargo build --release --bin iota-node 
+cargo build --release --bin iota-node 
 
 
 # Add a IOTA user, create directories for iota-node service
