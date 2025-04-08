@@ -42,6 +42,15 @@ export default defineConfig({
     ],
 
     webServer: [
+        // Localnet:
+        {
+            command:
+                process.env.E2E_RUN_LOCAL_NET_CMD ??
+                'RUST_LOG="consensus=off" cargo run --bin iota start --force-regenesis --with-faucet',
+            port: 9123,
+            timeout: 120 * 1000,
+            reuseExistingServer: !process.env.CI,
+        },
         // Localnet-based dev server:
         {
             command: 'pnpm dev',
