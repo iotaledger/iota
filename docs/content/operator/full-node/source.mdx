@@ -55,7 +55,7 @@ You can override these values when running the script (optional):
 :::info
 To pass env vars to the installer, declare them as follows, in front of the call to the installer:
 ```shell
-NETWORK="testnet" CLONE_DIR="$HOME/.cache/iota"  bash -i <(curl https://raw.githubusercontent.com/iotaledger/iota.js/master/installer.sh)
+NETWORK="testnet" CLONE_DIR="$HOME/.cache/iota"  bash -i <(curl -sSf https://raw.githubusercontent.com/iotaledger/iota/refs/heads/docs/further-node-operator-docs-improvements/setups/fullnode/systemd/setup.sh)
 ```
 :::
 
@@ -211,7 +211,7 @@ Make sure your node stays on the same network (testnet, mainnet, devnet, ...) it
 To upgrade your node, run the same script you used to install it:
 {/* TODO in 6017 update branch before merging */}
 ```shell
-NETWORK="testnet"  bash -i <(curl https://raw.githubusercontent.com/iotaledger/iota.js/master/installer.sh)
+NETWORK="testnet" bash -i <(curl -sSf https://raw.githubusercontent.com/iotaledger/iota/refs/heads/docs/further-node-operator-docs-improvements/setups/fullnode/systemd/setup.sh)
 ```
 
 :::info
