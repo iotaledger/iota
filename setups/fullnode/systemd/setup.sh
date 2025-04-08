@@ -48,8 +48,8 @@ fi
 
 
 
-echo -e "This script will perform the following steps:"
-echo -e " ${G}1.${NC} Check rust toolchain version"
+echo -e "You're setting up a IOTA node on the network '$NETWORK'. This script will perform the following steps:"
+echo -e " ${G}1.${NC} Check your rust toolchain version"
 echo -e " ${G}2.${NC} Install system packages (libraries & other dependencies)"
 echo -e " ${G}3.${NC} Clone the iota repo (set to the branch for the $NETWORK network)"
 echo -e " ${G}4.${NC} Build the iota-node binary"
