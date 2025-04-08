@@ -2,9 +2,12 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { useGetValidatorsApy, useGetValidatorsEvents } from '@iota/core';
-import { useIotaClientQuery } from '@iota/dapp-kit';
-import { type IotaSystemStateSummaryV1 } from '@iota/iota-sdk/client';
+import {
+    type IotaSystemStateSummaryCompat,
+    useGetLatestIotaSystemState,
+    useGetValidatorsApy,
+    useGetValidatorsEvents,
+} from '@iota/core';
 import { useMemo } from 'react';
 import { useParams } from 'react-router-dom';
 import { PageLayout, ValidatorMeta, ValidatorStats } from '~/components';
@@ -14,7 +17,7 @@ import { InfoBox, InfoBoxStyle, InfoBoxType, LoadingIndicator } from '@iota/apps
 import { Warning } from '@iota/apps-ui-icons';
 
 const getAtRiskRemainingEpochs = (
-    data: IotaSystemStateSummaryV1 | undefined,
+    data: IotaSystemStateSummaryCompat | undefined,
     validatorId: string | undefined,
 ): number | null => {
     if (!data || !validatorId) return null;
@@ -24,7 +27,7 @@ const getAtRiskRemainingEpochs = (
 
 function ValidatorDetails(): JSX.Element {
     const { id } = useParams();
-    const { data, isPending } = useIotaClientQuery('getLatestIotaSystemState');
+    const { data, isPending } = useGetLatestIotaSystemState();
 
     const validatorData = useMemo(() => {
         if (!data) return null;

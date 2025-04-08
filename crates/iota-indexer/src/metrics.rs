@@ -138,6 +138,8 @@ pub struct IndexerMetrics {
     pub checkpoint_db_commit_latency_transactions: Histogram,
     pub checkpoint_db_commit_latency_transactions_chunks: Histogram,
     pub checkpoint_db_commit_latency_transactions_chunks_transformation: Histogram,
+    pub checkpoint_db_commit_latency_tx_insertion_order: Histogram,
+    pub checkpoint_db_commit_latency_tx_insertion_order_chunks: Histogram,
     pub checkpoint_db_commit_latency_objects: Histogram,
     pub checkpoint_db_commit_latency_objects_snapshot: Histogram,
     pub checkpoint_db_commit_latency_objects_history: Histogram,
@@ -464,6 +466,20 @@ impl IndexerMetrics {
                 registry,
             )
             .unwrap(),
+            checkpoint_db_commit_latency_tx_insertion_order: register_histogram_with_registry!(
+                "checkpoint_db_commit_latency_tx_insertion_order",
+                "Time spent committing txs insertion order",
+                DATA_INGESTION_LATENCY_SEC_BUCKETS.to_vec(),
+                registry,
+            )
+                .unwrap(),
+            checkpoint_db_commit_latency_tx_insertion_order_chunks: register_histogram_with_registry!(
+                "checkpoint_db_commit_latency_tx_insertion_order_chunks",
+                "Time spent committing txs insertion order chunks",
+                DATA_INGESTION_LATENCY_SEC_BUCKETS.to_vec(),
+                registry,
+            )
+                .unwrap(),
             checkpoint_db_commit_latency_objects: register_histogram_with_registry!(
                 "checkpoint_db_commit_latency_objects",
                 "Time spent committing objects",

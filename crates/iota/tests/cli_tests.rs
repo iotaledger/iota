@@ -60,7 +60,6 @@ use iota_types::{
     },
     error::IotaObjectResponseError,
     gas_coin::GasCoin,
-    iota_system_state::iota_system_state_summary::IotaSystemStateSummary,
     object::Owner,
     transaction::{
         TEST_ONLY_GAS_UNIT_FOR_GENERIC, TEST_ONLY_GAS_UNIT_FOR_OBJECT_BASICS,
@@ -377,9 +376,12 @@ async fn test_ptb_publish_and_complex_arg_resolution() -> Result<(), anyhow::Err
     );
 
     let args = shlex::split(&complex_ptb_string).unwrap();
-    iota::client_ptb::ptb::PTB { args: args.clone() }
-        .execute(context)
-        .await?;
+    iota::client_ptb::ptb::PTB {
+        args: args.clone(),
+        emit: HashSet::new(),
+    }
+    .execute(context)
+    .await?;
 
     let delete_object_ptb_string = format!(
         r#"
@@ -393,9 +395,12 @@ async fn test_ptb_publish_and_complex_arg_resolution() -> Result<(), anyhow::Err
     );
 
     let args = shlex::split(&delete_object_ptb_string).unwrap();
-    iota::client_ptb::ptb::PTB { args: args.clone() }
-        .execute(context)
-        .await?;
+    iota::client_ptb::ptb::PTB {
+        args: args.clone(),
+        emit: HashSet::new(),
+    }
+    .execute(context)
+    .await?;
 
     Ok(())
 }
@@ -422,9 +427,12 @@ async fn test_ptb_publish() -> Result<(), anyhow::Error> {
         package_path.display()
     );
     let args = shlex::split(&publish_ptb_string).unwrap();
-    iota::client_ptb::ptb::PTB { args: args.clone() }
-        .execute(context)
-        .await?;
+    iota::client_ptb::ptb::PTB {
+        args: args.clone(),
+        emit: HashSet::new(),
+    }
+    .execute(context)
+    .await?;
     Ok(())
 }
 
@@ -3103,11 +3111,17 @@ async fn test_serialize_tx() -> Result<(), anyhow::Error> {
     ];
     let mut args = ptb_args.clone();
     args.push("--serialize-signed-transaction".to_string());
-    let ptb = PTB { args };
+    let ptb = PTB {
+        args,
+        emit: HashSet::new(),
+    };
     IotaClientCommands::PTB(ptb).execute(context).await.unwrap();
     let mut args = ptb_args.clone();
     args.push("--serialize-unsigned-transaction".to_string());
-    let ptb = PTB { args };
+    let ptb = PTB {
+        args,
+        emit: HashSet::new(),
+    };
     IotaClientCommands::PTB(ptb).execute(context).await.unwrap();
 
     Ok(())
@@ -3130,17 +3144,16 @@ async fn test_stake_with_none_amount() -> Result<(), anyhow::Error> {
         .data;
 
     let config_path = test_cluster.swarm.dir().join(IOTA_CLIENT_CONFIG);
-    let iota_system_state = client
+
+    // Here we test the staking transaction to a committee member.
+    let committee_member_addr = client
         .governance_api()
         .get_latest_iota_system_state()
-        .await?;
-    let active_validators = match iota_system_state {
-        IotaSystemStateSummary::V1(v1) => v1.active_validators,
-        IotaSystemStateSummary::V2(v2) => v2.active_validators,
-        _ => panic!("unsupported IotaSystemStateSummary"),
-    };
-
-    let validator_addr = active_validators[0].iota_address;
+        .await?
+        .iter_committee_members()
+        .next()
+        .unwrap()
+        .iota_address;
 
     test_with_iota_binary(&[
         "client",
@@ -3157,7 +3170,7 @@ async fn test_stake_with_none_amount() -> Result<(), anyhow::Error> {
         "0x5",
         &format!("[{}]", coins.first().unwrap().coin_object_id),
         "[]",
-        &validator_addr.to_string(),
+        &committee_member_addr.to_string(),
         "--gas-budget",
         "1000000000",
     ])
@@ -3190,17 +3203,16 @@ async fn test_stake_with_u64_amount() -> Result<(), anyhow::Error> {
         .data;
 
     let config_path = test_cluster.swarm.dir().join(IOTA_CLIENT_CONFIG);
-    let iota_system_state = client
+
+    // Here we test the staking transaction to a committee member.
+    let committee_member_addr = client
         .governance_api()
         .get_latest_iota_system_state()
-        .await?;
-    let active_validators = match iota_system_state {
-        IotaSystemStateSummary::V1(v1) => v1.active_validators,
-        IotaSystemStateSummary::V2(v2) => v2.active_validators,
-        _ => panic!("unsupported IotaSystemStateSummary"),
-    };
-
-    let validator_addr = active_validators[0].iota_address;
+        .await?
+        .iter_committee_members()
+        .next()
+        .unwrap()
+        .iota_address;
 
     test_with_iota_binary(&[
         "client",
@@ -3217,7 +3229,7 @@ async fn test_stake_with_u64_amount() -> Result<(), anyhow::Error> {
         "0x5",
         &format!("[{}]", coins.first().unwrap().coin_object_id),
         "[1000000000]",
-        &validator_addr.to_string(),
+        &committee_member_addr.to_string(),
         "--gas-budget",
         "1000000000",
     ])
@@ -4642,8 +4654,52 @@ async fn test_ptb_dev_inspect() -> Result<(), anyhow::Error> {
         --dev-inspect
         "#;
     let args = shlex::split(publish_ptb_string).unwrap();
-    let res = iota::client_ptb::ptb::PTB { args }.execute(context).await?;
+    let res = iota::client_ptb::ptb::PTB {
+        args,
+        emit: HashSet::new(),
+    }
+    .execute(context)
+    .await?;
     assert!(res.contains("Execution Result\n  Return values\n    IOTA TypeTag: IotaTypeTag(\"0x1::string::String\")\n    Bytes: [5, 72, 101, 108, 108, 111]"));
+    Ok(())
+}
+
+#[sim_test]
+async fn test_ptb_emit_args() -> Result<(), anyhow::Error> {
+    let mut test_cluster = TestClusterBuilder::new()
+        .with_num_validators(2)
+        .build()
+        .await;
+    let context = &mut test_cluster.wallet;
+
+    let ptb_string = r#"
+    --make-move-vec <u8> "[1]"
+    "#;
+    let args = shlex::split(ptb_string).unwrap();
+    let res = iota::client_ptb::ptb::PTB {
+        args,
+        emit: HashSet::from([EmitOption::Input]),
+    }
+    .execute(context)
+    .await?;
+
+    assert!(res.contains("Transaction Data"));
+    assert!(res.contains("Transaction Effects"));
+
+    let ptb_string = r#"
+        --make-move-vec <u8> "[1]"
+        "#;
+    let args = shlex::split(ptb_string).unwrap();
+    let res = iota::client_ptb::ptb::PTB {
+        args,
+        emit: HashSet::from([EmitOption::Events]),
+    }
+    .execute(context)
+    .await?;
+    // `EmitOption::Input` wasn't provided, so there is no `Transaction Data`
+    assert!(!res.contains("Transaction Data"));
+    assert!(res.contains("Transaction Effects"));
+
     Ok(())
 }
 

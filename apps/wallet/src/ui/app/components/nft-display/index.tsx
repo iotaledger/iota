@@ -16,7 +16,7 @@ import { cva } from 'class-variance-authority';
 import type { VariantProps } from 'class-variance-authority';
 import { useResolveVideo, useActiveAddress } from '_hooks';
 
-const nftDisplayCardStyles = cva('flex flex-nowrap items-center h-full relative', {
+const nftDisplayCardStyles = cva('flex flex-nowrap items-center w-full h-full relative', {
     variants: {
         isHoverable: {
             true: 'group',
@@ -33,7 +33,6 @@ const nftDisplayCardStyles = cva('flex flex-nowrap items-center h-full relative'
 
 export interface NFTDisplayCardProps extends VariantProps<typeof nftDisplayCardStyles> {
     objectId: string;
-    hideLabel?: boolean;
     isLocked?: boolean;
     icon?: React.ReactNode;
     onIconClick?: (e: React.MouseEvent<HTMLButtonElement>) => void;
@@ -41,7 +40,6 @@ export interface NFTDisplayCardProps extends VariantProps<typeof nftDisplayCardS
 
 export function NFTDisplayCard({
     objectId,
-    hideLabel,
     wideView,
     isHoverable,
     icon,
@@ -59,7 +57,7 @@ export function NFTDisplayCard({
     return (
         <div className={nftDisplayCardStyles({ isHoverable, wideView })}>
             <Loading loading={isPending}>
-                <div className="flex w-full flex-col justify-center gap-sm text-center">
+                <div className="flex w-full max-w-[172px] flex-col items-center gap-xs">
                     {objectData?.data && isOwnerToken ? (
                         <KioskTile object={objectData} address={address} />
                     ) : (

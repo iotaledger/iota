@@ -13,6 +13,7 @@ use crate::{
         display::StoredDisplay,
         obj_indices::StoredObjectVersion,
         objects::{StoredDeletedObject, StoredObject},
+        transactions::TxInsertionOrder,
     },
     types::{
         EventIndex, IndexedCheckpoint, IndexedEvent, IndexedPackage, IndexedTransaction, TxIndex,
@@ -77,6 +78,11 @@ pub trait IndexerStore: Any + Clone + Sync + Send + 'static {
     async fn persist_transactions(
         &self,
         transactions: Vec<IndexedTransaction>,
+    ) -> Result<(), IndexerError>;
+
+    async fn persist_tx_insertion_order(
+        &self,
+        tx_order: Vec<TxInsertionOrder>,
     ) -> Result<(), IndexerError>;
 
     async fn persist_tx_indices(&self, indices: Vec<TxIndex>) -> Result<(), IndexerError>;

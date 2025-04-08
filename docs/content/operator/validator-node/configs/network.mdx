@@ -7,21 +7,12 @@ teams:
 ---
 
 import NetworkContent from '../../common/network.mdx';
+import ValidatorPorts from '../../../_snippets/operator/validator-ports.mdx'
+
 
 <NetworkContent />
 
-## Connectivity
-
-The validator node uses the following ports by default:
-
-| Protocol/Port | Reachability     | Purpose                           |
-| ------------- | ---------------- | --------------------------------- |
-| TCP/8080      | Inbound          | Validator/transaction interface   |
-| TCP/8081      | Inbound/Outbound | Consensus interface               |
-| UDP/8084      | Inbound/Outbound | Peer-to-peer state sync interface |
-| TCP/8443      | Outbound         | Metrics pushing                   |
-| TCP/9000      | Outbound         | JSON RPC Address / Web socket     |
-| TCP/9184      | Localhost        | Metrics scraping                  |
+<ValidatorPorts />
 
 To run a validator successfully, it is critical that ports are open as outlined, including the specific protocol (TCP/UDP).
 
