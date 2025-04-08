@@ -3456,7 +3456,9 @@ impl AuthorityPerEpochStore {
                                 let actual_gas_price = certificate.transaction_data().gas_price();
                                 assert!(
                                     lowest_gas_price_of_non_cancelled_transaction
-                                        >= actual_gas_price
+                                        >= actual_gas_price,
+                                    "Gas price of cancelled transaction cannot be larger than \
+                                        gas price of some non-cancelled transaction"
                                 );
 
                                 debug!(
