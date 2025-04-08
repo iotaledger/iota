@@ -23,7 +23,11 @@ import {
     InfoBoxStyle,
     InfoBoxType,
 } from '@iota/apps-ui-kit';
-import { useCurrentAccount, useIotaClientQuery, useSignAndExecuteTransaction } from '@iota/dapp-kit';
+import {
+    useCurrentAccount,
+    useIotaClientQuery,
+    useSignAndExecuteTransaction,
+} from '@iota/dapp-kit';
 import { IotaSignAndExecuteTransactionOutput } from '@iota/wallet-standard';
 import { ampli } from '@/lib/utils/analytics';
 import { Warning } from '@iota/apps-ui-icons';

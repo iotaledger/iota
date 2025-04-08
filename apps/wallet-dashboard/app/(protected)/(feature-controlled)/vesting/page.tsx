@@ -38,14 +38,13 @@ import {
     InfoBoxStyle,
     InfoBoxType,
 } from '@iota/apps-ui-kit';
+import { Theme, useFormatCoin, useTheme, useCountdownByTimestamp, toast } from '@iota/core';
 import {
-    Theme,
-    useFormatCoin,
-    useTheme,
-    useCountdownByTimestamp,
-    toast,
-} from '@iota/core';
-import { useCurrentAccount, useIotaClient, useIotaClientQuery, useSignAndExecuteTransaction } from '@iota/dapp-kit';
+    useCurrentAccount,
+    useIotaClient,
+    useIotaClientQuery,
+    useSignAndExecuteTransaction,
+} from '@iota/dapp-kit';
 import { IotaValidatorSummary } from '@iota/iota-sdk/client';
 import { Calendar, StarHex, Warning } from '@iota/apps-ui-icons';
 import { useState } from 'react';

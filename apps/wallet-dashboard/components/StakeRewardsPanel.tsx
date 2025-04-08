@@ -2,12 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { Divider, KeyValueInfo, Panel } from '@iota/apps-ui-kit';
-import {
-    TimeUnit,
-    useFormatCoin,
-    useGetTimeBeforeEpochNumber,
-    useTimeAgo,
-} from '@iota/core';
+import { TimeUnit, useFormatCoin, useGetTimeBeforeEpochNumber, useTimeAgo } from '@iota/core';
 import { useIotaClientQuery } from '@iota/dapp-kit';
 
 interface StakeRewardsPanelProps {

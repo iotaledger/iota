@@ -1,12 +1,7 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import {
-    CoinFormat,
-    useFormatCoin,
-    useStakeTxnInfo,
-    Validator,
-} from '@iota/core';
+import { CoinFormat, useFormatCoin, useStakeTxnInfo, Validator } from '@iota/core';
 import {
     Button,
     ButtonType,
