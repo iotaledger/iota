@@ -36,7 +36,11 @@ To call core contracts from Move you have to encode the parameters using BCS. Th
 | int16   | [uint8; 2] |
 | uint32  | uint32     |
 
----
+## Maps
+
+### CoinBalances
+
+[[CoinType](#cointype)][u64]
 
 ## Structs
 
@@ -75,10 +79,10 @@ To call core contracts from Move you have to encode the parameters using BCS. Th
 
 ### `Assets`
 
-| Name    | Type                              |
-|---------|-----------------------------------|
-| Coins   | [CoinBalances](#map-coinbalances) |
-| Objects | [u8; 32]                          |
+| Name    | Type                          |
+|---------|-------------------------------|
+| Coins   | [CoinBalances](#coinbalances) |
+| Objects | [u8; 32]                      |
 
 ### `AssetsBag`
 

@@ -54,7 +54,7 @@ It can only be invoked by the chain owner.
 
 | Name                  | Type               | Optional  | Description                                                                                                                                        |
 |-----------------------|--------------------|-----------|----------------------------------------------------------------------------------------------------------------------------------------------------|
-| newStateControllerAddr | [u8; 32] | No       | The address of the next state controller. Must be an [allowed](#addallowedstatecontrolleraddresss-statecontrolleraddress) state controller address |
+| newStateControllerAddr | [u8; 32] | No       | The address of the next state controller. Must be an [allowed](#addallowedstatecontrolleraddress) state controller address |
 
 #### Returns
 
@@ -112,7 +112,7 @@ _None_
 ### `claimChainOwnership`
 
 Claims the ownership of the chain if the caller matches the identity set
-in [`delegateChainOwnership`](#delegatechainownershipo-agentid).
+in [`delegateChainOwnership`](#delegatechainownership).
 
 #### Parameters
 
@@ -301,7 +301,7 @@ _None_
 
 | Name       | Type          | Description |
 |------------|---------------|-------------|
-| chainInfo  | [ChainInfo](./types.md#iscchaininfo) | The chain info |
+| chainInfo  | [ChainInfo](./types.md#chaininfo) | The chain info |
 
 ### `getFeePolicy`
 
