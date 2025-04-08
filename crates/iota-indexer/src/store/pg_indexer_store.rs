@@ -1541,6 +1541,24 @@ impl PgIndexerStore {
         .map(|v| v as u64)
     }
 
+    fn refresh_participation_metrics(&self) -> Result<(), IndexerError> {
+        transactional_blocking_with_retry!(
+            &self.blocking_cp,
+            |conn| {
+                diesel::sql_query("REFRESH MATERIALIZED VIEW participation_metrics")
+                    .execute(conn)?;
+                Ok::<(), IndexerError>(())
+            },
+            PG_DB_COMMIT_SLEEP_DURATION
+        )
+        .tap_ok(|_| {
+            info!("Successfully refreshed participation_metrics");
+        })
+        .tap_err(|e| {
+            tracing::error!("Failed to refresh participation_metrics: {e}");
+        })
+    }
+
     async fn execute_in_blocking_worker<F, R>(&self, f: F) -> Result<R, IndexerError>
     where
         F: FnOnce(Self) -> Result<R, IndexerError> + Send + 'static,
@@ -2155,6 +2173,11 @@ impl IndexerStore for PgIndexerStore {
             this.get_network_total_transactions_by_end_of_epoch(epoch)
         })
         .await
+    }
+
+    async fn refresh_participation_metrics(&self) -> Result<(), IndexerError> {
+        self.execute_in_blocking_worker(move |this| this.refresh_participation_metrics())
+            .await
     }
 
     fn as_any(&self) -> &dyn StdAny {

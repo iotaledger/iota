@@ -4170,6 +4170,23 @@
       ]
     },
     {
+      "name": "iotax_getParticipationMetrics",
+      "tags": [
+        {
+          "name": "Extended API"
+        }
+      ],
+      "description": "Returns the participation metrics. Participation is defined as the total number of unique addresses that have delegated stake in the current epoch. Includes both staked and timelocked staked IOTA. Exclusively served by the indexer.",
+      "params": [],
+      "result": {
+        "name": "ParticipationMetrics",
+        "required": true,
+        "schema": {
+          "$ref": "#/components/schemas/ParticipationMetrics"
+        }
+      }
+    },
+    {
       "name": "iotax_getReferenceGasPrice",
       "tags": [
         {
@@ -11018,6 +11035,21 @@
                 "type": "null"
               }
             ]
+          }
+        }
+      },
+      "ParticipationMetrics": {
+        "description": "Provides metrics about the participation in the network.",
+        "type": "object",
+        "required": [
+          "totalAddresses"
+        ],
+        "properties": {
+          "totalAddresses": {
+            "description": "The count of distinct addresses with delegated stake.",
+            "type": "integer",
+            "format": "uint64",
+            "minimum": 0.0
           }
         }
       },
