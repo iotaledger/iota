@@ -7,11 +7,19 @@ import { type IotaEvent } from '@iota/iota-sdk/client';
 export function getValidatorMoveEvent(
     validatorsEvent: IotaEvent[],
     validatorAddress: string,
+    currentEpoch?: string,
 ): IotaEvent | undefined | unknown {
-    const event = validatorsEvent.find(
-        ({ parsedJson }) =>
-            (parsedJson as { validator_address?: unknown })!.validator_address === validatorAddress,
-    );
+    const event = validatorsEvent.find(({ parsedJson }) => {
+        const parsed = parsedJson as { validator_address?: string; epoch?: string };
+
+        if (parsed.validator_address !== validatorAddress) {
+            return false;
+        }
+        if (currentEpoch && parsed.epoch !== currentEpoch) {
+            return false;
+        }
+        return true;
+    });
 
     return event && event.parsedJson;
 }

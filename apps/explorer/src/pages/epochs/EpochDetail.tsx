@@ -55,6 +55,10 @@ export function EpochDetail() {
         () => systemState?.epoch === epochData?.epoch,
         [systemState, epochData],
     );
+    const committeeMembers =
+        epochData?.committeeMembers?.map(
+            (committeeMemberIndex) => epochData.validators[Number(committeeMemberIndex)],
+        ) ?? [];
 
     const tableColumns = useMemo(() => {
         if (!epochData?.validators || epochData.validators.length === 0) return null;
@@ -71,11 +75,7 @@ export function EpochDetail() {
         // todo: enrich this historical validator data when we have
         // at-risk / pending validators for historical epochs
         return generateValidatorsTableColumns({
-            committeeMembers:
-                epochData.committeeMembers?.map(
-                    (committeeMemberIndex) =>
-                        epochData.validators[Number(committeeMemberIndex)].iotaAddress,
-                ) ?? [],
+            committeeMembers: committeeMembers.map((member) => member.iotaAddress),
             atRiskValidators: [],
             validatorEvents: [],
             rollingAverageApys: null,
@@ -100,9 +100,6 @@ export function EpochDetail() {
                 }
             />
         );
-
-    const tableData = epochData.validators;
-
     const { fundInflow, fundOutflow, netInflow } = getEpochStorageFundFlow(
         epochData.endOfEpochInfo,
     );
@@ -200,11 +197,13 @@ export function EpochDetail() {
                                     initialLimit={20}
                                 />
                             ) : null}
-                            {activeTabId === EpochTabs.Validators && tableData && tableColumns ? (
+                            {activeTabId === EpochTabs.Validators &&
+                            committeeMembers &&
+                            tableColumns ? (
                                 <TableCard
                                     sortTable
                                     defaultSorting={[{ id: 'stakingPoolIotaBalance', desc: true }]}
-                                    data={tableData}
+                                    data={committeeMembers}
                                     columns={tableColumns}
                                 />
                             ) : null}
