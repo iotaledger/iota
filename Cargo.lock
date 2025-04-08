@@ -5713,15 +5713,16 @@ dependencies = [
 
 [[package]]
 name = "insta"
-version = "1.40.0"
+version = "1.42.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6593a41c7a73841868772495db7dc1e8ecab43bb5c0b6da2059246c4b506ab60"
+checksum = "50259abbaa67d11d2bcafc7ba1d094ed7a0c70e3ce893f0d0997f73558cb3084"
 dependencies = [
  "console",
- "lazy_static",
  "linked-hash-map",
+ "once_cell",
  "pest",
  "pest_derive",
+ "pin-project",
  "serde",
  "similar",
 ]
@@ -9705,6 +9706,7 @@ dependencies = [
  "move-vm-test-utils",
  "move-vm-types",
  "serde_yaml",
+ "similar",
  "tempfile",
  "toml_edit 0.14.4",
  "walkdir",
@@ -9719,6 +9721,7 @@ dependencies = [
  "colored",
  "dirs-next",
  "hex",
+ "insta",
  "move-binary-format",
  "move-core-types",
  "num-bigint 0.4.6",
@@ -9740,6 +9743,7 @@ dependencies = [
  "codespan-reporting",
  "dunce",
  "hex",
+ "insta",
  "lsp-types",
  "move-binary-format",
  "move-borrow-graph",
@@ -9965,6 +9969,7 @@ dependencies = [
 name = "move-proc-macros"
 version = "0.1.0"
 dependencies = [
+ "enum-compat-util",
  "quote",
  "syn 2.0.100",
 ]
@@ -10012,14 +10017,10 @@ dependencies = [
 name = "move-trace-format"
 version = "0.0.1"
 dependencies = [
- "anyhow",
  "move-binary-format",
  "move-core-types",
- "move-proc-macros",
- "ref-cast",
  "serde",
  "serde_json",
- "variant_count",
 ]
 
 [[package]]
@@ -10724,9 +10725,9 @@ dependencies = [
 
 [[package]]
 name = "once_cell"
-version = "1.19.0"
+version = "1.21.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3fdb12b2476b595f9358c5161aa467c2438859caa136dec86c26fdd2efe17b92"
+checksum = "42f5e15c9953c5e4ccceeb2e7382a716482c34515315f7b03532b8b4e8393d2d"
 
 [[package]]
 name = "oorandom"
