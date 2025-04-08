@@ -111,5 +111,7 @@ pub trait IndexerStore: Any + Clone + Sync + Send + 'static {
         epoch: u64,
     ) -> Result<u64, IndexerError>;
 
+    async fn refresh_participation_metrics(&self) -> Result<(), IndexerError>;
+
     fn as_any(&self) -> &dyn Any;
 }

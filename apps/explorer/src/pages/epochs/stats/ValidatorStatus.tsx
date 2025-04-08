@@ -2,30 +2,13 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import type { Network } from '@iota/iota-sdk/src/client';
-import { DisplayStats, IOTA_PRIMITIVES_COLOR_PALETTE, Panel, Title } from '@iota/apps-ui-kit';
-import {
-    getRefGasPrice,
-    useTheme,
-    Theme,
-    Feature,
-    useFeatureEnabledByNetwork,
-    useGetLatestIotaSystemState,
-} from '@iota/core';
-import { useMemo } from 'react';
-import { useNetworkContext } from '~/contexts/networkContext';
+import { IOTA_PRIMITIVES_COLOR_PALETTE, Panel, Title } from '@iota/apps-ui-kit';
+import { Theme, useGetLatestIotaSystemState, useTheme } from '@iota/core';
 import { RingChart, RingChartLegend } from '~/components/ui';
 
 export function ValidatorStatus(): JSX.Element | null {
-    const [network] = useNetworkContext();
     const { data } = useGetLatestIotaSystemState();
-    const isFixedGasPrice = useFeatureEnabledByNetwork(Feature.FixedGasPrice, network as Network);
     const { theme } = useTheme();
-
-    const nextRefGasPrice = useMemo(
-        () => (!isFixedGasPrice ? getRefGasPrice(data?.activeValidators) : 0n),
-        [data?.activeValidators, isFixedGasPrice],
-    );
 
     if (!data) return null;
 
@@ -103,17 +86,6 @@ export function ValidatorStatus(): JSX.Element | null {
                             <RingChartLegend data={chartData} />
                         </div>
                     </div>
-
-                    {!isFixedGasPrice && (
-                        <div className="h-full w-full max-w-[250px] sm:w-1/2 md:w-auto lg:w-1/2 ">
-                            <DisplayStats
-                                label="Estimated Next Epoch
-                        Reference Gas Price"
-                                value={nextRefGasPrice.toString()}
-                                supportingLabel="nano"
-                            />
-                        </div>
-                    )}
                 </div>
             </div>
         </Panel>

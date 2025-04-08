@@ -148,18 +148,6 @@ export function generateValidatorsTableColumns({
             },
         },
         {
-            header: 'Proposed next Epoch gas price',
-            accessorKey: 'nextEpochGasPrice',
-            cell({ getValue }) {
-                const nextEpochGasPrice = getValue<string>();
-                return (
-                    <TableCellBase>
-                        <StakeColumn stake={nextEpochGasPrice} inNano />
-                    </TableCellBase>
-                );
-            },
-        },
-        {
             header: 'APY',
             accessorKey: 'iotaAddress',
             enableSorting: true,
