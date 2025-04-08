@@ -2,31 +2,30 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { test, expect } from './fixtures';
-import { importWallet, deriveAddressFromMnemonic } from './utils';
+import { createWallet } from './utils';
 import 'dotenv/config';
 
 test.describe('Wallet Connection', () => {
-    test.beforeEach(async ({ page, extensionUrl }) => {
+    test.beforeEach(async ({ page, extensionUrl, sharedState }) => {
         // Navigate to the wallet dashboard
         await page.goto('/');
         await page.waitForSelector('.welcome-page');
 
         // Import a wallet in the extension
-        const mnemonic = process.env.TEST_WALLET_MNEMONIC || '';
         await page.goto(extensionUrl);
-        await importWallet(page, extensionUrl, mnemonic);
+        const cratedWallet = await createWallet(page, extensionUrl);
+
+        sharedState.walletMnemonic = cratedWallet.mnemonic || '';
+        sharedState.walletAddress = cratedWallet.address || '';
 
         // Go back to dashboard
         await page.goto('/');
         await page.waitForSelector('.welcome-page');
     });
 
-    test('should connect to wallet extension', async ({ context, page }) => {
+    test('should connect to wallet extension', async ({ context, page, sharedState }) => {
         const connectButton = page.getByRole('button', { name: 'Connect' });
         await connectButton.click();
-
-        const mnemonic = process.env.TEST_WALLET_MNEMONIC || '';
-        const address = deriveAddressFromMnemonic(mnemonic);
 
         // Select the extension wallet option
         await page.getByText('IOTA Wallet', { exact: true }).click();
@@ -50,6 +49,6 @@ test.describe('Wallet Connection', () => {
             .locator('[data-full-address]')
             .getAttribute('data-full-address');
 
-        expect(displayedFullAddress).toBe(address);
+        expect(displayedFullAddress).toBe(sharedState.walletAddress);
     });
 });

@@ -7,10 +7,23 @@ import { test as base, chromium, type BrowserContext } from '@playwright/test';
 // Path to the wallet extension build directory
 const EXTENSION_PATH = path.join(__dirname, '../../wallet/dist');
 
+// Define the shared state type
+interface SharedState {
+    walletAddress?: string;
+    walletMnemonic?: string;
+}
+
+const sharedState: SharedState = {};
+
 export const test = base.extend<{
+    sharedState: SharedState;
     context: BrowserContext;
     extensionUrl: string;
 }>({
+    sharedState: async ({ context }, use) => {
+        await use(sharedState);
+    },
+
     // Override the default context to load with the extension
     context: async ({ baseURL }, use) => {
         const isCI = !!process.env.CI;
