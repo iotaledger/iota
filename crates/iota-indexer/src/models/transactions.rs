@@ -215,16 +215,13 @@ impl StoredTransaction {
                     self.transaction_digest
                 ))
             })?;
-        let (checkpoint, timestamp_ms) = {
-            if self.is_checkpointed_transaction() {
-                (
-                    Some(self.checkpoint_sequence_number as u64),
-                    Some(self.timestamp_ms as u64),
-                )
-            } else {
-                (None, None)
-            }
-        };
+
+        let timestamp_ms = self
+            .is_checkpointed_transaction()
+            .then_some(self.timestamp_ms as u64);
+        let checkpoint = self
+            .is_checkpointed_transaction()
+            .then_some(self.checkpoint_sequence_number as u64);
 
         let transaction = if options.show_input {
             let sender_signed_data = self.try_into_sender_signed_data()?;
