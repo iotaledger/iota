@@ -21,5 +21,4 @@ export enum Feature {
     StardustMigration = 'migration',
     SupplyIncreaseVesting = 'supply-increase-vesting',
     FiatConversion = 'fiat-conversion',
-    FixedGasPrice = 'fixed-gas-price',
 }

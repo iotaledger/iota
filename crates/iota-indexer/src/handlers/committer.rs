@@ -186,6 +186,15 @@ async fn commit_checkpoints<S>(
             })
             .expect("Advancing epochs in DB should not fail.");
         metrics.total_epoch_committed.inc();
+
+        // Refresh participation metrics after advancing epoch
+        state
+            .refresh_participation_metrics()
+            .await
+            .tap_err(|e| {
+                error!("Failed to update participation metrics: {e}");
+            })
+            .expect("Updating participation metrics should not fail.");
     }
 
     state
