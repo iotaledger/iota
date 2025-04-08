@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { useIotaClientQuery } from "@iota/dapp-kit";
+import { useIotaClientQuery } from '@iota/dapp-kit';
 
 // Get time between current epoch and specified epoch
 // Get the period between the current epoch and next epoch
