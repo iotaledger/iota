@@ -564,7 +564,8 @@ async fn exchange_rates(
 // In tests that run several different networks the latter calls
 // will get incorrect/outdated cached results.
 // This function allows to clear `cached` cache for `exchange_rates`.
-pub async fn clear_exchange_rates_cache() {
+#[cfg(msim)]
+pub async fn clear_exchange_rates_cache_for_testing() {
     use cached::Cached;
     if let Some(mutex) = ::cached::once_cell::sync::Lazy::get(&EXCHANGE_RATES) {
         let mut cache = mutex.lock().await;
