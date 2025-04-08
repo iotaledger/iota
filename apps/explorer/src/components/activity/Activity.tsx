@@ -1,5 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
-// Modifications Copyright (c) 2024 IOTA Stiftung
+// Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 import { useFeatureIsOn } from '@growthbook/growthbook-react';
@@ -15,6 +15,7 @@ import {
     Panel,
     SegmentedButton,
     SegmentedButtonType,
+    Checkbox,
 } from '@iota/apps-ui-kit';
 
 enum ActivityCategory {
@@ -51,6 +52,10 @@ export function Activity({ initialLimit, disablePagination }: ActivityProps): JS
     const pollingTxnTableEnabled = useFeatureIsOn(Feature.PollingTxnTable as string);
 
     const [paused, setPaused] = useState(false);
+    const [showSystemTransactions, setIsChecked] = useState(true);
+    const handleCheckboxChange = () => {
+        setIsChecked(!showSystemTransactions);
+    };
     // const [showTransactionDropdown, setShowTransactionDropdown] = useState(false);
     const [selectedCategory, setSelectedCategory] = useState<ActivityCategory>(
         ActivityCategory.Transactions,
@@ -147,12 +152,22 @@ export function Activity({ initialLimit, disablePagination }: ActivityProps): JS
             </div>
             <div className="p-md">
                 {selectedCategory === ActivityCategory.Transactions && (
-                    <TransactionsActivityTable
-                        refetchInterval={refetchInterval}
-                        initialLimit={initialLimit}
-                        disablePagination={disablePagination}
-                        transactionKindFilter={undefined}
-                    />
+                    <div>
+                        <Checkbox
+                            isChecked={showSystemTransactions}
+                            onCheckedChange={handleCheckboxChange}
+                            label="Show System Transactions"
+                            isLabelFirst
+                        />
+                        <TransactionsActivityTable
+                            refetchInterval={refetchInterval}
+                            initialLimit={initialLimit}
+                            disablePagination={disablePagination}
+                            transactionKindFilter={
+                                showSystemTransactions ? undefined : 'ProgrammableTransaction'
+                            }
+                        />
+                    </div>
                 )}
                 {selectedCategory === ActivityCategory.Epochs && (
                     <EpochsActivityTable
