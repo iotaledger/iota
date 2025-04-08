@@ -1,16 +1,11 @@
+// Copyright (c) 2025 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 import path from 'path';
 import { test as base, chromium, type BrowserContext } from '@playwright/test';
 
 // Path to the wallet extension build directory
 const EXTENSION_PATH = path.join(__dirname, '../../wallet/dist');
-
-// Launch arguments that ensure the extension is loaded
-const LAUNCH_ARGS = [
-    `--disable-extensions-except=${EXTENSION_PATH}`,
-    `--load-extension=${EXTENSION_PATH}`,
-    // Ensure userAgent is correctly set in serviceworker
-    '--user-agent=Playwright',
-];
 
 export const test = base.extend<{
     context: BrowserContext;
@@ -18,9 +13,16 @@ export const test = base.extend<{
 }>({
     // Override the default context to load with the extension
     context: async ({ baseURL }, use) => {
+        const isCI = !!process.env.CI;
         const context = await chromium.launchPersistentContext('', {
             headless: false,
-            args: LAUNCH_ARGS,
+            args: [
+                `--disable-extensions-except=${EXTENSION_PATH}`,
+                `--load-extension=${EXTENSION_PATH}`,
+                // Ensure userAgent is correctly set in serviceworker
+                '--user-agent=Playwright',
+                ...(isCI ? ['--headless=new', '--disable-gpu'] : []),
+            ],
         });
         await use(context);
         await context.close();
