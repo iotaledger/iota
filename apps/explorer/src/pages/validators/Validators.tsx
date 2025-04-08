@@ -164,7 +164,7 @@ function ValidatorPageResult(): JSX.Element {
         },
         {
             title: 'Participation',
-            value: participationMetrics ?? undefined,
+            value: participationMetrics ? participationMetrics?.totalAddresses : undefined,
             supportingLabel: participationMetrics ? undefined : 'Coming Soon',
             tooltipText:
                 'Total number of unique addresses that have delegated stake in the current epoch. Includes both staked and timelocked staked IOTA',
