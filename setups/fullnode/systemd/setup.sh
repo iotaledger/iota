@@ -45,9 +45,6 @@ if ! command -v cargo &> /dev/null; then
     exit 1
 fi
 
-
-
-
 echo -e "You're setting up a IOTA node on the network '$NETWORK'. This script will perform the following steps:"
 echo -e " ${G}1.${NC} Check your rust toolchain version"
 echo -e " ${G}2.${NC} Install system packages (libraries & other dependencies)"
@@ -67,7 +64,6 @@ if [ "$(systemctl is-active iota-node)" == "active" ]; then
     info "stopping existing IOTA node service"
     systemctl stop iota-node
 fi
-
 
 # Install system packages (libraries & other dependencies)
 sudo apt-get update \
@@ -111,10 +107,8 @@ if [ "$rustc_version" != "$MIN_RUSTC_VERSION" ] && [[ $(echo -e "$rustc_version\
     exit 1
 fi
 
-
 # Build the binaries 
 cargo build --release --bin iota-node 
-
 
 # Add a IOTA user, create directories for iota-node service
 if id iota &>/dev/null;
@@ -175,7 +169,6 @@ curl -sfLJ https://dbfiles.$NETWORK.iota.cafe/genesis.blob -o "$CONFIG_DIR/genes
 if [ "$NETWORK" == "mainnet" ] || [ "$NETWORK" == "devnet" ]; then
     curl -sfLJ https://dbfiles.$NETWORK.iota.cafe/migration.blob -o "$CONFIG_DIR/migration.blob"
 fi
-
 
 # Move bin to $BIN_DIR
 cp ./target/release/iota-node "$BIN_DIR/iota-node"
