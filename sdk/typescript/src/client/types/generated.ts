@@ -1411,6 +1411,11 @@ export interface PaginatedTransactionResponse {
     hasNextPage: boolean;
     nextCursor?: string | null;
 }
+/** Provides metrics about the participation in the network. */
+export interface ParticipationMetrics {
+    /** The count of distinct addresses with delegated stake. */
+    totalAddresses: string;
+}
 /**
  * An passkey authenticator with parsed fields. See field definition below. Can be initialized from
  * [struct RawPasskeyAuthenticator].
