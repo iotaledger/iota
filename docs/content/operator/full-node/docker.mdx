@@ -8,7 +8,7 @@ teams:
 import Quiz from '@site/src/components/Quiz';
 import questions from '/json/node-operators/iota-full-node/node-setup.json';
 import WarningAdvanced from './../../_snippets/warning-advanced-instructions-node-setup.mdx'
-import Ports from './../../_snippets/operator/ports.mdx'
+import Ports from './../../_snippets/operator/fullnode-ports.mdx'
 import FullnodeRequirements from '../../_snippets/operator/fullnode-requirements-tab.mdx'
 
 
@@ -20,18 +20,18 @@ Use this guide to install and configure an full node locally using Docker for te
 
 <WarningAdvanced/>
 
-<Ports/>
-
 ## Hardware requirements
 
 <FullnodeRequirements/ >
 
-## Prerequisites
+## Software requirements
 
 Before you begin, ensure you have the following:
 
 - [Docker](https://docs.docker.com/get-docker/) installed.
 - [Docker Compose](https://docs.docker.com/compose/install/) installed.
+
+<Ports/>
 
 ## Clone the IOTA repository
 <!-- TODO: we can remove this step in case we provide the same setup as in the former node-docker-setup -->

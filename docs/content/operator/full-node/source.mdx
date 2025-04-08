@@ -11,7 +11,7 @@ import WarningAdvanced from './../../_snippets/warning-advanced-instructions-nod
 import FullnodeRequirements from '../../_snippets/operator/fullnode-requirements-tab.mdx'
 
 import {Networks} from '@site/src/components/constant'
-import Ports from './../../_snippets/operator/ports.mdx'
+import Ports from './../../_snippets/operator/fullnode-ports.mdx'
 import Genesis from './../../_snippets/operator/genesis.mdx'
 
 <WarningAdvanced/>
@@ -210,7 +210,7 @@ When IOTA releases a new version, you must update your full node with the releas
 Make sure your node stays on the same network (testnet, mainnet, devnet, ...) it was previously connected to.
 
 To upgrade your node, run the same script you used to install it:
-{/* TODO in 6017 update this before merging */}
+{/* TODO in 6017 update branch before merging */}
 ```shell
 NETWORK="testnet"  bash -i <(curl https://raw.githubusercontent.com/iotaledger/iota.js/master/installer.sh)
 ```

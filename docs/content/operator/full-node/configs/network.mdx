@@ -6,6 +6,7 @@ teams:
   - iotaledger/node
 ---
 
+import Ports from './../../../_snippets/operator/fullnode-ports.mdx'
 import TestnetNodeConfig from "../../../_snippets/network-node-config-testnet.mdx";
 import DevnetNodeConfig from "../../../_snippets/network-node-config-devnet.mdx";
 
@@ -16,11 +17,7 @@ To synchronize the state, the node needs to establish connections with other nod
 
 The full node uses the following ports by default:
 
-| Protocol/Port | Reachability     | Purpose                           | Expose port ? |
-| ------------- | ---------------- | --------------------------------- | --------- |
-| UDP/8084      | Inbound/Outbound | Peer-to-peer state sync interface | Needs to be reachable from the internet |
-| TCP/9000      | Outbound         | JSON RPC Address / Web socket     | (optional. Can be private for your use only) |
-| TCP/9184      | Localhost        | Metrics scraping for your monitoring                  | (optional) |
+<Ports/>
 
 ## Known peers
 
