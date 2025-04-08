@@ -74,28 +74,23 @@ The `RUST_LOG_JSON=1` environment variable can optionally be set to enable loggi
 Depending on your deployment method, these are configured in the following places:
 
 <Tabs groupId="node-logs">
-<TabItem label="Systemd" value="logs-systemd">
+  <TabItem label="Systemd" value="logs-systemd">
+    ```
+    [Service]
+    ...
+    Environment=RUST_BACKTRACE=1
+    Environment=RUST_LOG=info,iota_core=debug,consensus=debug,jsonrpsee=error
+    ```
+  </TabItem>
 
-```
-[Service]
-...
-Environment=RUST_BACKTRACE=1
-Environment=RUST_LOG=info,iota_core=debug,consensus=debug,jsonrpsee=error
-```
-
-</TabItem>
-
-
-<TabItem label="Docker Compose" value="logs-docker">
-
-Add the following to the node container settings:
-```yaml
-environment:
-    - RUST_BACKTRACE=1
-    - RUST_LOG=info,iota_core=debug,consensus=debug,jsonrpsee=error
-```
-
-</TabItem>
+  <TabItem label="Docker Compose" value="logs-docker">
+    Add the following to the node container settings:
+    ```yaml
+    environment:
+        - RUST_BACKTRACE=1
+        - RUST_LOG=info,iota_core=debug,consensus=debug,jsonrpsee=error
+    ```
+  </TabItem>
 </Tabs>
 
 It is possible to change the logging configuration while a node is running using the admin interface.
@@ -103,17 +98,14 @@ It is possible to change the logging configuration while a node is running using
 #### Verify Configured Logging Values
 
 To view the currently configured logging values:
-
 ```sh
 $ curl localhost:1337/logging
 ```
 
 To change the currently configured logging values:
-
 ```sh
 $ curl localhost:1337/logging -d "info"
 ```
-
 
 #### Viewing Logs
 
@@ -142,15 +134,3 @@ $ curl localhost:1337/logging -d "info"
     ```
   </TabItem>
 </Tabs>
-
-
-
-
-
-
-
-
-
-
-
-
