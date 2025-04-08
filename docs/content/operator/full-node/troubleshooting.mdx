@@ -74,11 +74,15 @@ If you continue to see issues, do the following steps:
 
 <Tabs groupId="setup-method">
     <TabItem label="Systemd" value="systemd">
-      Restart the full node:
-      {/* TODO in 6017 make script update node using script */}
+      To re-install your node from scratch, run the same script you used to install it:
+      {/* TODO in 6017 update branch before merging */}
       ```shell
-      sudo systemctl restart iota-node
+      NETWORK="testnet"  bash -i <(curl https://raw.githubusercontent.com/iotaledger/iota.js/master/installer.sh)
       ```
+
+      :::info
+      Re-use the same network (`testnet`, `mainnet`, `devnet`) your node is already running on.
+      :::
     </TabItem>
 
 
