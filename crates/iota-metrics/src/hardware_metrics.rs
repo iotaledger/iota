@@ -123,9 +123,9 @@ impl HardwareMetrics {
         m.set_label(
             labels
                 .iter()
-                .filter_map(|opt| opt.clone())
-                .collect::<Vec<_>>()
-                .into(),
+                .filter_map(|opt| opt.as_ref())
+                .cloned()
+                .collect::<Vec<_>>(),
         );
 
         mf.mut_metric().push(m);
