@@ -46,7 +46,10 @@ use test_cluster::TestClusterBuilder;
 #[sim_test]
 async fn test_apy() {
     // clean up the `cached` cache before running the test.
-    iota_json_rpc::governance_api::clear_exchange_rates_cache_for_testing().await;
+    #[cfg(msim)]
+    {
+        iota_json_rpc::governance_api::clear_exchange_rates_cache_for_testing().await;
+    }
 
     // We need a large stake for low enough APY values such that they are not
     // filtered out by the APY calculation function.
