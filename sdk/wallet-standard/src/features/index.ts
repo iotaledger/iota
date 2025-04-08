@@ -27,9 +27,9 @@ export type IotaFeatures = IotaSignPersonalMessageFeature &
 export type IotaWalletFeatures = StandardConnectFeature &
     StandardEventsFeature &
     IotaFeatures &
-    // Disconnect is an optional feature:
+    // `standard:disconnect` and `iota:connect` are optional features:
     Partial<StandardDisconnectFeature> &
-    IotaConnectFeature;
+    Partial<IotaConnectFeature>;
 
 export type WalletWithIotaFeatures = WalletWithFeatures<IotaWalletFeatures>;
 
@@ -41,7 +41,7 @@ export type WalletWithRequiredFeatures = WalletWithFeatures<
         Partial<IotaFeatures> &
         Partial<StandardDisconnectFeature> &
         IdentifierRecord<unknown> &
-        IotaConnectFeature
+        Partial<IotaConnectFeature>
 >;
 
 export type MinimallyRequiredFeatures = StandardConnectFeature & StandardEventsFeature;

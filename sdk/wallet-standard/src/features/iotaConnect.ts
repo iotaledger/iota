@@ -9,7 +9,7 @@ export type IotaConnectFeatureVersion = '1.0.0';
 
 export type IotaConnectFeature = {
     // Might not be supported by all the wallets.
-    readonly [IotaConnect]?: {
+    readonly [IotaConnect]: {
         readonly version: IotaConnectFeatureVersion;
         readonly connect: IotaConnectMethod;
     };

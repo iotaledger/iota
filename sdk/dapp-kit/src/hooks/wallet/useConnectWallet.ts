@@ -54,7 +54,7 @@ export function useConnectWallet({
                 const standardConnectMethod = wallet.features[StandardConnect].connect;
                 const iotaConnectMethod = wallet.features[IotaConnect]?.connect;
 
-                const connectMethod = standardConnectMethod || iotaConnectMethod;
+                const connectMethod = iotaConnectMethod || standardConnectMethod;
 
                 const connectResult = await connectMethod(connectArgs);
                 const connectedIotaAccounts = connectResult.accounts.filter((account) =>
