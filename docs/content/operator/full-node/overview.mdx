@@ -21,8 +21,10 @@ IOTA full nodes validate blockchain activities such as transactions, checkpoints
 - Track and verify the state of the blockchain, independently and locally.
 - Serve read requests from clients.
 - State Synchronization:
-  - Synchronize with 2f+1 validators to process new transactions, ensure finality, and update the local database.
-
+  - keep up with new transactions / checkpoints,
+  - these transactions / checkpoints are processed and finalized by validators, but can be relayed to the network by the full nodes
+  - verify these new transactions
+  - apply the new transactions' state changes to update the local database
 
 ## Running IOTA Full Node
 
