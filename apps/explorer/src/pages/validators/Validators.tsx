@@ -11,8 +11,6 @@ import {
     useGetValidatorsApy,
     useGetValidatorsEvents,
     useMultiGetObjects,
-    Feature,
-    useFeatureEnabledByNetwork,
     useGetLatestIotaSystemState,
 } from '@iota/core';
 import {
@@ -36,13 +34,9 @@ import { useQuery } from '@tanstack/react-query';
 import { useEnhancedRpcClient } from '~/hooks';
 import { sanitizePendingValidators } from '~/lib';
 import { IOTA_TYPE_ARG, normalizeIotaAddress } from '@iota/iota-sdk/utils';
-import type { Network } from '@iota/iota-sdk/src/client';
-import { useNetworkContext } from '~/contexts/networkContext';
 
 function ValidatorPageResult(): JSX.Element {
-    const [network] = useNetworkContext();
     const { data, isPending, isSuccess, isError } = useGetLatestIotaSystemState();
-    const isFixedGasPrice = useFeatureEnabledByNetwork(Feature.FixedGasPrice, network as Network);
     const activeValidators = data?.activeValidators;
     const numberOfValidators = activeValidators?.length || 0;
 
@@ -144,10 +138,6 @@ function ValidatorPageResult(): JSX.Element {
             'Voting Power',
             'Status',
         ];
-
-        if (!isFixedGasPrice) {
-            includeColumns.push('Proposed next Epoch gas price');
-        }
 
         return generateValidatorsTableColumns({
             committeeMembers: data.committeeMembers.map((validator) => validator.iotaAddress),

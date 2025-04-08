@@ -28,9 +28,7 @@ import { TokenStats } from './stats/TokenStats';
 import { EpochTopStats } from './stats/EpochTopStats';
 import { getEpochStorageFundFlow } from '~/lib/utils';
 import { Warning } from '@iota/apps-ui-icons';
-import type { Network } from '@iota/iota-sdk/src/client';
-import { useNetworkContext } from '~/contexts/networkContext';
-import { Feature, useFeatureEnabledByNetwork, useGetLatestIotaSystemState } from '@iota/core';
+import { useGetLatestIotaSystemState } from '@iota/core';
 
 enum EpochTabs {
     Checkpoints = 'checkpoints',
@@ -38,12 +36,10 @@ enum EpochTabs {
 }
 
 export function EpochDetail() {
-    const [network] = useNetworkContext();
     const [activeTabId, setActiveTabId] = useState(EpochTabs.Checkpoints);
     const { id } = useParams();
     const enhancedRpc = useEnhancedRpcClient();
     const { data: systemState } = useGetLatestIotaSystemState();
-    const isFixedGasPrice = useFeatureEnabledByNetwork(Feature.FixedGasPrice, network as Network);
     const { data, isPending, isError } = useQuery({
         queryKey: ['epoch', id],
         queryFn: async () =>
@@ -71,10 +67,6 @@ export function EpochDetail() {
             'Voting Power',
             'Status',
         ];
-
-        if (!isFixedGasPrice) {
-            includeColumns.push('Proposed next Epoch gas price');
-        }
 
         // todo: enrich this historical validator data when we have
         // at-risk / pending validators for historical epochs

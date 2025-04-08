@@ -25,18 +25,22 @@ You can skip this step if you already have an account configured. If you would l
 Executing the above command provides the key pair info as output, e.g.:
 
 ```bash
-╭──────────────────────────────────────────────────────────────────────────────────────────────────╮
-│ Created new keypair and saved it to keystore.                                                    │
-├────────────────┬─────────────────────────────────────────────────────────────────────────────────┤
-│ alias          │ crazy-pearl                                                                     │
-│ address        │ 0x1ce209a128ab5185db4cab896bc88b255bce3fbdb1a2b3fa8ef1edf911628e3e              │
-│ keyScheme      │ ed25519                                                                         │
-│ recoveryPhrase │ limit chest cloth this possible sister kingdom thunder brother lame know orphan │
-╰────────────────┴─────────────────────────────────────────────────────────────────────────────────╯
+╭────────────────────────────────────────────────────────────────────────────────────────────────────────╮
+│ Created new keypair and saved it to keystore.                                                          │
+├─────────────────────────┬──────────────────────────────────────────────────────────────────────────────┤
+│ alias                   │ intelligent-chalcedony                                                       │
+│ address                 │ 0x3607bc87821a13d861e1e09cd5a2525b272f8dbc3e00556a8baf940a39120f32           │
+│ publicBase64Key         │ m6mBnT0tq9CA1zgdwy9y6ag2e8sWyzHVAoca+zLKJq8=                                 │
+│ publicBase64KeyWithFlag │ AJupgZ09LavQgNc4HcMvcumoNnvLFssx1QKHGvsyyiav                                 │
+│ keyScheme               │ ed25519                                                                      │
+│ recoveryPhrase          │ glimpse hard relax method kid deliver nominee wait brief surprise speed pond │
+╰─────────────────────────┴──────────────────────────────────────────────────────────────────────────────╯
 ```
 
 - `alias`: A human-readable identifier to use within the CLI scope to refer to a key pair.
 - `address`: The public address representing the key pair.
+- `publicBase64Key`: The public key, base64 encoded.
+- `publicBase64KeyWithFlag`: The public key prefixed with the scheme flag byte, base64 encoded.
 - `keyScheme`: The cryptographic scheme used to derive the keypair; the `ed25519` is the standard scheme, used most of the time, while the `BLS12381` scheme is used for the `authority_key`.
 - `recoveryPhrase`: A list of 12 words used by the cryptographic scheme used to derive the key pair.
 
