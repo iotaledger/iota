@@ -11,7 +11,7 @@ import { getValidatorMoveEvent } from '~/lib/utils';
 import { InfoBox, InfoBoxStyle, InfoBoxType, LoadingIndicator } from '@iota/apps-ui-kit';
 import { Warning } from '@iota/apps-ui-icons';
 import { useIotaClientQuery } from '@iota/dapp-kit';
-import { SupportedIotaSystemStateSummary } from '@iota/iota-sdk/src/client';
+import type { SupportedIotaSystemStateSummary } from '@iota/iota-sdk/src/client';
 
 const getAtRiskRemainingEpochs = (
     data: SupportedIotaSystemStateSummary | undefined,
