@@ -15,7 +15,7 @@ export const test = base.extend<{
     context: async ({ baseURL }, use) => {
         const isCI = !!process.env.CI;
         const context = await chromium.launchPersistentContext('', {
-            headless: false,
+            headless: isCI,
             args: [
                 `--disable-extensions-except=${EXTENSION_PATH}`,
                 `--load-extension=${EXTENSION_PATH}`,

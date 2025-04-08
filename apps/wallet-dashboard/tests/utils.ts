@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import type { Page } from '@playwright/test';
+import { Ed25519Keypair } from '@iota/iota-sdk/keypairs/ed25519';
 
 export async function importWallet(page: Page, extensionUrl: string, mnemonic: string) {
     await page.goto(extensionUrl, { waitUntil: 'commit' });
@@ -23,4 +24,10 @@ export async function importWallet(page: Page, extensionUrl: string, mnemonic: s
     await page.getByText('I read and agree').click();
     await page.getByRole('button', { name: /Create Wallet/ }).click();
     await page.waitForURL(new RegExp(/^(?!.*protect-account).*$/));
+}
+
+export function deriveAddressFromMnemonic(mnemonic: string) {
+    const keypair = Ed25519Keypair.deriveKeypair(mnemonic);
+    const address = keypair.getPublicKey().toIotaAddress();
+    return address;
 }

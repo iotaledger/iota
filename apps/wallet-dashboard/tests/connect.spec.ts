@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { test, expect } from './fixtures';
-import { importWallet } from './utils';
+import { importWallet, deriveAddressFromMnemonic } from './utils';
 import 'dotenv/config';
 
 test.describe('Wallet Connection', () => {
@@ -25,8 +25,11 @@ test.describe('Wallet Connection', () => {
         const connectButton = page.getByRole('button', { name: 'Connect' });
         await connectButton.click();
 
+        const mnemonic = process.env.TEST_WALLET_MNEMONIC || '';
+        const address = deriveAddressFromMnemonic(mnemonic);
+
         // Select the extension wallet option
-        await page.getByText('IOTA Wallet (DEV)', { exact: true }).click();
+        await page.getByText('IOTA Wallet', { exact: true }).click();
 
         // The extension should appear in a popup, need to handle that
         const approveWalletConnectPage = context.waitForEvent('page');
@@ -40,6 +43,13 @@ test.describe('Wallet Connection', () => {
         await page.bringToFront();
 
         // Verify connection was successful on dashboard
+        await page.waitForSelector('[data-testid="sidebar"]');
         await expect(page.getByTestId('sidebar')).toBeVisible();
+
+        const displayedFullAddress = await page
+            .locator('[data-full-address]')
+            .getAttribute('data-full-address');
+
+        expect(displayedFullAddress).toBe(address);
     });
 });
