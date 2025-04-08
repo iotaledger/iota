@@ -633,7 +633,7 @@ impl IndexerReader {
         let digests = digests
             .iter()
             .map(|digest| digest.inner().to_vec())
-            .collect::<Vec<_>>();
+            .collect::<HashSet<_>>();
         let checkpointed_txs = run_query!(&self.pool, |conn| {
             transactions::table
                 .inner_join(
@@ -646,16 +646,14 @@ impl IndexerReader {
                 .select(StoredTransaction::as_select())
                 .load::<StoredTransaction>(conn)
         })?;
-        let missing_digests: Vec<Vec<u8>> = {
-            let loaded_digests: HashSet<_> = checkpointed_txs
-                .iter()
-                .map(|tx| tx.transaction_digest.clone())
-                .collect();
-            digests
-                .into_iter()
-                .filter(|d| !loaded_digests.contains(d))
-                .collect()
-        };
+        if checkpointed_txs.len() == digests.len() {
+            return Ok(checkpointed_txs);
+        }
+        let loaded_digests = checkpointed_txs
+            .iter()
+            .map(|tx| tx.transaction_digest.clone())
+            .collect();
+        let missing_digests = digests.difference(&loaded_digests);
         let optimistic_txs = run_query!(&self.pool, |conn| {
             optimistic_transactions::table
                 .inner_join(
