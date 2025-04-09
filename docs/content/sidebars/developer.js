@@ -3,6 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 import IdentitySidebar from './identity.js';
 import TsSDKSidebar from './ts-sdk.js';
+import ReferencesSidebar from `./references.js`;
 
 const developer = [
     'developer/developer',
@@ -431,6 +432,11 @@ const developer = [
         type: 'category',
         label: 'Exchange integration',
         items: ['developer/exchange-integration/exchange-integration'],
+    },
+    {
+        type: 'category',
+        label: 'References',
+        items: ReferencesSidebar
     },
     'developer/dev-cheat-sheet',
 ];
