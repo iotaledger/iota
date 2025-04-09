@@ -333,7 +333,7 @@ pub async fn check_and_sync_checkpoints(config: &Config) -> anyhow::Result<()> {
     // And download any missing ones
 
     let mut prev_committee = genesis_committee;
-    for ckp_id in checkpoints_list.checkpoints.iter().skip(1) {
+    for ckp_id in checkpoints_list.checkpoints {
         // check if there is a file with this name ckp_id.yaml in the
         // checkpoint_summary_dir
         let mut checkpoint_path = config.checkpoint_summary_dir.clone();
@@ -341,12 +341,12 @@ pub async fn check_and_sync_checkpoints(config: &Config) -> anyhow::Result<()> {
 
         // If file exists read the file otherwise download it from the server
         let summary = if checkpoint_path.exists() {
-            read_checkpoint(config, *ckp_id)
+            read_checkpoint(config, ckp_id)
                 .map_err(|e| anyhow!(format!("Cannot read checkpoint: {e}")))?
         } else {
             println!("downloading checkpoint summary: {ckp_id}");
             // Download the checkpoint from the server
-            let summary = download_checkpoint_summary(config, *ckp_id)
+            let summary = download_checkpoint_summary(config, ckp_id)
                 .await
                 .map_err(|e| anyhow!(format!("Cannot download summary: {e}")))?;
             summary.clone().try_into_verified(&prev_committee)?;
