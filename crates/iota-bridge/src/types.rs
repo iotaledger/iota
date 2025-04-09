@@ -10,7 +10,10 @@ use std::{
 use enum_dispatch::enum_dispatch;
 pub use ethers::types::H256 as EthTransactionHash;
 use ethers::types::{Address as EthAddress, H256, Log};
-use fastcrypto::hash::{HashFunction, Keccak256};
+use fastcrypto::{
+    encoding::{Encoding, Hex},
+    hash::{HashFunction, Keccak256},
+};
 use iota_types::{
     TypeTag,
     bridge::{
@@ -23,6 +26,7 @@ use iota_types::{
         MoveTypeTokenTransferPayload,
     },
     committee::{CommitteeTrait, StakeUnit},
+    crypto::ToFromBytes,
     digests::{Digest, TransactionDigest},
     message_envelope::{Envelope, Message, VerifiedEnvelope},
 };
@@ -119,6 +123,23 @@ impl BridgeCommittee {
 
     pub fn total_blocklisted_stake(&self) -> StakeUnit {
         self.total_blocklisted_stake
+    }
+}
+
+impl core::fmt::Display for BridgeCommittee {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> std::fmt::Result {
+        for m in self.members.values() {
+            writeln!(
+                f,
+                "pubkey: {:?}, url: {:?}, stake: {:?}, blocklisted: {}, eth address: {:x}",
+                Hex::encode(m.pubkey_bytes().as_bytes()),
+                m.base_url,
+                m.voting_power,
+                m.is_blocklisted,
+                m.pubkey_bytes().to_eth_address(),
+            )?;
+        }
+        Ok(())
     }
 }
 
