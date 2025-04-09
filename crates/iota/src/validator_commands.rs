@@ -1057,7 +1057,7 @@ pub async fn get_validator_summary(
     };
     let res = client
         .read_api()
-        .get_dynamic_field_object(validator_candidates_id, name)
+        .get_dynamic_field_object(validator_candidates_id, name, None)
         .await?;
     if res.error.is_none() {
         let object_id = res.data.expect("no data in result").object_id;
