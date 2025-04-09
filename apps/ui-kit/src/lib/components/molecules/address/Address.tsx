@@ -29,10 +29,6 @@ interface AddressProps {
      */
     copyText?: string;
     /**
-     * The onCopy function
-     */
-    onCopy?: (e: React.MouseEvent<HTMLButtonElement>, text: string) => void;
-    /**
      * The onCopySuccess event of the Address  (optional).
      */
     onCopySuccess?: (e: React.MouseEvent<HTMLButtonElement>, text: string) => void;
@@ -55,7 +51,6 @@ export function Address({
     onCopySuccess,
     onCopyError,
     onOpen,
-    onCopy,
 }: AddressProps): React.JSX.Element {
     async function handleCopyClick(event: React.MouseEvent<HTMLButtonElement>) {
         if (!navigator.clipboard) {

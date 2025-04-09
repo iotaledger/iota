@@ -40,6 +40,7 @@ export function PageHeader({
     const handleCopy = async () => {
         await copyToClipBoard(title);
     };
+
     return (
         <Panel>
             <div className="flex w-full items-center p-md--rs">
