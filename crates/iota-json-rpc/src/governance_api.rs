@@ -557,6 +557,22 @@ async fn exchange_rates(
         .collect())
 }
 
+// `cached` keeps results by the input key -- `current_epoch`.
+// `exchange_rates` is not a pure function, has effects via `state`
+// which `cached` is not aware of.
+// In normal node operation this does not create issues.
+// In tests that run several different networks the latter calls
+// will get incorrect/outdated cached results.
+// This function allows to clear `cached` cache for `exchange_rates`.
+#[cfg(msim)]
+pub async fn clear_exchange_rates_cache_for_testing() {
+    use cached::Cached;
+    if let Some(mutex) = ::cached::once_cell::sync::Lazy::get(&EXCHANGE_RATES) {
+        let mut cache = mutex.lock().await;
+        cache.cache_clear();
+    }
+}
+
 /// Get validator exchange rates
 fn validator_exchange_rates(
     state: &Arc<dyn StateRead>,

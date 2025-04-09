@@ -17,6 +17,7 @@ jobs:
     concurrency:
       group: diff-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
       cancel-in-progress: ${{ github.ref != 'refs/heads/develop' }}
+    if: (!cancelled() && !failure() && (github.event.pull_request.draft == false || contains(github.event.pull_request.body, '[run-ci]')))
     outputs:
       isRust: ${{ steps.diff.outputs.isRust }}
       isRustExample: ${{ steps.diff.outputs.isRustExample }}
@@ -38,12 +39,14 @@ jobs:
     concurrency:
       group: dprint-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
       cancel-in-progress: ${{ github.ref != 'refs/heads/develop' }}
+    if: (!cancelled() && !failure() && (github.event.pull_request.draft == false || contains(github.event.pull_request.body, '[run-ci]')))
     steps:
       - uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871 # v4.2.1
       - name: Check dprint formatting
         run: dprint check
 
   typos:
+    if: (!cancelled() && !failure() && (github.event.pull_request.draft == false || contains(github.event.pull_request.body, '[run-ci]')))
     uses: ./.github/workflows/_typos.yml
 
   license-check:
@@ -52,7 +55,7 @@ jobs:
       group: license-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
       cancel-in-progress: ${{ github.ref != 'refs/heads/develop' }}
     needs: diff
-    if: (!cancelled() && needs.diff.outputs.isRust == 'true')
+    if: (!cancelled() && !failure() && needs.diff.outputs.isRust == 'true' && (github.event.pull_request.draft == false || contains(github.event.pull_request.body, '[run-ci]')))
     runs-on: [self-hosted-x64]
     steps:
       - uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871 # v4.2.1
@@ -61,12 +64,12 @@ jobs:
 
   docusaurus:
     needs: diff
-    if: (!cancelled() && needs.diff.outputs.isDoc == 'true' && !github.event.pull_request.draft)
+    if: (!cancelled() && !failure() && needs.diff.outputs.isDoc == 'true' && (github.event.pull_request.draft == false || contains(github.event.pull_request.body, '[run-ci]')))
     uses: ./.github/workflows/_docusaurus.yml
 
   docs-lint:
     needs: diff
-    if: (!cancelled() && needs.diff.outputs.isDoc == 'true')
+    if: (!cancelled() && !failure() && needs.diff.outputs.isDoc == 'true' && (github.event.pull_request.draft == false || contains(github.event.pull_request.body, '[run-ci]')))
     uses: ./.github/workflows/_docs_lint.yml
 
   rust:
@@ -75,7 +78,7 @@ jobs:
       - dprint-format
       - license-check
       - typos
-    if: (!cancelled() && !failure())
+    if: (!cancelled() && !failure() && needs.diff.outputs.isDoc == 'true' && (github.event.pull_request.draft == false || contains(github.event.pull_request.body, '[run-ci]')))
     uses: ./.github/workflows/_rust.yml
     secrets: inherit
     with:
@@ -89,9 +92,7 @@ jobs:
       - diff
       - dprint-format
       - typos
-    if: |
-      !cancelled() && !failure() &&
-      (needs.diff.outputs.isRosetta == 'true')
+    if: (!cancelled() && !failure() && needs.diff.outputs.isRosetta == 'true' && (github.event.pull_request.draft == false || contains(github.event.pull_request.body, '[run-ci]')))
     uses: ./.github/workflows/_rosetta.yml
 
   move-ide:
@@ -100,12 +101,12 @@ jobs:
       - dprint-format
       - license-check
       - typos
-    if: (!cancelled() && !failure()) && needs.diff.outputs.isExternalCrates == 'true' && github.event.pull_request.draft == false
+    if: (!cancelled() && !failure() && needs.diff.outputs.isExternalCrates == 'true' && (github.event.pull_request.draft == false || contains(github.event.pull_request.body, '[run-ci]')))
     uses: ./.github/workflows/_move_ide.yml
 
   split-cluster:
     needs:
       - diff
       - rust
-    if: (!cancelled() && !failure()) && needs.diff.outputs.isRust == 'true' && github.event.pull_request.draft == false
+    if: (!cancelled() && !failure() && needs.diff.outputs.isRust == 'true' && (github.event.pull_request.draft == false || contains(github.event.pull_request.body, '[run-ci]')))
     uses: ./.github/workflows/_split_cluster.yml
