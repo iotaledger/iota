@@ -22,6 +22,9 @@ on:
       isGraphQlTransport:
         type: boolean
         required: false
+      isWalletDashboard:
+        type: boolean
+        required: false
 
 concurrency:
   group: e2e-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
@@ -34,7 +37,7 @@ jobs:
   # Run e2e test against localnet built on the develop branch
   localnet:
     name: Localnet
-    if: inputs.isExplorer || inputs.isTypescriptSDK || inputs.isWallet || inputs.isRpc || github.ref_name == 'develop'
+    if: inputs.isExplorer || inputs.isTypescriptSDK || inputs.isWallet || inputs.isWalletDashboard || inputs.isRpc || github.ref_name == 'develop'
     runs-on: self-hosted-x64
     continue-on-error: ${{ github.ref_name == 'develop' }}
     services:
@@ -100,6 +103,17 @@ jobs:
         with:
           name: playwright-report-explorer
           path: apps/explorer/playwright-report/
+          retention-days: 30
+
+      - name: Run Dashboard e2e tests
+        if: inputs.isWalletDashboard || inputs.isRpc || inputs.isTypescriptSDK || github.ref_name == 'develop'
+        run: pnpm --filter wallet-dashboard playwright test
+
+      - uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # v4.4.3
+        if: always()
+        with:
+          name: playwright-report-wallet-dashboard
+          path: apps/wallet-dashboard/playwright-report/
           retention-days: 30
 
       - name: Build Kiosk

@@ -45,6 +45,12 @@ use test_cluster::TestClusterBuilder;
 /// epoch 1, this is totally fine.
 #[sim_test]
 async fn test_apy() {
+    // clean up the `cached` cache before running the test.
+    #[cfg(msim)]
+    {
+        iota_json_rpc::governance_api::clear_exchange_rates_cache_for_testing().await;
+    }
+
     // We need a large stake for low enough APY values such that they are not
     // filtered out by the APY calculation function.
     let pool_stake = 3_500_000_000 * NANOS_PER_IOTA / 4;

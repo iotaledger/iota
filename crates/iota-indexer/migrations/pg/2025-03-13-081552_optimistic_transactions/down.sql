@@ -7,4 +7,3 @@ DROP TABLE IF EXISTS optimistic_tx_input_objects;
 DROP TABLE IF EXISTS optimistic_tx_recipients;
 DROP TABLE IF EXISTS optimistic_tx_senders;
 DROP TABLE IF EXISTS optimistic_transactions;
-DROP TABLE IF EXISTS tx_insertion_order;
