@@ -24,7 +24,7 @@ pub enum SequencingResult {
 // An execution slot represents the allocated time slot for a transaction to be
 // executed. We can only estimate the time to execute a transaction.
 //
-// Execution slots of transactions with commong shared objects cannot overlap.
+// Execution slots of transactions with common shared objects cannot overlap.
 // Transactions can occupy overlapping execution slots if they do not touch
 // any common shared objects.
 #[derive(PartialEq, Eq, Clone, Debug, Copy)]
@@ -35,7 +35,16 @@ pub struct ExecutionSlot {
 }
 
 impl ExecutionSlot {
+    /// Constructs a new execution slot. If provided `end_time` is smaller than
+    /// `start_time`, this returns an execution slot with `end_time` being equal
+    /// `start_time`, i.e., duration of such slot is 0.
     fn new(start_time: ExecutionTime, end_time: ExecutionTime, scheduled: bool) -> Self {
+        let end_time = if end_time > start_time {
+            end_time
+        } else {
+            start_time
+        };
+
         Self {
             start_time,
             end_time,
@@ -43,23 +52,32 @@ impl ExecutionSlot {
         }
     }
 
-    pub fn height(&self) -> u64 {
-        if self.end_time > self.start_time {
-            self.end_time - self.start_time
-        } else {
-            0
-        }
+    /// Calculates the duration of this execution slot.
+    ///
+    /// Panics if this slot is invalid, i.e., its `end_time` is smaller than
+    /// its `start_time`, which should never happen if the `new(...)` method
+    /// is used for creating an execution slot.
+    fn duration(&self) -> u64 {
+        assert!(
+            self.end_time >= self.start_time,
+            "invalid execution slot: end time cannot be smaller than start time"
+        );
+
+        self.end_time - self.start_time
     }
 
-    pub fn longest_overlap(&self, other: &ExecutionSlot) -> ExecutionSlot {
-        ExecutionSlot {
-            start_time: self.start_time.max(other.start_time),
-            end_time: self.end_time.min(other.end_time),
-            scheduled: false,
-        }
+    /// Returns a new non-scheduled execution slot, which represents an
+    /// intersection between this execution slot and the other.
+    fn intersection(&self, other: &Self) -> Self {
+        Self::new(
+            self.start_time.max(other.start_time),
+            self.end_time.min(other.end_time),
+            false,
+        )
     }
 
-    pub fn overlaps(&self, other: &ExecutionSlot) -> bool {
+    /// Checks if this execution slot intersects with the other one
+    fn intersects(&self, other: &Self) -> bool {
         self.start_time < other.end_time && self.end_time > other.start_time
     }
 }
@@ -165,16 +183,16 @@ impl SharedObjectCongestionTracker {
             if free_slot.scheduled {
                 continue;
             }
-            let longest_overlap = free_slot.longest_overlap(&lookup_interval);
+            let intersection_slot = free_slot.intersection(&lookup_interval);
             // If there is no overlap that can fit the transaction, continue to the next
             // free slot.
-            if longest_overlap.height() < tx_cost {
+            if intersection_slot.duration() < tx_cost {
                 continue;
             }
             // if this is the last object to check, return this slot as it is the lowest
             // slot available.
             if remaining_objects.is_empty() {
-                return Some(longest_overlap.start_time);
+                return Some(intersection_slot.start_time);
             }
             // if there are more objects to check, recursively call the function with the
             // remaining objects.
@@ -182,7 +200,7 @@ impl SharedObjectCongestionTracker {
             // in the slot for all remaining objects. Return the start time.
             // Otherwise, continue to check the next free slot for the current object.
             if let Some(lowest_overlap) =
-                self.compute_min_free_execution_slot(remaining_objects, tx_cost, longest_overlap)
+                self.compute_min_free_execution_slot(remaining_objects, tx_cost, intersection_slot)
             {
                 return Some(lowest_overlap);
             } else {
@@ -338,7 +356,7 @@ impl SharedObjectCongestionTracker {
                     // == free_slot.end_time)
                     //      | free_slot     |
                     //   => | occupied_slot |
-                    if occupied_slot.overlaps(free_slot) {
+                    if occupied_slot.intersects(free_slot) {
                         // The occupied slot must be within the free slot or the assigned slot is
                         // not correct.
                         assert!(
