@@ -52,6 +52,7 @@ export function AccountGroupItem({
     async function handleCopySuccess() {
         toast('Address copied');
     }
+
     function handleOpen() {
         const newWindow = window.open(explorerHref!, '_blank', 'noopener,noreferrer');
         if (newWindow) newWindow.opener = null;
