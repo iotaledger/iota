@@ -74,7 +74,8 @@ validator_configs:
       concurrency: 0
     indexer-max-subscriptions: ~
     transaction-kv-store-read-config:
-      base-url: ""
+      base-url: "https://transactions.iota.io/"
+      cache-size: 100000
     jwk-fetch-interval-seconds: 3600
     zklogin-oauth-providers:
       Mainnet:
@@ -200,7 +201,8 @@ validator_configs:
       concurrency: 0
     indexer-max-subscriptions: ~
     transaction-kv-store-read-config:
-      base-url: ""
+      base-url: "https://transactions.iota.io/"
+      cache-size: 100000
     jwk-fetch-interval-seconds: 3600
     zklogin-oauth-providers:
       Mainnet:
@@ -326,7 +328,8 @@ validator_configs:
       concurrency: 0
     indexer-max-subscriptions: ~
     transaction-kv-store-read-config:
-      base-url: ""
+      base-url: "https://transactions.iota.io/"
+      cache-size: 100000
     jwk-fetch-interval-seconds: 3600
     zklogin-oauth-providers:
       Mainnet:
@@ -452,7 +455,8 @@ validator_configs:
       concurrency: 0
     indexer-max-subscriptions: ~
     transaction-kv-store-read-config:
-      base-url: ""
+      base-url: "https://transactions.iota.io/"
+      cache-size: 100000
     jwk-fetch-interval-seconds: 3600
     zklogin-oauth-providers:
       Mainnet:
@@ -578,7 +582,8 @@ validator_configs:
       concurrency: 0
     indexer-max-subscriptions: ~
     transaction-kv-store-read-config:
-      base-url: ""
+      base-url: "https://transactions.iota.io/"
+      cache-size: 100000
     jwk-fetch-interval-seconds: 3600
     zklogin-oauth-providers:
       Mainnet:
@@ -704,7 +709,8 @@ validator_configs:
       concurrency: 0
     indexer-max-subscriptions: ~
     transaction-kv-store-read-config:
-      base-url: ""
+      base-url: "https://transactions.iota.io/"
+      cache-size: 100000
     jwk-fetch-interval-seconds: 3600
     zklogin-oauth-providers:
       Mainnet:
@@ -830,7 +836,8 @@ validator_configs:
       concurrency: 0
     indexer-max-subscriptions: ~
     transaction-kv-store-read-config:
-      base-url: ""
+      base-url: "https://transactions.iota.io/"
+      cache-size: 100000
     jwk-fetch-interval-seconds: 3600
     zklogin-oauth-providers:
       Mainnet:
