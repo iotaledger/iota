@@ -55,7 +55,8 @@ pub enum AuctionCommand {
     /// Place a new bid
     Bid {
         domain: Domain,
-        coin: ObjectID,
+        amount: u64,
+        coin: Option<ObjectID>,
         #[command(flatten)]
         opts: OptsWithGas,
     },
@@ -70,7 +71,8 @@ pub enum AuctionCommand {
     /// Start an auction, if it's not started yet, and make the first bid
     Start {
         domain: Domain,
-        coin: ObjectID,
+        amount: u64,
+        coin: Option<ObjectID>,
         #[command(flatten)]
         opts: OptsWithGas,
     },
@@ -193,24 +195,32 @@ impl NameCommand {
         let auction_house_id = ObjectID::from_str(AUCTION_HOUSE_ID)?;
 
         Ok(match self {
-            Self::Auction(AuctionCommand::Bid { domain, coin, opts }) => NameCommandResult::Client(
-                IotaClientCommands::Call {
-                    package: auction_package_address.into(),
-                    module: "auction".to_owned(),
-                    function: "place_bid".to_owned(),
-                    type_args: Default::default(),
-                    args: vec![
-                        IotaJsonValue::from_object_id(auction_house_id),
-                        IotaJsonValue::new(serde_json::to_value(domain.to_string())?)?,
-                        IotaJsonValue::from_object_id(coin),
-                        IotaJsonValue::from_object_id(IOTA_CLOCK_OBJECT_ID),
-                    ],
-                    gas_price: None,
-                    opts,
-                }
-                .execute(context)
-                .await?,
-            ),
+            Self::Auction(AuctionCommand::Bid {
+                domain,
+                amount,
+                coin,
+                opts,
+            }) => {
+                let coin =
+                    select_coin_for_payment(&domain.to_string(), coin, amount, context).await?;
+
+                let mut args = vec![
+                    format!("--split-coins @{coin} [{amount}]"),
+                    "--assign coins".to_string(),
+                    format!(
+                        "--move-call {auction_package_address}::auction::place_bid @{} '{}' coins.0 @{IOTA_CLOCK_OBJECT_ID}",
+                        auction_house_id,
+                        domain.to_string(),
+                    ),
+                ];
+                opts.append_args(&mut args);
+
+                NameCommandResult::Client(
+                    IotaClientCommands::PTB(PTB { args })
+                        .execute(context)
+                        .await?,
+                )
+            }
             Self::Auction(AuctionCommand::Claim { domain, opts }) => {
                 let mut args = vec![
                     "--move-call iota::tx_context::sender".to_string(),
@@ -233,28 +243,34 @@ impl NameCommand {
             Self::Auction(AuctionCommand::Metadata { domain }) => {
                 NameCommandResult::AuctionMetadata(get_auction(&domain, context).await?)
             }
-            Self::Auction(AuctionCommand::Start { domain, coin, opts }) => {
+            Self::Auction(AuctionCommand::Start {
+                domain,
+                amount,
+                coin,
+                opts,
+            }) => {
+                let coin =
+                    select_coin_for_payment(&domain.to_string(), coin, amount, context).await?;
+
                 let client = context.get_client().await?;
                 let iota_names_config = get_iota_names_config(&client).await?;
 
+                let mut args = vec![
+                    format!("--split-coins @{coin} [{amount}]"),
+                    "--assign coins".to_string(),
+                    format!(
+                        "--move-call {auction_package_address}::auction::start_auction_and_place_bid @{} @{} '{}' coins.0 @{IOTA_CLOCK_OBJECT_ID}",
+                        auction_house_id,
+                        iota_names_config.object_id,
+                        domain.to_string(),
+                    ),
+                ];
+                opts.append_args(&mut args);
+
                 NameCommandResult::Client(
-                    IotaClientCommands::Call {
-                        package: auction_package_address.into(),
-                        module: "auction".to_owned(),
-                        function: "start_auction_and_place_bid".to_owned(),
-                        type_args: Default::default(),
-                        args: vec![
-                            IotaJsonValue::from_object_id(auction_house_id),
-                            IotaJsonValue::from_object_id(iota_names_config.object_id),
-                            IotaJsonValue::new(serde_json::to_value(domain.to_string())?)?,
-                            IotaJsonValue::from_object_id(coin),
-                            IotaJsonValue::from_object_id(IOTA_CLOCK_OBJECT_ID),
-                        ],
-                        gas_price: None,
-                        opts,
-                    }
-                    .execute(context)
-                    .await?,
+                    IotaClientCommands::PTB(PTB { args })
+                        .execute(context)
+                        .await?,
                 )
             }
             Self::Burn { domain, opts } => {
