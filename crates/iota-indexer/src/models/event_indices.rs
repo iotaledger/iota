@@ -263,3 +263,13 @@ optimistic_from_into_checkpoint!(OptimisticEventStructInstantiation, StoredEvent
     type_instantiation,
     sender,
 });
+
+pub struct OptimisticEventIndices {
+    pub optimistic_event_emit_packages: Vec<OptimisticEventEmitPackage>,
+    pub optimistic_event_emit_modules: Vec<OptimisticEventEmitModule>,
+    pub optimistic_event_senders: Vec<OptimisticEventSenders>,
+    pub optimistic_event_struct_packages: Vec<OptimisticEventStructPackage>,
+    pub optimistic_event_struct_modules: Vec<OptimisticEventStructModule>,
+    pub optimistic_event_struct_names: Vec<OptimisticEventStructName>,
+    pub optimistic_event_struct_instantiations: Vec<OptimisticEventStructInstantiation>,
+}

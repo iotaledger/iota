@@ -90,6 +90,7 @@ import type {
     DelegatedTimelockedStake,
     GetTimelockedStakesByIdsParams,
     IotaSystemStateSummaryV1,
+    ParticipationMetrics,
 } from './types/index.js';
 
 export interface PaginationArguments<Cursor> {
@@ -809,6 +810,16 @@ export class IotaClient {
         return await this.transport.request({
             method: 'iota_getProtocolConfig',
             params: [input?.version],
+        });
+    }
+
+    /**
+     * Returns the participation metrics (total unique addresses with delegated stake in the current epoch).
+     */
+    async getParticipationMetrics(): Promise<ParticipationMetrics> {
+        return await this.transport.request({
+            method: 'iotax_getParticipationMetrics',
+            params: [],
         });
     }
 

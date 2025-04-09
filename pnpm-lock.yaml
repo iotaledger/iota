@@ -34,6 +34,7 @@ overrides:
   '@babel/helpers@<7.26.10': '>=7.26.10'
   '@babel/runtime@<7.26.10': '>=7.26.10'
   cookie@<0.7.0: '>=0.7.0'
+  image-size@<1.1.1: '>=1.2.1'
 
 importers:
 
@@ -1066,6 +1067,9 @@ importers:
       '@amplitude/ampli':
         specifier: ^1.31.5
         version: 1.35.0
+      '@playwright/test':
+        specifier: ^1.46.1
+        version: 1.47.2
       '@tanstack/react-query-devtools':
         specifier: ^5.58.0
         version: 5.58.0(@tanstack/react-query@5.56.2(react@18.3.1))(react@18.3.1)
@@ -11588,6 +11592,11 @@ packages:
     engines: {node: '>=16.x'}
     hasBin: true
 
+  image-size@2.0.2:
+    resolution: {integrity: sha512-IRqXKlaXwgSMAMtpNzZa1ZAe8m+Sa1770Dhk8VkSsP9LS+iHD62Zd8FQKs8fbPiagBE7BzoFX23cxFnwshpV6w==}
+    engines: {node: '>=16.x'}
+    hasBin: true
+
   immediate@3.0.6:
     resolution: {integrity: sha512-XXOFtyqDjNDAQxVfYxuF7g9Il/IbWmmlQg2MYKOH8ExIT1qg6xc4zyS3HaEEATgs1btfzxq15ciUiY7gjSXRGQ==}
 
@@ -20341,7 +20350,7 @@ snapshots:
       estree-util-value-to-estree: 3.1.2
       file-loader: 6.2.0(webpack@5.95.0)
       fs-extra: 11.2.0
-      image-size: 1.1.1
+      image-size: 2.0.2
       mdast-util-mdx: 3.0.0
       mdast-util-to-string: 4.0.0
       react: 18.3.1
@@ -30664,6 +30673,8 @@ snapshots:
   image-size@1.1.1:
     dependencies:
       queue: 6.0.2
+
+  image-size@2.0.2: {}
 
   immediate@3.0.6: {}
 
