@@ -97,7 +97,7 @@ if [ "$rustc_version" != "$MIN_RUSTC_VERSION" ] && [[ $(echo -e "$rustc_version\
 fi
 
 # Build the binary
-cargo build --release --bin iota-node
+# cargo build --release --bin iota-node
 
 # Add a IOTA user, create directories for iota-node service
 if id iota &>/dev/null; then
@@ -164,9 +164,9 @@ CONFIG=$(
 write_to_file "$CONFIG" "$CONFIG_FILE_PATH"
 
 # Download genesis/migration blobs for NETWORK
-write_to_file "$(curl -sfLJ "https://dbfiles.$NETWORK.iota.cafe/genesis.blob")" "$CONFIG_DIR/genesis.blob"
+write_to_file "$(curl -sfLJ "https://dbfiles.$NETWORK.iota.cafe/genesis.blob" --output -)" "$CONFIG_DIR/genesis.blob"
 if [ "$NETWORK" == "mainnet" ] || [ "$NETWORK" == "devnet" ]; then
-	curl -sfLJ https://dbfiles.$NETWORK.iota.cafe/migration.blob -o "$CONFIG_DIR/migration.blob"
+	write_to_file "$(curl -sfLJ "https://dbfiles.$NETWORK.iota.cafe/migration.blob" --output -)" "$CONFIG_DIR/migration.blob"
 fi
 
 # Move bin to $BIN_DIR
