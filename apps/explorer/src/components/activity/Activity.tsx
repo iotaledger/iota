@@ -153,7 +153,7 @@ export function Activity({ initialLimit, disablePagination }: ActivityProps): JS
                         <Checkbox
                             isChecked={showSystemTransactions}
                             onCheckedChange={() =>
-                                setshowSystemTransactions(showSystemTransactions)
+                                setshowSystemTransactions(!showSystemTransactions)
                             }
                             label="Show System Transactions"
                             isLabelFirst
