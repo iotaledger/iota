@@ -15,7 +15,8 @@ import {
     Panel,
     SegmentedButton,
     SegmentedButtonType,
-    Checkbox,
+    Toggle,
+    ToggleSize,
 } from '@iota/apps-ui-kit';
 
 enum ActivityCategory {
@@ -150,14 +151,14 @@ export function Activity({ initialLimit, disablePagination }: ActivityProps): JS
             <div className="p-md">
                 {selectedCategory === ActivityCategory.Transactions && (
                     <div>
-                        <Checkbox
-                            isChecked={showSystemTransactions}
-                            onCheckedChange={() =>
-                                setshowSystemTransactions(!showSystemTransactions)
-                            }
-                            label="Show System Transactions"
-                            isLabelFirst
-                        />
+                        <div className="ml-[1%]">
+                            <Toggle
+                                label="Show System Transactions"
+                                isToggled={showSystemTransactions}
+                                size={ToggleSize.Small}
+                                onChange={() => setshowSystemTransactions(!showSystemTransactions)}
+                            />
+                        </div>
                         <TransactionsActivityTable
                             refetchInterval={refetchInterval}
                             initialLimit={initialLimit}
