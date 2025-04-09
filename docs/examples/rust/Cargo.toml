@@ -22,7 +22,7 @@ shared-crypto = { path = "../../../crates/shared-crypto" }
 bcs = "0.1"
 bip32 = "0.5"
 serde_json = "1.0"
-tokio = "1.43"
+tokio = "1.44"
 
 # internal dependencies
 move-core-types = { path = "../../../external-crates/move/crates/move-core-types" }

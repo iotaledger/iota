@@ -39,6 +39,7 @@ env:
 jobs:
   rust-lints:
     uses: ./.github/workflows/_rust_lints.yml
+    if: (!cancelled() && !failure())
     with:
       isRust: ${{ inputs.isRust }}
       isRustExample: ${{ inputs.isRustExample }}
@@ -59,6 +60,7 @@ jobs:
   external-changes:
     needs: rust-lints
     runs-on: [self-hosted-x64]
+    if: (!cancelled() && !failure())
     outputs:
       components: ${{ steps.filter.outputs.changes }}
     steps:
@@ -70,8 +72,7 @@ jobs:
           filters: .github/external-crates-filters.yml
 
   rust-tests:
-    if: |
-      !cancelled() && !failure() && github.event.pull_request.draft == false && (inputs.isRust || inputs.isPgIntegration || inputs.isMoveExampleUsedByOthers)
+    if: (!cancelled() && !failure() && (inputs.isRust || inputs.isPgIntegration || inputs.isMoveExampleUsedByOthers))
     needs:
       - crates-changes
       - external-changes
@@ -86,8 +87,7 @@ jobs:
       changedExternalCrates: ${{ join(fromJson(needs.external-changes.outputs.components), ' ') }}
 
   execution-cut:
-    if: |
-      !cancelled() && !failure() && inputs.isRust && github.event.pull_request.draft == false
+    if: (!cancelled() && !failure() && inputs.isRust)
     needs:
       - rust-lints
     uses: ./.github/workflows/_execution_cut.yml
