@@ -14,6 +14,7 @@ export function toBech32(address: string): string {
         // Take each pair of hex characters and convert them to a byte
         addressBytes[i / BYTES_PER_CHAR] = parseInt(address.slice(i, i + BYTES_PER_CHAR), HEX_BASE);
     }
+
     // Convert the byte array to Bech32 words
     const words = bech32.toWords(addressBytes);
 
