@@ -14,7 +14,7 @@ use iota_sdk::{IotaClient as IotaSdkClient, IotaClientBuilder, apis::CoinReadApi
 use iota_types::{
     base_types::{IotaAddress, ObjectID, ObjectRef},
     bridge::BridgeChainId,
-    crypto::{IotaKeyPair, KeypairTraits},
+    crypto::{IotaKeyPair, KeypairTraits, NetworkKeyPair, get_key_pair_from_rng},
     digests::{get_mainnet_chain_identifier, get_testnet_chain_identifier},
     event::EventID,
     object::Owner,
@@ -96,7 +96,7 @@ pub struct IotaConfig {
 }
 
 #[serde_as]
-#[derive(Clone, Debug, Deserialize, Serialize)]
+#[derive(Debug, Deserialize, Serialize)]
 #[serde(rename_all = "kebab-case")]
 pub struct BridgeNodeConfig {
     /// The port that the server listens on.
@@ -118,6 +118,13 @@ pub struct BridgeNodeConfig {
     pub iota: IotaConfig,
     /// Eth configuration
     pub eth: EthConfig,
+    /// Network key used for metrics pushing
+    #[serde(default = "default_ed25519_key_pair")]
+    pub metrics_key_pair: NetworkKeyPair,
+}
+
+pub fn default_ed25519_key_pair() -> NetworkKeyPair {
+    get_key_pair_from_rng(&mut rand::rngs::OsRng).1
 }
 
 impl Config for BridgeNodeConfig {}

@@ -38,7 +38,7 @@ use iota_types::{
 
 use crate::{
     abi::{EthBridgeCommittee, EthBridgeConfig, EthBridgeLimiter, EthBridgeVault, EthIotaBridge},
-    config::{BridgeNodeConfig, EthConfig, IotaConfig},
+    config::{BridgeNodeConfig, EthConfig, IotaConfig, default_ed25519_key_pair},
     crypto::{BridgeAuthorityKeyPair, BridgeAuthorityPublicKeyBytes},
     server::APPLICATION_JSON,
     types::{AddTokensOnIotaAction, BridgeAction},
@@ -199,6 +199,7 @@ pub fn generate_bridge_node_config_and_write_to_file(
         approved_governance_actions: vec![],
         run_client,
         db_path: None,
+        metrics_key_pair: default_ed25519_key_pair(),
     };
     if run_client {
         config.iota.bridge_client_key_path = Some(PathBuf::from("/path/to/your/bridge_client_key"));

@@ -256,7 +256,7 @@ mod tests {
 
     use super::*;
     use crate::{
-        config::{BridgeNodeConfig, EthConfig, IotaConfig},
+        config::{BridgeNodeConfig, EthConfig, IotaConfig, default_ed25519_key_pair},
         e2e_tests::test_utils::{BridgeTestCluster, BridgeTestClusterBuilder},
         utils::wait_for_server_to_be_up,
     };
@@ -438,6 +438,7 @@ mod tests {
             approved_governance_actions: vec![],
             run_client: false,
             db_path: None,
+            metrics_key_pair: default_ed25519_key_pair(),
         };
         // Spawn bridge node in memory
         let _handle = run_bridge_node(
@@ -502,6 +503,7 @@ mod tests {
             approved_governance_actions: vec![],
             run_client: true,
             db_path: Some(db_path),
+            metrics_key_pair: default_ed25519_key_pair(),
         };
         // Spawn bridge node in memory
         let _handle = run_bridge_node(
@@ -577,6 +579,7 @@ mod tests {
             approved_governance_actions: vec![],
             run_client: true,
             db_path: Some(db_path),
+            metrics_key_pair: default_ed25519_key_pair(),
         };
         // Spawn bridge node in memory
         let _handle = run_bridge_node(

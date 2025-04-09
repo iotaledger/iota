@@ -41,7 +41,7 @@ use tracing::{error, info};
 use crate::{
     BRIDGE_ENABLE_PROTOCOL_VERSION,
     abi::{EthBridgeCommittee, EthBridgeConfig},
-    config::{BridgeNodeConfig, EthConfig, IotaConfig},
+    config::{BridgeNodeConfig, EthConfig, IotaConfig, default_ed25519_key_pair},
     crypto::{BridgeAuthorityKeyPair, BridgeAuthorityPublicKeyBytes},
     events::*,
     iota_client::IotaBridgeClient,
@@ -764,12 +764,12 @@ pub(crate) async fn start_bridge_cluster(
                 bridge_client_gas_object: None,
                 iota_bridge_module_last_processed_event_id_override: None,
             },
+            metrics_key_pair: default_ed25519_key_pair(),
         };
         // Spawn bridge node in memory
-        let config_clone = config.clone();
         handles.push(
             run_bridge_node(
-                config_clone,
+                config,
                 BridgeNodePublicMetadata::empty_for_testing(),
                 Registry::new(),
             )
