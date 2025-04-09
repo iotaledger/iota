@@ -2083,7 +2083,7 @@ impl IndexerStore for PgIndexerStore {
         &self,
         indices: OptimisticEventIndices,
     ) -> Result<(), IndexerError> {
-        let (
+        let OptimisticEventIndices {
             optimistic_event_emit_packages,
             optimistic_event_emit_modules,
             optimistic_event_senders,
@@ -2091,7 +2091,7 @@ impl IndexerStore for PgIndexerStore {
             optimistic_event_struct_modules,
             optimistic_event_struct_names,
             optimistic_event_struct_instantiations,
-        ) = indices;
+        } = indices;
 
         let mut futures = vec![];
         futures.push(self.spawn_blocking_task(move |this| {
@@ -2206,8 +2206,16 @@ impl IndexerStore for PgIndexerStore {
         &self,
         indices: OptimisticTxIndices,
     ) -> Result<(), IndexerError> {
-        let (senders, recipients, input_objects, changed_objects, pkgs, mods, funs, kinds) =
-            indices;
+        let OptimisticTxIndices {
+            optimistic_tx_senders: senders,
+            optimistic_tx_recipients: recipients,
+            optimistic_tx_input_objects: input_objects,
+            optimistic_tx_changed_objects: changed_objects,
+            optimistic_tx_pkgs: pkgs,
+            optimistic_tx_mods: mods,
+            optimistic_tx_funs: funs,
+            optimistic_tx_kinds: kinds,
+        } = indices;
 
         let mut futures = vec![];
         futures.push(self.spawn_blocking_task(move |this| {
