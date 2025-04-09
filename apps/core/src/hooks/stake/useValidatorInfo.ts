@@ -1,14 +1,13 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
-import { useIotaClientQuery } from '@iota/dapp-kit';
-import { useGetValidatorsApy } from '..';
+import { useGetLatestIotaSystemState, useGetValidatorsApy } from '..';
 
 export function useValidatorInfo({ validatorAddress }: { validatorAddress: string }) {
     const {
         data: system,
         isPending: isPendingValidators,
         isError: errorValidators,
-    } = useIotaClientQuery('getLatestIotaSystemState');
+    } = useGetLatestIotaSystemState();
     const { data: rollingAverageApys } = useGetValidatorsApy();
 
     const validatorSummary =

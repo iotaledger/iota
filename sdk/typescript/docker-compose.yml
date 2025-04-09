@@ -2,6 +2,8 @@ version: "3.8"
 
 services:
   db:
+    security_opt:
+      - no-new-privileges:true
     image: postgres
     command: -c 'max_connections=500'
     environment:
@@ -10,3 +12,15 @@ services:
       POSTGRES_DB: iota_indexer
     ports:
       - "5432:5432"
+    read_only: true
+    tmpfs:
+      - /tmp
+      - /dev/shm
+      - /run
+      - /run/postgresql
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    user: "999:999"
+
+volumes:
+  pgdata:
