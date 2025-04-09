@@ -287,3 +287,14 @@ optimistic_from_into_checkpoint!(OptimisticTxPkg, StoredTxPkg, { package, sender
 optimistic_from_into_checkpoint!(OptimisticTxMod, StoredTxMod, { package, module, sender });
 optimistic_from_into_checkpoint!(OptimisticTxFun, StoredTxFun, { package, module, func, sender });
 optimistic_from_into_checkpoint!(OptimisticTxKind, StoredTxKind, { tx_kind });
+
+pub struct OptimisticTxIndices {
+    pub optimistic_tx_senders: Vec<OptimisticTxSenders>,
+    pub optimistic_tx_recipients: Vec<OptimisticTxRecipients>,
+    pub optimistic_tx_input_objects: Vec<OptimisticTxInputObject>,
+    pub optimistic_tx_changed_objects: Vec<OptimisticTxChangedObject>,
+    pub optimistic_tx_pkgs: Vec<OptimisticTxPkg>,
+    pub optimistic_tx_mods: Vec<OptimisticTxMod>,
+    pub optimistic_tx_funs: Vec<OptimisticTxFun>,
+    pub optimistic_tx_kinds: Vec<OptimisticTxKind>,
+}
