@@ -282,8 +282,8 @@ pub mod setup_postgres {
             })?;
             info!("Reset Postgres database complete.");
         } else {
-            conn.run_migrations(&MIGRATIONS.migrations().unwrap())
-                .map_err(|e| anyhow!("Failed to run migrations {e}"))?;
+            conn.run_pending_migrations(MIGRATIONS)
+                .map_err(|e| anyhow!("Failed to run pending migrations {e}"))?;
             info!("Database migrations are up to date.");
         }
         let indexer_metrics = IndexerMetrics::new(&registry);

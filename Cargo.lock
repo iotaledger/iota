@@ -3145,9 +3145,9 @@ dependencies = [
 
 [[package]]
 name = "csv"
-version = "1.3.0"
+version = "1.3.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ac574ff4d437a7b5ad237ef331c17ccca63c46479e5b5453eb8e10bb99a759fe"
+checksum = "acdc4883a9c96732e4733212c01447ebd805833b7275a73ca3ee080fd77afdaf"
 dependencies = [
  "csv-core",
  "itoa",
@@ -7027,6 +7027,7 @@ dependencies = [
  "iota-json-rpc-api",
  "iota-json-rpc-types",
  "iota-keys",
+ "iota-mainnet-unlocks",
  "iota-metrics",
  "iota-move-build",
  "iota-open-rpc",
@@ -7108,6 +7109,7 @@ dependencies = [
  "backoff",
  "bcs",
  "cached",
+ "chrono",
  "expect-test",
  "eyre",
  "fastcrypto",
@@ -7120,6 +7122,7 @@ dependencies = [
  "iota-json",
  "iota-json-rpc-api",
  "iota-json-rpc-types",
+ "iota-mainnet-unlocks",
  "iota-metrics",
  "iota-open-rpc",
  "iota-open-rpc-macros",
@@ -7215,6 +7218,7 @@ version = "0.11.0-alpha"
 dependencies = [
  "anyhow",
  "bcs",
+ "chrono",
  "colored",
  "enum_dispatch",
  "fastcrypto",
@@ -7290,6 +7294,18 @@ dependencies = [
  "iota-proc-macros",
  "once_cell",
  "tracing",
+]
+
+[[package]]
+name = "iota-mainnet-unlocks"
+version = "0.11.0-alpha"
+dependencies = [
+ "anyhow",
+ "chrono",
+ "csv",
+ "regex",
+ "serde",
+ "tempfile",
 ]
 
 [[package]]
@@ -10244,7 +10260,7 @@ dependencies = [
 [[package]]
 name = "msim"
 version = "0.1.0"
-source = "git+https://github.com/iotaledger/iota-sim.git?branch=tokio-1.43#d3ae9de63b7ebfbeea8fa5f9d111b9570be703f2"
+source = "git+https://github.com/iotaledger/iota-sim.git?branch=tokio-1.44.2#56d9b6bec24b99e0d38329f244d418299ab04d71"
 dependencies = [
  "ahash 0.8.11",
  "async-task",
@@ -10272,7 +10288,7 @@ dependencies = [
 [[package]]
 name = "msim-macros"
 version = "0.1.0"
-source = "git+https://github.com/iotaledger/iota-sim.git?branch=tokio-1.43#d3ae9de63b7ebfbeea8fa5f9d111b9570be703f2"
+source = "git+https://github.com/iotaledger/iota-sim.git?branch=tokio-1.44.2#56d9b6bec24b99e0d38329f244d418299ab04d71"
 dependencies = [
  "darling 0.14.4",
  "proc-macro2",
@@ -15033,9 +15049,9 @@ checksum = "1f3ccbac311fea05f86f61904b462b55fb3df8837a366dfc601a0161d0532f20"
 
 [[package]]
 name = "tokio"
-version = "1.43.0"
+version = "1.44.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3d61fa4ffa3de412bfea335c6ecff681de2b609ba3c77ef3e00e521813a9ed9e"
+checksum = "e6b88822cbe49de4185e3a4cbf8321dd487cf5fe0c5c65695fef6346371e9c48"
 dependencies = [
  "backtrace",
  "bytes",

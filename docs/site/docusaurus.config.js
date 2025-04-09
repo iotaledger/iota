@@ -299,6 +299,7 @@ const config = {
         ],
       },
       footer: {
+        style: "dark",
         logo: {
           alt: "IOTA Wiki Logo",
           src: "/logo/iota-logo.svg",

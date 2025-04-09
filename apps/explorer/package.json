@@ -61,7 +61,7 @@
         "framer-motion": "^10.12.22",
         "prism-react-renderer": "^2.3.1",
         "prism-themes": "^1.9.0",
-        "prismjs": "^1.29.0",
+        "prismjs": "^1.30.0",
         "react": "^18.3.1",
         "react-dom": "^18.3.1",
         "react-error-boundary": "^4.0.10",
@@ -92,7 +92,7 @@
         "tailwindcss": "^3.3.3",
         "tsconfig-paths": "^4.2.0",
         "typescript": "^5.5.3",
-        "vite": "^5.3.3",
+        "vite": "^5.4.12",
         "vite-plugin-svgr": "^3.2.0",
         "vitest": "^2.1.9"
     },

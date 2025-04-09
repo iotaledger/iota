@@ -57,13 +57,18 @@
 //!     let iota_local = IotaClientBuilder::default().build_localnet().await?;
 //!     println!("IOTA local network version: {:?}", iota_local.api_version());
 //!
-//!     // IOTA devnet running at `https://fullnode.devnet.io:443`
+//!     // IOTA devnet running at `https://api.devnet.iota.cafe`
 //!     let iota_devnet = IotaClientBuilder::default().build_devnet().await?;
 //!     println!("IOTA devnet version: {:?}", iota_devnet.api_version());
 //!
-//!     // IOTA testnet running at `https://testnet.devnet.io:443`
+//!     // IOTA testnet running at `https://api.testnet.iota.cafe`
 //!     let iota_testnet = IotaClientBuilder::default().build_testnet().await?;
 //!     println!("IOTA testnet version: {:?}", iota_testnet.api_version());
+//!
+//!     // IOTA mainnet running at `https://api.mainnet.iota.cafe`
+//!     let iota_mainnet = IotaClientBuilder::default().build_mainnet().await?;
+//!     println!("IOTA mainnet version: {:?}", iota_mainnet.api_version());
+//!
 //!     Ok(())
 //! }
 //! ```

@@ -52,7 +52,7 @@ function DynamicFieldRow({ id, result, defaultOpen }: DynamicFieldRowProps): JSX
 }
 
 export function DynamicFieldsCard({ id }: { id: string }) {
-    const { data, isInitialLoading, isFetchingNextPage, hasNextPage, fetchNextPage } =
+    const { data, isLoading, isFetchingNextPage, hasNextPage, fetchNextPage } =
         useGetDynamicFields(id);
 
     const observerElem = useRef<HTMLDivElement | null>(null);
@@ -66,7 +66,7 @@ export function DynamicFieldsCard({ id }: { id: string }) {
         }
     }, [isIntersecting, fetchNextPage, hasNextPage, isFetchingNextPage]);
 
-    if (isInitialLoading) {
+    if (isLoading) {
         return (
             <div className="mt-1 flex w-full justify-center">
                 <LoadingIndicator />

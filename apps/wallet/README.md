@@ -26,9 +26,9 @@ This will build the app in the [dist/](./dist/) directory, watch for changes and
 
 ## Environment Variables
 
-You can config default network and RPC endpoints by copying [configs/environment/.env.defaults](configs/environment/.env.defaults) and rename it to `configs/environment/.env`.
+You can config default network and RPC endpoints by copying [sdk/.env.defaults]([sdk/.env.defaults) and rename it to `sdk/.env`.
 
-For example, to change the default network from DevNet to Local Network, you can change `API_ENV=devNet` to `API_ENV=local`.
+For example, to change the default network from `localnet` to `testnet`, you can change `DEFAULT_NETWORK = 'localnet'` to `DEFAULT_NETWORK = 'testnet'`.
 
 ## Building the wallet
 
