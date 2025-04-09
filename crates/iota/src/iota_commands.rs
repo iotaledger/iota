@@ -808,7 +808,7 @@ async fn start(
             true,
             None,
             fullnode_url.clone(),
-            IndexerTypeConfig::writer_mode(None),
+            IndexerTypeConfig::writer_mode(None, None),
             data_ingestion_dir.clone(),
         )
         .await;

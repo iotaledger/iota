@@ -24,9 +24,15 @@ import {
     BadgeType,
     Divider,
     LoadingIndicator,
+    TooltipPosition,
+    InfoBox,
+    InfoBoxType,
+    InfoBoxStyle,
 } from '@iota/apps-ui-kit';
 import { formatAddress } from '@iota/iota-sdk/utils';
 import { DialogLayout, DialogLayoutFooter, DialogLayoutBody } from '../../layout';
+import { useIsValidatorCommitteeMember } from '@/hooks';
+import { Warning } from '@iota/apps-ui-icons';
 
 interface StakeDialogProps {
     handleClose: () => void;
@@ -57,6 +63,7 @@ export function DetailsView({
     } = useValidatorInfo({
         validatorAddress,
     });
+    const { isCommitteeMember } = useIsValidatorCommitteeMember();
 
     const iotaEarned = BigInt(stakedDetails?.estimatedReward || 0n);
     const [iotaEarnedFormatted, iotaEarnedSymbol] = useFormatCoin({ balance: iotaEarned });
@@ -86,6 +93,8 @@ export function DetailsView({
         toast.error('An error occurred fetching validator information');
     }
 
+    const isValidatorCommitteeMember = isCommitteeMember(validatorAddress);
+
     return (
         <DialogLayout>
             <Header title="Validator" onClose={handleClose} onBack={handleClose} titleCentered />
@@ -102,8 +111,24 @@ export function DetailsView({
                         </CardImage>
                         <CardBody title={validatorName} subtitle={subtitle} isTextTruncated />
                     </Card>
+                    {!isValidatorCommitteeMember && (
+                        <InfoBox
+                            type={InfoBoxType.Warning}
+                            title="Earn with validators in the committee"
+                            supportingText="You are delegating to a validator that is not part of the committee. Stake to a member of the current committee to start earning rewards again."
+                            icon={<Warning />}
+                            style={InfoBoxStyle.Elevated}
+                        />
+                    )}
                     <Panel hasBorder>
                         <div className="flex flex-col gap-y-sm p-md">
+                            <KeyValueInfo
+                                keyText="Member of Committee"
+                                tooltipPosition={TooltipPosition.Bottom}
+                                tooltipText="If the validator is part of the current committee."
+                                value={isValidatorCommitteeMember ? 'Yes' : 'No'}
+                                fullwidth
+                            />
                             <KeyValueInfo
                                 keyText="Your Stake"
                                 value={totalStakeFormatted}

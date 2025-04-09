@@ -58,8 +58,7 @@ env:
 jobs:
   rust-tests:
     name: Run rust tests
-    if: |
-      !cancelled() && (inputs.isRust || inputs.isPgIntegration || inputs.isMoveExampleUsedByOthers)
+    if: (!cancelled() && (inputs.isRust || inputs.isPgIntegration || inputs.isMoveExampleUsedByOthers))
     timeout-minutes: 90
     runs-on: [self-hosted-x64]
     env:
@@ -117,8 +116,7 @@ jobs:
 
   rust-simtests:
     name: Run rust simtests
-    if: |
-      inputs.runSimtest && !cancelled() && (inputs.isRust || inputs.isPgIntegration || inputs.isMoveExampleUsedByOthers)
+    if: (!cancelled() && inputs.runSimtest && (inputs.isRust || inputs.isPgIntegration || inputs.isMoveExampleUsedByOthers))
     timeout-minutes: 90
     runs-on: [self-hosted-x64]
     env:
@@ -180,8 +178,7 @@ jobs:
 
   check-unused-deps:
     name: Check Unused Dependencies (${{ matrix.flags }})
-    if: |
-      !cancelled() && !failure() && inputs.isRust && github.event.pull_request.draft == false
+    if: (!cancelled() && !failure())
     strategy:
       matrix:
         flags: ["--all-features", "--no-default-features"]
@@ -190,9 +187,9 @@ jobs:
     steps:
       - uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871 # v4.2.1
       - name: Run Cargo Udeps
-        run: cargo +nightly ci-udeps ${{ matrix.flags }}
+        run: cargo +nightly-2025-04-01 ci-udeps ${{ matrix.flags }}
       - name: Run Cargo Udeps (external crates)
-        run: cargo +nightly ci-udeps-external ${{ matrix.flags }}
+        run: cargo +nightly-2025-04-01 ci-udeps-external ${{ matrix.flags }}
 
   test-extra:
     env:
@@ -201,6 +198,7 @@ jobs:
       # non-deterministic `test` job.
       IOTA_SKIP_SIMTESTS: 1
     runs-on: ${{ matrix.os }}
+    if: (!cancelled() && !failure())
     strategy:
       matrix:
         os:
