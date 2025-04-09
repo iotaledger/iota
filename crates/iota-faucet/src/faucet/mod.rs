@@ -129,6 +129,19 @@ pub struct FaucetConfig {
 
     #[arg(long, action = clap::ArgAction::Set, default_value_t = false)]
     pub batch_enabled: bool,
+
+    // enable rate limiting
+    #[arg(long, default_value_t = false)]
+    pub enable_rate_limiting: bool,
+
+    // fields for rate limiting
+    // default 12 requests
+    #[arg(long, default_value_t = 12)]
+    pub max_requests_per_window: usize,
+
+    // default: 12 hours
+    #[arg(long, default_value_t = 43200)]
+    pub rate_window_secs: u64,
 }
 
 impl Default for FaucetConfig {
@@ -147,6 +160,9 @@ impl Default for FaucetConfig {
             batch_request_size: 500,
             ttl_expiration: 300,
             batch_enabled: false,
+            enable_rate_limiting: false,
+            max_requests_per_window: 12,
+            rate_window_secs: 12,
         }
     }
 }

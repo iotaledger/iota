@@ -37,9 +37,9 @@ use tokio::{
         mpsc::{self, Receiver, Sender},
         oneshot,
     },
-    time::{Duration, timeout},
+    time::{Duration, Instant, timeout},
 };
-use tracing::{error, info, warn};
+use tracing::{error, info, warn, debug};
 use ttl_cache::TtlCache;
 use typed_store::Map;
 use uuid::Uuid;
@@ -64,10 +64,14 @@ pub struct SimpleFaucet {
     task_id_cache: Mutex<TtlCache<Uuid, BatchSendStatus>>,
     ttl_expiration: u64,
     coin_amount: u64,
-    request_count: Mutex<HashMap<IotaAddress, u64>>,
+    request_times: Mutex<HashMap<IotaAddress, Vec<Instant>>>,
     /// Shuts down the batch transfer task. Used only in testing.
     #[cfg_attr(not(test), expect(unused))]
     batch_transfer_shutdown: parking_lot::Mutex<Option<oneshot::Sender<()>>>,
+    // rate limiting
+    enable_rate_limiting: bool,
+    max_requests_per_window: usize,
+    rate_window_secs: u64,
 }
 
 /// We do not just derive(Debug) because WalletContext and the WriteAheadLog do
@@ -205,7 +209,11 @@ impl SimpleFaucet {
             ttl_expiration: config.ttl_expiration,
             coin_amount: config.amount,
             batch_transfer_shutdown: parking_lot::Mutex::new(Some(batch_transfer_shutdown)),
-            request_count: Mutex::new(HashMap::new()),
+            // rate limiting
+            request_times: Mutex::new(HashMap::<IotaAddress, Vec<Instant>>::new()),
+            enable_rate_limiting: config.enable_rate_limiting,
+            max_requests_per_window: config.max_requests_per_window,
+            rate_window_secs: config.rate_window_secs,
         };
 
         let arc_faucet = Arc::new(faucet);
@@ -900,18 +908,69 @@ impl Faucet for SimpleFaucet {
     ) -> Result<FaucetReceipt, FaucetError> {
         info!(?recipient, uuid = ?id, ?amounts, "Getting faucet requests");
 
-        // Check the in-memory block list before proceeding.
-        let mut counts = self.request_count.lock().await;
-        let count = counts.entry(recipient.clone()).or_insert(0);
-        *count += 1;
-        if *count >= 100 {
-            info!("{:?} {} {}", recipient, *count, "Blocked");
-            return Err(FaucetError::BatchSendQueueFull);
+        // If rate limiting is enabled, perform the rate check.
+        if self.enable_rate_limiting {
+            let mut request_times = self.request_times.lock().await;
+            let entries = request_times.entry(recipient.clone()).or_insert_with(Vec::new);
+
+            // Define the time window based on configuration.
+            let window = Duration::from_secs(self.rate_window_secs);
+            let now = Instant::now();
+
+            // Debug: log the state before pruning.
+            debug!(
+                "Before pruning, recipient {:?} has {} request(s): {:?}",
+                recipient,
+                entries.len(),
+                entries
+            );
+
+            // Remove timestamps older than the configured window.
+            entries.retain(|&timestamp| now.duration_since(timestamp) < window);
+
+            // Debug: log the state after pruning.
+            debug!(
+                "After pruning, recipient {:?} has {} request(s): {:?}",
+                recipient,
+                entries.len(),
+                entries
+            );
+
+            // Check if the number of requests in the window exceeds the configured limit.
+            if entries.len() >= self.max_requests_per_window {
+                info!(
+                    "{:?} has {} requests in the past {} seconds; blocking.",
+                    recipient,
+                    entries.len(),
+                    self.rate_window_secs
+                );
+                return Err(FaucetError::BatchSendQueueFull);
+            }
+
+            // Debug: log before recording the new request.
+            debug!(
+                "Allowing a new request for recipient {:?}; current count: {}",
+                recipient,
+                entries.len()
+            );
+
+            // Record the current request.
+            entries.push(now);
+
+            // Debug: log the state after adding the new request.
+            debug!(
+                "After adding request, recipient {:?} has {} request(s): {:?}",
+                recipient,
+                entries.len(),
+                entries
+            );
+
+            // Release the lock.
+            drop(request_times);
         }
 
-        info!("{:?} {} {}", recipient, *count, "Allowed");
-        drop(counts);
 
+        // Continue with transaction processing if rate limiting is either disabled or the check passed.
         let (digest, coin_ids) = self.transfer_gases(amounts, recipient, id).await?;
 
         info!(uuid = ?id, ?recipient, ?digest, "PayIota txn succeeded");
