@@ -26,6 +26,7 @@ futures.workspace = true
 hyper.workspace = true
 hyper-rustls.workspace = true
 indicatif.workspace = true
+moka.workspace = true
 integer-encoding.workspace = true
 itertools.workspace = true
 lru.workspace = true
