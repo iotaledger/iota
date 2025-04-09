@@ -9,7 +9,7 @@ const meta: Meta<typeof Toggle> = {
     component: Toggle,
     tags: ['autodocs'],
     argTypes: {
-        isActive: {
+        isToggled: {
             control: { type: 'boolean' },
         },
         label: {
@@ -31,7 +31,7 @@ const meta: Meta<typeof Toggle> = {
         },
     },
     args: {
-        isActive: false,
+        isToggled: false,
         isDisabled: false,
         size: ToggleSize.Default,
         labelPosition: ToggleLabelPosition.Right,
@@ -47,13 +47,13 @@ export const Default: Story = {
         label: 'Label',
     },
     render: (args) => {
-        const [isActive, setIsActive] = useState(args.isActive);
+        const [isToggled, setIsToggled] = useState(args.isToggled);
 
-        const handleToggleChange = (newActiveState: boolean) => {
-            console.log('Toggle state changed:', newActiveState);
-            setIsActive(newActiveState);
+        const handleToggleChange = (newState: boolean) => {
+            console.log('Toggle state changed:', newState);
+            setIsToggled(newState);
         };
 
-        return <Toggle {...args} isActive={isActive} onChange={handleToggleChange} />;
+        return <Toggle {...args} isToggled={isToggled} onChange={handleToggleChange} />;
     },
 };
