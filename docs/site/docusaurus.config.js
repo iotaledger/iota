@@ -157,7 +157,7 @@ const config = {
         config: {
           coreApiV2: {
             specPath:
-              '../content/iota-evm/_api_spec/openapi.yml',
+              'https://raw.githubusercontent.com/iotaledger/wasp/refs/heads/develop/clients/apiclient/api/openapi.yaml',
             outputDir: 
               '../content/iota-evm/references/openapi',
             sidebarOptions: {
