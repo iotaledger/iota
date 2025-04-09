@@ -6,7 +6,7 @@ on:
 
 jobs:
   validate:
-    if: github.event.pull_request.draft == false
+    if: (github.event.pull_request.draft == false || contains(github.event.pull_request.body, '[run-ci]'))
     runs-on: self-hosted-x64
     steps:
       - name: checkout code repository
