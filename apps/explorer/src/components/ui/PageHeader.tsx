@@ -37,7 +37,6 @@ export function PageHeader({
 }: PageHeaderProps): JSX.Element {
     const copyAddress = useCopyToClipboard({
         textToCopy: title,
-        showAddressWarning: type === 'Address',
     });
     return (
         <Panel>

@@ -34,7 +34,6 @@ export function AccountItem({
     const copyAddress = useCopyToClipboard({
         textToCopy: account?.address || '',
         successMessage: 'Address copied',
-        showAddressWarning: true,
     });
     const explorerHref = useExplorerLink({
         type: ExplorerLinkType.Address,

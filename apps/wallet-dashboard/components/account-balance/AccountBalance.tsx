@@ -40,7 +40,6 @@ export function AccountBalance() {
     const copyAddress = useCopyToClipboard({
         textToCopy: account?.address || '',
         successMessage: 'Address copied',
-        showAddressWarning: true,
     });
 
     return (

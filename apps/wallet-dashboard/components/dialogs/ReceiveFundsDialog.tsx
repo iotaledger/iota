@@ -18,7 +18,6 @@ export function ReceiveFundsDialog({
     const copyToClipboard = useCopyToClipboard({
         textToCopy: address,
         successMessage: 'Address copied',
-        showAddressWarning: true,
     });
 
     return (

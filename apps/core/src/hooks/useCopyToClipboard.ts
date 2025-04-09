@@ -9,14 +9,12 @@ export type CopyOptions = {
     textToCopy?: string;
     onSuccess?: () => void;
     successMessage?: string;
-    showAddressWarning?: boolean;
 };
 
 export function useCopyToClipboard({
     textToCopy,
     onSuccess,
     successMessage = 'Copied',
-    showAddressWarning = false,
 }: CopyOptions) {
     return useCallback<MouseEventHandler>(
         async (e) => {
@@ -29,13 +27,6 @@ export function useCopyToClipboard({
                     toast(successMessage);
                 }
 
-                // Show warning if the address is copied
-                if (showAddressWarning) {
-                    toast.warning(
-                        'Double-check the copied address before initiating a transaction',
-                    );
-                }
-
                 if (onSuccess) {
                     onSuccess();
                 }
@@ -45,6 +36,6 @@ export function useCopyToClipboard({
                 return false;
             }
         },
-        [textToCopy, onSuccess, successMessage, showAddressWarning],
+        [textToCopy, onSuccess, successMessage],
     );
 }

@@ -216,7 +216,6 @@ export function TokenDetails() {
     const copyToClipboard = useCopyToClipboard({
         textToCopy: activeAccountAddress,
         successMessage: 'Address copied',
-        showAddressWarning: true,
     });
 
     return (

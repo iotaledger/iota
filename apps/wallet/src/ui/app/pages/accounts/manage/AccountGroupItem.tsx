@@ -52,7 +52,6 @@ export function AccountGroupItem({
     const copyAddress = useCopyToClipboard({
         textToCopy: account?.address || '',
         successMessage: 'Address copied',
-        showAddressWarning: true,
     });
     function handleOpen() {
         const newWindow = window.open(explorerHref!, '_blank', 'noopener,noreferrer');
