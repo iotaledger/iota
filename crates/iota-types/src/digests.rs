@@ -189,15 +189,15 @@ impl ChainIdentifier {
     /// Take a short 4 byte identifier and convert it into a ChainIdentifier.
     /// Short ids come from the JSON RPC getChainIdentifier and are encoded in
     /// hex.
-    pub fn from_chain_short_id(short_id: &String) -> Option<Self> {
+    pub fn from_chain_short_id(short_id: impl AsRef<str>) -> Option<Self> {
         if Hex::from_bytes(&Base58::decode(MAINNET_CHAIN_IDENTIFIER_BASE58).ok()?)
             .encoded_with_format()
-            .starts_with(&format!("0x{}", short_id))
+            .starts_with(&format!("0x{}", short_id.as_ref()))
         {
             Some(get_mainnet_chain_identifier())
         } else if Hex::from_bytes(&Base58::decode(TESTNET_CHAIN_IDENTIFIER_BASE58).ok()?)
             .encoded_with_format()
-            .starts_with(&format!("0x{}", short_id))
+            .starts_with(&format!("0x{}", short_id.as_ref()))
         {
             Some(get_testnet_chain_identifier())
         } else {
@@ -1051,7 +1051,7 @@ mod test {
 
     #[test]
     fn test_chain_id_mainnet() {
-        let chain_id = ChainIdentifier::from_chain_short_id(&String::from("35834a8a"));
+        let chain_id = ChainIdentifier::from_chain_short_id("35834a8a");
         assert_eq!(
             chain_id.unwrap().chain(),
             iota_protocol_config::Chain::Mainnet
@@ -1060,7 +1060,7 @@ mod test {
 
     #[test]
     fn test_chain_id_testnet() {
-        let chain_id = ChainIdentifier::from_chain_short_id(&String::from("2304aa97"));
+        let chain_id = ChainIdentifier::from_chain_short_id("2304aa97");
         assert_eq!(
             chain_id.unwrap().chain(),
             iota_protocol_config::Chain::Testnet
@@ -1069,7 +1069,7 @@ mod test {
 
     #[test]
     fn test_chain_id_unknown() {
-        let chain_id = ChainIdentifier::from_chain_short_id(&String::from("unknown"));
+        let chain_id = ChainIdentifier::from_chain_short_id("unknown");
         assert_eq!(chain_id, None);
     }
 }
