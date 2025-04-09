@@ -33,7 +33,7 @@ export function ReceiveFundsDialog({
                     </div>
                 </DialogBody>
                 <div className="flex w-full flex-row justify-center gap-2 px-md--rs pb-md--rs pt-sm--rs">
-                    <Button onClick={() => copyToClipboard} fullWidth text="Copy Address" />
+                    <Button onClick={copyToClipboard} fullWidth text="Copy Address" />
                 </div>
             </DialogContent>
         </Dialog>
