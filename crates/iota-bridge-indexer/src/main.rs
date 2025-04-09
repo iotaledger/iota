@@ -74,7 +74,7 @@ async fn main() -> Result<()> {
     let bridge_metrics = Arc::new(BridgeMetrics::new(&registry));
 
     let db_url = config.db_url.clone();
-    let datastore = PgBridgePersistent::new(get_connection_pool(db_url.clone()));
+    let datastore = PgBridgePersistent::new(get_connection_pool(db_url.clone()).await);
 
     let provider = Arc::new(
         Provider::<Http>::try_from(config.eth_rpc_url.clone())?
@@ -165,7 +165,7 @@ async fn start_processing_iota_checkpoints_by_querying_txns(
     indexer_metrics: BridgeIndexerMetrics,
     bridge_metrics: Arc<BridgeMetrics>,
 ) -> Result<Vec<JoinHandle<()>>> {
-    let pg_pool = get_connection_pool(db_url.clone());
+    let pg_pool = get_connection_pool(db_url.clone()).await;
     let (tx, rx) = channel(
         100,
         &iota_metrics::get_metrics()
@@ -174,8 +174,9 @@ async fn start_processing_iota_checkpoints_by_querying_txns(
             .with_label_values(&["iota_transaction_processing_queue"]),
     );
     let mut handles = vec![];
-    let cursor =
-        read_iota_progress_store(&pg_pool).expect("Failed to read cursor from iota progress store");
+    let cursor = read_iota_progress_store(&pg_pool)
+        .await
+        .expect("Failed to read cursor from iota progress store");
     let iota_client = IotaClientBuilder::default().build(iota_rpc_url).await?;
     handles.push(spawn_logged_monitored_task!(
         start_iota_tx_polling_task(iota_client, cursor, tx, bridge_metrics),

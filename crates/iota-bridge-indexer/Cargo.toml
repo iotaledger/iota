@@ -13,7 +13,8 @@ async-trait.workspace = true
 backoff.workspace = true
 bcs.workspace = true
 clap.workspace = true
-diesel = { workspace = true, features = ["postgres", "r2d2", "serde_json"] }
+diesel = { workspace = true, features = ["serde_json"] }
+diesel-async = { workspace = true, features = ["bb8", "postgres"] }
 ethers = { version = "2.0", features = ["rustls", "ws"] }
 futures.workspace = true
 prometheus.workspace = true
