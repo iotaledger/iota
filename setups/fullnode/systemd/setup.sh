@@ -28,7 +28,8 @@ echo -e " ${G}5.${NC} Create a user called iota, make it own directories for ser
 echo -e " ${G}6.${NC} Create a node config file, download genesis/migration blobs"
 echo -e " ${G}7.${NC} Create a systemd service unit file"
 echo -e " ${G}8.${NC} (Re-)Start the service\n"
-read -p "Continue ? [y/N] " response
+echo -e "Continue ? [y/N]"
+read -r response
 if [[ ! $response =~ ^[Yy]$ ]]; then
 	red "[ERROR] Install cancelled"
 	exit 1
@@ -42,22 +43,9 @@ if [[ ! "${VALID_NETWORKS[*]}" =~ $NETWORK ]]; then
 	exit 1
 fi
 
-if [ -f "$CONFIG_FILE_PATH" ]; then
-	PREV_NETWORK=$(grep -oP '/dns/(?:[^/]+\.)*\K[^./]+(?=\.(?:iota\.cafe)/)' -m 1 "$CONFIG_FILE_PATH")
-	if [ "$NETWORK" != "$PREV_NETWORK" ]; then
-		red "[ERROR] Found a previous config file at $CONFIG_FILE_PATH for a different network ($PREV_NETWORK)."
-		red "Please:"
-		red "1. Move / backup / delete the file at $CONFIG_FILE_PATH"
-		red "2. Move / backup / delete the directory at'$NODE_WORKDIR/db' "
-		red "3. Re-run this installer script (or just re-run it with the same network to keep using files above)"
-		exit 1
-	fi
-fi
-
 # Ensure rust is installed and up to date
 if ! command -v cargo &>/dev/null; then
-	red "[ERROR] Rust & cargo not installed or not found in \$PATH, install with:"
-	echo " \$ curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh"
+	red "[ERROR] Rust & cargo not installed or not found in \$PATH, install it before re-running this script"
 	exit 1
 fi
 
@@ -81,9 +69,9 @@ sudo apt-get update && sudo apt-get install -y --no-install-recommends \
 	git \
 	clang \
 	cmake
-if ! command -v diff &>/dev/null; then sudo apt-get install -y --no-install-recommends diffutils; fi
+if ! command -v cmp &>/dev/null; then sudo apt-get install -y --no-install-recommends diffutils; fi
 
-mkdir -p "$(dirname $CLONE_DIR)"
+mkdir -p "$(dirname "$CLONE_DIR")"
 if [ ! -d "$CLONE_DIR" ]; then
 	git clone https://github.com/iotaledger/iota.git "$CLONE_DIR"
 else
@@ -108,7 +96,7 @@ if [ "$rustc_version" != "$MIN_RUSTC_VERSION" ] && [[ $(echo -e "$rustc_version\
 	exit 1
 fi
 
-# Build the binaries
+# Build the binary
 cargo build --release --bin iota-node
 
 # Add a IOTA user, create directories for iota-node service
@@ -128,15 +116,15 @@ write_to_file() {
 	CONTENTS="$1"
 	FILE_PATH="$2"
 	if [ -f "$FILE_PATH" ]; then
-		if diff -q <(echo -e "$CONTENTS") "$FILE_PATH" >/dev/null; then
-			green "[INFO] $FILE_PATH already exists and matches"
-		else
+		# If file already exists, check if contents match, else ask user what to do
+		if ! cmp -s <(echo -e "$CONTENTS") "$FILE_PATH"; then
 			echo -e "Config file $FILE_PATH already exists, but does not match. \n\tOverwrite ? [o]\n\tKeep existing ? [k]\n\tOr cancel ? [any other key]"
-			read -p "" answer
+			read -r answer
 			case "$answer" in
 			o | O)
-				green "[INFO] Overwriting $FILE_PATH"
-				sudo echo -e "$CONTENTS" >"$FILE_PATH"
+				green "[INFO] Overwriting $FILE_PATH (previous file backed up to ${FILE_PATH}_$(date +%Y%m%d%H%M%S))"
+				sudo cp -p "$FILE_PATH" "${FILE_PATH}_$(date +%Y%m%d%H%M%S)"
+				echo -e "$CONTENTS" | sudo tee "$FILE_PATH"
 				;;
 			k | K)
 				green "[INFO] Keeping existing $FILE_PATH"
@@ -150,7 +138,7 @@ write_to_file() {
 		fi
 	else
 		sudo mkdir -p "$(dirname "$FILE_PATH")"
-		sudo echo -e "$CONTENTS" >"$FILE_PATH"
+		echo -e "$CONTENTS" | sudo tee "$FILE_PATH"
 	fi
 }
 
@@ -161,9 +149,9 @@ HACK_ROOT="$(git rev-parse --show-toplevel || echo "$CLONE_DIR")"
 # Create node config file
 CONFIG_TEMPLATE=$(if [ -f "$CLONE_DIR/setups/fullnode/fullnode-template-$NETWORK.yaml" ]; then
 	cat "$CLONE_DIR/setups/fullnode/fullnode-template-$NETWORK.yaml"
-# TODO after 6017 remove override once yaml files per network merged
-# This hack is only temporary, to work around the problem that the template is not available until we merge this PR
 else
+	# TODO after 6017 remove override once yaml files per network merged
+	# This hack is only temporary, to work around the problem that the template is not available until we merge this PR
 	cat "$HACK_ROOT/setups/fullnode/fullnode-template-$NETWORK.yaml"
 fi)
 CONFIG=$(
@@ -176,7 +164,7 @@ CONFIG=$(
 write_to_file "$CONFIG" "$CONFIG_FILE_PATH"
 
 # Download genesis/migration blobs for NETWORK
-curl -sfLJ https://dbfiles.$NETWORK.iota.cafe/genesis.blob -o "$CONFIG_DIR/genesis.blob"
+write_to_file "$(curl -sfLJ "https://dbfiles.$NETWORK.iota.cafe/genesis.blob")" "$CONFIG_DIR/genesis.blob"
 if [ "$NETWORK" == "mainnet" ] || [ "$NETWORK" == "devnet" ]; then
 	curl -sfLJ https://dbfiles.$NETWORK.iota.cafe/migration.blob -o "$CONFIG_DIR/migration.blob"
 fi
@@ -184,19 +172,19 @@ fi
 # Move bin to $BIN_DIR
 cp ./target/release/iota-node "$BIN_DIR/iota-node"
 
-EXEC_START="\"$BIN_DIR/iota-node\" --config-path \"$CONFIG_DIR/fullnode.yaml\""
+EXEC_START_CMD="\"$BIN_DIR/iota-node\" --config-path \"$CONFIG_DIR/fullnode.yaml\""
 
 # Create a systemd service definition file
-# TODO after 6017 remove use of HACK_ROOT local override (once file actually exists in $NETWORK branch/tag)
 SERVICE_TEMPLATE=$(if [ -f "$CLONE_DIR/setups/fullnode/systemd/iota-node.service" ]; then
 	cat "$CLONE_DIR/setups/fullnode/systemd/iota-node.service"
 else
+	# TODO after 6017 remove use of HACK_ROOT local override (once file actually exists in $NETWORK branch/tag)
 	cat "$HACK_ROOT/setups/fullnode/systemd/iota-node.service"
 fi)
 # Set the start command to use your paths to the iota-node binary / to the config file
 SERVICE_DEF=$(
 	echo "$SERVICE_TEMPLATE" |
-		sed "s|/usr/local/bin/iota-node --config-path /opt/iota/config/validator.yaml|$EXEC_START|g"
+		sed "s|/usr/local/bin/iota-node --config-path /opt/iota/config/validator.yaml|$EXEC_START_CMD|g"
 )
 write_to_file "$SERVICE_DEF" "/etc/systemd/system/iota-node.service"
 

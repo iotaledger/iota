@@ -35,27 +35,13 @@ import Genesis from '../../_snippets/operator/genesis.mdx'
 
 In a new directory, (e.g. `mkdir -p $HOME/iota && cd $HOME/iota`), run:
 
-{/* TODO in 6017 change branch last before merging ?? */} 
+{/* TODO in 6017 change branch last before merging ?? */}  
 ```shell
-bash -i <(curl -sSf https://raw.githubusercontent.com/iotaledger/iota/refs/heads/docs/further-node-operator-docs-improvements/setups/fullnode/systemd/setup.sh)
+NETWORK="testnet" bash -i <(curl -sSf https://raw.githubusercontent.com/iotaledger/iota/refs/heads/docs/further-node-operator-docs-improvements/setups/fullnode/systemd/setup.sh)
 ```
-
-#### Installer script options (via environment variables)
-You can override these values when running the script (optional):
-{/* TODO in 6017 re-check before PR that these var names are still correct */}
-| Env variable | Description | Values | Default Value |
-| --- | --- | --- | --- |
-| NETWORK | The IOTA public network you want your node to connect to | "testnet", "mainnet", "devnet" | "testnet" |
-| CLONE_DIR | Directory to clone a fresh copy of the iota repo into | Path to directory | `$HOME/.cache/iota-clone` |
-| NODE_WORKDIR | Directory for all node data (config, binary, DB) | Path to directory | `/opt/iota` |
-| CONFIG_DIR | Directory for storing iota-node config files | Path to directory | `/opt/iota/config` |
-| BIN_DIR | Directory for the iota-node binary | Path to directory | `/opt/iota/bin` |
 
 :::info
-To pass env vars to the installer, declare them as follows, in front of the call to the installer:
-```shell
-NETWORK="testnet" CLONE_DIR="$HOME/.cache/iota"  bash -i <(curl -sSf https://raw.githubusercontent.com/iotaledger/iota/refs/heads/docs/further-node-operator-docs-improvements/setups/fullnode/systemd/setup.sh)
-```
+Set the network environment variable to the network you want to connect to ("testnet", "mainnet", or "devnet")
 :::
 
 The installer will perform the following steps:
