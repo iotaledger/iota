@@ -40,20 +40,29 @@ use crate::{
         checkpoints::{StoredChainIdentifier, StoredCheckpoint, StoredCpTx},
         display::StoredDisplay,
         epoch::{StoredEpochInfo, StoredFeatureFlag, StoredProtocolConfig},
-        events::StoredEvent,
+        event_indices::OptimisticEventIndices,
+        events::{OptimisticEvent, StoredEvent},
         obj_indices::StoredObjectVersion,
         objects::{StoredDeletedObject, StoredHistoryObject, StoredObject, StoredObjectSnapshot},
         packages::StoredPackage,
-        transactions::{StoredTransaction, TxInsertionOrder},
+        transactions::{OptimisticTransaction, StoredTransaction, TxInsertionOrder},
+        tx_indices::OptimisticTxIndices,
     },
     on_conflict_do_update, persist_chunk_into_table, read_only_blocking,
     schema::{
         chain_identifier, checkpoints, display, epochs, event_emit_module, event_emit_package,
         event_senders, event_struct_instantiation, event_struct_module, event_struct_name,
         event_struct_package, events, feature_flags, objects, objects_history, objects_snapshot,
-        objects_version, packages, protocol_configs, pruner_cp_watermark, transactions,
-        tx_calls_fun, tx_calls_mod, tx_calls_pkg, tx_changed_objects, tx_digests, tx_input_objects,
-        tx_insertion_order, tx_kinds, tx_recipients, tx_senders,
+        objects_version, optimistic_event_emit_module, optimistic_event_emit_package,
+        optimistic_event_senders, optimistic_event_struct_instantiation,
+        optimistic_event_struct_module, optimistic_event_struct_name,
+        optimistic_event_struct_package, optimistic_events, optimistic_transactions,
+        optimistic_tx_calls_fun, optimistic_tx_calls_mod, optimistic_tx_calls_pkg,
+        optimistic_tx_changed_objects, optimistic_tx_input_objects, optimistic_tx_kinds,
+        optimistic_tx_recipients, optimistic_tx_senders, packages, protocol_configs,
+        pruner_cp_watermark, transactions, tx_calls_fun, tx_calls_mod, tx_calls_pkg,
+        tx_changed_objects, tx_digests, tx_input_objects, tx_insertion_order, tx_kinds,
+        tx_recipients, tx_senders,
     },
     transactional_blocking_with_retry,
     types::{
@@ -1912,6 +1921,37 @@ impl IndexerStore for PgIndexerStore {
         Ok(())
     }
 
+    async fn persist_optimistic_transaction(
+        &self,
+        transaction: OptimisticTransaction,
+    ) -> Result<(), IndexerError> {
+        let insertion_order = transaction.insertion_order;
+
+        self.spawn_blocking_task(move |this| {
+            transactional_blocking_with_retry!(
+                &this.blocking_cp,
+                |conn| {
+                    insert_or_ignore_into!(optimistic_transactions::table, &transaction, conn);
+                    Ok::<(), IndexerError>(())
+                },
+                PG_DB_COMMIT_SLEEP_DURATION
+            )
+            .tap_err(|e| {
+                tracing::error!("Failed to persist transactions with error: {}", e);
+            })
+        })
+        .await
+        .map_err(|e| {
+            IndexerError::PostgresWrite(format!(
+                "Failed to persist optimistic transaction: {:?}",
+                e
+            ))
+        })??;
+
+        info!("Persisted optimistic transaction {insertion_order}");
+        Ok(())
+    }
+
     async fn persist_tx_insertion_order(
         &self,
         tx_order: Vec<TxInsertionOrder>,
@@ -1975,6 +2015,32 @@ impl IndexerStore for PgIndexerStore {
         Ok(())
     }
 
+    async fn persist_optimistic_events(
+        &self,
+        events: Vec<OptimisticEvent>,
+    ) -> Result<(), IndexerError> {
+        if events.is_empty() {
+            return Ok(());
+        }
+
+        self.spawn_blocking_task(move |this| {
+            persist_chunk_into_table!(optimistic_events::table, events, &this.blocking_cp)
+        })
+        .await
+        .map_err(|e| {
+            tracing::error!(
+                "Failed to join persist_chunk_into_table in persist_optimistic_events: {e}"
+            );
+            IndexerError::from(e)
+        })?
+        .map_err(|e| {
+            IndexerError::PostgresWrite(format!(
+                "Failed to persist all optimistic events chunks: {:?}",
+                e
+            ))
+        })
+    }
+
     async fn persist_displays(
         &self,
         display_updates: BTreeMap<String, StoredDisplay>,
@@ -2031,6 +2097,94 @@ impl IndexerStore for PgIndexerStore {
         Ok(())
     }
 
+    async fn persist_optimistic_event_indices(
+        &self,
+        indices: OptimisticEventIndices,
+    ) -> Result<(), IndexerError> {
+        let OptimisticEventIndices {
+            optimistic_event_emit_packages,
+            optimistic_event_emit_modules,
+            optimistic_event_senders,
+            optimistic_event_struct_packages,
+            optimistic_event_struct_modules,
+            optimistic_event_struct_names,
+            optimistic_event_struct_instantiations,
+        } = indices;
+
+        let mut futures = vec![];
+        futures.push(self.spawn_blocking_task(move |this| {
+            persist_chunk_into_table!(
+                optimistic_event_emit_package::table,
+                optimistic_event_emit_packages,
+                &this.blocking_cp
+            )
+        }));
+
+        futures.push(self.spawn_blocking_task(move |this| {
+            persist_chunk_into_table!(
+                optimistic_event_emit_module::table,
+                optimistic_event_emit_modules,
+                &this.blocking_cp
+            )
+        }));
+
+        futures.push(self.spawn_blocking_task(move |this| {
+            persist_chunk_into_table!(
+                optimistic_event_senders::table,
+                optimistic_event_senders,
+                &this.blocking_cp
+            )
+        }));
+
+        futures.push(self.spawn_blocking_task(move |this| {
+            persist_chunk_into_table!(
+                optimistic_event_struct_package::table,
+                optimistic_event_struct_packages,
+                &this.blocking_cp
+            )
+        }));
+
+        futures.push(self.spawn_blocking_task(move |this| {
+            persist_chunk_into_table!(
+                optimistic_event_struct_module::table,
+                optimistic_event_struct_modules,
+                &this.blocking_cp
+            )
+        }));
+
+        futures.push(self.spawn_blocking_task(move |this| {
+            persist_chunk_into_table!(
+                optimistic_event_struct_name::table,
+                optimistic_event_struct_names,
+                &this.blocking_cp
+            )
+        }));
+
+        futures.push(self.spawn_blocking_task(move |this| {
+            persist_chunk_into_table!(
+                optimistic_event_struct_instantiation::table,
+                optimistic_event_struct_instantiations,
+                &this.blocking_cp
+            )
+        }));
+
+        futures::future::try_join_all(futures)
+            .await
+            .map_err(|e| {
+                tracing::error!("Failed to join optimistic event indices futures: {e}");
+                IndexerError::from(e)
+            })?
+            .into_iter()
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|e| {
+                IndexerError::PostgresWrite(format!(
+                    "Failed to persist all optimistic event indices: {e:?}",
+                ))
+            })?;
+        info!("Persisted optimistic event indices");
+        Ok(())
+    }
+
     async fn persist_tx_indices(&self, indices: Vec<TxIndex>) -> Result<(), IndexerError> {
         if indices.is_empty() {
             return Ok(());
@@ -2063,6 +2217,83 @@ impl IndexerStore for PgIndexerStore {
             })?;
         let elapsed = guard.stop_and_record();
         info!(elapsed, "Persisted {} tx_indices chunks", len);
+        Ok(())
+    }
+
+    async fn persist_optimistic_tx_indices(
+        &self,
+        indices: OptimisticTxIndices,
+    ) -> Result<(), IndexerError> {
+        let OptimisticTxIndices {
+            optimistic_tx_senders: senders,
+            optimistic_tx_recipients: recipients,
+            optimistic_tx_input_objects: input_objects,
+            optimistic_tx_changed_objects: changed_objects,
+            optimistic_tx_pkgs: pkgs,
+            optimistic_tx_mods: mods,
+            optimistic_tx_funs: funs,
+            optimistic_tx_kinds: kinds,
+        } = indices;
+
+        let mut futures = vec![];
+        futures.push(self.spawn_blocking_task(move |this| {
+            persist_chunk_into_table!(optimistic_tx_senders::table, senders, &this.blocking_cp)
+        }));
+
+        futures.push(self.spawn_blocking_task(move |this| {
+            persist_chunk_into_table!(
+                optimistic_tx_recipients::table,
+                recipients,
+                &this.blocking_cp
+            )
+        }));
+
+        futures.push(self.spawn_blocking_task(move |this| {
+            persist_chunk_into_table!(
+                optimistic_tx_input_objects::table,
+                input_objects,
+                &this.blocking_cp
+            )
+        }));
+
+        futures.push(self.spawn_blocking_task(move |this| {
+            persist_chunk_into_table!(
+                optimistic_tx_changed_objects::table,
+                changed_objects,
+                &this.blocking_cp
+            )
+        }));
+
+        futures.push(self.spawn_blocking_task(move |this| {
+            persist_chunk_into_table!(optimistic_tx_calls_pkg::table, pkgs, &this.blocking_cp)
+        }));
+
+        futures.push(self.spawn_blocking_task(move |this| {
+            persist_chunk_into_table!(optimistic_tx_calls_mod::table, mods, &this.blocking_cp)
+        }));
+
+        futures.push(self.spawn_blocking_task(move |this| {
+            persist_chunk_into_table!(optimistic_tx_calls_fun::table, funs, &this.blocking_cp)
+        }));
+
+        futures.push(self.spawn_blocking_task(move |this| {
+            persist_chunk_into_table!(optimistic_tx_kinds::table, kinds, &this.blocking_cp)
+        }));
+
+        futures::future::try_join_all(futures)
+            .await
+            .map_err(|e| {
+                tracing::error!("Failed to join optimistic tx indices futures: {e}");
+                IndexerError::from(e)
+            })?
+            .into_iter()
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|e| {
+                IndexerError::PostgresWrite(format!(
+                    "Failed to persist all optimistic tx indices: {e:?}",
+                ))
+            })?;
+        info!("Persisted optimistic tx indices");
         Ok(())
     }
 

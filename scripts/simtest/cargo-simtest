@@ -28,12 +28,12 @@ done
 #   echo "Please commit or revert your changes to Cargo.lock before running cargo simtest"
 #   exit 1
 # fi
-cd "$STARTING_DIR"
+cd "$STARTING_DIR" || exit 1
 
 cleanup () {
-  cd "$MANIFEST_DIR"
+  cd "$MANIFEST_DIR" || exit 1
   git checkout Cargo.lock > /dev/null
-  cd "$STARTING_DIR"
+  cd "$STARTING_DIR" || exit 1
 }
 
 trap cleanup SIGINT
@@ -55,9 +55,9 @@ if [ -n "$LOCAL_MSIM_PATH" ]; then
 else
   cargo_patch_args=(
     --config 'patch.crates-io.tokio.git = "https://github.com/iotaledger/iota-sim.git"'
-    --config 'patch.crates-io.tokio.branch = "tokio-1.43"'
+    --config 'patch.crates-io.tokio.branch = "tokio-1.44.2"'
     --config 'patch.crates-io.futures-timer.git = "https://github.com/iotaledger/iota-sim.git"'
-    --config 'patch.crates-io.futures-timer.branch = "tokio-1.43"'
+    --config 'patch.crates-io.futures-timer.branch = "tokio-1.44.2"'
   )
 fi
 
@@ -76,7 +76,7 @@ if [ -n "$USE_MOCK_CRYPTO" ]; then
   )
 fi
 
-RUST_FLAGS=$(IFS=, ; echo "${RUST_FLAGS[*]}")
+rust_flags_str=$(IFS=, ; echo "${RUST_FLAGS[*]}")
 
 if ! cargo nextest --help > /dev/null 2>&1; then
   echo "nextest (https://nexte.st) does not appear to be installed. Please install before proceeding."
@@ -95,7 +95,8 @@ if [ "$1" = "build" ]; then
 fi
 
 # Must supply a new temp dir - the test is deterministic and can't choose one randomly itself.
-export TMPDIR=$(mktemp -d)
+TMPDIR=$(mktemp -d)
+export TMPDIR
 
 # Set the example move package for the simtest static initializer
 # https://github.com/iotaledger/iota/blob/16a7b41c0d272b09969782147958bcf484a25a85/crates/iota-proc-macros/src/lib.rs#L53
@@ -103,8 +104,8 @@ root_dir=$(git rev-parse --show-toplevel)
 export SIMTEST_STATIC_INIT_MOVE=$root_dir"/examples/move/basics"
 
 # we need to use "target.'cfg(all())'.rustflags" instead of "build.rustflags" because the latter are ignored if any "target" flags are set
-cargo ${CARGO_COMMAND[@]} \
-  --config "target.'cfg(all())'.rustflags = [$RUST_FLAGS]" \
+cargo "${CARGO_COMMAND[@]}" \
+  --config "target.'cfg(all())'.rustflags = [$rust_flags_str]" \
   "${cargo_patch_args[@]}" \
   "$@"
 
