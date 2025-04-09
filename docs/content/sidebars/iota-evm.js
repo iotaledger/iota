@@ -159,6 +159,7 @@ const iotaEvm = [
                 label: 'Test Smart Contracts',
                 id: 'iota-evm/how-tos/test-smart-contracts',
             },
+            /* Readd once available
             {
                 type: 'category',
                 label: 'Interact with the Core Contracts',
@@ -298,7 +299,7 @@ const iotaEvm = [
                         id: 'iota-evm/how-tos/core-contracts/call-view',
                     },
                 ],
-            },
+            },*/
         ],
     },
     {
@@ -493,6 +494,7 @@ const iotaEvm = [
         label: 'References',
         items: [
             'iota-evm/references/json-rpc-spec',
+            /* Re-add once available
             {
                 type: 'category',
                 label: 'Magic Contract',
@@ -548,7 +550,7 @@ const iotaEvm = [
                         id: 'iota-evm/references/core-contracts/evm',
                     },
                 ],
-            },
+            },*/
             // {
             //     type: 'category',
             //     label: 'ISC Utilities',
