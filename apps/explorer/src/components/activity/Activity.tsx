@@ -52,10 +52,7 @@ export function Activity({ initialLimit, disablePagination }: ActivityProps): JS
     const pollingTxnTableEnabled = useFeatureIsOn(Feature.PollingTxnTable as string);
 
     const [paused, setPaused] = useState(false);
-    const [showSystemTransactions, setIsChecked] = useState(true);
-    const handleCheckboxChange = () => {
-        setIsChecked(!showSystemTransactions);
-    };
+    const [showSystemTransactions, setshowSystemTransactions] = useState(true);
     // const [showTransactionDropdown, setShowTransactionDropdown] = useState(false);
     const [selectedCategory, setSelectedCategory] = useState<ActivityCategory>(
         ActivityCategory.Transactions,
@@ -155,7 +152,9 @@ export function Activity({ initialLimit, disablePagination }: ActivityProps): JS
                     <div>
                         <Checkbox
                             isChecked={showSystemTransactions}
-                            onCheckedChange={handleCheckboxChange}
+                            onCheckedChange={() =>
+                                setshowSystemTransactions(showSystemTransactions)
+                            }
                             label="Show System Transactions"
                             isLabelFirst
                         />
