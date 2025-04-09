@@ -81,10 +81,10 @@ use typed_store::{
 use super::{
     authority_store_tables::ENV_VAR_LOCKS_BLOCK_CACHE_SIZE,
     epoch_start_configuration::EpochStartConfigTrait,
-    shared_object_congestion_tracker::{SequencingResult, SharedObjectCongestionTracker},
-    transaction_deferral::{
-        CongestionResult, DeferralKey, DeferralReason, transaction_deferral_within_limit,
+    shared_object_congestion_tracker::{
+        SequencingResult, SharedObjectCongestionTracker, StartTime,
     },
+    transaction_deferral::{DeferralKey, DeferralReason, transaction_deferral_within_limit},
 };
 use crate::{
     authority::{
@@ -152,6 +152,18 @@ impl CertLockGuard {
 }
 
 type JwkAggregator = GenericMultiStakeAggregator<(JwkId, JWK), true>;
+
+/// Represents a scheduling result: a transaction can be either scheduled
+/// for execution, or deferred for some reason. Scheduling result is
+/// returned by the `try_schedule` method of authority per epoch store.
+enum SchedulingResult {
+    /// Scheduling result indicating that a transaction is scheduled to be
+    /// executed at start time
+    Schedule(StartTime),
+
+    /// Scheduling result indicating that a transaction is deferred
+    Defer(DeferralKey, DeferralReason),
+}
 
 pub enum CancelConsensusCertificateReason {
     CongestionOnObjects(Vec<ObjectID>),
@@ -1773,7 +1785,7 @@ impl AuthorityPerEpochStore {
         generating_randomness: bool,
         previously_deferred_tx_digests: &HashMap<TransactionDigest, DeferralKey>,
         shared_object_congestion_tracker: &mut SharedObjectCongestionTracker,
-    ) -> CongestionResult {
+    ) -> SchedulingResult {
         // Defer transaction if it uses randomness but we aren't generating any this
         // round. Don't defer if DKG has permanently failed; in that case we
         // need to ignore.
@@ -1782,7 +1794,7 @@ impl AuthorityPerEpochStore {
                 .get(cert.digest())
                 .map(|previous_key| previous_key.deferred_from_round())
                 .unwrap_or(commit_round);
-            return CongestionResult::Defer(
+            return SchedulingResult::Defer(
                 DeferralKey::new_for_randomness(deferred_from_round),
                 DeferralReason::RandomnessNotReady,
             );
@@ -1799,17 +1811,17 @@ impl AuthorityPerEpochStore {
                 commit_round,
             ) {
                 SequencingResult::Defer(deferral_key, congested_objects) => {
-                    CongestionResult::Defer(
+                    SchedulingResult::Defer(
                         deferral_key,
                         DeferralReason::SharedObjectCongestion(congested_objects),
                     )
                 }
-                SequencingResult::Schedule(start_time) => CongestionResult::Schedule(start_time),
+                SequencingResult::Schedule(start_time) => SchedulingResult::Schedule(start_time),
             }
         } else {
             // If we don't have a max cost per object, we don't need to check for
             // congestion.
-            CongestionResult::Schedule(0)
+            SchedulingResult::Schedule(0)
         }
     }
 
@@ -3429,7 +3441,7 @@ impl AuthorityPerEpochStore {
                     return Ok(ConsensusCertificateResult::Ignored);
                 }
 
-                let congestion_result = self.try_schedule(
+                let scheduling_result = self.try_schedule(
                     &certificate,
                     commit_round,
                     dkg_failed,
@@ -3438,8 +3450,8 @@ impl AuthorityPerEpochStore {
                     shared_object_congestion_tracker,
                 );
 
-                match congestion_result {
-                    CongestionResult::Defer(deferral_key, deferral_reason) => {
+                match scheduling_result {
+                    SchedulingResult::Defer(deferral_key, deferral_reason) => {
                         debug!(
                             "Deferring consensus certificate for transaction {:?} until {:?}",
                             certificate.digest(),
@@ -3488,7 +3500,7 @@ impl AuthorityPerEpochStore {
                         };
                         return Ok(deferral_result);
                     }
-                    CongestionResult::Schedule(start_time) => {
+                    SchedulingResult::Schedule(start_time) => {
                         if dkg_failed && certificate.transaction_data().uses_randomness() {
                             debug!(
                                 "Canceling randomness-using certificate for transaction {:?} because DKG failed",

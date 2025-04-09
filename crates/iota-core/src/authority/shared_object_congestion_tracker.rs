@@ -11,13 +11,24 @@ use iota_types::{
     transaction::SharedInputObject,
 };
 
-use crate::authority::transaction_deferral::DeferralKey;
+use super::transaction_deferral::DeferralKey;
 
 /// Represents execution slot boundaries
-type ExecutionTime = u64;
+pub type ExecutionTime = u64;
 
+/// Represents a start time at which transaction is scheduled to be executed
+pub type StartTime = ExecutionTime;
+
+/// Represents a sequencing result: schedule transaction, or defer it
+/// due to shared object congestion. Sequencing result is returned by
+/// the `try_schedule` method of the shared object congestion tracker.
 pub enum SequencingResult {
-    Schedule(u64),
+    /// Sequencing result indicating that a transaction is scheduled to be
+    /// executed at start time
+    Schedule(StartTime),
+
+    /// Sequencing result indicating that a transaction is deferred.
+    /// The list of objects are congested objects.
     Defer(DeferralKey, Vec<ObjectID>),
 }
 
