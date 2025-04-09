@@ -71,6 +71,10 @@ pub struct IotaInitArgs {
     pub object_snapshot_min_checkpoint_lag: Option<usize>,
     #[arg(long)]
     pub flavor: Option<Flavor>,
+    /// The number of epochs to keep in the database. Epochs outside of this
+    /// range will be pruned by the indexer.
+    #[arg(long)]
+    pub epochs_to_keep: Option<u64>,
 }
 
 #[derive(Debug, clap::Parser)]
@@ -103,11 +107,15 @@ pub struct ConsensusCommitPrologueCommand {
 pub struct ProgrammableTransactionCommand {
     #[arg(long)]
     pub sender: Option<String>,
-    #[arg(long)]
+    #[clap(long = "sponsor")]
+    pub sponsor: Option<String>,
+    #[arg(long = "gas-budget")]
     pub gas_budget: Option<u64>,
     #[arg(long)]
     pub gas_price: Option<u64>,
-    #[arg(long)]
+    #[clap(long = "gas-payment", value_parser = parse_fake_id)]
+    pub gas_payment: Option<FakeID>,
+    #[arg(long = "dev-inspect")]
     pub dev_inspect: bool,
     #[arg(
         long,
@@ -169,6 +177,8 @@ pub struct RunGraphqlCommand {
     pub show_service_version: bool,
     #[arg(long, num_args(1..))]
     pub cursors: Vec<String>,
+    #[arg(long)]
+    pub wait_for_checkpoint_pruned: Option<u64>,
 }
 
 #[derive(Debug, clap::Parser)]

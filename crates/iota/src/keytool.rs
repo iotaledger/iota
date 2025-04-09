@@ -63,7 +63,6 @@ use crate::key_identity::{
 };
 
 #[derive(Subcommand)]
-#[command(rename_all = "kebab-case")]
 pub enum KeyToolCommand {
     /// Convert private key in Hex or Base64 to new format (Bech32
     /// encoded 33 byte flag || private key starting with "iotaprivkey").
@@ -331,9 +330,9 @@ pub struct DecodeOrVerifyTxOutput {
 #[serde(rename_all = "camelCase")]
 pub struct Key {
     alias: Option<String>,
-    iota_address: IotaAddress,
-    public_base64_key: String,
-    public_base64_key_with_flag: String,
+    pub(crate) iota_address: IotaAddress,
+    pub(crate) public_base64_key: String,
+    pub(crate) public_base64_key_with_flag: String,
     key_scheme: String,
     flag: u8,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -862,7 +861,7 @@ impl KeyToolCommand {
                *     )
                *     .await
                *     .unwrap();
-               *     let (_, aud) = parse_and_validate_jwt(&parsed_token).unwrap();
+               *     let (_, aud, _) = parse_and_validate_jwt(&parsed_token).unwrap();
                *     let address_seed = gen_address_seed(user_salt, "sub", sub, &aud).unwrap();
                *     let zk_login_inputs =
                *         ZkLoginInputs::from_reader(reader, &address_seed.to_string()).unwrap();

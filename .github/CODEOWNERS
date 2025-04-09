@@ -38,6 +38,7 @@
 /crates/iota-keys/ @iotaledger/dev-tools
 /crates/iota-light-client/ @iotaledger/dev-tools
 /crates/iota-macros/ @iotaledger/dev-tools
+/crates/iota-mainnet-unlocks/ @iotaledger/infrastructure
 /crates/iota-metric-checker/ @iotaledger/node
 /crates/iota-metrics/ @iotaledger/core-protocol
 /crates/iota-move/ @iotaledger/vm-language
@@ -131,13 +132,8 @@ vercel.json @iotaledger/tooling
 /scripts/cargo_sort/ @muXxer
 /scripts/ci_tests/ @nmrshll
 /scripts/codesearch/ @muXxer
-/scripts/compare/ @muXxer
-/scripts/create_patches/ @muXxer
-/scripts/dependency_graphs/ @muXxer
 /scripts/generate_files/ @muXxer
-/scripts/slipstream/ @muXxer
 /scripts/tooling/ @iotaledger/tooling
-/scripts/track_upstream_commits/ @muXxer
 /scripts/utils/ @muXxer
 
 # Other

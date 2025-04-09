@@ -20,6 +20,7 @@ bincode.workspace = true
 byteorder.workspace = true
 chrono.workspace = true
 derive_more = { workspace = true, features = ["as_ref", "from", "debug", "display"] }
+either.workspace = true
 enum_dispatch.workspace = true
 eyre.workspace = true
 fastcrypto = { workspace = true, features = ["copy_key"] }

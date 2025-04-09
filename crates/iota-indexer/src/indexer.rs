@@ -50,6 +50,7 @@ impl Indexer {
             store,
             metrics,
             snapshot_config,
+            None,
             CancellationToken::new(),
         )
         .await
@@ -60,6 +61,7 @@ impl Indexer {
         store: PgIndexerStore,
         metrics: IndexerMetrics,
         snapshot_config: SnapshotLagConfig,
+        epochs_to_keep: Option<u64>,
         cancel: CancellationToken,
     ) -> Result<(), IndexerError> {
         info!(
@@ -102,9 +104,11 @@ impl Indexer {
         )
         .await?;
 
-        let epochs_to_keep = std::env::var("EPOCHS_TO_KEEP")
-            .map(|s| s.parse::<u64>().ok())
-            .unwrap_or_else(|_e| None);
+        let epochs_to_keep = epochs_to_keep.or_else(|| {
+            std::env::var("EPOCHS_TO_KEEP")
+                .ok()
+                .and_then(|s| s.parse::<u64>().ok())
+        });
         if let Some(epochs_to_keep) = epochs_to_keep {
             info!(
                 "Starting indexer pruner with epochs to keep: {}",
@@ -133,7 +137,12 @@ impl Indexer {
             cancel.child_token(),
         );
         let worker = new_handlers(store, metrics, primary_watermark, cancel.clone()).await?;
-        let worker_pool = WorkerPool::new(worker, "primary".to_string(), download_queue_size);
+        let worker_pool = WorkerPool::new(
+            worker,
+            "primary".to_string(),
+            download_queue_size,
+            Default::default(),
+        );
 
         executor.register(worker_pool).await?;
 
@@ -141,6 +150,7 @@ impl Indexer {
             object_snapshot_worker,
             "object_snapshot".to_string(),
             download_queue_size,
+            Default::default(),
         );
         executor.register(worker_pool).await?;
         info!("Starting data ingestion executor...");

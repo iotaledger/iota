@@ -1,0 +1,77 @@
+---
+Title: IOTA Gas Station Server
+Description: Learn how to use the IOTA Gas Station server to sponsor transactions on the IOTA network.
+Tags: [move-sc, tutorial, rust, rust]
+---
+
+# IOTA Gas Station Server
+
+In this section, we will learn how to use [IOTA's Gas Station Server](../../../operator/gas-station/gas-station.mdx) to sponsor transactions on the IOTA network. We will use it to call the `free_trial` function of the `sponsored_transactions_packages` package.
+
+## Prerequisites
+
+Before we start, we should have the Gas Station server running. Ensure you have the following installed:
+* [Git](https://github.com/git-guides/install-git)
+* [Docker](https://docs.docker.com/engine/install/)
+* [Docker Compose](https://docs.docker.com/compose/install/)
+* [Rust](https://www.rust-lang.org/tools/install)
+
+## Setup the Gas Station Server
+
+1. **Clone the IOTA Gas Station Repository:**
+
+```sh
+git clone https://github.com/iotaledger/gas-station
+```
+
+2. Follow the [setting up instructions](https://github.com/iotaledger/gas-station?tab=readme-ov-file#setup-steps) in the [Gas Station repository](https://github.com/iotaledger/gas-station).
+
+
+## Using the Gas Station Server
+To use the Gas Station server, you need a client that can interact with the server. First, init a new rust project:
+
+```sh
+cargo new gas_station_client
+```
+
+and add the following dependencies to your `Cargo.toml` file:
+
+```toml reference
+https://github.com/iota-community/sponsored-transactions-demo/blob/main/production-gas-station/Cargo.toml#L6-L16
+```
+
+Next, you should update the client's `main` function in the `src/main.rs` file with the following code:
+
+```rust reference
+https://github.com/iota-community/sponsored-transactions-demo/blob/main/production-gas-station/src/main.rs#L23-L77
+```
+
+The above code will:
+1. Create a new gas station client instance.
+2. Reserve some IOTA for 10 seconds.
+3. Create an IOTA client instance.
+4. Create a new transaction that calls the `free_trial` function of the `sponsored_transactions_packages` package.
+5. Sign the transaction.
+6. Send the transaction to the Gas Station server.
+
+The Gas Station server will verify the user's eligibility, build the transaction, sign it, sendt it, and return the transaction effects back to the client.
+
+Transaction building will look like this:
+
+```rust reference
+https://github.com/iota-community/sponsored-transactions-demo/blob/main/production-gas-station/src/main.rs#L80-L121
+```
+
+After pasting all the code, run the client:
+
+```sh
+cargo run
+```
+
+and the output should look like this:
+<details>
+<summary>View Output</summary>
+```log
+Transaction effects: V1(IotaTransactionBlockEffectsV1 { status: Success, executed_epoch: 112, gas_used: GasCostSummary { computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 9659600, storage_rebate: 15367200, non_refundable_storage_fee: 0 }, modified_at_versions: [IotaTransactionBlockEffectsModifiedAtVersions { object_id: 0x91254fd28097ec4550853a00f4e63c24348891261ea2e52379a50217788be67d, sequence_number: SequenceNumber(9518040) }, IotaTransactionBlockEffectsModifiedAtVersions { object_id: 0x91f078e3b6e47d5b097b516c321116bfdcb03789cb9a79acc660dc95a7cabea0, sequence_number: SequenceNumber(9518040) }, IotaTransactionBlockEffectsModifiedAtVersions { object_id: 0x9411c27bb60a31cb284d7455e9d70ca54d9944e6517d1f805bdf56ab37165381, sequence_number: SequenceNumber(9518040) }, IotaTransactionBlockEffectsModifiedAtVersions { object_id: 0x973b1c4ade1620b444c5f561fb83e51f868f0aa3fbfac4c310cbbdb976f7e8d5, sequence_number: SequenceNumber(9518040) }, IotaTransactionBlockEffectsModifiedAtVersions { object_id: 0x9c83ec86e138b667b4312fbbdf6031762417e8ca67a7f92793b849ebb91c2160, sequence_number: SequenceNumber(9518040) }, IotaTransactionBlockEffectsModifiedAtVersions { object_id: 0x9d0b6f754160b2e4366ab111145387a0aec20001e2ccefedf510b62100c1d782, sequence_number: SequenceNumber(9518040) }, IotaTransactionBlockEffectsModifiedAtVersions { object_id: 0x9d1e278bae24a36c1b80879d4076443f058bf8a6c1d608db4c9cc9fa3d6d7861, sequence_number: SequenceNumber(9518040) }, IotaTransactionBlockEffectsModifiedAtVersions { object_id: 0xa0c55c1471562c7780b31fb1af33df5519a0e4f80c6db1d8dc37d6f5d54e0e2d, sequence_number: SequenceNumber(9518040) }, IotaTransactionBlockEffectsModifiedAtVersions { object_id: 0xa31bc885d22d6e4c8c6135529b86155df61e8bb651c95239407e6cb019edec05, sequence_number: SequenceNumber(9518040) }, IotaTransactionBlockEffectsModifiedAtVersions { object_id: 0xa62a84964a798d6dd56704343d5f2328583b691faf4eac6f8791426201e13471, sequence_number: SequenceNumber(9518040) }, IotaTransactionBlockEffectsModifiedAtVersions { object_id: 0xb05236e6ca067e3fa114bab1558f35e44097e0078aa681761faa62220858a176, sequence_number: SequenceNumber(9518043) }, IotaTransactionBlockEffectsModifiedAtVersions { object_id: 0xca77c6d61b71e01226bbc3f4a37c0d52095077f27cf59d129cae8ec2a5987f59, sequence_number: SequenceNumber(9518041) }], shared_objects: [IotaObjectRef { object_id: 0xb05236e6ca067e3fa114bab1558f35e44097e0078aa681761faa62220858a176, version: SequenceNumber(9518043), digest: o#EDiE3UEoCzjV5wMXbAJ5qBx57APN6QvA2bMC2NAHDf1a }], transaction_digest: TransactionDigest(BdVpouJhddvWiQqJsyuXL7Wcd88WKeLsEuKCR3LP2sL7), created: [OwnedObjectRef { owner: ObjectOwner(0x9cf46b306c1be9f7d9c08ebc9a16a0ebb8a82cff599953ffe5b6512557f77dfd), reference: IotaObjectRef { object_id: 0xbcbc3bf17259be04a59a206c58607f2ac404931c4b1f384850b812c06e647360, version: SequenceNumber(9518044), digest: o#8oiWtxAUTQkZAe9XwmhtvqL9ZLzr929TtPUVspXH3oaW } }], mutated: [OwnedObjectRef { owner: AddressOwner(0x607a7b9fe075f74a2323a2ef5394569d4c98e5af42b87389cb1af982fe8bd9e3), reference: IotaObjectRef { object_id: 0x91254fd28097ec4550853a00f4e63c24348891261ea2e52379a50217788be67d, version: SequenceNumber(9518044), digest: o#EpAorHeehdVC8S35xTQYcBrubNHwJdxwiRtbDW2EZSLf } }, OwnedObjectRef { owner: Shared { initial_shared_version: SequenceNumber(5134) }, reference: IotaObjectRef { object_id: 0xb05236e6ca067e3fa114bab1558f35e44097e0078aa681761faa62220858a176, version: SequenceNumber(9518044), digest: o#57HyNYH1nyPWfBRVi91Zb8935RxNqyTAJCuYhfABgkH9 } }, OwnedObjectRef { owner: ObjectOwner(0x9cf46b306c1be9f7d9c08ebc9a16a0ebb8a82cff599953ffe5b6512557f77dfd), reference: IotaObjectRef { object_id: 0xca77c6d61b71e01226bbc3f4a37c0d52095077f27cf59d129cae8ec2a5987f59, version: SequenceNumber(9518044), digest: o#6hSVPcGvJ7qEUwyRpwJNFFNSxmN7TDnYvCLoSZg7gpYD } }], unwrapped: [], deleted: [IotaObjectRef { object_id: 0x91f078e3b6e47d5b097b516c321116bfdcb03789cb9a79acc660dc95a7cabea0, version: SequenceNumber(9518044), digest: o#7gyGAp71YXQRoxmFBaHxofQXAipvgHyBKPyxmdSJxyvz }, IotaObjectRef { object_id: 0x9411c27bb60a31cb284d7455e9d70ca54d9944e6517d1f805bdf56ab37165381, version: SequenceNumber(9518044), digest: o#7gyGAp71YXQRoxmFBaHxofQXAipvgHyBKPyxmdSJxyvz }, IotaObjectRef { object_id: 0x973b1c4ade1620b444c5f561fb83e51f868f0aa3fbfac4c310cbbdb976f7e8d5, version: SequenceNumber(9518044), digest: o#7gyGAp71YXQRoxmFBaHxofQXAipvgHyBKPyxmdSJxyvz }, IotaObjectRef { object_id: 0x9c83ec86e138b667b4312fbbdf6031762417e8ca67a7f92793b849ebb91c2160, version: SequenceNumber(9518044), digest: o#7gyGAp71YXQRoxmFBaHxofQXAipvgHyBKPyxmdSJxyvz }, IotaObjectRef { object_id: 0x9d0b6f754160b2e4366ab111145387a0aec20001e2ccefedf510b62100c1d782, version: SequenceNumber(9518044), digest: o#7gyGAp71YXQRoxmFBaHxofQXAipvgHyBKPyxmdSJxyvz }, IotaObjectRef { object_id: 0x9d1e278bae24a36c1b80879d4076443f058bf8a6c1d608db4c9cc9fa3d6d7861, version: SequenceNumber(9518044), digest: o#7gyGAp71YXQRoxmFBaHxofQXAipvgHyBKPyxmdSJxyvz }, IotaObjectRef { object_id: 0xa0c55c1471562c7780b31fb1af33df5519a0e4f80c6db1d8dc37d6f5d54e0e2d, version: SequenceNumber(9518044), digest: o#7gyGAp71YXQRoxmFBaHxofQXAipvgHyBKPyxmdSJxyvz }, IotaObjectRef { object_id: 0xa31bc885d22d6e4c8c6135529b86155df61e8bb651c95239407e6cb019edec05, version: SequenceNumber(9518044), digest: o#7gyGAp71YXQRoxmFBaHxofQXAipvgHyBKPyxmdSJxyvz }, IotaObjectRef { object_id: 0xa62a84964a798d6dd56704343d5f2328583b691faf4eac6f8791426201e13471, version: SequenceNumber(9518044), digest: o#7gyGAp71YXQRoxmFBaHxofQXAipvgHyBKPyxmdSJxyvz }], unwrapped_then_deleted: [], wrapped: [], gas_object: OwnedObjectRef { owner: AddressOwner(0x607a7b9fe075f74a2323a2ef5394569d4c98e5af42b87389cb1af982fe8bd9e3), reference: IotaObjectRef { object_id: 0x91254fd28097ec4550853a00f4e63c24348891261ea2e52379a50217788be67d, version: SequenceNumber(9518044), digest: o#EpAorHeehdVC8S35xTQYcBrubNHwJdxwiRtbDW2EZSLf } }, events_digest: Some(TransactionEventsDigest(BsHAkCiqCMkhbBuF5sK7w6t5PE1bwvJDmQZ3PJKSbuo6)), dependencies: [TransactionDigest(5v6GyxqAKEbsBPB3P3bZTA6QCoAHtbqQ6g6pRXiLDtuR), TransactionDigest(GhtG4N7fjHddMzHi5vW53y2uzMckyzjg1bnDWC5pVDNi), TransactionDigest(HMNX7GPsiMpCTBw7UTxWsc7afDC4BhKLuJMv8sWev1xh)] })
+```
+</details>

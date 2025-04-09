@@ -8,9 +8,13 @@ publish = false
 
 [dependencies]
 # external dependencies
+anyhow.workspace = true
 async-trait.workspace = true
 backoff.workspace = true
 bcs.workspace = true
+byteorder.workspace = true
+bytes.workspace = true
+fastcrypto = { workspace = true, features = ["copy_key"] }
 futures.workspace = true
 notify.workspace = true
 object_store.workspace = true
@@ -27,6 +31,7 @@ tracing.workspace = true
 url.workspace = true
 
 # internal dependencies
+iota-config.workspace = true
 iota-metrics.workspace = true
 iota-protocol-config.workspace = true
 iota-rest-api.workspace = true

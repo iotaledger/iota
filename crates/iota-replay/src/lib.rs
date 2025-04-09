@@ -41,7 +41,6 @@ static DEFAULT_SANDBOX_BASE_PATH: &str =
     concat!(env!("CARGO_MANIFEST_DIR"), "/tests/sandbox_snapshots");
 
 #[derive(Parser, Clone)]
-#[command(rename_all = "kebab-case")]
 pub enum ReplayToolCommand {
     /// Generate a new network config file
     #[command(name = "gen")]
@@ -196,7 +195,6 @@ pub enum ReplayToolCommand {
         num_base_transactions: u64,
     },
 
-    #[command(name = "report")]
     Report,
 }
 

@@ -1907,10 +1907,7 @@ async fn test_handle_soft_bundle_certificates_errors() {
             )
             .await;
         assert!(response.is_err());
-        assert_matches!(
-            response.unwrap_err(),
-            IotaError::NoCertificateProvided { .. }
-        );
+        assert_matches!(response.unwrap_err(), IotaError::NoCertificateProvided);
     }
 
     // Case 1: submit a soft bundle with more txs than the limit.
@@ -2180,7 +2177,7 @@ async fn test_handle_soft_bundle_certificates_errors() {
         assert_matches!(
             response.unwrap_err(),
             IotaError::UserInput {
-                error: UserInputError::CertificateAlreadyProcessed { .. },
+                error: UserInputError::CertificateAlreadyProcessed,
             }
         );
     }

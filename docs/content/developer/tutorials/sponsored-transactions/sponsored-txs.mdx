@@ -11,22 +11,24 @@ We are going to create a media platform, where users can subscribe to several ty
 For new users on the IOTA network, the platform admin will sponsor the gas fees for the `free trial` option. This will allow users to experience the platform without having to pay for gas fees nor subscription fees.
 
 
-## Architecture and Flow Overview
 
-The workflow of the sponsored transaction is as follows:
-    - A user who does not have an IOTA balance wants to subscribe to the free trial option. They will send a request to the Gas Station server to sponsor their transaction alongside content type (Music, News or Movies).
-    - The [Gas Station server] will verify that this user has not used the free trial option before. If the user is eligible, the Gas Station will build a transaction (with gas payment from the sponsor's balance), sign it, and send back both the transaction and the signature separately as the response.
-    - The user, having received the transaction and the sponsor's signature, will sign the transaction and send it to the IOTA network. The user can do this using the CLI, Rust SDK or TS SDK. In this part, we will use the Rust SDK.
-    - The sponsor/admin (they can be different addresses, but for simplicity, we will assume they are the same) can now call the `publish` content function on the platform to publish the content to the user's address.
+## Development Options
 
-![Architecture overview](../../../../site/static/img/developer/tutorials/sponsored-txs/sponsored-tx-arch.png)
+IOTA provides an implementation of a gas station server that you can deploy for virtually any use case. In this tutorial, we will:
+1.  Use IOTA's [Gas Station server implementation](../../../operator/gas-station/gas-station.mdx) to sponsor the free trial option.
+2.  Create a [custom Gas Station server](./gas-station-server.mdx) using the IOTA Rust SDK.
+
+:::info
+We strictly recommend using the IOTA's Gas Station server (option 1) for production use cases. However, building your own Gas Station server can be a good learning experience.
+Option 2 is complementary, and you don't need to follow it if you are using the IOTA Gas Station server (option 1).
+:::
 
 
 ## Getting Started
 
-To build the architecture, we are going to create three components:
-1.  [The Media Platform's Move package for the sponsored transactions](./media-platform-package.mdx).
-2.   [The Gas Station server](./gas-station-server.mdx).
-3.   [The Transaction Builder](./transaction-builder.mdx).
+To build the architecture, we are going to create two components:
+1.   [The Media Platform's Move package for the sponsored transactions](./media-platform-package.mdx).
+2.   [The Gas Station server](./production-gas-station.mdx).
+3.   (Optional) [Custom Gas Station server](./gas-station-server.mdx) using the IOTA Rust SDK.
 
 To complete this tutorial, you will need to follow the steps in each part in order. Good luck!

@@ -181,15 +181,27 @@ export interface DryRunTransactionBlockResponse {
     input: TransactionBlockData;
     objectChanges: IotaObjectChange[];
 }
-export interface DynamicFieldInfo {
-    bcsName: string;
-    digest: string;
-    name: DynamicFieldName;
-    objectId: string;
-    objectType: string;
-    type: DynamicFieldType;
-    version: string;
-}
+export type DynamicFieldInfo =
+    | {
+          digest: string;
+          name: DynamicFieldName;
+          objectId: string;
+          objectType: string;
+          type: DynamicFieldType;
+          version: string;
+          bcsEncoding: 'base64';
+          bcsName: string;
+      }
+    | {
+          digest: string;
+          name: DynamicFieldName;
+          objectId: string;
+          objectType: string;
+          type: DynamicFieldType;
+          version: string;
+          bcsEncoding: 'base58';
+          bcsName: string;
+      };
 export interface DynamicFieldName {
     type: string;
     value: unknown;
@@ -235,6 +247,8 @@ export interface EndOfEpochInfo {
     totalStakeRewardsDistributed: string;
 }
 export interface EpochInfo {
+    /** Committee validators. Each element is an index pointing to `validators`. */
+    committeeMembers?: string[];
     /** The end of epoch information. */
     endOfEpochInfo?: EndOfEpochInfo | null;
     /** Epoch number */
@@ -263,28 +277,51 @@ export interface EpochMetrics {
     /** The first checkpoint ID of the epoch. */
     firstCheckpointId: string;
 }
-export interface IotaEvent {
-    /** Base 58 encoded bcs bytes of the move event */
-    bcs: string;
-    /**
-     * Sequential event ID, ie (transaction seq number, event seq number). 1) Serves as a unique event ID
-     * for each fullnode 2) Also serves to sequence events for the purposes of pagination and querying. A
-     * higher id is an event seen later by that fullnode. This ID is the "cursor" for event querying.
-     */
-    id: EventId;
-    /** Move package where this event was emitted. */
-    packageId: string;
-    /** Parsed json value of the event */
-    parsedJson: unknown;
-    /** Sender's IOTA address. */
-    sender: string;
-    /** UTC timestamp in milliseconds since epoch (1/1/1970) */
-    timestampMs?: string | null;
-    /** Move module where this event was emitted. */
-    transactionModule: string;
-    /** Move event type. */
-    type: string;
-}
+export type IotaEvent =
+    | {
+          /**
+           * Sequential event ID, ie (transaction seq number, event seq number). 1) Serves as a unique event ID
+           * for each fullnode 2) Also serves to sequence events for the purposes of pagination and querying. A
+           * higher id is an event seen later by that fullnode. This ID is the "cursor" for event querying.
+           */
+          id: EventId;
+          /** Move package where this event was emitted. */
+          packageId: string;
+          /** Parsed json value of the event */
+          parsedJson: unknown;
+          /** Sender's IOTA address. */
+          sender: string;
+          /** UTC timestamp in milliseconds since epoch (1/1/1970) */
+          timestampMs?: string | null;
+          /** Move module where this event was emitted. */
+          transactionModule: string;
+          /** Move event type. */
+          type: string;
+          bcs: string;
+          bcsEncoding: 'base64';
+      }
+    | {
+          /**
+           * Sequential event ID, ie (transaction seq number, event seq number). 1) Serves as a unique event ID
+           * for each fullnode 2) Also serves to sequence events for the purposes of pagination and querying. A
+           * higher id is an event seen later by that fullnode. This ID is the "cursor" for event querying.
+           */
+          id: EventId;
+          /** Move package where this event was emitted. */
+          packageId: string;
+          /** Parsed json value of the event */
+          parsedJson: unknown;
+          /** Sender's IOTA address. */
+          sender: string;
+          /** UTC timestamp in milliseconds since epoch (1/1/1970) */
+          timestampMs?: string | null;
+          /** Move module where this event was emitted. */
+          transactionModule: string;
+          /** Move event type. */
+          type: string;
+          bcs: string;
+          bcsEncoding: 'base58';
+      };
 export type IotaEventFilter =
     /** Query by sender address. */
     | {
@@ -794,6 +831,11 @@ export interface IotaSystemStateSummaryV2 {
     activeValidators: IotaValidatorSummary[];
     /** Map storing the number of epochs for which each validator has been below the low stake threshold. */
     atRiskValidators: [string, string][];
+    /**
+     * List of committee validators in the current epoch. Each element is an index pointing to
+     * `active_validators`.
+     */
+    committeeMembers: string[];
     /** The current epoch ID, starting from 0. */
     epoch: string;
     /** The duration of an epoch, in milliseconds. */
@@ -862,7 +904,7 @@ export interface IotaSystemStateSummaryV2 {
     storageFundTotalObjectStorageRebates: string;
     /** The current version of the system state data structure type. */
     systemStateVersion: string;
-    /** Total amount of stake from all active validators at the beginning of the epoch. */
+    /** Total amount of stake from all committee validators at the beginning of the epoch. */
     totalStake: string;
     /**
      * ID of the object that stores preactive validators, mapping their addresses to their `Validator`
@@ -928,6 +970,18 @@ export type IotaTransaction =
           MakeMoveVec: [string | null, IotaArgument[]];
       };
 export type IotaTransactionBlockBuilderMode = 'Commit' | 'DevInspect';
+/**
+ * Represents the type of a transaction. All transactions except `ProgrammableTransaction` are
+ * considered system transactions.
+ */
+export type IotaTransactionKind =
+    | 'ProgrammableTransaction'
+    | 'Genesis'
+    | 'ConsensusCommitPrologueV1'
+    | 'AuthenticatorStateUpdateV1'
+    | 'RandomnessStateUpdate'
+    | 'EndOfEpochTransaction'
+    | 'SystemTransaction';
 /**
  * This is the JSON-RPC type for the IOTA validator. It flattens all inner structures to top-level
  * fields so that they are decoupled from the internal definitions.
@@ -1357,6 +1411,11 @@ export interface PaginatedTransactionResponse {
     hasNextPage: boolean;
     nextCursor?: string | null;
 }
+/** Provides metrics about the participation in the network. */
+export interface ParticipationMetrics {
+    /** The count of distinct addresses with delegated stake. */
+    totalAddresses: string;
+}
 /**
  * An passkey authenticator with parsed fields. See field definition below. Can be initialized from
  * [struct RawPasskeyAuthenticator].
@@ -1706,10 +1765,10 @@ export type TransactionFilter =
           };
       } /** Query by transaction kind */
     | {
-          TransactionKind: string;
+          TransactionKind: IotaTransactionKind;
       } /** Query transactions of any given kind in the input. */
     | {
-          TransactionKindIn: string[];
+          TransactionKindIn: IotaTransactionKind[];
       };
 export interface TransferObjectParams {
     objectId: string;

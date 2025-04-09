@@ -7,9 +7,7 @@
 use axum::{Extension, Json, extract::State};
 use axum_extra::extract::WithRejection;
 use fastcrypto::encoding::Hex;
-use iota_types::{
-    base_types::ObjectID, iota_system_state::iota_system_state_summary::IotaSystemStateSummary,
-};
+use iota_types::base_types::ObjectID;
 use serde_json::json;
 use strum::IntoEnumIterator;
 
@@ -46,24 +44,18 @@ pub async fn status(
 ) -> Result<NetworkStatusResponse, Error> {
     env.check_network_identifier(&request.network_identifier)?;
 
-    let system_state = context
+    // We get the public_key and stake_amount of all committee members.
+    let peers = context
         .client
         .governance_api()
         .get_latest_iota_system_state()
-        .await?;
-
-    let active_validators = match system_state {
-        IotaSystemStateSummary::V1(v1) => v1.active_validators,
-        IotaSystemStateSummary::V2(v2) => v2.active_validators,
-        _ => return Err(anyhow::anyhow!("unsupported IotaSystemStateSummary"))?,
-    };
-    let peers = active_validators
-        .iter()
-        .map(|validator| Peer {
-            peer_id: ObjectID::from(validator.iota_address).into(),
+        .await?
+        .iter_committee_members()
+        .map(|committee_member| Peer {
+            peer_id: ObjectID::from(committee_member.iota_address).into(),
             metadata: Some(json!({
-                "public_key": Hex::from_bytes(&validator.authority_pubkey_bytes),
-                "stake_amount": validator.staking_pool_iota_balance,
+                "public_key": Hex::from_bytes(&committee_member.authority_pubkey_bytes),
+                "stake_amount": committee_member.staking_pool_iota_balance,
             })),
         })
         .collect();

@@ -2,14 +2,18 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use anyhow::Result;
 use async_trait::async_trait;
+use chrono::DateTime;
 use iota_json_rpc::{
     IotaRpcModule,
     coin_api::{parse_to_struct_tag, parse_to_type_tag},
 };
 use iota_json_rpc_api::{CoinReadApiServer, cap_page_limit};
-use iota_json_rpc_types::{Balance, CoinPage, IotaCoinMetadata, Page};
+use iota_json_rpc_types::{Balance, CoinPage, IotaCirculatingSupply, IotaCoinMetadata, Page};
+use iota_mainnet_unlocks::MainnetUnlocksStore;
 use iota_open_rpc::Module;
+use iota_protocol_config::Chain;
 use iota_types::{
     balance::Supply,
     base_types::{IotaAddress, ObjectID},
@@ -17,15 +21,23 @@ use iota_types::{
 };
 use jsonrpsee::{RpcModule, core::RpcResult};
 
-use crate::{indexer_reader::IndexerReader, types::IotaSystemStateSummaryView};
+use crate::{
+    errors::IndexerError::{DateTimeParsing, InvalidArgument},
+    indexer_reader::IndexerReader,
+    types::IotaSystemStateSummaryView,
+};
 
 pub(crate) struct CoinReadApi {
     inner: IndexerReader,
+    unlocks_store: MainnetUnlocksStore,
 }
 
 impl CoinReadApi {
-    pub fn new(inner: IndexerReader) -> Self {
-        Self { inner }
+    pub fn new(inner: IndexerReader) -> Result<Self> {
+        Ok(Self {
+            inner,
+            unlocks_store: MainnetUnlocksStore::new()?,
+        })
     }
 }
 
@@ -150,6 +162,48 @@ impl CoinReadApiServer for CoinReadApi {
                 .await
                 .map_err(Into::into)
         }
+    }
+
+    async fn get_circulating_supply(&self) -> RpcResult<IotaCirculatingSupply> {
+        let latest_cp = self
+            .inner
+            .spawn_blocking(|this| this.get_latest_checkpoint())
+            .await?;
+        let cp_timestamp_ms = latest_cp.timestamp_ms;
+
+        let total_supply = self
+            .inner
+            .spawn_blocking(|this| this.get_latest_iota_system_state())
+            .await?
+            .iota_total_supply();
+
+        let date_time =
+            DateTime::from_timestamp_millis(cp_timestamp_ms.try_into().map_err(|_| {
+                InvalidArgument(format!("failed to convert timestamp: {cp_timestamp_ms}"))
+            })?)
+            .ok_or(DateTimeParsing(format!(
+                "failed to parse timestamp: {cp_timestamp_ms}"
+            )))?;
+
+        let chain = self
+            .inner
+            .get_chain_identifier_in_blocking_task()
+            .await?
+            .chain();
+
+        let locked_supply = match chain {
+            Chain::Mainnet => self.unlocks_store.still_locked_tokens(date_time),
+            _ => 0,
+        };
+
+        let circulating_supply = total_supply - locked_supply;
+        let circulating_supply_percentage = circulating_supply as f64 / total_supply as f64;
+
+        Ok(IotaCirculatingSupply {
+            value: circulating_supply,
+            circulating_supply_percentage,
+            at_checkpoint: latest_cp.sequence_number,
+        })
     }
 }
 

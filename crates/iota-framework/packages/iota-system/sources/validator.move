@@ -8,7 +8,7 @@ module iota_system::validator {
 
     use iota::balance::Balance;
     use iota::iota::IOTA;
-    use iota_system::validator_cap::{Self, ValidatorOperationCap};
+    use iota_system::validator_cap::{Self};
     use iota_system::staking_pool::{Self, PoolTokenExchangeRate, StakedIota, StakingPoolV1};
     use std::string::String;
     use iota::url::Url;
@@ -61,6 +61,9 @@ module iota_system::validator {
 
     /// Validator trying to set gas price higher than threshold.
     const EGasPriceHigherThanThreshold: u64 = 102;
+
+    // The committee member index is not within the range of validators number
+    const ECommitteeMembersOutOfRange: u64 = 103;
 
     // TODO: potentially move this value to onchain config.
     const MAX_COMMISSION_RATE: u64 = 2_000; // Max rate is 20%, which is 2000 base points
@@ -262,9 +265,8 @@ module iota_system::validator {
         self.staking_pool.activate_staking_pool(activation_epoch);
     }
 
-    /// Process pending stake and pending withdraws, and update the gas price.
-    public(package) fun adjust_stake_and_gas_price(self: &mut ValidatorV1) {
-        self.gas_price = self.next_epoch_gas_price;
+    /// Update the commission rate.
+    public(package) fun adjust_next_epoch_commission_rate(self: &mut ValidatorV1) {
         self.commission_rate = self.next_epoch_commission_rate;
     }
 
@@ -359,33 +361,6 @@ module iota_system::validator {
             }
         );
         withdrawn_stake
-    }
-
-    /// Request to set new gas price for the next epoch.
-    /// Need to present a `ValidatorOperationCap`.
-    public(package) fun request_set_gas_price(
-        self: &mut ValidatorV1,
-        verified_cap: ValidatorOperationCap,
-        new_price: u64,
-    ) {
-        assert!(new_price <= MAX_VALIDATOR_GAS_PRICE, EGasPriceHigherThanThreshold);
-        let validator_address = *verified_cap.verified_operation_cap_address();
-        assert!(validator_address == self.metadata.iota_address, EInvalidCap);
-        self.next_epoch_gas_price = new_price;
-    }
-
-    /// Set new gas price for the candidate validator.
-    public(package) fun set_candidate_gas_price(
-        self: &mut ValidatorV1,
-        verified_cap: ValidatorOperationCap,
-        new_price: u64
-    ) {
-        assert!(is_preactive(self), ENotValidatorCandidate);
-        assert!(new_price <= MAX_VALIDATOR_GAS_PRICE, EGasPriceHigherThanThreshold);
-        let validator_address = *verified_cap.verified_operation_cap_address();
-        assert!(validator_address == self.metadata.iota_address, EInvalidCap);
-        self.next_epoch_gas_price = new_price;
-        self.gas_price = new_price;
     }
 
     /// Request to set new commission rate for the next epoch.
@@ -502,11 +477,12 @@ module iota_system::validator {
         &self.operation_cap_id
     }
 
+    #[deprecated]
     public fun next_epoch_gas_price(self: &ValidatorV1): u64 {
         self.next_epoch_gas_price
     }
 
-    // TODO: this and `delegate_amount` and `total_stake` all seem to return the same value?
+    // TODO: this and `stake_amount` and `total_stake` all seem to return the same value?
     // two of the functions can probably be removed.
     public fun total_stake_amount(self: &ValidatorV1): u64 {
         self.staking_pool.iota_balance()
@@ -605,6 +581,21 @@ module iota_system::validator {
             false
         } else {
             a.borrow() == b.borrow()
+        }
+    }
+
+    public(package) fun smaller_than(self: &ValidatorV1, other: &ValidatorV1): bool{
+        if (self.total_stake() != other.total_stake()) {
+            return self.total_stake() < other.total_stake()
+        };
+
+        let self_pubkey = self.authority_pubkey_bytes();
+        let other_pubkey = other.authority_pubkey_bytes();
+
+        // Compare the two pubkeys lexicographically, assuming equal lengths
+        'smaller_than: {
+            self_pubkey.zip_do_ref!(other_pubkey, |a, b| if (a != b) return 'smaller_than *a < *b);
+            false // Should never end up here
         }
     }
 
@@ -813,7 +804,6 @@ module iota_system::validator {
         &self.staking_pool
     }
 
-
     /// Create a new validator from the given `ValidatorMetadataV1`, called by both `new` and `new_for_testing`.
     fun new_from_metadata(
         metadata: ValidatorMetadataV1,
@@ -830,7 +820,7 @@ module iota_system::validator {
             metadata,
             // Initialize the voting power to be 0.
             // At the epoch change where this validator is actually added to the
-            // active validator set, the voting power will be updated accordingly.
+            // committee validator set, the voting power will be updated accordingly.
             voting_power: 0,
             operation_cap_id,
             gas_price,

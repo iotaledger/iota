@@ -57,13 +57,18 @@
 //!     let iota_local = IotaClientBuilder::default().build_localnet().await?;
 //!     println!("IOTA local network version: {:?}", iota_local.api_version());
 //!
-//!     // IOTA devnet running at `https://fullnode.devnet.io:443`
+//!     // IOTA devnet running at `https://api.devnet.iota.cafe`
 //!     let iota_devnet = IotaClientBuilder::default().build_devnet().await?;
 //!     println!("IOTA devnet version: {:?}", iota_devnet.api_version());
 //!
-//!     // IOTA testnet running at `https://testnet.devnet.io:443`
+//!     // IOTA testnet running at `https://api.testnet.iota.cafe`
 //!     let iota_testnet = IotaClientBuilder::default().build_testnet().await?;
 //!     println!("IOTA testnet version: {:?}", iota_testnet.api_version());
+//!
+//!     // IOTA mainnet running at `https://api.mainnet.iota.cafe`
+//!     let iota_mainnet = IotaClientBuilder::default().build_mainnet().await?;
+//!     println!("IOTA mainnet version: {:?}", iota_mainnet.api_version());
+//!
 //!     Ok(())
 //! }
 //! ```
@@ -117,10 +122,13 @@ use crate::{
 pub const IOTA_COIN_TYPE: &str = "0x2::iota::IOTA";
 pub const IOTA_LOCAL_NETWORK_URL: &str = "http://127.0.0.1:9000";
 pub const IOTA_LOCAL_NETWORK_URL_0: &str = "http://0.0.0.0:9000";
+pub const IOTA_LOCAL_NETWORK_GRAPHQL_URL: &str = "http://127.0.0.1:8000";
 pub const IOTA_LOCAL_NETWORK_GAS_URL: &str = "http://127.0.0.1:9123/v1/gas";
 pub const IOTA_DEVNET_URL: &str = "https://api.devnet.iota.cafe";
+pub const IOTA_DEVNET_GRAPHQL_URL: &str = "https://graphql.devnet.iota.cafe";
 pub const IOTA_DEVNET_GAS_URL: &str = "https://faucet.devnet.iota.cafe/v1/gas";
 pub const IOTA_TESTNET_URL: &str = "https://api.testnet.iota.cafe";
+pub const IOTA_TESTNET_GRAPHQL_URL: &str = "https://graphql.testnet.iota.cafe";
 pub const IOTA_TESTNET_GAS_URL: &str = "https://faucet.testnet.iota.cafe/v1/gas";
 pub const IOTA_MAINNET_URL: &str = "https://api.mainnet.iota.cafe";
 

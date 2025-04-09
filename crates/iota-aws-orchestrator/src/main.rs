@@ -136,7 +136,6 @@ pub enum Operation {
 }
 
 #[derive(Parser)]
-#[command(rename_all = "kebab-case")]
 pub enum TestbedAction {
     /// Display the testbed status.
     Status,
