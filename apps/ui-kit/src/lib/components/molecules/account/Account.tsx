@@ -126,7 +126,7 @@ export function Account({
                     </div>
                     <Address
                         text={subtitle}
-                        onCopy={onCopy}
+                        onCopySuccess={onCopy}
                         copyText={copyText}
                         onOpen={onOpen}
                         isCopyable={isCopyable}

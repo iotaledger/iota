@@ -8,7 +8,7 @@ import { formatAddress } from '@iota/iota-sdk/utils';
 import { ExplorerLinkType, NicknameDialog, useUnlockAccount } from '_components';
 import { useNavigate } from 'react-router-dom';
 import { useAccounts, useExplorerLink, useBackgroundClient } from '_hooks';
-import { toast, useCopyToClipboard } from '@iota/core';
+import { toast } from '@iota/core';
 import { Account, BadgeType, Dropdown, ListItem } from '@iota/apps-ui-kit';
 import { OutsideClickHandler } from '_components/OutsideClickHandler';
 import { IotaLogoMark, Ledger } from '@iota/apps-ui-icons';
@@ -49,10 +49,9 @@ export function AccountGroupItem({
         address: account.address,
     });
 
-    const copyAddress = useCopyToClipboard({
-        textToCopy: account?.address || '',
-        successMessage: 'Address copied',
-    });
+    async function handleCopySuccess() {
+        toast('Address copied');
+    }
     function handleOpen() {
         const newWindow = window.open(explorerHref!, '_blank', 'noopener,noreferrer');
         if (newWindow) newWindow.opener = null;
@@ -141,7 +140,7 @@ export function AccountGroupItem({
                     badgeType={badgeConfig.type}
                     badgeText={badgeConfig.text}
                     subtitle={formatAddress(account.address)}
-                    onCopy={copyAddress}
+                    onCopy={handleCopySuccess}
                     onOptionsClick={handleOptionsClick}
                     onLockAccountClick={handleToggleLock}
                     onUnlockAccountClick={handleToggleLock}

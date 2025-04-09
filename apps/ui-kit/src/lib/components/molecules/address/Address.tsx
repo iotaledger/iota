@@ -52,15 +52,22 @@ export function Address({
     isExternal,
     externalLink,
     copyText = text,
+    onCopySuccess,
     onCopyError,
     onOpen,
     onCopy,
 }: AddressProps): React.JSX.Element {
     async function handleCopyClick(event: React.MouseEvent<HTMLButtonElement>) {
+        if (!navigator.clipboard) {
+            return;
+        }
+
         event?.stopPropagation();
         try {
-            await onCopy?.(event, copyText);
+            await navigator.clipboard.writeText(copyText);
+            onCopySuccess?.(event, copyText);
         } catch (error) {
+            console.error('Failed to copy:', error);
             onCopyError?.(error, copyText);
         }
     }

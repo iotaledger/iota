@@ -3,8 +3,8 @@
 
 import { useCallback } from 'react';
 import { Button, Address, Dialog, DialogContent, DialogBody, Header } from '@iota/apps-ui-kit';
-import { useActiveAccount } from '_hooks';
-import { QR, toast, useCopyToClipboard } from '@iota/core';
+import { useCopyToClipboard, useActiveAccount } from '_hooks';
+import { QR, toast } from '@iota/core';
 import { useIotaLedgerClient } from '_src/ui/app/components';
 import {
     isLedgerAccountSerializedUI,
@@ -21,9 +21,8 @@ export function ReceiveTokensDialog({ address, open, setOpen }: ReceiveTokensDia
     const activeAccount = useActiveAccount();
     const { connectToLedger, iotaLedgerClient } = useIotaLedgerClient();
 
-    const onCopy = useCopyToClipboard({
-        textToCopy: address,
-        successMessage: 'Address copied',
+    const onCopy = useCopyToClipboard(address, {
+        copySuccessMessage: 'Address copied',
     });
 
     const isLedger = isLedgerAccountSerializedUI(activeAccount as LedgerAccountSerializedUI);

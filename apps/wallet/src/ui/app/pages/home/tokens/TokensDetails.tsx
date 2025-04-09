@@ -26,7 +26,6 @@ import {
     useGetStardustSharedBasicObjects,
     useGetStardustSharedNftObjects,
     toast,
-    useCopyToClipboard,
 } from '@iota/core';
 import {
     Button,
@@ -212,12 +211,6 @@ export function TokenDetails() {
     if (isError) {
         toast.error('Error updating balance');
     }
-
-    const copyToClipboard = useCopyToClipboard({
-        textToCopy: activeAccountAddress,
-        successMessage: 'Address copied',
-    });
-
     return (
         <>
             {isMainnet && data?.degraded && (
@@ -242,7 +235,7 @@ export function TokenDetails() {
                                 text={formatAddress(activeAccountAddress)}
                                 isCopyable
                                 copyText={activeAccountAddress}
-                                onCopy={copyToClipboard}
+                                onCopy={() => toast('Address copied')}
                             />
                             <CoinBalance amount={tokenBalance} type={activeCoinType} />
                         </div>

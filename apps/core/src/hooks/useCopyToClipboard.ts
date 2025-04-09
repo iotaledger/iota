@@ -1,41 +1,25 @@
-// Copyright (c) Mysten Labs, Inc.
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { MouseEventHandler, useCallback } from 'react';
-import { toast } from '../components/toaster';
+import { useCallback } from 'react';
 
-export type CopyOptions = {
-    textToCopy?: string;
-    onSuccess?: () => void;
-    successMessage?: string;
-};
+export function useCopyToClipboard(onSuccessCallback?: () => void) {
+    return useCallback(
+        async (text: string) => {
+            if (!navigator?.clipboard) {
+                return false;
+            }
 
-export function useCopyToClipboard({
-    textToCopy,
-    onSuccess,
-    successMessage = 'Copied',
-}: CopyOptions) {
-    return useCallback<MouseEventHandler>(
-        async (e) => {
-            e.stopPropagation();
-            e.preventDefault();
             try {
-                await navigator.clipboard.writeText(textToCopy || '');
-
-                if (successMessage) {
-                    toast(successMessage);
+                await navigator.clipboard.writeText(text);
+                if (onSuccessCallback) {
+                    onSuccessCallback();
                 }
-
-                if (onSuccess) {
-                    onSuccess();
-                }
-
                 return true;
             } catch (error) {
                 return false;
             }
         },
-        [textToCopy, onSuccess, successMessage],
+        [onSuccessCallback],
     );
 }
