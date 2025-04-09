@@ -163,12 +163,12 @@ pub enum ConsensusCertificateResult {
     /// processed).
     Ignored,
     /// An executable transaction (can be a user tx or a system tx) and its
-    /// start_cost (u64). If the transactions is accepted for execution, it is
-    /// assigned a start_cost, which will imply its execution order. Before a
+    /// start_time (u64). If the transactions is accepted for execution, it is
+    /// assigned a start_time, which will imply its execution order. Before a
     /// batch of scheduled transactions are sent for execution, they will be
     /// ordered by their start_costs (ascendingly). start_costs of shared object
     /// transactions imply causal ordering. Owned object transactions will
-    /// always have start_cost 0, meaning they are not dependent on another
+    /// always have start_time 0, meaning they are not dependent on another
     /// transaction and they will not wait for another transaction.
     IotaTransaction(VerifiedExecutableTransaction, u64),
     /// The transaction should be re-processed at a future commit, specified by
@@ -1804,7 +1804,7 @@ impl AuthorityPerEpochStore {
                         DeferralReason::SharedObjectCongestion(congested_objects),
                     )
                 }
-                SequencingResult::Schedule(start_cost) => CongestionResult::Schedule(start_cost),
+                SequencingResult::Schedule(start_time) => CongestionResult::Schedule(start_time),
             }
         } else {
             // If we don't have a max cost per object, we don't need to check for
@@ -3115,9 +3115,9 @@ impl AuthorityPerEpochStore {
                 )
                 .await?
             {
-                ConsensusCertificateResult::IotaTransaction(cert, start_cost) => {
+                ConsensusCertificateResult::IotaTransaction(cert, start_time) => {
                     notifications.push(key.clone());
-                    sequenced_transactions.push((cert, start_cost));
+                    sequenced_transactions.push((cert, start_time));
                 }
                 ConsensusCertificateResult::Deferred(deferral_key) => {
                     // Note: record_consensus_message_processed() must be called for this
@@ -3138,7 +3138,7 @@ impl AuthorityPerEpochStore {
                     assert!(cancelled_txns.insert(*cert.digest(), reason).is_none());
                     sequenced_transactions.push((
                         cert,
-                        shared_object_congestion_tracker.max_occupied_slot_end_cost(),
+                        shared_object_congestion_tracker.max_occupied_slot_end_time(),
                     ));
                 }
                 ConsensusCertificateResult::RandomnessConsensusMessage => {
@@ -3171,9 +3171,9 @@ impl AuthorityPerEpochStore {
             }
         }
 
-        // sort the sequenced transactions based on their start_cost from the
+        // sort the sequenced transactions based on their start_time from the
         // sequencing result and add these to the verified_certificates.
-        sequenced_transactions.sort_by_key(|(_, start_cost)| *start_cost);
+        sequenced_transactions.sort_by_key(|(_, start_time)| *start_time);
         for (tx, _) in sequenced_transactions {
             verified_certificates.push_back(tx);
         }
@@ -3192,12 +3192,12 @@ impl AuthorityPerEpochStore {
         authority_metrics
             .consensus_handler_max_object_costs
             .with_label_values(&["regular_commit"])
-            .set(shared_object_congestion_tracker.max_occupied_slot_end_cost() as i64);
+            .set(shared_object_congestion_tracker.max_occupied_slot_end_time() as i64);
         authority_metrics
             .consensus_handler_max_object_costs
             .with_label_values(&["randomness_commit"])
             .set(
-                shared_object_using_randomness_congestion_tracker.max_occupied_slot_end_cost()
+                shared_object_using_randomness_congestion_tracker.max_occupied_slot_end_time()
                     as i64,
             );
 
@@ -3488,7 +3488,7 @@ impl AuthorityPerEpochStore {
                         };
                         return Ok(deferral_result);
                     }
-                    CongestionResult::Schedule(start_cost) => {
+                    CongestionResult::Schedule(start_time) => {
                         if dkg_failed && certificate.transaction_data().uses_randomness() {
                             debug!(
                                 "Canceling randomness-using certificate for transaction {:?} because DKG failed",
@@ -3503,12 +3503,12 @@ impl AuthorityPerEpochStore {
                         // This certificate will be scheduled. Update object execution cost.
                         if certificate.contains_shared_object() {
                             shared_object_congestion_tracker
-                                .bump_object_execution_slots(&certificate, start_cost);
+                                .bump_object_execution_slots(&certificate, start_time);
                         }
 
                         Ok(ConsensusCertificateResult::IotaTransaction(
                             certificate,
-                            start_cost,
+                            start_time,
                         ))
                     }
                 }
