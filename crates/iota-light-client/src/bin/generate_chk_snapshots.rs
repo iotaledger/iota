@@ -4,7 +4,7 @@
 use std::fs;
 
 use iota_light_client::utils::{
-    CheckpointsList, Config, read_checkpoint_list_from_config, sync_checkpoint_list_to_latest,
+    CheckpointsList, Config, read_checkpoint_list, sync_checkpoint_list_to_latest,
 };
 use iota_rest_api::Client;
 
@@ -19,9 +19,9 @@ pub async fn main() {
     )
     .unwrap();
     sync_checkpoint_list_to_latest(&config).await.unwrap();
-    let checkpoints_list: CheckpointsList = read_checkpoint_list_from_config(&config).unwrap();
+    let checkpoints_list: CheckpointsList = read_checkpoint_list(&config).unwrap();
 
-    let client = Client::new(format!("{}/rest", config.full_node_url()));
+    let client = Client::new(format!("{}/rest", config.full_node_url));
     for ckp in checkpoints_list.checkpoints {
         let summary = client.get_checkpoint_summary(ckp).await.unwrap();
         serde_json::to_writer_pretty(
