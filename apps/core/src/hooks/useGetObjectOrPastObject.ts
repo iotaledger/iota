@@ -70,6 +70,16 @@ export function useGetObjectOrPastObject(
                                 break;
                             }
                         }
+
+                        // Check for coin object also
+                        if (previousVersion === null) {
+                            for (const paymentObject of previousTxData.gasData.payment) {
+                                if (paymentObject.objectId === objectId) {
+                                    previousVersion = Number(paymentObject.version);
+                                    break;
+                                }
+                            }
+                        }
                     }
                 }
 
