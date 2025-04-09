@@ -6,7 +6,7 @@ import { normalizeIotaAddress } from '@iota/iota-sdk/utils';
 import { useQuery, UseQueryResult } from '@tanstack/react-query';
 import { IotaObjectResponse } from '@iota/iota-sdk/client';
 
-const defaultGetObjectOptions = {
+const DEFAULT_GET_OBJECT_OPTIONS = {
     showType: true,
     showContent: true,
     showOwner: true,
@@ -25,7 +25,7 @@ export function useGetObjectOrPastObject(
     const normalizedObjId = objectId && normalizeIotaAddress(objectId);
     const client = useIotaClient();
     return useQuery({
-        queryKey: ['objectOrPastObject', normalizedObjId],
+        queryKey: ['object-or-past-object', normalizedObjId],
         async queryFn() {
             if (!normalizedObjId) {
                 return null;
@@ -33,7 +33,7 @@ export function useGetObjectOrPastObject(
 
             const getObjectResponse = await client.getObject({
                 id: normalizedObjId,
-                options: defaultGetObjectOptions,
+                options: DEFAULT_GET_OBJECT_OPTIONS,
             });
 
             const shouldTryFindPastVersion =
@@ -82,7 +82,7 @@ export function useGetObjectOrPastObject(
                 const pastObjectResponse = await client.tryGetPastObject({
                     id: objectId,
                     version: previousVersion,
-                    options: defaultGetObjectOptions,
+                    options: DEFAULT_GET_OBJECT_OPTIONS,
                 });
 
                 switch (pastObjectResponse?.status) {
