@@ -14,7 +14,6 @@ import {
     useNewStakeTransaction,
     Validator,
     toast,
-    formatBalance,
 } from '@iota/core';
 import * as Sentry from '@sentry/react';
 import { ampli } from '_src/shared/analytics/ampli';
@@ -180,13 +179,6 @@ export function StakeFormComponent({ validatorAddress, epoch, onSuccess }: Stake
         isStakeTokenTransactionLoading ||
         isStakeTokenTransactionPending;
 
-    function onActionClick() {
-        const maxSafeAmountFormatted = formatBalance(availableBalance, decimals, CoinFormat.FULL);
-        setFieldValue('amount', maxSafeAmountFormatted, true);
-    }
-
-    const renderAction = () => <ButtonPill onClick={onActionClick}>Max</ButtonPill>;
-
     const isMaxAmountSet = availableBalance === amountWithoutDecimals;
     const gasUnstakeBuffer = maxAmountTxGasBudget * BigInt(2);
     const maxSafeAmount = availableBalance - gasUnstakeBuffer;
@@ -195,9 +187,15 @@ export function StakeFormComponent({ validatorAddress, epoch, onSuccess }: Stake
         format: CoinFormat.FULL,
     });
 
+    function setMaxAmount() {
+        setFieldValue('amount', availableBalanceFormatted, true);
+    }
+
     function setRecommendedAmount() {
         setFieldValue('amount', maxSafeAmountFormatted, true);
     }
+
+    const renderAction = () => <ButtonPill onClick={setMaxAmount}>Max</ButtonPill>;
 
     const maxSafeAmountText = (() => {
         if (!isMaxAmountSet) return;

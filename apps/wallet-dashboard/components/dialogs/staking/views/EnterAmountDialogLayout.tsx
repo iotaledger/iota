@@ -25,6 +25,7 @@ import { Field, type FieldProps, useFormikContext } from 'formik';
 import { Exclamation, Loader } from '@iota/apps-ui-icons';
 import { StakedInfo } from './StakedInfo';
 import { DialogLayout, DialogLayoutBody, DialogLayoutFooter } from '../../layout';
+import React from 'react';
 
 interface FormValues {
     amount: string;
@@ -36,7 +37,7 @@ interface EnterAmountDialogLayoutProps {
     caption: string;
     showInfo: boolean;
     infoTitle?: string;
-    infoMessage: string;
+    infoMessage: string | React.ReactNode;
     infoType?: InfoBoxType;
     isLoading: boolean;
     onBack: () => void;
@@ -112,7 +113,6 @@ export function EnterAmountDialogLayout({
                                                 values.amount && meta.error ? meta.error : undefined
                                             }
                                             caption={caption}
-                                            prefix={isMaxAmountSet ? '~' : undefined}
                                             trailingElement={renderInputAction?.()}
                                         />
                                     );

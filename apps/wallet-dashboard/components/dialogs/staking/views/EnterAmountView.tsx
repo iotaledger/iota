@@ -10,7 +10,6 @@ import {
     toast,
     useNewStakeTransaction,
     parseAmount,
-    formatBalance,
     getGasBudgetErrorMessage,
 } from '@iota/core';
 import { IOTA_DECIMALS, IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
@@ -73,12 +72,6 @@ export function EnterAmountView({
         setFieldValue('gasBudget', maxAmountTxGasBudget);
     }, [maxAmountTxGasBudget, setFieldValue]);
 
-    const gasUnstakeBuffer = maxAmountTxGasBudget * BigInt(2); // 2x gas budget needed for unstaking
-    const [gasUnstakeBufferFormatted, gasUnstakeBufferSymbol] = useFormatCoin({
-        balance: gasUnstakeBuffer,
-        format: CoinFormat.FULL,
-    });
-
     // for user we show available amount as available_balance - gas_budget
     const availableBalance = coinBalance - maxAmountTxGasBudget;
     const [availableBalanceFormatted, availableBalanceFormattedSymbol] = useFormatCoin({
@@ -88,26 +81,49 @@ export function EnterAmountView({
 
     const amount = safeParseAmount(coinType === IOTA_TYPE_ARG ? values.amount : '0', decimals);
 
-    const isMaxAmountSet = amountWithoutDecimals === availableBalance - gasUnstakeBuffer;
-
-    // User must have enough balance to pay gas upfront, even if they'll receive a rebate later.
-    // we keep 3x the gas budget, 2x for unstaking and 1x for the transaction
-    const hasEnoughRemainingBalance = amount
-        ? coinBalance >= amount + maxAmountTxGasBudget + gasUnstakeBuffer
-        : true;
+    const hasEnoughRemainingBalance = amount ? availableBalance >= amount : true;
 
     const caption = maxAmountTxGasBudget
         ? `${availableBalanceFormatted} ${availableBalanceFormattedSymbol} Available`
         : '--';
 
-    function onActionClick() {
-        // const maxSafeAmount = availableBalance - gasUnstakeBuffer;
-        const maxSafeAmountFormatted = formatBalance(availableBalance, decimals, CoinFormat.FULL);
+    const isMaxAmountSet = availableBalance === amount;
+    const gasUnstakeBuffer = maxAmountTxGasBudget * BigInt(2);
+    const maxSafeAmount = availableBalance - gasUnstakeBuffer;
+    const [maxSafeAmountFormatted, maxSafeAmountSymbol] = useFormatCoin({
+        balance: maxSafeAmount,
+        format: CoinFormat.FULL,
+    });
 
+    function setMaxAmount() {
+        setFieldValue('amount', availableBalanceFormatted, true);
+    }
+
+    function setRecommendedAmount() {
         setFieldValue('amount', maxSafeAmountFormatted, true);
     }
 
-    const renderAction = () => <ButtonPill onClick={onActionClick}>Max</ButtonPill>;
+    const renderAction = () => <ButtonPill onClick={setMaxAmount}>Max</ButtonPill>;
+
+    const maxSafeAmountText = (() => {
+        if (!isMaxAmountSet) return;
+
+        return (
+            <>
+                Staking your full balance may leave you without enough funds to cover gas fees for
+                future actions like unstaking. To avoid this, we recommend staking up to{' '}
+                {maxSafeAmountFormatted}&nbsp;{maxSafeAmountSymbol}.
+                <div>
+                    <span
+                        onClick={setRecommendedAmount}
+                        className="cursor-pointer underline hover:opacity-80"
+                    >
+                        Set recommended amount
+                    </span>
+                </div>
+            </>
+        );
+    })();
 
     function handleStake(): void {
         if (!newStakeData?.transaction) {
@@ -144,7 +160,7 @@ export function EnterAmountView({
 
         if (isMaxAmountSet) {
             return {
-                message: `We've reserved ${gasUnstakeBufferFormatted} ${gasUnstakeBufferSymbol} to ensure you have enough balance to unstake later. This helps prevent failed transactions due to insufficient gas.`,
+                message: maxSafeAmountText,
                 type: InfoBoxType.Warning,
             };
         }
