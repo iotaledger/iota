@@ -60,6 +60,12 @@ function ValidatorDetails(): JSX.Element {
     if (isPending || validatorsEventsLoading || validatorsApysLoading) {
         return <PageLayout content={<LoadingIndicator />} />;
     }
+    // console.log('----------------------------------------------');
+    // console.log('validatorData: ' + validatorData);
+    // console.log('data: ' + data);
+    // console.log('validatorEvents: ' + validatorEvents);
+    // console.log('id: ' + id);
+    // console.log('----------------------------------------------');
 
     if (!validatorData || !data || !validatorEvents || !id) {
         return (
@@ -67,11 +73,54 @@ function ValidatorDetails(): JSX.Element {
                 content={
                     <div className="mb-10">
                         <InfoBox
-                            title="Failed to load validator data"
-                            supportingText={`No validator data found for ${id}`}
+                            title="Validator inactive"
+                            //supportingText={`No validator data found for ${id}`}
                             icon={<Warning />}
                             type={InfoBoxType.Error}
                             style={InfoBoxStyle.Elevated}
+                        />
+                        <ValidatorMeta
+                            validatorData={{
+                                // TODO: compulsory fields
+                                name: 'Invented Validator',
+                                imageUrl: 'https://example.com/default-image.png',
+                                description: 'This is a invented validator',
+                                stakingPoolId: 'Invented Validator',
+                                iotaAddress: id || '',
+                                protocolPubkeyBytes: 'Invented Validator',
+                                // TODO: the following fields can/should be ommited for invalid validators
+                                projectUrl: 'https://example.com',
+                                authorityPubkeyBytes: 'Invented Validator',
+                                commissionRate: 'Invented Validator',
+                                exchangeRatesId: 'Invented Validator',
+                                exchangeRatesSize: 'Invented Validator',
+                                gasPrice: 'Invented Validator',
+                                netAddress: 'Invented Validator',
+                                networkPubkeyBytes: 'Invented Validator',
+                                nextEpochAuthorityPubkeyBytes: undefined,
+                                nextEpochCommissionRate: '5',
+                                nextEpochGasPrice: '5',
+                                nextEpochNetAddress: undefined,
+                                nextEpochNetworkPubkeyBytes: undefined,
+                                nextEpochP2pAddress: undefined,
+                                nextEpochPrimaryAddress: undefined,
+                                nextEpochProofOfPossession: undefined,
+                                nextEpochProtocolPubkeyBytes: undefined,
+                                nextEpochStake: 'Invented Validator',
+                                operationCapId: 'Invented Validator',
+                                p2pAddress: 'Invented Validator',
+                                pendingPoolTokenWithdraw: 'Invented Validator',
+                                pendingStake: 'Invented Validator',
+                                pendingTotalIotaWithdraw: 'Invented Validator',
+                                poolTokenBalance: 'Invented Validator',
+                                primaryAddress: 'Invented Validator',
+                                proofOfPossessionBytes: 'Invented Validator',
+                                rewardsPool: 'Invented Validator',
+                                stakingPoolActivationEpoch: undefined,
+                                stakingPoolDeactivationEpoch: undefined,
+                                stakingPoolIotaBalance: '0',
+                                votingPower: '0',
+                            }}
                         />
                     </div>
                 }
