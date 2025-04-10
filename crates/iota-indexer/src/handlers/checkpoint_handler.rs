@@ -658,13 +658,7 @@ impl CheckpointHandler {
     }
 
     pub(crate) fn pg_blocking_cp(state: PgIndexerStore) -> Result<ConnectionPool, IndexerError> {
-        let state_as_any = state.as_any();
-        if let Some(pg_state) = state_as_any.downcast_ref::<PgIndexerStore>() {
-            return Ok(pg_state.blocking_cp());
-        }
-        Err(IndexerError::Uncategorized(anyhow::anyhow!(
-            "Failed to downcast state to PgIndexerStore"
-        )))
+        Ok(state.blocking_cp())
     }
 }
 
