@@ -23,16 +23,15 @@ The light client requires a config file and a directory to cache checkpoints, an
 The config file for the light client takes a URL for a full node, a directory to store checkpoint summaries (that must exist) and within the directory the name of the genesis blob for the IOTA network.
 
 ```
-full_node_url: "https://api.testnet.iota.cafe"
+rpc_url: "https://api.testnet.iota.cafe"
 graphql_url: "https://graphql.testnet.iota.cafe"
 # make sure this directory exists and contains the correct `genesis.blob`
-checkpoint_dir: "checkpoints_dir"
-genesis_filename: "genesis.blob"
-# TODO update as soon as such an endpoint is available
-object_store_url: ~
-# TODO update as soon as such an endpoint is available
-archive_store_config: ~
+checkpoints_dir: "checkpoints_testnet"
 sync_before_check: false
+# TODO update as soon as such an endpoint is available for the testnet
+object_store_url: ~
+# TODO update as soon as such an endpoint is available for the testnet
+archive_store_config: ~
 ```
 
 The genesis blob for the IOTA testnet can be found here: https://dbfiles.testnet.iota.cafe/genesis.blob. Download and place it inside the checkpoint directory.

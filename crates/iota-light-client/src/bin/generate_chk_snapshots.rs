@@ -26,7 +26,7 @@ pub async fn main() {
         panic!("not enough checkpoints to sync")
     }
 
-    let client = Client::new(format!("{}/rest", config.full_node_url));
+    let client = Client::new(format!("{}/rest", config.rpc_url));
 
     // We only need the first 2 end-of-epoch checkpoints for the tests
     for seq in checkpoint_list.checkpoints().iter().copied().take(2) {

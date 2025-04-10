@@ -209,14 +209,14 @@ async fn sync_checkpoint_list_to_latest_using_full_node(
     };
 
     // Download the checkpoint from the node
-    let rest_client = Client::new(config.full_node_url.as_str());
+    let rest_client = Client::new(config.rpc_url.as_str());
 
     // Download the latest in list checkpoint
     let last_sum = rest_client.get_checkpoint_summary(last_seq).await?;
 
     // Download the very latest checkpoint
     let client = IotaClientBuilder::default()
-        .build(config.full_node_url.as_str())
+        .build(config.rpc_url.as_str())
         .await?;
 
     let latest_seq = client
@@ -290,7 +290,7 @@ async fn sync_checkpoint_list_to_latest_using_object_store(
     let last_sum = object_store.get_checkpoint_summary(last_seq).await?;
 
     let client = IotaClientBuilder::default()
-        .build(config.full_node_url.as_str())
+        .build(config.rpc_url.as_str())
         .await?;
 
     let latest_seq = client
@@ -357,7 +357,7 @@ pub async fn sync_and_check_checkpoints(config: &Config) -> anyhow::Result<()> {
                     })?
             } else {
                 // Try downloading it from the node via REST API
-                let client = Client::new(config.full_node_url.as_str());
+                let client = Client::new(config.rpc_url.as_str());
                 client.get_checkpoint_summary(seq).await.map_err(|e| {
                     anyhow!("Failed to download checkpoint summary from full node: {e}")
                 })?

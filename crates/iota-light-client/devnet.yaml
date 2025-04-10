@@ -1,0 +1,8 @@
+rpc_url: "https://api.devnet.iota.cafe"
+graphql_url: "https://graphql.devnet.iota.cafe"
+# Provide an existing directory that contains the genesis file of the devnet
+# You can download it from `https://dbfiles.devnet.iota.cafe/genesis.blob`
+checkpoints_dir: "checkpoints_devnet"
+sync_before_check: false
+object_store_url: ~
+archive_store_config: ~

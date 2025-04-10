@@ -20,25 +20,25 @@ const CHECKPOINTS_FILE_NAME: &str = "checkpoints.yaml";
 pub struct Config {
     /// The directory containing synced full checkpoints and checkpoint
     /// summaries.
-    pub checkpoints_dir: PathBuf,
-    pub full_node_url: String,
+    pub rpc_url: String,
     pub graphql_url: Option<String>,
+    pub checkpoints_dir: PathBuf,
+    pub sync_before_check: bool,
     pub object_store_url: Option<String>,
     pub archive_store_config: Option<ObjectStoreConfig>,
-    pub sync_before_check: bool,
 }
 
 impl Default for Config {
     fn default() -> Self {
         Self {
+            rpc_url: "http://localhost:9000".to_string(),
+            graphql_url: Some("http://localhost:9125".to_string()),
             checkpoints_dir: std::env::current_dir()
                 .expect("error getting current directory")
                 .join("checkpoints_localnet"),
-            full_node_url: "http://localhost:9000".to_string(),
+            sync_before_check: false,
             object_store_url: None,
             archive_store_config: None,
-            graphql_url: Some("http://localhost:9125".to_string()),
-            sync_before_check: false,
         }
     }
 }
@@ -52,7 +52,7 @@ impl Config {
     }
 
     pub fn validate(&self) -> Result<()> {
-        Url::parse(&self.full_node_url).map_err(|_| anyhow!("Invalid full node URL"))?;
+        Url::parse(&self.rpc_url).map_err(|_| anyhow!("Invalid full node URL"))?;
         if !self.checkpoints_dir.is_dir() {
             bail!("Checkpoint directory does not exist");
         }
@@ -125,7 +125,7 @@ mod tests {
         std::fs::File::create(temp_dir.path().join("checkpoints.yaml")).unwrap();
         let config = Config {
             checkpoints_dir: temp_dir.path().to_path_buf(),
-            full_node_url: "http://localhost:9000".to_string(),
+            rpc_url: "http://localhost:9000".to_string(),
             object_store_url: Some("http://localhost:9001".to_string()),
             archive_store_config: Some(ObjectStoreConfig {
                 object_store: Some(ObjectStoreType::File),

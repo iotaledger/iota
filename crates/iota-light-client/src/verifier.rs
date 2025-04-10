@@ -61,7 +61,7 @@ pub fn extract_verified_effects_and_events(
 pub async fn get_verified_object(config: &Config, id: ObjectID) -> Result<Object> {
     let iota_client: Arc<iota_sdk::IotaClient> = Arc::new(
         IotaClientBuilder::default()
-            .build(config.full_node_url.as_str())
+            .build(config.rpc_url.as_str())
             .await?,
     );
 
@@ -99,7 +99,7 @@ pub async fn get_verified_effects_and_events(
     tid: TransactionDigest,
 ) -> Result<(TransactionEffects, Option<TransactionEvents>)> {
     let iota_client: iota_sdk::IotaClient = IotaClientBuilder::default()
-        .build(config.full_node_url.as_str())
+        .build(config.rpc_url.as_str())
         .await?;
     let read_api = iota_client.read_api();
 
@@ -180,7 +180,7 @@ pub async fn get_verified_checkpoint(
     config: &Config,
 ) -> Result<CheckpointSequenceNumber> {
     let iota_client: iota_sdk::IotaClient = IotaClientBuilder::default()
-        .build(config.full_node_url.as_str())
+        .build(config.rpc_url.as_str())
         .await?;
     let read_api = iota_client.read_api();
     let object_json = read_api

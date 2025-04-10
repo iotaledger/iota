@@ -26,7 +26,6 @@ struct Args {
     /// Sets a custom config file
     #[arg(short, long, value_name = "PATH")]
     config: Option<PathBuf>,
-
     #[command(subcommand)]
     command: Option<LightClientCommand>,
 }
@@ -35,18 +34,16 @@ struct Args {
 pub enum LightClientCommand {
     /// Sync light client
     Sync,
-
     /// Check a transaction for inclusion
     CheckTransaction {
         /// Transaction digest
-        #[arg(value_name = "TRANSACTION_DIGEST")]
+        #[arg(value_name = "BASE58")]
         transaction_digest: String,
     },
-
     /// Check an object for inclusion
     CheckObject {
         /// Object ID
-        #[arg(value_name = "OBJECT_ID")]
+        #[arg(value_name = "HEX")]
         object_id: String,
     },
 }

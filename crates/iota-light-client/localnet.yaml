@@ -1,8 +1,7 @@
-full_node_url: "http://localhost:9000"
+rpc_url: "http://localhost:9000"
 graphql_url: "http://localhost:9125"
 # Provide an existing directory that contains the genesis file of the localnet
-checkpoints_dir: "checkpoints_dir"
-genesis_filename: "genesis.blob"
+checkpoints_dir: "checkpoints_localnet"
+sync_before_check: false
 object_store_url: ~
 archive_store_config: ~
-sync_before_check: false
