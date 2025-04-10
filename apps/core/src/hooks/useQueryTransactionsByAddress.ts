@@ -78,7 +78,9 @@ export function useQueryTransactionsByAddress(address: string = '') {
             }, new Map())
             .values(),
     );
-    const allTransactions = allTransactionsUnsorted.sort((a, b) => Number(b.timestampMs || 0) - Number(a.timestampMs || 0))
+    const allTransactions = allTransactionsUnsorted.sort(
+        (a, b) => Number(b.timestampMs || 0) - Number(a.timestampMs || 0),
+    );
     const lastPage = query.data?.pages[query.data.pages.length - 1];
 
     return {
