@@ -32,11 +32,9 @@ import Ports from '../../_snippets/operator/fullnode-ports.mdx'
 
 ## 2. Run the installer script
 
-In a new directory, (e.g. `mkdir -p $HOME/iota && cd $HOME/iota`), run:
-
-{/* TODO in 6017 change branch last before merging ?? */}  
+In any directory, run:
 ```shell
-NETWORK="testnet" bash -i <(curl -sSf https://raw.githubusercontent.com/iotaledger/iota/refs/heads/docs/further-node-operator-docs-improvements/setups/fullnode/systemd/setup.sh)
+NETWORK="testnet" bash -i <(curl -sSf https://raw.githubusercontent.com/iotaledger/iota/refs/heads/develop/setups/fullnode/systemd/setup.sh)
 ```
 
 :::info
@@ -91,9 +89,8 @@ When IOTA releases a new version, you must update your full node with the releas
 Make sure your node stays on the same network (testnet, mainnet, devnet, ...) it was previously connected to.
 
 To upgrade your node, run the same script you used to install it:
-{/* TODO in 6017 update branch before merging */}
 ```shell
-NETWORK="testnet" bash -i <(curl -sSf https://raw.githubusercontent.com/iotaledger/iota/refs/heads/docs/further-node-operator-docs-improvements/setups/fullnode/systemd/setup.sh)
+NETWORK="testnet" bash -i <(curl -sSf https://raw.githubusercontent.com/iotaledger/iota/refs/heads/develop/setups/fullnode/systemd/setup.sh)
 ```
 
 :::info

@@ -71,6 +71,7 @@ sudo apt-get update && sudo apt-get install -y --no-install-recommends \
 	cmake
 if ! command -v cmp &>/dev/null; then sudo apt-get install -y --no-install-recommends diffutils; fi
 
+# Clone or update the IOTA repo
 mkdir -p "$(dirname "$CLONE_DIR")"
 if [ ! -d "$CLONE_DIR" ]; then
 	git clone https://github.com/iotaledger/iota.git "$CLONE_DIR"
