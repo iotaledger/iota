@@ -292,7 +292,7 @@ impl Default for TransactionKeyValueStoreReadConfig {
 }
 
 fn default_base_url() -> String {
-    "https://transactions.iota.io/".to_string()
+    "https://transactions.iota.cafe/".to_string()
 }
 
 fn default_cache_size() -> u64 {
