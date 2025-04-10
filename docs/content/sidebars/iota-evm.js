@@ -204,11 +204,6 @@ const iotaEvm = [
                                 type: 'doc',
                                 id: 'iota-evm/how-tos/core-contracts/token/introduction',
                             },
-                            {
-                                type: 'doc',
-                                label: 'Create a Coin',
-                                id: 'iota-evm/how-tos/core-contracts/token/create-coin',
-                            },
                         ],
                     },
                     {
@@ -222,18 +217,8 @@ const iotaEvm = [
                             },
                             {
                                 type: 'doc',
-                                label: 'Mint an NFT',
-                                id: 'iota-evm/how-tos/core-contracts/objects/mint-nft',
-                            },
-                            {
-                                type: 'doc',
                                 label: 'Get NFTs Owned by an Account',
                                 id: 'iota-evm/how-tos/core-contracts/objects/get-L2-nfts',
-                            },
-                            {
-                                type: 'doc',
-                                label: 'Get NFTs in Collection',
-                                id: 'iota-evm/how-tos/core-contracts/objects/get-nft-in-collection',
                             },
                         ],
                     },
