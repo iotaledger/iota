@@ -6,6 +6,8 @@
 
 **Requirements**: Node 20.0.0 or later.
 
+**Warning**: The Explorer needs an indexer endpoint configured as API `url` in your network config.
+
 Dependencies are managed using [`pnpm`](https://pnpm.io/). You can start by installing dependencies in the root of the iota repository:
 
 ```
@@ -29,7 +31,7 @@ This will start the dev server on port 3000, which should be accessible on http:
 Start validators locally:
 
 ```bash
-cargo run --bin iota start --force-regenesis --with-faucet
+cargo run --bin iota start --force-regenesis --with-faucet --with-indexer
 ```
 
 In a separate terminal, you can now run the end-to-end tests:
