@@ -56,7 +56,7 @@ export function AppProviders({ children }: React.PropsWithChildren) {
                             >
                                 <ThemeProvider appId="iota-dashboard">
                                     {children}
-                                    <Toaster containerClassName="!z-[999999] !right-8" />
+                                    <Toaster containerClassName="!right-8" />
                                 </ThemeProvider>
                             </WalletProvider>
                         </KioskClientProvider>
