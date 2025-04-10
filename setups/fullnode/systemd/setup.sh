@@ -164,9 +164,9 @@ CONFIG=$(
 write_to_file "$CONFIG" "$CONFIG_FILE_PATH"
 
 # Download genesis/migration blobs for NETWORK
-write_to_file "$(curl -sfLJ "https://dbfiles.$NETWORK.iota.cafe/genesis.blob" --output -)" "$CONFIG_DIR/genesis.blob"
+curl -sfLJ https://dbfiles.$NETWORK.iota.cafe/genesis.blob -o "$CONFIG_DIR/genesis.blob"
 if [ "$NETWORK" == "mainnet" ] || [ "$NETWORK" == "devnet" ]; then
-	write_to_file "$(curl -sfLJ "https://dbfiles.$NETWORK.iota.cafe/migration.blob" --output -)" "$CONFIG_DIR/migration.blob"
+	curl -sfLJ https://dbfiles.$NETWORK.iota.cafe/migration.blob -o "$CONFIG_DIR/migration.blob"
 fi
 
 # Move bin to $BIN_DIR
