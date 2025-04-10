@@ -19,6 +19,7 @@ const operator = [
                     id: 'operator/full-node/configuration',
                 },
                 items: [
+                    'operator/full-node/configs/genesis',
                     'operator/full-node/configs/network',
                     'operator/full-node/configs/pruning',
                     'operator/full-node/configs/snapshots',
@@ -44,6 +45,7 @@ const operator = [
                     id: 'operator/validator-node/configuration',
                 },
                 items: [
+                    'operator/validator-node/configs/genesis',
                     'operator/validator-node/configs/network',
                     'operator/validator-node/configs/pruning',
                     'operator/validator-node/configs/snapshots',
