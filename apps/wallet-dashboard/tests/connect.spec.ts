@@ -2,28 +2,28 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { test, expect } from './fixtures';
-import { createWallet } from './utils';
+import { createWallet, importWallet } from './utils';
 import 'dotenv/config';
 
 test.describe('Wallet Connection', () => {
-    test.beforeEach(async ({ page, extensionUrl, sharedState }) => {
-        // Navigate to the wallet dashboard
+    test.beforeAll(async ({ page, extensionUrl, sharedState }) => {
         await page.goto('/');
-        await page.waitForSelector('.welcome-page');
 
-        // Import a wallet in the extension
-        await page.goto(extensionUrl);
-        const cratedWallet = await createWallet(page, extensionUrl);
+        const createdWallet = await createWallet(page, extensionUrl);
 
-        sharedState.walletMnemonic = cratedWallet.mnemonic || '';
-        sharedState.walletAddress = cratedWallet.address || '';
-
-        // Go back to dashboard
-        await page.goto('/');
-        await page.waitForSelector('.welcome-page');
+        sharedState.walletMnemonic = createdWallet.mnemonic;
+        sharedState.walletAddress = createdWallet.address;
     });
 
-    test('should connect to wallet extension', async ({ context, page, sharedState }) => {
+    test('should connect to wallet extension', async ({
+        extensionUrl,
+        context,
+        page,
+        sharedState,
+    }) => {
+        await importWallet(page, extensionUrl, sharedState.walletMnemonic);
+        await page.goto('/');
+        await page.waitForSelector('.welcome-page');
         const connectButton = page.getByRole('button', { name: 'Connect' });
         await connectButton.click();
 

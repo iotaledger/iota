@@ -22,10 +22,13 @@ export async function createWallet(page: Page, extensionUrl: string) {
     await expect(mnemonicBox).toBeVisible();
 
     await mnemonicBox.getByRole('button').first().click();
-    const textarea = await mnemonicBox.locator('textarea');
+    const textarea = mnemonicBox.locator('textarea');
     const mnemonic = await textarea.inputValue();
 
     const address = deriveAddressFromMnemonic(mnemonic);
+
+    await page.getByText('I saved my mnemonic').click();
+    await page.getByRole('button', { name: 'Open Wallet' }).click();
 
     return {
         mnemonic,
@@ -33,12 +36,15 @@ export async function createWallet(page: Page, extensionUrl: string) {
     };
 }
 
-export async function importWallet(page: Page, extensionUrl: string, mnemonic: string) {
+export async function importWallet(page: Page, extensionUrl: string, mnemonic?: string) {
+    if (!mnemonic) {
+        throw new Error('Mnemonic is required for importing a wallet');
+    }
     await page.goto(extensionUrl, { waitUntil: 'commit' });
     await page.getByRole('button', { name: /Add Profile/ }).click({ timeout: 30000 });
     await page.getByText('Mnemonic', { exact: true }).click();
 
-    const mnemonicArray = typeof mnemonic === 'string' ? mnemonic.split(' ') : mnemonic;
+    const mnemonicArray = mnemonic.split(' ');
 
     const wordInputs = page.locator('input[placeholder="Word"]');
     const inputCount = await wordInputs.count();
