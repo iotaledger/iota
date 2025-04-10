@@ -649,11 +649,13 @@ impl IndexerReader {
         if checkpointed_txs.len() == digests.len() {
             return Ok(checkpointed_txs);
         }
-        let loaded_digests = checkpointed_txs
-            .iter()
-            .map(|tx| tx.transaction_digest.clone())
-            .collect();
-        let missing_digests = digests.difference(&loaded_digests);
+        let missing_digests = {
+            let mut missing_digests = digests;
+            for tx in &checkpointed_txs {
+                missing_digests.remove(&tx.transaction_digest);
+            }
+            missing_digests
+        };
         let optimistic_txs = run_query!(&self.pool, |conn| {
             optimistic_transactions::table
                 .inner_join(
