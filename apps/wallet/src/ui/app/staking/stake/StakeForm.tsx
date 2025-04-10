@@ -165,12 +165,6 @@ export function StakeFormComponent({ validatorAddress, epoch, onSuccess }: Stake
         setFieldValue('gasBudget', maxAmountTxGasBudget);
     }, [maxAmountTxGasBudget]);
 
-    const gasUnstakeBuffer = maxAmountTxGasBudget * BigInt(2); // 2x gas budget needed for unstaking
-    const [gasUnstakeBufferFormatted, gasUnstakeBufferSymbol] = useFormatCoin({
-        balance: gasUnstakeBuffer,
-        format: CoinFormat.FULL,
-    });
-
     // for user we show available amount as available_balance - gas_budget
     const availableBalance = coinBalance - maxAmountTxGasBudget;
     const [availableBalanceFormatted, symbol] = useFormatCoin({
@@ -178,12 +172,7 @@ export function StakeFormComponent({ validatorAddress, epoch, onSuccess }: Stake
         format: CoinFormat.FULL,
     });
 
-    // User must have enough balance to pay gas upfront, even if they'll receive a rebate later.
-    // we keep 3x the gas budget, 2x for unstaking and 1x for the transaction
-    const hasEnoughRemainingBalance =
-        coinBalance >= parseAmount(amount, decimals) + maxAmountTxGasBudget + gasUnstakeBuffer;
-
-    const isMaxAmountSet = amountWithoutDecimals === availableBalance - gasUnstakeBuffer;
+    const hasEnoughRemainingBalance = availableBalance >= amountWithoutDecimals;
 
     const isLoading =
         loadingIotaBalances ||
@@ -192,12 +181,43 @@ export function StakeFormComponent({ validatorAddress, epoch, onSuccess }: Stake
         isStakeTokenTransactionPending;
 
     function onActionClick() {
-        const maxSafeAmount = availableBalance - gasUnstakeBuffer;
-        const maxSafeAmountFormatted = formatBalance(maxSafeAmount, decimals, CoinFormat.FULL);
+        const maxSafeAmountFormatted = formatBalance(availableBalance, decimals, CoinFormat.FULL);
         setFieldValue('amount', maxSafeAmountFormatted, true);
     }
 
     const renderAction = () => <ButtonPill onClick={onActionClick}>Max</ButtonPill>;
+
+    const isMaxAmountSet = availableBalance === amountWithoutDecimals;
+    const gasUnstakeBuffer = maxAmountTxGasBudget * BigInt(2);
+    const maxSafeAmount = availableBalance - gasUnstakeBuffer;
+    const [maxSafeAmountFormatted, maxSafeAmountSymbol] = useFormatCoin({
+        balance: maxSafeAmount,
+        format: CoinFormat.FULL,
+    });
+
+    function setRecommendedAmount() {
+        setFieldValue('amount', maxSafeAmountFormatted, true);
+    }
+
+    const maxSafeAmountText = (() => {
+        if (!isMaxAmountSet) return;
+
+        return (
+            <>
+                Staking your full balance may leave you without enough funds to cover gas fees for
+                future actions like unstaking. To avoid this, we recommend staking up to{' '}
+                {maxSafeAmountFormatted}&nbsp;{maxSafeAmountSymbol}.
+                <div>
+                    <span
+                        onClick={setRecommendedAmount}
+                        className="cursor-pointer underline hover:opacity-80"
+                    >
+                        Set recommended amount
+                    </span>
+                </div>
+            </>
+        );
+    })();
 
     return (
         <FormikProvider value={formik}>
@@ -228,7 +248,6 @@ export function StakeFormComponent({ validatorAddress, epoch, onSuccess }: Stake
                                         ? `${availableBalanceFormatted} ${symbol} Available`
                                         : '--'
                                 }
-                                prefix={isMaxAmountSet ? '~' : undefined}
                                 suffix={' ' + symbol}
                                 errorMessage={amount && meta.error ? meta.error : undefined}
                                 label="Amount"
@@ -248,7 +267,7 @@ export function StakeFormComponent({ validatorAddress, epoch, onSuccess }: Stake
                 {isMaxAmountSet ? (
                     <InfoBox
                         type={InfoBoxType.Warning}
-                        supportingText={`We've reserved ${gasUnstakeBufferFormatted} ${gasUnstakeBufferSymbol} to ensure you have enough balance to unstake later. This helps prevent failed transactions due to insufficient gas.`}
+                        supportingText={maxSafeAmountText}
                         style={InfoBoxStyle.Elevated}
                         icon={<Exclamation />}
                     />

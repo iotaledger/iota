@@ -17,7 +17,7 @@ export interface InfoBoxProps {
     /**
      * The supporting text of the info box (optional).
      */
-    supportingText?: string;
+    supportingText?: string | React.ReactNode;
     /**
      * The type of the info box.
      */

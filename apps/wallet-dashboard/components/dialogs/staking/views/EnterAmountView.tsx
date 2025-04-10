@@ -101,8 +101,8 @@ export function EnterAmountView({
         : '--';
 
     function onActionClick() {
-        const maxSafeAmount = availableBalance - gasUnstakeBuffer;
-        const maxSafeAmountFormatted = formatBalance(maxSafeAmount, decimals, CoinFormat.FULL);
+        // const maxSafeAmount = availableBalance - gasUnstakeBuffer;
+        const maxSafeAmountFormatted = formatBalance(availableBalance, decimals, CoinFormat.FULL);
 
         setFieldValue('amount', maxSafeAmountFormatted, true);
     }
