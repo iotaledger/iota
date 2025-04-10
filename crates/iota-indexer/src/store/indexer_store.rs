@@ -11,9 +11,12 @@ use crate::{
     handlers::{EpochToCommit, TransactionObjectChangesToCommit},
     models::{
         display::StoredDisplay,
+        event_indices::OptimisticEventIndices,
+        events::OptimisticEvent,
         obj_indices::StoredObjectVersion,
         objects::{StoredDeletedObject, StoredObject},
-        transactions::TxInsertionOrder,
+        transactions::{OptimisticTransaction, TxInsertionOrder},
+        tx_indices::OptimisticTxIndices,
     },
     types::{
         EventIndex, IndexedCheckpoint, IndexedEvent, IndexedPackage, IndexedTransaction, TxIndex,
@@ -80,6 +83,11 @@ pub trait IndexerStore: Any + Clone + Sync + Send + 'static {
         transactions: Vec<IndexedTransaction>,
     ) -> Result<(), IndexerError>;
 
+    async fn persist_optimistic_transaction(
+        &self,
+        transaction: OptimisticTransaction,
+    ) -> Result<(), IndexerError>;
+
     async fn persist_tx_insertion_order(
         &self,
         tx_order: Vec<TxInsertionOrder>,
@@ -87,10 +95,26 @@ pub trait IndexerStore: Any + Clone + Sync + Send + 'static {
 
     async fn persist_tx_indices(&self, indices: Vec<TxIndex>) -> Result<(), IndexerError>;
 
+    async fn persist_optimistic_tx_indices(
+        &self,
+        indices: OptimisticTxIndices,
+    ) -> Result<(), IndexerError>;
+
     async fn persist_events(&self, events: Vec<IndexedEvent>) -> Result<(), IndexerError>;
+
+    async fn persist_optimistic_events(
+        &self,
+        events: Vec<OptimisticEvent>,
+    ) -> Result<(), IndexerError>;
+
     async fn persist_event_indices(
         &self,
         event_indices: Vec<EventIndex>,
+    ) -> Result<(), IndexerError>;
+
+    async fn persist_optimistic_event_indices(
+        &self,
+        indices: OptimisticEventIndices,
     ) -> Result<(), IndexerError>;
 
     async fn persist_displays(

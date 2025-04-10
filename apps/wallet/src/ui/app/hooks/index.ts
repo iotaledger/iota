@@ -12,7 +12,6 @@ export * from './useCopyToClipboard';
 export * from './useExplorerLink';
 export * from './useTransactionData';
 export * from './useActiveAddress';
-export * from './useCoinsReFetchingConfig';
 export * from './useSetGrowthbookAttributes';
 export * from './useAccountByAddress';
 export * from './useAccountGroups';
