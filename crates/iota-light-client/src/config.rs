@@ -18,13 +18,18 @@ const CHECKPOINTS_FILE_NAME: &str = "checkpoints.yaml";
 /// The config file for the light client.
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct Config {
-    /// The directory containing synced full checkpoints and checkpoint
-    /// summaries.
+    /// An RPC endpoint to a full node.
     pub rpc_url: String,
+    /// A GraphQL endpoint to a full node.
     pub graphql_url: Option<String>,
+    /// The directory containing synced checkpoints.
     pub checkpoints_dir: PathBuf,
+    /// Flag to enable automatic syncing before running one of the check
+    /// commands.
     pub sync_before_check: bool,
+    /// A URL to an object store storing checkpoint summaries.
     pub object_store_url: Option<String>,
+    /// An config to sync the light client from an archive store.
     pub archive_store_config: Option<ObjectStoreConfig>,
 }
 
