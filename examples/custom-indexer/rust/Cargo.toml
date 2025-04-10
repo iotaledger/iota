@@ -9,7 +9,7 @@ license = "Apache-2.0"
 anyhow = "1.0"
 async-trait = "0.1"
 prometheus = "0.13"
-tokio = "1.43"
+tokio = "1.44"
 tokio-util = "0.7"
 
 # internal dependencies

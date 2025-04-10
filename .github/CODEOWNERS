@@ -38,6 +38,7 @@
 /crates/iota-keys/ @iotaledger/dev-tools
 /crates/iota-light-client/ @iotaledger/dev-tools
 /crates/iota-macros/ @iotaledger/dev-tools
+/crates/iota-mainnet-unlocks/ @iotaledger/infrastructure
 /crates/iota-metric-checker/ @iotaledger/node
 /crates/iota-metrics/ @iotaledger/core-protocol
 /crates/iota-move/ @iotaledger/vm-language

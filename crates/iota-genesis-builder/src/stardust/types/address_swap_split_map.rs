@@ -1,8 +1,9 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::collections::HashMap;
+use std::{collections::HashMap, fs::File};
 
+use iota_config::genesis::csv_reader_with_comments;
 use iota_sdk::types::block::address::Address;
 use iota_types::base_types::IotaAddress;
 
@@ -123,6 +124,9 @@ impl AddressSwapSplitMap {
     /// iota1qr4chj9jwhauvegqy40sdhj93mzmvc3mg9cmzlv2y6j8vpyxpvug2y6h5jd,0x83b5ed87bac715ecb09017a72d531ccc3c43bcb58edeb1ce383f1c46cfd79bec,388647312000,0
     /// ```
     ///
+    /// Comments are optional, and start with a `#` character.
+    /// Only entries that start with this character are treated as comments.
+    ///
     /// # Parameters
     /// - `file_path`: The relative path to the CSV file containing the address
     ///   mappings.
@@ -138,7 +142,7 @@ impl AddressSwapSplitMap {
     pub fn from_csv(file_path: &str) -> Result<AddressSwapSplitMap, anyhow::Error> {
         let current_dir = std::env::current_dir()?;
         let file_path = current_dir.join(file_path);
-        let mut reader = csv::ReaderBuilder::new().from_path(file_path)?;
+        let mut reader = csv_reader_with_comments(File::open(file_path)?);
         let mut address_swap_split_map: AddressSwapSplitMap = Default::default();
 
         let headers = reader.headers()?;

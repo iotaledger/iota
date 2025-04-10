@@ -3,5 +3,4 @@
 export interface FormDataValues {
     amount: string;
     to: string;
-    gasBudgetEst: string;
 }
