@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { useFeatureValue } from '@growthbook/growthbook-react';
-import { Feature, COINS_QUERY_REFETCH_INTERVAL, COINS_QUERY_STALE_TIME } from '@iota/core';
+import { Feature, COINS_QUERY_REFETCH_INTERVAL, COINS_QUERY_STALE_TIME } from '..';
 
 export function useCoinsReFetchingConfig() {
     const refetchInterval = useFeatureValue(
