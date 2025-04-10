@@ -97,7 +97,7 @@ if [ "$rustc_version" != "$MIN_RUSTC_VERSION" ] && [[ $(echo -e "$rustc_version\
 fi
 
 # Build the binary
-# cargo build --release --bin iota-node
+cargo build --release --bin iota-node
 
 # Add a IOTA user, create directories for iota-node service
 if id iota &>/dev/null; then
