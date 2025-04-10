@@ -19,7 +19,7 @@ use iota_types::{
 use tracing::info;
 
 use crate::{
-    checkpoint::{CheckpointList, read_checkpoint, read_checkpoint_list},
+    checkpoint::{CheckpointList, read_checkpoint_list, read_checkpoint_summary},
     config::Config,
     object_store::IotaObjectStore,
 };
@@ -119,7 +119,7 @@ pub async fn get_verified_effects_and_events(
 
     // Download the full checkpoint for this sequence number
     let full_check_point = object_store
-        .get_full_checkpoint(seq)
+        .fetch_full_checkpoint(seq)
         .await
         .map_err(|e| anyhow!(format!("Cannot get full checkpoint: {e}")))?;
 
@@ -135,7 +135,7 @@ pub async fn get_verified_effects_and_events(
 
     let committee = if let Some(prev_ckp_id) = prev_ckp_id {
         // Read it from the store
-        let prev_ckp = read_checkpoint(config, *prev_ckp_id)?;
+        let prev_ckp = read_checkpoint_summary(config, *prev_ckp_id)?;
 
         // Check we have the right checkpoint
         anyhow::ensure!(
@@ -159,7 +159,7 @@ pub async fn get_verified_effects_and_events(
         Committee::new(prev_ckp.epoch().checked_add(1).unwrap(), current_committee)
     } else {
         // Since we did not find a small committee checkpoint we use the genesis
-        Genesis::load(&config.genesis_filepath())?
+        Genesis::load(config.genesis_blob_file_path())?
             .committee()
             .map_err(|e| anyhow!(format!("Cannot load Genesis: {e}")))?
     };
@@ -220,7 +220,7 @@ pub async fn get_verified_checkpoint(
 
     // Download the full checkpoint for this sequence number
     let full_check_point = object_store
-        .get_full_checkpoint(seq)
+        .fetch_full_checkpoint(seq)
         .await
         .map_err(|e| anyhow!(format!("Cannot get full checkpoint: {e}")))?;
 
@@ -236,7 +236,7 @@ pub async fn get_verified_checkpoint(
 
     let committee = if let Some(prev_ckp_id) = prev_ckp_id {
         // Read it from the store
-        let prev_ckp = read_checkpoint(config, *prev_ckp_id)?;
+        let prev_ckp = read_checkpoint_summary(config, *prev_ckp_id)?;
 
         // Check we have the right checkpoint
         anyhow::ensure!(
@@ -260,7 +260,7 @@ pub async fn get_verified_checkpoint(
         Committee::new(prev_ckp.epoch().checked_add(1).unwrap(), current_committee)
     } else {
         // Since we did not find a small committee checkpoint we use the genesis
-        Genesis::load(&config.genesis_filepath())?
+        Genesis::load(config.genesis_blob_file_path())?
             .committee()
             .map_err(|e| anyhow!(format!("Cannot load Genesis: {e}")))?
     };
@@ -285,20 +285,11 @@ pub async fn get_verified_checkpoint(
 // Make a test namespace
 #[cfg(test)]
 mod tests {
-    use std::{
-        fs,
-        io::{Read, Write},
-        path::{Path, PathBuf},
-        str::FromStr,
-    };
+    use std::{fs, io::Read, path::PathBuf, str::FromStr};
 
     use iota_types::{
-        crypto::AuthorityQuorumSignInfo,
         event::Event,
-        message_envelope::Envelope,
-        messages_checkpoint::{
-            CertifiedCheckpointSummary, CheckpointSummary, FullCheckpointContents,
-        },
+        messages_checkpoint::{CertifiedCheckpointSummary, FullCheckpointContents},
     };
 
     use super::*;
@@ -311,7 +302,7 @@ mod tests {
         checkpoint_path: &PathBuf,
     ) -> anyhow::Result<CertifiedCheckpointSummary> {
         let mut reader = fs::File::open(checkpoint_path.clone()).unwrap();
-        let metadata = fs::metadata(&checkpoint_path).unwrap();
+        let metadata = fs::metadata(checkpoint_path).unwrap();
         let mut buffer = vec![0; metadata.len() as usize];
         reader.read_exact(&mut buffer).unwrap();
         bcs::from_bytes(&buffer).map_err(|_| anyhow!("Unable to parse checkpoint summary file"))

@@ -20,7 +20,7 @@ const CHECKPOINTS_FILE_NAME: &str = "checkpoints.yaml";
 pub struct Config {
     /// The directory containing synced full checkpoints and checkpoint
     /// summaries.
-    pub checkpoints_sync_dir: PathBuf,
+    pub checkpoints_dir: PathBuf,
     pub full_node_url: String,
     pub graphql_url: Option<String>,
     pub object_store_url: Option<String>,
@@ -31,7 +31,7 @@ pub struct Config {
 impl Default for Config {
     fn default() -> Self {
         Self {
-            checkpoints_sync_dir: std::env::current_dir()
+            checkpoints_dir: std::env::current_dir()
                 .expect("error getting current directory")
                 .join("checkpoints_localnet"),
             full_node_url: "http://localhost:9000".to_string(),
@@ -53,7 +53,7 @@ impl Config {
 
     pub fn validate(&self) -> Result<()> {
         Url::parse(&self.full_node_url).map_err(|_| anyhow!("Invalid full node URL"))?;
-        if !self.checkpoints_sync_dir.is_dir() {
+        if !self.checkpoints_dir.is_dir() {
             bail!("Checkpoint directory does not exist");
         }
         if let Some(url) = &self.object_store_url {
@@ -62,39 +62,52 @@ impl Config {
         if let Some(url) = &self.graphql_url {
             Url::parse(url).map_err(|_| anyhow!("Invalid GraphQL URL"))?;
         }
-        if !self.checkpoints_filepath().is_file() {
+        if !self.checkpoints_list_file_path().is_file() {
             bail!(
                 "Sync file is missing at {}",
-                self.checkpoints_filepath().display()
+                self.checkpoints_list_file_path().display()
             );
         }
-        if !self.genesis_filepath().is_file() {
+        if !self.genesis_blob_file_path().is_file() {
             bail!(
                 "Genesis file is missing at {}",
-                self.genesis_filepath().display()
+                self.genesis_blob_file_path().display()
             );
         }
         Ok(())
     }
 
-    pub fn checkpoints_filepath(&self) -> PathBuf {
-        self.checkpoints_sync_dir.join(CHECKPOINTS_FILE_NAME)
+    pub fn checkpoints_list_file_path(&self) -> PathBuf {
+        self.checkpoints_dir.join(CHECKPOINTS_FILE_NAME)
     }
 
-    pub fn genesis_filepath(&self) -> PathBuf {
-        self.checkpoints_sync_dir.join(GENESIS_FILE_NAME)
+    pub fn genesis_blob_file_path(&self) -> PathBuf {
+        self.checkpoints_dir.join(GENESIS_FILE_NAME)
     }
 
-    pub fn checkpoint_path<'a>(
+    pub fn full_checkpoint_file_path<'a>(
         &self,
         seq: u64,
         custom_path: impl Into<Option<&'a str>>,
     ) -> PathBuf {
-        let mut path = self.checkpoints_sync_dir.clone();
+        let mut path = self.checkpoints_dir.clone();
         if let Some(custom) = custom_path.into() {
             path.push(custom);
         }
-        path.push(format!("{}.yaml", seq));
+        path.push(format!("{seq}.chk"));
+        path
+    }
+
+    pub fn checkpoint_summary_file_path<'a>(
+        &self,
+        seq: u64,
+        custom_path: impl Into<Option<&'a str>>,
+    ) -> PathBuf {
+        let mut path = self.checkpoints_dir.clone();
+        if let Some(custom) = custom_path.into() {
+            path.push(custom);
+        }
+        path.push(format!("{seq}.sum"));
         path
     }
 }
@@ -111,7 +124,7 @@ mod tests {
         std::fs::File::create(temp_dir.path().join("genesis.blob")).unwrap();
         std::fs::File::create(temp_dir.path().join("checkpoints.yaml")).unwrap();
         let config = Config {
-            checkpoints_sync_dir: temp_dir.path().to_path_buf(),
+            checkpoints_dir: temp_dir.path().to_path_buf(),
             full_node_url: "http://localhost:9000".to_string(),
             object_store_url: Some("http://localhost:9001".to_string()),
             archive_store_config: Some(ObjectStoreConfig {
@@ -135,21 +148,21 @@ mod tests {
     fn test_checkpoint_paths() {
         let (config, _temp_dir) = create_test_config();
 
-        let list_path = config.checkpoints_filepath();
+        let list_path = config.checkpoints_list_file_path();
         assert_eq!(list_path.file_name().unwrap(), "checkpoints.yaml");
 
-        let checkpoint_path = config.checkpoint_path(123, None);
-        assert_eq!(checkpoint_path.file_name().unwrap(), "123.yaml");
+        let checkpoint_path = config.full_checkpoint_file_path(123, None);
+        assert_eq!(checkpoint_path.file_name().unwrap(), "123.chk");
 
-        let custom_checkpoint_path = config.checkpoint_path(456, Some("custom"));
+        let custom_checkpoint_path = config.full_checkpoint_file_path(456, Some("custom"));
         assert!(custom_checkpoint_path.to_str().unwrap().contains("custom"));
-        assert_eq!(custom_checkpoint_path.file_name().unwrap(), "456.yaml");
+        assert_eq!(custom_checkpoint_path.file_name().unwrap(), "456.chk");
     }
 
     #[test]
     fn test_genesis_path() {
         let (config, _temp_dir) = create_test_config();
-        let genesis_path = config.genesis_filepath();
+        let genesis_path = config.genesis_blob_file_path();
         assert_eq!(genesis_path.file_name().unwrap(), "genesis.blob");
     }
 }

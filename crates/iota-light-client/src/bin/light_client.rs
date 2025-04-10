@@ -2,11 +2,11 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{fs, path::PathBuf, str::FromStr};
+use std::{path::PathBuf, str::FromStr};
 
 use clap::{Parser, Subcommand};
 use iota_light_client::{
-    checkpoint::check_and_sync_checkpoints,
+    checkpoint::sync_and_check_checkpoints,
     config::Config,
     package_store::RemotePackageStore,
     verifier::{get_verified_effects_and_events, get_verified_object},
@@ -65,10 +65,7 @@ pub async fn main() {
         .unwrap_or_else(|e| panic!("Unable to load config from {}: {e}", path.display()));
 
     // Print config parameters
-    println!(
-        "Checkpoint Sync Dir: {}",
-        config.checkpoints_sync_dir.display()
-    );
+    println!("Checkpoint Sync Dir: {}", config.checkpoints_dir.display());
 
     let remote_package_store = RemotePackageStore::new(config.clone());
     let resolver = Resolver::new(remote_package_store);
@@ -76,7 +73,7 @@ pub async fn main() {
     match args.command {
         Some(LightClientCommand::CheckTransaction { transaction_digest }) => {
             if config.sync_before_check {
-                check_and_sync_checkpoints(&config)
+                sync_and_check_checkpoints(&config)
                     .await
                     .expect("Failed to sync checkpoints");
             }
@@ -119,7 +116,7 @@ pub async fn main() {
         }
         Some(LightClientCommand::CheckObject { object_id }) => {
             if config.sync_before_check {
-                check_and_sync_checkpoints(&config)
+                sync_and_check_checkpoints(&config)
                     .await
                     .expect("Failed to sync checkpoints");
             }
@@ -154,7 +151,7 @@ pub async fn main() {
         }
 
         Some(LightClientCommand::Sync) => {
-            check_and_sync_checkpoints(&config)
+            sync_and_check_checkpoints(&config)
                 .await
                 .expect("Failed to sync checkpoints");
         }

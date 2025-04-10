@@ -20,7 +20,7 @@ pub struct IotaObjectStore {
 impl IotaObjectStore {
     pub fn new(config: &Config) -> Result<Self> {
         let url = Url::parse(
-            &config
+            config
                 .object_store_url
                 .as_ref()
                 .ok_or_else(|| anyhow!("missing object store url"))?,
@@ -29,56 +29,45 @@ impl IotaObjectStore {
         Ok(Self { store })
     }
 
-    pub async fn download_checkpoint_summary(
-        &self,
-        checkpoint_number: u64,
-    ) -> Result<CertifiedCheckpointSummary> {
-        let path = Path::from(format!("{}.chk", checkpoint_number));
-        let response = self.store.get(&path).await?;
-        let bytes = response.bytes().await?;
+    pub async fn fetch_checkpoint_summary(&self, seq: u64) -> Result<CertifiedCheckpointSummary> {
+        // TODO clarify whether only full checkpoints are uploaded to the object store
+        let full_checkpoint = self.fetch_full_checkpoint(seq).await?;
 
-        let (_, blob) = bcs::from_bytes::<(u8, CheckpointData)>(&bytes)?;
-
-        info!("Downloaded checkpoint summary: {}", checkpoint_number);
-        Ok(blob.checkpoint_summary)
+        Ok(full_checkpoint.checkpoint_summary)
     }
 
-    pub async fn get_full_checkpoint(&self, checkpoint_number: u64) -> Result<CheckpointData> {
-        let path = Path::from(format!("{}.chk", checkpoint_number));
-        info!("Request full checkpoint: {}", path);
+    pub async fn fetch_full_checkpoint(&self, seq: u64) -> Result<CheckpointData> {
+        let path = Path::from(format!("{seq}.chk"));
         let response = self
             .store
             .get(&path)
             .await
-            .map_err(|_| anyhow!("Cannot get full checkpoint from object store"))?;
+            .map_err(|e| anyhow!("Failed to fetch full checkpoint from object store: {e}"))?;
         let bytes = response.bytes().await?;
         let (_, full_checkpoint) = bcs::from_bytes::<(u8, CheckpointData)>(&bytes)?;
+
+        info!("Fetched full checkpoint '{}' from object store:", &path);
+
         Ok(full_checkpoint)
     }
 }
 
 #[async_trait]
 pub trait ObjectStoreExt {
-    async fn get_checkpoint_summary(
-        &self,
-        checkpoint_number: u64,
-    ) -> Result<CertifiedCheckpointSummary>;
+    async fn get_checkpoint_summary(&self, seq: u64) -> Result<CertifiedCheckpointSummary>;
 }
 
 #[async_trait]
 impl ObjectStoreExt for IotaObjectStore {
-    async fn get_checkpoint_summary(
-        &self,
-        checkpoint_number: u64,
-    ) -> Result<CertifiedCheckpointSummary> {
-        self.download_checkpoint_summary(checkpoint_number).await
+    async fn get_checkpoint_summary(&self, seq: u64) -> Result<CertifiedCheckpointSummary> {
+        self.fetch_checkpoint_summary(seq).await
     }
 }
 
 pub async fn download_checkpoint_summary(
     config: &Config,
-    checkpoint_number: u64,
+    seq: u64,
 ) -> Result<CertifiedCheckpointSummary> {
     let store = IotaObjectStore::new(config)?;
-    store.get_checkpoint_summary(checkpoint_number).await
+    store.get_checkpoint_summary(seq).await
 }

@@ -1,8 +1,8 @@
 # Provide an existing directory that contains the genesis file of the network
-checkpoints_sync_dir: ""
-genesis_filename: "genesis.blob"
 full_node_url: "http://localhost:9000"
+checkpoints_dir: "checkpoints_dir"
+genesis_filename: "genesis.blob"
 graphql_url: "http://localhost:9125"
 object_store_url: ~
 archive_store_config: ~
-sync_before_check: true
+sync_before_check: false

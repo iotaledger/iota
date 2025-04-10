@@ -10,7 +10,7 @@ use std::{
 
 use anyhow::anyhow;
 use iota_light_client::{
-    checkpoint::{CheckpointList, read_checkpoint_list},
+    checkpoint::read_checkpoint_list,
     config::Config,
     construct::construct_proof,
     proof::{Proof, ProofTarget, verify_proof},
@@ -25,12 +25,10 @@ use iota_types::{
 };
 
 const FIXTURES_DIR: &str = "tests/fixtures";
-const FIXTURE_1: &str = "235.sum";
-const FIXTURE_2: &str = "469.chk";
 
 async fn read_test_data() -> (Committee, CheckpointData) {
     let config = Config {
-        checkpoints_sync_dir: PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(FIXTURES_DIR),
+        checkpoints_dir: PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(FIXTURES_DIR),
         ..Default::default()
     };
     let checkpoint_list =
@@ -80,7 +78,7 @@ async fn read_checkpoint_summary(
     checkpoint_path: &PathBuf,
 ) -> anyhow::Result<CertifiedCheckpointSummary> {
     let mut reader = fs::File::open(checkpoint_path.clone()).unwrap();
-    let metadata = fs::metadata(&checkpoint_path).unwrap();
+    let metadata = fs::metadata(checkpoint_path).unwrap();
     let mut buffer = vec![0; metadata.len() as usize];
     reader.read_exact(&mut buffer).unwrap();
     bcs::from_bytes(&buffer).map_err(|_| anyhow!("Unable to parse checkpoint summary file"))

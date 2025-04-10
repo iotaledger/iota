@@ -9,7 +9,6 @@ pub mod graphql;
 pub mod object_store;
 pub mod package_store;
 pub mod proof;
-pub mod utils;
 pub mod verifier;
 
 #[doc(inline)]
