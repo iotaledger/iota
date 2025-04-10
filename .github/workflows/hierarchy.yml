@@ -17,7 +17,7 @@ jobs:
     concurrency:
       group: diff-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
       cancel-in-progress: ${{ github.ref != 'refs/heads/develop' }}
-    if: (!cancelled() && !failure() && (github.event.pull_request.draft == false || contains(github.event.pull_request.body, '[run-ci]')))
+    if: (github.event.pull_request.draft == false || contains(github.event.pull_request.body, '[run-ci]'))
     outputs:
       isRust: ${{ steps.diff.outputs.isRust }}
       isRustExample: ${{ steps.diff.outputs.isRustExample }}
@@ -39,14 +39,14 @@ jobs:
     concurrency:
       group: dprint-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
       cancel-in-progress: ${{ github.ref != 'refs/heads/develop' }}
-    if: (!cancelled() && !failure() && (github.event.pull_request.draft == false || contains(github.event.pull_request.body, '[run-ci]')))
+    if: (github.event.pull_request.draft == false || contains(github.event.pull_request.body, '[run-ci]'))
     steps:
       - uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871 # v4.2.1
       - name: Check dprint formatting
         run: dprint check
 
   typos:
-    if: (!cancelled() && !failure() && (github.event.pull_request.draft == false || contains(github.event.pull_request.body, '[run-ci]')))
+    if: (github.event.pull_request.draft == false || contains(github.event.pull_request.body, '[run-ci]'))
     uses: ./.github/workflows/_typos.yml
 
   license-check:
@@ -55,7 +55,7 @@ jobs:
       group: license-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
       cancel-in-progress: ${{ github.ref != 'refs/heads/develop' }}
     needs: diff
-    if: (!cancelled() && !failure() && needs.diff.outputs.isRust == 'true' && (github.event.pull_request.draft == false || contains(github.event.pull_request.body, '[run-ci]')))
+    if: (!cancelled() && needs.diff.outputs.isRust == 'true' && (github.event.pull_request.draft == false || contains(github.event.pull_request.body, '[run-ci]')))
     runs-on: [self-hosted-x64]
     steps:
       - uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871 # v4.2.1
@@ -64,12 +64,12 @@ jobs:
 
   docusaurus:
     needs: diff
-    if: (!cancelled() && !failure() && needs.diff.outputs.isDoc == 'true' && (github.event.pull_request.draft == false || contains(github.event.pull_request.body, '[run-ci]')))
+    if: (!cancelled() && needs.diff.outputs.isDoc == 'true' && (github.event.pull_request.draft == false || contains(github.event.pull_request.body, '[run-ci]')))
     uses: ./.github/workflows/_docusaurus.yml
 
   docs-lint:
     needs: diff
-    if: (!cancelled() && !failure() && needs.diff.outputs.isDoc == 'true' && (github.event.pull_request.draft == false || contains(github.event.pull_request.body, '[run-ci]')))
+    if: (!cancelled() && needs.diff.outputs.isDoc == 'true' && (github.event.pull_request.draft == false || contains(github.event.pull_request.body, '[run-ci]')))
     uses: ./.github/workflows/_docs_lint.yml
 
   rust:
@@ -78,7 +78,7 @@ jobs:
       - dprint-format
       - license-check
       - typos
-    if: (!cancelled() && !failure() && needs.diff.outputs.isDoc == 'true' && (github.event.pull_request.draft == false || contains(github.event.pull_request.body, '[run-ci]')))
+    if: (!cancelled() && !failure() && (github.event.pull_request.draft == false || contains(github.event.pull_request.body, '[run-ci]')))
     uses: ./.github/workflows/_rust.yml
     secrets: inherit
     with:
