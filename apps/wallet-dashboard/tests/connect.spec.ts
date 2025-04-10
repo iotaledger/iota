@@ -2,14 +2,13 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { test, expect } from './fixtures';
-import { createWallet } from './utils';
+import { connectWallet, createWallet } from './utils';
 import 'dotenv/config';
 
 test.describe('Wallet Connection', () => {
     test.beforeEach(async ({ page, extensionUrl, sharedState }) => {
         // Navigate to the wallet dashboard
         await page.goto('/');
-        await page.waitForSelector('.welcome-page');
 
         // Import a wallet in the extension
         await page.goto(extensionUrl);
@@ -23,12 +22,13 @@ test.describe('Wallet Connection', () => {
         await page.waitForSelector('.welcome-page');
     });
 
-    test('should connect to wallet extension', async ({ context, page, sharedState }) => {
-        const connectButton = page.getByRole('button', { name: 'Connect' });
-        await connectButton.click();
-
-        // Select the extension wallet option
-        await page.getByText('IOTA Wallet', { exact: true }).click();
+    test('should connect to wallet extension', async ({
+        context,
+        page,
+        sharedState,
+        extensionName,
+    }) => {
+        await connectWallet(page, context, extensionName);
 
         // The extension should appear in a popup, need to handle that
         const approveWalletConnectPage = context.waitForEvent('page');
@@ -50,5 +50,35 @@ test.describe('Wallet Connection', () => {
             .getAttribute('data-full-address');
 
         expect(displayedFullAddress).toBe(sharedState.walletAddress);
+    });
+
+    test('should return to main screen when disconnecting from wallet', async ({
+        context,
+        page,
+        extensionUrl,
+        extensionName,
+    }) => {
+        await connectWallet(page, context, extensionName);
+
+        // Switch back to main page
+        await page.bringToFront();
+
+        await page.locator('[data-full-address]').waitFor({ state: 'visible' });
+
+        // Disconnect from the wallet
+        const extensionPage = await context.newPage();
+        await extensionPage.goto(`${extensionUrl}#/apps/connected`);
+
+        await extensionPage.getByText('localhost').first().click();
+
+        await extensionPage.getByRole('button', { name: 'Disconnect' }).click();
+
+        await page.bringToFront();
+
+        await expect(
+            page.getByText('Connecting you to the decentralized web and IOTA network'),
+        ).toBeVisible({ timeout: 10000 });
+
+        await expect(page.getByRole('button', { name: 'Connect' })).toBeVisible();
     });
 });

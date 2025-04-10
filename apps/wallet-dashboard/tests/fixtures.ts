@@ -19,6 +19,7 @@ export const test = base.extend<{
     sharedState: SharedState;
     context: BrowserContext;
     extensionUrl: string;
+    extensionName: string;
 }>({
     sharedState: async ({ context }, use) => {
         await use(sharedState);
@@ -54,6 +55,13 @@ export const test = base.extend<{
         const extensionUrl = `chrome-extension://${extensionId}/ui.html`;
 
         await use(extensionUrl);
+    },
+    extensionName: async ({ context, extensionUrl }, use) => {
+        const extPage = await context.newPage();
+        await extPage.goto(extensionUrl);
+
+        const extensionName = await extPage.title();
+        await use(extensionName);
     },
 });
 
