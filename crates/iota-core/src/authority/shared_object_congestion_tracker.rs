@@ -91,7 +91,7 @@ impl ExecutionSlot {
     }
 }
 
-// SharedObjectCongestionTracker stores the available and occupied execution
+// `SharedObjectCongestionTracker` stores the available and occupied execution
 // slots for the transactions within a consensus commit.
 //
 // When transactions are scheduled by the consensus handler, each scheduled
@@ -100,9 +100,9 @@ impl ExecutionSlot {
 // The goal of this data structure is to capture the critical path of
 // transaction execution latency on each objects.
 //
-// The mode field determines how the transaction cost is calculated.
+// The `mode` field determines how the transaction cost is calculated.
 //
-// The min_free_execution_slot field determines how the start time of a
+// The `assign_min_free_execution_slot` field determines how the start time of a
 // transaction should be assigned. If true, the tracker will assign the start
 // time according to the minimum free execution slot for a transaction over all
 // its shared objects. If false, the tracker will assign the start time
@@ -112,15 +112,15 @@ impl ExecutionSlot {
 pub struct SharedObjectCongestionTracker {
     object_execution_slots: HashMap<ObjectID, Vec<ExecutionSlot>>,
     mode: PerObjectCongestionControlMode,
-    min_free_execution_slot: bool,
+    assign_min_free_execution_slot: bool,
 }
 
 impl SharedObjectCongestionTracker {
-    pub fn new(mode: PerObjectCongestionControlMode, min_free_execution_slot: bool) -> Self {
+    pub fn new(mode: PerObjectCongestionControlMode, assign_min_free_execution_slot: bool) -> Self {
         Self {
             object_execution_slots: HashMap::new(),
             mode,
-            min_free_execution_slot,
+            assign_min_free_execution_slot,
         }
     }
 
@@ -140,17 +140,17 @@ impl SharedObjectCongestionTracker {
                 .entry(obj.id)
                 .or_insert(vec![ExecutionSlot::new(0, u64::MAX, false)]);
         }
-        if self.min_free_execution_slot {
-            // If min_free_execution_slot is true, we assign the transaction start time
-            // based on the lowest free execution slot that can accommodates the
+        if self.assign_min_free_execution_slot {
+            // If `assign_min_free_execution_slot` is true, we assign the transaction start
+            // time based on the lowest free execution slot that can accommodates the
             // transaction. We start the search from the full range of the slots
             // available with no constraints from previous objects.
             let initial_free_slot = ExecutionSlot::new(0, u64::MAX, false);
             self.compute_min_free_execution_slot(shared_input_objects, tx_cost, initial_free_slot)
                 .unwrap_or(u64::MAX)
         } else {
-            // If min_free_execution_slot is false, we assign the transaction start time
-            // based on the maximum end time of the occupied execution slots for the
+            // If `assign_min_free_execution_slot` is false, we assign the transaction start
+            // time based on the maximum end time of the occupied execution slots for the
             // transaction over all its shared objects.
             shared_input_objects
                 .iter()
@@ -269,11 +269,11 @@ impl SharedObjectCongestionTracker {
                 .object_execution_slots
                 .get(&obj.id)
                 .expect("Execution slot vector should have been inserted when computing start time or before.");
-            if self.min_free_execution_slot {
-                // If we are using min_free_execution_slot, we define an object as congested if
-                // the lowest free slot for that object is the same as the start time of the
-                // entire transaction. This means that this shared object was the bottleneck for
-                // the transaction.
+            if self.assign_min_free_execution_slot {
+                // If we are using `assign_min_free_execution_slot`, we define an object as
+                // congested if the lowest free slot for that object is the same as the start
+                // time of the entire transaction. This means that this shared object was the
+                // bottleneck for the transaction.
                 let obj_id = obj.id;
                 if self
                     .compute_min_free_execution_slot(
@@ -286,8 +286,8 @@ impl SharedObjectCongestionTracker {
                     congested_objects.push(obj_id);
                 }
             } else {
-                // If we are not using min_free_execution_slot, we define an object as congested
-                // if the maximum free slot start time is the same as the start
+                // If we are not using `assign_min_free_execution_slot`, we define an object
+                // as congested if the maximum free slot start time is the same as the start
                 // time of the entire transaction. This means that this shared
                 // object was the bottleneck for the transaction in this case.
                 if start_time == max_object_free_slot_start_time(execution_slots) {
@@ -543,10 +543,10 @@ pub mod shared_object_test_utils {
     pub fn new_congestion_tracker_with_initial_value_for_test(
         init_values: &[(ObjectID, u64)],
         mode: PerObjectCongestionControlMode,
-        min_free_execution_slot: bool,
+        assign_min_free_execution_slot: bool,
     ) -> SharedObjectCongestionTracker {
         let mut shared_object_congestion_tracker =
-            SharedObjectCongestionTracker::new(mode, min_free_execution_slot);
+            SharedObjectCongestionTracker::new(mode, assign_min_free_execution_slot);
         // add initial values for each transaction
         for (object_id, cost) in init_values {
             match mode {
@@ -594,7 +594,7 @@ mod object_cost_tests {
     use super::{shared_object_test_utils::*, *};
 
     #[rstest]
-    fn test_compute_tx_start_at_cost(#[values(true, false)] min_free_execution_slot: bool) {
+    fn test_compute_tx_start_at_cost(#[values(true, false)] assign_min_free_execution_slot: bool) {
         let object_id_0 = ObjectID::random();
         let object_id_1 = ObjectID::random();
         let object_id_2 = ObjectID::random();
@@ -605,7 +605,7 @@ mod object_cost_tests {
             new_congestion_tracker_with_initial_value_for_test(
                 &[(object_id_0, 5), (object_id_1, 9)],
                 PerObjectCongestionControlMode::TotalGasBudget,
-                min_free_execution_slot,
+                assign_min_free_execution_slot,
             );
 
         // The tracker has the following object execution cost:
@@ -652,21 +652,26 @@ mod object_cost_tests {
         // 9| xxxxxxxxxxxx     | xxxxxxxxxxxx     | xxxxxxxxxxxx     |
 
         // a transaction with cost 4 that reads object 0 should have start_time 5 with
-        // min_free_execution_slot or 10 without min_free_execution_slot.
+        // `assign_min_free_execution_slot` or 10 without
+        // `assign_min_free_execution_slot`.
         let shared_input_objects = construct_shared_input_objects(&[(object_id_0, false)]);
         assert_eq!(
             shared_object_congestion_tracker.compute_tx_start_time(&shared_input_objects, 4),
-            if min_free_execution_slot { 5 } else { 10 }
+            if assign_min_free_execution_slot {
+                5
+            } else {
+                10
+            }
         );
         // a transaction with cost 5 that reads object 0 should have start_time 10 with
-        // or without min_free_execution_slot.
+        // or without `assign_min_free_execution_slot`.
         assert_eq!(
             shared_object_congestion_tracker.compute_tx_start_time(&shared_input_objects, 5),
             10
         );
 
         // a transaction with cost 5 that writes object 1 should have start_time 10 with
-        // or without min_free_execution_slot.
+        // or without `assign_min_free_execution_slot`.
         let shared_input_objects = construct_shared_input_objects(&[(object_id_1, true)]);
         assert_eq!(
             shared_object_congestion_tracker.compute_tx_start_time(&shared_input_objects, 5),
@@ -674,7 +679,7 @@ mod object_cost_tests {
         );
 
         // a transaction with cost 5 that reads objects 0 and 1 should have start_time
-        // 10 with or without min_free_execution_slot.
+        // 10 with or without `assign_min_free_execution_slot`.
         let shared_input_objects =
             construct_shared_input_objects(&[(object_id_0, false), (object_id_1, false)]);
         assert_eq!(
@@ -683,7 +688,7 @@ mod object_cost_tests {
         );
 
         // a transaction with cost 5 that writes objects 0 and 1 should have start_time
-        // 10 with or without min_free_execution_slot.
+        // 10 with or without `assign_min_free_execution_slot`.
         let shared_input_objects =
             construct_shared_input_objects(&[(object_id_0, true), (object_id_1, true)]);
         assert_eq!(
@@ -692,15 +697,20 @@ mod object_cost_tests {
         );
 
         // a transaction with cost 5 that writes object 2 should have start_time 0 with
-        // min_free_execution_slot or 10 without min_free_execution_slot.
+        // `assign_min_free_execution_slot` or 10 without
+        // `assign_min_free_execution_slot`.
         let shared_input_objects = construct_shared_input_objects(&[(object_id_2, true)]);
         assert_eq!(
             shared_object_congestion_tracker.compute_tx_start_time(&shared_input_objects, 5),
-            if min_free_execution_slot { 0 } else { 10 }
+            if assign_min_free_execution_slot {
+                0
+            } else {
+                10
+            }
         );
 
         // a transaction with cost 5 that writes to the previously untouched object 3
-        // should have start_time 0 with or without min_free_execution_slot.
+        // should have start_time 0 with or without `assign_min_free_execution_slot`.
         let shared_input_objects = construct_shared_input_objects(&[(object_id_3, true)]);
         assert_eq!(
             shared_object_congestion_tracker.compute_tx_start_time(&shared_input_objects, 5),
@@ -708,12 +718,17 @@ mod object_cost_tests {
         );
 
         // a transaction with cost 3 that reads objects 0 and 2 should have start_time
-        // 5 with min_free_execution_slot or 10 without min_free_execution_slot.
+        // 5 with `assign_min_free_execution_slot` or 10 without
+        // `assign_min_free_execution_slot`.
         let shared_input_objects =
             construct_shared_input_objects(&[(object_id_0, false), (object_id_2, false)]);
         assert_eq!(
             shared_object_congestion_tracker.compute_tx_start_time(&shared_input_objects, 3),
-            if min_free_execution_slot { 5 } else { 10 }
+            if assign_min_free_execution_slot {
+                5
+            } else {
+                10
+            }
         );
     }
 
@@ -724,7 +739,7 @@ mod object_cost_tests {
             PerObjectCongestionControlMode::TotalTxCount
         )]
         mode: PerObjectCongestionControlMode,
-        #[values(true, false)] min_free_execution_slot: bool,
+        #[values(true, false)] assign_min_free_execution_slot: bool,
     ) {
         // Creates two shared objects and three transactions that operate on these
         // objects.
@@ -754,7 +769,7 @@ mod object_cost_tests {
                 new_congestion_tracker_with_initial_value_for_test(
                     &[(shared_obj_0, 9), (shared_obj_1, 1)],
                     mode,
-                    min_free_execution_slot,
+                    assign_min_free_execution_slot,
                 )
             }
             PerObjectCongestionControlMode::TotalTxCount => {
@@ -766,7 +781,7 @@ mod object_cost_tests {
                 new_congestion_tracker_with_initial_value_for_test(
                     &[(shared_obj_0, 2), (shared_obj_1, 1)],
                     mode,
-                    min_free_execution_slot,
+                    assign_min_free_execution_slot,
                 )
             }
         };
@@ -812,7 +827,7 @@ mod object_cost_tests {
         }
 
         // Read/write to object 1 should be scheduled with start_time 1 with
-        // min_free_execution_slot and deferred otherwise.
+        // `assign_min_free_execution_slot` and deferred otherwise.
         for mutable in [true, false].iter() {
             let tx = build_transaction(&[(shared_obj_1, *mutable)], tx_gas_budget);
             let sequencing_result = shared_object_congestion_tracker.try_schedule(
@@ -821,7 +836,7 @@ mod object_cost_tests {
                 &HashMap::new(),
                 0,
             );
-            if min_free_execution_slot {
+            if assign_min_free_execution_slot {
                 matches!(sequencing_result, SequencingResult::Schedule(1));
             } else if let SequencingResult::Defer(_, congested_objects) = sequencing_result {
                 assert_eq!(congested_objects.len(), 1);
@@ -847,14 +862,14 @@ mod object_cost_tests {
                         0,
                     )
                 {
-                    // with min_free_execution_slot, only object 0 is congested.
-                    // without min_free_execution_slot, both objects are congested.
+                    // with `assign_min_free_execution_slot`, only object 0 is congested.
+                    // without `assign_min_free_execution_slot`, both objects are congested.
                     assert_eq!(
                         congested_objects.len(),
-                        if min_free_execution_slot { 1 } else { 2 }
+                        if assign_min_free_execution_slot { 1 } else { 2 }
                     );
                     assert_eq!(congested_objects[0], shared_obj_0);
-                    if !min_free_execution_slot {
+                    if !assign_min_free_execution_slot {
                         assert_eq!(congested_objects[1], shared_obj_1);
                     }
                 } else {
@@ -972,7 +987,7 @@ mod object_cost_tests {
             PerObjectCongestionControlMode::TotalTxCount
         )]
         mode: PerObjectCongestionControlMode,
-        #[values(true, false)] min_free_execution_slot: bool,
+        #[values(true, false)] assign_min_free_execution_slot: bool,
     ) {
         let object_id_0 = ObjectID::random();
         let object_id_1 = ObjectID::random();
@@ -982,7 +997,7 @@ mod object_cost_tests {
             new_congestion_tracker_with_initial_value_for_test(
                 &[(object_id_0, 5), (object_id_1, 10)],
                 mode,
-                min_free_execution_slot,
+                assign_min_free_execution_slot,
             );
         assert_eq!(
             shared_object_congestion_tracker.max_occupied_slot_end_time(),
@@ -1002,7 +1017,7 @@ mod object_cost_tests {
             new_congestion_tracker_with_initial_value_for_test(
                 &[(object_id_0, 5), (object_id_1, 10)],
                 mode,
-                min_free_execution_slot,
+                assign_min_free_execution_slot,
             )
         );
         assert_eq!(
@@ -1100,7 +1115,7 @@ mod object_cost_tests {
     }
 
     #[rstest]
-    fn test_cost_overflow(#[values(true, false)] min_free_execution_slot: bool) {
+    fn test_cost_overflow(#[values(true, false)] assign_min_free_execution_slot: bool) {
         let object_id_0 = ObjectID::random();
         let object_id_1 = ObjectID::random();
         let object_id_2 = ObjectID::random();
@@ -1120,7 +1135,7 @@ mod object_cost_tests {
             new_congestion_tracker_with_initial_value_for_test(
                 &[(object_id_0, u64::MAX - 1), (object_id_1, u64::MAX - 1)],
                 PerObjectCongestionControlMode::TotalGasBudget,
-                min_free_execution_slot,
+                assign_min_free_execution_slot,
             );
 
         let tx = build_transaction(&[(object_id_0, true)], 1);
@@ -1210,14 +1225,14 @@ mod object_cost_tests {
                 0,
             )
         {
-            // with min_free_execution_slot, only object 0 is cause of congestion.
-            // without min_free_execution_slot, both objects are congested.
+            // with `assign_min_free_execution_slot`, only object 0 is cause of congestion.
+            // without `assign_min_free_execution_slot`, both objects are congested.
             assert_eq!(
                 congested_objects.len(),
-                if min_free_execution_slot { 1 } else { 2 }
+                if assign_min_free_execution_slot { 1 } else { 2 }
             );
             assert_eq!(congested_objects[0], object_id_0);
-            if !min_free_execution_slot {
+            if !assign_min_free_execution_slot {
                 assert_eq!(congested_objects[1], object_id_1);
             }
         } else {
@@ -1258,7 +1273,7 @@ mod object_cost_tests {
             new_congestion_tracker_with_initial_value_for_test(
                 &[(object_id_0, 0), (object_id_1, 1), (object_id_2, 2)],
                 PerObjectCongestionControlMode::TotalGasBudget,
-                min_free_execution_slot,
+                assign_min_free_execution_slot,
             );
 
         let tx = build_transaction(
@@ -1328,7 +1343,7 @@ mod object_cost_tests {
             new_congestion_tracker_with_initial_value_for_test(
                 &[(object_id_0, u64::MAX)],
                 PerObjectCongestionControlMode::TotalGasBudget,
-                min_free_execution_slot,
+                assign_min_free_execution_slot,
             );
 
         let tx = build_transaction(&[(object_id_0, true)], u64::MAX);
