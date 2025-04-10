@@ -38,6 +38,7 @@ interface EnterAmountDialogLayoutProps {
     handleStake: () => void;
     isStakeDisabled?: boolean;
     totalGas?: string | number | null;
+    errorMessage?: string;
 }
 
 export function EnterAmountDialogLayout({
@@ -50,6 +51,7 @@ export function EnterAmountDialogLayout({
     infoMessage,
     isLoading,
     isStakeDisabled,
+    errorMessage,
     onBack,
     handleClose,
     handleStake,
@@ -141,12 +143,28 @@ export function EnterAmountDialogLayout({
                 </div>
             </DialogLayoutBody>
             <DialogLayoutFooter>
+                {errorMessage ? (
+                    <div className="mb-sm">
+                        <InfoBox
+                            type={InfoBoxType.Error}
+                            supportingText={errorMessage}
+                            style={InfoBoxStyle.Elevated}
+                            icon={<Exclamation />}
+                        />
+                    </div>
+                ) : null}
                 <div className="flex w-full justify-between gap-sm">
                     <Button fullWidth type={ButtonType.Secondary} onClick={onBack} text="Back" />
                     <Button
                         fullWidth
                         type={ButtonType.Primary}
-                        disabled={!amount || !!errors?.amount || isLoading || isStakeDisabled}
+                        disabled={
+                            !amount ||
+                            !!errors?.amount ||
+                            isLoading ||
+                            isStakeDisabled ||
+                            !!errorMessage
+                        }
                         onClick={handleStake}
                         text="Stake"
                         icon={

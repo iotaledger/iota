@@ -38,7 +38,18 @@ import {
     InfoBoxStyle,
     InfoBoxType,
 } from '@iota/apps-ui-kit';
-import { Theme, useFormatCoin, useTheme, useCountdownByTimestamp, toast } from '@iota/core';
+import {
+    Theme,
+    useFormatCoin,
+    useTheme,
+    useCountdownByTimestamp,
+    toast,
+    useBalance,
+    GAS_BUDGET_ERROR_MESSAGES,
+    GAS_BALANCE_TOO_LOW_ID,
+    MIN_NUMBER_IOTA_TO_STAKE,
+    NOT_ENOUGH_BALANCE_ID,
+} from '@iota/core';
 import {
     useCurrentAccount,
     useIotaClient,
@@ -52,6 +63,7 @@ import { StakedTimelockObject } from '@/components';
 import { IotaSignAndExecuteTransactionOutput } from '@iota/wallet-standard';
 import { ampli } from '@/lib/utils/analytics';
 import clsx from 'clsx';
+import BigNumber from 'bignumber.js';
 
 export default function VestingDashboardPage(): JSX.Element {
     const [timelockedObjectsToUnstake, setTimelockedObjectsToUnstake] =
@@ -63,6 +75,7 @@ export default function VestingDashboardPage(): JSX.Element {
     const [isVestingScheduleDialogOpen, setIsVestingScheduleDialogOpen] = useState(false);
     const { mutateAsync: signAndExecuteTransaction } = useSignAndExecuteTransaction();
     const { theme } = useTheme();
+    const { data: balance } = useBalance(address);
 
     const videoSrc =
         theme === Theme.Dark
@@ -83,6 +96,8 @@ export default function VestingDashboardPage(): JSX.Element {
         supplyIncreaseVestingUnlockedMaxSize,
         isUnlockPending,
         resetMaxTransactionSize,
+        isUnlockError,
+        unlockError,
     } = useGetSupplyIncreaseVestingObjects(address);
 
     const timelockedStakedObjectsGrouped: TimelockedStakedObjectsGrouped[] =
@@ -162,6 +177,20 @@ export default function VestingDashboardPage(): JSX.Element {
     }
 
     const handleCollect = () => {
+        if (isUnlockError && unlockError?.message.includes(NOT_ENOUGH_BALANCE_ID)) {
+            toast.error(GAS_BUDGET_ERROR_MESSAGES[NOT_ENOUGH_BALANCE_ID]);
+            return;
+        }
+
+        if (
+            new BigNumber(balance?.totalBalance || 0).lt(
+                unlockAllSupplyIncreaseVesting?.transactionBlock?.getData?.().gasData?.budget || 0,
+            )
+        ) {
+            toast.error(GAS_BUDGET_ERROR_MESSAGES[GAS_BALANCE_TOO_LOW_ID]);
+            return;
+        }
+
         if (!unlockAllSupplyIncreaseVesting?.transactionBlock) {
             toast.error('Failed to create a Transaction');
             return;
@@ -340,10 +369,19 @@ export default function VestingDashboardPage(): JSX.Element {
                                     <Button
                                         type={ButtonType.Primary}
                                         text="Stake"
-                                        disabled={
-                                            supplyIncreaseVestingSchedule.availableStaking === 0n
-                                        }
                                         onClick={() => {
+                                            if (
+                                                supplyIncreaseVestingSchedule.availableStaking ===
+                                                    0n ||
+                                                new BigNumber(formattedAvailableStaking).lt(
+                                                    MIN_NUMBER_IOTA_TO_STAKE,
+                                                )
+                                            ) {
+                                                toast.error(
+                                                    'Not enough funds available for staking',
+                                                );
+                                                return;
+                                            }
                                             setStakeDialogView(StakeDialogView.SelectValidator);
                                         }}
                                     />
