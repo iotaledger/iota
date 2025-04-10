@@ -1,7 +1,7 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { MigrationObjectLoading, VirtualList, MigrationObjectDetailsCard } from '@/components';
+import { MigrationObjectLoading, MigrationObjectDetailsCard } from '@/components';
 import { useCurrentAccount } from '@iota/dapp-kit';
 import { IotaObjectData } from '@iota/iota-sdk/client';
 import {
@@ -18,7 +18,7 @@ import {
 } from '@iota/apps-ui-kit';
 import { useGroupedStardustObjects } from '@/hooks';
 import { Loader, Warning } from '@iota/apps-ui-icons';
-import { CoinFormat, Collapsible, GasSummaryType, useFormatCoin } from '@iota/core';
+import { CoinFormat, Collapsible, GasSummaryType, VirtualList, useFormatCoin } from '@iota/core';
 import { getStardustObjectsTotals, filterMigrationObjects } from '@/lib/utils';
 import { DialogLayout, DialogLayoutBody, DialogLayoutFooter } from '../../layout';
 import { Transaction } from '@iota/iota-sdk/transactions';
@@ -171,7 +171,6 @@ export function ConfirmMigrationView({
                                             <div className="flex h-full max-h-[300px] flex-col gap-y-sm pb-sm">
                                                 <VirtualList
                                                     heightClassName="h-full"
-                                                    overflowClassName="overflow-y-auto"
                                                     items={filteredObjects}
                                                     getItemKey={(migrationObject) =>
                                                         migrationObject.uniqueId
