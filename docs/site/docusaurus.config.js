@@ -289,6 +289,10 @@ const config = {
             to: "iota-identity",
           },
           {
+            label: "IOTA EVM",
+            to: "iota-evm",
+          },
+          {
             type: 'custom-WalletConnectButton',
             position: 'right',
           },
