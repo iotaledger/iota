@@ -15,7 +15,7 @@ function ActivityPage(): JSX.Element {
                         <Title title="Activity" size={TitleSize.Medium} />
                     </div>
                     <div className="px-sm pb-md pt-sm">
-                        <TransactionsList />
+                        <TransactionsList heightClassName="h-[calc(100vh-230px)]" />
                     </div>
                 </Panel>
             </div>
