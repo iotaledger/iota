@@ -143,20 +143,9 @@ write_to_file() {
 	fi
 }
 
-# This is only temporary, to make the script work locally without waiting for the PR to be merged
-# TODO after 6017 remove once yaml templates merged
-HACK_ROOT="$(git rev-parse --show-toplevel || echo "$CLONE_DIR")"
-
 # Create node config file
-CONFIG_TEMPLATE=$(if [ -f "$CLONE_DIR/setups/fullnode/fullnode-template-$NETWORK.yaml" ]; then
-	cat "$CLONE_DIR/setups/fullnode/fullnode-template-$NETWORK.yaml"
-else
-	# TODO after 6017 remove override once yaml files per network merged
-	# This hack is only temporary, to work around the problem that the template is not available until we merge this PR
-	cat "$HACK_ROOT/setups/fullnode/fullnode-template-$NETWORK.yaml"
-fi)
 CONFIG=$(
-	echo "$CONFIG_TEMPLATE" |
+	cat "$CLONE_DIR/setups/fullnode/fullnode-template-$NETWORK.yaml" |
 		# Set the genesis blob location to your $CONFIG directory
 		sed "s|/opt/iota/config/genesis.blob|$CONFIG_DIR/genesis.blob|g" |
 		# Set the migration blob location to your $CONFIG directory
@@ -176,15 +165,9 @@ cp ./target/release/iota-node "$BIN_DIR/iota-node"
 EXEC_START_CMD="\"$BIN_DIR/iota-node\" --config-path \"$CONFIG_DIR/fullnode.yaml\""
 
 # Create a systemd service definition file
-SERVICE_TEMPLATE=$(if [ -f "$CLONE_DIR/setups/fullnode/systemd/iota-node.service" ]; then
-	cat "$CLONE_DIR/setups/fullnode/systemd/iota-node.service"
-else
-	# TODO after 6017 remove use of HACK_ROOT local override (once file actually exists in $NETWORK branch/tag)
-	cat "$HACK_ROOT/setups/fullnode/systemd/iota-node.service"
-fi)
-# Set the start command to use your paths to the iota-node binary / to the config file
 SERVICE_DEF=$(
-	echo "$SERVICE_TEMPLATE" |
+	cat "$CLONE_DIR/setups/fullnode/systemd/iota-node.service" |
+		# Set the start command to use your paths to the iota-node binary / to the config file
 		sed "s|/usr/local/bin/iota-node --config-path /opt/iota/config/validator.yaml|$EXEC_START_CMD|g"
 )
 write_to_file "$SERVICE_DEF" "/etc/systemd/system/iota-node.service"
@@ -201,4 +184,4 @@ sudo systemctl enable iota-node.service
 sudo systemctl start iota-node
 
 # Check that the node is up and running
-sudo systemctl status iota-node
+sudo systemctl status --no-pager --no-legend iota-node
