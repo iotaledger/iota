@@ -168,6 +168,28 @@ function Evm(props: NetworkProps) {
             ))}
           </td>
         </tr>
+        {props.evmCustom.ankrApiUrls && (
+          <tr>
+            <th>
+              <Admonition type='tip' title='Ankr API URLs'>
+                <a href={'/build/rpcProviders/'}>Ankr API</a> enterprise-grade
+                globally distributed endpoints
+              </Admonition>
+            </th>
+            <td>
+              {props.evmCustom.ankrApiUrls.map((object, index) =>
+                typeof object === 'string' ? (
+                  <CodeBlock key={index}> {object as string} </CodeBlock>
+                ) : (
+                  <CodeBlock title={Object.keys(object)[0]} key={index}>
+                    {' '}
+                    {Object.values(object)[0]}{' '}
+                  </CodeBlock>
+                ),
+              )}
+            </td>
+          </tr>
+        )}
         {props.evmCustom.blastApiUrls && (
           <tr>
             <th>
