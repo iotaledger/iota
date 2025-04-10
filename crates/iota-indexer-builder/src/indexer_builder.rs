@@ -10,6 +10,7 @@ use std::{
 use anyhow::Error;
 use async_trait::async_trait;
 use iota_metrics::{metered_channel, spawn_monitored_task};
+use tap::tap::TapFallible;
 use tokio::task::JoinHandle;
 
 use crate::{Task, Tasks};
@@ -86,10 +87,28 @@ impl<P, D, M> Indexer<P, D, M> {
         P: Persistent<R> + 'static,
         T: Send,
     {
+        let task_name = self.name.clone();
         // Update tasks first
-        self.update_tasks().await?;
+        self.update_tasks()
+            .await
+            .tap_err(|e| {
+                tracing::error!(task_name, "Failed to update tasks: {:?}", e);
+            })
+            .tap_ok(|_| {
+                tracing::info!(task_name, "Tasks updated.");
+            })?;
         // get updated tasks from storage and start workers
-        let updated_tasks = self.storage.tasks(&self.name).await?;
+        let updated_tasks = self
+            .storage
+            .tasks(&self.name)
+            .await
+            .tap_err(|e| {
+                tracing::error!(task_name, "Failed to get updated tasks: {:?}", e);
+            })
+            .tap_ok(|tasks| {
+                tracing::info!(task_name, "Got updated tasks: {:?}", tasks);
+            })?;
+
         // Start latest checkpoint worker
         // Tasks are ordered in checkpoint descending order, realtime update task always
         // come first tasks won't be empty here, ok to unwrap.
@@ -113,7 +132,7 @@ impl<P, D, M> Indexer<P, D, M> {
         let datasource_clone = self.datasource.clone();
 
         let handle = spawn_monitored_task!(async {
-            // Execute task one by one
+            // Execute tasks one by one
             for backfill_task in backfill_tasks {
                 if backfill_task.checkpoint < backfill_task.target_checkpoint {
                     datasource_clone
@@ -145,13 +164,13 @@ impl<P, D, M> Indexer<P, D, M> {
     {
         let tasks = self.storage.tasks(&self.name).await?;
         let backfill_tasks = tasks.backfill_tasks();
-        let latest_task = backfill_tasks.first();
+        let latest_backfill_task = backfill_tasks.first();
 
         // 1, create and update live task if needed
         if !self.disable_live_task {
             let from_checkpoint = max(
                 self.start_from_checkpoint,
-                latest_task
+                latest_backfill_task
                     .map(|t| t.target_checkpoint + 1)
                     .unwrap_or_default(),
             );
@@ -164,19 +183,32 @@ impl<P, D, M> Indexer<P, D, M> {
                             from_checkpoint,
                             i64::MAX as u64,
                         )
-                        .await?;
+                        .await
+                        .tap_err(|e| {
+                            tracing::error!(
+                                "Failed to register live task ({}-MAX): {:?}",
+                                from_checkpoint,
+                                e
+                            );
+                        })?;
                 }
                 Some(mut live_task) => {
                     if self.start_from_checkpoint > live_task.checkpoint {
                         live_task.checkpoint = self.start_from_checkpoint;
-                        self.storage.update_task(live_task).await?;
+                        self.storage.update_task(live_task).await.tap_err(|e| {
+                            tracing::error!(
+                                "Failed to update live task to ({}-MAX): {:?}",
+                                self.start_from_checkpoint,
+                                e
+                            );
+                        })?;
                     }
                 }
             }
         }
 
         // 2, create backfill tasks base on task config and existing tasks in the db
-        match latest_task {
+        match latest_backfill_task {
             None => {
                 // No task in database, create backfill tasks from genesis to
                 // `start_from_checkpoint`
@@ -185,16 +217,32 @@ impl<P, D, M> Indexer<P, D, M> {
                         self.genesis_checkpoint,
                         self.start_from_checkpoint - 1,
                     )
-                    .await?
+                    .await
+                    .tap_err(|e| {
+                        tracing::error!(
+                            "Failed to create backfill tasks ({}-{}): {:?}",
+                            self.genesis_checkpoint,
+                            self.start_from_checkpoint - 1,
+                            e
+                        );
+                    })?;
                 }
             }
-            Some(latest_task) => {
-                if latest_task.target_checkpoint + 1 < self.start_from_checkpoint {
+            Some(latest_backfill_task) => {
+                if latest_backfill_task.target_checkpoint + 1 < self.start_from_checkpoint {
                     self.create_backfill_tasks(
-                        latest_task.target_checkpoint + 1,
+                        latest_backfill_task.target_checkpoint + 1,
                         self.start_from_checkpoint - 1,
                     )
-                    .await?;
+                    .await
+                    .tap_err(|e| {
+                        tracing::error!(
+                            "Failed to create backfill tasks ({}-{}): {:?}",
+                            latest_backfill_task.target_checkpoint + 1,
+                            self.start_from_checkpoint - 1,
+                            e
+                        );
+                    })?;
                 }
             }
         }
@@ -217,6 +265,7 @@ impl<P, D, M> Indexer<P, D, M> {
                     .await
             }
             BackfillStrategy::Partitioned { task_size } => {
+                // TODO: register all tasks in one DB write
                 while from_cp < self.start_from_checkpoint {
                     let target_cp = min(from_cp + task_size - 1, to_cp);
                     self.storage
@@ -275,6 +324,12 @@ pub trait Datasource<T: Send>: Sync + Send {
         M: DataMapper<T, R>,
         P: Persistent<R>,
     {
+        tracing::info!(
+            task_name,
+            "Starting ingestion task ({}-{})",
+            starting_checkpoint,
+            target_checkpoint
+        );
         // todo: add metrics for number of tasks
         let (data_sender, mut data_channel) = metered_channel::channel(
             1000,

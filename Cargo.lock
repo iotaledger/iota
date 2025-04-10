@@ -7073,6 +7073,7 @@ dependencies = [
  "iota-metrics",
  "iota-types",
  "prometheus",
+ "tap",
  "telemetry-subscribers",
  "tokio",
  "tokio-util 0.7.12",
