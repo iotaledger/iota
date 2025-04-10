@@ -13,9 +13,9 @@ clap.workspace = true
 codespan-reporting.workspace = true
 colored.workspace = true
 serde_yaml.workspace = true
+similar.workspace = true
 tempfile.workspace = true
 toml_edit.workspace = true
-similar.workspace = true
 walkdir.workspace = true
 
 move-binary-format.workspace = true

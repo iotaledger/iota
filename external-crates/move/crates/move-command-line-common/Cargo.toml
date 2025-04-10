@@ -13,6 +13,7 @@ bcs.workspace = true
 colored.workspace = true
 dirs-next.workspace = true
 hex.workspace = true
+insta = { workspace = true, features = ["serde"] }
 num-bigint = "0.4"
 once_cell.workspace = true
 serde.workspace = true
@@ -20,7 +21,6 @@ sha2.workspace = true
 similar.workspace = true
 vfs.workspace = true
 walkdir.workspace = true
-insta = { workspace = true, features = ["serde"] }
 
 move-binary-format.workspace = true
 move-core-types.workspace = true
