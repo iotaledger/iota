@@ -50,15 +50,13 @@ impl ExecutionSlot {
     /// `start_time`, this returns an execution slot with `end_time` being equal
     /// `start_time`, i.e., duration of such slot is 0.
     fn new(start_time: ExecutionTime, end_time: ExecutionTime, scheduled: bool) -> Self {
-        let end_time = if end_time > start_time {
-            end_time
-        } else {
-            start_time
-        };
-
         Self {
             start_time,
-            end_time,
+            end_time: if end_time > start_time {
+                end_time
+            } else {
+                start_time
+            },
             scheduled,
         }
     }
@@ -428,6 +426,69 @@ fn max_object_free_slot_start_time(slots: &[ExecutionSlot]) -> u64 {
         u64::MAX
     } else {
         last_free_slot.start_time
+    }
+}
+
+#[cfg(test)]
+mod execution_slot_tests {
+    use super::ExecutionSlot;
+
+    #[test]
+    fn test_execution_slot_new_and_duration() {
+        // Creating a slot with `start_time`  < `end_time`
+        let slot = ExecutionSlot::new(1, 3, true);
+        assert_eq!(slot.duration(), 2);
+
+        // Creating a slot with `start_time`  >= `end_time` should result in zero
+        // duration
+        let slot = ExecutionSlot::new(3, 1, true);
+        assert_eq!(slot.duration(), 0);
+        let slot = ExecutionSlot::new(1, 1, true);
+        assert_eq!(slot.duration(), 0);
+    }
+
+    #[test]
+    fn test_execution_slot_intersection_and_intersects() {
+        // Test intersection of two identical slots
+        let slot_1 = ExecutionSlot::new(1, 3, true);
+        let slot_2 = ExecutionSlot::new(1, 3, true);
+        assert!(slot_1.intersects(&slot_2));
+        let intersection = slot_1.intersection(&slot_2);
+        assert_eq!(intersection, ExecutionSlot::new(1, 3, false));
+        assert_eq!(intersection.duration(), 2);
+
+        // Test intersection of non-overlapping slots, with slot 2 being after slot 1
+        let slot_1 = ExecutionSlot::new(1, 3, true);
+        let slot_2 = ExecutionSlot::new(3, 5, true);
+        assert!(!slot_1.intersects(&slot_2));
+        let intersection = slot_1.intersection(&slot_2);
+        assert_eq!(intersection, ExecutionSlot::new(3, 3, false));
+        assert_eq!(intersection.duration(), 0);
+
+        // Test intersection of non-overlapping slots, with slot 2 being before slot 1
+        let slot_1 = ExecutionSlot::new(3, 5, true);
+        let slot_2 = ExecutionSlot::new(1, 3, true);
+        assert!(!slot_1.intersects(&slot_2));
+        let intersection = slot_1.intersection(&slot_2);
+        assert_eq!(intersection, ExecutionSlot::new(3, 3, false));
+        assert_eq!(intersection.duration(), 0);
+
+        // Test intersection of overlapping slots, with slot 2 starting later than slot
+        // 1 starts
+        let slot_1 = ExecutionSlot::new(1, 5, true);
+        let slot_2 = ExecutionSlot::new(3, 9, true);
+        assert!(slot_1.intersects(&slot_2));
+        let intersection = slot_1.intersection(&slot_2);
+        assert_eq!(intersection, ExecutionSlot::new(3, 5, false));
+        assert_eq!(intersection.duration(), 2);
+
+        // Test intersection of overlapping slots, with slot 2 before slot 1 starts
+        let slot_1 = ExecutionSlot::new(4, 9, true);
+        let slot_2 = ExecutionSlot::new(1, 9, true);
+        assert!(slot_1.intersects(&slot_2));
+        let intersection = slot_1.intersection(&slot_2);
+        assert_eq!(intersection, ExecutionSlot::new(4, 9, false));
+        assert_eq!(intersection.duration(), 5);
     }
 }
 
