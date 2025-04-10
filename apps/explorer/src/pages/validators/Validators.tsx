@@ -67,6 +67,7 @@ function ValidatorPageResult(): JSX.Element {
     const { data: totalSupplyData } = useIotaClientQuery('getTotalSupply', {
         coinType: IOTA_TYPE_ARG,
     });
+    const { data: participationMetrics } = useIotaClientQuery('getParticipationMetrics');
 
     const totalStaked = useMemo(() => {
         if (!data) return 0;
@@ -162,14 +163,25 @@ function ValidatorPageResult(): JSX.Element {
                 'The combined IOTA staked by validators (committee) and delegators on the network to support validation and generate rewards.',
         },
         {
+            title: 'Participation',
+            value: participationMetrics ? participationMetrics?.totalAddresses : undefined,
+            supportingLabel: participationMetrics ? undefined : 'Coming Soon',
+            tooltipText:
+                'Total number of unique addresses that have delegated stake in the current epoch. Includes both staked and timelocked staked IOTA',
+        },
+        {
             title: 'Staking Ratio',
             value: stakingRatio,
             tooltipText: 'The ratio of the total staked IOTA to the total supply of IOTA.',
         },
         {
             title: 'Last Epoch Rewards',
-            value: formattedlastEpochRewardOnAllValidatorsAmount,
-            supportingLabel: lastEpochRewardOnAllValidatorsSymbol,
+            value: lastEpochRewardOnAllValidators
+                ? formattedlastEpochRewardOnAllValidatorsAmount
+                : '--',
+            supportingLabel: formattedlastEpochRewardOnAllValidatorsAmount
+                ? lastEpochRewardOnAllValidatorsSymbol
+                : undefined,
             tooltipText: 'The staking rewards earned in the previous epoch.',
         },
         {
