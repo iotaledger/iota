@@ -10,6 +10,7 @@ import {
     filterAndSortTokenBalances,
     useSortedCoinsByCategories,
     CoinItem,
+    VirtualList,
 } from '@iota/core';
 import {
     ButtonSegment,
@@ -19,7 +20,7 @@ import {
     Title,
 } from '@iota/apps-ui-kit';
 import { RecognizedBadge } from '@iota/apps-ui-icons';
-import { SendTokenDialog, VirtualList } from '@/components';
+import { SendTokenDialog } from '@/components';
 
 enum TokenCategory {
     All = 'All',
@@ -124,7 +125,6 @@ export function MyCoins(): React.JSX.Element {
                             return virtualItem(!!isRecognized, coin);
                         }}
                         heightClassName="h-full"
-                        overflowClassName="overflow-y-auto"
                     />
                 </div>
             </div>
