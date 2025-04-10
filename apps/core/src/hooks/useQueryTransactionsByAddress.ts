@@ -68,7 +68,7 @@ export function useQueryTransactionsByAddress(address: string = '') {
                 : undefined,
     });
     const flattenTransactions = query.data?.pages.flatMap((page) => page.transactions) || [];
-    const allTransactions = Array.from(
+    const allTransactionsUnsorted = Array.from<IotaTransactionBlockResponse>(
         flattenTransactions
             .reduce((map, item) => {
                 if (!map.has(item.digest)) {
@@ -78,6 +78,7 @@ export function useQueryTransactionsByAddress(address: string = '') {
             }, new Map())
             .values(),
     );
+    const allTransactions = allTransactionsUnsorted.sort((a, b) => Number(b.timestampMs || 0) - Number(a.timestampMs || 0))
     const lastPage = query.data?.pages[query.data.pages.length - 1];
 
     return {
