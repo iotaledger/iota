@@ -6,6 +6,7 @@
 import { ReactNode, useEffect, useRef } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import clsx from 'clsx';
+import { LoadingIndicator } from '@iota/apps-ui-kit';
 
 interface VirtualListProps<T> {
     items: T[];
@@ -16,7 +17,6 @@ interface VirtualListProps<T> {
     render: (item: T, index: number) => ReactNode;
     onClick?: (item: T) => void;
     heightClassName?: string;
-    overflowClassName?: string;
     getItemKey?: (item: T) => string | number;
 }
 
@@ -29,21 +29,27 @@ export function VirtualList<T>({
     render,
     onClick,
     heightClassName = 'h-fit',
-    overflowClassName,
     getItemKey,
 }: VirtualListProps<T>): JSX.Element {
-    const containerRef = useRef<HTMLDivElement | null>(null);
+    const containerRef = useRef<HTMLDivElement>(null);
+    const measuredHeights = useRef<Map<number, number>>(new Map());
+
     const virtualizer = useVirtualizer({
         // Render an extra item if there is still pages to be fetched
         count: hasNextPage ? items.length + 1 : items.length,
         getScrollElement: () => containerRef.current,
         estimateSize: (index) => {
+            // Check if the item is already measured and return its height
+            if (measuredHeights.current.has(index)) {
+                return measuredHeights.current.get(index)!;
+            }
+
             if (index > items.length - 1 && hasNextPage) {
                 return 20;
-            } else {
-                return estimateSize(index);
             }
+            return estimateSize(index);
         },
+        overscan: 3, // Number of items to render outside the viewport to improve performance and avoid flickering
     });
 
     const virtualItems = virtualizer.getVirtualItems();
@@ -58,12 +64,12 @@ export function VirtualList<T>({
         if (lastItem.index >= items.length - 1 && hasNextPage && !isFetchingNextPage) {
             fetchNextPage();
         }
-    }, [hasNextPage, fetchNextPage, items.length, isFetchingNextPage, virtualizer, virtualItems]);
+    }, [hasNextPage, fetchNextPage, items.length, isFetchingNextPage, virtualItems]);
 
     return (
         <div
-            className={clsx('relative w-full', heightClassName, overflowClassName)}
             ref={containerRef}
+            className={clsx('relative w-full overflow-y-auto', heightClassName)}
         >
             <div
                 style={{
@@ -80,20 +86,26 @@ export function VirtualList<T>({
                     return (
                         <div
                             key={key}
-                            className={`absolute w-full  ${onClick ? 'cursor-pointer' : ''}`}
+                            className={`absolute left-0 top-0 w-full ${onClick ? 'cursor-pointer' : ''}`}
                             style={{
-                                position: 'absolute',
-                                top: 0,
-                                left: 0,
-                                width: '100%',
-                                height: `${virtualItem.size}px`,
                                 transform: `translateY(${virtualItem.start}px)`,
                             }}
-                            onClick={() => onClick && onClick(item)}
+                            ref={(el) => {
+                                if (el) {
+                                    // Measure the height of the element and store it in the map
+                                    const height = el.getBoundingClientRect().height;
+                                    measuredHeights.current.set(virtualItem.index, height);
+                                    virtualizer.measureElement(el);
+                                }
+                            }}
+                            data-index={virtualItem.index}
+                            onClick={() => !isExtraItem && onClick?.(item)}
                         >
-                            {isExtraItem && hasNextPage
-                                ? 'Loading more...'
-                                : render(item, virtualItem.index)}
+                            {isExtraItem && hasNextPage ? (
+                                <LoadingIndicator text="Loading more..." />
+                            ) : (
+                                render(item, virtualItem.index)
+                            )}
                         </div>
                     );
                 })}

@@ -65,7 +65,10 @@ pub async fn main() {
         .unwrap_or_else(|e| panic!("Unable to load config from {}: {e}", path.display()));
 
     // Print config parameters
-    println!("Checkpoint Sync Dir: {}", config.checkpoints_dir.display());
+    println!(
+        "Checkpoints directory: {}",
+        config.checkpoints_dir.display()
+    );
 
     let remote_package_store = RemotePackageStore::new(config.clone());
     let resolver = Resolver::new(remote_package_store);

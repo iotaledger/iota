@@ -289,12 +289,17 @@ const config = {
             to: "iota-identity",
           },
           {
+            label: "IOTA EVM",
+            to: "iota-evm",
+          },
+          {
             type: 'custom-WalletConnectButton',
             position: 'right',
           },
         ],
       },
       footer: {
+        style: "dark",
         logo: {
           alt: "IOTA Wiki Logo",
           src: "/logo/iota-logo.svg",
