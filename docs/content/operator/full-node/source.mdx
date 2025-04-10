@@ -109,7 +109,7 @@ If your full node is configured to prune transactions, Archival nodes can help e
 Node logs can take a lot of space quickly. Make sure to configure your `iota-node` systemd service to rotate or prune logs to not run out of space.
 See [systemd docs](https://www.freedesktop.org/software/systemd/man/latest/journald.conf.html#SystemMaxUse=)
 
-You can also lower the log level by editing your service definition file (changing RUST_LOG inside `/etc/systemd/system/iota-node.service`), in order to produce less logs.
+You can also lower the log level by editing your service definition file (changing RUST_LOG in `/etc/systemd/system/iota-node.service`), in order to produce less logs.
 :::
 
 In the [next section](./configuration.mdx), we'll see which options are available to tune the node's configuration to your preferences.
