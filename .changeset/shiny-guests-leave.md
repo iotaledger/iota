@@ -2,4 +2,4 @@
 '@iota/iota-sdk': minor
 ---
 
-add circulating supply
+Add circulating supply support to the iota client
