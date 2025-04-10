@@ -87,6 +87,11 @@ impl ExecutionSlot {
     fn intersects(&self, other: &Self) -> bool {
         self.start_time < other.end_time && self.end_time > other.start_time
     }
+
+    /// Returns a non-scheduled execution slot with maximum possible duration
+    fn max_duration_non_scheduled_slot() -> Self {
+        Self::new(0, MAX_EXECUTION_TIME, false)
+    }
 }
 
 // `SharedObjectCongestionTracker` stores the available and occupied execution
@@ -136,14 +141,14 @@ impl SharedObjectCongestionTracker {
         for obj in shared_input_objects {
             self.object_execution_slots
                 .entry(obj.id)
-                .or_insert(vec![ExecutionSlot::new(0, MAX_EXECUTION_TIME, false)]);
+                .or_insert(vec![ExecutionSlot::max_duration_non_scheduled_slot()]);
         }
         if self.assign_min_free_execution_slot {
             // If `assign_min_free_execution_slot` is true, we assign the transaction start
             // time based on the lowest free execution slot that can accommodates the
             // transaction. We start the search from the full range of the slots
             // available with no constraints from previous objects.
-            let initial_free_slot = ExecutionSlot::new(0, MAX_EXECUTION_TIME, false);
+            let initial_free_slot = ExecutionSlot::max_duration_non_scheduled_slot();
             self.compute_min_free_execution_slot(shared_input_objects, tx_cost, initial_free_slot)
                 .unwrap_or(MAX_EXECUTION_TIME)
         } else {
