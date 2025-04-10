@@ -14,6 +14,7 @@ import {
     StardustIndexerClientProvider,
     useLocalStorage,
     Toaster,
+    ClipboardPasteSafetyWrapper,
 } from '@iota/core';
 import { growthbook } from '@/lib/utils';
 import { ThemeProvider } from '@iota/core';
@@ -54,10 +55,12 @@ export function AppProviders({ children }: React.PropsWithChildren) {
                                     },
                                 ]}
                             >
-                                <ThemeProvider appId="iota-dashboard">
-                                    {children}
-                                    <Toaster containerClassName="!right-8" />
-                                </ThemeProvider>
+                                <ClipboardPasteSafetyWrapper>
+                                    <ThemeProvider appId="iota-dashboard">
+                                        {children}
+                                        <Toaster containerClassName="!right-8" />
+                                    </ThemeProvider>
+                                </ClipboardPasteSafetyWrapper>
                             </WalletProvider>
                         </KioskClientProvider>
                     </StardustIndexerClientProvider>

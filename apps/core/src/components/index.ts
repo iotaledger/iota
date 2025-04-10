@@ -16,5 +16,5 @@ export * from './Validator';
 export * from './kiosk';
 export * from './nft';
 export * from './toaster';
-
+export * from './ClipboardPasteSafetyWrapper';
 export * from './VirtualList';
