@@ -27,9 +27,9 @@ use iota_types::{
     transaction::{CheckedInputObjects, ProgrammableTransaction, TransactionKind},
 };
 use iota_verifier_latest::meter::IotaVerifierMeter;
-use move_trace_format::format::MoveTraceBuilder;
 use move_binary_format::CompiledModule;
 use move_bytecode_verifier_meter::Meter;
+use move_trace_format::format::MoveTraceBuilder;
 use move_vm_config::verifier::{MeterConfig, VerifierConfig};
 use move_vm_runtime_latest::move_vm::MoveVM;
 

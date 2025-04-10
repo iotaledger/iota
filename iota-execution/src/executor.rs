@@ -2,7 +2,6 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use move_trace_format::format::MoveTraceBuilder;
 use std::{collections::HashSet, sync::Arc};
 
 use iota_protocol_config::ProtocolConfig;
@@ -20,6 +19,7 @@ use iota_types::{
     storage::BackingStore,
     transaction::{CheckedInputObjects, ProgrammableTransaction, TransactionKind},
 };
+use move_trace_format::format::MoveTraceBuilder;
 
 /// Abstracts over access to the VM across versions of the execution layer.
 pub trait Executor {
