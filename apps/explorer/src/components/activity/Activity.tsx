@@ -144,30 +144,30 @@ export function Activity({ initialLimit, disablePagination }: ActivityProps): JS
                     {/* todo: re-enable this when rpc is stable */}
                     {pollingTxnTableEnabled &&
                         selectedCategory === ActivityCategory.Transactions && (
-                            <PlayPause paused={paused} onChange={handlePauseChange} />
+                            <div>
+                                <Toggle
+                                    label="Show System Transactions"
+                                    isToggled={showSystemTransactions}
+                                    size={ToggleSize.Small}
+                                    onChange={() =>
+                                        setshowSystemTransactions(!showSystemTransactions)
+                                    }
+                                />
+                                <PlayPause paused={paused} onChange={handlePauseChange} />
+                            </div>
                         )}
                 </div>
             </div>
             <div className="p-md">
                 {selectedCategory === ActivityCategory.Transactions && (
-                    <div>
-                        <div className="ml-[1%]">
-                            <Toggle
-                                label="Show System Transactions"
-                                isToggled={showSystemTransactions}
-                                size={ToggleSize.Small}
-                                onChange={() => setshowSystemTransactions(!showSystemTransactions)}
-                            />
-                        </div>
-                        <TransactionsActivityTable
-                            refetchInterval={refetchInterval}
-                            initialLimit={initialLimit}
-                            disablePagination={disablePagination}
-                            transactionKindFilter={
-                                showSystemTransactions ? undefined : 'ProgrammableTransaction'
-                            }
-                        />
-                    </div>
+                    <TransactionsActivityTable
+                        refetchInterval={refetchInterval}
+                        initialLimit={initialLimit}
+                        disablePagination={disablePagination}
+                        transactionKindFilter={
+                            showSystemTransactions ? undefined : 'ProgrammableTransaction'
+                        }
+                    />
                 )}
                 {selectedCategory === ActivityCategory.Epochs && (
                     <EpochsActivityTable
