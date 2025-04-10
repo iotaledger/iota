@@ -31,6 +31,7 @@ use crate::{
 };
 
 pub mod apis;
+pub mod database;
 pub mod db;
 pub mod errors;
 pub mod handlers;

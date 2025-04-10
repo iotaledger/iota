@@ -4,7 +4,6 @@
 
 use core::result::Result::Ok;
 use std::{
-    any::Any as StdAny,
     collections::{BTreeMap, HashMap},
     time::{Duration, Instant},
 };
@@ -2178,10 +2177,6 @@ impl IndexerStore for PgIndexerStore {
     async fn refresh_participation_metrics(&self) -> Result<(), IndexerError> {
         self.execute_in_blocking_worker(move |this| this.refresh_participation_metrics())
             .await
-    }
-
-    fn as_any(&self) -> &dyn StdAny {
-        self
     }
 
     /// Persist protocol configs and feature flags until the protocol version

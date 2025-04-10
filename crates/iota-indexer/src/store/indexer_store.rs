@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{any::Any, collections::BTreeMap};
+use std::collections::BTreeMap;
 
 use async_trait::async_trait;
 
@@ -27,7 +27,7 @@ pub enum ObjectsToCommit {
 }
 
 #[async_trait]
-pub trait IndexerStore: Any + Clone + Sync + Send + 'static {
+pub trait IndexerStore: Clone + Sync + Send + 'static {
     async fn get_latest_checkpoint_sequence_number(&self) -> Result<Option<u64>, IndexerError>;
 
     async fn get_available_epoch_range(&self) -> Result<(u64, u64), IndexerError>;
@@ -112,6 +112,4 @@ pub trait IndexerStore: Any + Clone + Sync + Send + 'static {
     ) -> Result<u64, IndexerError>;
 
     async fn refresh_participation_metrics(&self) -> Result<(), IndexerError>;
-
-    fn as_any(&self) -> &dyn Any;
 }

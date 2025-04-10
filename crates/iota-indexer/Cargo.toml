@@ -12,11 +12,13 @@ anyhow.workspace = true
 async-trait.workspace = true
 axum.workspace = true
 backoff.workspace = true
+bb8 = "0.8.5"
 bcs.workspace = true
 cached.workspace = true
 chrono.workspace = true
 clap.workspace = true
 diesel = { workspace = true, features = ["chrono", "r2d2", "serde_json", "postgres"] }
+diesel-async = { version = "0.5", features = ["bb8", "postgres", "async-connection-wrapper"] }
 diesel_migrations = "2.2.0"
 downcast = "0.11.0"
 fastcrypto = { workspace = true, features = ["copy_key"] }
