@@ -54,7 +54,6 @@ export function Activity({ initialLimit, disablePagination }: ActivityProps): JS
 
     const [paused, setPaused] = useState(false);
     const [showSystemTransactions, setshowSystemTransactions] = useState(true);
-    // const [showTransactionDropdown, setShowTransactionDropdown] = useState(false);
     const [selectedCategory, setSelectedCategory] = useState<ActivityCategory>(
         ActivityCategory.Transactions,
     );
@@ -72,18 +71,6 @@ export function Activity({ initialLimit, disablePagination }: ActivityProps): JS
     };
 
     const refetchInterval = paused || !pollingTxnTableEnabled ? undefined : REFETCH_INTERVAL;
-    // TODO remove network check when querying transactions with TransactionKind filter is fixed on devnet and testnet
-    /*const [network] = useNetwork();
-    const isTransactionKindFilterEnabled = Network.Mainnet === network || Network.Localnet === network;
-    const [showSystemTransactions, setShowSystemTransaction] = useState(
-        !isTransactionKindFilterEnabled,
-    );
-    useEffect(() => {
-        if (!isTransactionKindFilterEnabled) {
-            setShowSystemTransaction(true);
-        }
-    }, [isTransactionKindFilterEnabled]);*/
-
     return (
         <Panel>
             <div className="relative">
@@ -99,49 +86,6 @@ export function Activity({ initialLimit, disablePagination }: ActivityProps): JS
                     ))}
                 </SegmentedButton>
                 <div className="absolute inset-y-0 -top-1 right-sm flex items-center gap-sm text-2xl">
-                    {/* TODO re-enable this when index is stable */}
-                    {/*selectedCategory === ActivityCategory.Transactions &&
-                    isTransactionKindFilterEnabled ? (
-                        <>
-                            <div className="relative z-10">
-                                <Button
-                                    type={ButtonType.Ghost}
-                                    onClick={() => setShowTransactionDropdown((prev) => !prev)}
-                                    icon={
-                                        <FilterList className="h-md w-md text-neutral-10 dark:text-neutral-92" />
-                                    }
-                                />
-                            </div>
-                            <div className="absolute bottom-0 right-0 z-10 translate-y-full">
-                                <Transition
-                                    show={showTransactionDropdown}
-                                    enter="transition duration-300"
-                                    enterFrom="opacity-0 scale-75"
-                                    enterTo="opacity-100 scale-100"
-                                    leave="transition duration-150"
-                                    leaveFrom="opacity-100 scale-100"
-                                    leaveTo="opacity-0 scale-75"
-                                >
-                                    <Dropdown>
-                                        <ListItem
-                                            hideBottomBorder
-                                            onClick={() =>
-                                                setShowSystemTransaction(!showSystemTransactions)
-                                            }
-                                        >
-                                            <div className="flex flex-row gap-x-xs">
-                                                <span className="w-max text-label-lg">
-                                                    Show System Transactions
-                                                </span>
-                                                <Checkbox isChecked={showSystemTransactions} />
-                                            </div>
-                                        </ListItem>
-                                    </Dropdown>
-                                </Transition>
-                            </div>
-                        </>
-                    ) : null*/}
-                    {/* todo: re-enable this when rpc is stable */}
                     {pollingTxnTableEnabled &&
                         selectedCategory === ActivityCategory.Transactions && (
                             <div>
