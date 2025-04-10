@@ -82,7 +82,7 @@ use super::{
     authority_store_tables::ENV_VAR_LOCKS_BLOCK_CACHE_SIZE,
     epoch_start_configuration::EpochStartConfigTrait,
     shared_object_congestion_tracker::{
-        SequencingResult, SharedObjectCongestionTracker, StartTime,
+        ExecutionTime, SequencingResult, SharedObjectCongestionTracker,
     },
     transaction_deferral::{DeferralKey, DeferralReason, transaction_deferral_within_limit},
 };
@@ -159,7 +159,7 @@ type JwkAggregator = GenericMultiStakeAggregator<(JwkId, JWK), true>;
 enum SchedulingResult {
     /// Scheduling result indicating that a transaction is scheduled to be
     /// executed at start time
-    Schedule(StartTime),
+    Schedule(/* start_time */ ExecutionTime),
 
     /// Scheduling result indicating that a transaction is deferred
     Defer(DeferralKey, DeferralReason),

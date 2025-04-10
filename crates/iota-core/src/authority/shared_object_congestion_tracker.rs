@@ -15,9 +15,7 @@ use super::transaction_deferral::DeferralKey;
 
 /// Represents execution slot boundaries
 pub type ExecutionTime = u64;
-
-/// Represents a start time at which transaction is scheduled to be executed
-pub type StartTime = ExecutionTime;
+pub const MAX_EXECUTION_TIME: ExecutionTime = ExecutionTime::MAX;
 
 /// Represents a sequencing result: schedule transaction, or defer it
 /// due to shared object congestion. Sequencing result is returned by
@@ -25,7 +23,7 @@ pub type StartTime = ExecutionTime;
 pub enum SequencingResult {
     /// Sequencing result indicating that a transaction is scheduled to be
     /// executed at start time
-    Schedule(StartTime),
+    Schedule(/* start_time */ ExecutionTime),
 
     /// Sequencing result indicating that a transaction is deferred.
     /// The list of objects are congested objects.
@@ -66,7 +64,7 @@ impl ExecutionSlot {
     /// Panics if this slot is invalid, i.e., its `end_time` is smaller than
     /// its `start_time`, which should never happen if the `new(...)` method
     /// is used for creating an execution slot.
-    fn duration(&self) -> u64 {
+    fn duration(&self) -> ExecutionTime {
         assert!(
             self.end_time >= self.start_time,
             "invalid execution slot: end time cannot be smaller than start time"
@@ -132,22 +130,22 @@ impl SharedObjectCongestionTracker {
         &mut self,
         shared_input_objects: &[SharedInputObject],
         tx_cost: u64,
-    ) -> u64 {
+    ) -> ExecutionTime {
         // initialise the free execution slots for the objects that are not in the
         // tracker.
         for obj in shared_input_objects {
             self.object_execution_slots
                 .entry(obj.id)
-                .or_insert(vec![ExecutionSlot::new(0, u64::MAX, false)]);
+                .or_insert(vec![ExecutionSlot::new(0, MAX_EXECUTION_TIME, false)]);
         }
         if self.assign_min_free_execution_slot {
             // If `assign_min_free_execution_slot` is true, we assign the transaction start
             // time based on the lowest free execution slot that can accommodates the
             // transaction. We start the search from the full range of the slots
             // available with no constraints from previous objects.
-            let initial_free_slot = ExecutionSlot::new(0, u64::MAX, false);
+            let initial_free_slot = ExecutionSlot::new(0, MAX_EXECUTION_TIME, false);
             self.compute_min_free_execution_slot(shared_input_objects, tx_cost, initial_free_slot)
-                .unwrap_or(u64::MAX)
+                .unwrap_or(MAX_EXECUTION_TIME)
         } else {
             // If `assign_min_free_execution_slot` is false, we assign the transaction start
             // time based on the maximum end time of the occupied execution slots for the
@@ -175,7 +173,7 @@ impl SharedObjectCongestionTracker {
         shared_input_objects: &[SharedInputObject],
         tx_cost: u64,
         lookup_interval: ExecutionSlot,
-    ) -> Option<u64> {
+    ) -> Option<ExecutionTime> {
         // take the first object from the shared input objects.
         let obj = shared_input_objects
             .first()
@@ -320,7 +318,7 @@ impl SharedObjectCongestionTracker {
     pub fn bump_object_execution_slots(
         &mut self,
         cert: &VerifiedExecutableTransaction,
-        start_time: u64,
+        start_time: ExecutionTime,
     ) {
         let tx_cost = self.get_tx_cost(cert);
         if tx_cost == 0 {
@@ -408,7 +406,7 @@ impl SharedObjectCongestionTracker {
     }
 
     // Returns the maximum occupied slot end time over all shared objects.
-    pub fn max_occupied_slot_end_time(&self) -> u64 {
+    pub fn max_occupied_slot_end_time(&self) -> ExecutionTime {
         self.object_execution_slots
             .values()
             .map(|slots| max_object_free_slot_start_time(slots))
@@ -417,13 +415,13 @@ impl SharedObjectCongestionTracker {
     }
 }
 
-fn max_object_free_slot_start_time(slots: &[ExecutionSlot]) -> u64 {
+fn max_object_free_slot_start_time(slots: &[ExecutionSlot]) -> ExecutionTime {
     if slots.is_empty() {
         return 0;
     }
     let last_free_slot = slots.last().unwrap();
     if last_free_slot.scheduled {
-        u64::MAX
+        MAX_EXECUTION_TIME
     } else {
         last_free_slot.start_time
     }
@@ -1163,7 +1161,7 @@ mod object_cost_tests {
                         .get(&object_id_0)
                         .unwrap()
                 ),
-                u64::MAX
+                MAX_EXECUTION_TIME
             );
             assert_eq!(
                 max_object_free_slot_start_time(
@@ -1172,7 +1170,7 @@ mod object_cost_tests {
                         .get(&object_id_1)
                         .unwrap()
                 ),
-                u64::MAX - 1
+                MAX_EXECUTION_TIME - 1
             );
         } else {
             panic!("transaction is not congesting, should not defer");
@@ -1205,7 +1203,7 @@ mod object_cost_tests {
                     .get(&object_id_0)
                     .unwrap()
             ),
-            u64::MAX
+            MAX_EXECUTION_TIME
         );
         assert_eq!(
             max_object_free_slot_start_time(
@@ -1214,7 +1212,7 @@ mod object_cost_tests {
                     .get(&object_id_1)
                     .unwrap()
             ),
-            u64::MAX
+            MAX_EXECUTION_TIME
         );
 
         if let SequencingResult::Defer(_, congested_objects) = shared_object_congestion_tracker
@@ -1251,7 +1249,7 @@ mod object_cost_tests {
                     .get(&object_id_0)
                     .unwrap()
             ),
-            u64::MAX
+            MAX_EXECUTION_TIME
         );
         assert_eq!(
             max_object_free_slot_start_time(
@@ -1260,7 +1258,7 @@ mod object_cost_tests {
                     .get(&object_id_1)
                     .unwrap()
             ),
-            u64::MAX
+            MAX_EXECUTION_TIME
         );
 
         // case 2: small initial cost, large tx cost
@@ -1282,7 +1280,7 @@ mod object_cost_tests {
                 (object_id_1, true),
                 (object_id_2, true),
             ],
-            u64::MAX - 1,
+            MAX_EXECUTION_TIME - 1,
         );
         if let SequencingResult::Defer(_, congested_objects) = shared_object_congestion_tracker
             .try_schedule(
@@ -1311,7 +1309,7 @@ mod object_cost_tests {
                     .get(&object_id_0)
                     .unwrap()
             ),
-            u64::MAX
+            MAX_EXECUTION_TIME
         );
         assert_eq!(
             max_object_free_slot_start_time(
@@ -1320,7 +1318,7 @@ mod object_cost_tests {
                     .get(&object_id_1)
                     .unwrap()
             ),
-            u64::MAX
+            MAX_EXECUTION_TIME
         );
         assert_eq!(
             max_object_free_slot_start_time(
@@ -1329,7 +1327,7 @@ mod object_cost_tests {
                     .get(&object_id_2)
                     .unwrap()
             ),
-            u64::MAX
+            MAX_EXECUTION_TIME
         );
 
         // case 3: max initial cost, max tx cost
@@ -1373,7 +1371,7 @@ mod object_cost_tests {
                     .get(&object_id_0)
                     .unwrap()
             ),
-            u64::MAX
+            MAX_EXECUTION_TIME
         );
     }
 }
