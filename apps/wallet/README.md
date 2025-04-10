@@ -49,3 +49,31 @@ After building the app, the extension needs to be installed to Chrome. Follow th
 ```
 pnpm wallet test
 ```
+
+## To run end-to-end localnet test
+
+Start validators locally:
+
+```bash
+cargo run --bin iota start --force-regenesis --with-faucet
+```
+
+In a separate terminal, you can now run the end-to-end tests:
+
+```bash
+pnpm --filter iota-wallet playwright test
+```
+
+#### Useful alternatives for running Playwright tests
+
+Run tests in debug mode
+
+```bash
+pnpm --filter iota-wallet playwright test --debug
+```
+
+Open the Playwright Test UI to analyze and run tests interactively
+
+```bash
+pnpm --filter iota-wallet playwright test --ui
+```
