@@ -27,11 +27,11 @@ test.describe('Wallet Connection', () => {
         const connectButton = page.getByRole('button', { name: 'Connect' });
         await connectButton.click();
 
-        // Select the extension wallet option
-        await page.getByText('IOTA Wallet', { exact: true }).click();
-
         // The extension should appear in a popup, need to handle that
         const approveWalletConnectPage = context.waitForEvent('page');
+
+        // Select the extension wallet option
+        await page.getByText('IOTA Wallet', { exact: true }).click();
 
         // Handle the connection approval in the wallet extension popup
         const walletApprovePage = await approveWalletConnectPage;
