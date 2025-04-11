@@ -5,8 +5,7 @@ import type { BrowserContext, Page } from '@playwright/test';
 import { Ed25519Keypair } from '@iota/iota-sdk/keypairs/ed25519';
 import { expect } from './fixtures';
 
-export async function createWallet(page: Page, extensionUrl: string) {
-    await page.goto(extensionUrl, { waitUntil: 'commit' });
+export async function createWallet(page: Page) {
     await page.getByRole('button', { name: /Add Profile/ }).click({ timeout: 30000 });
     await page.getByText('Create New', { exact: true }).click();
     await page.getByTestId('password.input').fill('iotae2etests');
@@ -26,6 +25,9 @@ export async function createWallet(page: Page, extensionUrl: string) {
     const mnemonic = await textarea.inputValue();
 
     const address = deriveAddressFromMnemonic(mnemonic);
+
+    await page.getByText('I saved my mnemonic').click();
+    await page.getByRole('button', { name: 'Open Wallet' }).click();
 
     return {
         mnemonic,
@@ -55,8 +57,8 @@ export async function importWallet(page: Page, extensionUrl: string, mnemonic: s
     await page.waitForURL(new RegExp(/^(?!.*accounts).*$/));
 }
 
-export function deriveAddressFromMnemonic(mnemonic: string) {
-    const keypair = Ed25519Keypair.deriveKeypair(mnemonic);
+export function deriveAddressFromMnemonic(mnemonic: string, path?: string) {
+    const keypair = Ed25519Keypair.deriveKeypair(mnemonic, path);
     const address = keypair.getPublicKey().toIotaAddress();
     return address;
 }
@@ -71,4 +73,8 @@ export async function connectWallet(page: Page, context: BrowserContext, extensi
     const walletApprovePage = await context.waitForEvent('page');
     await walletApprovePage.getByText('Continue', { exact: true }).click();
     await walletApprovePage.getByRole('button', { name: 'Connect' }).click();
+}
+
+export function getAddressByIndexPath(mnemonic: string, index: number) {
+    return deriveAddressFromMnemonic(mnemonic, `m/44'/4218'/0'/0'/${index}'`);
 }

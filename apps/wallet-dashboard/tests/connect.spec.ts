@@ -2,26 +2,10 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { test, expect } from './fixtures';
-import { connectWallet, createWallet } from './utils';
+import { connectWallet } from './utils';
 import 'dotenv/config';
 
 test.describe('Wallet Connection', () => {
-    test.beforeEach(async ({ page, extensionUrl, sharedState }) => {
-        // Navigate to the wallet dashboard
-        await page.goto('/');
-
-        // Import a wallet in the extension
-        await page.goto(extensionUrl);
-        const cratedWallet = await createWallet(page, extensionUrl);
-
-        sharedState.walletMnemonic = cratedWallet.mnemonic || '';
-        sharedState.walletAddress = cratedWallet.address || '';
-
-        // Go back to dashboard
-        await page.goto('/');
-        await page.waitForSelector('.welcome-page');
-    });
-
     test('should connect to wallet extension', async ({
         context,
         page,
@@ -30,20 +14,16 @@ test.describe('Wallet Connection', () => {
     }) => {
         await connectWallet(page, context, extensionName);
 
-        // The extension should appear in a popup, need to handle that
-        const approveWalletConnectPage = context.waitForEvent('page');
-
-        // Handle the connection approval in the wallet extension popup
-        const walletApprovePage = await approveWalletConnectPage;
-        await walletApprovePage.getByText('Continue', { exact: true }).click();
-        await walletApprovePage.getByRole('button', { name: 'Connect' }).click();
-
         // Switch back to main page
         await page.bringToFront();
 
         // Verify connection was successful on dashboard
-        await page.waitForSelector('[data-testid="sidebar"]');
-        await expect(page.getByTestId('sidebar')).toBeVisible();
+        await expect(page.getByText('Start Staking')).toBeVisible({ timeout: 30_000 });
+        const truncatedWalletAddress =
+            sharedState.walletAddress.slice(0, 6) + '…' + sharedState.walletAddress.slice(-4);
+        await expect(page.getByText(truncatedWalletAddress).first()).toBeVisible({
+            timeout: 30_000,
+        });
 
         const displayedFullAddress = await page
             .locator('[data-full-address]')
