@@ -359,7 +359,7 @@ async fn test_congestion_control_execution_cancellation() {
         vec![
             InputSharedObject::Cancelled(
                 shared_object_1.0,
-                SequenceNumber::congested_with_offset(TEST_ONLY_GAS_PRICE)
+                SequenceNumber::new_congested_with_gas_price(TEST_ONLY_GAS_PRICE)
             ),
             InputSharedObject::Cancelled(shared_object_2.0, SequenceNumber::CANCELLED_READ)
         ]

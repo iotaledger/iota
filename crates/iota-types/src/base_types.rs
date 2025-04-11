@@ -1161,8 +1161,10 @@ impl SequenceNumber {
     // than (SequenceNumber::MAX_VALID + CONGESTED_BASE_OFFSET) are
     // intended for other transaction cancellation reasons.
     //
-    // This offset can be increased as needed but there unlikely to be
-    // more than 1_000 non-congestion cancellation reasons.
+    // There unlikely will be more than 1_000 non-congestion cancellation reasons,
+    // this offset can be increased if needed, as long as
+    // (SequenceNumber::MIN_CONGESTED.value() + maximum gas price) does not
+    // overflow u64::MAX.
     const CONGESTED_BASE_OFFSET: u64 = 1_000;
 
     /// Minimum congested sequence number. A congested sequence number is
@@ -1183,12 +1185,12 @@ impl SequenceNumber {
     }
 
     /// Returns a sequence number used for congested shared objects:
-    /// SequenceNumber::MAX_VALID + SequenceNumber::MIN_CONGESTED + offset.
-    /// The offset here is used for gas price feedback for cancelled
-    /// transactions, namely, to embed the lowest gas price of
-    /// non-cancelled transactions
-    pub fn congested_with_offset(offset: u64) -> Self {
-        let (version, overflows) = Self::MIN_CONGESTED.value().overflowing_add(offset);
+    /// `SequenceNumber::MIN_CONGESTED.value()` + `gas_price`, where
+    /// `gas_price` is embedded into a congested sequence number to
+    /// facilitate a gas price feedback mechanism for transactions
+    /// cancelled due to shared object congestion
+    pub fn new_congested_with_gas_price(gas_price: u64) -> Self {
+        let (version, overflows) = Self::MIN_CONGESTED.value().overflowing_add(gas_price);
         assert!(
             !overflows,
             "the calculated version for a congested shared objects overflows"
@@ -1202,11 +1204,10 @@ impl SequenceNumber {
         self >= &Self::MIN_CONGESTED
     }
 
-    /// Returns the offset used to construct this congested shared object
-    /// sequence number. The offset here is used for gas price feedback
-    /// for cancelled transactions, namely, to embed the lowest gas price
-    /// of non-cancelled transactions
-    pub fn get_congested_version_offset(&self) -> u64 {
+    /// Returns the `gas_price` embedded in this congested shared object
+    /// sequence number. The `gas_price` here is used for a gas price feedback
+    /// mechanism for transactions cancelled due to shared object congestion
+    pub fn get_congested_version_gas_price(&self) -> u64 {
         assert!(
             self.is_congested(),
             "this is not a version used for congested shared objects"
@@ -1219,7 +1220,8 @@ impl SequenceNumber {
         assert_ne!(
             self.0,
             u64::MAX, // TODO: shouldn't it be SequenceNumber::MAX_VALID here?
-            "cannot increment a sequence number: maximum valid sequence number reached"
+            "cannot increment a sequence number: \
+                maximum valid sequence number has already been reached"
         );
         self.0 += 1;
     }
@@ -1233,7 +1235,8 @@ impl SequenceNumber {
         assert_ne!(
             *self,
             Self::MIN_VALID,
-            "cannot decrement a sequence number: minimum valid sequence number reached"
+            "cannot decrement a sequence number: \
+                minimum valid sequence number has already been reached"
         );
         self.0 -= 1;
     }
@@ -1256,7 +1259,8 @@ impl SequenceNumber {
         assert_ne!(
             max_input.0,
             u64::MAX, // TODO: shouldn't it be SequenceNumber::MAX_VALID here?
-            "cannot increment a sequence number which is already maximum valid sequence number"
+            "cannot increment a sequence number: \
+                maximum valid sequence number has already been reached"
         );
 
         SequenceNumber(max_input.0 + 1)

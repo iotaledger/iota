@@ -174,7 +174,7 @@ impl SharedObjVerManager {
                             .as_ref()
                             .is_some_and(|info| info.contains(id))
                         {
-                            SequenceNumber::congested_with_offset(
+                            SequenceNumber::new_congested_with_gas_price(
                                 *lowest_gas_price_of_non_cancelled_transaction,
                             )
                         } else {
@@ -588,7 +588,7 @@ mod tests {
                     vec![
                         (
                             id1,
-                            SequenceNumber::congested_with_offset(
+                            SequenceNumber::new_congested_with_gas_price(
                                 lowest_gas_price_of_non_cancelled_transaction
                             )
                         ),
@@ -602,7 +602,7 @@ mod tests {
                         (id1, SequenceNumber::CANCELLED_READ),
                         (
                             id2,
-                            SequenceNumber::congested_with_offset(
+                            SequenceNumber::new_congested_with_gas_price(
                                 lowest_gas_price_of_non_cancelled_transaction
                             )
                         )

@@ -790,7 +790,7 @@ async fn transaction_manager_with_cancelled_transactions() {
                 (shared_object_1.id(), SequenceNumber::CANCELLED_READ),
                 (
                     shared_object_2.id(),
-                    SequenceNumber::congested_with_offset(101),
+                    SequenceNumber::new_congested_with_gas_price(101),
                 ),
             ],
         )

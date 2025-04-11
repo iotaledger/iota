@@ -341,7 +341,7 @@ mod checked {
                         ExecutionErrorKind::ExecutionCancelledDueToSharedObjectCongestionV1 {
                             congested_objects: CongestedObjects(cancelled_objects),
                             lowest_gas_price_of_non_cancelled_transaction: version
-                                .get_congested_version_offset(),
+                                .get_congested_version_gas_price(),
                         },
                         None,
                     )),
