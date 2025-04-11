@@ -142,6 +142,9 @@ pub async fn start_test_indexer_impl(
     }
 
     let registry = prometheus::Registry::default();
+    init_metrics(&registry);
+    let indexer_metrics = IndexerMetrics::new(&registry);
+
     let handle = match reader_writer_config {
         IndexerTypeConfig::Reader {
             reader_mode_rpc_url,
@@ -153,16 +156,17 @@ pub async fn start_test_indexer_impl(
             config.rpc_server_worker = true;
             config.rpc_server_url = reader_mode_rpc_url.ip().to_string();
             config.rpc_server_port = reader_mode_rpc_url.port();
-            tokio::spawn(async move { Indexer::start_reader(&config, &registry, db_url).await })
+            let store_clone = store.clone();
+            tokio::spawn(async move {
+                Indexer::start_reader(&config, store_clone, &registry, db_url, indexer_metrics)
+                    .await
+            })
         }
         IndexerTypeConfig::Writer {
             snapshot_config,
             epochs_to_keep,
         } => {
             let store_clone = store.clone();
-
-            init_metrics(&registry);
-            let indexer_metrics = IndexerMetrics::new(&registry);
 
             tokio::spawn(async move {
                 Indexer::start_writer_with_config(
@@ -178,9 +182,6 @@ pub async fn start_test_indexer_impl(
         }
         IndexerTypeConfig::AnalyticalWorker => {
             let store = PgIndexerAnalyticalStore::new(store.blocking_cp());
-
-            init_metrics(&registry);
-            let indexer_metrics = IndexerMetrics::new(&registry);
 
             tokio::spawn(
                 async move { Indexer::start_analytical_worker(store, indexer_metrics).await },

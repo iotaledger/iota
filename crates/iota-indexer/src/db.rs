@@ -311,7 +311,15 @@ pub mod setup_postgres {
             }
             return Indexer::start_writer(&indexer_config, store, indexer_metrics).await;
         } else if indexer_config.rpc_server_worker {
-            return Indexer::start_reader(&indexer_config, &registry, db_url.to_string()).await;
+            let store = PgIndexerStore::new(blocking_cp, indexer_metrics.clone());
+            return Indexer::start_reader(
+                &indexer_config,
+                store,
+                &registry,
+                db_url.to_string(),
+                indexer_metrics,
+            )
+            .await;
         } else if indexer_config.analytical_worker {
             let store = PgIndexerAnalyticalStore::new(blocking_cp);
             return Indexer::start_analytical_worker(store, indexer_metrics.clone()).await;

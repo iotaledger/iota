@@ -30,6 +30,7 @@ use crate::{
         TransactionBuilderApi, WriteApi,
     },
     indexer_reader::IndexerReader,
+    store::PgIndexerStore,
 };
 
 pub mod apis;
@@ -230,16 +231,25 @@ impl Default for IotaNamesOptions {
 }
 
 pub async fn build_json_rpc_server(
+    store: PgIndexerStore,
     prometheus_registry: &Registry,
     reader: IndexerReader,
     config: &IndexerConfig,
     custom_runtime: Option<Handle>,
+    metrics: IndexerMetrics,
 ) -> Result<ServerHandle, IndexerError> {
     let mut builder =
         JsonRpcServerBuilder::new(env!("CARGO_PKG_VERSION"), prometheus_registry, None, None);
     let http_client = crate::get_http_client(config.rpc_client_url.as_str())?;
+    let rest_api_client = iota_rest_api::Client::new(config.rpc_client_url.as_str());
 
-    builder.register_module(WriteApi::new(http_client.clone()))?;
+    builder.register_module(WriteApi::new(
+        http_client.clone(),
+        rest_api_client,
+        reader.clone(),
+        store,
+        metrics,
+    ))?;
     builder.register_module(IndexerApi::new(
         reader.clone(),
         config.iota_names_options.clone().into(),
