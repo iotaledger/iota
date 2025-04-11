@@ -25,6 +25,7 @@ pub struct IotaNamesConfig {
     pub payment_package_address: IotaAddress,
     pub registry_id: ObjectID,
     pub reverse_registry_id: ObjectID,
+    pub subdomain_proxy_package_id: ObjectID,
 }
 
 impl Default for IotaNamesConfig {
@@ -41,6 +42,7 @@ impl IotaNamesConfig {
         payment_package_address: IotaAddress,
         registry_id: ObjectID,
         reverse_registry_id: ObjectID,
+        subdomain_proxy_package_id: ObjectID,
     ) -> Self {
         Self {
             package_address,
@@ -48,6 +50,7 @@ impl IotaNamesConfig {
             payment_package_address,
             registry_id,
             reverse_registry_id,
+            subdomain_proxy_package_id,
         }
     }
 
@@ -95,12 +98,15 @@ impl IotaNamesConfig {
             "0xd5e98aa3e79cff0cd5146dc4d7dea863eaffcce06703e47473f88214c4746501";
         const REVERSE_REGISTRY_ID: &str =
             "0xcafc893c3801416ffa4c262888eaa994e055d717d9b0819db3aef4ce35ab5829";
+        const SUBDOMAIN_PROXY_PACKAGE_ID: &str =
+            "0x11e01b25113cf141676d2f0b97068adbd2c98dd15ce1f52bd21c595faf63ec55";
 
         let package_address = IotaAddress::from_str(PACKAGE_ADDRESS).unwrap();
         let object_id = ObjectID::from_str(OBJECT_ID).unwrap();
         let payment_package_address = IotaAddress::from_str(PAYMENT_PACKAGE_ADDRESS).unwrap();
         let registry_id = ObjectID::from_str(REGISTRY_ID).unwrap();
         let reverse_registry_id = ObjectID::from_str(REVERSE_REGISTRY_ID).unwrap();
+        let subdomain_proxy_package_id = ObjectID::from_str(SUBDOMAIN_PROXY_PACKAGE_ID).unwrap();
 
         Self::new(
             package_address,
@@ -108,6 +114,7 @@ impl IotaNamesConfig {
             payment_package_address,
             registry_id,
             reverse_registry_id,
+            subdomain_proxy_package_id,
         )
     }
 }
