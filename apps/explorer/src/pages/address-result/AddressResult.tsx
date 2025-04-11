@@ -39,7 +39,7 @@ function AddressResult({ address }: { address: string }): JSX.Element {
 
             <Panel>
                 <Title title="Transaction Blocks" />
-                <div className="flex flex-col gap-2xl p-md--rs">
+                <div className="flex min-h-[700px] flex-col justify-center gap-2xl p-md--rs">
                     <TransactionBlocksPanel address={address} />
                 </div>
             </Panel>
