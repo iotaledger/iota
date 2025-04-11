@@ -16,7 +16,7 @@ use crate::authority::transaction_deferral::DeferralKey;
 // SharedObjectCongestionTracker stores the accumulated cost of executing
 // transactions on an object, for all transactions in a consensus commit.
 // It also stores the lowest gas price of a non-deferred transaction,
-// only for those shared objects that are referred by a mutable reference
+// only for those shared objects that are mutably referenced
 // in transactions that are not deferred.
 //
 // Cost is an indication of transaction execution latency. When transactions are
