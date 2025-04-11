@@ -40,7 +40,7 @@ export function createValidationSchema(
                     });
                 }
 
-                const canStake = availableBalance >= minimumStake;
+                const canStake = coinBalance >= minimumStake;
                 if (!canStake)
                     return ctx.createError({
                         message: `Insufficient funds to stake a minimum of ${MIN_NUMBER_IOTA_TO_STAKE} ${coinSymbol}`,
