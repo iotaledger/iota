@@ -2,15 +2,9 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { useState } from 'react';
-import { useCurrentAccount, useIotaClientQuery } from '@iota/dapp-kit';
+import { useCurrentAccount } from '@iota/dapp-kit';
 import { CoinBalance } from '@iota/iota-sdk/client';
-import {
-    COINS_QUERY_REFETCH_INTERVAL,
-    COINS_QUERY_STALE_TIME,
-    filterAndSortTokenBalances,
-    useSortedCoinsByCategories,
-    CoinItem,
-} from '@iota/core';
+import { useSortedCoinsByCategories, CoinItem, useGetAllBalances, VirtualList } from '@iota/core';
 import {
     ButtonSegment,
     Panel,
@@ -19,7 +13,7 @@ import {
     Title,
 } from '@iota/apps-ui-kit';
 import { RecognizedBadge } from '@iota/apps-ui-icons';
-import { SendTokenDialog, VirtualList } from '@/components';
+import { SendTokenDialog } from '@/components';
 
 enum TokenCategory {
     All = 'All',
@@ -50,16 +44,7 @@ export function MyCoins(): React.JSX.Element {
     const account = useCurrentAccount();
     const activeAccountAddress = account?.address;
 
-    const { data: coinBalances } = useIotaClientQuery(
-        'getAllBalances',
-        { owner: activeAccountAddress! },
-        {
-            enabled: !!activeAccountAddress,
-            staleTime: COINS_QUERY_STALE_TIME,
-            refetchInterval: COINS_QUERY_REFETCH_INTERVAL,
-            select: filterAndSortTokenBalances,
-        },
-    );
+    const { data: coinBalances } = useGetAllBalances(activeAccountAddress);
     const { recognized, unrecognized } = useSortedCoinsByCategories(coinBalances ?? []);
 
     function openSendTokenDialog(coin: CoinBalance): void {
@@ -124,7 +109,6 @@ export function MyCoins(): React.JSX.Element {
                             return virtualItem(!!isRecognized, coin);
                         }}
                         heightClassName="h-full"
-                        overflowClassName="overflow-y-auto"
                     />
                 </div>
             </div>
