@@ -135,6 +135,9 @@ pub struct IotaTestAdapter {
     default_account: TestAccount,
     default_syntax: SyntaxChoice,
     object_enumeration: BiBTreeMap<ObjectID, FakeID>,
+    /// Mapping from task ID to a transaction digest, for use in named variable
+    /// substitution.
+    digest_enumeration: BTreeMap<u64, TransactionDigest>,
     next_fake: (u64, u64),
     gas_price: u64,
     pub(crate) staged_modules: BTreeMap<Symbol, StagedPackage>,
@@ -365,6 +368,7 @@ impl MoveTestAdapter<'_> for IotaTestAdapter {
             default_account,
             default_syntax,
             object_enumeration: BiBTreeMap::new(),
+            digest_enumeration: BTreeMap::new(),
             next_fake: (0, 0),
             // TODO: make this configurable
             gas_price: default_gas_price.unwrap_or(DEFAULT_GAS_PRICE),
@@ -1224,6 +1228,10 @@ impl IotaTestAdapter {
             }
         }
 
+        for (tid, digest) in &self.digest_enumeration {
+            variables.insert(format!("digest_{tid}"), digest.to_string());
+        }
+
         for (idx, s) in cursors.iter().enumerate() {
             // an object cursor may be either @{obj_x_y} or @{obj_x_y,n}
             // if the former, then use highest_checkpoint
@@ -1500,6 +1508,19 @@ impl IotaTestAdapter {
             .contains_shared_object();
         let (effects, error_opt) = self.executor.execute_txn(transaction).await?;
         let digest = effects.transaction_digest();
+
+        // Try to assign `digest_$task` to this transaction's digest -- panic if a
+        // transaction has already been set. Currently each task executes at
+        // most one transaction, and everything is fine. This panic triggering
+        // will be an early warning that we need to do something
+        // more sophisticated.
+        let task = self.next_fake.0;
+        if let Some(prev) = self.digest_enumeration.insert(task, *digest) {
+            panic!(
+                "Task {task} executed two transactions (expected at most one): {prev}, {digest}"
+            );
+        }
+
         let mut created_ids: Vec<_> = effects
             .created()
             .iter()
