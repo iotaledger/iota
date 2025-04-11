@@ -18,6 +18,7 @@ Running Move unit tests
 [ PASS    ] 0x1::errors::underflow
 [ PASS    ] 0x1::natives::get_orig_type_name_test
 [ PASS    ] 0x1::natives::get_type_name_test
+[ PASS    ] 0x1::packs::test_enums_structs
 [ PASS    ] 0x1::packs::test_gen_pack_order
 [ PASS    ] 0x1::packs::test_gen_unpack_order
 [ PASS    ] 0x1::packs::test_pack_order
@@ -27,7 +28,7 @@ Running Move unit tests
 [ PASS    ] 0x1::references::test_struct_borrow
 [ PASS    ] 0x1::references::test_vector_mut_borrow
 [ PASS    ] 0x1::references::test_vector_mut_borrow_pop
-Test result: OK. Total tests: 26; passed: 26; failed: 0
+Test result: OK. Total tests: 24; passed: 24; failed: 0
 External Command `diff -qr traces saved_traces`:
 Only in traces: 0x1__differential_test__f1.json.zst
 Only in traces: 0x1__differential_test__f21.json.zst
