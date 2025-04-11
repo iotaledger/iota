@@ -3,6 +3,7 @@
 
 import toast, { Toaster as ToasterLib, type ToastType, resolveValue, Toast } from 'react-hot-toast';
 import { Snackbar, SnackbarType } from '@iota/apps-ui-kit';
+import cl from 'clsx';
 
 export type ToasterProps = {
     bottomNavEnabled?: boolean;
@@ -27,7 +28,10 @@ export function Toaster(props: ToasterProps) {
     }
 
     return (
-        <ToasterLib position="bottom-right" containerClassName={props.containerClassName}>
+        <ToasterLib
+            position="bottom-right"
+            containerClassName={cl('!z-[9999999]', props.containerClassName)}
+        >
             {(t) => (
                 <div style={{ opacity: t.visible ? 1 : 0 }} className={props.snackbarWrapClassName}>
                     <Snackbar

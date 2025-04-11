@@ -9,8 +9,8 @@ export function TransactionsOverview() {
     return (
         <Panel>
             <Title title="Activity" />
-            <div className="max-h-[400px] flex-1 overflow-y-auto px-sm pb-md  pt-sm sm:max-h-none">
-                <TransactionsList overflowClassName="overflow-y-auto" />
+            <div className="h-full max-h-[400px] flex-1 overflow-y-auto px-sm pb-md  pt-sm sm:max-h-none">
+                <TransactionsList heightClassName="h-full" />
             </div>
         </Panel>
     );
