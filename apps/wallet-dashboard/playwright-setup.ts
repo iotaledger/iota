@@ -6,7 +6,7 @@ import { execSync } from 'child_process';
 async function globalSetup() {
     try {
         console.log('Building wallet...');
-        // !process.env.CI && execSync('pnpm -w wallet build', { stdio: 'inherit' });
+        !process.env.CI && execSync('pnpm -w wallet build', { stdio: 'inherit' });
         console.log('Setup complete!');
     } catch (error) {
         console.error('Setup failed:', error);
