@@ -26,19 +26,14 @@ export const test = base.extend<{
 
     // Override the default context to load with the extension
     context: async ({ baseURL }, use) => {
-        const isCI = !!process.env.CI;
         const context = await chromium.launchPersistentContext('', {
             headless: false,
             args: [
                 `--disable-extensions-except=${EXTENSION_PATH}`,
                 `--load-extension=${EXTENSION_PATH}`,
-                // Ensure userAgent is correctly set in serviceworker
-                '--user-agent=Playwright',
-                ...(isCI ? ['--headless=new', '--disable-gpu'] : []),
             ],
         });
         await use(context);
-        await context.close();
     },
 
     extensionUrl: async ({ context }, use) => {

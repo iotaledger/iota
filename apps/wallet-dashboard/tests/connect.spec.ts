@@ -32,7 +32,9 @@ test.describe.serial('Wallet Connection', () => {
 
         await page.waitForTimeout(1000);
         await connectButton.click();
+        await page.waitForTimeout(1000);
         await page.getByText('IOTA Wallet', { exact: true }).click();
+        await page.waitForTimeout(1000);
 
         let walletApprovePage;
         try {
@@ -43,6 +45,8 @@ test.describe.serial('Wallet Connection', () => {
             console.error('Is context still valid?', !isContextValid);
             throw error;
         }
+        await walletApprovePage.waitForLoadState('load');
+        await walletApprovePage.bringToFront();
         await walletApprovePage.getByRole('button', { name: 'Continue' }).click();
         await walletApprovePage.getByRole('button', { name: 'Connect' }).click();
 
