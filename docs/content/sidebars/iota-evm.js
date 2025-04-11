@@ -186,17 +186,6 @@ const iotaEvm = [
                     },
                     {
                         type: 'category',
-                        label: 'Token',
-                        items: [
-                            {
-                                label: 'Introduction',
-                                type: 'doc',
-                                id: 'iota-evm/how-tos/core-contracts/token/introduction',
-                            },
-                        ],
-                    },
-                    {
-                        type: 'category',
                         label: 'Objects',
                         items: [
                             {
@@ -206,8 +195,8 @@ const iotaEvm = [
                             },
                             {
                                 type: 'doc',
-                                label: 'Get NFTs Owned by an Account',
-                                id: 'iota-evm/how-tos/core-contracts/objects/get-L2-nfts',
+                                label: 'Get Objects Owned by an Account',
+                                id: 'iota-evm/how-tos/core-contracts/objects/get-L2-objects',
                             },
                         ],
                     },
