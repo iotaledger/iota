@@ -49,28 +49,31 @@ const config: PlaywrightTestConfig = {
             },
         },
     ],
-    webServer: process.env.CI ? [
-        {
-            command: 'pnpm demoApp:dev',
-            port: 5181,
-            timeout: 30 * 1000,
-            reuseExistingServer: false,
-        },
-    ]: [
-        {
-            command: 'pnpm demoApp:dev',
-            port: 5181,
-            timeout: 30 * 1000,
-            reuseExistingServer: true,
-        },
-        {
-            command: 'RUST_LOG="consensus=off" cargo run --bin iota start --force-regenesis --with-faucet',
-            port: 9123,
-            timeout: 120 * 1000,
-            /* Set this to true to reuse the server instance on step 'Run Local net' in e2e.yml */
-            reuseExistingServer: true,
-        },
-    ],
+    webServer: process.env.CI
+        ? [
+              {
+                  command: 'pnpm demoApp:dev',
+                  port: 5181,
+                  timeout: 30 * 1000,
+                  reuseExistingServer: false,
+              },
+          ]
+        : [
+              {
+                  command: 'pnpm demoApp:dev',
+                  port: 5181,
+                  timeout: 30 * 1000,
+                  reuseExistingServer: true,
+              },
+              {
+                  command:
+                      'RUST_LOG="consensus=off" cargo run --bin iota start --force-regenesis --with-faucet',
+                  port: 9123,
+                  timeout: 120 * 1000,
+                  /* Set this to true to reuse the server instance on step 'Run Local net' in e2e.yml */
+                  reuseExistingServer: true,
+              },
+          ],
 };
 
 export default config;

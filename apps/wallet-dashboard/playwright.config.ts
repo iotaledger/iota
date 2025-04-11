@@ -42,26 +42,28 @@ export default defineConfig({
         },
     ],
 
-    webServer: process.env.CI ?
-        [
-            {
-            command: 'pnpm dev',
-            port: 3000,
-            timeout: 120 * 1000,
-            reuseExistingServer: false,
-            }
-        ] : [
-            {
-                command: 'RUST_LOG="consensus=off" cargo run --bin iota start --force-regenesis --with-faucet',
-                port: 9123,
-                timeout: 120 * 1000,
-                reuseExistingServer: true,
-            },
-            {
-                command: 'pnpm dev',
-                port: 3000,
-                timeout: 120 * 1000,
-                reuseExistingServer: true,
-            },
-    ],
+    webServer: process.env.CI
+        ? [
+              {
+                  command: 'pnpm dev',
+                  port: 3000,
+                  timeout: 120 * 1000,
+                  reuseExistingServer: false,
+              },
+          ]
+        : [
+              {
+                  command:
+                      'RUST_LOG="consensus=off" cargo run --bin iota start --force-regenesis --with-faucet',
+                  port: 9123,
+                  timeout: 120 * 1000,
+                  reuseExistingServer: true,
+              },
+              {
+                  command: 'pnpm dev',
+                  port: 3000,
+                  timeout: 120 * 1000,
+                  reuseExistingServer: true,
+              },
+          ],
 });
