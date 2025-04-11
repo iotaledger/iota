@@ -8,15 +8,15 @@ import { useQuery } from '@tanstack/react-query';
 const MAX_TRANSACTIONS_PER_REQ = 50;
 
 export function useEndOfEpochTransactionFromCheckpoint(
-    checkpoinId?: string,
+    checkpointId?: string,
     limit = MAX_TRANSACTIONS_PER_REQ,
 ) {
     const client = useIotaClient();
     return useQuery({
-        queryKey: ['end-of-epoch-transaction', checkpoinId],
+        queryKey: ['end-of-epoch-transaction', checkpointId],
         queryFn: async () => {
             let cursor: string | undefined | null = null;
-            const filter = checkpoinId ? { Checkpoint: checkpoinId } : undefined;
+            const filter = checkpointId ? { Checkpoint: checkpointId } : undefined;
             // keep fetching until cursor is null or undefined
             do {
                 const { data: transactions, nextCursor } = await client.queryTransactionBlocks({
@@ -45,6 +45,6 @@ export function useEndOfEpochTransactionFromCheckpoint(
             } while (cursor);
         },
         staleTime: 10 * 1000,
-        enabled: !!checkpoinId,
+        enabled: !!checkpointId,
     });
 }

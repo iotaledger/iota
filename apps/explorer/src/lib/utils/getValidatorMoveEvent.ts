@@ -11,14 +11,11 @@ export function getValidatorMoveEvent(
 ): IotaEvent | undefined | unknown {
     const event = validatorsEvent.find(({ parsedJson }) => {
         const parsed = parsedJson as { validator_address?: string; epoch?: string };
-
-        if (parsed.validator_address !== validatorAddress) {
-            return false;
-        }
-        if (currentEpoch && parsed.epoch !== currentEpoch) {
-            return false;
-        }
-        return true;
+        return (
+            currentEpoch &&
+            parsed.epoch === currentEpoch &&
+            parsed.validator_address === validatorAddress
+        );
     });
 
     return event && event.parsedJson;
