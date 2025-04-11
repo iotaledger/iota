@@ -12,6 +12,7 @@ import {
     toast,
     parseAmount,
     useCoinMetadata,
+    getGasBudgetErrorMessage,
 } from '@iota/core';
 import { IOTA_TYPE_ARG, NANOS_PER_IOTA } from '@iota/iota-sdk/utils';
 import { useFormikContext } from 'formik';
@@ -169,6 +170,14 @@ export function EnterTimelockedAmountView({
         }
     }, [isError, possibleAmount, stakeTransactionError]);
 
+    const errorMessage = useMemo(() => {
+        if (isError) {
+            return getGasBudgetErrorMessage(stakeTransactionError);
+        } else {
+            return undefined;
+        }
+    }, [stakeTransactionError, isError]);
+
     return (
         <EnterAmountDialogLayout
             selectedValidator={selectedValidator}
@@ -183,6 +192,7 @@ export function EnterTimelockedAmountView({
             onBack={onBack}
             handleClose={handleClose}
             handleStake={handleStake}
+            errorMessage={errorMessage}
         />
     );
 }

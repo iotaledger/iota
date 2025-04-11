@@ -8,12 +8,14 @@ import {
     toast,
     useNewStakeTransaction,
     parseAmount,
+    getGasBudgetErrorMessage,
 } from '@iota/core';
 import { IOTA_DECIMALS, IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 import { useFormikContext } from 'formik';
 import { useSignAndExecuteTransaction } from '@iota/dapp-kit';
 import { EnterAmountDialogLayout } from './EnterAmountDialogLayout';
 import { ampli } from '@/lib/utils/analytics';
+import { useMemo } from 'react';
 
 export interface FormValues {
     amount: string;
@@ -43,11 +45,13 @@ export function EnterAmountView({
     const decimals = metadata?.decimals ?? 0;
     const amountWithoutDecimals = parseAmount(values.amount, decimals);
 
-    const { data: newStakeData, isLoading: isTransactionLoading } = useNewStakeTransaction(
-        selectedValidator,
-        amountWithoutDecimals,
-        senderAddress,
-    );
+    const {
+        data: newStakeData,
+        isLoading: isTransactionLoading,
+        isError,
+        error: stakeTransactionError,
+    } = useNewStakeTransaction(selectedValidator, amountWithoutDecimals, senderAddress);
+
     const gasSummary = newStakeData?.gasSummary;
     const [maxTokenFormatted, maxTokenFormattedSymbol] = useFormatCoin({
         balance: maxTokenBalance,
@@ -96,6 +100,14 @@ export function EnterAmountView({
         );
     }
 
+    const errorMessage = useMemo(() => {
+        if (isError) {
+            return getGasBudgetErrorMessage(stakeTransactionError);
+        } else {
+            return undefined;
+        }
+    }, [stakeTransactionError, isError]);
+
     return (
         <EnterAmountDialogLayout
             selectedValidator={selectedValidator}
@@ -108,6 +120,7 @@ export function EnterAmountView({
             onBack={onBack}
             handleClose={handleClose}
             handleStake={handleStake}
+            errorMessage={errorMessage}
         />
     );
 }
