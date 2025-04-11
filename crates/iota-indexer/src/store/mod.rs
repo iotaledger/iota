@@ -167,6 +167,21 @@ pub mod diesel_macro {
     }
 
     #[macro_export]
+    macro_rules! on_conflict_do_update_with_condition {
+        ($table:expr, $values:expr, $target:expr, $pg_columns:expr, $condition:expr, $conn:expr) => {{
+            use diesel::{ExpressionMethods, RunQueryDsl, query_dsl::methods::FilterDsl};
+
+            diesel::insert_into($table)
+                .values($values)
+                .on_conflict($target)
+                .do_update()
+                .set($pg_columns)
+                .filter($condition)
+                .execute($conn)?;
+        }};
+    }
+
+    #[macro_export]
     macro_rules! run_query {
         ($pool:expr, $query:expr) => {{
             blocking_call_is_ok_or_panic!();
