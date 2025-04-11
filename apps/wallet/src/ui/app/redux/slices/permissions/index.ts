@@ -5,12 +5,7 @@
 import type { Permission } from '_messages/payloads/permissions';
 import type { RootState } from '_src/ui/app/redux/rootReducer';
 import type { AppThunkConfig } from '_src/ui/app/redux/store/thunkExtras';
-import {
-    createAsyncThunk,
-    createEntityAdapter,
-    createSelector,
-    createSlice,
-} from '@reduxjs/toolkit';
+import { createAsyncThunk, createEntityAdapter, createSlice } from '@reduxjs/toolkit';
 import type { PayloadAction } from '@reduxjs/toolkit';
 
 const permissionsAdapter = createEntityAdapter<Permission>({
@@ -67,20 +62,3 @@ export const { setPermissions } = slice.actions;
 export const permissionsSelectors = permissionsAdapter.getSelectors(
     (state: RootState) => state.permissions,
 );
-
-export function createDappStatusSelector(origin: string | null, activeAddress: string | null) {
-    if (!origin || !activeAddress) {
-        return () => false;
-    }
-    return createSelector(permissionsSelectors.selectAll, (permissions) => {
-        const originPermission = permissions.find((aPermission) => aPermission.origin === origin);
-        if (!originPermission) {
-            return false;
-        }
-        return (
-            originPermission.allowed &&
-            activeAddress &&
-            originPermission.accounts.includes(activeAddress)
-        );
-    });
-}
