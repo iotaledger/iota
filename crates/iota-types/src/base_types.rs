@@ -1132,18 +1132,43 @@ impl TxContext {
 
 // TODO: rename to version
 impl SequenceNumber {
-    pub const MIN: SequenceNumber = SequenceNumber(u64::MIN);
-    pub const MAX: SequenceNumber = SequenceNumber(0x7fff_ffff_ffff_ffff);
-    pub const CANCELLED_READ: SequenceNumber = SequenceNumber(SequenceNumber::MAX.value() + 1);
+    /// Minimum valid sequence number. A valid sequence number means
+    /// an object is not congested
+    pub const MIN_VALID: SequenceNumber = SequenceNumber(u64::MIN);
+
+    /// Maximum valid sequence number. A valid sequence number means an object
+    /// is not congested. Sequence numbers larger than this value are assigned
+    /// to objects that cause transaction cancellations
+    pub const MAX_VALID: SequenceNumber = SequenceNumber(0x7fff_ffff_ffff_ffff);
+
+    // TODO: add description
+    pub const CANCELLED_READ: SequenceNumber =
+        SequenceNumber(SequenceNumber::MAX_VALID.value() + 1);
+
+    // TODO: add description
     pub const RANDOMNESS_UNAVAILABLE: SequenceNumber =
-        SequenceNumber(SequenceNumber::MAX.value() + 2);
+        SequenceNumber(SequenceNumber::MAX_VALID.value() + 2);
+
     // NOTE: if you want to add new SequenceNumber constants used for cancellation
     // reasons different than those used for cancellations due to shared object
     // congestion, please make sure their offset is less than CONGESTED_BASE_OFFSET
 
+    // Sequence numbers >= (SequenceNumber::MAX_VALID + CONGESTED_BASE_OFFSET)
+    // are assigned to objects that cause transactions cancellations due to
+    // congestion.
+    //
+    // Sequence numbers larger than SequenceNumber::MAX_VALID but smaller
+    // than (SequenceNumber::MAX_VALID + CONGESTED_BASE_OFFSET) are
+    // intended for other transaction cancellation reasons.
+    //
+    // This offset can be increased as needed but there unlikely to be
+    // more than 1_000 non-congestion cancellation reasons.
     const CONGESTED_BASE_OFFSET: u64 = 1_000;
-    const CONGESTED_BASE: SequenceNumber =
-        SequenceNumber(SequenceNumber::MAX.value() + Self::CONGESTED_BASE_OFFSET);
+
+    /// Minimum congested sequence number. A congested sequence number is
+    /// assigned to objects that cause transaction cancellations
+    const MIN_CONGESTED: SequenceNumber =
+        SequenceNumber(SequenceNumber::MAX_VALID.value() + Self::CONGESTED_BASE_OFFSET);
 
     pub const fn new() -> Self {
         SequenceNumber(0)
@@ -1158,12 +1183,12 @@ impl SequenceNumber {
     }
 
     /// Returns a sequence number used for congested shared objects:
-    /// SequenceNumber::MAX + SequenceNumber::CONGESTED_BASE + offset.
+    /// SequenceNumber::MAX_VALID + SequenceNumber::MIN_CONGESTED + offset.
     /// The offset here is used for gas price feedback for cancelled
     /// transactions, namely, to embed the lowest gas price of
     /// non-cancelled transactions
     pub fn congested_with_offset(offset: u64) -> Self {
-        let (version, overflows) = Self::CONGESTED_BASE.value().overflowing_add(offset);
+        let (version, overflows) = Self::MIN_CONGESTED.value().overflowing_add(offset);
         assert!(
             !overflows,
             "the calculated version for a congested shared objects overflows"
@@ -1174,7 +1199,7 @@ impl SequenceNumber {
 
     /// Check if this sequence number is used to label a congested shared object
     pub fn is_congested(&self) -> bool {
-        self >= &Self::CONGESTED_BASE
+        self >= &Self::MIN_CONGESTED
     }
 
     /// Returns the offset used to construct this congested shared object
@@ -1187,11 +1212,15 @@ impl SequenceNumber {
             "this is not a version used for congested shared objects"
         );
 
-        self.value() - Self::CONGESTED_BASE.value()
+        self.value() - Self::MIN_CONGESTED.value()
     }
 
     pub fn increment(&mut self) {
-        assert_ne!(self.0, u64::MAX);
+        assert_ne!(
+            self.0,
+            u64::MAX, // TODO: shouldn't it be SequenceNumber::MAX_VALID here?
+            "cannot increment a sequence number: maximum valid sequence number reached"
+        );
         self.0 += 1;
     }
 
@@ -1201,7 +1230,11 @@ impl SequenceNumber {
     }
 
     pub fn decrement(&mut self) {
-        assert_ne!(self.0, 0);
+        assert_ne!(
+            *self,
+            Self::MIN_VALID,
+            "cannot decrement a sequence number: minimum valid sequence number reached"
+        );
         self.0 -= 1;
     }
 
@@ -1220,19 +1253,26 @@ impl SequenceNumber {
         // Option 1: Freeze the object when sequence number reaches MAX.
         // Option 2: Reject tx with MAX sequence number.
         // Issue #182.
-        assert_ne!(max_input.0, u64::MAX);
+        assert_ne!(
+            max_input.0,
+            u64::MAX, // TODO: shouldn't it be SequenceNumber::MAX_VALID here?
+            "cannot increment a sequence number which is already maximum valid sequence number"
+        );
 
         SequenceNumber(max_input.0 + 1)
     }
 
+    /// Checks if this sequence number is cancelled, i.e., the corresponding
+    /// object is the reason for transaction cancellation
     pub fn is_cancelled(&self) -> bool {
         self == &SequenceNumber::CANCELLED_READ
             || self == &SequenceNumber::RANDOMNESS_UNAVAILABLE
             || self.is_congested()
     }
 
+    /// Checks if this sequence number is valid
     pub fn is_valid(&self) -> bool {
-        self < &SequenceNumber::MAX
+        self < &SequenceNumber::MAX_VALID
     }
 }
 

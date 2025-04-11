@@ -1149,7 +1149,7 @@ impl AuthorityStore {
             .live_owned_object_markers
             .unbounded_iter()
             // Make the max possible entry for this object ID.
-            .skip_prior_to(&(object_id, SequenceNumber::MAX, ObjectDigest::MAX))?;
+            .skip_prior_to(&(object_id, SequenceNumber::MAX_VALID, ObjectDigest::MAX))?;
         Ok(iterator
             .next()
             .and_then(|value| {

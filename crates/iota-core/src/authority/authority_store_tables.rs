@@ -370,7 +370,7 @@ impl AuthorityPerpetualTables {
         let mut objects = vec![];
         for result in self.objects.safe_iter_with_bounds(
             Some(ObjectKey(object.0, object.1.next())),
-            Some(ObjectKey(object.0, VersionNumber::MAX)),
+            Some(ObjectKey(object.0, VersionNumber::MAX_VALID)),
         ) {
             let (key, _) = result?;
             objects.push(key);
