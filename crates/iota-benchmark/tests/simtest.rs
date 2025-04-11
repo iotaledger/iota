@@ -602,7 +602,7 @@ mod test {
             for _ in 0..num_objs {
                 assigned_object_versions.push((
                     ObjectID::random(),
-                    SequenceNumber::congested_with_offset(1_000),
+                    SequenceNumber::new_congested_with_gas_price(1_000),
                 ));
             }
             additional_cancelled_txns.push((TransactionDigest::random(), assigned_object_versions));
