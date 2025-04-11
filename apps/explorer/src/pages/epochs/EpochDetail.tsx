@@ -94,6 +94,7 @@ export function EpochDetail() {
             rollingAverageApys: null,
             showValidatorIcon: true,
             includeColumns,
+            currentEpoch: epochData.epoch,
         });
     }, [epochData, validatorEvents]);
 

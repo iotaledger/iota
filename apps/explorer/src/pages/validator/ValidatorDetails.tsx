@@ -55,7 +55,7 @@ function ValidatorDetails(): JSX.Element {
         )?.pool_staking_reward;
 
         return rewards ? Number(rewards) : null;
-    }, [id, validatorEvents]);
+    }, [id, validatorEvents, epochId]);
 
     if (isPending || validatorsEventsLoading || validatorsApysLoading) {
         return <PageLayout content={<LoadingIndicator />} />;
