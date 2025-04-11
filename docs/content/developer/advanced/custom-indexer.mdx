@@ -43,9 +43,9 @@ The IOTA Foundation does not provide this service at the moment.
 
 :::
 
-The checkpoint files are stored in the following format:
+The checkpoints are stored in the following format:
 
-<code>{Networks.iota_move_testnet.indexerRpc+`/<checkpoint_id>.chk`}</code>. You can download the checkpoint file by
+<code>{Networks.iota_move_testnet.jsonRpcUrl+`/api/v1/checkpoints/<checkpoint_id>/full`}</code>. You can download the checkpoint by
 sending an HTTP GET request to the relevant URL.
 
 ```mermaid
