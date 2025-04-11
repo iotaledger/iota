@@ -96,7 +96,7 @@ impl SharedObjectCongestionTracker {
     //
     // This function returns `None` if none of the
     // `shared_input_objects` creates congestion, for example, all input
-    // shared objects referred immutably.
+    // shared objects referenced immutably.
     pub fn compute_lowest_gas_price_of_non_deferred_transaction(
         &self,
         cert: &VerifiedExecutableTransaction,
