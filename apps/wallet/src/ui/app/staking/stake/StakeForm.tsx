@@ -171,21 +171,22 @@ export function StakeFormComponent({ validatorAddress, epoch, onSuccess }: Stake
         format: CoinFormat.FULL,
     });
 
-    const hasEnoughRemainingBalance = availableBalance >= amountWithoutDecimals;
-
     const isLoading =
         isIotaBalanceLoading ||
         isSubmitting ||
         isStakeTokenTransactionLoading ||
         isStakeTokenTransactionPending;
 
-    const isMaxAmountSet = availableBalance === amountWithoutDecimals;
     const gasUnstakeBuffer = maxAmountTxGasBudget * BigInt(2);
     const maxSafeAmount = availableBalance - gasUnstakeBuffer;
     const [maxSafeAmountFormatted, maxSafeAmountSymbol] = useFormatCoin({
         balance: maxSafeAmount,
         format: CoinFormat.FULL,
     });
+    const isUnsafeAmount =
+        amountWithoutDecimals &&
+        amountWithoutDecimals > maxSafeAmount &&
+        amountWithoutDecimals <= availableBalance;
 
     function setMaxAmount() {
         setFieldValue('amount', availableBalanceFormatted, true);
@@ -194,26 +195,6 @@ export function StakeFormComponent({ validatorAddress, epoch, onSuccess }: Stake
     function setRecommendedAmount() {
         setFieldValue('amount', maxSafeAmountFormatted, true);
     }
-
-    const maxSafeAmountText = (() => {
-        if (!isMaxAmountSet) return;
-
-        return (
-            <>
-                Staking your full balance may leave you without enough funds to cover gas fees for
-                future actions like unstaking. To avoid this, we recommend staking up to{' '}
-                {maxSafeAmountFormatted}&nbsp;{maxSafeAmountSymbol}.
-                <div>
-                    <span
-                        onClick={setRecommendedAmount}
-                        className="cursor-pointer underline hover:opacity-80"
-                    >
-                        Set recommended amount
-                    </span>
-                </div>
-            </>
-        );
-    })();
 
     return (
         <FormikProvider value={formik}>
@@ -254,18 +235,26 @@ export function StakeFormComponent({ validatorAddress, epoch, onSuccess }: Stake
                         );
                     }}
                 </Field>
-                {!hasEnoughRemainingBalance ? (
-                    <InfoBox
-                        type={InfoBoxType.Error}
-                        supportingText="You have selected an amount that will leave you with insufficient funds to pay for gas fees for unstaking or any other transactions."
-                        style={InfoBoxStyle.Elevated}
-                        icon={<Exclamation />}
-                    />
-                ) : null}
-                {isMaxAmountSet ? (
+
+                {isUnsafeAmount ? (
                     <InfoBox
                         type={InfoBoxType.Warning}
-                        supportingText={maxSafeAmountText}
+                        supportingText={
+                            <>
+                                Staking your full balance may leave you without enough funds to
+                                cover gas fees for future actions like unstaking. To avoid this, we
+                                recommend staking up to {maxSafeAmountFormatted}&nbsp;
+                                {maxSafeAmountSymbol}.
+                                <div>
+                                    <span
+                                        onClick={setRecommendedAmount}
+                                        className="cursor-pointer underline hover:opacity-80"
+                                    >
+                                        Set recommended amount
+                                    </span>
+                                </div>
+                            </>
+                        }
                         style={InfoBoxStyle.Elevated}
                         icon={<Exclamation />}
                     />

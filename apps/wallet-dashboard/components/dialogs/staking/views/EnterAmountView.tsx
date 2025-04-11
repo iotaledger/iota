@@ -82,19 +82,17 @@ export function EnterAmountView({
 
     const amount = safeParseAmount(coinType === IOTA_TYPE_ARG ? values.amount : '0', decimals);
 
-    const hasEnoughRemainingBalance = amount ? availableBalance >= amount : true;
-
     const caption = maxAmountTxGasBudget
         ? `${availableBalanceFormatted} ${availableBalanceFormattedSymbol} Available`
         : '--';
 
-    const isMaxAmountSet = availableBalance === amount;
     const gasUnstakeBuffer = maxAmountTxGasBudget * BigInt(2);
     const maxSafeAmount = availableBalance - gasUnstakeBuffer;
     const [maxSafeAmountFormatted, maxSafeAmountSymbol] = useFormatCoin({
         balance: maxSafeAmount,
         format: CoinFormat.FULL,
     });
+    const isUnsafeAmount = amount && amount > maxSafeAmount && amount <= availableBalance;
 
     function setMaxAmount() {
         setFieldValue('amount', availableBalanceFormatted, true);
@@ -103,26 +101,6 @@ export function EnterAmountView({
     function setRecommendedAmount() {
         setFieldValue('amount', maxSafeAmountFormatted, true);
     }
-
-    const maxSafeAmountText = (() => {
-        if (!isMaxAmountSet) return;
-
-        return (
-            <>
-                Staking your full balance may leave you without enough funds to cover gas fees for
-                future actions like unstaking. To avoid this, we recommend staking up to{' '}
-                {maxSafeAmountFormatted}&nbsp;{maxSafeAmountSymbol}.
-                <div>
-                    <span
-                        onClick={setRecommendedAmount}
-                        className="cursor-pointer underline hover:opacity-80"
-                    >
-                        Set recommended amount
-                    </span>
-                </div>
-            </>
-        );
-    })();
 
     function handleStake(): void {
         if (!newStakeData?.transaction) {
@@ -149,26 +127,6 @@ export function EnterAmountView({
         );
     }
 
-    const infoBox = (() => {
-        if (!hasEnoughRemainingBalance) {
-            return {
-                message:
-                    'You have selected an amount that will leave you with insufficient funds to pay for gas fees for unstaking or any other transactions.',
-            };
-        }
-
-        if (isMaxAmountSet) {
-            return {
-                message: maxSafeAmountText,
-                type: InfoBoxType.Warning,
-            };
-        }
-
-        return {
-            message: '',
-        };
-    })();
-
     const errorMessage = useMemo(() => {
         if (isError) {
             return getGasBudgetErrorMessage(stakeTransactionError);
@@ -184,10 +142,25 @@ export function EnterAmountView({
             senderAddress={senderAddress}
             caption={caption}
             renderInfo={
-                infoBox.message ? (
+                isUnsafeAmount ? (
                     <InfoBox
-                        type={infoBox.type ?? InfoBoxType.Error}
-                        supportingText={infoBox.message}
+                        type={InfoBoxType.Warning}
+                        supportingText={
+                            <>
+                                Staking your full balance may leave you without enough funds to
+                                cover gas fees for future actions like unstaking. To avoid this, we
+                                recommend staking up to {maxSafeAmountFormatted}&nbsp;
+                                {maxSafeAmountSymbol}.
+                                <div>
+                                    <span
+                                        onClick={setRecommendedAmount}
+                                        className="cursor-pointer underline hover:opacity-80"
+                                    >
+                                        Set recommended amount
+                                    </span>
+                                </div>
+                            </>
+                        }
                         style={InfoBoxStyle.Elevated}
                         icon={<Exclamation />}
                     />
