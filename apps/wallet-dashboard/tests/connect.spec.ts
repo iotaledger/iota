@@ -59,5 +59,7 @@ test.describe.serial('Wallet Connection', () => {
             .getAttribute('data-full-address');
 
         expect(displayedFullAddress).toBe(sharedState.walletAddress);
+
+        await context.close();
     });
 });
