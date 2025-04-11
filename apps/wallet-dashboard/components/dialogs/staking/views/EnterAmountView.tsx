@@ -17,8 +17,9 @@ import { useFormikContext } from 'formik';
 import { useSignAndExecuteTransaction } from '@iota/dapp-kit';
 import { EnterAmountDialogLayout } from './EnterAmountDialogLayout';
 import { ampli } from '@/lib/utils/analytics';
-import { ButtonPill, InfoBoxType } from '@iota/apps-ui-kit';
+import { ButtonPill, InfoBox, InfoBoxStyle, InfoBoxType } from '@iota/apps-ui-kit';
 import { useEffect, useMemo } from 'react';
+import { Exclamation } from '@iota/apps-ui-icons';
 
 export interface FormValues {
     amount: string;
@@ -103,8 +104,6 @@ export function EnterAmountView({
         setFieldValue('amount', maxSafeAmountFormatted, true);
     }
 
-    const renderAction = () => <ButtonPill onClick={setMaxAmount}>Max</ButtonPill>;
-
     const maxSafeAmountText = (() => {
         if (!isMaxAmountSet) return;
 
@@ -184,15 +183,21 @@ export function EnterAmountView({
             totalGas={gasSummary?.totalGas}
             senderAddress={senderAddress}
             caption={caption}
-            showInfo={!!infoBox.message}
-            infoMessage={infoBox.message}
-            infoType={infoBox.type}
+            renderInfo={
+                infoBox.message ? (
+                    <InfoBox
+                        type={infoBox.type ?? InfoBoxType.Error}
+                        supportingText={infoBox.message}
+                        style={InfoBoxStyle.Elevated}
+                        icon={<Exclamation />}
+                    />
+                ) : undefined
+            }
             isLoading={isTransactionLoading}
             onBack={onBack}
             handleClose={handleClose}
             handleStake={handleStake}
-            renderInputAction={renderAction}
-            isMaxAmountSet={isMaxAmountSet}
+            renderInputAction={<ButtonPill onClick={setMaxAmount}>Max</ButtonPill>}
             errorMessage={errorMessage}
         />
     );

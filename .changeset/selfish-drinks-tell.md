@@ -2,4 +2,4 @@
 '@iota/apps-ui-kit': patch
 ---
 
-allow use ReactNode for InfoBox supportingText
+replace supportingText from string to ReactNode in InfoBox component

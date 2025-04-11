@@ -62,7 +62,7 @@ export function StakeFormComponent({ validatorAddress, epoch, onSuccess }: Stake
     const activeAccount = useActiveAccount();
     const activeAddress = activeAccount?.address ?? '';
     const signer = useSigner(activeAccount);
-    const { data: iotaBalance, isPending: loadingIotaBalances } = useBalance(activeAddress);
+    const { data: iotaBalance, isPending: isIotaBalanceLoading } = useBalance(activeAddress);
     const coinBalance = BigInt(iotaBalance?.totalBalance || 0);
 
     const { data: metadata } = useCoinMetadata(IOTA_TYPE_ARG);
@@ -174,7 +174,7 @@ export function StakeFormComponent({ validatorAddress, epoch, onSuccess }: Stake
     const hasEnoughRemainingBalance = availableBalance >= amountWithoutDecimals;
 
     const isLoading =
-        loadingIotaBalances ||
+        isIotaBalanceLoading ||
         isSubmitting ||
         isStakeTokenTransactionLoading ||
         isStakeTokenTransactionPending;
@@ -194,8 +194,6 @@ export function StakeFormComponent({ validatorAddress, epoch, onSuccess }: Stake
     function setRecommendedAmount() {
         setFieldValue('amount', maxSafeAmountFormatted, true);
     }
-
-    const renderAction = () => <ButtonPill onClick={setMaxAmount}>Max</ButtonPill>;
 
     const maxSafeAmountText = (() => {
         if (!isMaxAmountSet) return;
@@ -249,7 +247,9 @@ export function StakeFormComponent({ validatorAddress, epoch, onSuccess }: Stake
                                 suffix={' ' + symbol}
                                 errorMessage={amount && meta.error ? meta.error : undefined}
                                 label="Amount"
-                                trailingElement={renderAction()}
+                                trailingElement={
+                                    <ButtonPill onClick={setMaxAmount}>Max</ButtonPill>
+                                }
                             />
                         );
                     }}

@@ -35,18 +35,14 @@ interface EnterAmountDialogLayoutProps {
     selectedValidator: string;
     senderAddress: string;
     caption: string;
-    showInfo: boolean;
-    infoTitle?: string;
-    infoMessage: string | React.ReactNode;
-    infoType?: InfoBoxType;
+    renderInfo?: React.JSX.Element;
     isLoading: boolean;
     onBack: () => void;
     handleClose: () => void;
     handleStake: () => void;
     isStakeDisabled?: boolean;
     totalGas?: string | number | null;
-    renderInputAction?: () => JSX.Element;
-    isMaxAmountSet?: boolean;
+    renderInputAction?: React.JSX.Element;
     errorMessage?: string;
 }
 
@@ -55,10 +51,7 @@ export function EnterAmountDialogLayout({
     totalGas,
     senderAddress,
     caption,
-    showInfo,
-    infoTitle,
-    infoMessage,
-    infoType,
+    renderInfo,
     isLoading,
     isStakeDisabled,
     errorMessage,
@@ -66,7 +59,6 @@ export function EnterAmountDialogLayout({
     handleClose,
     handleStake,
     renderInputAction,
-    isMaxAmountSet,
 }: EnterAmountDialogLayoutProps): JSX.Element {
     const { data: system } = useGetLatestIotaSystemState();
     const { values, errors } = useFormikContext<FormValues>();
@@ -113,22 +105,12 @@ export function EnterAmountDialogLayout({
                                                 values.amount && meta.error ? meta.error : undefined
                                             }
                                             caption={caption}
-                                            trailingElement={renderInputAction?.()}
+                                            trailingElement={renderInputAction}
                                         />
                                     );
                                 }}
                             </Field>
-                            {showInfo ? (
-                                <div className="mt-md">
-                                    <InfoBox
-                                        title={infoTitle}
-                                        type={infoType ?? InfoBoxType.Error}
-                                        supportingText={infoMessage}
-                                        style={InfoBoxStyle.Elevated}
-                                        icon={<Exclamation />}
-                                    />
-                                </div>
-                            ) : null}
+                            {renderInfo ? <div className="mt-md">{renderInfo}</div> : null}
                         </div>
 
                         <Panel hasBorder>
