@@ -117,6 +117,8 @@ pub struct ProgrammableTransactionCommand {
     pub gas_payment: Option<FakeID>,
     #[arg(long = "dev-inspect")]
     pub dev_inspect: bool,
+    #[clap(long = "dry-run")]
+    pub dry_run: bool,
     #[arg(
         long,
         value_parser = ParsedValue::<IotaExtraValueArgs>::parse,
