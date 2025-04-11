@@ -212,6 +212,8 @@ export interface GetBalanceParams {
 export interface GetCheckpointAddressMetricsParams {
     checkpoint: string;
 }
+/** Return the circulating supply summary. */
+export interface GetCirculatingSupplyParams {}
 /** Return metadata (e.g., symbol, decimals) for a coin. */
 export interface GetCoinMetadataParams {
     /** type name for the coin (e.g., 0x168da5bf1f48dafc111b0a488fa454aca95e0b5e::usdc::USDC) */

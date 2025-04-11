@@ -7,7 +7,6 @@ import cn from 'clsx';
 import { createContext, type ReactNode, useState } from 'react';
 import { useAppSelector, useActiveAccount } from '_hooks';
 import { AppType } from '../../redux/slices/app/appType';
-import { DappStatus } from '../dapp-status';
 import { Header } from '../header/Header';
 import { Toaster } from '../toaster';
 import { IotaLogoMark, Ledger } from '@iota/apps-ui-icons';
@@ -31,7 +30,6 @@ export function PageMainLayout({
     children,
     bottomNavEnabled = false,
     topNavMenuEnabled = false,
-    dappStatusEnabled = false,
 }: PageMainLayoutProps) {
     const appType = useAppSelector((state) => state.app.appType);
     const activeAccount = useActiveAccount();
@@ -57,9 +55,7 @@ export function PageMainLayout({
                             isLegacyAccount={isLegacyAccount(activeAccount)}
                         />
                     }
-                    middleContent={
-                        dappStatusEnabled ? <DappStatus /> : <div ref={setTitlePortalContainer} />
-                    }
+                    middleContent={<div ref={setTitlePortalContainer} />}
                     rightContent={topNavMenuEnabled ? <WalletSettingsButton /> : undefined}
                 />
             ) : null}

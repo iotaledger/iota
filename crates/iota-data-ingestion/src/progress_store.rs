@@ -7,8 +7,12 @@ use std::{str::FromStr, time::Duration};
 use anyhow::Result;
 use async_trait::async_trait;
 use aws_config::{BehaviorVersion, timeout::TimeoutConfig};
-use aws_sdk_dynamodb::{Client, error::SdkError, types::AttributeValue};
-use aws_sdk_s3::config::{Credentials, Region};
+use aws_sdk_dynamodb::{
+    Client,
+    config::{Credentials, Region},
+    error::SdkError,
+    types::AttributeValue,
+};
 use iota_data_ingestion_core::ProgressStore;
 use iota_types::messages_checkpoint::CheckpointSequenceNumber;
 
