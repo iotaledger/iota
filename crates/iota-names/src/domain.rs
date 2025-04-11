@@ -96,15 +96,29 @@ impl Domain {
         }
     }
 
-    /// Derive the parent domain for a given domain
-    /// E.g. `test.example.iota` -> `example.iota`
+    /// Derive the parent domain for a given domain. Only subdomains have
+    /// parents; second-level domains return `None`.
+    ///
+    /// ```
+    /// # use std::str::FromStr;
+    /// # use iota_names::domain::Domain;
+    /// assert_eq!(
+    ///     Domain::from_str("test.example.iota").unwrap().parent(),
+    ///     Some(Domain::from_str("example.iota").unwrap())
+    /// );
+    /// assert_eq!(
+    ///     Domain::from_str("sub.test.example.iota").unwrap().parent(),
+    ///     Some(Domain::from_str("test.example.iota").unwrap())
+    /// );
+    /// assert_eq!(Domain::from_str("example.iota").unwrap().parent(), None);
+    /// ```
     pub fn parent(&self) -> Option<Self> {
         if self.is_subdomain() {
             Some(Self {
                 labels: self
                     .labels
                     .iter()
-                    .take((self.depth() - 1).into())
+                    .take(self.num_labels() - 1)
                     .cloned()
                     .collect(),
             })
@@ -113,24 +127,36 @@ impl Domain {
         }
     }
 
+    /// Returns whether this domain is a second-level domain (Ex. `test.iota`)
+    pub fn is_sld(&self) -> bool {
+        self.num_labels() == 2
+    }
+
+    /// Returns whether this domain is a subdomain (Ex. `sub.test.iota`)
     pub fn is_subdomain(&self) -> bool {
-        self.depth() >= 3
+        self.num_labels() >= 3
     }
 
-    /// Returns the depth for a name.
-    /// Depth is defined by the amount of labels in a domain, including TLD.
-    /// E.g. `test.example.iota` -> `3`
+    /// Returns the number of labels including TLD.
     ///
-    /// SAFETY: We can safely cast to a u8 as the max depth is 235.
-    pub fn depth(&self) -> u8 {
-        self.labels.len() as u8
+    /// ```
+    /// assert_eq!(
+    ///     Domain::from_str("test.example.iota").unwrap().num_labels(),
+    ///     3
+    /// )
+    /// ```
+    pub fn num_labels(&self) -> usize {
+        self.labels.len()
     }
 
+    /// Get the label at the given index
     pub fn label(&self, index: usize) -> Option<&String> {
         self.labels.get(index)
     }
 
-    pub fn labels(&self) -> &Vec<String> {
+    /// Get all of the labels. NOTE: These are in reverse order starting with
+    /// the top-level domain and proceeding to subdomains.
+    pub fn labels(&self) -> &[String] {
         &self.labels
     }
 

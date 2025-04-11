@@ -540,7 +540,7 @@ pub enum IotaClientCommands {
 }
 
 /// Global options for most transaction execution related commands
-#[derive(Args, Debug)]
+#[derive(Args, Debug, Clone)]
 pub struct Opts {
     /// An optional gas budget for this transaction (in NANOS). If gas budget is
     /// not provided, the tool will first perform a dry run to estimate the
@@ -579,7 +579,7 @@ pub struct Opts {
 }
 
 /// Global options with gas
-#[derive(Args, Debug)]
+#[derive(Args, Debug, Clone)]
 pub struct OptsWithGas {
     /// ID of the gas object for gas payment.
     /// If not provided, a gas object with at least gas_budget value will be
@@ -667,9 +667,10 @@ impl OptsWithGas {
     }
 
     // `--emit` is not supported with a PTB call (https://github.com/iotaledger/iota/issues/5722)
-    /// Append the options to a vec of strings that can be provided as args to
+    /// Output the options as a vec of strings that can be provided as args to
     /// the PTB CLI.
-    pub fn append_args(self, args: &mut Vec<String>) {
+    pub fn into_args(self) -> Vec<String> {
+        let mut args = Vec::default();
         if let Some(gas) = self.gas {
             args.push(format!("--gas {gas}"));
         }
@@ -688,6 +689,7 @@ impl OptsWithGas {
         if self.rest.serialize_unsigned_transaction {
             args.push("--serialize_unsigned_transaction".to_string());
         }
+        args
     }
 }
 
