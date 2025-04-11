@@ -105,13 +105,6 @@ jobs:
           path: apps/explorer/playwright-report/
           retention-days: 30
 
-      - uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # v4.4.3
-        if: always()
-        with:
-          name: playwright-report-wallet-dashboard
-          path: apps/wallet-dashboard/playwright-report/
-          retention-days: 30
-
       - name: Build Kiosk
         if: inputs.isRpc || inputs.isTypescriptSDK || github.ref_name == 'develop'
         run: pnpm turbo --filter=@iota/kiosk build
@@ -130,6 +123,13 @@ jobs:
       - name: Run Dashboard e2e tests
         if: inputs.isWalletDashboard || inputs.isRpc || inputs.isTypescriptSDK || github.ref_name == 'develop'
         run: DEBUG=pw:webserver xvfb-run --auto-servernum --server-args="-screen 0 1280x960x24" -- pnpm --filter wallet-dashboard playwright test
+
+      - uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # v4.4.3
+        if: always()
+        with:
+          name: playwright-report-wallet-dashboard
+          path: apps/wallet-dashboard/playwright-report/
+          retention-days: 30
 
       - name: Run Wallet e2e tests
         if: inputs.isWallet || inputs.isRpc || inputs.isTypescriptSDK || github.ref_name == 'develop'
