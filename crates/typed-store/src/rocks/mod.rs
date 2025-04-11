@@ -2909,7 +2909,9 @@ fn is_max(v: &[u8]) -> bool {
     v.iter().all(|&x| x == u8::MAX)
 }
 
-#[expect(clippy::assign_op_pattern)]
+// `clippy::manual_div_ceil` is raised by code expanded by the
+// `uint::construct_uint!` macro so it needs to be fixed by `uint`
+#[expect(clippy::assign_op_pattern, clippy::manual_div_ceil)]
 #[test]
 fn test_helpers() {
     let v = vec![];

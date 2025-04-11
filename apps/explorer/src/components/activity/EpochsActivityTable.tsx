@@ -3,8 +3,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { InfoBox, InfoBoxStyle, InfoBoxType, Select, SelectSize } from '@iota/apps-ui-kit';
-import { useIotaClientQuery, useIotaClient, useIotaClientInfiniteQuery } from '@iota/dapp-kit';
-import { useCursorPagination } from '@iota/core';
+import { useIotaClient, useIotaClientInfiniteQuery } from '@iota/dapp-kit';
+import { useCursorPagination, useGetLatestIotaSystemState } from '@iota/core';
 import { Warning } from '@iota/apps-ui-icons';
 import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
@@ -27,7 +27,7 @@ export function EpochsActivityTable({
 }: EpochsActivityTableProps): JSX.Element {
     const [limit, setLimit] = useState(initialLimit);
     const client = useIotaClient();
-    const { data: systemState } = useIotaClientQuery('getLatestIotaSystemState');
+    const { data: systemState } = useGetLatestIotaSystemState();
     const { data: count } = useQuery({
         queryKey: ['epochs', 'current'],
         queryFn: async () => client.getCurrentEpoch(),

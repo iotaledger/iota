@@ -1,7 +1,13 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { CoinFormat, useFormatCoin, useStakeTxnInfo, Validator } from '@iota/core';
+import {
+    CoinFormat,
+    useFormatCoin,
+    useGetLatestIotaSystemState,
+    useStakeTxnInfo,
+    Validator,
+} from '@iota/core';
 import {
     Button,
     ButtonType,
@@ -17,7 +23,6 @@ import {
 } from '@iota/apps-ui-kit';
 import { Field, type FieldProps, useFormikContext } from 'formik';
 import { Exclamation, Loader } from '@iota/apps-ui-icons';
-import { useIotaClientQuery } from '@iota/dapp-kit';
 import { StakedInfo } from './StakedInfo';
 import { DialogLayout, DialogLayoutBody, DialogLayoutFooter } from '../../layout';
 
@@ -38,6 +43,7 @@ interface EnterAmountDialogLayoutProps {
     handleStake: () => void;
     isStakeDisabled?: boolean;
     totalGas?: string | number | null;
+    errorMessage?: string;
 }
 
 export function EnterAmountDialogLayout({
@@ -50,11 +56,12 @@ export function EnterAmountDialogLayout({
     infoMessage,
     isLoading,
     isStakeDisabled,
+    errorMessage,
     onBack,
     handleClose,
     handleStake,
 }: EnterAmountDialogLayoutProps): JSX.Element {
-    const { data: system } = useIotaClientQuery('getLatestIotaSystemState');
+    const { data: system } = useGetLatestIotaSystemState();
     const { values, errors } = useFormikContext<FormValues>();
     const amount = values.amount;
 
@@ -141,12 +148,28 @@ export function EnterAmountDialogLayout({
                 </div>
             </DialogLayoutBody>
             <DialogLayoutFooter>
+                {errorMessage ? (
+                    <div className="mb-sm">
+                        <InfoBox
+                            type={InfoBoxType.Error}
+                            supportingText={errorMessage}
+                            style={InfoBoxStyle.Elevated}
+                            icon={<Exclamation />}
+                        />
+                    </div>
+                ) : null}
                 <div className="flex w-full justify-between gap-sm">
                     <Button fullWidth type={ButtonType.Secondary} onClick={onBack} text="Back" />
                     <Button
                         fullWidth
                         type={ButtonType.Primary}
-                        disabled={!amount || !!errors?.amount || isLoading || isStakeDisabled}
+                        disabled={
+                            !amount ||
+                            !!errors?.amount ||
+                            isLoading ||
+                            isStakeDisabled ||
+                            !!errorMessage
+                        }
                         onClick={handleStake}
                         text="Stake"
                         icon={
