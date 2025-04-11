@@ -14,8 +14,9 @@ use iota_indexer::{
     errors::IndexerError,
     handlers::objects_snapshot_handler::SnapshotLagConfig,
     indexer::Indexer,
+    metrics::IndexerMetrics,
     store::{PgIndexerStore, indexer_store::IndexerStore},
-    test_utils::{DBInitHook, IndexerTypeConfig, start_test_indexer},
+    test_utils::{DBInitHook, IndexerTypeConfig, create_pg_store, start_test_indexer},
 };
 use iota_json_rpc_api::ReadApiClient;
 use iota_json_rpc_types::{IotaTransactionBlockResponseOptions, TransactionBlockBytes};
@@ -300,8 +301,13 @@ fn start_indexer_reader(
 
     let registry = prometheus::Registry::default();
     init_metrics(&registry);
+    let metrics = IndexerMetrics::new(&registry);
 
-    tokio::spawn(async move { Indexer::start_reader(&config, &registry, db_url).await });
+    let store = create_pg_store(config.get_db_url().unwrap(), false);
+
+    tokio::spawn(
+        async move { Indexer::start_reader(&config, store, &registry, db_url, metrics).await },
+    );
     port
 }
 

@@ -170,15 +170,17 @@ impl Indexer {
 
     pub async fn start_reader(
         config: &IndexerConfig,
+        store: PgIndexerStore,
         registry: &Registry,
         db_url: String,
+        metrics: IndexerMetrics,
     ) -> Result<(), IndexerError> {
         info!(
             "IOTA Indexer Reader (version {:?}) started...",
             env!("CARGO_PKG_VERSION")
         );
         let indexer_reader = IndexerReader::new(db_url)?;
-        let handle = build_json_rpc_server(registry, indexer_reader, config, None)
+        let handle = build_json_rpc_server(store, registry, indexer_reader, config, None, metrics)
             .await
             .expect("Json rpc server should not run into errors upon start.");
         tokio::spawn(async move { handle.stopped().await })

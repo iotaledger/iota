@@ -1,25 +1,40 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use std::{path::Path, str::FromStr, time::Duration};
+
 use fastcrypto::encoding::Base64;
-use iota_json_rpc_api::{ReadApiClient, TransactionBuilderClient, WriteApiClient};
+use iota_json::{call_args, type_args};
+use iota_json_rpc_api::{
+    CoinReadApiClient, IndexerApiClient, ReadApiClient, TransactionBuilderClient, WriteApiClient,
+};
 use iota_json_rpc_types::{
     IotaExecutionStatus, IotaObjectDataOptions, IotaTransactionBlockEffectsAPI,
-    IotaTransactionBlockResponseOptions,
+    IotaTransactionBlockResponse, IotaTransactionBlockResponseOptions, MoveCallParams,
+    ObjectChange, RPCTransactionRequestParams, TransactionBlockBytes,
 };
+use iota_move_build::BuildConfig;
+use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
+    IOTA_FRAMEWORK_PACKAGE_ID,
     base_types::{IotaAddress, ObjectID},
     crypto::{AccountKeyPair, get_key_pair},
+    digests::TransactionDigest,
     object::Owner,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     quorum_driver_types::ExecuteTransactionRequestType,
-    transaction::TransactionKind,
+    transaction::{CallArg, TransactionKind},
+    utils::to_sender_signed_transaction,
 };
+use itertools::Itertools;
 use jsonrpsee::http_client::HttpClient;
+use move_core_types::{
+    identifier::{IdentStr, Identifier},
+    language_storage::{StructTag, TypeTag},
+};
 use test_cluster::TestCluster;
 
 use crate::common::{ApiTestSetup, indexer_wait_for_checkpoint, indexer_wait_for_object};
-
 type TxBytes = Base64;
 type Signatures = Vec<Base64>;
 
@@ -269,4 +284,932 @@ fn execute_transaction_block() {
             Owner::AddressOwner(receiver)
         );
     });
+}
+
+#[test]
+fn test_consecutive_modifications_of_owned_object() -> Result<(), anyhow::Error> {
+    let ApiTestSetup {
+        runtime,
+        cluster,
+        client,
+        ..
+    } = ApiTestSetup::get_or_init();
+    runtime.block_on(async move {
+        let (address, keypair): (_, AccountKeyPair) = get_key_pair();
+
+        let consecutive_updates = 20;
+        let gas_ref = cluster
+            .fund_address_and_return_gas(
+                cluster.get_reference_gas_price().await,
+                Some(500_000_000),
+                address,
+            )
+            .await;
+        indexer_wait_for_object(client, gas_ref.0, gas_ref.1).await;
+        let coin_to_split = cluster
+            .fund_address_and_return_gas(
+                cluster.get_reference_gas_price().await,
+                Some(500_000_000),
+                address,
+            )
+            .await;
+        indexer_wait_for_object(client, coin_to_split.0, coin_to_split.1).await;
+
+        for _ in 0..consecutive_updates {
+            let tx_data = client
+                .split_coin_equal(
+                    address,
+                    coin_to_split.0,
+                    2.into(),
+                    Some(gas_ref.0),
+                    10_000_000.into(),
+                )
+                .await?
+                .to_data()
+                .unwrap();
+            let signed_transaction = to_sender_signed_transaction(tx_data, &keypair);
+            let (tx_bytes, signatures) = signed_transaction.to_tx_bytes_and_signatures();
+            let res = client
+                .execute_transaction_block(
+                    tx_bytes,
+                    signatures,
+                    Some(IotaTransactionBlockResponseOptions::new().with_effects()),
+                    Some(ExecuteTransactionRequestType::WaitForLocalExecution),
+                )
+                .await?;
+
+            assert_eq!(res.status_ok(), Some(true));
+        }
+
+        let objects = client
+            .get_owned_objects(address, None, None, None)
+            .await?
+            .data;
+
+        // 2 gas coins + N coins created by 'split_coin_equal'
+        assert_eq!(consecutive_updates + 2, objects.len());
+        Ok(())
+    })
+}
+
+#[test]
+fn test_consecutive_wrap_unwrap() -> Result<(), anyhow::Error> {
+    let ApiTestSetup {
+        runtime,
+        store,
+        cluster,
+        client,
+    } = ApiTestSetup::get_or_init();
+    runtime.block_on(async move {
+        indexer_wait_for_checkpoint(store, 1).await;
+        let (sender, sender_kp): (_, AccountKeyPair) = get_key_pair();
+        let consecutive_updates = 50;
+
+        let gas = cluster
+            .fund_address_and_return_gas(
+                cluster.get_reference_gas_price().await,
+                Some(10_000_000_000),
+                sender,
+            )
+            .await;
+
+        indexer_wait_for_object(client, gas.0, gas.1).await;
+
+        let res = deploy_basics_pkg(sender, &sender_kp, client).await;
+
+        let package_id = res
+            .object_changes
+            .as_ref()
+            .unwrap()
+            .iter()
+            .filter_map(|o| match o {
+                ObjectChange::Published { package_id, .. } => Some(package_id),
+                _ => None,
+            })
+            .exactly_one()
+            .unwrap();
+        println!("Publish result: {:#?}", package_id);
+        assert_eq!(res.status_ok(), Some(true));
+
+        let upgrade_cap = res
+            .object_changes
+            .as_ref()
+            .unwrap()
+            .iter()
+            .filter_map(|o| match o {
+                ObjectChange::Created { object_id, .. } => Some(object_id),
+                _ => None,
+            })
+            .exactly_one()
+            .unwrap();
+        println!("Upgrade cap: {:#?}", upgrade_cap);
+
+        let (_, basic_obj) = create_basic_object(sender, &sender_kp, client, package_id).await?;
+        println!("Basic obj: {:#?}", basic_obj);
+
+        for n in 0..consecutive_updates {
+            let (res, _) = wrap_basic_object(sender, &sender_kp, client, package_id, &basic_obj)
+                .await
+                .unwrap();
+
+            assert_eq!(res.status_ok(), Some(true));
+            let wrapped_obj_id = res
+                .effects
+                .unwrap()
+                .created()
+                .iter()
+                .exactly_one()
+                .unwrap()
+                .object_id();
+            println!("Wrapped obj {:#?}", wrapped_obj_id);
+
+            let objects = client
+                .get_owned_objects(sender, None, None, None)
+                .await?
+                .data
+                .iter()
+                .map(|o| o.object_id().unwrap())
+                .sorted()
+                .collect::<Vec<_>>();
+            assert_eq!(
+                objects,
+                vec![wrapped_obj_id, *upgrade_cap, gas.0]
+                    .into_iter()
+                    .sorted()
+                    .collect::<Vec<_>>()
+            );
+
+            let (res, _) =
+                unwrap_basic_object(sender, &sender_kp, client, package_id, &wrapped_obj_id)
+                    .await
+                    .unwrap();
+            assert_eq!(res.status_ok(), Some(true));
+
+            let objects = client
+                .get_owned_objects(sender, None, None, None)
+                .await?
+                .data
+                .iter()
+                .map(|o| o.object_id().unwrap())
+                .sorted()
+                .collect::<Vec<_>>();
+            assert_eq!(
+                objects,
+                vec![basic_obj, *upgrade_cap, gas.0]
+                    .into_iter()
+                    .sorted()
+                    .collect::<Vec<_>>()
+            );
+
+            println!("FINISHED PASS: {}", n);
+        }
+        Ok(())
+    })
+}
+
+#[test]
+fn test_execute_transactions_with_shared_objects() {
+    let ApiTestSetup {
+        runtime,
+        cluster,
+        store,
+        client,
+    } = ApiTestSetup::get_or_init();
+
+    runtime.block_on(async {
+        indexer_wait_for_checkpoint(store, 1).await;
+
+        let (sender, sender_kp): (_, AccountKeyPair) = get_key_pair();
+
+        let gas = cluster
+            .fund_address_and_return_gas(
+                cluster.get_reference_gas_price().await,
+                Some(10_000_000_000),
+                sender,
+            )
+            .await;
+
+        indexer_wait_for_object(client, gas.0, gas.1).await;
+
+        let res = deploy_basics_pkg(sender, &sender_kp, client).await;
+
+        let package_id = res
+            .object_changes
+            .as_ref()
+            .unwrap()
+            .iter()
+            .filter_map(|o| match o {
+                ObjectChange::Published { package_id, .. } => Some(package_id),
+                _ => None,
+            })
+            .exactly_one()
+            .unwrap();
+        println!("Publish result: {:#?}", package_id);
+
+        let (_, counter_obj) = create_counter_object(sender, &sender_kp, client, package_id).await;
+
+        let (res, _) = increment_counter_n_times_batch(
+            sender,
+            &sender_kp,
+            client,
+            package_id,
+            &counter_obj,
+            1,
+        )
+        .await
+        .unwrap();
+
+        assert_eq!(res.status_ok(), Some(true));
+
+        let (res, _) = increment_counter_n_times_batch(
+            sender,
+            &sender_kp,
+            client,
+            package_id,
+            &counter_obj,
+            1,
+        )
+        .await
+        .unwrap();
+
+        assert_eq!(res.status_ok(), Some(true));
+    });
+}
+
+#[test]
+fn test_repeatedly_update_display() {
+    let ApiTestSetup {
+        runtime,
+        cluster,
+        store,
+        client,
+    } = ApiTestSetup::get_or_init();
+
+    runtime.block_on(async {
+        let consecutive_updates = 50;
+        indexer_wait_for_checkpoint(store, 1).await;
+
+        let (sender, sender_kp): (_, AccountKeyPair) = get_key_pair();
+
+        let gas = cluster
+            .fund_address_and_return_gas(
+                cluster.get_reference_gas_price().await,
+                Some(10_000_000_000),
+                sender,
+            )
+            .await;
+
+        indexer_wait_for_object(client, gas.0, gas.1).await;
+
+        let res = deploy_bear_pkg(sender, &sender_kp, client).await;
+        assert_eq!(res.status_ok(), Some(true));
+
+        let package_id = res
+            .object_changes
+            .as_ref()
+            .unwrap()
+            .iter()
+            .filter_map(|o| match o {
+                ObjectChange::Published { package_id, .. } => Some(package_id),
+                _ => None,
+            })
+            .exactly_one()
+            .unwrap();
+        println!("Publish result: {:#?}", package_id);
+
+        let display_obj_id = ObjectID::from_hex_literal(
+            res.events.unwrap().data[0].parsed_json.as_object().unwrap()["id"]
+                .as_str()
+                .unwrap(),
+        )
+        .unwrap();
+
+        println!("Display object: {:#?}", display_obj_id);
+
+        let (res, _) = create_new_bear(sender, &sender_kp, client, package_id, "bear name")
+            .await
+            .unwrap();
+        assert_eq!(res.status_ok(), Some(true));
+
+        let bear_id = res
+            .effects
+            .unwrap()
+            .created()
+            .iter()
+            .exactly_one()
+            .unwrap()
+            .object_id();
+
+        println!("Bear object: {:#?}", bear_id);
+
+        let bear_type_tag = TypeTag::Struct(Box::new(StructTag {
+            address: (*package_id).into(),
+            name: IdentStr::new("DemoBear").unwrap().into(),
+            module: IdentStr::new("demo_bear").unwrap().into(),
+            type_params: Vec::new(),
+        }));
+
+        for n in 0..consecutive_updates {
+            let new_bear_description = format!("Bear description {n}");
+
+            let (res, _) = update_display_object(
+                sender,
+                &sender_kp,
+                client,
+                &display_obj_id,
+                bear_type_tag.clone(),
+                "description",
+                &new_bear_description,
+            )
+            .await
+            .unwrap();
+            assert_eq!(res.status_ok(), Some(true));
+
+            let (res, _) = bump_display_object_version(
+                sender,
+                &sender_kp,
+                client,
+                &display_obj_id,
+                bear_type_tag.clone(),
+            )
+            .await
+            .unwrap();
+            assert_eq!(res.status_ok(), Some(true));
+
+            let res = client
+                .get_object(bear_id, Some(IotaObjectDataOptions::new().with_display()))
+                .await
+                .unwrap();
+
+            // println!("{:#?}", res);
+
+            let actual_description =
+                res.data.unwrap().display.unwrap().data.unwrap()["description"].clone();
+
+            assert_eq!(actual_description, new_bear_description);
+        }
+    });
+}
+
+async fn update_display_object(
+    address: IotaAddress,
+    addres_kp: &AccountKeyPair,
+    client: &HttpClient,
+    display_object_id: &ObjectID,
+    display_obj_type_tag: TypeTag,
+    name_to_update: &str,
+    new_value: &str,
+) -> Result<(IotaTransactionBlockResponse, i64), anyhow::Error> {
+    let module = "display".to_string();
+    let function = "edit".to_string();
+
+    let tx_bytes: TransactionBlockBytes = {
+        let rpc_params = RPCTransactionRequestParams::MoveCallRequestParams(MoveCallParams {
+            package_object_id: IOTA_FRAMEWORK_PACKAGE_ID,
+            module: module.clone(),
+            function: function.clone(),
+            type_arguments: type_args![display_obj_type_tag].unwrap(),
+            arguments: call_args!(
+                display_object_id,
+                name_to_update.to_string(),
+                new_value.to_string()
+            )
+            .unwrap(),
+        });
+        client
+            .batch_transaction(address, vec![rpc_params], None, 3_000_000_000.into(), None)
+            .await
+            .unwrap()
+    };
+
+    let txn = to_sender_signed_transaction(tx_bytes.to_data().unwrap(), addres_kp);
+    let (tx_bytes, signatures) = txn.to_tx_bytes_and_signatures();
+
+    let request_start_ts_ms = chrono::Utc::now().timestamp_millis();
+    let res = client
+        .execute_transaction_block(
+            tx_bytes,
+            signatures,
+            Some(IotaTransactionBlockResponseOptions::full_content()),
+            Some(ExecuteTransactionRequestType::WaitForLocalExecution),
+        )
+        .await
+        .unwrap();
+    Ok((res, request_start_ts_ms))
+}
+
+async fn bump_display_object_version(
+    address: IotaAddress,
+    addres_kp: &AccountKeyPair,
+    client: &HttpClient,
+    display_object_id: &ObjectID,
+    display_obj_type_tag: TypeTag,
+) -> Result<(IotaTransactionBlockResponse, i64), anyhow::Error> {
+    let module = "display".to_string();
+    let function = "update_version".to_string();
+
+    let tx_bytes: TransactionBlockBytes = {
+        let rpc_params = RPCTransactionRequestParams::MoveCallRequestParams(MoveCallParams {
+            package_object_id: IOTA_FRAMEWORK_PACKAGE_ID,
+            module: module.clone(),
+            function: function.clone(),
+            type_arguments: type_args![display_obj_type_tag].unwrap(),
+            arguments: call_args!(display_object_id).unwrap(),
+        });
+        client
+            .batch_transaction(address, vec![rpc_params], None, 3_000_000_000.into(), None)
+            .await
+            .unwrap()
+    };
+
+    let txn = to_sender_signed_transaction(tx_bytes.to_data().unwrap(), addres_kp);
+    let (tx_bytes, signatures) = txn.to_tx_bytes_and_signatures();
+
+    let request_start_ts_ms = chrono::Utc::now().timestamp_millis();
+    let res = client
+        .execute_transaction_block(
+            tx_bytes,
+            signatures,
+            Some(IotaTransactionBlockResponseOptions::full_content()),
+            Some(ExecuteTransactionRequestType::WaitForLocalExecution),
+        )
+        .await
+        .unwrap();
+    Ok((res, request_start_ts_ms))
+}
+
+async fn create_new_bear(
+    address: IotaAddress,
+    addres_kp: &AccountKeyPair,
+    client: &HttpClient,
+    package_id: &ObjectID,
+    name: &str,
+) -> Result<(IotaTransactionBlockResponse, i64), anyhow::Error> {
+    let module = "demo_bear".to_string();
+    let function = "new".to_string();
+
+    let gas = client
+        .get_all_coins(address, None, None)
+        .await
+        .unwrap()
+        .data[0]
+        .object_ref();
+
+    let pt = {
+        let mut builder = ProgrammableTransactionBuilder::new();
+        let name_arg = builder.input(CallArg::Pure(bcs::to_bytes(name).unwrap()))?;
+        let bear = builder.programmable_move_call(
+            *package_id,
+            Identifier::from_str(&module)?,
+            Identifier::from_str(&function)?,
+            vec![],
+            vec![name_arg],
+        );
+
+        builder.transfer_arg(address, bear);
+        builder.finish()
+    };
+
+    let tx_builder = TestTransactionBuilder::new(address, gas, 1000);
+    let tx_data = tx_builder.programmable(pt).build();
+    let signed_transaction = to_sender_signed_transaction(tx_data, addres_kp);
+    let (tx_bytes, signatures) = signed_transaction.to_tx_bytes_and_signatures();
+
+    let request_start_ts_ms = chrono::Utc::now().timestamp_millis();
+    let res = client
+        .execute_transaction_block(
+            tx_bytes,
+            signatures,
+            Some(IotaTransactionBlockResponseOptions::full_content()),
+            Some(ExecuteTransactionRequestType::WaitForLocalExecution),
+        )
+        .await
+        .unwrap();
+    Ok((res, request_start_ts_ms))
+}
+
+async fn create_counter_object(
+    address: IotaAddress,
+    addres_kp: &AccountKeyPair,
+    client: &HttpClient,
+    package_id: &ObjectID,
+) -> (TransactionDigest, ObjectID) {
+    let module = "counter".to_string();
+
+    let tx_bytes: TransactionBlockBytes = loop {
+        let txb = client
+            .move_call(
+                address,
+                *package_id,
+                module.clone(),
+                "create".to_string(),
+                type_args![].unwrap(),
+                call_args!().unwrap(),
+                None,
+                10_000_000.into(),
+                None,
+            )
+            .await;
+        match txb {
+            Ok(res) => {
+                break res;
+            }
+            Err(e) => {
+                println!("Couldn't construct tx bytes, retrying: {e}");
+                tokio::time::sleep(Duration::from_millis(100)).await;
+            }
+        }
+    };
+    let txn = to_sender_signed_transaction(tx_bytes.to_data().unwrap(), addres_kp);
+    let (tx_bytes, signatures) = txn.to_tx_bytes_and_signatures();
+    let res = client
+        .execute_transaction_block(
+            tx_bytes,
+            signatures,
+            Some(IotaTransactionBlockResponseOptions::full_content()),
+            Some(ExecuteTransactionRequestType::WaitForLocalExecution),
+        )
+        .await
+        .unwrap();
+    let counter_obj_id = res
+        .effects
+        .unwrap()
+        .created()
+        .iter()
+        .exactly_one()
+        .unwrap()
+        .object_id();
+    (res.digest, counter_obj_id)
+}
+
+async fn create_basic_object(
+    address: IotaAddress,
+    addres_kp: &AccountKeyPair,
+    client: &HttpClient,
+    package_id: &ObjectID,
+) -> Result<(TransactionDigest, ObjectID), anyhow::Error> {
+    let module = "object_basics".to_string();
+
+    let tx_bytes = client
+        .move_call(
+            address,
+            *package_id,
+            module.clone(),
+            "create".to_string(),
+            type_args![].unwrap(),
+            call_args!(0, address).unwrap(),
+            None,
+            10_000_000.into(),
+            None,
+        )
+        .await
+        .unwrap();
+    let txn = to_sender_signed_transaction(tx_bytes.to_data().unwrap(), addres_kp);
+    let (tx_bytes, signatures) = txn.to_tx_bytes_and_signatures();
+    let res = client
+        .execute_transaction_block(
+            tx_bytes,
+            signatures,
+            Some(IotaTransactionBlockResponseOptions::full_content()),
+            Some(ExecuteTransactionRequestType::WaitForLocalExecution),
+        )
+        .await
+        .unwrap();
+    let counter_obj_id = res
+        .effects
+        .unwrap()
+        .created()
+        .iter()
+        .exactly_one()
+        .unwrap()
+        .object_id();
+    Ok((res.digest, counter_obj_id))
+}
+
+async fn increment_counter_n_times_batch(
+    address: IotaAddress,
+    addres_kp: &AccountKeyPair,
+    client: &HttpClient,
+    package_id: &ObjectID,
+    counter_id: &ObjectID,
+    increment_n_times: u64,
+) -> Result<(IotaTransactionBlockResponse, i64), anyhow::Error> {
+    let module = "counter".to_string();
+    let function = "increment".to_string();
+
+    let tx_bytes: TransactionBlockBytes = loop {
+        let rpc_params = {
+            let mut v = vec![];
+            for _ in 0..increment_n_times {
+                v.push(RPCTransactionRequestParams::MoveCallRequestParams(
+                    MoveCallParams {
+                        package_object_id: *package_id,
+                        module: module.clone(),
+                        function: function.clone(),
+                        type_arguments: type_args![].unwrap(),
+                        arguments: call_args!(counter_id).unwrap(),
+                    },
+                ));
+            }
+            v
+        };
+        let txb = client
+            .batch_transaction(address, rpc_params, None, 3_000_000_000.into(), None)
+            .await;
+        match txb {
+            Ok(res) => {
+                break res;
+            }
+            Err(..) => {
+                println!("Couldn't construct tx bytes, retrying");
+                tokio::time::sleep(Duration::from_millis(1)).await;
+            }
+        }
+    };
+
+    let txn = to_sender_signed_transaction(tx_bytes.to_data().unwrap(), addres_kp);
+    let (tx_bytes, signatures) = txn.to_tx_bytes_and_signatures();
+
+    let request_start_ts_ms = chrono::Utc::now().timestamp_millis();
+    let res = client
+        .execute_transaction_block(
+            tx_bytes,
+            signatures,
+            Some(IotaTransactionBlockResponseOptions::full_content()),
+            Some(ExecuteTransactionRequestType::WaitForLocalExecution),
+        )
+        .await
+        .unwrap();
+    Ok((res, request_start_ts_ms))
+}
+
+// async fn update_basic_object(
+//     address: IotaAddress,
+//     addres_kp: &AccountKeyPair,
+//     client: &HttpClient,
+//     package_id: &ObjectID,
+//     object_id: &ObjectID,
+//     new_value: u64,
+// ) -> Result<(IotaTransactionBlockResponse, i64), anyhow::Error> {
+//     let module = "object_basics".to_string();
+//     let function = "set_value".to_string();
+//
+//     let tx_bytes: TransactionBlockBytes = {
+//         let rpc_params =
+// RPCTransactionRequestParams::MoveCallRequestParams(MoveCallParams {
+//             package_object_id: *package_id,
+//             module: module.clone(),
+//             function: function.clone(),
+//             type_arguments: type_args![].unwrap(),
+//             arguments: call_args!(object_id, new_value).unwrap(),
+//         });
+//         client
+//             .batch_transaction(address, vec![rpc_params], None,
+// 3_000_000_000.into(), None)             .await
+//             .unwrap()
+//     };
+//
+//     let txn = to_sender_signed_transaction(tx_bytes.to_data().unwrap(),
+// addres_kp);     let (tx_bytes, signatures) =
+// txn.to_tx_bytes_and_signatures();
+//
+//     let request_start_ts_ms = chrono::Utc::now().timestamp_millis();
+//     let res = client
+//         .execute_transaction_block(
+//             tx_bytes,
+//             signatures,
+//             Some(IotaTransactionBlockResponseOptions::full_content()),
+//             Some(ExecuteTransactionRequestType::WaitForLocalExecution),
+//         )
+//         .await
+//         .unwrap();
+//     Ok((res, request_start_ts_ms))
+// }
+
+async fn wrap_basic_object(
+    address: IotaAddress,
+    addres_kp: &AccountKeyPair,
+    client: &HttpClient,
+    package_id: &ObjectID,
+    object_id: &ObjectID,
+) -> Result<(IotaTransactionBlockResponse, i64), anyhow::Error> {
+    let module = "object_basics".to_string();
+    let function = "wrap".to_string();
+
+    let tx_bytes: TransactionBlockBytes = {
+        let rpc_params = RPCTransactionRequestParams::MoveCallRequestParams(MoveCallParams {
+            package_object_id: *package_id,
+            module: module.clone(),
+            function: function.clone(),
+            type_arguments: type_args![].unwrap(),
+            arguments: call_args!(object_id).unwrap(),
+        });
+        client
+            .batch_transaction(address, vec![rpc_params], None, 3_000_000_000.into(), None)
+            .await
+            .unwrap()
+    };
+
+    let txn = to_sender_signed_transaction(tx_bytes.to_data().unwrap(), addres_kp);
+    let (tx_bytes, signatures) = txn.to_tx_bytes_and_signatures();
+
+    let request_start_ts_ms = chrono::Utc::now().timestamp_millis();
+    let res = client
+        .execute_transaction_block(
+            tx_bytes,
+            signatures,
+            Some(IotaTransactionBlockResponseOptions::full_content()),
+            Some(ExecuteTransactionRequestType::WaitForLocalExecution),
+        )
+        .await
+        .unwrap();
+    Ok((res, request_start_ts_ms))
+}
+
+async fn unwrap_basic_object(
+    address: IotaAddress,
+    addres_kp: &AccountKeyPair,
+    client: &HttpClient,
+    package_id: &ObjectID,
+    object_id: &ObjectID,
+) -> Result<(IotaTransactionBlockResponse, i64), anyhow::Error> {
+    let module = "object_basics".to_string();
+    let function = "unwrap".to_string();
+
+    let tx_bytes: TransactionBlockBytes = {
+        let rpc_params = RPCTransactionRequestParams::MoveCallRequestParams(MoveCallParams {
+            package_object_id: *package_id,
+            module: module.clone(),
+            function: function.clone(),
+            type_arguments: type_args![].unwrap(),
+            arguments: call_args!(object_id).unwrap(),
+        });
+        client
+            .batch_transaction(address, vec![rpc_params], None, 3_000_000_000.into(), None)
+            .await
+            .unwrap()
+    };
+
+    let txn = to_sender_signed_transaction(tx_bytes.to_data().unwrap(), addres_kp);
+    let (tx_bytes, signatures) = txn.to_tx_bytes_and_signatures();
+
+    let request_start_ts_ms = chrono::Utc::now().timestamp_millis();
+    let res = client
+        .execute_transaction_block(
+            tx_bytes,
+            signatures,
+            Some(IotaTransactionBlockResponseOptions::full_content()),
+            Some(ExecuteTransactionRequestType::WaitForLocalExecution),
+        )
+        .await
+        .unwrap();
+    Ok((res, request_start_ts_ms))
+}
+
+// async fn delete_counter(
+//     address: IotaAddress,
+//     addres_kp: &AccountKeyPair,
+//     client: &HttpClient,
+//     package_id: &ObjectID,
+//     counter_id: &ObjectID,
+// ) -> Result<(IotaTransactionBlockResponse, i64), anyhow::Error> {
+//     let module = "counter".to_string();
+//     let function = "delete".to_string();
+//
+//     let tx_bytes: TransactionBlockBytes = {
+//         let rpc_params = {
+//             RPCTransactionRequestParams::MoveCallRequestParams(MoveCallParams
+// {                 package_object_id: *package_id,
+//                 module: module.clone(),
+//                 function: function.clone(),
+//                 type_arguments: type_args![].unwrap(),
+//                 arguments: call_args!(counter_id).unwrap(),
+//             })
+//         };
+//         client
+//             .batch_transaction(address, vec![rpc_params], None,
+// 3_000_000_000.into(), None)             .await
+//             .unwrap()
+//     };
+//
+//     let txn = to_sender_signed_transaction(tx_bytes.to_data().unwrap(),
+// addres_kp);     let (tx_bytes, signatures) =
+// txn.to_tx_bytes_and_signatures();
+//
+//     let request_start_ts_ms = chrono::Utc::now().timestamp_millis();
+//     let res = client
+//         .execute_transaction_block(
+//             tx_bytes,
+//             signatures,
+//             Some(IotaTransactionBlockResponseOptions::full_content()),
+//             Some(ExecuteTransactionRequestType::WaitForLocalExecution),
+//         )
+//         .await
+//         .unwrap();
+//     Ok((res, request_start_ts_ms))
+// }
+
+// async fn delete_basic_object(
+//     address: IotaAddress,
+//     addres_kp: &AccountKeyPair,
+//     client: &HttpClient,
+//     package_id: &ObjectID,
+//     object_id: &ObjectID,
+// ) -> Result<(IotaTransactionBlockResponse, i64), anyhow::Error> {
+//     let module = "object_basics".to_string();
+//     let function = "delete".to_string();
+//
+//     let tx_bytes: TransactionBlockBytes = {
+//         let rpc_params = {
+//             RPCTransactionRequestParams::MoveCallRequestParams(MoveCallParams
+// {                 package_object_id: *package_id,
+//                 module: module.clone(),
+//                 function: function.clone(),
+//                 type_arguments: type_args![].unwrap(),
+//                 arguments: call_args!(object_id).unwrap(),
+//             })
+//         };
+//         client
+//             .batch_transaction(address, vec![rpc_params], None,
+// 3_000_000_000.into(), None)             .await
+//             .unwrap()
+//     };
+//
+//     let txn = to_sender_signed_transaction(tx_bytes.to_data().unwrap(),
+// addres_kp);     let (tx_bytes, signatures) =
+// txn.to_tx_bytes_and_signatures();
+//
+//     let request_start_ts_ms = chrono::Utc::now().timestamp_millis();
+//     let res = client
+//         .execute_transaction_block(
+//             tx_bytes,
+//             signatures,
+//             Some(IotaTransactionBlockResponseOptions::full_content()),
+//             Some(ExecuteTransactionRequestType::WaitForLocalExecution),
+//         )
+//         .await
+//         .unwrap();
+//     Ok((res, request_start_ts_ms))
+// }
+
+async fn deploy_basics_pkg(
+    address: IotaAddress,
+    addres_kp: &AccountKeyPair,
+    client: &HttpClient,
+) -> IotaTransactionBlockResponse {
+    deploy_package(address, addres_kp, client, "../../examples/move/basics").await
+}
+
+async fn deploy_bear_pkg(
+    address: IotaAddress,
+    addres_kp: &AccountKeyPair,
+    client: &HttpClient,
+) -> IotaTransactionBlockResponse {
+    deploy_package(
+        address,
+        addres_kp,
+        client,
+        "../../examples/trading/contracts/demo",
+    )
+    .await
+}
+
+async fn deploy_package(
+    address: IotaAddress,
+    addres_kp: &AccountKeyPair,
+    client: &HttpClient,
+    pkg_path: &str,
+) -> IotaTransactionBlockResponse {
+    // let path =
+    // "/home/tomxey/repo/iota/examples/move/basics/sources/counter.move";
+    let compiled_package = BuildConfig::new_for_testing()
+        .build(Path::new(pkg_path))
+        .unwrap();
+    let compiled_modules_bytes =
+        compiled_package.get_package_base64(/* with_unpublished_deps */ false);
+    let dependencies = compiled_package.get_dependency_storage_package_ids();
+
+    let tx_bytes: TransactionBlockBytes = client
+        .publish(
+            address,
+            compiled_modules_bytes,
+            dependencies,
+            None,
+            100_000_000.into(),
+        )
+        .await
+        .unwrap();
+
+    let txn = to_sender_signed_transaction(tx_bytes.to_data().unwrap(), addres_kp);
+
+    let (tx_bytes, signatures) = txn.to_tx_bytes_and_signatures();
+    client
+        .execute_transaction_block(
+            tx_bytes,
+            signatures,
+            Some(IotaTransactionBlockResponseOptions::full_content()),
+            Some(ExecuteTransactionRequestType::WaitForLocalExecution),
+        )
+        .await
+        .unwrap()
 }
