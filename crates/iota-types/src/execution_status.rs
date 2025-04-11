@@ -344,7 +344,7 @@ impl ExecutionStatus {
     }
 
     pub fn is_ok(&self) -> bool {
-        matches!(self, ExecutionStatus::Success { .. })
+        matches!(self, ExecutionStatus::Success)
     }
 
     pub fn is_err(&self) -> bool {
@@ -362,7 +362,7 @@ impl ExecutionStatus {
 
     pub fn unwrap_err(self) -> (ExecutionFailureStatus, Option<CommandIndex>) {
         match self {
-            ExecutionStatus::Success { .. } => {
+            ExecutionStatus::Success => {
                 panic!("Unable to unwrap() on {:?}", self);
             }
             ExecutionStatus::Failure { error, command } => (error, command),

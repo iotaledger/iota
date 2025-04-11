@@ -10,6 +10,7 @@ import {
     SIZE_LIMIT_EXCEEDED,
     useGetClockTimestamp,
     toast,
+    getGasBudgetErrorMessage,
 } from '@iota/core';
 import { NANOS_PER_IOTA } from '@iota/iota-sdk/utils';
 import { useFormikContext } from 'formik';
@@ -166,6 +167,14 @@ export function EnterTimelockedAmountView({
         }
     }, [isError, possibleAmount, stakeTransactionError]);
 
+    const errorMessage = useMemo(() => {
+        if (isError) {
+            return getGasBudgetErrorMessage(stakeTransactionError);
+        } else {
+            return undefined;
+        }
+    }, [stakeTransactionError, isError]);
+
     return (
         <EnterAmountDialogLayout
             selectedValidator={selectedValidator}
@@ -180,6 +189,7 @@ export function EnterTimelockedAmountView({
             onBack={onBack}
             handleClose={handleClose}
             handleStake={handleStake}
+            errorMessage={errorMessage}
         />
     );
 }

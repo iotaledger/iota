@@ -11,8 +11,7 @@ import {
     useGetValidatorsApy,
     useGetValidatorsEvents,
     useMultiGetObjects,
-    Feature,
-    useFeatureEnabledByNetwork,
+    useGetLatestIotaSystemState,
 } from '@iota/core';
 import {
     Badge,
@@ -35,15 +34,11 @@ import { useQuery } from '@tanstack/react-query';
 import { useEnhancedRpcClient } from '~/hooks';
 import { sanitizePendingValidators } from '~/lib';
 import { IOTA_TYPE_ARG, normalizeIotaAddress } from '@iota/iota-sdk/utils';
-import type { Network } from '@iota/iota-sdk/src/client';
-import { useNetworkContext } from '~/contexts/networkContext';
 
 function ValidatorPageResult(): JSX.Element {
-    const [network] = useNetworkContext();
-    const { data, isPending, isSuccess, isError } = useIotaClientQuery('getLatestIotaSystemState');
-    const isFixedGasPrice = useFeatureEnabledByNetwork(Feature.FixedGasPrice, network as Network);
-    const activeValidatorsData = data?.activeValidators;
-    const numberOfValidators = activeValidatorsData?.length || 0;
+    const { data, isPending, isSuccess, isError } = useGetLatestIotaSystemState();
+    const activeValidators = data?.activeValidators;
+    const numberOfValidators = activeValidators?.length || 0;
 
     const {
         data: validatorEvents,
@@ -72,10 +67,11 @@ function ValidatorPageResult(): JSX.Element {
     const { data: totalSupplyData } = useIotaClientQuery('getTotalSupply', {
         coinType: IOTA_TYPE_ARG,
     });
+    const { data: participationMetrics } = useIotaClientQuery('getParticipationMetrics');
 
     const totalStaked = useMemo(() => {
         if (!data) return 0;
-        const validators = data.activeValidators;
+        const validators = data.committeeMembers;
 
         return validators.reduce((acc, cur) => acc + Number(cur.stakingPoolIotaBalance), 0);
     }, [data]);
@@ -128,8 +124,8 @@ function ValidatorPageResult(): JSX.Element {
 
     const tableData = data
         ? Number(data.pendingActiveValidatorsSize) > 0
-            ? activeValidatorsData?.concat(sanitizePendingValidatorsData)
-            : activeValidatorsData
+            ? activeValidators?.concat(sanitizePendingValidatorsData)
+            : activeValidators
         : [];
 
     const tableColumns = useMemo(() => {
@@ -144,11 +140,8 @@ function ValidatorPageResult(): JSX.Element {
             'Status',
         ];
 
-        if (!isFixedGasPrice) {
-            includeColumns.push('Proposed next Epoch gas price');
-        }
-
         return generateValidatorsTableColumns({
+            committeeMembers: data.committeeMembers.map((validator) => validator.iotaAddress),
             atRiskValidators: data.atRiskValidators,
             validatorEvents,
             rollingAverageApys: validatorsApy || null,
@@ -167,7 +160,14 @@ function ValidatorPageResult(): JSX.Element {
             value: formattedTotalStakedAmount,
             supportingLabel: totalStakedSymbol,
             tooltipText:
-                'The combined IOTA staked by validators and delegators on the network to support validation and generate rewards.',
+                'The combined IOTA staked by validators (committee) and delegators on the network to support validation and generate rewards.',
+        },
+        {
+            title: 'Participation',
+            value: participationMetrics ? participationMetrics?.totalAddresses : undefined,
+            supportingLabel: participationMetrics ? undefined : 'Coming Soon',
+            tooltipText:
+                'Total number of unique addresses that have delegated stake in the current epoch. Includes both staked and timelocked staked IOTA',
         },
         {
             title: 'Staking Ratio',
@@ -176,8 +176,12 @@ function ValidatorPageResult(): JSX.Element {
         },
         {
             title: 'Last Epoch Rewards',
-            value: formattedlastEpochRewardOnAllValidatorsAmount,
-            supportingLabel: lastEpochRewardOnAllValidatorsSymbol,
+            value: lastEpochRewardOnAllValidators
+                ? formattedlastEpochRewardOnAllValidatorsAmount
+                : '--',
+            supportingLabel: formattedlastEpochRewardOnAllValidatorsAmount
+                ? lastEpochRewardOnAllValidatorsSymbol
+                : undefined,
             tooltipText: 'The staking rewards earned in the previous epoch.',
         },
         {

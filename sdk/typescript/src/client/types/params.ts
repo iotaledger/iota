@@ -307,6 +307,12 @@ export type GetOwnedObjectsParams = {
     /** Max number of items returned per page, default to [QUERY_MAX_RESULT_LIMIT] if not specified. */
     limit?: number | null | undefined;
 } & RpcTypes.IotaObjectResponseQuery;
+/**
+ * Returns the participation metrics. Participation is defined as the total number of unique addresses
+ * that have delegated stake in the current epoch. Includes both staked and timelocked staked IOTA.
+ * Exclusively served by the indexer.
+ */
+export interface GetParticipationMetricsParams {}
 /** Return the reference gas price for the network */
 export interface GetReferenceGasPriceParams {}
 /** Return all [DelegatedStake]. */

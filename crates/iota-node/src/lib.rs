@@ -1733,6 +1733,11 @@ impl IotaNode {
                     )
                 } else {
                     info!("This node is no longer a validator after reconfiguration");
+
+                    consensus_adapter.unregister_consensus_adapter_metrics(
+                        &self.registry_service.default_registry(),
+                    );
+                    debug!("Unregistered consensus adapter metrics");
                     None
                 }
             } else {
@@ -2043,7 +2048,7 @@ pub async fn build_http_server(
             state.clone(),
             kv_store.clone(),
             metrics.clone(),
-        ))?;
+        )?)?;
 
         // if run_with_range is enabled we want to prevent any transactions
         // run_with_range = None is normal operating conditions
