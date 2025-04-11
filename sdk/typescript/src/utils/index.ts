@@ -3,7 +3,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
 export { formatAddress, formatDigest, formatType } from './format.js';
-export { toBech32 } from './bech32.js';
 export {
     isValidIotaAddress,
     isValidIotaObjectId,

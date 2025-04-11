@@ -26,6 +26,7 @@ import {
     STARDUST_BASIC_OUTPUT_TYPE,
     STARDUST_NFT_OUTPUT_TYPE,
     toast,
+    toBech32,
     useCopyToClipboard,
     useFormatCoin,
     useStardustIndexerClientContext,
@@ -33,7 +34,6 @@ import {
 import { StardustOutputMigrationStatus } from '@/lib/enums';
 import { MigrationObjectsPanel, MigrationDialog } from '@/components';
 import { useRouter } from 'next/navigation';
-import { toBech32 } from '@iota/iota-sdk/utils';
 
 function MigrationDashboardPage(): JSX.Element {
     const account = useCurrentAccount();
