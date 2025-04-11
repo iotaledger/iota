@@ -28,7 +28,9 @@ import { TokenStats } from './stats/TokenStats';
 import { EpochTopStats } from './stats/EpochTopStats';
 import { getEpochStorageFundFlow } from '~/lib/utils';
 import { Warning } from '@iota/apps-ui-icons';
-import { useGetLatestIotaSystemState } from '@iota/core';
+import { useGetLatestIotaSystemState, VALIDATORS_EVENTS_QUERY } from '@iota/core';
+import { useEndOfEpochTransactionFromCheckpoint } from '~/hooks/useEndOfEpochTransactionFromCheckpoint';
+import { type IotaEvent } from '@iota/iota-sdk/src/client';
 
 enum EpochTabs {
     Checkpoints = 'checkpoints',
@@ -51,6 +53,17 @@ export function EpochDetail() {
     });
 
     const [epochData] = data?.data ?? [];
+
+    const endOfPreviousEpochCheckpoint = epochData?.firstCheckpointId
+        ? (Number(epochData.firstCheckpointId) - 1).toString()
+        : undefined;
+    const { data: endOfEpochTransaction } = useEndOfEpochTransactionFromCheckpoint(
+        endOfPreviousEpochCheckpoint,
+    );
+    const validatorEvents: IotaEvent[] | undefined = endOfEpochTransaction?.events?.filter(
+        (event): event is IotaEvent => event.type === VALIDATORS_EVENTS_QUERY,
+    );
+
     const isCurrentEpoch = useMemo(
         () => systemState?.epoch === epochData?.epoch,
         [systemState, epochData],
@@ -77,12 +90,12 @@ export function EpochDetail() {
         return generateValidatorsTableColumns({
             committeeMembers: committeeMembers.map((member) => member.iotaAddress),
             atRiskValidators: [],
-            validatorEvents: [],
+            validatorEvents: validatorEvents ?? [],
             rollingAverageApys: null,
             showValidatorIcon: true,
             includeColumns,
         });
-    }, [epochData]);
+    }, [epochData, validatorEvents]);
 
     if (isPending) return <PageLayout content={<LoadingIndicator />} />;
 
