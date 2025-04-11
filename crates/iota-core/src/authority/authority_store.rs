@@ -1799,8 +1799,8 @@ impl AuthorityStore {
         self.perpetual_tables
             .objects
             .safe_iter_with_bounds(
-                Some(ObjectKey(object_id, VersionNumber::MIN)),
-                Some(ObjectKey(object_id, VersionNumber::MAX)),
+                Some(ObjectKey(object_id, VersionNumber::MIN_VALID)),
+                Some(ObjectKey(object_id, VersionNumber::MAX_VALID)),
             )
             .collect::<Result<Vec<_>, _>>()
             .unwrap()
