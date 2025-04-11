@@ -3,14 +3,7 @@
 
 import { ButtonPill, Input, InputType } from '@iota/apps-ui-kit';
 import { CoinStruct } from '@iota/iota-sdk/client';
-import {
-    CoinFormat,
-    IOTA_COIN_METADATA,
-    useCoinMetadata,
-    useFormatCoin,
-    useSendCoinTransaction,
-} from '../../hooks';
-import { useEffect } from 'react';
+import { CoinFormat, IOTA_COIN_METADATA, useCoinMetadata, useFormatCoin } from '../../hooks';
 import { useField, useFormikContext } from 'formik';
 import { TokenForm } from '../../forms';
 import { parseAmount } from '../../utils';
@@ -19,35 +12,28 @@ import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 export interface SendTokenInputProps {
     coins: CoinStruct[];
     coinType: string;
-    activeAddress: string;
     onActionClick: () => Promise<void>;
     isMaxActionDisabled?: boolean;
     name: string;
+    totalGas?: string;
 }
 
 export function SendTokenFormInput({
     coins,
     coinType,
-    activeAddress,
     onActionClick,
     isMaxActionDisabled,
     name,
+    totalGas,
 }: SendTokenInputProps) {
-    const { values, setFieldValue, isSubmitting, validateField } = useFormikContext<TokenForm>();
-    const { data: transactionData } = useSendCoinTransaction({
-        coins,
-        coinType,
-        senderAddress: activeAddress,
-        recipientAddress: values.to,
-        amount: values.amount,
-    });
-    const totalGas = transactionData?.gasSummary?.totalGas;
+    const { values, isSubmitting, validateField } = useFormikContext<TokenForm>();
+
     const { data: coinMetadata } = useCoinMetadata(coinType);
     const coinDecimals = coinMetadata?.decimals ?? 0;
     const symbol = coinMetadata?.symbol ?? IOTA_COIN_METADATA.symbol;
 
     const [formattedGasBudgetEstimation, gasToken] = useFormatCoin({
-        balance: transactionData?.gasSummary?.totalGas,
+        balance: totalGas,
         format: CoinFormat.FULL,
     });
 
@@ -68,12 +54,9 @@ export function SendTokenFormInput({
     const totalBalance = coins.reduce((acc, { balance }) => {
         return BigInt(acc) + BigInt(balance);
     }, BigInt(0));
+
     const approximation =
         parseAmount(values.amount, coinDecimals) === totalBalance && coinType === IOTA_TYPE_ARG;
-    // gasBudgetEstimation should change when the amount above changes
-    useEffect(() => {
-        setFieldValue('gasBudgetEst', totalGas, false);
-    }, [totalGas, setFieldValue, values.amount]);
 
     return (
         <Input

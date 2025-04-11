@@ -1,0 +1,81 @@
+---
+description: Networks and endpoints in the IOTA ecosystem.
+tags:
+  - mainnet
+  - testnet
+  - reference
+  - evm
+teams:
+  - iotaledger/l2-smart-contract
+---
+
+import { AddToMetaMaskButton } from '@site/src/components/AddToMetaMaskButton';
+import { Networks } from '@site/src/components/constant';
+import NetworkInfo from '@site/src/components/NetworkInfo';
+
+# Networks & Chains
+
+## IOTA EVM Testnet
+
+<AddToMetaMaskButton {...Networks['iota_testnet']} />
+
+[The IOTA EVM Testnet](https://explorer.evm.testnet.iotaledger.net/) runs as a layer 2 on top
+of the IOTA Testnet. This network uses ISC to facilitate
+an Ethereum Virtual Machine and has an enshrined bridge to layer 1.
+
+:::info
+
+This network is subject to occasional resets (no data retention) which are usually announced with a one-week grace period.
+
+:::
+
+<NetworkInfo.Evm {...Networks['iota_testnet']} />
+
+:::note
+
+The other values (network name and currency symbol) can be whatever value you like.
+
+:::
+
+## IOTA EVM
+
+[IOTA EVM](https://explorer.evm.iota.org) is the L2 EVM running on top of the IOTA network.
+
+<AddToMetaMaskButton {...Networks['iota']} />
+
+<NetworkInfo.Evm {...Networks['iota']} />
+
+### Additional Info
+
+<NetworkInfo.EvmCustom {...Networks['iota']} />
+
+## IOTA EVM Testnet
+
+<AddToMetaMaskButton {...Networks['iota_testnet']} />
+
+[The IOTA EVM Testnet](https://explorer.evm.testnet.iotaledger.net/) runs as a layer 2 on top
+of the IOTA Testnet. This network uses ISC to facilitate
+
+:::info
+
+This network is subject to occasional resets (no data retention) which are usually announced with a one-week grace period.
+
+:::
+
+<NetworkInfo.Evm {...Networks['iota_testnet']} />
+
+:::note
+
+The other values (network name and currency symbol) can be whatever value you like.
+
+:::
+
+### Additional Info
+
+<NetworkInfo.EvmCustom {...Networks['iota_testnet']} />
+
+## Core Contracts
+
+[IOTA EVM](#iota-evm) and the testnet networks have 7
+[core contracts](../references/core-contracts/overview.md) deployed, as well as the
+[Magic Contract](../references/magic-contract/introduction.md).

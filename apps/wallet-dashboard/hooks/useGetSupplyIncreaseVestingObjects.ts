@@ -49,6 +49,8 @@ interface SupplyIncreaseVestingObject {
     supplyIncreaseVestingUnlockedMaxSize: bigint;
     isUnlockPending: boolean;
     resetMaxTransactionSize: () => void;
+    isUnlockError: boolean;
+    unlockError: Error | null;
 }
 
 export function useGetSupplyIncreaseVestingObjects(address: string): SupplyIncreaseVestingObject {
@@ -166,5 +168,7 @@ export function useGetSupplyIncreaseVestingObjects(address: string): SupplyIncre
         supplyIncreaseVestingUnlockedMaxSize,
         isUnlockPending,
         resetMaxTransactionSize,
+        isUnlockError,
+        unlockError,
     };
 }
