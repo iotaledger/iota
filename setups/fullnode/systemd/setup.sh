@@ -14,10 +14,13 @@ G='\033[0;32m' # Green
 NC='\033[0m'   # No color
 
 # Check dependencies
-if [ "$(uname -s)" != "Linux" ]; then
-	red "[ERROR] This script is for systemd so will only work on Linux."
+case "$(uname -s)" in
+Linux | Darwin) ;;
+*)
+	red "[ERROR] This script only supports Linux or MacOS."
 	exit 1
-fi
+	;;
+esac
 
 echo -e "You're setting up a IOTA node on the network '$NETWORK'. This script will perform the following steps:"
 echo -e " ${G}1.${NC} Check your rust toolchain version"
@@ -49,27 +52,38 @@ if ! command -v cargo &>/dev/null; then
 	exit 1
 fi
 
-if [ "$(systemctl is-active iota-node)" == "active" ]; then
+if [ "$(uname -s)" == "Linux" ] && [ "$(systemctl is-active iota-node)" == "active" ]; then
 	green "[INFO] stopping existing IOTA node service"
 	systemctl stop iota-node
 fi
 
 # Install system packages (libraries & other dependencies)
-sudo apt-get update && sudo apt-get install -y --no-install-recommends \
-	tzdata \
-	libprotobuf-dev \
-	ca-certificates \
-	build-essential \
-	libssl-dev \
-	libclang-dev \
-	libpq-dev \
-	pkg-config \
-	openssl \
-	protobuf-compiler \
-	git \
-	clang \
-	cmake
-if ! command -v cmp &>/dev/null; then sudo apt-get install -y --no-install-recommends diffutils; fi
+if [ "$(uname -s)" == "Linux" ]; then
+	sudo apt-get update && sudo apt-get install -y --no-install-recommends \
+		tzdata \
+		libprotobuf-dev \
+		ca-certificates \
+		build-essential \
+		libssl-dev \
+		libclang-dev \
+		libpq-dev \
+		pkg-config \
+		openssl \
+		protobuf-compiler \
+		git \
+		clang \
+		cmake
+	if ! command -v cmp &>/dev/null; then sudo apt-get install -y --no-install-recommends diffutils; fi
+elif [ "$(uname -s)" == "Darwin" ]; then
+	if ! (command -v lldb >2) || ! (command -v make >2) || ! (command -v clang >2); then xcode-select --install; fi
+	if command -v brew; then
+		brew update
+		brew install pkg-config || true
+		if ! command -v iconv >2; then brew install libiconv; fi
+		if ! command -v git >2; then brew install git; fi
+		if ! command -v psql >2; then brew install postgresql@15; fi
+	fi
+fi
 
 # Clone or update the IOTA repo
 mkdir -p "$(dirname "$CLONE_DIR")"
@@ -100,18 +114,20 @@ fi
 # Build the binary
 cargo build --release --bin iota-node
 
-# Add a IOTA user, create directories for iota-node service
-if id iota &>/dev/null; then
-	green "[INFO] IOTA user already exists"
-else
-	green "[INFO] Creating IOTA user" && sudo useradd iota
+if [ "$(uname -s)" == "Linux" ]; then
+	# Add a IOTA user, create directories for iota-node service
+	if id iota &>/dev/null; then
+		green "[INFO] IOTA user already exists"
+	else
+		green "[INFO] Creating IOTA user" && sudo useradd iota
+	fi
+	sudo mkdir -p "$NODE_WORKDIR/db"
+	sudo mkdir -p "$BIN_DIR"
+	sudo mkdir -p "$CONFIG_DIR"
+	sudo chown -R iota:iota "$NODE_WORKDIR"
+	sudo chown -R iota:iota "$BIN_DIR"
+	sudo chown -R iota:iota "$CONFIG_DIR"
 fi
-sudo mkdir -p "$NODE_WORKDIR/db"
-sudo mkdir -p "$BIN_DIR"
-sudo mkdir -p "$CONFIG_DIR"
-sudo chown -R iota:iota "$NODE_WORKDIR"
-sudo chown -R iota:iota "$BIN_DIR"
-sudo chown -R iota:iota "$CONFIG_DIR"
 
 write_to_file() {
 	CONTENTS="$1"
@@ -162,29 +178,28 @@ fi
 # Move bin to $BIN_DIR
 cp ./target/release/iota-node "$BIN_DIR/iota-node"
 
-EXEC_START_CMD="\"$BIN_DIR/iota-node\" --config-path \"$CONFIG_DIR/fullnode.yaml\""
+# Setup systemd service (Linux only)
+if [ "$(uname -s)" == "Linux" ]; then
+	# Create a systemd service definition file
+	EXEC_START_CMD="\"$BIN_DIR/iota-node\" --config-path \"$CONFIG_DIR/fullnode.yaml\""
+	SERVICE_DEF=$(
+		cat "$CLONE_DIR/setups/fullnode/systemd/iota-node.service" |
+			# Set the start command to use your paths to the iota-node binary / to the config file
+			sed "s|/usr/local/bin/iota-node --config-path /opt/iota/config/validator.yaml|$EXEC_START_CMD|g"
+	)
+	write_to_file "$SERVICE_DEF" "/etc/systemd/system/iota-node.service"
 
-# Create a systemd service definition file
-SERVICE_DEF=$(
-	cat "$CLONE_DIR/setups/fullnode/systemd/iota-node.service" |
-		# Set the start command to use your paths to the iota-node binary / to the config file
-		sed "s|/usr/local/bin/iota-node --config-path /opt/iota/config/validator.yaml|$EXEC_START_CMD|g"
-)
-write_to_file "$SERVICE_DEF" "/etc/systemd/system/iota-node.service"
+	# Files might have been created / overwritten by root user
+	sudo chown -R iota:iota "$NODE_WORKDIR"
+	sudo chown -R iota:iota "$BIN_DIR"
+	sudo chown -R iota:iota "$CONFIG_DIR"
+	# Reload systemd with this new service unit file
+	sudo systemctl daemon-reload
+	# Enable the new service with systemd
+	sudo systemctl enable iota-node.service
+	# Start the Validator
+	sudo systemctl start iota-node
 
-# Files might have been created / overwritten by root user
-sudo chown -R iota:iota "$NODE_WORKDIR"
-sudo chown -R iota:iota "$BIN_DIR"
-sudo chown -R iota:iota "$CONFIG_DIR"
-# Reload systemd with this new service unit file
-sudo systemctl daemon-reload
-# Enable the new service with systemd
-sudo systemctl enable iota-node.service
-# Start the Validator
-sudo systemctl start iota-node
-
-# Wait to catch start failures more efficiently
-sleep 1s
-
-# Check that the node is up and running
-sudo systemctl status --no-pager --no-legend iota-node
+	# Check that the node is up and running
+	sudo systemctl status --no-pager --no-legend iota-node
+fi
