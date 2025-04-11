@@ -28,7 +28,7 @@ export const test = base.extend<{
     context: async ({ baseURL }, use) => {
         const isCI = !!process.env.CI;
         const context = await chromium.launchPersistentContext('', {
-            headless: isCI,
+            headless: false,
             args: [
                 `--disable-extensions-except=${EXTENSION_PATH}`,
                 `--load-extension=${EXTENSION_PATH}`,
@@ -41,15 +41,12 @@ export const test = base.extend<{
         await context.close();
     },
 
-    // Provide the extension URL to tests
     extensionUrl: async ({ context }, use) => {
-        // Get the service worker for the extension
         let [background] = context.serviceWorkers();
         if (!background) {
             background = await context.waitForEvent('serviceworker');
         }
 
-        // Extract extension ID from the service worker URL
         const extensionId = background.url().split('/')[2];
         const extensionUrl = `chrome-extension://${extensionId}/ui.html`;
 

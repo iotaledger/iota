@@ -17,7 +17,7 @@ export async function createWallet(page: Page, extensionUrl: string) {
     await page.waitForURL(new RegExp(/accounts\/backup/));
 
     const BOX_TEST_ID = 'mnemonic-display-box';
-    const mnemonicBox = await page.getByTestId(BOX_TEST_ID);
+    const mnemonicBox = page.getByTestId(BOX_TEST_ID);
 
     await expect(mnemonicBox).toBeVisible();
 
