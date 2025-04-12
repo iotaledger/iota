@@ -380,10 +380,11 @@ impl IotaValidatorCommand {
             }
 
             IotaValidatorCommand::LeaveValidators { gas_budget } => {
-                // Only a committee member can leave the committee.
-                let _status =
-                    check_status(context, HashSet::from([ValidatorStatus::CommitteeMember]))
-                        .await?;
+                let _status = check_status(
+                    context,
+                    HashSet::from([ValidatorStatus::Active, ValidatorStatus::CommitteeMember]),
+                )
+                .await?;
                 let gas_budget = gas_budget.unwrap_or(DEFAULT_GAS_BUDGET);
                 let response =
                     call_0x5(context, "request_remove_validator", vec![], gas_budget).await?;
