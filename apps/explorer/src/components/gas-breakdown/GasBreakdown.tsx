@@ -178,12 +178,14 @@ export function GasBreakdown({ summary }: GasBreakdownProps): JSX.Element | null
                             )}
 
                             <div className="flex flex-col gap-4 py-2">
-                                {GAS_SECTIONS.map((section, index) => (
-                                    <Fragment key={index}>
-                                        <GasInfo label={section.label} info={section.info} />
-                                        {section.divider && <Divider />}
-                                    </Fragment>
-                                ))}
+                                {GAS_SECTIONS.filter((section) => !!section.info).map(
+                                    (section, index) => (
+                                        <Fragment key={index}>
+                                            <GasInfo label={section.label} info={section.info} />
+                                            {section.divider && <Divider />}
+                                        </Fragment>
+                                    ),
+                                )}
                             </div>
                         </div>
                     </AccordionContent>
