@@ -248,7 +248,7 @@ impl Cluster for LocalNewCluster {
                 true,
                 None,
                 fullnode_url.clone(),
-                IndexerTypeConfig::writer_mode(None),
+                IndexerTypeConfig::writer_mode(None, None),
                 Some(data_ingestion_path.clone()),
             )
             .await;

@@ -7,6 +7,7 @@ export * from './useGetValidatorsEvents';
 export * from './useGetValidatorsApy';
 export * from './useGetTransferAmount';
 export * from './useGetObject';
+export * from './useGetObjectOrPastObject';
 export * from './useGetDynamicFields';
 export * from './useGetTimeBeforeEpochNumber';
 export * from './useTransactionSummary';
@@ -55,6 +56,8 @@ export * from './useSendCoinTransaction';
 export * from './useGetClockTimestamp';
 export * from './useAssetGasBudgetEstimation';
 export * from './useRecognizedPackages';
+export * from './useGetAllBalances';
+export * from './useCoinsReFetchingConfig';
 export * from './useGetLatestIotaSystemState';
 
 export * from './stake';

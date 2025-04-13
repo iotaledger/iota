@@ -15,11 +15,11 @@ import type { IotaEvent, IotaValidatorSummary } from '@iota/iota-sdk/client';
 import clsx from 'clsx';
 import { ValidatorLink } from '~/components/ui';
 
-interface generateValidatorsTableColumnsArgs {
-    committeeMembers: string[];
-    atRiskValidators: [string, string][];
-    validatorEvents: IotaEvent[];
-    rollingAverageApys: ApyByValidator | null;
+interface GenerateValidatorsTableColumnsArgs {
+    committeeMembers?: string[];
+    atRiskValidators?: [string, string][];
+    validatorEvents?: IotaEvent[];
+    rollingAverageApys?: ApyByValidator;
     limit?: number;
     showValidatorIcon?: boolean;
     includeColumns?: string[];
@@ -90,11 +90,11 @@ export function generateValidatorsTableColumns({
     committeeMembers = [],
     atRiskValidators = [],
     validatorEvents = [],
-    rollingAverageApys = null,
+    rollingAverageApys,
     showValidatorIcon = true,
     includeColumns,
     highlightValidatorName,
-}: generateValidatorsTableColumnsArgs): ColumnDef<IotaValidatorSummaryExtended>[] {
+}: GenerateValidatorsTableColumnsArgs): ColumnDef<IotaValidatorSummaryExtended>[] {
     let columns: ColumnDef<IotaValidatorSummaryExtended>[] = [
         {
             header: 'Name',

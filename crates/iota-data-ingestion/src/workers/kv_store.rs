@@ -15,17 +15,17 @@ use async_trait::async_trait;
 use aws_config::{BehaviorVersion, timeout::TimeoutConfig};
 use aws_sdk_dynamodb::{
     Client,
+    config::{Credentials, Region},
     primitives::Blob,
     types::{AttributeValue, PutRequest, WriteRequest},
 };
-use aws_sdk_s3::{
-    self as s3,
-    config::{Credentials, Region},
-};
 use backoff::{ExponentialBackoff, backoff::Backoff};
+use bytes::Bytes;
+use iota_config::object_storage_config::ObjectStoreConfig;
 use iota_data_ingestion_core::Worker;
 use iota_storage::http_key_value_store::{ItemType, TaggedKey};
 use iota_types::{full_checkpoint_content::CheckpointData, storage::ObjectKey};
+use object_store::{DynObjectStore, path::Path};
 use serde::{Deserialize, Serialize};
 
 const TIMEOUT: Duration = Duration::from_secs(60);
@@ -33,27 +33,32 @@ const TIMEOUT: Duration = Duration::from_secs(60);
 #[derive(Serialize, Deserialize, Clone, Debug)]
 #[serde(rename_all = "kebab-case")]
 pub struct KVStoreTaskConfig {
+    pub object_store_config: ObjectStoreConfig,
+    pub dynamodb_config: DynamoDBConfig,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug)]
+#[serde(rename_all = "kebab-case")]
+pub struct DynamoDBConfig {
     pub aws_access_key_id: String,
     pub aws_secret_access_key: String,
     pub aws_region: String,
     pub aws_endpoint: Option<String>,
     pub table_name: String,
-    pub bucket_name: String,
 }
 
 #[derive(Clone)]
 pub struct KVStoreWorker {
     dynamo_client: Client,
-    s3_client: s3::Client,
-    bucket_name: String,
+    remote_store: Arc<DynObjectStore>,
     table_name: String,
 }
 
 impl KVStoreWorker {
-    pub async fn new(config: KVStoreTaskConfig) -> Self {
+    pub async fn new(config: KVStoreTaskConfig) -> anyhow::Result<Self> {
         let credentials = Credentials::new(
-            &config.aws_access_key_id,
-            &config.aws_secret_access_key,
+            &config.dynamodb_config.aws_access_key_id,
+            &config.dynamodb_config.aws_secret_access_key,
             None,
             None,
             "dynamodb",
@@ -63,24 +68,21 @@ impl KVStoreWorker {
             .operation_attempt_timeout(Duration::from_secs(10))
             .connect_timeout(Duration::from_secs(3))
             .build();
+
         let mut aws_config_loader = aws_config::defaults(BehaviorVersion::latest())
             .credentials_provider(credentials)
-            .region(Region::new(config.aws_region))
+            .region(Region::new(config.dynamodb_config.aws_region))
             .timeout_config(timeout_config);
 
-        if let Some(url) = config.aws_endpoint {
+        if let Some(url) = config.dynamodb_config.aws_endpoint {
             aws_config_loader = aws_config_loader.endpoint_url(url);
         }
         let aws_config = aws_config_loader.load().await;
-
-        let dynamo_client = Client::new(&aws_config);
-        let s3_client = s3::Client::new(&aws_config);
-        Self {
-            dynamo_client,
-            s3_client,
-            bucket_name: config.bucket_name,
-            table_name: config.table_name,
-        }
+        Ok(Self {
+            dynamo_client: Client::new(&aws_config),
+            remote_store: config.object_store_config.make()?,
+            table_name: config.dynamodb_config.table_name,
+        })
     }
 
     async fn multi_set<V: Serialize>(
@@ -183,12 +185,9 @@ impl KVStoreWorker {
 
         if res.is_err() {
             tracing::info!("attempt to store chekpoint contents on S3");
-            self.s3_client
-                .put_object()
-                .bucket(self.bucket_name.clone())
-                .key(base64_url::encode(&key))
-                .body(bcs_bytes.into())
-                .send()
+            let location = Path::from(base64_url::encode(&key));
+            self.remote_store
+                .put(&location, Bytes::from(bcs_bytes).into())
                 .await?;
         }
 
