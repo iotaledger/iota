@@ -7263,8 +7263,11 @@ dependencies = [
  "clap",
  "colored",
  "const-str",
+ "datatest-stable",
  "futures",
  "git-version",
+ "insta",
+ "insta-cmd",
  "iota-macros",
  "iota-metrics",
  "iota-move-build",
@@ -7290,6 +7293,7 @@ dependencies = [
  "tempfile",
  "tokio",
  "tracing",
+ "walkdir",
 ]
 
 [[package]]
