@@ -39,13 +39,13 @@ The most straightforward stream source is to subscribe to a remote store of chec
 
 :::info Unavailable
 
-The IOTA Foundation does not provide this service at the moment.
+The IOTA Foundation does not provide this service at the moment. It's possible to start a fullnode locally and use the REST API to sync.
 
 :::
 
 The checkpoints are stored in the following format:
 
-<code>{Networks.iota_move_testnet.jsonRpcUrl+`/api/v1/checkpoints/<checkpoint_id>/full`}</code>. You can download the checkpoint by
+`http://127.0.0.1:9000/api/v1/checkpoints/<checkpoint_id>/full`. You can download the checkpoint by
 sending an HTTP GET request to the relevant URL.
 
 ```mermaid
@@ -122,7 +122,7 @@ Specify both a local and remote store as a fallback to ensure constant data flow
 ```rust
 executor.run(
     PathBuf::from("./chk".to_string()), // path to a local directory
-    Some("https://api.testnet.iota.cafe/api/v1".to_string()), // Remote Checkpoint Store
+    Some("http://127.0.0.1:9000/api/v1".to_string()), // fullnode REST API
     vec![], // optional remote store access options
     ReaderOptions::default(),
     exit_receiver,
