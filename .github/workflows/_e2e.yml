@@ -107,24 +107,6 @@ jobs:
           path: apps/explorer/playwright-report/
           retention-days: 30
 
-      - uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # v4.4.3
-        if: always()
-        with:
-          name: playwright-report-wallet-dashboard
-          path: apps/wallet-dashboard/playwright-report/
-          retention-days: 30
-
-      - name: Build Kiosk
-        if: inputs.isRpc || inputs.isTypescriptSDK || github.ref_name == 'develop'
-        run: pnpm turbo --filter=@iota/kiosk build
-
-      - name: Run Kiosk e2e tests
-        if: inputs.isRpc || inputs.isTypescriptSDK || github.ref_name == 'develop'
-        run: pnpm dlx concurrently --kill-others --success command-1 "$E2E_RUN_LOCAL_NET_CMD" 'pnpm --filter=@iota/kiosk test:e2e'
-
-      - name: Run Local net
-        run: cargo run --bin iota start --force-regenesis --with-faucet --epoch-duration-ms 10000 &
-
       - name: Build Wallet
         if: inputs.isWalletDashboard || inputs.isWallet || inputs.isRpc || inputs.isTypescriptSDK || github.ref_name == 'develop'
         run: pnpm wallet build
@@ -144,9 +126,27 @@ jobs:
           path: apps/wallet-dashboard/playwright-report/
           retention-days: 30
 
+      - name: Build Kiosk
+        if: inputs.isRpc || inputs.isTypescriptSDK || github.ref_name == 'develop'
+        run: pnpm turbo --filter=@iota/kiosk build
+
+      - name: Run Kiosk e2e tests
+        if: inputs.isRpc || inputs.isTypescriptSDK || github.ref_name == 'develop'
+        run: pnpm dlx concurrently --kill-others --success command-1 "$E2E_RUN_LOCAL_NET_CMD" 'pnpm --filter=@iota/kiosk test:e2e'
+
+      - name: Run Local net
+        run: cargo run --bin iota start --force-regenesis --with-faucet --epoch-duration-ms 10000 &
+
       - name: Run Wallet e2e tests
         if: inputs.isWallet || inputs.isRpc || inputs.isTypescriptSDK || github.ref_name == 'develop'
         run: xvfb-run --auto-servernum --server-args="-screen 0 1280x960x24" -- pnpm --filter iota-wallet playwright test
+
+      - uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # v4.4.3
+        if: always()
+        with:
+          name: playwright-report-wallet-dashboard
+          path: apps/wallet-dashboard/playwright-report/
+          retention-days: 30
 
       - uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # v4.4.3
         if: always()

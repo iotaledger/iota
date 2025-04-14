@@ -7,6 +7,8 @@ async function globalSetup() {
     try {
         console.log('Building wallet...');
         !process.env.CI && execSync('pnpm -w wallet build', { stdio: 'inherit' });
+        console.log('Building wallet-dashboard!');
+        !process.env.CI && execSync('pnpm -w wallet-dashboard build', { stdio: 'inherit' });
         console.log('Setup complete!');
     } catch (error) {
         console.error('Setup failed:', error);
