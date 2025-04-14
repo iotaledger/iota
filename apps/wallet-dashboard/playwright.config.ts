@@ -21,6 +21,7 @@ export default defineConfig({
     use: {
         /* Base URL to use in actions like `await page.goto('/')`. */
         baseURL: 'http://localhost:3000/',
+
         /* Collect trace when retrying the failed test. See https://playwright.dev/docs/trace-viewer */
         trace: 'on-first-retry',
         screenshot: 'only-on-failure',
@@ -42,28 +43,22 @@ export default defineConfig({
         },
     ],
 
-    webServer: process.env.CI
-        ? [
-              {
-                  command: 'pnpm dev',
-                  port: 3000,
-                  timeout: 120 * 1000,
-                  reuseExistingServer: false,
-              },
-          ]
-        : [
-              {
-                  command:
-                      'RUST_LOG="consensus=off" cargo run --bin iota start --force-regenesis --with-faucet',
-                  port: 9123,
-                  timeout: 120 * 1000,
-                  reuseExistingServer: true,
-              },
-              {
-                  command: 'pnpm dev',
-                  port: 3000,
-                  timeout: 120 * 1000,
-                  reuseExistingServer: true,
-              },
-          ],
+    webServer: [
+        // Localnet:
+        {
+            command:
+                process.env.E2E_RUN_LOCAL_NET_CMD ??
+                'RUST_LOG="consensus=off" cargo run --bin iota start --force-regenesis --with-faucet',
+            port: 9123,
+            timeout: 120 * 1000,
+            reuseExistingServer: !process.env.CI,
+        },
+        // Localnet-based dev server:
+        {
+            command: 'pnpm dev',
+            port: 3000,
+            timeout: 120 * 1000,
+            reuseExistingServer: !process.env.CI,
+        },
+    ],
 });
