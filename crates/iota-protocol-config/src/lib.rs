@@ -16,7 +16,7 @@ use tracing::{info, warn};
 
 /// The minimum and maximum protocol versions supported by this build.
 const MIN_PROTOCOL_VERSION: u64 = 1;
-pub const MAX_PROTOCOL_VERSION: u64 = 5;
+pub const MAX_PROTOCOL_VERSION: u64 = 6;
 
 // Record history of protocol version allocations here:
 //
@@ -37,6 +37,7 @@ pub const MAX_PROTOCOL_VERSION: u64 = 5;
 //            Add new gas model version to update charging of functions.
 //            Enable proper conversion of certain type argument errors in the
 //            execution layer.
+// Version 6: Bound size of values created in the adapter.
 
 #[derive(Copy, Clone, Debug, Hash, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ProtocolVersion(u64);
@@ -609,6 +610,9 @@ pub struct ProtocolConfig {
 
     // Maximal nodes which are allowed when converting to a type layout.
     max_type_to_layout_nodes: Option<u64>,
+
+    // Maximal size in bytes that a PTB value can be
+    max_ptb_value_size: Option<u64>,
 
     // === Gas version. gas model ===
 
@@ -1328,6 +1332,7 @@ impl ProtocolConfig {
             max_event_emit_size: Some(250 * 1024),
             max_move_vector_len: Some(256 * 1024),
             max_type_to_layout_nodes: None,
+            max_ptb_value_size: None,
 
             max_back_edges_per_function: Some(10_000),
             max_back_edges_per_module: Some(10_000),
@@ -1831,6 +1836,9 @@ impl ProtocolConfig {
                     cfg.validator_validate_metadata_cost_base = Some(20000);
 
                     cfg.max_committee_members_count = Some(50);
+                }
+                6 => {
+                    cfg.max_ptb_value_size = Some(1024 * 1024);
                 }
                 // Use this template when making changes:
                 //
