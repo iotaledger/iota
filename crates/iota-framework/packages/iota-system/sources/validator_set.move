@@ -1274,7 +1274,8 @@ module iota_system::validator_set {
         slashed_validators: &vector<address>,
     ) {
         assert!(committee_members.length() == pool_staking_reward_amounts.length());
-        vs.take_do_with_ix_ref!(committee_members, |i,_,v| {
+        let mut i = 0;
+        vs.do_ref!(|v| {
             let validator_address = v.iota_address();
             let tallying_rule_reporters =
                 if (report_records.contains(&validator_address)) {
@@ -1285,6 +1286,14 @@ module iota_system::validator_set {
             let tallying_rule_global_score =
                 if (slashed_validators.contains(&validator_address)) 0
                 else 1;
+            let mut committee_member_index = committee_members.find_index!(|c| c == i);
+            let pool_staking_reward = if (committee_member_index.is_some()) {
+                // prepare event for a committee validator
+                pool_staking_reward_amounts[committee_member_index.extract()]
+            } else {
+                // prepare event for an active non-committee validator
+                0
+            };
             event::emit(
                 ValidatorEpochInfoEventV1 {
                     epoch: new_epoch,
@@ -1293,12 +1302,13 @@ module iota_system::validator_set {
                     stake: v.total_stake_amount(),
                     voting_power: v.voting_power(),
                     commission_rate: v.commission_rate(),
-                    pool_staking_reward: pool_staking_reward_amounts[i],
+                    pool_staking_reward,
                     pool_token_exchange_rate: v.pool_token_exchange_rate_at_epoch(new_epoch),
                     tallying_rule_reporters,
                     tallying_rule_global_score,
                 }
             );
+            i = i + 1;
         });
     }
 
