@@ -26,8 +26,6 @@ Make sure to provide instructions for the maintainer as well as any relevant con
 
 ### Infrastructure QA
 
-For any unchecked item, authors must provide a justification that describes why the test was not necessary.
-
 - [ ] Synchronization of the indexer from genesis for a network including migration objects.
 - [ ] Restart of indexer synchronization locally without resetting the database.
 - [ ] Restart of indexer synchronization on a production-like database.
