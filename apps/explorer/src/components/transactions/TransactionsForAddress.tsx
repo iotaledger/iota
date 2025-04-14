@@ -12,7 +12,6 @@ import { generateTransactionsTableColumns } from '~/lib/ui';
 
 interface TransactionsForAddressProps {
     address: string;
-    type: 'object' | 'address';
 }
 
 interface TransactionsForAddressTableProps {
@@ -64,47 +63,21 @@ export function TransactionsForAddressTable({
     return <TableCard data={data} columns={tableColumns} />;
 }
 
-export function TransactionsForAddress({
-    address,
-    type,
-}: TransactionsForAddressProps): JSX.Element {
+export function TransactionsForAddress({ address }: TransactionsForAddressProps): JSX.Element {
     const client = useIotaClient();
 
     const { data, isPending, isError } = useQuery({
-        queryKey: ['transactions-for-address', address, type],
-        queryFn: async () => {
-            const filters =
-                type === 'object'
-                    ? [{ InputObject: address }, { ChangedObject: address }]
-                    : [{ ToAddress: address }, { FromAddress: address }];
-
-            const results = await Promise.all(
-                filters.map((filter) =>
-                    client.queryTransactionBlocks({
-                        filter,
-                        order: 'descending',
-                        limit: 100,
-                        options: {
-                            showEffects: true,
-                            showInput: true,
-                        },
-                    }),
-                ),
-            );
-
-            const inserted = new Map();
-            const uniqueList: IotaTransactionBlockResponse[] = [];
-
-            [...results[0].data, ...results[1].data]
-                .sort((a, b) => Number(b.timestampMs ?? 0) - Number(a.timestampMs ?? 0))
-                .forEach((txb) => {
-                    if (inserted.get(txb.digest)) return;
-                    uniqueList.push(txb);
-                    inserted.set(txb.digest, true);
-                });
-
-            return uniqueList;
-        },
+        queryKey: ['transactions-for-address', address],
+        queryFn: () =>
+            client.queryTransactionBlocks({
+                filter: { FromOrToAddress: { addr: address } },
+                order: 'descending',
+                options: {
+                    showEffects: true,
+                    showInput: true,
+                },
+            }),
+        select: (response) => response.data,
     });
 
     return (

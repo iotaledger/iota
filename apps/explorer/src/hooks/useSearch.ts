@@ -71,26 +71,20 @@ const getResultsForAddress = async (client: IotaClient, query: string): Promise<
     const normalized = normalizeIotaObjectId(query);
     if (!isValidIotaAddress(normalized) || isGenesisLibAddress(normalized)) return null;
 
-    const [from, to] = await Promise.all([
-        client.queryTransactionBlocks({
-            filter: { FromAddress: normalized },
-            limit: 1,
-        }),
-        client.queryTransactionBlocks({
-            filter: { ToAddress: normalized },
-            limit: 1,
-        }),
-    ]);
+    const fromOrTo = await client.queryTransactionBlocks({
+        filter: { FromOrToAddress: { addr: normalized } },
+        limit: 1,
+    });
 
     // Note: we need to query owned objects separately
     // because genesis addresses might not be involved in any transaction yet.
     let ownedObjects = [];
-    if (!from.data?.length && !to.data?.length) {
+    if (!fromOrTo.data?.length) {
         const response = await client.getOwnedObjects({ owner: normalized, limit: 1 });
         ownedObjects = response.data;
     }
 
-    if (!from.data?.length && !to.data?.length && !ownedObjects?.length) return null;
+    if (!fromOrTo.data?.length && !ownedObjects?.length) return null;
 
     return [
         {
