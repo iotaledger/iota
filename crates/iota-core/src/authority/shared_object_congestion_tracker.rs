@@ -179,18 +179,17 @@ impl SharedObjectCongestionTracker {
         tx_cost: u64,
         lookup_interval: ExecutionSlot,
     ) -> Option<ExecutionTime> {
-        // take the first object from the shared input objects.
-        let obj = shared_input_objects
-            .first()
-            .expect("shared_input_objects must not be empty.");
+        // Take the first object from the shared input objects, and
         // set aside the remaining objects for the next recursive call.
-        let remaining_objects = if shared_input_objects.len() > 1 {
-            &shared_input_objects[1..]
-        } else {
-            &[]
-        };
+        let (obj, remaining_objects) = shared_input_objects
+            .split_first()
+            .expect("shared_input_objects must not be empty.");
 
-        for free_slot in self.object_execution_slots.get(&obj.id).unwrap() {
+        for free_slot in self
+            .object_execution_slots
+            .get(&obj.id)
+            .expect("object should have been inserted before.")
+        {
             // only consider slots with no transaction assigned yet.
             if free_slot.scheduled {
                 continue;
@@ -266,38 +265,9 @@ impl SharedObjectCongestionTracker {
             return SequencingResult::Schedule(start_time);
         }
 
-        let mut congested_objects = vec![];
-        for obj in shared_input_objects {
-            let execution_slots = self
-                .object_execution_slots
-                .get(&obj.id)
-                .expect("Execution slot vector should have been inserted when computing start time or before.");
-            if self.assign_min_free_execution_slot {
-                // If we are using `assign_min_free_execution_slot`, we define an object as
-                // congested if the lowest free slot for that object is the same as the start
-                // time of the entire transaction. This means that this shared object was the
-                // bottleneck for the transaction.
-                let obj_id = obj.id;
-                if self
-                    .compute_min_free_execution_slot(
-                        &[obj],
-                        tx_cost,
-                        ExecutionSlot::new(0, max_accumulated_txn_cost_per_object_in_commit, false),
-                    )
-                    .is_none()
-                {
-                    congested_objects.push(obj_id);
-                }
-            } else {
-                // If we are not using `assign_min_free_execution_slot`, we define an object
-                // as congested if the maximum free slot start time is the same as the start
-                // time of the entire transaction. This means that this shared
-                // object was the bottleneck for the transaction in this case.
-                if start_time == max_object_free_slot_start_time(execution_slots) {
-                    congested_objects.push(obj.id);
-                }
-            };
-        }
+        // The transaction cannot be scheduled. We need to defer it and return the list
+        // of the IDs of all shared input objects to explain the congestion reason.
+        let congested_objects = shared_input_objects.iter().map(|obj| obj.id).collect();
 
         let deferral_key =
             if let Some(previous_key) = previously_deferred_tx_digests.get(cert.digest()) {
