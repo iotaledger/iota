@@ -1,13 +1,11 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { useQuery } from '@tanstack/react-query';
 import { useGetCurrentEpochStartTimestamp } from '@/hooks';
 import { groupStardustObjectsByMigrationStatus } from '@/lib/utils';
 import {
     STARDUST_BASIC_OUTPUT_TYPE,
     STARDUST_NFT_OUTPUT_TYPE,
-    TimeUnit,
     useGetAllOwnedObjects,
     useGetAllStardustSharedObjects,
 } from '@iota/core';
