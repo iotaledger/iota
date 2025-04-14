@@ -89,9 +89,7 @@ export function EpochDetail() {
         // at-risk / pending validators for historical epochs
         return generateValidatorsTableColumns({
             committeeMembers: committeeMembers.map((member) => member.iotaAddress),
-            atRiskValidators: [],
             validatorEvents: validatorEvents ?? [],
-            rollingAverageApys: null,
             showValidatorIcon: true,
             includeColumns,
             currentEpoch: epochData.epoch,
