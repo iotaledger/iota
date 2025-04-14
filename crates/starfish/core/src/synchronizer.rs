@@ -891,14 +891,6 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> Synchronizer<C
 
         let (commit_lagging, last_commit_index, quorum_commit_index) = self.is_commit_lagging();
         if commit_lagging {
-            // If gc is enabled and we are commit lagging, then we don't want to enable the
-            // scheduler. As the new logic of processing the certified commits
-            // takes place we are guaranteed that commits will happen for all the certified
-            // commits.
-            if dag_state.read().gc_enabled() {
-                return Ok(());
-            }
-
             // As node is commit lagging try to sync only the missing blocks that are within
             // the acceptable round thresholds to sync. The rest we don't attempt to
             // sync yet.

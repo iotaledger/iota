@@ -171,13 +171,6 @@ impl DagBuilder {
                     .collect()
             }
 
-            fn gc_round(&self) -> Round {
-                self.gc_round
-            }
-
-            fn gc_enabled(&self) -> bool {
-                self.context.protocol_config.gc_depth() > 0
-            }
 
             fn set_committed(&mut self, block_ref: &BlockRef) -> bool {
                 let Some((_block, committed)) = self.blocks.get_mut(block_ref) else {

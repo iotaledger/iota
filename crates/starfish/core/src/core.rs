@@ -4,7 +4,7 @@
 
 use std::{
     collections::{BTreeMap, BTreeSet},
-    iter, mem,
+    iter,
     sync::Arc,
     time::Duration,
     vec,
@@ -37,9 +37,7 @@ use crate::{
         SignedBlock, Slot, VerifiedBlock,
     },
     block_manager::BlockManager,
-    commit::{
-        CertifiedCommit, CertifiedCommits, CommitAPI, CommittedSubDag, DecidedLeader, Decision,
-    },
+    commit::{CertifiedCommit, CertifiedCommits, CommitAPI, CommittedSubDag},
     commit_observer::CommitObserver,
     context::Context,
     dag_state::DagState,
@@ -369,33 +367,6 @@ impl Core {
         certified_commits: CertifiedCommits,
     ) -> ConsensusResult<BTreeSet<BlockRef>> {
         let _scope = monitored_scope("Core::add_certified_commits");
-
-        // We want to enable the commit process logic when GC is enabled.
-        if self.dag_state.read().gc_enabled() {
-            let votes = certified_commits.votes().to_vec();
-            let commits = self
-                .validate_certified_commits(certified_commits.commits().to_vec())
-                .expect("Certified commits validation failed");
-
-            // Accept the certified commit votes. This is optimistically done to increase
-            // the chances of having votes available when this node will need to
-            // sync commits to other nodes.
-            self.block_manager.try_accept_blocks(votes);
-
-            // Try to commit the new blocks. Take into account the trusted commit that has
-            // been provided.
-            self.try_commit(commits)?;
-
-            // Try to propose now since there are new blocks accepted.
-            self.try_propose(false)?;
-
-            // Now set up leader timeout if needed.
-            // This needs to be called after try_commit() and try_propose(), which may
-            // have advanced the threshold clock round.
-            self.try_signal_new_round();
-
-            return Ok(BTreeSet::new());
-        }
 
         // If GC is not enabled then process blocks as usual.
         let blocks = certified_commits
@@ -729,7 +700,7 @@ impl Core {
     /// those first before trying to commit any further leaders.
     fn try_commit(
         &mut self,
-        mut certified_commits: Vec<CertifiedCommit>,
+        certified_commits: Vec<CertifiedCommit>,
     ) -> ConsensusResult<Vec<CommittedSubDag>> {
         let _s = self
             .context
@@ -801,40 +772,14 @@ impl Core {
 
             // Always try to process the synced commits first. If there are certified
             // commits to process then the decided leaders and the commits will be returned.
-            let (mut decided_leaders, decided_certified_commits): (
-                Vec<DecidedLeader>,
-                Vec<CertifiedCommit>,
-            ) = self
-                .try_decide_certified(&mut certified_commits, commits_until_update)
-                .into_iter()
-                .unzip();
 
-            // Only accept blocks for the certified commits that we are certain to sequence.
-            // This ensures that only blocks corresponding to committed certified commits
-            // are flushed to disk. Blocks from non-committed certified commits
-            // will not be flushed, preventing issues during crash-recovery.
-            // This avoids scenarios where accepting and flushing blocks of non-committed
-            // certified commits could lead to premature commit rule execution.
-            // Due to GC, this could cause a panic if the commit rule tries to access
-            // missing causal history from blocks of certified commits.
-            let blocks = decided_certified_commits
-                .iter()
-                .flat_map(|c| c.blocks())
-                .cloned()
-                .collect::<Vec<_>>();
-            self.block_manager.try_accept_committed_blocks(blocks);
+            // TODO: limit commits by commits_until_update, which may be needed when leader
+            // schedule length is reduced.
+            let mut decided_leaders = self.committer.try_decide(self.last_decided_leader);
 
-            // If the certified `decided_leaders` is empty then try to run the decision
-            // rule.
-            if decided_leaders.is_empty() {
-                // TODO: limit commits by commits_until_update, which may be needed when leader
-                // schedule length is reduced.
-                decided_leaders = self.committer.try_decide(self.last_decided_leader);
-
-                // Truncate the decided leaders to fit the commit schedule limit.
-                if decided_leaders.len() >= commits_until_update {
-                    let _ = decided_leaders.split_off(commits_until_update);
-                }
+            // Truncate the decided leaders to fit the commit schedule limit.
+            if decided_leaders.len() >= commits_until_update {
+                let _ = decided_leaders.split_off(commits_until_update);
             }
 
             // If the decided leaders list is empty then just break the loop.
@@ -890,10 +835,6 @@ impl Core {
                     .write()
                     .add_unscored_committed_subdags(subdags.clone());
             }
-
-            // Try to unsuspend blocks if gc_round has advanced.
-            self.block_manager
-                .try_unsuspend_blocks_for_latest_gc_round();
             committed_sub_dags.extend(subdags);
 
             fail_point!("consensus-after-handle-commit");
@@ -919,7 +860,7 @@ impl Core {
             })
             .collect::<Vec<_>>();
         self.transaction_consumer
-            .notify_own_blocks_status(committed_block_refs, self.dag_state.read().gc_round());
+            .notify_own_blocks_status(committed_block_refs, GENESIS_ROUND);
 
         Ok(committed_sub_dags)
     }
@@ -1035,53 +976,6 @@ impl Core {
         }
 
         true
-    }
-
-    // Try to decide which of the certified commits will have to be committed next
-    // respecting the `limit`. If provided `limit` is zero, it will panic.
-    // The function returns the list of decided leaders and updates in place the
-    // remaining certified commits. If empty vector is returned, it means that
-    // there are no certified commits to be committed as `certified_commits` is
-    // either empty or all of the certified commits are already committed.
-    #[tracing::instrument(skip_all)]
-    fn try_decide_certified(
-        &mut self,
-        certified_commits: &mut Vec<CertifiedCommit>,
-        limit: usize,
-    ) -> Vec<(DecidedLeader, CertifiedCommit)> {
-        // If GC is disabled then should not run any of this logic.
-        if !self.dag_state.read().gc_enabled() {
-            return Vec::new();
-        }
-
-        assert!(limit > 0, "limit should be greater than 0");
-
-        let to_commit = if certified_commits.len() >= limit {
-            // We keep only the number of leaders as dictated by the `limit`
-            certified_commits.drain(..limit).collect::<Vec<_>>()
-        } else {
-            // Otherwise just take all of them and leave the `synced_commits` empty.
-            mem::take(certified_commits)
-        };
-
-        tracing::debug!(
-            "Decided {} certified leaders: {}",
-            to_commit.len(),
-            to_commit.iter().map(|c| c.leader().to_string()).join(",")
-        );
-
-        let sequenced_leaders = to_commit
-            .into_iter()
-            .map(|commit| {
-                let leader = commit.blocks().last().expect("Certified commit should have at least one block");
-                assert_eq!(leader.reference(), commit.leader(), "Last block of the committed sub dag should have the same digest as the leader of the commit");
-                let leader = DecidedLeader::Commit(leader.clone());
-                UniversalCommitter::update_metrics(&self.context, &leader, Decision::Certified);
-                (leader, commit)
-            })
-            .collect::<Vec<_>>();
-
-        sequenced_leaders
     }
 
     /// Retrieves the next ancestors to propose to form a block at `clock_round`

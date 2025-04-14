@@ -4,12 +4,10 @@
 
 use std::{collections::HashSet, sync::Arc};
 
-use itertools::Itertools;
 use parking_lot::RwLock;
 use starfish_config::AuthorityIndex;
 
 use crate::{
-    Round,
     block::{BlockAPI, BlockRef, VerifiedBlock},
     commit::{Commit, CommittedSubDag, TrustedCommit, sort_sub_dag_blocks},
     context::Context,
@@ -23,10 +21,6 @@ use crate::{
 pub(crate) trait BlockStoreAPI {
     fn get_blocks(&self, refs: &[BlockRef]) -> Vec<Option<VerifiedBlock>>;
 
-    fn gc_round(&self) -> Round;
-
-    fn gc_enabled(&self) -> bool;
-
     fn set_committed(&mut self, block_ref: &BlockRef) -> bool;
 
     fn is_committed(&self, block_ref: &BlockRef) -> bool;
@@ -37,14 +31,6 @@ impl BlockStoreAPI
 {
     fn get_blocks(&self, refs: &[BlockRef]) -> Vec<Option<VerifiedBlock>> {
         DagState::get_blocks(self, refs)
-    }
-
-    fn gc_round(&self) -> Round {
-        DagState::gc_round(self)
-    }
-
-    fn gc_enabled(&self) -> bool {
-        DagState::gc_enabled(self)
     }
 
     fn set_committed(&mut self, block_ref: &BlockRef) -> bool {
@@ -145,21 +131,13 @@ impl Linearizer {
         last_committed_rounds: Vec<u32>,
         dag_state: &mut impl BlockStoreAPI,
     ) -> Vec<VerifiedBlock> {
-        let gc_enabled = dag_state.gc_enabled();
-        // The GC round here is calculated based on the last committed round of the
-        // leader block. The algorithm will attempt to commit blocks up to this
-        // GC round. Once this commit has been processed and written to DagState, then
-        // gc round will update and on the processing of the next commit we'll
-        // have it already updated, so no need to do any gc_round recalculations here.
-        // We just use whatever is currently in DagState.
-        let gc_round: Round = dag_state.gc_round();
         let leader_block_ref = leader_block.reference();
         let mut buffer = vec![leader_block];
 
         let mut to_commit = Vec::new();
 
         // The new logic will perform the recursion without stopping at the highest
-        // round round that has been committed per authority. Instead it will
+        // round that has been committed per authority. Instead it will
         // allow to commit blocks that are lower than the highest committed round for an
         // authority but higher than gc_round.
         if context.protocol_config.consensus_linearize_subdag_v2() {
@@ -177,9 +155,7 @@ impl Linearizer {
                         &x.ancestors()
                             .iter()
                             .copied()
-                            .filter(|ancestor| {
-                                ancestor.round > gc_round && !dag_state.is_committed(ancestor)
-                            })
+                            .filter(|ancestor| !dag_state.is_committed(ancestor))
                             .collect::<Vec<_>>(),
                     )
                     .into_iter()
@@ -219,13 +195,6 @@ impl Linearizer {
                                 !committed.contains(ancestor)
                                     && last_committed_rounds[ancestor.author] < ancestor.round
                             })
-                            .filter(|ancestor| {
-                                // Keep the block if GC is not enabled or it is enabled and the
-                                // block is above the gc_round. We do this
-                                // to stop the recursion early and avoid going to deep when it's
-                                // unnecessary.
-                                !gc_enabled || ancestor.round > gc_round
-                            })
                             .collect::<Vec<_>>(),
                     )
                     .into_iter()
@@ -239,17 +208,6 @@ impl Linearizer {
                     assert!(committed.insert(ancestor.reference()));
                 }
             }
-        }
-
-        // The above code should have not yielded any blocks that are <= gc_round, but
-        // just to make sure that we'll never commit anything that should be
-        // garbage collected we attempt to prune here as well.
-        if gc_enabled {
-            assert!(
-                to_commit.iter().all(|block| block.round() > gc_round),
-                "No blocks <= {gc_round} should be committed. Leader round {}, blocks {to_commit:?}.",
-                leader_block_ref
-            );
         }
 
         // Sort the blocks of the sub-dag blocks
@@ -292,8 +250,6 @@ impl Linearizer {
             let (sub_dag, commit) =
                 self.collect_sub_dag_and_commit(leader_block, reputation_scores_desc);
 
-            self.update_blocks_pruned_metric(&sub_dag);
-
             // Buffer commit in dag state for persistence later.
             // This also updates the last committed rounds.
             self.dag_state.write().add_commit(commit.clone());
@@ -310,55 +266,6 @@ impl Linearizer {
         self.dag_state.write().flush();
 
         committed_sub_dags
-    }
-
-    // Try to measure the number of blocks that get pruned due to GC. This is not
-    // very accurate, but it can give us a good enough idea. We consider a block
-    // as pruned when it is an ancestor of a block that has been committed as part
-    // of the provided `sub_dag`, but it has not been committed as part of
-    // previous commits. Right now we measure this via checking that highest
-    // committed round for the authority as we don't an efficient look up
-    // functionality to check if a block has been committed or not.
-    fn update_blocks_pruned_metric(&self, sub_dag: &CommittedSubDag) {
-        let (last_committed_rounds, gc_round) = {
-            let dag_state = self.dag_state.read();
-            (dag_state.last_committed_rounds(), dag_state.gc_round())
-        };
-
-        for block_ref in sub_dag
-            .blocks
-            .iter()
-            .flat_map(|block| block.ancestors())
-            .filter(
-                |ancestor_ref| {
-                    ancestor_ref.round <= gc_round
-                        && last_committed_rounds[ancestor_ref.author] != ancestor_ref.round
-                }, /* If the last committed round is the same as the pruned block's round, then
-                    * we know for sure that it has been committed and it doesn't count here
-                    * as pruned block. */
-            )
-            .unique()
-        {
-            let hostname = &self.context.committee.authority(block_ref.author).hostname;
-
-            // If the last committed round from this authority is lower than the pruned
-            // ancestor in question, then we know for sure that it has not been committed.
-            let label_values = if last_committed_rounds[block_ref.author] < block_ref.round {
-                &[hostname, "uncommitted"]
-            } else {
-                // If last committed round is higher for this authority, then we don't really
-                // know it's status, but we know that there is a higher committed block from
-                // this authority.
-                &[hostname, "higher_committed"]
-            };
-
-            self.context
-                .metrics
-                .node_metrics
-                .blocks_pruned_on_commit
-                .with_label_values(label_values)
-                .inc();
-        }
     }
 }
 

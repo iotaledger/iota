@@ -5,7 +5,6 @@
 use std::{collections::BTreeSet, sync::Arc};
 
 use crate::{
-    Round,
     block::{
         BlockAPI, BlockRef, BlockTimestampMs, GENESIS_ROUND, SignedBlock, VerifiedBlock,
         genesis_blocks,
@@ -30,8 +29,6 @@ pub(crate) trait BlockVerifier: Send + Sync + 'static {
         &self,
         block: &VerifiedBlock,
         ancestors: &[Option<VerifiedBlock>],
-        gc_enabled: bool,
-        gc_round: Round,
     ) -> ConsensusResult<()>;
 }
 
@@ -196,45 +193,24 @@ impl BlockVerifier for SignedBlockVerifier {
         &self,
         block: &VerifiedBlock,
         ancestors: &[Option<VerifiedBlock>],
-        gc_enabled: bool,
-        gc_round: Round,
     ) -> ConsensusResult<()> {
-        if gc_enabled {
-            // TODO: will be removed with new timestamp calculation is in place as all these
-            // will be irrelevant. When gc is enabled we don't have guarantees
-            // that all ancestors will be available. We'll take into account only the passed
-            // gc_round ones for the timestamp check.
-            let mut max_timestamp_ms = BlockTimestampMs::MIN;
-            for ancestor in ancestors.iter().flatten() {
-                if ancestor.round() <= gc_round {
-                    continue;
-                }
-                max_timestamp_ms = max_timestamp_ms.max(ancestor.timestamp_ms());
-                if max_timestamp_ms > block.timestamp_ms() {
-                    return Err(ConsensusError::InvalidBlockTimestamp {
-                        max_timestamp_ms,
-                        block_timestamp_ms: block.timestamp_ms(),
-                    });
-                }
-            }
-        } else {
-            assert_eq!(block.ancestors().len(), ancestors.len());
-            // This checks the invariant that block timestamp >= max ancestor timestamp.
-            let mut max_timestamp_ms = BlockTimestampMs::MIN;
-            for (ancestor_ref, ancestor_block) in block.ancestors().iter().zip(ancestors.iter()) {
-                let ancestor_block = ancestor_block
-                    .as_ref()
-                    .expect("There should never be an empty slot");
-                assert_eq!(ancestor_ref, &ancestor_block.reference());
-                max_timestamp_ms = max_timestamp_ms.max(ancestor_block.timestamp_ms());
-            }
-            if max_timestamp_ms > block.timestamp_ms() {
-                return Err(ConsensusError::InvalidBlockTimestamp {
-                    max_timestamp_ms,
-                    block_timestamp_ms: block.timestamp_ms(),
-                });
-            }
+        assert_eq!(block.ancestors().len(), ancestors.len());
+        // This checks the invariant that block timestamp >= max ancestor timestamp.
+        let mut max_timestamp_ms = BlockTimestampMs::MIN;
+        for (ancestor_ref, ancestor_block) in block.ancestors().iter().zip(ancestors.iter()) {
+            let ancestor_block = ancestor_block
+                .as_ref()
+                .expect("There should never be an empty slot");
+            assert_eq!(ancestor_ref, &ancestor_block.reference());
+            max_timestamp_ms = max_timestamp_ms.max(ancestor_block.timestamp_ms());
         }
+        if max_timestamp_ms > block.timestamp_ms() {
+            return Err(ConsensusError::InvalidBlockTimestamp {
+                max_timestamp_ms,
+                block_timestamp_ms: block.timestamp_ms(),
+            });
+        }
+
         Ok(())
     }
 }

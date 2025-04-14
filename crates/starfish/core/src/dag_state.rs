@@ -197,30 +197,7 @@ impl DagState {
 
         for (i, round) in last_committed_rounds.into_iter().enumerate() {
             let authority_index = state.context.committee.to_authority_index(i).unwrap();
-            let (blocks, eviction_round) = if state.gc_enabled() {
-                // Find the latest block for the authority to calculate the eviction round. Then
-                // we want to scan and load the blocks from the eviction round and onwards only.
-                // As reminder, the eviction round is taking into account the gc_round.
-                let last_block = state
-                    .store
-                    .scan_last_blocks_by_author(authority_index, 1, None)
-                    .expect("Database error");
-                let last_block_round = last_block
-                    .last()
-                    .map(|b| b.round())
-                    .unwrap_or(GENESIS_ROUND);
-
-                let eviction_round = Self::gc_eviction_round(
-                    last_block_round,
-                    state.gc_round(),
-                    state.cached_rounds,
-                );
-                let blocks = state
-                    .store
-                    .scan_blocks_by_author(authority_index, eviction_round + 1)
-                    .expect("Database error");
-                (blocks, eviction_round)
-            } else {
+            let (blocks, eviction_round) = {
                 let eviction_round = Self::eviction_round(round, cached_rounds);
                 let blocks = state
                     .store
@@ -245,56 +222,6 @@ impl DagState {
                     .collect::<Vec<BlockRef>>()
             );
         }
-
-        if state.gc_enabled() {
-            if let Some(last_commit) = last_commit {
-                let mut index = last_commit.index();
-                let gc_round = state.gc_round();
-                info!(
-                    "Recovering block commit statuses from commit index {} and backwards until leader of round <= gc_round {:?}",
-                    index, gc_round
-                );
-
-                loop {
-                    let commits = store
-                        .scan_commits((index..=index).into())
-                        .unwrap_or_else(|e| panic!("Failed to read from storage: {:?}", e));
-                    let Some(commit) = commits.first() else {
-                        info!(
-                            "Recovering finished up to index {index}, no more commits to recover"
-                        );
-                        break;
-                    };
-
-                    // Check the commit leader round to see if it is within the gc_round. If it is
-                    // not then we can stop the recovery process.
-                    if gc_round > 0 && commit.leader().round <= gc_round {
-                        info!(
-                            "Recovering finished, reached commit leader round {} <= gc_round {}",
-                            commit.leader().round,
-                            gc_round
-                        );
-                        break;
-                    }
-
-                    commit.blocks().iter().filter(|b| b.round > gc_round).for_each(|block_ref|{
-                        debug!(
-                            "Setting block {:?} as committed based on commit {:?}",
-                            block_ref,
-                            commit.index()
-                        );
-                        assert!(state.set_committed(block_ref), "Attempted to set again a block {:?} as committed when recovering commit {:?}", block_ref, commit);
-                    });
-
-                    // All commits are indexed starting from 1, so one reach zero exit.
-                    index = index.saturating_sub(1);
-                    if index == 0 {
-                        break;
-                    }
-                }
-            }
-        }
-
         state
     }
 
@@ -710,8 +637,7 @@ impl DagState {
             panic!(
                 "{}",
                 format!(
-                    "Attempted to check for slot {slot} that is <= the last{}evicted round {eviction_round}",
-                    if self.gc_enabled() { " gc " } else { " " }
+                    "Attempted to check for slot {slot} that is <= the last evicted round {eviction_round}"
                 )
             );
         }
@@ -936,32 +862,6 @@ impl DagState {
         self.last_committed_rounds.clone()
     }
 
-    /// The GC round is the highest round that blocks of equal or lower round
-    /// are considered obsolete and no longer possible to be committed.
-    /// There is no meaning accepting any blocks with round <= gc_round. The
-    /// Garbage Collection (GC) round is calculated based on the latest
-    /// committed leader round. When GC is disabled that will return the genesis
-    /// round.
-    pub(crate) fn gc_round(&self) -> Round {
-        self.calculate_gc_round(self.last_commit_round())
-    }
-
-    pub(crate) fn calculate_gc_round(&self, commit_round: Round) -> Round {
-        let gc_depth = self.context.protocol_config.gc_depth();
-        if gc_depth > 0 {
-            // GC is enabled, only then calculate the diff
-            commit_round.saturating_sub(gc_depth)
-        } else {
-            // Otherwise just return genesis round. That also acts as a safety mechanism so
-            // we never attempt to truncate anything even accidentally.
-            GENESIS_ROUND
-        }
-    }
-
-    pub(crate) fn gc_enabled(&self) -> bool {
-        self.context.protocol_config.gc_depth() > 0
-    }
-
     /// After each flush, DagState becomes persisted in storage and it expected
     /// to recover all internal states from storage after restarts.
     pub(crate) fn flush(&mut self) {
@@ -1088,31 +988,14 @@ impl DagState {
     /// from that authority. For any round that is <= `last_evicted_round`
     /// we don't have such guarantees as out of order blocks might exist.
     fn calculate_authority_eviction_round(&self, authority_index: AuthorityIndex) -> Round {
-        if self.gc_enabled() {
-            let last_round = self.recent_refs_by_authority[authority_index]
-                .last()
-                .map(|block_ref| block_ref.round)
-                .unwrap_or(GENESIS_ROUND);
-
-            Self::gc_eviction_round(last_round, self.gc_round(), self.cached_rounds)
-        } else {
-            let commit_round = self.last_committed_rounds[authority_index];
-            Self::eviction_round(commit_round, self.cached_rounds)
-        }
+        let commit_round = self.last_committed_rounds[authority_index];
+        Self::eviction_round(commit_round, self.cached_rounds)
     }
 
     /// Calculates the last eviction round based on the provided `commit_round`.
     /// Any blocks with round <= the evict round have been cleaned up.
     fn eviction_round(commit_round: Round, cached_rounds: Round) -> Round {
         commit_round.saturating_sub(cached_rounds)
-    }
-
-    /// Calculates the eviction round for the given authority. The goal is to
-    /// keep at least `cached_rounds` of the latest blocks in the cache (if
-    /// enough data is available), while evicting blocks with rounds <=
-    /// `gc_round` when possible.
-    fn gc_eviction_round(last_round: Round, gc_round: Round, cached_rounds: u32) -> Round {
-        gc_round.min(last_round.saturating_sub(cached_rounds))
     }
 
     /// Detects and returns the blocks of the round that forms the last quorum.
