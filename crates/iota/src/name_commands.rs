@@ -8,9 +8,11 @@ use std::{
 
 use chrono::{Utc, prelude::DateTime};
 use clap::Parser;
+use iota_graphql_rpc_client::simple_client::{GraphqlQueryVariable, SimpleClient};
 use iota_json::IotaJsonValue;
 use iota_json_rpc_types::{
-    IotaData, IotaObjectDataFilter, IotaObjectDataOptions, IotaObjectResponseQuery,
+    IotaData, IotaObjectDataFilter, IotaObjectDataOptions, IotaObjectResponse,
+    IotaObjectResponseQuery,
 };
 use iota_names::{
     IotaNamesNft, IotaNamesRegistration, SubdomainRegistration,
@@ -22,9 +24,10 @@ use iota_protocol_config::Chain;
 use iota_sdk::{IotaClient, wallet_context::WalletContext};
 use iota_types::{
     IOTA_CLOCK_OBJECT_ID, IOTA_FRAMEWORK_PACKAGE_ID, TypeTag,
+    balance::Balance,
     base_types::{IotaAddress, ObjectID},
     coin::Coin,
-    collection_types::{Entry, LinkedTableNode, VecMap},
+    collection_types::{Entry, LinkedTable, LinkedTableNode, VecMap},
     digests::ChainIdentifier,
 };
 use move_core_types::{
@@ -45,10 +48,6 @@ use crate::{
     client_ptb::ptb::PTB,
     key_identity::{KeyIdentity, get_identity_address},
 };
-
-const AUCTION_PACKAGE_ADDRESS: &str =
-    "0xe24e72f0623ea19b4b2ec847e2b208033c6f7938b50e31efe4996aa2f23d4477";
-const AUCTION_HOUSE_ID: &str = "0x85f493ba298b68af3e4812385460e21ddc5aa61273efd9dc54aa6919848090e4";
 
 /// Commands related to the auction system
 #[derive(Parser)]
@@ -193,11 +192,6 @@ impl NameCommand {
         self,
         context: &mut WalletContext,
     ) -> Result<NameCommandResult, anyhow::Error> {
-        // TODO remove when we get then through dynamic fields
-        // https://github.com/iotaledger/iota-names/issues/90
-        let auction_package_address = IotaAddress::from_str(AUCTION_PACKAGE_ADDRESS)?;
-        let auction_house_id = ObjectID::from_str(AUCTION_HOUSE_ID)?;
-
         Ok(match self {
             Self::Auction(AuctionCommand::Bid {
                 domain,
@@ -205,6 +199,9 @@ impl NameCommand {
                 coin,
                 opts,
             }) => {
+                let auction_package_address = get_auction_package_address(context).await?;
+                let auction_house_id =
+                    get_auction_house_id(auction_package_address, context).await?;
                 let coin =
                     select_coin_for_payment(&domain.to_string(), coin, amount, context).await?;
 
@@ -226,12 +223,14 @@ impl NameCommand {
                 )
             }
             Self::Auction(AuctionCommand::Claim { domain, opts }) => {
+                let auction_package_address = get_auction_package_address(context).await?;
+                let auction_house_id =
+                    get_auction_house_id(auction_package_address, context).await?;
                 let mut args = vec![
                     "--move-call iota::tx_context::sender".to_string(),
                     "--assign sender".to_string(),
                     format!(
-                        "--move-call {}::auction::claim @{} '{domain}' @{IOTA_CLOCK_OBJECT_ID}",
-                        auction_package_address, auction_house_id,
+                        "--move-call {auction_package_address}::auction::claim @{auction_house_id} '{domain}' @{IOTA_CLOCK_OBJECT_ID}",
                     ),
                     "--assign nft".to_string(),
                     "--transfer-objects [nft] sender".to_string(),
@@ -253,6 +252,9 @@ impl NameCommand {
                 coin,
                 opts,
             }) => {
+                let auction_package_address = get_auction_package_address(context).await?;
+                let auction_house_id =
+                    get_auction_house_id(auction_package_address, context).await?;
                 let coin =
                     select_coin_for_payment(&domain.to_string(), coin, amount, context).await?;
 
@@ -1075,9 +1077,9 @@ async fn get_proxy_nft_by_name(
     context: &mut WalletContext,
 ) -> anyhow::Result<IotaNamesNftProxy> {
     Ok(if domain.is_sld() {
-        IotaNamesNftProxy::Domain(get_owned_nft_by_name(&domain, context).await?)
+        IotaNamesNftProxy::Domain(get_owned_nft_by_name(domain, context).await?)
     } else {
-        IotaNamesNftProxy::Subdomain(get_owned_nft_by_name(&domain, context).await?)
+        IotaNamesNftProxy::Subdomain(get_owned_nft_by_name(domain, context).await?)
     })
 }
 
@@ -1089,16 +1091,7 @@ async fn get_registry_entry(
     let iota_names_config = get_iota_names_config(&client).await?;
     let object_id = iota_names_config.record_field_id(domain);
 
-    client
-        .read_api()
-        .get_object_with_options(object_id, IotaObjectDataOptions::new().with_bcs())
-        .await?
-        .into_object()?
-        .bcs
-        .expect("missing bcs")
-        .try_into_move()
-        .expect("invalid move type")
-        .deserialize::<RegistryEntry>()
+    get_object_from_bcs(&client, object_id).await
 }
 
 async fn get_reverse_registry_entry(
@@ -1114,14 +1107,7 @@ async fn get_reverse_registry_entry(
         .await?;
 
     if response.data.is_some() {
-        response
-            .into_object()?
-            .bcs
-            .expect("missing bcs")
-            .try_into_move()
-            .expect("invalid move type")
-            .deserialize::<ReverseRegistryEntry>()
-            .map(Some)
+        Ok(Some(deserialize_move_object_from_bcs(response)?))
     } else {
         Ok(None)
     }
@@ -1156,16 +1142,7 @@ async fn fetch_pricing_config(context: &mut WalletContext) -> anyhow::Result<Pri
         &IotaJsonValue::new(serde_json::json!({ "dummy_field": false }))?.to_bcs_bytes(&layout)?,
     )?;
 
-    let entry = client
-        .read_api()
-        .get_object_with_options(object_id, IotaObjectDataOptions::new().with_bcs())
-        .await?
-        .into_object()?
-        .bcs
-        .expect("missing bcs")
-        .try_into_move()
-        .expect("invalid move type")
-        .deserialize::<PricingConfigEntry>()?;
+    let entry = get_object_from_bcs::<PricingConfigEntry>(&client, object_id).await?;
 
     Ok(entry.pricing_config)
 }
@@ -1190,16 +1167,7 @@ async fn fetch_renewal_config(context: &mut WalletContext) -> anyhow::Result<Ren
         &IotaJsonValue::new(serde_json::json!({ "dummy_field": false }))?.to_bcs_bytes(&layout)?,
     )?;
 
-    let entry = client
-        .read_api()
-        .get_object_with_options(object_id, IotaObjectDataOptions::new().with_bcs())
-        .await?
-        .into_object()?
-        .bcs
-        .expect("missing bcs")
-        .try_into_move()
-        .expect("invalid move type")
-        .deserialize::<RenewalConfigEntry>()?;
+    let entry = get_object_from_bcs::<RenewalConfigEntry>(&client, object_id).await?;
 
     Ok(entry.renewal_config)
 }
@@ -1357,30 +1325,36 @@ pub struct AuctionEntry {
     pub node: LinkedTableNode<Domain, Auction>,
 }
 
+#[expect(unused)]
+#[derive(Debug, Deserialize)]
+struct AuctionHouse {
+    id: ObjectID,
+    balance: Balance,
+    auctions: LinkedTable<Domain>,
+}
+
 async fn get_auction(domain: &Domain, context: &mut WalletContext) -> anyhow::Result<Auction> {
     let client = context.get_client().await?;
     let iota_names_config = get_iota_names_config(&client).await?;
     let domain_type_tag = Domain::type_(iota_names_config.package_address);
     let domain_bytes = bcs::to_bytes(domain).unwrap();
-    // TODO will nbe removed after https://github.com/iotaledger/iota-names/issues/90
+
+    let auction_package_address = get_auction_package_address(context).await?;
+    let auction_house_id = get_auction_house_id(auction_package_address, context).await?;
+    let auctions_table_id = get_object_from_bcs::<AuctionHouse>(&client, auction_house_id)
+        .await?
+        .auctions
+        .id;
+
     let object_id = iota_types::dynamic_field::derive_dynamic_field_id(
-        ObjectID::from_str("0xfe3e309abcb96b7bf4cf701b3f0514c9dc9a1b1c670645d908f27c67de4ae81a")?,
+        auctions_table_id,
         &TypeTag::Struct(Box::new(domain_type_tag)),
         &domain_bytes,
     )?;
 
-    let entry = client
-        .read_api()
-        .get_object_with_options(object_id, IotaObjectDataOptions::new().with_bcs())
-        .await?
-        .into_object()?
-        .bcs
-        .expect("missing bcs")
-        .try_into_move()
-        .expect("invalid move type")
-        .deserialize::<AuctionEntry>()?;
+    let auction_entry = get_object_from_bcs::<AuctionEntry>(&client, object_id).await?;
 
-    Ok(entry.node.value)
+    Ok(auction_entry.node.value)
 }
 
 // Fetch the package ID of a package that got authorized for the IOTA-Names
@@ -1409,6 +1383,90 @@ async fn fetch_package_id_by_module_and_name(
     Err(anyhow::anyhow!(
         "failed to find package ID for {module_name}::{struct_name}"
     ))?
+}
+
+async fn get_auction_package_address(context: &mut WalletContext) -> anyhow::Result<ObjectID> {
+    let client = context.get_client().await?;
+    let auction_package_address = fetch_package_id_by_module_and_name(
+        &client,
+        &Identifier::from_str("auction")?,
+        &Identifier::from_str("App")?,
+    )
+    .await?;
+    Ok(auction_package_address)
+}
+
+async fn get_auction_house_id(
+    auction_package_id: ObjectID,
+    context: &mut WalletContext,
+) -> anyhow::Result<ObjectID> {
+    let client = SimpleClient::new(
+        context
+            .active_env()?
+            .graphql()
+            .as_ref()
+            .ok_or_else(|| anyhow::anyhow!("missing graphql url in IotaEnv"))?,
+    );
+
+    let variable = GraphqlQueryVariable {
+        name: "type".to_string(),
+        ty: "String".to_string(),
+        value: serde_json::Value::String(format!("{auction_package_id}::auction::AuctionHouse")),
+    };
+    let query = r#"{
+        objects(filter: {type: $type}) {
+            edges {
+                node {
+                    address
+                    asMoveObject {
+                        contents {
+                            json
+                        }
+                    }
+                }
+            }
+        }
+    }"#;
+    let response = client
+        .execute_to_graphql(query.to_string(), true, vec![variable], vec![])
+        .await?;
+    anyhow::ensure!(response.errors().is_empty(), "{:?}", response.errors());
+
+    let response_body = response.response_body_json();
+    let object_id_str = response_body["data"]["objects"]["edges"][0]["node"]["address"]
+        .as_str()
+        .ok_or(anyhow::anyhow!("missing AuctionHouse object"))?;
+    let object_id = ObjectID::from_str(object_id_str)?;
+    Ok(object_id)
+}
+
+async fn get_object_from_bcs<T: DeserializeOwned>(
+    client: &IotaClient,
+    object_id: ObjectID,
+) -> anyhow::Result<T> {
+    let object_response = client
+        .read_api()
+        .get_object_with_options(object_id, IotaObjectDataOptions::new().with_bcs())
+        .await?;
+    anyhow::ensure!(
+        object_response.error.is_none(),
+        "{:?}",
+        object_response.error
+    );
+
+    deserialize_move_object_from_bcs::<T>(object_response)
+}
+
+fn deserialize_move_object_from_bcs<T: DeserializeOwned>(
+    object_response: IotaObjectResponse,
+) -> anyhow::Result<T> {
+    object_response
+        .into_object()?
+        .bcs
+        .ok_or_else(|| anyhow::anyhow!("missing bcs"))?
+        .try_into_move()
+        .ok_or_else(|| anyhow::anyhow!("invalid move type"))?
+        .deserialize::<T>()
 }
 
 #[cfg(test)]
