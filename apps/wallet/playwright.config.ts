@@ -63,7 +63,7 @@ const config: PlaywrightTestConfig = {
             port: 9123,
             timeout: 120 * 1000,
             /* Set this to true to reuse the server instance on step 'Run Local net' in e2e.yml */
-            reuseExistingServer: true,
+            reuseExistingServer: !process.env.CI,
         },
     ],
 };
