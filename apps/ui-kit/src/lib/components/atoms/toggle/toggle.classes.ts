@@ -7,7 +7,7 @@ export const TOGGLE = 'relative inline-flex items-center p-xxs border rounded-fu
 
 export const TOGGLE_STATES = {
     active: 'bg-primary-30 border-primary-30',
-    inactive: 'bg-primary-100 border-neutral-70',
+    inactive: 'bg-primary-100 dark:bg-neutral-6 border-neutral-70 dark:border-neutral-40',
     disabledActive: 'bg-neutral-70 border-neutral-70',
     disabled: 'opacity-40 cursor-not-allowed',
 };
