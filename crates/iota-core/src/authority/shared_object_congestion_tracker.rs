@@ -103,7 +103,8 @@ impl ExecutionSlot {
 // The goal of this data structure is to capture the critical path of
 // transaction execution latency on each objects.
 //
-// The `mode` field determines how the transaction cost is calculated.
+// The `mode` field determines how the estimated execution duration of the
+// transaction is calculated.
 //
 // The `assign_min_free_execution_slot` field determines how the start time of a
 // transaction should be assigned. If true, the tracker will assign the start
@@ -127,14 +128,15 @@ impl SharedObjectCongestionTracker {
         }
     }
 
-    // Given a list of shared input objects and the cost of a transaction that
-    // operates on these objects, returns the starting time of the transaction
+    // Given a list of shared input objects and the estimated execution duration of
+    // a transaction that operates on these objects, returns the starting time
+    // of the transaction
     //
     // Starting time is determined by all the input shared objects' last write.
     pub fn compute_tx_start_time(
         &mut self,
         shared_input_objects: &[SharedInputObject],
-        tx_cost: u64,
+        tx_duration: ExecutionTime,
     ) -> ExecutionTime {
         // initialise the free execution slots for the objects that are not in the
         // tracker.
@@ -149,8 +151,12 @@ impl SharedObjectCongestionTracker {
             // transaction. We start the search from the full range of the slots
             // available with no constraints from previous objects.
             let initial_free_slot = ExecutionSlot::max_duration_non_scheduled_slot();
-            self.compute_min_free_execution_slot(shared_input_objects, tx_cost, initial_free_slot)
-                .unwrap_or(MAX_EXECUTION_TIME)
+            self.compute_min_free_execution_slot(
+                shared_input_objects,
+                tx_duration,
+                initial_free_slot,
+            )
+            .unwrap_or(MAX_EXECUTION_TIME)
         } else {
             // If `assign_min_free_execution_slot` is false, we assign the transaction start
             // time based on the maximum end time of the occupied execution slots for the
@@ -176,7 +182,7 @@ impl SharedObjectCongestionTracker {
     fn compute_min_free_execution_slot(
         &self,
         shared_input_objects: &[SharedInputObject],
-        tx_cost: u64,
+        tx_duration: ExecutionTime,
         lookup_interval: ExecutionSlot,
     ) -> Option<ExecutionTime> {
         // Take the first object from the shared input objects, and
@@ -197,7 +203,7 @@ impl SharedObjectCongestionTracker {
             let intersection_slot = free_slot.intersection(&lookup_interval);
             // If there is no overlap that can fit the transaction, continue to the next
             // free slot.
-            if intersection_slot.duration() < tx_cost {
+            if intersection_slot.duration() < tx_duration {
                 continue;
             }
             // if this is the last object to check, return this slot as it is the lowest
@@ -210,9 +216,11 @@ impl SharedObjectCongestionTracker {
             // If the recursive call returns a start time, that means the transaction fits
             // in the slot for all remaining objects. Return the start time.
             // Otherwise, continue to check the next free slot for the current object.
-            if let Some(lowest_overlap) =
-                self.compute_min_free_execution_slot(remaining_objects, tx_cost, intersection_slot)
-            {
+            if let Some(lowest_overlap) = self.compute_min_free_execution_slot(
+                remaining_objects,
+                tx_duration,
+                intersection_slot,
+            ) {
                 return Some(lowest_overlap);
             } else {
                 continue;
@@ -223,11 +231,15 @@ impl SharedObjectCongestionTracker {
         None
     }
 
-    // Transaction cost is an indication of transaction execution latency.
-    //
-    // The cost can be calculated based on the total gas budget, or total number
-    // of transaction count.
-    pub fn get_tx_cost(&self, cert: &VerifiedExecutableTransaction) -> u64 {
+    // Depending on the PerObjectCongestionControlMode, different metrics are used
+    // to approximate the expected execution duration of a transaction. The expected
+    // execution duration is what is used to schedule transactions and allocate
+    // resources based on how many transactions can be executed from a given
+    // consensus commit.
+    pub fn get_estimated_execution_duration(
+        &self,
+        cert: &VerifiedExecutableTransaction,
+    ) -> ExecutionTime {
         match self.mode {
             PerObjectCongestionControlMode::None => 0,
             PerObjectCongestionControlMode::TotalGasBudget => cert.gas_budget(),
@@ -242,13 +254,13 @@ impl SharedObjectCongestionTracker {
     pub fn try_schedule(
         &mut self,
         cert: &VerifiedExecutableTransaction,
-        max_accumulated_txn_cost_per_object_in_commit: u64,
+        max_execution_duration_per_commit: u64,
         previously_deferred_tx_digests: &HashMap<TransactionDigest, DeferralKey>,
         commit_round: CommitRound,
     ) -> SequencingResult {
-        let tx_cost = self.get_tx_cost(cert);
-        if tx_cost == 0 {
-            // This is a zero-cost transaction, no need to defer.
+        let tx_duration = self.get_estimated_execution_duration(cert);
+        if tx_duration == 0 {
+            // This is a zero-duration transaction, no need to defer.
             return SequencingResult::Schedule(0);
         }
 
@@ -257,10 +269,10 @@ impl SharedObjectCongestionTracker {
             // This is an owned object only transaction. No need to defer.
             return SequencingResult::Schedule(0);
         }
-        let start_time = self.compute_tx_start_time(&shared_input_objects, tx_cost);
+        let start_time = self.compute_tx_start_time(&shared_input_objects, tx_duration);
 
-        let (end_time, cost_overflow) = start_time.overflowing_add(tx_cost);
-        if !cost_overflow && end_time <= max_accumulated_txn_cost_per_object_in_commit {
+        let (end_time, addition_overflow) = start_time.overflowing_add(tx_duration);
+        if !addition_overflow && end_time <= max_execution_duration_per_commit {
             // schedule this transaction and return the start time.
             return SequencingResult::Schedule(start_time);
         }
@@ -286,7 +298,8 @@ impl SharedObjectCongestionTracker {
     }
 
     // Update shared objects' execution slots used in `cert` using `cert`'s
-    // execution cost. This is called when `cert` is scheduled for execution.
+    // estimated execution duration. This is called when `cert` is scheduled for
+    // execution.
     //
     // `start_time` provides the start time of the execution slot assigned to
     // `cert`.
@@ -295,12 +308,12 @@ impl SharedObjectCongestionTracker {
         cert: &VerifiedExecutableTransaction,
         start_time: ExecutionTime,
     ) {
-        let tx_cost = self.get_tx_cost(cert);
-        if tx_cost == 0 {
+        let tx_duration = self.get_estimated_execution_duration(cert);
+        if tx_duration == 0 {
             return;
         }
         let shared_input_objects: Vec<_> = cert.shared_input_objects().collect();
-        let end_time = start_time.saturating_add(tx_cost);
+        let end_time = start_time.saturating_add(tx_duration);
         let occupied_slot = ExecutionSlot::new(start_time, end_time, true);
         for obj in shared_input_objects {
             if obj.mutable {
@@ -514,26 +527,26 @@ pub mod shared_object_test_utils {
     }
 
     pub fn new_congestion_tracker_with_initial_value_for_test(
-        init_values: &[(ObjectID, u64)],
+        init_values: &[(ObjectID, ExecutionTime)],
         mode: PerObjectCongestionControlMode,
         assign_min_free_execution_slot: bool,
     ) -> SharedObjectCongestionTracker {
         let mut shared_object_congestion_tracker =
             SharedObjectCongestionTracker::new(mode, assign_min_free_execution_slot);
         // add initial values for each transaction
-        for (object_id, cost) in init_values {
+        for (object_id, duration) in init_values {
             match mode {
                 PerObjectCongestionControlMode::None => {}
                 PerObjectCongestionControlMode::TotalGasBudget => {
-                    let transaction = build_transaction(&[(*object_id, true)], *cost);
+                    let transaction = build_transaction(&[(*object_id, true)], *duration);
                     let shared_input_objects: Vec<_> = transaction.shared_input_objects().collect();
                     let start_time = shared_object_congestion_tracker
-                        .compute_tx_start_time(&shared_input_objects, *cost);
+                        .compute_tx_start_time(&shared_input_objects, *duration);
                     shared_object_congestion_tracker
                         .bump_object_execution_slots(&transaction, start_time);
                 }
                 PerObjectCongestionControlMode::TotalTxCount => {
-                    for _ in 0..*cost {
+                    for _ in 0..*duration {
                         let transaction = build_transaction(&[(*object_id, true)], 1);
                         let shared_input_objects: Vec<_> =
                             transaction.shared_input_objects().collect();
@@ -567,7 +580,7 @@ mod object_cost_tests {
     use super::{shared_object_test_utils::*, *};
 
     #[rstest]
-    fn test_compute_tx_start_at_cost(#[values(true, false)] assign_min_free_execution_slot: bool) {
+    fn test_compute_tx_start_at_time(#[values(true, false)] assign_min_free_execution_slot: bool) {
         let object_id_0 = ObjectID::random();
         let object_id_1 = ObjectID::random();
         let object_id_2 = ObjectID::random();
@@ -581,7 +594,7 @@ mod object_cost_tests {
                 assign_min_free_execution_slot,
             );
 
-        // The tracker has the following object execution cost:
+        // The tracker has the following object execution slots:
         //
         //    object_id_0:       object_id_1:       object_id_2:       object_id_3:
         // 0| xxxxxxxxxxxx     | xxxxxxxxxxxx     |                  |
@@ -610,7 +623,7 @@ mod object_cost_tests {
         let tx = build_transaction(objects, 1);
         shared_object_congestion_tracker.bump_object_execution_slots(&tx, 9);
 
-        // That tracker now has the following object execution cost:
+        // That tracker now has the following object execution slots:
         //
         //    object_id_0:       object_id_1:       object_id_2:       object_id_3:
         // 0| xxxxxxxxxxxx     | xxxxxxxxxxxx     |                  |
@@ -624,8 +637,8 @@ mod object_cost_tests {
         // 8|                  | xxxxxxxxxxxx     |                  |
         // 9| xxxxxxxxxxxx     | xxxxxxxxxxxx     | xxxxxxxxxxxx     |
 
-        // a transaction with cost 4 that reads object 0 should have start_time 5 with
-        // `assign_min_free_execution_slot` or 10 without
+        // a transaction with duration 4 that reads object 0 should have start_time 5
+        // with `assign_min_free_execution_slot` or 10 without
         // `assign_min_free_execution_slot`.
         let shared_input_objects = construct_shared_input_objects(&[(object_id_0, false)]);
         assert_eq!(
@@ -636,23 +649,23 @@ mod object_cost_tests {
                 10
             }
         );
-        // a transaction with cost 5 that reads object 0 should have start_time 10 with
-        // or without `assign_min_free_execution_slot`.
+        // a transaction with duration 5 that reads object 0 should have start_time 10
+        // with or without `assign_min_free_execution_slot`.
         assert_eq!(
             shared_object_congestion_tracker.compute_tx_start_time(&shared_input_objects, 5),
             10
         );
 
-        // a transaction with cost 5 that writes object 1 should have start_time 10 with
-        // or without `assign_min_free_execution_slot`.
+        // a transaction with duration 5 that writes object 1 should have start_time 10
+        // with or without `assign_min_free_execution_slot`.
         let shared_input_objects = construct_shared_input_objects(&[(object_id_1, true)]);
         assert_eq!(
             shared_object_congestion_tracker.compute_tx_start_time(&shared_input_objects, 5),
             10
         );
 
-        // a transaction with cost 5 that reads objects 0 and 1 should have start_time
-        // 10 with or without `assign_min_free_execution_slot`.
+        // a transaction with duration 5 that reads objects 0 and 1 should have
+        // start_time 10 with or without `assign_min_free_execution_slot`.
         let shared_input_objects =
             construct_shared_input_objects(&[(object_id_0, false), (object_id_1, false)]);
         assert_eq!(
@@ -660,8 +673,8 @@ mod object_cost_tests {
             10
         );
 
-        // a transaction with cost 5 that writes objects 0 and 1 should have start_time
-        // 10 with or without `assign_min_free_execution_slot`.
+        // a transaction with duration 5 that writes objects 0 and 1 should have
+        // start_time 10 with or without `assign_min_free_execution_slot`.
         let shared_input_objects =
             construct_shared_input_objects(&[(object_id_0, true), (object_id_1, true)]);
         assert_eq!(
@@ -669,8 +682,8 @@ mod object_cost_tests {
             10
         );
 
-        // a transaction with cost 5 that writes object 2 should have start_time 0 with
-        // `assign_min_free_execution_slot` or 10 without
+        // a transaction with duration 5 that writes object 2 should have start_time 0
+        // with `assign_min_free_execution_slot` or 10 without
         // `assign_min_free_execution_slot`.
         let shared_input_objects = construct_shared_input_objects(&[(object_id_2, true)]);
         assert_eq!(
@@ -682,16 +695,17 @@ mod object_cost_tests {
             }
         );
 
-        // a transaction with cost 5 that writes to the previously untouched object 3
-        // should have start_time 0 with or without `assign_min_free_execution_slot`.
+        // a transaction with duration 5 that writes to the previously untouched object
+        // 3 should have start_time 0 with or without
+        // `assign_min_free_execution_slot`.
         let shared_input_objects = construct_shared_input_objects(&[(object_id_3, true)]);
         assert_eq!(
             shared_object_congestion_tracker.compute_tx_start_time(&shared_input_objects, 5),
             0
         );
 
-        // a transaction with cost 3 that reads objects 0 and 2 should have start_time
-        // 5 with `assign_min_free_execution_slot` or 10 without
+        // a transaction with duration 3 that reads objects 0 and 2 should have
+        // start_time 5 with `assign_min_free_execution_slot` or 10 without
         // `assign_min_free_execution_slot`.
         let shared_input_objects =
             construct_shared_input_objects(&[(object_id_0, false), (object_id_2, false)]);
@@ -721,9 +735,9 @@ mod object_cost_tests {
 
         let tx_gas_budget = 5;
 
-        // Set max_accumulated_txn_cost_per_object_in_commit to only allow 1 transaction
+        // Set max_execution_duration_per_commit to only allow 1 transaction
         // to go through.
-        let max_accumulated_txn_cost_per_object_in_commit = match mode {
+        let max_execution_duration_per_commit = match mode {
             PerObjectCongestionControlMode::None => unreachable!(),
             PerObjectCongestionControlMode::TotalGasBudget => 12,
             PerObjectCongestionControlMode::TotalTxCount => 3,
@@ -732,7 +746,7 @@ mod object_cost_tests {
         let mut shared_object_congestion_tracker = match mode {
             PerObjectCongestionControlMode::None => unreachable!(),
             PerObjectCongestionControlMode::TotalGasBudget => {
-                // Construct object execution cost as follows
+                // Construct object execution slots as follows
                 //    object 0       object 1
                 // 0| xxxxxxxx     | xxxxxxxx
                 // 1| xxxxxxxx     |
@@ -746,7 +760,7 @@ mod object_cost_tests {
                 )
             }
             PerObjectCongestionControlMode::TotalTxCount => {
-                // Construct object execution cost as follows
+                // Construct object execution slots as follows
                 //    object 0       object 1
                 // 0| xxxxxxxx     | xxxxxxxx
                 // 1| xxxxxxxx     |
@@ -764,7 +778,7 @@ mod object_cost_tests {
             &tx,
             match mode {
                 PerObjectCongestionControlMode::None => unreachable!(),
-                // in gas budget mode, the object execution cost becomes:
+                // in gas budget mode, the object execution slots becomes:
                 //    object 0       object 1
                 // 0| xxxxxxxx     | xxxxxxxx
                 // 1| xxxxxxxx     |
@@ -772,7 +786,7 @@ mod object_cost_tests {
                 // 8| xxxxxxxx     |
                 // 9| xxxxxxxx     | xxxxxxxx
                 PerObjectCongestionControlMode::TotalGasBudget => 10,
-                // in tx count mode, the object execution cost becomes:
+                // in tx count mode, the object execution slots becomes:
                 //    object 0       object 1
                 // 0| xxxxxxxx     | xxxxxxxx
                 // 1| xxxxxxxx     |
@@ -787,7 +801,7 @@ mod object_cost_tests {
             if let SequencingResult::Defer(_, congested_objects) = shared_object_congestion_tracker
                 .try_schedule(
                     &tx,
-                    max_accumulated_txn_cost_per_object_in_commit,
+                    max_execution_duration_per_commit,
                     &HashMap::new(),
                     0,
                 )
@@ -805,7 +819,7 @@ mod object_cost_tests {
             let tx = build_transaction(&[(shared_obj_1, *mutable)], tx_gas_budget);
             let sequencing_result = shared_object_congestion_tracker.try_schedule(
                 &tx,
-                max_accumulated_txn_cost_per_object_in_commit,
+                max_execution_duration_per_commit,
                 &HashMap::new(),
                 0,
             );
@@ -830,7 +844,7 @@ mod object_cost_tests {
                 if let SequencingResult::Defer(_, congested_objects) =
                     shared_object_congestion_tracker.try_schedule(
                         &tx,
-                        max_accumulated_txn_cost_per_object_in_commit,
+                        max_execution_duration_per_commit,
                         &HashMap::new(),
                         0,
                     )
@@ -863,7 +877,7 @@ mod object_cost_tests {
         let shared_obj_0 = ObjectID::random();
         let tx = build_transaction(&[(shared_obj_0, true)], 100);
         // Make try_schedule always defers transactions.
-        let max_accumulated_txn_cost_per_object_in_commit = 0;
+        let max_execution_duration_per_commit = 0;
         let mut shared_object_congestion_tracker = SharedObjectCongestionTracker::new(mode, false);
 
         // Insert a random pre-existing transaction.
@@ -885,7 +899,7 @@ mod object_cost_tests {
             _,
         ) = shared_object_congestion_tracker.try_schedule(
             &tx,
-            max_accumulated_txn_cost_per_object_in_commit,
+            max_execution_duration_per_commit,
             &previously_deferred_tx_digests,
             10,
         ) {
@@ -913,7 +927,7 @@ mod object_cost_tests {
             _,
         ) = shared_object_congestion_tracker.try_schedule(
             &tx,
-            max_accumulated_txn_cost_per_object_in_commit,
+            max_execution_duration_per_commit,
             &previously_deferred_tx_digests,
             10,
         ) {
@@ -942,7 +956,7 @@ mod object_cost_tests {
             _,
         ) = shared_object_congestion_tracker.try_schedule(
             &tx,
-            max_accumulated_txn_cost_per_object_in_commit,
+            max_execution_duration_per_commit,
             &previously_deferred_tx_digests,
             10,
         ) {
@@ -977,12 +991,13 @@ mod object_cost_tests {
             10
         );
 
-        // Read two objects should not change the object execution cost.
+        // Read two objects should not change the object execution slots.
         let cert = build_transaction(&[(object_id_0, false), (object_id_1, false)], 10);
         let shared_input_objects: Vec<_> = cert.shared_input_objects().collect();
-        let cert_cost = shared_object_congestion_tracker.get_tx_cost(&cert);
+        let cert_duration =
+            shared_object_congestion_tracker.get_estimated_execution_duration(&cert);
         let start_time = shared_object_congestion_tracker
-            .compute_tx_start_time(&shared_input_objects, cert_cost);
+            .compute_tx_start_time(&shared_input_objects, cert_duration);
 
         shared_object_congestion_tracker.bump_object_execution_slots(&cert, start_time);
         assert_eq!(
@@ -999,14 +1014,15 @@ mod object_cost_tests {
         );
 
         // Write to object 0 should only bump object 0's execution slots. The start time
-        // should be object 1's cost.
+        // should be object 1's duration.
         let cert = build_transaction(&[(object_id_0, true), (object_id_1, false)], 10);
         let shared_input_objects: Vec<_> = cert.shared_input_objects().collect();
-        let cert_cost = shared_object_congestion_tracker.get_tx_cost(&cert);
+        let cert_duration =
+            shared_object_congestion_tracker.get_estimated_execution_duration(&cert);
         let start_time = shared_object_congestion_tracker
-            .compute_tx_start_time(&shared_input_objects, cert_cost);
+            .compute_tx_start_time(&shared_input_objects, cert_duration);
         shared_object_congestion_tracker.bump_object_execution_slots(&cert, start_time);
-        let expected_object_0_cost = match mode {
+        let expected_object_0_duration = match mode {
             PerObjectCongestionControlMode::None => unreachable!(),
             PerObjectCongestionControlMode::TotalGasBudget => 20,
             PerObjectCongestionControlMode::TotalTxCount => 11,
@@ -1018,7 +1034,7 @@ mod object_cost_tests {
                     .get(&object_id_0)
                     .unwrap()
             ),
-            expected_object_0_cost
+            expected_object_0_duration
         );
         assert_eq!(
             max_object_free_slot_start_time(
@@ -1031,10 +1047,10 @@ mod object_cost_tests {
         );
         assert_eq!(
             shared_object_congestion_tracker.max_occupied_slot_end_time(),
-            expected_object_0_cost
+            expected_object_0_duration
         );
 
-        // Write to all objects should bump all objects' execution cost, including
+        // Write to all objects should bump all objects' execution durations, including
         // objects that are seen for the first time.
         let cert = build_transaction(
             &[
@@ -1044,15 +1060,16 @@ mod object_cost_tests {
             ],
             10,
         );
-        let expected_object_cost = match mode {
+        let expected_object_duration = match mode {
             PerObjectCongestionControlMode::None => unreachable!(),
             PerObjectCongestionControlMode::TotalGasBudget => 30,
             PerObjectCongestionControlMode::TotalTxCount => 12,
         };
         let shared_input_objects: Vec<_> = cert.shared_input_objects().collect();
-        let cert_cost = shared_object_congestion_tracker.get_tx_cost(&cert);
+        let cert_duration =
+            shared_object_congestion_tracker.get_estimated_execution_duration(&cert);
         let start_time = shared_object_congestion_tracker
-            .compute_tx_start_time(&shared_input_objects, cert_cost);
+            .compute_tx_start_time(&shared_input_objects, cert_duration);
         shared_object_congestion_tracker.bump_object_execution_slots(&cert, start_time);
         assert_eq!(
             max_object_free_slot_start_time(
@@ -1061,7 +1078,7 @@ mod object_cost_tests {
                     .get(&object_id_0)
                     .unwrap()
             ),
-            expected_object_cost
+            expected_object_duration
         );
         assert_eq!(
             max_object_free_slot_start_time(
@@ -1070,7 +1087,7 @@ mod object_cost_tests {
                     .get(&object_id_1)
                     .unwrap()
             ),
-            expected_object_cost
+            expected_object_duration
         );
         assert_eq!(
             max_object_free_slot_start_time(
@@ -1079,24 +1096,24 @@ mod object_cost_tests {
                     .get(&object_id_2)
                     .unwrap()
             ),
-            expected_object_cost
+            expected_object_duration
         );
         assert_eq!(
             shared_object_congestion_tracker.max_occupied_slot_end_time(),
-            expected_object_cost
+            expected_object_duration
         );
     }
 
     #[rstest]
-    fn test_cost_overflow(#[values(true, false)] assign_min_free_execution_slot: bool) {
+    fn test_slots_overflow(#[values(true, false)] assign_min_free_execution_slot: bool) {
         let object_id_0 = ObjectID::random();
         let object_id_1 = ObjectID::random();
         let object_id_2 = ObjectID::random();
         // edge case: max value is saturated
-        let max_accumulated_txn_cost_per_object_in_commit = u64::MAX;
+        let max_execution_duration_per_commit = u64::MAX;
 
-        // case 1: large initial cost, small tx cost
-        // the initial object execution cost is as follows:
+        // case 1: large initial duration, small tx duration
+        // the initial object execution slots is as follows:
         //               object 0       object 1
         //            0| xxxxxxxx     | xxxxxxxx
         //            1| xxxxxxxx     | xxxxxxxx
@@ -1115,13 +1132,13 @@ mod object_cost_tests {
         if let SequencingResult::Schedule(start_time) = shared_object_congestion_tracker
             .try_schedule(
                 &tx,
-                max_accumulated_txn_cost_per_object_in_commit,
+                max_execution_duration_per_commit,
                 &HashMap::new(),
                 0,
             )
         {
             // add the small transaction to the tracker
-            // the object execution cost becomes:
+            // the object execution slots becomes:
             //               object 0       object 1
             //            0| xxxxxxxx     | xxxxxxxx
             //            1| xxxxxxxx     | xxxxxxxx
@@ -1155,7 +1172,7 @@ mod object_cost_tests {
         if let SequencingResult::Defer(_, congested_objects) = shared_object_congestion_tracker
             .try_schedule(
                 &tx,
-                max_accumulated_txn_cost_per_object_in_commit,
+                max_execution_duration_per_commit,
                 &HashMap::new(),
                 0,
             )
@@ -1166,9 +1183,9 @@ mod object_cost_tests {
             panic!("object 0 is congesting, should defer");
         }
         let shared_input_objects: Vec<_> = tx.shared_input_objects().collect();
-        let cert_cost = shared_object_congestion_tracker.get_tx_cost(&tx);
+        let cert_duration = shared_object_congestion_tracker.get_estimated_execution_duration(&tx);
         let start_time = shared_object_congestion_tracker
-            .compute_tx_start_time(&shared_input_objects, cert_cost);
+            .compute_tx_start_time(&shared_input_objects, cert_duration);
         println!("start_time: {}", start_time);
         shared_object_congestion_tracker.bump_object_execution_slots(&tx, start_time);
         assert_eq!(
@@ -1193,7 +1210,7 @@ mod object_cost_tests {
         if let SequencingResult::Defer(_, congested_objects) = shared_object_congestion_tracker
             .try_schedule(
                 &tx,
-                max_accumulated_txn_cost_per_object_in_commit,
+                max_execution_duration_per_commit,
                 &HashMap::new(),
                 0,
             )
@@ -1213,9 +1230,9 @@ mod object_cost_tests {
         }
 
         let shared_input_objects: Vec<_> = tx.shared_input_objects().collect();
-        let cert_cost = shared_object_congestion_tracker.get_tx_cost(&tx);
+        let cert_duration = shared_object_congestion_tracker.get_estimated_execution_duration(&tx);
         let start_time = shared_object_congestion_tracker
-            .compute_tx_start_time(&shared_input_objects, cert_cost);
+            .compute_tx_start_time(&shared_input_objects, cert_duration);
         shared_object_congestion_tracker.bump_object_execution_slots(&tx, start_time);
         assert_eq!(
             max_object_free_slot_start_time(
@@ -1236,8 +1253,8 @@ mod object_cost_tests {
             MAX_EXECUTION_TIME
         );
 
-        // case 2: small initial cost, large tx cost
-        // the initial object execution cost is as follows:
+        // case 2: small initial duration, large tx duration
+        // the initial object execution slots is as follows:
         //     object 0       object 1       object 2
         //  0|              | xxxxxxxx     | xxxxxxxx
         //  1|              |              | xxxxxxxx
@@ -1260,7 +1277,7 @@ mod object_cost_tests {
         if let SequencingResult::Defer(_, congested_objects) = shared_object_congestion_tracker
             .try_schedule(
                 &tx,
-                max_accumulated_txn_cost_per_object_in_commit,
+                max_execution_duration_per_commit,
                 &HashMap::new(),
                 0,
             )
@@ -1273,9 +1290,9 @@ mod object_cost_tests {
         }
 
         let shared_input_objects: Vec<_> = tx.shared_input_objects().collect();
-        let cert_cost = shared_object_congestion_tracker.get_tx_cost(&tx);
+        let cert_duration = shared_object_congestion_tracker.get_estimated_execution_duration(&tx);
         let start_time = shared_object_congestion_tracker
-            .compute_tx_start_time(&shared_input_objects, cert_cost);
+            .compute_tx_start_time(&shared_input_objects, cert_duration);
         shared_object_congestion_tracker.bump_object_execution_slots(&tx, start_time);
         assert_eq!(
             max_object_free_slot_start_time(
@@ -1305,8 +1322,8 @@ mod object_cost_tests {
             MAX_EXECUTION_TIME
         );
 
-        // case 3: max initial cost, max tx cost
-        // the initial object execution cost is as follows:
+        // case 3: max initial duration, max tx duration
+        // the initial object execution slots is as follows:
         //               object 0
         //            0| xxxxxxxx
         //            1| xxxxxxxx
@@ -1323,7 +1340,7 @@ mod object_cost_tests {
         if let SequencingResult::Defer(_, congested_objects) = shared_object_congestion_tracker
             .try_schedule(
                 &tx,
-                max_accumulated_txn_cost_per_object_in_commit,
+                max_execution_duration_per_commit,
                 &HashMap::new(),
                 0,
             )
@@ -1335,9 +1352,9 @@ mod object_cost_tests {
         }
 
         let shared_input_objects: Vec<_> = tx.shared_input_objects().collect();
-        let cert_cost = shared_object_congestion_tracker.get_tx_cost(&tx);
+        let cert_duration = shared_object_congestion_tracker.get_estimated_execution_duration(&tx);
         let start_time = shared_object_congestion_tracker
-            .compute_tx_start_time(&shared_input_objects, cert_cost);
+            .compute_tx_start_time(&shared_input_objects, cert_duration);
         shared_object_congestion_tracker.bump_object_execution_slots(&tx, start_time);
         assert_eq!(
             max_object_free_slot_start_time(

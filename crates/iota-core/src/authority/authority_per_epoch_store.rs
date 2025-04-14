@@ -1776,7 +1776,7 @@ impl AuthorityPerEpochStore {
             .collect::<Result<Vec<_>, _>>()?)
     }
 
-    fn get_max_accumulated_txn_cost_per_object_in_commit(&self) -> Option<u64> {
+    fn get_max_execution_duration_per_commit(&self) -> Option<ExecutionTime> {
         self.protocol_config()
             .max_accumulated_txn_cost_per_object_in_mysticeti_commit_as_option()
     }
@@ -1804,13 +1804,13 @@ impl AuthorityPerEpochStore {
             );
         }
 
-        if let Some(max_accumulated_txn_cost_per_object_in_commit) =
-            self.get_max_accumulated_txn_cost_per_object_in_commit()
+        if let Some(max_execution_duration_per_commit) =
+            self.get_max_execution_duration_per_commit()
         {
             // Defer transaction if it uses shared objects that are congested.
             match shared_object_congestion_tracker.try_schedule(
                 cert,
-                max_accumulated_txn_cost_per_object_in_commit,
+                max_execution_duration_per_commit,
                 previously_deferred_tx_digests,
                 commit_round,
             ) {
@@ -1823,7 +1823,7 @@ impl AuthorityPerEpochStore {
                 SequencingResult::Schedule(start_time) => SchedulingResult::Schedule(start_time),
             }
         } else {
-            // If we don't have a max cost per object, we don't need to check for
+            // If we don't have a max execution duration, we don't need to check for
             // congestion.
             SchedulingResult::Schedule(0)
         }
@@ -3087,8 +3087,8 @@ impl AuthorityPerEpochStore {
         let mut cancelled_txns: BTreeMap<TransactionDigest, CancelConsensusCertificateReason> =
             BTreeMap::new();
 
-        // We track transaction execution cost separately for regular transactions and
-        // transactions using randomness, since they will be in different
+        // We track transaction execution duration separately for regular transactions
+        // and transactions using randomness, since they will be in different
         // checkpoints.
         let mut shared_object_congestion_tracker = SharedObjectCongestionTracker::new(
             self.protocol_config().per_object_congestion_control_mode(),
@@ -3114,7 +3114,7 @@ impl AuthorityPerEpochStore {
             let key = tx.0.transaction.key();
             let mut ignored = false;
             let mut filter_roots = false;
-            let execution_cost = if tx.0.is_user_tx_with_randomness() {
+            let congestion_tracker = if tx.0.is_user_tx_with_randomness() {
                 &mut shared_object_using_randomness_congestion_tracker
             } else {
                 &mut shared_object_congestion_tracker
@@ -3129,7 +3129,7 @@ impl AuthorityPerEpochStore {
                     randomness_manager.as_deref_mut(),
                     dkg_failed,
                     randomness_round.is_some(),
-                    execution_cost,
+                    congestion_tracker,
                     authority_metrics,
                 )
                 .await?
@@ -3522,7 +3522,7 @@ impl AuthorityPerEpochStore {
                             )));
                         }
 
-                        // This certificate will be scheduled. Update object execution cost.
+                        // This certificate will be scheduled. Update object execution slots.
                         if certificate.contains_shared_object() {
                             shared_object_congestion_tracker
                                 .bump_object_execution_slots(&certificate, start_time);
