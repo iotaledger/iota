@@ -5965,6 +5965,7 @@ dependencies = [
  "iota-faucet",
  "iota-genesis-builder",
  "iota-graphql-rpc",
+ "iota-graphql-rpc-client",
  "iota-indexer",
  "iota-json",
  "iota-json-rpc-types",

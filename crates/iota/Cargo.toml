@@ -66,6 +66,7 @@ iota-execution.workspace = true
 iota-faucet.workspace = true
 iota-genesis-builder.workspace = true
 iota-graphql-rpc = { workspace = true, optional = true }
+iota-graphql-rpc-client.workspace = true
 iota-indexer = { workspace = true, optional = true }
 iota-json.workspace = true
 iota-json-rpc-types.workspace = true
