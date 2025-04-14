@@ -80,7 +80,7 @@ pub enum ConsensusTransactionKey {
     Certificate(TransactionDigest),
     CheckpointSignature(AuthorityName, CheckpointSequenceNumber),
     EndOfPublish(AuthorityName),
-    CapabilityNotification(AuthorityName, u64 /* generation */),
+    CapabilityNotificationV1(AuthorityName, u64 /* generation */),
     // Key must include both id and jwk, because honest validators could be given multiple jwks
     // for the same id by malfunctioning providers.
     NewJWKFetched(Box<(AuthorityName, JwkId, JWK)>),
@@ -96,9 +96,9 @@ impl Debug for ConsensusTransactionKey {
                 write!(f, "CheckpointSignature({:?}, {:?})", name.concise(), seq)
             }
             Self::EndOfPublish(name) => write!(f, "EndOfPublish({:?})", name.concise()),
-            Self::CapabilityNotification(name, generation) => write!(
+            Self::CapabilityNotificationV1(name, generation) => write!(
                 f,
-                "CapabilityNotification({:?}, {:?})",
+                "CapabilityNotificationV1({:?}, {:?})",
                 name.concise(),
                 generation
             ),
@@ -187,23 +187,25 @@ impl AuthorityCapabilitiesV1 {
     }
 }
 
+#[repr(u8)]
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub enum ConsensusTransactionKind {
-    UserTransaction(Box<CertifiedTransaction>),
-    CheckpointSignature(Box<CheckpointSignatureMessage>),
-    EndOfPublish(AuthorityName),
+    CertifiedTransaction(Box<CertifiedTransaction>) = 0,
+    CheckpointSignature(Box<CheckpointSignatureMessage>) = 1,
+    EndOfPublish(AuthorityName) = 2,
 
-    CapabilityNotificationV1(AuthorityCapabilitiesV1),
+    CapabilityNotificationV1(AuthorityCapabilitiesV1) = 3,
 
-    NewJWKFetched(AuthorityName, JwkId, JWK),
+    NewJWKFetched(AuthorityName, JwkId, JWK) = 4,
+
     // DKG is used to generate keys for use in the random beacon protocol.
     // `RandomnessDkgMessage` is sent out at start-of-epoch to initiate the process.
     // Contents are a serialized `fastcrypto_tbls::dkg::Message`.
-    RandomnessDkgMessage(AuthorityName, Vec<u8>),
+    RandomnessDkgMessage(AuthorityName, Vec<u8>) = 6,
     // `RandomnessDkgConfirmation` is the second DKG message, sent as soon as a threshold amount
     // of `RandomnessDkgMessages` have been received locally, to complete the key generation
     // process. Contents are a serialized `fastcrypto_tbls::dkg::Confirmation`.
-    RandomnessDkgConfirmation(AuthorityName, Vec<u8>),
+    RandomnessDkgConfirmation(AuthorityName, Vec<u8>) = 7,
 }
 
 impl ConsensusTransactionKind {
@@ -303,7 +305,7 @@ impl ConsensusTransaction {
         let tracking_id = hasher.finish().to_le_bytes();
         Self {
             tracking_id,
-            kind: ConsensusTransactionKind::UserTransaction(Box::new(certificate)),
+            kind: ConsensusTransactionKind::CertifiedTransaction(Box::new(certificate)),
         }
     }
 
@@ -350,7 +352,7 @@ impl ConsensusTransaction {
         let tracking_id = hasher.finish().to_le_bytes();
         Self {
             tracking_id,
-            kind: ConsensusTransactionKind::UserTransaction(Box::new(certificate)),
+            kind: ConsensusTransactionKind::CertifiedTransaction(Box::new(certificate)),
         }
     }
 
@@ -401,7 +403,7 @@ impl ConsensusTransaction {
 
     pub fn key(&self) -> ConsensusTransactionKey {
         match &self.kind {
-            ConsensusTransactionKind::UserTransaction(cert) => {
+            ConsensusTransactionKind::CertifiedTransaction(cert) => {
                 ConsensusTransactionKey::Certificate(*cert.digest())
             }
             ConsensusTransactionKind::CheckpointSignature(data) => {
@@ -414,7 +416,7 @@ impl ConsensusTransaction {
                 ConsensusTransactionKey::EndOfPublish(*authority)
             }
             ConsensusTransactionKind::CapabilityNotificationV1(cap) => {
-                ConsensusTransactionKey::CapabilityNotification(cap.authority, cap.generation)
+                ConsensusTransactionKey::CapabilityNotificationV1(cap.authority, cap.generation)
             }
             ConsensusTransactionKind::NewJWKFetched(authority, id, key) => {
                 ConsensusTransactionKey::NewJWKFetched(Box::new((
@@ -433,7 +435,7 @@ impl ConsensusTransaction {
     }
 
     pub fn is_user_certificate(&self) -> bool {
-        matches!(self.kind, ConsensusTransactionKind::UserTransaction(_))
+        matches!(self.kind, ConsensusTransactionKind::CertifiedTransaction(_))
     }
 
     pub fn is_end_of_publish(&self) -> bool {
