@@ -44,7 +44,7 @@ export function ValidatorsCard() {
     });
     const navigate = useNavigate();
 
-    const { data: system } = useIotaClientQuery('getSupportedIotaSystemState');
+    const { data: system } = useIotaClientQuery('getLatestIotaSystemState');
     const committeeMembers = system?.committeeMembers;
     const delegatedStake = delegatedStakeData ? formatDelegatedStake(delegatedStakeData) : [];
 

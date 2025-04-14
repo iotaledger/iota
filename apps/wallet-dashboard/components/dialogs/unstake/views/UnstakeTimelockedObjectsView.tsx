@@ -51,7 +51,7 @@ export function UnstakeTimelockedObjectsView({
     const reductionSize = useRef(0);
     const [isMaxTransactionSizeError, setIsMaxTransactionSizeError] = useState(false);
     const activeAddress = useCurrentAccount()?.address ?? '';
-    const { data: systemState } = useIotaClientQuery('getSupportedIotaSystemState');
+    const { data: systemState } = useIotaClientQuery('getLatestIotaSystemState');
 
     const stakes = (() => {
         if (isMaxTransactionSizeError) {

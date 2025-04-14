@@ -39,7 +39,7 @@ export function EpochDetail() {
     const [activeTabId, setActiveTabId] = useState(EpochTabs.Checkpoints);
     const { id } = useParams();
     const enhancedRpc = useEnhancedRpcClient();
-    const { data: systemState } = useIotaClientQuery('getSupportedIotaSystemState');
+    const { data: systemState } = useIotaClientQuery('getLatestIotaSystemState');
     const { data, isPending, isError } = useQuery({
         queryKey: ['epoch', id],
         queryFn: async () =>

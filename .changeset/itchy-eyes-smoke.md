@@ -5,4 +5,4 @@
 '@iota/kiosk': minor
 ---
 
-Add `getSupportedIotaSystemState`
+Add `getLatestIotaSystemState`

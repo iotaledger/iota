@@ -78,7 +78,7 @@ export function StakeDialog({
         validateOnMount: true,
     });
 
-    const { data: systemState } = useIotaClientQuery('getSupportedIotaSystemState');
+    const { data: systemState } = useIotaClientQuery('getLatestIotaSystemState');
     const validatorAddresses = (systemState?.activeValidators ?? []).map(
         (validator) => validator.iotaAddress,
     );

@@ -24,7 +24,7 @@ export function SelectValidatorCard() {
 
     const navigate = useNavigate();
 
-    const { data, isPending, isError, error } = useIotaClientQuery('getSupportedIotaSystemState');
+    const { data, isPending, isError, error } = useIotaClientQuery('getLatestIotaSystemState');
     const { data: rollingAverageApys } = useGetValidatorsApy();
 
     const selectValidator = (validator: Validator) => {

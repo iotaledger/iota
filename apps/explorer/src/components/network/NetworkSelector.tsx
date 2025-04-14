@@ -22,7 +22,7 @@ interface NetworkOption {
 export function NetworkSelector(): JSX.Element {
     const elementRef = useRef<HTMLDivElement>(null);
     const [network, setNetwork] = useContext(NetworkContext);
-    const { data } = useIotaClientQuery('getSupportedIotaSystemState');
+    const { data } = useIotaClientQuery('getLatestIotaSystemState');
     const { data: binaryVersion } = useIotaClientQuery('getRpcApiVersion');
     const [isDropdownOpen, setIsDropdownOpen] = useState(false);
 

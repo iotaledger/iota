@@ -26,9 +26,7 @@ type TopValidatorsCardProps = {
 };
 
 export function TopValidatorsCard({ limit, showIcon }: TopValidatorsCardProps): JSX.Element {
-    const { data, isPending, isSuccess, isError } = useIotaClientQuery(
-        'getSupportedIotaSystemState',
-    );
+    const { data, isPending, isSuccess, isError } = useIotaClientQuery('getLatestIotaSystemState');
 
     const topCommitteeMembers =
         data?.committeeMembers.slice(0, limit || NUMBER_OF_VALIDATORS) ?? [];

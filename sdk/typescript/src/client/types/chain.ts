@@ -61,6 +61,6 @@ export type ProgrammableTransaction = {
     inputs: IotaCallArg[];
 };
 
-export type SupportedIotaSystemStateSummary = {
+export type LatestIotaSystemStateSummary = {
     committeeMembers: IotaValidatorSummary[];
 } & Omit<IotaSystemStateSummaryV2, 'committeeMembers'>;

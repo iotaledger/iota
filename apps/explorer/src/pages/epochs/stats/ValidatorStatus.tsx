@@ -8,7 +8,7 @@ import { useIotaClientQuery } from '@iota/dapp-kit';
 import { RingChart, RingChartLegend } from '~/components/ui';
 
 export function ValidatorStatus(): JSX.Element | null {
-    const { data } = useIotaClientQuery('getSupportedIotaSystemState');
+    const { data } = useIotaClientQuery('getLatestIotaSystemState');
     const { theme } = useTheme();
 
     if (!data) return null;

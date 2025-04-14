@@ -10,7 +10,7 @@ export function useGetCurrentEpochStartTimestamp() {
         // eslint-disable-next-line @tanstack/query/exhaustive-deps
         queryKey: ['current-epoch-start-timestamp'],
         queryFn: async () => {
-            const iotaSystemState = await client.getSupportedIotaSystemState();
+            const iotaSystemState = await client.getLatestIotaSystemState();
             return parseInt(iotaSystemState.epochStartTimestampMs);
         },
         staleTime: 10 * 60 * 1000, // 10 minutes

@@ -42,7 +42,7 @@ import { IotaSignAndExecuteTransactionOutput } from '@iota/wallet-standard';
 
 function StakingDashboardPage(): React.JSX.Element {
     const account = useCurrentAccount();
-    const { data: system } = useIotaClientQuery('getSupportedIotaSystemState');
+    const { data: system } = useIotaClientQuery('getLatestIotaSystemState');
     const committeeMembers = system?.committeeMembers;
     const iotaClient = useIotaClient();
 

@@ -15,7 +15,7 @@ interface EpochProgress {
 }
 
 export function useEpochProgress(suffix: string = 'left'): EpochProgress {
-    const { data, refetch } = useIotaClientQuery('getSupportedIotaSystemState');
+    const { data, refetch } = useIotaClientQuery('getLatestIotaSystemState');
     const start = data?.epochStartTimestampMs ? Number(data.epochStartTimestampMs) : undefined;
     const duration = data?.epochDurationMs ? Number(data.epochDurationMs) : undefined;
     const end = start !== undefined && duration !== undefined ? start + duration : undefined;

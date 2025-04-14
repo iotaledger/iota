@@ -29,7 +29,7 @@ export function useGetStakingValidatorDetails({
     validatorAddress,
     unstake,
 }: UseGetStakingValidatorDetailsArgs) {
-    const systemDataResult = useIotaClientQuery('getSupportedIotaSystemState');
+    const systemDataResult = useIotaClientQuery('getLatestIotaSystemState');
 
     const delegatedStakeDataResult = useGetDelegatedStake({
         address: accountAddress || '',

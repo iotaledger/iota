@@ -27,7 +27,7 @@ export function EpochsActivityTable({
 }: EpochsActivityTableProps): JSX.Element {
     const [limit, setLimit] = useState(initialLimit);
     const client = useIotaClient();
-    const { data: systemState } = useIotaClientQuery('getSupportedIotaSystemState');
+    const { data: systemState } = useIotaClientQuery('getLatestIotaSystemState');
     const { data: count } = useQuery({
         queryKey: ['epochs', 'current'],
         queryFn: async () => client.getCurrentEpoch(),

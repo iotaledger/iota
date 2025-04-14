@@ -8,7 +8,7 @@ export function useValidatorInfo({ validatorAddress }: { validatorAddress: strin
         data: system,
         isPending: isPendingValidators,
         isError: errorValidators,
-    } = useIotaClientQuery('getSupportedIotaSystemState');
+    } = useIotaClientQuery('getLatestIotaSystemState');
     const { data: rollingAverageApys } = useGetValidatorsApy();
 
     const validatorSummary =

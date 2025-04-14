@@ -5,7 +5,7 @@ import { useIotaClientQuery } from '@iota/dapp-kit';
 import { useCallback } from 'react';
 
 export function useIsValidatorCommitteeMember() {
-    const { data: systemState } = useIotaClientQuery('getSupportedIotaSystemState');
+    const { data: systemState } = useIotaClientQuery('getLatestIotaSystemState');
 
     const isCommitteeMember = useCallback(
         (address: string) =>

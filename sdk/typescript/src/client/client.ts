@@ -90,7 +90,7 @@ import type {
     DelegatedTimelockedStake,
     GetTimelockedStakesByIdsParams,
     IotaSystemStateSummaryV1,
-    SupportedIotaSystemStateSummary,
+    LatestIotaSystemStateSummary,
     ParticipationMetrics,
 } from './types/index.js';
 
@@ -541,9 +541,9 @@ export class IotaClient {
     /**
      * Return the latest IOTA system state object on networks supporting protocol version `< 5`.
      * These are networks with node software release version `< 0.11`.
-     * @deprecated Use `getSupportedIotaSystemState` instead.
+     * @deprecated Use `getLatestIotaSystemState` instead.
      */
-    async getLatestIotaSystemState(): Promise<IotaSystemStateSummaryV1> {
+    async getLatestIotaSystemStateV1(): Promise<IotaSystemStateSummaryV1> {
         return await this.transport.request({
             method: 'iotax_getLatestIotaSystemState',
             params: [],
@@ -554,7 +554,8 @@ export class IotaClient {
      * Return the latest IOTA system state object on networks supporting protocol version `>= 5`.
      * These are networks with node software release version `>= 0.11`.
      *
-     * You probably want to use `getSupportedIotaSystemState` instead.
+     * You probably want to use `getLatestIotaSystemState` instead to prevent issues with future deprecations
+     * or in case the node does not support protocol version `>= 5`.
      */
     async getLatestIotaSystemStateV2(): Promise<IotaSystemStateSummary> {
         return await this.transport.request<IotaSystemStateSummary>({
@@ -565,15 +566,23 @@ export class IotaClient {
 
     /**
      * Return the latest supported IOTA system state object.
+     *
+     * This returns a backwards-compatible system state object that dynamically uses the V1 or V2
+     * depending on the protocol version supported by the node. This method will continue to be supported
+     * as more protocol versions are released with changes to the system state.
+     *
+     * This is quite useful in case your app does not know in advance what node is it going to be using,
+     * this way you as developer dont need to handle each possible system state variantm,
+     * this is already handled by this method.
      */
-    async getSupportedIotaSystemState(): Promise<SupportedIotaSystemStateSummary> {
+    async getLatestIotaSystemState(): Promise<LatestIotaSystemStateSummary> {
         const protocolConfig = await this.getProtocolConfig();
         const isV2Supported = Number(protocolConfig.maxSupportedProtocolVersion) >= 5;
 
         const iotaSystemStateSummary: IotaSystemStateSummary = isV2Supported
             ? await this.getLatestIotaSystemStateV2()
             : {
-                  V1: await this.getLatestIotaSystemState(),
+                  V1: await this.getLatestIotaSystemStateV1(),
               };
 
         return 'V2' in iotaSystemStateSummary

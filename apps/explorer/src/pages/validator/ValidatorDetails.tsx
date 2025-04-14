@@ -11,10 +11,10 @@ import { getValidatorMoveEvent } from '~/lib/utils';
 import { InfoBox, InfoBoxStyle, InfoBoxType, LoadingIndicator } from '@iota/apps-ui-kit';
 import { Warning } from '@iota/apps-ui-icons';
 import { useIotaClientQuery } from '@iota/dapp-kit';
-import type { SupportedIotaSystemStateSummary } from '@iota/iota-sdk/src/client';
+import type { LatestIotaSystemStateSummary } from '@iota/iota-sdk/src/client';
 
 const getAtRiskRemainingEpochs = (
-    data: SupportedIotaSystemStateSummary | undefined,
+    data: LatestIotaSystemStateSummary | undefined,
     validatorId: string | undefined,
 ): number | null => {
     if (!data || !validatorId) return null;
@@ -24,7 +24,7 @@ const getAtRiskRemainingEpochs = (
 
 function ValidatorDetails(): JSX.Element {
     const { id } = useParams();
-    const { data, isPending } = useIotaClientQuery('getSupportedIotaSystemState');
+    const { data, isPending } = useIotaClientQuery('getLatestIotaSystemState');
 
     const validatorData = useMemo(() => {
         if (!data) return null;

@@ -56,7 +56,7 @@ export function EnterAmountDialogLayout({
     handleClose,
     handleStake,
 }: EnterAmountDialogLayoutProps): JSX.Element {
-    const { data: system } = useIotaClientQuery('getSupportedIotaSystemState');
+    const { data: system } = useIotaClientQuery('getLatestIotaSystemState');
     const { values, errors } = useFormikContext<FormValues>();
     const amount = values.amount;
 

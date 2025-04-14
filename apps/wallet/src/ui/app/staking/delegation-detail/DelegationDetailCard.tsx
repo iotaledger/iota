@@ -51,7 +51,7 @@ export function DelegationDetailCard({ validatorAddress, stakedId }: DelegationD
         data: system,
         isPending: loadingValidators,
         isError: errorValidators,
-    } = useIotaClientQuery('getSupportedIotaSystemState');
+    } = useIotaClientQuery('getLatestIotaSystemState');
 
     const accountAddress = useActiveAddress();
 

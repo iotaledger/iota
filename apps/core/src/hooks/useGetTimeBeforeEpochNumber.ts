@@ -7,7 +7,7 @@ import { useIotaClientQuery } from '@iota/dapp-kit';
 // Get time between current epoch and specified epoch
 // Get the period between the current epoch and next epoch
 export function useGetTimeBeforeEpochNumber(epoch: number) {
-    const data = useIotaClientQuery('getSupportedIotaSystemState');
+    const data = useIotaClientQuery('getLatestIotaSystemState');
     // Current epoch
     const currentEpoch = Number(data.data?.epoch || 0);
     const currentEpochStartTime = Number(data.data?.epochStartTimestampMs || 0);

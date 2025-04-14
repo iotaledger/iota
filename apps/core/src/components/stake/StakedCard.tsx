@@ -38,7 +38,7 @@ export function StakedCard({
         balance: inactiveValidator ? BigInt(principal) + rewards : principal,
     });
 
-    const { data } = useIotaClientQuery('getSupportedIotaSystemState');
+    const { data } = useIotaClientQuery('getLatestIotaSystemState');
 
     const validatorMeta = useMemo(() => {
         if (!data) return null;

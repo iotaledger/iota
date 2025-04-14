@@ -71,7 +71,7 @@ export default function VestingDashboardPage(): JSX.Element {
     const account = useCurrentAccount();
     const address = account?.address || '';
     const iotaClient = useIotaClient();
-    const { data: system } = useIotaClientQuery('getSupportedIotaSystemState');
+    const { data: system } = useIotaClientQuery('getLatestIotaSystemState');
     const [isVestingScheduleDialogOpen, setIsVestingScheduleDialogOpen] = useState(false);
     const { mutateAsync: signAndExecuteTransaction } = useSignAndExecuteTransaction();
     const { theme } = useTheme();
