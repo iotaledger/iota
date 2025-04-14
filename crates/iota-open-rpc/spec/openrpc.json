@@ -1301,26 +1301,26 @@
             "name": "Result",
             "value": {
               "minSupportedProtocolVersion": "1",
-              "maxSupportedProtocolVersion": "5",
-              "protocolVersion": "1",
+              "maxSupportedProtocolVersion": "6",
+              "protocolVersion": "6",
               "featureFlags": {
                 "accept_zklogin_in_multisig": false,
                 "bridge": false,
-                "convert_type_argument_error": false,
+                "convert_type_argument_error": true,
                 "disable_invariant_violation_check_in_swap_loc": true,
-                "disallow_new_modules_in_deps_only_packages": false,
+                "disallow_new_modules_in_deps_only_packages": true,
                 "enable_group_ops_native_function_msm": true,
                 "enable_jwk_consensus_updates": false,
                 "enable_poseidon": true,
                 "enable_vdf": true,
                 "hardened_otw_check": true,
-                "native_charging_v2": false,
+                "native_charging_v2": true,
                 "no_extraneous_module_bytes": true,
                 "passkey_auth": true,
-                "protocol_defined_base_fee": false,
-                "relocate_event_module": false,
+                "protocol_defined_base_fee": true,
+                "relocate_event_module": true,
                 "rethrow_serialization_type_layout_errors": true,
-                "uncompressed_g1_group_elements": false,
+                "uncompressed_g1_group_elements": true,
                 "zklogin_auth": false
               },
               "attributes": {
@@ -1333,7 +1333,9 @@
                 "address_to_u256_cost_base": {
                   "u64": "52"
                 },
-                "base_gas_price": null,
+                "base_gas_price": {
+                  "u64": "1000"
+                },
                 "base_tx_cost_fixed": {
                   "u64": "1000"
                 },
@@ -1396,7 +1398,7 @@
                 "binary_variant_handles": null,
                 "binary_variant_instantiation_handles": null,
                 "bls12381_bls12381_min_pk_verify_cost_base": {
-                  "u64": "52"
+                  "u64": "49282"
                 },
                 "bls12381_bls12381_min_pk_verify_msg_cost_per_block": {
                   "u64": "2"
@@ -1405,7 +1407,7 @@
                   "u64": "2"
                 },
                 "bls12381_bls12381_min_sig_verify_cost_base": {
-                  "u64": "52"
+                  "u64": "44064"
                 },
                 "bls12381_bls12381_min_sig_verify_msg_cost_per_block": {
                   "u64": "2"
@@ -1513,7 +1515,7 @@
                   "u64": "52"
                 },
                 "ecdsa_k1_ecrecover_keccak256_cost_base": {
-                  "u64": "52"
+                  "u64": "500"
                 },
                 "ecdsa_k1_ecrecover_keccak256_msg_cost_per_block": {
                   "u64": "2"
@@ -1522,7 +1524,7 @@
                   "u64": "2"
                 },
                 "ecdsa_k1_ecrecover_sha256_cost_base": {
-                  "u64": "52"
+                  "u64": "500"
                 },
                 "ecdsa_k1_ecrecover_sha256_msg_cost_per_block": {
                   "u64": "2"
@@ -1531,7 +1533,7 @@
                   "u64": "2"
                 },
                 "ecdsa_k1_secp256k1_verify_keccak256_cost_base": {
-                  "u64": "52"
+                  "u64": "1470"
                 },
                 "ecdsa_k1_secp256k1_verify_keccak256_msg_cost_per_block": {
                   "u64": "2"
@@ -1540,7 +1542,7 @@
                   "u64": "2"
                 },
                 "ecdsa_k1_secp256k1_verify_sha256_cost_base": {
-                  "u64": "52"
+                  "u64": "1470"
                 },
                 "ecdsa_k1_secp256k1_verify_sha256_msg_cost_per_block": {
                   "u64": "2"
@@ -1549,7 +1551,7 @@
                   "u64": "2"
                 },
                 "ecdsa_r1_ecrecover_keccak256_cost_base": {
-                  "u64": "52"
+                  "u64": "1173"
                 },
                 "ecdsa_r1_ecrecover_keccak256_msg_cost_per_block": {
                   "u64": "2"
@@ -1558,7 +1560,7 @@
                   "u64": "2"
                 },
                 "ecdsa_r1_ecrecover_sha256_cost_base": {
-                  "u64": "52"
+                  "u64": "1173"
                 },
                 "ecdsa_r1_ecrecover_sha256_msg_cost_per_block": {
                   "u64": "2"
@@ -1567,7 +1569,7 @@
                   "u64": "2"
                 },
                 "ecdsa_r1_secp256r1_verify_keccak256_cost_base": {
-                  "u64": "52"
+                  "u64": "4225"
                 },
                 "ecdsa_r1_secp256r1_verify_keccak256_msg_cost_per_block": {
                   "u64": "2"
@@ -1576,7 +1578,7 @@
                   "u64": "2"
                 },
                 "ecdsa_r1_secp256r1_verify_sha256_cost_base": {
-                  "u64": "52"
+                  "u64": "4225"
                 },
                 "ecdsa_r1_secp256r1_verify_sha256_msg_cost_per_block": {
                   "u64": "2"
@@ -1591,10 +1593,10 @@
                   "u64": "2"
                 },
                 "ecvrf_ecvrf_verify_cost_base": {
-                  "u64": "52"
+                  "u64": "4848"
                 },
                 "ed25519_ed25519_verify_cost_base": {
-                  "u64": "52"
+                  "u64": "1802"
                 },
                 "ed25519_ed25519_verify_msg_cost_per_block": {
                   "u64": "2"
@@ -1618,129 +1620,139 @@
                   "u64": "1"
                 },
                 "gas_model_version": {
-                  "u64": "1"
+                  "u64": "2"
                 },
                 "gas_rounding_step": {
                   "u64": "1000"
                 },
                 "groth16_prepare_verifying_key_bls12381_cost_base": {
-                  "u64": "52"
+                  "u64": "53838"
                 },
                 "groth16_prepare_verifying_key_bn254_cost_base": {
-                  "u64": "52"
+                  "u64": "82010"
                 },
                 "groth16_verify_groth16_proof_internal_bls12381_cost_base": {
-                  "u64": "52"
+                  "u64": "72090"
                 },
                 "groth16_verify_groth16_proof_internal_bls12381_cost_per_public_input": {
-                  "u64": "2"
+                  "u64": "8213"
                 },
                 "groth16_verify_groth16_proof_internal_bn254_cost_base": {
-                  "u64": "52"
+                  "u64": "115502"
                 },
                 "groth16_verify_groth16_proof_internal_bn254_cost_per_public_input": {
-                  "u64": "2"
+                  "u64": "9484"
                 },
                 "groth16_verify_groth16_proof_internal_public_input_cost_per_byte": {
                   "u64": "2"
                 },
                 "group_ops_bls12381_decode_g1_cost": {
-                  "u64": "52"
+                  "u64": "2848"
                 },
                 "group_ops_bls12381_decode_g2_cost": {
-                  "u64": "52"
+                  "u64": "3770"
                 },
                 "group_ops_bls12381_decode_gt_cost": {
-                  "u64": "52"
+                  "u64": "3068"
                 },
                 "group_ops_bls12381_decode_scalar_cost": {
-                  "u64": "52"
+                  "u64": "7"
                 },
                 "group_ops_bls12381_g1_add_cost": {
-                  "u64": "52"
+                  "u64": "1556"
                 },
                 "group_ops_bls12381_g1_div_cost": {
-                  "u64": "52"
+                  "u64": "5091"
                 },
                 "group_ops_bls12381_g1_hash_to_base_cost": {
-                  "u64": "52"
+                  "u64": "2962"
                 },
                 "group_ops_bls12381_g1_hash_to_cost_per_byte": {
                   "u64": "2"
                 },
                 "group_ops_bls12381_g1_msm_base_cost": {
-                  "u64": "52"
+                  "u64": "62648"
                 },
                 "group_ops_bls12381_g1_msm_base_cost_per_input": {
-                  "u64": "52"
+                  "u64": "1333"
                 },
                 "group_ops_bls12381_g1_mul_cost": {
-                  "u64": "52"
+                  "u64": "4842"
                 },
                 "group_ops_bls12381_g1_sub_cost": {
-                  "u64": "52"
+                  "u64": "1550"
                 },
-                "group_ops_bls12381_g1_to_uncompressed_g1_cost": null,
+                "group_ops_bls12381_g1_to_uncompressed_g1_cost": {
+                  "u64": "2099"
+                },
                 "group_ops_bls12381_g2_add_cost": {
-                  "u64": "52"
+                  "u64": "3048"
                 },
                 "group_ops_bls12381_g2_div_cost": {
-                  "u64": "52"
+                  "u64": "9206"
                 },
                 "group_ops_bls12381_g2_hash_to_base_cost": {
-                  "u64": "52"
+                  "u64": "8688"
                 },
                 "group_ops_bls12381_g2_hash_to_cost_per_byte": {
                   "u64": "2"
                 },
                 "group_ops_bls12381_g2_msm_base_cost": {
-                  "u64": "52"
+                  "u64": "131192"
                 },
                 "group_ops_bls12381_g2_msm_base_cost_per_input": {
-                  "u64": "52"
+                  "u64": "3216"
                 },
                 "group_ops_bls12381_g2_mul_cost": {
-                  "u64": "52"
+                  "u64": "9108"
                 },
                 "group_ops_bls12381_g2_sub_cost": {
-                  "u64": "52"
+                  "u64": "3019"
                 },
                 "group_ops_bls12381_gt_add_cost": {
-                  "u64": "52"
+                  "u64": "188"
                 },
                 "group_ops_bls12381_gt_div_cost": {
-                  "u64": "52"
+                  "u64": "27804"
                 },
                 "group_ops_bls12381_gt_mul_cost": {
-                  "u64": "52"
+                  "u64": "27490"
                 },
                 "group_ops_bls12381_gt_sub_cost": {
-                  "u64": "52"
+                  "u64": "497"
                 },
                 "group_ops_bls12381_msm_max_len": {
                   "u32": "32"
                 },
                 "group_ops_bls12381_pairing_cost": {
-                  "u64": "52"
+                  "u64": "26897"
                 },
                 "group_ops_bls12381_scalar_add_cost": {
-                  "u64": "52"
+                  "u64": "10"
                 },
                 "group_ops_bls12381_scalar_div_cost": {
-                  "u64": "52"
+                  "u64": "91"
                 },
                 "group_ops_bls12381_scalar_mul_cost": {
-                  "u64": "52"
+                  "u64": "11"
                 },
                 "group_ops_bls12381_scalar_sub_cost": {
-                  "u64": "52"
+                  "u64": "10"
                 },
-                "group_ops_bls12381_uncompressed_g1_sum_base_cost": null,
-                "group_ops_bls12381_uncompressed_g1_sum_cost_per_term": null,
-                "group_ops_bls12381_uncompressed_g1_sum_max_terms": null,
-                "group_ops_bls12381_uncompressed_g1_to_g1_cost": null,
+                "group_ops_bls12381_uncompressed_g1_sum_base_cost": {
+                  "u64": "77"
+                },
+                "group_ops_bls12381_uncompressed_g1_sum_cost_per_term": {
+                  "u64": "26"
+                },
+                "group_ops_bls12381_uncompressed_g1_sum_max_terms": {
+                  "u64": "1200"
+                },
+                "group_ops_bls12381_uncompressed_g1_to_g1_cost": {
+                  "u64": "677"
+                },
                 "hash_blake2b256_cost_base": {
-                  "u64": "52"
+                  "u64": "10"
                 },
                 "hash_blake2b256_data_cost_per_block": {
                   "u64": "2"
@@ -1749,7 +1761,7 @@
                   "u64": "2"
                 },
                 "hash_keccak256_cost_base": {
-                  "u64": "52"
+                  "u64": "10"
                 },
                 "hash_keccak256_data_cost_per_block": {
                   "u64": "2"
@@ -1805,7 +1817,9 @@
                 "max_checkpoint_size_bytes": {
                   "u64": "31457280"
                 },
-                "max_committee_members_count": null,
+                "max_committee_members_count": {
+                  "u64": "50"
+                },
                 "max_deferral_rounds_for_congestion_control": {
                   "u64": "10"
                 },
@@ -1900,6 +1914,9 @@
                 "max_programmable_tx_commands": {
                   "u32": "1024"
                 },
+                "max_ptb_value_size": {
+                  "u64": "1048576"
+                },
                 "max_publish_or_upgrade_per_ptb": {
                   "u64": "5"
                 },
@@ -1945,7 +1962,9 @@
                 "max_type_nodes": {
                   "u64": "256"
                 },
-                "max_type_to_layout_nodes": null,
+                "max_type_to_layout_nodes": {
+                  "u64": "512"
+                },
                 "max_value_stack_size": {
                   "u64": "1024"
                 },
@@ -2010,7 +2029,7 @@
                   "u64": "260"
                 },
                 "poseidon_bn254_cost_per_block": {
-                  "u64": "10"
+                  "u64": "388"
                 },
                 "random_beacon_dkg_timeout_round": {
                   "u32": "3000"
@@ -2094,7 +2113,7 @@
                   "u64": "767000000000000"
                 },
                 "validator_validate_metadata_cost_base": {
-                  "u64": "52"
+                  "u64": "20000"
                 },
                 "validator_validate_metadata_data_cost_per_byte": {
                   "u64": "2"
