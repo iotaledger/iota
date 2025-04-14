@@ -20,6 +20,7 @@ import { Exclamation, Loader } from '@iota/apps-ui-icons';
 import { StakedInfo } from './StakedInfo';
 import { DialogLayout, DialogLayoutBody, DialogLayoutFooter } from '../../layout';
 import { useIotaClientQuery } from '@iota/dapp-kit';
+import React from 'react';
 
 interface FormValues {
     amount: string;
@@ -29,15 +30,14 @@ interface EnterAmountDialogLayoutProps {
     selectedValidator: string;
     senderAddress: string;
     caption: string;
-    showInfo: boolean;
-    infoTitle?: string;
-    infoMessage: string;
+    renderInfo?: React.JSX.Element;
     isLoading: boolean;
     onBack: () => void;
     handleClose: () => void;
     handleStake: () => void;
     isStakeDisabled?: boolean;
     totalGas?: string | number | null;
+    renderInputAction?: React.JSX.Element;
     errorMessage?: string;
 }
 
@@ -46,15 +46,14 @@ export function EnterAmountDialogLayout({
     totalGas,
     senderAddress,
     caption,
-    showInfo,
-    infoTitle,
-    infoMessage,
+    renderInfo,
     isLoading,
     isStakeDisabled,
     errorMessage,
     onBack,
     handleClose,
     handleStake,
+    renderInputAction,
 }: EnterAmountDialogLayoutProps): JSX.Element {
     const { data: system } = useIotaClientQuery('getLatestIotaSystemState');
     const { values, errors } = useFormikContext<FormValues>();
@@ -101,21 +100,12 @@ export function EnterAmountDialogLayout({
                                                 values.amount && meta.error ? meta.error : undefined
                                             }
                                             caption={caption}
+                                            trailingElement={renderInputAction}
                                         />
                                     );
                                 }}
                             </Field>
-                            {showInfo ? (
-                                <div className="mt-md">
-                                    <InfoBox
-                                        title={infoTitle}
-                                        type={InfoBoxType.Error}
-                                        supportingText={infoMessage}
-                                        style={InfoBoxStyle.Elevated}
-                                        icon={<Exclamation />}
-                                    />
-                                </div>
-                            ) : null}
+                            {renderInfo ? <div className="mt-md">{renderInfo}</div> : null}
                         </div>
 
                         <Panel hasBorder>
