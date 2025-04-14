@@ -6,7 +6,7 @@ use std::{collections::HashSet, sync::Arc};
 
 use iota_protocol_config::ProtocolConfig;
 use iota_types::{
-    base_types::{IotaAddress, ObjectRef, TxContext},
+    base_types::{IotaAddress, ObjectRef},
     committee::EpochId,
     digests::TransactionDigest,
     effects::TransactionEffects,
@@ -83,8 +83,11 @@ pub trait Executor {
         // Configuration
         protocol_config: &ProtocolConfig,
         metrics: Arc<LimitsMetrics>,
-        // Genesis State
-        tx_context: &mut TxContext,
+        // Epoch
+        epoch_id: EpochId,
+        epoch_timestamp_ms: u64,
+        // Genesis Digest
+        transaction_digest: &TransactionDigest,
         // Transaction
         input_objects: CheckedInputObjects,
         pt: ProgrammableTransaction,
