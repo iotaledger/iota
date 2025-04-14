@@ -12468,13 +12468,11 @@ dependencies = [
 
 [[package]]
 name = "reed-solomon-simd"
-version = "2.2.2"
+version = "3.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4f92a3b45e82548f565105fba0fed2cbc02777018b2ac33388d1fbc563963f38"
+checksum = "ab6badd4f4b9c93832eb3707431e8e7bea282fae96801312f0990d48b030f8c5"
 dependencies = [
- "bytemuck",
  "fixedbitset 0.4.2",
- "once_cell",
  "readme-rustdocifier",
 ]
 
@@ -14254,7 +14252,6 @@ dependencies = [
  "async-trait",
  "base64 0.21.7",
  "bcs",
- "bincode",
  "blake3",
  "bytes",
  "cfg-if",
