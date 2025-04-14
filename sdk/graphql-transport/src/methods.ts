@@ -834,10 +834,15 @@ export const RPC_METHODS: {
                 activeValidators: systemState.validatorSet?.activeValidators?.nodes.map(
                     mapGraphQlValidatorToRpcValidator,
                 )!,
-                committeeMembers: systemState.validatorSet?.committeeMembers?.nodes?.map((_, index) => index.toString())!,
+                committeeMembers: systemState.validatorSet?.committeeMembers?.nodes?.map(
+                    (_, index) => index.toString(),
+                )!,
                 atRiskValidators: systemState.validatorSet?.activeValidators.nodes
                     ?.filter((validator) => validator.atRisk)
-                    .map((validator) => [validator.address.address!, validator.atRisk!.toString()])!,
+                    .map((validator) => [
+                        validator.address.address!,
+                        validator.atRisk!.toString(),
+                    ])!,
                 epoch: String(systemState.epochId),
                 epochDurationMs: String(
                     new Date(systemState.endTimestamp).getTime() -
@@ -860,24 +865,32 @@ export const RPC_METHODS: {
                 protocolVersion: String(systemState.protocolConfigs?.protocolVersion),
                 referenceGasPrice: String(systemState.referenceGasPrice),
                 safeMode: systemState.safeMode?.enabled!,
-                safeModeComputationCharges:  String(systemState.safeMode?.gasSummary?.computationCost),
-                safeModeComputationChargesBurned: String(systemState.safeMode?.gasSummary?.computationCostBurned),
+                safeModeComputationCharges: String(
+                    systemState.safeMode?.gasSummary?.computationCost,
+                ),
+                safeModeComputationChargesBurned: String(
+                    systemState.safeMode?.gasSummary?.computationCostBurned,
+                ),
                 safeModeNonRefundableStorageFee: String(
                     systemState.safeMode?.gasSummary?.nonRefundableStorageFee,
                 ),
                 safeModeStorageRebates: String(systemState.safeMode?.gasSummary?.storageRebate),
                 safeModeStorageCharges: String(systemState.safeMode?.gasSummary?.storageCost),
                 stakingPoolMappingsSize: String(systemState.validatorSet?.stakingPoolMappingsSize),
-                storageFundNonRefundableBalance: String(systemState.storageFund?.nonRefundableBalance),
+                storageFundNonRefundableBalance: String(
+                    systemState.storageFund?.nonRefundableBalance,
+                ),
                 storageFundTotalObjectStorageRebates: String(
                     systemState.storageFund?.totalObjectStorageRebates,
                 ),
                 systemStateVersion: String(systemState.systemStateVersion),
                 totalStake: systemState.validatorSet?.totalStake,
-                validatorCandidatesSize: systemState.validatorSet?.validatorCandidatesSize?.toString()!,
+                validatorCandidatesSize:
+                    systemState.validatorSet?.validatorCandidatesSize?.toString()!,
                 validatorLowStakeGracePeriod:
                     systemState.systemParameters?.validatorLowStakeGracePeriod,
-                validatorLowStakeThreshold: systemState.systemParameters?.validatorLowStakeThreshold,
+                validatorLowStakeThreshold:
+                    systemState.systemParameters?.validatorLowStakeThreshold,
                 validatorReportRecords: [], // TODO
                 validatorVeryLowStakeThreshold:
                     systemState.systemParameters?.validatorVeryLowStakeThreshold,
@@ -885,7 +898,7 @@ export const RPC_METHODS: {
                 inactivePoolsId: systemState.validatorSet?.inactivePoolsId,
                 pendingActiveValidatorsId: systemState.validatorSet?.pendingActiveValidatorsId,
                 stakingPoolMappingsId: systemState.validatorSet?.stakingPoolMappingsId,
-            }
+            },
         };
     },
     async queryEvents(transport, [query, cursor, limit, descending]) {
