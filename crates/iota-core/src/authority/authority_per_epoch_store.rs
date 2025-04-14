@@ -174,15 +174,19 @@ pub enum ConsensusCertificateResult {
     /// The consensus message was ignored (e.g. because it has already been
     /// processed).
     Ignored,
-    /// An executable transaction (can be a user tx or a system tx) and its
-    /// start_time (u64). If the transactions is accepted for execution, it is
-    /// assigned a start_time, which will imply its execution order. Before a
-    /// batch of scheduled transactions are sent for execution, they will be
-    /// ordered by their start_costs (ascendingly). start_costs of shared object
-    /// transactions imply causal ordering. Owned object transactions will
-    /// always have start_time 0, meaning they are not dependent on another
-    /// transaction and they will not wait for another transaction.
-    IotaTransaction(VerifiedExecutableTransaction, u64),
+    /// The transaction is scheduled for execution (can be a user tx or a
+    /// system tx) with start_time. The start_time is an ExecutionTime assigned
+    /// by the SharedObjectCongestionTracker and it implies its
+    /// execution order. Before a batch of scheduled transactions are sent
+    /// for execution, they will be ordered by their start_time
+    /// (ascendingly). start_times of shared object transactions imply
+    /// causal ordering. Owned object transactions will always have
+    /// start_time 0, meaning they are not dependent on another transaction
+    /// and they will not wait for another transaction.
+    Scheduled {
+        transaction: VerifiedExecutableTransaction,
+        start_time: ExecutionTime,
+    },
     /// The transaction should be re-processed at a future commit, specified by
     /// the DeferralKey
     Deferred(DeferralKey),
@@ -2920,9 +2924,12 @@ impl AuthorityPerEpochStore {
         let consensus_commit_prologue_root = match self
             .process_consensus_system_transaction(&transaction)
         {
-            ConsensusCertificateResult::IotaTransaction(processed_tx, _) => {
-                transactions.push_front(processed_tx.clone());
-                Some(processed_tx.key())
+            ConsensusCertificateResult::Scheduled {
+                transaction,
+                start_time: _,
+            } => {
+                transactions.push_front(transaction.clone());
+                Some(transaction.key())
             }
             ConsensusCertificateResult::IgnoredSystem => None,
             _ => unreachable!(
@@ -3127,9 +3134,12 @@ impl AuthorityPerEpochStore {
                 )
                 .await?
             {
-                ConsensusCertificateResult::IotaTransaction(cert, start_time) => {
+                ConsensusCertificateResult::Scheduled {
+                    transaction,
+                    start_time,
+                } => {
                     notifications.push(key.clone());
-                    sequenced_transactions.push((cert, start_time));
+                    sequenced_transactions.push((transaction, start_time));
                 }
                 ConsensusCertificateResult::Deferred(deferral_key) => {
                     // Note: record_consensus_message_processed() must be called for this
@@ -3518,10 +3528,10 @@ impl AuthorityPerEpochStore {
                                 .bump_object_execution_slots(&certificate, start_time);
                         }
 
-                        Ok(ConsensusCertificateResult::IotaTransaction(
-                            certificate,
+                        Ok(ConsensusCertificateResult::Scheduled {
+                            transaction: certificate,
                             start_time,
-                        ))
+                        })
                     }
                 }
             }
@@ -3676,7 +3686,10 @@ impl AuthorityPerEpochStore {
 
         // If needed we can support owned object system transactions as well...
         assert!(system_transaction.contains_shared_object());
-        ConsensusCertificateResult::IotaTransaction(system_transaction.clone(), 0)
+        ConsensusCertificateResult::Scheduled {
+            transaction: system_transaction.clone(),
+            start_time: 0,
+        }
     }
 
     pub(crate) fn write_pending_checkpoint(
