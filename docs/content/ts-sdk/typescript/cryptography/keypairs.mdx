@@ -176,9 +176,11 @@ const keypair = Ed25519Keypair.fromSecretKey(secretKey);
 ```
 
 If you know your keypair schema, you can use the `fromSecretKey` method of the appropriate keypair
-to directly derive the keypair from the secret key.But you need to decode it first using `decodeIotaPrivateKey`
-from that you you will get parsedKeypair object from that pass the `parsedKeypair.secretKey` to 
-`fromSecretKey` and get the keypair.
+to directly derive the keypair from the secret key.
+First, you need to decode it using [`decodeIotaPrivateKey`](../../api/cryptography/functions/decodeIotaPrivateKey.md). The `decodeIotaPrivateKey`
+function  will return a [`parsedKeypair`](../../api/cryptography/type-aliases/ParsedKeypair.md) object. You can then
+use the `parsedKeypair.secretKey` as a param when calling the `fromSecretKey` function from the relevant keypair
+schema ([`ed25519`](../../api/keypairs/ed25519/index.md), [`secp256k1`](../../api/keypairs/secp256k1/index.md)).
 
 ```typescript
 
