@@ -202,13 +202,13 @@ pub(crate) enum ConsensusError {
     #[error("Reed-Solomon decoding failed in decoder: {0}")]
     ShardsDecodingFailed(String),
 
-    #[error("Shards collection does not contain enough valid shards for decoding: {0} found, at least {1} needed")]
+    #[error(
+        "Shards collection does not contain enough valid shards for decoding: {0} found, at least {1} needed"
+    )]
     InsufficientShardsInDecoder(usize, usize),
 
     #[error("Vector of shards is too small: {0} bytes found, at least {1} bytes needed")]
     ShardsVecIsTooSmall(usize, usize),
-
-
 }
 
 impl ConsensusError {

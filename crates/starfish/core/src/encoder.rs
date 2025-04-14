@@ -3,10 +3,10 @@
 
 pub(crate) use reed_solomon_simd::ReedSolomonEncoder;
 
-use crate::{Transaction, block::Shard};
-use crate::error::ConsensusError;
+use crate::{Transaction, block::Shard, error::ConsensusError};
 
-/// Trait for encoding data into shards using systematic coding with configurable redundancy.
+/// Trait for encoding data into shards using systematic coding with
+/// configurable redundancy.
 pub trait ShardEncoder {
     /// Systematically encodes `data` by adding `parity_length` shards.
     /// The length of `data` must be equal to `info_length`.
@@ -17,8 +17,9 @@ pub trait ShardEncoder {
         parity_length: usize,
     ) -> Result<Vec<Shard>, ConsensusError>;
 
-    /// Serializes and encodes transactions into a vector of shards using an error-correcting code
-    /// with a dimension of `info_length` and redundancy of `parity_length`.
+    /// Serializes and encodes transactions into a vector of shards using an
+    /// error-correcting code with a dimension of `info_length` and
+    /// redundancy of `parity_length`.
     #[expect(dead_code)]
     fn encode_transactions(
         &mut self,
@@ -27,8 +28,6 @@ pub trait ShardEncoder {
         parity_length: usize,
     ) -> Result<Vec<Shard>, ConsensusError>;
 }
-
-
 
 impl ShardEncoder for ReedSolomonEncoder {
     fn encode_shards(
@@ -64,8 +63,7 @@ impl ShardEncoder for ReedSolomonEncoder {
         info_length: usize,
         parity_length: usize,
     ) -> Result<Vec<Shard>, ConsensusError> {
-        let mut serialized = bcs::to_bytes(&block)
-            .map_err(ConsensusError::SerializationFailure)?;
+        let mut serialized = bcs::to_bytes(&block).map_err(ConsensusError::SerializationFailure)?;
         let bytes_length = serialized.len();
         let mut statements_with_len: Vec<u8> = (bytes_length as u32).to_le_bytes().to_vec();
         statements_with_len.append(&mut serialized);

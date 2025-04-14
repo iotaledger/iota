@@ -34,8 +34,9 @@ pub struct Committee {
     validity_threshold: Stake,
     /// Protocol and network info of each authority.
     authorities: Vec<Authority>,
-    /// transaction data in a block is divided into info_length equal parts(shards) that are encoded into n shards with erasure correcting code
-    /// info_length equals n-2f for the case with uniform stakes
+    /// transaction data in a block is divided into info_length equal
+    /// parts(shards) that are encoded into n shards with erasure correcting
+    /// code info_length equals n-2f for the case with uniform stakes
     info_length: usize,
 }
 
