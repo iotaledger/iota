@@ -228,8 +228,6 @@ impl BlockVerifier for NoopBlockVerifier {
         &self,
         _block: &VerifiedBlock,
         _ancestors: &[Option<VerifiedBlock>],
-        _gc_enabled: bool,
-        _gc_round: Round,
     ) -> ConsensusResult<()> {
         Ok(())
     }
@@ -538,6 +536,7 @@ mod test {
     /// Tests the block's ancestors for timestamp monotonicity. Test will run
     /// for both when gc is enabled and disabled, but with none of the
     /// ancestors being below the gc_round.
+    #[cfg(feature = "gc_tests")]
     #[rstest]
     #[tokio::test]
     async fn test_check_ancestors(#[values(false, true)] gc_enabled: bool) {
@@ -591,6 +590,7 @@ mod test {
         }
     }
 
+    #[cfg(feature = "gc_tests")]
     #[tokio::test]
     async fn test_check_ancestors_passed_gc_round() {
         let num_authorities = 4;

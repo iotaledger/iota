@@ -171,7 +171,6 @@ impl DagBuilder {
                     .collect()
             }
 
-
             fn set_committed(&mut self, block_ref: &BlockRef) -> bool {
                 let Some((_block, committed)) = self.blocks.get_mut(block_ref) else {
                     panic!("Block {:?} should be found in store", block_ref);

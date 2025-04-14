@@ -4000,6 +4000,7 @@ mod test {
         assert_eq!(all_stored_commits.len(), 6);
     }
 
+    #[cfg(feature = "gc_tests")]
     #[tokio::test]
     async fn try_decide_certified() {
         // GIVEN

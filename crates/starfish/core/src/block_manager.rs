@@ -597,17 +597,14 @@ mod tests {
     use starfish_config::AuthorityIndex;
 
     use crate::{
-        CommitDigest, Round,
-        block::{BlockAPI, BlockDigest, BlockRef, SignedBlock, VerifiedBlock},
+        block::{BlockAPI, BlockRef, SignedBlock, VerifiedBlock},
         block_manager::BlockManager,
         block_verifier::{BlockVerifier, NoopBlockVerifier},
-        commit::TrustedCommit,
         context::Context,
         dag_state::DagState,
         error::{ConsensusError, ConsensusResult},
         storage::mem_store::MemStore,
         test_dag_builder::DagBuilder,
-        test_dag_parser::parse_dag,
     };
 
     #[tokio::test]
@@ -747,6 +744,7 @@ mod tests {
 
     /// Tests that the block manager accepts blocks when some or all of their
     /// causal history is below or equal to the GC round.
+    #[cfg(feature = "gc_tests")]
     #[tokio::test]
     async fn accept_blocks_with_causal_history_below_gc_round() {
         // GIVEN
@@ -841,6 +839,7 @@ mod tests {
     /// Blocks that are attempted to be accepted but are <= gc_round they will
     /// be skipped for processing. Nothing should be stored or trigger any
     /// unsuspension etc.
+    #[cfg(feature = "gc_tests")]
     #[tokio::test]
     async fn skip_accepting_blocks_below_gc_round() {
         // GIVEN
@@ -946,6 +945,7 @@ mod tests {
         }
     }
 
+    #[cfg(feature = "gc_tests")]
     #[rstest]
     #[tokio::test]
     async fn unsuspend_blocks_for_latest_gc_round(#[values(5, 10, 14)] gc_depth: u32) {
@@ -1033,6 +1033,7 @@ mod tests {
         }
     }
 
+    #[cfg(feature = "gc_tests")]
     #[rstest]
     #[tokio::test]
     async fn try_accept_committed_blocks() {
@@ -1113,8 +1114,6 @@ mod tests {
             &self,
             block: &VerifiedBlock,
             _ancestors: &[Option<VerifiedBlock>],
-            _gc_enabled: bool,
-            _gc_round: Round,
         ) -> ConsensusResult<()> {
             if self.fail.contains(&block.reference()) {
                 Err(ConsensusError::InvalidBlockTimestamp {

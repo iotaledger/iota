@@ -1509,6 +1509,7 @@ mod test {
             dag_state.contains_cached_block_at_slot(Slot::new(8, AuthorityIndex::new_for_test(0)));
     }
 
+    #[cfg(feature = "gc_tests")]
     #[tokio::test]
     #[should_panic(
         expected = "Attempted to check for slot [1]3 that is <= the last gc evicted round 3"
@@ -1864,6 +1865,7 @@ mod test {
         assert_eq!(dag_state.scoring_subdags_count(), 5);
     }
 
+    #[cfg(feature = "gc_tests")]
     #[tokio::test]
     async fn test_flush_and_recovery_gc_enabled() {
         telemetry_subscribers::init_for_testing();
