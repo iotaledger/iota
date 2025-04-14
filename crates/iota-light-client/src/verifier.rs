@@ -282,7 +282,6 @@ pub async fn get_verified_checkpoint(
     }
 }
 
-// Make a test namespace
 #[cfg(test)]
 mod tests {
     use std::{fs, io::Read, path::PathBuf, str::FromStr};

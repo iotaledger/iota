@@ -29,7 +29,7 @@ pub struct Config {
     pub sync_before_check: bool,
     /// A URL to an object store storing checkpoint summaries.
     pub object_store_url: Option<String>,
-    /// An config to sync the light client from an archive store.
+    /// A config to sync the light client from an archive store.
     pub archive_store_config: Option<ObjectStoreConfig>,
 }
 
