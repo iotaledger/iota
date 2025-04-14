@@ -279,7 +279,9 @@ impl SharedObjectCongestionTracker {
 
         // The transaction cannot be scheduled. We need to defer it and return the list
         // of the IDs of all shared input objects to explain the congestion reason.
-        let congested_objects = shared_input_objects.iter().map(|obj| obj.id).collect();
+        let congested_objects: Vec<ObjectID> =
+            shared_input_objects.iter().map(|obj| obj.id).collect();
+        assert!(!congested_objects.is_empty());
 
         let deferral_key =
             if let Some(previous_key) = previously_deferred_tx_digests.get(cert.digest()) {
@@ -799,12 +801,7 @@ mod object_cost_tests {
         for mutable in [true, false].iter() {
             let tx = build_transaction(&[(shared_obj_0, *mutable)], tx_gas_budget);
             if let SequencingResult::Defer(_, congested_objects) = shared_object_congestion_tracker
-                .try_schedule(
-                    &tx,
-                    max_execution_duration_per_commit,
-                    &HashMap::new(),
-                    0,
-                )
+                .try_schedule(&tx, max_execution_duration_per_commit, &HashMap::new(), 0)
             {
                 assert_eq!(congested_objects.len(), 1);
                 assert_eq!(congested_objects[0], shared_obj_0);
@@ -1130,12 +1127,7 @@ mod object_cost_tests {
 
         let tx = build_transaction(&[(object_id_0, true)], 1);
         if let SequencingResult::Schedule(start_time) = shared_object_congestion_tracker
-            .try_schedule(
-                &tx,
-                max_execution_duration_per_commit,
-                &HashMap::new(),
-                0,
-            )
+            .try_schedule(&tx, max_execution_duration_per_commit, &HashMap::new(), 0)
         {
             // add the small transaction to the tracker
             // the object execution slots becomes:
@@ -1170,12 +1162,7 @@ mod object_cost_tests {
 
         let tx = build_transaction(&[(object_id_0, true), (object_id_1, true)], 1);
         if let SequencingResult::Defer(_, congested_objects) = shared_object_congestion_tracker
-            .try_schedule(
-                &tx,
-                max_execution_duration_per_commit,
-                &HashMap::new(),
-                0,
-            )
+            .try_schedule(&tx, max_execution_duration_per_commit, &HashMap::new(), 0)
         {
             assert_eq!(congested_objects.len(), 1);
             assert_eq!(congested_objects[0], object_id_0);
@@ -1208,12 +1195,7 @@ mod object_cost_tests {
         );
 
         if let SequencingResult::Defer(_, congested_objects) = shared_object_congestion_tracker
-            .try_schedule(
-                &tx,
-                max_execution_duration_per_commit,
-                &HashMap::new(),
-                0,
-            )
+            .try_schedule(&tx, max_execution_duration_per_commit, &HashMap::new(), 0)
         {
             // with `assign_min_free_execution_slot`, only object 0 is cause of congestion.
             // without `assign_min_free_execution_slot`, both objects are congested.
@@ -1275,12 +1257,7 @@ mod object_cost_tests {
             MAX_EXECUTION_TIME - 1,
         );
         if let SequencingResult::Defer(_, congested_objects) = shared_object_congestion_tracker
-            .try_schedule(
-                &tx,
-                max_execution_duration_per_commit,
-                &HashMap::new(),
-                0,
-            )
+            .try_schedule(&tx, max_execution_duration_per_commit, &HashMap::new(), 0)
         {
             // object 2 is the cause of congestion.
             assert_eq!(congested_objects.len(), 1);
@@ -1338,12 +1315,7 @@ mod object_cost_tests {
 
         let tx = build_transaction(&[(object_id_0, true)], u64::MAX);
         if let SequencingResult::Defer(_, congested_objects) = shared_object_congestion_tracker
-            .try_schedule(
-                &tx,
-                max_execution_duration_per_commit,
-                &HashMap::new(),
-                0,
-            )
+            .try_schedule(&tx, max_execution_duration_per_commit, &HashMap::new(), 0)
         {
             assert_eq!(congested_objects.len(), 1);
             assert_eq!(congested_objects[0], object_id_0);
