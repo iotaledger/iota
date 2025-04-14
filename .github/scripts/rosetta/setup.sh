@@ -13,5 +13,5 @@ iota genesis --force
 echo "generate rosetta configuration"
 iota-rosetta generate-rosetta-cli-config --online-url http://127.0.0.1:9002 --offline-url http://127.0.0.1:9003
 
-echo "install rosetta-cli"
-curl -sSfL https://raw.githubusercontent.com/coinbase/rosetta-cli/master/scripts/install.sh | sh -s
+echo "install rosetta-cli"     # workaround because the install script is broken after rename
+curl -sSfL https://raw.githubusercontent.com/coinbase/mesh-cli/master/scripts/install.sh | sed -e 's/^REPO=.*/REPO=mesh-cli/' | sh -s
