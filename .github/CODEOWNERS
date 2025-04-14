@@ -59,13 +59,16 @@
 /crates/iota-replay/ @iotaledger/node
 /crates/iota-rest-api/ @iotaledger/node @iotaledger/infrastructure
 /crates/iota-rest-kv/ @iotaledger/infrastructure
+/crates/iota-rosetta/ @iotaledger/infrastructure
 /crates/iota-rpc-loadgen/ @iotaledger/infrastructure
 /crates/iota-sdk/ @iotaledger/dev-tools
 /crates/iota-simulator/ @iotaledger/core-protocol
 /crates/iota-single-node-benchmark/ @iotaledger/node
 /crates/iota-snapshot/ @iotaledger/node
 /crates/iota-source-validation/ @iotaledger/vm-language
+/crates/iota-source-validation-service/ @iotaledger/vm-language
 /crates/iota-storage/ @iotaledger/node
+/crates/iota-surfer/ @iotaledger/node
 /crates/iota-swarm/ @iotaledger/node
 /crates/iota-swarm-config/ @iotaledger/node
 /crates/iota-test-transaction-builder/ @iotaledger/dev-tools
@@ -76,11 +79,14 @@
 /crates/iota-transactional-test-runner/ @iotaledger/vm-language
 /crates/iota-types/ @iotaledger/core-protocol @iotaledger/sc-platform
 /crates/iota-upgrade-compatibility-transactional-tests/ @iotaledger/vm-language
+/crates/iota-util-mem/ @iotaledger/core-protocol @iotaledger/sc-platform
+/crates/iota-util-mem-derive/ @iotaledger/core-protocol @iotaledger/sc-platform
 /crates/iota-verifier-transactional-tests/ @iotaledger/vm-language
 /crates/prometheus-closure-metric/ @iotaledger/node
 /crates/shared-crypto/ @iotaledger/core-protocol
 /crates/simulacrum/ @iotaledger/vm-language
 /crates/telemetry-subscribers/ @iotaledger/core-protocol
+/crates/transaction-fuzzer/ @iotaledger/node @iotaledger/vm-language
 /crates/test-cluster/ @iotaledger/infrastructure
 /crates/typed-store/ @iotaledger/core-protocol
 /crates/typed-store-derive/ @iotaledger/core-protocol
@@ -145,13 +151,8 @@ vercel.json @iotaledger/tooling
 /pnpm-lock.yaml
 
 # TODO
+# Bridge related stuff will be skipped for now
 # /crates/iota-bridge/
 # /crates/iota-bridge-cli/
 # /crates/iota-bridge-indexer/
-# /crates/iota-rosetta/
-# /crates/iota-source-validation-service/
-# /crates/iota-surfer/
-# /crates/iota-util-mem/
-# /crates/iota-util-mem-derive/
-# /crates/transaction-fuzzer/
 # /bridge/
