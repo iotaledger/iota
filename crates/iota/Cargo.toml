@@ -94,6 +94,10 @@ move-vm-profiler.workspace = true
 shared-crypto.workspace = true
 telemetry-subscribers.workspace = true
 
+[build-dependencies]
+iota-framework-snapshot.workspace = true
+anyhow.workspace = true
+
 [target.'cfg(not(msim))'.dev-dependencies]
 datatest-stable.workspace = true
 
