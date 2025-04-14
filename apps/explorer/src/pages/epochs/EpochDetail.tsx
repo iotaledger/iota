@@ -76,9 +76,6 @@ export function EpochDetail() {
                     (committeeMemberIndex) =>
                         epochData.validators[Number(committeeMemberIndex)].iotaAddress,
                 ) ?? [],
-            atRiskValidators: [],
-            validatorEvents: [],
-            rollingAverageApys: null,
             showValidatorIcon: true,
             includeColumns,
         });

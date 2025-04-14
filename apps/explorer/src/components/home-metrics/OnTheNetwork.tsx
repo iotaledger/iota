@@ -21,14 +21,14 @@ const FALLBACK = '--';
 
 export function OnTheNetwork(): JSX.Element {
     const { data: networkMetrics } = useGetNetworkMetrics();
-    const { data: referenceGasPrice } = useIotaClientQuery('getReferenceGasPrice');
     const { data: totalSupply } = useIotaClientQuery('getTotalSupply', {
         coinType: IOTA_TYPE_ARG,
     });
-    const gasPriceFormatted =
-        typeof referenceGasPrice === 'bigint'
-            ? formatBalance(referenceGasPrice, 0, CoinFormat.FULL)
-            : null;
+    const { data: circulatingSupply } = useIotaClientQuery('getCirculatingSupply');
+
+    const circulatingSupplyFormatted = circulatingSupply?.value
+        ? formatBalance(circulatingSupply.value, IOTA_DECIMALS, CoinFormat.ROUNDED)
+        : null;
     const totalSupplyFormatted = totalSupply?.value
         ? formatBalance(totalSupply.value, IOTA_DECIMALS, CoinFormat.ROUNDED)
         : null;
@@ -96,19 +96,19 @@ export function OnTheNetwork(): JSX.Element {
                     <div className="flex-1">
                         <LabelText
                             size={LabelTextSize.Large}
-                            label="Reference Gas Price"
-                            text={gasPriceFormatted ?? '-'}
-                            supportingLabel={gasPriceFormatted !== null ? 'nano' : undefined}
-                            tooltipPosition={TooltipPosition.Top}
-                            tooltipText="The reference gas price in the current epoch."
+                            label="Total Supply"
+                            text={totalSupplyFormatted ?? '-'}
+                            supportingLabel={totalSupplyFormatted !== null ? 'IOTA' : undefined}
                         />
                     </div>
                     <div className="flex-1">
                         <LabelText
                             size={LabelTextSize.Large}
-                            label="Total Supply"
-                            text={totalSupplyFormatted ?? '-'}
-                            supportingLabel={totalSupplyFormatted !== null ? 'IOTA' : undefined}
+                            label="Circulating Supply"
+                            text={circulatingSupplyFormatted ?? '-'}
+                            supportingLabel={
+                                circulatingSupplyFormatted !== null ? 'IOTA' : undefined
+                            }
                         />
                     </div>
                 </div>

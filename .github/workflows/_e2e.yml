@@ -93,6 +93,8 @@ jobs:
 
       - name: Build explorer
         if: inputs.isTypescriptSDK || inputs.isExplorer || inputs.isRpc || github.ref_name == 'develop'
+        env:
+          IOTA_NETWORKS: '{ "localnet": { "id": "localnet", "name": "Localnet", "url": "http://localhost:9124", "explorer": "http://localhost:3000", "chain": "iota:local", "faucet": "http://localhost:9123" } }'
         run: pnpm turbo --filter=iota-explorer build
 
       - name: Run Explorer e2e tests

@@ -36,7 +36,7 @@ export interface TransactionRequestProps {
 // eats up our analytics event quota. As a short-term solution so we don't have
 // to stop tracking this event entirely, we'll just manually exclude application
 // origins with this list
-const APP_ORIGINS_TO_EXCLUDE_FROM_ANALYTICS = ['https://iota8192.ethoswallet.xyz'];
+const APP_ORIGINS_TO_EXCLUDE_FROM_ANALYTICS: string[] = [];
 
 export function TransactionRequest({ txRequest }: TransactionRequestProps) {
     const addressForTransaction = txRequest.tx.account;
