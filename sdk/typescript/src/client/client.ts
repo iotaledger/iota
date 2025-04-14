@@ -92,6 +92,7 @@ import type {
     IotaSystemStateSummaryV1,
     LatestIotaSystemStateSummary,
     ParticipationMetrics,
+    IotaCirculatingSupply,
 } from './types/index.js';
 
 export interface PaginationArguments<Cursor> {
@@ -225,6 +226,16 @@ export class IotaClient {
         return await this.transport.request({
             method: 'iotax_getTotalSupply',
             params: [input.coinType],
+        });
+    }
+
+    /**
+     *  Fetch circulating supply for a coin
+     */
+    async getCirculatingSupply(): Promise<IotaCirculatingSupply> {
+        return await this.transport.request({
+            method: 'iotax_getCirculatingSupply',
+            params: [],
         });
     }
 

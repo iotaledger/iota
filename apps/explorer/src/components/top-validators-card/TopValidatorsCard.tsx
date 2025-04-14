@@ -32,10 +32,6 @@ export function TopValidatorsCard({ limit, showIcon }: TopValidatorsCardProps): 
         data?.committeeMembers.slice(0, limit || NUMBER_OF_VALIDATORS) ?? [];
 
     const tableColumns = generateValidatorsTableColumns({
-        committeeMembers: [],
-        atRiskValidators: [],
-        validatorEvents: [],
-        rollingAverageApys: null,
         limit,
         showValidatorIcon: showIcon,
         includeColumns: ['Name', 'Address', 'Stake'],
