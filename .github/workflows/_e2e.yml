@@ -144,13 +144,6 @@ jobs:
       - uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # v4.4.3
         if: always()
         with:
-          name: playwright-report-wallet-dashboard
-          path: apps/wallet-dashboard/playwright-report/
-          retention-days: 30
-
-      - uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # v4.4.3
-        if: always()
-        with:
           name: playwright-report-wallet
           path: apps/wallet/playwright-report/
           retention-days: 30
