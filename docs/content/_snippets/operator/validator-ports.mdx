@@ -2,10 +2,10 @@
 
 Ensure the following ports are open in your firewall:
 
-| Protocol/Port | Reachability     | Purpose                           |
-| ------------- | ---------------- | --------------------------------- |
-| TCP/8080      | Inbound          | Validator/transaction interface   |
-| TCP/8081      | Inbound/Outbound | Consensus interface               |
-| UDP/8084      | Inbound/Outbound | Peer-to-peer state sync interface |
-| TCP/8443      | Outbound         | Metrics pushing                   |
-| TCP/9184      | Localhost        | Metrics scraping                  |
+| Protocol/Port | Reachability     | Purpose                           | Description                                                                     |
+| ------------- | ---------------- | --------------------------------- | ------------------------------------------------------------------------------- |
+| TCP/8080      | Inbound          | Validator/transaction interface   | full nodes connect to validators to collect partial signatures for transactions |
+| TCP/8081      | Inbound/Outbound | Consensus interface               | validator nodes send consensus blocks to each other                             |
+| UDP/8084      | Inbound/Outbound | Peer-to-peer state sync interface | nodes sync their state with each other                                          |
+| TCP/8443      | Outbound         | Metrics pushing                   | validator metrics get pushed to IOTA Foundation monitoring                      |
+| TCP/9184      | Localhost        | Metrics scraping                  | for local monitoring only                                                       |
