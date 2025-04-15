@@ -7,10 +7,10 @@ use std::{
     collections::{HashMap, HashSet, VecDeque},
     iter::repeat,
     sync::Arc,
-    time::{Duration, Instant},
+    time::Duration,
 };
 
-use anyhow::{Result, anyhow};
+use anyhow::Result;
 use async_trait::async_trait;
 use aws_config::{BehaviorVersion, timeout::TimeoutConfig};
 use aws_sdk_dynamodb::{
@@ -27,8 +27,7 @@ use iota_storage::http_key_value_store::{ItemType, TaggedKey};
 use iota_types::{full_checkpoint_content::CheckpointData, storage::ObjectKey};
 use object_store::{DynObjectStore, path::Path};
 use serde::{Deserialize, Serialize};
-
-const TIMEOUT: Duration = Duration::from_secs(60);
+use tracing::{error, info, warn};
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
 #[serde(rename_all = "kebab-case")]
@@ -90,7 +89,6 @@ impl KVStoreWorker {
         item_type: ItemType,
         values: impl IntoIterator<Item = (Vec<u8>, V)> + std::marker::Send,
     ) -> anyhow::Result<()> {
-        let instant = Instant::now();
         let mut items = vec![];
         let mut seen = HashSet::new();
         for (digest, value) in values {
@@ -118,9 +116,6 @@ impl KVStoreWorker {
         let mut backoff = ExponentialBackoff::default();
         let mut queue: VecDeque<Vec<_>> = items.chunks(25).map(|ck| ck.to_vec()).collect();
         while let Some(chunk) = queue.pop_front() {
-            if instant.elapsed() > TIMEOUT {
-                return Err(anyhow!("key value worker timed out"));
-            }
             let response = self
                 .dynamo_client
                 .batch_write_item()
@@ -129,7 +124,13 @@ impl KVStoreWorker {
                     chunk.to_vec(),
                 )])))
                 .send()
-                .await?;
+                .await
+                .inspect_err(|sdk_err| {
+                    error!(
+                        "{:?}",
+                        sdk_err.as_service_error().map(|e| e.meta().to_string())
+                    )
+                })?;
             if let Some(response) = response.unprocessed_items {
                 if let Some(unprocessed) = response.into_iter().next() {
                     if !unprocessed.1.is_empty() {
@@ -181,10 +182,10 @@ impl KVStoreWorker {
             .set_item(Some(attributes))
             .send()
             .await
-            .inspect_err(|err| tracing::warn!("dynamodb error: {err}"));
+            .inspect_err(|err| warn!("dynamodb error: {err}"));
 
         if res.is_err() {
-            tracing::info!("attempt to store chekpoint contents on S3");
+            info!("attempt to store chekpoint contents on S3");
             let location = Path::from(base64_url::encode(&key));
             self.remote_store
                 .put(&location, Bytes::from(bcs_bytes).into())
