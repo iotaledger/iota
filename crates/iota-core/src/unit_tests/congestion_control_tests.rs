@@ -314,7 +314,6 @@ async fn test_congestion_control_execution_cancellation() {
         Some(
             SharedObjectCongestionTracker::new_with_initial_value_for_test(
                 &[(shared_object_1.0, 10)],
-                &[(shared_object_1.0, TEST_ONLY_GAS_PRICE)],
                 PerObjectCongestionControlMode::TotalGasBudget,
             ),
         )

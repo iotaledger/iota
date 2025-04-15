@@ -29,9 +29,6 @@ use crate::authority::transaction_deferral::DeferralKey;
 #[derive(PartialEq, Eq, Clone, Debug)]
 pub struct SharedObjectCongestionTracker {
     object_execution_cost: HashMap<ObjectID, u64>,
-    /// Currently, suggested gas price equals the lowest gas price of
-    /// non-deferred transactions that operates on a congested shared object
-    object_suggested_gas_price: HashMap<ObjectID, u64>,
     mode: PerObjectCongestionControlMode,
 }
 
@@ -39,29 +36,21 @@ impl SharedObjectCongestionTracker {
     pub fn new(mode: PerObjectCongestionControlMode) -> Self {
         Self {
             object_execution_cost: HashMap::new(),
-            object_suggested_gas_price: HashMap::new(),
             mode,
         }
     }
 
     pub fn new_with_initial_value_for_test(
-        init_execution_cost_values: &[(ObjectID, u64)],
-        init_suggested_gas_price_values: &[(ObjectID, u64)],
+        init_values: &[(ObjectID, u64)],
         mode: PerObjectCongestionControlMode,
     ) -> Self {
         let mut object_execution_cost = HashMap::new();
-        for (object_id, total_cost) in init_execution_cost_values {
+        for (object_id, total_cost) in init_values {
             object_execution_cost.insert(*object_id, *total_cost);
-        }
-
-        let mut object_suggested_gas_price = HashMap::new();
-        for (object_id, suggested_gas_price) in init_suggested_gas_price_values {
-            object_suggested_gas_price.insert(*object_id, *suggested_gas_price);
         }
 
         Self {
             object_execution_cost,
-            object_suggested_gas_price,
             mode,
         }
     }
@@ -79,37 +68,10 @@ impl SharedObjectCongestionTracker {
             .expect("There must be at least one object in shared_input_objects.")
     }
 
-    // Given a certificate with shared input objects, this function returns
-    // a suggested gas price for a transaction that operates on at least one
-    // mutable shared object (in these input objects) that creates congestion.
-    // Currently, suggested gas price equals the lowest gas price of
-    // non-deferred transactions that operates on a congested shared object
-    //
-    // Note that this function should be called only after
-    // `should_defer_due_to_object_congestion` was invoked since
-    // `object_suggested_gas_price` is updated only there, otherwise
-    // it might return `None`, i.e., inaccurate information.
-    //
-    // This function returns `None` if none of the
-    // `shared_input_objects` creates congestion, for example, all input
-    // shared objects referenced immutably.
+    // NOTE: this function will be rewritten anyway in the new sequencer
+    // (see PR #5763), so we simple return the certificate's gas price here.
     pub fn compute_suggested_gas_price(&self, cert: &VerifiedExecutableTransaction) -> Option<u64> {
-        let gas_price = cert
-            .shared_input_objects()
-            .map(|obj| {
-                *self
-                    .object_suggested_gas_price
-                    .get(&obj.id)
-                    .unwrap_or(&u64::MAX)
-            })
-            .min()
-            .expect("there must be at least one object in 'shared_input_objects'.");
-
-        if gas_price == u64::MAX {
-            None
-        } else {
-            Some(gas_price)
-        }
+        Some(cert.transaction_data().gas_price())
     }
 
     pub fn get_tx_cost(&self, cert: &VerifiedExecutableTransaction) -> Option<u64> {
@@ -121,10 +83,9 @@ impl SharedObjectCongestionTracker {
     }
 
     // Given a transaction, returns the deferral key and the congested objects if
-    // the transaction should be deferred. This function also calculates and updates
-    // the suggested gas price.
+    // the transaction should be deferred.
     pub fn should_defer_due_to_object_congestion(
-        &mut self,
+        &self,
         cert: &VerifiedExecutableTransaction,
         max_accumulated_txn_cost_per_object_in_commit: u64,
         previously_deferred_tx_digests: &HashMap<TransactionDigest, DeferralKey>,
@@ -141,35 +102,6 @@ impl SharedObjectCongestionTracker {
 
         let (end_cost, cost_overflow) = start_cost.overflowing_add(tx_cost);
         if !cost_overflow && end_cost <= max_accumulated_txn_cost_per_object_in_commit {
-            // This transaction is not deferred, so
-            // `object_suggested_gas_price` is updated here
-            // for all of the input shared objects accessed by a mutable reference.
-            //
-            // Note that we don't need to update
-            // `object_suggested_gas_price` if a transaction
-            // is deferred due to the following logic: if a transaction is deferred,
-            // that means at least one of its congested objects has already been "seen"
-            // in non-deferred transactions and was processed here before.
-            //
-            // Note that `object_suggested_gas_price` is only
-            // updated  for mutable shared objects because immutable referred shared
-            // object do not increase object execution cost.
-            let tx_gas_price = cert.transaction_data().gas_price();
-            for object in shared_input_objects.iter() {
-                if object.mutable {
-                    self.object_suggested_gas_price
-                        .entry(object.id)
-                        .and_modify(|suggested_gas_price| {
-                            if tx_gas_price < *suggested_gas_price {
-                                // a non-deferred transaction with lower gas price was found
-                                // for this input shared object
-                                *suggested_gas_price = tx_gas_price;
-                            }
-                        })
-                        .or_insert(tx_gas_price);
-                }
-            }
-
             return None;
         }
 
@@ -276,7 +208,6 @@ mod object_cost_tests {
         let shared_object_congestion_tracker =
             SharedObjectCongestionTracker::new_with_initial_value_for_test(
                 &[(object_id_0, 5), (object_id_1, 10)],
-                &[(object_id_0, 1000), (object_id_1, 1000)],
                 PerObjectCongestionControlMode::TotalGasBudget,
             );
 
@@ -321,13 +252,12 @@ mod object_cost_tests {
     fn build_transaction(
         objects: &[(ObjectID, bool)],
         gas_budget: u64,
-        gas_price: u64,
     ) -> VerifiedExecutableTransaction {
         let (sender, keypair): (_, AccountKeyPair) = get_key_pair();
         let gas_object = random_object_ref();
         VerifiedExecutableTransaction::new_system(
             VerifiedTransaction::new_unchecked(
-                TestTransactionBuilder::new(sender, gas_object, gas_price)
+                TestTransactionBuilder::new(sender, gas_object, 1000)
                     .with_gas_budget(gas_budget)
                     .move_call(
                         ObjectID::random(),
@@ -364,7 +294,6 @@ mod object_cost_tests {
         let shared_obj_1 = ObjectID::random();
 
         let tx_gas_budget = 100;
-        let tx_gas_price = 1_000;
 
         // Set max_accumulated_txn_cost_per_object_in_commit to only allow 1 transaction
         // to go through.
@@ -374,7 +303,7 @@ mod object_cost_tests {
             PerObjectCongestionControlMode::TotalTxCount => 2,
         };
 
-        let mut shared_object_congestion_tracker = match mode {
+        let shared_object_congestion_tracker = match mode {
             PerObjectCongestionControlMode::None => unreachable!(),
             PerObjectCongestionControlMode::TotalGasBudget => {
                 // Construct object execution cost as following
@@ -383,7 +312,6 @@ mod object_cost_tests {
                 // object 1:      |
                 SharedObjectCongestionTracker::new_with_initial_value_for_test(
                     &[(shared_obj_0, 10), (shared_obj_1, 1)],
-                    &[(shared_obj_0, tx_gas_price), (shared_obj_1, tx_gas_price)],
                     mode,
                 )
             }
@@ -394,7 +322,6 @@ mod object_cost_tests {
                 // object 1:      |
                 SharedObjectCongestionTracker::new_with_initial_value_for_test(
                     &[(shared_obj_0, 2), (shared_obj_1, 1)],
-                    &[(shared_obj_0, tx_gas_price), (shared_obj_1, tx_gas_price)],
                     mode,
                 )
             }
@@ -402,7 +329,7 @@ mod object_cost_tests {
 
         // Read/write to object 0 should be deferred.
         for mutable in [true, false].iter() {
-            let tx = build_transaction(&[(shared_obj_0, *mutable)], tx_gas_budget, tx_gas_price);
+            let tx = build_transaction(&[(shared_obj_0, *mutable)], tx_gas_budget);
             if let Some((_, congested_objects)) = shared_object_congestion_tracker
                 .should_defer_due_to_object_congestion(
                     &tx,
@@ -420,7 +347,7 @@ mod object_cost_tests {
 
         // Read/write to object 1 should go through.
         for mutable in [true, false].iter() {
-            let tx = build_transaction(&[(shared_obj_1, *mutable)], tx_gas_budget, tx_gas_price);
+            let tx = build_transaction(&[(shared_obj_1, *mutable)], tx_gas_budget);
             assert!(
                 shared_object_congestion_tracker
                     .should_defer_due_to_object_congestion(
@@ -440,7 +367,6 @@ mod object_cost_tests {
                 let tx = build_transaction(
                     &[(shared_obj_0, *mutable_0), (shared_obj_1, *mutable_1)],
                     tx_gas_budget,
-                    tx_gas_price,
                 );
                 if let Some((_, congested_objects)) = shared_object_congestion_tracker
                     .should_defer_due_to_object_congestion(
@@ -468,10 +394,10 @@ mod object_cost_tests {
         mode: PerObjectCongestionControlMode,
     ) {
         let shared_obj_0 = ObjectID::random();
-        let tx = build_transaction(&[(shared_obj_0, true)], 100, 1_000);
+        let tx = build_transaction(&[(shared_obj_0, true)], 100);
         // Make should_defer_due_to_object_congestion always defer transactions.
         let max_accumulated_txn_cost_per_object_in_commit = 0;
-        let mut shared_object_congestion_tracker = SharedObjectCongestionTracker::new(mode);
+        let shared_object_congestion_tracker = SharedObjectCongestionTracker::new(mode);
 
         // Insert a random pre-existing transaction.
         let mut previously_deferred_tx_digests = HashMap::new();
@@ -572,28 +498,20 @@ mod object_cost_tests {
         let object_id_1 = ObjectID::random();
         let object_id_2 = ObjectID::random();
 
-        let tx_gas_price = 1_000;
-
         let mut shared_object_congestion_tracker =
             SharedObjectCongestionTracker::new_with_initial_value_for_test(
                 &[(object_id_0, 5), (object_id_1, 10)],
-                &[(object_id_0, tx_gas_price), (object_id_1, tx_gas_price)],
                 mode,
             );
         assert_eq!(shared_object_congestion_tracker.max_cost(), 10);
 
         // Read two objects should not change the object execution cost.
-        let cert = build_transaction(
-            &[(object_id_0, false), (object_id_1, false)],
-            10,
-            tx_gas_price,
-        );
+        let cert = build_transaction(&[(object_id_0, false), (object_id_1, false)], 10);
         shared_object_congestion_tracker.bump_object_execution_cost(&cert);
         assert_eq!(
             shared_object_congestion_tracker,
             SharedObjectCongestionTracker::new_with_initial_value_for_test(
                 &[(object_id_0, 5), (object_id_1, 10)],
-                &[(object_id_0, tx_gas_price), (object_id_1, tx_gas_price)],
                 mode
             )
         );
@@ -601,11 +519,7 @@ mod object_cost_tests {
 
         // Write to object 0 should only bump object 0's execution cost. The start cost
         // should be object 1's cost.
-        let cert = build_transaction(
-            &[(object_id_0, true), (object_id_1, false)],
-            10,
-            tx_gas_price,
-        );
+        let cert = build_transaction(&[(object_id_0, true), (object_id_1, false)], 10);
         shared_object_congestion_tracker.bump_object_execution_cost(&cert);
         let expected_object_0_cost = match mode {
             PerObjectCongestionControlMode::None => unreachable!(),
@@ -616,7 +530,6 @@ mod object_cost_tests {
             shared_object_congestion_tracker,
             SharedObjectCongestionTracker::new_with_initial_value_for_test(
                 &[(object_id_0, expected_object_0_cost), (object_id_1, 10)],
-                &[(object_id_0, tx_gas_price), (object_id_1, tx_gas_price)],
                 mode
             )
         );
@@ -634,7 +547,6 @@ mod object_cost_tests {
                 (object_id_2, true),
             ],
             10,
-            tx_gas_price,
         );
         let expected_object_cost = match mode {
             PerObjectCongestionControlMode::None => unreachable!(),
@@ -650,7 +562,6 @@ mod object_cost_tests {
                     (object_id_1, expected_object_cost),
                     (object_id_2, expected_object_cost)
                 ],
-                &[(object_id_0, tx_gas_price), (object_id_1, tx_gas_price),],
                 mode
             )
         );
@@ -667,17 +578,15 @@ mod object_cost_tests {
         let object_id_2 = ObjectID::random();
         // edge case: max value is saturated
         let max_accumulated_txn_cost_per_object_in_commit = u64::MAX;
-        let tx_gas_price = 1_000;
 
         // case 1: large initial cost, small tx cost
         let mut shared_object_congestion_tracker =
             SharedObjectCongestionTracker::new_with_initial_value_for_test(
                 &[(object_id_0, u64::MAX - 1), (object_id_1, u64::MAX - 1)],
-                &[(object_id_0, tx_gas_price), (object_id_1, tx_gas_price)],
                 PerObjectCongestionControlMode::TotalGasBudget,
             );
 
-        let tx = build_transaction(&[(object_id_0, true)], 1, tx_gas_price);
+        let tx = build_transaction(&[(object_id_0, true)], 1);
         assert!(
             shared_object_congestion_tracker
                 .should_defer_due_to_object_congestion(
@@ -694,12 +603,11 @@ mod object_cost_tests {
             shared_object_congestion_tracker,
             SharedObjectCongestionTracker::new_with_initial_value_for_test(
                 &[(object_id_0, u64::MAX), (object_id_1, u64::MAX - 1),],
-                &[(object_id_0, tx_gas_price), (object_id_1, tx_gas_price)],
                 PerObjectCongestionControlMode::TotalGasBudget
             )
         );
 
-        let tx = build_transaction(&[(object_id_0, true), (object_id_1, true)], 1, tx_gas_price);
+        let tx = build_transaction(&[(object_id_0, true), (object_id_1, true)], 1);
         if let Some((_, congested_objects)) = shared_object_congestion_tracker
             .should_defer_due_to_object_congestion(
                 &tx,
@@ -718,7 +626,6 @@ mod object_cost_tests {
             shared_object_congestion_tracker,
             SharedObjectCongestionTracker::new_with_initial_value_for_test(
                 &[(object_id_0, u64::MAX), (object_id_1, u64::MAX),],
-                &[(object_id_0, tx_gas_price), (object_id_1, tx_gas_price)],
                 PerObjectCongestionControlMode::TotalGasBudget
             )
         );
@@ -742,7 +649,6 @@ mod object_cost_tests {
             shared_object_congestion_tracker,
             SharedObjectCongestionTracker::new_with_initial_value_for_test(
                 &[(object_id_0, u64::MAX), (object_id_1, u64::MAX),],
-                &[(object_id_0, tx_gas_price), (object_id_1, tx_gas_price)],
                 PerObjectCongestionControlMode::TotalGasBudget
             )
         );
@@ -751,11 +657,6 @@ mod object_cost_tests {
         let mut shared_object_congestion_tracker =
             SharedObjectCongestionTracker::new_with_initial_value_for_test(
                 &[(object_id_0, 0), (object_id_1, 1), (object_id_2, 2)],
-                &[
-                    (object_id_0, tx_gas_price),
-                    (object_id_1, tx_gas_price),
-                    (object_id_2, tx_gas_price),
-                ],
                 PerObjectCongestionControlMode::TotalGasBudget,
             );
 
@@ -766,7 +667,6 @@ mod object_cost_tests {
                 (object_id_2, true),
             ],
             u64::MAX - 1,
-            tx_gas_price,
         );
         if let Some((_, congested_objects)) = shared_object_congestion_tracker
             .should_defer_due_to_object_congestion(
@@ -790,11 +690,6 @@ mod object_cost_tests {
                     (object_id_1, u64::MAX),
                     (object_id_2, u64::MAX),
                 ],
-                &[
-                    (object_id_0, tx_gas_price),
-                    (object_id_1, tx_gas_price),
-                    (object_id_2, tx_gas_price),
-                ],
                 PerObjectCongestionControlMode::TotalGasBudget
             )
         );
@@ -803,11 +698,10 @@ mod object_cost_tests {
         let mut shared_object_congestion_tracker =
             SharedObjectCongestionTracker::new_with_initial_value_for_test(
                 &[(object_id_0, u64::MAX)],
-                &[(object_id_0, tx_gas_price)],
                 PerObjectCongestionControlMode::TotalGasBudget,
             );
 
-        let tx = build_transaction(&[(object_id_0, true)], u64::MAX, tx_gas_price);
+        let tx = build_transaction(&[(object_id_0, true)], u64::MAX);
         if let Some((_, congested_objects)) = shared_object_congestion_tracker
             .should_defer_due_to_object_congestion(
                 &tx,
@@ -826,416 +720,8 @@ mod object_cost_tests {
             shared_object_congestion_tracker,
             SharedObjectCongestionTracker::new_with_initial_value_for_test(
                 &[(object_id_0, u64::MAX),],
-                &[(object_id_0, tx_gas_price)],
                 PerObjectCongestionControlMode::TotalGasBudget
             )
-        );
-    }
-
-    #[rstest]
-    fn test_compute_suggested_gas_price(
-        #[values(
-            PerObjectCongestionControlMode::TotalGasBudget,
-            PerObjectCongestionControlMode::TotalTxCount
-        )]
-        mode: PerObjectCongestionControlMode,
-    ) {
-        let tx_gas_budget = 100;
-
-        // Set max_accumulated_txn_cost_per_object_in_commit to allow only 2
-        // transactions to go through.
-        let max_accumulated_txn_cost_per_object_in_commit = match mode {
-            PerObjectCongestionControlMode::None => unreachable!(),
-            PerObjectCongestionControlMode::TotalGasBudget => 2 * tx_gas_budget,
-            PerObjectCongestionControlMode::TotalTxCount => 2,
-        };
-
-        // Initialize a new shared object congestion tracker
-        let mut shared_object_congestion_tracker = SharedObjectCongestionTracker::new(mode);
-
-        // Create some shared objects
-        let shared_obj_1 = ObjectID::random();
-        let shared_obj_2 = ObjectID::random();
-        let shared_obj_3 = ObjectID::random();
-
-        // Create first congestion region with four dependent transactions,
-        // all accessing shared objects by mutable references
-        let tx_1 = build_transaction(
-            &[(shared_obj_1, true), (shared_obj_2, true)],
-            tx_gas_budget,
-            1_004,
-        );
-        let tx_2 = build_transaction(
-            &[(shared_obj_2, true), (shared_obj_3, true)],
-            tx_gas_budget,
-            1_003,
-        );
-        let tx_3 = build_transaction(
-            &[(shared_obj_1, true), (shared_obj_2, true)],
-            tx_gas_budget,
-            1_002,
-        );
-        let tx_4 = build_transaction(&[(shared_obj_3, true)], tx_gas_budget, 1_001);
-
-        // The first transaction should not be deferred
-        assert!(
-            shared_object_congestion_tracker
-                .should_defer_due_to_object_congestion(
-                    &tx_1,
-                    max_accumulated_txn_cost_per_object_in_commit,
-                    &HashMap::new(),
-                    0,
-                )
-                .is_none()
-        );
-        shared_object_congestion_tracker.bump_object_execution_cost(&tx_1);
-        // After checking the first transaction for deferring, the suggested gas price
-        // for transactions (having at least one common shared object with this
-        // transaction) to be non-deferred must be the first transaction's gas price
-        assert_eq!(
-            shared_object_congestion_tracker
-                .compute_suggested_gas_price(&tx_1)
-                .unwrap(),
-            tx_1.transaction_data().gas_price()
-        );
-        assert_eq!(
-            shared_object_congestion_tracker
-                .compute_suggested_gas_price(&tx_2)
-                .unwrap(),
-            tx_1.transaction_data().gas_price()
-        );
-        assert_eq!(
-            shared_object_congestion_tracker
-                .compute_suggested_gas_price(&tx_3)
-                .unwrap(),
-            tx_1.transaction_data().gas_price()
-        );
-        // The forth transaction does not have common object with the first transaction,
-        // and it has not been checked for deferring yet, so this should return `None`
-        // at this step
-        assert!(
-            shared_object_congestion_tracker
-                .compute_suggested_gas_price(&tx_4)
-                .is_none()
-        );
-
-        // The second transaction should not be deferred
-        assert!(
-            shared_object_congestion_tracker
-                .should_defer_due_to_object_congestion(
-                    &tx_2,
-                    max_accumulated_txn_cost_per_object_in_commit,
-                    &HashMap::new(),
-                    0,
-                )
-                .is_none()
-        );
-        shared_object_congestion_tracker.bump_object_execution_cost(&tx_2);
-        // After checking the second transaction for deferring, the suggested gas price
-        // for transactions (having at least one common shared object with this
-        // transaction) to be non-deferred must be the second transaction's gas price
-        assert_eq!(
-            shared_object_congestion_tracker
-                .compute_suggested_gas_price(&tx_1)
-                .unwrap(),
-            tx_2.transaction_data().gas_price()
-        );
-        assert_eq!(
-            shared_object_congestion_tracker
-                .compute_suggested_gas_price(&tx_2)
-                .unwrap(),
-            tx_2.transaction_data().gas_price()
-        );
-        assert_eq!(
-            shared_object_congestion_tracker
-                .compute_suggested_gas_price(&tx_3)
-                .unwrap(),
-            tx_2.transaction_data().gas_price()
-        );
-        assert_eq!(
-            shared_object_congestion_tracker
-                .compute_suggested_gas_price(&tx_4)
-                .unwrap(),
-            tx_2.transaction_data().gas_price()
-        );
-
-        // The third transaction should be deferred
-        let (_, congested_objects) = shared_object_congestion_tracker
-            .should_defer_due_to_object_congestion(
-                &tx_3,
-                max_accumulated_txn_cost_per_object_in_commit,
-                &HashMap::new(),
-                0,
-            )
-            .unwrap();
-        assert_eq!(congested_objects, vec![shared_obj_2]);
-        shared_object_congestion_tracker.bump_object_execution_cost(&tx_3);
-        // After checking the third transaction for deferring, the suggested gas price
-        // for transactions (having at least one common shared object with this
-        // transaction) to be non-deferred must be the second transaction's gas price
-        assert_eq!(
-            shared_object_congestion_tracker
-                .compute_suggested_gas_price(&tx_1)
-                .unwrap(),
-            tx_2.transaction_data().gas_price()
-        );
-        assert_eq!(
-            shared_object_congestion_tracker
-                .compute_suggested_gas_price(&tx_2)
-                .unwrap(),
-            tx_2.transaction_data().gas_price()
-        );
-        assert_eq!(
-            shared_object_congestion_tracker
-                .compute_suggested_gas_price(&tx_3)
-                .unwrap(),
-            tx_2.transaction_data().gas_price()
-        );
-        assert_eq!(
-            shared_object_congestion_tracker
-                .compute_suggested_gas_price(&tx_4)
-                .unwrap(),
-            tx_2.transaction_data().gas_price()
-        );
-
-        // The fourth transaction should be deferred
-        let (_, congested_objects) = shared_object_congestion_tracker
-            .should_defer_due_to_object_congestion(
-                &tx_4,
-                max_accumulated_txn_cost_per_object_in_commit,
-                &HashMap::new(),
-                0,
-            )
-            .unwrap();
-        assert_eq!(congested_objects, vec![shared_obj_3]);
-        shared_object_congestion_tracker.bump_object_execution_cost(&tx_4);
-        // After checking the fourth transaction for deferring, the suggested gas price
-        // for transactions (having at least one common shared object with this
-        // transaction) to be non-deferred must be the second transaction's gas price
-        assert_eq!(
-            shared_object_congestion_tracker
-                .compute_suggested_gas_price(&tx_1)
-                .unwrap(),
-            tx_2.transaction_data().gas_price()
-        );
-        assert_eq!(
-            shared_object_congestion_tracker
-                .compute_suggested_gas_price(&tx_2)
-                .unwrap(),
-            tx_2.transaction_data().gas_price()
-        );
-        assert_eq!(
-            shared_object_congestion_tracker
-                .compute_suggested_gas_price(&tx_3)
-                .unwrap(),
-            tx_2.transaction_data().gas_price()
-        );
-        assert_eq!(
-            shared_object_congestion_tracker
-                .compute_suggested_gas_price(&tx_4)
-                .unwrap(),
-            tx_2.transaction_data().gas_price()
-        );
-
-        // Create new shared objects
-        let shared_obj_4 = ObjectID::random();
-        let shared_obj_5 = ObjectID::random();
-
-        // Create second congestion region, completely independent from the first one,
-        // with three dependent transactions accessing shared objects by mutable and
-        // immutable references
-        let tx_1 = build_transaction(
-            &[(shared_obj_4, true), (shared_obj_5, false)],
-            tx_gas_budget,
-            1_003,
-        );
-        let tx_2 = build_transaction(
-            &[(shared_obj_4, false), (shared_obj_5, false)],
-            tx_gas_budget,
-            1_002,
-        );
-        let tx_3 = build_transaction(
-            &[(shared_obj_4, false), (shared_obj_5, true)],
-            tx_gas_budget,
-            1_001,
-        );
-
-        // The first transaction should not be deferred
-        assert!(
-            shared_object_congestion_tracker
-                .should_defer_due_to_object_congestion(
-                    &tx_1,
-                    max_accumulated_txn_cost_per_object_in_commit,
-                    &HashMap::new(),
-                    0,
-                )
-                .is_none()
-        );
-        shared_object_congestion_tracker.bump_object_execution_cost(&tx_1);
-        // After checking the first transaction for deferring, the suggested gas price
-        // for transactions (having at least one common shared object with this
-        // transaction) to be non-deferred must be the first transaction's gas price
-        assert_eq!(
-            shared_object_congestion_tracker
-                .compute_suggested_gas_price(&tx_1)
-                .unwrap(),
-            tx_1.transaction_data().gas_price()
-        );
-        assert_eq!(
-            shared_object_congestion_tracker
-                .compute_suggested_gas_price(&tx_2)
-                .unwrap(),
-            tx_1.transaction_data().gas_price()
-        );
-        assert_eq!(
-            shared_object_congestion_tracker
-                .compute_suggested_gas_price(&tx_3)
-                .unwrap(),
-            tx_1.transaction_data().gas_price()
-        );
-
-        // The second transaction should not be deferred
-        assert!(
-            shared_object_congestion_tracker
-                .should_defer_due_to_object_congestion(
-                    &tx_2,
-                    max_accumulated_txn_cost_per_object_in_commit,
-                    &HashMap::new(),
-                    0,
-                )
-                .is_none()
-        );
-        shared_object_congestion_tracker.bump_object_execution_cost(&tx_2);
-        // After checking the second transaction for deferring, the suggested gas price
-        // for transactions (having at least one common shared object with this
-        // transaction) to be non-deferred must be the first transaction's gas price
-        assert_eq!(
-            shared_object_congestion_tracker
-                .compute_suggested_gas_price(&tx_1)
-                .unwrap(),
-            tx_1.transaction_data().gas_price()
-        );
-        assert_eq!(
-            shared_object_congestion_tracker
-                .compute_suggested_gas_price(&tx_2)
-                .unwrap(),
-            tx_1.transaction_data().gas_price()
-        );
-        assert_eq!(
-            shared_object_congestion_tracker
-                .compute_suggested_gas_price(&tx_3)
-                .unwrap(),
-            tx_1.transaction_data().gas_price()
-        );
-
-        // The third transaction should not be deferred
-        assert!(
-            shared_object_congestion_tracker
-                .should_defer_due_to_object_congestion(
-                    &tx_3,
-                    max_accumulated_txn_cost_per_object_in_commit,
-                    &HashMap::new(),
-                    0,
-                )
-                .is_none()
-        );
-        shared_object_congestion_tracker.bump_object_execution_cost(&tx_3);
-        // After checking the third transaction for deferring, the suggested gas price
-        // for transactions (having at least one common shared object with this
-        // transaction) to be non-deferred must be the third transaction's gas price
-        assert_eq!(
-            shared_object_congestion_tracker
-                .compute_suggested_gas_price(&tx_1)
-                .unwrap(),
-            tx_3.transaction_data().gas_price()
-        );
-        assert_eq!(
-            shared_object_congestion_tracker
-                .compute_suggested_gas_price(&tx_2)
-                .unwrap(),
-            tx_3.transaction_data().gas_price()
-        );
-        assert_eq!(
-            shared_object_congestion_tracker
-                .compute_suggested_gas_price(&tx_3)
-                .unwrap(),
-            tx_3.transaction_data().gas_price()
-        );
-
-        // Create new shared objects
-        let shared_obj_6 = ObjectID::random();
-        let shared_obj_7 = ObjectID::random();
-
-        // Create transactions that read newly created shared objects by
-        // immutable references
-        let tx_1 = build_transaction(
-            &[(shared_obj_6, false), (shared_obj_7, false)],
-            tx_gas_budget,
-            1_003,
-        );
-        let tx_2 = build_transaction(
-            &[(shared_obj_6, false), (shared_obj_7, false)],
-            tx_gas_budget,
-            1_002,
-        );
-        let tx_3 = build_transaction(
-            &[(shared_obj_6, false), (shared_obj_7, false)],
-            tx_gas_budget,
-            1_001,
-        );
-
-        // The first transaction should not be deferred
-        assert!(
-            shared_object_congestion_tracker
-                .should_defer_due_to_object_congestion(
-                    &tx_1,
-                    max_accumulated_txn_cost_per_object_in_commit,
-                    &HashMap::new(),
-                    0,
-                )
-                .is_none()
-        );
-        shared_object_congestion_tracker.bump_object_execution_cost(&tx_1);
-        // The second transaction should not be deferred
-        assert!(
-            shared_object_congestion_tracker
-                .should_defer_due_to_object_congestion(
-                    &tx_2,
-                    max_accumulated_txn_cost_per_object_in_commit,
-                    &HashMap::new(),
-                    0,
-                )
-                .is_none()
-        );
-        shared_object_congestion_tracker.bump_object_execution_cost(&tx_2);
-        // The third transaction should not be deferred
-        assert!(
-            shared_object_congestion_tracker
-                .should_defer_due_to_object_congestion(
-                    &tx_3,
-                    max_accumulated_txn_cost_per_object_in_commit,
-                    &HashMap::new(),
-                    0,
-                )
-                .is_none()
-        );
-        shared_object_congestion_tracker.bump_object_execution_cost(&tx_3);
-        // Since all transactions read shared objects, there are no deferrals,
-        // and thus, there is no need to include suggested gas price
-        assert!(
-            shared_object_congestion_tracker
-                .compute_suggested_gas_price(&tx_1)
-                .is_none()
-        );
-        assert!(
-            shared_object_congestion_tracker
-                .compute_suggested_gas_price(&tx_2)
-                .is_none()
-        );
-        assert!(
-            shared_object_congestion_tracker
-                .compute_suggested_gas_price(&tx_3)
-                .is_none()
         );
     }
 }

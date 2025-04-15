@@ -1766,7 +1766,7 @@ impl AuthorityPerEpochStore {
         dkg_failed: bool,
         generating_randomness: bool,
         previously_deferred_tx_digests: &HashMap<TransactionDigest, DeferralKey>,
-        shared_object_congestion_tracker: &mut SharedObjectCongestionTracker,
+        shared_object_congestion_tracker: &SharedObjectCongestionTracker,
     ) -> Option<(DeferralKey, DeferralReason)> {
         // Defer transaction if it uses randomness but we aren't generating any this
         // round. Don't defer if DKG has permanently failed; in that case we
