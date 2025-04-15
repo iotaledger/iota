@@ -378,8 +378,8 @@ impl ArchiveReader {
             .await
     }
 
-    /// Load given list of checkpoints from archive into the input store `S`.
-    /// Summaries are downloaded out of order and inserted without verification
+    /// Downloads a given list of checkpoints from archive to disk while
+    /// skipping those that exist already.
     pub async fn download_summaries_for_list_no_verify(
         &self,
         picklist: Vec<CheckpointSequenceNumber>,

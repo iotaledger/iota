@@ -69,13 +69,13 @@ impl Config {
         }
         if !self.checkpoints_list_file_path().is_file() {
             bail!(
-                "Sync file is missing at {}",
+                "Sync file is missing at: {}",
                 self.checkpoints_list_file_path().display()
             );
         }
         if !self.genesis_blob_file_path().is_file() {
             bail!(
-                "Genesis file is missing at {}",
+                "Genesis file is missing at: {}",
                 self.genesis_blob_file_path().display()
             );
         }
@@ -129,17 +129,18 @@ mod tests {
         std::fs::File::create(temp_dir.path().join("genesis.blob")).unwrap();
         std::fs::File::create(temp_dir.path().join("checkpoints.yaml")).unwrap();
         let config = Config {
-            checkpoints_dir: temp_dir.path().to_path_buf(),
             rpc_url: "http://localhost:9000".to_string(),
+            graphql_url: Some("http://localhost:9003".to_string()),
+            checkpoints_dir: temp_dir.path().to_path_buf(),
+            sync_before_check: false,
             object_store_url: Some("http://localhost:9001".to_string()),
             archive_store_config: Some(ObjectStoreConfig {
                 object_store: Some(ObjectStoreType::File),
                 directory: Some(temp_dir.path().to_path_buf()),
                 ..Default::default()
             }),
-            graphql_url: Some("http://localhost:9003".to_string()),
-            sync_before_check: false,
         };
+        config.validate().expect("invalid");
         (config, temp_dir)
     }
 

@@ -331,6 +331,7 @@ pub async fn sync_and_check_checkpoints(config: &Config) -> anyhow::Result<()> {
         archive_reader.sync_manifest_once().await?;
         archive_reader
     } else {
+        // TODO allow using checkpoint object store once available
         bail!("archive store required for now");
     };
 
