@@ -21,6 +21,7 @@ import { generateTransactionsTableColumns } from '~/lib/ui';
 import { useState } from 'react';
 import { PAGE_SIZES_RANGE_10_50 } from '~/lib';
 import { useCursorPagination } from '@iota/core';
+import clsx from 'clsx';
 
 const PAGE_RANGE = PAGE_SIZES_RANGE_10_50;
 
@@ -128,19 +129,29 @@ export function TransactionsForAddress({ address }: TransactionsForAddressProps)
             lastPage.hasNextPage ? (lastPage.nextCursor ?? null) : null,
     });
 
-    const { data, isPending, isFetchingNextPage, isError, pagination } =
+    const { data, isPending, isFetchingNextPage, isError, pagination, hasNextPage } =
         useCursorPagination(transactions);
 
     return (
-        <TransactionsForAddressTable
-            data={data?.data ?? []}
-            isPending={isPending}
-            isError={isError}
-            address={address}
-            limit={limit}
-            setLimit={setLimit}
-            pagination={pagination}
-            isFetchingNextPage={isFetchingNextPage}
-        />
+        <div
+            className={clsx(
+                hasNextPage && limit === 10 && 'min-h-[700px]',
+                hasNextPage && limit === 20 && 'min-h-[1240px]',
+                hasNextPage && limit === 30 && 'min-h-[1800px]',
+                hasNextPage && limit === 40 && 'min-h-[2360px]',
+                hasNextPage && limit === 50 && 'min-h-[2920px]',
+            )}
+        >
+            <TransactionsForAddressTable
+                data={data?.data ?? []}
+                isPending={isPending}
+                isError={isError}
+                address={address}
+                limit={limit}
+                setLimit={setLimit}
+                pagination={pagination}
+                isFetchingNextPage={isFetchingNextPage}
+            />
+        </div>
     );
 }
