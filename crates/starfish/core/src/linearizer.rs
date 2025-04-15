@@ -5,6 +5,7 @@
 use std::{collections::HashSet, sync::Arc};
 
 use parking_lot::RwLock;
+use tracing::debug;
 use starfish_config::AuthorityIndex;
 
 use crate::{
@@ -14,6 +15,7 @@ use crate::{
     dag_state::DagState,
     leader_schedule::LeaderSchedule,
 };
+use crate::block::GENESIS_ROUND;
 
 /// The `StorageAPI` trait provides an interface for the block store and has
 /// been mostly introduced for allowing to inject the test store in
@@ -155,7 +157,10 @@ impl Linearizer {
                         &x.ancestors()
                             .iter()
                             .copied()
-                            .filter(|ancestor| !dag_state.is_committed(ancestor))
+                            .filter(|ancestor| {
+                                ancestor.round > GENESIS_ROUND &&
+                                !dag_state.is_committed(ancestor)
+                            })
                             .collect::<Vec<_>>(),
                     )
                     .into_iter()
