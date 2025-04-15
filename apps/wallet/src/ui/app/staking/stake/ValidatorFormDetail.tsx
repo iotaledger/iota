@@ -34,7 +34,6 @@ export function ValidatorFormDetail({ validatorAddress, unstake }: ValidatorForm
         delegatedStakeDataResult,
         systemDataResult,
         commission,
-        isCommitteeMember,
     } = useGetStakingValidatorDetails({
         accountAddress,
         validatorAddress,
