@@ -708,6 +708,7 @@ mod tests {
         }
     }
 
+    #[cfg(feature = "gc_tests")]
     #[rstest]
     #[tokio::test]
     async fn test_handle_commit_below_highest_committed_round(#[values(3)] gc_depth: u32) {
