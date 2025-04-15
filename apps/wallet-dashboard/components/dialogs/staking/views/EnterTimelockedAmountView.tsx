@@ -19,6 +19,8 @@ import { getAmountFromGroupedTimelockObjects, useNewStakeTimelockedTransaction }
 import { prepareObjectsForTimelockedStakingTransaction } from '@/lib/utils';
 import { EnterAmountDialogLayout } from './EnterAmountDialogLayout';
 import { ampli } from '@/lib/utils/analytics';
+import { InfoBox, InfoBoxStyle, InfoBoxType } from '@iota/apps-ui-kit';
+import { Exclamation } from '@iota/apps-ui-icons';
 
 interface FormValues {
     amount: string;
@@ -181,9 +183,17 @@ export function EnterTimelockedAmountView({
             totalGas={newStakeData?.gasSummary?.totalGas}
             senderAddress={senderAddress}
             caption={caption}
-            showInfo={!!info.message}
-            infoTitle={info.title}
-            infoMessage={info.message}
+            renderInfo={
+                info.message ? (
+                    <InfoBox
+                        title={info.title}
+                        type={InfoBoxType.Error}
+                        supportingText={info.message}
+                        style={InfoBoxStyle.Elevated}
+                        icon={<Exclamation />}
+                    />
+                ) : undefined
+            }
             isLoading={isTransactionLoading}
             isStakeDisabled={!hasGroupedTimelockObjects || isSearchingProtocolMaxAmount}
             onBack={onBack}

@@ -17,7 +17,7 @@ function HomeDashboardPage(): JSX.Element {
             : 'https://files.iota.org/media/tooling/wallet-dashboard-welcome-light.mp4';
 
     return (
-        <main className="flex h-screen">
+        <main className="welcome-page flex h-screen">
             <div className="relative hidden sm:flex md:w-1/3">
                 <video
                     key={theme}

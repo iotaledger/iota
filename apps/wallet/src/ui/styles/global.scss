@@ -69,59 +69,12 @@ body {
     box-sizing: border-box;
 }
 
-.btn {
-    padding: 15px;
-    border-radius: 4px;
-    background-color: #8bc3df;
-    text-decoration: none;
-    border: none;
-    display: inline-block;
-    font-weight: 700;
-    cursor: pointer;
-    color: black;
-
-    &.link {
-        background-color: transparent;
-    }
-
-    &:visited,
-    &:active {
-        color: inherit;
-    }
-
-    &.disabled,
-    &[disabled] {
-        cursor: initial;
-        color: #707070;
-    }
-}
-
 input:focus,
 textarea {
     outline: none !important;
 }
 
-textarea {
-    font-family: 'Inter Variable', sans-serif;
-}
-
-input {
-    font-family: 'Inter Variable', sans-serif;
-}
-
 // remove default password reveal button edge
 ::-ms-reveal {
     display: none;
-}
-
-@keyframes fade-in-up {
-    0% {
-        opacity: 0.2;
-        transform: translateY(10px);
-    }
-
-    100% {
-        opacity: 1;
-        transform: translateY(0);
-    }
 }
