@@ -11,7 +11,16 @@ import {
 } from '@iota/core';
 import cl from 'clsx';
 import { useCallback, useMemo, useState } from 'react';
-import { Button, InfoBox, InfoBoxStyle, InfoBoxType, LoadingIndicator } from '@iota/apps-ui-kit';
+import {
+    Button,
+    InfoBox,
+    InfoBoxStyle,
+    InfoBoxType,
+    LoadingIndicator,
+    Title,
+    TitleSize,
+    TooltipPosition,
+} from '@iota/apps-ui-kit';
 import { useNavigate } from 'react-router-dom';
 import { Warning } from '@iota/apps-ui-icons';
 
@@ -86,6 +95,13 @@ export function SelectValidatorCard() {
         );
     }
 
+    const committeeMemberValidators = validatorList.filter((validator) =>
+        isAddressCommitteeMember(validator.address),
+    );
+    const nonCommitteeMemberValidators = validatorList.filter(
+        (validator) => !isAddressCommitteeMember(validator.address),
+    );
+
     if (isError) {
         return (
             <div className="mb-2 flex h-full w-full items-center justify-center p-2">
@@ -101,43 +117,62 @@ export function SelectValidatorCard() {
     }
     return (
         <div className="flex h-full w-full flex-col justify-between overflow-hidden">
-            <div className="flex max-h-[530px] w-full flex-1 flex-col items-start overflow-auto">
-                {data &&
-                    validatorList.map((validator) => (
-                        <div
-                            className={cl('group relative w-full cursor-pointer', {
-                                'rounded-xl bg-shader-neutral-light-8':
-                                    selectedValidator?.address === validator.address,
-                                'opacity-50': !isAddressCommitteeMember(validator.address),
-                            })}
-                            key={validator.address}
-                        >
-                            <Validator
-                                address={validator.address}
-                                onClick={() => {
-                                    selectValidator(validator);
-                                }}
-                            />
-                        </div>
-                    ))}
-            </div>
-            {selectedValidator && (
-                <Button
-                    fullWidth
-                    data-testid="select-validator-cta"
-                    onClick={() => {
-                        ampli.selectedValidator({
-                            validatorName: selectedValidator.name,
-                            validatorAddress: selectedValidator.address,
-                            validatorAPY: selectedValidator.apy || 0,
-                        });
-                        navigate(
-                            `/stake/new?address=${encodeURIComponent(selectedValidator.address)}`,
-                        );
-                    }}
-                    text="Next"
+            <div className="flex max-h-[530px] w-full flex-1 flex-col items-start gap-3 overflow-auto">
+                {committeeMemberValidators.map((validator) => (
+                    <div
+                        className={cl('group relative w-full cursor-pointer', {
+                            'rounded-xl bg-shader-neutral-light-8':
+                                selectedValidator?.address === validator.address,
+                        })}
+                        key={validator.address}
+                    >
+                        <Validator
+                            address={validator.address}
+                            onClick={() => selectValidator(validator)}
+                        />
+                    </div>
+                ))}
+
+                <Title
+                    size={TitleSize.Small}
+                    title="Currently not earning rewards"
+                    tooltipText="These validators are not part of the committee."
+                    tooltipPosition={TooltipPosition.Left}
                 />
-            )}
+
+                {nonCommitteeMemberValidators.map((validator) => (
+                    <div
+                        className={cl('group relative w-full cursor-pointer', {
+                            'rounded-xl bg-shader-neutral-light-8':
+                                selectedValidator?.address === validator.address,
+                        })}
+                        key={validator.address}
+                    >
+                        <Validator
+                            address={validator.address}
+                            onClick={() => selectValidator(validator)}
+                        />
+                    </div>
+                ))}
+            </div>
+
+            <Button
+                fullWidth
+                data-testid="select-validator-cta"
+                onClick={() => {
+                    ampli.selectedValidator({
+                        validatorName: selectedValidator?.name,
+                        validatorAddress: selectedValidator?.address,
+                        validatorAPY: selectedValidator?.apy || 0,
+                    });
+                    selectedValidator &&
+                        navigate(
+                            `/stake/new?address=${encodeURIComponent(selectedValidator?.address)}`,
+                        );
+                }}
+                text="Next"
+                disabled={!selectedValidator}
+            />
         </div>
     );
 }

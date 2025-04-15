@@ -1,8 +1,7 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import cl from 'clsx';
-import { Button, Header } from '@iota/apps-ui-kit';
+import { Button, Header, Title, TitleSize, TooltipPosition } from '@iota/apps-ui-kit';
 import { Validator } from '@iota/core';
 import { DialogLayout, DialogLayoutBody, DialogLayoutFooter } from '../../layout';
 import { useIsValidatorCommitteeMember } from '@/hooks';
@@ -24,17 +23,38 @@ export function SelectValidatorView({
 }: SelectValidatorViewProps): JSX.Element {
     const { isCommitteeMember } = useIsValidatorCommitteeMember();
 
+    const committeeMemberValidators = validators.filter((validator) =>
+        isCommitteeMember(validator),
+    );
+    const nonCommitteeMemberValidators = validators.filter(
+        (validator) => !isCommitteeMember(validator),
+    );
+
     return (
         <DialogLayout>
             <Header title="Validator" onClose={handleClose} onBack={handleClose} titleCentered />
             <DialogLayoutBody>
                 <div className="flex w-full flex-col gap-md">
                     <div className="flex w-full flex-col">
-                        {validators.map((validator) => (
-                            <div
-                                key={validator}
-                                className={cl({ 'opacity-50': !isCommitteeMember(validator) })}
-                            >
+                        {committeeMemberValidators.map((validator) => (
+                            <div key={validator}>
+                                <Validator
+                                    address={validator}
+                                    onClick={() => onSelect(validator)}
+                                    isSelected={selectedValidator === validator}
+                                />
+                            </div>
+                        ))}
+                    </div>
+                    <Title
+                        size={TitleSize.Small}
+                        title="Currently not earning rewards"
+                        tooltipText="These validators are not part of the committee."
+                        tooltipPosition={TooltipPosition.Left}
+                    />
+                    <div className="flex w-full flex-col">
+                        {nonCommitteeMemberValidators.map((validator) => (
+                            <div key={validator}>
                                 <Validator
                                     address={validator}
                                     onClick={() => onSelect(validator)}
