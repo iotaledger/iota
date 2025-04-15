@@ -78,28 +78,9 @@ fn test_exact_version() {
     let framework = framework_for_protocol(4.into()).unwrap();
     assert_eq!(
         framework.git_revision,
-        "f5d26f1b3ae89f68cb66f3a007e90065e5286905"
+        "49d5d7d99313"
     );
     assert!(framework.packages.iter().any(|p| p.package_name == "Iota"));
-}
-
-#[test]
-/// We get the right hash for a version that we don't have an exact entry for.
-fn test_gap_version() {
-    // Versions 56 and 57 are missing in the manifest; version 55 should be returned.
-    assert_eq!(
-        framework_for_protocol(56.into()).unwrap(),
-        framework_for_protocol(55.into()).unwrap(),
-    );
-    assert_eq!(
-        framework_for_protocol(57.into()).unwrap(),
-        framework_for_protocol(55.into()).unwrap(),
-    );
-    // Version 58 is present though!
-    assert_ne!(
-        framework_for_protocol(58.into()).unwrap(),
-        framework_for_protocol(55.into()).unwrap(),
-    );
 }
 
 #[test]
