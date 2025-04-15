@@ -84,6 +84,23 @@ fn test_exact_version() {
 }
 
 #[test]
+#[ignore = "this test is not applicable, as we do not have version gaps yet."]
+/// We get the right hash for a version that we don't have an exact entry for.
+/// TODO: enable once a gap version is created.
+fn test_gap_version() {
+    // If versions 4 is missing in the manifest; version 3 should be returned.
+    assert_eq!(
+        framework_for_protocol(4.into()).unwrap(),
+        framework_for_protocol(3.into()).unwrap(),
+    );
+    // Version 5 is present though!
+    assert_ne!(
+        framework_for_protocol(5.into()).unwrap(),
+        framework_for_protocol(3.into()).unwrap(),
+    );
+}
+
+#[test]
 /// We get the correct hash for the latest known protocol version.
 fn test_version_latest() {
     assert_eq!(
