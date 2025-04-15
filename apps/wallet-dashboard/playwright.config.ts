@@ -1,11 +1,9 @@
 import { defineConfig, devices } from '@playwright/test';
-import path from 'path';
 
 /**
  * See https://playwright.dev/docs/test-configuration.
  */
 export default defineConfig({
-    globalSetup: path.join(__dirname, 'playwright-setup.ts'),
     testDir: './tests',
     /* Run tests in files in parallel */
     fullyParallel: true,
