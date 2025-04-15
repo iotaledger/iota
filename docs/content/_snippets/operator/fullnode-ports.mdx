@@ -1,0 +1,14 @@
+:::info Default Firewall Ports
+
+Make sure to open these ports in your firewall configuration.  
+(These are the defaults, but may vary if you customized them at setup)
+
+| Protocol/Port | Reachability     | Purpose                                   | Description                                                                     |
+| ------------- | ---------------- | ----------------------------------------- | ------------------------------------------------------------------------------- |
+| TCP/8080      | Outbound         | Validator/transaction interface           | full nodes connect to validators to collect partial signatures for transactions |
+| UDP/8084      | Inbound/Outbound | Peer-to-peer state sync interface         | nodes sync their state with each other                                          |
+| TCP/9000      | Inbound          | JSON RPC endpoint / Web socket (optional) | API for interaction with the network                                            |
+| TCP/9184      | Localhost        | Prometheus metrics scraping               | for local monitoring only                                                       |
+
+
+:::

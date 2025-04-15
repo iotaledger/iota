@@ -31,10 +31,10 @@ impl Worker for CustomWorker {
 async fn main() -> Result<()> {
     let (executor, _) = setup_single_workflow(
         CustomWorker,
-        "https://api.testnet.iota.cafe/api/v1".to_string(),
-        0,    // initial checkpoint number
-        5,    // concurrency
-        None, // extra reader options
+        "http://127.0.0.1:9000/api/v1".to_string(), // fullnode REST API
+        0,                                          // initial checkpoint number
+        5,                                          // concurrency
+        None,                                       // extra reader options
     )
     .await?;
     executor.await?;

@@ -6,84 +6,9 @@ slug: /exchange-integration-guide
 
 This topic describes how to integrate IOTA, the token native to the IOTA network, into a cryptocurrency exchange. The specific requirements and processes to implement an integration vary between exchanges. Rather than provide a step-by-step guide, this topic provides information about the primary tasks necessary to complete an integration. After the guidance about how to configure an integration, you can also find information and code samples related to staking on the IOTA network.
 
-## Requirements to configure an IOTA integration
+## Configure an IOTA Full node
 
-The requirements to configure an IOTA integration include:
-
-- An IOTA full node. You can operate your own IOTA full node or use a full node from a node operator.
-- Suggested minimum hardware to run an IOTA full node:
-  - CPUs: 8 physical cores / 16 vCPUs
-  - RAM: 128 GB
-  - Storage (SSD): 4 TB NVMe drive
-
-For best results, run IOTA full nodes on Linux. IOTA supports the Ubuntu and Debian distributions. You can also fun a full node on macOS.
-
-## Configure an IOTA full node
-
-You can set up and configure an IOTA full node using Docker or directly from source code in the IOTA GitHub repository.
-
-### Install an IOTA full node using Docker
-
-Run the command in this section using the same branch of the repository for each. Replace `branch-name` with the branch you use. For example, use `devnet` to use the IOTA Devnet network, or use `testnet` to use the IOTA Testnet network. You must download all files to, and run all commands from, the same folder location.
-
-1.  Install [Docker](https://docs.docker.com/get-docker/) and [Docker Compose](https://docs.docker.com/compose/install/). Docker Desktop version installs Docker Compose.
-1.  Install dependencies for Linux:
-    ```bash
-    apt update \
-    && apt install -y --no-install-recommends \
-    tzdata \
-    ca-certificates \
-    build-essential \
-    pkg-config \
-    cmake
-    ```
-1.  Download the docker-compose.yaml file:
-    ```bash
-    wget https://github.com/iotaledger/iota/blob/branch-name/setups/fullnode/docker/docker-compose.yaml
-    ```
-1.  Download the fullnode-template.yaml file:
-    ```bash
-    wget https://github.com/iotaledger/iota/raw/branch-name/crates/iota-config/data/fullnode-template.yaml
-    ```
-1.  Download the genesis.blob file:
-    ```bash
-    wget https://dbfiles.testnet.iota.cafe/genesis.blob
-    ```
-1.  Start the full node. The -d switch starts it in the background (detached mode).
-    ```bash
-    docker-compose up -d
-    ```
-
-## Install an IOTA full node from source
-
-Use the steps in this section to install and configure an IOTA full node directly from the IOTA GitHub repository. These steps use [Cargo](https://doc.rust-lang.org/cargo/), the Rust package manager.
-
-1.  Install prerequisites for IOTA.
-1.  Clone the IOTA repository:
-    ```bash
-    git clone https://github.com/iotaledger/iota.git -b branch-name
-    ```
-    Replace `branch-name` with the branch to use. You should use the same branch for all commands.
-1.  Change directories to /iota:
-    ```bash
-    cd iota
-    ```
-1.  Copy the fullnode.yaml template:
-    ```bash
-    cp crates/iota-config/data/fullnode-template.yaml fullnode.yaml
-    ```
-1.  Download the genesis.blob file:
-    ```bash
-    wget https://github.com/iotaledger/iota-genesis/raw/main/branch-name/genesis.blob
-    ```
-    Change branch-name to the same branch you used for previous commands.
-1.  Optionally, if you installed IOTA to a path other than the default, modify the fullnode.yaml file to use the path you used. Update the path to the folder where you installed iota-fullnode for the `db-path` and `genesis-file-location` as appropriate:
-    `db-path: "/db-files/iota-fullnode-folder"`
-    `genesis-file-location: "/iota-fullnode-folder/genesis.blob"`
-1.  Start you IOTA full node:
-    ```bash
-    cargo run --release --bin iota-node -- --config-path fullnode.yaml
-    ```
+You can set up and configure a [IOTA full node](../operator/full-node/overview.mdx) using Docker or directly from source code in the IOTA GitHub repository.
 
 ## Set up IOTA addresses
 
