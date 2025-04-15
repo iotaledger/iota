@@ -5,7 +5,6 @@
 /sdk/ @iotaledger/tooling
 
 /consensus/ @iotaledger/consensus
-/consensus-starfish/ @iotaledger/consensus
 
 # Crates
 /crates/bin-version/ @iotaledger/dev-tools
@@ -86,6 +85,7 @@
 /crates/prometheus-closure-metric/ @iotaledger/node
 /crates/shared-crypto/ @iotaledger/core-protocol
 /crates/simulacrum/ @iotaledger/vm-language
+/crates/starfish/ @iotaledger/consensus
 /crates/telemetry-subscribers/ @iotaledger/core-protocol
 /crates/transaction-fuzzer/ @iotaledger/node @iotaledger/vm-language
 /crates/test-cluster/ @iotaledger/infrastructure
