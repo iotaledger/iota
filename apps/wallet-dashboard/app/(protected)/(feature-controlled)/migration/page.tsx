@@ -26,7 +26,7 @@ import {
     STARDUST_BASIC_OUTPUT_TYPE,
     STARDUST_NFT_OUTPUT_TYPE,
     toast,
-    toBech32,
+    addressToStardustBech32,
     useCopyToClipboard,
     useFormatCoin,
     useStardustIndexerClientContext,
@@ -38,7 +38,7 @@ import { useRouter } from 'next/navigation';
 function MigrationDashboardPage(): JSX.Element {
     const account = useCurrentAccount();
     const address = account?.address || '';
-    const bech32Address = toBech32(address);
+    const bech32Address = addressToStardustBech32(address);
     const queryClient = useQueryClient();
     const iotaClient = useIotaClient();
     const router = useRouter();
@@ -216,6 +216,19 @@ function MigrationDashboardPage(): JSX.Element {
                         />
                     )}
                     <Panel>
+                        <div className="flex flex-col gap-y-xxxs break-all rounded-md px-md--rs py-sm--rs">
+                            <span className="text-label-md">Stardust address</span>
+                            <Address
+                                text={bech32Address}
+                                isExternal
+                                externalLink={`https://explorer.iota.org/mainnet/addr/${bech32Address}`}
+                                isCopyable
+                                copyText={bech32Address}
+                                onCopySuccess={handleCopy}
+                            />
+                        </div>
+                    </Panel>
+                    <Panel>
                         <Title
                             title="Migration"
                             trailingElement={
@@ -227,17 +240,6 @@ function MigrationDashboardPage(): JSX.Element {
                                 />
                             }
                         />
-                        <div className="px-md--rs">
-                            <div className="flex flex-col gap-y-xxxs break-all rounded-md bg-neutral-96 px-sm py-sm dark:bg-neutral-10">
-                                <span className="text-label-sm">Stardust address</span>
-                                <Address
-                                    text={bech32Address}
-                                    isCopyable
-                                    copyText={bech32Address}
-                                    onCopySuccess={handleCopy}
-                                />
-                            </div>
-                        </div>
                         <div className="flex flex-col gap-xs p-sm--rs">
                             {MIGRATION_CARDS.map((card) => (
                                 <MigrationDisplayCard
