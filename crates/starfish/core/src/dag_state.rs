@@ -2312,6 +2312,7 @@ mod test {
         dag_state.get_last_cached_block_per_authority(end_round);
     }
 
+    #[cfg(feature = "gc_tests")]
     #[tokio::test]
     #[should_panic(
         expected = "Attempted to request for blocks of rounds < 2, when the last evicted round is 1 for authority [2]"
