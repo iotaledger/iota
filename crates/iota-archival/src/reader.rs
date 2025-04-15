@@ -337,13 +337,13 @@ impl ArchiveReader {
     pub async fn read_summaries_for_list_no_verify<S>(
         &self,
         store: S,
-        picklist: Vec<CheckpointSequenceNumber>,
+        checkpoints: Vec<CheckpointSequenceNumber>,
         checkpoint_counter: Arc<AtomicU64>,
     ) -> Result<()>
     where
         S: WriteStore + Clone,
     {
-        let summary_files = self.get_summary_files_for_list(picklist.clone()).await?;
+        let summary_files = self.get_summary_files_for_list(checkpoints.clone()).await?;
         let remote_object_store = self.remote_object_store.clone();
         let stream = futures::stream::iter(summary_files.iter())
             .map(|summary_metadata| {
@@ -366,7 +366,7 @@ impl ArchiveReader {
                     )
                     .and_then(|summary_iter| {
                         summary_iter
-                            .filter(|s| picklist.contains(&s.sequence_number))
+                            .filter(|s| checkpoints.contains(&s.sequence_number))
                             .try_for_each(|summary| {
                                 Self::insert_certified_checkpoint(&store, summary)?;
                                 checkpoint_counter.fetch_add(1, Ordering::Relaxed);
@@ -382,11 +382,11 @@ impl ArchiveReader {
     /// skipping those that exist already.
     pub async fn download_summaries_for_list_no_verify(
         &self,
-        picklist: Vec<CheckpointSequenceNumber>,
+        checkpoints: Vec<CheckpointSequenceNumber>,
         skiplist: Vec<CheckpointSequenceNumber>,
         download_dir: impl AsRef<Path>,
     ) -> Result<()> {
-        let summary_files = self.get_summary_files_for_list(picklist.clone()).await?;
+        let summary_files = self.get_summary_files_for_list(checkpoints.clone()).await?;
         let remote_object_store = self.remote_object_store.clone();
         let stream = futures::stream::iter(summary_files.iter())
             .map(|summary_metadata| {
@@ -410,12 +410,14 @@ impl ArchiveReader {
                     .and_then(|summary_iter| {
                         summary_iter
                             .filter(|s| {
-                                if picklist.contains(&s.sequence_number)
-                                    && !skiplist.contains(&s.sequence_number)
-                                {
-                                    true
+                                if checkpoints.contains(&s.sequence_number) {
+                                    if !skiplist.contains(&s.sequence_number) {
+                                        true
+                                    } else {
+                                        info!("Skipping {}", s.sequence_number);
+                                        false
+                                    }
                                 } else {
-                                    info!("Skipping {}", s.sequence_number);
                                     false
                                 }
                             })

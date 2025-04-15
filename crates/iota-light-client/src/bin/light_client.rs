@@ -17,17 +17,26 @@ use iota_types::{
     digests::TransactionDigest,
     object::{Data, bounded_visitor::BoundedVisitor},
 };
-use tracing::info;
+use tracing::debug;
 
-/// A light client for the IOTA blockchain
+// Define the `GIT_REVISION` and `VERSION` consts
+bin_version::bin_version!();
+
+// A light client for the IOTA blockchain
 #[derive(Parser, Debug)]
-#[command(author, version, about, long_about = None)]
+#[command(
+    name = env!("CARGO_BIN_NAME"),
+    about = env!("CARGO_PKG_DESCRIPTION"),
+    author,
+    version = VERSION,
+    propagate_version = true,
+)]
 struct Args {
     /// Sets a custom config file
     #[arg(short, long, value_name = "PATH")]
     config: Option<PathBuf>,
     #[command(subcommand)]
-    command: Option<LightClientCommand>,
+    command: LightClientCommand,
 }
 
 #[derive(Subcommand, Debug)]
@@ -50,9 +59,11 @@ pub enum LightClientCommand {
 
 #[tokio::main]
 pub async fn main() {
-    env_logger::init();
+    let _guard = telemetry_subscribers::TelemetryConfig::new()
+        .with_log_level("info")
+        .with_env()
+        .init();
 
-    // Command line arguments and config loading
     let args = Args::parse();
 
     let path = args
@@ -61,17 +72,12 @@ pub async fn main() {
     let config = Config::load(&path)
         .unwrap_or_else(|e| panic!("Unable to load config from {}: {e}", path.display()));
 
-    // Print config parameters
-    println!(
-        "Checkpoints directory: {}",
-        config.checkpoints_dir.display()
-    );
-
     let remote_package_store = RemotePackageStore::new(config.clone());
     let resolver = Resolver::new(remote_package_store);
 
+    debug!("IOTA Light Client CLI version: {VERSION}");
     match args.command {
-        Some(LightClientCommand::CheckTransaction { transaction_digest }) => {
+        LightClientCommand::CheckTransaction { transaction_digest } => {
             if config.sync_before_check {
                 sync_and_check_checkpoints(&config)
                     .await
@@ -114,7 +120,7 @@ pub async fn main() {
                 println!("No events found");
             }
         }
-        Some(LightClientCommand::CheckObject { object_id }) => {
+        LightClientCommand::CheckObject { object_id } => {
             if config.sync_before_check {
                 sync_and_check_checkpoints(&config)
                     .await
@@ -123,7 +129,7 @@ pub async fn main() {
 
             let object_id = ObjectID::from_str(&object_id).unwrap();
             let object = get_verified_object(&config, object_id).await.unwrap();
-            info!("Successfully verified object: {}", object_id);
+            println!("Successfully verified object: {}", object_id);
 
             if let Data::Move(move_object) = &object.data {
                 let object_type = move_object.type_().clone();
@@ -149,14 +155,10 @@ pub async fn main() {
                 );
             }
         }
-
-        Some(LightClientCommand::Sync) => {
+        LightClientCommand::Sync => {
             sync_and_check_checkpoints(&config)
                 .await
                 .expect("Failed to sync checkpoints");
-        }
-        _ => {
-            println!("No command...");
         }
     }
 }

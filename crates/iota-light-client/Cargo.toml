@@ -5,6 +5,7 @@ authors = ["IOTA Foundation <info@iota.org>"]
 edition = "2021"
 license = "Apache-2.0"
 publish = false
+description = "A light client for the IOTA blockchain"
 
 [lib]
 path = "src/lib.rs"
@@ -22,12 +23,14 @@ path = "src/bin/generate_chk_snapshots.rs"
 anyhow.workspace = true
 async-trait.workspace = true
 bcs.workspace = true
+bin-version.workspace = true
 clap.workspace = true
 env_logger = "0.11.5"
 getset = "0.1"
 log = "0.4.22"
 object_store.workspace = true
 prometheus.workspace = true
+reqwest.workspace = true
 roaring.workspace = true
 serde.workspace = true
 serde_json.workspace = true
@@ -36,6 +39,7 @@ tempfile = "3.8.0"
 tokio = { workspace = true, features = ["full"] }
 tracing.workspace = true
 url.workspace = true
+telemetry-subscribers.workspace = true
 
 # internal dependencies
 iota-archival.workspace = true

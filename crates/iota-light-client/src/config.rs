@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use std::{
-    fs,
+    fs::{self, File},
     path::{Path, PathBuf},
 };
 
@@ -24,6 +24,8 @@ pub struct Config {
     pub graphql_url: Option<String>,
     /// The directory containing synced checkpoints.
     pub checkpoints_dir: PathBuf,
+    /// The URL to download the genesis.blob file from.
+    pub genesis_blob_download_url: Option<String>,
     /// Flag to enable automatic syncing before running one of the check
     /// commands.
     pub sync_before_check: bool,
@@ -41,6 +43,7 @@ impl Default for Config {
             checkpoints_dir: std::env::current_dir()
                 .expect("error getting current directory")
                 .join("checkpoints_localnet"),
+            genesis_blob_download_url: None,
             sync_before_check: false,
             object_store_url: None,
             archive_store_config: None,
@@ -52,8 +55,23 @@ impl Config {
     pub fn load<P: AsRef<Path>>(path: P) -> Result<Self> {
         let file = fs::File::open(path)?;
         let config: Config = serde_yaml::from_reader(file)?;
+        config.setup()?;
         config.validate()?;
         Ok(config)
+    }
+
+    pub fn setup(&self) -> Result<()> {
+        if !self.checkpoints_dir.is_dir() {
+            std::fs::create_dir_all(&self.checkpoints_dir)?;
+        }
+        if !self.genesis_blob_file_path().is_file() {
+            if let Some(url) = &self.genesis_blob_download_url {
+                let mut resp = reqwest::blocking::get(url)?;
+                let mut file = File::create_new(self.genesis_blob_file_path())?;
+                std::io::copy(&mut resp, &mut file)?;
+            }
+        }
+        Ok(())
     }
 
     pub fn validate(&self) -> Result<()> {
@@ -61,23 +79,17 @@ impl Config {
         if !self.checkpoints_dir.is_dir() {
             bail!("Checkpoint directory does not exist");
         }
-        if let Some(url) = &self.object_store_url {
-            Url::parse(url).map_err(|_| anyhow!("Invalid object store URL"))?;
-        }
-        if let Some(url) = &self.graphql_url {
-            Url::parse(url).map_err(|_| anyhow!("Invalid GraphQL URL"))?;
-        }
-        if !self.checkpoints_list_file_path().is_file() {
-            bail!(
-                "Sync file is missing at: {}",
-                self.checkpoints_list_file_path().display()
-            );
-        }
         if !self.genesis_blob_file_path().is_file() {
             bail!(
                 "Genesis file is missing at: {}",
                 self.genesis_blob_file_path().display()
             );
+        }
+        if let Some(url) = &self.object_store_url {
+            Url::parse(url).map_err(|_| anyhow!("Invalid object store URL"))?;
+        }
+        if let Some(url) = &self.graphql_url {
+            Url::parse(url).map_err(|_| anyhow!("Invalid GraphQL URL"))?;
         }
         Ok(())
     }
@@ -127,11 +139,11 @@ mod tests {
     fn create_test_config() -> (Config, TempDir) {
         let temp_dir = TempDir::new().unwrap();
         std::fs::File::create(temp_dir.path().join("genesis.blob")).unwrap();
-        std::fs::File::create(temp_dir.path().join("checkpoints.yaml")).unwrap();
         let config = Config {
             rpc_url: "http://localhost:9000".to_string(),
             graphql_url: Some("http://localhost:9003".to_string()),
             checkpoints_dir: temp_dir.path().to_path_buf(),
+            genesis_blob_download_url: None,
             sync_before_check: false,
             object_store_url: Some("http://localhost:9001".to_string()),
             archive_store_config: Some(ObjectStoreConfig {
