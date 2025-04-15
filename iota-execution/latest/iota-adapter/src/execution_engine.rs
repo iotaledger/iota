@@ -340,8 +340,8 @@ mod checked {
                     version if version.is_congested() => Err(ExecutionError::new(
                         ExecutionErrorKind::ExecutionCancelledDueToSharedObjectCongestionV1 {
                             congested_objects: CongestedObjects(cancelled_objects),
-                            lowest_gas_price_of_non_cancelled_transaction: version
-                                .get_congested_version_gas_price(),
+                            suggested_gas_price: version
+                                .get_congested_version_suggested_gas_price(),
                         },
                         None,
                     )),

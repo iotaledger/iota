@@ -6199,7 +6199,9 @@ async fn test_consensus_handler_congestion_control_transaction_cancellation() {
         [
             (
                 shared_objects[0].id(),
-                SequenceNumber::new_congested_with_gas_price(gas_price_of_non_cancelled_txs)
+                SequenceNumber::new_congested_with_suggested_gas_price(
+                    gas_price_of_non_cancelled_txs
+                )
             ),
             (shared_objects[1].id(), SequenceNumber::CANCELLED_READ)
         ]
@@ -6234,7 +6236,9 @@ async fn test_consensus_handler_congestion_control_transaction_cancellation() {
         vec![
             SharedInput::Cancelled((
                 shared_objects[0].id(),
-                SequenceNumber::new_congested_with_gas_price(gas_price_of_non_cancelled_txs)
+                SequenceNumber::new_congested_with_suggested_gas_price(
+                    gas_price_of_non_cancelled_txs
+                )
             )),
             SharedInput::Cancelled((shared_objects[1].id(), SequenceNumber::CANCELLED_READ))
         ]
@@ -6245,7 +6249,7 @@ async fn test_consensus_handler_congestion_control_transaction_cancellation() {
     assert_eq!(cancelled_objects, vec![shared_objects[0].id()]);
     assert_eq!(
         cancellation_reason,
-        SequenceNumber::new_congested_with_gas_price(gas_price_of_non_cancelled_txs)
+        SequenceNumber::new_congested_with_suggested_gas_price(gas_price_of_non_cancelled_txs)
     );
 
     // Consensus commit prologue contains cancelled txn shared object version
@@ -6261,7 +6265,7 @@ async fn test_consensus_handler_congestion_control_transaction_cancellation() {
                 vec![
                     (
                         shared_objects[0].id(),
-                        SequenceNumber::new_congested_with_gas_price(gas_price_of_non_cancelled_txs),
+                        SequenceNumber::new_congested_with_suggested_gas_price(gas_price_of_non_cancelled_txs),
                     ),
                     (shared_objects[1].id(), SequenceNumber::CANCELLED_READ)
                 ]

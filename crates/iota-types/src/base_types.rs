@@ -1185,12 +1185,14 @@ impl SequenceNumber {
     }
 
     /// Returns a sequence number used for congested shared objects:
-    /// `SequenceNumber::MIN_CONGESTED.value()` + `gas_price`, where
-    /// `gas_price` is embedded into a congested sequence number to
-    /// facilitate a gas price feedback mechanism for transactions
+    /// `SequenceNumber::MIN_CONGESTED.value()` + `suggested_gas_price`,
+    /// where `suggested_gas_price` is embedded into a congested sequence
+    /// number to facilitate a gas price feedback mechanism for transactions
     /// cancelled due to shared object congestion
-    pub fn new_congested_with_gas_price(gas_price: u64) -> Self {
-        let (version, overflows) = Self::MIN_CONGESTED.value().overflowing_add(gas_price);
+    pub fn new_congested_with_suggested_gas_price(suggested_gas_price: u64) -> Self {
+        let (version, overflows) = Self::MIN_CONGESTED
+            .value()
+            .overflowing_add(suggested_gas_price);
         assert!(
             !overflows,
             "the calculated version for a congested shared objects overflows"
@@ -1204,10 +1206,11 @@ impl SequenceNumber {
         self >= &Self::MIN_CONGESTED
     }
 
-    /// Returns the `gas_price` embedded in this congested shared object
-    /// sequence number. The `gas_price` here is used for a gas price feedback
-    /// mechanism for transactions cancelled due to shared object congestion
-    pub fn get_congested_version_gas_price(&self) -> u64 {
+    /// Returns the `suggested_gas_price` embedded in this congested shared
+    /// object sequence number. The `suggested_gas_price` here is used for a
+    /// gas price feedback mechanism for transactions cancelled due to
+    /// shared object congestion
+    pub fn get_congested_version_suggested_gas_price(&self) -> u64 {
         assert!(
             self.is_congested(),
             "this is not a version used for congested shared objects"

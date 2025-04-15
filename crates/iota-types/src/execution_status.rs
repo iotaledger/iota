@@ -212,19 +212,16 @@ pub enum ExecutionFailureStatus {
     #[error("Certificate is cancelled because randomness could not be generated this epoch")]
     ExecutionCancelledDueToRandomnessUnavailable,
 
-    // Certificate is cancelled due to congestion on shared objects.
-    // Except congested shared objects, this error also contains gas
-    // price feedback: the lowest gas price of a non-cancelled transaction
-    // (that operates on at least one of these congested objects)
-    // in the same consensus commit round
+    // Certificate is cancelled due to congestion on shared objects;
+    // suggested gas price can be used to give this certificate more priority.
     #[error(
         "Certificate is cancelled due to congestion on shared objects: {congested_objects}. \
-            The lowest gas price of non-cancelled transaction: \
-            {lowest_gas_price_of_non_cancelled_transaction}."
+            To give this certificate more priority to be executed, its gas price can be increased \
+            to at least {suggested_gas_price}."
     )]
     ExecutionCancelledDueToSharedObjectCongestionV1 {
         congested_objects: CongestedObjects,
-        lowest_gas_price_of_non_cancelled_transaction: u64,
+        suggested_gas_price: u64,
     },
     // NOTE: if you want to add a new enum,
     // please add it at the end for Rust SDK backward compatibility.

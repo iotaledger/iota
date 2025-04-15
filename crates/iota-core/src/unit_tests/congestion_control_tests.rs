@@ -340,14 +340,13 @@ async fn test_congestion_control_execution_cancellation() {
     .await;
 
     // Transaction should be cancelled with `shared_object_1` as the congested
-    // object, and the lowest gas price of non-cancelled transaction should be
-    // TEST_ONLY_GAS_PRICE
+    // object, and the suggested gas price should be TEST_ONLY_GAS_PRICE
     assert_eq!(
         effects.status(),
         &ExecutionStatus::Failure {
             error: ExecutionFailureStatus::ExecutionCancelledDueToSharedObjectCongestionV1 {
                 congested_objects: CongestedObjects(vec![shared_object_1.0]),
-                lowest_gas_price_of_non_cancelled_transaction: TEST_ONLY_GAS_PRICE,
+                suggested_gas_price: TEST_ONLY_GAS_PRICE,
             },
             command: None
         }
@@ -359,7 +358,7 @@ async fn test_congestion_control_execution_cancellation() {
         vec![
             InputSharedObject::Cancelled(
                 shared_object_1.0,
-                SequenceNumber::new_congested_with_gas_price(TEST_ONLY_GAS_PRICE)
+                SequenceNumber::new_congested_with_suggested_gas_price(TEST_ONLY_GAS_PRICE)
             ),
             InputSharedObject::Cancelled(shared_object_2.0, SequenceNumber::CANCELLED_READ)
         ]
@@ -386,7 +385,7 @@ async fn test_congestion_control_execution_cancellation() {
         execution_error.unwrap().to_execution_status().0,
         ExecutionFailureStatus::ExecutionCancelledDueToSharedObjectCongestionV1 {
             congested_objects: CongestedObjects(vec![shared_object_1.0]),
-            lowest_gas_price_of_non_cancelled_transaction: TEST_ONLY_GAS_PRICE,
+            suggested_gas_price: TEST_ONLY_GAS_PRICE,
         }
     );
     assert_eq!(&effects, effects_2.data())

@@ -140,7 +140,7 @@ impl SharedObjVerManager {
         let congested_objects_info: Option<HashSet<_>> =
             if let Some(CancelConsensusCertificateReason::CongestionOnObjects {
                 congested_objects,
-                lowest_gas_price_of_non_cancelled_transaction: _,
+                suggested_gas_price: _,
             }) = &cancellation_info
             {
                 Some(congested_objects.iter().cloned().collect())
@@ -168,14 +168,14 @@ impl SharedObjVerManager {
                 let assigned_version = match cancellation_info {
                     Some(CancelConsensusCertificateReason::CongestionOnObjects {
                         congested_objects: _,
-                        lowest_gas_price_of_non_cancelled_transaction,
+                        suggested_gas_price,
                     }) => {
                         if congested_objects_info
                             .as_ref()
                             .is_some_and(|info| info.contains(id))
                         {
-                            SequenceNumber::new_congested_with_gas_price(
-                                *lowest_gas_price_of_non_cancelled_transaction,
+                            SequenceNumber::new_congested_with_suggested_gas_price(
+                                *suggested_gas_price,
                             )
                         } else {
                             SequenceNumber::CANCELLED_READ
@@ -526,20 +526,20 @@ mod tests {
         let epoch_store = authority.epoch_store_for_testing();
 
         // Cancel transactions 2 and 4 due to congestion.
-        let lowest_gas_price_of_non_cancelled_transaction = 1_000;
+        let suggested_gas_price = 1_000;
         let cancelled_txns: BTreeMap<TransactionDigest, CancelConsensusCertificateReason> = [
             (
                 *certs[1].digest(),
                 CancelConsensusCertificateReason::CongestionOnObjects {
                     congested_objects: vec![id1],
-                    lowest_gas_price_of_non_cancelled_transaction,
+                    suggested_gas_price,
                 },
             ),
             (
                 *certs[3].digest(),
                 CancelConsensusCertificateReason::CongestionOnObjects {
                     congested_objects: vec![id2],
-                    lowest_gas_price_of_non_cancelled_transaction,
+                    suggested_gas_price,
                 },
             ),
             (
@@ -588,8 +588,8 @@ mod tests {
                     vec![
                         (
                             id1,
-                            SequenceNumber::new_congested_with_gas_price(
-                                lowest_gas_price_of_non_cancelled_transaction
+                            SequenceNumber::new_congested_with_suggested_gas_price(
+                                suggested_gas_price
                             )
                         ),
                         (id2, SequenceNumber::CANCELLED_READ),
@@ -602,8 +602,8 @@ mod tests {
                         (id1, SequenceNumber::CANCELLED_READ),
                         (
                             id2,
-                            SequenceNumber::new_congested_with_gas_price(
-                                lowest_gas_price_of_non_cancelled_transaction
+                            SequenceNumber::new_congested_with_suggested_gas_price(
+                                suggested_gas_price
                             )
                         )
                     ]

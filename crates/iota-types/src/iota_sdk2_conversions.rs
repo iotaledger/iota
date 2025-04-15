@@ -1254,10 +1254,10 @@ impl From<crate::execution_status::ExecutionFailureStatus> for ExecutionError {
             }
             ExecutionFailureStatus::ExecutionCancelledDueToSharedObjectCongestionV1 {
                 congested_objects,
-                lowest_gas_price_of_non_cancelled_transaction,
+                suggested_gas_price,
             } => Self::ExecutionCancelledDueToSharedObjectCongestionV1 {
                 congested_objects: congested_objects.0.into_iter().map(Into::into).collect(),
-                lowest_gas_price_of_non_cancelled_transaction,
+                suggested_gas_price,
             },
         }
     }
@@ -1455,12 +1455,12 @@ impl From<ExecutionError> for crate::execution_status::ExecutionFailureStatus {
             }
             ExecutionError::ExecutionCancelledDueToSharedObjectCongestionV1 {
                 congested_objects,
-                lowest_gas_price_of_non_cancelled_transaction,
+                suggested_gas_price,
             } => Self::ExecutionCancelledDueToSharedObjectCongestionV1 {
                 congested_objects: crate::execution_status::CongestedObjects(
                     congested_objects.into_iter().map(Into::into).collect(),
                 ),
-                lowest_gas_price_of_non_cancelled_transaction,
+                suggested_gas_price,
             },
         }
     }

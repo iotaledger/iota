@@ -154,7 +154,7 @@ type JwkAggregator = GenericMultiStakeAggregator<(JwkId, JWK), true>;
 pub enum CancelConsensusCertificateReason {
     CongestionOnObjects {
         congested_objects: Vec<ObjectID>,
-        lowest_gas_price_of_non_cancelled_transaction: u64,
+        suggested_gas_price: u64,
     },
     DkgFailed,
 }
@@ -3443,20 +3443,15 @@ impl AuthorityPerEpochStore {
                             } else {
                                 // Cancel the transaction that has been deferred for too long.
 
-                                let lowest_gas_price_of_non_cancelled_transaction =
-                                    shared_object_congestion_tracker
-                                        .compute_lowest_gas_price_of_non_deferred_transaction(
-                                            &certificate,
-                                        )
-                                        .expect(
-                                            "cancelled transaction must have at least one shared \
-                                            object and calculated lowest gas price of non-deferred \
-                                            transaction",
-                                        );
+                                let suggested_gas_price = shared_object_congestion_tracker
+                                    .compute_suggested_gas_price(&certificate)
+                                    .expect(
+                                        "cancelled transaction must have at least one shared \
+                                            object and calculated suggested gas price",
+                                    );
                                 let actual_gas_price = certificate.transaction_data().gas_price();
                                 assert!(
-                                    lowest_gas_price_of_non_cancelled_transaction
-                                        >= actual_gas_price,
+                                    suggested_gas_price >= actual_gas_price,
                                     "Gas price of cancelled transaction cannot be larger than \
                                         gas price of some non-cancelled transaction"
                                 );
@@ -3465,8 +3460,8 @@ impl AuthorityPerEpochStore {
                                     "Cancelling consensus certificate for transaction {:?} with \
                                         deferral key {deferral_key:?} due to congestion on \
                                         objects {congested_objects:?}: actual gas price: \
-                                        {actual_gas_price}, the lowest gas price of non-cancelled \
-                                        transaction: {lowest_gas_price_of_non_cancelled_transaction}",
+                                        {actual_gas_price}, suggested gas price: \
+                                        {suggested_gas_price}",
                                     certificate.digest(),
                                 );
 
@@ -3474,7 +3469,7 @@ impl AuthorityPerEpochStore {
                                     certificate,
                                     CancelConsensusCertificateReason::CongestionOnObjects {
                                         congested_objects,
-                                        lowest_gas_price_of_non_cancelled_transaction,
+                                        suggested_gas_price,
                                     },
                                 ))
                             }
