@@ -14,64 +14,42 @@ import {
 
 export function useGetStardustMigratableObjects(address: string) {
     const { data: currentEpochMs } = useGetCurrentEpochStartTimestamp();
-    const { data: stardustSharedObjectsData, isPending: stardustSharedObjectsPending } =
-        useGetAllStardustSharedObjects(address);
-    const { data: basicOutputObjects } = useGetAllOwnedObjects(address, {
-        StructType: STARDUST_BASIC_OUTPUT_TYPE,
-    });
-    const { data: nftOutputObjects } = useGetAllOwnedObjects(address, {
-        StructType: STARDUST_NFT_OUTPUT_TYPE,
-    });
+    const stardustSharedObjectsData = useGetAllStardustSharedObjects(address);
+    const { data: basicOutputObjects, isPending: isBasicOutputsObjectsPending } =
+        useGetAllOwnedObjects(address, {
+            StructType: STARDUST_BASIC_OUTPUT_TYPE,
+        });
+    const { data: nftOutputObjects, isPending: isNftOutputsObjectsPending } = useGetAllOwnedObjects(
+        address,
+        {
+            StructType: STARDUST_NFT_OUTPUT_TYPE,
+        },
+    );
 
     const sharedBasicOutputObjects = stardustSharedObjectsData?.basic ?? [];
     const sharedNftOutputObjects = stardustSharedObjectsData?.nfts ?? [];
 
-    return useQuery({
-        queryKey: [
-            'stardust-migratable-objects',
+    const epochMs = currentEpochMs || 0;
+
+    const { migratable: migratableBasicOutputs, timelocked: timelockedBasicOutputs } =
+        groupStardustObjectsByMigrationStatus(
+            [...(basicOutputObjects ?? []), ...sharedBasicOutputObjects],
+            epochMs,
             address,
-            currentEpochMs,
-            basicOutputObjects,
-            nftOutputObjects,
-            sharedBasicOutputObjects,
-            sharedNftOutputObjects,
-        ],
-        queryFn: () => {
-            const epochMs = currentEpochMs || 0;
+        );
 
-            const { migratable: migratableBasicOutputs, timelocked: timelockedBasicOutputs } =
-                groupStardustObjectsByMigrationStatus(
-                    [...(basicOutputObjects ?? []), ...sharedBasicOutputObjects],
-                    epochMs,
-                    address,
-                );
+    const { migratable: migratableNftOutputs, timelocked: timelockedNftOutputs } =
+        groupStardustObjectsByMigrationStatus(
+            [...(nftOutputObjects ?? []), ...sharedNftOutputObjects],
+            epochMs,
+            address,
+        );
 
-            const { migratable: migratableNftOutputs, timelocked: timelockedNftOutputs } =
-                groupStardustObjectsByMigrationStatus(
-                    [...(nftOutputObjects ?? []), ...sharedNftOutputObjects],
-                    epochMs,
-                    address,
-                );
-
-            return {
-                migratableBasicOutputs,
-                timelockedBasicOutputs,
-                migratableNftOutputs,
-                timelockedNftOutputs,
-            };
-        },
-        enabled:
-            !!address &&
-            currentEpochMs !== undefined &&
-            basicOutputObjects !== undefined &&
-            nftOutputObjects !== undefined &&
-            !stardustSharedObjectsPending,
-        staleTime: TimeUnit.ONE_SECOND * TimeUnit.ONE_MINUTE * 5,
-        placeholderData: {
-            migratableBasicOutputs: [],
-            timelockedBasicOutputs: [],
-            migratableNftOutputs: [],
-            timelockedNftOutputs: [],
-        },
-    });
+    return {
+        migratableBasicOutputs,
+        timelockedBasicOutputs,
+        migratableNftOutputs,
+        timelockedNftOutputs,
+        isPending: isBasicOutputsObjectsPending || isNftOutputsObjectsPending,
+    };
 }

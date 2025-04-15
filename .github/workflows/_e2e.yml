@@ -107,6 +107,10 @@ jobs:
           path: apps/explorer/playwright-report/
           retention-days: 30
 
+      - name: Build Dashboard
+        if: inputs.isWalletDashboard || inputs.isRpc || inputs.isTypescriptSDK || github.ref_name == 'develop'
+        run: pnpm --filter wallet-dashboard build
+
       - name: Run Dashboard e2e tests
         if: inputs.isWalletDashboard || inputs.isRpc || inputs.isTypescriptSDK || github.ref_name == 'develop'
         run: pnpm --filter wallet-dashboard playwright test
