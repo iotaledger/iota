@@ -6,6 +6,7 @@ use std::{
     borrow::Borrow,
     future,
     ops::Range,
+    path::Path,
     sync::{
         Arc,
         atomic::{AtomicU64, Ordering},
@@ -336,13 +337,13 @@ impl ArchiveReader {
     pub async fn read_summaries_for_list_no_verify<S>(
         &self,
         store: S,
-        skiplist: Vec<CheckpointSequenceNumber>,
+        picklist: Vec<CheckpointSequenceNumber>,
         checkpoint_counter: Arc<AtomicU64>,
     ) -> Result<()>
     where
         S: WriteStore + Clone,
     {
-        let summary_files = self.get_summary_files_for_list(skiplist.clone()).await?;
+        let summary_files = self.get_summary_files_for_list(picklist.clone()).await?;
         let remote_object_store = self.remote_object_store.clone();
         let stream = futures::stream::iter(summary_files.iter())
             .map(|summary_metadata| {
@@ -365,10 +366,71 @@ impl ArchiveReader {
                     )
                     .and_then(|summary_iter| {
                         summary_iter
-                            .filter(|s| skiplist.contains(&s.sequence_number))
+                            .filter(|s| picklist.contains(&s.sequence_number))
                             .try_for_each(|summary| {
                                 Self::insert_certified_checkpoint(&store, summary)?;
                                 checkpoint_counter.fetch_add(1, Ordering::Relaxed);
+                                Ok::<(), anyhow::Error>(())
+                            })
+                    });
+                futures::future::ready(result)
+            })
+            .await
+    }
+
+    /// Load given list of checkpoints from archive into the input store `S`.
+    /// Summaries are downloaded out of order and inserted without verification
+    pub async fn download_summaries_for_list_no_verify(
+        &self,
+        picklist: Vec<CheckpointSequenceNumber>,
+        skiplist: Vec<CheckpointSequenceNumber>,
+        download_dir: impl AsRef<Path>,
+    ) -> Result<()> {
+        let summary_files = self.get_summary_files_for_list(picklist.clone()).await?;
+        let remote_object_store = self.remote_object_store.clone();
+        let stream = futures::stream::iter(summary_files.iter())
+            .map(|summary_metadata| {
+                let remote_object_store = remote_object_store.clone();
+                async move {
+                    let summary_data =
+                        get(&remote_object_store, &summary_metadata.file_path()).await?;
+                    Ok::<Bytes, anyhow::Error>(summary_data)
+                }
+            })
+            .boxed();
+
+        stream
+            .buffer_unordered(self.concurrency)
+            .try_for_each(|summary_data| {
+                let result: Result<(), anyhow::Error> =
+                    make_iterator::<CertifiedCheckpointSummary, Reader<Bytes>>(
+                        SUMMARY_FILE_MAGIC,
+                        summary_data.reader(),
+                    )
+                    .and_then(|summary_iter| {
+                        summary_iter
+                            .filter(|s| {
+                                if picklist.contains(&s.sequence_number)
+                                    && !skiplist.contains(&s.sequence_number)
+                                {
+                                    true
+                                } else {
+                                    info!("Skipping {}", s.sequence_number);
+                                    false
+                                }
+                            })
+                            .try_for_each(|summary| {
+                                info!("Writing {}", summary.sequence_number());
+                                bcs::serialize_into(
+                                    &mut std::fs::File::create(format!(
+                                        "{}/{}.sum",
+                                        download_dir.as_ref().display(),
+                                        summary.sequence_number()
+                                    ))
+                                    .expect("error creating file"),
+                                    &summary,
+                                )
+                                .expect("error serializing summary checkpoint to bcs");
                                 Ok::<(), anyhow::Error>(())
                             })
                     });

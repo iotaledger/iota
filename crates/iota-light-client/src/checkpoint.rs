@@ -6,22 +6,20 @@ use std::{
     collections::HashSet,
     fs,
     io::{Read, Write},
-    sync::Arc,
+    num::NonZeroUsize,
 };
 
 use anyhow::{Result, anyhow, bail};
 use getset::Getters;
-use iota_archival::read_manifest;
-use iota_config::genesis::Genesis;
+use iota_archival::reader::{ArchiveReader, ArchiveReaderMetrics};
+use iota_config::{genesis::Genesis, node::ArchiveReaderConfig};
 use iota_rest_api::Client;
 use iota_sdk::IotaClientBuilder;
-use iota_storage::object_store::{ObjectStoreGetExt, http::HttpDownloaderBuilder};
 use iota_types::{
     committee::Committee,
-    full_checkpoint_content::CheckpointData,
     messages_checkpoint::{CertifiedCheckpointSummary, EndOfEpochData},
 };
-use object_store::path::Path;
+use prometheus::Registry;
 use serde::{Deserialize, Serialize};
 use tracing::{info, warn};
 
@@ -110,11 +108,11 @@ pub async fn sync_checkpoint_list_to_latest(config: &Config) -> anyhow::Result<C
         );
     }
 
-    // TODO: add object store sync once available
-    let graphql_list = CheckpointList::default();
+    // TODO: add checkpoint object store sync once available (devops)
+    let checkpoints_from_object_store = CheckpointList::default();
 
     // Try getting checkpoints from archive store if configured
-    let archive_list = if config.archive_store_config.is_some() {
+    let checkpoints_from_archive_store = if config.archive_store_config.is_some() {
         match sync_checkpoint_list_to_latest_using_archive_store_only(config).await {
             Ok(list) => list,
             Err(e) => {
@@ -127,11 +125,16 @@ pub async fn sync_checkpoint_list_to_latest(config: &Config) -> anyhow::Result<C
     };
 
     // Verify we have at least some checkpoints
-    if graphql_list.checkpoints.is_empty() && archive_list.checkpoints.is_empty() {
+    if checkpoints_from_object_store.checkpoints.is_empty()
+        && checkpoints_from_archive_store.checkpoints.is_empty()
+    {
         bail!("Could not retrieve any checkpoints from configured sources");
     }
 
-    let merged_checkpoints = merge_checkpoint_lists(&graphql_list, &archive_list);
+    let merged_checkpoints = merge_checkpoint_lists(
+        &checkpoints_from_object_store,
+        &checkpoints_from_archive_store,
+    );
     let checkpoints_list = CheckpointList {
         checkpoints: merged_checkpoints,
     };
@@ -229,13 +232,21 @@ async fn sync_checkpoint_list_to_latest_using_archive_store_only(
         bail!("Archive store config is not provided");
     };
 
-    let archive_store: Arc<dyn ObjectStoreGetExt> = if archive_store_config.no_sign_request {
-        archive_store_config.make_http()?
-    } else {
-        Arc::new(archive_store_config.make()?)
+    // TODO add to config
+    let num_parallel_downloads = 5;
+
+    // set up download of checkpoint summaries
+    let config = ArchiveReaderConfig {
+        remote_store_config: archive_store_config.clone(),
+        download_concurrency: NonZeroUsize::new(num_parallel_downloads).unwrap(),
+        use_for_pruning_watermark: false,
     };
 
-    let manifest = read_manifest(archive_store).await?;
+    let metrics = ArchiveReaderMetrics::new(&Registry::default());
+    let archive_reader = ArchiveReader::new(config, &metrics)?;
+    archive_reader.sync_manifest_once().await?;
+
+    let manifest = archive_reader.get_manifest().await?;
     let checkpoints = manifest.get_all_end_of_epoch_checkpoint_seq_numbers()?;
 
     Ok(CheckpointList { checkpoints })
@@ -304,6 +315,41 @@ pub async fn sync_and_check_checkpoints(config: &Config) -> anyhow::Result<()> {
         .committee()
         .map_err(|e| anyhow!(format!("Failed to load genesis file: {e}")))?;
 
+    let archive_reader = if let Some(archive_store_config) = &config.archive_store_config {
+        // TODO add to config
+        let num_parallel_downloads = 5;
+
+        // set up download of checkpoint summaries
+        let config = ArchiveReaderConfig {
+            remote_store_config: archive_store_config.clone(),
+            download_concurrency: NonZeroUsize::new(num_parallel_downloads).unwrap(),
+            use_for_pruning_watermark: false,
+        };
+
+        let metrics = ArchiveReaderMetrics::new(&Registry::default());
+        let archive_reader = ArchiveReader::new(config, &metrics)?;
+        archive_reader.sync_manifest_once().await?;
+        archive_reader
+    } else {
+        bail!("archive store required for now");
+    };
+
+    let mut skiplist = Vec::new();
+    for seq in checkpoints_list.checkpoints.iter().copied() {
+        let summary_path = config.checkpoint_summary_file_path(seq, None);
+        if summary_path.exists() {
+            skiplist.push(seq);
+        }
+    }
+
+    archive_reader
+        .download_summaries_for_list_no_verify(
+            checkpoints_list.checkpoints.clone(),
+            skiplist,
+            &config.checkpoints_dir,
+        )
+        .await?;
+
     // Check the signatures of all checkpoints and download any missing ones
     let mut prev_committee = genesis_committee;
     for seq in checkpoints_list.checkpoints {
@@ -316,41 +362,7 @@ pub async fn sync_and_check_checkpoints(config: &Config) -> anyhow::Result<()> {
             read_checkpoint_summary(config, seq)
                 .map_err(|e| anyhow!(format!("Failed to read checkpoint summary: {e}")))?
         } else {
-            let summary = if let Some(archive_store_config) = &config.archive_store_config {
-                // Try downloading it from the archive
-                let archive_store: Arc<dyn ObjectStoreGetExt> =
-                    if archive_store_config.no_sign_request {
-                        archive_store_config.make_http()?
-                    } else {
-                        Arc::new(archive_store_config.make()?)
-                    };
-                let checkpoint_summary_file_path = Path::from(format!("{seq}.chk"));
-                let bytes = archive_store
-                    .get_bytes(&checkpoint_summary_file_path)
-                    .await?;
-                let (_, full_checkpoint) = bcs::from_bytes::<(u8, CheckpointData)>(&bytes)?;
-                full_checkpoint.checkpoint_summary
-            } else if config.object_store_url.is_some() {
-                // Try downloading the checkpoint summary from the object store
-                IotaObjectStore::new(config)?
-                    .get_checkpoint_summary(seq)
-                    .await
-                    .map_err(|e| {
-                        anyhow!(format!(
-                            "Failed to download checkpoint summary from object store: {e}"
-                        ))
-                    })?
-            } else {
-                // Try downloading it from the node via REST API
-                let client = Client::new(config.rpc_url.as_str());
-                client.get_checkpoint_summary(seq).await.map_err(|e| {
-                    anyhow!("Failed to download checkpoint summary from full node: {e}")
-                })?
-            };
-
-            // Write the checkpoint summary to a file
-            write_checkpoint_summary(config, &summary)?;
-            summary
+            bail!("we assume for now that the archive is complete");
         };
 
         // Verify the checkpoint

@@ -6095,6 +6095,7 @@ name = "iota-archival"
 version = "0.11.0-alpha"
 dependencies = [
  "anyhow",
+ "bcs",
  "byteorder",
  "bytes",
  "ed25519-consensus",
@@ -7307,6 +7308,7 @@ dependencies = [
  "log",
  "move-core-types",
  "object_store 0.10.2",
+ "prometheus",
  "roaring",
  "serde",
  "serde_json",

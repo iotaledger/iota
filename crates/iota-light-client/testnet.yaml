@@ -10,6 +10,7 @@ object_store_url: ~
 archive_store_config:
   object-store: "S3"
   aws-endpoint: "https://archive.testnet.iota.cafe"
+  aws-virtual-hosted-style-request: true
   no-sign-request: true
   aws-region: "weur"
   object-store-connection-limit: 20

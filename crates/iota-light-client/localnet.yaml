@@ -4,4 +4,11 @@ graphql_url: "http://localhost:9125"
 checkpoints_dir: "checkpoints_localnet"
 sync_before_check: false
 object_store_url: ~
-archive_store_config: ~
+archive_store_config:
+  object-store: "S3"
+  bucket: "your-bucket-name"
+  aws-endpoint: "https://your-object-store-domain"
+  aws-virtual-hosted-style-request: false
+  no-sign-request: true
+  aws-region: "your-object-store-region"
+  object-store-connection-limit: 20
