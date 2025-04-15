@@ -55,7 +55,7 @@ export function AccountBalance() {
                     <div className="flex h-full flex-col items-center justify-center gap-y-lg p-lg">
                         <div className="flex flex-col items-center gap-y-xs">
                             {address && (
-                                <div className="-mr-lg">
+                                <div className="-mr-lg" data-full-address={address}>
                                     <Address
                                         text={formattedAddress}
                                         isCopyable

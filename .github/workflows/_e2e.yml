@@ -107,9 +107,17 @@ jobs:
           path: apps/explorer/playwright-report/
           retention-days: 30
 
+      - name: Build Wallet
+        if: inputs.isWalletDashboard || inputs.isWallet || inputs.isRpc || inputs.isTypescriptSDK || github.ref_name == 'develop'
+        run: pnpm wallet build
+
+      - name: Build Dashboard
+        if: inputs.isWalletDashboard || inputs.isRpc || inputs.isTypescriptSDK || github.ref_name == 'develop'
+        run: pnpm turbo --filter wallet-dashboard build
+
       - name: Run Dashboard e2e tests
         if: inputs.isWalletDashboard || inputs.isRpc || inputs.isTypescriptSDK || github.ref_name == 'develop'
-        run: pnpm --filter wallet-dashboard playwright test
+        run: xvfb-run --auto-servernum --server-args="-screen 0 1280x960x24" -- pnpm --filter wallet-dashboard playwright test
 
       - uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # v4.4.3
         if: always()
@@ -128,10 +136,6 @@ jobs:
 
       - name: Run Local net
         run: cargo run --bin iota start --force-regenesis --with-faucet --epoch-duration-ms 10000 &
-
-      - name: Build Wallet
-        if: inputs.isWallet || inputs.isRpc || inputs.isTypescriptSDK || github.ref_name == 'develop'
-        run: pnpm wallet build
 
       - name: Run Wallet e2e tests
         if: inputs.isWallet || inputs.isRpc || inputs.isTypescriptSDK || github.ref_name == 'develop'
