@@ -106,14 +106,13 @@ impl IndexerApi {
             &name.type_,
             &name_bcs_value,
         )
-        .expect("deriving dynamic field id can't fail");
+        .map_err(internal_error)?;
 
         let options = options.unwrap_or_default();
 
         match self.inner.get_object_read_in_blocking_task(id).await? {
-            iota_types::object::ObjectRead::NotExists(_)
-            | iota_types::object::ObjectRead::Deleted(_) => {}
-            iota_types::object::ObjectRead::Exists(object_ref, o, layout) => {
+            ObjectRead::NotExists(_) | ObjectRead::Deleted(_) => {}
+            ObjectRead::Exists(object_ref, o, layout) => {
                 return Ok(IotaObjectResponse::new_with_data(
                     IotaObjectData::new(object_ref, o, layout, options, None)
                         .map_err(internal_error)?,
@@ -130,15 +129,15 @@ impl IndexerApi {
             &dynamic_object_field_type,
             &name_bcs_value,
         )
-        .expect("deriving dynamic field id can't fail");
+        .map_err(internal_error)?;
+
         match self
             .inner
             .get_object_read_in_blocking_task(dynamic_object_field_id)
             .await?
         {
-            iota_types::object::ObjectRead::NotExists(_)
-            | iota_types::object::ObjectRead::Deleted(_) => {}
-            iota_types::object::ObjectRead::Exists(object_ref, o, layout) => {
+            ObjectRead::NotExists(_) | ObjectRead::Deleted(_) => {}
+            ObjectRead::Exists(object_ref, o, layout) => {
                 return Ok(IotaObjectResponse::new_with_data(
                     IotaObjectData::new(object_ref, o, layout, options, None)
                         .map_err(internal_error)?,
@@ -147,7 +146,7 @@ impl IndexerApi {
         }
 
         Ok(IotaObjectResponse::new_with_error(
-            iota_types::error::IotaObjectResponseError::DynamicFieldNotFound { parent_object_id },
+            IotaObjectResponseError::DynamicFieldNotFound { parent_object_id },
         ))
     }
 }
