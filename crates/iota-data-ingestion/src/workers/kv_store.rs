@@ -27,6 +27,7 @@ use iota_storage::http_key_value_store::{ItemType, TaggedKey};
 use iota_types::{full_checkpoint_content::CheckpointData, storage::ObjectKey};
 use object_store::{DynObjectStore, path::Path};
 use serde::{Deserialize, Serialize};
+use tracing::{error, info, warn};
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
 #[serde(rename_all = "kebab-case")]
@@ -125,7 +126,7 @@ impl KVStoreWorker {
                 .send()
                 .await
                 .inspect_err(|sdk_err| {
-                    tracing::error!(
+                    error!(
                         "{:?}",
                         sdk_err.as_service_error().map(|e| e.meta().to_string())
                     )
@@ -181,10 +182,10 @@ impl KVStoreWorker {
             .set_item(Some(attributes))
             .send()
             .await
-            .inspect_err(|err| tracing::warn!("dynamodb error: {err}"));
+            .inspect_err(|err| warn!("dynamodb error: {err}"));
 
         if res.is_err() {
-            tracing::info!("attempt to store chekpoint contents on S3");
+            info!("attempt to store chekpoint contents on S3");
             let location = Path::from(base64_url::encode(&key));
             self.remote_store
                 .put(&location, Bytes::from(bcs_bytes).into())
