@@ -85,3 +85,91 @@ To use your IOTA Wallet on different devices or browsers, you can import it usin
 By following these steps, you can manage, stake,
 and transfer your digital assets on the IOTA network from any of your devices, ensuring a seamless experience.
 
+## Use the Balance Finder
+
+[The way accounts and wallets are managed in the IOTA Wallet is different than in Firefly and similar Stardust Wallets](#whats-changed).
+You can use the IOTA balance finder to import all your Firefly wallets and unify them into a single profile. 
+
+### How to Access the Balance Finder
+
+If you are importing a profile, you will be prompted to use the Balance Finder as part of the import process.
+
+   ![Balance Finder in Prompt](/img/about-iota/iota-wallet/getting-started/access-balance-finder-prompt.png)
+
+You can also access the balance finder by clicking on the meatball menu (`...`) beside the desired account dropdown in the
+`Manage Accounts` section.
+
+   ![Balance Finder in Accounts View](/img/about-iota/iota-wallet/getting-started/access-balance-finder.png)
+
+### Find and Unify Balances
+
+Once you have [accessed the Balance Finder](#how-to-acccess-the-balance-finder), hit the `Search` button and the
+Balance Finder will retrieve any sub-accounts related to your main account.
+
+   ![Balance Finder Search](/img/about-iota/iota-wallet/getting-started/balance-finder-hit-search.png)
+
+### Migrate Your Stardust Assets
+
+If you have NFTs, native tokens, or time-locked tokens, you will see a button indicating that you need to migrate
+them.
+
+   ![Migration Button](/img/about-iota/iota-wallet/getting-started/migration-button.png)
+
+When you click on it, it prompt you to use the [IOTA Wallet
+Dashboard](../iota-wallet-dashboard/getting-started.mdx) to migrate them.
+
+   ![Migration Pop In](/img/about-iota/iota-wallet/getting-started/migration-pop-in.png)
+
+
+## Vesting & Staked Vesting
+
+If your account has vested tokens, you will see a button indicating that you can access Vested Staking
+
+   ![Migration Button](/img/about-iota/iota-wallet/getting-started/vested-staking-button.png)
+
+When you click on it, it prompt you to use the [IOTA Wallet
+Dashboard](../iota-wallet-dashboard/getting-started.mdx) to manage your vested tokens.
+
+   ![Migration POp In](/img/about-iota/iota-wallet/getting-started/vested-staking-pop-in.png)
+
+## What's Changed?
+
+### Account Management
+
+The IOTA Wallet introduces adjustments to account visibility and derivation path management compared to Firefly.
+In Firefly, accounts were structured using a multi-account index, 
+which allowed generating multiple addresses under a single account without exposing the underlying BIP32 derivation
+paths.
+The IOTA Wallet now displays the BIP32 derivation path for each address,
+enabling direct inspection of hierarchical key generation.
+This change provides transparency for users managing accounts across different wallets or tools.
+Legacy Chrysalis-era users should note that BIP path visibility is exclusive to the IOTA Wallet,
+ensuring backward compatibility with older account structures.
+
+When restoring accounts by importing a mnemonic phrase or seed,
+the IOTA Wallet will display the main account by default.
+To access derived accounts tied to alternate BIP paths,
+use the [Balance Finder](#use-the-balance-finder) tool to scan for assets associated with historical paths.
+This ensures compatibility with Firefly’s legacy multi-account framework. 
+For Chrysalis users,
+the Balance Finder serves as a critical utility to recover funds from accounts not automatically mapped in the new
+wallet.
+
+### Stronghold Has Been Deprecated
+
+The IOTA Web Wallet does not support Stronghold. If you have your mnemonic, private key or seed, you can use them to
+[import your account](#importing-an-existing-wallet). 
+
+Alternatively, if you only have your `.stronghold` file backup and know the password, please use the following guide to
+retrieve your seed using [Firefly](https://firefly.iota.org/).
+
+1. (If you have active profiles) Open Firefly IOTA and click on the `+` icon to add a new profile.
+2. Select the desired network.
+3. Select `Restore an IOTA Profile`. 
+4. Select `Use Stronghold backup`. 
+5. Add your `.stronghold` file using the button or by dragging and dropping it, and click `Continue`.
+6. Input your password and click `Continue`.  
+7. Input your profile name and click `Continue`.  
+8. Input and confirm your PIN code and click `Continue`.  
+9. Hit `Finish Setup`. 
+10. [TODO WHERE IS THE SEED BACKUP](Broken link to remember TODO).

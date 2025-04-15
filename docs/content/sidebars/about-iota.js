@@ -59,6 +59,25 @@ const aboutIota = [
     },
     {
         type: 'category',
+        label: 'IOTA Wallet Dashboard',
+        items: [
+            'about-iota/iota-wallet-dashboard/getting-started',
+            {
+                type: 'category',
+                label: 'How To',
+                items: [
+                    'about-iota/iota-wallet-dashboard/how-to/basics',
+                    'about-iota/iota-wallet-dashboard/how-to/assets',
+                    'about-iota/iota-wallet-dashboard/how-to/stake',
+                    'about-iota/iota-wallet-dashboard/how-to/vesting',
+                    'about-iota/iota-wallet-dashboard/how-to/migration',
+                ],
+            },
+            'about-iota/iota-wallet-dashboard/FAQ',
+        ],
+    },
+    {
+        type: 'category',
         label: 'Programs & Funding',
         link: {
             type: 'generated-index',
