@@ -73,7 +73,6 @@ const aboutIota = [
                     'about-iota/iota-wallet-dashboard/how-to/migration',
                 ],
             },
-            'about-iota/iota-wallet-dashboard/FAQ',
         ],
     },
     {
