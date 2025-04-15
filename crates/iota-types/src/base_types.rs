@@ -1220,9 +1220,8 @@ impl SequenceNumber {
     }
 
     pub fn increment(&mut self) {
-        assert_ne!(
-            self.0,
-            u64::MAX, // TODO: shouldn't it be SequenceNumber::MAX_VALID here?
+        assert!(
+            self.is_valid(),
             "cannot increment a sequence number: \
                 maximum valid sequence number has already been reached"
         );
@@ -1259,9 +1258,8 @@ impl SequenceNumber {
         // Option 1: Freeze the object when sequence number reaches MAX.
         // Option 2: Reject tx with MAX sequence number.
         // Issue #182.
-        assert_ne!(
-            max_input.0,
-            u64::MAX, // TODO: shouldn't it be SequenceNumber::MAX_VALID here?
+        assert!(
+            max_input.is_valid(),
             "cannot increment a sequence number: \
                 maximum valid sequence number has already been reached"
         );
