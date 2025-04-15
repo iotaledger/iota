@@ -6,7 +6,7 @@
         "dev": "cross-env NODE_ENV=\"development\" next dev",
         "build": "cross-env NODE_ENV=\"production\" next build",
         "start": "next start",
-        "lint": "next lint && pnpm run prettier:check",
+        "lint": "eslint --max-warnings=0 . && pnpm run prettier:check",
         "prettier:check": "prettier -c --ignore-unknown --ignore-path=../../.prettierignore --ignore-path=.prettierignore .",
         "prettier:fix": "prettier -w --ignore-unknown --ignore-path=../../.prettierignore --ignore-path=.prettierignore .",
         "test": "jest",
