@@ -146,7 +146,6 @@ impl TransactionConsumer {
         }
 
         let block_status_subscribers = self.block_status_subscribers.clone();
-        let gc_enabled = self.context.protocol_config.gc_depth() > 0;
 
         (
             transactions,
@@ -156,18 +155,11 @@ impl TransactionConsumer {
                 for ack in acks {
                     let (status_tx, status_rx) = oneshot::channel();
 
-                    if gc_enabled {
-                        block_status_subscribers
-                            .entry(block_ref)
-                            .or_default()
-                            .push(status_tx);
-                    } else {
-                        // When gc is not enabled, then report directly the block as sequenced while
-                        // tx is acknowledged for inclusion. As blocks can
-                        // never get garbage collected it is there is actually no meaning to do
-                        // otherwise and also is safer for edge cases.
+
+                        // Report directly the block as sequenced while
+                        // tx is acknowledged for inclusion.
                         status_tx.send(BlockStatus::Sequenced(block_ref)).ok();
-                    }
+
 
                     let _ = ack.send((block_ref, status_rx));
                 }

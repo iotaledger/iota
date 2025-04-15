@@ -367,8 +367,6 @@ impl Core {
         certified_commits: CertifiedCommits,
     ) -> ConsensusResult<BTreeSet<BlockRef>> {
         let _scope = monitored_scope("Core::add_certified_commits");
-
-        // If GC is not enabled then process blocks as usual.
         let blocks = certified_commits
             .commits()
             .iter()
@@ -1158,7 +1156,7 @@ impl Core {
                 // Look for an earlier block in the ancestor chain that we can include as there
                 // is a gap between the last included round and the accepted low quorum round.
                 //
-                // Note: Only cached blocks need to be propagated. Committed and GC'ed blocks
+                // Note: Only cached blocks need to be propagated. Committed blocks
                 // do not need to be propagated.
                 match self.dag_state.read().get_last_cached_block_in_range(
                     excluded_author,
@@ -1566,7 +1564,6 @@ mod test {
         assert_eq!(all_stored_commits.len(), 2);
 
         // And ensure that our "own" block 1 sent to TransactionConsumer as notification
-        // alongside with gc_round
         while let Some(result) = block_status_subscriptions.next().await {
             let status = result.unwrap();
             assert!(matches!(status, BlockStatus::Sequenced(_)));

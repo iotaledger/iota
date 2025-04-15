@@ -48,14 +48,6 @@ pub(crate) struct DagState {
 
     // Contains recent blocks within CACHED_ROUNDS from the last committed round per authority.
     // Note: all uncommitted blocks are kept in memory.
-    //
-    // When GC is enabled, this map has a different semantic. It holds all the recent data for each
-    // authority making sure that it always have available CACHED_ROUNDS worth of data. The
-    // entries are evicted based on the latest GC round, however the eviction process will respect
-    // the CACHED_ROUNDS. For each authority, blocks are only evicted when their round is less
-    // than or equal to both `gc_round`, and `highest authority round - cached rounds`.
-    // This ensures that the GC requirements are respected (we never clean up any block above
-    // `gc_round`), and there are enough blocks cached.
     recent_blocks: BTreeMap<BlockRef, BlockInfo>,
 
     // Indexes recent block refs by their authorities.

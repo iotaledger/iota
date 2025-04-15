@@ -238,8 +238,7 @@ impl BlockManager {
             missing_blocks.insert(*block_ref);
             if self.missing_blocks.insert(*block_ref) {
                 // We want to report this as a missing ancestor even if there is no block that
-                // is actually references it right now. That will allow us
-                // to seamlessly GC the block later if needed.
+                // is actually references it right now.
                 self.missing_ancestors.entry(*block_ref).or_default();
 
                 let block_ref_hostname =
@@ -301,10 +300,6 @@ impl BlockManager {
                         continue 'block;
                     }
 
-                    // When gc is enabled it's possible that we indeed won't find any ancestors that
-                    // are passed gc_round. That's ok. We don't need to panic here.
-                    // We do want to panic if gc_enabled we and have an ancestor that is > gc_round,
-                    // or gc is disabled.
                     {
                         panic!(
                             "Unsuspended block {:?} has a missing ancestor! Ancestor not found in DagState: {:?}",

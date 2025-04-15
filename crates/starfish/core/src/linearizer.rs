@@ -139,7 +139,7 @@ impl Linearizer {
         // The new logic will perform the recursion without stopping at the highest
         // round that has been committed per authority. Instead it will
         // allow to commit blocks that are lower than the highest committed round for an
-        // authority but higher than gc_round.
+        // authority.
         if context.protocol_config.consensus_linearize_subdag_v2() {
             assert!(
                 dag_state.set_committed(&leader_block_ref),
@@ -188,10 +188,6 @@ impl Linearizer {
                             .filter(|ancestor| {
                                 // We skip the block if we already committed it or we reached a
                                 // round that we already committed.
-                                // TODO: for Fast Path we need to amend the recursion rule here and
-                                // allow us to commit blocks all the way up to the `gc_round`.
-                                // Some additional work will be needed to make sure that we keep the
-                                // uncommitted blocks up to the `gc_round` across commits.
                                 !committed.contains(ancestor)
                                     && last_committed_rounds[ancestor.author] < ancestor.round
                             })
