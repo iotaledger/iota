@@ -275,6 +275,7 @@ http-body = "1"
 humantime = "2.1.0"
 hyper = "1"
 hyper-rustls = { version = "0.27", default-features = false, features = ["webpki-roots", "http2", "ring", "tls12"] }
+hyper-util = { version = "0.1.4", features = ["tokio", "server-auto", "service"] }
 im = "15"
 indexmap = { version = "2.1.0", features = ["serde"] }
 indicatif = "0.17.2"
