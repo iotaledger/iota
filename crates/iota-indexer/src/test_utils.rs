@@ -208,7 +208,7 @@ pub fn create_pg_store(db_url: Secret<String>, reset_database: bool) -> PgIndexe
 
     let mut parsed_url = db_url.clone();
     if reset_database {
-        let db_name = parsed_url.expose_secret().split('/').last().unwrap();
+        let db_name = parsed_url.expose_secret().split('/').next_back().unwrap();
         // Switch to default to create a new database
         let (default_db_url, _) = replace_db_name(parsed_url.expose_secret(), "postgres");
 

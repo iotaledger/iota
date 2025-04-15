@@ -51,10 +51,25 @@ tasks:
     concurrency: 1
     # Task type
     kv:
-      aws-access-key-id: "test"
-      aws-secret-access-key: "test"
-      aws-region: "us-east-1"
-      table-name: "iota-storage"
-      bucket-name: "iota-storage-bucket"
-      # optional, mostly used for localstack for testing purposes
-      aws-endpoint: "http://0.0.0.0:4566"
+      # remote Object Store config for more info:
+      # - https://docs.iota.org/operator/archives#set-up-archival-fallback
+      #
+      object-store-config:
+        object-store: "S3"
+        bucket: "kv-checkpoints"
+        aws-access-key-id: "test"
+        aws-secret-access-key: "test"
+        aws-allow-http: true
+        object-store-connection-limit: 20
+        # optional, mostly used for localstack for testing purposes
+        aws-endpoint: "http://localhost:4566"
+
+      # DynamoDB client config
+      #
+      dynamodb-config:
+        aws-access-key-id: "test"
+        aws-secret-access-key: "test"
+        aws-region: "us-east-1"
+        table-name: "iota-storage"
+        # optional, mostly used for localstack for testing purposes
+        aws-endpoint: "http://0.0.0.0:4566"
