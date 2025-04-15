@@ -108,8 +108,17 @@ pub async fn sync_checkpoint_list_to_latest(config: &Config) -> anyhow::Result<C
         );
     }
 
-    // TODO: add checkpoint object store sync once available (devops)
-    let checkpoints_from_object_store = CheckpointList::default();
+    let checkpoints_from_object_store = if config.object_store_url.is_some() {
+        match sync_checkpoint_list_to_latest_using_full_node_and_object_store(config).await {
+            Ok(list) => list,
+            Err(e) => {
+                warn!("Failed to sync checkpoints from checkpoint object store: {e}");
+                CheckpointList::default()
+            }
+        }
+    } else {
+        CheckpointList::default()
+    };
 
     // Try getting checkpoints from archive store if configured
     let checkpoints_from_archive_store = if config.archive_store_config.is_some() {
@@ -135,8 +144,20 @@ pub async fn sync_checkpoint_list_to_latest(config: &Config) -> anyhow::Result<C
         &checkpoints_from_object_store,
         &checkpoints_from_archive_store,
     );
-    let checkpoints_list = CheckpointList {
-        checkpoints: merged_checkpoints,
+
+    // Try to sync from the full node
+    let checkpoints_list = if merged_checkpoints.is_empty() {
+        match sync_checkpoint_list_to_latest_using_full_node_only(config).await {
+            Ok(list) => list,
+            Err(e) => {
+                warn!("Failed to sync checkpoints from full node: {e}");
+                CheckpointList::default()
+            }
+        }
+    } else {
+        CheckpointList {
+            checkpoints: merged_checkpoints,
+        }
     };
 
     // Write the fetched checkpoint list to disk
@@ -169,7 +190,7 @@ fn merge_checkpoint_lists(list1: &CheckpointList, list2: &CheckpointList) -> Vec
 ///
 /// No object store or archive store required, but only works with non-pruning
 /// nodes.
-async fn _sync_checkpoint_list_to_latest_using_full_node_only(
+async fn sync_checkpoint_list_to_latest_using_full_node_only(
     config: &Config,
 ) -> anyhow::Result<CheckpointList> {
     info!("Syncing checkpoints from full node");
@@ -255,7 +276,7 @@ async fn sync_checkpoint_list_to_latest_using_archive_store_only(
 /// Downloads the list of end-of-epoch checkpoints from an object store.
 ///
 /// Requires full node's RPC, GraphQL endpoints and an checkpoint object store.
-async fn _sync_checkpoint_list_to_latest_using_full_node_and_object_store(
+async fn sync_checkpoint_list_to_latest_using_full_node_and_object_store(
     config: &Config,
 ) -> anyhow::Result<CheckpointList> {
     info!("Syncing checkpoints from object store");
@@ -281,26 +302,25 @@ async fn _sync_checkpoint_list_to_latest_using_full_node_and_object_store(
         last_seq
     };
 
-    let object_store = IotaObjectStore::new(config)?;
+    // TODO: connect to checkpoint object store once available (devops)
 
-    let last_sum = object_store.get_checkpoint_summary(last_seq).await?;
-
-    let client = IotaClientBuilder::default()
-        .build(config.rpc_url.as_str())
-        .await?;
-
-    let latest_seq = client
-        .read_api()
-        .get_latest_checkpoint_sequence_number()
-        .await?;
-    let latest_sum = object_store.get_checkpoint_summary(latest_seq).await?;
-
-    // Sequentially record all the missing end of epoch checkpoints numbers
-    for target_epoch in (last_sum.epoch() + 1)..latest_sum.epoch() {
-        let target_seq = query_last_checkpoint_of_epoch(config, target_epoch).await?;
-        checkpoints_list.checkpoints.push(target_seq);
-        info!("Synced epoch: {target_epoch}, checkpoint: {target_seq}");
-    }
+    // let object_store = IotaObjectStore::new(config)?;
+    // let last_sum = object_store.get_checkpoint_summary(last_seq).await?;
+    // let client = IotaClientBuilder::default()
+    //     .build(config.rpc_url.as_str())
+    //     .await?;
+    // let latest_seq = client
+    //     .read_api()
+    //     .get_latest_checkpoint_sequence_number()
+    //     .await?;
+    // let latest_sum = object_store.get_checkpoint_summary(latest_seq).await?;
+    // // Sequentially record all the missing end of epoch checkpoints numbers
+    // for target_epoch in (last_sum.epoch() + 1)..latest_sum.epoch() {
+    //     let target_seq = query_last_checkpoint_of_epoch(config,
+    // target_epoch).await?;
+    //      checkpoints_list.checkpoints.push(target_seq);
+    //     info!("Synced epoch: {target_epoch}, checkpoint: {target_seq}");
+    // }
 
     Ok(checkpoints_list)
 }

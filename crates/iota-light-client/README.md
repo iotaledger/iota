@@ -25,13 +25,19 @@ The config file for the light client takes a URL for a full node, a directory to
 ```
 rpc_url: "https://api.testnet.iota.cafe"
 graphql_url: "https://graphql.testnet.iota.cafe"
-# make sure this directory exists and contains the correct `genesis.blob`
 checkpoints_dir: "checkpoints_testnet"
+# If not provided, make sure genesis.blob exists in checkpoints_dir
+genesis_blob_download_url: "https://dbfiles.testnet.iota.cafe/genesis.blob"
 sync_before_check: false
-# TODO update as soon as such an endpoint is available for the testnet
-object_store_url: ~
-# TODO update as soon as such an endpoint is available for the testnet
-archive_store_config: ~
+object_store_url: "https://checkpoints.testnet.iota.cafe"
+archive_store_config:
+  object-store: "S3"
+  aws-endpoint: "https://archive.testnet.iota.cafe"
+  aws-virtual-hosted-style-request: true
+  no-sign-request: true
+  aws-region: "weur"
+  object-store-connection-limit: 20
+
 ```
 
 The genesis blob for the IOTA testnet can be found here: https://dbfiles.testnet.iota.cafe/genesis.blob. Download and place it inside the checkpoint directory.
