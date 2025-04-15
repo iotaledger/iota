@@ -110,34 +110,12 @@ pub async fn sync_checkpoint_list_to_latest(config: &Config) -> anyhow::Result<C
         );
     }
 
-    // Try getting checkpoints from object store or full node (fallback).
-    // In both cases we need a GraphQL endpoint to be configured
-    let graphql_list = if config.graphql_url.is_some() {
-        if config.object_store_url.is_some() {
-            match sync_checkpoint_list_to_latest_using_object_store(config).await {
-                Ok(list) => list,
-                Err(e) => {
-                    warn!("Failed to sync checkpoints from object store: {e}");
-                    CheckpointList::default()
-                }
-            }
-        } else {
-            // Fall back to the full node REST, RPC and GraphQL endpoints
-            match sync_checkpoint_list_to_latest_using_full_node(config).await {
-                Ok(list) => list,
-                Err(e) => {
-                    warn!("Failed to sync checkpoints from full node: {e}");
-                    CheckpointList::default()
-                }
-            }
-        }
-    } else {
-        CheckpointList::default()
-    };
+    // TODO: add object store sync once available
+    let graphql_list = CheckpointList::default();
 
     // Try getting checkpoints from archive store if configured
     let archive_list = if config.archive_store_config.is_some() {
-        match sync_checkpoint_list_to_latest_using_archive(config).await {
+        match sync_checkpoint_list_to_latest_using_archive_store_only(config).await {
             Ok(list) => list,
             Err(e) => {
                 warn!("Failed to sync checkpoints from archive store: {e}");
@@ -182,9 +160,13 @@ fn merge_checkpoint_lists(list1: &CheckpointList, list2: &CheckpointList) -> Vec
     sorted_checkpoints
 }
 
-/// Downloads the list of end of epoch checkpoints from the full node's RPC and
-/// GraphQL endpoints
-async fn sync_checkpoint_list_to_latest_using_full_node(
+// TODO deprecate
+/// Syncs the list of end-of-epoch checkpoints from the full node's REST, RPC
+/// and GraphQL endpoints alone.
+///
+/// No object store or archive store required, but only works with non-pruning
+/// nodes.
+async fn _sync_checkpoint_list_to_latest_using_full_node_only(
     config: &Config,
 ) -> anyhow::Result<CheckpointList> {
     info!("Syncing checkpoints from full node");
@@ -235,9 +217,10 @@ async fn sync_checkpoint_list_to_latest_using_full_node(
     Ok(checkpoints_list)
 }
 
-/// Downloads the list of end of epoch checkpoints from the archive store
-/// (archiving node)
-async fn sync_checkpoint_list_to_latest_using_archive(
+/// Syncs the list of end-of-epoch checkpoints from an archive store.
+///
+/// Does not require a full node.
+async fn sync_checkpoint_list_to_latest_using_archive_store_only(
     config: &Config,
 ) -> anyhow::Result<CheckpointList> {
     info!("Syncing checkpoints from archive store");
@@ -258,8 +241,10 @@ async fn sync_checkpoint_list_to_latest_using_archive(
     Ok(CheckpointList { checkpoints })
 }
 
-/// Downloads the list of end of epoch checkpoints from the object store
-async fn sync_checkpoint_list_to_latest_using_object_store(
+/// Downloads the list of end-of-epoch checkpoints from an object store.
+///
+/// Requires full node's RPC, GraphQL endpoints and an checkpoint object store.
+async fn _sync_checkpoint_list_to_latest_using_full_node_and_object_store(
     config: &Config,
 ) -> anyhow::Result<CheckpointList> {
     info!("Syncing checkpoints from object store");

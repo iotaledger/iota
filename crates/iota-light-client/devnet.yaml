@@ -4,5 +4,12 @@ graphql_url: "https://graphql.devnet.iota.cafe"
 # You can download it from `https://dbfiles.devnet.iota.cafe/genesis.blob`
 checkpoints_dir: "checkpoints_devnet"
 sync_before_check: false
+# TODO switch to this endpoint once available
+#object_store_url: "https://checkpoints.devnet.iota.cafe"
 object_store_url: ~
-archive_store_config: ~
+archive_store_config:
+  object-store: "S3"
+  aws-endpoint: "https://archive.devnet.iota.cafe"
+  no-sign-request: true
+  aws-region: "weur"
+  object-store-connection-limit: 20
