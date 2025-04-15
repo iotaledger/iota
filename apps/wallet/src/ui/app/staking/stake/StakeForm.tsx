@@ -29,6 +29,7 @@ import { memo, useMemo } from 'react';
 import { useActiveAccount, useSigner } from '_hooks';
 import {
     Button,
+    ButtonPill,
     ButtonType,
     CardType,
     InfoBox,
@@ -61,7 +62,7 @@ export function StakeFormComponent({ validatorAddress, epoch, onSuccess }: Stake
     const activeAccount = useActiveAccount();
     const activeAddress = activeAccount?.address ?? '';
     const signer = useSigner(activeAccount);
-    const { data: iotaBalance, isPending: loadingIotaBalances } = useBalance(activeAddress);
+    const { data: iotaBalance, isPending: isIotaBalanceLoading } = useBalance(activeAddress);
     const coinBalance = BigInt(iotaBalance?.totalBalance || 0);
 
     const { data: metadata } = useCoinMetadata(IOTA_TYPE_ARG);
@@ -76,11 +77,15 @@ export function StakeFormComponent({ validatorAddress, epoch, onSuccess }: Stake
         activeAddress,
     );
     const maxAmountTxGasBudget = BigInt(maxAmountTransactionData?.gasSummary?.budget ?? 0n);
-    const maxTokenBalance = coinBalance - maxAmountTxGasBudget;
+    const availableBalance = coinBalance - maxAmountTxGasBudget;
+    const [availableBalanceFormatted, symbol] = useFormatCoin({
+        balance: availableBalance,
+        format: CoinFormat.FULL,
+    });
 
     const validationSchema = useMemo(
-        () => createValidationSchema(maxTokenBalance, coinSymbol, decimals, minimumStake),
-        [maxTokenBalance, coinSymbol, decimals, minimumStake],
+        () => createValidationSchema(availableBalance, coinSymbol, decimals, minimumStake),
+        [availableBalance, coinSymbol, decimals, minimumStake],
     );
 
     const { mutateAsync: stakeTokenMutateAsync, isPending: isStakeTokenTransactionPending } =
@@ -148,7 +153,7 @@ export function StakeFormComponent({ validatorAddress, epoch, onSuccess }: Stake
         onSubmit: handleSubmit,
         validateOnChange: true,
     });
-    const { values, isValid, isSubmitting, submitForm } = formik;
+    const { values, isValid, isSubmitting, submitForm, setFieldValue } = formik;
     const { amount } = values;
     const amountWithoutDecimals = parseAmount(amount, decimals);
 
@@ -160,19 +165,47 @@ export function StakeFormComponent({ validatorAddress, epoch, onSuccess }: Stake
     const transaction = newStakeData?.transaction;
     const gasSummary = newStakeData?.gasSummary;
 
-    const [maxTokenFormatted, symbol] = useFormatCoin({
-        balance: maxTokenBalance,
-        format: CoinFormat.FULL,
-    });
+    // const [maxTokenFormatted, symbol] = useFormatCoin({
+    //     balance: maxTokenBalance,
+    // const { data: maxAmountTransactionData } = useNewStakeTransaction(
+    //     validatorAddress,
+    //     coinBalance,
+    //     activeAddress,
+    // );
+    // const maxAmountTxGasBudget = BigInt(maxAmountTransactionData?.gasSummary?.budget ?? 0n);
+    // // do not remove: gasBudget field is used in the validation schema apps/core/src/utils/stake/createValidationSchema.ts
+    // useEffect(() => {
+    //     setFieldValue('gasBudget', maxAmountTxGasBudget);
+    // }, [maxAmountTxGasBudget]);
 
-    const hasEnoughRemainingBalance =
-        maxTokenBalance > parseAmount(amount, decimals) + BigInt(2) * maxAmountTxGasBudget;
+    // for user we show available amount as available_balance - gas_budget
+    // const availableBalance = coinBalance - maxAmountTxGasBudget;
 
     const isLoading =
-        loadingIotaBalances ||
+        isIotaBalanceLoading ||
         isSubmitting ||
         isStakeTokenTransactionLoading ||
         isStakeTokenTransactionPending;
+
+    const gasUnstakeBuffer = maxAmountTxGasBudget * BigInt(2);
+    const maxSafeAmount = availableBalance - gasUnstakeBuffer;
+    const [maxSafeAmountFormatted, maxSafeAmountSymbol] = useFormatCoin({
+        balance: maxSafeAmount,
+        format: CoinFormat.FULL,
+    });
+    const isUnsafeAmount =
+        amountWithoutDecimals &&
+        amountWithoutDecimals > maxSafeAmount &&
+        amountWithoutDecimals <= availableBalance;
+
+    function setMaxAmount() {
+        setFieldValue('amount', availableBalanceFormatted, true);
+    }
+
+    function setRecommendedAmount() {
+        setFieldValue('amount', maxSafeAmountFormatted, true);
+    }
+
     return (
         <FormikProvider value={formik}>
             <Form
@@ -199,20 +232,39 @@ export function StakeFormComponent({ validatorAddress, epoch, onSuccess }: Stake
                                 value={amount}
                                 caption={
                                     maxAmountTxGasBudget
-                                        ? `${maxTokenFormatted} ${symbol} Available`
+                                        ? `${availableBalanceFormatted} ${symbol} Available`
                                         : '--'
                                 }
                                 suffix={' ' + symbol}
                                 errorMessage={amount && meta.error ? meta.error : undefined}
                                 label="Amount"
+                                trailingElement={
+                                    <ButtonPill onClick={setMaxAmount}>Max</ButtonPill>
+                                }
                             />
                         );
                     }}
                 </Field>
-                {!hasEnoughRemainingBalance ? (
+
+                {isUnsafeAmount ? (
                     <InfoBox
-                        type={InfoBoxType.Error}
-                        supportingText="You have selected an amount that will leave you with insufficient funds to pay for gas fees for unstaking or any other transactions."
+                        type={InfoBoxType.Warning}
+                        supportingText={
+                            <>
+                                Staking your full balance may leave you without enough funds to
+                                cover gas fees for future actions like unstaking. To avoid this, we
+                                recommend staking up to {maxSafeAmountFormatted}&nbsp;
+                                {maxSafeAmountSymbol}.
+                                <div>
+                                    <span
+                                        onClick={setRecommendedAmount}
+                                        className="cursor-pointer underline hover:opacity-80"
+                                    >
+                                        Set recommended amount
+                                    </span>
+                                </div>
+                            </>
+                        }
                         style={InfoBoxStyle.Elevated}
                         icon={<Exclamation />}
                     />

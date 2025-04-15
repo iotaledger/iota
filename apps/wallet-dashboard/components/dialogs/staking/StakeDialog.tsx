@@ -68,16 +68,16 @@ export function StakeDialog({
         senderAddress,
     );
     const maxAmountTxGasBudget = BigInt(maxAmountTransactionData?.gasSummary?.budget ?? 0n);
-    const maxTokenBalance = coinBalance - maxAmountTxGasBudget;
+    const availableBalance = coinBalance - maxAmountTxGasBudget;
     const validationSchema = useMemo(
         () =>
             createValidationSchema(
-                maxStakableTimelockedAmount ?? maxTokenBalance,
+                maxStakableTimelockedAmount ?? availableBalance,
                 coinSymbol,
                 coinDecimals,
                 minimumStake,
             ),
-        [maxStakableTimelockedAmount, maxTokenBalance, coinSymbol, coinDecimals, minimumStake],
+        [maxStakableTimelockedAmount, availableBalance, coinSymbol, coinDecimals, minimumStake],
     );
 
     const formik = useFormik({
@@ -157,7 +157,7 @@ export function StakeDialog({
                             selectedValidator={selectedValidator}
                             handleClose={handleClose}
                             onBack={handleBack}
-                            maxTokenBalance={maxTokenBalance}
+                            availableBalance={availableBalance}
                             senderAddress={senderAddress}
                             onSuccess={handleTransactionSuccess}
                         />

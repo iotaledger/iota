@@ -1,0 +1,140 @@
+---
+title: Troubleshooting
+description: Troubleshooting common issues with your IOTA full node.
+teams:
+  - iotaledger/node
+---
+
+If you encounter errors or your full node stops working, run the commands in the following section to resolve the issue.
+
+## Issues during setup
+
+<Tabs groupId="setup-method">
+    <TabItem label="Systemd" value="systemd">
+      ### `Error: cannot find -lpq`
+
+      If, during the compilation step, you receive a `cannot find -lpq` error, you are missing the `libpq` library. 
+      Use `sudo apt-get install libpq-dev` to install on Linux, or `brew install libpq` on MacOS. 
+      After you install on MacOS, create a Homebrew link using `brew link --force libpq`. 
+      For further context, reference the [issue on Stack Overflow](https://stackoverflow.com/questions/70313347/ld-library-not-found-for-lpq-when-build-rust-in-macos?rq=1).
+
+      ### `Error: Listener: Address already in use`
+
+      If you receive the following error:
+
+      ```shell
+      panicked at error binding to 0.0.0.0:9184: error creating server listener: Address already in use (os error 98)
+      ```
+
+      Update the metrics address in your `fullnode.yaml` file to use port `9180`.
+
+      ```yaml
+      metrics-address: "0.0.0.0:9180"
+      ```
+    </TabItem>
+
+    <TabItem label="Docker" value="docker">
+      No known issues with the docker setup yet.
+    </TabItem>
+</Tabs>
+
+
+## Inspecting the state of a running node
+
+<Tabs groupId="setup-method">
+    <TabItem label="Systemd" value="systemd">
+      Looking at the logs for specific errors:
+      ```shell
+      journalctl -u iota-node -f
+      ```
+    </TabItem>
+
+    <TabItem label="Docker" value="docker">
+      Looking at the logs for specific errors:
+      ```shell
+      docker compose logs iota-node -f
+      ```
+
+      Connecting to a shell inside the container:
+      ```shell
+      docker exec -it $CONTAINER_ID /bin/bash
+      ```
+
+      Inspecting the database:
+      ```shell
+      ls -la iotadb/
+      ```
+    </TabItem>
+</Tabs>
+
+
+## Reinstalling the node from scratch
+
+If you continue to see issues, do the following steps:
+
+<Tabs groupId="setup-method">
+    <TabItem label="Systemd" value="systemd">
+      To re-install your node from scratch, run the same script you used to install it:
+
+      ```shell
+      NETWORK="testnet" bash -i <(curl -sSf https://raw.githubusercontent.com/iotaledger/iota/refs/heads/develop/setups/fullnode/systemd/setup.sh)
+      ```
+
+      :::info
+      Re-use the same network (`testnet`, `mainnet`, `devnet`) your node is already running on.
+      :::
+    </TabItem>
+
+
+    <TabItem label="Docker" value="docker">
+      Stop the full node
+      ```shell
+      docker compose down
+      ```
+
+      Delete the data folder
+      Make sure to first make a backup of your config files
+      ```shell
+      rm -Rf data/
+      ```
+
+      Pull the latest version of the container
+      ```shell
+      docker compose pull
+      ```
+
+      Run the respective prepare script again depending on your network
+      <Tabs groupId="network" queryString>
+          <TabItem label="Testnet" value="testnet">
+            ```shell
+            ./prepare_testnet.sh
+            ```
+          </TabItem>
+          <TabItem label="Devnet" value="devnet">
+            ```shell
+            ./prepare_devnet.sh
+            ```
+          </TabItem>
+      </Tabs>
+
+      Start the container again
+
+      ```shell
+      docker compose up
+      ```
+    </TabItem>
+</Tabs>
+
+
+## Local RPC Connectivity Issues
+
+Update the `json-rpc-address` in the full node config to listen on all addresses:
+
+```shell
+sed -i 's/127.0.0.1/0.0.0.0/' fullnode.yaml
+```
+
+```shell
+-json-rpc-address: "127.0.0.1:9000"
++json-rpc-address: "0.0.0.0:9000"
+```

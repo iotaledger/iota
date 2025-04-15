@@ -41,12 +41,6 @@ export function SendTokenFormInput({
     const errorMessage = meta.error;
     const isActionButtonDisabled = isSubmitting || isMaxActionDisabled;
 
-    const renderAction = () => (
-        <ButtonPill disabled={isActionButtonDisabled} onClick={onActionClick}>
-            Max
-        </ButtonPill>
-    );
-
     const gasAmount = formattedGasBudgetEstimation
         ? formattedGasBudgetEstimation + ' ' + gasToken
         : undefined;
@@ -72,7 +66,11 @@ export function SendTokenFormInput({
             allowNegative={false}
             errorMessage={errorMessage}
             amountCounter={!errorMessage ? (coins ? gasAmount : '--') : undefined}
-            trailingElement={renderAction()}
+            trailingElement={
+                <ButtonPill disabled={isActionButtonDisabled} onClick={onActionClick}>
+                    Max
+                </ButtonPill>
+            }
             decimalScale={coinDecimals ? undefined : 0}
             thousandSeparator
             onValueChange={async (values) => {
