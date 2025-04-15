@@ -437,7 +437,7 @@ const developer = [
             },
         ],
     },
-    'developer/exchange-integration/exchange-integration',
+    'developer/exchange-integration',
     'developer/dev-cheat-sheet',
 ];
 module.exports = developer;
