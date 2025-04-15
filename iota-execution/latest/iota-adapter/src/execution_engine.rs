@@ -4,6 +4,9 @@
 
 pub use checked::*;
 
+// Making some random changes to see if I can sign a commit locally with istvan.acs@iota.org
+// (which has GPG registered) then Squash and Merge with mr.istvan.acs@gmail.com (which has no
+// GPG registered) and see if Verified status falls off or not.
 #[iota_macros::with_checked_arithmetic]
 mod checked {
 
