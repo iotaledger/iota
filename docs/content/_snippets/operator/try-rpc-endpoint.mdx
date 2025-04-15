@@ -1,0 +1,18 @@
+import {Networks} from '@site/src/components/constant'
+
+Your full node serves the read endpoints of the IOTA JSON-RPC API at: <code>{Networks.iota_localnet.jsonRpcUrl}</code>.
+
+Register a new iota client environment with your node's RPC endpoint
+```shell
+iota client new-env --alias=local --rpc http://127.0.0.1:9000
+iota client switch --env local
+```
+
+:::info 
+The instructions for building/installing the iota client are [here](../../references/cli)
+:::
+
+Then query the chain identifier from the RPC endpoint:
+```shell
+iota client chain-identifier
+```
