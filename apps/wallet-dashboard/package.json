@@ -12,6 +12,7 @@
         "test": "jest",
         "ampli": "ampli",
         "pull-amplitude": "ampli pull web && node prependLicense.mjs && prettier -w ampli.json lib/utils/analytics/ampli/index.ts",
+        "prepare:e2e": "pnpm -w wallet build && pnpm -w wallet-dashboard build",
         "playwright": "playwright",
         "playwright:debug": "PWDEBUG=1 playwright"
     },
@@ -34,7 +35,7 @@
         "bignumber.js": "^9.1.1",
         "clsx": "^2.1.1",
         "formik": "^2.4.2",
-        "next": "14.2.25",
+        "next": "14.2.28",
         "react": "^18.3.1",
         "zustand": "^4.4.1"
     },
