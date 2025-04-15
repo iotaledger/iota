@@ -530,12 +530,13 @@ impl DagState {
 
     // Retrieves the cached block within the range [start_round, end_round) from a
     // given authority. NOTE: end_round must be greater than GENESIS_ROUND.
+    #[cfg(test)]
     pub(crate) fn get_last_cached_block_in_range(
         &self,
         authority: AuthorityIndex,
         start_round: Round,
         end_round: Round,
-    ) -> Option<VerifiedBlockHeader> {
+    ) -> Option<VerifiedBlock> {
         if end_round == GENESIS_ROUND {
             panic!(
                 "Attempted to retrieve blocks earlier than the genesis round which is impossible"
@@ -544,15 +545,11 @@ impl DagState {
 
         let block_ref = self.recent_refs_by_authority[authority]
             .range((
-                Included(BlockRef::new(
-                    start_round,
-                    authority,
-                    BlockHeaderDigest::MIN,
-                )),
+                Included(BlockRef::new(start_round, authority, BlockDigest::MIN)),
                 Excluded(BlockRef::new(
                     end_round,
                     AuthorityIndex::MIN,
-                    BlockHeaderDigest::MIN,
+                    BlockDigest::MIN,
                 )),
             ))
             .last()?;
@@ -1946,7 +1943,7 @@ mod test {
         let (_, dag_builder) = parse_dag(dag_str).expect("Invalid dag");
 
         // Add equivocating block for round 2 authority 3
-        let block = VerifiedBlockHeader::new_for_test(TestBlockHeader::new(2, 2).build());
+        let block = VerifiedBlock::new_for_test(TestBlock::new(2, 2).build());
 
         // Accept all blocks
         for block in dag_builder

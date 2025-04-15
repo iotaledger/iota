@@ -598,16 +598,6 @@ impl fmt::Debug for VerifiedBlockHeader {
     }
 }
 
-/// Block with extended additional information, such as
-/// local blocks that are excluded from the block's ancestors.
-/// The extended information do not need to be certified or forwarded to other
-/// authorities.
-#[derive(Clone, Debug)]
-pub(crate) struct ExtendedBlock {
-    pub block_header: VerifiedBlockHeader,
-    pub excluded_ancestors: Vec<BlockRef>,
-}
-
 /// Generates the genesis blocks for the current Committee.
 /// The blocks are returned in authority index order.
 pub(crate) fn genesis_block_headers(context: Arc<Context>) -> Vec<VerifiedBlockHeader> {
