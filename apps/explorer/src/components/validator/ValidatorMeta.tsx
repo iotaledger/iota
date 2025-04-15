@@ -1,16 +1,105 @@
 // Copyright (c) Mysten Labs, Inc.
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
-
 import { Badge, BadgeType, KeyValueInfo, Panel } from '@iota/apps-ui-kit';
 import { type IotaValidatorSummary } from '@iota/iota-sdk/client';
 import { ArrowTopRight } from '@iota/apps-ui-icons';
 import { AddressLink } from '~/components/ui';
 import { ImageIcon, ImageIconSize, toast } from '@iota/core';
+import { toB64 } from '@iota/iota-sdk/utils';
 
 type ValidatorMetaProps = {
     validatorData: IotaValidatorSummary;
 };
+
+type InactiveValidatorMetaProps = {
+    image_url: string;
+    name: string;
+    description: string;
+    project_url?: string;
+    protocol_pubkey_bytes: string;
+    iota_address: string;
+    staking_pool_id: string;
+};
+
+export function InactiveValidators({
+    inactiveValidatorMetadata,
+}: {
+    inactiveValidatorMetadata: InactiveValidatorMetaProps;
+}): JSX.Element {
+    function handleOnCopy() {
+        toast('Copied to clipboard');
+    }
+    const logo = inactiveValidatorMetadata.image_url;
+    const validatorName = inactiveValidatorMetadata.name;
+    const description = inactiveValidatorMetadata.description;
+    const projectUrl = inactiveValidatorMetadata.project_url;
+    const validatorAddress = inactiveValidatorMetadata.iota_address;
+    const validatorStakingPoolId = inactiveValidatorMetadata.staking_pool_id;
+    const validatorPublicKey = toB64(
+        Uint8Array.from(inactiveValidatorMetadata.protocol_pubkey_bytes),
+    );
+    return (
+        <div className="flex flex-col gap-y-md">
+            <Panel>
+                <div className="flex flex-col gap-lg p-md--rs md:flex-row">
+                    <div className="flex flex-row gap-lg">
+                        <div className="flex h-[120px] w-[120px]">
+                            <ImageIcon
+                                src={logo}
+                                label={validatorName}
+                                fallback={validatorName}
+                                size={ImageIconSize.Full}
+                            />
+                        </div>
+                        <div className="flex flex-col gap-y-sm">
+                            <div>
+                                <Badge type={BadgeType.Neutral} label="Validator" />
+                            </div>
+                            <div className="dark:text-neutral-92 flex flex-row items-center gap-x-xs text-neutral-10">
+                                <span className="text-headline-md">{validatorName}</span>
+                                {projectUrl && (
+                                    <a href={projectUrl} target="_blank" rel="noreferrer noopener">
+                                        <ArrowTopRight />
+                                    </a>
+                                )}
+                            </div>
+                        </div>
+                    </div>
+                    <div className="flex w-1/2 flex-col gap-y-md">
+                        <span className="dark:text-neutral-60 text-label-lg text-neutral-40">
+                            Description
+                        </span>
+                        <span className="dark:text-neutral-92 text-body-md text-neutral-10">
+                            {description ?? '--'}
+                        </span>
+                    </div>
+                </div>
+            </Panel>
+            <Panel>
+                <div className="flex flex-col gap-md p-md--rs">
+                    <KeyValueInfo
+                        keyText="Pool ID"
+                        value={validatorStakingPoolId}
+                        copyText={validatorStakingPoolId}
+                        onCopySuccess={handleOnCopy}
+                    />
+                    <KeyValueInfo
+                        keyText="Address"
+                        value={<AddressLink address={validatorAddress} label={validatorAddress} />}
+                        copyText={validatorAddress}
+                        onCopySuccess={handleOnCopy}
+                    />
+                    <KeyValueInfo
+                        keyText="Public Key"
+                        value={validatorPublicKey}
+                        copyText={validatorPublicKey}
+                    />
+                </div>
+            </Panel>
+        </div>
+    );
+}
 
 export function ValidatorMeta({ validatorData }: ValidatorMetaProps): JSX.Element {
     const validatorPublicKey = validatorData.protocolPubkeyBytes;
@@ -40,7 +129,7 @@ export function ValidatorMeta({ validatorData }: ValidatorMetaProps): JSX.Elemen
                             <div>
                                 <Badge type={BadgeType.Neutral} label="Validator" />
                             </div>
-                            <div className="flex flex-row items-center gap-x-xs text-neutral-10 dark:text-neutral-92">
+                            <div className="dark:text-neutral-92 flex flex-row items-center gap-x-xs text-neutral-10">
                                 <span className="text-headline-md">{validatorName}</span>
                                 {projectUrl && (
                                     <a href={projectUrl} target="_blank" rel="noreferrer noopener">
@@ -51,10 +140,10 @@ export function ValidatorMeta({ validatorData }: ValidatorMetaProps): JSX.Elemen
                         </div>
                     </div>
                     <div className="flex w-1/2 flex-col gap-y-md">
-                        <span className="text-label-lg text-neutral-40 dark:text-neutral-60">
+                        <span className="dark:text-neutral-60 text-label-lg text-neutral-40">
                             Description
                         </span>
-                        <span className="text-body-md text-neutral-10 dark:text-neutral-92">
+                        <span className="dark:text-neutral-92 text-body-md text-neutral-10">
                             {description ?? '--'}
                         </span>
                     </div>

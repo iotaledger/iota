@@ -4,13 +4,15 @@
 
 import {
     type IotaSystemStateSummaryCompat,
+    useGetDynamicFields,
     useGetLatestIotaSystemState,
+    useGetObject,
     useGetValidatorsApy,
     useGetValidatorsEvents,
 } from '@iota/core';
 import { useMemo } from 'react';
 import { useParams } from 'react-router-dom';
-import { PageLayout, ValidatorMeta, ValidatorStats } from '~/components';
+import { InactiveValidators, PageLayout, ValidatorMeta, ValidatorStats } from '~/components';
 import { VALIDATOR_LOW_STAKE_GRACE_PERIOD } from '~/lib/constants';
 import { getValidatorMoveEvent } from '~/lib/utils';
 import { InfoBox, InfoBoxStyle, InfoBoxType, LoadingIndicator } from '@iota/apps-ui-kit';
@@ -25,10 +27,37 @@ const getAtRiskRemainingEpochs = (
     return atRisk ? VALIDATOR_LOW_STAKE_GRACE_PERIOD - Number(atRisk[1]) : null;
 };
 
+const getInactivePoolsId = (id: string, inactivePoolsId: string): JSX.Element => {
+    // console.log('InactiveValidators.inactivePoolsId: ' + inactivePoolsId);
+    // console.log('InactiveValidators.id: ' + id);
+    const inactiveValidators = useGetDynamicFields(inactivePoolsId);
+    const maping = inactiveValidators.data?.pages?.flatMap((page) =>
+        page.data.map((validator) => ({
+            objectId: validator.objectId,
+        })),
+    );
+    console.log(maping);
+    const objectId = maping?.[0]?.objectId;
+    const { data: object } = useGetObject(objectId);
+    const dynamicFieldId = object?.data?.content?.fields?.value?.fields?.inner?.fields?.id?.id;
+    // console.log('dynamicFieldId', dynamicFieldId);
+    const { data: dynamicFields } = useGetDynamicFields(dynamicFieldId);
+    const dfObjectId = dynamicFields?.pages?.[0]?.data?.[0]?.objectId;
+    // console.log('dfObjectId', dfObjectId);
+    const { data: dfObject } = useGetObject(dfObjectId);
+    // console.log('dfObject', dfObject?.data?.content?.fields?.value.fields.metadata?.fields);
+
+    const metadata = dfObject?.data?.content?.fields?.value.fields.metadata?.fields;
+    if (metadata) {
+        metadata.staking_pool_id = objectId; // Añade la propiedad `newProperty` con un valor
+    }
+    // console.log('metadata', metadata);
+    return metadata;
+};
+
 function ValidatorDetails(): JSX.Element {
     const { id } = useParams();
     const { data, isPending } = useGetLatestIotaSystemState();
-
     const validatorData = useMemo(() => {
         if (!data) return null;
         return (
@@ -37,7 +66,6 @@ function ValidatorDetails(): JSX.Element {
             ) || null
         );
     }, [id, data]);
-
     const atRiskRemainingEpochs = getAtRiskRemainingEpochs(data, id);
 
     const numberOfValidators = data?.activeValidators.length ?? null;
@@ -47,7 +75,8 @@ function ValidatorDetails(): JSX.Element {
         limit: numberOfValidators,
         order: 'descending',
     });
-
+    const inactiveValidatorData = getInactivePoolsId(id ?? '', data?.inactivePoolsId ?? '');
+    //console.log('inactiveValidatorData', inactiveValidatorData);
     const validatorRewards = useMemo(() => {
         if (!validatorEvents || !id) return 0;
         const rewards = (
@@ -60,12 +89,6 @@ function ValidatorDetails(): JSX.Element {
     if (isPending || validatorsEventsLoading || validatorsApysLoading) {
         return <PageLayout content={<LoadingIndicator />} />;
     }
-    // console.log('----------------------------------------------');
-    // console.log('validatorData: ' + validatorData);
-    // console.log('data: ' + data);
-    // console.log('validatorEvents: ' + validatorEvents);
-    // console.log('id: ' + id);
-    // console.log('----------------------------------------------');
 
     if (!validatorData || !data || !validatorEvents || !id) {
         return (
@@ -73,55 +96,14 @@ function ValidatorDetails(): JSX.Element {
                 content={
                     <div className="mb-10">
                         <InfoBox
-                            title="Validator inactive"
-                            //supportingText={`No validator data found for ${id}`}
+                            title="Inactive validator"
                             icon={<Warning />}
-                            type={InfoBoxType.Error}
+                            type={InfoBoxType.Warning}
                             style={InfoBoxStyle.Elevated}
                         />
-                        <ValidatorMeta
-                            validatorData={{
-                                // TODO: compulsory fields
-                                name: 'Invented Validator',
-                                imageUrl: 'https://example.com/default-image.png',
-                                description: 'This is a invented validator',
-                                stakingPoolId: 'Invented Validator',
-                                iotaAddress: id || '',
-                                protocolPubkeyBytes: 'Invented Validator',
-                                // TODO: the following fields can/should be ommited for invalid validators
-                                projectUrl: 'https://example.com',
-                                authorityPubkeyBytes: 'Invented Validator',
-                                commissionRate: 'Invented Validator',
-                                exchangeRatesId: 'Invented Validator',
-                                exchangeRatesSize: 'Invented Validator',
-                                gasPrice: 'Invented Validator',
-                                netAddress: 'Invented Validator',
-                                networkPubkeyBytes: 'Invented Validator',
-                                nextEpochAuthorityPubkeyBytes: undefined,
-                                nextEpochCommissionRate: '5',
-                                nextEpochGasPrice: '5',
-                                nextEpochNetAddress: undefined,
-                                nextEpochNetworkPubkeyBytes: undefined,
-                                nextEpochP2pAddress: undefined,
-                                nextEpochPrimaryAddress: undefined,
-                                nextEpochProofOfPossession: undefined,
-                                nextEpochProtocolPubkeyBytes: undefined,
-                                nextEpochStake: 'Invented Validator',
-                                operationCapId: 'Invented Validator',
-                                p2pAddress: 'Invented Validator',
-                                pendingPoolTokenWithdraw: 'Invented Validator',
-                                pendingStake: 'Invented Validator',
-                                pendingTotalIotaWithdraw: 'Invented Validator',
-                                poolTokenBalance: 'Invented Validator',
-                                primaryAddress: 'Invented Validator',
-                                proofOfPossessionBytes: 'Invented Validator',
-                                rewardsPool: 'Invented Validator',
-                                stakingPoolActivationEpoch: undefined,
-                                stakingPoolDeactivationEpoch: undefined,
-                                stakingPoolIotaBalance: '0',
-                                votingPower: '0',
-                            }}
-                        />
+                        {inactiveValidatorData && (
+                            <InactiveValidators inactiveValidatorMetadata={inactiveValidatorData} />
+                        )}
                     </div>
                 }
             />
