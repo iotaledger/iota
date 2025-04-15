@@ -109,7 +109,7 @@ jobs:
 
       - name: Build Dashboard
         if: inputs.isWalletDashboard || inputs.isRpc || inputs.isTypescriptSDK || github.ref_name == 'develop'
-        run: pnpm --filter wallet-dashboard build
+        run: pnpm turbo --filter wallet-dashboard build
 
       - name: Run Dashboard e2e tests
         if: inputs.isWalletDashboard || inputs.isRpc || inputs.isTypescriptSDK || github.ref_name == 'develop'
