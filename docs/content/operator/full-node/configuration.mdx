@@ -6,30 +6,72 @@ teams:
   - iotaledger/node
 ---
 
-The IOTA full node configuration file is a YAML file (usually named `fullnode.yaml`) that you can use to configure your `iota-node`.
-To smooth the setup process, you can use a full node configuration file [template](https://github.com/iotaledger/iota/blob/develop/setups/fullnode/fullnode-template.yaml) and modify it to your needs.
+The IOTA full node configuration file is a YAML file named `fullnode.yaml`, located in your iota install folder (if you used docker) or in `/opt/iota/config` (if you used systemd).   
 
-Depending on the network you want to connect to, you need to adjust the peering configuration in the configuration file and download a correct genesis blob (for more details, see the [genesis](configs/genesis.mdx) page).
-Download the latest version of the IOTA full node configuration for the network you want to connect to:
-<Tabs groupId="node-config">
-    <TabItem value="testnet" label="Testnet">
-```shell
-wget -O fullnode.yaml https://github.com/iotaledger/iota/raw/develop/setups/fullnode/fullnode-template-testnet.yaml
+You can modify it to configure your IOTA node.
+
+:::info
+If you used the installer script, it will have generated that config file for you, with default ports, archive and pruning settings, and also covers peering configuration for the selected network.
+:::
+
+## Customize your node's configuration
+
+### Networking
+
+To synchronize the state, the node needs to establish connections with other nodes that have already joined the network.   
+Ensure that port `8084` is open and set up an external address for node discovery.
+
+See more useful ports and network configuration options [here](configs/network.mdx)
+
+### Storage and pruning (optional)
+
+To keep disk usage in check or save storage space, you can:
+- prune old transaction data (transactions, effects, events, checkpoints)
+- prune old object versions
+- turn off the built-in blockchain indexer
+
+Learn how to choose and set pruning settings [here](configs/pruning.mdx).
+
+### Archival (optional)
+
+If the peers your node syncs with have already pruned data your node needs, your node can fallback onto using archives (files containing historical data).  
+Learn how to configure archive settings for your node [here](configs/archives.mdx).
+
+### Snapshots (optional)
+
+If your node fails, it can catch up faster from a recent database snapshot (on restart) than replaying all past transactions since genesis. 
+Learn how to configure formal and RocksDB snapshots [here](configs/snapshots.mdx).
+
+### Data storage paths (optional)
+
+To set paths for data files, change these values in `fullnode.yaml`:
+
+```yaml
+# Set a custom path for storing the node's database
+db-path: "/db-files/iota-fullnode"
+
+# Set a custom path to the genesis blob
+genesis:
+  genesis-file-location: "/iota-fullnode/genesis.blob"
+
+# Set a custom path for the migration blob
+migration-tx-data-path: "/opt/iota/config/migration.blob"
 ```
+
+## Restart your node after making changes
+
+After changing any of the node's settings, restart your node using:
+
+<Tabs groupId="setup-method">
+    <TabItem label="Systemd" value="systemd">
+      ```shell
+      sudo systemctl restart iota-node
+      ```
     </TabItem>
-    <TabItem value="devnet" label="Devnet">
-```shell
-wget -O fullnode.yaml https://github.com/iotaledger/iota/raw/develop/setups/fullnode/fullnode-template-devnet.yaml
-```
+
+    <TabItem label="Docker" value="docker">
+      ```shell
+      docker compose restart
+      ```
     </TabItem>
 </Tabs>
-
-This default template uses default ports, archive and pruning settings, and also covers peering configuration for the selected network.
-If you're fine with the default settings, you can use the template as is and continue with the node setup either [using Docker](docker.mdx) or [build it from source](source.mdx).
-
-For more specific guidance on how to configure your node to suit your needs, e.g., configure snapshot, refer to the following sections:
-  - [Genesis](configs/genesis.mdx) - more details on genesis.
-  - [Network](configs/network.mdx) - peering configuration for the node.
-  - [Pruning](configs/pruning.mdx) - how to prune your IOTA Full Node to leverage storage space.
-  - [Snapshots](configs/snapshots.mdx) - how to configure formal and RocksDB snapshots for your IOTA Full Node.
-  - [Archives](configs/archives.mdx) - how to configure archives for your IOTA Full Node.

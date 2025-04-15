@@ -212,6 +212,8 @@ export interface GetBalanceParams {
 export interface GetCheckpointAddressMetricsParams {
     checkpoint: string;
 }
+/** Return the circulating supply summary. */
+export interface GetCirculatingSupplyParams {}
 /** Return metadata (e.g., symbol, decimals) for a coin. */
 export interface GetCoinMetadataParams {
     /** type name for the coin (e.g., 0x168da5bf1f48dafc111b0a488fa454aca95e0b5e::usdc::USDC) */
@@ -244,6 +246,15 @@ export interface GetDynamicFieldObjectParams {
     parentId: string;
     /** The Name of the dynamic field */
     name: RpcTypes.DynamicFieldName;
+}
+/** Return the dynamic field object information for a specified object with content options. */
+export interface GetDynamicFieldObjectV2Params {
+    /** The ID of the queried parent object */
+    parentObjectId: string;
+    /** The Name of the dynamic field */
+    name: RpcTypes.DynamicFieldName;
+    /** Options for specifying the content to be returned */
+    options?: RpcTypes.IotaObjectDataOptions | null | undefined;
 }
 /** Return the list of dynamic field objects owned by an object. */
 export interface GetDynamicFieldsParams {

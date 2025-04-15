@@ -3,7 +3,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { type Config } from 'tailwindcss';
-import animatePlugin from 'tailwindcss-animate';
 // Note: exception for the tailwind preset import
 import uiKitStaticPreset from '../../apps/ui-kit/src/lib/tailwind/static.presets';
 
@@ -71,5 +70,4 @@ export default {
             },
         },
     },
-    plugins: [animatePlugin],
 } satisfies Partial<Config>;

@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use iota_json_rpc_types::{
-    DynamicFieldPage, EventFilter, EventPage, IotaEvent, IotaObjectResponse,
+    DynamicFieldPage, EventFilter, EventPage, IotaEvent, IotaObjectDataOptions, IotaObjectResponse,
     IotaObjectResponseQuery, IotaTransactionBlockEffects, IotaTransactionBlockResponseQuery,
     ObjectsPage, TransactionBlocksPage, TransactionFilter,
 };
@@ -108,5 +108,18 @@ pub trait IndexerApi {
         parent_object_id: ObjectID,
         /// The Name of the dynamic field
         name: DynamicFieldName,
+    ) -> RpcResult<IotaObjectResponse>;
+
+    /// Return the dynamic field object information for a specified object with content options.
+    #[rustfmt::skip]
+    #[method(name = "getDynamicFieldObjectV2")]
+    async fn get_dynamic_field_object_v2(
+        &self,
+        /// The ID of the queried parent object
+        parent_object_id: ObjectID,
+        /// The Name of the dynamic field
+        name: DynamicFieldName,
+        /// Options for specifying the content to be returned
+        options: Option<IotaObjectDataOptions>,
     ) -> RpcResult<IotaObjectResponse>;
 }

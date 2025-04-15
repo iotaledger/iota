@@ -1,9 +1,28 @@
 // Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import type { BrowserContext, Page } from '@playwright/test';
+import type { Page, BrowserContext } from '@playwright/test';
 import { Ed25519Keypair } from '@iota/iota-sdk/keypairs/ed25519';
 import { expect } from './fixtures';
+
+export async function connectWallet(page: Page, context: BrowserContext) {
+    await page.goto('/');
+    await page.waitForSelector('.welcome-page');
+    const connectButton = page.getByRole('button', { name: 'Connect' });
+
+    const pagePromise = context.waitForEvent('page', { timeout: 60000 });
+    await connectButton.click();
+    await page.getByText('IOTA Wallet', { exact: true }).click();
+    const walletApprovePage = await pagePromise;
+
+    await walletApprovePage.waitForLoadState('load');
+    await walletApprovePage.bringToFront();
+
+    await walletApprovePage.getByRole('button', { name: 'Continue' }).click();
+    await walletApprovePage.getByRole('button', { name: 'Connect' }).click();
+
+    await page.bringToFront();
+}
 
 export async function createWallet(page: Page, extensionUrl: string) {
     await page.goto(extensionUrl, { waitUntil: 'commit' });
@@ -59,16 +78,4 @@ export function deriveAddressFromMnemonic(mnemonic: string) {
     const keypair = Ed25519Keypair.deriveKeypair(mnemonic);
     const address = keypair.getPublicKey().toIotaAddress();
     return address;
-}
-
-export async function connectWallet(page: Page, context: BrowserContext, extensionName: string) {
-    const connectButton = page.getByRole('button', { name: 'Connect' });
-    await connectButton.click();
-
-    await page.getByText(extensionName, { exact: true }).click();
-
-    // The extension should appear in a popup, need to handle that
-    const walletApprovePage = await context.waitForEvent('page');
-    await walletApprovePage.getByText('Continue', { exact: true }).click();
-    await walletApprovePage.getByRole('button', { name: 'Connect' }).click();
 }
