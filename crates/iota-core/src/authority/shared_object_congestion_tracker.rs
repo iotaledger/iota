@@ -48,7 +48,6 @@ impl SharedObjectCongestionTracker {
         for (object_id, total_cost) in init_values {
             object_execution_cost.insert(*object_id, *total_cost);
         }
-
         Self {
             object_execution_cost,
             mode,
