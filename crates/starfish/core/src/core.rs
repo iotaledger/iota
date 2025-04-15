@@ -1429,7 +1429,6 @@ mod test {
     use futures::{StreamExt, stream::FuturesUnordered};
     use iota_metrics::monitored_mpsc::unbounded_channel;
     use iota_protocol_config::ProtocolConfig;
-    use rstest::rstest;
     use starfish_config::{AuthorityIndex, Parameters};
     use tokio::time::sleep;
 
@@ -1442,7 +1441,6 @@ mod test {
         leader_scoring::ReputationScores,
         storage::{Store, WriteBatch, mem_store::MemStore},
         test_dag_builder::DagBuilder,
-        test_dag_parser::parse_dag,
         transaction::{BlockStatus, TransactionClient},
     };
 

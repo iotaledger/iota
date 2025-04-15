@@ -5,17 +5,15 @@
 use std::{collections::HashSet, sync::Arc};
 
 use parking_lot::RwLock;
-use tracing::debug;
 use starfish_config::AuthorityIndex;
 
 use crate::{
-    block::{BlockAPI, BlockRef, VerifiedBlock},
+    block::{BlockAPI, BlockRef, GENESIS_ROUND, VerifiedBlock},
     commit::{Commit, CommittedSubDag, TrustedCommit, sort_sub_dag_blocks},
     context::Context,
     dag_state::DagState,
     leader_schedule::LeaderSchedule,
 };
-use crate::block::GENESIS_ROUND;
 
 /// The `StorageAPI` trait provides an interface for the block store and has
 /// been mostly introduced for allowing to inject the test store in
@@ -158,8 +156,7 @@ impl Linearizer {
                             .iter()
                             .copied()
                             .filter(|ancestor| {
-                                ancestor.round > GENESIS_ROUND &&
-                                !dag_state.is_committed(ancestor)
+                                ancestor.round > GENESIS_ROUND && !dag_state.is_committed(ancestor)
                             })
                             .collect::<Vec<_>>(),
                     )
@@ -272,7 +269,6 @@ impl Linearizer {
 
 #[cfg(test)]
 mod tests {
-    use rstest::rstest;
 
     use super::*;
     use crate::{
@@ -282,7 +278,6 @@ mod tests {
         leader_schedule::{LeaderSchedule, LeaderSwapTable},
         storage::mem_store::MemStore,
         test_dag_builder::DagBuilder,
-        test_dag_parser::parse_dag,
     };
 
     #[tokio::test]

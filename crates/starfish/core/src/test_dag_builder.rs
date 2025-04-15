@@ -204,7 +204,6 @@ impl DagBuilder {
             .into_iter()
             .flatten()
         {
-
             let leader_block_ref = leader_block.reference();
             last_timestamp_ms = leader_block.timestamp_ms().max(last_timestamp_ms);
 

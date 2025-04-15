@@ -150,16 +150,14 @@ impl TransactionConsumer {
         (
             transactions,
             Box::new(move |block_ref: BlockRef| {
-                let mut block_status_subscribers = block_status_subscribers.lock();
+                let block_status_subscribers = block_status_subscribers.lock();
 
                 for ack in acks {
                     let (status_tx, status_rx) = oneshot::channel();
 
-
-                        // Report directly the block as sequenced while
-                        // tx is acknowledged for inclusion.
-                        status_tx.send(BlockStatus::Sequenced(block_ref)).ok();
-
+                    // Report directly the block as sequenced while
+                    // tx is acknowledged for inclusion.
+                    status_tx.send(BlockStatus::Sequenced(block_ref)).ok();
 
                     let _ = ack.send((block_ref, status_rx));
                 }
