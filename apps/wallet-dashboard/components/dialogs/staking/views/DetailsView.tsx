@@ -123,13 +123,6 @@ export function DetailsView({
                     <Panel hasBorder>
                         <div className="flex flex-col gap-y-sm p-md">
                             <KeyValueInfo
-                                keyText="Member of Committee"
-                                tooltipPosition={TooltipPosition.Bottom}
-                                tooltipText="If the validator is part of the current committee."
-                                value={isValidatorCommitteeMember ? 'Yes' : 'No'}
-                                fullwidth
-                            />
-                            <KeyValueInfo
                                 keyText="Your Stake"
                                 value={totalStakeFormatted}
                                 supportingLabel={totalStakeSymbol}

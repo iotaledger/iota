@@ -34,13 +34,6 @@ export function StakedInfo({ validatorAddress, accountAddress }: StakedInfoProps
         <Panel hasBorder>
             <div className="flex flex-col gap-y-sm p-md">
                 <KeyValueInfo
-                    keyText="Member of Committee"
-                    tooltipPosition={TooltipPosition.Bottom}
-                    tooltipText="If the validator is part of the current committee."
-                    value={isCommitteeMember(validatorAddress) ? 'Yes' : 'No'}
-                    fullwidth
-                />
-                <KeyValueInfo
                     keyText="Staking APY"
                     tooltipPosition={TooltipPosition.Right}
                     tooltipText="Annualized percentage yield based on past validator performance. Future APY may vary"
