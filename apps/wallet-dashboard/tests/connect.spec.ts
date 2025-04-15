@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { test, expect } from './fixtures';
-import { connectWallet, createWallet } from './utils';
+import { connectWallet, createWallet, importWallet } from './utils';
 import 'dotenv/config';
 
 test.describe('Wallet Connection', () => {
@@ -27,7 +27,9 @@ test.describe('Wallet Connection', () => {
         page,
         sharedState,
         extensionName,
+        extensionUrl,
     }) => {
+        await importWallet(page, extensionUrl, sharedState.walletMnemonic!);
         await connectWallet(page, context, extensionName);
 
         // The extension should appear in a popup, need to handle that
