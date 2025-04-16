@@ -24,8 +24,7 @@ export async function connectWallet(page: Page, context: BrowserContext, extensi
     await page.bringToFront();
 }
 
-export async function createWallet(page: Page, extensionUrl: string) {
-    await page.goto(extensionUrl, { waitUntil: 'commit' });
+export async function createWallet(page: Page) {
     await page.getByRole('button', { name: /Add Profile/ }).click({ timeout: 30000 });
     await page.getByText('Create New', { exact: true }).click();
     await page.getByTestId('password.input').fill('iotae2etests');

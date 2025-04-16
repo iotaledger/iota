@@ -7,16 +7,16 @@ import 'dotenv/config';
 
 test.describe('Wallet Connection', () => {
     test.beforeEach(async ({ page, extensionUrl, sharedState }) => {
-        // Navigate to the wallet dashboard
-        await page.goto('/');
+        // Navigate to the wallet
+        await page.goto(extensionUrl, { waitUntil: 'load' });
 
         // Create a wallet in the extension
-        const cratedWallet = await createWallet(page, extensionUrl);
+        const cratedWallet = await createWallet(page);
 
         sharedState.walletMnemonic = cratedWallet.mnemonic || '';
         sharedState.walletAddress = cratedWallet.address || '';
 
-        // Go back to dashboard
+        // Go to dashboard
         await page.goto('/');
         await page.waitForSelector('.welcome-page');
     });
