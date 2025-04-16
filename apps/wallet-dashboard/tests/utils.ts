@@ -6,8 +6,6 @@ import { Ed25519Keypair } from '@iota/iota-sdk/keypairs/ed25519';
 import { expect } from './fixtures';
 
 export async function connectWallet(page: Page, context: BrowserContext, extensionName: string) {
-    await page.goto('/');
-    await page.waitForSelector('.welcome-page');
     await page.getByRole('button', { name: 'Connect' }).click();
 
     const pagePromise = context.waitForEvent('page', { timeout: 20_000 });

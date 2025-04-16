@@ -5,7 +5,7 @@ import { test, expect } from './fixtures';
 import { connectWallet, createWallet } from './utils';
 import 'dotenv/config';
 
-test.describe('Wallet Connection', () => {
+test.describe.serial('Wallet Connection', () => {
     test.beforeAll(async ({ context, sharedState, extensionUrl, extensionName }) => {
         const page = await context.newPage();
         await page.goto(extensionUrl);
@@ -17,9 +17,6 @@ test.describe('Wallet Connection', () => {
         sharedState.context = context;
         sharedState.extensionUrl = extensionUrl;
         sharedState.extensionName = extensionName;
-
-        await page.goto('/');
-        await page.waitForSelector('.welcome-page');
     });
 
     test('should connect to wallet extension', async ({ page, sharedState }) => {
@@ -29,6 +26,7 @@ test.describe('Wallet Connection', () => {
             throw new Error('Context is not defined');
         }
 
+        await page.goto('/');
         await connectWallet(page, context, extensionName);
 
         // Verify connection was successful on dashboard
@@ -52,8 +50,7 @@ test.describe('Wallet Connection', () => {
             throw new Error('Context is not defined');
         }
 
-        await connectWallet(page, context, extensionName);
-
+        await page.goto('/');
         await page.locator('[data-full-address]').waitFor({ state: 'visible' });
 
         // Disconnect from the wallet
