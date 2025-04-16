@@ -6,37 +6,37 @@ import { type IotaValidatorSummary } from '@iota/iota-sdk/client';
 import { ArrowTopRight } from '@iota/apps-ui-icons';
 import { AddressLink } from '~/components/ui';
 import { ImageIcon, ImageIconSize, toast } from '@iota/core';
-import { toB64 } from '@iota/iota-sdk/utils';
 
 type ValidatorMetaProps = {
     validatorData: IotaValidatorSummary;
 };
 
-export type InactiveValidatorMetaProps = {
-    image_url: string;
-    name: string;
+export type InactiveValidatorData = {
+    logo: string;
+    validatorName: string;
     description: string;
-    project_url: string;
-    protocol_pubkey_bytes: string;
-    iota_address: string;
-    staking_pool_id: string;
+    projectUrl: string;
+    validatorPublicKey: string;
+    validatorAddress: string;
+    validatorStakingPoolId: string;
 };
 
-export function InactiveValidators(
-    inactiveValidatorMetadata: InactiveValidatorMetaProps,
-): JSX.Element {
+export function InactiveValidators({
+    validatorData: {
+        logo,
+        validatorName,
+        description,
+        projectUrl,
+        validatorPublicKey,
+        validatorAddress,
+        validatorStakingPoolId,
+    },
+}: {
+    validatorData: InactiveValidatorData;
+}): JSX.Element {
     function handleOnCopy() {
         toast('Copied to clipboard');
     }
-    const logo = inactiveValidatorMetadata.image_url;
-    const validatorName = inactiveValidatorMetadata.name;
-    const description = inactiveValidatorMetadata.description;
-    const projectUrl = inactiveValidatorMetadata.project_url;
-    const validatorAddress = inactiveValidatorMetadata.iota_address;
-    const validatorStakingPoolId = inactiveValidatorMetadata.staking_pool_id;
-    const validatorPublicKey = toB64(
-        Uint8Array.from(inactiveValidatorMetadata.protocol_pubkey_bytes),
-    );
     return (
         <div className="flex flex-col gap-y-md">
             <Panel>

@@ -4,21 +4,28 @@
 
 import {
     type IotaSystemStateSummaryCompat,
-    useGetDynamicFields,
     useGetLatestIotaSystemState,
-    useGetObject,
     useGetValidatorsApy,
     useGetValidatorsEvents,
 } from '@iota/core';
 import { useMemo } from 'react';
 import { useParams } from 'react-router-dom';
-import { InactiveValidators, PageLayout, ValidatorMeta, ValidatorStats } from '~/components';
+import {
+    type InactiveValidatorData,
+    InactiveValidators,
+    PageLayout,
+    ValidatorMeta,
+    ValidatorStats,
+} from '~/components';
 import { VALIDATOR_LOW_STAKE_GRACE_PERIOD } from '~/lib/constants';
 import { getValidatorMoveEvent } from '~/lib/utils';
 import { InfoBox, InfoBoxStyle, InfoBoxType, LoadingIndicator } from '@iota/apps-ui-kit';
 import { Warning } from '@iota/apps-ui-icons';
-import { type InactiveValidatorMetaProps } from '~/components/validator/ValidatorMeta';
-import { useGetInactiveValidators } from '~/hooks/useGetInactiveValidators';
+import { useQuery } from '@tanstack/react-query';
+import type { IotaClient } from '@iota/iota-sdk/client';
+import { normalizeIotaAddress, toB64 } from '@iota/iota-sdk/utils';
+import { useIotaClient } from '@iota/dapp-kit';
+import { z } from 'zod';
 
 const getAtRiskRemainingEpochs = (
     data: IotaSystemStateSummaryCompat | undefined,
@@ -29,57 +36,123 @@ const getAtRiskRemainingEpochs = (
     return atRisk ? VALIDATOR_LOW_STAKE_GRACE_PERIOD - Number(atRisk[1]) : null;
 };
 
-const getInactivePoolsId = (id: string, objectId: string): InactiveValidatorMetaProps | null => {
-    //console.log('Object:', objectId);
-    const { data: object } = useGetObject(objectId);
-    //console.log('Object Data:', object);
-    const dynamicFieldId = object?.data?.content?.fields?.value?.fields?.inner?.fields?.id?.id;
-    //console.log('Dynamic Field ID:', dynamicFieldId);
-    const { data: dynamicFields } = useGetDynamicFields(dynamicFieldId);
-    //console.log('Dynamic Fields:', dynamicFields);
-    const dfObjectId = dynamicFields?.pages?.[0]?.data?.[0]?.objectId;
-    //console.log('DF Object ID:', dfObjectId);
-    const { data: dfObject } = useGetObject(dfObjectId);
-    const metadata = dfObject?.data?.content?.fields?.value.fields.metadata?.fields;
-    if (metadata && metadata?.iota_address === id) {
-        metadata.staking_pool_id = object?.data?.content?.fields?.name;
-        return metadata;
+// Schema for validator object
+export const ValidatorSchema = z.object({
+    fields: z.object({
+        name: z.string(),
+        value: z.object({
+            fields: z.object({
+                inner: z.object({
+                    fields: z.object({
+                        id: z.object({
+                            id: z.string(),
+                        }),
+                    }),
+                }),
+            }),
+        }),
+    }),
+});
+
+// Schema for dynamic field object
+export const DynamicFieldObjectSchema = z.object({
+    fields: z.object({
+        value: z.object({
+            fields: z.object({
+                metadata: z.object({
+                    fields: z.object({
+                        image_url: z.string(),
+                        name: z.string(),
+                        description: z.string(),
+                        project_url: z.string(),
+                        protocol_pubkey_bytes: z.array(z.number()),
+                        iota_address: z.string(),
+                    }),
+                }),
+            }),
+        }),
+    }),
+});
+
+// Function to get inactive validator data
+// It fetches the validator object and its dynamic fields to extract metadata
+const getInactiveValidatorData = async (
+    client: IotaClient,
+    objectId: string,
+): Promise<InactiveValidatorData | null> => {
+    const validatorObject = await client.getObject({
+        id: normalizeIotaAddress(objectId),
+        options: {
+            showContent: true,
+        },
+    });
+
+    const validator = ValidatorSchema.safeParse(validatorObject.data?.content);
+    const validatorFieldId = validator.data?.fields.value.fields.inner.fields.id.id;
+    if (!validatorFieldId) {
+        return null;
     }
-    return null;
+    const dynamicFields = await client.getDynamicFields({
+        parentId: normalizeIotaAddress(validatorFieldId),
+        cursor: null,
+        limit: 10,
+    });
+    const dfObjectId = dynamicFields.data?.[0]?.objectId;
+    const dfObject = await client.getObject({
+        id: normalizeIotaAddress(dfObjectId),
+        options: {
+            showContent: true,
+        },
+    });
+    const metadata = DynamicFieldObjectSchema.safeParse(dfObject.data?.content);
+    if (!metadata.data || !validator.data) {
+        return null;
+    }
+    return {
+        logo: metadata.data.fields.value.fields.metadata.fields.image_url,
+        description: metadata.data.fields.value.fields.metadata.fields.description,
+        validatorName: metadata.data.fields.value.fields.metadata.fields.name,
+        projectUrl: metadata.data.fields.value.fields.metadata.fields.project_url,
+        validatorAddress: metadata.data.fields.value.fields.metadata.fields.iota_address,
+        validatorPublicKey: toB64(
+            Uint8Array.from(
+                metadata.data.fields.value.fields.metadata.fields.protocol_pubkey_bytes,
+            ),
+        ),
+        validatorStakingPoolId: validator.data.fields.name,
+    };
 };
 
 function ValidatorDetails(): JSX.Element {
     const { id } = useParams();
     const { data, isPending } = useGetLatestIotaSystemState();
-    const inactiveValidators = useGetDynamicFields(data?.inactivePoolsId ?? '');
-    const maping = inactiveValidators.data?.pages?.flatMap((page) =>
-        page.data.map((validator) => ({
-            objectId: validator.objectId,
-        })),
-    );
-    console.log(maping);
-    console.log(maping?.length);
-    let inactiveValidatorData = null;
-    for (let index = 0; index < 3; index++) {
-        const objectId = maping?.[index]?.objectId;
-        inactiveValidatorData = getInactivePoolsId(id ?? '', objectId ?? '');
-        if (inactiveValidatorData !== null) {
-            break;
-        } else {
-            console.log('Next');
-        }
-    }
-    console.log('Inactive Validator Data:', inactiveValidatorData);
-    // const inactiveValidatorData = useGetInactiveValidators(id ?? '', maping ?? []);
-    // maping?.forEach((item) => {
-    //     const objectId = item.objectId;
-    //     if (inactiveValidatorData !== null) {
-    //         console.log('Inactive Validator Data:', inactiveValidatorData);
-    //     } else {
-    //         console.log('Next');
-    //     }
-    // });
-    // console.log('Inactive Validator Data:', inactiveValidatorData);
+
+    const iotaClient = useIotaClient();
+
+    const { data: inactiveValidatorData } = useQuery({
+        queryKey: [data?.inactivePoolsId, id],
+        async queryFn() {
+            if (!data?.inactivePoolsId || !id) {
+                throw Error('Missing params');
+            }
+            const inactiveValidators = await iotaClient.getDynamicFields({
+                parentId: normalizeIotaAddress(data?.inactivePoolsId),
+            });
+
+            const inactiveValidatorData = (
+                await Promise.all(
+                    inactiveValidators.data.map(
+                        async (validator) =>
+                            await getInactiveValidatorData(iotaClient, validator.objectId),
+                    ),
+                )
+            ).find((validator) => validator?.validatorAddress === id);
+
+            return inactiveValidatorData;
+        },
+        enabled: !!data?.inactivePoolsId && !!id,
+    });
+
     const validatorData = useMemo(() => {
         if (!data) return null;
         return (
@@ -121,7 +194,9 @@ function ValidatorDetails(): JSX.Element {
                             type={InfoBoxType.Warning}
                             style={InfoBoxStyle.Elevated}
                         />
-                        {inactiveValidatorData && <InactiveValidators {...inactiveValidatorData} />}
+                        {inactiveValidatorData && (
+                            <InactiveValidators validatorData={inactiveValidatorData} />
+                        )}
                     </div>
                 }
             />
