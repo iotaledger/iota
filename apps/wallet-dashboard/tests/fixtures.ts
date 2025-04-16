@@ -4,9 +4,12 @@
 /* eslint-disable no-empty-pattern */
 
 import path from 'path';
-import { test as base, chromium, type BrowserContext } from '@playwright/test';
+import { test as base, chromium, Page, type BrowserContext } from '@playwright/test';
+import { createWallet } from './utils';
 
 const EXTENSION_PATH = path.join(__dirname, '../../wallet/dist');
+
+const DEFAULT_SHARED_STATE = { extension: {}, wallet: {} };
 
 interface SharedState {
     sharedContext?: BrowserContext;
@@ -20,12 +23,12 @@ interface SharedState {
     };
 }
 
-const DEFAULT_SHARED_STATE = { extension: {}, wallet: {} };
 let sharedState: SharedState = { ...DEFAULT_SHARED_STATE };
 
 export const test = base.extend<{
     sharedState: SharedState;
     context: BrowserContext;
+    pageWithFreshWallet: Page;
     extensionUrl: string;
     extensionName: string;
 }>({
@@ -85,12 +88,24 @@ export const test = base.extend<{
         await extPage.close();
         await use(extensionName);
     },
+
+    pageWithFreshWallet: async ({ context, sharedState, extensionUrl }, use) => {
+        const extensionPage = await context.newPage();
+        await extensionPage.goto(extensionUrl);
+
+        const walletDetails = await createWallet(extensionPage);
+
+        sharedState.wallet.address = walletDetails.address;
+        sharedState.wallet.mnemonic = walletDetails.mnemonic;
+
+        await use(extensionPage);
+    },
 });
 
 test.afterAll(async () => {
     if (sharedState.sharedContext) {
         await sharedState.sharedContext.close();
-        sharedState = DEFAULT_SHARED_STATE;
+        sharedState = { ...DEFAULT_SHARED_STATE };
     }
 });
 

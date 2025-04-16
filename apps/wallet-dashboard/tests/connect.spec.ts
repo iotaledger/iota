@@ -16,18 +16,21 @@ test.describe.serial('Wallet Connection', () => {
     });
 
     test('should connect to wallet extension', async ({ page, sharedState, extensionName }) => {
-        const { sharedContext } = sharedState;
+        const { sharedContext, wallet } = sharedState;
 
         if (!sharedContext) {
-            throw new Error('Context is not defined');
+            throw new Error('Shared context expected!');
+        }
+
+        if (!wallet.address) {
+            throw new Error('Wallet address was not set');
         }
 
         await page.goto('/', { waitUntil: 'networkidle' });
         await connectWallet(page, sharedContext, extensionName);
 
         // Verify connection was successful on dashboard
-        await page.waitForSelector('[data-testid="sidebar"]');
-        await expect(page.getByTestId('sidebar')).toBeVisible();
+        expect(page.getByText('My Coins')).toBeVisible({ timeout: 30_000 });
 
         const displayedFullAddress = await page
             .locator('[data-full-address]')
@@ -44,7 +47,7 @@ test.describe.serial('Wallet Connection', () => {
         const { sharedContext } = sharedState;
 
         if (!sharedContext) {
-            throw new Error('Context is not defined');
+            throw new Error('Shared context expected!');
         }
 
         await page.goto('/');
