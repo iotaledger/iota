@@ -205,14 +205,14 @@ impl ConsensusAdapterMetrics {
             .unregister(Box::new(self.sequencing_certificate_failures.clone()))
             .expect("sequencing_certificate_failures is in registry");
         registry
+            .unregister(Box::new(self.sequencing_certificate_status.clone()))
+            .expect("sequencing_certificate_status is in registry");
+        registry
             .unregister(Box::new(self.sequencing_certificate_inflight.clone()))
             .expect("sequencing_certificate_inflight is in registry");
-        iota_metrics::histogram::HistogramVec::unregister(
-            "sequencing_acknowledge_latency",
-            "The latency for acknowledgement from sequencing engine. The overall sequencing latency is measured by the sequencing_certificate_latency metric",
-            &["retry", "tx_type"],
-            registry,
-        );
+        registry
+            .unregister(Box::new(self.sequencing_acknowledge_latency.clone()))
+            .expect("sequencing_acknowledge_latency is in registry");
         registry
             .unregister(Box::new(self.sequencing_certificate_latency.clone()))
             .expect("sequencing_certificate_latency is in registry");
