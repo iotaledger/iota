@@ -259,7 +259,7 @@ struct FeatureFlags {
     // If true, enable zstd compression for consensus tonic network.
     #[serde(skip_serializing_if = "is_false")]
     consensus_zstd_compression: bool,
-    
+
     // Use the minimum free execution slot to schedule execution of a transaction in the shared
     // object congestion tracker.
     #[serde(skip_serializing_if = "is_false")]
@@ -1231,6 +1231,8 @@ impl ProtocolConfig {
 
     pub fn consensus_zstd_compression(&self) -> bool {
         self.feature_flags.consensus_zstd_compression
+    }
+
     pub fn congestion_control_min_free_execution_slot(&self) -> bool {
         self.feature_flags
             .congestion_control_min_free_execution_slot
@@ -1971,10 +1973,8 @@ impl ProtocolConfig {
                         // to be included before be considered garbage collected.
                         cfg.consensus_gc_depth = Some(60);
                     }
-                    // Enable round prober in consensus.
-                    cfg.feature_flags.consensus_round_prober = true;
-                    cfg.feature_flags
-                        .consensus_distributed_vote_scoring_strategy = true;
+                    // Enable min_free_execution_slot for the shared object congestion tracker in
+                    // devnet.
                     if chain != Chain::Testnet && chain != Chain::Mainnet {
                         cfg.feature_flags.congestion_control_min_free_execution_slot = true;
                     }
