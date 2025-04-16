@@ -16,14 +16,14 @@ test.describe.serial('Wallet Connection', () => {
     });
 
     test('should connect to wallet extension', async ({ page, sharedState, extensionName }) => {
-        const { sharedContext: context } = sharedState;
+        const { sharedContext } = sharedState;
 
-        if (!context) {
+        if (!sharedContext) {
             throw new Error('Context is not defined');
         }
 
         await page.goto('/', { waitUntil: 'networkidle' });
-        await connectWallet(page, context, extensionName);
+        await connectWallet(page, sharedContext, extensionName);
 
         // Verify connection was successful on dashboard
         await page.waitForSelector('[data-testid="sidebar"]');
