@@ -1232,7 +1232,7 @@ impl ProtocolConfig {
     pub fn consensus_zstd_compression(&self) -> bool {
         self.feature_flags.consensus_zstd_compression
     }
- 
+
     /// Check if the gas price feedback mechanism (which is used for
     /// transactions cancelled due to shared object congestion) is enabled
     pub fn congested_objects_gas_price_feedback_mechanism(&self) -> bool {
@@ -1828,6 +1828,8 @@ impl ProtocolConfig {
         cfg.feature_flags
             .consensus_round_prober_probe_accepted_rounds = false;
         cfg.feature_flags.consensus_zstd_compression = false;
+        cfg.feature_flags
+            .congested_objects_gas_price_feedback_mechanism = false;
 
         // Devnet
         if chain != Chain::Mainnet && chain != Chain::Testnet {
@@ -1973,6 +1975,13 @@ impl ProtocolConfig {
                         // blocks within a window of ~4 seconds
                         // to be included before be considered garbage collected.
                         cfg.consensus_gc_depth = Some(60);
+                    }
+
+                    // Enable the gas price feedback mechanism (which is used for
+                    // transactions cancelled due to shared object congestion) in devnet
+                    if chain != Chain::Testnet && chain != Chain::Mainnet {
+                        cfg.feature_flags
+                            .congested_objects_gas_price_feedback_mechanism = true;
                     }
                 }
                 // Use this template when making changes:
