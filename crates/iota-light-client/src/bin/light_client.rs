@@ -133,7 +133,7 @@ pub async fn main() -> anyhow::Result<()> {
 
             let object_id = ObjectID::from_str(&object_id).unwrap();
             let object = get_verified_object(&config, object_id).await.unwrap();
-            println!("Successfully verified object: {}", object_id);
+            println!("Successfully verified object: {object_id}");
 
             if let Data::Move(move_object) = &object.data {
                 let object_type = move_object.type_().clone();
@@ -149,12 +149,8 @@ pub async fn main() -> anyhow::Result<()> {
 
                 let (oid, version, hash) = object.compute_object_reference();
                 println!(
-                    "OID: {}\n - Version: {}\n - Hash: {}\n - Owner: {}\n - Type: {}\n{}",
-                    oid,
-                    version,
-                    hash,
+                    "OID: {oid}\n - Version: {version}\n - Hash: {hash}\n - Owner: {}\n - Type: {object_type}\n{}",
                     object.owner,
-                    object_type,
                     serde_json::to_string_pretty(&result).unwrap()
                 );
             }

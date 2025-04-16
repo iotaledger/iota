@@ -68,7 +68,9 @@ impl Config {
                 let url = Url::parse(url).expect("unvalidated url");
                 match url.scheme() {
                     "file" => {
-                        let path = url.to_file_path().map_err(|_| anyhow!("invalid path"))?;
+                        let path = url
+                            .to_file_path()
+                            .map_err(|_| anyhow!("invalid file path '{url}'"))?;
                         tokio::fs::copy(path, self.genesis_blob_file_path()).await?;
                     }
                     _ => {

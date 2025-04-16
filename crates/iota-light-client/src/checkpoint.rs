@@ -9,7 +9,7 @@ use std::{
     num::NonZeroUsize,
 };
 
-use anyhow::{Context, Result, anyhow, bail};
+use anyhow::{Context, Result, bail};
 use getset::Getters;
 use iota_archival::reader::{ArchiveReader, ArchiveReaderMetrics};
 use iota_config::{genesis::Genesis, node::ArchiveReaderConfig};
@@ -59,7 +59,7 @@ pub fn write_checkpoint_list(config: &Config, checkpoints_list: &CheckpointList)
     let bytes = serde_yaml::to_vec(checkpoints_list)?;
     writer
         .write_all(&bytes)
-        .map_err(|e| anyhow!("Unable to serialize checkpoint list: {}", e))
+        .context("Unable to serialize checkpoint list")
 }
 
 pub fn read_checkpoint_summary(config: &Config, seq: u64) -> Result<CertifiedCheckpointSummary> {
@@ -75,7 +75,7 @@ fn read_checkpoint_summary_general(
     let mut reader = fs::File::open(checkpoint_path)?;
     let mut buffer = Vec::new();
     reader.read_to_end(&mut buffer)?;
-    bcs::from_bytes(&buffer).map_err(|_| anyhow!("Unable to parse checkpoint file"))
+    Ok(bcs::from_bytes(&buffer).expect("Unable to parse checkpoint file"))
 }
 
 pub fn write_checkpoint_summary(
@@ -92,8 +92,7 @@ fn write_checkpoint_summary_general(
 ) -> Result<()> {
     let checkpoint_path = config.checkpoint_summary_file_path(*summary.sequence_number(), path);
     let mut writer = fs::File::create(checkpoint_path)?;
-    let bytes =
-        bcs::to_bytes(summary).map_err(|_| anyhow!("Unable to serialize checkpoint summary"))?;
+    let bytes = bcs::to_bytes(summary).expect("unable to serialize checkpoint summary");
     writer.write_all(&bytes)?;
     Ok(())
 }
@@ -324,7 +323,7 @@ async fn _sync_checkpoint_list_to_latest_using_full_node_and_object_store(
 pub async fn sync_and_check_checkpoints(config: &Config) -> anyhow::Result<()> {
     let checkpoints_list = sync_checkpoint_list_to_latest(config)
         .await
-        .map_err(|e| anyhow!(format!("Failed to sync checkpoint list: {e}")))?;
+        .context("Failed to sync checkpoint list")?;
 
     // Create a list of summaries that can be skipped
     let mut skiplist = Vec::new();
@@ -337,7 +336,7 @@ pub async fn sync_and_check_checkpoints(config: &Config) -> anyhow::Result<()> {
     // Load the genesis committee
     let genesis_committee = Genesis::load(config.genesis_blob_file_path())?
         .committee()
-        .map_err(|e| anyhow!(format!("Failed to load genesis file: {e}")))?;
+        .context("Failed to load genesis file")?;
 
     if let Some(_checkpoint_store_url) = &config.object_store_url {
         // Download summaries from checkpoint object store
@@ -398,8 +397,7 @@ pub async fn sync_and_check_checkpoints(config: &Config) -> anyhow::Result<()> {
 
         // If file exists read the file otherwise download it from the server
         let summary = if summary_path.exists() {
-            read_checkpoint_summary(config, seq)
-                .map_err(|e| anyhow!(format!("Failed to read checkpoint summary: {e}")))?
+            read_checkpoint_summary(config, seq).context("Failed to read checkpoint summary")?
         } else {
             bail!("we assume for now that everything could be downloaded");
         };

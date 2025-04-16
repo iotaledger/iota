@@ -35,11 +35,11 @@ impl PackageStore for RemotePackageStore {
         // Check if we have it in the cache
         let res: Result<Arc<Package>> = async move {
             if let Some(package) = self.cache.lock().await.get(&id) {
-                info!("Fetch Package: {} cache hit", id);
+                info!("Fetch Package: {id} cache hit");
                 return Ok(package.clone());
             }
 
-            info!("Fetch Package: {}", id);
+            info!("Fetch Package: {id}");
 
             let object = get_verified_object(&self.config, id.into()).await?;
             let package = Arc::new(Package::read_from_object(&object)?);
@@ -51,7 +51,7 @@ impl PackageStore for RemotePackageStore {
         }
         .await;
         res.map_err(|e| {
-            error!("Fetch Package: {} error: {:?}", id, e);
+            error!("Fetch Package: {id} error: {e:?}");
             PackageResolverError::PackageNotFound(id)
         })
     }

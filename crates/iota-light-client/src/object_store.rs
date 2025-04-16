@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use anyhow::{Result, anyhow};
+use anyhow::{Context, Result, anyhow};
 use async_trait::async_trait;
 use iota_types::{
     full_checkpoint_content::CheckpointData, messages_checkpoint::CertifiedCheckpointSummary,
@@ -42,11 +42,11 @@ impl IotaObjectStore {
             .store
             .get(&path)
             .await
-            .map_err(|e| anyhow!("Failed to fetch full checkpoint from object store: {e}"))?;
+            .context("Failed to fetch full checkpoint from object store")?;
         let bytes = response.bytes().await?;
         let (_, full_checkpoint) = bcs::from_bytes::<(u8, CheckpointData)>(&bytes)?;
 
-        info!("Fetched full checkpoint '{}' from object store:", &path);
+        info!("Fetched full checkpoint '{path}' from object store:");
 
         Ok(full_checkpoint)
     }

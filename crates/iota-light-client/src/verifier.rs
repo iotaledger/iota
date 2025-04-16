@@ -4,7 +4,7 @@
 
 use std::sync::Arc;
 
-use anyhow::{Result, anyhow};
+use anyhow::{Context, Result, anyhow};
 use iota_config::genesis::Genesis;
 use iota_json_rpc_types::{IotaObjectDataOptions, IotaTransactionBlockResponseOptions};
 use iota_sdk::IotaClientBuilder;
@@ -65,7 +65,7 @@ pub async fn get_verified_object(config: &Config, id: ObjectID) -> Result<Object
             .await?,
     );
 
-    info!("Getting object: {}", id);
+    info!("Getting object: {id}");
 
     let read_api = iota_client.read_api();
     let object_json = read_api
@@ -103,14 +103,14 @@ pub async fn get_verified_effects_and_events(
         .await?;
     let read_api = iota_client.read_api();
 
-    info!("Getting effects and events for TID: {}", tid);
+    info!("Getting effects and events for TID: {tid}");
 
     // Lookup the transaction id and get the checkpoint sequence number
     let options = IotaTransactionBlockResponseOptions::new();
     let seq = read_api
         .get_transaction_with_options(tid, options)
         .await
-        .map_err(|e| anyhow!(format!("Cannot get transaction: {e}")))?
+        .context("Cannot get transaction")?
         .checkpoint
         .ok_or(anyhow!("Transaction not found"))?;
 
@@ -121,7 +121,7 @@ pub async fn get_verified_effects_and_events(
     let full_check_point = object_store
         .fetch_full_checkpoint(seq)
         .await
-        .map_err(|e| anyhow!(format!("Cannot get full checkpoint: {e}")))?;
+        .context("Cannot get full checkpoint")?;
 
     // Load the list of stored checkpoints
     let checkpoints_list: CheckpointList = read_checkpoint_list(config)?;
@@ -161,12 +161,12 @@ pub async fn get_verified_effects_and_events(
         // Since we did not find a small committee checkpoint we use the genesis
         Genesis::load(config.genesis_blob_file_path())?
             .committee()
-            .map_err(|e| anyhow!(format!("Cannot load Genesis: {e}")))?
+            .context("Cannot load Genesis")?
     };
 
-    info!("Extracting effects and events for TID: {}", tid);
+    info!("Extracting effects and events for TID: {tid}");
     extract_verified_effects_and_events(&full_check_point, &committee, tid)
-        .map_err(|e| anyhow!(format!("Cannot extract effects and events: {e}")))
+        .context("Cannot extract effects and events")
 }
 
 /// Get the verified checkpoint sequence number for an object.
@@ -197,7 +197,7 @@ pub async fn get_verified_checkpoint(
     let seq = read_api
         .get_transaction_with_options(object.previous_transaction, options)
         .await
-        .map_err(|e| anyhow!(format!("Cannot get transaction: {e}")))?
+        .context("Cannot get transaction")?
         .checkpoint
         .ok_or(anyhow!("Transaction not found"))?;
 
@@ -222,7 +222,7 @@ pub async fn get_verified_checkpoint(
     let full_check_point = object_store
         .fetch_full_checkpoint(seq)
         .await
-        .map_err(|e| anyhow!(format!("Cannot get full checkpoint: {e}")))?;
+        .context("Cannot get full checkpoint")?;
 
     // Load the list of stored checkpoints
     let checkpoints_list: CheckpointList = read_checkpoint_list(config)?;
@@ -262,7 +262,7 @@ pub async fn get_verified_checkpoint(
         // Since we did not find a small committee checkpoint we use the genesis
         Genesis::load(config.genesis_blob_file_path())?
             .committee()
-            .map_err(|e| anyhow!(format!("Cannot load Genesis: {e}")))?
+            .context("Cannot load Genesis")?
     };
 
     // Verify that committee signed this checkpoint and checkpoint contents with
@@ -300,11 +300,11 @@ mod tests {
     async fn read_checkpoint_summary(
         checkpoint_path: &PathBuf,
     ) -> anyhow::Result<CertifiedCheckpointSummary> {
-        let mut reader = fs::File::open(checkpoint_path.clone()).unwrap();
-        let metadata = fs::metadata(checkpoint_path).unwrap();
+        let mut reader = fs::File::open(checkpoint_path.clone())?;
+        let metadata = fs::metadata(checkpoint_path)?;
         let mut buffer = vec![0; metadata.len() as usize];
-        reader.read_exact(&mut buffer).unwrap();
-        bcs::from_bytes(&buffer).map_err(|_| anyhow!("Unable to parse checkpoint summary file"))
+        reader.read_exact(&mut buffer)?;
+        bcs::from_bytes(&buffer).context("failed to deserialize summary from bcs bytes")
     }
 
     async fn read_full_checkpoint(checkpoint_path: &PathBuf) -> anyhow::Result<CheckpointData> {
@@ -312,7 +312,7 @@ mod tests {
         let metadata = fs::metadata(checkpoint_path)?;
         let mut buffer = vec![0; metadata.len() as usize];
         reader.read_exact(&mut buffer)?;
-        bcs::from_bytes(&buffer).map_err(|_| anyhow!("Unable to parse full checkpoint file"))
+        bcs::from_bytes(&buffer).context("failed to deserialize full checkpoint from bcs bytes")
     }
 
     async fn read_data() -> (Committee, CheckpointData) {

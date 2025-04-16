@@ -8,7 +8,7 @@ use std::{
     path::PathBuf,
 };
 
-use anyhow::anyhow;
+use anyhow::{Context, anyhow};
 use iota_light_client::{
     checkpoint::read_checkpoint_list,
     config::Config,
@@ -77,11 +77,11 @@ async fn read_data(committee_seq: u64, seq: u64) -> (Committee, CheckpointData) 
 async fn read_checkpoint_summary(
     checkpoint_path: &PathBuf,
 ) -> anyhow::Result<CertifiedCheckpointSummary> {
-    let mut reader = fs::File::open(checkpoint_path.clone()).unwrap();
-    let metadata = fs::metadata(checkpoint_path).unwrap();
+    let mut reader = fs::File::open(checkpoint_path.clone())?;
+    let metadata = fs::metadata(checkpoint_path)?;
     let mut buffer = vec![0; metadata.len() as usize];
-    reader.read_exact(&mut buffer).unwrap();
-    bcs::from_bytes(&buffer).map_err(|_| anyhow!("Unable to parse checkpoint summary file"))
+    reader.read_exact(&mut buffer)?;
+    bcs::from_bytes(&buffer).context("failed to deserialize summary from bcs bytes")
 }
 
 async fn read_full_checkpoint(checkpoint_path: &PathBuf) -> anyhow::Result<CheckpointData> {
@@ -89,7 +89,7 @@ async fn read_full_checkpoint(checkpoint_path: &PathBuf) -> anyhow::Result<Check
     let metadata = fs::metadata(checkpoint_path)?;
     let mut buffer = vec![0; metadata.len() as usize];
     reader.read_exact(&mut buffer)?;
-    bcs::from_bytes(&buffer).map_err(|_| anyhow!("Unable to parse full checkpoint file"))
+    bcs::from_bytes(&buffer).context("failed to deserialize full checkpoint from bcs bytes")
 }
 
 #[tokio::test]
