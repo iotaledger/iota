@@ -204,13 +204,13 @@ jobs:
           path: |
             ./tmp/${{ steps.create-artifact.outputs.artifact_name }}.tgz
 
-      - name: Attach artifacts to ${{ env.iota_ref }} release in GH
+      - name: Attach artifacts to ${{ needs.generate-tag.outputs.iota_ref }} release in GH
         if: ${{ github.event_name == 'release' }}
         uses: softprops/action-gh-release@c062e08bd532815e2082a85e87e3ef29c3e6d191 # v2.0.8
         with:
-          tag_name: ${{ env.iota_ref }}
+          tag_name: ${{ needs.generate-tag.outputs.iota_ref }}
           files: |
-            ./tmp/${{ env.artifact_name }}.tgz
+            ./tmp/${{ steps.create-artifact.outputs.artifact_name }}.tgz
 
   generate-release-notes:
     env:
