@@ -8,7 +8,7 @@ use std::{
     path::PathBuf,
 };
 
-use anyhow::{Context, anyhow};
+use anyhow::Context;
 use iota_light_client::{
     checkpoint::read_checkpoint_list,
     config::Config,
@@ -55,10 +55,7 @@ async fn read_data(committee_seq: u64, seq: u64) -> (Committee, CheckpointData) 
     let prev_committee = summary
         .end_of_epoch_data
         .as_ref()
-        .ok_or(anyhow!(
-            "Expected all checkpoints to be end-of-epoch checkpoints"
-        ))
-        .unwrap()
+        .expect("Expected all checkpoints to be end-of-epoch checkpoints")
         .next_epoch_committee
         .iter()
         .cloned()
@@ -111,8 +108,7 @@ async fn test_new_committee() {
         .checkpoint_summary
         .end_of_epoch_data
         .as_ref()
-        .ok_or(anyhow!("Expected checkpoint to be end-of-epoch"))
-        .unwrap()
+        .expect("Expected checkpoint to be end-of-epoch")
         .next_epoch_committee
         .iter()
         .cloned()
@@ -160,8 +156,7 @@ async fn test_fail_incorrect_cert() {
         .checkpoint_summary
         .end_of_epoch_data
         .as_ref()
-        .ok_or(anyhow!("Expected checkpoint to be end-of-epoch"))
-        .unwrap()
+        .expect("expected checkpoint to be end-of-epoch")
         .next_epoch_committee
         .iter()
         .cloned()

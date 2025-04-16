@@ -90,10 +90,9 @@ pub async fn main() -> anyhow::Result<()> {
 
             let (effects, events) = get_verified_effects_and_events(
                 &config,
-                TransactionDigest::from_str(&transaction_digest).unwrap(),
+                TransactionDigest::from_str(&transaction_digest)?,
             )
-            .await
-            .unwrap();
+            .await?;
 
             let exec_digests = effects.execution_digests();
             println!(
@@ -103,10 +102,7 @@ pub async fn main() -> anyhow::Result<()> {
 
             if events.is_some() {
                 for event in events.as_ref().unwrap().data.iter() {
-                    let type_layout = resolver
-                        .type_layout(event.type_.clone().into())
-                        .await
-                        .unwrap();
+                    let type_layout = resolver.type_layout(event.type_.clone().into()).await?;
 
                     let result = BoundedVisitor::deserialize_value(&event.contents, &type_layout)
                         .context("Failed to deserialize event")?;
@@ -117,7 +113,7 @@ pub async fn main() -> anyhow::Result<()> {
                         event.transaction_module,
                         event.sender,
                         event.type_,
-                        serde_json::to_string_pretty(&result).unwrap()
+                        serde_json::to_string_pretty(&result).expect("json deserializeion error")
                     );
                 }
             } else {
@@ -131,17 +127,14 @@ pub async fn main() -> anyhow::Result<()> {
                     .context("Failed to sync checkpoints")?;
             }
 
-            let object_id = ObjectID::from_str(&object_id).unwrap();
-            let object = get_verified_object(&config, object_id).await.unwrap();
+            let object_id = ObjectID::from_str(&object_id)?;
+            let object = get_verified_object(&config, object_id).await?;
             println!("Successfully verified object: {object_id}");
 
             if let Data::Move(move_object) = &object.data {
                 let object_type = move_object.type_().clone();
 
-                let type_layout = resolver
-                    .type_layout(object_type.clone().into())
-                    .await
-                    .unwrap();
+                let type_layout = resolver.type_layout(object_type.clone().into()).await?;
 
                 let result =
                     BoundedVisitor::deserialize_value(move_object.contents(), &type_layout)
@@ -151,7 +144,7 @@ pub async fn main() -> anyhow::Result<()> {
                 println!(
                     "OID: {oid}\n - Version: {version}\n - Hash: {hash}\n - Owner: {}\n - Type: {object_type}\n{}",
                     object.owner,
-                    serde_json::to_string_pretty(&result).unwrap()
+                    serde_json::to_string_pretty(&result).expect("json deserializeion error")
                 );
             }
         }

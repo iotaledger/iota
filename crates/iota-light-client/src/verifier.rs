@@ -59,7 +59,7 @@ pub fn extract_verified_effects_and_events(
 }
 
 pub async fn get_verified_object(config: &Config, id: ObjectID) -> Result<Object> {
-    let iota_client: Arc<iota_sdk::IotaClient> = Arc::new(
+    let iota_client = Arc::new(
         IotaClientBuilder::default()
             .build(config.rpc_url.as_str())
             .await?,
@@ -98,7 +98,7 @@ pub async fn get_verified_effects_and_events(
     config: &Config,
     tid: TransactionDigest,
 ) -> Result<(TransactionEffects, Option<TransactionEvents>)> {
-    let iota_client: iota_sdk::IotaClient = IotaClientBuilder::default()
+    let iota_client = IotaClientBuilder::default()
         .build(config.rpc_url.as_str())
         .await?;
     let read_api = iota_client.read_api();
@@ -179,7 +179,7 @@ pub async fn get_verified_checkpoint(
     id: ObjectID,
     config: &Config,
 ) -> Result<CheckpointSequenceNumber> {
-    let iota_client: iota_sdk::IotaClient = IotaClientBuilder::default()
+    let iota_client = IotaClientBuilder::default()
         .build(config.rpc_url.as_str())
         .await?;
     let read_api = iota_client.read_api();
@@ -325,10 +325,7 @@ mod tests {
         let prev_committee = summary_checkpoint
             .end_of_epoch_data
             .as_ref()
-            .ok_or(anyhow!(
-                "Expected all checkpoints to be end-of-epoch checkpoints"
-            ))
-            .unwrap()
+            .expect("Expected all checkpoints to be end-of-epoch checkpoints")
             .next_epoch_committee
             .iter()
             .cloned()
