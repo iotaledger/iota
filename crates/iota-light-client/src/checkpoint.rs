@@ -108,7 +108,7 @@ pub async fn sync_checkpoint_list_to_latest(config: &Config) -> anyhow::Result<C
     }
 
     let checkpoints_from_object_store = if config.object_store_url.is_some() {
-        // TODO blocked by https://github.com/iotaledger/iota/issues/4908
+        // TODO uncomment it, blocked by https://github.com/iotaledger/iota/issues/4908
         warn!("Syncing from a checkpoint object store is not supported yet.");
         CheckpointList::default()
         // match sync_checkpoint_list_to_latest_using_full_node_and_object_store(config).await {
@@ -124,7 +124,7 @@ pub async fn sync_checkpoint_list_to_latest(config: &Config) -> anyhow::Result<C
 
     // Try getting checkpoints from archive store if configured
     let checkpoints_from_archive_store = if config.archive_store_config.is_some() {
-        match sync_checkpoint_list_to_latest_using_archive_store_only(config).await {
+        match sync_checkpoint_list_to_latest_using_archive_store(config).await {
             Ok(list) => list,
             Err(e) => {
                 warn!("Failed to sync checkpoints from archive store: {e}");
@@ -183,7 +183,6 @@ fn merge_checkpoint_lists(list1: &CheckpointList, list2: &CheckpointList) -> Vec
     sorted_checkpoints
 }
 
-// TODO deprecate
 /// Syncs the list of end-of-epoch checkpoints from the full node's REST, RPC
 /// and GraphQL endpoints alone.
 ///
@@ -241,7 +240,7 @@ async fn sync_checkpoint_list_to_latest_using_full_node(
 /// Syncs the list of end-of-epoch checkpoints from an archive store.
 ///
 /// Does not require a full node.
-async fn sync_checkpoint_list_to_latest_using_archive_store_only(
+async fn sync_checkpoint_list_to_latest_using_archive_store(
     config: &Config,
 ) -> anyhow::Result<CheckpointList> {
     info!("Syncing checkpoints from archive store");
@@ -250,13 +249,9 @@ async fn sync_checkpoint_list_to_latest_using_archive_store_only(
         bail!("Archive store config is not provided");
     };
 
-    // TODO add to config
-    let num_parallel_downloads = 5;
-
-    // set up download of checkpoint summaries
     let config = ArchiveReaderConfig {
         remote_store_config: archive_store_config.clone(),
-        download_concurrency: NonZeroUsize::new(num_parallel_downloads).unwrap(),
+        download_concurrency: NonZeroUsize::new(5).unwrap(),
         use_for_pruning_watermark: false,
     };
 
@@ -270,11 +265,11 @@ async fn sync_checkpoint_list_to_latest_using_archive_store_only(
     Ok(CheckpointList { checkpoints })
 }
 
-// TODO blocked by https://github.com/iotaledger/iota/issues/4908
+// TODO use it, blocked by https://github.com/iotaledger/iota/issues/4908
 /// Downloads the list of end-of-epoch checkpoints from an object store.
 ///
 /// Requires full node's RPC, GraphQL endpoints and an checkpoint object store.
-async fn _sync_checkpoint_list_to_latest_using_full_node_and_object_store(
+async fn _sync_checkpoint_list_to_latest_using_checkpoints_store(
     config: &Config,
 ) -> anyhow::Result<CheckpointList> {
     info!("Syncing checkpoints from object store");
@@ -294,6 +289,7 @@ async fn _sync_checkpoint_list_to_latest_using_full_node_and_object_store(
     } else {
         // TODO try to fetch the first checkpoint from the object store instead of
         // the full node which might no longer have it
+        // blocked by https://github.com/iotaledger/iota/issues/4908
         let last_seq = query_last_checkpoint_of_epoch(config, 0).await?;
         checkpoints_list.checkpoints.push(last_seq);
         info!("Synced epoch: 0, checkpoint: {last_seq}",);
@@ -340,7 +336,7 @@ pub async fn sync_and_check_checkpoints(config: &Config) -> anyhow::Result<()> {
 
     if let Some(_checkpoint_store_url) = &config.object_store_url {
         // Download summaries from checkpoint object store
-        // TODO blocked by https://github.com/iotaledger/iota/issues/4908
+        // TODO implement it, blocked by https://github.com/iotaledger/iota/issues/4908
         warn!("Syncing from a checkpoint object store is not supported yet.");
     }
 

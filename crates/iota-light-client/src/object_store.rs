@@ -30,7 +30,6 @@ impl IotaObjectStore {
     }
 
     pub async fn fetch_checkpoint_summary(&self, seq: u64) -> Result<CertifiedCheckpointSummary> {
-        // TODO clarify whether only full checkpoints are uploaded to the object store
         let full_checkpoint = self.fetch_full_checkpoint(seq).await?;
 
         Ok(full_checkpoint.checkpoint_summary)
