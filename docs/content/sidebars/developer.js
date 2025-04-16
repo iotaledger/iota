@@ -45,7 +45,6 @@ const developer = [
                 items: [
                     'references/cli/client',
                     'references/cli/ptb',
-                    'references/cli/console',
                     'references/cli/keytool',
                     'references/cli/move',
                     'references/cli/validator',
@@ -323,7 +322,7 @@ const developer = [
             },
             'developer/tutorials/live-concert',
         ],
-    },    
+    },
     {
         type: 'category',
         label: 'Capture The Flag',
