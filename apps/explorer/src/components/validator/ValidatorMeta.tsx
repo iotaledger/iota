@@ -12,21 +12,19 @@ type ValidatorMetaProps = {
     validatorData: IotaValidatorSummary;
 };
 
-type InactiveValidatorMetaProps = {
+export type InactiveValidatorMetaProps = {
     image_url: string;
     name: string;
     description: string;
-    project_url?: string;
+    project_url: string;
     protocol_pubkey_bytes: string;
     iota_address: string;
     staking_pool_id: string;
 };
 
-export function InactiveValidators({
-    inactiveValidatorMetadata,
-}: {
-    inactiveValidatorMetadata: InactiveValidatorMetaProps;
-}): JSX.Element {
+export function InactiveValidators(
+    inactiveValidatorMetadata: InactiveValidatorMetaProps,
+): JSX.Element {
     function handleOnCopy() {
         toast('Copied to clipboard');
     }

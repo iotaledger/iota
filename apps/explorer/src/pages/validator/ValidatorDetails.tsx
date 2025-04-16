@@ -17,6 +17,8 @@ import { VALIDATOR_LOW_STAKE_GRACE_PERIOD } from '~/lib/constants';
 import { getValidatorMoveEvent } from '~/lib/utils';
 import { InfoBox, InfoBoxStyle, InfoBoxType, LoadingIndicator } from '@iota/apps-ui-kit';
 import { Warning } from '@iota/apps-ui-icons';
+import { type InactiveValidatorMetaProps } from '~/components/validator/ValidatorMeta';
+import { useGetInactiveValidators } from '~/hooks/useGetInactiveValidators';
 
 const getAtRiskRemainingEpochs = (
     data: IotaSystemStateSummaryCompat | undefined,
@@ -27,37 +29,57 @@ const getAtRiskRemainingEpochs = (
     return atRisk ? VALIDATOR_LOW_STAKE_GRACE_PERIOD - Number(atRisk[1]) : null;
 };
 
-const getInactivePoolsId = (id: string, inactivePoolsId: string): JSX.Element => {
-    // console.log('InactiveValidators.inactivePoolsId: ' + inactivePoolsId);
-    // console.log('InactiveValidators.id: ' + id);
-    const inactiveValidators = useGetDynamicFields(inactivePoolsId);
+const getInactivePoolsId = (id: string, objectId: string): InactiveValidatorMetaProps | null => {
+    //console.log('Object:', objectId);
+    const { data: object } = useGetObject(objectId);
+    //console.log('Object Data:', object);
+    const dynamicFieldId = object?.data?.content?.fields?.value?.fields?.inner?.fields?.id?.id;
+    //console.log('Dynamic Field ID:', dynamicFieldId);
+    const { data: dynamicFields } = useGetDynamicFields(dynamicFieldId);
+    //console.log('Dynamic Fields:', dynamicFields);
+    const dfObjectId = dynamicFields?.pages?.[0]?.data?.[0]?.objectId;
+    //console.log('DF Object ID:', dfObjectId);
+    const { data: dfObject } = useGetObject(dfObjectId);
+    const metadata = dfObject?.data?.content?.fields?.value.fields.metadata?.fields;
+    if (metadata && metadata?.iota_address === id) {
+        metadata.staking_pool_id = object?.data?.content?.fields?.name;
+        return metadata;
+    }
+    return null;
+};
+
+function ValidatorDetails(): JSX.Element {
+    const { id } = useParams();
+    const { data, isPending } = useGetLatestIotaSystemState();
+    const inactiveValidators = useGetDynamicFields(data?.inactivePoolsId ?? '');
     const maping = inactiveValidators.data?.pages?.flatMap((page) =>
         page.data.map((validator) => ({
             objectId: validator.objectId,
         })),
     );
     console.log(maping);
-    const objectId = maping?.[0]?.objectId;
-    const { data: object } = useGetObject(objectId);
-    const dynamicFieldId = object?.data?.content?.fields?.value?.fields?.inner?.fields?.id?.id;
-    // console.log('dynamicFieldId', dynamicFieldId);
-    const { data: dynamicFields } = useGetDynamicFields(dynamicFieldId);
-    const dfObjectId = dynamicFields?.pages?.[0]?.data?.[0]?.objectId;
-    // console.log('dfObjectId', dfObjectId);
-    const { data: dfObject } = useGetObject(dfObjectId);
-    // console.log('dfObject', dfObject?.data?.content?.fields?.value.fields.metadata?.fields);
-
-    const metadata = dfObject?.data?.content?.fields?.value.fields.metadata?.fields;
-    if (metadata) {
-        metadata.staking_pool_id = objectId; // Añade la propiedad `newProperty` con un valor
+    console.log(maping?.length);
+    let inactiveValidatorData = null;
+    for (let index = 0; index < 3; index++) {
+        const objectId = maping?.[index]?.objectId;
+        inactiveValidatorData = getInactivePoolsId(id ?? '', objectId ?? '');
+        if (inactiveValidatorData !== null) {
+            break;
+        } else {
+            console.log('Next');
+        }
     }
-    // console.log('metadata', metadata);
-    return metadata;
-};
-
-function ValidatorDetails(): JSX.Element {
-    const { id } = useParams();
-    const { data, isPending } = useGetLatestIotaSystemState();
+    console.log('Inactive Validator Data:', inactiveValidatorData);
+    // const inactiveValidatorData = useGetInactiveValidators(id ?? '', maping ?? []);
+    // maping?.forEach((item) => {
+    //     const objectId = item.objectId;
+    //     if (inactiveValidatorData !== null) {
+    //         console.log('Inactive Validator Data:', inactiveValidatorData);
+    //     } else {
+    //         console.log('Next');
+    //     }
+    // });
+    // console.log('Inactive Validator Data:', inactiveValidatorData);
     const validatorData = useMemo(() => {
         if (!data) return null;
         return (
@@ -75,8 +97,6 @@ function ValidatorDetails(): JSX.Element {
         limit: numberOfValidators,
         order: 'descending',
     });
-    const inactiveValidatorData = getInactivePoolsId(id ?? '', data?.inactivePoolsId ?? '');
-    //console.log('inactiveValidatorData', inactiveValidatorData);
     const validatorRewards = useMemo(() => {
         if (!validatorEvents || !id) return 0;
         const rewards = (
@@ -101,9 +121,7 @@ function ValidatorDetails(): JSX.Element {
                             type={InfoBoxType.Warning}
                             style={InfoBoxStyle.Elevated}
                         />
-                        {inactiveValidatorData && (
-                            <InactiveValidators inactiveValidatorMetadata={inactiveValidatorData} />
-                        )}
+                        {inactiveValidatorData && <InactiveValidators {...inactiveValidatorData} />}
                     </div>
                 }
             />
