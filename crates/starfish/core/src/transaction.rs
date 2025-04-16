@@ -41,6 +41,7 @@ pub(crate) struct TransactionsGuard {
 /// channel which is shared between the TransactionConsumer and the
 /// TransactionClient and are pulled every time the `next` method is called.
 pub(crate) struct TransactionConsumer {
+    #[expect(dead_code)]
     context: Arc<Context>,
     tx_receiver: Receiver<TransactionsGuard>,
     max_transactions_in_block_bytes: u64,
@@ -150,7 +151,7 @@ impl TransactionConsumer {
         (
             transactions,
             Box::new(move |block_ref: BlockRef| {
-                let block_status_subscribers = block_status_subscribers.lock();
+                let _block_status_subscribers = block_status_subscribers.lock();
 
                 for ack in acks {
                     let (status_tx, status_rx) = oneshot::channel();

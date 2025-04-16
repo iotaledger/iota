@@ -155,6 +155,7 @@ impl DagBuilder {
             };
 
         struct BlockStorage {
+            #[expect(dead_code)]
             context: Arc<Context>,
             blocks: BTreeMap<BlockRef, (VerifiedBlock, bool)>, /* the tuple represents the block
                                                                 * and whether it is committed */

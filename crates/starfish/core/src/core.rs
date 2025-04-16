@@ -428,6 +428,7 @@ impl Core {
     /// Keeps only the certified commits that have a commit index > last commit
     /// index. It also ensures that the first commit in the list is the next one
     /// in line, otherwise it panics.
+    #[cfg_attr(not(test), expect(dead_code))]
     fn validate_certified_commits(
         &mut self,
         commits: Vec<CertifiedCommit>,

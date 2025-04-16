@@ -231,6 +231,7 @@ impl CertifiedCommits {
         &self.commits
     }
 
+    #[expect(dead_code)]
     pub(crate) fn votes(&self) -> &[VerifiedBlock] {
         &self.votes
     }
@@ -462,6 +463,7 @@ pub fn load_committed_subdag_from_store(
 pub(crate) enum Decision {
     Direct,
     Indirect,
+    #[expect(dead_code)]
     Certified, // This is a commit certified leader so no commit decision was made locally.
 }
 
