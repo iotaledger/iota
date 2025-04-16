@@ -8,6 +8,8 @@ import { test as base, chromium, type BrowserContext } from '@playwright/test';
 
 const EXTENSION_PATH = path.join(__dirname, '../../wallet/dist');
 
+const DEFAULT_SHARED_STATE = { extension: {}, wallet: {} };
+
 interface SharedState {
     sharedContext?: BrowserContext;
     extension: {
@@ -20,8 +22,7 @@ interface SharedState {
     };
 }
 
-const DEFAULT_SHARED_STATE = { extension: {}, wallet: {} };
-let sharedState: SharedState = DEFAULT_SHARED_STATE;
+let sharedState: SharedState = { ...DEFAULT_SHARED_STATE };
 
 export const test = base.extend<{
     sharedState: SharedState;
@@ -90,7 +91,7 @@ export const test = base.extend<{
 test.afterAll(async () => {
     if (sharedState.sharedContext) {
         await sharedState.sharedContext.close();
-        sharedState = DEFAULT_SHARED_STATE;
+        sharedState = { ...DEFAULT_SHARED_STATE };
     }
 });
 
