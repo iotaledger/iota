@@ -1,7 +1,7 @@
 # Contributing
 
 If you decide to contribute to this project, please choose the scope of your contribution (e.g.,
-implement formatting for structs) and file an issue in the Iota
+implement formatting for structs) and file an issue in the IOTA
 [repository](https://github.com/iotaledger/iota) describing the work you plan to do, and wait for a
 response from a core team member so that we can avoid duplication of efforts.
 
