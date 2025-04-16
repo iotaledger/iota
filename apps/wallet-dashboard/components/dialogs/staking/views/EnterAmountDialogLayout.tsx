@@ -1,7 +1,13 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { CoinFormat, useFormatCoin, useStakeTxnInfo, Validator } from '@iota/core';
+import {
+    CoinFormat,
+    useFormatCoin,
+    useGetLatestIotaSystemState,
+    useStakeTxnInfo,
+    Validator,
+} from '@iota/core';
 import {
     Button,
     ButtonType,
@@ -17,9 +23,9 @@ import {
 } from '@iota/apps-ui-kit';
 import { Field, type FieldProps, useFormikContext } from 'formik';
 import { Exclamation, Loader } from '@iota/apps-ui-icons';
-import { useIotaClientQuery } from '@iota/dapp-kit';
 import { StakedInfo } from './StakedInfo';
 import { DialogLayout, DialogLayoutBody, DialogLayoutFooter } from '../../layout';
+import React from 'react';
 
 interface FormValues {
     amount: string;
@@ -29,15 +35,15 @@ interface EnterAmountDialogLayoutProps {
     selectedValidator: string;
     senderAddress: string;
     caption: string;
-    showInfo: boolean;
-    infoTitle?: string;
-    infoMessage: string;
+    renderInfo?: React.JSX.Element;
     isLoading: boolean;
     onBack: () => void;
     handleClose: () => void;
     handleStake: () => void;
     isStakeDisabled?: boolean;
     totalGas?: string | number | null;
+    renderInputAction?: React.JSX.Element;
+    errorMessage?: string;
 }
 
 export function EnterAmountDialogLayout({
@@ -45,16 +51,16 @@ export function EnterAmountDialogLayout({
     totalGas,
     senderAddress,
     caption,
-    showInfo,
-    infoTitle,
-    infoMessage,
+    renderInfo,
     isLoading,
     isStakeDisabled,
+    errorMessage,
     onBack,
     handleClose,
     handleStake,
+    renderInputAction,
 }: EnterAmountDialogLayoutProps): JSX.Element {
-    const { data: system } = useIotaClientQuery('getLatestIotaSystemState');
+    const { data: system } = useGetLatestIotaSystemState();
     const { values, errors } = useFormikContext<FormValues>();
     const amount = values.amount;
 
@@ -99,21 +105,12 @@ export function EnterAmountDialogLayout({
                                                 values.amount && meta.error ? meta.error : undefined
                                             }
                                             caption={caption}
+                                            trailingElement={renderInputAction}
                                         />
                                     );
                                 }}
                             </Field>
-                            {showInfo ? (
-                                <div className="mt-md">
-                                    <InfoBox
-                                        title={infoTitle}
-                                        type={InfoBoxType.Error}
-                                        supportingText={infoMessage}
-                                        style={InfoBoxStyle.Elevated}
-                                        icon={<Exclamation />}
-                                    />
-                                </div>
-                            ) : null}
+                            {renderInfo ? <div className="mt-md">{renderInfo}</div> : null}
                         </div>
 
                         <Panel hasBorder>
@@ -141,12 +138,28 @@ export function EnterAmountDialogLayout({
                 </div>
             </DialogLayoutBody>
             <DialogLayoutFooter>
+                {errorMessage ? (
+                    <div className="mb-sm">
+                        <InfoBox
+                            type={InfoBoxType.Error}
+                            supportingText={errorMessage}
+                            style={InfoBoxStyle.Elevated}
+                            icon={<Exclamation />}
+                        />
+                    </div>
+                ) : null}
                 <div className="flex w-full justify-between gap-sm">
                     <Button fullWidth type={ButtonType.Secondary} onClick={onBack} text="Back" />
                     <Button
                         fullWidth
                         type={ButtonType.Primary}
-                        disabled={!amount || !!errors?.amount || isLoading || isStakeDisabled}
+                        disabled={
+                            !amount ||
+                            !!errors?.amount ||
+                            isLoading ||
+                            isStakeDisabled ||
+                            !!errorMessage
+                        }
                         onClick={handleStake}
                         text="Stake"
                         icon={

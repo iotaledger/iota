@@ -61,7 +61,7 @@ impl ReadApi {
     ///
     /// #[tokio::main]
     /// async fn main() -> Result<(), anyhow::Error> {
-    ///     let iota = IotaClientBuilder::default().build_localnet().await?;
+    ///     let iota = IotaClientBuilder::default().build_testnet().await?;
     ///     let address = IotaAddress::from_str("0x0000....0000")?;
     ///     let owned_objects = iota
     ///         .read_api()
@@ -103,7 +103,7 @@ impl ReadApi {
     ///
     /// #[tokio::main]
     /// async fn main() -> Result<(), anyhow::Error> {
-    ///     let iota = IotaClientBuilder::default().build_localnet().await?;
+    ///     let iota = IotaClientBuilder::default().build_testnet().await?;
     ///     let address = IotaAddress::from_str("0x0000....0000")?;
     ///     let owned_objects = iota
     ///         .read_api()
@@ -153,6 +153,21 @@ impl ReadApi {
             .await?)
     }
 
+    /// Get information for a specified dynamic field object by its parent
+    /// object ID and field name with options.
+    pub async fn get_dynamic_field_object_v2(
+        &self,
+        parent_object_id: ObjectID,
+        name: DynamicFieldName,
+        options: impl Into<Option<IotaObjectDataOptions>>,
+    ) -> IotaRpcResult<IotaObjectResponse> {
+        Ok(self
+            .api
+            .http
+            .get_dynamic_field_object_v2(parent_object_id, name, options.into())
+            .await?)
+    }
+
     /// Get a parsed past object and version for the provided object ID.
     ///
     /// An object's version increases when the object is mutated, though it is
@@ -171,7 +186,7 @@ impl ReadApi {
     ///
     /// #[tokio::main]
     /// async fn main() -> Result<(), anyhow::Error> {
-    ///     let iota = IotaClientBuilder::default().build_localnet().await?;
+    ///     let iota = IotaClientBuilder::default().build_testnet().await?;
     ///     let address = IotaAddress::from_str("0x0000....0000")?;
     ///     let owned_objects = iota
     ///         .read_api()
@@ -236,7 +251,7 @@ impl ReadApi {
     ///
     /// #[tokio::main]
     /// async fn main() -> Result<(), anyhow::Error> {
-    ///     let iota = IotaClientBuilder::default().build_localnet().await?;
+    ///     let iota = IotaClientBuilder::default().build_testnet().await?;
     ///     let address = IotaAddress::from_str("0x0000....0000")?;
     ///     let owned_objects = iota
     ///         .read_api()
@@ -317,7 +332,7 @@ impl ReadApi {
     ///
     /// #[tokio::main]
     /// async fn main() -> Result<(), anyhow::Error> {
-    ///     let iota = IotaClientBuilder::default().build_localnet().await?;
+    ///     let iota = IotaClientBuilder::default().build_testnet().await?;
     ///     let address = IotaAddress::from_str("0x0000....0000")?;
     ///     let owned_objects = iota
     ///         .read_api()
@@ -372,7 +387,7 @@ impl ReadApi {
     /// use iota_types::base_types::IotaAddress;
     /// #[tokio::main]
     /// async fn main() -> Result<(), anyhow::Error> {
-    ///     let iota = IotaClientBuilder::default().build_localnet().await?;
+    ///     let iota = IotaClientBuilder::default().build_testnet().await?;
     ///     let address = IotaAddress::from_str("0x0000....0000")?;
     ///     let owned_objects = iota
     ///         .read_api()
@@ -446,7 +461,7 @@ impl ReadApi {
     ///
     /// #[tokio::main]
     /// async fn main() -> Result<(), anyhow::Error> {
-    ///     let iota = IotaClientBuilder::default().build_localnet().await?;
+    ///     let iota = IotaClientBuilder::default().build_testnet().await?;
     ///     let total_transaction_blocks = iota.read_api().get_total_transaction_blocks().await?;
     ///     Ok(())
     /// }

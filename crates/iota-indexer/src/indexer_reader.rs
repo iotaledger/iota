@@ -22,7 +22,8 @@ use iota_json_rpc_types::{
     AddressMetrics, Balance, CheckpointId, Coin as IotaCoin, DisplayFieldsResponse, EpochInfo,
     EventFilter, IotaCoinMetadata, IotaEvent, IotaMoveValue, IotaObjectDataFilter,
     IotaTransactionBlockEffects, IotaTransactionBlockEffectsAPI, IotaTransactionBlockResponse,
-    IotaTransactionKind, MoveCallMetrics, MoveFunctionName, NetworkMetrics, TransactionFilter,
+    IotaTransactionKind, MoveCallMetrics, MoveFunctionName, NetworkMetrics, ParticipationMetrics,
+    TransactionFilter,
 };
 use iota_package_resolver::{Package, PackageStore, PackageStoreWithLruCache, Resolver};
 use iota_types::{
@@ -31,7 +32,7 @@ use iota_types::{
     base_types::{IotaAddress, ObjectID, SequenceNumber, VersionNumber},
     coin::{CoinMetadata, TreasuryCap},
     committee::EpochId,
-    digests::TransactionDigest,
+    digests::{ChainIdentifier, TransactionDigest},
     dynamic_field::{DynamicFieldInfo, DynamicFieldName, visitor as DFV},
     effects::TransactionEvents,
     event::EventID,
@@ -40,6 +41,7 @@ use iota_types::{
         iota_system_state_summary::{IotaSystemStateSummary, IotaValidatorSummary},
     },
     is_system_package,
+    messages_checkpoint::CheckpointDigest,
     object::{Object, ObjectRead, PastObjectRead, bounded_visitor::BoundedVisitor},
 };
 use itertools::Itertools;
@@ -51,7 +53,7 @@ use crate::{
     errors::IndexerError,
     models::{
         address_metrics::StoredAddressMetrics,
-        checkpoints::StoredCheckpoint,
+        checkpoints::{StoredChainIdentifier, StoredCheckpoint},
         display::StoredDisplay,
         epoch::StoredEpochInfo,
         events::StoredEvent,
@@ -59,6 +61,7 @@ use crate::{
         network_metrics::StoredNetworkMetrics,
         obj_indices::StoredObjectVersion,
         objects::{CoinBalance, StoredHistoryObject, StoredObject},
+        participation_metrics::StoredParticipationMetrics,
         transactions::{
             StoredTransaction, StoredTransactionEvents, stored_events_to_events,
             tx_events_to_iota_tx_events,
@@ -66,8 +69,9 @@ use crate::{
         tx_indices::TxSequenceNumber,
     },
     schema::{
-        address_metrics, addresses, checkpoints, display, epochs, events, objects, objects_history,
-        objects_snapshot, objects_version, packages, pruner_cp_watermark, transactions, tx_digests,
+        address_metrics, addresses, chain_identifier, checkpoints, display, epochs, events,
+        objects, objects_history, objects_snapshot, objects_version, packages, pruner_cp_watermark,
+        transactions, tx_digests,
     },
     store::{diesel_macro::*, package_resolver::IndexerStorePackageResolver},
     types::{IndexerResult, OwnerType},
@@ -468,6 +472,33 @@ impl IndexerReader {
                 ))
             })?;
         Ok(system_state)
+    }
+
+    pub async fn get_chain_identifier_in_blocking_task(
+        &self,
+    ) -> Result<ChainIdentifier, IndexerError> {
+        self.spawn_blocking(|this| this.get_chain_identifier())
+            .await
+    }
+
+    pub fn get_chain_identifier(&self) -> Result<ChainIdentifier, IndexerError> {
+        let stored_chain_identifier = run_query!(&self.pool, |conn| {
+            chain_identifier::dsl::chain_identifier
+                .first::<StoredChainIdentifier>(conn)
+                .optional()
+        })?
+        .ok_or(IndexerError::PostgresRead(
+            "chain identifier not found".to_string(),
+        ))?;
+
+        let checkpoint_digest =
+            CheckpointDigest::try_from(stored_chain_identifier.checkpoint_digest).map_err(|e| {
+                IndexerError::PersistentStorageDataCorruption(format!(
+                    "failed to decode chain identifier with err: {e:?}"
+                ))
+            })?;
+
+        Ok(checkpoint_digest.into())
     }
 
     pub fn get_checkpoint_from_db(
@@ -1989,6 +2020,17 @@ impl IndexerReader {
         })
         .await
         .map_err(Into::into)
+    }
+
+    /// Get the participation metrics. Participation is defined as the total
+    /// number of unique addresses that have delegated stake in the current
+    /// epoch. Includes both staked and timelocked staked IOTA.
+    pub fn get_participation_metrics(&self) -> IndexerResult<ParticipationMetrics> {
+        run_query!(&self.pool, |conn| {
+            diesel::sql_query("SELECT * FROM participation_metrics")
+                .get_result::<StoredParticipationMetrics>(conn)
+        })
+        .map(Into::into)
     }
 }
 

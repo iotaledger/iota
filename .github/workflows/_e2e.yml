@@ -22,6 +22,9 @@ on:
       isGraphQlTransport:
         type: boolean
         required: false
+      isWalletDashboard:
+        type: boolean
+        required: false
 
 concurrency:
   group: e2e-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
@@ -34,7 +37,7 @@ jobs:
   # Run e2e test against localnet built on the develop branch
   localnet:
     name: Localnet
-    if: inputs.isExplorer || inputs.isTypescriptSDK || inputs.isWallet || inputs.isRpc || github.ref_name == 'develop'
+    if: inputs.isExplorer || inputs.isTypescriptSDK || inputs.isWallet || inputs.isWalletDashboard || inputs.isRpc || github.ref_name == 'develop'
     runs-on: self-hosted-x64
     continue-on-error: ${{ github.ref_name == 'develop' }}
     services:
@@ -90,6 +93,8 @@ jobs:
 
       - name: Build explorer
         if: inputs.isTypescriptSDK || inputs.isExplorer || inputs.isRpc || github.ref_name == 'develop'
+        env:
+          IOTA_NETWORKS: '{ "localnet": { "id": "localnet", "name": "Localnet", "url": "http://localhost:9124", "explorer": "http://localhost:3000", "chain": "iota:local", "faucet": "http://localhost:9123" } }'
         run: pnpm turbo --filter=iota-explorer build
 
       - name: Run Explorer e2e tests
@@ -102,6 +107,25 @@ jobs:
           path: apps/explorer/playwright-report/
           retention-days: 30
 
+      - name: Build Wallet
+        if: inputs.isWalletDashboard || inputs.isWallet || inputs.isRpc || inputs.isTypescriptSDK || github.ref_name == 'develop'
+        run: pnpm wallet build
+
+      - name: Build Dashboard
+        if: inputs.isWalletDashboard || inputs.isRpc || inputs.isTypescriptSDK || github.ref_name == 'develop'
+        run: pnpm turbo --filter wallet-dashboard build
+
+      - name: Run Dashboard e2e tests
+        if: inputs.isWalletDashboard || inputs.isRpc || inputs.isTypescriptSDK || github.ref_name == 'develop'
+        run: xvfb-run --auto-servernum --server-args="-screen 0 1280x960x24" -- pnpm --filter wallet-dashboard playwright test
+
+      - uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # v4.4.3
+        if: always()
+        with:
+          name: playwright-report-wallet-dashboard
+          path: apps/wallet-dashboard/playwright-report/
+          retention-days: 30
+
       - name: Build Kiosk
         if: inputs.isRpc || inputs.isTypescriptSDK || github.ref_name == 'develop'
         run: pnpm turbo --filter=@iota/kiosk build
@@ -112,10 +136,6 @@ jobs:
 
       - name: Run Local net
         run: cargo run --bin iota start --force-regenesis --with-faucet --epoch-duration-ms 10000 &
-
-      - name: Build Wallet
-        if: inputs.isWallet || inputs.isRpc || inputs.isTypescriptSDK || github.ref_name == 'develop'
-        run: pnpm wallet build
 
       - name: Run Wallet e2e tests
         if: inputs.isWallet || inputs.isRpc || inputs.isTypescriptSDK || github.ref_name == 'develop'

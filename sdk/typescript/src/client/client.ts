@@ -90,6 +90,9 @@ import type {
     DelegatedTimelockedStake,
     GetTimelockedStakesByIdsParams,
     IotaSystemStateSummaryV1,
+    ParticipationMetrics,
+    IotaCirculatingSupply,
+    GetDynamicFieldObjectV2Params,
 } from './types/index.js';
 
 export interface PaginationArguments<Cursor> {
@@ -223,6 +226,16 @@ export class IotaClient {
         return await this.transport.request({
             method: 'iotax_getTotalSupply',
             params: [input.coinType],
+        });
+    }
+
+    /**
+     *  Fetch circulating supply for a coin
+     */
+    async getCirculatingSupply(): Promise<IotaCirculatingSupply> {
+        return await this.transport.request({
+            method: 'iotax_getCirculatingSupply',
+            params: [],
         });
     }
 
@@ -680,6 +693,18 @@ export class IotaClient {
     }
 
     /**
+     * Return the dynamic field object information for a specified object with content options.
+     */
+    async getDynamicFieldObjectV2(
+        input: GetDynamicFieldObjectV2Params,
+    ): Promise<IotaObjectResponse> {
+        return await this.transport.request({
+            method: 'iotax_getDynamicFieldObjectV2',
+            params: [input.parentObjectId, input.name],
+        });
+    }
+
+    /**
      * Get the sequence number of the latest checkpoint that has been executed
      */
     async getLatestCheckpointSequenceNumber(): Promise<string> {
@@ -809,6 +834,16 @@ export class IotaClient {
         return await this.transport.request({
             method: 'iota_getProtocolConfig',
             params: [input?.version],
+        });
+    }
+
+    /**
+     * Returns the participation metrics (total unique addresses with delegated stake in the current epoch).
+     */
+    async getParticipationMetrics(): Promise<ParticipationMetrics> {
+        return await this.transport.request({
+            method: 'iotax_getParticipationMetrics',
+            params: [],
         });
     }
 

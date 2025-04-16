@@ -49,6 +49,7 @@ Options:
       --summary                                                       Show only a short summary (digest, execution status, gas cost). Do not use this flag when you need all the transaction data and the execution effects.
       --warn-shadows                                                  Enable shadow warning when the same variable name is declared multiple times. Off by default.
       --json                                                          Return command outputs in json format.
+      --emit                                                          Select which fields of the response to display. If not provided, all fields are displayed. The fields are: input, effects, events, object_changes, balance_changes. This option only works if it's passed as first argument to the command: `iota client ptb --emit=effects --split-coins gas [1000]`
   -h, --help                                                          Print help (see more with '--help')
 ```
 

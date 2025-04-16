@@ -15,10 +15,11 @@ import type { IotaEvent, IotaValidatorSummary } from '@iota/iota-sdk/client';
 import clsx from 'clsx';
 import { ValidatorLink } from '~/components/ui';
 
-interface generateValidatorsTableColumnsArgs {
-    atRiskValidators: [string, string][];
-    validatorEvents: IotaEvent[];
-    rollingAverageApys: ApyByValidator | null;
+interface GenerateValidatorsTableColumnsArgs {
+    committeeMembers?: string[];
+    atRiskValidators?: [string, string][];
+    validatorEvents?: IotaEvent[];
+    rollingAverageApys?: ApyByValidator;
     limit?: number;
     showValidatorIcon?: boolean;
     includeColumns?: string[];
@@ -86,13 +87,14 @@ function ValidatorWithImage({
 }
 
 export function generateValidatorsTableColumns({
+    committeeMembers = [],
     atRiskValidators = [],
     validatorEvents = [],
-    rollingAverageApys = null,
+    rollingAverageApys,
     showValidatorIcon = true,
     includeColumns,
     highlightValidatorName,
-}: generateValidatorsTableColumnsArgs): ColumnDef<IotaValidatorSummaryExtended>[] {
+}: GenerateValidatorsTableColumnsArgs): ColumnDef<IotaValidatorSummaryExtended>[] {
     let columns: ColumnDef<IotaValidatorSummaryExtended>[] = [
         {
             header: 'Name',
@@ -141,18 +143,6 @@ export function generateValidatorsTableColumns({
                 return (
                     <TableCellBase>
                         <StakeColumn stake={stakingPoolIotaBalance} />
-                    </TableCellBase>
-                );
-            },
-        },
-        {
-            header: 'Proposed next Epoch gas price',
-            accessorKey: 'nextEpochGasPrice',
-            cell({ getValue }) {
-                const nextEpochGasPrice = getValue<string>();
-                return (
-                    <TableCellBase>
-                        <StakeColumn stake={nextEpochGasPrice} inNano />
                     </TableCellBase>
                 );
             },
@@ -246,12 +236,16 @@ export function generateValidatorsTableColumns({
             id: 'atRisk',
             enableSorting: true,
             sortingFn: (rowA, rowB) => {
-                const { label: labelA } = determineRisk(atRiskValidators, rowA);
-                const { label: labelB } = determineRisk(atRiskValidators, rowB);
+                const { label: labelA } = determineRisk(committeeMembers, atRiskValidators, rowA);
+                const { label: labelB } = determineRisk(committeeMembers, atRiskValidators, rowB);
                 return sortByString(labelA, labelB);
             },
             cell({ row }) {
-                const { atRisk, label, isPending } = determineRisk(atRiskValidators, row);
+                const { atRisk, label, isPending, isCommitteeMember } = determineRisk(
+                    committeeMembers,
+                    atRiskValidators,
+                    row,
+                );
 
                 if (isPending) {
                     return (
@@ -263,7 +257,11 @@ export function generateValidatorsTableColumns({
                 return (
                     <TableCellBase>
                         <Badge
-                            type={atRisk === null ? BadgeType.PrimarySoft : BadgeType.Neutral}
+                            type={
+                                atRisk === null && isCommitteeMember
+                                    ? BadgeType.PrimarySoft
+                                    : BadgeType.Neutral
+                            }
                             label={label}
                         />
                     </TableCellBase>
@@ -301,10 +299,14 @@ function getLastReward(
     return event?.pool_staking_reward ? Number(event.pool_staking_reward) : null;
 }
 function determineRisk(
+    committeeMembers: string[],
     atRiskValidators: [string, string][],
     row: Row<IotaValidatorSummaryExtended>,
 ) {
     const { original: validator } = row;
+    const isCommitteeMember = committeeMembers.find(
+        (committeeMemberAddress) => committeeMemberAddress === row.original.iotaAddress,
+    );
     const atRiskValidator = atRiskValidators.find(([address]) => address === validator.iotaAddress);
     const isAtRisk = !!atRiskValidator;
     const atRisk = isAtRisk ? VALIDATOR_LOW_STAKE_GRACE_PERIOD - Number(atRiskValidator[1]) : null;
@@ -312,7 +314,9 @@ function determineRisk(
     const label = isPending
         ? 'Pending'
         : atRisk === null
-          ? 'Active'
+          ? isCommitteeMember
+              ? 'Committee'
+              : 'Active (not in committee)'
           : atRisk > 1
             ? `At Risk in ${atRisk} epochs`
             : 'At Risk next epoch';
@@ -320,5 +324,6 @@ function determineRisk(
         label,
         atRisk,
         isPending,
+        isCommitteeMember,
     };
 }

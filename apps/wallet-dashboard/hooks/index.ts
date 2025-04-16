@@ -11,3 +11,4 @@ export * from './useGetSupplyIncreaseVestingObjects';
 export * from './useGroupedStardustObjects';
 export * from './useTransferTransaction';
 export * from './usePersistedNetwork';
+export * from './useIsValidatorCommitteeMember';

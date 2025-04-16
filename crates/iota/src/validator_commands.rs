@@ -380,9 +380,11 @@ impl IotaValidatorCommand {
             }
 
             IotaValidatorCommand::LeaveValidators { gas_budget } => {
-                // Only an active validator can leave committee.
-                let _status =
-                    check_status(context, HashSet::from([ValidatorStatus::Active])).await?;
+                let _status = check_status(
+                    context,
+                    HashSet::from([ValidatorStatus::Active, ValidatorStatus::CommitteeMember]),
+                )
+                .await?;
                 let gas_budget = gas_budget.unwrap_or(DEFAULT_GAS_BUDGET);
                 let response =
                     call_0x5(context, "request_remove_validator", vec![], gas_budget).await?;
@@ -755,12 +757,10 @@ async fn report_validator(
     let (status, summary, cap_obj_ref) = get_cap_object_ref(context, operation_cap_id).await?;
 
     let validator_address = summary.iota_address;
-    // Only active validators can report/un-report.
-    if !matches!(status, ValidatorStatus::Active) {
+    // Only committee members can report/un-report.
+    if !matches!(status, ValidatorStatus::CommitteeMember) {
         anyhow::bail!(
-            "Only active Validator can report/un-report Validators, but {} is {:?}.",
-            validator_address,
-            status
+            "Only committee members can report/un-report Validators, but {validator_address} is {status:?}."
         );
     }
     let args = vec![
@@ -1223,7 +1223,6 @@ async fn update_metadata(
     metadata: MetadataUpdate,
     gas_budget: u64,
 ) -> anyhow::Result<IotaTransactionBlockResponse> {
-    use ValidatorStatus::*;
     match metadata {
         MetadataUpdate::Name { name } => {
             let args = vec![CallArg::Pure(bcs::to_bytes(&name.into_bytes()).unwrap())];
@@ -1252,7 +1251,7 @@ async fn update_metadata(
             if !network_address.is_loosely_valid_tcp_addr() {
                 bail!("Network address must be a TCP address");
             }
-            let _status = check_status(context, HashSet::from([Pending, Active])).await?;
+            can_validator_mutate_all_data(context).await?;
             let args = vec![CallArg::Pure(bcs::to_bytes(&network_address).unwrap())];
             call_0x5(
                 context,
@@ -1266,7 +1265,7 @@ async fn update_metadata(
             primary_address.to_anemo_address().map_err(|_| {
                 anyhow!("Invalid primary address, it must look like `/[ip4,ip6,dns]/.../udp/port`")
             })?;
-            let _status = check_status(context, HashSet::from([Pending, Active])).await?;
+            can_validator_mutate_all_data(context).await?;
             let args = vec![CallArg::Pure(bcs::to_bytes(&primary_address).unwrap())];
             call_0x5(
                 context,
@@ -1280,7 +1279,7 @@ async fn update_metadata(
             p2p_address.to_anemo_address().map_err(|_| {
                 anyhow!("Invalid p2p address, it must look like `/[ip4,ip6,dns]/.../udp/port`")
             })?;
-            let _status = check_status(context, HashSet::from([Pending, Active])).await?;
+            can_validator_mutate_all_data(context).await?;
             let args = vec![CallArg::Pure(bcs::to_bytes(&p2p_address).unwrap())];
             call_0x5(
                 context,
@@ -1291,7 +1290,7 @@ async fn update_metadata(
             .await
         }
         MetadataUpdate::NetworkPubKey { file } => {
-            let _status = check_status(context, HashSet::from([Pending, Active])).await?;
+            can_validator_mutate_all_data(context).await?;
             let network_pub_key: NetworkPublicKey =
                 read_network_keypair_from_file(file)?.public().clone();
             let args = vec![CallArg::Pure(
@@ -1306,7 +1305,7 @@ async fn update_metadata(
             .await
         }
         MetadataUpdate::ProtocolPubKey { file } => {
-            let _status = check_status(context, HashSet::from([Pending, Active])).await?;
+            can_validator_mutate_all_data(context).await?;
             let protocol_pub_key: NetworkPublicKey =
                 read_network_keypair_from_file(file)?.public().clone();
             let args = vec![CallArg::Pure(
@@ -1321,7 +1320,7 @@ async fn update_metadata(
             .await
         }
         MetadataUpdate::AuthorityPubKey { file } => {
-            let _status = check_status(context, HashSet::from([Pending, Active])).await?;
+            can_validator_mutate_all_data(context).await?;
             let iota_address = context.active_address()?;
             let authority_key_pair: AuthorityKeyPair = read_authority_keypair_from_file(file)?;
             let authority_pub_key: AuthorityPublicKey = authority_key_pair.public().clone();
@@ -1364,4 +1363,17 @@ async fn check_status(
         "Validator {validator_address} is {:?}, this operation is not supported in this tool or prohibited.",
         status
     )
+}
+
+async fn can_validator_mutate_all_data(context: &mut WalletContext) -> Result<()> {
+    let _status = check_status(
+        context,
+        HashSet::from([
+            ValidatorStatus::Pending,
+            ValidatorStatus::Active,
+            ValidatorStatus::CommitteeMember,
+        ]),
+    )
+    .await?;
+    Ok(())
 }
