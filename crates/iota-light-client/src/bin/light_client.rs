@@ -23,7 +23,6 @@ use tracing::debug;
 // Define the `GIT_REVISION` and `VERSION` consts
 bin_version::bin_version!();
 
-// A light client for the IOTA blockchain
 #[derive(Parser, Debug)]
 #[command(
     name = env!("CARGO_BIN_NAME"),

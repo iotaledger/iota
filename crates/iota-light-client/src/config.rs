@@ -4,13 +4,10 @@
 
 use std::path::{Path, PathBuf};
 
-use anyhow::{Context, Result, anyhow, bail};
+use anyhow::{Context, Result, anyhow};
 use iota_config::object_storage_config::ObjectStoreConfig;
 use serde::{Deserialize, Serialize};
-use tokio::{
-    fs::{self, File, create_dir_all, read_to_string},
-    io,
-};
+use tokio::fs::{create_dir_all, read_to_string};
 use url::Url;
 
 const GENESIS_FILE_NAME: &str = "genesis.blob";
@@ -75,7 +72,7 @@ impl Config {
                         tokio::fs::copy(path, self.genesis_blob_file_path()).await?;
                     }
                     _ => {
-                        let mut contents = reqwest::get(url).await?.bytes().await?;
+                        let contents = reqwest::get(url).await?.bytes().await?;
                         tokio::fs::write(self.genesis_blob_file_path(), contents).await?;
                     }
                 }

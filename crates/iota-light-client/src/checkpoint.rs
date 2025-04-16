@@ -109,13 +109,16 @@ pub async fn sync_checkpoint_list_to_latest(config: &Config) -> anyhow::Result<C
     }
 
     let checkpoints_from_object_store = if config.object_store_url.is_some() {
-        match sync_checkpoint_list_to_latest_using_full_node_and_object_store(config).await {
-            Ok(list) => list,
-            Err(e) => {
-                warn!("Failed to sync checkpoints from checkpoint object store: {e}");
-                CheckpointList::default()
-            }
-        }
+        // TODO blocked by https://github.com/iotaledger/iota/issues/4908
+        warn!("Syncing from a checkpoint object store is not supported yet.");
+        CheckpointList::default()
+        // match sync_checkpoint_list_to_latest_using_full_node_and_object_store(config).await {
+        //     Ok(list) => list,
+        //     Err(e) => {
+        //         warn!("Failed to sync checkpoints from checkpoint object
+        // store: {e}");         CheckpointList::default()
+        //     }
+        // }
     } else {
         CheckpointList::default()
     };
@@ -268,10 +271,11 @@ async fn sync_checkpoint_list_to_latest_using_archive_store_only(
     Ok(CheckpointList { checkpoints })
 }
 
+// TODO blocked by https://github.com/iotaledger/iota/issues/4908
 /// Downloads the list of end-of-epoch checkpoints from an object store.
 ///
 /// Requires full node's RPC, GraphQL endpoints and an checkpoint object store.
-async fn sync_checkpoint_list_to_latest_using_full_node_and_object_store(
+async fn _sync_checkpoint_list_to_latest_using_full_node_and_object_store(
     config: &Config,
 ) -> anyhow::Result<CheckpointList> {
     info!("Syncing checkpoints from object store");
@@ -335,13 +339,13 @@ pub async fn sync_and_check_checkpoints(config: &Config) -> anyhow::Result<()> {
         .committee()
         .map_err(|e| anyhow!(format!("Failed to load genesis file: {e}")))?;
 
-    if let Some(checkpoint_store_url) = &config.object_store_url {
+    if let Some(_checkpoint_store_url) = &config.object_store_url {
         // Download summaries from checkpoint object store
         // TODO blocked by https://github.com/iotaledger/iota/issues/4908
-        bail!(
-            "Syncing from a checkpoint object store is not supported yet. Please leave `object_store_url` empty for now."
-        );
-    } else if let Some(archive_store_config) = &config.archive_store_config {
+        warn!("Syncing from a checkpoint object store is not supported yet.");
+    }
+
+    if let Some(archive_store_config) = &config.archive_store_config {
         // Download summaries from archive store
         let archive_reader_config = ArchiveReaderConfig {
             remote_store_config: archive_store_config.clone(),
