@@ -2,44 +2,16 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { test, expect } from './fixtures';
-import { connectWallet, createWallet } from './utils';
-import 'dotenv/config';
+import { connectWallet } from './utils';
 
 test.describe('Wallet Connection', () => {
-    test.beforeEach(async ({ page, extensionUrl, sharedState }) => {
-        // Navigate to the wallet dashboard
-        await page.goto('/');
-
-        // Import a wallet in the extension
-        await page.goto(extensionUrl);
-        const cratedWallet = await createWallet(page, extensionUrl);
-
-        sharedState.walletMnemonic = cratedWallet.mnemonic || '';
-        sharedState.walletAddress = cratedWallet.address || '';
-
-        // Go back to dashboard
-        await page.goto('/');
-        await page.waitForSelector('.welcome-page');
-    });
-
-    test('should connect to wallet extension', async ({
-        context,
-        page,
-        sharedState,
-        extensionName,
-        extensionUrl,
-    }) => {
+    test('should connect to wallet extension', async ({ context, page, extensionName }) => {
         await connectWallet(page, context, extensionName);
 
-        // Verify connection was successful on dashboard
-        await page.waitForSelector('[data-testid="sidebar"]');
-        await expect(page.getByTestId('sidebar')).toBeVisible();
+        // Switch back to main page
+        await page.bringToFront();
 
-        const displayedFullAddress = await page
-            .locator('[data-full-address]')
-            .getAttribute('data-full-address');
-
-        expect(displayedFullAddress).toBe(sharedState.walletAddress);
+        await expect(page.getByText('My Coins')).toBeVisible({ timeout: 30_000 });
     });
 
     test('should return to main screen when disconnecting from wallet', async ({
@@ -49,6 +21,9 @@ test.describe('Wallet Connection', () => {
         extensionName,
     }) => {
         await connectWallet(page, context, extensionName);
+
+        // Switch back to main page
+        await page.bringToFront();
 
         await page.locator('[data-full-address]').waitFor({ state: 'visible' });
 

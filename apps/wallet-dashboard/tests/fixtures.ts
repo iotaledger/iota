@@ -2,24 +2,29 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import path from 'path';
-import { test as base, chromium, type BrowserContext } from '@playwright/test';
+import { test as base, chromium, Page, type BrowserContext } from '@playwright/test';
+import { createWallet } from './utils';
 
 // Path to the wallet extension build directory
 const EXTENSION_PATH = path.join(__dirname, '../../wallet/dist');
 
 // Define the shared state type
 interface SharedState {
-    walletAddress?: string;
-    walletMnemonic?: string;
+    walletAddress: string;
+    walletMnemonic: string;
 }
 
-const sharedState: SharedState = {};
+const sharedState: SharedState = {
+    walletAddress: '',
+    walletMnemonic: '',
+};
 
 export const test = base.extend<{
     sharedState: SharedState;
     context: BrowserContext;
     extensionUrl: string;
     extensionName: string;
+    extensionPage: Page;
 }>({
     sharedState: async ({ context }, use) => {
         await use(sharedState);
@@ -56,12 +61,35 @@ export const test = base.extend<{
 
         await use(extensionUrl);
     },
-    extensionName: async ({ context, extensionUrl }, use) => {
+
+    extensionPage: async ({ context, extensionUrl }, use) => {
         const extPage = await context.newPage();
         await extPage.goto(extensionUrl);
 
-        const extensionName = await extPage.title();
+        await extPage.waitForSelector('body');
+
+        await use(extPage);
+    },
+
+    extensionName: async ({ extensionPage }, use) => {
+        await extensionPage.bringToFront();
+        const extensionName = await extensionPage.title();
         await use(extensionName);
+    },
+
+    page: async ({ page, sharedState, extensionPage }, use) => {
+        await page.goto('/', { waitUntil: 'commit' });
+
+        await extensionPage.bringToFront();
+        const createdWallet = await createWallet(extensionPage);
+
+        sharedState.walletMnemonic = createdWallet.mnemonic;
+        sharedState.walletAddress = createdWallet.address;
+
+        await page.reload();
+        await page.waitForSelector('.welcome-page');
+
+        await use(page);
     },
 });
 
