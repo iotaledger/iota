@@ -2,7 +2,7 @@
     "name": "@iota/kiosk",
     "author": "IOTA Foundation <info@iota.org>",
     "description": "IOTA Kiosk library",
-    "version": "0.3.3",
+    "version": "0.3.4",
     "license": "Apache-2.0",
     "type": "commonjs",
     "main": "./dist/cjs/index.js",
