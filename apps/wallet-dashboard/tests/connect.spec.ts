@@ -3,7 +3,7 @@
 import { test, expect } from './fixtures';
 import { connectWallet } from './utils';
 
-test.describe('Wallet Connection', () => {
+test.describe.serial('Wallet Connection', () => {
     test('should connect to wallet extension', async ({ context, page, extensionName }) => {
         await connectWallet(page, context, extensionName);
 
