@@ -1501,7 +1501,7 @@ mod test {
             dag_state.contains_cached_block_at_slot(Slot::new(8, AuthorityIndex::new_for_test(0)));
     }
 
-    #[cfg(feature = "gc_tests")]
+    #[cfg(all(feature = "gc_tests", not(clippy)))]
     #[tokio::test]
     #[should_panic(
         expected = "Attempted to check for slot [1]3 that is <= the last gc evicted round 3"
@@ -1857,7 +1857,7 @@ mod test {
         assert_eq!(dag_state.scoring_subdags_count(), 5);
     }
 
-    #[cfg(feature = "gc_tests")]
+    #[cfg(all(feature = "gc_tests", not(clippy)))]
     #[tokio::test]
     async fn test_flush_and_recovery_gc_enabled() {
         telemetry_subscribers::init_for_testing();
@@ -2312,7 +2312,7 @@ mod test {
         dag_state.get_last_cached_block_per_authority(end_round);
     }
 
-    #[cfg(feature = "gc_tests")]
+    #[cfg(all(feature = "gc_tests", not(clippy)))]
     #[tokio::test]
     #[should_panic(
         expected = "Attempted to request for blocks of rounds < 2, when the last evicted round is 1 for authority [2]"

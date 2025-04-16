@@ -440,7 +440,7 @@ mod tests {
         assert!(consumer.is_empty());
     }
 
-    #[cfg(feature = "gc_tests")]
+    #[cfg(all(feature = "gc_tests", not(clippy)))]
     #[tokio::test(flavor = "current_thread", start_paused = true)]
     async fn block_status_update_gc_enabled() {
         let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {

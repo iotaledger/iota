@@ -1894,7 +1894,7 @@ mod test {
         assert_eq!(dag_state.read().last_commit_index(), 0);
     }
 
-    #[cfg(feature = "gc_tests")]
+    #[cfg(all(feature = "gc_tests", not(clippy)))]
     #[rstest]
     #[tokio::test]
     async fn test_commit_and_notify_for_block_status(#[values(0, 2)] gc_depth: u32) {
@@ -2032,7 +2032,7 @@ mod test {
     // Tests that the threshold clock advances when blocks get unsuspended due to
     // GC'ed blocks and newly created blocks are always higher than the last
     // advanced gc round.
-    #[cfg(feature = "gc_tests")]
+    #[cfg(all(feature = "gc_tests", not(clippy)))]
     #[tokio::test]
     async fn test_multiple_commits_advance_threshold_clock() {
         telemetry_subscribers::init_for_testing();
@@ -3415,7 +3415,7 @@ mod test {
         }
     }
 
-    #[cfg(feature = "gc_tests")]
+    #[cfg(all(feature = "gc_tests", not(clippy)))]
     #[tokio::test]
     async fn try_commit_with_certified_commits_gced_blocks() {
         const GC_DEPTH: u32 = 3;
@@ -3998,7 +3998,7 @@ mod test {
         assert_eq!(all_stored_commits.len(), 6);
     }
 
-    #[cfg(feature = "gc_tests")]
+    #[cfg(all(feature = "gc_tests", not(clippy)))]
     #[tokio::test]
     async fn try_decide_certified() {
         // GIVEN

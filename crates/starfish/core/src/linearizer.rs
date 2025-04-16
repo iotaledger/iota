@@ -585,7 +585,7 @@ mod tests {
     /// This test will run the linearizer with GC disabled (gc_depth = 0) and gc
     /// enabled (gc_depth = 3) and make sure that for the exact same DAG the
     /// linearizer will commit different blocks according to the rules.
-    #[cfg(feature = "gc_tests")]
+    #[cfg(all(feature = "gc_tests", not(clippy)))]
     #[rstest]
     #[tokio::test]
     async fn test_handle_commit_with_gc_simple(#[values(0, 3)] gc_depth: u32) {
@@ -708,7 +708,7 @@ mod tests {
         }
     }
 
-    #[cfg(feature = "gc_tests")]
+    #[cfg(all(feature = "gc_tests", not(clippy)))]
     #[rstest]
     #[tokio::test]
     async fn test_handle_commit_below_highest_committed_round(#[values(3)] gc_depth: u32) {

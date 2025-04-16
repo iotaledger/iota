@@ -739,7 +739,7 @@ mod tests {
 
     /// Tests that the block manager accepts blocks when some or all of their
     /// causal history is below or equal to the GC round.
-    #[cfg(feature = "gc_tests")]
+    #[cfg(all(feature = "gc_tests", not(clippy)))]
     #[tokio::test]
     async fn accept_blocks_with_causal_history_below_gc_round() {
         // GIVEN
@@ -834,7 +834,7 @@ mod tests {
     /// Blocks that are attempted to be accepted but are <= gc_round they will
     /// be skipped for processing. Nothing should be stored or trigger any
     /// unsuspension etc.
-    #[cfg(feature = "gc_tests")]
+    #[cfg(all(feature = "gc_tests", not(clippy)))]
     #[tokio::test]
     async fn skip_accepting_blocks_below_gc_round() {
         // GIVEN
@@ -940,7 +940,7 @@ mod tests {
         }
     }
 
-    #[cfg(feature = "gc_tests")]
+    #[cfg(all(feature = "gc_tests", not(clippy)))]
     #[rstest]
     #[tokio::test]
     async fn unsuspend_blocks_for_latest_gc_round(#[values(5, 10, 14)] gc_depth: u32) {
@@ -1028,7 +1028,7 @@ mod tests {
         }
     }
 
-    #[cfg(feature = "gc_tests")]
+    #[cfg(all(feature = "gc_tests", not(clippy)))]
     #[rstest]
     #[tokio::test]
     async fn try_accept_committed_blocks() {

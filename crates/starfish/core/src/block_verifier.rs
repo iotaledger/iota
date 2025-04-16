@@ -536,7 +536,7 @@ mod test {
     /// Tests the block's ancestors for timestamp monotonicity. Test will run
     /// for both when gc is enabled and disabled, but with none of the
     /// ancestors being below the gc_round.
-    #[cfg(feature = "gc_tests")]
+    #[cfg(all(feature = "gc_tests", not(clippy)))]
     #[rstest]
     #[tokio::test]
     async fn test_check_ancestors(#[values(false, true)] gc_enabled: bool) {
@@ -590,7 +590,7 @@ mod test {
         }
     }
 
-    #[cfg(feature = "gc_tests")]
+    #[cfg(all(feature = "gc_tests", not(clippy)))]
     #[tokio::test]
     async fn test_check_ancestors_passed_gc_round() {
         let num_authorities = 4;
