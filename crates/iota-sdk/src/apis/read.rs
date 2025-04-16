@@ -153,6 +153,21 @@ impl ReadApi {
             .await?)
     }
 
+    /// Get information for a specified dynamic field object by its parent
+    /// object ID and field name with options.
+    pub async fn get_dynamic_field_object_v2(
+        &self,
+        parent_object_id: ObjectID,
+        name: DynamicFieldName,
+        options: impl Into<Option<IotaObjectDataOptions>>,
+    ) -> IotaRpcResult<IotaObjectResponse> {
+        Ok(self
+            .api
+            .http
+            .get_dynamic_field_object_v2(parent_object_id, name, options.into())
+            .await?)
+    }
+
     /// Get a parsed past object and version for the provided object ID.
     ///
     /// An object's version increases when the object is mutated, though it is

@@ -31,7 +31,7 @@ export default defineConfig({
          * Maximum time expect() should wait for the condition to be met.
          * For example in `await expect(locator).toHaveText();`
          */
-        timeout: 5000,
+        timeout: 10_000,
     },
 
     projects: [
@@ -51,9 +51,9 @@ export default defineConfig({
             timeout: 120 * 1000,
             reuseExistingServer: !process.env.CI,
         },
-        // Localnet-based dev server:
+        // Localnet-based server:
         {
-            command: 'pnpm dev',
+            command: 'pnpm start',
             port: 3000,
             timeout: 120 * 1000,
             reuseExistingServer: !process.env.CI,

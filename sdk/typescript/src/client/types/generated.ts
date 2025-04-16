@@ -527,6 +527,15 @@ export interface IotaChangeEpochV2 {
     storage_charge: string;
     storage_rebate: string;
 }
+/** Provides a summary of the circulating IOTA supply. */
+export interface IotaCirculatingSupply {
+    /** Timestamp (UTC) when the circulating supply was calculated. */
+    atCheckpoint: string;
+    /** Percentage of total supply that is currently circulating (range: 0.0 to 1.0). */
+    circulatingSupplyPercentage: number;
+    /** Circulating supply in NANOS at the given timestamp. */
+    value: string;
+}
 export interface CoinMetadata {
     /** Number of decimal places the coin uses. */
     decimals: number;

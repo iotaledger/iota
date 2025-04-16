@@ -27,6 +27,7 @@ const operator = [
                 ],
             },
             'operator/full-node/monitoring',
+            'operator/full-node/troubleshooting',
         ],
     },
     {

@@ -2,50 +2,51 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { test, expect } from './fixtures';
-import { connectWallet, getAddressByIndexPath } from './utils';
+import { connectWallet, getAddressByIndexPath, requestFaucetTokensOnWalletHome } from './utils';
 
 const AMOUNT_TO_SEND = 10;
 
 test.describe('Send Coins', () => {
-    test(`send ${AMOUNT_TO_SEND} IOTA`, async ({
+    test(`should send ${AMOUNT_TO_SEND} IOTA`, async ({
         context,
-        page,
+        pageWithFreshWallet,
         sharedState,
         extensionName,
-        extensionPage,
     }) => {
-        await connectWallet(page, context, extensionName);
+        const { wallet } = sharedState;
 
-        await extensionPage.bringToFront();
-        const originalBalance = await extensionPage.getByTestId('coin-balance').textContent();
-        await extensionPage.getByRole('button', { name: /Request \w+ Tokens/ }).click();
-        await expect(extensionPage.getByTestId('coin-balance')).not.toHaveText(
-            `${originalBalance}`,
-            {
-                timeout: 30_000,
-            },
-        );
+        if (!wallet.mnemonic) {
+            throw new Error('Wallet mnemonic not set');
+        }
 
-        await page.bringToFront();
+        const dashboardPage = await context.newPage();
+        await dashboardPage.goto('/');
+        await connectWallet(dashboardPage, context, extensionName);
 
-        const sendAddress = getAddressByIndexPath(sharedState.walletMnemonic, 1);
+        await pageWithFreshWallet.bringToFront();
+        await requestFaucetTokensOnWalletHome(pageWithFreshWallet);
 
-        const sendButton = page.getByTestId('send-coin-button');
+        await dashboardPage.bringToFront();
+
+        const sendAddress = getAddressByIndexPath(wallet.mnemonic, 1);
+
+        const sendButton = dashboardPage.getByTestId('send-coin-button');
         await sendButton.click({ timeout: 30_000 });
 
-        await page.getByLabel('Send Amount').fill(AMOUNT_TO_SEND.toString());
-        await page.getByLabel('Enter Recipient Address').fill(sendAddress);
+        await dashboardPage.getByLabel('Send Amount').fill(AMOUNT_TO_SEND.toString());
+        await dashboardPage.getByLabel('Enter Recipient Address').fill(sendAddress);
 
-        await page.getByRole('button', { name: 'Review' }).click({ timeout: 30_000 });
+        await dashboardPage.getByRole('button', { name: 'Review' }).click({ timeout: 30_000 });
 
-        await page.getByRole('button', { name: 'Send Now' }).click({ timeout: 30_000 });
+        const walletApprovePagePromise = context.waitForEvent('page');
+        await dashboardPage.getByRole('button', { name: 'Send Now' }).click({ timeout: 30_000 });
 
-        const walletApprovePage = await context.waitForEvent('page');
+        const walletApprovePage = await walletApprovePagePromise;
         await walletApprovePage.getByRole('button', { name: 'Approve' }).click();
 
-        await page.bringToFront();
+        await dashboardPage.bringToFront();
 
-        await expect(page.getByText('Successfully sent')).toBeVisible({
+        await expect(dashboardPage.getByText('Successfully sent')).toBeVisible({
             timeout: 30_000,
         });
     });

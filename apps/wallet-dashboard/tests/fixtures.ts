@@ -1,96 +1,112 @@
 // Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+/* eslint-disable no-empty-pattern */
+
 import path from 'path';
 import { test as base, chromium, Page, type BrowserContext } from '@playwright/test';
 import { createWallet } from './utils';
 
-// Path to the wallet extension build directory
 const EXTENSION_PATH = path.join(__dirname, '../../wallet/dist');
 
-// Define the shared state type
+const DEFAULT_SHARED_STATE = { extension: {}, wallet: {} };
+
 interface SharedState {
-    walletAddress: string;
-    walletMnemonic: string;
+    sharedContext?: BrowserContext;
+    extension: {
+        url?: string;
+        name?: string;
+    };
+    wallet: {
+        address?: string;
+        mnemonic?: string;
+    };
 }
 
-const sharedState: SharedState = {
-    walletAddress: '',
-    walletMnemonic: '',
-};
+let sharedState: SharedState = { ...DEFAULT_SHARED_STATE };
 
 export const test = base.extend<{
     sharedState: SharedState;
     context: BrowserContext;
+    pageWithFreshWallet: Page;
     extensionUrl: string;
     extensionName: string;
-    extensionPage: Page;
 }>({
-    sharedState: async ({ context }, use) => {
+    sharedState: async ({}, use) => {
         await use(sharedState);
     },
 
-    // Override the default context to load with the extension
-    context: async ({ baseURL }, use) => {
-        const isCI = !!process.env.CI;
-        const context = await chromium.launchPersistentContext('', {
-            headless: isCI,
-            args: [
-                `--disable-extensions-except=${EXTENSION_PATH}`,
-                `--load-extension=${EXTENSION_PATH}`,
-                // Ensure userAgent is correctly set in serviceworker
-                '--user-agent=Playwright',
-                ...(isCI ? ['--headless=new', '--disable-gpu'] : []),
-            ],
-        });
-        await use(context);
-        await context.close();
-    },
+    context: [
+        async ({ sharedState }, use) => {
+            const isCI = !!process.env.CI;
 
-    // Provide the extension URL to tests
+            if (sharedState.sharedContext) {
+                await use(sharedState.sharedContext);
+                return;
+            }
+
+            const context = await chromium.launchPersistentContext('', {
+                headless: isCI,
+                viewport: { width: 720, height: 720 },
+                args: [
+                    `--disable-extensions-except=${EXTENSION_PATH}`,
+                    `--load-extension=${EXTENSION_PATH}`,
+                    '--user-agent=Playwright',
+                    '--window-position=0,0',
+                    ...(isCI ? ['--headless=new', '--disable-gpu'] : []),
+                ],
+            });
+
+            sharedState.sharedContext = context;
+
+            await use(context);
+        },
+        { scope: 'test' },
+    ],
+
     extensionUrl: async ({ context }, use) => {
-        // Get the service worker for the extension
         let [background] = context.serviceWorkers();
         if (!background) {
             background = await context.waitForEvent('serviceworker');
         }
 
-        // Extract extension ID from the service worker URL
         const extensionId = background.url().split('/')[2];
         const extensionUrl = `chrome-extension://${extensionId}/ui.html`;
+
+        sharedState.extension.url = extensionUrl;
 
         await use(extensionUrl);
     },
 
-    extensionPage: async ({ context, extensionUrl }, use) => {
+    extensionName: async ({ context, extensionUrl }, use) => {
         const extPage = await context.newPage();
         await extPage.goto(extensionUrl);
 
-        await extPage.waitForSelector('body');
+        const extensionName = await extPage.title();
+        sharedState.extension.name = extensionName;
 
-        await use(extPage);
-    },
-
-    extensionName: async ({ extensionPage }, use) => {
-        await extensionPage.bringToFront();
-        const extensionName = await extensionPage.title();
+        await extPage.close();
         await use(extensionName);
     },
 
-    page: async ({ page, sharedState, extensionPage }, use) => {
-        await page.goto('/', { waitUntil: 'commit' });
+    pageWithFreshWallet: async ({ context, sharedState, extensionUrl }, use) => {
+        const extensionPage = await context.newPage();
+        await extensionPage.goto(extensionUrl);
 
-        await extensionPage.bringToFront();
-        const createdWallet = await createWallet(extensionPage);
+        const walletDetails = await createWallet(extensionPage);
 
-        sharedState.walletMnemonic = createdWallet.mnemonic;
-        sharedState.walletAddress = createdWallet.address;
+        sharedState.wallet.address = walletDetails.address;
+        sharedState.wallet.mnemonic = walletDetails.mnemonic;
 
-        await page.reload();
-        await page.waitForSelector('.welcome-page');
-
-        await use(page);
+        await use(extensionPage);
     },
+});
+
+test.afterAll(async () => {
+    if (sharedState.sharedContext) {
+        await sharedState.sharedContext.close();
+        sharedState = { ...DEFAULT_SHARED_STATE };
+    }
 });
 
 export const expect = test.expect;
