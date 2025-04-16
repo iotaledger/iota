@@ -11,24 +11,17 @@ export async function createWallet(page: Page) {
     await page.getByTestId('password.input').fill('iotae2etests');
     await page.getByTestId('password.confirmation').fill('iotae2etests');
     await page.getByText('I read and agree').click();
-
     await page.getByRole('button', { name: /Create Wallet/ }).click();
     await page.waitForURL(new RegExp(/accounts\/backup/));
-
     const BOX_TEST_ID = 'mnemonic-display-box';
     const mnemonicBox = await page.getByTestId(BOX_TEST_ID);
-
     await expect(mnemonicBox).toBeVisible();
-
     await mnemonicBox.getByRole('button').first().click();
     const textarea = await mnemonicBox.locator('textarea');
     const mnemonic = await textarea.inputValue();
-
     const address = deriveAddressFromMnemonic(mnemonic);
-
     await page.getByText('I saved my mnemonic').click();
     await page.getByRole('button', { name: 'Open Wallet' }).click();
-
     return {
         mnemonic,
         address,
@@ -44,11 +37,9 @@ export async function importWallet(page: Page, extensionUrl: string, mnemonic: s
 
     const wordInputs = page.locator('input[placeholder="Word"]');
     const inputCount = await wordInputs.count();
-
     for (let i = 0; i < inputCount; i++) {
         await wordInputs.nth(i).fill(mnemonicArray[i]);
     }
-
     await page.getByText('Add profile').click();
     await page.getByTestId('password.input').fill('iotae2etests');
     await page.getByTestId('password.confirmation').fill('iotae2etests');

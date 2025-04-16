@@ -1,6 +1,5 @@
 // Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
-
 import { test, expect } from './fixtures';
 import { connectWallet } from './utils';
 
@@ -30,17 +29,12 @@ test.describe('Wallet Connection', () => {
         // Disconnect from the wallet
         const extensionPage = await context.newPage();
         await extensionPage.goto(`${extensionUrl}#/apps/connected`);
-
         await extensionPage.getByText('localhost').first().click();
-
         await extensionPage.getByRole('button', { name: 'Disconnect' }).click();
-
         await page.bringToFront();
-
         await expect(
             page.getByText('Connecting you to the decentralized web and IOTA network'),
         ).toBeVisible({ timeout: 10000 });
-
         await expect(page.getByRole('button', { name: 'Connect' })).toBeVisible();
     });
 });

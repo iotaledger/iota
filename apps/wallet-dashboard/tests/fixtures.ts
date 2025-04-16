@@ -29,7 +29,6 @@ export const test = base.extend<{
     sharedState: async ({ context }, use) => {
         await use(sharedState);
     },
-
     // Override the default context to load with the extension
     context: async ({ baseURL }, use) => {
         const isCI = !!process.env.CI;
@@ -46,7 +45,6 @@ export const test = base.extend<{
         await use(context);
         await context.close();
     },
-
     // Provide the extension URL to tests
     extensionUrl: async ({ context }, use) => {
         // Get the service worker for the extension
@@ -54,7 +52,6 @@ export const test = base.extend<{
         if (!background) {
             background = await context.waitForEvent('serviceworker');
         }
-
         // Extract extension ID from the service worker URL
         const extensionId = background.url().split('/')[2];
         const extensionUrl = `chrome-extension://${extensionId}/ui.html`;
