@@ -2,34 +2,33 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { test, expect } from './fixtures';
-import { connectWallet, createWallet, getAddressByIndexPath } from './utils';
+import { connectWallet, getAddressByIndexPath, requestFaucetTokensOnWalletHome } from './utils';
 
 const AMOUNT_TO_SEND = 10;
 
 test.describe('Send Coins', () => {
-    test(`should send ${AMOUNT_TO_SEND} IOTA`, async ({ context, extensionUrl, extensionName }) => {
-        const extensionPage = await context.newPage();
-        await extensionPage.goto(extensionUrl);
+    test(`should send ${AMOUNT_TO_SEND} IOTA`, async ({
+        context,
+        pageWithFreshWallet,
+        sharedState,
+        extensionName,
+    }) => {
+        const { wallet } = sharedState;
 
-        const walletDetails = await createWallet(extensionPage);
+        if (!wallet.mnemonic) {
+            throw new Error('Wallet mnemonic not set');
+        }
 
         const dashboardPage = await context.newPage();
         await dashboardPage.goto('/');
         await connectWallet(dashboardPage, context, extensionName);
 
-        await extensionPage.bringToFront();
-        const originalBalance = await extensionPage.getByTestId('coin-balance').textContent();
-        await extensionPage.getByRole('button', { name: /Request \w+ Tokens/ }).click();
-        await expect(extensionPage.getByTestId('coin-balance')).not.toHaveText(
-            `${originalBalance}`,
-            {
-                timeout: 30_000,
-            },
-        );
+        await pageWithFreshWallet.bringToFront();
+        await requestFaucetTokensOnWalletHome(pageWithFreshWallet);
 
         await dashboardPage.bringToFront();
 
-        const sendAddress = getAddressByIndexPath(walletDetails.mnemonic, 1);
+        const sendAddress = getAddressByIndexPath(wallet.mnemonic, 1);
 
         const sendButton = dashboardPage.getByTestId('send-coin-button');
         await sendButton.click({ timeout: 30_000 });
