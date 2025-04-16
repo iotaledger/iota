@@ -1,9 +1,25 @@
 // Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import type { BrowserContext, Page } from '@playwright/test';
+import type { Page, BrowserContext } from '@playwright/test';
 import { Ed25519Keypair } from '@iota/iota-sdk/keypairs/ed25519';
 import { expect } from './fixtures';
+
+export async function connectWallet(page: Page, context: BrowserContext, extensionName: string) {
+    await page.getByRole('button', { name: 'Connect' }).click();
+
+    const pagePromise = context.waitForEvent('page', { timeout: 20_000 });
+    await page.getByText(extensionName, { exact: true }).click();
+    const walletApprovePage = await pagePromise;
+
+    await walletApprovePage.waitForLoadState('load');
+    await walletApprovePage.bringToFront();
+
+    await walletApprovePage.getByRole('button', { name: 'Continue' }).click();
+    await walletApprovePage.getByRole('button', { name: 'Connect' }).click();
+
+    await page.bringToFront();
+}
 
 export async function createWallet(page: Page) {
     await page.getByRole('button', { name: /Add Profile/ }).click({ timeout: 30000 });
@@ -16,12 +32,12 @@ export async function createWallet(page: Page) {
     await page.waitForURL(new RegExp(/accounts\/backup/));
 
     const BOX_TEST_ID = 'mnemonic-display-box';
-    const mnemonicBox = await page.getByTestId(BOX_TEST_ID);
+    const mnemonicBox = page.getByTestId(BOX_TEST_ID);
 
     await expect(mnemonicBox).toBeVisible();
 
     await mnemonicBox.getByRole('button').first().click();
-    const textarea = await mnemonicBox.locator('textarea');
+    const textarea = mnemonicBox.locator('textarea');
     const mnemonic = await textarea.inputValue();
 
     const address = deriveAddressFromMnemonic(mnemonic);
@@ -36,11 +52,14 @@ export async function createWallet(page: Page) {
 }
 
 export async function importWallet(page: Page, extensionUrl: string, mnemonic: string) {
+    if (!mnemonic) {
+        throw new Error('Mnemonic is required for importing a wallet');
+    }
     await page.goto(extensionUrl, { waitUntil: 'commit' });
     await page.getByRole('button', { name: /Add Profile/ }).click({ timeout: 30000 });
     await page.getByText('Mnemonic', { exact: true }).click();
 
-    const mnemonicArray = typeof mnemonic === 'string' ? mnemonic.split(' ') : mnemonic;
+    const mnemonicArray = mnemonic.split(' ');
 
     const wordInputs = page.locator('input[placeholder="Word"]');
     const inputCount = await wordInputs.count();
@@ -61,18 +80,6 @@ export function deriveAddressFromMnemonic(mnemonic: string, path?: string) {
     const keypair = Ed25519Keypair.deriveKeypair(mnemonic, path);
     const address = keypair.getPublicKey().toIotaAddress();
     return address;
-}
-
-export async function connectWallet(page: Page, context: BrowserContext, extensionName: string) {
-    const connectButton = page.getByRole('button', { name: 'Connect' });
-    await connectButton.click();
-
-    await page.getByText(extensionName, { exact: true }).click();
-
-    // The extension should appear in a popup, need to handle that
-    const walletApprovePage = await context.waitForEvent('page');
-    await walletApprovePage.getByText('Continue', { exact: true }).click();
-    await walletApprovePage.getByRole('button', { name: 'Connect' }).click();
 }
 
 export function getAddressByIndexPath(mnemonic: string, index: number) {

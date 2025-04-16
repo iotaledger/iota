@@ -58,7 +58,7 @@ export function AppProviders({ children }: React.PropsWithChildren) {
                                 <ClipboardPasteSafetyWrapper>
                                     <ThemeProvider appId="iota-dashboard">
                                         {children}
-                                        <Toaster />
+                                        <Toaster containerClassName="!right-8" />
                                     </ThemeProvider>
                                 </ClipboardPasteSafetyWrapper>
                             </WalletProvider>
