@@ -43,8 +43,6 @@ export const test = base.extend<{
                     `--disable-extensions-except=${EXTENSION_PATH}`,
                     `--load-extension=${EXTENSION_PATH}`,
                     '--user-agent=Playwright',
-                    '--disable-dev-shm-usage',
-                    '--no-sandbox',
                 ],
             });
 
