@@ -38,6 +38,7 @@ export const test = base.extend<{
 
             const context = await chromium.launchPersistentContext('', {
                 headless: isCI,
+                viewport: { width: 720, height: 720 },
                 args: [
                     `--disable-extensions-except=${EXTENSION_PATH}`,
                     `--load-extension=${EXTENSION_PATH}`,
