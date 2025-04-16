@@ -6,33 +6,32 @@ import { connectWallet, createWallet } from './utils';
 import 'dotenv/config';
 
 test.describe.serial('Wallet Connection', () => {
-    let walletAddress: string;
-
-    test.beforeAll(async ({ context, sharedState, extensionUrl, extensionName }) => {
+    test.beforeAll(async ({ context, sharedState, extensionUrl }) => {
         const page = await context.newPage();
         await page.goto(extensionUrl);
 
         const cratedWallet = await createWallet(page);
 
-        walletAddress = cratedWallet.address || '';
-        sharedState.context = context;
-        sharedState.extensionUrl = extensionUrl;
-        sharedState.extensionName = extensionName;
+        sharedState.wallet.address = cratedWallet.address;
     });
 
-    test('should connect to wallet extension', async ({ page, sharedState }) => {
-        const { context, extensionName } = sharedState;
+    test('should connect to wallet extension', async ({ page, sharedState, extensionName }) => {
+        const { sharedContext, wallet } = sharedState;
 
-        if (!context || !extensionName) {
-            throw new Error('Context is not defined');
+        if (!sharedContext) {
+            throw new Error('Shared context expected!');
+        }
+
+        if (!wallet.address) {
+            throw new Error('Wallet address was not set');
         }
 
         await page.goto('/', { waitUntil: 'networkidle' });
-        await connectWallet(page, context, extensionName);
+        await connectWallet(page, sharedContext, extensionName);
 
         // Verify connection was successful on dashboard
         await expect(page.getByText('Start Staking')).toBeVisible({ timeout: 30_000 });
-        const truncatedWalletAddress = walletAddress.slice(0, 6) + '…' + walletAddress.slice(-4);
+        const truncatedWalletAddress = wallet.address.slice(0, 6) + '…' + wallet.address.slice(-4);
         await expect(page.getByText(truncatedWalletAddress).first()).toBeVisible({
             timeout: 30_000,
         });
@@ -41,28 +40,27 @@ test.describe.serial('Wallet Connection', () => {
             .locator('[data-full-address]')
             .getAttribute('data-full-address');
 
-        expect(displayedFullAddress).toBe(walletAddress);
+        expect(displayedFullAddress).toBe(sharedState.wallet.address);
     });
 
     test('should return to main screen when disconnecting from wallet', async ({
         page,
         sharedState,
+        extensionUrl,
     }) => {
-        const { context, extensionUrl, extensionName } = sharedState;
+        const { sharedContext } = sharedState;
 
-        if (!context || !extensionUrl || !extensionName) {
-            throw new Error('Context is not defined');
+        if (!sharedContext) {
+            throw new Error('Shared context expected!');
         }
 
         await page.goto('/');
         await page.locator('[data-full-address]').waitFor({ state: 'visible' });
 
         // Disconnect from the wallet
-        const extensionPage = await context.newPage();
+        const extensionPage = await sharedContext.newPage();
         await extensionPage.goto(`${extensionUrl}#/apps/connected`);
-
         await extensionPage.getByText('localhost').first().click();
-
         await extensionPage.getByRole('button', { name: 'Disconnect' }).click();
 
         await page.bringToFront();

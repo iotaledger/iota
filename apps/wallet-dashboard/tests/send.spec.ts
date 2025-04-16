@@ -7,29 +7,11 @@ import { connectWallet, createWallet, getAddressByIndexPath } from './utils';
 const AMOUNT_TO_SEND = 10;
 
 test.describe('Send Coins', () => {
-    let createdWallet: { mnemonic: string; address: string };
-
-    test.beforeAll(async ({ context, sharedState, extensionUrl, extensionName }) => {
-        const page = await context.newPage();
-        await page.goto(extensionUrl);
-
-        const cratedWallet = await createWallet(page);
-
-        createdWallet = cratedWallet;
-        sharedState.context = context;
-        sharedState.extensionUrl = extensionUrl;
-        sharedState.extensionName = extensionName;
-    });
-
-    test(`send ${AMOUNT_TO_SEND} IOTA`, async ({ sharedState }) => {
-        const { context, extensionName, extensionUrl } = sharedState;
-
-        if (!context || !extensionName || !extensionUrl) {
-            throw new Error('Context is not defined');
-        }
-
+    test(`should send ${AMOUNT_TO_SEND} IOTA`, async ({ context, extensionUrl, extensionName }) => {
         const extensionPage = await context.newPage();
         await extensionPage.goto(extensionUrl);
+
+        const walletDetails = await createWallet(extensionPage);
 
         const dashboardPage = await context.newPage();
         await dashboardPage.goto('/');
@@ -47,7 +29,7 @@ test.describe('Send Coins', () => {
 
         await dashboardPage.bringToFront();
 
-        const sendAddress = getAddressByIndexPath(createdWallet.mnemonic, 1);
+        const sendAddress = getAddressByIndexPath(walletDetails.mnemonic, 1);
 
         const sendButton = dashboardPage.getByTestId('send-coin-button');
         await sendButton.click({ timeout: 30_000 });
