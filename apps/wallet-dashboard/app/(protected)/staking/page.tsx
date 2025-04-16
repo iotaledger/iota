@@ -8,9 +8,6 @@ import {
     ButtonSize,
     ButtonType,
     DisplayStats,
-    InfoBox,
-    InfoBoxStyle,
-    InfoBoxType,
     Panel,
     Title,
     TitleSize,
@@ -37,7 +34,6 @@ import {
     useGetLatestIotaSystemState,
 } from '@iota/core';
 import { useCurrentAccount, useIotaClient } from '@iota/dapp-kit';
-import { Warning } from '@iota/apps-ui-icons';
 import { useMemo } from 'react';
 import { IotaSignAndExecuteTransactionOutput } from '@iota/wallet-standard';
 
@@ -92,11 +88,6 @@ function StakingDashboardPage(): React.JSX.Element {
             }));
         });
     }, [committeeMembers, delegatedStakeData]);
-
-    // Check if there are any inactive validators
-    const isSomeValidatorNotInTheCommitte = delegations?.some(
-        ({ inactiveValidator }) => inactiveValidator,
-    );
 
     const viewStakeDetails = (extendedStake: ExtendedDelegatedStake) => {
         setStakeDialogView(StakeDialogView.Details);
@@ -170,17 +161,6 @@ function StakingDashboardPage(): React.JSX.Element {
                             </div>
                             <Title title="In progress" size={TitleSize.Small} />
                             <div className="flex max-h-[420px] w-full flex-1 flex-col items-start overflow-auto">
-                                {isSomeValidatorNotInTheCommitte ? (
-                                    <div className="mb-3">
-                                        <InfoBox
-                                            type={InfoBoxType.Warning}
-                                            title="Earn with validators in the committee"
-                                            supportingText="You are delegating to a validator that is not part of the committee. Stake to a member of the current committee to start earning rewards again."
-                                            icon={<Warning />}
-                                            style={InfoBoxStyle.Elevated}
-                                        />
-                                    </div>
-                                ) : null}
                                 {system &&
                                     delegations
                                         ?.filter(({ inactiveValidator }) => inactiveValidator)

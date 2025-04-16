@@ -67,11 +67,6 @@ export function ValidatorsCard() {
         });
     }, [committeeMembers, delegatedStake]);
 
-    // Check if there are any inactive validators
-    const hasInactiveValidatorDelegation = delegations?.some(
-        ({ inactiveValidator }) => inactiveValidator,
-    );
-
     // Get total rewards for all delegations
     const delegatedStakes = delegatedStakeData ? formatDelegatedStake(delegatedStakeData) : [];
     const totalDelegatedRewards = useTotalDelegatedRewards(delegatedStakes);
@@ -123,17 +118,6 @@ export function ValidatorsCard() {
             </div>
             <Title title="In progress" size={TitleSize.Small} />
             <div className="flex max-h-[420px] w-full flex-1 flex-col items-start overflow-auto">
-                {hasInactiveValidatorDelegation ? (
-                    <div className="mb-3">
-                        <InfoBox
-                            type={InfoBoxType.Warning}
-                            title="Earn with validators in the committee"
-                            supportingText="You are delegating to a validator that is not part of the committee. Stake to a member of the current committee to start earning rewards again."
-                            icon={<Warning />}
-                            style={InfoBoxStyle.Elevated}
-                        />
-                    </div>
-                ) : null}
                 <div className="w-full gap-2">
                     {system &&
                         delegations
