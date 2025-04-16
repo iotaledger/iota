@@ -6,27 +6,29 @@ import { connectWallet, createWallet } from './utils';
 import 'dotenv/config';
 
 test.describe('Wallet Connection', () => {
-    test.beforeEach(async ({ page, extensionUrl, sharedState }) => {
-        // Navigate to the wallet
-        await page.goto(extensionUrl, { waitUntil: 'load' });
+    test.beforeAll(async ({ context, sharedState, extensionUrl, extensionName }) => {
+        const page = await context.newPage();
+        await page.goto(extensionUrl);
 
-        // Create a wallet in the extension
         const cratedWallet = await createWallet(page);
 
         sharedState.walletMnemonic = cratedWallet.mnemonic || '';
         sharedState.walletAddress = cratedWallet.address || '';
+        sharedState.context = context;
+        sharedState.extensionUrl = extensionUrl;
+        sharedState.extensionName = extensionName;
 
-        // Go to dashboard
         await page.goto('/');
         await page.waitForSelector('.welcome-page');
     });
 
-    test('should connect to wallet extension', async ({
-        context,
-        page,
-        sharedState,
-        extensionName,
-    }) => {
+    test('should connect to wallet extension', async ({ page, sharedState }) => {
+        const { context, extensionName } = sharedState;
+
+        if (!context || !extensionName) {
+            throw new Error('Context is not defined');
+        }
+
         await connectWallet(page, context, extensionName);
 
         // Verify connection was successful on dashboard
@@ -41,11 +43,15 @@ test.describe('Wallet Connection', () => {
     });
 
     test('should return to main screen when disconnecting from wallet', async ({
-        context,
         page,
-        extensionUrl,
-        extensionName,
+        sharedState,
     }) => {
+        const { context, extensionUrl, extensionName } = sharedState;
+
+        if (!context || !extensionUrl || !extensionName) {
+            throw new Error('Context is not defined');
+        }
+
         await connectWallet(page, context, extensionName);
 
         await page.locator('[data-full-address]').waitFor({ state: 'visible' });

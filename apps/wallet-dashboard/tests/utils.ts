@@ -8,10 +8,9 @@ import { expect } from './fixtures';
 export async function connectWallet(page: Page, context: BrowserContext, extensionName: string) {
     await page.goto('/');
     await page.waitForSelector('.welcome-page');
-    const connectButton = page.getByRole('button', { name: 'Connect' });
+    await page.getByRole('button', { name: 'Connect' }).click();
 
-    const pagePromise = context.waitForEvent('page', { timeout: 60000 });
-    await connectButton.click();
+    const pagePromise = context.waitForEvent('page', { timeout: 20_000 });
     await page.getByText(extensionName, { exact: true }).click();
     const walletApprovePage = await pagePromise;
 
@@ -35,12 +34,12 @@ export async function createWallet(page: Page) {
     await page.waitForURL(new RegExp(/accounts\/backup/));
 
     const BOX_TEST_ID = 'mnemonic-display-box';
-    const mnemonicBox = await page.getByTestId(BOX_TEST_ID);
+    const mnemonicBox = page.getByTestId(BOX_TEST_ID);
 
     await expect(mnemonicBox).toBeVisible();
 
     await mnemonicBox.getByRole('button').first().click();
-    const textarea = await mnemonicBox.locator('textarea');
+    const textarea = mnemonicBox.locator('textarea');
     const mnemonic = await textarea.inputValue();
 
     const address = deriveAddressFromMnemonic(mnemonic);
