@@ -1807,6 +1807,7 @@ dependencies = [
  "colored",
  "dirs-next",
  "hex",
+ "insta",
  "move-binary-format",
  "move-core-types",
  "num-bigint",

@@ -18,7 +18,13 @@ datatest_stable::harness!(run_test, TEST_DIR, r".*\.(mvir|move)$");
 #[cfg_attr(msim, msim::main)]
 async fn run_test(path: &Path) -> Result<(), Box<dyn std::error::Error>> {
     if cfg!(feature = "pg_integration") {
-        run_test_impl::<IotaTestAdapter>(path, Some(Arc::new(PRE_COMPILED.clone()))).await?;
+        run_test_impl::<IotaTestAdapter>(
+            path,
+            Some(Arc::new(PRE_COMPILED.clone())),
+            // use insta
+            false,
+        )
+        .await?;
     }
     Ok(())
 }

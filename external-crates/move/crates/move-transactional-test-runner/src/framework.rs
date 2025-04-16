@@ -20,6 +20,7 @@ use clap::Parser;
 use move_binary_format::file_format::CompiledModule;
 use move_bytecode_source_map::{mapping::SourceMapping, source_map::SourceMap};
 use move_command_line_common::{
+    insta_assert,
     env::read_bool_env_var,
     files::{MOVE_EXTENSION, MOVE_IR_EXTENSION},
     testing::{EXP_EXT, add_update_baseline_fix, format_diff, read_env_update_baseline},
@@ -819,6 +820,7 @@ where
 pub async fn run_test_impl<'a, Adapter>(
     path: &Path,
     fully_compiled_program_opt: Option<Arc<FullyCompiledProgram>>,
+    use_insta_snapshot: bool,
 ) -> Result<(), Box<dyn std::error::Error>>
 where
     Adapter: MoveTestAdapter<'a>,
@@ -898,5 +900,15 @@ fn handle_expected_output(test_path: &Path, output: impl AsRef<str>) -> Result<(
         anyhow::bail!(add_update_baseline_fix(msg))
     } else {
         Ok(())
+    }
+}
+
+fn insta_snapshot(test_path: &Path, output: impl AsRef<str>) {
+    let test_name = test_path.file_stem().unwrap().to_string_lossy();
+    let contents = output.as_ref();
+    insta_assert! {
+        name: test_name,
+        input_path: test_path,
+        contents: contents,
     }
 }
