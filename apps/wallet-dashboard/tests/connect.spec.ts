@@ -10,8 +10,7 @@ test.describe('Wallet Connection', () => {
         // Navigate to the wallet dashboard
         await page.goto('/');
 
-        // Import a wallet in the extension
-        await page.goto(extensionUrl);
+        // Create a wallet in the extension
         const cratedWallet = await createWallet(page, extensionUrl);
 
         sharedState.walletMnemonic = cratedWallet.mnemonic || '';
@@ -27,7 +26,6 @@ test.describe('Wallet Connection', () => {
         page,
         sharedState,
         extensionName,
-        extensionUrl,
     }) => {
         await connectWallet(page, context, extensionName);
 
