@@ -200,6 +200,9 @@ if [ "$(uname -s)" == "Linux" ]; then
 	# Start the Validator
 	sudo systemctl start iota-node
 
+	# Wait to catch start failures more efficiently
+	sleep 1s
+
 	# Check that the node is up and running
 	sudo systemctl status --no-pager --no-legend iota-node
 fi
