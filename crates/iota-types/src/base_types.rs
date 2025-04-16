@@ -1145,17 +1145,22 @@ impl SequenceNumber {
     pub const CANCELLED_READ: SequenceNumber =
         SequenceNumber(SequenceNumber::MAX_VALID.value() + 1);
 
+    // NOTE: This was used prior to gas price feedback mechanism, so it is kept for
+    // backward compatibility
+    pub const CONGESTED_PRIOR_TO_GAS_PRICE_FEEDBACK: SequenceNumber =
+        SequenceNumber(SequenceNumber::MAX_VALID.value() + 2);
+
     // TODO: add description
     pub const RANDOMNESS_UNAVAILABLE: SequenceNumber =
-        SequenceNumber(SequenceNumber::MAX_VALID.value() + 2);
+        SequenceNumber(SequenceNumber::MAX_VALID.value() + 3);
 
     // NOTE: if you want to add new SequenceNumber constants used for cancellation
     // reasons different than those used for cancellations due to shared object
     // congestion, please make sure their offset is less than CONGESTED_BASE_OFFSET
 
-    // Sequence numbers >= (SequenceNumber::MAX_VALID + CONGESTED_BASE_OFFSET)
-    // are assigned to objects that cause transactions cancellations due to
-    // congestion.
+    // In the gas price feedback mechanism, sequence numbers >=
+    // (SequenceNumber::MAX_VALID + CONGESTED_BASE_OFFSET) are assigned to
+    // objects that cause transactions cancellations due to congestion.
     //
     // Sequence numbers larger than SequenceNumber::MAX_VALID but smaller
     // than (SequenceNumber::MAX_VALID + CONGESTED_BASE_OFFSET) are
@@ -1165,12 +1170,14 @@ impl SequenceNumber {
     // this offset can be increased if needed, as long as
     // (SequenceNumber::MIN_CONGESTED.value() + maximum gas price) does not
     // overflow u64::MAX.
-    const CONGESTED_BASE_OFFSET: u64 = 1_000;
+    const CONGESTED_BASE_OFFSET_FOR_GAS_PRICE_FEEDBACK: u64 = 1_000;
 
-    /// Minimum congested sequence number. A congested sequence number is
-    /// assigned to objects that cause transaction cancellations
-    const MIN_CONGESTED: SequenceNumber =
-        SequenceNumber(SequenceNumber::MAX_VALID.value() + Self::CONGESTED_BASE_OFFSET);
+    /// Minimum congested sequence number used in the gas price feedback
+    /// mechanism. A congested sequence number is assigned to objects that
+    /// cause transaction cancellations
+    const MIN_CONGESTED_FOR_GAS_PRICE_FEEDBACK: SequenceNumber = SequenceNumber(
+        SequenceNumber::MAX_VALID.value() + Self::CONGESTED_BASE_OFFSET_FOR_GAS_PRICE_FEEDBACK,
+    );
 
     pub const fn new() -> Self {
         SequenceNumber(0)
@@ -1190,7 +1197,7 @@ impl SequenceNumber {
     /// number to facilitate a gas price feedback mechanism for transactions
     /// cancelled due to shared object congestion
     pub fn new_congested_with_suggested_gas_price(suggested_gas_price: u64) -> Self {
-        let (version, overflows) = Self::MIN_CONGESTED
+        let (version, overflows) = Self::MIN_CONGESTED_FOR_GAS_PRICE_FEEDBACK
             .value()
             .overflowing_add(suggested_gas_price);
         assert!(
@@ -1203,7 +1210,8 @@ impl SequenceNumber {
 
     /// Check if this sequence number is used to label a congested shared object
     pub fn is_congested(&self) -> bool {
-        self >= &Self::MIN_CONGESTED
+        *self == Self::CONGESTED_PRIOR_TO_GAS_PRICE_FEEDBACK
+            || self >= &Self::MIN_CONGESTED_FOR_GAS_PRICE_FEEDBACK
     }
 
     /// Returns the `suggested_gas_price` embedded in this congested shared
@@ -1212,11 +1220,12 @@ impl SequenceNumber {
     /// shared object congestion
     pub fn get_congested_version_suggested_gas_price(&self) -> u64 {
         assert!(
-            self.is_congested(),
-            "this is not a version used for congested shared objects"
+            *self >= Self::MIN_CONGESTED_FOR_GAS_PRICE_FEEDBACK,
+            "this is not a version used for congested shared objects in the gas price feedback \
+                mechanism"
         );
 
-        self.value() - Self::MIN_CONGESTED.value()
+        self.value() - Self::MIN_CONGESTED_FOR_GAS_PRICE_FEEDBACK.value()
     }
 
     pub fn increment(&mut self) {

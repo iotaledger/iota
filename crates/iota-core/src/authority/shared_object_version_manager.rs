@@ -80,6 +80,9 @@ impl SharedObjVerManager {
                 cert,
                 &mut shared_input_next_versions,
                 cancelled_txns,
+                epoch_store
+                    .protocol_config()
+                    .congested_objects_gas_price_feedback_mechanism(),
             );
             assigned_versions.push((cert.key(), cert_assigned_versions));
         }
@@ -132,6 +135,7 @@ impl SharedObjVerManager {
         cert: &VerifiedExecutableTransaction,
         shared_input_next_versions: &mut HashMap<ObjectID, SequenceNumber>,
         cancelled_txns: &BTreeMap<TransactionDigest, CancelConsensusCertificateReason>,
+        congested_objects_gas_price_feedback_mechanism_feature_flag: bool,
     ) -> Vec<(ObjectID, SequenceNumber)> {
         let tx_digest = cert.digest();
 
@@ -174,9 +178,13 @@ impl SharedObjVerManager {
                             .as_ref()
                             .is_some_and(|info| info.contains(id))
                         {
-                            SequenceNumber::new_congested_with_suggested_gas_price(
-                                *suggested_gas_price,
-                            )
+                            if congested_objects_gas_price_feedback_mechanism_feature_flag {
+                                SequenceNumber::new_congested_with_suggested_gas_price(
+                                    *suggested_gas_price,
+                                )
+                            } else {
+                                SequenceNumber::CONGESTED_PRIOR_TO_GAS_PRICE_FEEDBACK
+                            }
                         } else {
                             SequenceNumber::CANCELLED_READ
                         }

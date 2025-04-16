@@ -2879,6 +2879,8 @@ impl AuthorityPerEpochStore {
                         txn,
                         &mut shared_input_next_version,
                         cancelled_txns,
+                        self.protocol_config
+                            .congested_objects_gas_price_feedback_mechanism(),
                     );
                     version_assignment.push((*txn.digest(), assigned_versions));
                 }
