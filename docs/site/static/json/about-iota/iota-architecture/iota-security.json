@@ -4,9 +4,9 @@
         "questionText": "Given that the Move compiler ensures assets can't be spent twice or lost due to logic errors, which of the following scenarios might still pose a risk to asset security despite the compiler's safeguards?",
         "answerOptions": [
           { "answerText": "Validators misbehaving during transaction processing.", "isCorrect": false },
-          { "answerText": "A flaw in the cryptographic methods securing private keys.", "isCorrect": false },
+          { "answerText": "A flaw in the cryptographic methods securing private keys.", "isCorrect": true },
           { "answerText": "Improper implementation of the asset logic in the smart contract by a third-party developer.", "isCorrect": true },
-          { "answerText": "Delegating asset access to an untrusted third-party service.", "isCorrect": false }
+          { "answerText": "Delegating asset access to an untrusted third-party service.", "isCorrect": true }
         ]
       },
       {
@@ -30,16 +30,16 @@
       {
         "questionText": "If a user mistakenly submits a transaction to the wrong address and it reaches finality, what technical aspect of the IOTA network prevents the transaction from being reversed or altered?",
         "answerOptions": [
-          { "answerText": "Validators are bound by the cryptographic proof of the private key associated with the recipient address.", "isCorrect": false },
+          { "answerText": "Validators are bound by the cryptographic proof of the private key associated with the recipient address.", "isCorrect": true },
           { "answerText": "The smart contract logic prevents asset redirection after finality is reached.", "isCorrect": false },
           { "answerText": "The Move compiler automatically enforces transaction irreversibility.", "isCorrect": false },
-          { "answerText": "The recipient's private key holds exclusive access rights, making any further modification impossible.", "isCorrect": true }
+          { "answerText": "The recipient's private key holds exclusive access rights, making any further modification impossible.", "isCorrect": false }
         ]
       },
       {
         "questionText": "Considering the public auditability of all transactions on IOTA, which of the following could be a potential vulnerability for users seeking privacy, even if they use pseudonymous addresses?",
         "answerOptions": [
-          { "answerText": "Validators can track the transaction history and link multiple addresses to a single user.", "isCorrect": false },
+          { "answerText": "Public auditability allows validators to modify past transactions.", "isCorrect": false },
           { "answerText": "Third-party services can provide enhanced privacy by masking user identity during asset transfers.", "isCorrect": false },
           { "answerText": "Pseudonymous addresses are still visible on the blockchain, which could lead to de-anonymization through pattern analysis.", "isCorrect": true },
           { "answerText": "The cryptographic proof provided by validators reveals the private key of the user involved in the transaction.", "isCorrect": false }

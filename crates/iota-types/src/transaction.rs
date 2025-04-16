@@ -2281,7 +2281,12 @@ impl SenderSignedData {
 
     /// Validate untrusted user transaction, including its size, input count,
     /// command count, etc.
-    pub fn validity_check(&self, config: &ProtocolConfig, epoch: EpochId) -> IotaResult {
+    /// Returns the certificate serialised bytes size.
+    pub fn validity_check(
+        &self,
+        config: &ProtocolConfig,
+        epoch: EpochId,
+    ) -> Result<usize, IotaError> {
         // Check that the features used by the user signatures are enabled on the
         // network.
         self.check_user_signature_protocol_compatibility(config)?;
@@ -2325,7 +2330,7 @@ impl SenderSignedData {
             .validity_check(config)
             .map_err(Into::<IotaError>::into)?;
 
-        Ok(())
+        Ok(tx_size)
     }
 }
 

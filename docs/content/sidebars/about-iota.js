@@ -40,21 +40,40 @@ const aboutIota = [
     },
     {
         type: 'category',
-        label: 'IOTA Wallet',
+        label: 'Wallets',
+        link: {
+            type: 'generated-index',
+            title: 'IOTA Wallets',
+            description: 'Learn about the different wallets available for IOTA.',
+            slug: '/about-iota/wallets',
+        },
         items: [
-            'about-iota/iota-wallet/getting-started',
             {
                 type: 'category',
-                label: 'How To',
+                label: 'IOTA Wallet',
+                description: 'The official IOTA Wallet.',
                 items: [
-                    'about-iota/iota-wallet/how-to/basics',
-                    'about-iota/iota-wallet/how-to/stake',
-                    'about-iota/iota-wallet/how-to/multi-account',
-                    'about-iota/iota-wallet/how-to/get-test-tokens',
-                    'about-iota/iota-wallet/how-to/integrate-ledger',
+                    'about-iota/iota-wallet/getting-started',
+                    {
+                        type: 'category',
+                        label: 'How To',
+                        items: [
+                            'about-iota/iota-wallet/how-to/basics',
+                            'about-iota/iota-wallet/how-to/stake',
+                            'about-iota/iota-wallet/how-to/multi-account',
+                            'about-iota/iota-wallet/how-to/get-test-tokens',
+                            'about-iota/iota-wallet/how-to/integrate-ledger',
+                        ],
+                    },
+                    'about-iota/iota-wallet/FAQ',
                 ],
             },
-            'about-iota/iota-wallet/FAQ',
+            {
+                type: 'link',
+                label: 'Nightly Wallet',
+                href: 'https://nightly.app/download',
+                description: 'Nightly provides a browser extension and mobile app for IOTA.',
+            }
         ],
     },
     {
