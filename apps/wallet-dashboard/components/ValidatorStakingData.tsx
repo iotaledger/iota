@@ -1,7 +1,6 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { useIsValidatorCommitteeMember } from '@/hooks';
 import { KeyValueInfo, Panel, TooltipPosition } from '@iota/apps-ui-kit';
 import { formatPercentageDisplay, useGetStakingValidatorDetails } from '@iota/core';
 import { useCurrentAccount } from '@iota/dapp-kit';
@@ -28,7 +27,6 @@ export function ValidatorStakingData({
         stakeId,
         unstake: isUnstake,
     });
-    const { isCommitteeMember } = useIsValidatorCommitteeMember();
 
     return (
         <Panel hasBorder>

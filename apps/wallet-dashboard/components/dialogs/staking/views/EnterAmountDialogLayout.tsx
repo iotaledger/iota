@@ -22,10 +22,11 @@ import {
     InfoBox,
 } from '@iota/apps-ui-kit';
 import { Field, type FieldProps, useFormikContext } from 'formik';
-import { Exclamation, Loader } from '@iota/apps-ui-icons';
+import { Exclamation, Loader, Warning } from '@iota/apps-ui-icons';
 import { StakedInfo } from './StakedInfo';
 import { DialogLayout, DialogLayoutBody, DialogLayoutFooter } from '../../layout';
 import React from 'react';
+import { useIsValidatorCommitteeMember } from '@/hooks';
 
 interface FormValues {
     amount: string;
@@ -63,7 +64,8 @@ export function EnterAmountDialogLayout({
     const { data: system } = useGetLatestIotaSystemState();
     const { values, errors } = useFormikContext<FormValues>();
     const amount = values.amount;
-
+    const { isCommitteeMember } = useIsValidatorCommitteeMember();
+    console.log('isCommitteeMember', isCommitteeMember);
     const [gas, symbol] = useFormatCoin({ balance: totalGas ?? 0, format: CoinFormat.FULL });
 
     const { stakedRewardsStartEpoch, timeBeforeStakeRewardsRedeemableAgoDisplay } = useStakeTxnInfo(
@@ -83,7 +85,7 @@ export function EnterAmountDialogLayout({
                             validatorAddress={selectedValidator}
                             accountAddress={senderAddress}
                         />
-                        <div className="my-md w-full">
+                        <div className="my-md flex w-full flex-col gap-y-2">
                             <Field name="amount">
                                 {({
                                     field: { onChange, ...field },
@@ -111,8 +113,16 @@ export function EnterAmountDialogLayout({
                                 }}
                             </Field>
                             {renderInfo ? <div className="mt-md">{renderInfo}</div> : null}
+                            {!isCommitteeMember(selectedValidator) && (
+                                <InfoBox
+                                    type={InfoBoxType.Warning}
+                                    title="Validator is not earning rewards."
+                                    supportingText="Validator is not part of the current Epoch. Continue staking at your own discretion."
+                                    icon={<Warning />}
+                                    style={InfoBoxStyle.Elevated}
+                                />
+                            )}
                         </div>
-
                         <Panel hasBorder>
                             <div className="flex flex-col gap-y-sm p-md">
                                 <KeyValueInfo

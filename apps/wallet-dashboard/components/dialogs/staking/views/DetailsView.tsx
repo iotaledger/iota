@@ -24,7 +24,6 @@ import {
     BadgeType,
     Divider,
     LoadingIndicator,
-    TooltipPosition,
     InfoBox,
     InfoBoxType,
     InfoBoxStyle,
@@ -114,8 +113,8 @@ export function DetailsView({
                     {!isValidatorCommitteeMember && (
                         <InfoBox
                             type={InfoBoxType.Warning}
-                            title="Earn with validators in the committee"
-                            supportingText="You are delegating to a validator that is not part of the committee. Stake to a member of the current committee to start earning rewards again."
+                            title="Validator is not earning rewards."
+                            supportingText="Validator is not part of the current Epoch. Continue staking at your own discretion."
                             icon={<Warning />}
                             style={InfoBoxStyle.Elevated}
                         />

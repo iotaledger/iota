@@ -94,7 +94,7 @@ function StakingDashboardPage(): React.JSX.Element {
     }, [committeeMembers, delegatedStakeData]);
 
     // Check if there are any inactive validators
-    const hasInactiveValidatorDelegation = delegations?.some(
+    const isSomeValidatorNotInTheCommitte = delegations?.some(
         ({ inactiveValidator }) => inactiveValidator,
     );
 
@@ -170,7 +170,7 @@ function StakingDashboardPage(): React.JSX.Element {
                             </div>
                             <Title title="In progress" size={TitleSize.Small} />
                             <div className="flex max-h-[420px] w-full flex-1 flex-col items-start overflow-auto">
-                                {hasInactiveValidatorDelegation ? (
+                                {isSomeValidatorNotInTheCommitte ? (
                                     <div className="mb-3">
                                         <InfoBox
                                             type={InfoBoxType.Warning}
@@ -181,33 +181,37 @@ function StakingDashboardPage(): React.JSX.Element {
                                         />
                                     </div>
                                 ) : null}
-                                <div className="w-full gap-2">
-                                    {system &&
-                                        delegations
-                                            ?.filter(({ inactiveValidator }) => inactiveValidator)
-                                            .map((delegation) => (
+                                {system &&
+                                    delegations
+                                        ?.filter(({ inactiveValidator }) => inactiveValidator)
+                                        .map((delegation) => (
+                                            <div
+                                                className="w-full gap-2"
+                                                key={delegation.stakedIotaId}
+                                            >
                                                 <StakedCard
                                                     extendedStake={delegation}
                                                     currentEpoch={Number(system.epoch)}
-                                                    key={delegation.stakedIotaId}
                                                     inactiveValidator
                                                     onClick={() => viewStakeDetails(delegation)}
                                                 />
-                                            ))}
-                                </div>
-                                <div className="w-full gap-2">
-                                    {system &&
-                                        delegations
-                                            ?.filter(({ inactiveValidator }) => !inactiveValidator)
-                                            .map((delegation) => (
+                                            </div>
+                                        ))}
+                                {system &&
+                                    delegations
+                                        ?.filter(({ inactiveValidator }) => !inactiveValidator)
+                                        .map((delegation) => (
+                                            <div
+                                                className="w-full gap-2"
+                                                key={delegation.stakedIotaId}
+                                            >
                                                 <StakedCard
                                                     extendedStake={delegation}
                                                     currentEpoch={Number(system.epoch)}
-                                                    key={delegation.stakedIotaId}
                                                     onClick={() => viewStakeDetails(delegation)}
                                                 />
-                                            ))}
-                                </div>
+                                            </div>
+                                        ))}
                             </div>
                         </div>
                         {isDialogStakeOpen && (

@@ -2,11 +2,20 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { Card, CardImage, CardType, CardBody, CardAction, CardActionType } from '@iota/apps-ui-kit';
+import {
+    Card,
+    CardImage,
+    CardType,
+    CardBody,
+    CardAction,
+    CardActionType,
+    TooltipPosition,
+} from '@iota/apps-ui-kit';
 import { useMemo } from 'react';
 import { ImageIcon } from '../icon';
 import { ExtendedDelegatedStake } from '../../utils';
 import { useFormatCoin, useGetLatestIotaSystemState, useStakeRewardStatus } from '../../hooks';
+import { RewardsOff } from '@iota/apps-ui-icons';
 
 interface StakedCardProps {
     extendedStake: ExtendedDelegatedStake;
@@ -60,6 +69,9 @@ export function StakedCard({
             <CardBody
                 title={validatorMeta?.name || '--'}
                 subtitle={`${principalStaked} ${symbol}`}
+                icon={inactiveValidator ? <RewardsOff className="text-warning-60" /> : null}
+                tooltipText="Validators are not part of the next Epoch and will not earn you rewards."
+                tooltipPosition={TooltipPosition.Bottom}
             />
             <CardAction title={title} subtitle={subtitle} type={CardActionType.SupportingText} />
         </Card>

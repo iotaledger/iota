@@ -80,7 +80,7 @@ export function StakeDialog({
     });
 
     const { data: systemState } = useGetLatestIotaSystemState();
-    const validatorAddresses = (systemState?.activeValidators ?? []).map(
+    const activeValidatorAddresses = (systemState?.activeValidators ?? []).map(
         (validator) => validator.iotaAddress,
     );
 
@@ -142,7 +142,7 @@ export function StakeDialog({
                         <SelectValidatorView
                             selectedValidator={selectedValidator}
                             handleClose={handleClose}
-                            validators={validatorAddresses}
+                            validators={activeValidatorAddresses}
                             onSelect={handleValidatorSelect}
                             onNext={selectValidatorHandleNext}
                         />
