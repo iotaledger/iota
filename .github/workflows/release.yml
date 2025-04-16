@@ -97,7 +97,7 @@ jobs:
 
           # Release builds on a tag ref
           if [ "${{ github.event_name == 'release' }}" == "true" ]; then
-            echo "artifact_name=iota-${iota_ref}-${{ matrix.os_type }}" >> $GITHUB_OUTPUT
+            echo "artifact_name=iota-${{ needs.generate-tag.outputs.iota_ref }}-${{ matrix.os_type }}" >> $GITHUB_OUTPUT
           fi
 
           # Scheduled nightly builds are always cut from develop
