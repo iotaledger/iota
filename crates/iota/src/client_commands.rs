@@ -590,9 +590,9 @@ pub struct OptsWithGas {
 }
 
 impl Opts {
-    /// Uses the passed gas_budget for the gas budget variable and sets all
-    /// other flags to false, and display to an empty vector(defaulting to all
-    /// display options).
+    /// Uses the passed `gas_budget` for the gas budget variable and sets all
+    /// other flags to false, and `display`` to an empty `HashSet` (defaulting
+    /// to all display options).
     pub fn for_testing(gas_budget: u64) -> Self {
         Self {
             gas_budget: Some(gas_budget),
@@ -603,9 +603,9 @@ impl Opts {
             display: HashSet::new(),
         }
     }
-    /// Uses the passed gas_budget for the gas budget variable, sets dry run to
-    /// true, and sets all other flags to false, and display to an empty
-    /// vector(defaulting to all display options).
+    /// Uses the passed `gas_budget` for the gas budget variable, sets
+    /// `dry_run` to true, and sets all other flags to false, and `display``
+    /// to an empty `HashSet` (defaulting to all display options).
     pub fn for_testing_dry_run(gas_budget: u64) -> Self {
         Self {
             gas_budget: Some(gas_budget),
@@ -617,9 +617,9 @@ impl Opts {
         }
     }
 
-    /// Uses the passed gas_budget for the gas budget variable, sets dry run to
-    /// false, and sets all other flags to false, and display to the passed
-    /// display vector.
+    /// Uses the passed `gas_budget` for the gas budget variable, sets
+    /// `dry_run` to false, and sets all other flags to false, and `display`
+    /// to the passed display `HashSet`.
     pub fn for_testing_display_options(gas_budget: u64, display: HashSet<DisplayOption>) -> Self {
         Self {
             gas_budget: Some(gas_budget),
@@ -633,16 +633,17 @@ impl Opts {
 }
 
 impl OptsWithGas {
-    /// Sets the gas object to gas, and uses the passed gas_budget for the gas
-    /// budget variable. All other flags are set to false.
+    /// Sets the `gas` object to gas, and uses the passed `gas_budget` for the
+    /// gas budget variable. All other flags are set to false.
     pub fn for_testing(gas: Option<ObjectID>, gas_budget: u64) -> Self {
         Self {
             gas,
             rest: Opts::for_testing(gas_budget),
         }
     }
-    /// Sets the gas object to gas, and uses the passed gas_budget for the gas
-    /// budget variable. Dry run is set to true, all other flags to false.
+    /// Sets the `gas` object to gas, and uses the passed `gas_budget` for the
+    /// gas budget variable. `dry_run` is set to true, all other flags to
+    /// false.
     pub fn for_testing_dry_run(gas: Option<ObjectID>, gas_budget: u64) -> Self {
         Self {
             gas,
@@ -650,9 +651,9 @@ impl OptsWithGas {
         }
     }
 
-    /// Sets the gas object to gas, and uses the passed gas_budget for the gas
-    /// budget variable. Dry run is set to false, and display to the passed
-    /// display vector. All other flags are set to false.
+    /// Sets the `gas` object to gas, and uses the passed `gas_budget` for the
+    /// gas budget variable. `dry_run` is set to false, and `display` to the
+    /// passed display `HashSet`. All other flags are set to false.
     pub fn for_testing_display_options(
         gas: Option<ObjectID>,
         gas_budget: u64,

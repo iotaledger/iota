@@ -4608,7 +4608,7 @@ async fn test_call_command_display_args() -> Result<(), anyhow::Error> {
         panic!("Transaction block response is None");
     }
 
-    // Make another call, this time with no display args. This should return the
+    // Make another call, this time without display args. This should return the
     // full response
     let start_call_result = IotaClientCommands::Call {
         package: package.reference.object_id,
