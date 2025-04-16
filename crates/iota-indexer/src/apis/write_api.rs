@@ -125,12 +125,24 @@ impl WriteApi {
             output_objects,
         } = result;
         let tx_digest = *effects.transaction_digest();
+        println!("INDEXER: got node response for: {}", tx_digest);
 
         if effects.executed_epoch() < latest_epoch.epoch {
             // Transaction is from previous epoch, we cannot optimistically
             // index it safely since we may have already pruned optimistic
             // tables from that epoch. It's very likely that it's already
             // indexed anyway, let's just wait for it.
+            println!(
+                "Epoch change from {} to {}",
+                effects.executed_epoch(),
+                latest_epoch.epoch
+            );
+            // TODO: check if this case need to be supported
+        } else if !self
+            .check_if_tx_dependencies_are_satisfied(effects.dependencies())
+            .await?
+        {
+            println!("Unsatisfied tx dependencies, not indexing. Waiting for checkpoint execution");
         } else if let (Some(input_objects), Some(output_objects)) = (input_objects, output_objects)
         {
             // We have all needed data, let's optimistically index the tx.
@@ -141,16 +153,20 @@ impl WriteApi {
                 input_objects,
                 output_objects,
             };
+            println!("INDEXER: optimistically indexing: {}", tx_digest);
             self.optimistically_index_transaction(&full_tx_data).await?;
         } else {
             // TODO: input/output objects are missing, let's create some metric
             // for this
+            println!("Missing in/out objs");
         }
 
+        println!("INDEXER: waiting for indexing of: {}", tx_digest);
         let tx_block_response = self
             .wait_for_and_return_tx_block_response(tx_digest, options.clone())
             .await?;
 
+        println!("INDEXER: returning response for: {}", tx_digest);
         Ok(IotaTransactionBlockResponseWithOptions {
             response: tx_block_response,
             options: options.unwrap_or_default(),
@@ -163,8 +179,10 @@ impl WriteApi {
         tx_digest: TransactionDigest,
         options: Option<IotaTransactionBlockResponseOptions>,
     ) -> Result<IotaTransactionBlockResponse, IndexerError> {
-        let mut backoff = backoff::ExponentialBackoff::default();
-        backoff.max_elapsed_time = Some(Duration::from_secs(30));
+        let backoff = backoff::ExponentialBackoff {
+            max_elapsed_time: Some(Duration::from_secs(30)),
+            ..Default::default()
+        };
 
         backoff::future::retry(backoff, async || {
             let tx_block_response = self
@@ -181,15 +199,11 @@ impl WriteApi {
                 .pop();
 
             match tx_block_response {
-                Some(tx_block_response) => return Ok(tx_block_response),
-                None => {
-                    return Err(backoff::Error::Transient {
-                        err: IndexerError::PostgresRead(
-                            "Transaction not present in DB".to_string(),
-                        ),
-                        retry_after: None,
-                    });
-                }
+                Some(tx_block_response) => Ok(tx_block_response),
+                None => Err(backoff::Error::Transient {
+                    err: IndexerError::PostgresRead("Transaction not present in DB".to_string()),
+                    retry_after: None,
+                }),
             }
         })
         .await
@@ -258,33 +272,79 @@ impl WriteApi {
             )
             .await?;
 
-        self.store.persist_objects(vec![object_changes]).await?;
-        self.store.persist_displays(indexed_displays).await?;
+        let conn_with_locked_tx = self
+            .store
+            .hold_execution_lock_for_transactions(&[indexed_tx.tx_digest.inner().to_vec()])
+            .await?;
+        let tx_status = self
+            .store
+            .get_execution_status_of_transactions(&[indexed_tx.tx_digest.inner().to_vec()])
+            .await?
+            .pop()
+            .expect("Execution status should always be present since it was just added");
 
-        self.store
-            .persist_optimistic_transaction(StoredTransaction::from(&indexed_tx).into())
-            .await?;
-        self.store
-            .persist_optimistic_events(
-                indexed_events
-                    .into_iter()
-                    .map(StoredEvent::from)
-                    .map(Into::into)
-                    .collect(),
-            )
-            .await?;
-        self.store
-            .persist_optimistic_event_indices(
-                Self::optimistic_event_indices_from_indexed_event_indices(events_indices),
-            )
-            .await?;
-        self.store
-            .persist_optimistic_tx_indices(Self::optimistic_tx_indices_from_indexed_tx_indices(
-                tx_indices,
-            ))
-            .await?;
+        // Index only if such transaction was not yet indexed
+        // TODO: check tx deps
+        // TODO: what if tx was executed before status table was added?
+        if !tx_status.indexing_completed {
+            self.store.persist_objects(vec![object_changes]).await?;
+            self.store.persist_displays(indexed_displays).await?;
+
+            self.store
+                .persist_optimistic_transaction(StoredTransaction::from(&indexed_tx).into())
+                .await?;
+            self.store
+                .persist_optimistic_events(
+                    indexed_events
+                        .into_iter()
+                        .map(StoredEvent::from)
+                        .map(Into::into)
+                        .collect(),
+                )
+                .await?;
+            self.store
+                .persist_optimistic_event_indices(
+                    Self::optimistic_event_indices_from_indexed_event_indices(events_indices),
+                )
+                .await?;
+            self.store
+                .persist_optimistic_tx_indices(Self::optimistic_tx_indices_from_indexed_tx_indices(
+                    tx_indices,
+                ))
+                .await?;
+
+            self.store
+                .mark_transactions_as_indexed(
+                    &[indexed_tx.tx_digest.inner().to_vec()],
+                    conn_with_locked_tx,
+                )
+                .await?;
+        }
 
         Ok(())
+    }
+
+    async fn check_if_tx_dependencies_are_satisfied(
+        &self,
+        dependencies: &[TransactionDigest],
+    ) -> Result<bool, IndexerError> {
+        let digests = dependencies
+            .iter()
+            .map(|digest| digest.into_inner().to_vec())
+            .collect::<Vec<_>>();
+
+        let dependencies_indexing_statuses = self
+            .store
+            .get_execution_status_of_transactions(&digests)
+            .await?;
+
+        // Some transactions will not have any status and will be missing from the
+        // response. This is fine since those will be old transactions from
+        // before this feature was introduced, or from previous epoch, in both cases the
+        // tx will already be indexed, so we don't have to check it.
+        Ok(dependencies_indexing_statuses
+            .iter()
+            .all(|status| status.indexing_completed))
     }
 
     fn optimistic_event_indices_from_indexed_event_indices(

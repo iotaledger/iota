@@ -1,9 +1,9 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
-
 use std::{path::Path, str::FromStr, time::Duration};
 
 use fastcrypto::encoding::Base64;
+use futures::{TryStreamExt, stream::FuturesUnordered};
 use iota_json::{call_args, type_args};
 use iota_json_rpc_api::{
     CoinReadApiClient, IndexerApiClient, ReadApiClient, TransactionBuilderClient, WriteApiClient,
@@ -354,6 +354,10 @@ fn test_consecutive_modifications_of_owned_object() -> Result<(), anyhow::Error>
 
 #[test]
 fn test_consecutive_wrap_unwrap() -> Result<(), anyhow::Error> {
+    // let _guard = telemetry_subscribers::TelemetryConfig::new()
+    //     .with_env()
+    //     .init();
+
     let ApiTestSetup {
         runtime,
         store,
@@ -363,7 +367,7 @@ fn test_consecutive_wrap_unwrap() -> Result<(), anyhow::Error> {
     runtime.block_on(async move {
         indexer_wait_for_checkpoint(store, 1).await;
         let (sender, sender_kp): (_, AccountKeyPair) = get_key_pair();
-        let consecutive_updates = 50;
+        let consecutive_updates = 3000;
 
         let gas = cluster
             .fund_address_and_return_gas(
@@ -533,6 +537,98 @@ fn test_execute_transactions_with_shared_objects() {
         .unwrap();
 
         assert_eq!(res.status_ok(), Some(true));
+
+        // TODO: better assert that those 2 TXs happended one after the other
+    });
+}
+
+#[test]
+fn test_parallel_shared_object_updates() {
+    let ApiTestSetup {
+        runtime,
+        cluster,
+        store,
+        client,
+    } = ApiTestSetup::get_or_init();
+
+    runtime.block_on(async {
+        indexer_wait_for_checkpoint(store, 1).await;
+
+        let (sender, sender_kp): (_, AccountKeyPair) = get_key_pair();
+
+        let gas = cluster
+            .fund_address_and_return_gas(
+                cluster.get_reference_gas_price().await,
+                Some(10_000_000_000),
+                sender,
+            )
+            .await;
+
+        indexer_wait_for_object(client, gas.0, gas.1).await;
+
+        let res = deploy_basics_pkg(sender, &sender_kp, client).await;
+        assert_eq!(res.status_ok(), Some(true));
+
+        let package_id: ObjectID = *res
+            .object_changes
+            .as_ref()
+            .unwrap()
+            .iter()
+            .filter_map(|o| match o {
+                ObjectChange::Published { package_id, .. } => Some(package_id),
+                _ => None,
+            })
+            .exactly_one()
+            .unwrap();
+        println!("Publish result: {:#?}", package_id);
+
+        let (_, counter_obj) = create_counter_object(sender, &sender_kp, client, &package_id).await;
+
+        let range = 0..10;
+
+        // let transaction_futures = vec![];
+        //
+        // for _ in 0..10 {
+        //     let package_id_copy = package_id;
+        //     let counter_obj_copy = counter_obj;
+        //     let fut = increment_counter_n_times_batch(
+        //         sender,
+        //         &sender_kp,
+        //         client,
+        //         &package_id_copy,
+        //         &counter_obj_copy,
+        //         1,
+        //     )
+        //     transa
+        // }
+
+        let transaction_results: Vec<_> = range
+            .map(|_| {
+                increment_counter_n_times_batch(
+                    sender,
+                    &sender_kp,
+                    client,
+                    &package_id,
+                    &counter_obj,
+                    1,
+                )
+            })
+            .collect::<FuturesUnordered<_>>()
+            .try_collect()
+            .await
+            .unwrap();
+
+        let digests = transaction_results
+            .iter()
+            .map(|(res, _)| {
+                (
+                    res.digest,
+                    res.effects.as_ref().unwrap().dependencies().to_vec(),
+                )
+            })
+            .collect::<Vec<_>>(); // TODO: fix
+
+        println!("FINISHED PASS: {:#?}", digests);
     });
 }
 
@@ -546,7 +642,7 @@ fn test_repeatedly_update_display() {
     } = ApiTestSetup::get_or_init();
 
     runtime.block_on(async {
-        let consecutive_updates = 50;
+        let consecutive_updates = 150;
         indexer_wait_for_checkpoint(store, 1).await;
 
         let (sender, sender_kp): (_, AccountKeyPair) = get_key_pair();

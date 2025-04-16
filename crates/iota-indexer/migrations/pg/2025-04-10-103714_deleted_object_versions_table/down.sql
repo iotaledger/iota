@@ -1,1 +1,0 @@
-DROP TABLE optimistic_deleted_objects_versions;

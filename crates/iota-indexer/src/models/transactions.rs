@@ -25,7 +25,9 @@ use serde::Deserialize;
 
 use crate::{
     errors::IndexerError,
-    schema::{optimistic_transactions, transactions, tx_insertion_order},
+    schema::{
+        optimistic_transactions, transaction_indexing_status, transactions, tx_insertion_order,
+    },
     types::{IndexedObjectChange, IndexedTransaction, IndexerResult},
 };
 
@@ -41,6 +43,13 @@ pub struct TxInsertionOrder {
     #[diesel(skip_insertion)]
     pub insertion_order: i64,
     pub tx_digest: Vec<u8>,
+}
+
+#[derive(Queryable, Insertable, Clone, Debug, Selectable)]
+#[diesel(table_name = transaction_indexing_status)]
+pub struct TransactionIndexingStatus {
+    pub tx_digest: Vec<u8>,
+    pub indexing_completed: bool,
 }
 
 #[derive(Clone, Debug, Queryable, Insertable, QueryableByName, Selectable)]

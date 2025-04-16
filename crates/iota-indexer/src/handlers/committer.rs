@@ -2,15 +2,21 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::collections::{BTreeMap, HashMap};
+use std::collections::{BTreeMap, HashMap, HashSet};
 
-use iota_types::messages_checkpoint::CheckpointSequenceNumber;
+use iota_types::{
+    base_types::{ObjectID, SequenceNumber},
+    messages_checkpoint::CheckpointSequenceNumber,
+};
 use tap::tap::TapFallible;
 use tokio_util::sync::CancellationToken;
 use tracing::{error, info, instrument};
 
-use super::{CheckpointDataToCommit, EpochToCommit};
-use crate::{metrics::IndexerMetrics, store::IndexerStore, types::IndexerResult};
+use super::{CheckpointDataToCommit, EpochToCommit, TransactionObjectChangesToCommit};
+use crate::{
+    metrics::IndexerMetrics, models::transactions::TxInsertionOrder, store::IndexerStore,
+    types::IndexerResult,
+};
 
 pub(crate) const CHECKPOINT_COMMIT_BATCH_SIZE: usize = 100;
 
@@ -120,6 +126,17 @@ async fn commit_checkpoints<S>(
 
     let guard = metrics.checkpoint_db_commit_latency.start_timer();
     let tx_batch = tx_batch.into_iter().flatten().collect::<Vec<_>>();
+    let tx_order_batch = tx_batch
+        .iter()
+        .map(|indexed_tx| TxInsertionOrder {
+            insertion_order: -1, // fill with any value since it's ignored upon insert
+            tx_digest: indexed_tx.tx_digest.into_inner().to_vec(),
+        })
+        .collect::<Vec<_>>();
+    let tx_digests = tx_batch
+        .iter()
+        .map(|t| t.tx_digest.into_inner().to_vec())
+        .collect::<Vec<_>>();
     let tx_indices_batch = tx_indices_batch.into_iter().flatten().collect::<Vec<_>>();
     let events_batch = events_batch.into_iter().flatten().collect::<Vec<_>>();
     let event_indices_batch = event_indices_batch
@@ -134,10 +151,61 @@ async fn commit_checkpoints<S>(
     let checkpoint_num = checkpoint_batch.len();
     let tx_count = tx_batch.len();
 
+    let conn_with_lock = state
+        .hold_execution_lock_for_transactions(&tx_digests)
+        .await
+        .expect("Acquiring TX execution lock should not fail");
+
+    let txs_status = state
+        .get_execution_status_of_transactions(&tx_digests)
+        .await
+        .expect("Getting TXs execution status should not fail");
+
+    for indexing_status in txs_status {
+        if indexing_status.indexing_completed {
+            let indexed_tx = tx_batch
+                .iter()
+                .find(|tx| tx.tx_digest.inner().to_vec() == indexing_status.tx_digest)
+                .expect("Matching tx will always be there");
+            let modified_objs = indexed_tx.effects.all_changed_objects();
+            let deleted_objs = indexed_tx.effects.all_tombstones();
+
+            let versions_processed: HashSet<(ObjectID, SequenceNumber)> = modified_objs
+                .into_iter()
+                .map(|o| (o.0.0, o.0.1))
+                .chain(deleted_objs.into_iter())
+                .collect();
+
+            object_changes_batch = object_changes_batch
+                .into_iter()
+                .map(|ocb| TransactionObjectChangesToCommit {
+                    changed_objects: ocb
+                        .changed_objects
+                        .into_iter()
+                        .filter(|o| {
+                            !versions_processed.contains(&(o.object.id(), o.object.version()))
+                        })
+                        .collect(),
+                    deleted_objects: ocb
+                        .deleted_objects
+                        .into_iter()
+                        .filter(|o| {
+                            !versions_processed.contains(&(
+                                o.object_id,
+                                SequenceNumber::from_u64(o.object_version),
+                            ))
+                        })
+                        .collect(),
+                })
+                .collect();
+        }
+    }
+
     {
         let _step_1_guard = metrics.checkpoint_db_commit_latency_step_1.start_timer();
         let mut persist_tasks = vec![
             state.persist_transactions(tx_batch),
+            state.persist_tx_insertion_order(tx_order_batch),
             state.persist_tx_indices(tx_indices_batch),
             state.persist_events(events_batch),
             state.persist_event_indices(event_indices_batch),
@@ -162,6 +230,11 @@ async fn commit_checkpoints<S>(
             .collect::<IndexerResult<Vec<_>>>()
             .expect("Persisting data into DB should not fail.");
     }
+
+    state
+        .mark_transactions_as_indexed(&tx_digests, conn_with_lock)
+        .await
+        .expect("Setting TXs execution status should not fail");
 
     let is_epoch_end = epoch.is_some();
 

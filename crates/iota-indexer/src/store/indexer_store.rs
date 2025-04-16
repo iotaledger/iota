@@ -7,6 +7,7 @@ use std::{any::Any, collections::BTreeMap};
 use async_trait::async_trait;
 
 use crate::{
+    db::PoolConnection,
     errors::IndexerError,
     handlers::{EpochToCommit, TransactionObjectChangesToCommit},
     models::{
@@ -15,7 +16,7 @@ use crate::{
         events::OptimisticEvent,
         obj_indices::StoredObjectVersion,
         objects::{StoredDeletedObject, StoredObject},
-        transactions::{OptimisticTransaction, TxInsertionOrder},
+        transactions::{OptimisticTransaction, TransactionIndexingStatus, TxInsertionOrder},
         tx_indices::OptimisticTxIndices,
     },
     types::{
@@ -133,4 +134,20 @@ pub trait IndexerStore: Any + Clone + Sync + Send + 'static {
     async fn refresh_participation_metrics(&self) -> Result<(), IndexerError>;
 
     fn as_any(&self) -> &dyn Any;
+
+    async fn hold_execution_lock_for_transactions(
+        &self,
+        digests: &[Vec<u8>],
+    ) -> Result<PoolConnection, IndexerError>;
+
+    async fn get_execution_status_of_transactions(
+        &self,
+        digests: &[Vec<u8>],
+    ) -> Result<Vec<TransactionIndexingStatus>, IndexerError>;
+
+    async fn mark_transactions_as_indexed(
+        &self,
+        digests: &[Vec<u8>],
+        connection_with_lock: PoolConnection,
+    ) -> Result<(), IndexerError>;
 }

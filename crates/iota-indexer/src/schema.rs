@@ -284,13 +284,6 @@ diesel::table! {
 }
 
 diesel::table! {
-    optimistic_deleted_objects_versions (object_id) {
-        object_id -> Bytea,
-        object_version -> Int8,
-    }
-}
-
-diesel::table! {
     optimistic_event_emit_module (package, module, tx_insertion_order, event_sequence_number) {
         package -> Bytea,
         module -> Text,
@@ -477,6 +470,13 @@ diesel::table! {
 }
 
 diesel::table! {
+    transaction_indexing_status (tx_digest) {
+        tx_digest -> Bytea,
+        indexing_completed -> Bool,
+    }
+}
+
+diesel::table! {
     transactions (tx_sequence_number) {
         tx_sequence_number -> Int8,
         transaction_digest -> Bytea,
@@ -626,7 +626,6 @@ macro_rules! for_all_tables {
             objects_history,
             objects_snapshot,
             objects_version,
-            optimistic_deleted_objects_versions,
             optimistic_event_emit_module,
             optimistic_event_emit_package,
             optimistic_event_senders,
@@ -647,6 +646,7 @@ macro_rules! for_all_tables {
             packages,
             protocol_configs,
             pruner_cp_watermark,
+            transaction_indexing_status,
             transactions,
             tx_calls_fun,
             tx_calls_mod,
