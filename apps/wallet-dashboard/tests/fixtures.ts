@@ -31,6 +31,7 @@ export const test = base.extend<{
     context: [
         async ({ sharedState }, use) => {
             const isCI = !!process.env.CI;
+
             if (sharedState.context) {
                 await use(sharedState.context);
                 return;
@@ -42,7 +43,8 @@ export const test = base.extend<{
                     `--disable-extensions-except=${EXTENSION_PATH}`,
                     `--load-extension=${EXTENSION_PATH}`,
                     '--user-agent=Playwright',
-                    ...(isCI ? ['--headless=new', '--disable-gpu'] : []),
+                    '--disable-dev-shm-usage',
+                    '--no-sandbox',
                 ],
             });
 
