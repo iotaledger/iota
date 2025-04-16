@@ -12,7 +12,7 @@ path = "src/lib.rs"
 
 [[bin]]
 name = "iota-light-client"
-path = "src/bin/light_client.rs"
+path = "src/main.rs"
 
 [[bin]]
 name = "generate-chk-snapshots"
