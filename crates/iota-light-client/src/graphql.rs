@@ -23,7 +23,7 @@ pub async fn query_last_checkpoint_of_epoch(config: &Config, epoch_id: u64) -> R
     "#;
     let variables = vec![GraphqlQueryVariable {
         name: "epochID".to_string(),
-        ty: "u64".to_string(),
+        ty: "Int".to_string(),
         value: json!(epoch_id),
     }];
     let client = SimpleClient::new(

@@ -4,6 +4,7 @@
 
 use std::{path::PathBuf, str::FromStr};
 
+use anyhow::Context;
 use clap::{Parser, Subcommand};
 use iota_light_client::{
     checkpoint::sync_and_check_checkpoints,
@@ -58,7 +59,7 @@ pub enum LightClientCommand {
 }
 
 #[tokio::main]
-pub async fn main() {
+pub async fn main() -> anyhow::Result<()> {
     let _guard = telemetry_subscribers::TelemetryConfig::new()
         .with_log_level("info")
         .with_env()
@@ -68,9 +69,13 @@ pub async fn main() {
 
     let path = args
         .config
-        .unwrap_or_else(|| panic!("Need a config file path"));
+        .context("Missing config file path. Please provide a config via --config option.")?;
+
     let config = Config::load(&path)
-        .unwrap_or_else(|e| panic!("Unable to load config from {}: {e}", path.display()));
+        .await
+        .context(format!("Failed to load config '{}'.", path.display()))?;
+
+    config.setup().await?;
 
     let remote_package_store = RemotePackageStore::new(config.clone());
     let resolver = Resolver::new(remote_package_store);
@@ -81,7 +86,7 @@ pub async fn main() {
             if config.sync_before_check {
                 sync_and_check_checkpoints(&config)
                     .await
-                    .expect("Failed to sync checkpoints");
+                    .context("Failed to sync checkpoints")?;
             }
 
             let (effects, events) = get_verified_effects_and_events(
@@ -105,7 +110,7 @@ pub async fn main() {
                         .unwrap();
 
                     let result = BoundedVisitor::deserialize_value(&event.contents, &type_layout)
-                        .expect("Cannot deserialize");
+                        .context("Failed to deserialize event")?;
 
                     println!(
                         "Event:\n - Package: {}\n - Module: {}\n - Sender: {}\n - Type: {}\n{}",
@@ -124,7 +129,7 @@ pub async fn main() {
             if config.sync_before_check {
                 sync_and_check_checkpoints(&config)
                     .await
-                    .expect("Failed to sync checkpoints");
+                    .context("Failed to sync checkpoints")?;
             }
 
             let object_id = ObjectID::from_str(&object_id).unwrap();
@@ -141,7 +146,7 @@ pub async fn main() {
 
                 let result =
                     BoundedVisitor::deserialize_value(move_object.contents(), &type_layout)
-                        .expect("Cannot deserialize");
+                        .context("Failed to deserialize object")?;
 
                 let (oid, version, hash) = object.compute_object_reference();
                 println!(
@@ -158,7 +163,9 @@ pub async fn main() {
         LightClientCommand::Sync => {
             sync_and_check_checkpoints(&config)
                 .await
-                .expect("Failed to sync checkpoints");
+                .context("Failed to sync checkpoints")?;
         }
     }
+
+    Ok(())
 }

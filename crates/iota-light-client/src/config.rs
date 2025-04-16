@@ -2,14 +2,15 @@
 // Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{
-    fs::{self, File},
-    path::{Path, PathBuf},
-};
+use std::path::{Path, PathBuf};
 
-use anyhow::{Result, anyhow, bail};
+use anyhow::{Context, Result, anyhow, bail};
 use iota_config::object_storage_config::ObjectStoreConfig;
 use serde::{Deserialize, Serialize};
+use tokio::{
+    fs::{self, File, create_dir_all, read_to_string},
+    io,
+};
 use url::Url;
 
 const GENESIS_FILE_NAME: &str = "genesis.blob";
@@ -39,10 +40,8 @@ impl Default for Config {
     fn default() -> Self {
         Self {
             rpc_url: "http://localhost:9000".to_string(),
-            graphql_url: Some("http://localhost:9125".to_string()),
-            checkpoints_dir: std::env::current_dir()
-                .expect("error getting current directory")
-                .join("checkpoints_localnet"),
+            graphql_url: None,
+            checkpoints_dir: "checkpoints".into(),
             genesis_blob_download_url: None,
             sync_before_check: false,
             object_store_url: None,
@@ -52,44 +51,55 @@ impl Default for Config {
 }
 
 impl Config {
-    pub fn load<P: AsRef<Path>>(path: P) -> Result<Self> {
-        let file = fs::File::open(path)?;
-        let config: Config = serde_yaml::from_reader(file)?;
-        config.setup()?;
+    /// Loads the config from file.
+    pub async fn load<P: AsRef<Path>>(path: P) -> Result<Self> {
+        let content = read_to_string(path).await?;
+        let config: Config = serde_yaml::from_str(&content)?;
         config.validate()?;
         Ok(config)
     }
 
-    pub fn setup(&self) -> Result<()> {
+    /// Creates necessary directores and files if necessary.
+    pub async fn setup(&self) -> Result<()> {
+        // Create the checkpoints directory if it doesn't exist yet
         if !self.checkpoints_dir.is_dir() {
-            std::fs::create_dir_all(&self.checkpoints_dir)?;
+            create_dir_all(&self.checkpoints_dir).await?;
         }
+        // Download or copy the genesis blob if it doesn't exist yet
         if !self.genesis_blob_file_path().is_file() {
             if let Some(url) = &self.genesis_blob_download_url {
-                let mut resp = reqwest::blocking::get(url)?;
-                let mut file = File::create_new(self.genesis_blob_file_path())?;
-                std::io::copy(&mut resp, &mut file)?;
+                let url = Url::parse(url).expect("unvalidated url");
+                match url.scheme() {
+                    "file" => {
+                        let path = url.to_file_path().map_err(|_| anyhow!("invalid path"))?;
+                        tokio::fs::copy(path, self.genesis_blob_file_path()).await?;
+                    }
+                    _ => {
+                        let mut contents = reqwest::get(url).await?.bytes().await?;
+                        tokio::fs::write(self.genesis_blob_file_path(), contents).await?;
+                    }
+                }
             }
         }
         Ok(())
     }
 
     pub fn validate(&self) -> Result<()> {
-        Url::parse(&self.rpc_url).map_err(|_| anyhow!("Invalid full node URL"))?;
-        if !self.checkpoints_dir.is_dir() {
-            bail!("Checkpoint directory does not exist");
+        Url::parse(&self.rpc_url).context("Invalid RPC URL")?;
+
+        if let Some(url) = &self.graphql_url {
+            Url::parse(url).context("Invalid GraphQL URL")?;
         }
-        if !self.genesis_blob_file_path().is_file() {
-            bail!(
-                "Genesis file is missing at: {}",
-                self.genesis_blob_file_path().display()
-            );
+        if let Some(url) = &self.genesis_blob_download_url {
+            Url::parse(url).context("Invalid genesis URL")?;
         }
         if let Some(url) = &self.object_store_url {
-            Url::parse(url).map_err(|_| anyhow!("Invalid object store URL"))?;
+            Url::parse(url).context("Invalid checkpoint store URL")?;
         }
-        if let Some(url) = &self.graphql_url {
-            Url::parse(url).map_err(|_| anyhow!("Invalid GraphQL URL"))?;
+        if let Some(archive_store_config) = &self.archive_store_config {
+            if let Some(url) = &archive_store_config.aws_endpoint {
+                Url::parse(url).context("Invalid archive store URL")?;
+            }
         }
         Ok(())
     }

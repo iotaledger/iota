@@ -9,11 +9,11 @@ use std::{
     num::NonZeroUsize,
 };
 
-use anyhow::{Result, anyhow, bail};
+use anyhow::{Context, Result, anyhow, bail};
 use getset::Getters;
 use iota_archival::reader::{ArchiveReader, ArchiveReaderMetrics};
 use iota_config::{genesis::Genesis, node::ArchiveReaderConfig};
-use iota_rest_api::Client;
+use iota_json_rpc_types::CheckpointId;
 use iota_sdk::IotaClientBuilder;
 use iota_types::{
     committee::Committee,
@@ -133,21 +133,14 @@ pub async fn sync_checkpoint_list_to_latest(config: &Config) -> anyhow::Result<C
         CheckpointList::default()
     };
 
-    // Verify we have at least some checkpoints
-    if checkpoints_from_object_store.checkpoints.is_empty()
-        && checkpoints_from_archive_store.checkpoints.is_empty()
-    {
-        bail!("Could not retrieve any checkpoints from configured sources");
-    }
-
     let merged_checkpoints = merge_checkpoint_lists(
         &checkpoints_from_object_store,
         &checkpoints_from_archive_store,
     );
 
-    // Try to sync from the full node
+    // Try to sync from the full node if there are still no checkpoints
     let checkpoints_list = if merged_checkpoints.is_empty() {
-        match sync_checkpoint_list_to_latest_using_full_node_only(config).await {
+        match sync_checkpoint_list_to_latest_using_full_node(config).await {
             Ok(list) => list,
             Err(e) => {
                 warn!("Failed to sync checkpoints from full node: {e}");
@@ -159,6 +152,10 @@ pub async fn sync_checkpoint_list_to_latest(config: &Config) -> anyhow::Result<C
             checkpoints: merged_checkpoints,
         }
     };
+
+    if checkpoints_list.is_empty() {
+        bail!("Could not retrieve any checkpoints from configured sources");
+    }
 
     // Write the fetched checkpoint list to disk
     write_checkpoint_list(config, &checkpoints_list)?;
@@ -190,7 +187,7 @@ fn merge_checkpoint_lists(list1: &CheckpointList, list2: &CheckpointList) -> Vec
 ///
 /// No object store or archive store required, but only works with non-pruning
 /// nodes.
-async fn sync_checkpoint_list_to_latest_using_full_node_only(
+async fn sync_checkpoint_list_to_latest_using_full_node(
     config: &Config,
 ) -> anyhow::Result<CheckpointList> {
     info!("Syncing checkpoints from full node");
@@ -198,8 +195,8 @@ async fn sync_checkpoint_list_to_latest_using_full_node_only(
     // Get the local checkpoint list, or create an empty one if it doesn't exist
     let mut checkpoints_list = match read_checkpoint_list(config) {
         Ok(list) => list,
-        Err(e) => {
-            info!("Could not read existing checkpoint list, starting with empty list: {e}");
+        Err(_) => {
+            info!("No existing checkpoint file found. Creating a new list.");
             CheckpointList::default()
         }
     };
@@ -214,25 +211,23 @@ async fn sync_checkpoint_list_to_latest_using_full_node_only(
         last_seq
     };
 
-    // Download the checkpoint from the node
-    let rest_client = Client::new(config.rpc_url.as_str());
-
-    // Download the latest in list checkpoint
-    let last_sum = rest_client.get_checkpoint_summary(last_seq).await?;
-
-    // Download the very latest checkpoint
+    // Download the last synced checkpoint from the node
     let client = IotaClientBuilder::default()
         .build(config.rpc_url.as_str())
         .await?;
-
-    let latest_seq = client
-        .read_api()
-        .get_latest_checkpoint_sequence_number()
+    let read_api = client.read_api();
+    let last_chk = read_api
+        .get_checkpoint(CheckpointId::SequenceNumber(last_seq))
         .await?;
-    let latest_sum = rest_client.get_checkpoint_summary(latest_seq).await?;
+
+    // Download the latest available checkpoint from the node
+    let latest_seq = read_api.get_latest_checkpoint_sequence_number().await?;
+    let latest_chk = read_api
+        .get_checkpoint(CheckpointId::SequenceNumber(latest_seq))
+        .await?;
 
     // Sequentially record all the missing end of epoch checkpoints numbers
-    for target_epoch in (last_sum.epoch() + 1)..latest_sum.epoch() {
+    for target_epoch in (last_chk.epoch + 1)..latest_chk.epoch {
         let target_seq = query_last_checkpoint_of_epoch(config, target_epoch).await?;
         checkpoints_list.checkpoints.push(target_seq);
         info!("Synced epoch: {target_epoch}, checkpoint: {target_seq}");
@@ -302,25 +297,22 @@ async fn sync_checkpoint_list_to_latest_using_full_node_and_object_store(
         last_seq
     };
 
-    // TODO: connect to checkpoint object store once available (devops)
-
-    // let object_store = IotaObjectStore::new(config)?;
-    // let last_sum = object_store.get_checkpoint_summary(last_seq).await?;
-    // let client = IotaClientBuilder::default()
-    //     .build(config.rpc_url.as_str())
-    //     .await?;
-    // let latest_seq = client
-    //     .read_api()
-    //     .get_latest_checkpoint_sequence_number()
-    //     .await?;
-    // let latest_sum = object_store.get_checkpoint_summary(latest_seq).await?;
-    // // Sequentially record all the missing end of epoch checkpoints numbers
-    // for target_epoch in (last_sum.epoch() + 1)..latest_sum.epoch() {
-    //     let target_seq = query_last_checkpoint_of_epoch(config,
-    // target_epoch).await?;
-    //      checkpoints_list.checkpoints.push(target_seq);
-    //     info!("Synced epoch: {target_epoch}, checkpoint: {target_seq}");
-    // }
+    let object_store = IotaObjectStore::new(config)?;
+    let last_sum = object_store.get_checkpoint_summary(last_seq).await?;
+    let client = IotaClientBuilder::default()
+        .build(config.rpc_url.as_str())
+        .await?;
+    let latest_seq = client
+        .read_api()
+        .get_latest_checkpoint_sequence_number()
+        .await?;
+    let latest_sum = object_store.get_checkpoint_summary(latest_seq).await?;
+    // Sequentially record all the missing end of epoch checkpoints numbers
+    for target_epoch in (last_sum.epoch() + 1)..latest_sum.epoch() {
+        let target_seq = query_last_checkpoint_of_epoch(config, target_epoch).await?;
+        checkpoints_list.checkpoints.push(target_seq);
+        info!("Synced epoch: {target_epoch}, checkpoint: {target_seq}");
+    }
 
     Ok(checkpoints_list)
 }
@@ -330,46 +322,68 @@ pub async fn sync_and_check_checkpoints(config: &Config) -> anyhow::Result<()> {
         .await
         .map_err(|e| anyhow!(format!("Failed to sync checkpoint list: {e}")))?;
 
+    // Create a list of summaries that can be skipped
+    let mut skiplist = Vec::new();
+    for seq in checkpoints_list.checkpoints.iter().copied() {
+        if config.checkpoint_summary_file_path(seq, None).exists() {
+            skiplist.push(seq);
+        }
+    }
+
     // Load the genesis committee
     let genesis_committee = Genesis::load(config.genesis_blob_file_path())?
         .committee()
         .map_err(|e| anyhow!(format!("Failed to load genesis file: {e}")))?;
 
-    let archive_reader = if let Some(archive_store_config) = &config.archive_store_config {
-        // TODO add to config
-        let num_parallel_downloads = 5;
-
-        // set up download of checkpoint summaries
-        let config = ArchiveReaderConfig {
+    if let Some(checkpoint_store_url) = &config.object_store_url {
+        // Download summaries from checkpoint object store
+        // TODO blocked by https://github.com/iotaledger/iota/issues/4908
+        bail!(
+            "Syncing from a checkpoint object store is not supported yet. Please leave `object_store_url` empty for now."
+        );
+    } else if let Some(archive_store_config) = &config.archive_store_config {
+        // Download summaries from archive store
+        let archive_reader_config = ArchiveReaderConfig {
             remote_store_config: archive_store_config.clone(),
-            download_concurrency: NonZeroUsize::new(num_parallel_downloads).unwrap(),
+            download_concurrency: NonZeroUsize::new(5).unwrap(),
             use_for_pruning_watermark: false,
         };
 
         let metrics = ArchiveReaderMetrics::new(&Registry::default());
-        let archive_reader = ArchiveReader::new(config, &metrics)?;
+        let archive_reader = ArchiveReader::new(archive_reader_config, &metrics)?;
         archive_reader.sync_manifest_once().await?;
         archive_reader
+            .download_summaries_for_list_no_verify(
+                checkpoints_list.checkpoints.clone(),
+                skiplist,
+                &config.checkpoints_dir,
+            )
+            .await?;
     } else {
-        // TODO allow using checkpoint object store once available
-        bail!("archive store required for now");
-    };
+        // Download summaries from the full node
+        let client = iota_rest_api::Client::new(format!("{}/rest", config.rpc_url));
 
-    let mut skiplist = Vec::new();
-    for seq in checkpoints_list.checkpoints.iter().copied() {
-        let summary_path = config.checkpoint_summary_file_path(seq, None);
-        if summary_path.exists() {
-            skiplist.push(seq);
+        // We only need the first 2 end-of-epoch checkpoints for the tests
+        for seq in checkpoints_list.checkpoints.iter().copied() {
+            if skiplist.contains(&seq) {
+                continue;
+            }
+
+            info!("Downloading summary checkpoint: {seq}");
+
+            let summary = client
+                .get_checkpoint_summary(seq)
+                .await
+                .context(format!("Failed to download checkpoint summary '{seq}'"))?;
+            let path = format!("{}/{seq}.sum", config.checkpoints_dir.display());
+            bcs::serialize_into(
+                &mut std::fs::File::create(&path)
+                    .context(format!("error creating summary file '{path}'"))?,
+                &summary,
+            )
+            .expect("error serializing to bcs");
         }
     }
-
-    archive_reader
-        .download_summaries_for_list_no_verify(
-            checkpoints_list.checkpoints.clone(),
-            skiplist,
-            &config.checkpoints_dir,
-        )
-        .await?;
 
     // Check the signatures of all checkpoints and download any missing ones
     let mut prev_committee = genesis_committee;
@@ -383,7 +397,7 @@ pub async fn sync_and_check_checkpoints(config: &Config) -> anyhow::Result<()> {
             read_checkpoint_summary(config, seq)
                 .map_err(|e| anyhow!(format!("Failed to read checkpoint summary: {e}")))?
         } else {
-            bail!("we assume for now that the archive is complete");
+            bail!("we assume for now that everything could be downloaded");
         };
 
         // Verify the checkpoint
