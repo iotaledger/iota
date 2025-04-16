@@ -20,7 +20,8 @@ interface SharedState {
     };
 }
 
-const sharedState: SharedState = { extension: {}, wallet: {} };
+const DEFAULT_SHARED_STATE = { extension: {}, wallet: {} };
+let sharedState: SharedState = DEFAULT_SHARED_STATE;
 
 export const test = base.extend<{
     sharedState: SharedState;
@@ -89,7 +90,7 @@ export const test = base.extend<{
 test.afterAll(async () => {
     if (sharedState.sharedContext) {
         await sharedState.sharedContext.close();
-        sharedState.sharedContext = undefined;
+        sharedState = DEFAULT_SHARED_STATE;
     }
 });
 
