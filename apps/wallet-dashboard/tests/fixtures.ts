@@ -21,7 +21,7 @@ interface SharedState {
 }
 
 const DEFAULT_SHARED_STATE = { extension: {}, wallet: {} };
-let sharedState: SharedState = DEFAULT_SHARED_STATE;
+let sharedState: SharedState = { ...DEFAULT_SHARED_STATE };
 
 export const test = base.extend<{
     sharedState: SharedState;
