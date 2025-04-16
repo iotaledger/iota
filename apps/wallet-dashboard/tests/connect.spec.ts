@@ -6,24 +6,19 @@ import { connectWallet, createWallet } from './utils';
 import 'dotenv/config';
 
 test.describe.serial('Wallet Connection', () => {
-    let walletAddress: string;
-
-    test.beforeAll(async ({ context, sharedState, extensionUrl, extensionName }) => {
+    test.beforeAll(async ({ context, sharedState, extensionUrl }) => {
         const page = await context.newPage();
         await page.goto(extensionUrl);
 
         const cratedWallet = await createWallet(page);
 
-        walletAddress = cratedWallet.address || '';
-        sharedState.context = context;
-        sharedState.extensionUrl = extensionUrl;
-        sharedState.extensionName = extensionName;
+        sharedState.wallet.address = cratedWallet.address;
     });
 
-    test('should connect to wallet extension', async ({ page, sharedState }) => {
-        const { context, extensionName } = sharedState;
+    test('should connect to wallet extension', async ({ page, sharedState, extensionName }) => {
+        const { sharedContext: context } = sharedState;
 
-        if (!context || !extensionName) {
+        if (!context) {
             throw new Error('Context is not defined');
         }
 
@@ -38,16 +33,17 @@ test.describe.serial('Wallet Connection', () => {
             .locator('[data-full-address]')
             .getAttribute('data-full-address');
 
-        expect(displayedFullAddress).toBe(walletAddress);
+        expect(displayedFullAddress).toBe(sharedState.wallet.address);
     });
 
     test('should return to main screen when disconnecting from wallet', async ({
         page,
         sharedState,
+        extensionUrl,
     }) => {
-        const { context, extensionUrl, extensionName } = sharedState;
+        const { sharedContext } = sharedState;
 
-        if (!context || !extensionUrl || !extensionName) {
+        if (!sharedContext) {
             throw new Error('Context is not defined');
         }
 
@@ -55,11 +51,9 @@ test.describe.serial('Wallet Connection', () => {
         await page.locator('[data-full-address]').waitFor({ state: 'visible' });
 
         // Disconnect from the wallet
-        const extensionPage = await context.newPage();
+        const extensionPage = await sharedContext.newPage();
         await extensionPage.goto(`${extensionUrl}#/apps/connected`);
-
         await extensionPage.getByText('localhost').first().click();
-
         await extensionPage.getByRole('button', { name: 'Disconnect' }).click();
 
         await page.bringToFront();
