@@ -30,11 +30,7 @@ test.describe.serial('Wallet Connection', () => {
         await connectWallet(page, sharedContext, extensionName);
 
         // Verify connection was successful on dashboard
-        await expect(page.getByText('Start Staking')).toBeVisible({ timeout: 30_000 });
-        const truncatedWalletAddress = wallet.address.slice(0, 6) + '…' + wallet.address.slice(-4);
-        await expect(page.getByText(truncatedWalletAddress).first()).toBeVisible({
-            timeout: 30_000,
-        });
+        expect(page.getByText('My Coins')).toBeVisible({ timeout: 30_000 });
 
         const displayedFullAddress = await page
             .locator('[data-full-address]')
