@@ -178,8 +178,7 @@ impl ReadApiServer for ReadApi {
             );
         }
 
-        // Returns an unordered map of `StoredObject`s. Doesn't take care of missing
-        // objects.
+        // Doesn't take care of missing objects.
         let stored_objects = self
             .inner
             .multi_get_objects_in_blocking_task(object_ids.clone())
