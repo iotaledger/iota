@@ -197,13 +197,20 @@ jobs:
       #          choco push iota.${{ env.iota_ref }}.nupkg --source https://push.chocolatey.org/
 
       - name: Upload artifacts for ${{ matrix.os_type }} platform
-        if: ${{ github.event_name == 'release' }}
         uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # v4.4.3
         with:
           name: ${{ steps.create-artifact.outputs.artifact_name }}
           if-no-files-found: error
           path: |
             ./tmp/${{ steps.create-artifact.outputs.artifact_name }}.tgz
+
+      - name: Attach artifacts to ${{ env.iota_ref }} release in GH
+        if: ${{ github.event_name == 'release' }}
+        uses: softprops/action-gh-release@c062e08bd532815e2082a85e87e3ef29c3e6d191 # v2.0.8
+        with:
+          tag_name: ${{ env.iota_ref }}
+          files: |
+            ./tmp/${{ env.artifact_name }}.tgz
 
   generate-release-notes:
     env:
@@ -224,20 +231,21 @@ jobs:
           echo "New commit hash: $new_commit_hash"
 
           iota_tag="$(echo ${{ needs.generate-tag.outputs.iota_ref }} | sed s/'refs\/tags\/'//)"
-          echo "iota_tag $iota_tag"
+          echo "iota_tag = $iota_tag"
           trl=$(echo "$iota_tag" | sed -n 's/^[^-]*\(-.*\)/\1/p')
-          echo "trl $trl"
+          echo "trl = $trl"
           previous_tag=$(git tag --sort=-version:refname | grep -E "^v[0-9]+\.[0-9]+\.[0-9]+" | grep -- "$trl" | grep -Fv $iota_tag | head -n 1)
           echo "Previous tag: $previous_tag"
           previous_commit_hash=$(git rev-list -n 1 "${previous_tag}")
           echo "Previous commit hash: $previous_commit_hash"
 
-          pushd "scripts/release_notes"
-          ./run.sh generate $previous_commit_hash $new_commit_hash | tee -a "../../${{ env.RELEASE_NOTES_FILE }}"
-          popd
+          pushd "scripts/release_notes" > /dev/null
+          ./run.sh generate $previous_commit_hash $new_commit_hash | tee -a "../../${{ env.RELEASE_NOTES_FILE }}" > /dev/null
+          popd > /dev/null
           echo "---" >> ${{ env.RELEASE_NOTES_FILE }}
-          echo "#### Full Log: https://github.com/iotaledger/iota/commits/${{ needs.generate-tag.outputs.iota_ref }}" >> ${{ env.RELEASE_NOTES_FILE }}
+          echo "#### Full Log: https://github.com/iotaledger/iota/compare/$previous_tag...${{ needs.generate-tag.outputs.iota_ref }}" >> ${{ env.RELEASE_NOTES_FILE }}
 
+          echo "Generated notes:\n---"
           cat ${{ env.RELEASE_NOTES_FILE }}
 
       - name: Add release notes to ${{ needs.generate-tag.outputs.iota_ref }} release in GH
