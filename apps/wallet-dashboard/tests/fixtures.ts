@@ -12,8 +12,6 @@ const EXTENSION_PATH = path.join(__dirname, '../../wallet/dist');
 // Define the shared state type
 interface SharedState {
     context?: BrowserContext;
-    walletAddress?: string;
-    walletMnemonic?: string;
     extensionUrl?: string;
     extensionName?: string;
 }

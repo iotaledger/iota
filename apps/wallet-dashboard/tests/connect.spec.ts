@@ -6,14 +6,15 @@ import { connectWallet, createWallet } from './utils';
 import 'dotenv/config';
 
 test.describe.serial('Wallet Connection', () => {
+    let walletAddress: string;
+
     test.beforeAll(async ({ context, sharedState, extensionUrl, extensionName }) => {
         const page = await context.newPage();
         await page.goto(extensionUrl);
 
         const cratedWallet = await createWallet(page);
 
-        sharedState.walletMnemonic = cratedWallet.mnemonic || '';
-        sharedState.walletAddress = cratedWallet.address || '';
+        walletAddress = cratedWallet.address || '';
         sharedState.context = context;
         sharedState.extensionUrl = extensionUrl;
         sharedState.extensionName = extensionName;
@@ -26,7 +27,7 @@ test.describe.serial('Wallet Connection', () => {
             throw new Error('Context is not defined');
         }
 
-        await page.goto('/');
+        await page.goto('/', { waitUntil: 'networkidle' });
         await connectWallet(page, context, extensionName);
 
         // Verify connection was successful on dashboard
@@ -37,7 +38,7 @@ test.describe.serial('Wallet Connection', () => {
             .locator('[data-full-address]')
             .getAttribute('data-full-address');
 
-        expect(displayedFullAddress).toBe(sharedState.walletAddress);
+        expect(displayedFullAddress).toBe(walletAddress);
     });
 
     test('should return to main screen when disconnecting from wallet', async ({
