@@ -221,6 +221,11 @@ struct FeatureFlags {
     // Properly convert certain type argument errors in the execution layer.
     #[serde(skip_serializing_if = "is_false")]
     convert_type_argument_error: bool,
+
+    // To enable/disable the gas price feedback mechanism used for transactions
+    // cancelled due to shared object congestion
+    #[serde(skip_serializing_if = "is_false")]
+    congested_objects_gas_price_feedback_mechanism: bool,
 }
 
 fn is_true(b: &bool) -> bool {
@@ -1137,6 +1142,13 @@ impl ProtocolConfig {
 
     pub fn native_charging_v2(&self) -> bool {
         self.feature_flags.native_charging_v2
+    }
+
+    /// Check if the gas price feedback mechanism (which is used for
+    /// transactions cancelled due to shared object congestion) is enabled
+    pub fn congested_objects_gas_price_feedback_mechanism(&self) -> bool {
+        self.feature_flags
+            .congested_objects_gas_price_feedback_mechanism
     }
 }
 
