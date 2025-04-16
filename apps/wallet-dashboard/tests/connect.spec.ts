@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { test, expect } from './fixtures';
-import { connectWallet, createWallet, importWallet } from './utils';
+import { connectWallet, createWallet } from './utils';
 import 'dotenv/config';
 
 test.describe('Wallet Connection', () => {
@@ -29,19 +29,7 @@ test.describe('Wallet Connection', () => {
         extensionName,
         extensionUrl,
     }) => {
-        await importWallet(page, extensionUrl, sharedState.walletMnemonic!);
         await connectWallet(page, context, extensionName);
-
-        // The extension should appear in a popup, need to handle that
-        const approveWalletConnectPage = context.waitForEvent('page');
-
-        // Handle the connection approval in the wallet extension popup
-        const walletApprovePage = await approveWalletConnectPage;
-        await walletApprovePage.getByText('Continue', { exact: true }).click();
-        await walletApprovePage.getByRole('button', { name: 'Connect' }).click();
-
-        // Switch back to main page
-        await page.bringToFront();
 
         // Verify connection was successful on dashboard
         await page.waitForSelector('[data-testid="sidebar"]');
@@ -61,9 +49,6 @@ test.describe('Wallet Connection', () => {
         extensionName,
     }) => {
         await connectWallet(page, context, extensionName);
-
-        // Switch back to main page
-        await page.bringToFront();
 
         await page.locator('[data-full-address]').waitFor({ state: 'visible' });
 
