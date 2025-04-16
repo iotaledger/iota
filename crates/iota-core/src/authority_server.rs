@@ -181,6 +181,8 @@ pub struct ValidatorServiceMetrics {
     pub handle_certificate_consensus_latency: IotaHistogram,
     pub handle_certificate_non_consensus_latency: IotaHistogram,
     pub handle_soft_bundle_certificates_consensus_latency: IotaHistogram,
+    pub handle_soft_bundle_certificates_count: IotaHistogram,
+    pub handle_soft_bundle_certificates_size_bytes: IotaHistogram,
 
     num_rejected_tx_in_epoch_boundary: IntCounter,
     num_rejected_cert_in_epoch_boundary: IntCounter,
@@ -268,6 +270,16 @@ impl ValidatorServiceMetrics {
                 registry,
             )
             .unwrap(),
+            handle_soft_bundle_certificates_count: IotaHistogram::new_in_registry(
+                "handle_soft_bundle_certificates_count",
+                "The number of certificates included in a soft bundle",
+                registry,
+            ),
+            handle_soft_bundle_certificates_size_bytes: IotaHistogram::new_in_registry(
+                "handle_soft_bundle_certificates_size_bytes",
+                "The size of soft bundle in bytes",
+                registry,
+            ),
             connection_ip_not_found: register_int_counter_with_registry!(
                 "validator_service_connection_ip_not_found",
                 "Number of times connection IP was not extractable from request",
@@ -821,10 +833,20 @@ impl ValidatorService {
 
         let certificates =
             NonEmpty::from_vec(request.certificates).ok_or(IotaError::NoCertificateProvided)?;
+        let mut total_size_bytes = 0;
         for certificate in &certificates {
             // We need to check this first because we haven't verified the cert signature.
-            certificate.validity_check(epoch_store.protocol_config(), epoch_store.epoch())?;
+            total_size_bytes +=
+                certificate.validity_check(epoch_store.protocol_config(), epoch_store.epoch())?;
         }
+
+        self.metrics
+            .handle_soft_bundle_certificates_count
+            .observe(certificates.len() as u64);
+
+        self.metrics
+            .handle_soft_bundle_certificates_size_bytes
+            .observe(total_size_bytes as u64);
 
         // Now that individual certificates are valid, we check if the bundle is valid.
         self.soft_bundle_validity_check(&certificates, &epoch_store)
@@ -842,6 +864,7 @@ impl ValidatorService {
                 .collect::<Vec<_>>()
                 .join(", ")
         );
+
         let span = error_span!("handle_soft_bundle_certificates_v1");
         self.handle_certificates(
             certificates,

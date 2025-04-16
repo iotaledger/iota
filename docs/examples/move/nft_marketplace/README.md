@@ -192,7 +192,7 @@ To purchase the item:
 #### 9.5 Transfer an Item to the Buyer
 
 Finally, you can set up the
-[public_transfer](https://docs.iota.org/references/framework/iota-framework/transfer#function-public_transfer) to
+[public_transfer](https://docs.iota.org/references/framework/iota/transfer#function-public_transfer) to
 transfer the purchased item to the buyer:
 
 ```bash
