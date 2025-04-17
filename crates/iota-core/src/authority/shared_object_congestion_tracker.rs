@@ -846,16 +846,10 @@ mod object_cost_tests {
                         0,
                     )
                 {
-                    // with `assign_min_free_execution_slot`, only object 0 is congested.
-                    // without `assign_min_free_execution_slot`, both objects are congested.
-                    assert_eq!(
-                        congested_objects.len(),
-                        if assign_min_free_execution_slot { 1 } else { 2 }
-                    );
+                    // both objects should be reported as congested.
+                    assert_eq!(congested_objects.len(), 2);
                     assert_eq!(congested_objects[0], shared_obj_0);
-                    if !assign_min_free_execution_slot {
-                        assert_eq!(congested_objects[1], shared_obj_1);
-                    }
+                    assert_eq!(congested_objects[1], shared_obj_1);
                 } else {
                     panic!("should defer");
                 }
@@ -1164,8 +1158,9 @@ mod object_cost_tests {
         if let SequencingResult::Defer(_, congested_objects) = shared_object_congestion_tracker
             .try_schedule(&tx, max_execution_duration_per_commit, &HashMap::new(), 0)
         {
-            assert_eq!(congested_objects.len(), 1);
+            assert_eq!(congested_objects.len(), 2);
             assert_eq!(congested_objects[0], object_id_0);
+            assert_eq!(congested_objects[1], object_id_1);
         } else {
             panic!("object 0 is congesting, should defer");
         }
@@ -1197,16 +1192,10 @@ mod object_cost_tests {
         if let SequencingResult::Defer(_, congested_objects) = shared_object_congestion_tracker
             .try_schedule(&tx, max_execution_duration_per_commit, &HashMap::new(), 0)
         {
-            // with `assign_min_free_execution_slot`, only object 0 is cause of congestion.
-            // without `assign_min_free_execution_slot`, both objects are congested.
-            assert_eq!(
-                congested_objects.len(),
-                if assign_min_free_execution_slot { 1 } else { 2 }
-            );
+            // both objects should be reported as congested.
+            assert_eq!(congested_objects.len(), 2);
             assert_eq!(congested_objects[0], object_id_0);
-            if !assign_min_free_execution_slot {
-                assert_eq!(congested_objects[1], object_id_1);
-            }
+            assert_eq!(congested_objects[1], object_id_1);
         } else {
             panic!("objects 0 and 1 are congesting, should defer");
         }
@@ -1259,9 +1248,11 @@ mod object_cost_tests {
         if let SequencingResult::Defer(_, congested_objects) = shared_object_congestion_tracker
             .try_schedule(&tx, max_execution_duration_per_commit, &HashMap::new(), 0)
         {
-            // object 2 is the cause of congestion.
-            assert_eq!(congested_objects.len(), 1);
-            assert_eq!(congested_objects[0], object_id_2);
+            // objects 1, 2 and 3 should be reported as congested.
+            assert_eq!(congested_objects.len(), 3);
+            assert_eq!(congested_objects[0], object_id_0);
+            assert_eq!(congested_objects[1], object_id_1);
+            assert_eq!(congested_objects[2], object_id_2);
         } else {
             panic!("case 2: object 2 is congested, should defer");
         }
