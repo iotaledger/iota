@@ -1028,6 +1028,7 @@ async fn test_multisig_passkey_feature_deny() {
     // if feature disabled, fails to execute.
     let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
         config.set_accept_passkey_in_multisig_for_testing(false);
+        config.set_enable_jwk_consensus_updates_for_testing(true);
         config
     });
     let test_cluster = TestClusterBuilder::new()
@@ -1052,6 +1053,7 @@ async fn test_multisig_passkey_feature_deny() {
 async fn test_multisig_passkey_scenarios() {
     let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
         config.set_accept_passkey_in_multisig_for_testing(true);
+        config.set_enable_jwk_consensus_updates_for_testing(true);
         config
     });
     let test_cluster = TestClusterBuilder::new()
