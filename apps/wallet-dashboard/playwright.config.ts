@@ -51,10 +51,17 @@ export default defineConfig({
             timeout: 120 * 1000,
             reuseExistingServer: !process.env.CI,
         },
-        // Localnet-based server:
+        // Wallet-dashboard:
         {
             command: 'pnpm start',
             port: 3000,
+            timeout: 120 * 1000,
+            reuseExistingServer: !process.env.CI,
+        },
+        // Apps-backend:
+        {
+            command: 'cd ../apps-backend && pnpm run preview',
+            port: 3003,
             timeout: 120 * 1000,
             reuseExistingServer: !process.env.CI,
         },
