@@ -344,7 +344,7 @@ async fn test_congestion_control_execution_cancellation() {
         effects.status(),
         &ExecutionStatus::Failure {
             error: ExecutionFailureStatus::ExecutionCancelledDueToSharedObjectCongestion {
-                congested_objects: CongestedObjects(vec![shared_object_1.0]),
+                congested_objects: CongestedObjects(vec![shared_object_1.0, shared_object_2.0]),
             },
             command: None
         }
@@ -355,7 +355,7 @@ async fn test_congestion_control_execution_cancellation() {
         effects.input_shared_objects(),
         vec![
             InputSharedObject::Cancelled(shared_object_1.0, SequenceNumber::CONGESTED),
-            InputSharedObject::Cancelled(shared_object_2.0, SequenceNumber::CANCELLED_READ)
+            InputSharedObject::Cancelled(shared_object_2.0, SequenceNumber::CONGESTED)
         ]
     );
 
@@ -379,7 +379,7 @@ async fn test_congestion_control_execution_cancellation() {
     assert_eq!(
         execution_error.unwrap().to_execution_status().0,
         ExecutionFailureStatus::ExecutionCancelledDueToSharedObjectCongestion {
-            congested_objects: CongestedObjects(vec![shared_object_1.0]),
+            congested_objects: CongestedObjects(vec![shared_object_1.0, shared_object_2.0]),
         }
     );
     assert_eq!(&effects, effects_2.data())
