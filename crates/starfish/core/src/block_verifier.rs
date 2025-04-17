@@ -235,7 +235,6 @@ impl BlockVerifier for NoopBlockVerifier {
 
 #[cfg(test)]
 mod test {
-    use rstest::rstest;
     use starfish_config::AuthorityIndex;
 
     use super::*;
@@ -535,9 +534,9 @@ mod test {
 
     #[cfg(gc_tests)]
     mod gc_tests {
-        /// Tests the block's ancestors for timestamp monotonicity. Test will run
-        /// for both when gc is enabled and disabled, but with none of the
-        /// ancestors being below the gc_round.
+        /// Tests the block's ancestors for timestamp monotonicity. Test will
+        /// run for both when gc is enabled and disabled, but with none
+        /// of the ancestors being below the gc_round.
         #[rstest]
         #[tokio::test]
         async fn test_check_ancestors(#[values(false, true)] gc_enabled: bool) {
@@ -582,7 +581,12 @@ mod test {
                     .build();
                 let verified_block = VerifiedBlock::new_for_test(block);
                 assert!(matches!(
-                    verifier.check_ancestors(&verified_block, &ancestor_blocks, gc_enabled, gc_round),
+                    verifier.check_ancestors(
+                        &verified_block,
+                        &ancestor_blocks,
+                        gc_enabled,
+                        gc_round
+                    ),
                     Err(ConsensusError::InvalidBlockTimestamp {
                         max_timestamp_ms: _,
                         block_timestamp_ms: _
@@ -590,7 +594,6 @@ mod test {
                 ));
             }
         }
-
 
         #[tokio::test]
         async fn test_check_ancestors_passed_gc_round() {
@@ -662,7 +665,12 @@ mod test {
                     .build();
                 let verified_block = VerifiedBlock::new_for_test(block);
                 assert!(matches!(
-                    verifier.check_ancestors(&verified_block, &ancestor_blocks, gc_enabled, gc_round),
+                    verifier.check_ancestors(
+                        &verified_block,
+                        &ancestor_blocks,
+                        gc_enabled,
+                        gc_round
+                    ),
                     Err(ConsensusError::InvalidBlockTimestamp {
                         max_timestamp_ms: _,
                         block_timestamp_ms: _

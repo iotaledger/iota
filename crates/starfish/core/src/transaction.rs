@@ -170,10 +170,7 @@ impl TransactionConsumer {
     /// update on the status of the block. The `committed_blocks` are the
     /// blocks that have been committed. We'll notify for
     /// all the committed blocks.
-    pub(crate) fn notify_own_blocks_status(
-        &self,
-        committed_blocks: Vec<BlockRef>,
-    ) {
+    pub(crate) fn notify_own_blocks_status(&self, committed_blocks: Vec<BlockRef>) {
         // Notify for all the committed blocks first
         let mut block_status_subscribers = self.block_status_subscribers.lock();
         for block_ref in committed_blocks {
@@ -423,8 +420,6 @@ mod tests {
         // try to pull again transactions, result should be empty
         assert!(consumer.is_empty());
     }
-
-
 
     #[tokio::test(flavor = "current_thread", start_paused = true)]
     async fn block_status_update_gc_disabled() {
@@ -789,8 +784,8 @@ mod tests {
             // submit the transactions and include 2 of each on a new block
             let mut included_in_block_waiters = FuturesUnordered::new();
             for i in 1..=10 {
-                let transaction =
-                    bcs::to_bytes(&format!("transaction {i}")).expect("Serialization should not fail.");
+                let transaction = bcs::to_bytes(&format!("transaction {i}"))
+                    .expect("Serialization should not fail.");
                 let w = client
                     .submit_no_wait(vec![transaction])
                     .await

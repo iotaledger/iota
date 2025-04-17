@@ -1895,8 +1895,6 @@ mod test {
         assert_eq!(dag_state.read().last_commit_index(), 0);
     }
 
-
-
     #[tokio::test]
     async fn test_core_set_min_propose_round() {
         telemetry_subscribers::init_for_testing();
@@ -3129,8 +3127,6 @@ mod test {
         }
     }
 
-
-
     #[tokio::test(flavor = "current_thread", start_paused = true)]
     async fn test_commit_on_leader_schedule_change_boundary_without_multileader() {
         telemetry_subscribers::init_for_testing();
@@ -3588,8 +3584,6 @@ mod test {
         assert_eq!(all_stored_commits.len(), 6);
     }
 
-
-
     pub(crate) async fn receive<T: Copy>(timeout: Duration, mut receiver: watch::Receiver<T>) -> T {
         tokio::time::timeout(timeout, receiver.changed())
             .await
@@ -3882,7 +3876,7 @@ mod test {
                     .filter(|b| !(b.round() == 1 && b.author() == AuthorityIndex::new_for_test(3)))
                     .collect(),
             )
-                .expect("Should not fail");
+            .expect("Should not fail");
 
             assert_eq!(core.last_proposed_round(), 12);
         }
@@ -4020,7 +4014,8 @@ mod test {
             let (context, _) = Context::new_for_test(4);
 
             let authority_index = AuthorityIndex::new_for_test(0);
-            let core = CoreTextFixture::new(context.clone(), vec![1, 1, 1, 1], authority_index, true);
+            let core =
+                CoreTextFixture::new(context.clone(), vec![1, 1, 1, 1], authority_index, true);
             let mut core = core.core;
 
             let mut dag_builder = DagBuilder::new(Arc::new(context.clone()));
@@ -4047,7 +4042,5 @@ mod test {
             assert_eq!(leaders.len(), 2);
             assert_eq!(certified_commits.len(), 2);
         }
-
     }
 }
-

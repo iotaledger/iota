@@ -583,9 +583,10 @@ mod tests {
     }
     #[cfg(gc_tests)]
     mod gc_tests {
-        /// This test will run the linearizer with GC disabled (gc_depth = 0) and gc
-        /// enabled (gc_depth = 3) and make sure that for the exact same DAG the
-        /// linearizer will commit different blocks according to the rules.
+        /// This test will run the linearizer with GC disabled (gc_depth = 0)
+        /// and gc enabled (gc_depth = 3) and make sure that for the
+        /// exact same DAG the linearizer will commit different blocks
+        /// according to the rules.
         #[rstest]
         #[tokio::test]
         async fn test_handle_commit_with_gc_simple(#[values(0, 3)] gc_depth: u32) {
@@ -610,7 +611,8 @@ mod tests {
                 context.clone(),
                 LeaderSwapTable::default(),
             ));
-            let mut linearizer = Linearizer::new(context.clone(), dag_state.clone(), leader_schedule);
+            let mut linearizer =
+                Linearizer::new(context.clone(), dag_state.clone(), leader_schedule);
 
             // Authorities of index 0->2 will always creates blocks that see each other, but
             // until round 5 they won't see the blocks of authority 3. For authority
@@ -676,9 +678,11 @@ mod tests {
                     if gc_depth > 0 {
                         // Now it's going to be the first time that a leader will see the blocks of
                         // authority 3 and will attempt to commit the long chain.
-                        // However, due to GC it will only commit blocks of round > 1. That's because it
-                        // will commit blocks up to previous leader's round (round =
-                        // 4) minus the gc_depth = 3, so that will be gc_round = 4 - 3 = 1. So we expect
+                        // However, due to GC it will only commit blocks of round > 1. That's
+                        // because it will commit blocks up to previous
+                        // leader's round (round =
+                        // 4) minus the gc_depth = 3, so that will be gc_round = 4 - 3 = 1. So we
+                        //    expect
                         // to see on the sub dag committed blocks of round >= 2.
                         assert_eq!(subdag.blocks.len(), 5);
 
@@ -731,7 +735,8 @@ mod tests {
                 context.clone(),
                 LeaderSwapTable::default(),
             ));
-            let mut linearizer = Linearizer::new(context.clone(), dag_state.clone(), leader_schedule);
+            let mut linearizer =
+                Linearizer::new(context.clone(), dag_state.clone(), leader_schedule);
 
             // Authority D will create an "orphaned" block on round 1 as it won't reference
             // to it on the block of round 2. Similar, no other authority will reference to

@@ -1501,8 +1501,6 @@ mod test {
             dag_state.contains_cached_block_at_slot(Slot::new(8, AuthorityIndex::new_for_test(0)));
     }
 
-
-
     #[tokio::test]
     async fn test_get_blocks_in_cache_or_store() {
         let (context, _) = Context::new_for_test(4);
@@ -1777,8 +1775,6 @@ mod test {
         // info
         assert_eq!(dag_state.scoring_subdags_count(), 5);
     }
-
-
 
     #[tokio::test]
     async fn test_block_info_as_committed() {
@@ -2064,8 +2060,6 @@ mod test {
         dag_state.get_last_cached_block_per_authority(end_round);
     }
 
-
-
     #[tokio::test]
     async fn test_last_quorum() {
         // GIVEN
@@ -2178,9 +2172,9 @@ mod test {
             expected = "Attempted to check for slot [1]3 that is <= the last gc evicted round 3"
         )]
         async fn test_contains_cached_block_at_slot_panics_when_ask_out_of_range_gc_enabled() {
-            /// Keep 2 rounds from the highest committed round. This is considered
-            /// universal and minimum necessary blocks to hold
-            /// for the correct node operation.
+            /// Keep 2 rounds from the highest committed round. This is
+            /// considered universal and minimum necessary blocks to
+            /// hold for the correct node operation.
             const GC_DEPTH: u32 = 2;
             /// Keep at least 3 rounds in cache for each authority.
             const CACHED_ROUNDS: Round = 3;
@@ -2239,18 +2233,16 @@ mod test {
             }
 
             for round in 1..=3 {
-                assert!(
-                    dag_state.contains_cached_block_at_slot(Slot::new(
-                        round,
-                        AuthorityIndex::new_for_test(0)
-                    ))
-                );
+                assert!(dag_state.contains_cached_block_at_slot(Slot::new(
+                    round,
+                    AuthorityIndex::new_for_test(0)
+                )));
             }
 
             // When trying to request for authority 1 at block slot 3 it should panic, as
             // anything that is <= 3 should be evicted
-            let _ =
-                dag_state.contains_cached_block_at_slot(Slot::new(3, AuthorityIndex::new_for_test(1)));
+            let _ = dag_state
+                .contains_cached_block_at_slot(Slot::new(3, AuthorityIndex::new_for_test(1)));
         }
 
         #[tokio::test]
@@ -2427,7 +2419,8 @@ mod test {
         #[should_panic(
             expected = "Attempted to request for blocks of rounds < 2, when the last evicted round is 1 for authority [2]"
         )]
-        async fn test_get_cached_last_block_per_authority_requesting_out_of_round_range_gc_enabled() {
+        async fn test_get_cached_last_block_per_authority_requesting_out_of_round_range_gc_enabled()
+        {
             // GIVEN
             const CACHED_ROUNDS: Round = 1;
             const GC_DEPTH: u32 = 1;
@@ -2489,6 +2482,5 @@ mod test {
             // <= round 2
             dag_state.get_last_cached_block_per_authority(2);
         }
-
     }
 }

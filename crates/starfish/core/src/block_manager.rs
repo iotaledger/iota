@@ -737,13 +737,11 @@ mod tests {
         assert!(accepted_blocks.is_empty());
     }
 
-
     #[cfg(gc_tests)]
     mod gc_tests {
 
-
-        /// Tests that the block manager accepts blocks when some or all of their
-        /// causal history is below or equal to the GC round.
+        /// Tests that the block manager accepts blocks when some or all of
+        /// their causal history is below or equal to the GC round.
         #[tokio::test]
         async fn accept_blocks_with_causal_history_below_gc_round() {
             // GIVEN
@@ -822,7 +820,8 @@ mod tests {
                 // WHEN
                 let mut reversed_blocks = all_blocks.clone();
                 reversed_blocks.sort_by_key(|b| std::cmp::Reverse(b.reference()));
-                let (mut accepted_blocks, missing) = block_manager.try_accept_blocks(reversed_blocks);
+                let (mut accepted_blocks, missing) =
+                    block_manager.try_accept_blocks(reversed_blocks);
                 accepted_blocks.sort_by_key(|a| a.reference());
 
                 // THEN
@@ -835,9 +834,9 @@ mod tests {
             }
         }
 
-        /// Blocks that are attempted to be accepted but are <= gc_round they will
-        /// be skipped for processing. Nothing should be stored or trigger any
-        /// unsuspension etc.
+        /// Blocks that are attempted to be accepted but are <= gc_round they
+        /// will be skipped for processing. Nothing should be stored or
+        /// trigger any unsuspension etc.
         #[tokio::test]
         async fn skip_accepting_blocks_below_gc_round() {
             // GIVEN
@@ -919,7 +918,8 @@ mod tests {
                 all_blocks.shuffle(&mut StdRng::from_seed([seed; 32]));
 
                 let store = Arc::new(MemStore::new());
-                let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store.clone())));
+                let dag_state =
+                    Arc::new(RwLock::new(DagState::new(context.clone(), store.clone())));
 
                 let mut block_manager = BlockManager::new(
                     context.clone(),
@@ -1091,8 +1091,6 @@ mod tests {
             assert!(block_manager.is_empty());
         }
     }
-
-
 
     struct TestBlockVerifier {
         fail: BTreeSet<BlockRef>,
