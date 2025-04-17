@@ -4,15 +4,15 @@
 
 use std::net::SocketAddr;
 
-use fastcrypto::{hash::HashFunction, traits::ToFromBytes};
+use fastcrypto::traits::ToFromBytes;
 use iota_core::authority_client::AuthorityAPI;
 use iota_macros::sim_test;
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
     base_types::IotaAddress,
-    crypto::{DefaultHash, PublicKey, Signature, SignatureScheme},
+    crypto::{PublicKey, Signature, SignatureScheme},
     error::{IotaError, IotaResult, UserInputError},
-    passkey_authenticator::{PasskeyAuthenticator, to_signing_digest, to_signing_message},
+    passkey_authenticator::{PasskeyAuthenticator, to_signing_message},
     signature::GenericSignature,
     transaction::{Transaction, TransactionData},
 };
@@ -30,7 +30,7 @@ use passkey_types::{
         PublicKeyCredentialUserEntity, UserVerificationRequirement,
     },
 };
-use shared_crypto::intent::{INTENT_PREFIX_LENGTH, Intent, IntentMessage};
+use shared_crypto::intent::{Intent, IntentMessage};
 use test_cluster::{TestCluster, TestClusterBuilder};
 use url::Url;
 
@@ -163,23 +163,22 @@ async fn create_credential_and_sign_test_tx(
     // Compute the challenge = blake2b_hash(intent_msg(tx)) for passkey credential
     // request. If change_intent, mangle the intent bytes. If change_tx, mangle
     // the hashed tx bytes.
-    let mut extended = [0; INTENT_PREFIX_LENGTH + DefaultHash::OUTPUT_SIZE];
-    let passkey_digest = if change_intent {
-        extended[..INTENT_PREFIX_LENGTH].copy_from_slice(&Intent::personal_message().to_bytes());
-        extended[INTENT_PREFIX_LENGTH..].copy_from_slice(&to_signing_digest(&intent_msg));
-        extended
+    let passkey_challenge = if change_intent {
+        to_signing_message(&IntentMessage::new(
+            Intent::personal_message(),
+            intent_msg.value.clone(),
+        ))
+        .to_vec()
     } else if change_tx {
-        extended[..INTENT_PREFIX_LENGTH].copy_from_slice(&intent_msg.intent.to_bytes());
-        extended[INTENT_PREFIX_LENGTH..].copy_from_slice(&random_vec(32));
-        extended
+        random_vec(32)
     } else {
-        to_signing_message(&intent_msg)
+        to_signing_message(&intent_msg).to_vec()
     };
 
     // Request a signature from passkey with challenge set to passkey_digest.
     let credential_request = CredentialRequestOptions {
         public_key: PublicKeyCredentialRequestOptions {
-            challenge: Bytes::from(passkey_digest.to_vec()),
+            challenge: Bytes::from(passkey_challenge),
             timeout: None,
             rp_id: Some(String::from(origin.domain().unwrap())),
             allow_credentials: None,
