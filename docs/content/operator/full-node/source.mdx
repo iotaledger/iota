@@ -51,12 +51,12 @@ Set the network environment variable to the network you want to connect to ("tes
       `tzdata`, `libprotobuf-dev`, `ca-certificates`, `build-essential`, `libssl-dev`, `libclang-dev`, `libpq-dev`, `pkg-config`, `openssl`, `protobuf-compiler`, `git`, `clang`, `cmake`
     3. Clone the [iota repo](https://github.com/iotaledger/iota), set to the right branch for the [network](../../developer/getting-started/connect.mdx#iota-networks) you chose
     4. Build the iota-node binary  
-      The built binary is located at `/opt/iota/bin/iota-node` (or in `$BIN_DIR` if specified)
+      The built binary is located at `/opt/iota/bin/iota-node` by default.
     5. Create a user called iota, make it own directories for service binary, config, data
     6. Create a node config file, download genesis/migration blobs  
-      The config and blob files are located at `/opt/iota/config` (or in `$CONFIG_DIR` if specified)
+      The config and blob files are located at `/opt/iota/config` by default.
     6. Create a systemd service unit file  
-      The service definition file is located at `/etc/systemd/system/iota-node.service`
+      The service definition file is located at `/etc/systemd/system/iota-node.service`.
     7. Start the service
   </TabItem>
 
@@ -67,10 +67,10 @@ Set the network environment variable to the network you want to connect to ("tes
       `tzdata`, `libprotobuf-dev`, `ca-certificates`, `build-essential`, `libssl-dev`, `libclang-dev`, `libpq-dev`, `pkg-config`, `openssl`, `protobuf-compiler`, `git`, `clang`, `cmake`
     3. Clone the [iota repo](https://github.com/iotaledger/iota), set to the right branch for the [network](../../developer/getting-started/connect.mdx#iota-networks) you chose
     4. Build the iota-node binary  
-      The built binary is located at `/opt/iota/bin/iota-node` (or in `$BIN_DIR` if specified)
+      The built binary is located at `/opt/iota/bin/iota-node` by default.
     5. Create a user called iota, make it own directories for service binary, config, data
     6. Create a node config file, download genesis/migration blobs  
-      The config and blob files are located at `/opt/iota/config` (or in `$CONFIG_DIR` if specified)
+      The config and blob files are located at `/opt/iota/config` by default.
 
     On MacOS, you still need to launch the node manually. Run:
     ```shell
@@ -111,7 +111,7 @@ Set the network environment variable to the network you want to connect to ("tes
 
 ### Check your node configuration
 
-By default, the configuration file `fullnode.yaml` is located at  `/opt/iota/config/fullnode.yaml`. You may have specified a different `$CONFIG_DIR` during setup. 
+By default, the configuration file `fullnode.yaml` is located at  `/opt/iota/config/fullnode.yaml`.
 
 <CheckNodeConfig/>
 
