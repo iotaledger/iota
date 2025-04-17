@@ -8,7 +8,7 @@ use iota_protocol_config::PerObjectCongestionControlMode;
 use iota_types::{
     base_types::{CommitRound, ObjectID, TransactionDigest},
     executable_transaction::VerifiedExecutableTransaction,
-    transaction::SharedInputObject,
+    transaction::{SharedInputObject, TransactionDataAPI},
 };
 
 use super::transaction_deferral::DeferralKey;
@@ -402,6 +402,11 @@ impl SharedObjectCongestionTracker {
             .map(|slots| max_object_free_slot_start_time(slots))
             .max()
             .unwrap_or(0)
+    }
+
+    /// TODO: add docs
+    pub fn compute_suggested_gas_price(&self, cert: &VerifiedExecutableTransaction) -> Option<u64> {
+        Some(cert.transaction_data().gas_price())
     }
 }
 
