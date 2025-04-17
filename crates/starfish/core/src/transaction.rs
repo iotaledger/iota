@@ -765,7 +765,7 @@ mod tests {
         }
     }
 
-    #[cfg(gc_tests)]
+    #[cfg(any())]
     mod gc_tests {
 
         #[tokio::test(flavor = "current_thread", start_paused = true)]

@@ -737,7 +737,7 @@ mod tests {
         assert!(accepted_blocks.is_empty());
     }
 
-    #[cfg(gc_tests)]
+    #[cfg(any())]
     mod gc_tests {
 
         /// Tests that the block manager accepts blocks when some or all of

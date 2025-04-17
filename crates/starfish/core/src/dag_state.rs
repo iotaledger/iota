@@ -2165,7 +2165,8 @@ mod test {
             }
         }
     }
-    #[cfg(gc_tests)]
+
+    #[cfg(any())]
     mod gc_tests {
         #[tokio::test]
         #[should_panic(

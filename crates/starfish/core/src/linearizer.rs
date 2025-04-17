@@ -581,7 +581,8 @@ mod tests {
             assert!(block.round() <= expected_second_commit.leader().round);
         }
     }
-    #[cfg(gc_tests)]
+
+    #[cfg(any())]
     mod gc_tests {
         /// This test will run the linearizer with GC disabled (gc_depth = 0)
         /// and gc enabled (gc_depth = 3) and make sure that for the

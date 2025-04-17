@@ -3592,7 +3592,7 @@ mod test {
         *receiver.borrow_and_update()
     }
 
-    #[cfg(gc_tests)]
+    #[cfg(any())]
     mod gc_tests {
         #[rstest]
         #[tokio::test]

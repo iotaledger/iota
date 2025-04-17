@@ -532,7 +532,7 @@ mod test {
         }
     }
 
-    #[cfg(gc_tests)]
+    #[cfg(any())]
     mod gc_tests {
         /// Tests the block's ancestors for timestamp monotonicity. Test will
         /// run for both when gc is enabled and disabled, but with none
