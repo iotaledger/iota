@@ -56,7 +56,7 @@ impl Config {
         Ok(config)
     }
 
-    /// Creates necessary directores and files if necessary.
+    /// Creates the necessary checkpoint directory and files if not already present.
     pub async fn setup(&self) -> Result<()> {
         // Create the checkpoints directory if it doesn't exist yet
         if !self.checkpoints_dir.is_dir() {
