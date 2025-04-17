@@ -1141,16 +1141,20 @@ impl SequenceNumber {
     /// to objects that cause transaction cancellations
     pub const MAX_VALID: SequenceNumber = SequenceNumber(0x7fff_ffff_ffff_ffff);
 
-    // TODO: add description
+    /// Special sequence number that is assigned to objects which are accessed
+    /// immutably in a cancelled transaction
     pub const CANCELLED_READ: SequenceNumber =
         SequenceNumber(SequenceNumber::MAX_VALID.value() + 1);
 
-    // NOTE: This was used prior to gas price feedback mechanism, so it is kept for
-    // backward compatibility
+    /// Special sequence number that was assigned to congested objects which
+    /// cause transaction cancellations. Note that this special sequence
+    /// number was only used prior to the introduction of a gas price feedback
+    /// mechanism, but it is kept for backward compatibility
     pub const CONGESTED_PRIOR_TO_GAS_PRICE_FEEDBACK: SequenceNumber =
         SequenceNumber(SequenceNumber::MAX_VALID.value() + 2);
 
-    // TODO: add description
+    /// Special sequence number that is assigned the randomness state object
+    /// if randomness is unavailable
     pub const RANDOMNESS_UNAVAILABLE: SequenceNumber =
         SequenceNumber(SequenceNumber::MAX_VALID.value() + 3);
 
@@ -1191,7 +1195,7 @@ impl SequenceNumber {
         SequenceNumber(u)
     }
 
-    /// Returns a sequence number used for congested shared objects:
+    /// Returns a special sequence number used for congested shared objects:
     /// `SequenceNumber::MIN_CONGESTED.value()` + `suggested_gas_price`,
     /// where `suggested_gas_price` is embedded into a congested sequence
     /// number to facilitate a gas price feedback mechanism for transactions
