@@ -18,6 +18,8 @@ pub enum IotaNamesError {
     LabelsEmpty,
     #[error("Name Service: Domain must include only one separator")]
     InvalidSeparator,
+    #[error("Name Service: Name has expired")]
+    NameExpired,
     #[error("Name Service: Malformed object for {0}")]
     MalformedObject(ObjectID),
 }

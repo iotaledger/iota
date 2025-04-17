@@ -550,6 +550,17 @@ impl IndexerReader {
         iota_json_rpc_types::Checkpoint::try_from(stored_checkpoint)
     }
 
+    pub async fn get_latest_checkpoint_timestamp_ms_in_blocking_task(
+        &self,
+    ) -> Result<u64, IndexerError> {
+        self.spawn_blocking(|this| this.get_latest_checkpoint_timestamp_ms())
+            .await
+    }
+
+    pub fn get_latest_checkpoint_timestamp_ms(&self) -> Result<u64, IndexerError> {
+        Ok(self.get_latest_checkpoint()?.timestamp_ms)
+    }
+
     fn get_checkpoints_from_db(
         &self,
         cursor: Option<u64>,

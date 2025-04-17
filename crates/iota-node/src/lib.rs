@@ -86,6 +86,7 @@ use iota_metrics::{
     metrics_network::{MetricsMakeCallbackHandler, NetworkConnectionMetrics, NetworkMetrics},
     server_timing_middleware, spawn_monitored_task,
 };
+use iota_names::config::IotaNamesConfig;
 use iota_network::{
     api::ValidatorServer, discovery, discovery::TrustedPeerChangeEvent, randomness, state_sync,
 };
@@ -2066,11 +2067,23 @@ pub async fn build_http_server(
             ))?;
         }
 
+        let iota_names_config = match &config.iota_names_config {
+            Some(config) => config.clone(),
+            None => {
+                let chain = state
+                    .get_chain_identifier()
+                    .ok_or(IotaError::Storage("chain identifier not found".to_string()))?
+                    .chain();
+                IotaNamesConfig::from_chain(&chain)
+            }
+        };
+
         server.register_module(IndexerApi::new(
             state.clone(),
             ReadApi::new(state.clone(), kv_store.clone(), metrics.clone()),
             kv_store,
             metrics,
+            iota_names_config,
             config.indexer_max_subscriptions,
         ))?;
         server.register_module(MoveUtils::new(state.clone()))?;

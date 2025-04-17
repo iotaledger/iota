@@ -54,9 +54,9 @@ pub struct ReverseRegistryEntry {
 /// A single record in the registry.
 #[derive(Debug, Serialize, Deserialize, Clone, Eq, PartialEq)]
 pub struct NameRecord {
-    /// The ID of the `RegistrationNFT` assigned to this record.
+    /// The ID of the registration NFT assigned to this record.
     ///
-    /// The owner of the corresponding `RegistrationNFT` has the rights to
+    /// The owner of the corresponding registration NFT has the rights to
     /// be able to change and adjust the `target_address` of this domain.
     ///
     /// It is possible that the ID changes if the record expires and is
