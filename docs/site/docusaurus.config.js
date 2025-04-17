@@ -192,7 +192,7 @@ const config = {
             "1.0.0",
           ],*/
           remarkPlugins: [
-            math,
+            [math,{singleDollarTextMath:false}],
             [
               require("@docusaurus/remark-plugin-npm2yarn"),
               { sync: true, converters: ["yarn", "pnpm"] },
@@ -287,6 +287,10 @@ const config = {
           {
             label: "IOTA Identity",
             to: "iota-identity",
+          },
+          {
+            label: "IOTA EVM",
+            to: "iota-evm",
           },
           {
             type: 'custom-WalletConnectButton',

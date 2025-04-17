@@ -31,7 +31,7 @@ This limitation hinders certain common patterns in Move.
 
 ## Solving with the Borrow Module
 
-The IOTA framework offers a [borrow module](../../../../references/framework/iota-framework/borrow.mdx) to address this reference limitation.
+The IOTA framework offers a [borrow module](../../../../references/framework/iota/borrow.mdx) to address this reference limitation.
 This module allows you to access an object by value while preventing it from being destroyed, transferred, or wrapped.
 It introduces a `Referent` object that wraps the target object you wish to reference. 
 Using the [hot potato pattern](../../move-overview/patterns/hot-potato.mdx) through a `Borrow` instance, you can retrieve the wrapped object by value and ensure it is returned to the `Referent` within the same PTB.

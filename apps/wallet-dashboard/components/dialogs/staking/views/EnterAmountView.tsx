@@ -10,13 +10,16 @@ import {
     toast,
     useNewStakeTransaction,
     parseAmount,
+    getGasBudgetErrorMessage,
 } from '@iota/core';
 import { IOTA_DECIMALS, IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 import { useFormikContext } from 'formik';
 import { useSignAndExecuteTransaction } from '@iota/dapp-kit';
 import { EnterAmountDialogLayout } from './EnterAmountDialogLayout';
 import { ampli } from '@/lib/utils/analytics';
-import { useEffect } from 'react';
+import { ButtonPill, InfoBox, InfoBoxStyle, InfoBoxType } from '@iota/apps-ui-kit';
+import { useEffect, useMemo } from 'react';
+import { Exclamation } from '@iota/apps-ui-icons';
 
 export interface FormValues {
     amount: string;
@@ -50,11 +53,12 @@ export function EnterAmountView({
     const { data: iotaBalance } = useBalance(senderAddress);
     const coinBalance = BigInt(iotaBalance?.totalBalance || 0);
 
-    const { data: newStakeData, isLoading: isTransactionLoading } = useNewStakeTransaction(
-        selectedValidator,
-        amountWithoutDecimals,
-        senderAddress,
-    );
+    const {
+        data: newStakeData,
+        isLoading: isTransactionLoading,
+        isError,
+        error: stakeTransactionError,
+    } = useNewStakeTransaction(selectedValidator, amountWithoutDecimals, senderAddress);
 
     const gasSummary = newStakeData?.gasSummary;
 
@@ -69,24 +73,34 @@ export function EnterAmountView({
         setFieldValue('gasBudget', maxAmountTxGasBudget);
     }, [maxAmountTxGasBudget, setFieldValue]);
 
-    const maxTokenBalance = coinBalance - maxAmountTxGasBudget;
-    const [maxTokenFormatted, maxTokenFormattedSymbol] = useFormatCoin({
-        balance: maxTokenBalance,
+    // for user we show available amount as available_balance - gas_budget
+    const availableBalance = coinBalance - maxAmountTxGasBudget;
+    const [availableBalanceFormatted, availableBalanceFormattedSymbol] = useFormatCoin({
+        balance: availableBalance,
         format: CoinFormat.FULL,
     });
 
-    const caption = maxAmountTxGasBudget
-        ? `${maxTokenFormatted} ${maxTokenFormattedSymbol} Available`
-        : '--';
-    const infoMessage =
-        'You have selected an amount that will leave you with insufficient funds to pay for gas fees for unstaking or any other transactions.';
-
-    const hasAmount = values.amount.length > 0;
     const amount = safeParseAmount(coinType === IOTA_TYPE_ARG ? values.amount : '0', decimals);
-    const gasAmount = BigInt(2) * maxAmountTxGasBudget;
 
-    const canPay = amount !== null ? maxTokenBalance > amount + gasAmount : false;
-    const hasEnoughRemainingBalance = !(hasAmount && !canPay);
+    const caption = maxAmountTxGasBudget
+        ? `${availableBalanceFormatted} ${availableBalanceFormattedSymbol} Available`
+        : '--';
+
+    const gasUnstakeBuffer = maxAmountTxGasBudget * BigInt(2);
+    const maxSafeAmount = availableBalance - gasUnstakeBuffer;
+    const [maxSafeAmountFormatted, maxSafeAmountSymbol] = useFormatCoin({
+        balance: maxSafeAmount,
+        format: CoinFormat.FULL,
+    });
+    const isUnsafeAmount = amount && amount > maxSafeAmount && amount <= availableBalance;
+
+    function setMaxAmount() {
+        setFieldValue('amount', availableBalanceFormatted, true);
+    }
+
+    function setRecommendedAmount() {
+        setFieldValue('amount', maxSafeAmountFormatted, true);
+    }
 
     function handleStake(): void {
         if (!newStakeData?.transaction) {
@@ -113,18 +127,51 @@ export function EnterAmountView({
         );
     }
 
+    const errorMessage = useMemo(() => {
+        if (isError) {
+            return getGasBudgetErrorMessage(stakeTransactionError);
+        } else {
+            return undefined;
+        }
+    }, [stakeTransactionError, isError]);
+
     return (
         <EnterAmountDialogLayout
             selectedValidator={selectedValidator}
             totalGas={gasSummary?.totalGas}
             senderAddress={senderAddress}
             caption={caption}
-            showInfo={!hasEnoughRemainingBalance}
-            infoMessage={infoMessage}
+            renderInfo={
+                isUnsafeAmount ? (
+                    <InfoBox
+                        type={InfoBoxType.Warning}
+                        supportingText={
+                            <>
+                                Staking your full balance may leave you without enough funds to
+                                cover gas fees for future actions like unstaking. To avoid this, we
+                                recommend staking up to {maxSafeAmountFormatted}&nbsp;
+                                {maxSafeAmountSymbol}.
+                                <div>
+                                    <span
+                                        onClick={setRecommendedAmount}
+                                        className="cursor-pointer underline hover:opacity-80"
+                                    >
+                                        Set recommended amount
+                                    </span>
+                                </div>
+                            </>
+                        }
+                        style={InfoBoxStyle.Elevated}
+                        icon={<Exclamation />}
+                    />
+                ) : undefined
+            }
             isLoading={isTransactionLoading}
             onBack={onBack}
             handleClose={handleClose}
             handleStake={handleStake}
+            renderInputAction={<ButtonPill onClick={setMaxAmount}>Max</ButtonPill>}
+            errorMessage={errorMessage}
         />
     );
 }

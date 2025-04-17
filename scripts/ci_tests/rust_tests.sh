@@ -194,14 +194,16 @@ function build_filterset_included_rdeps() {
 function build_filterset_changed_crates() {
     local test_only_changed_crates="${1:false}"
     local changed_crates=${2}
+    local changed_crates_given=${3}
 
     if [ "$test_only_changed_crates" == "false" ]; then
         # test all crates (return empty filter_set)
         return
     fi
 
-    # detected changed crates if "changed_crates" variable is unset
-    if [ -z "${changed_crates}" ]; then
+    # detected changed crates if "changed_crates" variable is empty,
+    # and the changed crates were not given.
+    if [ -z "${changed_crates}" ] && [ $changed_crates_given -eq 0 ]; then
         changed_crates=$(search_changed_crates)
     fi
 
@@ -264,6 +266,7 @@ function build_filterset_tests() {
     local run_move_examples_rdeps_tests=${3:-false}
     local test_only_changed_crates=${4:-false}
     local changed_crates_rust=${5}
+    local changed_crates_rust_given=${6}
 
     local filter_set=""
 
@@ -272,7 +275,7 @@ function build_filterset_tests() {
     local exclude_set=$(build_filterset_excluded "${FILTERSET_TESTS_POSTGRES_SHARED_TEST_RUNTIME[@]}")
 
     if [ "$run_rust_tests" == "true" ]; then
-        local changed_crates_rust_filter=$(build_filterset_changed_crates "${test_only_changed_crates}" "${changed_crates_rust}")
+        local changed_crates_rust_filter=$(build_filterset_changed_crates "${test_only_changed_crates}" "${changed_crates_rust}" "${changed_crates_rust_given}")
         filter_set=$(append_filter_item_or "$filter_set" "$changed_crates_rust_filter")
     fi
 
@@ -443,7 +446,9 @@ function filter_and_run_tests() {
     local run_move_examples_rdeps_tests=${CI_IS_MOVE_EXAMPLE_USED_BY_OTHERS:-false}
     local test_only_changed_crates=${TEST_ONLY_CHANGED_CRATES:-false}
     local changed_crates_rust=${CI_CHANGED_CRATES}
+    local changed_crates_rust_given=$([ -z ${CI_CHANGED_CRATES+x} ] && echo 0 || echo 1)    # if changed_crates_rust is not set, return 0
     local changed_crates_external=${CI_CHANGED_EXTERNAL_CRATES}
+    local changed_crates_external_given=$([ -z ${CI_CHANGED_EXTERNAL_CRATES+x} ] && echo 0 || echo 1)   # if changed_crates_external is not set, return 0
     local restart_postgres=${RESTART_POSTGRES:-true}
 
     # check if all conditions are false and early return
@@ -454,7 +459,7 @@ function filter_and_run_tests() {
 
     # check if external crates are set
     if [ "$run_external_crates" == "true" ]; then
-        local changed_crates_external_filter=$(build_filterset_changed_crates "${test_only_changed_crates}" "${changed_crates_external}")
+        local changed_crates_external_filter=$(build_filterset_changed_crates "${test_only_changed_crates}" "${changed_crates_external}" "${changed_crates_external_given}")
         local exclude_set_external=$(build_filterset_excluded "${EXCLUDE_SET_EXTERNAL[@]}")
         local combined_set_external=$(build_filterset_combined "$changed_crates_external_filter" "$exclude_set_external")
 
@@ -471,7 +476,7 @@ function filter_and_run_tests() {
         exit 0
     fi
 
-    local combined_set=$(build_filterset_tests "$run_rust_tests" "$run_tests_using_postgres" "$run_move_examples_rdeps_tests" "$test_only_changed_crates" "$changed_crates_rust")
+    local combined_set=$(build_filterset_tests "$run_rust_tests" "$run_tests_using_postgres" "$run_move_examples_rdeps_tests" "$test_only_changed_crates" "$changed_crates_rust" "$changed_crates_rust_given")
 
     # check if a restart of postgres is needed
     if [ "$run_tests_using_postgres" == "true" ] && [ "$restart_postgres" == "true" ]; then
