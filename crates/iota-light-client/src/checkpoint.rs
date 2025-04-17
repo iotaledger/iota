@@ -183,11 +183,11 @@ fn merge_checkpoint_lists(list1: &CheckpointList, list2: &CheckpointList) -> Vec
     sorted_checkpoints
 }
 
-/// Syncs the list of end-of-epoch checkpoints from the full node's REST, RPC
-/// and GraphQL endpoints alone.
+/// Syncs the list of end-of-epoch checkpoints from a full node.
 ///
-/// No object store or archive store required, but only works with non-pruning
-/// nodes.
+/// Requires REST API, JSON RPC, and GraphQL endpoints, but is not
+/// dependent on remote object stores. Will fail, if the node
+/// already pruned a missing checkpoint.
 async fn sync_checkpoint_list_to_latest_using_full_node(
     config: &Config,
 ) -> anyhow::Result<CheckpointList> {
@@ -239,7 +239,7 @@ async fn sync_checkpoint_list_to_latest_using_full_node(
 
 /// Syncs the list of end-of-epoch checkpoints from an archive store.
 ///
-/// Does not require a full node.
+/// Requires an archive store endpoint, but does not require any full node APIs.
 async fn sync_checkpoint_list_to_latest_using_archive_store(
     config: &Config,
 ) -> anyhow::Result<CheckpointList> {
@@ -266,9 +266,9 @@ async fn sync_checkpoint_list_to_latest_using_archive_store(
 }
 
 // TODO use it, blocked by https://github.com/iotaledger/iota/issues/4908
-/// Downloads the list of end-of-epoch checkpoints from an object store.
+/// Downloads the list of end-of-epoch checkpoints from the checkpoint store.
 ///
-/// Requires full node's RPC, GraphQL endpoints and an checkpoint object store.
+/// Requires JSON RPC, GraphQL, and a checkpoint store endpoint.
 async fn _sync_checkpoint_list_to_latest_using_checkpoints_store(
     config: &Config,
 ) -> anyhow::Result<CheckpointList> {
