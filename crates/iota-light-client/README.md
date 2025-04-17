@@ -40,8 +40,6 @@ archive_store_config:
 
 ```
 
-The genesis blob for the IOTA testnet can be found here: https://dbfiles.testnet.iota.cafe/genesis.blob. Download and place it inside the checkpoint directory.
-
 ## Sync
 
 Every day there is a need to download new checkpoints through sync by doing:
