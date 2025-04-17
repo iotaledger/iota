@@ -383,7 +383,6 @@ impl ArchiveReader {
     pub async fn download_summaries_for_list_no_verify(
         &self,
         checkpoints: Vec<CheckpointSequenceNumber>,
-        skiplist: Vec<CheckpointSequenceNumber>,
         download_dir: impl AsRef<Path>,
     ) -> Result<()> {
         let summary_files = self.get_summary_files_for_list(checkpoints.clone()).await?;
@@ -409,27 +408,16 @@ impl ArchiveReader {
                     )
                     .and_then(|summary_iter| {
                         summary_iter
-                            .filter(|s| {
-                                if checkpoints.contains(&s.sequence_number) {
-                                    if !skiplist.contains(&s.sequence_number) {
-                                        true
-                                    } else {
-                                        info!("Skipping {}", s.sequence_number);
-                                        false
-                                    }
-                                } else {
-                                    false
-                                }
-                            })
+                            .filter(|s| checkpoints.contains(&s.sequence_number))
                             .try_for_each(|summary| {
-                                info!("Writing {}", summary.sequence_number());
+                                let path = format!(
+                                    "{}/{}.sum",
+                                    download_dir.as_ref().display(),
+                                    summary.sequence_number()
+                                );
+                                info!("Writing checkpoint file to '{path}'");
                                 bcs::serialize_into(
-                                    &mut std::fs::File::create(format!(
-                                        "{}/{}.sum",
-                                        download_dir.as_ref().display(),
-                                        summary.sequence_number()
-                                    ))
-                                    .expect("error creating file"),
+                                    &mut std::fs::File::create(path).expect("error creating file"),
                                     &summary,
                                 )
                                 .expect("error serializing summary checkpoint to bcs");

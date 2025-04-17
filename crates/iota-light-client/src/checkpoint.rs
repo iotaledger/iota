@@ -321,11 +321,11 @@ pub async fn sync_and_check_checkpoints(config: &Config) -> anyhow::Result<()> {
         .await
         .context("Failed to sync checkpoint list")?;
 
-    // Create a list of summaries that can be skipped
-    let mut skiplist = Vec::new();
+    // Create a list of summaries that need to be downloaded
+    let mut missing = Vec::new();
     for seq in checkpoints_list.checkpoints.iter().copied() {
-        if config.checkpoint_summary_file_path(seq, None).exists() {
-            skiplist.push(seq);
+        if !config.checkpoint_summary_file_path(seq, None).exists() {
+            missing.push(seq);
         }
     }
 
@@ -341,7 +341,7 @@ pub async fn sync_and_check_checkpoints(config: &Config) -> anyhow::Result<()> {
     }
 
     if let Some(archive_store_config) = &config.archive_store_config {
-        info!("Downloading checkpoints from archive store.");
+        info!("Downloading missing checkpoints from archive store.");
 
         // Download summaries from archive store
         let archive_reader_config = ArchiveReaderConfig {
@@ -354,24 +354,16 @@ pub async fn sync_and_check_checkpoints(config: &Config) -> anyhow::Result<()> {
         let archive_reader = ArchiveReader::new(archive_reader_config, &metrics)?;
         archive_reader.sync_manifest_once().await?;
         archive_reader
-            .download_summaries_for_list_no_verify(
-                checkpoints_list.checkpoints.clone(),
-                skiplist,
-                &config.checkpoints_dir,
-            )
+            .download_summaries_for_list_no_verify(missing, &config.checkpoints_dir)
             .await?;
     } else {
-        info!("Downloading checkpoints from full node.");
+        info!("Downloading missing checkpoints from full node.");
 
         // Download summaries from the full node
         let client = iota_rest_api::Client::new(&config.rpc_url);
 
         // We only need the first 2 end-of-epoch checkpoints for the tests
-        for seq in checkpoints_list.checkpoints.iter().copied() {
-            if skiplist.contains(&seq) {
-                continue;
-            }
-
+        for seq in missing {
             info!("Downloading checkpoint: {seq}");
 
             let summary = client
