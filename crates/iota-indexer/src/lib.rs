@@ -7,11 +7,13 @@
 use std::{net::SocketAddr, path::PathBuf, time::Duration};
 
 use anyhow::{Result, anyhow};
-use clap::Parser;
+use clap::{Args, Parser};
 use errors::IndexerError;
 use iota_json_rpc::{JsonRpcServerBuilder, ServerHandle, ServerType};
 use iota_json_rpc_api::CLIENT_SDK_TYPE_HEADER;
 use iota_metrics::spawn_monitored_task;
+use iota_names::config::IotaNamesConfig;
+use iota_types::base_types::{IotaAddress, ObjectID};
 use jsonrpsee::http_client::{HeaderMap, HeaderValue, HttpClient, HttpClientBuilder};
 use metrics::IndexerMetrics;
 use prometheus::Registry;
@@ -85,6 +87,8 @@ pub struct IndexerConfig {
     pub data_ingestion_path: Option<PathBuf>,
     #[arg(long)]
     pub analytical_worker: bool,
+    #[command(flatten)]
+    pub iota_names_options: IotaNamesOptions,
 }
 
 impl IndexerConfig {
@@ -157,7 +161,78 @@ impl Default for IndexerConfig {
             rpc_server_worker: true,
             data_ingestion_path: None,
             analytical_worker: false,
+            iota_names_options: IotaNamesOptions::default(),
         }
+    }
+}
+
+#[derive(Args, Debug, Clone)]
+pub struct IotaNamesOptions {
+    #[arg(default_value_t = IotaNamesConfig::default().package_address)]
+    #[arg(long = "iota-names-package-address")]
+    pub package_address: IotaAddress,
+    #[arg(default_value_t = IotaNamesConfig::default().object_id)]
+    #[arg(long = "iota-names-object-id")]
+    pub object_id: ObjectID,
+    #[arg(default_value_t = IotaNamesConfig::default().payment_package_address)]
+    #[arg(long = "iota-names-payment-package-address")]
+    pub payment_package_address: IotaAddress,
+    #[arg(default_value_t = IotaNamesConfig::default().registry_id)]
+    #[arg(long = "iota-names-registry-id")]
+    pub registry_id: ObjectID,
+    #[arg(default_value_t = IotaNamesConfig::default().reverse_registry_id)]
+    #[arg(long = "iota-names-reverse-registry-id")]
+    pub reverse_registry_id: ObjectID,
+    #[arg(default_value_t = IotaNamesConfig::default().subdomain_proxy_package_id)]
+    #[arg(long = "iota-names-subdomain-proxy-package-id")]
+    pub subdomain_proxy_package_id: ObjectID,
+}
+
+impl From<IotaNamesOptions> for IotaNamesConfig {
+    fn from(options: IotaNamesOptions) -> Self {
+        let IotaNamesOptions {
+            package_address,
+            object_id,
+            payment_package_address,
+            registry_id,
+            reverse_registry_id,
+            subdomain_proxy_package_id,
+        } = options;
+        Self {
+            package_address,
+            object_id,
+            payment_package_address,
+            registry_id,
+            reverse_registry_id,
+            subdomain_proxy_package_id,
+        }
+    }
+}
+
+impl From<IotaNamesConfig> for IotaNamesOptions {
+    fn from(config: IotaNamesConfig) -> Self {
+        let IotaNamesConfig {
+            package_address,
+            object_id,
+            payment_package_address,
+            registry_id,
+            reverse_registry_id,
+            subdomain_proxy_package_id,
+        } = config;
+        Self {
+            package_address,
+            object_id,
+            payment_package_address,
+            registry_id,
+            reverse_registry_id,
+            subdomain_proxy_package_id,
+        }
+    }
+}
+
+impl Default for IotaNamesOptions {
+    fn default() -> Self {
+        IotaNamesConfig::default().into()
     }
 }
 
@@ -172,7 +247,10 @@ pub async fn build_json_rpc_server(
     let http_client = crate::get_http_client(config.rpc_client_url.as_str())?;
 
     builder.register_module(WriteApi::new(http_client.clone()))?;
-    builder.register_module(IndexerApi::new(reader.clone()))?;
+    builder.register_module(IndexerApi::new(
+        reader.clone(),
+        config.iota_names_options.clone().into(),
+    ))?;
     builder.register_module(TransactionBuilderApi::new(reader.clone()))?;
     builder.register_module(MoveUtilsApi::new(reader.clone()))?;
     builder.register_module(GovernanceReadApi::new(reader.clone()))?;
