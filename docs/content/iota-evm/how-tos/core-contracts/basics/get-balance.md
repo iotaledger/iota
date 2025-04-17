@@ -53,13 +53,7 @@ contract GetBalance {
         uint64 baseBalance = ISC.accounts.getL2BalanceBaseTokens(agentID);
         emit GotBaseBalance(baseBalance);
     }
-
-    function getBalanceObject() public {
-        ISCAgentID memory agentID = ISC.sandbox.getSenderAccount();
-        uint256 object = ISC.accounts.getL2ObjectsCount(agentID);
-        emit GotObjectIDs(object);
-    }
-
+    
     function getAgentID() public {
         ISCAgentID memory agentID = ISC.sandbox.getSenderAccount();
         emit GotAgentID(agentID.data);
