@@ -24,7 +24,7 @@ pub const IMPLICIT_STD_MEMBERS: &[(Symbol, Symbol, ModuleMemberKind)] = &[(
     ModuleMemberKind::Struct,
 )];
 
-// Implicit aliases for Iota mode:
+// Implicit aliases for IOTA mode:
 // use iota::object::{Self, ID, UID};
 // use iota::transfer;
 // use iota::tx_context::{Self, TxContext};
