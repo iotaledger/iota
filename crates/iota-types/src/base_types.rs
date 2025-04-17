@@ -1133,12 +1133,13 @@ impl TxContext {
 // TODO: rename to version
 impl SequenceNumber {
     /// Minimum valid sequence number. A valid sequence number means
-    /// an object is not congested
+    /// this object does not appear in a cancelled transaction
     pub const MIN_VALID: SequenceNumber = SequenceNumber(u64::MIN);
 
-    /// Maximum valid sequence number. A valid sequence number means an object
-    /// is not congested. Sequence numbers larger than this value are assigned
-    /// to objects that cause transaction cancellations
+    /// Maximum valid sequence number. A valid sequence number means this
+    /// object does not appear in a cancelled transactions. Sequence numbers
+    /// larger than this value are "special" and assigned to objects that
+    /// appear in cancelled transactions
     pub const MAX_VALID: SequenceNumber = SequenceNumber(0x7fff_ffff_ffff_ffff);
 
     /// Special sequence number that is assigned to objects which are accessed
@@ -1212,7 +1213,8 @@ impl SequenceNumber {
         Self(version)
     }
 
-    /// Check if this sequence number is used to label a congested shared object
+    /// Check if this sequence number is congested, i.e., the corresponding
+    /// object is the reason for transaction cancellation
     pub fn is_congested(&self) -> bool {
         *self == Self::CONGESTED_PRIOR_TO_GAS_PRICE_FEEDBACK
             || self >= &Self::MIN_CONGESTED_FOR_GAS_PRICE_FEEDBACK
@@ -1281,14 +1283,15 @@ impl SequenceNumber {
     }
 
     /// Checks if this sequence number is cancelled, i.e., the corresponding
-    /// object is the reason for transaction cancellation
+    /// object is appears in a cancelled transaction
     pub fn is_cancelled(&self) -> bool {
         self == &SequenceNumber::CANCELLED_READ
             || self == &SequenceNumber::RANDOMNESS_UNAVAILABLE
             || self.is_congested()
     }
 
-    /// Checks if this sequence number is valid
+    /// Checks if this sequence number is valid, i.e., the corresponding
+    /// object is does not appear in a cancelled transaction
     pub fn is_valid(&self) -> bool {
         self < &SequenceNumber::MAX_VALID
     }
