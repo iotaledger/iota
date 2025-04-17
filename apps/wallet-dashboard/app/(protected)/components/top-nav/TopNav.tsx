@@ -23,6 +23,7 @@ export function TopNav() {
     return (
         <div className="flex w-full flex-row items-center justify-end gap-md py-xs--rs">
             <Badge
+                testId="topnav-network-badge"
                 label={toTitleCase(persistedNetwork)}
                 type={
                     persistedNetwork === Network.Mainnet ? BadgeType.PrimarySoft : BadgeType.Neutral
@@ -37,6 +38,7 @@ export function TopNav() {
             />
             <ThemeSwitcher />
             <Button
+                testId="topnav-settings-button"
                 icon={<Settings />}
                 type={ButtonType.Ghost}
                 onClick={onOpenSettingsDialogClick}

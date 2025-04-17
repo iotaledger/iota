@@ -3,10 +3,12 @@
 import { PropsWithChildren } from 'react';
 import { DialogBody, DialogContent, DialogPosition } from '@iota/apps-ui-kit';
 
-export function DialogLayout({ children }: PropsWithChildren) {
+export function DialogLayout({ children, testId }: PropsWithChildren<{ testId?: string }>) {
     return (
         <DialogContent containerId="overlay-portal-container" position={DialogPosition.Right}>
-            <div className="flex h-full flex-col">{children}</div>
+            <div className="flex h-full flex-col" data-testid={testId}>
+                {children}
+            </div>
         </DialogContent>
     );
 }

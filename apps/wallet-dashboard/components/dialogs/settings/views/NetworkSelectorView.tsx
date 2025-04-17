@@ -23,7 +23,7 @@ export function NetworkSelectorView({
     const { persistedNetwork, handleNetworkChange } = usePersistedNetwork();
 
     return (
-        <DialogLayout>
+        <DialogLayout testId="dialog-network-selector">
             <Header title="Network" onClose={handleClose} onBack={onBack} titleCentered />
             <DialogLayoutBody>
                 <div className="flex w-full flex-col gap-md">
