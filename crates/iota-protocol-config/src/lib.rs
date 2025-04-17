@@ -342,7 +342,7 @@ impl ConsensusNetwork {
 /// calculated in the gas price feedback mechanism
 #[derive(Default, Copy, Clone, PartialEq, Eq, Serialize, Debug)]
 pub enum SuggestedGasPriceCalculationMode {
-    /// Suggested gas price simply equals certificate's fas price
+    /// Suggested gas price simply equals certificate's gas price
     #[default]
     None,
 }
