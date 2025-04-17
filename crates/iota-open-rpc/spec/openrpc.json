@@ -1306,6 +1306,7 @@
               "featureFlags": {
                 "accept_zklogin_in_multisig": false,
                 "bridge": false,
+                "congestion_control_min_free_execution_slot": false,
                 "consensus_distributed_vote_scoring_strategy": false,
                 "consensus_linearize_subdag_v2": false,
                 "consensus_round_prober": false,
