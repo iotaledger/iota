@@ -23,13 +23,13 @@ tokio-util.workspace = true
 tracing.workspace = true
 
 # internal dependencies
-starfish-config.workspace = true
-starfish-core.workspace = true
 iota-config.workspace = true
 iota-macros.workspace = true
 iota-metrics.workspace = true
 iota-network-stack.workspace = true
 iota-protocol-config.workspace = true
 iota-simulator.workspace = true
+starfish-config.workspace = true
+starfish-core.workspace = true
 telemetry-subscribers.workspace = true
 typed-store.workspace = true

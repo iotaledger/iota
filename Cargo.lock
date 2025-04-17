@@ -14191,7 +14191,7 @@ dependencies = [
  "tap",
  "telemetry-subscribers",
  "tempfile",
- "thiserror",
+ "thiserror 1.0.64",
  "tokio",
  "tokio-rustls 0.26.0",
  "tokio-stream",
