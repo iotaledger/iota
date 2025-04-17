@@ -5773,6 +5773,7 @@ dependencies = [
  "iota-graphql-rpc-client",
  "iota-indexer",
  "iota-json",
+ "iota-json-rpc-api",
  "iota-json-rpc-types",
  "iota-keys",
  "iota-macros",

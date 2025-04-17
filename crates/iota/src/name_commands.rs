@@ -2,23 +2,24 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use std::{
+    collections::BTreeMap,
     str::FromStr,
     time::{Duration, SystemTime, UNIX_EPOCH},
 };
 
+use anyhow::anyhow;
 use chrono::{Utc, prelude::DateTime};
 use clap::Parser;
 use iota_graphql_rpc_client::simple_client::{GraphqlQueryVariable, SimpleClient};
 use iota_json::IotaJsonValue;
+use iota_json_rpc_api::IndexerApiClient;
 use iota_json_rpc_types::{
     IotaData, IotaObjectDataFilter, IotaObjectDataOptions, IotaObjectResponse,
     IotaObjectResponseQuery,
 };
 use iota_names::{
-    IotaNamesNft, IotaNamesRegistration, SubdomainRegistration,
-    config::IotaNamesConfig,
+    IotaNamesNft, IotaNamesRegistration, SubdomainRegistration, config::IotaNamesConfig,
     domain::Domain,
-    registry::{RegistryEntry, ReverseRegistryEntry},
 };
 use iota_protocol_config::Chain;
 use iota_sdk::{IotaClient, wallet_context::WalletContext};
@@ -327,37 +328,60 @@ impl NameCommand {
                 )
             }
             Self::GetUserData { domain, key } => {
-                let entry = get_registry_entry(&domain, context).await?;
+                let client = context.get_client().await?;
+                let mut res = client
+                    .http()
+                    .iota_names_lookup(&domain.to_string())
+                    .await?
+                    .ok_or_else(|| anyhow!("no record found for {domain}"))?
+                    .data;
 
                 if let Some(key) = key {
-                    let Some(value) = entry
-                        .name_record
-                        .data
-                        .contents
-                        .into_iter()
-                        .find(|entry| entry.key == key)
-                    else {
+                    if let Some((key, value)) = res.remove_entry(&key) {
+                        res = BTreeMap::new();
+                        res.insert(key, value);
+                    } else {
                         anyhow::bail!("no value found for key `{key}`");
-                    };
-                    NameCommandResult::UserData(VecMap {
-                        contents: vec![value],
-                    })
-                } else {
-                    NameCommandResult::UserData(entry.name_record.data)
+                    }
                 }
+                NameCommandResult::UserData(res)
             }
             Self::List { address } => {
-                let mut nfts = get_owned_nfts::<IotaNamesRegistration>(address, context).await?;
-                let subdomain_nfts =
-                    get_owned_nfts::<SubdomainRegistration>(address, context).await?;
-                nfts.extend(subdomain_nfts.into_iter().map(|nft| nft.into_inner()));
+                let client = context.get_client().await?;
+                let address = get_identity_address(address.map(KeyIdentity::Address), context)?;
+                let mut cursor = None;
+                let mut nfts = Vec::new();
+                loop {
+                    let res = client
+                        .http()
+                        .iota_names_find_all_registration_nfts(
+                            address,
+                            cursor,
+                            None,
+                            Some(IotaObjectDataOptions::new().with_bcs()),
+                        )
+                        .await?;
+                    for obj in res.data {
+                        nfts.push(deserialize_move_object_from_bcs(obj)?);
+                    }
+                    if res.has_next_page {
+                        cursor = res.next_cursor;
+                    } else {
+                        break;
+                    }
+                }
                 NameCommandResult::List(nfts)
             }
             Self::Lookup { domain } => {
-                let entry = get_registry_entry(&domain, context).await?;
+                let client = context.get_client().await?;
+                let res = client
+                    .http()
+                    .iota_names_lookup(&domain.to_string())
+                    .await?
+                    .ok_or_else(|| anyhow!("no record found for {domain}"))?;
                 NameCommandResult::Lookup {
                     domain,
-                    target_address: entry.name_record.target_address,
+                    target_address: res.target_address,
                 }
             }
             Self::Register { domain, coin, opts } => {
@@ -458,13 +482,16 @@ impl NameCommand {
                 )
             }
             Self::ReverseLookup { address } => {
+                let client = context.get_client().await?;
                 let address = get_identity_address(address.map(KeyIdentity::Address), context)?;
-                let entry = get_reverse_registry_entry(address, context).await?;
+                let domain = client
+                    .http()
+                    .iota_names_reverse_lookup(address)
+                    .await?
+                    .map(|s| s.parse())
+                    .transpose()?;
 
-                NameCommandResult::ReverseLookup {
-                    address,
-                    domain: entry.map(|e| e.domain),
-                }
+                NameCommandResult::ReverseLookup { address, domain }
             }
             Self::SetReverseLookup { domain, opts } => {
                 // Check ownership of the name off-chain to avoid potentially wasting gas
@@ -888,7 +915,7 @@ pub enum NameCommandResult {
         address: IotaAddress,
         domain: Option<Domain>,
     },
-    UserData(VecMap<String, String>),
+    UserData(BTreeMap<String, String>),
     List(Vec<IotaNamesRegistration>),
 }
 
@@ -941,8 +968,8 @@ impl std::fmt::Display for NameCommandResult {
                 let mut table_builder = TableBuilder::default();
                 table_builder.set_header(["key", "value"]);
 
-                for entry in &entries.contents {
-                    table_builder.push_record([&entry.key, &entry.value]);
+                for (key, value) in entries {
+                    table_builder.push_record([key, value]);
                 }
 
                 let mut table = table_builder.build();
@@ -1100,36 +1127,6 @@ async fn get_proxy_nft_by_name(
     } else {
         IotaNamesNftProxy::Subdomain(get_owned_nft_by_name(domain, context).await?)
     })
-}
-
-async fn get_registry_entry(
-    domain: &Domain,
-    context: &mut WalletContext,
-) -> anyhow::Result<RegistryEntry> {
-    let client = context.get_client().await?;
-    let iota_names_config = get_iota_names_config(&client).await?;
-    let object_id = iota_names_config.record_field_id(domain);
-
-    get_object_from_bcs(&client, object_id).await
-}
-
-async fn get_reverse_registry_entry(
-    address: IotaAddress,
-    context: &mut WalletContext,
-) -> anyhow::Result<Option<ReverseRegistryEntry>> {
-    let client = context.get_client().await?;
-    let iota_names_config = get_iota_names_config(&client).await?;
-    let object_id = iota_names_config.reverse_record_field_id(&address);
-    let response = client
-        .read_api()
-        .get_object_with_options(object_id, IotaObjectDataOptions::new().with_bcs())
-        .await?;
-
-    if response.data.is_some() {
-        Ok(Some(deserialize_move_object_from_bcs(response)?))
-    } else {
-        Ok(None)
-    }
 }
 
 async fn get_iota_names_config(client: &IotaClient) -> anyhow::Result<IotaNamesConfig> {

@@ -69,6 +69,7 @@ iota-graphql-rpc = { workspace = true, optional = true }
 iota-graphql-rpc-client = { workspace = true, optional = true }
 iota-indexer = { workspace = true, optional = true }
 iota-json.workspace = true
+iota-json-rpc-api.workspace = true
 iota-json-rpc-types.workspace = true
 iota-keys.workspace = true
 iota-move.workspace = true
