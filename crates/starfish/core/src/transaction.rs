@@ -13,7 +13,6 @@ use tokio::sync::oneshot;
 use tracing::{error, warn};
 
 use crate::{
-    Round,
     block::{BlockRef, Transaction},
     context::Context,
 };
@@ -169,14 +168,11 @@ impl TransactionConsumer {
 
     /// Notifies all the transaction submitters who are waiting to receive an
     /// update on the status of the block. The `committed_blocks` are the
-    /// blocks that have been committed and the `gc_round` is the round up to
-    /// which the blocks have been garbage collected. First we'll notify for
-    /// all the committed blocks, and then for all the blocks that have been
-    /// garbage collected.
+    /// blocks that have been committed. We'll notify for
+    /// all the committed blocks.
     pub(crate) fn notify_own_blocks_status(
         &self,
         committed_blocks: Vec<BlockRef>,
-        gc_round: Round,
     ) {
         // Notify for all the committed blocks first
         let mut block_status_subscribers = self.block_status_subscribers.lock();
@@ -185,19 +181,6 @@ impl TransactionConsumer {
                 subscribers.into_iter().for_each(|s| {
                     let _ = s.send(BlockStatus::Sequenced(block_ref));
                 });
-            }
-        }
-
-        // Now notify everyone <= gc_round that their block has been garbage collected
-        // and clean up the entries
-        while let Some((block_ref, subscribers)) = block_status_subscribers.pop_first() {
-            if block_ref.round <= gc_round {
-                subscribers.into_iter().for_each(|s| {
-                    let _ = s.send(BlockStatus::GarbageCollected(block_ref));
-                });
-            } else {
-                block_status_subscribers.insert(block_ref, subscribers);
-                break;
             }
         }
     }

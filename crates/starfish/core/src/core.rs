@@ -859,7 +859,7 @@ impl Core {
             })
             .collect::<Vec<_>>();
         self.transaction_consumer
-            .notify_own_blocks_status(committed_block_refs, GENESIS_ROUND);
+            .notify_own_blocks_status(committed_block_refs);
 
         Ok(committed_sub_dags)
     }

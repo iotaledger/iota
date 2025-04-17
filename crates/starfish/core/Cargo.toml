@@ -67,6 +67,3 @@ telemetry-subscribers.workspace = true
 
 [build-dependencies]
 tonic-build.workspace = true
-
-[features]
-gc_tests = []
