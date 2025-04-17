@@ -424,79 +424,7 @@ mod tests {
         assert!(consumer.is_empty());
     }
 
-    #[cfg(all(feature = "gc_tests", not(clippy)))]
-    #[tokio::test(flavor = "current_thread", start_paused = true)]
-    async fn block_status_update_gc_enabled() {
-        let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-            config.set_consensus_max_transaction_size_bytes_for_testing(2_000); // 2KB
-            config.set_consensus_max_transactions_in_block_bytes_for_testing(2_000);
-            config.set_consensus_gc_depth_for_testing(10);
-            config
-        });
 
-        let context = Arc::new(Context::new_for_test(4).0);
-        let (client, tx_receiver) = TransactionClient::new(context.clone());
-        let mut consumer = TransactionConsumer::new(tx_receiver, context.clone());
-
-        // submit the transactions and include 2 of each on a new block
-        let mut included_in_block_waiters = FuturesUnordered::new();
-        for i in 1..=10 {
-            let transaction =
-                bcs::to_bytes(&format!("transaction {i}")).expect("Serialization should not fail.");
-            let w = client
-                .submit_no_wait(vec![transaction])
-                .await
-                .expect("Shouldn't submit successfully transaction");
-            included_in_block_waiters.push(w);
-
-            // Every 2 transactions simulate the creation of a new block and acknowledge the
-            // inclusion of the transactions
-            if i % 2 == 0 {
-                let (transactions, ack_transactions, _limit_reached) = consumer.next();
-                assert_eq!(transactions.len(), 2);
-                ack_transactions(BlockRef::new(
-                    i,
-                    AuthorityIndex::new_for_test(0),
-                    BlockDigest::MIN,
-                ));
-            }
-        }
-
-        // Now iterate over all the waiters. Everyone should have been acknowledged.
-        let mut block_status_waiters = Vec::new();
-        while let Some(result) = included_in_block_waiters.next().await {
-            let (block_ref, block_status_waiter) =
-                result.expect("Block inclusion waiter shouldn't fail");
-            block_status_waiters.push((block_ref, block_status_waiter));
-        }
-
-        // Now acknowledge the commit of the blocks 6, 8, 10 and set gc_round = 5, which
-        // should trigger the garbage collection of blocks 1..=5
-        let gc_round = 5;
-        consumer.notify_own_blocks_status(
-            vec![
-                BlockRef::new(6, AuthorityIndex::new_for_test(0), BlockDigest::MIN),
-                BlockRef::new(8, AuthorityIndex::new_for_test(0), BlockDigest::MIN),
-                BlockRef::new(10, AuthorityIndex::new_for_test(0), BlockDigest::MIN),
-            ],
-            gc_round,
-        );
-
-        // Now iterate over all the block status waiters. Everyone should have been
-        // notified.
-        for (block_ref, waiter) in block_status_waiters {
-            let block_status = waiter.await.expect("Block status waiter shouldn't fail");
-
-            if block_ref.round <= gc_round {
-                assert!(matches!(block_status, BlockStatus::GarbageCollected(_)))
-            } else {
-                assert!(matches!(block_status, BlockStatus::Sequenced(_)));
-            }
-        }
-
-        // Ensure internal structure is clear
-        assert!(consumer.block_status_subscribers.lock().is_empty());
-    }
 
     #[tokio::test(flavor = "current_thread", start_paused = true)]
     async fn block_status_update_gc_disabled() {
@@ -839,6 +767,83 @@ mod tests {
                 block_verifier.check_transactions(&batch).is_ok(),
                 "Total size of transactions limit verification failed"
             );
+        }
+    }
+
+    #[cfg(gc_tests)]
+    mod gc_tests {
+
+        #[tokio::test(flavor = "current_thread", start_paused = true)]
+        async fn block_status_update_gc_enabled() {
+            let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+                config.set_consensus_max_transaction_size_bytes_for_testing(2_000); // 2KB
+                config.set_consensus_max_transactions_in_block_bytes_for_testing(2_000);
+                config.set_consensus_gc_depth_for_testing(10);
+                config
+            });
+
+            let context = Arc::new(Context::new_for_test(4).0);
+            let (client, tx_receiver) = TransactionClient::new(context.clone());
+            let mut consumer = TransactionConsumer::new(tx_receiver, context.clone());
+
+            // submit the transactions and include 2 of each on a new block
+            let mut included_in_block_waiters = FuturesUnordered::new();
+            for i in 1..=10 {
+                let transaction =
+                    bcs::to_bytes(&format!("transaction {i}")).expect("Serialization should not fail.");
+                let w = client
+                    .submit_no_wait(vec![transaction])
+                    .await
+                    .expect("Shouldn't submit successfully transaction");
+                included_in_block_waiters.push(w);
+
+                // Every 2 transactions simulate the creation of a new block and acknowledge the
+                // inclusion of the transactions
+                if i % 2 == 0 {
+                    let (transactions, ack_transactions, _limit_reached) = consumer.next();
+                    assert_eq!(transactions.len(), 2);
+                    ack_transactions(BlockRef::new(
+                        i,
+                        AuthorityIndex::new_for_test(0),
+                        BlockDigest::MIN,
+                    ));
+                }
+            }
+
+            // Now iterate over all the waiters. Everyone should have been acknowledged.
+            let mut block_status_waiters = Vec::new();
+            while let Some(result) = included_in_block_waiters.next().await {
+                let (block_ref, block_status_waiter) =
+                    result.expect("Block inclusion waiter shouldn't fail");
+                block_status_waiters.push((block_ref, block_status_waiter));
+            }
+
+            // Now acknowledge the commit of the blocks 6, 8, 10 and set gc_round = 5, which
+            // should trigger the garbage collection of blocks 1..=5
+            let gc_round = 5;
+            consumer.notify_own_blocks_status(
+                vec![
+                    BlockRef::new(6, AuthorityIndex::new_for_test(0), BlockDigest::MIN),
+                    BlockRef::new(8, AuthorityIndex::new_for_test(0), BlockDigest::MIN),
+                    BlockRef::new(10, AuthorityIndex::new_for_test(0), BlockDigest::MIN),
+                ],
+                gc_round,
+            );
+
+            // Now iterate over all the block status waiters. Everyone should have been
+            // notified.
+            for (block_ref, waiter) in block_status_waiters {
+                let block_status = waiter.await.expect("Block status waiter shouldn't fail");
+
+                if block_ref.round <= gc_round {
+                    assert!(matches!(block_status, BlockStatus::GarbageCollected(_)))
+                } else {
+                    assert!(matches!(block_status, BlockStatus::Sequenced(_)));
+                }
+            }
+
+            // Ensure internal structure is clear
+            assert!(consumer.block_status_subscribers.lock().is_empty());
         }
     }
 }
