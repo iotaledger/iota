@@ -14,14 +14,9 @@ interface BadgeProps {
      * The label of the badge.
      */
     label?: string;
-
-    /**
-     * Optional test ID for testing purposes
-     */
-    testId?: string;
 }
 
-export function Badge({ type, label, testId }: BadgeProps): React.JSX.Element {
+export function Badge({ type, label }: BadgeProps): React.JSX.Element {
     const backgroundClasses = BACKGROUND_COLORS[type];
     const textClasses = TEXT_COLORS[type];
     const borderClasses = BORDER_COLORS[type];
@@ -29,7 +24,6 @@ export function Badge({ type, label, testId }: BadgeProps): React.JSX.Element {
 
     return (
         <div
-            data-testid={testId}
             className={cx(
                 'inline-flex items-center space-x-2 rounded-full border disabled:opacity-30',
                 backgroundClasses,

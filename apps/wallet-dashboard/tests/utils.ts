@@ -68,23 +68,3 @@ export function deriveAddressFromMnemonic(mnemonic: string, path?: string) {
 export function getAddressByIndexPath(mnemonic: string, index: number) {
     return deriveAddressFromMnemonic(mnemonic, `m/44'/4218'/0'/0'/${index}'`);
 }
-
-export async function changeNetworkDashboard(page: Page, network: string) {
-    await page.goto('/');
-    const settingsButton = page.getByTestId('topnav-settings-button');
-    await settingsButton.click();
-
-    const networkButton = page.getByTestId('settings-network-button');
-    await networkButton.click();
-
-    const dialogNetworkSelector = page.getByTestId('dialog-network-selector');
-    const optionNetwork = dialogNetworkSelector.getByText(network);
-    await optionNetwork.click();
-    await page.getByTestId('close-icon').click();
-
-    const topnavNetworkBadgeText = await page
-        .getByTestId('topnav-network-badge')
-        .locator('span')
-        .innerText();
-    expect(topnavNetworkBadgeText).toBe(network);
-}
