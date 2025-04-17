@@ -168,6 +168,7 @@ export function EnterAmountDialogLayout({
                             ) : null
                         }
                         iconAfterText
+                        testId="stake-confirm-btn"
                     />
                 </div>
             </DialogLayoutFooter>
