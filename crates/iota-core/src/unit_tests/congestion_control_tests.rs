@@ -8,6 +8,7 @@ use std::sync::Arc;
 use iota_macros::{register_fail_point_arg, sim_test};
 use iota_protocol_config::{
     Chain, PerObjectCongestionControlMode, ProtocolConfig, ProtocolVersion,
+    SuggestedGasPriceCalculationMode,
 };
 use iota_types::{
     base_types::{IotaAddress, ObjectID, ObjectRef, SequenceNumber},
@@ -315,6 +316,7 @@ async fn test_congestion_control_execution_cancellation() {
             SharedObjectCongestionTracker::new_with_initial_value_for_test(
                 &[(shared_object_1.0, 10)],
                 PerObjectCongestionControlMode::TotalGasBudget,
+                SuggestedGasPriceCalculationMode::None,
             ),
         )
     });
