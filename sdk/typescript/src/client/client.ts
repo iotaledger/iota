@@ -93,6 +93,7 @@ import type {
     LatestIotaSystemStateSummary,
     ParticipationMetrics,
     IotaCirculatingSupply,
+    GetDynamicFieldObjectV2Params,
 } from './types/index.js';
 
 export interface PaginationArguments<Cursor> {
@@ -731,6 +732,18 @@ export class IotaClient {
         return await this.transport.request({
             method: 'iotax_getDynamicFieldObject',
             params: [input.parentId, input.name],
+        });
+    }
+
+    /**
+     * Return the dynamic field object information for a specified object with content options.
+     */
+    async getDynamicFieldObjectV2(
+        input: GetDynamicFieldObjectV2Params,
+    ): Promise<IotaObjectResponse> {
+        return await this.transport.request({
+            method: 'iotax_getDynamicFieldObjectV2',
+            params: [input.parentObjectId, input.name],
         });
     }
 

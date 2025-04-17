@@ -47,6 +47,7 @@ tracing.workspace = true
 
 # internal dependencies
 consensus-config.workspace = true
+iota-common.workspace = true
 iota-http.workspace = true
 iota-macros.workspace = true
 iota-metrics.workspace = true
