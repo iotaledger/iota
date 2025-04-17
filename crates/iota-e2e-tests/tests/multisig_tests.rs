@@ -126,7 +126,7 @@ async fn create_credential_and_sign_test_tx_with_passkey_multisig(
     let pk2 = keys[2].public(); // secp256r1
 
     let (_eph_kp, _eph_pk, zklogin_inputs) =
-        &load_test_vectors("../iota-types/src/unit_tests/zklogin_test_vectors.json")[1];
+        &load_test_vectors("../iota-types/src/unit_tests/zklogin_test_vectors.json").unwrap()[1];
     let zklogin_pk = PublicKey::ZkLogin(
         ZkLoginPublicIdentifier::new(zklogin_inputs.get_iss(), zklogin_inputs.get_address_seed())
             .unwrap(),
@@ -219,47 +219,6 @@ async fn create_credential_and_sign_test_tx_with_passkey_multisig(
         MultiSig::combine(vec![sig.clone()], multisig_pk.clone()).unwrap(),
     );
     Transaction::from_generic_sig_data(tx_data, vec![multisig])
-}
-
-async fn construct_simple_zklogin_multisig_tx(
-    test_cluster: &TestCluster,
-) -> (Transaction, Transaction) {
-    // construct a multisig address with 1 zklogin pk with threshold = 1.
-    let (eph_kp, _eph_pk, zklogin_inputs) =
-        &load_test_vectors("../iota-types/src/unit_tests/zklogin_test_vectors.json")[1];
-    let zklogin_pk = PublicKey::ZkLogin(
-        ZkLoginPublicIdentifier::new(zklogin_inputs.get_iss(), zklogin_inputs.get_address_seed())
-            .unwrap(),
-    );
-    let multisig_pk = MultiSigPublicKey::insecure_new(vec![(zklogin_pk.clone(), 1)], 1);
-    let multisig_pk_legacy =
-        MultiSigPublicKeyLegacy::new(vec![zklogin_pk.clone()], vec![1], 1).unwrap();
-    let rgp = test_cluster.get_reference_gas_price().await;
-
-    let multisig_addr = IotaAddress::from(&multisig_pk);
-    let gas = test_cluster
-        .fund_address_and_return_gas(rgp, Some(20000000000), multisig_addr)
-        .await;
-    let tx_data = TestTransactionBuilder::new(multisig_addr, gas, rgp)
-        .transfer_iota(None, IotaAddress::ZERO)
-        .build();
-    let intent_msg = IntentMessage::new(Intent::iota_transaction(), tx_data.clone());
-    let sig_4: GenericSignature = ZkLoginAuthenticator::new(
-        zklogin_inputs.clone(),
-        2,
-        Signature::new_secure(&intent_msg, eph_kp),
-    )
-    .into();
-    let multisig = GenericSignature::MultiSig(
-        MultiSig::combine(vec![sig_4.clone()], multisig_pk.clone()).unwrap(),
-    );
-    let multisig_legacy = GenericSignature::MultiSigLegacy(
-        MultiSigLegacy::combine(vec![sig_4.clone()], multisig_pk_legacy.clone()).unwrap(),
-    );
-    (
-        Transaction::from_generic_sig_data(tx_data.clone(), vec![multisig]),
-        Transaction::from_generic_sig_data(tx_data.clone(), vec![multisig_legacy]),
-    )
 }
 
 struct MyUserValidationMethod {}
@@ -1062,47 +1021,6 @@ async fn construct_simple_zklogin_multisig_tx(test_cluster: &TestCluster) -> Tra
     let multisig = GenericSignature::MultiSig(MultiSig::combine(vec![sig_4], multisig_pk).unwrap());
 
     Transaction::from_generic_sig_data(tx_data, vec![multisig])
-}
-
-async fn construct_simple_zklogin_multisig_tx(
-    test_cluster: &TestCluster,
-) -> (Transaction, Transaction) {
-    // construct a multisig address with 1 zklogin pk with threshold = 1.
-    let (eph_kp, _eph_pk, zklogin_inputs) =
-        &load_test_vectors("../iota-types/src/unit_tests/zklogin_test_vectors.json")[1];
-    let zklogin_pk = PublicKey::ZkLogin(
-        ZkLoginPublicIdentifier::new(zklogin_inputs.get_iss(), zklogin_inputs.get_address_seed())
-            .unwrap(),
-    );
-    let multisig_pk = MultiSigPublicKey::insecure_new(vec![(zklogin_pk.clone(), 1)], 1);
-    let multisig_pk_legacy =
-        MultiSigPublicKeyLegacy::new(vec![zklogin_pk.clone()], vec![1], 1).unwrap();
-    let rgp = test_cluster.get_reference_gas_price().await;
-
-    let multisig_addr = IotaAddress::from(&multisig_pk);
-    let gas = test_cluster
-        .fund_address_and_return_gas(rgp, Some(20000000000), multisig_addr)
-        .await;
-    let tx_data = TestTransactionBuilder::new(multisig_addr, gas, rgp)
-        .transfer_iota(None, IotaAddress::ZERO)
-        .build();
-    let intent_msg = IntentMessage::new(Intent::iota_transaction(), tx_data.clone());
-    let sig_4: GenericSignature = ZkLoginAuthenticator::new(
-        zklogin_inputs.clone(),
-        2,
-        Signature::new_secure(&intent_msg, eph_kp),
-    )
-    .into();
-    let multisig = GenericSignature::MultiSig(
-        MultiSig::combine(vec![sig_4.clone()], multisig_pk.clone()).unwrap(),
-    );
-    let multisig_legacy = GenericSignature::MultiSigLegacy(
-        MultiSigLegacy::combine(vec![sig_4.clone()], multisig_pk_legacy.clone()).unwrap(),
-    );
-    (
-        Transaction::from_generic_sig_data(tx_data.clone(), vec![multisig]),
-        Transaction::from_generic_sig_data(tx_data.clone(), vec![multisig_legacy]),
-    )
 }
 
 #[sim_test]

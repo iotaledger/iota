@@ -219,10 +219,8 @@ impl GenericSignature {
 }
 
 /// GenericSignature encodes a single signature [enum Signature] as is `flag ||
-/// signature || pubkey`. It encodes [struct MultiSigLegacy] as the MultiSig
-/// flag (0x03) concat with the bcs serializedbytes of [struct MultiSigLegacy]
-/// i.e. `flag || bcs_bytes(MultiSigLegacy)`. [struct Multisig] is encodede as
-/// the MultiSig flag (0x03) concat with the bcs serializedbytes of [struct
+/// signature || pubkey`. [struct Multisig] is encoded as
+/// the MultiSig flag (0x03) concat with the bcs serialized bytes of [struct
 /// Multisig] i.e. `flag || bcs_bytes(Multisig)`.
 impl ToFromBytes for GenericSignature {
     fn from_bytes(bytes: &[u8]) -> Result<Self, FastCryptoError> {
