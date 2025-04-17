@@ -174,7 +174,7 @@ async fn test_multisig_with_zklogin_scenarios() {
     test_cluster.wait_for_authenticator_state_update().await;
     // Manually trigger epoch change to be able to test zklogin with multiple
     // epochs.
-    test_cluster.trigger_reconfiguration().await;
+    test_cluster.force_new_epoch().await;
 
     let rgp = test_cluster.get_reference_gas_price().await;
     let context = &test_cluster.wallet;

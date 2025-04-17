@@ -330,7 +330,7 @@ async fn test_withdraw_stake() {
     assert_eq!(1000000000, response.balances[0].value);
 
     // Trigger epoch change.
-    test_cluster.trigger_reconfiguration().await;
+    test_cluster.force_new_epoch().await;
 
     // withdraw all stake
     let ops = serde_json::from_value(json!(
