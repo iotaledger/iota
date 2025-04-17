@@ -45,6 +45,8 @@ pub const MAX_PROTOCOL_VERSION: u64 = 7;
 //            Enable zstd compression for consensus tonic network in testnet.
 //            Enable consensus garbage collection for testnet
 //            Enable the new consensus commit rule for testnet.
+//            Enable min_free_execution_slot for the shared object congestion
+//            tracker in devnet.
 
 #[derive(Copy, Clone, Debug, Hash, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ProtocolVersion(u64);
