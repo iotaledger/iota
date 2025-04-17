@@ -109,7 +109,7 @@ pub async fn sync_checkpoint_list_to_latest(config: &Config) -> anyhow::Result<C
 
     let checkpoints_from_object_store = if config.object_store_url.is_some() {
         // TODO uncomment it, blocked by https://github.com/iotaledger/iota/issues/4908
-        warn!("Syncing from a checkpoint object store is not supported yet.");
+        warn!("Syncing from a checkpoint store is not supported yet.");
         CheckpointList::default()
         // match sync_checkpoint_list_to_latest_using_full_node_and_object_store(config).await {
         //     Ok(list) => list,
@@ -191,7 +191,7 @@ fn merge_checkpoint_lists(list1: &CheckpointList, list2: &CheckpointList) -> Vec
 async fn sync_checkpoint_list_to_latest_using_full_node(
     config: &Config,
 ) -> anyhow::Result<CheckpointList> {
-    info!("Syncing checkpoints from full node");
+    info!("Syncing checkpoint list from full node.");
 
     // Get the local checkpoint list, or create an empty one if it doesn't exist
     let mut checkpoints_list = match read_checkpoint_list(config) {
@@ -243,7 +243,7 @@ async fn sync_checkpoint_list_to_latest_using_full_node(
 async fn sync_checkpoint_list_to_latest_using_archive_store(
     config: &Config,
 ) -> anyhow::Result<CheckpointList> {
-    info!("Syncing checkpoints from archive store");
+    info!("Syncing checkpoint list from archive store.");
 
     let Some(archive_store_config) = &config.archive_store_config else {
         bail!("Archive store config is not provided");
@@ -272,7 +272,7 @@ async fn sync_checkpoint_list_to_latest_using_archive_store(
 async fn _sync_checkpoint_list_to_latest_using_checkpoints_store(
     config: &Config,
 ) -> anyhow::Result<CheckpointList> {
-    info!("Syncing checkpoints from object store");
+    info!("Syncing checkpoint list from object store.");
 
     // Get the local checkpoint list, or create an empty one if it doesn't exist
     let mut checkpoints_list = match read_checkpoint_list(config) {
@@ -337,10 +337,12 @@ pub async fn sync_and_check_checkpoints(config: &Config) -> anyhow::Result<()> {
     if let Some(_checkpoint_store_url) = &config.object_store_url {
         // Download summaries from checkpoint object store
         // TODO implement it, blocked by https://github.com/iotaledger/iota/issues/4908
-        warn!("Syncing from a checkpoint object store is not supported yet.");
+        warn!("Downloading from a checkpoint store is not supported yet.");
     }
 
     if let Some(archive_store_config) = &config.archive_store_config {
+        info!("Downloading checkpoints from archive store.");
+
         // Download summaries from archive store
         let archive_reader_config = ArchiveReaderConfig {
             remote_store_config: archive_store_config.clone(),
@@ -359,8 +361,10 @@ pub async fn sync_and_check_checkpoints(config: &Config) -> anyhow::Result<()> {
             )
             .await?;
     } else {
+        info!("Downloading checkpoints from full node.");
+
         // Download summaries from the full node
-        let client = iota_rest_api::Client::new(format!("{}/rest", config.rpc_url));
+        let client = iota_rest_api::Client::new(&config.rpc_url);
 
         // We only need the first 2 end-of-epoch checkpoints for the tests
         for seq in checkpoints_list.checkpoints.iter().copied() {
@@ -368,7 +372,7 @@ pub async fn sync_and_check_checkpoints(config: &Config) -> anyhow::Result<()> {
                 continue;
             }
 
-            info!("Downloading summary checkpoint: {seq}");
+            info!("Downloading checkpoint: {seq}");
 
             let summary = client
                 .get_checkpoint_summary(seq)
@@ -384,7 +388,9 @@ pub async fn sync_and_check_checkpoints(config: &Config) -> anyhow::Result<()> {
         }
     }
 
-    // Check the signatures of all checkpoints and download any missing ones
+    info!("Verifying checkpoints.");
+
+    // Check the signatures of all checkpoints
     let mut prev_committee = genesis_committee;
     for seq in checkpoints_list.checkpoints {
         // Check if there is a corresponding checkpoint summary file in the checkpoints
@@ -395,7 +401,7 @@ pub async fn sync_and_check_checkpoints(config: &Config) -> anyhow::Result<()> {
         let summary = if summary_path.exists() {
             read_checkpoint_summary(config, seq).context("Failed to read checkpoint summary")?
         } else {
-            bail!("we assume for now that everything could be downloaded");
+            panic!("corrupted checkpoint directory");
         };
 
         // Verify the checkpoint
