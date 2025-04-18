@@ -7,7 +7,10 @@ use std::{fs, path::PathBuf, str::FromStr, sync::Arc};
 use insta::assert_snapshot;
 use iota_move_build::{BuildConfig, CompiledPackage};
 use iota_types::move_package::UpgradePolicy;
-use move_binary_format::CompiledModule;
+use move_binary_format::{
+    CompiledModule,
+    normalized::{Field, Type},
+};
 use move_command_line_common::files::FileHash;
 use move_compiler::{
     diagnostics::report_diagnostics_to_buffer,
@@ -15,7 +18,7 @@ use move_compiler::{
 };
 use move_core_types::identifier::Identifier;
 
-use crate::upgrade_compatibility::{compare_packages, missing_module_diag};
+use crate::upgrade_compatibility::{FormattedField, compare_packages, missing_module_diag};
 
 #[test]
 fn test_all() {
@@ -98,8 +101,8 @@ fn test_deponly() {
 }
 #[test]
 fn test_version_mismatch() {
-    // use deponly errors package, but change the version of the package and the module
-    // to trigger _only_ a version mismatch error (not a deponly error)
+    // use deponly errors package, but change the version of the package and the
+    // module to trigger _only_ a version mismatch error (not a deponly error)
     let (mut pkg_v1, mut pkg_v2, p) = get_packages("deponly_errors");
     pkg_v1[0].version = 1; // previous version was 1
     pkg_v2.package.root_compiled_units[0].unit.module.version = 0; // downgraded to version 0
@@ -166,6 +169,18 @@ fn test_missing_module_toml() {
         .unwrap();
         assert_snapshot!(malformed_pkg, output);
     }
+}
+
+#[test]
+fn positional_formatting() {
+    let name = Identifier::new("pos999").unwrap();
+    let field = Field {
+        name,
+        type_: Type::Bool,
+    };
+
+    let ff = FormattedField::new(&field, &[]);
+    assert_eq!(format!("{}", ff), "'bool' at position 999");
 }
 
 fn get_packages(name: &str) -> (Vec<CompiledModule>, CompiledPackage, PathBuf) {
