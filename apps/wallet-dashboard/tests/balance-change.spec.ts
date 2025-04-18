@@ -4,7 +4,10 @@
 import { test, expect } from './fixtures';
 import { connectWallet, requestFaucetTokensOnWalletHome } from './utils';
 
-test.describe('Balance changes', () => {
+test.describe.serial('Balance changes', () => {
+    let prevAmount: string | null;
+    let currentAmount: string | null;
+
     test(`should request tokens from faucet and see updated balance`, async ({
         context,
         pageWithFreshWallet,
@@ -22,7 +25,7 @@ test.describe('Balance changes', () => {
 
         await connectWallet(dashboardPage, context, extensionName);
 
-        const prevAmount = await dashboardPage.getByTestId('balance-amount').textContent();
+        prevAmount = await dashboardPage.getByTestId('balance-amount').textContent();
 
         await pageWithFreshWallet.bringToFront();
         await requestFaucetTokensOnWalletHome(pageWithFreshWallet);
@@ -30,7 +33,45 @@ test.describe('Balance changes', () => {
         await dashboardPage.bringToFront();
         await dashboardPage.goto('/');
 
-        const currentAmount = await dashboardPage.getByTestId('balance-amount').textContent();
+        currentAmount = await dashboardPage.getByTestId('balance-amount').textContent();
         expect(currentAmount).not.toEqual(prevAmount);
+    });
+
+    test(`should show correct transaction amount in activity section`, async ({ context }) => {
+        test.skip(!prevAmount || !currentAmount, 'No balance change data available');
+
+        const prevAmountValue = parseFloat(prevAmount!.replace(/[^0-9.-]+/g, '') || '0');
+        const currentAmountValue = parseFloat(currentAmount!.replace(/[^0-9.-]+/g, '') || '0');
+        const balanceChange = currentAmountValue - prevAmountValue;
+
+        const dashboardPage = await context.newPage();
+        await dashboardPage.goto('/');
+
+        const transactionTile = dashboardPage
+            .getByTestId('home-page-activity-section')
+            .getByTestId('transaction-tile')
+            .first();
+        await transactionTile.waitFor({ state: 'visible' });
+
+        const tileTexts = await transactionTile.allInnerTexts();
+        const iotaAmountText = tileTexts.find((text) => text.includes('IOTA'));
+
+        expect(iotaAmountText).toBeTruthy();
+
+        if (!iotaAmountText) {
+            throw new Error('No IOTA amount found in transaction tile');
+        }
+
+        const match = iotaAmountText.match(/(\d+(\.\d+)?)\s*IOTA/);
+        expect(match).toBeTruthy();
+
+        if (!match) {
+            throw new Error('Failed to extract amount from text: ' + iotaAmountText);
+        }
+
+        const txAmountValue = parseFloat(match[1]);
+
+        expect(txAmountValue).toBeCloseTo(balanceChange, 2);
+        await dashboardPage.close();
     });
 });
