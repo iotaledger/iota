@@ -352,7 +352,7 @@ pub enum IotaClientCommands {
         /// Check that the dependency source code compiles to the on-chain
         /// bytecode before publishing the package (currently the
         /// default behavior)
-        #[clap(long, conflicts_with = "skip_dependency_verification")]
+        #[arg(long, conflicts_with = "skip_dependency_verification")]
         verify_deps: bool,
         /// Also publish transitive dependencies that have not already been
         /// published.
@@ -419,17 +419,17 @@ pub enum IotaClientCommands {
         opts: OptsWithGas,
 
         /// Verify package compatibility locally before publishing.
-        #[clap(long)]
+        #[arg(long)]
         verify_compatibility: bool,
 
         /// Upgrade the package without checking whether dependency source code
         /// compiles to the on-chain bytecode
-        #[clap(long)]
+        #[arg(long)]
         skip_dependency_verification: bool,
         /// Check that the dependency source code compiles to the on-chain
         /// bytecode before upgrading the package (currently the default
         /// behavior)
-        #[clap(long, conflicts_with = "skip_dependency_verification")]
+        #[arg(long, conflicts_with = "skip_dependency_verification")]
         verify_deps: bool,
         /// Also publish transitive dependencies that have not already been
         /// published.
