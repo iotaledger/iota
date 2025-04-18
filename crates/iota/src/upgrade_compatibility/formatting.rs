@@ -16,7 +16,7 @@ pub(super) struct FormattedType<'f> {
     type_params: &'f [SourceName],
 }
 
-impl<'f> fmt::Display for FormattedType<'f> {
+impl fmt::Display for FormattedType<'_> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         if f.alternate() {
             write!(
@@ -69,7 +69,7 @@ impl<'f> FormattedField<'f> {
     }
 }
 
-impl<'f> fmt::Display for FormattedField<'f> {
+impl fmt::Display for FormattedField<'_> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         use FormattedIdentifier as FI;
         match self.identifier {
@@ -116,7 +116,7 @@ pub(super) fn format_param(
             name,
             type_arguments,
             ..
-        } if type_arguments.len() > 0 => {
+        } if !type_arguments.is_empty() => {
             format!(
                 "{}::{}::{}<{}>",
                 address.to_hex_literal(),

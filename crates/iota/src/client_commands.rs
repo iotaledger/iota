@@ -51,7 +51,7 @@ use iota_source_validation::{BytecodeSourceVerifier, ValidationMode};
 use iota_types::{
     base_types::{IotaAddress, ObjectID, SequenceNumber},
     crypto::{EmptySignInfo, SignatureScheme},
-    digests::TransactionDigest,
+    digests::{ChainIdentifier, TransactionDigest},
     error::IotaError,
     gas::GasCostSummary,
     gas_coin::GasCoin,
@@ -96,6 +96,7 @@ use crate::{
     displays::Pretty,
     key_identity::{KeyIdentity, get_identity_address},
     keytool::Key,
+    upgrade_compatibility::check_compatibility,
     verifier_meter::{AccumulatingMeter, Accumulator},
 };
 
@@ -351,7 +352,7 @@ pub enum IotaClientCommands {
         /// Check that the dependency source code compiles to the on-chain
         /// bytecode before publishing the package (currently the
         /// default behavior)
-        #[clap(long, conflicts_with = "skip_dependency_verification")]
+        #[arg(long, conflicts_with = "skip_dependency_verification")]
         verify_deps: bool,
         /// Also publish transitive dependencies that have not already been
         /// published.
@@ -416,6 +417,11 @@ pub enum IotaClientCommands {
         build_config: MoveBuildConfig,
         #[command(flatten)]
         opts: OptsWithGas,
+
+        /// Verify package compatibility locally before publishing.
+        #[arg(long)]
+        verify_compatibility: bool,
+
         /// Upgrade the package without checking whether dependency source code
         /// compiles to the on-chain bytecode
         #[arg(long)]
@@ -423,7 +429,7 @@ pub enum IotaClientCommands {
         /// Check that the dependency source code compiles to the on-chain
         /// bytecode before upgrading the package (currently the default
         /// behavior)
-        #[clap(long, conflicts_with = "skip_dependency_verification")]
+        #[arg(long, conflicts_with = "skip_dependency_verification")]
         verify_deps: bool,
         /// Also publish transitive dependencies that have not already been
         /// published.
@@ -876,6 +882,7 @@ impl IotaClientCommands {
                 build_config,
                 skip_dependency_verification,
                 verify_deps,
+                verify_compatibility,
                 with_unpublished_dependencies,
                 opts,
             } => {
@@ -883,6 +890,21 @@ impl IotaClientCommands {
                 let sender = sender.unwrap_or(context.active_address()?);
                 let client = context.get_client().await?;
                 let chain_id = client.read_api().get_chain_identifier().await.ok();
+                let protocol_version = client
+                    .read_api()
+                    .get_protocol_config(None)
+                    .await?
+                    .protocol_version;
+                let protocol_config = ProtocolConfig::get_for_version(
+                    protocol_version,
+                    match chain_id
+                        .as_ref()
+                        .and_then(ChainIdentifier::from_chain_short_id)
+                    {
+                        Some(chain_id) => chain_id.chain(),
+                        None => Chain::Unknown,
+                    },
+                );
 
                 check_protocol_version_and_warn(&client).await?;
 
@@ -925,8 +947,26 @@ impl IotaClientCommands {
                         previous_id,
                     )?;
                 }
-                let (package_id, compiled_modules, dependencies, package_digest, upgrade_policy, _) =
-                    upgrade_result?;
+                let (
+                    package_id,
+                    compiled_modules,
+                    dependencies,
+                    package_digest,
+                    upgrade_policy,
+                    compiled_module,
+                ) = upgrade_result?;
+
+                if verify_compatibility {
+                    check_compatibility(
+                        &client,
+                        package_id,
+                        compiled_module,
+                        package_path,
+                        upgrade_policy,
+                        protocol_config,
+                    )
+                    .await?;
+                }
 
                 let tx_kind = client
                     .transaction_builder()
