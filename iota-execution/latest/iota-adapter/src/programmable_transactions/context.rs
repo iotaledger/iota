@@ -368,6 +368,13 @@ mod checked {
             )
         }
 
+        pub fn get_type_abilities(&self, t: &Type) -> Result<AbilitySet, ExecutionError> {
+            self.vm
+                .get_runtime()
+                .get_type_abilities(t)
+                .map_err(|e| self.convert_vm_error(e))
+        }
+
         /// Takes the user events from the runtime and tags them with the Move
         /// module of the function that was invoked for the command
         pub fn take_user_events(
@@ -1232,6 +1239,22 @@ mod checked {
                 &mut data_store,
                 &mut IotaGasMeter(self.gas_charger.move_gas_status_mut()),
             )
+        }
+
+        pub fn size_bound_raw(&self, bound: u64) -> SizeBound {
+            if self.protocol_config.max_ptb_value_size_v2() {
+                SizeBound::Raw(bound)
+            } else {
+                SizeBound::Object(bound)
+            }
+        }
+
+        pub fn size_bound_vector_elem(&self, bound: u64) -> SizeBound {
+            if self.protocol_config.max_ptb_value_size_v2() {
+                SizeBound::VectorElem(bound)
+            } else {
+                SizeBound::Object(bound)
+            }
         }
     }
 
