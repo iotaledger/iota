@@ -2,15 +2,18 @@
 // Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use iota_framework_snapshot::{load_bytecode_snapshot_manifest, manifest_path};
-use std::{env, fs::File};
 use std::{
+    env,
+    fs::File,
     io::{BufWriter, Write},
     path::Path,
 };
 
-/// Output a file `OUT_DIR/framework_version_table.rs` containing the contents of the manifest as a
-/// rust literal of type `[(ProtocolVersion, FrameworkVersion)]`. This is included as the
+use iota_framework_snapshot::{load_bytecode_snapshot_manifest, manifest_path};
+
+/// Output a file `OUT_DIR/framework_version_table.rs` containing the contents
+/// of the manifest as a rust literal of type `[(ProtocolVersion,
+/// FrameworkVersion)]`. This is included as the
 /// static [framework_versions::VERSION_TABLE]
 fn generate_framework_version_table() -> anyhow::Result<()> {
     let out_dir = env::var_os("OUT_DIR").unwrap();
@@ -35,8 +38,7 @@ fn generate_framework_version_table() -> anyhow::Result<()> {
             writeln!(
                 &mut file,
                 "          FrameworkPackage {{ package_name: \"{}\".into(), repo_path: \"{}\".into() }},",
-                package.name,
-                package.path,
+                package.name, package.path,
             )?;
         }
         writeln!(&mut file, "        ].into(),")?;

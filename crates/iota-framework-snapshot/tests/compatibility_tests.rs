@@ -3,6 +3,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 mod compatibility_tests {
+    use std::{collections::BTreeMap, path::Path};
+
     use iota_framework::{BuiltInFramework, compare_system_package};
     use iota_framework_snapshot::{load_bytecode_snapshot, load_bytecode_snapshot_manifest};
     use iota_move_build::published_at_property;
@@ -11,8 +13,6 @@ mod compatibility_tests {
     use move_package::source_package::{
         manifest_parser::parse_move_manifest_from_file, parsed_manifest::SourceManifest,
     };
-    use std::collections::BTreeMap;
-    use std::path::Path;
 
     #[tokio::test]
     async fn test_framework_compatibility() {
@@ -71,13 +71,15 @@ mod compatibility_tests {
         );
     }
 
-    /// This test checks that the the `SinglePackage` entries in `manifest.json` match the metadata
-    /// in the `Move.toml` files in the repo.
+    /// This test checks that the the `SinglePackage` entries in `manifest.json`
+    /// match the metadata in the `Move.toml` files in the repo.
     ///
-    /// Note that this test currently assumes that no framework packages will be removed or moved
-    /// within the repo; we check the historical metadata against the current repository. If
-    /// needed, we could be more precise by first checking out the revision of the package listed
-    /// in the manifest (this should actually be fairly cheap since the git history is present).
+    /// Note that this test currently assumes that no framework packages will be
+    /// removed or moved within the repo; we check the historical metadata
+    /// against the current repository. If needed, we could be more precise
+    /// by first checking out the revision of the package listed
+    /// in the manifest (this should actually be fairly cheap since the git
+    /// history is present).
     #[test]
     fn check_manifest_against_tomls() {
         let manifest = load_bytecode_snapshot_manifest();

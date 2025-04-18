@@ -4,7 +4,7 @@
 
 use std::{collections::BTreeMap, sync::LazyLock};
 
-use anyhow::{bail, Context};
+use anyhow::{Context, bail};
 use iota_protocol_config::ProtocolVersion;
 
 /// Static mapping from protocol versions to the metadata for the framework.
@@ -46,8 +46,9 @@ pub fn latest_framework() -> &'static FrameworkVersion {
         .1
 }
 
-/// Return the best commit hash for the given protocol version. Returns an error if `version`
-/// is newer than the maximum protocol version or older than the first known framework.
+/// Return the best commit hash for the given protocol version. Returns an error
+/// if `version` is newer than the maximum protocol version or older than the
+/// first known framework.
 pub fn framework_for_protocol(
     version: ProtocolVersion,
 ) -> anyhow::Result<&'static FrameworkVersion> {
@@ -55,10 +56,11 @@ pub fn framework_for_protocol(
         bail!("Protocol version {version:?} is newer than the one this binary was built with.");
     }
 
-    // There are gaps in the manifest when multiple protocol versions use the same framework
-    // version. Therefore, we return the newest framework version that is not newer than the requested
-    // protocol version. Note that it's possible that there is no such version if the requested
-    // version is older than the oldest framework; we return an error in this case.
+    // There are gaps in the manifest when multiple protocol versions use the same
+    // framework version. Therefore, we return the newest framework version that
+    // is not newer than the requested protocol version. Note that it's possible
+    // that there is no such version if the requested version is older than the
+    // oldest framework; we return an error in this case.
     Ok(VERSION_TABLE
         .range(..=version)
         .next_back()
@@ -76,10 +78,7 @@ fn test_nonempty_version_table() {
 /// The hash for a specific version that we have one for is correctly returned.
 fn test_exact_version() {
     let framework = framework_for_protocol(4.into()).unwrap();
-    assert_eq!(
-        framework.git_revision,
-        "49d5d7d99313"
-    );
+    assert_eq!(framework.git_revision, "49d5d7d99313");
     assert!(framework.packages.iter().any(|p| p.package_name == "Iota"));
 }
 

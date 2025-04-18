@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::fmt::Formatter;
+use std::{fmt::Formatter, sync::LazyLock};
 
 use iota_types::{
     BRIDGE_PACKAGE_ID, IOTA_FRAMEWORK_PACKAGE_ID, IOTA_SYSTEM_PACKAGE_ID, MOVE_STDLIB_PACKAGE_ID,
@@ -18,21 +18,21 @@ use move_binary_format::{
 };
 use move_core_types::gas_algebra::InternalGas;
 use serde::{Deserialize, Serialize};
-use std::sync::LazyLock;
 use tracing::error;
 
 /// Encapsulates a system package in the framework.
 pub struct SystemPackageMetadata {
     /// The name of the package (e.g. "MoveStdLib").
     pub name: String,
-    /// The path within the repo to the source (e.g. "crates/iota-framework/packages/move-stdlib").
+    /// The path within the repo to the source (e.g.
+    /// "crates/iota-framework/packages/move-stdlib").
     pub path: String,
     /// The compiled bytecode and object ID of the package.
     pub compiled: SystemPackage,
 }
 
-/// Encapsulates the chain-relevant data about a framework package (such as the id or compiled
-/// bytecode).
+/// Encapsulates the chain-relevant data about a framework package (such as the
+/// id or compiled bytecode).
 #[derive(Clone, Serialize, PartialEq, Eq, Deserialize)]
 pub struct SystemPackage {
     pub id: ObjectID,
