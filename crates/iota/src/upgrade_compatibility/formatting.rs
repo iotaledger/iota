@@ -1,5 +1,8 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
+
+use std::{fmt, sync::LazyLock};
 
 use anyhow::{Context, Error};
 use move_binary_format::normalized::{Field, Type};
@@ -7,8 +10,6 @@ use move_bytecode_source_map::source_map::SourceName;
 use move_core_types::identifier::Identifier;
 use move_ir_types::location::Loc;
 use regex::Regex;
-use std::fmt;
-use std::sync::LazyLock;
 
 pub(super) struct FormattedType<'f> {
     type_: &'f Type,
@@ -81,7 +82,8 @@ impl<'f> fmt::Display for FormattedField<'f> {
     }
 }
 
-/// Returns a string representation of a parameter and updates its secondary label to include its location.
+/// Returns a string representation of a parameter and updates its secondary
+/// label to include its location.
 pub(super) fn format_param(
     param: &Type,
     type_params: Vec<SourceName>,
@@ -158,7 +160,8 @@ pub(super) fn format_list(
     }
 }
 
-/// Returns a string with the singular or plural form of a word based on a count.
+/// Returns a string with the singular or plural form of a word based on a
+/// count.
 pub(super) fn singular_or_plural(n: usize, singular: &str, plural: &str) -> String {
     if n == 1 {
         singular.to_string()
