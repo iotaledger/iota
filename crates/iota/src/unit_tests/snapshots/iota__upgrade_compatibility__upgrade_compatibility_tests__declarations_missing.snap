@@ -40,7 +40,7 @@ error[Compatibility E01001]: missing public declaration
 
 error[Compatibility E01006]: module missing
   ┌─ /Users/jordanjennings/code/iota/crates/iota/src/unit_tests/fixtures/upgrade_errors/declaration_errors_v2/Move.toml:1:1
-  │  
+  │
 1 │ ╭ [package]
 2 │ │ name = "upgrades"
 3 │ │ edition = "2024.beta" # edition = "legacy" to use legacy (pre-2024) Move

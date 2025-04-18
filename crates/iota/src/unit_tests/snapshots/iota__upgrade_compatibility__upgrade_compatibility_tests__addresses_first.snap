@@ -4,7 +4,7 @@ expression: output
 ---
 error[Compatibility E01006]: module missing
   ┌─ /Users/jordanjennings/code/iota/crates/iota/src/unit_tests/fixtures/upgrade_errors/missing_module_toml/addresses_first/Move.toml:4:1
-  │  
+  │
 4 │ ╭ [package]
 5 │ │ name = "upgrades"
   │ ╰─────────────────^ Package is missing module 'identifier'
