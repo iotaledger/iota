@@ -1,0 +1,398 @@
+---
+source: external-crates/move/crates/move-transactional-test-runner/src/framework.rs
+---
+processed 29 tasks
+
+init:
+A: object(0,0)
+
+task 1, lines 7-82:
+//# publish --upgradeable --sender A
+created: object(1,0), object(1,1)
+mutated: object(0,0)
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 9728000,  storage_rebate: 0, non_refundable_storage_fee: 0
+
+task 2, line 84:
+//# run P0::m::callU8
+Error: Transaction Effects Status: Move Runtime Abort. Location: P0::m::callU8 (function index 0) at offset 1, Abort Code: 9223372165703794689
+Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: MoveAbort(MoveLocation { module: ModuleId { address: P0, name: Identifier("m") }, function: 0, instruction: 1, function_name: Some("callU8") }, 9223372165703794689), source: Some(VMError { major_status: ABORTED, sub_status: Some(9223372165703794689), message: Some("P0::m::callU8 at offset 1"), exec_state: None, location: Module(ModuleId { address: P0, name: Identifier("m") }), indices: [], offsets: [(FunctionDefinitionIndex(0), 1)] }), command: Some(0) } }
+
+task 3, line 86:
+//# run P0::m::callU16
+Error: Transaction Effects Status: Move Runtime Abort. Location: P0::m::callU16 (function index 1) at offset 1, Abort Code: 9223372178588827651
+Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: MoveAbort(MoveLocation { module: ModuleId { address: P0, name: Identifier("m") }, function: 1, instruction: 1, function_name: Some("callU16") }, 9223372178588827651), source: Some(VMError { major_status: ABORTED, sub_status: Some(9223372178588827651), message: Some("P0::m::callU16 at offset 1"), exec_state: None, location: Module(ModuleId { address: P0, name: Identifier("m") }), indices: [], offsets: [(FunctionDefinitionIndex(1), 1)] }), command: Some(0) } }
+
+task 4, line 88:
+//# run P0::m::callU32
+Error: Transaction Effects Status: Move Runtime Abort. Location: P0::m::callU32 (function index 2) at offset 1, Abort Code: 9223372191473860613
+Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: MoveAbort(MoveLocation { module: ModuleId { address: P0, name: Identifier("m") }, function: 2, instruction: 1, function_name: Some("callU32") }, 9223372191473860613), source: Some(VMError { major_status: ABORTED, sub_status: Some(9223372191473860613), message: Some("P0::m::callU32 at offset 1"), exec_state: None, location: Module(ModuleId { address: P0, name: Identifier("m") }), indices: [], offsets: [(FunctionDefinitionIndex(2), 1)] }), command: Some(0) } }
+
+task 5, line 90:
+//# run P0::m::callU64
+Error: Transaction Effects Status: Move Runtime Abort. Location: P0::m::callU64 (function index 3) at offset 1, Abort Code: 9223372204358893575
+Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: MoveAbort(MoveLocation { module: ModuleId { address: P0, name: Identifier("m") }, function: 3, instruction: 1, function_name: Some("callU64") }, 9223372204358893575), source: Some(VMError { major_status: ABORTED, sub_status: Some(9223372204358893575), message: Some("P0::m::callU64 at offset 1"), exec_state: None, location: Module(ModuleId { address: P0, name: Identifier("m") }), indices: [], offsets: [(FunctionDefinitionIndex(3), 1)] }), command: Some(0) } }
+
+task 6, line 92:
+//# run P0::m::callU128
+Error: Transaction Effects Status: Move Runtime Abort. Location: P0::m::callU128 (function index 4) at offset 1, Abort Code: 9223372217243926537
+Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: MoveAbort(MoveLocation { module: ModuleId { address: P0, name: Identifier("m") }, function: 4, instruction: 1, function_name: Some("callU128") }, 9223372217243926537), source: Some(VMError { major_status: ABORTED, sub_status: Some(9223372217243926537), message: Some("P0::m::callU128 at offset 1"), exec_state: None, location: Module(ModuleId { address: P0, name: Identifier("m") }), indices: [], offsets: [(FunctionDefinitionIndex(4), 1)] }), command: Some(0) } }
+
+task 7, line 94:
+//# run P0::m::callU256
+Error: Transaction Effects Status: Move Runtime Abort. Location: P0::m::callU256 (function index 5) at offset 1, Abort Code: 9223372230128959499
+Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: MoveAbort(MoveLocation { module: ModuleId { address: P0, name: Identifier("m") }, function: 5, instruction: 1, function_name: Some("callU256") }, 9223372230128959499), source: Some(VMError { major_status: ABORTED, sub_status: Some(9223372230128959499), message: Some("P0::m::callU256 at offset 1"), exec_state: None, location: Module(ModuleId { address: P0, name: Identifier("m") }), indices: [], offsets: [(FunctionDefinitionIndex(5), 1)] }), command: Some(0) } }
+
+task 8, line 96:
+//# run P0::m::callAddress
+Error: Transaction Effects Status: Move Runtime Abort. Location: P0::m::callAddress (function index 6) at offset 1, Abort Code: 9223372243014123535
+Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: MoveAbort(MoveLocation { module: ModuleId { address: P0, name: Identifier("m") }, function: 6, instruction: 1, function_name: Some("callAddress") }, 9223372243014123535), source: Some(VMError { major_status: ABORTED, sub_status: Some(9223372243014123535), message: Some("P0::m::callAddress at offset 1"), exec_state: None, location: Module(ModuleId { address: P0, name: Identifier("m") }), indices: [], offsets: [(FunctionDefinitionIndex(6), 1)] }), command: Some(0) } }
+
+task 9, line 98:
+//# run P0::m::callString
+Error: Transaction Effects Status: Move Runtime Abort. Location: P0::m::callString (function index 7) at offset 1, Abort Code: 9223372255899156497
+Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: MoveAbort(MoveLocation { module: ModuleId { address: P0, name: Identifier("m") }, function: 7, instruction: 1, function_name: Some("callString") }, 9223372255899156497), source: Some(VMError { major_status: ABORTED, sub_status: Some(9223372255899156497), message: Some("P0::m::callString at offset 1"), exec_state: None, location: Module(ModuleId { address: P0, name: Identifier("m") }), indices: [], offsets: [(FunctionDefinitionIndex(7), 1)] }), command: Some(0) } }
+
+task 10, line 100:
+//# run P0::m::callU64vec
+Error: Transaction Effects Status: Move Runtime Abort. Location: P0::m::callU64vec (function index 8) at offset 1, Abort Code: 9223372268784189459
+Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: MoveAbort(MoveLocation { module: ModuleId { address: P0, name: Identifier("m") }, function: 8, instruction: 1, function_name: Some("callU64vec") }, 9223372268784189459), source: Some(VMError { major_status: ABORTED, sub_status: Some(9223372268784189459), message: Some("P0::m::callU64vec at offset 1"), exec_state: None, location: Module(ModuleId { address: P0, name: Identifier("m") }), indices: [], offsets: [(FunctionDefinitionIndex(8), 1)] }), command: Some(0) } }
+
+task 11, line 102:
+//# run P0::m::normalAbort
+Error: Transaction Effects Status: Move Runtime Abort. Location: P0::m::normalAbort (function index 9) at offset 1, Abort Code: 0
+Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: MoveAbort(MoveLocation { module: ModuleId { address: P0, name: Identifier("m") }, function: 9, instruction: 1, function_name: Some("normalAbort") }, 0), source: Some(VMError { major_status: ABORTED, sub_status: Some(0), message: Some("P0::m::normalAbort at offset 1"), exec_state: None, location: Module(ModuleId { address: P0, name: Identifier("m") }), indices: [], offsets: [(FunctionDefinitionIndex(9), 1)] }), command: Some(0) } }
+
+task 12, line 104:
+//# run P0::m::assertLineNo
+Error: Transaction Effects Status: Move Runtime Abort. Location: P0::m::assertLineNo (function index 10) at offset 1, Abort Code: 9223372298847780863
+Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: MoveAbort(MoveLocation { module: ModuleId { address: P0, name: Identifier("m") }, function: 10, instruction: 1, function_name: Some("assertLineNo") }, 9223372298847780863), source: Some(VMError { major_status: ABORTED, sub_status: Some(9223372298847780863), message: Some("P0::m::assertLineNo at offset 1"), exec_state: None, location: Module(ModuleId { address: P0, name: Identifier("m") }), indices: [], offsets: [(FunctionDefinitionIndex(10), 1)] }), command: Some(0) } }
+
+task 13, line 106:
+//# create-checkpoint
+Checkpoint created: 1
+
+task 14, lines 108-118:
+//# run-graphql
+Response: {
+  "data": {
+    "transactionBlocks": {
+      "nodes": [
+        {
+          "effects": {
+            "status": "FAILURE",
+            "errors": "Error in 1st command, from '0xe38b1fa107c63a9c4a63cd580ec530fcbccd97a6bb6da99a3635893b64a141a3::m::callU8' (line 30), abort 'ImAU8': 0"
+          }
+        },
+        {
+          "effects": {
+            "status": "FAILURE",
+            "errors": "Error in 1st command, from '0xe38b1fa107c63a9c4a63cd580ec530fcbccd97a6bb6da99a3635893b64a141a3::m::callU16' (line 33), abort 'ImAU16': 1"
+          }
+        },
+        {
+          "effects": {
+            "status": "FAILURE",
+            "errors": "Error in 1st command, from '0xe38b1fa107c63a9c4a63cd580ec530fcbccd97a6bb6da99a3635893b64a141a3::m::callU32' (line 36), abort 'ImAU32': 2"
+          }
+        },
+        {
+          "effects": {
+            "status": "FAILURE",
+            "errors": "Error in 1st command, from '0xe38b1fa107c63a9c4a63cd580ec530fcbccd97a6bb6da99a3635893b64a141a3::m::callU64' (line 39), abort 'ImAU64': 3"
+          }
+        },
+        {
+          "effects": {
+            "status": "FAILURE",
+            "errors": "Error in 1st command, from '0xe38b1fa107c63a9c4a63cd580ec530fcbccd97a6bb6da99a3635893b64a141a3::m::callU128' (line 42), abort 'ImAU128': 4"
+          }
+        },
+        {
+          "effects": {
+            "status": "FAILURE",
+            "errors": "Error in 1st command, from '0xe38b1fa107c63a9c4a63cd580ec530fcbccd97a6bb6da99a3635893b64a141a3::m::callU256' (line 45), abort 'ImAU256': 5"
+          }
+        },
+        {
+          "effects": {
+            "status": "FAILURE",
+            "errors": "Error in 1st command, from '0xe38b1fa107c63a9c4a63cd580ec530fcbccd97a6bb6da99a3635893b64a141a3::m::callAddress' (line 48), abort 'ImAnAddress': 0x0000000000000000000000000000000000000000000000000000000000000006"
+          }
+        },
+        {
+          "effects": {
+            "status": "FAILURE",
+            "errors": "Error in 1st command, from '0xe38b1fa107c63a9c4a63cd580ec530fcbccd97a6bb6da99a3635893b64a141a3::m::callString' (line 51), abort 'ImAString': This is a string"
+          }
+        },
+        {
+          "effects": {
+            "status": "FAILURE",
+            "errors": "Error in 1st command, from '0xe38b1fa107c63a9c4a63cd580ec530fcbccd97a6bb6da99a3635893b64a141a3::m::callU64vec' (line 54), abort 'ImNotAString': BQEAAAAAAAAAAgAAAAAAAAADAAAAAAAAAAQAAAAAAAAABQAAAAAAAAA="
+          }
+        },
+        {
+          "effects": {
+            "status": "FAILURE",
+            "errors": "Error in 1st command, from '0xe38b1fa107c63a9c4a63cd580ec530fcbccd97a6bb6da99a3635893b64a141a3::m::normalAbort' (instruction 1), abort code: 0"
+          }
+        },
+        {
+          "effects": {
+            "status": "FAILURE",
+            "errors": "Error in 1st command, from '0xe38b1fa107c63a9c4a63cd580ec530fcbccd97a6bb6da99a3635893b64a141a3::m::assertLineNo' (line 60)"
+          }
+        }
+      ]
+    }
+  }
+}
+
+task 15, lines 120-198:
+//# upgrade --package P0 --upgrade-capability 1,0 --sender A
+created: object(15,0)
+mutated: object(0,0), object(1,0)
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 9834400,  storage_rebate: 2606800, non_refundable_storage_fee: 0
+
+task 16, line 200:
+//# run P0::m::callU8
+Error: Transaction Effects Status: Move Runtime Abort. Location: P0::m::callU8 (function index 0) at offset 1, Abort Code: 9223372663920001025
+Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: MoveAbort(MoveLocation { module: ModuleId { address: P0, name: Identifier("m") }, function: 0, instruction: 1, function_name: Some("callU8") }, 9223372663920001025), source: Some(VMError { major_status: ABORTED, sub_status: Some(9223372663920001025), message: Some("fake(1,1)::m::callU8 at offset 1"), exec_state: None, location: Module(ModuleId { address: fake(1,1), name: Identifier("m") }), indices: [], offsets: [(FunctionDefinitionIndex(0), 1)] }), command: Some(0) } }
+
+task 17, line 202:
+//# run P0::m::callU16
+Error: Transaction Effects Status: Move Runtime Abort. Location: P0::m::callU16 (function index 1) at offset 1, Abort Code: 9223372676805033987
+Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: MoveAbort(MoveLocation { module: ModuleId { address: P0, name: Identifier("m") }, function: 1, instruction: 1, function_name: Some("callU16") }, 9223372676805033987), source: Some(VMError { major_status: ABORTED, sub_status: Some(9223372676805033987), message: Some("fake(1,1)::m::callU16 at offset 1"), exec_state: None, location: Module(ModuleId { address: fake(1,1), name: Identifier("m") }), indices: [], offsets: [(FunctionDefinitionIndex(1), 1)] }), command: Some(0) } }
+
+task 18, line 204:
+//# run P0::m::callU32
+Error: Transaction Effects Status: Move Runtime Abort. Location: P0::m::callU32 (function index 2) at offset 1, Abort Code: 9223372689690066949
+Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: MoveAbort(MoveLocation { module: ModuleId { address: P0, name: Identifier("m") }, function: 2, instruction: 1, function_name: Some("callU32") }, 9223372689690066949), source: Some(VMError { major_status: ABORTED, sub_status: Some(9223372689690066949), message: Some("fake(1,1)::m::callU32 at offset 1"), exec_state: None, location: Module(ModuleId { address: fake(1,1), name: Identifier("m") }), indices: [], offsets: [(FunctionDefinitionIndex(2), 1)] }), command: Some(0) } }
+
+task 19, line 206:
+//# run P0::m::callU64
+Error: Transaction Effects Status: Move Runtime Abort. Location: P0::m::callU64 (function index 3) at offset 1, Abort Code: 9223372702575099911
+Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: MoveAbort(MoveLocation { module: ModuleId { address: P0, name: Identifier("m") }, function: 3, instruction: 1, function_name: Some("callU64") }, 9223372702575099911), source: Some(VMError { major_status: ABORTED, sub_status: Some(9223372702575099911), message: Some("fake(1,1)::m::callU64 at offset 1"), exec_state: None, location: Module(ModuleId { address: fake(1,1), name: Identifier("m") }), indices: [], offsets: [(FunctionDefinitionIndex(3), 1)] }), command: Some(0) } }
+
+task 20, line 208:
+//# run P0::m::callU128
+Error: Transaction Effects Status: Move Runtime Abort. Location: P0::m::callU128 (function index 4) at offset 1, Abort Code: 9223372715460132873
+Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: MoveAbort(MoveLocation { module: ModuleId { address: P0, name: Identifier("m") }, function: 4, instruction: 1, function_name: Some("callU128") }, 9223372715460132873), source: Some(VMError { major_status: ABORTED, sub_status: Some(9223372715460132873), message: Some("fake(1,1)::m::callU128 at offset 1"), exec_state: None, location: Module(ModuleId { address: fake(1,1), name: Identifier("m") }), indices: [], offsets: [(FunctionDefinitionIndex(4), 1)] }), command: Some(0) } }
+
+task 21, line 210:
+//# run P0::m::callU256
+Error: Transaction Effects Status: Move Runtime Abort. Location: P0::m::callU256 (function index 5) at offset 1, Abort Code: 9223372728345165835
+Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: MoveAbort(MoveLocation { module: ModuleId { address: P0, name: Identifier("m") }, function: 5, instruction: 1, function_name: Some("callU256") }, 9223372728345165835), source: Some(VMError { major_status: ABORTED, sub_status: Some(9223372728345165835), message: Some("fake(1,1)::m::callU256 at offset 1"), exec_state: None, location: Module(ModuleId { address: fake(1,1), name: Identifier("m") }), indices: [], offsets: [(FunctionDefinitionIndex(5), 1)] }), command: Some(0) } }
+
+task 22, line 212:
+//# run P0::m::callAddress
+Error: Transaction Effects Status: Move Runtime Abort. Location: P0::m::callAddress (function index 6) at offset 1, Abort Code: 9223372741230329871
+Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: MoveAbort(MoveLocation { module: ModuleId { address: P0, name: Identifier("m") }, function: 6, instruction: 1, function_name: Some("callAddress") }, 9223372741230329871), source: Some(VMError { major_status: ABORTED, sub_status: Some(9223372741230329871), message: Some("fake(1,1)::m::callAddress at offset 1"), exec_state: None, location: Module(ModuleId { address: fake(1,1), name: Identifier("m") }), indices: [], offsets: [(FunctionDefinitionIndex(6), 1)] }), command: Some(0) } }
+
+task 23, line 214:
+//# run P0::m::callString
+Error: Transaction Effects Status: Move Runtime Abort. Location: P0::m::callString (function index 7) at offset 1, Abort Code: 9223372754115362833
+Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: MoveAbort(MoveLocation { module: ModuleId { address: P0, name: Identifier("m") }, function: 7, instruction: 1, function_name: Some("callString") }, 9223372754115362833), source: Some(VMError { major_status: ABORTED, sub_status: Some(9223372754115362833), message: Some("fake(1,1)::m::callString at offset 1"), exec_state: None, location: Module(ModuleId { address: fake(1,1), name: Identifier("m") }), indices: [], offsets: [(FunctionDefinitionIndex(7), 1)] }), command: Some(0) } }
+
+task 24, line 216:
+//# run P0::m::callU64vec
+Error: Transaction Effects Status: Move Runtime Abort. Location: P0::m::callU64vec (function index 8) at offset 1, Abort Code: 9223372767000395795
+Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: MoveAbort(MoveLocation { module: ModuleId { address: P0, name: Identifier("m") }, function: 8, instruction: 1, function_name: Some("callU64vec") }, 9223372767000395795), source: Some(VMError { major_status: ABORTED, sub_status: Some(9223372767000395795), message: Some("fake(1,1)::m::callU64vec at offset 1"), exec_state: None, location: Module(ModuleId { address: fake(1,1), name: Identifier("m") }), indices: [], offsets: [(FunctionDefinitionIndex(8), 1)] }), command: Some(0) } }
+
+task 25, line 218:
+//# run P0::m::normalAbort
+Error: Transaction Effects Status: Move Runtime Abort. Location: P0::m::normalAbort (function index 9) at offset 1, Abort Code: 0
+Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: MoveAbort(MoveLocation { module: ModuleId { address: P0, name: Identifier("m") }, function: 9, instruction: 1, function_name: Some("normalAbort") }, 0), source: Some(VMError { major_status: ABORTED, sub_status: Some(0), message: Some("fake(1,1)::m::normalAbort at offset 1"), exec_state: None, location: Module(ModuleId { address: fake(1,1), name: Identifier("m") }), indices: [], offsets: [(FunctionDefinitionIndex(9), 1)] }), command: Some(0) } }
+
+task 26, line 220:
+//# run P0::m::assertLineNo
+Error: Transaction Effects Status: Move Runtime Abort. Location: P0::m::assertLineNo (function index 10) at offset 1, Abort Code: 9223372797063987199
+Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: MoveAbort(MoveLocation { module: ModuleId { address: P0, name: Identifier("m") }, function: 10, instruction: 1, function_name: Some("assertLineNo") }, 9223372797063987199), source: Some(VMError { major_status: ABORTED, sub_status: Some(9223372797063987199), message: Some("fake(1,1)::m::assertLineNo at offset 1"), exec_state: None, location: Module(ModuleId { address: fake(1,1), name: Identifier("m") }), indices: [], offsets: [(FunctionDefinitionIndex(10), 1)] }), command: Some(0) } }
+
+task 27, line 222:
+//# create-checkpoint
+Checkpoint created: 2
+
+task 28, lines 224-234:
+//# run-graphql
+Response: {
+  "data": {
+    "transactionBlocks": {
+      "nodes": [
+        {
+          "effects": null
+        },
+        {
+          "effects": null
+        },
+        {
+          "effects": null
+        },
+        {
+          "effects": null
+        },
+        {
+          "effects": null
+        },
+        {
+          "effects": null
+        },
+        {
+          "effects": null
+        },
+        {
+          "effects": null
+        },
+        {
+          "effects": null
+        }
+      ]
+    }
+  },
+  "errors": [
+    {
+      "message": "Internal error occurred while processing request: Error resolving Move location: Linkage not found for package: 056cabcc3fb21504d1e14590790d6e381e45d719e9646b69b05225a5eaa413e7",
+      "locations": [
+        {
+          "line": 6,
+          "column": 9
+        }
+      ],
+      "path": [
+        "transactionBlocks",
+        "nodes",
+        0,
+        "effects",
+        "errors"
+      ]
+    },
+    {
+      "message": "Internal error occurred while processing request: Error resolving Move location: Linkage not found for package: 056cabcc3fb21504d1e14590790d6e381e45d719e9646b69b05225a5eaa413e7",
+      "locations": [
+        {
+          "line": 6,
+          "column": 9
+        }
+      ],
+      "path": [
+        "transactionBlocks",
+        "nodes",
+        1,
+        "effects",
+        "errors"
+      ]
+    },
+    {
+      "message": "Internal error occurred while processing request: Error resolving Move location: Linkage not found for package: 056cabcc3fb21504d1e14590790d6e381e45d719e9646b69b05225a5eaa413e7",
+      "locations": [
+        {
+          "line": 6,
+          "column": 9
+        }
+      ],
+      "path": [
+        "transactionBlocks",
+        "nodes",
+        2,
+        "effects",
+        "errors"
+      ]
+    },
+    {
+      "message": "Internal error occurred while processing request: Error resolving Move location: Linkage not found for package: 056cabcc3fb21504d1e14590790d6e381e45d719e9646b69b05225a5eaa413e7",
+      "locations": [
+        {
+          "line": 6,
+          "column": 9
+        }
+      ],
+      "path": [
+        "transactionBlocks",
+        "nodes",
+        3,
+        "effects",
+        "errors"
+      ]
+    },
+    {
+      "message": "Internal error occurred while processing request: Error resolving Move location: Linkage not found for package: 056cabcc3fb21504d1e14590790d6e381e45d719e9646b69b05225a5eaa413e7",
+      "locations": [
+        {
+          "line": 6,
+          "column": 9
+        }
+      ],
+      "path": [
+        "transactionBlocks",
+        "nodes",
+        4,
+        "effects",
+        "errors"
+      ]
+    },
+    {
+      "message": "Internal error occurred while processing request: Error resolving Move location: Linkage not found for package: 056cabcc3fb21504d1e14590790d6e381e45d719e9646b69b05225a5eaa413e7",
+      "locations": [
+        {
+          "line": 6,
+          "column": 9
+        }
+      ],
+      "path": [
+        "transactionBlocks",
+        "nodes",
+        5,
+        "effects",
+        "errors"
+      ]
+    },
+    {
+      "message": "Internal error occurred while processing request: Error resolving Move location: Linkage not found for package: 056cabcc3fb21504d1e14590790d6e381e45d719e9646b69b05225a5eaa413e7",
+      "locations": [
+        {
+          "line": 6,
+          "column": 9
+        }
+      ],
+      "path": [
+        "transactionBlocks",
+        "nodes",
+        6,
+        "effects",
+        "errors"
+      ]
+    },
+    {
+      "message": "Internal error occurred while processing request: Error resolving Move location: Linkage not found for package: 056cabcc3fb21504d1e14590790d6e381e45d719e9646b69b05225a5eaa413e7",
+      "locations": [
+        {
+          "line": 6,
+          "column": 9
+        }
+      ],
+      "path": [
+        "transactionBlocks",
+        "nodes",
+        7,
+        "effects",
+        "errors"
+      ]
+    },
+    {
+      "message": "Internal error occurred while processing request: Error resolving Move location: Linkage not found for package: 056cabcc3fb21504d1e14590790d6e381e45d719e9646b69b05225a5eaa413e7",
+      "locations": [
+        {
+          "line": 6,
+          "column": 9
+        }
+      ],
+      "path": [
+        "transactionBlocks",
+        "nodes",
+        8,
+        "effects",
+        "errors"
+      ]
+    }
+  ]
+}

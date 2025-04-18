@@ -1,0 +1,249 @@
+---
+source: external-crates/move/crates/move-transactional-test-runner/src/framework.rs
+---
+processed 16 tasks
+
+init:
+A: object(0,0), B: object(0,1), C: object(0,2), D: object(0,3), E: object(0,4)
+
+task 1, lines 7-20:
+//# publish
+created: object(1,0)
+mutated: object(0,5)
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 5168000,  storage_rebate: 0, non_refundable_storage_fee: 0
+
+task 2, line 22:
+//# create-checkpoint
+Checkpoint created: 1
+
+task 3, line 24:
+//# run Test::M1::create --args 0 @A --sender A
+created: object(3,0)
+mutated: object(0,0)
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2287600,  storage_rebate: 0, non_refundable_storage_fee: 0
+
+task 4, line 26:
+//# run Test::M1::create --args 1 @A --sender B
+created: object(4,0)
+mutated: object(0,1)
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2287600,  storage_rebate: 0, non_refundable_storage_fee: 0
+
+task 5, line 28:
+//# run Test::M1::create --args 2 @A --sender C
+created: object(5,0)
+mutated: object(0,2)
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2287600,  storage_rebate: 0, non_refundable_storage_fee: 0
+
+task 6, line 30:
+//# run Test::M1::create --args 3 @A --sender D
+created: object(6,0)
+mutated: object(0,3)
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2287600,  storage_rebate: 0, non_refundable_storage_fee: 0
+
+task 7, line 32:
+//# run Test::M1::create --args 4 @A --sender E
+created: object(7,0)
+mutated: object(0,4)
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2287600,  storage_rebate: 0, non_refundable_storage_fee: 0
+
+task 8, line 34:
+//# create-checkpoint
+Checkpoint created: 2
+
+task 9, lines 36-54:
+//# run-graphql
+Response: {
+  "data": {
+    "transactionBlocks": {
+      "pageInfo": {
+        "hasNextPage": false,
+        "hasPreviousPage": false,
+        "endCursor": "eyJjIjoyLCJ0Ijo2LCJpIjpmYWxzZX0",
+        "startCursor": "eyJjIjoyLCJ0IjoyLCJpIjpmYWxzZX0"
+      },
+      "nodes": [
+        {
+          "digest": "6UvXVnxxiisqBZUy6e2XU4FWZARoehaxoQsXrpaAmHPk",
+          "effects": {
+            "checkpoint": {
+              "sequenceNumber": 2
+            }
+          }
+        },
+        {
+          "digest": "HAdmB9FF2xtg3Q471qeGpHsFPhAMeiHdrtseq74FMrom",
+          "effects": {
+            "checkpoint": {
+              "sequenceNumber": 2
+            }
+          }
+        },
+        {
+          "digest": "3w4C1FCPqPaaqoLBLG46LQ5tR4k5y1q4h8nr2gNKsVcu",
+          "effects": {
+            "checkpoint": {
+              "sequenceNumber": 2
+            }
+          }
+        },
+        {
+          "digest": "azRZmwh9eREhjQL4pZJyFMq3HEVvYQDAdxWryFF9vn2",
+          "effects": {
+            "checkpoint": {
+              "sequenceNumber": 2
+            }
+          }
+        },
+        {
+          "digest": "6ZHn2jE1t6WLQKU2TVpzaQC48V9uWDynkez37TxC8vyq",
+          "effects": {
+            "checkpoint": {
+              "sequenceNumber": 2
+            }
+          }
+        }
+      ]
+    }
+  }
+}
+
+task 10, lines 56-74:
+//# run-graphql
+Response: {
+  "data": {
+    "transactionBlocks": {
+      "pageInfo": {
+        "hasNextPage": false,
+        "hasPreviousPage": false,
+        "endCursor": "eyJjIjoyLCJ0IjoyLCJpIjpmYWxzZX0",
+        "startCursor": "eyJjIjoyLCJ0IjoyLCJpIjpmYWxzZX0"
+      },
+      "nodes": [
+        {
+          "digest": "6UvXVnxxiisqBZUy6e2XU4FWZARoehaxoQsXrpaAmHPk",
+          "effects": {
+            "checkpoint": {
+              "sequenceNumber": 2
+            }
+          }
+        }
+      ]
+    }
+  }
+}
+
+task 11, lines 76-94:
+//# run-graphql
+Response: {
+  "data": {
+    "transactionBlocks": {
+      "pageInfo": {
+        "hasNextPage": false,
+        "hasPreviousPage": false,
+        "endCursor": "eyJjIjoyLCJ0IjozLCJpIjpmYWxzZX0",
+        "startCursor": "eyJjIjoyLCJ0IjozLCJpIjpmYWxzZX0"
+      },
+      "nodes": [
+        {
+          "digest": "HAdmB9FF2xtg3Q471qeGpHsFPhAMeiHdrtseq74FMrom",
+          "effects": {
+            "checkpoint": {
+              "sequenceNumber": 2
+            }
+          }
+        }
+      ]
+    }
+  }
+}
+
+task 12, lines 96-114:
+//# run-graphql
+Response: {
+  "data": {
+    "transactionBlocks": {
+      "pageInfo": {
+        "hasNextPage": false,
+        "hasPreviousPage": false,
+        "endCursor": "eyJjIjoyLCJ0Ijo0LCJpIjpmYWxzZX0",
+        "startCursor": "eyJjIjoyLCJ0Ijo0LCJpIjpmYWxzZX0"
+      },
+      "nodes": [
+        {
+          "digest": "3w4C1FCPqPaaqoLBLG46LQ5tR4k5y1q4h8nr2gNKsVcu",
+          "effects": {
+            "checkpoint": {
+              "sequenceNumber": 2
+            }
+          }
+        }
+      ]
+    }
+  }
+}
+
+task 13, lines 116-134:
+//# run-graphql
+Response: {
+  "data": {
+    "transactionBlocks": {
+      "pageInfo": {
+        "hasNextPage": false,
+        "hasPreviousPage": false,
+        "endCursor": "eyJjIjoyLCJ0Ijo1LCJpIjpmYWxzZX0",
+        "startCursor": "eyJjIjoyLCJ0Ijo1LCJpIjpmYWxzZX0"
+      },
+      "nodes": [
+        {
+          "digest": "azRZmwh9eREhjQL4pZJyFMq3HEVvYQDAdxWryFF9vn2",
+          "effects": {
+            "checkpoint": {
+              "sequenceNumber": 2
+            }
+          }
+        }
+      ]
+    }
+  }
+}
+
+task 14, lines 136-154:
+//# run-graphql
+Response: {
+  "data": {
+    "transactionBlocks": {
+      "pageInfo": {
+        "hasNextPage": false,
+        "hasPreviousPage": false,
+        "endCursor": "eyJjIjoyLCJ0Ijo2LCJpIjpmYWxzZX0",
+        "startCursor": "eyJjIjoyLCJ0Ijo2LCJpIjpmYWxzZX0"
+      },
+      "nodes": [
+        {
+          "digest": "6ZHn2jE1t6WLQKU2TVpzaQC48V9uWDynkez37TxC8vyq",
+          "effects": {
+            "checkpoint": {
+              "sequenceNumber": 2
+            }
+          }
+        }
+      ]
+    }
+  }
+}
+
+task 15, lines 156-174:
+//# run-graphql
+Response: {
+  "data": {
+    "transactionBlocks": {
+      "pageInfo": {
+        "hasNextPage": false,
+        "hasPreviousPage": false,
+        "endCursor": null,
+        "startCursor": null
+      },
+      "nodes": []
+    }
+  }
+}
