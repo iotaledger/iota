@@ -7,8 +7,8 @@ use std::{
     ops::Bound::Included,
 };
 
-use starfish_config::AuthorityIndex;
 use parking_lot::RwLock;
+use starfish_config::AuthorityIndex;
 
 use super::{Store, WriteBatch};
 use crate::{

@@ -2,8 +2,8 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use starfish_config::AuthorityIndex;
 use rstest::rstest;
+use starfish_config::AuthorityIndex;
 use tempfile::TempDir;
 
 use super::{Store, WriteBatch, mem_store::MemStore, rocksdb_store::RocksDBStore};
