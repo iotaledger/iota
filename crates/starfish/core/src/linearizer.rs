@@ -273,7 +273,7 @@ mod tests {
     use super::*;
     use crate::{
         CommitIndex,
-        commit::{CommitAPI as _, CommitDigest, DEFAULT_WAVE_LENGTH},
+        commit::{CommitAPI as _, CommitDigest, WAVE_LENGTH},
         context::Context,
         leader_schedule::{LeaderSchedule, LeaderSwapTable},
         storage::mem_store::MemStore,
@@ -418,7 +418,7 @@ mod tests {
         ));
         let mut linearizer =
             Linearizer::new(context.clone(), dag_state.clone(), leader_schedule.clone());
-        let wave_length = DEFAULT_WAVE_LENGTH;
+        let wave_length = WAVE_LENGTH;
 
         let leader_round_wave_1 = 3;
         let leader_round_wave_2 = leader_round_wave_1 + wave_length;
