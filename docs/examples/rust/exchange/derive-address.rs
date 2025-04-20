@@ -9,7 +9,7 @@ fn main() {
     hasher.update(example_public_key);
     let arr = hasher.finalize();
     let iota_address_string = hex::encode(arr);
-    println!("Address: 0x{}", iota_address_string);
+    println!("Address: 0x{iota_address_string}");
 
     // Example of deriving a Secp256k1 address from a public key
     let flag = 0x01; // 0x01 = Secp256k1, 0x02 = Secp256r1, 0x03 = multiSig
