@@ -381,7 +381,7 @@ const iotaEvm = [
                 type: 'doc',
                 label: 'Move Packages',
                 id: 'iota-evm/explanations/move-anchor',
-            }
+            },
             {
                 type: 'link',
                 label: 'Core Contracts',
