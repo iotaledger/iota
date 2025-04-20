@@ -16,8 +16,7 @@ teams:
 The state of the chain consists of:
 
 - A ledger of accounts owning IOTA _objects_ (coins or other objects). The chain acts as a custodian for those funds on behalf of each account's owner.
-- A collection of arbitrary key/value pairs (the _data state_) that contains use case-specific data stored by the smart
- contracts in the chain.
+- A collection of arbitrary key/value pairs (the _data state_) that contains use case-specific data stored by the smart contracts in the chain.
 
 The chain's state is an append-only (immutable) _data structure_ maintained by the distributed consensus of its
 validators.
@@ -110,4 +109,3 @@ The ISC virtual machine (VM) computes the blocks and state outputs that anchor t
 transitions are calculated deterministically and consistently.
 
 ![Chain](/img/iota-evm/chain1.png)
-
