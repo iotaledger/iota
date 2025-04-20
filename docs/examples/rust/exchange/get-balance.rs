@@ -1,6 +1,6 @@
-use iota_sdk::IotaClientBuilder;
-use iota_sdk::types::base_types::IotaAddress;
 use std::str::FromStr;
+
+use iota_sdk::{IotaClientBuilder, types::base_types::IotaAddress};
 
 #[tokio::main]
 async fn main() -> Result<(), anyhow::Error> {
