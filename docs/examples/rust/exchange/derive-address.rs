@@ -19,5 +19,5 @@ fn main() {
     hasher.update(example_public_key);
     let arr = hasher.finalize();
     let iota_address_string = hex::encode(arr);
-    println!("Address: 0x{}", iota_address_string);
+    println!("Address: 0x{iota_address_string}");
 }
