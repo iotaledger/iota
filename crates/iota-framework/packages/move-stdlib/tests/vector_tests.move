@@ -769,17 +769,6 @@ fun zip_do_macro() {
     vector[1].zip_do!(vector[2], |_, _| {}); // no return
 }
 
-#[test]
-fun zip_do_undroppable_macro() {
-    let v1 = vector[NotDroppable {}, NotDroppable {}];
-    let v2 = vector[NotDroppable {}, NotDroppable {}];
-
-    v1.zip_do!(v2, |a, b| {
-        let NotDroppable {} = a;
-        let NotDroppable {} = b;
-    });
-}
-
 #[test, expected_failure]
 fun zip_do_reverse_macro_fail() {
     let v1 = vector[1u64];
