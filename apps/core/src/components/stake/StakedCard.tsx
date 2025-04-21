@@ -74,7 +74,6 @@ export function StakedCard({
             </CardImage>
             <CardBody
                 title={validatorMeta?.name || '--'}
-                isTextTruncated
                 subtitle={`${principalStaked} ${symbol}`}
                 icon={
                     activeButNotInTheCommittee ? (

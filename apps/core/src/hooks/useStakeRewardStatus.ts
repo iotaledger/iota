@@ -90,5 +90,5 @@ export const STATUS_COPY: {
     [StakeState.Earning]: 'Staking Rewards',
     [StakeState.CoolDown]: 'Available to withdraw',
     [StakeState.Withdraw]: 'Withdraw',
-    [StakeState.NotEarningMore]: 'Accumulated rewards',
+    [StakeState.NotEarningMore]: 'Rewards',
 };
