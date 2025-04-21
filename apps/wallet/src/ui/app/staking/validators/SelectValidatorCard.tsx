@@ -17,6 +17,7 @@ import {
     InfoBoxStyle,
     InfoBoxType,
     LoadingIndicator,
+    Search,
     Title,
     TitleSize,
     TooltipPosition,
@@ -34,6 +35,7 @@ type Validator = {
 
 export function SelectValidatorCard() {
     const [selectedValidator, setSelectedValidator] = useState<Validator | null>(null);
+    const [searchValue, setSearchValue] = useState('');
 
     const navigate = useNavigate();
 
@@ -95,10 +97,13 @@ export function SelectValidatorCard() {
         );
     }
 
-    const committeeMemberValidators = validatorList.filter((validator) =>
+    const filteredValidators = validatorList.filter((validator) =>
+        validator.name.toLowerCase().includes(searchValue.toLowerCase()),
+    );
+    const committeeMemberValidators = filteredValidators.filter((validator) =>
         isAddressCommitteeMember(validator.address),
     );
-    const nonCommitteeMemberValidators = validatorList.filter(
+    const nonCommitteeMemberValidators = filteredValidators.filter(
         (validator) => !isAddressCommitteeMember(validator.address),
     );
 
@@ -117,7 +122,13 @@ export function SelectValidatorCard() {
     }
 
     return (
-        <div className="flex h-full w-full flex-col justify-between overflow-hidden">
+        <div className="flex h-full w-full flex-col justify-between gap-3 overflow-hidden">
+            <Search
+                searchValue={searchValue}
+                onSearchValueChange={setSearchValue}
+                placeholder="Search validators"
+                isLoading={false}
+            />
             <div className="flex max-h-[530px] w-full flex-1 flex-col items-start gap-3 overflow-auto">
                 {committeeMemberValidators.map((validator) => (
                     <div
