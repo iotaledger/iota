@@ -115,6 +115,7 @@ export function SelectValidatorCard() {
             </div>
         );
     }
+
     return (
         <div className="flex h-full w-full flex-col justify-between overflow-hidden">
             <div className="flex max-h-[530px] w-full flex-1 flex-col items-start gap-3 overflow-auto">
@@ -132,14 +133,14 @@ export function SelectValidatorCard() {
                         />
                     </div>
                 ))}
-
-                <Title
-                    size={TitleSize.Small}
-                    title="Currently not earning rewards"
-                    tooltipText="These validators are not part of the committee."
-                    tooltipPosition={TooltipPosition.Left}
-                />
-
+                {nonCommitteeMemberValidators.length > 0 && (
+                    <Title
+                        size={TitleSize.Small}
+                        title="Currently not earning rewards"
+                        tooltipText="These validators are not part of the committee."
+                        tooltipPosition={TooltipPosition.Left}
+                    />
+                )}
                 {nonCommitteeMemberValidators.map((validator) => (
                     <div
                         className={cl('group relative w-full cursor-pointer', {
