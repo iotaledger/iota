@@ -139,14 +139,15 @@ function ValidatorDetails(): JSX.Element {
                 parentId: normalizeIotaAddress(data?.inactivePoolsId),
             });
 
-            const inactiveValidatorData = (
-                await Promise.all(
-                    inactiveValidators.data.map(
-                        async (validator) =>
-                            await getInactiveValidatorData(iotaClient, validator.objectId),
-                    ),
-                )
-            ).find((validator) => validator?.validatorAddress === id);
+            const inactiveValidatorData =
+                (
+                    await Promise.all(
+                        inactiveValidators.data.map(
+                            async (validator) =>
+                                await getInactiveValidatorData(iotaClient, validator.objectId),
+                        ),
+                    )
+                ).find((validator) => validator?.validatorAddress === id) || null;
 
             return inactiveValidatorData;
         },
@@ -182,8 +183,7 @@ function ValidatorDetails(): JSX.Element {
     if (isPending || validatorsEventsLoading || validatorsApysLoading) {
         return <PageLayout content={<LoadingIndicator />} />;
     }
-
-    if (!validatorData || !data || !validatorEvents || !id) {
+    if (inactiveValidatorData) {
         return (
             <PageLayout
                 content={
@@ -197,6 +197,23 @@ function ValidatorDetails(): JSX.Element {
                         {inactiveValidatorData && (
                             <InactiveValidators validatorData={inactiveValidatorData} />
                         )}
+                    </div>
+                }
+            />
+        );
+    }
+    if (!validatorData || !data || !validatorEvents || !id) {
+        return (
+            <PageLayout
+                content={
+                    <div className="mb-10">
+                        <InfoBox
+                            title="Failed to load validator data"
+                            supportingText={`No validator data found for ${id}`}
+                            icon={<Warning />}
+                            type={InfoBoxType.Error}
+                            style={InfoBoxStyle.Elevated}
+                        />
                     </div>
                 }
             />
