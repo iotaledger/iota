@@ -15,7 +15,6 @@ import {
 } from '../utils/iota-types.js';
 import { IotaHTTPTransport } from './http-transport.js';
 import type { IotaTransport } from './http-transport.js';
-import type { IotaValidatorSummary } from './types/generated.js';
 import type {
     AddressMetrics,
     AllEpochsAddressMetrics,
@@ -95,49 +94,7 @@ import type {
     IotaCirculatingSupply,
     GetDynamicFieldObjectV2Params,
 } from './types/index.js';
-
-import { useQuery } from '@tanstack/react-query';
-import { useIotaClient } from '@iota/dapp-kit';
-
-export type IotaSystemStateSummaryCompat = {
-    activeValidators: IotaValidatorSummary[];
-    atRiskValidators: [string, string][];
-    committeeMembers: string[];
-    epoch: string;
-    epochDurationMs: string;
-    epochStartTimestampMs: string;
-    inactivePoolsId: string;
-    inactivePoolsSize: string;
-    iotaTotalSupply: string;
-    iotaTreasuryCapId: string;
-    maxValidatorCount: string;
-    minValidatorCount: string;
-    minValidatorJoiningStake: string;
-    pendingActiveValidatorsId: string;
-    pendingActiveValidatorsSize: string;
-    pendingRemovals: string[];
-    protocolVersion: string;
-    referenceGasPrice: string;
-    safeMode: boolean;
-    safeModeComputationRewards: string;
-    safeModeComputationCharges: string;
-    safeModeComputationChargesBurned: string;
-    safeModeNonRefundableStorageFee: string;
-    safeModeStorageCharges: string;
-    safeModeStorageRebates: string;
-    stakingPoolMappingsId: string;
-    stakingPoolMappingsSize: string;
-    storageFundNonRefundableBalance: string;
-    storageFundTotalObjectStorageRebates: string;
-    systemStateVersion: string;
-    totalStake: string;
-    validatorCandidatesId: string;
-    validatorCandidatesSize: string;
-    validatorLowStakeGracePeriod: string;
-    validatorLowStakeThreshold: string;
-    validatorReportRecords: [string, string[]][];
-    validatorVeryLowStakeThreshold: string;
-};
+import type { IotaSystemStateSummaryCompat } from './types/common.ts';
 
 export interface PaginationArguments<Cursor> {
     /** Optional paging cursor */
@@ -156,135 +113,16 @@ export interface OrderArguments {
  */
 export type IotaClientOptions = NetworkOrTransport;
 
-export function useIotaSystemStateSummaryCompat() {
-    const iotaClient = useIotaClient();
-    return useQuery<IotaSystemStateSummaryCompat>({
-        queryKey: ['system', 'state'],
-        async queryFn() {
-            const protocolConfig = await iotaClient.getProtocolConfig();
-            const isV2Supported = Number(protocolConfig.maxSupportedProtocolVersion) >= 5;
-
-            const iotaSystemStateSummary: IotaSystemStateSummary = isV2Supported
-                ? await iotaClient.getLatestIotaSystemStateV2()
-                : {
-                      V1: await iotaClient.getLatestIotaSystemState(),
-                  };
-
-            return 'V2' in iotaSystemStateSummary
-                ? {
-                      activeValidators: iotaSystemStateSummary.V2.activeValidators,
-                      committeeMembers: iotaSystemStateSummary.V2.committeeMembers.map(
-                          (committeeMemberIndex) =>
-                              iotaSystemStateSummary.V2.activeValidators[
-                                  Number(committeeMemberIndex)
-                              ],
-                      ),
-                      atRiskValidators: iotaSystemStateSummary.V2.atRiskValidators,
-                      epoch: iotaSystemStateSummary.V2.epoch,
-                      epochDurationMs: iotaSystemStateSummary.V2.epochDurationMs,
-                      epochStartTimestampMs: iotaSystemStateSummary.V2.epochStartTimestampMs,
-                      pendingActiveValidatorsId:
-                          iotaSystemStateSummary.V2.pendingActiveValidatorsId,
-                      pendingActiveValidatorsSize:
-                          iotaSystemStateSummary.V2.pendingActiveValidatorsSize,
-                      protocolVersion: iotaSystemStateSummary.V2.protocolVersion,
-                      inactivePoolsId: iotaSystemStateSummary.V2.inactivePoolsId,
-                      inactivePoolsSize: iotaSystemStateSummary.V2.inactivePoolsSize,
-                      iotaTotalSupply: iotaSystemStateSummary.V2.iotaTotalSupply,
-                      iotaTreasuryCapId: iotaSystemStateSummary.V2.iotaTreasuryCapId,
-                      maxValidatorCount: iotaSystemStateSummary.V2.maxValidatorCount,
-                      minValidatorCount: iotaSystemStateSummary.V2.minValidatorCount,
-                      minValidatorJoiningStake: iotaSystemStateSummary.V2.minValidatorJoiningStake,
-                      pendingRemovals: iotaSystemStateSummary.V2.pendingRemovals.map(
-                          (pendingRemovalIndex) =>
-                              iotaSystemStateSummary.V2.activeValidators[
-                                  Number(pendingRemovalIndex)
-                              ],
-                      ),
-                      referenceGasPrice: iotaSystemStateSummary.V2.referenceGasPrice,
-                      safeMode: iotaSystemStateSummary.V2.safeMode,
-                      safeModeComputationRewards: '', // Only available in V1
-                      safeModeComputationCharges:
-                          iotaSystemStateSummary.V2.safeModeComputationCharges,
-                      safeModeComputationChargesBurned:
-                          iotaSystemStateSummary.V2.safeModeComputationChargesBurned,
-                      safeModeNonRefundableStorageFee:
-                          iotaSystemStateSummary.V2.safeModeNonRefundableStorageFee,
-                      safeModeStorageCharges: iotaSystemStateSummary.V2.safeModeStorageCharges,
-                      safeModeStorageRebates: iotaSystemStateSummary.V2.safeModeStorageRebates,
-                      stakingPoolMappingsId: iotaSystemStateSummary.V2.stakingPoolMappingsId,
-                      stakingPoolMappingsSize: iotaSystemStateSummary.V2.stakingPoolMappingsSize,
-                      storageFundNonRefundableBalance:
-                          iotaSystemStateSummary.V2.storageFundNonRefundableBalance,
-                      storageFundTotalObjectStorageRebates:
-                          iotaSystemStateSummary.V2.storageFundTotalObjectStorageRebates,
-                      systemStateVersion: iotaSystemStateSummary.V2.systemStateVersion,
-                      totalStake: iotaSystemStateSummary.V2.totalStake,
-                      validatorCandidatesId: iotaSystemStateSummary.V2.validatorCandidatesId,
-                      validatorCandidatesSize: iotaSystemStateSummary.V2.validatorCandidatesSize,
-                      validatorLowStakeGracePeriod:
-                          iotaSystemStateSummary.V2.validatorLowStakeGracePeriod,
-                      validatorLowStakeThreshold:
-                          iotaSystemStateSummary.V2.validatorLowStakeThreshold,
-                      validatorReportRecords: [], //TODO
-                      validatorVeryLowStakeThreshold:
-                          iotaSystemStateSummary.V2.validatorVeryLowStakeThreshold,
-                  }
-                : {
-                      activeValidators: iotaSystemStateSummary.V1.activeValidators,
-                      committeeMembers: iotaSystemStateSummary.V1.activeValidators,
-                      atRiskValidators: iotaSystemStateSummary.V1.atRiskValidators,
-                      epoch: iotaSystemStateSummary.V1.epoch,
-                      epochDurationMs: iotaSystemStateSummary.V1.epochDurationMs,
-                      epochStartTimestampMs: iotaSystemStateSummary.V1.epochStartTimestampMs,
-                      pendingActiveValidatorsId:
-                          iotaSystemStateSummary.V1.pendingActiveValidatorsId,
-                      pendingActiveValidatorsSize:
-                          iotaSystemStateSummary.V1.pendingActiveValidatorsSize,
-                      protocolVersion: iotaSystemStateSummary.V1.protocolVersion,
-                      inactivePoolsId: iotaSystemStateSummary.V1.inactivePoolsId,
-                      inactivePoolsSize: iotaSystemStateSummary.V1.inactivePoolsSize,
-                      iotaTotalSupply: iotaSystemStateSummary.V1.iotaTotalSupply,
-                      iotaTreasuryCapId: iotaSystemStateSummary.V1.iotaTreasuryCapId,
-                      maxValidatorCount: iotaSystemStateSummary.V1.maxValidatorCount,
-                      minValidatorCount: iotaSystemStateSummary.V1.minValidatorCount,
-                      minValidatorJoiningStake: iotaSystemStateSummary.V1.minValidatorJoiningStake,
-                      pendingRemovals: iotaSystemStateSummary.V1.pendingRemovals.map(
-                          (pendingRemovalIndex) =>
-                              iotaSystemStateSummary.V1.activeValidators[
-                                  Number(pendingRemovalIndex)
-                              ],
-                      ),
-                      referenceGasPrice: iotaSystemStateSummary.V1.referenceGasPrice,
-                      safeMode: iotaSystemStateSummary.V1.safeMode,
-                      safeModeComputationCharges: '', // Only available in V2
-                      safeModeComputationChargesBurned: '', // Only available in V2
-                      safeModeComputationRewards:
-                          iotaSystemStateSummary.V1.safeModeComputationRewards,
-                      safeModeNonRefundableStorageFee:
-                          iotaSystemStateSummary.V1.safeModeNonRefundableStorageFee,
-                      safeModeStorageCharges: iotaSystemStateSummary.V1.safeModeStorageCharges,
-                      safeModeStorageRebates: iotaSystemStateSummary.V1.safeModeStorageRebates,
-                      stakingPoolMappingsId: iotaSystemStateSummary.V1.stakingPoolMappingsId,
-                      stakingPoolMappingsSize: iotaSystemStateSummary.V1.stakingPoolMappingsSize,
-                      storageFundNonRefundableBalance:
-                          iotaSystemStateSummary.V1.storageFundNonRefundableBalance,
-                      storageFundTotalObjectStorageRebates:
-                          iotaSystemStateSummary.V1.storageFundTotalObjectStorageRebates,
-                      systemStateVersion: iotaSystemStateSummary.V1.systemStateVersion,
-                      totalStake: iotaSystemStateSummary.V1.totalStake,
-                      validatorCandidatesId: iotaSystemStateSummary.V1.validatorCandidatesId,
-                      validatorCandidatesSize: iotaSystemStateSummary.V1.validatorCandidatesSize,
-                      validatorLowStakeGracePeriod:
-                          iotaSystemStateSummary.V1.validatorLowStakeGracePeriod,
-                      validatorLowStakeThreshold:
-                          iotaSystemStateSummary.V1.validatorLowStakeThreshold,
-                      validatorReportRecords: [], //TODO
-                      validatorVeryLowStakeThreshold:
-                          iotaSystemStateSummary.V1.validatorVeryLowStakeThreshold,
-                  };
-        },
-    });
+// Get the latest IOTA system state object on network
+export async function getLatestIotaSystemStateUniversal(
+    client: IotaClient,
+): Promise<IotaSystemStateSummaryCompat> {
+    const protocolConfig = await client.getProtocolConfig();
+    const isV2Supported = Number(protocolConfig.maxSupportedProtocolVersion) >= 5;
+    const iotaSystemStateSummaryCompat: IotaSystemStateSummaryCompat = isV2Supported
+        ? await client.getLatestIotaSystemStateV2()
+        : await client.getLatestIotaSystemState();
+    return iotaSystemStateSummaryCompat;
 }
 
 type NetworkOrTransport =

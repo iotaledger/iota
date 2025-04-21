@@ -24,10 +24,9 @@ export {
 export * from './types/index.js';
 export {
     type IotaClientOptions,
-    type IotaSystemStateSummaryCompat,
     type PaginationArguments,
     type OrderArguments,
-    useIotaSystemStateSummaryCompat,
+    getLatestIotaSystemStateUniversal,
     isIotaClient,
     IotaClient,
 } from './client.js';
