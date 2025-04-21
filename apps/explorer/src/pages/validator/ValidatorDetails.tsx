@@ -76,7 +76,7 @@ export const DynamicFieldObjectSchema = z.object({
 
 // Function to get inactive validator data
 // It fetches the validator object and its dynamic fields to extract metadata
-const getInactiveValidatorData = async (
+const getInactiveValidatorsData = async (
     client: IotaClient,
     objectId: string,
 ): Promise<InactiveValidatorData | null> => {
@@ -129,7 +129,7 @@ function ValidatorDetails(): JSX.Element {
 
     const iotaClient = useIotaClient();
 
-    const { data: inactiveValidatorData } = useQuery({
+    const { data: pendingInactiveValidatorsData } = useQuery({
         queryKey: [data?.inactivePoolsId, id],
         async queryFn() {
             if (!data?.inactivePoolsId || !id) {
@@ -139,20 +139,21 @@ function ValidatorDetails(): JSX.Element {
                 parentId: normalizeIotaAddress(data?.inactivePoolsId),
             });
 
-            const inactiveValidatorData =
-                (
-                    await Promise.all(
-                        inactiveValidators.data.map(
-                            async (validator) =>
-                                await getInactiveValidatorData(iotaClient, validator.objectId),
-                        ),
-                    )
-                ).find((validator) => validator?.validatorAddress === id) || null;
+            const pendingInactiveValidatorsData = await Promise.all(
+                inactiveValidators.data.map(
+                    async (validator) =>
+                        await getInactiveValidatorsData(iotaClient, validator.objectId),
+                ),
+            );
 
-            return inactiveValidatorData;
+            return pendingInactiveValidatorsData;
         },
         enabled: !!data?.inactivePoolsId && !!id,
     });
+    const inactiveValidatorData =
+        (pendingInactiveValidatorsData ?? []).find(
+            (validator) => validator?.validatorAddress === id,
+        ) || null;
 
     const validatorData = useMemo(() => {
         if (!data) return null;
@@ -180,7 +181,12 @@ function ValidatorDetails(): JSX.Element {
         return rewards ? Number(rewards) : null;
     }, [id, validatorEvents]);
 
-    if (isPending || validatorsEventsLoading || validatorsApysLoading) {
+    if (
+        isPending ||
+        validatorsEventsLoading ||
+        validatorsApysLoading ||
+        !pendingInactiveValidatorsData
+    ) {
         return <PageLayout content={<LoadingIndicator />} />;
     }
     if (inactiveValidatorData) {
