@@ -89,6 +89,21 @@ export function SelectValidatorCard() {
         return sortedAsc;
     }, [allValidatorsRandomOrder, rollingAverageApys, totalStake, isAddressCommitteeMember]);
 
+    const filteredValidators = validatorList.filter((validator) => {
+        const valueToLowerCase = searchValidator.toLowerCase();
+        return (
+            validator.name.toLowerCase().includes(valueToLowerCase) ||
+            validator.address.toLowerCase().includes(valueToLowerCase)
+        );
+    });
+
+    const committeeMemberValidators = filteredValidators.filter((validator) =>
+        isAddressCommitteeMember(validator.address),
+    );
+    const nonCommitteeMemberValidators = filteredValidators.filter(
+        (validator) => !isAddressCommitteeMember(validator.address),
+    );
+
     if (isPending) {
         return (
             <div className="flex h-full w-full items-center justify-center p-2">
@@ -96,16 +111,6 @@ export function SelectValidatorCard() {
             </div>
         );
     }
-
-    const filteredValidators = validatorList.filter((validator) =>
-        validator.name.toLowerCase().includes(searchValidator.toLowerCase()),
-    );
-    const committeeMemberValidators = filteredValidators.filter((validator) =>
-        isAddressCommitteeMember(validator.address),
-    );
-    const nonCommitteeMemberValidators = filteredValidators.filter(
-        (validator) => !isAddressCommitteeMember(validator.address),
-    );
 
     if (isError) {
         return (

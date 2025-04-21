@@ -29,9 +29,13 @@ export function SelectValidatorView({
 
     const { isCommitteeMember } = useIsValidatorCommitteeMember();
 
-    const filteredValidators = validators.filter((validator) =>
-        validator.name.toLowerCase().includes(searchValidator.toLowerCase()),
-    );
+    const filteredValidators = validators.filter((validator) => {
+        const valueToLowerCase = searchValidator.toLowerCase();
+        return (
+            validator.name.toLowerCase().includes(valueToLowerCase) ||
+            validator.iotaAddress.toLowerCase().includes(valueToLowerCase)
+        );
+    });
 
     const committeeMemberValidators = filteredValidators.filter((validator) =>
         isCommitteeMember(validator.iotaAddress),
