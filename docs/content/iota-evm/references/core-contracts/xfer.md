@@ -29,10 +29,10 @@ function then transfers it into the caller's L2 account on that chain.
 
 #### Parameters
 
-| Name               | Type    | Optional  | Description |
-|--------------------|---------|-----------|-------------|
-| optionalGasReserve | u64  | Yes       | Gas amount to reserve in the allowance for
-  the internal call to transferAllowanceTo(). Default 100 (MinGasFee). |
+| Name                                                                 | Type | Optional | Description                                |
+| -------------------------------------------------------------------- | ---- | -------- | ------------------------------------------ |
+| optionalGasReserve                                                   | u64  | Yes      | Gas amount to reserve in the allowance for |
+| the internal call to transferAllowanceTo(). Default 100 (MinGasFee). |      |          |                                            |
 
 ### IMPORTANT CONSIDERATIONS
 

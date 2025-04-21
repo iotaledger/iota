@@ -72,7 +72,7 @@ The data will be BCS encoded
 #### Parameters
 
 | Name    | Type    | Optional | Description           |
-|---------|---------|----------|-----------------------|
+| ------- | ------- | -------- | --------------------- |
 | agentID | AgentID | No       | The target L2 account |
 
 ### `transferAccountToChain`
@@ -82,10 +82,10 @@ the target chain to the sender SC's L2 account on the origin chain.
 
 #### Parameters
 
-| Name               | Type    | Optional  | Description |
-|--------------------|---------|-----------|-------------|
-| optionalGasReserve | u64  | Yes       | Gas amount to reserve in the allowance for
-  the internal call to transferAllowanceTo(). Default 100 (MinGasFee). |
+| Name                                                                 | Type | Optional | Description                                |
+| -------------------------------------------------------------------- | ---- | -------- | ------------------------------------------ |
+| optionalGasReserve                                                   | u64  | Yes      | Gas amount to reserve in the allowance for |
+| the internal call to transferAllowanceTo(). Default 100 (MinGasFee). |      |          |                                            |
 
 :::note Important Detailed Information
 
@@ -107,9 +107,9 @@ Only callable by the chain owner.
 
 #### Parameters
 
-| Name      | Type         | Optional | Description                |
-|-----------|--------------|----------|----------------------------|
-| coinInfo  | IotaCoinInfo | Yes      | Metadata for the coin.     |
+| Name     | Type         | Optional | Description            |
+| -------- | ------------ | -------- | ---------------------- |
+| coinInfo | IotaCoinInfo | Yes      | Metadata for the coin. |
 
 ### `deleteCoinMetadata`
 
@@ -123,9 +123,9 @@ Only callable by the chain owner.
 
 #### Parameters
 
-| Name      | Type      | Optional | Description                |
-|-----------|-----------|----------|----------------------------|
-| coinType  | CoinType  | No       | The type of the coin.      |
+| Name     | Type     | Optional | Description           |
+| -------- | -------- | -------- | --------------------- |
+| coinType | CoinType | No       | The type of the coin. |
 
 ## Views
 
@@ -135,14 +135,14 @@ Returns the fungible tokens owned by the given Agent ID on the chain.
 
 #### Parameters
 
-| Name            | Type    | Optional  | Description           |
-|-----------------|---------|-----------|-----------------------|
-| optionalAgentID | AgentID | Yes       | The account Agent ID  |
+| Name            | Type    | Optional | Description          |
+| --------------- | ------- | -------- | -------------------- |
+| optionalAgentID | AgentID | Yes      | The account Agent ID |
 
 #### Returns
 
-| Name         | Type         | Description           |
-|--------------|--------------|-----------------------|
+| Name         | Type         | Description                                                                                                        |
+| ------------ | ------------ | ------------------------------------------------------------------------------------------------------------------ |
 | coinBalances | CoinBalances | A map of Coin type => Coin value(`u64`). An empty token ID (a string of zero length) represents the L1 base token. |
 
 ### `balanceBaseToken`
@@ -152,14 +152,14 @@ Returns the amount of base tokens owned by any AgentID `optionalAgentID` on the 
 #### Parameters
 
 | Name            | Type    | Optional | Description          |
-|-----------------|---------|----------|----------------------|
+| --------------- | ------- | -------- | -------------------- |
 | optionalAgentID | AgentID | Yes      | The account Agent ID |
 
 #### Returns
 
-| Name             | Type   | Description                              |
-|------------------|--------|------------------------------------------|
-| baseTokenBalance | u64 | The amount of base tokens in the account |
+| Name             | Type | Description                              |
+| ---------------- | ---- | ---------------------------------------- |
+| baseTokenBalance | u64  | The amount of base tokens in the account |
 
 ### `balanceBaseTokenEVM`
 
@@ -168,15 +168,14 @@ Returns the amount of base tokens owned by any AgentID `optionalAgentID` on the 
 #### Parameters
 
 | Name            | Type    | Optional | Description          |
-|-----------------|---------|----------|----------------------|
+| --------------- | ------- | -------- | -------------------- |
 | optionalAgentID | AgentID | Yes      | The account Agent ID |
 
 #### Returns
 
-| Name                | Type    | Description                              |
-|---------------------|---------|------------------------------------------|
-| evmBaseTokenBalance | u64     | The amount of base tokens in the account |
-
+| Name                | Type | Description                              |
+| ------------------- | ---- | ---------------------------------------- |
+| evmBaseTokenBalance | u64  | The amount of base tokens in the account |
 
 ### `balanceCoin`
 
@@ -184,16 +183,16 @@ Returns the amount of coins with coin ID `coinID` owned by any AgentID `agentID`
 
 #### Parameters
 
-| Name            | Type      | Optional | Description          |
-|-----------------|-----------|----------|----------------------|
-| optionalAgentID | AgentID   | Yes      | The account Agent ID |
-| coinID          | CoinType  | No       | The coin ID          |
+| Name            | Type     | Optional | Description          |
+| --------------- | -------- | -------- | -------------------- |
+| optionalAgentID | AgentID  | Yes      | The account Agent ID |
+| coinID          | CoinType | No       | The coin ID          |
 
 #### Returns
 
-| Name        | Type    | Description                              |
-|-------------|---------|------------------------------------------|
-| coinBalance | u64  | The amount of coins in the account       |
+| Name        | Type | Description                        |
+| ----------- | ---- | ---------------------------------- |
+| coinBalance | u64  | The amount of coins in the account |
 
 ### `totalAssets`
 
@@ -201,8 +200,8 @@ Returns the sum of all fungible tokens controlled by the chain.
 
 #### Returns
 
-| Name         | Type         | Description           |
-|--------------|--------------|-----------------------|
+| Name         | Type         | Description                                                                                                        |
+| ------------ | ------------ | ------------------------------------------------------------------------------------------------------------------ |
 | coinBalances | CoinBalances | A map of Coin type => Coin value(`u64`). An empty token ID (a string of zero length) represents the L1 base token. |
 
 ### `accountObjects`
@@ -212,14 +211,14 @@ Returns the Object IDs for all Objects owned by the given account.
 #### Parameters
 
 | Name            | Type    | Optional | Description          |
-|-----------------|---------|----------|----------------------|
+| --------------- | ------- | -------- | -------------------- |
 | optionalAgentID | AgentID | Yes      | The account Agent ID |
 
 #### Returns
 
-| Name            | Type         | Description                       |
-|-----------------|--------------|-----------------------------------|
-| bcsEncodedBytes | [u8]      | A BSC encoded array of Object IDs |
+| Name            | Type | Description                       |
+| --------------- | ---- | --------------------------------- |
+| bcsEncodedBytes | [u8] | A BSC encoded array of Object IDs |
 
 ### `accountObjectsInCollection`
 
@@ -227,15 +226,15 @@ Returns the Object IDs for all Objects in the given collection/object that are o
 
 #### Parameters
 
-| Name            | Type        | Optional | Description                     |
-|-----------------|-------------|----------|---------------------------------|
-| optionalAgentID | AgentID     | Yes      | The account Agent ID            |
+| Name            | Type     | Optional | Description                     |
+| --------------- | -------- | -------- | ------------------------------- |
+| optionalAgentID | AgentID  | Yes      | The account Agent ID            |
 | collectionID    | [u8; 32] | No       | The Object ID of the collection |
 
 #### Returns
 
-| Name            | Type    | Description                       |
-|-----------------|---------|-----------------------------------|
+| Name            | Type | Description                       |
+| --------------- | ---- | --------------------------------- |
 | bcsEncodedBytes | [u8] | A BSC encoded array of Object IDs |
 
 ### `getAccountNonce`
@@ -245,15 +244,15 @@ The account nonce is used to issue off-ledger requests.
 
 #### Parameters
 
-| Name            | Type       | Optional | Description                     |
-|-----------------|------------|----------|---------------------------------|
-| optionalAgentID | AgentID    | Yes      | The account Agent ID            |
+| Name            | Type    | Optional | Description          |
+| --------------- | ------- | -------- | -------------------- |
+| optionalAgentID | AgentID | Yes      | The account Agent ID |
 
 #### Returns
 
-| Name  | Type   | Description       |
-|-------|--------|-------------------|
-| nonce | u64 | The account Nonce |
+| Name  | Type | Description       |
+| ----- | ---- | ----------------- |
+| nonce | u64  | The account Nonce |
 
 ### `objectBCS`
 
@@ -262,11 +261,11 @@ Returns the Object data for a given ObjectID
 #### Parameters
 
 | Name     | Type     | Optional | Description   |
-|----------|----------|----------|---------------|
+| -------- | -------- | -------- | ------------- |
 | objectID | [u8; 32] | No       | The Object ID |
 
 #### Returns
 
-| Name            | Type    | Description                                 |
-|-----------------|---------|---------------------------------------------|
+| Name            | Type | Description                                 |
+| --------------- | ---- | ------------------------------------------- |
 | bcsEncodedBytes | [u8] | The data of the object as bcs encoded bytes |

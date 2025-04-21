@@ -29,7 +29,6 @@ Most entry points of the `evm` core contract are meant to be accessed through th
 automatically by the Wasp node so that the end users can use standard EVM tools like [MetaMask](https://metamask.io/).
 We only list the entry points not exposed through the JSON-RPC interface in this document.
 
-
 ### `registerERC20Coin`
 
 Registers an ERC20 contract to act as a proxy for the L1 coin, at address
@@ -40,8 +39,8 @@ Only the foundry owner can call this endpoint.
 
 #### Parameters
 
-| Name     | Type      | Optional | Description   |
-|----------|-----------|----------|---------------|
+| Name     | Type                            | Optional | Description   |
+| -------- | ------------------------------- | -------- | ------------- |
 | coinType | [CoinType](./types.md#cointype) | No       | The coin type |
 
 #### Returns
@@ -54,8 +53,8 @@ Sends a transaction to the EVM.
 
 #### Parameters
 
-| Name        | Type              | Optional | Description |
-|-------------|-------------------|----------|-------------|
+| Name        | Type               | Optional | Description             |
+| ----------- | ------------------ | -------- | ----------------------- |
 | transaction | *types.Transaction | No       | The transaction to send |
 
 #### Returns
@@ -68,14 +67,14 @@ Calls a contract on the EVM.
 
 #### Parameters
 
-| Name        | Type            | Optional | Description |
-|-------------|-----------------|----------|-------------|
+| Name        | Type             | Optional | Description      |
+| ----------- | ---------------- | -------- | ---------------- |
 | callMessage | ethereum.CallMsg | No       | The call message |
 
 #### Returns
 
-| Name           | Type    | Description           |
-|----------------|---------|-----------------------|
+| Name           | Type | Description            |
+| -------------- | ---- | ---------------------- |
 | functionResult | []u8 | The result of the call |
 
 ### `registerERC721NFTCollection`
@@ -88,8 +87,8 @@ The call will fail if the address is taken by another collection with the same p
 
 #### Parameters
 
-| Name         | Type          | Optional | Description |
-|--------------|---------------|----------|-------------|
+| Name         | Type           | Optional | Description       |
+| ------------ | -------------- | -------- | ----------------- |
 | collectionID | iotago.Address | No       | The collection ID |
 
 #### Returns
@@ -102,11 +101,11 @@ Creates a new L1 deposit.
 
 #### Parameters
 
-| Name                        | Type           | Optional | Description             |
-|-----------------------------|----------------|----------|-------------------------|
-| l1DepositOriginatorAgentID  | [u8; 32]       | No       | The originator agent ID |
-| targetAddress               | [u8; 32]       | No       | The target address      |
-| assets                      | [Assets](./types.md#assets)    | No       | The assets              |
+| Name                       | Type                        | Optional | Description             |
+| -------------------------- | --------------------------- | -------- | ----------------------- |
+| l1DepositOriginatorAgentID | [u8; 32]                    | No       | The originator agent ID |
+| targetAddress              | [u8; 32]                    | No       | The target address      |
+| assets                     | [Assets](./types.md#assets) | No       | The assets              |
 
 #### Returns
 
@@ -126,6 +125,6 @@ _None_
 
 #### Returns
 
-| Name    | Type   | Description  |
-|---------|--------|--------------|
-| chainID | u16 | The chain ID |
+| Name    | Type | Description  |
+| ------- | ---- | ------------ |
+| chainID | u16  | The chain ID |

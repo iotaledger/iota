@@ -38,8 +38,8 @@ It can only be invoked by the chain owner.
 
 #### Parameters
 
-| Name                  | Type               | Optional  | Description                                                                                                                                        |
-|-----------------------|--------------------|-----------|----------------------------------------------------------------------------------------------------------------------------------------------------|
+| Name                   | Type     | Optional | Description                                                                                                                |
+| ---------------------- | -------- | -------- | -------------------------------------------------------------------------------------------------------------------------- |
 | newStateControllerAddr | [u8; 32] | No       | The address of the next state controller. Must be an [allowed](#addallowedstatecontrolleraddress) state controller address |
 
 #### Returns
@@ -54,9 +54,9 @@ It can only be invoked by the chain owner.
 
 #### Parameters
 
-| Name                   | Type               | Optional | Description                                                |
-|------------------------|--------------------|----------|------------------------------------------------------------|
-| stateControllerAddress | [u8; 32]           | No       | The address to add to the set of allowed state controllers |
+| Name                   | Type     | Optional | Description                                                |
+| ---------------------- | -------- | -------- | ---------------------------------------------------------- |
+| stateControllerAddress | [u8; 32] | No       | The address to add to the set of allowed state controllers |
 
 #### Returns
 
@@ -70,9 +70,9 @@ It can only be invoked by the chain owner.
 
 #### Parameters
 
-| Name                   | Type               | Optional | Description                                                     |
-|------------------------|--------------------|----------|-----------------------------------------------------------------|
-| stateControllerAddress | [u8; 32]           | No       | The address to remove from the set of allowed state controllers |
+| Name                   | Type     | Optional | Description                                                     |
+| ---------------------- | -------- | -------- | --------------------------------------------------------------- |
+| stateControllerAddress | [u8; 32] | No       | The address to remove from the set of allowed state controllers |
 
 #### Returns
 
@@ -87,9 +87,9 @@ It can only be invoked by the chain owner.
 
 #### Parameters
 
-| Name         | Type        | Optional | Description                          |
-|--------------|-------------|----------|--------------------------------------|
-| ownerAgentID | [u8; 32]    | No       | The Agent ID of the next chain owner |
+| Name         | Type     | Optional | Description                          |
+| ------------ | -------- | -------- | ------------------------------------ |
+| ownerAgentID | [u8; 32] | No       | The Agent ID of the next chain owner |
 
 #### Returns
 
@@ -114,8 +114,8 @@ Sets the fee policy for the chain. It can only be invoked by the chain owner.
 
 #### Parameters
 
-| Name      | Type                                           | Optional | Description    |
-|-----------|------------------------------------------------|----------|----------------|
+| Name      | Type                              | Optional | Description    |
+| --------- | --------------------------------- | -------- | -------------- |
 | feePolicy | [FeePolicy](./types.md#feepolicy) | No       | The fee policy |
 
 #### Returns
@@ -128,8 +128,8 @@ Sets the gas limits for the chain. It can only be invoked by the chain owner.
 
 #### Parameters
 
-| Name      | Type        | Optional | Description    |
-|-----------|-------------|----------|----------------|
+| Name      | Type                        | Optional | Description    |
+| --------- | --------------------------- | -------- | -------------- |
 | gasLimits | [Limits](./types.md#limits) | No       | The gas limits |
 
 #### Returns
@@ -142,8 +142,8 @@ Sets the EVM gas ratio for the chain. It can only be invoked by the chain owner.
 
 #### Parameters
 
-| Name        | Type                                 | Optional | Description       |
-|-------------|--------------------------------------|----------|-------------------|
+| Name        | Type                          | Optional | Description       |
+| ----------- | ----------------------------- | -------- | ----------------- |
 | evmGasRatio | [Ratio32](./types.md#ratio32) | No       | The EVM gas ratio |
 
 #### Returns
@@ -156,13 +156,13 @@ Adds a node to the list of candidates. It can only be invoked by the access node
 
 #### Parameters
 
-| Name            | Type                | Optional | Description |
-|-----------------|---------------------|----------|-------------|
-| nodePublicKey   | [u8; 32]            | No       | The public key of the node to be added |
-| nodeCertificate | [u8]                | No       | The certificate is a signed binary containing both the node public key and their L1 address |
-| nodeAccessAPI   | string              | No       | The API base URL for the node |
-| isCommittee     | bool                | No       | Whether the candidate node is being added to be part of the committee or
-  just an access node |
+| Name                | Type     | Optional | Description                                                                                 |
+| ------------------- | -------- | -------- | ------------------------------------------------------------------------------------------- |
+| nodePublicKey       | [u8; 32] | No       | The public key of the node to be added                                                      |
+| nodeCertificate     | [u8]     | No       | The certificate is a signed binary containing both the node public key and their L1 address |
+| nodeAccessAPI       | string   | No       | The API base URL for the node                                                               |
+| isCommittee         | bool     | No       | Whether the candidate node is being added to be part of the committee or                    |
+| just an access node |          |          |                                                                                             |
 
 #### Returns
 
@@ -174,10 +174,10 @@ Removes a node from the list of candidates. It can only be invoked by the access
 
 #### Parameters
 
-| Name            | Type     | Optional | Description                               |
-|-----------------|----------|----------|-------------------------------------------|
-| nodePublicKey   | [u8; 32] | No       | The public key of the node to be removed  |
-| certificate     | [u8]     | No       | The certificate of the node to be removed |
+| Name          | Type     | Optional | Description                               |
+| ------------- | -------- | -------- | ----------------------------------------- |
+| nodePublicKey | [u8; 32] | No       | The public key of the node to be removed  |
+| certificate   | [u8]     | No       | The certificate of the node to be removed |
 
 #### Returns
 
@@ -186,15 +186,17 @@ _None_
 ### `changeAccessNodes`
 
 Iterates through the given map of actions and applies them. It can only be invoked by the chain owner.
+
 #### Parameters
 
-| Name        | Type                                                                 | Optional | Description |
-|-------------|----------------------------------------------------------------------|----------|-------------|
-| accessNodes | []lo.Tuple2[[u8; 32], byte]  | No       | [`Map`](https://github.com/iotaledger/wasp/blob/develop/packages/kv/collections/map.go) of `public key` => `byte`):
-  The list of actions to perform. Each byte value can be one of the following:
-  - `0`: Remove the access node from the access nodes list.
-  - `1`: Accept a candidate node and add it to the list of access nodes.
-  - `2`: Drop an access node from the access node and candidate lists. |
+| Name                                                                         | Type                        | Optional | Description                                                                                                         |
+| ---------------------------------------------------------------------------- | --------------------------- | -------- | ------------------------------------------------------------------------------------------------------------------- |
+| accessNodes                                                                  | []lo.Tuple2[[u8; 32], byte] | No       | [`Map`](https://github.com/iotaledger/wasp/blob/develop/packages/kv/collections/map.go) of `public key` => `byte`): |
+| The list of actions to perform. Each byte value can be one of the following: |                             |          |                                                                                                                     |
+
+- `0`: Remove the access node from the access nodes list.
+- `1`: Accept a candidate node and add it to the list of access nodes.
+- `2`: Drop an access node from the access node and candidate lists. |
 
 #### Returns
 
@@ -236,7 +238,7 @@ _None_
 #### Parameters
 
 | Name          | Type     | Optional | Description        |
-|---------------|----------|----------|--------------------|
+| ------------- | -------- | -------- | ------------------ |
 | payoutAgentID | [u8; 32] | No       | The payout AgentID |
 
 #### Returns
@@ -257,8 +259,8 @@ _None_
 
 #### Returns
 
-| Name                     | Type       | Description |
-|--------------------------|------------|-------------|
+| Name                     | Type       | Description                           |
+| ------------------------ | ---------- | ------------------------------------- |
 | stateControllerAddresses | [[u8; 32]] | The list of allowed state controllers |
 
 ### `getChainOwner`
@@ -272,7 +274,7 @@ _None_
 #### Returns
 
 | Name              | Type     | Description              |
-|-------------------|----------|--------------------------|
+| ----------------- | -------- | ------------------------ |
 | chainOwnerAgentID | [u8; 32] | The chain owner agent ID |
 
 ### `getChainInfo`
@@ -285,9 +287,9 @@ _None_
 
 #### Returns
 
-| Name       | Type          | Description |
-|------------|---------------|-------------|
-| chainInfo  | [ChainInfo](./types.md#chaininfo) | The chain info |
+| Name      | Type                              | Description    |
+| --------- | --------------------------------- | -------------- |
+| chainInfo | [ChainInfo](./types.md#chaininfo) | The chain info |
 
 ### `getFeePolicy`
 
@@ -299,8 +301,8 @@ _None_
 
 #### Returns
 
-| Name      | Type                                     | Description        |
-|-----------|------------------------------------------|--------------------|
+| Name      | Type                              | Description        |
+| --------- | --------------------------------- | ------------------ |
 | feePolicy | [FeePolicy](./types.md#feepolicy) | The gas fee policy |
 
 ### `getGasLimits`
@@ -313,8 +315,8 @@ _None_
 
 #### Returns
 
-| Name      | Type                               | Description    |
-|-----------|------------------------------------|----------------|
+| Name      | Type                        | Description    |
+| --------- | --------------------------- | -------------- |
 | gasLimits | [Limits](./types.md#limits) | The gas limits |
 
 ### `getEVMGasRatio`
@@ -327,8 +329,8 @@ _None_
 
 #### Returns
 
-| Name        | Type                                 | Description       |
-|-------------|--------------------------------------|-------------------|
+| Name        | Type                          | Description       |
+| ----------- | ----------------------------- | ----------------- |
 | evmGasRatio | [Ratio32](./types.md#ratio32) | The EVM gas ratio |
 
 ### `getChainNodes`
@@ -341,11 +343,11 @@ _None_
 
 #### Returns
 
-| Name        | Type                         | Description          |
-|-------------|------------------------------|----------------------|
-| accessNodes | [[u8; 32]]                   | The access node keys |
-| candidates  | [AccessNodeInfo](./types.md#accessnodeinfo) | [`Map`](https://github.com/iotaledger/wasp/blob/develop/packages/kv/collections/map.go)
-  of public key => [AccessNodeInfo](./types.md#accessnodeinfo): The candidates info |
+| Name                                                                              | Type                                        | Description                                                                             |
+| --------------------------------------------------------------------------------- | ------------------------------------------- | --------------------------------------------------------------------------------------- |
+| accessNodes                                                                       | [[u8; 32]]                                  | The access node keys                                                                    |
+| candidates                                                                        | [AccessNodeInfo](./types.md#accessnodeinfo) | [`Map`](https://github.com/iotaledger/wasp/blob/develop/packages/kv/collections/map.go) |
+| of public key => [AccessNodeInfo](./types.md#accessnodeinfo): The candidates info |                                             |                                                                                         |
 
 ### `getMaintenanceStatus`
 
@@ -358,7 +360,7 @@ _None_
 #### Returns
 
 | Name          | Type | Description           |
-|---------------|------|-----------------------|
+| ------------- | ---- | --------------------- |
 | isMaintenance | bool | Is maintenance active |
 
 ### `getPayoutAgentID`
@@ -372,7 +374,7 @@ _None_
 #### Returns
 
 | Name          | Type     | Description         |
-|---------------|----------|---------------------|
+| ------------- | -------- | ------------------- |
 | payoutAgentID | [u8; 32] | The payout agent ID |
 
 ### `getMetadata`
@@ -385,7 +387,7 @@ _None_
 
 #### Returns
 
-| Name      | Type                                                         | Description    |
-|-----------|--------------------------------------------------------------|----------------|
-| publicURL | string                                                       | The public URL |
+| Name      | Type                                                  | Description    |
+| --------- | ----------------------------------------------------- | -------------- |
+| publicURL | string                                                | The public URL |
 | metadata  | [PublicChainMetadata](./types.md#publicchainmetadata) | The metadata   |
