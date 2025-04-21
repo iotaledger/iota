@@ -34,7 +34,7 @@ async fn main() {
 
     let args = Args::parse();
     let _guard = match args.command {
-        IotaCommand::Console { .. } | IotaCommand::KeyTool { .. } | IotaCommand::Move { .. } => {
+        IotaCommand::KeyTool { .. } | IotaCommand::Move { .. } => {
             telemetry_subscribers::TelemetryConfig::new()
                 .with_log_level("error")
                 .with_env()

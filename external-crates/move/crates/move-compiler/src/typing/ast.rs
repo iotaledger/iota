@@ -20,7 +20,7 @@ use crate::{
         warning_filters::{WarningFilters, WarningFiltersTable},
     },
     expansion::ast::{
-        Address, Attributes, Fields, Friend, ModuleIdent, Mutability, TargetKind, Value, Visibility,
+        Address, Attributes, Fields, Friend, ModuleIdent, Mutability, Value, Visibility,
     },
     ice,
     naming::ast::{
@@ -28,8 +28,8 @@ use crate::{
         Type, Type_, UseFuns, Var,
     },
     parser::ast::{
-        BinOp, ConstantName, DatatypeName, ENTRY_MODIFIER, Field, FunctionName, MACRO_MODIFIER,
-        NATIVE_MODIFIER, UnaryOp, VariantName,
+        BinOp, ConstantName, DatatypeName, DocComment, ENTRY_MODIFIER, Field, FunctionName,
+        MACRO_MODIFIER, NATIVE_MODIFIER, TargetKind, UnaryOp, VariantName,
     },
     shared::{Name, ast_debug::*, program_info::TypingProgramInfo, unique_map::UniqueMap},
 };
@@ -53,6 +53,7 @@ pub struct Program {
 
 #[derive(Debug, Clone)]
 pub struct ModuleDefinition {
+    pub doc: DocComment,
     pub loc: Loc,
     pub warning_filter: WarningFilters,
     // package name metadata from compiler arguments, not used for any language rules
@@ -88,6 +89,7 @@ pub type FunctionBody = Spanned<FunctionBody_>;
 
 #[derive(PartialEq, Debug, Clone)]
 pub struct Function {
+    pub doc: DocComment,
     pub warning_filter: WarningFilters,
     // index in the original order as defined in the source file
     pub index: usize,
@@ -111,6 +113,7 @@ pub struct Function {
 
 #[derive(PartialEq, Debug, Clone)]
 pub struct Constant {
+    pub doc: DocComment,
     pub warning_filter: WarningFilters,
     // index in the original order as defined in the source file
     pub index: usize,
@@ -459,6 +462,7 @@ impl AstDebug for Program {
 impl AstDebug for ModuleDefinition {
     fn ast_debug(&self, w: &mut AstWriter) {
         let ModuleDefinition {
+            doc,
             loc: _,
             warning_filter,
             package_name,
@@ -475,20 +479,13 @@ impl AstDebug for ModuleDefinition {
             constants,
             functions,
         } = self;
+        doc.ast_debug(w);
         warning_filter.ast_debug(w);
         if let Some(n) = package_name {
             w.writeln(format!("{}", n))
         }
         attributes.ast_debug(w);
-        w.writeln(match target_kind {
-            TargetKind::Source {
-                is_root_package: true,
-            } => "root module",
-            TargetKind::Source {
-                is_root_package: false,
-            } => "dependency module",
-            TargetKind::External => "external module",
-        });
+        target_kind.ast_debug(w);
         w.writeln(format!("dependency order #{}", dependency_order));
         for (mident, neighbor) in immediate_neighbors.key_cloned_iter() {
             w.write(format!("{mident} is"));
@@ -529,6 +526,7 @@ impl AstDebug for (FunctionName, &Function) {
         let (
             name,
             Function {
+                doc,
                 warning_filter,
                 index,
                 attributes,
@@ -541,6 +539,7 @@ impl AstDebug for (FunctionName, &Function) {
                 body,
             },
         ) = self;
+        doc.ast_debug(w);
         warning_filter.ast_debug(w);
         attributes.ast_debug(w);
         w.write("(");
@@ -578,6 +577,7 @@ impl AstDebug for (ConstantName, &Constant) {
         let (
             name,
             Constant {
+                doc,
                 warning_filter,
                 index,
                 attributes,
@@ -586,6 +586,7 @@ impl AstDebug for (ConstantName, &Constant) {
                 value,
             },
         ) = self;
+        doc.ast_debug(w);
         warning_filter.ast_debug(w);
         attributes.ast_debug(w);
         w.write(format!("const#{index} {name}:"));

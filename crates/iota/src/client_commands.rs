@@ -573,8 +573,8 @@ pub struct Opts {
     /// If not provided, all fields are displayed.
     /// The fields are: input, effects, events, object_changes,
     /// balance_changes.
-    #[arg(long, required = false, num_args = 0.., value_parser = parse_emit_option, default_value = "input,effects,events,object_changes,balance_changes")]
-    pub emit: HashSet<EmitOption>,
+    #[arg(long, required = false, num_args = 0.., value_parser = parse_display_option, default_value = "input,effects,events,object_changes,balance_changes")]
+    pub display: HashSet<DisplayOption>,
 }
 
 /// Global options with gas
@@ -590,9 +590,9 @@ pub struct OptsWithGas {
 }
 
 impl Opts {
-    /// Uses the passed gas_budget for the gas budget variable and sets all
-    /// other flags to false, and emit to an empty vector(defaulting to all emit
-    /// options).
+    /// Uses the passed `gas_budget` for the gas budget variable and sets all
+    /// other flags to false, and `display`` to an empty `HashSet` (defaulting
+    /// to all display options).
     pub fn for_testing(gas_budget: u64) -> Self {
         Self {
             gas_budget: Some(gas_budget),
@@ -600,12 +600,12 @@ impl Opts {
             dev_inspect: false,
             serialize_unsigned_transaction: false,
             serialize_signed_transaction: false,
-            emit: HashSet::new(),
+            display: HashSet::new(),
         }
     }
-    /// Uses the passed gas_budget for the gas budget variable, sets dry run to
-    /// true, and sets all other flags to false, and emit to an empty
-    /// vector(defaulting to all emit options).
+    /// Uses the passed `gas_budget` for the gas budget variable, sets
+    /// `dry_run` to true, and sets all other flags to false, and `display``
+    /// to an empty `HashSet` (defaulting to all display options).
     pub fn for_testing_dry_run(gas_budget: u64) -> Self {
         Self {
             gas_budget: Some(gas_budget),
@@ -613,36 +613,37 @@ impl Opts {
             dev_inspect: false,
             serialize_unsigned_transaction: false,
             serialize_signed_transaction: false,
-            emit: HashSet::new(),
+            display: HashSet::new(),
         }
     }
 
-    /// Uses the passed gas_budget for the gas budget variable, sets dry run to
-    /// false, and sets all other flags to false, and emit to the passed emit
-    /// vector.
-    pub fn for_testing_emit_options(gas_budget: u64, emit: HashSet<EmitOption>) -> Self {
+    /// Uses the passed `gas_budget` for the gas budget variable, sets
+    /// `dry_run` to false, and sets all other flags to false, and `display`
+    /// to the passed display `HashSet`.
+    pub fn for_testing_display_options(gas_budget: u64, display: HashSet<DisplayOption>) -> Self {
         Self {
             gas_budget: Some(gas_budget),
             dry_run: false,
             dev_inspect: false,
             serialize_unsigned_transaction: false,
             serialize_signed_transaction: false,
-            emit,
+            display,
         }
     }
 }
 
 impl OptsWithGas {
-    /// Sets the gas object to gas, and uses the passed gas_budget for the gas
-    /// budget variable. All other flags are set to false.
+    /// Sets the `gas` object to gas, and uses the passed `gas_budget` for the
+    /// gas budget variable. All other flags are set to false.
     pub fn for_testing(gas: Option<ObjectID>, gas_budget: u64) -> Self {
         Self {
             gas,
             rest: Opts::for_testing(gas_budget),
         }
     }
-    /// Sets the gas object to gas, and uses the passed gas_budget for the gas
-    /// budget variable. Dry run is set to true, all other flags to false.
+    /// Sets the `gas` object to gas, and uses the passed `gas_budget` for the
+    /// gas budget variable. `dry_run` is set to true, all other flags to
+    /// false.
     pub fn for_testing_dry_run(gas: Option<ObjectID>, gas_budget: u64) -> Self {
         Self {
             gas,
@@ -650,24 +651,24 @@ impl OptsWithGas {
         }
     }
 
-    /// Sets the gas object to gas, and uses the passed gas_budget for the gas
-    /// budget variable. Dry run is set to false, and emit to the passed emit
-    /// vector. All other flags are set to false.
-    pub fn for_testing_emit_options(
+    /// Sets the `gas` object to gas, and uses the passed `gas_budget` for the
+    /// gas budget variable. `dry_run` is set to false, and `display` to the
+    /// passed display `HashSet`. All other flags are set to false.
+    pub fn for_testing_display_options(
         gas: Option<ObjectID>,
         gas_budget: u64,
-        emit: HashSet<EmitOption>,
+        display: HashSet<DisplayOption>,
     ) -> Self {
         Self {
             gas,
-            rest: Opts::for_testing_emit_options(gas_budget, emit),
+            rest: Opts::for_testing_display_options(gas_budget, display),
         }
     }
 }
 
 #[derive(Clone, Debug, EnumString, Hash, Eq, PartialEq)]
 #[strum(serialize_all = "snake_case")]
-pub enum EmitOption {
+pub enum DisplayOption {
     Input,
     Effects,
     Events,
@@ -2977,7 +2978,7 @@ pub(crate) async fn dry_run_or_execute_or_serialize(
                 .quorum_driver_api()
                 .execute_transaction_block(
                     transaction,
-                    opts_from_cli(opts.emit),
+                    opts_from_cli(opts.display),
                     Some(ExecuteTransactionRequestType::WaitForLocalExecution),
                 )
                 .await?;
@@ -3059,7 +3060,7 @@ pub(crate) async fn prerender_clever_errors(
     }
 }
 
-fn opts_from_cli(opts: HashSet<EmitOption>) -> IotaTransactionBlockResponseOptions {
+fn opts_from_cli(opts: HashSet<DisplayOption>) -> IotaTransactionBlockResponseOptions {
     if opts.is_empty() {
         IotaTransactionBlockResponseOptions::new()
             .with_input()
@@ -3069,29 +3070,29 @@ fn opts_from_cli(opts: HashSet<EmitOption>) -> IotaTransactionBlockResponseOptio
             .with_balance_changes()
     } else {
         IotaTransactionBlockResponseOptions {
-            show_input: opts.contains(&EmitOption::Input),
+            show_input: opts.contains(&DisplayOption::Input),
             show_raw_input: false,
             show_effects: true,
             show_raw_effects: false,
-            show_events: opts.contains(&EmitOption::Events),
-            show_object_changes: opts.contains(&EmitOption::ObjectChanges),
-            show_balance_changes: opts.contains(&EmitOption::BalanceChanges),
+            show_events: opts.contains(&DisplayOption::Events),
+            show_object_changes: opts.contains(&DisplayOption::ObjectChanges),
+            show_balance_changes: opts.contains(&DisplayOption::BalanceChanges),
         }
     }
 }
 
-pub(crate) fn parse_emit_option(s: &str) -> Result<HashSet<EmitOption>, String> {
+pub(crate) fn parse_display_option(s: &str) -> Result<HashSet<DisplayOption>, String> {
     let mut options = HashSet::new();
 
     // Split the input string by commas and try to parse each part
     for part in s.split(',') {
         let part = part.trim(); // Trim whitespace
-        match EmitOption::from_str(part) {
+        match DisplayOption::from_str(part) {
             Ok(option) => {
                 options.insert(option);
             }
-            Err(_) => return Err(format!("Invalid emit option: {}", part)), /* Return error if
-                                                                             * invalid */
+            Err(_) => return Err(format!("Invalid display option: {}", part)), /* Return error if
+                                                                                * invalid */
         }
     }
 
