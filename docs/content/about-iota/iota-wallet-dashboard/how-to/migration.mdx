@@ -7,14 +7,8 @@ tags: [iota-wallet-dashboard]
 
 # Migrate Stardust Assets
 
-You can use the IOTA Wallet Dashboard to migrate Stardust NFTs and
-native assets that need migrating. 
-
-:::danger 
-
-Do not migrate any assets you don't recognize as these may be scams you avoided in the past.
-
-:::
+You can use the IOTA Wallet Dashboard to migrate native NFTs and
+native tokens that need migrating. 
 
 
 ## Access the Migration View
@@ -37,6 +31,14 @@ You can click on the `See All` button to get a detailed view of the assets by ty
 
 ## Start the Migration
 
+:::info About Time-locked Assets
+
+In Stardust, you could add time locks to assets. This means that you could send transfers tokens that could only be
+unlocked after a set amount of time. The migration tool can give you an overview of these, but since the assets are
+still time-lock you will not be able to migrate them until the lock has expired.
+
+:::
+
 Once you've reviewed the migration details, you can click on the `Migrate All` button to start the asset migration.
 
 The migration dashboard will give you an overview of assets that will be migrated, their legacy storage deposit that
@@ -45,3 +47,4 @@ will be rebated and the [gas fees](../../tokenomics/gas-in-iota.mdx) for the tra
    ![Migration Confirmation](/img/about-iota/iota-wallet-dashboard/how-to/migration/migration-confirmation.png)
 
 After you have reviewed the assets and costs, hit the `Migrate` button, and confirm the transaction in your [IOTA Wallet](../../iota-wallet/getting-started.mdx).
+
