@@ -28,6 +28,7 @@ import {
     InfoBox,
     InfoBoxType,
     InfoBoxStyle,
+    TooltipPosition,
 } from '@iota/apps-ui-kit';
 import { formatAddress } from '@iota/iota-sdk/utils';
 import { DialogLayout, DialogLayoutFooter, DialogLayoutBody } from '../../layout';
@@ -146,6 +147,19 @@ export function DetailsView({
                             />
                         </div>
                     </Panel>
+                    {isAtRisk ? (
+                        <Panel hasBorder>
+                            <div className="flex flex-col gap-y-sm p-md">
+                                <KeyValueInfo
+                                    keyText="Rewards next Epoch"
+                                    value={<Badge label="Not Earning" type={BadgeType.Warning} />}
+                                    fullwidth
+                                    tooltipPosition={TooltipPosition.Top}
+                                    tooltipText="Currently, the validator does not meet the criteria required to receive rewards in the upcoming epoch."
+                                />
+                            </div>
+                        </Panel>
+                    ) : null}
                 </div>
             </DialogLayoutBody>
             <DialogLayoutFooter>
@@ -161,6 +175,7 @@ export function DetailsView({
                         text="Stake"
                         onClick={handleStake}
                         fullWidth
+                        disabled={isAtRisk}
                     />
                 </div>
             </DialogLayoutFooter>

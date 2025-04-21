@@ -15,12 +15,13 @@ import { useMemo } from 'react';
 import { ImageIcon } from '../icon';
 import { ExtendedDelegatedStake } from '../../utils';
 import { useFormatCoin, useGetLatestIotaSystemState, useStakeRewardStatus } from '../../hooks';
-import { RewardsOff } from '@iota/apps-ui-icons';
+import { RewardsOff, Warning } from '@iota/apps-ui-icons';
 
 interface StakedCardProps {
     extendedStake: ExtendedDelegatedStake;
     currentEpoch: number;
     inactiveValidator?: boolean;
+    activeButNotInTheCommittee?: boolean;
     onClick: () => void;
 }
 
@@ -30,6 +31,7 @@ export function StakedCard({
     extendedStake,
     currentEpoch,
     inactiveValidator = false,
+    activeButNotInTheCommittee = false,
     onClick,
 }: StakedCardProps) {
     const { principal, stakeRequestEpoch, estimatedReward, validatorAddress } = extendedStake;
@@ -39,11 +41,15 @@ export function StakedCard({
         currentEpoch,
         estimatedReward,
         inactiveValidator,
+        activeButNotInTheCommittee,
     });
 
     // For inactive validator, show principal + rewards
     const [principalStaked, symbol] = useFormatCoin({
-        balance: inactiveValidator ? BigInt(principal) + rewards : principal,
+        balance:
+            inactiveValidator || activeButNotInTheCommittee
+                ? BigInt(principal) + rewards
+                : principal,
     });
 
     const { data } = useGetLatestIotaSystemState();
@@ -69,8 +75,20 @@ export function StakedCard({
             <CardBody
                 title={validatorMeta?.name || '--'}
                 subtitle={`${principalStaked} ${symbol}`}
-                icon={inactiveValidator ? <RewardsOff className="text-warning-60" /> : null}
-                tooltipText="Validators are not part of the next Epoch and will not earn you rewards."
+                icon={
+                    activeButNotInTheCommittee ? (
+                        <RewardsOff className="text-warning-60" />
+                    ) : inactiveValidator ? (
+                        <Warning className="text-error-30" />
+                    ) : null
+                }
+                tooltipText={
+                    activeButNotInTheCommittee
+                        ? 'This validator is not part of the next epoch, so you will not earn rewards.'
+                        : inactiveValidator
+                          ? 'This validator is inactive, so you will not earn rewards.'
+                          : ''
+                }
                 tooltipPosition={TooltipPosition.Bottom}
             />
             <CardAction title={title} subtitle={subtitle} type={CardActionType.SupportingText} />

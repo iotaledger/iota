@@ -59,7 +59,7 @@ export function ValidatorsCard() {
                 ...d,
                 // flag any inactive validator for the stakeIota object
                 // if the stakingPoolId is not found in the committeeMembers list flag as inactive
-                inactiveValidator: !committeeMembers?.find(
+                activeButNotInTheCommittee: !committeeMembers?.find(
                     ({ stakingPoolId }) => stakingPoolId === delegation.stakingPool,
                 ),
                 validatorAddress: delegation.validatorAddress,
@@ -121,13 +121,13 @@ export function ValidatorsCard() {
                 <div className="w-full gap-2">
                     {system &&
                         delegations
-                            ?.filter(({ inactiveValidator }) => inactiveValidator)
+                            ?.filter(({ activeButNotInTheCommittee }) => activeButNotInTheCommittee)
                             .map((delegation) => (
                                 <StakedCard
                                     extendedStake={delegation}
                                     currentEpoch={Number(system.epoch)}
                                     key={delegation.stakedIotaId}
-                                    inactiveValidator
+                                    activeButNotInTheCommittee
                                     onClick={() =>
                                         navigate(
                                             `/stake/delegation-detail?${new URLSearchParams({
@@ -143,7 +143,9 @@ export function ValidatorsCard() {
                 <div className="w-full gap-2">
                     {system &&
                         delegations
-                            ?.filter(({ inactiveValidator }) => !inactiveValidator)
+                            ?.filter(
+                                ({ activeButNotInTheCommittee }) => !activeButNotInTheCommittee,
+                            )
                             .map((delegation) => (
                                 <StakedCard
                                     extendedStake={delegation}

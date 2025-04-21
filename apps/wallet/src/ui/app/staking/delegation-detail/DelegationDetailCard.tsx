@@ -36,6 +36,8 @@ import {
     InfoBoxType,
     LoadingIndicator,
     TooltipPosition,
+    Badge,
+    BadgeType,
 } from '@iota/apps-ui-kit';
 import { useNavigate } from 'react-router-dom';
 import { Warning } from '@iota/apps-ui-icons';
@@ -54,7 +56,6 @@ export function DelegationDetailCard({ validatorAddress, stakedId }: DelegationD
     } = useGetLatestIotaSystemState();
 
     const accountAddress = useActiveAddress();
-
     const {
         data: allDelegation,
         isPending,
@@ -112,6 +113,9 @@ export function DelegationDetailCard({ validatorAddress, stakedId }: DelegationD
     const isNotCommitteeMember = !system?.committeeMembers?.find(
         ({ stakingPoolId }) => stakingPoolId === validatorData?.stakingPoolId,
     );
+
+    // check if the validator is at risk
+    const isAtRisk = system?.atRiskValidators.find(([address]) => address === validatorAddress);
 
     if (isPending || loadingValidators) {
         return (
@@ -182,6 +186,19 @@ export function DelegationDetailCard({ validatorAddress, stakedId }: DelegationD
                         />
                     </div>
                 </Panel>
+                {isAtRisk ? (
+                    <Panel hasBorder>
+                        <div className="flex flex-col gap-y-sm p-md">
+                            <KeyValueInfo
+                                keyText="Rewards next Epoch"
+                                value={<Badge label="Not Earning" type={BadgeType.Warning} />}
+                                fullwidth
+                                tooltipPosition={TooltipPosition.Top}
+                                tooltipText="Currently, the validator does not meet the criteria required to receive rewards in the upcoming epoch."
+                            />
+                        </div>
+                    </Panel>
+                ) : null}
             </div>
             <div className="flex w-full gap-2.5">
                 {Boolean(totalStake) && delegationId && (
