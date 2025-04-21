@@ -6,12 +6,14 @@ use std::collections::{BTreeMap, HashMap};
 
 use iota_types::messages_checkpoint::CheckpointSequenceNumber;
 use tap::tap::TapFallible;
-use tokio::sync::watch;
 use tokio_util::sync::CancellationToken;
 use tracing::{error, info, instrument};
 
 use super::{CheckpointDataToCommit, EpochToCommit};
-use crate::{metrics::IndexerMetrics, store::IndexerStore, types::IndexerResult};
+use crate::{
+    metrics::IndexerMetrics, models::transactions::TxInsertionOrder, store::IndexerStore,
+    types::IndexerResult,
+};
 
 pub(crate) const CHECKPOINT_COMMIT_BATCH_SIZE: usize = 100;
 
@@ -19,7 +21,6 @@ pub async fn start_tx_checkpoint_commit_task<S>(
     state: S,
     metrics: IndexerMetrics,
     tx_indexing_receiver: iota_metrics::metered_channel::Receiver<CheckpointDataToCommit>,
-    commit_notifier: watch::Sender<Option<CheckpointSequenceNumber>>,
     mut next_checkpoint_sequence_number: CheckpointSequenceNumber,
     cancel: CancellationToken,
 ) -> IndexerResult<()>
@@ -55,12 +56,12 @@ where
             batch.push(checkpoint);
             next_checkpoint_sequence_number += 1;
             if batch.len() == checkpoint_commit_batch_size || epoch.is_some() {
-                commit_checkpoints(&state, batch, epoch, &metrics, &commit_notifier).await;
+                commit_checkpoints(&state, batch, epoch, &metrics).await;
                 batch = vec![];
             }
         }
         if !batch.is_empty() && unprocessed.is_empty() {
-            commit_checkpoints(&state, batch, None, &metrics, &commit_notifier).await;
+            commit_checkpoints(&state, batch, None, &metrics).await;
             batch = vec![];
         }
     }
@@ -77,7 +78,6 @@ async fn commit_checkpoints<S>(
     indexed_checkpoint_batch: Vec<CheckpointDataToCommit>,
     epoch: Option<EpochToCommit>,
     metrics: &IndexerMetrics,
-    commit_notifier: &watch::Sender<Option<CheckpointSequenceNumber>>,
 ) where
     S: IndexerStore + Clone + Sync + Send + 'static,
 {
@@ -123,6 +123,13 @@ async fn commit_checkpoints<S>(
 
     let guard = metrics.checkpoint_db_commit_latency.start_timer();
     let tx_batch = tx_batch.into_iter().flatten().collect::<Vec<_>>();
+    let tx_order_batch = tx_batch
+        .iter()
+        .map(|indexed_tx| TxInsertionOrder {
+            insertion_order: -1, // fill with any value since it's ignored upon insert
+            tx_digest: indexed_tx.tx_digest.into_inner().to_vec(),
+        })
+        .collect::<Vec<_>>();
     let tx_indices_batch = tx_indices_batch.into_iter().flatten().collect::<Vec<_>>();
     let events_batch = events_batch.into_iter().flatten().collect::<Vec<_>>();
     let event_indices_batch = event_indices_batch
@@ -141,6 +148,7 @@ async fn commit_checkpoints<S>(
         let _step_1_guard = metrics.checkpoint_db_commit_latency_step_1.start_timer();
         let mut persist_tasks = vec![
             state.persist_transactions(tx_batch),
+            state.persist_tx_insertion_order(tx_order_batch),
             state.persist_tx_indices(tx_indices_batch),
             state.persist_events(events_batch),
             state.persist_event_indices(event_indices_batch),
@@ -178,6 +186,15 @@ async fn commit_checkpoints<S>(
             })
             .expect("Advancing epochs in DB should not fail.");
         metrics.total_epoch_committed.inc();
+
+        // Refresh participation metrics after advancing epoch
+        state
+            .refresh_participation_metrics()
+            .await
+            .tap_err(|e| {
+                error!("Failed to update participation metrics: {e}");
+            })
+            .expect("Updating participation metrics should not fail.");
     }
 
     state
@@ -203,10 +220,6 @@ async fn commit_checkpoints<S>(
     }
 
     let elapsed = guard.stop_and_record();
-
-    commit_notifier
-        .send(Some(last_checkpoint_seq))
-        .expect("Commit watcher should not be closed");
 
     info!(
         elapsed,

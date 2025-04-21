@@ -2,20 +2,13 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { DisplayStats, IOTA_PRIMITIVES_COLOR_PALETTE, Panel, Title } from '@iota/apps-ui-kit';
-import { getRefGasPrice, useTheme, Theme } from '@iota/core';
-import { useIotaClientQuery } from '@iota/dapp-kit';
-import { useMemo } from 'react';
+import { IOTA_PRIMITIVES_COLOR_PALETTE, Panel, Title } from '@iota/apps-ui-kit';
+import { Theme, useGetLatestIotaSystemState, useTheme } from '@iota/core';
 import { RingChart, RingChartLegend } from '~/components/ui';
 
 export function ValidatorStatus(): JSX.Element | null {
-    const { data } = useIotaClientQuery('getLatestIotaSystemState');
+    const { data } = useGetLatestIotaSystemState();
     const { theme } = useTheme();
-
-    const nextRefGasPrice = useMemo(
-        () => getRefGasPrice(data?.activeValidators),
-        [data?.activeValidators],
-    );
 
     if (!data) return null;
 
@@ -26,8 +19,8 @@ export function ValidatorStatus(): JSX.Element | null {
 
     const chartData = [
         {
-            value: data.activeValidators.length,
-            label: 'Active',
+            value: data.committeeMembers.length,
+            label: 'Committee',
             gradient: {
                 deg: 315,
                 values: [
@@ -43,9 +36,32 @@ export function ValidatorStatus(): JSX.Element | null {
             },
         },
         {
+            value: data.activeValidators.length - data.committeeMembers.length,
+            label: 'Active (not in committee)',
+            gradient: {
+                deg: 315,
+                values: [
+                    {
+                        percent: 0,
+                        color: getHexColorWithOpacity(
+                            IOTA_PRIMITIVES_COLOR_PALETTE.primary[30],
+                            0.6,
+                        ),
+                    },
+                    {
+                        percent: 100,
+                        color: getHexColorWithOpacity(
+                            IOTA_PRIMITIVES_COLOR_PALETTE.primary[30],
+                            0.6,
+                        ),
+                    },
+                ],
+            },
+        },
+        {
             value: Number(data.pendingActiveValidatorsSize ?? 0),
             label: 'New',
-            color: getHexColorWithOpacity(IOTA_PRIMITIVES_COLOR_PALETTE.primary[30], 0.6),
+            color: getHexColorWithOpacity(IOTA_PRIMITIVES_COLOR_PALETTE.primary[30], 0.3),
         },
         {
             value: data.atRiskValidators.length,
@@ -69,15 +85,6 @@ export function ValidatorStatus(): JSX.Element | null {
                         <div className="flex flex-col items-center justify-center gap-xs lg:items-start">
                             <RingChartLegend data={chartData} />
                         </div>
-                    </div>
-
-                    <div className="h-full w-full max-w-[250px] sm:w-1/2 md:w-auto lg:w-1/2 ">
-                        <DisplayStats
-                            label="Estimated Next Epoch
-                            Reference Gas Price"
-                            value={nextRefGasPrice.toString()}
-                            supportingLabel="nano"
-                        />
                     </div>
                 </div>
             </div>

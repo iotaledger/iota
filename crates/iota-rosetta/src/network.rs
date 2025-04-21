@@ -44,20 +44,18 @@ pub async fn status(
 ) -> Result<NetworkStatusResponse, Error> {
     env.check_network_identifier(&request.network_identifier)?;
 
-    let system_state = context
+    // We get the public_key and stake_amount of all committee members.
+    let peers = context
         .client
         .governance_api()
         .get_latest_iota_system_state()
-        .await?;
-
-    let peers = system_state
-        .active_validators
-        .iter()
-        .map(|validator| Peer {
-            peer_id: ObjectID::from(validator.iota_address).into(),
+        .await?
+        .iter_committee_members()
+        .map(|committee_member| Peer {
+            peer_id: ObjectID::from(committee_member.iota_address).into(),
             metadata: Some(json!({
-                "public_key": Hex::from_bytes(&validator.authority_pubkey_bytes),
-                "stake_amount": validator.staking_pool_iota_balance,
+                "public_key": Hex::from_bytes(&committee_member.authority_pubkey_bytes),
+                "stake_amount": committee_member.staking_pool_iota_balance,
             })),
         })
         .collect();

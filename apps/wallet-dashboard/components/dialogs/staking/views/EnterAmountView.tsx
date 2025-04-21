@@ -7,14 +7,17 @@ import {
     CoinFormat,
     useCoinMetadata,
     safeParseAmount,
+    toast,
+    useNewStakeTransaction,
+    parseAmount,
+    getGasBudgetErrorMessage,
 } from '@iota/core';
-import { IOTA_TYPE_ARG, NANOS_PER_IOTA } from '@iota/iota-sdk/utils';
+import { IOTA_DECIMALS, IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 import { useFormikContext } from 'formik';
 import { useSignAndExecuteTransaction } from '@iota/dapp-kit';
-import { useNewStakeTransaction } from '@/hooks';
 import { EnterAmountDialogLayout } from './EnterAmountDialogLayout';
-import toast from 'react-hot-toast';
 import { ampli } from '@/lib/utils/analytics';
+import { useEffect, useMemo } from 'react';
 
 export interface FormValues {
     amount: string;
@@ -39,7 +42,7 @@ export function EnterAmountView({
     onSuccess,
 }: EnterAmountViewProps): JSX.Element {
     const { mutateAsync: signAndExecuteTransaction } = useSignAndExecuteTransaction();
-    const { values, resetForm } = useFormikContext<FormValues>();
+    const { values, resetForm, setFieldValue } = useFormikContext<FormValues>();
 
     const coinType = IOTA_TYPE_ARG;
     const { data: metadata } = useCoinMetadata(coinType);
@@ -48,26 +51,41 @@ export function EnterAmountView({
     const { data: iotaBalance } = useBalance(senderAddress);
     const coinBalance = BigInt(iotaBalance?.totalBalance || 0);
 
-    const { data: newStakeData, isLoading: isTransactionLoading } = useNewStakeTransaction(
+    const {
+        data: newStakeData,
+        isLoading: isTransactionLoading,
+        isError,
+        error: stakeTransactionError,
+    } = useNewStakeTransaction(selectedValidator, amountWithoutDecimals, senderAddress);
+
+    const gasSummary = newStakeData?.gasSummary;
+
+    const { data: maxAmountTransactionData } = useNewStakeTransaction(
         selectedValidator,
-        amountWithoutDecimals,
+        coinBalance,
         senderAddress,
     );
+    const maxAmountTxGasBudget = BigInt(maxAmountTransactionData?.gasSummary?.budget ?? 0n);
 
-    const gasBudgetBigInt = BigInt(newStakeData?.gasBudget ?? 0);
-    const maxTokenBalance = coinBalance - gasBudgetBigInt;
+    useEffect(() => {
+        setFieldValue('gasBudget', maxAmountTxGasBudget);
+    }, [maxAmountTxGasBudget, setFieldValue]);
+
+    const maxTokenBalance = coinBalance - maxAmountTxGasBudget;
     const [maxTokenFormatted, maxTokenFormattedSymbol] = useFormatCoin({
         balance: maxTokenBalance,
         format: CoinFormat.FULL,
     });
 
-    const caption = `${maxTokenFormatted} ${maxTokenFormattedSymbol} Available`;
+    const caption = maxAmountTxGasBudget
+        ? `${maxTokenFormatted} ${maxTokenFormattedSymbol} Available`
+        : '--';
     const infoMessage =
         'You have selected an amount that will leave you with insufficient funds to pay for gas fees for unstaking or any other transactions.';
 
     const hasAmount = values.amount.length > 0;
     const amount = safeParseAmount(coinType === IOTA_TYPE_ARG ? values.amount : '0', decimals);
-    const gasAmount = BigInt(2) * gasBudgetBigInt;
+    const gasAmount = BigInt(2) * maxAmountTxGasBudget;
 
     const canPay = amount !== null ? maxTokenBalance > amount + gasAmount : false;
     const hasEnoughRemainingBalance = !(hasAmount && !canPay);
@@ -85,10 +103,10 @@ export function EnterAmountView({
                 onSuccess: (tx) => {
                     onSuccess(tx.digest);
                     toast.success('Stake transaction has been sent');
-                    resetForm();
                     ampli.stakedIota({
-                        stakedAmount: Number(BigInt(values.amount) / NANOS_PER_IOTA),
+                        stakedAmount: Number(parseAmount(values.amount, IOTA_DECIMALS)),
                     });
+                    resetForm();
                 },
                 onError: () => {
                     toast.error('Stake transaction was not sent');
@@ -97,10 +115,18 @@ export function EnterAmountView({
         );
     }
 
+    const errorMessage = useMemo(() => {
+        if (isError) {
+            return getGasBudgetErrorMessage(stakeTransactionError);
+        } else {
+            return undefined;
+        }
+    }, [stakeTransactionError, isError]);
+
     return (
         <EnterAmountDialogLayout
             selectedValidator={selectedValidator}
-            gasBudget={newStakeData?.gasBudget}
+            totalGas={gasSummary?.totalGas}
             senderAddress={senderAddress}
             caption={caption}
             showInfo={!hasEnoughRemainingBalance}
@@ -109,6 +135,7 @@ export function EnterAmountView({
             onBack={onBack}
             handleClose={handleClose}
             handleStake={handleStake}
+            errorMessage={errorMessage}
         />
     );
 }

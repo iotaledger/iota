@@ -1,14 +1,3 @@
-/**
- * Creating a sidebar enables you to:
- - create an ordered group of docs
- - render a sidebar for each doc of that group
- - provide next/previous navigation
-
- The sidebars can be generated from the filesystem, or explicitly defined here.
-
- Create as many sidebars as you want.
- */
-
 const iotaEvm = [
     'iota-evm/iota-evm',
     {
@@ -88,9 +77,9 @@ const iotaEvm = [
                 ],
             },
             {
-                label: 'Blast API',
+                label: 'RPC Providers',
                 type: 'doc',
-                id: 'iota-evm/tools/blastAPI',
+                id: 'iota-evm/tools/rpcProviders',
             },
             {
                 label: 'Oracles',
@@ -111,51 +100,7 @@ const iotaEvm = [
                 label: 'Multicall3',
                 type: 'doc',
                 id: 'iota-evm/tools/multicall',
-            },
-            {
-                type: 'category',
-                label: 'ShimmerEVM',
-                collapsed: true,
-                link: {
-                    type: 'generated-index',
-                    title: 'ShimmerEVM Tools',
-                    slug: '/iota-evm/tools/shimmer',
-                },
-                items: [
-                    {
-                        label: 'Explorer',
-                        type: 'link',
-                        href: 'https://explorer.evm.shimmer.network',
-                    },
-                    {
-                        label: 'Toolkit',
-                        type: 'link',
-                        href: 'https://evm-toolkit.evm.shimmer.network',
-                    },
-                ],
-            },
-            {
-                type: 'category',
-                label: 'ShimmerEVM Testnet',
-                collapsed: true,
-                link: {
-                    type: 'generated-index',
-                    title: 'ShimmerEVM Testnet Tools',
-                    slug: '/iota-evm/tools/shimmer-testnet',
-                },
-                items: [
-                    {
-                        label: 'Explorer',
-                        type: 'link',
-                        href: 'https://explorer.evm.testnet.shimmer.network',
-                    },
-                    {
-                        label: 'Toolkit & Faucet',
-                        type: 'link',
-                        href: 'https://evm-toolkit.evm.testnet.shimmer.network/',
-                    },
-                ],
-            },
+            }
         ],
     },
     {
@@ -366,6 +311,22 @@ const iotaEvm = [
                 ],
             },
             {
+                type: 'category',
+                label: 'Defi Lend Borrow',
+                items: [
+                    {
+                        type: 'doc',
+                        label: 'Part I',
+                        id: 'iota-evm/tutorials/defi-lend-borrow-tutorial-part-1',
+                    },
+                    {
+                        type: 'doc',
+                        label: 'Part II',
+                        id: 'iota-evm/tutorials/defi-lend-borrow-tutorial-part-2',
+                    },
+                ],
+            },
+            {
                 type: 'doc',
                 label: 'Yield Farming',
                 id: 'iota-evm/tutorials/defi-yield-farming',
@@ -417,6 +378,11 @@ const iotaEvm = [
                 id: 'iota-evm/explanations/how-accounts-work',
             },
             {
+                type: 'doc',
+                label: 'Move Packages',
+                id: 'iota-evm/explanations/move-anchor',
+            },
+            {
                 type: 'link',
                 label: 'Core Contracts',
                 href: '/iota-evm/references/core-contracts/overview',
@@ -448,43 +414,13 @@ const iotaEvm = [
                     },
                     {
                         type: 'doc',
-                        label: 'Deploy a Smart Contract',
-                        id: 'iota-evm/solo/how-tos/deploying-sc',
-                    },
-                    {
-                        type: 'doc',
-                        label: 'Invoke a Smart Contract',
-                        id: 'iota-evm/solo/how-tos/invoking-sc',
-                    },
-                    {
-                        type: 'doc',
                         label: 'Call a View',
                         id: 'iota-evm/solo/how-tos/view-sc',
                     },
                     {
                         type: 'doc',
-                        label: 'Error Handling',
-                        id: 'iota-evm/solo/how-tos/error-handling',
-                    },
-                    {
-                        type: 'doc',
                         label: 'Accounts',
                         id: 'iota-evm/solo/how-tos/the-l2-ledger',
-                    },
-                    {
-                        type: 'doc',
-                        label: 'Test Smart Contracts',
-                        id: 'iota-evm/solo/how-tos/test',
-                    },
-                    {
-                        type: 'doc',
-                        label: 'Example Tests',
-                        id: 'iota-evm/solo/how-tos/examples',
-                    },
-                    {
-                        type: 'doc',
-                        label: 'Colored Tokens and Time Locks',
-                        id: 'iota-evm/solo/how-tos/timelock',
                     },
                 ],
             },
@@ -607,16 +543,16 @@ const iotaEvm = [
                     },
                 ],
             },
-            // {
-            //     type: 'category',
-            //     label: 'ISC Utilities',
-            //     items: [
-            //         {
-            //             type: 'autogenerated',
-            //             dirName: 'iota-evm/references/iscutils',
-            //         },
-            //     ],
-            // },
+            {
+                type: 'category',
+                label: 'ISC Utilities',
+                items: [
+                    {
+                        type: 'autogenerated',
+                        dirName: 'iota-evm/references/iscutils',
+                    },
+                ],
+            },
         ],
     },
 ];

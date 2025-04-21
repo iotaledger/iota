@@ -2,8 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { useZodForm } from '@iota/core';
-import toast from 'react-hot-toast';
+import { useZodForm, toast } from '@iota/core';
 import { z } from 'zod';
 import {
     Button,
@@ -20,7 +19,7 @@ import { useAccounts, useBackgroundClient } from '_hooks';
 import { Form } from '../../shared/forms/Form';
 
 const formSchema = z.object({
-    nickname: z.string().trim(),
+    nickname: z.string().trim().max(256, 'Nickname must be 256 characters or less'),
 });
 
 interface NicknameDialogProps {
@@ -43,7 +42,7 @@ export function NicknameDialog({ isOpen, setOpen, accountID }: NicknameDialogPro
     });
     const {
         register,
-        formState: { isSubmitting, isValid },
+        formState: { isSubmitting, isValid, errors },
     } = form;
 
     const onSubmit = async ({ nickname }: { nickname: string }) => {
@@ -60,22 +59,29 @@ export function NicknameDialog({ isOpen, setOpen, accountID }: NicknameDialogPro
         }
     };
 
+    const onClose = () => {
+        form.reset();
+        setOpen(false);
+    };
+
     return (
         <Dialog open={isOpen} onOpenChange={setOpen}>
             <DialogContent containerId="overlay-portal-container">
-                <Header title="Account Nickname" onClose={() => setOpen(false)} />
+                <Header title="Account Nickname" onClose={onClose} />
                 <DialogBody>
                     <Form className="flex h-full flex-col gap-6" form={form} onSubmit={onSubmit}>
                         <Input
+                            autoFocus
                             type={InputType.Text}
                             label="Personalize account with a nickname."
                             {...register('nickname')}
+                            errorMessage={errors.nickname?.message}
                         />
                         <div className="flex gap-2.5">
                             <Button
                                 type={ButtonType.Secondary}
                                 text="Cancel"
-                                onClick={() => setOpen(false)}
+                                onClick={onClose}
                                 fullWidth
                             />
                             <Button

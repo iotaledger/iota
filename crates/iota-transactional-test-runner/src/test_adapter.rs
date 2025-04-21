@@ -62,7 +62,7 @@ use iota_types::{
         Argument, CallArg, Command, ProgrammableTransaction, Transaction, TransactionData,
         TransactionDataAPI, TransactionKind, VerifiedTransaction,
     },
-    utils::to_sender_signed_transaction,
+    utils::{to_sender_signed_transaction, to_sender_signed_transaction_with_multi_signers},
 };
 use move_binary_format::CompiledModule;
 use move_bytecode_utils::module_cache::GetModule;
@@ -246,8 +246,8 @@ impl MoveTestAdapter<'_> for IotaTestAdapter {
             reference_gas_price,
             default_gas_price,
             object_snapshot_min_checkpoint_lag,
-            object_snapshot_max_checkpoint_lag,
             flavor,
+            epochs_to_keep,
         ) = match task_opt.map(|t| t.command) {
             Some((
                 InitCommand { named_addresses },
@@ -261,8 +261,8 @@ impl MoveTestAdapter<'_> for IotaTestAdapter {
                     reference_gas_price,
                     default_gas_price,
                     object_snapshot_min_checkpoint_lag,
-                    object_snapshot_max_checkpoint_lag,
                     flavor,
+                    epochs_to_keep,
                 },
             )) => {
                 let map = verify_and_create_named_address_mapping(named_addresses).unwrap();
@@ -300,8 +300,8 @@ impl MoveTestAdapter<'_> for IotaTestAdapter {
                     reference_gas_price,
                     default_gas_price,
                     object_snapshot_min_checkpoint_lag,
-                    object_snapshot_max_checkpoint_lag,
                     flavor,
+                    epochs_to_keep,
                 )
             }
             None => {
@@ -340,8 +340,8 @@ impl MoveTestAdapter<'_> for IotaTestAdapter {
                 custom_validator_account,
                 reference_gas_price,
                 object_snapshot_min_checkpoint_lag,
-                object_snapshot_max_checkpoint_lag,
                 path.to_path_buf(),
+                epochs_to_keep,
             )
             .await
         } else {
@@ -592,6 +592,7 @@ impl MoveTestAdapter<'_> for IotaTestAdapter {
                 show_usage,
                 show_headers,
                 show_service_version,
+                wait_for_checkpoint_pruned,
                 cursors,
             }) => {
                 let file = data.ok_or_else(|| anyhow::anyhow!("Missing GraphQL query"))?;
@@ -605,6 +606,15 @@ impl MoveTestAdapter<'_> for IotaTestAdapter {
                 cluster
                     .wait_for_objects_snapshot_catchup(Duration::from_secs(60))
                     .await;
+
+                if let Some(wait_for_checkpoint_pruned) = wait_for_checkpoint_pruned {
+                    cluster
+                        .wait_for_checkpoint_pruned(
+                            wait_for_checkpoint_pruned,
+                            Duration::from_secs(60),
+                        )
+                        .await;
+                }
 
                 let interpolated =
                     self.interpolate_query(&contents, &cursors, highest_checkpoint)?;
@@ -748,8 +758,10 @@ impl MoveTestAdapter<'_> for IotaTestAdapter {
             }
             IotaSubcommand::ProgrammableTransaction(ProgrammableTransactionCommand {
                 sender,
+                sponsor,
                 gas_budget,
                 gas_price,
+                gas_payment,
                 dev_inspect,
                 inputs,
             }) => {
@@ -795,15 +807,21 @@ impl MoveTestAdapter<'_> for IotaTestAdapter {
                 let summary = if !dev_inspect {
                     let gas_budget = gas_budget.unwrap_or(DEFAULT_GAS_BUDGET);
                     let gas_price = gas_price.unwrap_or(self.gas_price);
-                    let transaction = self.sign_txn(sender, |sender, gas| {
-                        TransactionData::new_programmable(
-                            sender,
-                            vec![gas],
-                            ProgrammableTransaction { inputs, commands },
-                            gas_budget,
-                            gas_price,
-                        )
-                    });
+                    let transaction = self.sign_sponsor_txn(
+                        sender,
+                        sponsor,
+                        gas_payment,
+                        |sender, sponsor, gas| {
+                            TransactionData::new_programmable_allow_sponsor(
+                                sender,
+                                vec![gas],
+                                ProgrammableTransaction { inputs, commands },
+                                gas_budget,
+                                gas_price,
+                                sponsor,
+                            )
+                        },
+                    );
                     self.execute_txn(transaction).await?
                 } else {
                     assert!(
@@ -1387,13 +1405,49 @@ impl IotaTestAdapter {
             ObjectRef,
         ) -> TransactionData,
     ) -> Transaction {
-        let test_account = self.get_sender(sender);
-        let gas_payment = self
-            .get_object(&test_account.gas, None)
+        self.sign_sponsor_txn(sender, None, None, move |sender, _, gas| {
+            txn_data(sender, gas)
+        })
+    }
+
+    fn sign_sponsor_txn(
+        &self,
+        sender: Option<String>,
+        sponsor: Option<String>,
+        payment: Option<FakeID>,
+        txn_data: impl FnOnce(
+            // sender
+            IotaAddress,
+            // sponsor
+            IotaAddress,
+            // gas
+            ObjectRef,
+        ) -> TransactionData,
+    ) -> Transaction {
+        let sender = self.get_sender(sender);
+        let sponsor = sponsor.map_or(sender, |a| self.get_sender(Some(a)));
+
+        let payment = if let Some(payment) = payment {
+            self.fake_to_real_object_id(payment)
+                .expect("Could not find specified payment object")
+        } else {
+            sponsor.gas
+        };
+
+        let payment_ref = self
+            .get_object(&payment, None)
             .unwrap()
             .compute_object_reference();
-        let data = txn_data(test_account.address, gas_payment);
-        to_sender_signed_transaction(data, &test_account.key_pair)
+
+        let data = txn_data(sender.address, sponsor.address, payment_ref);
+        if sender.address == sponsor.address {
+            to_sender_signed_transaction(data, &sender.key_pair)
+        } else {
+            to_sender_signed_transaction_with_multi_signers(
+                data,
+                vec![&sender.key_pair, &sponsor.key_pair],
+            )
+        }
     }
 
     fn get_sender(&self, sender: Option<String>) -> &TestAccount {
@@ -1508,7 +1562,7 @@ impl IotaTestAdapter {
         unchanged_shared_ids.sort_by_key(|id| self.real_to_fake_object_id(id));
 
         match effects.status() {
-            ExecutionStatus::Success { .. } => {
+            ExecutionStatus::Success => {
                 let events = self
                     .executor
                     .query_tx_events_asc(digest, *QUERY_MAX_RESULT_LIMIT)
@@ -1589,7 +1643,7 @@ impl IotaTestAdapter {
         wrapped_ids.sort_by_key(|id| self.real_to_fake_object_id(id));
 
         match effects.status() {
-            IotaExecutionStatus::Success { .. } => {
+            IotaExecutionStatus::Success => {
                 let events = events
                     .data
                     .into_iter()
@@ -2089,8 +2143,8 @@ async fn init_sim_executor(
     custom_validator_account: bool,
     reference_gas_price: Option<u64>,
     object_snapshot_min_checkpoint_lag: Option<usize>,
-    object_snapshot_max_checkpoint_lag: Option<usize>,
     test_file_path: PathBuf,
+    epochs_to_keep: Option<u64>,
 ) -> (
     Box<dyn TransactionalAdapter>,
     AccountSetup,
@@ -2182,9 +2236,9 @@ async fn init_sim_executor(
         Arc::new(read_replica),
         Some(SnapshotLagConfig::new(
             object_snapshot_min_checkpoint_lag,
-            object_snapshot_max_checkpoint_lag,
             Some(1),
         )),
+        epochs_to_keep,
         data_ingestion_path,
     )
     .await;

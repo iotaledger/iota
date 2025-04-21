@@ -3,7 +3,7 @@
     "author": "IOTA Foundation <info@iota.org>",
     "description": "IOTA TypeScript API",
     "homepage": "https://docs.iota.org/ts-sdk/typescript/",
-    "version": "0.5.0",
+    "version": "0.6.0",
     "license": "Apache-2.0",
     "sideEffects": false,
     "files": [
@@ -77,9 +77,9 @@
             "import": "./dist/esm/verify/index.js",
             "require": "./dist/cjs/verify/index.js"
         },
-        "./graphql/schemas/2024.11": {
-            "import": "./dist/esm/graphql/schemas/2024.11/index.js",
-            "require": "./dist/cjs/graphql/schemas/2024.11/index.js"
+        "./graphql/schemas/2025.2": {
+            "import": "./dist/esm/graphql/schemas/2025.2/index.js",
+            "require": "./dist/cjs/graphql/schemas/2025.2/index.js"
         }
     },
     "scripts": {
@@ -129,9 +129,9 @@
         "tmp": "^0.2.3",
         "ts-retry-promise": "^0.8.1",
         "typescript": "^5.5.3",
-        "vite": "^5.3.3",
+        "vite": "^5.4.12",
         "vitest": "^2.1.9",
-        "wait-on": "^7.2.0",
+        "wait-on": "^8.0.1",
         "ws": "^8.18.0"
     },
     "dependencies": {

@@ -5,7 +5,7 @@
 use std::{net::SocketAddr, path::PathBuf, sync::Arc, time::Duration};
 
 use iota_graphql_rpc_client::simple_client::SimpleClient;
-pub use iota_indexer::handlers::objects_snapshot_processor::SnapshotLagConfig;
+pub use iota_indexer::handlers::objects_snapshot_handler::SnapshotLagConfig;
 use iota_indexer::{
     errors::IndexerError,
     store::{PgIndexerStore, indexer_store::IndexerStore},
@@ -69,8 +69,9 @@ pub async fn start_cluster(
         db_url,
         // reset the existing db
         true,
+        None,
         val_fn.rpc_url().to_string(),
-        IndexerTypeConfig::writer_mode(None),
+        IndexerTypeConfig::writer_mode(None, None),
         Some(data_ingestion_path),
         cancellation_token.clone(),
     )
@@ -112,6 +113,7 @@ pub async fn serve_executor(
     internal_data_source_rpc_port: u16,
     executor: Arc<dyn RestStateReader + Send + Sync>,
     snapshot_config: Option<SnapshotLagConfig>,
+    epochs_to_keep: Option<u64>,
     data_ingestion_path: PathBuf,
 ) -> ExecutorCluster {
     let db_url = graphql_connection_config.db_url.clone();
@@ -132,8 +134,9 @@ pub async fn serve_executor(
     let (pg_store, pg_handle) = start_test_indexer_impl(
         db_url,
         true,
+        None,
         format!("http://{}", executor_server_url),
-        IndexerTypeConfig::writer_mode(snapshot_config.clone()),
+        IndexerTypeConfig::writer_mode(snapshot_config.clone(), epochs_to_keep),
         Some(data_ingestion_path),
         cancellation_token.clone(),
     )
@@ -165,6 +168,50 @@ pub async fn serve_executor(
         graphql_connection_config,
         cancellation_token,
     }
+}
+
+/// Ping the GraphQL server for a checkpoint until an empty response is
+/// returned, indicating that the checkpoint has been pruned.
+pub async fn wait_for_graphql_checkpoint_pruned(
+    client: &SimpleClient,
+    checkpoint: u64,
+    base_timeout: Duration,
+) {
+    info!(
+        "Waiting for checkpoint to be pruned {}, base time out is {}",
+        checkpoint,
+        base_timeout.as_secs()
+    );
+    let query = format!(
+        r#"
+        {{
+            checkpoint(id: {{ sequenceNumber: {} }}) {{
+                sequenceNumber
+            }}
+        }}"#,
+        checkpoint
+    );
+
+    let timeout = base_timeout.mul_f64(checkpoint.max(1) as f64);
+
+    tokio::time::timeout(timeout, async {
+        loop {
+            let resp = client
+                .execute_to_graphql(query.to_string(), false, vec![], vec![])
+                .await
+                .unwrap()
+                .response_body_json();
+
+            let current_checkpoint = &resp["data"]["checkpoint"];
+            if current_checkpoint.is_null() {
+                break;
+            } else {
+                tokio::time::sleep(Duration::from_secs(1)).await;
+            }
+        }
+    })
+    .await
+    .expect("Timeout waiting for checkpoint to be pruned");
 }
 
 pub async fn start_graphql_server(
@@ -292,6 +339,11 @@ impl Cluster {
         wait_for_graphql_checkpoint_catchup(&self.graphql_client, checkpoint, base_timeout).await
     }
 
+    /// Waits for the indexer to prune a given checkpoint.
+    pub async fn wait_for_checkpoint_pruned(&self, checkpoint: u64, base_timeout: Duration) {
+        wait_for_graphql_checkpoint_pruned(&self.graphql_client, checkpoint, base_timeout).await
+    }
+
     /// Sends a cancellation signal to the graphql and indexer services and
     /// waits for them to shutdown.
     pub async fn cleanup_resources(self) {
@@ -306,6 +358,11 @@ impl ExecutorCluster {
     /// watermark to the given checkpoint.
     pub async fn wait_for_checkpoint_catchup(&self, checkpoint: u64, base_timeout: Duration) {
         wait_for_graphql_checkpoint_catchup(&self.graphql_client, checkpoint, base_timeout).await
+    }
+
+    /// Waits for the indexer to prune a given checkpoint.
+    pub async fn wait_for_checkpoint_pruned(&self, checkpoint: u64, base_timeout: Duration) {
+        wait_for_graphql_checkpoint_pruned(&self.graphql_client, checkpoint, base_timeout).await
     }
 
     /// The ObjectsSnapshotProcessor is a long-running task that periodically
@@ -323,7 +380,7 @@ impl ExecutorCluster {
             .unwrap();
 
         tokio::time::timeout(base_timeout, async {
-            while latest_cp > latest_snapshot_cp + self.snapshot_config.snapshot_max_lag as u64 {
+            while latest_cp > latest_snapshot_cp + self.snapshot_config.snapshot_min_lag as u64 {
                 tokio::time::sleep(Duration::from_secs(1)).await;
                 latest_snapshot_cp = self
                     .indexer_store

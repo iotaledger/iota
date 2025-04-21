@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-//# init --protocol-version 4 --simulator
+//# init --protocol-version 5 --simulator
 
 // Tests for representations of all the various system transactions
 

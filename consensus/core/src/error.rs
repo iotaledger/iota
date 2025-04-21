@@ -134,9 +134,6 @@ pub(crate) enum ConsensusError {
         block_timestamp_ms: u64,
     },
 
-    #[error("No available authority to fetch commits")]
-    NoAvailableAuthorityToFetchCommits,
-
     #[error("Received no commit from peer {peer}")]
     NoCommitReceived { peer: AuthorityIndex },
 
@@ -180,9 +177,6 @@ pub(crate) enum ConsensusError {
 
     #[error("Failed to connect as client: {0:?}")]
     NetworkClientConnection(String),
-
-    #[error("Failed to connect as server: {0:?}")]
-    NetworkServerConnection(String),
 
     #[error("Failed to send request: {0:?}")]
     NetworkRequest(String),

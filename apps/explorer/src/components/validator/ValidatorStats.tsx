@@ -2,9 +2,9 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { type IotaValidatorSummary } from '@iota/iota-sdk/client';
+import type { IotaValidatorSummary } from '@iota/iota-sdk/client';
 import { LabelText, LabelTextSize, Panel, Title, TooltipPosition } from '@iota/apps-ui-kit';
-import { CoinFormat, formatBalance, getValidatorCommission, useFormatCoin } from '@iota/core';
+import { getValidatorCommission, useFormatCoin } from '@iota/core';
 
 type StatsCardProps = {
     validatorData: IotaValidatorSummary;
@@ -35,11 +35,7 @@ export function ValidatorStats({
     const [formattedRewardsPoolBalance, rewardsPoolBalanceSymbol] = useFormatCoin({
         balance: rewardsPoolBalance,
     });
-    const nextEpochGasPriceAmount = formatBalance(
-        validatorData.nextEpochGasPrice,
-        0,
-        CoinFormat.FULL,
-    );
+
     return (
         <div className="flex flex-col gap-lg md:flex-row">
             <Panel>
@@ -150,16 +146,6 @@ export function ValidatorStats({
                                     ? 'Coming soon'
                                     : 'A score created by validators to assess each other’s performance during IOTA’s standard operations.'
                             }
-                            tooltipPosition={TooltipPosition.Right}
-                        />
-                    </div>
-                    <div className="grid grid-rows-1 gap-md">
-                        <LabelText
-                            size={LabelTextSize.Medium}
-                            label="Proposed next epoch gas price"
-                            text={nextEpochGasPriceAmount}
-                            supportingLabel="nano"
-                            tooltipText="The gas price estimate provided by this validator for the upcoming epoch."
                             tooltipPosition={TooltipPosition.Right}
                         />
                     </div>

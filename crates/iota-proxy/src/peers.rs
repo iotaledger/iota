@@ -115,11 +115,20 @@ impl IotaNodeProvider {
     pub fn get_mut(&mut self) -> &mut IotaPeers {
         &mut self.active_validator_nodes
     }
+
+    /// Here we allow all active validators to be added to the allow list.
     fn update_active_validator_set(&self, summary: &IotaSystemStateSummary) {
-        let validators = extract_validators_from_summaries(&summary.active_validators);
+        let active_validator_summaries = summary
+            .iter_active_validators()
+            .cloned()
+            .collect::<Vec<IotaValidatorSummary>>();
+
+        // Here we allow all active validators to be added to the allow list to make it
+        // more flexible.
+        let active_validators = extract_validators_from_summaries(&active_validator_summaries);
         let mut allow = self.active_validator_nodes.write().unwrap();
         allow.clear();
-        allow.extend(validators);
+        allow.extend(active_validators);
         info!(
             "{} iota validators managed to make it on the allow list",
             allow.len()
@@ -205,9 +214,19 @@ impl IotaNodeProvider {
                                 cloned_self.update_active_validator_set(&system_state);
                                 info!("Successfully updated active validators");
 
+                                let pending_active_validators_id = match &system_state {
+                                    IotaSystemStateSummary::V1(system_state) => {
+                                        system_state.pending_active_validators_id
+                                    }
+                                    IotaSystemStateSummary::V2(system_state) => {
+                                        system_state.pending_active_validators_id
+                                    }
+                                    _ => panic!("unsupported IotaSystemStateSummary"),
+                                };
+
                                 match Self::get_pending_validators(
                                     &client,
-                                    system_state.pending_active_validators_id,
+                                    pending_active_validators_id,
                                 )
                                 .await
                                 {

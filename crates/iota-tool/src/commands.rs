@@ -47,7 +47,6 @@ pub enum Verbosity {
 pub enum ToolCommand {
     /// Inspect if a specific object is or all gas objects owned by an address
     /// are locked by validators
-    #[command(name = "locked-object")]
     LockedObject {
         /// Either id or address must be provided
         /// The object to check
@@ -67,7 +66,6 @@ pub enum ToolCommand {
     },
 
     /// Fetch the same object from all validators
-    #[command(name = "fetch-object")]
     FetchObject {
         #[arg(long, help = "The object ID to fetch")]
         id: ObjectID,
@@ -101,7 +99,6 @@ pub enum ToolCommand {
     },
 
     /// Fetch the effects association with transaction `digest`
-    #[command(name = "fetch-transaction")]
     FetchTransaction {
         // RPC address to provide the up-to-date committee info
         #[arg(long)]
@@ -116,7 +113,6 @@ pub enum ToolCommand {
     },
 
     /// Tool to read validator & node db.
-    #[command(name = "db-tool")]
     DbTool {
         /// Path of the DB to read
         #[arg(long)]
@@ -126,7 +122,6 @@ pub enum ToolCommand {
     },
 
     /// Tool to verify the archive store
-    #[command(name = "verify-archive")]
     VerifyArchive {
         #[arg(long)]
         genesis: PathBuf,
@@ -137,13 +132,11 @@ pub enum ToolCommand {
     },
 
     /// Tool to print the archive manifest
-    #[command(name = "print-archive-manifest")]
     PrintArchiveManifest {
         #[command(flatten)]
         object_store_config: ObjectStoreConfig,
     },
     /// Tool to update the archive manifest
-    #[command(name = "update-archive-manifest")]
     UpdateArchiveManifest {
         #[command(flatten)]
         object_store_config: ObjectStoreConfig,
@@ -178,7 +171,6 @@ pub enum ToolCommand {
     /// module it contains. Each module file is named for its module name, with
     /// a .mv suffix, and contains Move bytecode (suitable for passing into
     /// a disassembler).
-    #[command(name = "dump-packages")]
     DumpPackages {
         /// Connection information for a GraphQL service.
         #[arg(long, short)]
@@ -200,7 +192,6 @@ pub enum ToolCommand {
         verbose: bool,
     },
 
-    #[command(name = "dump-validators")]
     DumpValidators {
         #[arg(long)]
         genesis: PathBuf,
@@ -212,7 +203,6 @@ pub enum ToolCommand {
         concise: bool,
     },
 
-    #[command(name = "dump-genesis")]
     DumpGenesis {
         #[arg(long)]
         genesis: PathBuf,
@@ -221,7 +211,6 @@ pub enum ToolCommand {
     /// Fetch authenticated checkpoint information at a specific sequence
     /// number. If sequence number is not specified, get the latest
     /// authenticated checkpoint.
-    #[command(name = "fetch-checkpoint")]
     FetchCheckpoint {
         // RPC address to provide the up-to-date committee info
         #[arg(long)]
@@ -231,7 +220,6 @@ pub enum ToolCommand {
         sequence_number: Option<CheckpointSequenceNumber>,
     },
 
-    #[command(name = "anemo")]
     Anemo {
         #[command(next_help_heading = "foo", flatten)]
         args: anemo_cli::Args,
@@ -304,7 +292,6 @@ pub enum ToolCommand {
 
     // Restore from formal (slim, DB agnostic) snapshot.
     #[command(
-        name = "download-formal-snapshot",
         about = "Downloads formal database snapshot via cloud object store, outputs to local disk"
     )]
     DownloadFormalSnapshot {
@@ -371,7 +358,6 @@ pub enum ToolCommand {
         all_checkpoints: bool,
     },
 
-    #[command(name = "replay")]
     Replay {
         #[arg(long = "rpc")]
         rpc_url: Option<String>,
@@ -398,7 +384,6 @@ pub enum ToolCommand {
     },
 
     /// Ask all validators to sign a transaction through AuthorityAggregator.
-    #[command(name = "sign-transaction")]
     SignTransaction {
         #[arg(long)]
         genesis: PathBuf,

@@ -2,6 +2,8 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use std::sync::Arc;
+
 use anyhow::Result;
 use async_trait::async_trait;
 use iota_data_ingestion_core::{Worker, setup_single_workflow};
@@ -14,7 +16,7 @@ impl Worker for CustomWorker {
     type Message = ();
     type Error = anyhow::Error;
 
-    async fn process_checkpoint(&self, checkpoint: &CheckpointData) -> Result<Self::Message> {
+    async fn process_checkpoint(&self, checkpoint: Arc<CheckpointData>) -> Result<Self::Message> {
         // custom processing logic
         // print out the checkpoint number
         println!(
@@ -29,7 +31,7 @@ impl Worker for CustomWorker {
 async fn main() -> Result<()> {
     let (executor, _) = setup_single_workflow(
         CustomWorker,
-        "https://checkpoints.testnet.iota.cafe".to_string(),
+        "https://api.testnet.iota.cafe/api/v1".to_string(),
         0,    // initial checkpoint number
         5,    // concurrency
         None, // extra reader options

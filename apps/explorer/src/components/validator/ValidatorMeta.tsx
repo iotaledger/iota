@@ -4,10 +4,9 @@
 
 import { Badge, BadgeType, KeyValueInfo, Panel } from '@iota/apps-ui-kit';
 import { type IotaValidatorSummary } from '@iota/iota-sdk/client';
-import toast from 'react-hot-toast';
 import { ArrowTopRight } from '@iota/apps-ui-icons';
 import { AddressLink } from '~/components/ui';
-import { ImageIcon, ImageIconSize } from '@iota/core';
+import { ImageIcon, ImageIconSize, toast } from '@iota/core';
 
 type ValidatorMetaProps = {
     validatorData: IotaValidatorSummary;
@@ -21,7 +20,7 @@ export function ValidatorMeta({ validatorData }: ValidatorMetaProps): JSX.Elemen
     const projectUrl = validatorData.projectUrl;
 
     function handleOnCopy() {
-        toast.success('Copied to clipboard');
+        toast('Copied to clipboard');
     }
 
     return (

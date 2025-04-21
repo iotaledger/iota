@@ -1700,7 +1700,7 @@ async fn test_handle_soft_bundle_certificates() {
 
     // Create a server with mocked consensus.
     // This ensures transactions submitted to consensus will get processed.
-    let adapter = make_consensus_adapter_for_test(authority.clone(), true);
+    let adapter = make_consensus_adapter_for_test(authority.clone(), HashSet::new(), true);
     let server = AuthorityServer::new_for_test_with_consensus_adapter(authority.clone(), adapter);
     let _metrics = server.metrics.clone();
     let server_handle = server.spawn_for_test().await.unwrap();
@@ -1907,10 +1907,7 @@ async fn test_handle_soft_bundle_certificates_errors() {
             )
             .await;
         assert!(response.is_err());
-        assert_matches!(
-            response.unwrap_err(),
-            IotaError::NoCertificateProvided { .. }
-        );
+        assert_matches!(response.unwrap_err(), IotaError::NoCertificateProvided);
     }
 
     // Case 1: submit a soft bundle with more txs than the limit.
@@ -2180,7 +2177,7 @@ async fn test_handle_soft_bundle_certificates_errors() {
         assert_matches!(
             response.unwrap_err(),
             IotaError::UserInput {
-                error: UserInputError::CertificateAlreadyProcessed { .. },
+                error: UserInputError::CertificateAlreadyProcessed,
             }
         );
     }

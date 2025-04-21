@@ -2,9 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { Button, Address, Dialog, DialogContent, DialogBody, Header } from '@iota/apps-ui-kit';
-import { useCopyToClipboard } from '@iota/core';
-import { QR } from '@iota/core';
-import toast from 'react-hot-toast';
+import { QR, useCopyToClipboard, toast } from '@iota/core';
 
 interface ReceiveFundsDialogProps {
     address: string;
@@ -22,7 +20,7 @@ export function ReceiveFundsDialog({
     async function handleCopyToClipboard() {
         const success = await copyToClipboard(address);
         if (success) {
-            toast.success('Address copied');
+            toast('Address copied');
         }
     }
 

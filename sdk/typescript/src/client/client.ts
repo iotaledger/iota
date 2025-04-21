@@ -1,7 +1,7 @@
 // Copyright (c) Mysten Labs, Inc.
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
-import { fromB58, toB64, toHEX } from '@iota/bcs';
+import { toB64 } from '@iota/bcs';
 
 import type { Signer } from '../cryptography/index.js';
 import type { Transaction } from '../transactions/index.js';
@@ -89,6 +89,8 @@ import type {
     GetTimelockedStakesParams,
     DelegatedTimelockedStake,
     GetTimelockedStakesByIdsParams,
+    IotaSystemStateSummaryV1,
+    ParticipationMetrics,
 } from './types/index.js';
 
 export interface PaginationArguments<Cursor> {
@@ -536,11 +538,23 @@ export class IotaClient {
     }
 
     /**
-     * Return the latest system state content.
+     * Return the latest IOTA system state object on networks supporting protocol version `< 5`.
+     * These are networks with node software release version `< 0.11`.
      */
-    async getLatestIotaSystemState(): Promise<IotaSystemStateSummary> {
+    async getLatestIotaSystemState(): Promise<IotaSystemStateSummaryV1> {
         return await this.transport.request({
             method: 'iotax_getLatestIotaSystemState',
+            params: [],
+        });
+    }
+
+    /**
+     * Return the latest IOTA system state object on networks supporting protocol version `>= 5`.
+     * These are networks with node software release version `>= 0.11`.
+     */
+    async getLatestIotaSystemStateV2(): Promise<IotaSystemStateSummary> {
+        return await this.transport.request({
+            method: 'iotax_getLatestIotaSystemStateV2',
             params: [],
         });
     }
@@ -785,17 +799,27 @@ export class IotaClient {
         return await this.transport.request({ method: 'iotax_getValidatorsApy', params: [] });
     }
 
-    // TODO: Migrate this to `iota_getChainIdentifier` once it is widely available.
     async getChainIdentifier(): Promise<string> {
-        const checkpoint = await this.getCheckpoint({ id: '0' });
-        const bytes = fromB58(checkpoint.digest);
-        return toHEX(bytes.slice(0, 4));
+        return await this.transport.request({
+            method: 'iota_getChainIdentifier',
+            params: [],
+        });
     }
 
     async getProtocolConfig(input?: GetProtocolConfigParams): Promise<ProtocolConfig> {
         return await this.transport.request({
             method: 'iota_getProtocolConfig',
             params: [input?.version],
+        });
+    }
+
+    /**
+     * Returns the participation metrics (total unique addresses with delegated stake in the current epoch).
+     */
+    async getParticipationMetrics(): Promise<ParticipationMetrics> {
+        return await this.transport.request({
+            method: 'iotax_getParticipationMetrics',
+            params: [],
         });
     }
 

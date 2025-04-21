@@ -11,7 +11,6 @@ use strum::EnumIter;
 #[command(
     name = "iota-single-node-benchmark",
     about = "Benchmark a single validator node",
-    rename_all = "kebab-case",
     author,
     version
 )]

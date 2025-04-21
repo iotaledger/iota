@@ -16,7 +16,7 @@ multisig” is short for "multisignature".
 
 The security of cryptocurrency demands greater attention as digital assets gain traction. Individuals and organizations need robust strategies to safeguard their funds. Multisignature (multisig) wallets are emerging as a powerful cybersecurity tool in crypto.
 
-Decentralized digital assets require a different approach to security than traditional finance. Thankfully, innovative technologies like multisig wallets provide an extra layer of protection, allowing you to trade cryptocurrencies on chains like [Shimmer EVM](https://explorer.evm.shimmer.network/) or [IOTA EVM](https://explorer.evm.iota.org/).
+Decentralized digital assets require a different approach to security than traditional finance. Thankfully, innovative technologies like multisig wallets provide an extra layer of protection, allowing you to trade cryptocurrencies on chains like [IOTA EVM](https://explorer.evm.iota.org/).
 
 ![IOTA Sandbox](/img/iota-evm/safe.png)
 

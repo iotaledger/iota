@@ -3,10 +3,10 @@
       {
         "questionText": "What mechanism does IOTA use to determine the set of validators that process transactions?",
         "answerOptions": [
-          { "answerText": "Proof of Work.", "isCorrect": false },
-          { "answerText": "Delegated Proof of Stake (DPoS).", "isCorrect": true },
-          { "answerText": "Proof of Authority.", "isCorrect": false },
-          { "answerText": "Proof of Space.", "isCorrect": false }
+          { "answerText": "Proof of Work", "isCorrect": false },
+          { "answerText": "Delegated Proof of Stake (DPoS)", "isCorrect": true },
+          { "answerText": "Proof of Authority", "isCorrect": false },
+          { "answerText": "Proof of Space", "isCorrect": false }
         ]
       },
       {
@@ -24,7 +24,7 @@
           { "answerText": "Validators keep all rewards.", "isCorrect": false },
           { "answerText": "Validators share rewards proportionally with stakers after taking a commission.", "isCorrect": true },
           { "answerText": "Rewards are distributed equally among all validators.", "isCorrect": false },
-          { "answerText": "Rewards are only given to validators who perform the most transactions", "isCorrect": false }
+          { "answerText": "Rewards are only given to validators who perform the most transactions.", "isCorrect": false }
         ]
       }
     ]

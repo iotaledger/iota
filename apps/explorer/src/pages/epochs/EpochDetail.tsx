@@ -2,7 +2,6 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { useIotaClientQuery } from '@iota/dapp-kit';
 import { useQuery } from '@tanstack/react-query';
 import { useMemo, useState } from 'react';
 import { useParams } from 'react-router-dom';
@@ -29,6 +28,7 @@ import { TokenStats } from './stats/TokenStats';
 import { EpochTopStats } from './stats/EpochTopStats';
 import { getEpochStorageFundFlow } from '~/lib/utils';
 import { Warning } from '@iota/apps-ui-icons';
+import { useGetLatestIotaSystemState } from '@iota/core';
 
 enum EpochTabs {
     Checkpoints = 'checkpoints',
@@ -39,7 +39,7 @@ export function EpochDetail() {
     const [activeTabId, setActiveTabId] = useState(EpochTabs.Checkpoints);
     const { id } = useParams();
     const enhancedRpc = useEnhancedRpcClient();
-    const { data: systemState } = useIotaClientQuery('getLatestIotaSystemState');
+    const { data: systemState } = useGetLatestIotaSystemState();
     const { data, isPending, isError } = useQuery({
         queryKey: ['epoch', id],
         queryFn: async () =>
@@ -58,23 +58,29 @@ export function EpochDetail() {
 
     const tableColumns = useMemo(() => {
         if (!epochData?.validators || epochData.validators.length === 0) return null;
+        const includeColumns = [
+            'Name',
+            'Stake',
+            'APY',
+            'Commission',
+            'Last Epoch Rewards',
+            'Voting Power',
+            'Status',
+        ];
+
         // todo: enrich this historical validator data when we have
         // at-risk / pending validators for historical epochs
         return generateValidatorsTableColumns({
+            committeeMembers:
+                epochData.committeeMembers?.map(
+                    (committeeMemberIndex) =>
+                        epochData.validators[Number(committeeMemberIndex)].iotaAddress,
+                ) ?? [],
             atRiskValidators: [],
             validatorEvents: [],
             rollingAverageApys: null,
             showValidatorIcon: true,
-            includeColumns: [
-                'Name',
-                'Stake',
-                'Proposed next Epoch gas price',
-                'APY',
-                'Commission',
-                'Last Epoch Rewards',
-                'Voting Power',
-                'Status',
-            ],
+            includeColumns,
         });
     }, [epochData]);
 
@@ -95,7 +101,7 @@ export function EpochDetail() {
             />
         );
 
-    const tableData = [...epochData.validators].sort(() => 0.5 - Math.random());
+    const tableData = epochData.validators;
 
     const { fundInflow, fundOutflow, netInflow } = getEpochStorageFundFlow(
         epochData.endOfEpochInfo,
@@ -195,7 +201,12 @@ export function EpochDetail() {
                                 />
                             ) : null}
                             {activeTabId === EpochTabs.Validators && tableData && tableColumns ? (
-                                <TableCard data={tableData} columns={tableColumns} />
+                                <TableCard
+                                    sortTable
+                                    defaultSorting={[{ id: 'stakingPoolIotaBalance', desc: true }]}
+                                    data={tableData}
+                                    columns={tableColumns}
+                                />
                             ) : null}
                         </div>
                     </Panel>
