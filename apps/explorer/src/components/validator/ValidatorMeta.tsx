@@ -11,7 +11,7 @@ type ValidatorMetaProps = {
     validatorData: IotaValidatorSummary;
 };
 
-export type InactiveValidatorData = {
+export type InactiveValidatorDataProps = {
     logo: string;
     validatorName: string;
     description: string;
@@ -32,7 +32,7 @@ export function InactiveValidators({
         validatorStakingPoolId,
     },
 }: {
-    validatorData: InactiveValidatorData;
+    validatorData: InactiveValidatorDataProps;
 }): JSX.Element {
     function handleOnCopy() {
         toast('Copied to clipboard');
@@ -65,7 +65,7 @@ export function InactiveValidators({
                         </div>
                     </div>
                     <div className="flex w-1/2 flex-col gap-y-md">
-                        <span className="text-label-lg text-neutral-40 dark:text-neutral-6">
+                        <span className="text-label-lg text-neutral-40 dark:text-neutral-60">
                             Description
                         </span>
                         <span className="text-body-md text-neutral-10 dark:text-neutral-92">
@@ -138,7 +138,7 @@ export function ValidatorMeta({ validatorData }: ValidatorMetaProps): JSX.Elemen
                         </div>
                     </div>
                     <div className="flex w-1/2 flex-col gap-y-md">
-                        <span className="text-label-lg text-neutral-40 dark:text-neutral-6">
+                        <span className="text-label-lg text-neutral-40 dark:text-neutral-60">
                             Description
                         </span>
                         <span className="text-body-md text-neutral-10 dark:text-neutral-92">

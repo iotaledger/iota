@@ -11,7 +11,7 @@ import {
 import { useMemo } from 'react';
 import { useParams } from 'react-router-dom';
 import {
-    type InactiveValidatorData,
+    type InactiveValidatorDataProps,
     InactiveValidators,
     PageLayout,
     ValidatorMeta,
@@ -79,7 +79,7 @@ export const DynamicFieldObjectSchema = z.object({
 const getInactiveValidatorsData = async (
     client: IotaClient,
     objectId: string,
-): Promise<InactiveValidatorData | null> => {
+): Promise<InactiveValidatorDataProps | null> => {
     const validatorObject = await client.getObject({
         id: normalizeIotaAddress(objectId),
         options: {
