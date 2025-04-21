@@ -35,6 +35,7 @@ test.describe.serial('Balance changes', () => {
 
         currentAmount = await dashboardPage.getByTestId('balance-amount').textContent();
         expect(currentAmount).not.toEqual(prevAmount);
+        dashboardPage.close();
     });
 
     test(`should show correct transaction amount in activity section`, async ({ context }) => {
@@ -62,7 +63,7 @@ test.describe.serial('Balance changes', () => {
             throw new Error('No IOTA amount found in transaction tile');
         }
 
-        const match = iotaAmountText.match(/(\d+(\.\d+)?)\s*IOTA/);
+        const match = iotaAmountText.replace(/,/g, '').match(/(\d+(\.\d+)?)\s*IOTA/);
         expect(match).toBeTruthy();
 
         if (!match) {
