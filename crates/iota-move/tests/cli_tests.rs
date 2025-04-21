@@ -2,22 +2,22 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use std::{fs, path::Path, process::Command};
+
 use insta_cmd::get_cargo_bin;
-use std::fs;
-use std::path::Path;
-use std::process::Command;
 use walkdir::WalkDir;
 
-// [test_shell_snapshot] is run on every file matching [TEST_PATTERN] in [TEST_DIR]; this runs the
-// files as shell scripts and compares their output to the snapshots; use `cargo insta test
-// --review` to update the snapshots.
+// [test_shell_snapshot] is run on every file matching [TEST_PATTERN] in
+// [TEST_DIR]; this runs the files as shell scripts and compares their output to
+// the snapshots; use `cargo insta test --review` to update the snapshots.
 
 const TEST_DIR: &str = "tests/tests";
 const TEST_PATTERN: &str = r"^test.*\.sh$";
 
-/// run the bash script at [path], comparing its output to the insta snapshot of the same name.
-/// The script is run in a temporary working directory that contains a copy of the parent directory
-/// of [path], with the `iota-move` binary on the path.
+/// run the bash script at [path], comparing its output to the insta snapshot of
+/// the same name. The script is run in a temporary working directory that
+/// contains a copy of the parent directory of [path], with the `iota-move`
+/// binary on the path.
 fn test_shell_snapshot(path: &Path) -> datatest_stable::Result<()> {
     // copy files into temporary directory
     let srcdir = path.parent().unwrap();

@@ -5,7 +5,7 @@
 use std::path::Path;
 
 use clap::Parser;
-use iota_move_build::{set_iota_flavor, IotaPackageHooks};
+use iota_move_build::{IotaPackageHooks, set_iota_flavor};
 use move_cli::base::test::UnitTestResult;
 use move_package::BuildConfig;
 
