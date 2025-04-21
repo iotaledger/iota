@@ -144,7 +144,7 @@ function ValidatorPageResult(): JSX.Element {
             committeeMembers: data.committeeMembers.map((validator) => validator.iotaAddress),
             atRiskValidators: data.atRiskValidators,
             validatorEvents,
-            rollingAverageApys: validatorsApy || null,
+            rollingAverageApys: validatorsApy,
             highlightValidatorName: true,
             includeColumns,
         });

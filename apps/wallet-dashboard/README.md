@@ -24,10 +24,10 @@ This will start the dev server on port 3000, which should be accessible on http:
 
 ## To run end-to-end localnet test
 
-Start validators locally:
+Prepare builds for wallet and wallet-dashboard before run tests
 
 ```bash
-cargo run --bin iota start --force-regenesis --with-faucet
+pnpm --filter wallet-dashboard prepare:e2e
 ```
 
 In a separate terminal, you can now run the end-to-end tests:

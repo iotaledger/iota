@@ -32,7 +32,7 @@ use crate::{
             AliasEntry, AliasMapBuilder, ParserExplicitUseFun, UnnecessaryAlias, UseFunsBuilder,
         },
         aliases::AliasSet,
-        ast::{self as E, Address, Fields, ModuleIdent, ModuleIdent_, TargetKind},
+        ast::{self as E, Address, Fields, ModuleIdent, ModuleIdent_},
         byte_string, hex_string,
         name_validation::{
             IMPLICIT_IOTA_MEMBERS, IMPLICIT_IOTA_MODULES, IMPLICIT_STD_MEMBERS,
@@ -79,7 +79,7 @@ pub(super) struct DefnContext<'env, 'map> {
     pub(super) env: &'env CompilationEnv,
     pub(super) address_conflicts: BTreeSet<Symbol>,
     pub(super) current_package: Option<Symbol>,
-    pub(super) is_source_definition: bool,
+    pub(super) target_kind: P::TargetKind,
     pub(super) reporter: DiagnosticReporter<'env>,
 }
 
@@ -114,7 +114,9 @@ impl<'env, 'map> Context<'env, 'map> {
             address_conflicts,
             module_members,
             current_package: None,
-            is_source_definition: false,
+            target_kind: P::TargetKind::Source {
+                is_root_package: true,
+            },
             reporter,
         };
         Context {
@@ -504,7 +506,9 @@ pub fn program(
         module_members: UniqueMap::new(),
         address_conflicts,
         current_package: None,
-        is_source_definition: false,
+        target_kind: P::TargetKind::Source {
+            is_root_package: true,
+        },
         reporter,
     };
 
@@ -549,13 +553,14 @@ pub fn program(
 
     let mut context = Context::new(compilation_env, module_members, address_conflicts);
 
-    context.defn_context.is_source_definition = true;
     for P::PackageDefinition {
         package,
         named_address_map,
         def,
+        target_kind,
     } in source_definitions
     {
+        context.defn_context.target_kind = target_kind;
         context.defn_context.current_package = package;
         let named_address_map = named_address_maps.get(named_address_map);
         if context
@@ -584,13 +589,14 @@ pub fn program(
         }
     }
 
-    context.defn_context.is_source_definition = false;
     for P::PackageDefinition {
         package,
         named_address_map,
         def,
+        target_kind: pkg_def_kind,
     } in lib_definitions
     {
+        context.defn_context.target_kind = pkg_def_kind;
         context.defn_context.current_package = package;
         let named_address_map = named_address_maps.get(named_address_map);
         if context
@@ -900,6 +906,7 @@ fn module_(
     mdef: P::ModuleDefinition,
 ) -> (ModuleIdent, E::ModuleDefinition) {
     let P::ModuleDefinition {
+        doc,
         attributes,
         loc,
         address,
@@ -954,7 +961,11 @@ fn module_(
             P::ModuleMember::Use(_) => unreachable!(),
             P::ModuleMember::Friend(f) => friend(context, &mut friends, f),
             P::ModuleMember::Function(mut f) => {
-                if !context.defn_context.is_source_definition && f.macro_.is_none() {
+                if !matches!(
+                    context.defn_context.target_kind,
+                    P::TargetKind::Source { .. }
+                ) && f.macro_.is_none()
+                {
                     f.body.value = P::FunctionBody_::Native
                 }
                 function(
@@ -975,18 +986,13 @@ fn module_(
 
     context.pop_alias_scope(Some(&mut use_funs));
 
-    let target_kind = if !context.defn_context.is_source_definition {
-        TargetKind::External
-    } else {
-        let is_root_package = !context.env().package_config(package_name).is_dependency;
-        TargetKind::Source { is_root_package }
-    };
     let def = E::ModuleDefinition {
+        doc,
         package_name,
         attributes,
         loc,
         use_funs,
-        target_kind,
+        target_kind: context.defn_context.target_kind,
         friends,
         structs,
         enums,
@@ -1270,7 +1276,10 @@ fn module_warning_filter(
     attributes: &E::Attributes,
 ) -> WarningFilters {
     let mut filters = warning_filter_(context, attributes);
-    let is_dep = !context.defn_context.is_source_definition || {
+    let is_dep = !matches!(
+        context.defn_context.target_kind,
+        P::TargetKind::Source { .. }
+    ) || {
         let pkg = context.current_package();
         context.env().package_config(pkg).is_dependency
     };
@@ -1589,6 +1598,7 @@ fn use_(
     u: P::UseDecl,
 ) {
     let P::UseDecl {
+        doc,
         use_: u,
         loc,
         attributes,
@@ -1631,6 +1641,7 @@ fn use_(
                 }
             };
             let explicit = ParserExplicitUseFun {
+                doc,
                 loc,
                 attributes,
                 is_public,
@@ -1798,6 +1809,7 @@ fn explicit_use_fun(
     pexplicit: ParserExplicitUseFun,
 ) -> Option<E::ExplicitUseFun> {
     let ParserExplicitUseFun {
+        doc,
         loc,
         attributes,
         is_public,
@@ -1834,6 +1846,7 @@ fn explicit_use_fun(
         "Found a 'use fun' as a macro"
     );
     Some(E::ExplicitUseFun {
+        doc,
         loc,
         attributes,
         is_public,
@@ -1868,7 +1881,10 @@ fn duplicate_module_member(context: &mut Context, old_loc: Loc, alias: Name) {
 }
 
 fn unused_alias(context: &mut Context, _kind: &str, alias: Name) {
-    if !context.defn_context.is_source_definition {
+    if !matches!(
+        context.defn_context.target_kind,
+        P::TargetKind::Source { .. }
+    ) {
         return;
     }
     let mut diag = diag!(
@@ -1913,6 +1929,7 @@ fn struct_def_(
     pstruct: P::StructDefinition,
 ) -> (DatatypeName, E::StructDefinition) {
     let P::StructDefinition {
+        doc,
         attributes,
         loc,
         name,
@@ -1928,6 +1945,7 @@ fn struct_def_(
     let abilities = ability_set(context, "modifier", abilities_vec);
     let fields = struct_fields(context, &name, pfields);
     let sdef = E::StructDefinition {
+        doc,
         warning_filter,
         index,
         attributes,
@@ -1949,15 +1967,18 @@ fn struct_fields(
     let pfields_vec = match pfields {
         P::StructFields::Native(loc) => return E::StructFields::Native(loc),
         P::StructFields::Positional(tys) => {
-            let field_tys = tys.into_iter().map(|fty| type_(context, fty)).collect();
+            let field_tys = tys
+                .into_iter()
+                .map(|(doc, fty)| (doc, type_(context, fty)))
+                .collect();
             return E::StructFields::Positional(field_tys);
         }
         P::StructFields::Named(v) => v,
     };
     let mut field_map = UniqueMap::new();
-    for (idx, (field, pt)) in pfields_vec.into_iter().enumerate() {
+    for (idx, (doc, field, pt)) in pfields_vec.into_iter().enumerate() {
         let t = type_(context, pt);
-        if let Err((field, old_loc)) = field_map.add(field, (idx, t)) {
+        if let Err((field, old_loc)) = field_map.add(field, (idx, (doc, t))) {
             context.add_diag(diag!(
                 Declarations::DuplicateItem,
                 (
@@ -1995,6 +2016,7 @@ fn enum_def_(
     penum: P::EnumDefinition,
 ) -> (DatatypeName, E::EnumDefinition) {
     let P::EnumDefinition {
+        doc,
         attributes,
         loc,
         name,
@@ -2010,6 +2032,7 @@ fn enum_def_(
     let abilities = ability_set(context, "modifier", abilities_vec);
     let variants = enum_variants(context, &name, loc, pvariants);
     let edef = E::EnumDefinition {
+        doc,
         warning_filter,
         index,
         attributes,
@@ -2059,9 +2082,19 @@ fn enum_variant_def(
     index: usize,
     pvariant: P::VariantDefinition,
 ) -> (VariantName, E::VariantDefinition) {
-    let P::VariantDefinition { loc, name, fields } = pvariant;
+    let P::VariantDefinition {
+        doc,
+        loc,
+        name,
+        fields,
+    } = pvariant;
     let fields = variant_fields(context, &name, fields);
-    let vdef = E::VariantDefinition { loc, index, fields };
+    let vdef = E::VariantDefinition {
+        doc,
+        loc,
+        index,
+        fields,
+    };
     (name, vdef)
 }
 
@@ -2073,15 +2106,18 @@ fn variant_fields(
     let pfields_vec = match pfields {
         P::VariantFields::Empty => return E::VariantFields::Empty,
         P::VariantFields::Positional(tys) => {
-            let field_tys = tys.into_iter().map(|fty| type_(context, fty)).collect();
+            let field_tys = tys
+                .into_iter()
+                .map(|(doc, fty)| (doc, type_(context, fty)))
+                .collect();
             return E::VariantFields::Positional(field_tys);
         }
         P::VariantFields::Named(v) => v,
     };
     let mut field_map = UniqueMap::new();
-    for (idx, (field, pt)) in pfields_vec.into_iter().enumerate() {
+    for (idx, (doc, field, pt)) in pfields_vec.into_iter().enumerate() {
         let t = type_(context, pt);
-        if let Err((field, old_loc)) = field_map.add(field, (idx, t)) {
+        if let Err((field, old_loc)) = field_map.add(field, (idx, (doc, t))) {
             context.add_diag(diag!(
                 Declarations::DuplicateItem,
                 (
@@ -2170,6 +2206,7 @@ fn constant_(
     pconstant: P::Constant,
 ) -> (ConstantName, E::Constant) {
     let P::Constant {
+        doc,
         attributes: pattributes,
         loc,
         name,
@@ -2182,6 +2219,7 @@ fn constant_(
     let signature = type_(context, psignature);
     let value = *exp(context, Box::new(pvalue));
     let constant = E::Constant {
+        doc,
         warning_filter,
         index,
         attributes,
@@ -2216,6 +2254,7 @@ fn function_(
     pfunction: P::Function,
 ) -> (FunctionName, E::Function) {
     let P::Function {
+        doc,
         attributes: pattributes,
         loc,
         name,
@@ -2273,6 +2312,7 @@ fn function_(
         let _ = use_funs_builder.implicit.add(name.0, implicit);
     }
     let fdef = E::Function {
+        doc,
         warning_filter,
         index,
         attributes,
