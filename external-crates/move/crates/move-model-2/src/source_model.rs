@@ -5,8 +5,9 @@
 use crate::{
     TModuleId,
     model::{self, NamedConstantData, PackageData},
-    normalized, serializable_signatures,
+    normalized,
     source_kind::WithSource,
+    summary,
 };
 use move_compiler::{
     compiled_unit::CompiledUnit,
@@ -126,7 +127,7 @@ impl Model {
             info,
             compiled,
             packages,
-            serializable_signatures: OnceCell::new(),
+            summary: OnceCell::new(),
             _phantom: std::marker::PhantomData,
         };
         model.compute_dependencies();
@@ -139,9 +140,9 @@ impl Model {
         &self.files
     }
 
-    pub fn serializable_signatures(&self) -> &serializable_signatures::Packages {
-        self.serializable_signatures.get_or_init(|| {
-            let mut info = serializable_signatures::Packages::from(&self.compiled);
+    pub fn summary_with_source(&self) -> &summary::Packages {
+        self.summary.get_or_init(|| {
+            let mut info = summary::Packages::from(&self.compiled);
             info.annotate(self);
             info
         })
