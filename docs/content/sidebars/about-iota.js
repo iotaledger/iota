@@ -52,6 +52,7 @@ const aboutIota = [
                     'about-iota/iota-wallet/how-to/multi-account',
                     'about-iota/iota-wallet/how-to/get-test-tokens',
                     'about-iota/iota-wallet/how-to/integrate-ledger',
+                    'about-iota/iota-wallet/how-to/restore-account',
                 ],
             },
             'about-iota/iota-wallet/FAQ',
