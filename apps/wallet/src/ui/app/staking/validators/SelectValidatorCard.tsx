@@ -35,7 +35,7 @@ type Validator = {
 
 export function SelectValidatorCard() {
     const [selectedValidator, setSelectedValidator] = useState<Validator | null>(null);
-    const [searchValue, setSearchValue] = useState('');
+    const [searchValidator, setSearchValidator] = useState('');
 
     const navigate = useNavigate();
 
@@ -98,7 +98,7 @@ export function SelectValidatorCard() {
     }
 
     const filteredValidators = validatorList.filter((validator) =>
-        validator.name.toLowerCase().includes(searchValue.toLowerCase()),
+        validator.name.toLowerCase().includes(searchValidator.toLowerCase()),
     );
     const committeeMemberValidators = filteredValidators.filter((validator) =>
         isAddressCommitteeMember(validator.address),
@@ -124,8 +124,8 @@ export function SelectValidatorCard() {
     return (
         <div className="flex h-full w-full flex-col justify-between gap-3 overflow-hidden">
             <Search
-                searchValue={searchValue}
-                onSearchValueChange={setSearchValue}
+                searchValue={searchValidator}
+                onSearchValueChange={setSearchValidator}
                 placeholder="Search validators"
                 isLoading={false}
             />

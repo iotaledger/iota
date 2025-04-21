@@ -25,12 +25,12 @@ export function SelectValidatorView({
     selectedValidator,
     handleClose,
 }: SelectValidatorViewProps): JSX.Element {
-    const [searchValue, setSearchValue] = useState('');
+    const [searchValidator, setSearchValidator] = useState('');
 
     const { isCommitteeMember } = useIsValidatorCommitteeMember();
 
     const filteredValidators = validators.filter((validator) =>
-        validator.name.toLowerCase().includes(searchValue.toLowerCase()),
+        validator.name.toLowerCase().includes(searchValidator.toLowerCase()),
     );
 
     const committeeMemberValidators = filteredValidators.filter((validator) =>
@@ -46,8 +46,8 @@ export function SelectValidatorView({
             <DialogLayoutBody>
                 <div className="flex w-full flex-col gap-md">
                     <Search
-                        searchValue={searchValue}
-                        onSearchValueChange={setSearchValue}
+                        searchValue={searchValidator}
+                        onSearchValueChange={setSearchValidator}
                         placeholder="Search validators"
                         isLoading={false}
                     />
