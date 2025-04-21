@@ -2,9 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { Button, Header, Title, TitleSize, TooltipPosition } from '@iota/apps-ui-kit';
-import { Validator } from '@iota/core';
+import { useIsValidatorCommitteeMember, Validator } from '@iota/core';
 import { DialogLayout, DialogLayoutBody, DialogLayoutFooter } from '../../layout';
-import { useIsValidatorCommitteeMember } from '@/hooks';
 
 interface SelectValidatorViewProps {
     validators: string[];

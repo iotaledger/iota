@@ -5,6 +5,7 @@ import {
     CoinFormat,
     useFormatCoin,
     useGetLatestIotaSystemState,
+    useIsValidatorCommitteeMember,
     useStakeTxnInfo,
     Validator,
 } from '@iota/core';
@@ -26,7 +27,6 @@ import { Exclamation, Loader, Warning } from '@iota/apps-ui-icons';
 import { StakedInfo } from './StakedInfo';
 import { DialogLayout, DialogLayoutBody, DialogLayoutFooter } from '../../layout';
 import React from 'react';
-import { useIsValidatorCommitteeMember } from '@/hooks';
 
 interface FormValues {
     amount: string;
@@ -65,7 +65,7 @@ export function EnterAmountDialogLayout({
     const { values, errors } = useFormikContext<FormValues>();
     const amount = values.amount;
     const { isCommitteeMember } = useIsValidatorCommitteeMember();
-    console.log('isCommitteeMember', isCommitteeMember);
+
     const [gas, symbol] = useFormatCoin({ balance: totalGas ?? 0, format: CoinFormat.FULL });
 
     const { stakedRewardsStartEpoch, timeBeforeStakeRewardsRedeemableAgoDisplay } = useStakeTxnInfo(

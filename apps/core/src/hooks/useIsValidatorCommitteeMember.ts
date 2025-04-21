@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { useCallback } from 'react';
-import { useGetLatestIotaSystemState } from '@iota/core';
+import { useGetLatestIotaSystemState } from './useGetLatestIotaSystemState';
 
 export function useIsValidatorCommitteeMember() {
     const { data: systemState } = useGetLatestIotaSystemState();

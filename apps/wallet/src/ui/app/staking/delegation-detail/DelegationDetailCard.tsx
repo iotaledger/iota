@@ -109,7 +109,7 @@ export function DelegationDetailCard({ validatorAddress, stakedId }: DelegationD
     }).toString()}`;
 
     // check if the validator is in the committee members list
-    const hasInactiveValidatorDelegation = !system?.committeeMembers?.find(
+    const isNotCommitteeMember = !system?.committeeMembers?.find(
         ({ stakingPoolId }) => stakingPoolId === validatorData?.stakingPoolId,
     );
 
@@ -144,11 +144,11 @@ export function DelegationDetailCard({ validatorAddress, stakedId }: DelegationD
         <div className="flex h-full w-full flex-col justify-between">
             <div className="flex flex-col gap-y-md">
                 <Validator address={validatorAddress} type={CardType.Filled} />
-                {hasInactiveValidatorDelegation ? (
+                {isNotCommitteeMember ? (
                     <InfoBox
                         type={InfoBoxType.Warning}
-                        title="Earn with validators in the committee"
-                        supportingText="You are delegating to a validator that is not part of the committee. Stake to a member of the current committee to start earning rewards again."
+                        title="Validator is not earning rewards."
+                        supportingText="Validator is not part of the current Epoch. Continue staking at your own discretion."
                         icon={<Warning />}
                         style={InfoBoxStyle.Elevated}
                     />
@@ -192,7 +192,7 @@ export function DelegationDetailCard({ validatorAddress, stakedId }: DelegationD
                         fullWidth
                     />
                 )}
-                {!hasInactiveValidatorDelegation ? (
+                {!isNotCommitteeMember ? (
                     <Button
                         type={ButtonType.Primary}
                         text="Stake"

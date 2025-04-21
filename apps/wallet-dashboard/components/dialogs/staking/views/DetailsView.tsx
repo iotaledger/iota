@@ -9,6 +9,7 @@ import {
     formatPercentageDisplay,
     useValidatorInfo,
     toast,
+    useIsValidatorCommitteeMember,
 } from '@iota/core';
 import {
     Header,
@@ -30,7 +31,6 @@ import {
 } from '@iota/apps-ui-kit';
 import { formatAddress } from '@iota/iota-sdk/utils';
 import { DialogLayout, DialogLayoutFooter, DialogLayoutBody } from '../../layout';
-import { useIsValidatorCommitteeMember } from '@/hooks';
 import { Warning } from '@iota/apps-ui-icons';
 
 interface StakeDialogProps {
