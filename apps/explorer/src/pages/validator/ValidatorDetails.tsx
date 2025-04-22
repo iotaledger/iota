@@ -133,7 +133,7 @@ function ValidatorDetails(): JSX.Element {
 
     const iotaClient = useIotaClient();
 
-    const { data: inactiveValidatorData, isLoading: isInactiveValidatorDataLoading } = useQuery({
+    const { data: inactiveValidatorData, isLoading: isInactiveValidatorLoading } = useQuery({
         queryKey: [systemStateData?.inactivePoolsId, id],
         async queryFn() {
             if (!systemStateData?.inactivePoolsId || !id) {
@@ -188,7 +188,7 @@ function ValidatorDetails(): JSX.Element {
         isLoadingSystemState ||
         isValidatorsEventsLoading ||
         isValidatorsApysLoading ||
-        isInactiveValidatorDataLoading
+        isInactiveValidatorLoading
     ) {
         return <PageLayout content={<LoadingIndicator />} />;
     }
