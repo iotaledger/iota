@@ -32,10 +32,10 @@ test.describe('Wallet staking', () => {
         await expect(stakeButton).toBeVisible();
 
         stakeButton = dashboardPage.getByTestId('stake-confirm-btn');
-        const walletApprovePagePromise = context.waitForEvent('page');
+        let walletApprovePagePromise = context.waitForEvent('page');
         await stakeButton.click();
 
-        const walletApprovePage = await walletApprovePagePromise;
+        let walletApprovePage = await walletApprovePagePromise;
         await walletApprovePage.getByRole('button', { name: 'Approve' }).click();
 
         await expect(dashboardPage.getByText('Successfully sent')).toBeVisible({
@@ -52,5 +52,19 @@ test.describe('Wallet staking', () => {
             .first()
             .textContent();
         expect(stakedAmount).toEqual('10');
+
+        // UNSTAKE
+        await dashboardPage.getByText('validator-1').click();
+        await dashboardPage.getByText('Unstake').click();
+
+        walletApprovePagePromise = context.waitForEvent('page');
+        await dashboardPage.getByRole('button', { name: 'Unstake' }).click();
+        walletApprovePage = await walletApprovePagePromise;
+        await walletApprovePage.getByRole('button', { name: 'Approve' }).click();
+
+        await dashboardPage.reload();
+
+        expect(dashboardPage.getByRole('button', { name: 'Stake' })).toBeVisible();
+        expect(dashboardPage.getByText('validator-1')).not.toBeVisible();
     });
 });
