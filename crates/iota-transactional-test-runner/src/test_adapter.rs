@@ -201,7 +201,7 @@ impl AdapterInitConfig {
             custom_validator_account,
             reference_gas_price,
             default_gas_price,
-            objects_snapshot_min_checkpoint_lag,
+            snapshot_config,
             flavor,
             epochs_to_keep,
             data_ingestion_path,
@@ -235,8 +235,6 @@ impl AdapterInitConfig {
         }
 
         let offchain_config = if simulator {
-            let snapshot_config =
-                SnapshotLagConfig::new(objects_snapshot_min_checkpoint_lag, Some(1));
             Some(OffChainConfig {
                 snapshot_config,
                 epochs_to_keep,

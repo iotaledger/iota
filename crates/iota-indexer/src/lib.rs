@@ -4,22 +4,19 @@
 
 #![recursion_limit = "256"]
 
-use std::{net::SocketAddr, path::PathBuf, time::Duration};
+use std::{path::PathBuf, time::Duration};
 
 use anyhow::{Result, anyhow};
-use clap::{Args, Parser};
+use clap::Parser;
 use errors::IndexerError;
 use iota_json_rpc::{JsonRpcServerBuilder, ServerHandle, ServerType};
 use iota_json_rpc_api::CLIENT_SDK_TYPE_HEADER;
 use iota_metrics::spawn_monitored_task;
-use iota_names::config::IotaNamesConfig;
-use iota_types::base_types::{IotaAddress, ObjectID};
 use jsonrpsee::http_client::{HeaderMap, HeaderValue, HttpClient, HttpClientBuilder};
 use metrics::IndexerMetrics;
 use prometheus::Registry;
 use secrecy::{ExposeSecret, Secret};
 use system_package_task::SystemPackageTask;
-use tokio::runtime::Handle;
 use tokio_util::sync::CancellationToken;
 use tracing::warn;
 use url::Url;
@@ -29,10 +26,12 @@ use crate::{
         CoinReadApi, ExtendedApi, GovernanceReadApi, IndexerApi, MoveUtilsApi, ReadApi,
         TransactionBuilderApi, WriteApi,
     },
+    config::{IotaNamesOptions, JsonRpcConfig},
     indexer_reader::IndexerReader,
 };
 
 pub mod apis;
+pub mod config;
 pub mod db;
 pub mod errors;
 pub mod handlers;
@@ -52,7 +51,7 @@ pub mod types;
     name = "IOTA indexer",
     about = "An off-fullnode service serving data from IOTA protocol"
 )]
-pub struct IndexerConfig {
+pub struct OldIndexerConfig {
     #[arg(long)]
     pub db_url: Option<Secret<String>>,
     #[arg(long)]
@@ -91,7 +90,7 @@ pub struct IndexerConfig {
     pub iota_names_options: IotaNamesOptions,
 }
 
-impl IndexerConfig {
+impl OldIndexerConfig {
     /// returns connection url without the db name
     pub fn base_connection_url(&self) -> Result<String, anyhow::Error> {
         let url_secret = self.get_db_url()?;
@@ -139,7 +138,7 @@ impl IndexerConfig {
     }
 }
 
-impl Default for IndexerConfig {
+impl Default for OldIndexerConfig {
     fn default() -> Self {
         Self {
             db_url: Some(secrecy::Secret::new(
@@ -166,78 +165,14 @@ impl Default for IndexerConfig {
     }
 }
 
-#[derive(Args, Debug, Clone)]
-pub struct IotaNamesOptions {
-    #[arg(default_value_t = IotaNamesConfig::default().package_address)]
-    #[arg(long = "iota-names-package-address")]
-    pub package_address: IotaAddress,
-    #[arg(default_value_t = IotaNamesConfig::default().object_id)]
-    #[arg(long = "iota-names-object-id")]
-    pub object_id: ObjectID,
-    #[arg(default_value_t = IotaNamesConfig::default().payments_package_address)]
-    #[arg(long = "iota-names-payments-package-address")]
-    pub payments_package_address: IotaAddress,
-    #[arg(default_value_t = IotaNamesConfig::default().registry_id)]
-    #[arg(long = "iota-names-registry-id")]
-    pub registry_id: ObjectID,
-    #[arg(default_value_t = IotaNamesConfig::default().reverse_registry_id)]
-    #[arg(long = "iota-names-reverse-registry-id")]
-    pub reverse_registry_id: ObjectID,
-}
-
-impl From<IotaNamesOptions> for IotaNamesConfig {
-    fn from(options: IotaNamesOptions) -> Self {
-        let IotaNamesOptions {
-            package_address,
-            object_id,
-            payments_package_address,
-            registry_id,
-            reverse_registry_id,
-        } = options;
-        Self {
-            package_address,
-            object_id,
-            payments_package_address,
-            registry_id,
-            reverse_registry_id,
-        }
-    }
-}
-
-impl From<IotaNamesConfig> for IotaNamesOptions {
-    fn from(config: IotaNamesConfig) -> Self {
-        let IotaNamesConfig {
-            package_address,
-            object_id,
-            payments_package_address,
-            registry_id,
-            reverse_registry_id,
-        } = config;
-        Self {
-            package_address,
-            object_id,
-            payments_package_address,
-            registry_id,
-            reverse_registry_id,
-        }
-    }
-}
-
-impl Default for IotaNamesOptions {
-    fn default() -> Self {
-        IotaNamesConfig::default().into()
-    }
-}
-
 pub async fn build_json_rpc_server(
     prometheus_registry: &Registry,
     reader: IndexerReader,
-    config: &IndexerConfig,
-    custom_runtime: Option<Handle>,
+    config: &JsonRpcConfig,
 ) -> Result<ServerHandle, IndexerError> {
     let mut builder =
         JsonRpcServerBuilder::new(env!("CARGO_PKG_VERSION"), prometheus_registry, None, None);
-    let http_client = crate::get_http_client(config.rpc_client_url.as_str())?;
+    let http_client = crate::get_http_client(&config.rpc_client_url)?;
 
     builder.register_module(WriteApi::new(http_client.clone()))?;
     builder.register_module(IndexerApi::new(
@@ -251,12 +186,6 @@ pub async fn build_json_rpc_server(
     builder.register_module(CoinReadApi::new(reader.clone())?)?;
     builder.register_module(ExtendedApi::new(reader.clone()))?;
 
-    let default_socket_addr: SocketAddr = SocketAddr::new(
-        // unwrap() here is safe b/c the address is a static config.
-        config.rpc_server_url.as_str().parse().unwrap(),
-        config.rpc_server_port,
-    );
-
     let cancel = CancellationToken::new();
     let system_package_task =
         SystemPackageTask::new(reader.clone(), cancel.clone(), Duration::from_secs(10));
@@ -265,12 +194,7 @@ pub async fn build_json_rpc_server(
     spawn_monitored_task!(async move { system_package_task.run().await });
 
     Ok(builder
-        .start(
-            default_socket_addr,
-            custom_runtime,
-            ServerType::Http,
-            Some(cancel),
-        )
+        .start(config.rpc_address, None, ServerType::Http, Some(cancel))
         .await?)
 }
 

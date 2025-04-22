@@ -16,11 +16,12 @@ use tokio_util::sync::CancellationToken;
 use tracing::info;
 
 use crate::{
-    IndexerConfig, build_json_rpc_server,
+    build_json_rpc_server,
+    config::{IngestionConfig, JsonRpcConfig, PruningOptions, SnapshotLagConfig},
+    db::ConnectionPool,
     errors::IndexerError,
     handlers::{
-        checkpoint_handler::new_handlers,
-        objects_snapshot_handler::{SnapshotLagConfig, start_objects_snapshot_handler},
+        checkpoint_handler::new_handlers, objects_snapshot_handler::start_objects_snapshot_handler,
         pruner::Pruner,
     },
     indexer_reader::IndexerReader,
@@ -29,18 +30,11 @@ use crate::{
     store::{IndexerAnalyticalStore, IndexerStore, PgIndexerStore},
 };
 
-pub(crate) const DOWNLOAD_QUEUE_SIZE: usize = 200;
-const INGESTION_READER_TIMEOUT_SECS: u64 = 20;
-// Limit indexing parallelism on big checkpoints to avoid OOM,
-// by limiting the total size of batch checkpoints to ~20MB.
-// On testnet, most checkpoints are < 200KB, some can go up to 50MB.
-const CHECKPOINT_PROCESSING_BATCH_DATA_LIMIT: usize = 20000000;
-
 pub struct Indexer;
 
 impl Indexer {
     pub async fn start_writer(
-        config: &IndexerConfig,
+        config: &IngestionConfig,
         store: PgIndexerStore,
         metrics: IndexerMetrics,
     ) -> Result<(), IndexerError> {
@@ -50,18 +44,18 @@ impl Indexer {
             store,
             metrics,
             snapshot_config,
-            None,
+            PruningOptions::default(),
             CancellationToken::new(),
         )
         .await
     }
 
     pub async fn start_writer_with_config(
-        config: &IndexerConfig,
+        config: &IngestionConfig,
         store: PgIndexerStore,
         metrics: IndexerMetrics,
         snapshot_config: SnapshotLagConfig,
-        epochs_to_keep: Option<u64>,
+        pruning_options: PruningOptions,
         cancel: CancellationToken,
     ) -> Result<(), IndexerError> {
         info!(
@@ -69,28 +63,18 @@ impl Indexer {
             env!("CARGO_PKG_VERSION")
         );
 
+        info!("IOTA Indexer Writer config: {config:?}",);
+
         let primary_watermark = store
             .get_latest_checkpoint_sequence_number()
             .await
             .expect("Failed to get latest tx checkpoint sequence number from DB")
             .map(|seq| seq + 1)
             .unwrap_or_default();
-        let download_queue_size = env::var("DOWNLOAD_QUEUE_SIZE")
-            .unwrap_or_else(|_| DOWNLOAD_QUEUE_SIZE.to_string())
-            .parse::<usize>()
-            .expect("Invalid DOWNLOAD_QUEUE_SIZE");
-        let ingestion_reader_timeout_secs = env::var("INGESTION_READER_TIMEOUT_SECS")
-            .unwrap_or_else(|_| INGESTION_READER_TIMEOUT_SECS.to_string())
-            .parse::<u64>()
-            .expect("Invalid INGESTION_READER_TIMEOUT_SECS");
-        let data_limit = std::env::var("CHECKPOINT_PROCESSING_BATCH_DATA_LIMIT")
-            .unwrap_or(CHECKPOINT_PROCESSING_BATCH_DATA_LIMIT.to_string())
-            .parse::<usize>()
-            .unwrap();
         let extra_reader_options = ReaderOptions {
-            batch_size: download_queue_size,
-            timeout_secs: ingestion_reader_timeout_secs,
-            data_limit,
+            batch_size: config.checkpoint_download_queue_size,
+            timeout_secs: config.checkpoint_download_timeout,
+            data_limit: config.checkpoint_download_queue_size_bytes,
             ..Default::default()
         };
 
@@ -104,12 +88,7 @@ impl Indexer {
         )
         .await?;
 
-        let epochs_to_keep = epochs_to_keep.or_else(|| {
-            std::env::var("EPOCHS_TO_KEEP")
-                .ok()
-                .and_then(|s| s.parse::<u64>().ok())
-        });
-        if let Some(epochs_to_keep) = epochs_to_keep {
+        if let Some(epochs_to_keep) = pruning_options.epochs_to_keep {
             info!(
                 "Starting indexer pruner with epochs to keep: {}",
                 epochs_to_keep
@@ -140,7 +119,7 @@ impl Indexer {
         let worker_pool = WorkerPool::new(
             worker,
             "primary".to_string(),
-            download_queue_size,
+            config.checkpoint_download_queue_size,
             Default::default(),
         );
 
@@ -149,7 +128,7 @@ impl Indexer {
         let worker_pool = WorkerPool::new(
             object_snapshot_worker,
             "object_snapshot".to_string(),
-            download_queue_size,
+            config.checkpoint_download_queue_size,
             Default::default(),
         );
         executor.register(worker_pool).await?;
@@ -157,10 +136,15 @@ impl Indexer {
         executor
             .run(
                 config
+                    .sources
                     .data_ingestion_path
                     .clone()
                     .unwrap_or(tempfile::tempdir().unwrap().into_path()),
-                config.remote_store_url.clone(),
+                config
+                    .sources
+                    .remote_store_url
+                    .as_ref()
+                    .map(|url| url.as_str().to_owned()),
                 vec![],
                 extra_reader_options,
             )
@@ -169,16 +153,16 @@ impl Indexer {
     }
 
     pub async fn start_reader(
-        config: &IndexerConfig,
+        config: &JsonRpcConfig,
         registry: &Registry,
-        db_url: String,
+        connection_pool: ConnectionPool,
     ) -> Result<(), IndexerError> {
         info!(
             "IOTA Indexer Reader (version {:?}) started...",
             env!("CARGO_PKG_VERSION")
         );
-        let indexer_reader = IndexerReader::new(db_url)?;
-        let handle = build_json_rpc_server(registry, indexer_reader, config, None)
+        let indexer_reader = IndexerReader::new(connection_pool);
+        let handle = build_json_rpc_server(registry, indexer_reader, config)
             .await
             .expect("Json rpc server should not run into errors upon start.");
         tokio::spawn(async move { handle.stopped().await })

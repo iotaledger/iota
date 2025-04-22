@@ -15,6 +15,7 @@ use super::{
     CommonHandler, Handler, TransactionObjectChangesToCommit, checkpoint_handler::CheckpointHandler,
 };
 use crate::{
+    config::SnapshotLagConfig,
     errors::IndexerError,
     metrics::IndexerMetrics,
     store::{IndexerStore, PgIndexerStore},
@@ -32,36 +33,6 @@ pub struct ObjectsSnapshotHandler {
 pub struct CheckpointObjectChanges {
     pub checkpoint_sequence_number: u64,
     pub object_changes: TransactionObjectChangesToCommit,
-}
-
-#[derive(Debug, Clone)]
-pub struct SnapshotLagConfig {
-    pub snapshot_min_lag: usize,
-    pub sleep_duration: u64,
-}
-
-impl SnapshotLagConfig {
-    const DEFAULT_MIN_LAG: usize = 300;
-    const DEFAULT_SLEEP_DURATION_SEC: u64 = 5;
-}
-
-impl SnapshotLagConfig {
-    pub fn new(min_lag: Option<usize>, sleep_duration: Option<u64>) -> Self {
-        let default_config = Self::default();
-        Self {
-            snapshot_min_lag: min_lag.unwrap_or(default_config.snapshot_min_lag),
-            sleep_duration: sleep_duration.unwrap_or(default_config.sleep_duration),
-        }
-    }
-}
-
-impl Default for SnapshotLagConfig {
-    fn default() -> Self {
-        SnapshotLagConfig {
-            snapshot_min_lag: Self::DEFAULT_MIN_LAG,
-            sleep_duration: Self::DEFAULT_SLEEP_DURATION_SEC,
-        }
-    }
 }
 
 #[async_trait]
