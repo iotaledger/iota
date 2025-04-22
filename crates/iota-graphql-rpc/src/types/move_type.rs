@@ -3,6 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use async_graphql::*;
+use iota_types::base_types::MoveObjectType;
 use move_binary_format::file_format::AbilitySet;
 use move_core_types::{annotated_value as A, language_storage::TypeTag};
 use serde::{Deserialize, Serialize};
@@ -202,6 +203,19 @@ impl MoveType {
                 self.native.to_canonical_string(/* with_prefix */ true),
             ))
         })
+    }
+}
+
+impl From<MoveObjectType> for MoveType {
+    fn from(obj: MoveObjectType) -> Self {
+        let tag: TypeTag = obj.into();
+        Self { native: tag.into() }
+    }
+}
+
+impl From<TypeTag> for MoveType {
+    fn from(tag: TypeTag) -> Self {
+        Self { native: tag.into() }
     }
 }
 

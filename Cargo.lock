@@ -6972,6 +6972,7 @@ dependencies = [
  "iota-json-rpc",
  "iota-json-rpc-types",
  "iota-metrics",
+ "iota-names",
  "iota-network-stack",
  "iota-package-resolver",
  "iota-protocol-config",
