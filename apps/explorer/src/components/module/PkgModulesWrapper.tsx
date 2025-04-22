@@ -98,17 +98,11 @@ export function PkgModulesWrapper({
         label: item,
     }));
 
-    function handleSearchKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
-        if (e.key === 'Enter') {
-            submitSearch();
-        }
-    }
     return (
         <div className="flex h-full flex-col items-stretch gap-md--rs md:flex-row md:flex-nowrap">
             <div className="flex w-full flex-col md:min-h-[560px] md:w-1/5">
                 <div className="relative z-[1]">
                     <Search
-                        onKeyDown={handleSearchKeyDown}
                         searchValue={query}
                         onSearchValueChange={(value) => setQuery(value?.trim() ?? '')}
                         placeholder="Search"
