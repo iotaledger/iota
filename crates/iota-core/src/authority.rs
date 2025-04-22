@@ -4243,7 +4243,7 @@ impl AuthorityState {
         let mut results = vec![];
 
         let system_packages = BuiltInFramework::iter_system_packages();
-        
+
         // Add extra framework packages during simtest
         #[cfg(msim)]
         let extra_packages = framework_injection::get_extra_packages(self.name);
