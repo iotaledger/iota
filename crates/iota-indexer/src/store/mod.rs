@@ -96,6 +96,46 @@ pub mod diesel_macro {
     }
 
     #[macro_export]
+    macro_rules! serializable_transactional_blocking_with_retry {
+        ($pool:expr, $query:expr, $max_elapsed:expr) => {{
+            use $crate::{
+                db::{PoolConnection, get_pool_connection},
+                errors::IndexerError,
+            };
+            let mut backoff = backoff::ExponentialBackoff::default();
+            backoff.max_elapsed_time = Some($max_elapsed);
+            let result = match backoff::retry(backoff, || {
+                let mut pool_conn =
+                    get_pool_connection($pool).map_err(|e| backoff::Error::Transient {
+                        err: IndexerError::PostgresWrite(e.to_string()),
+                        retry_after: None,
+                    })?;
+                pool_conn
+                    .as_any_mut()
+                    .downcast_mut::<PoolConnection>()
+                    .unwrap()
+                    .build_transaction()
+                    .read_write()
+                    .serializable()
+                    .run($query)
+                    .map_err(|e| {
+                        tracing::error!("Error with persisting data into DB: {:?}, retrying...", e);
+                        backoff::Error::Transient {
+                            err: IndexerError::PostgresWrite(e.to_string()),
+                            retry_after: None,
+                        }
+                    })
+            }) {
+                Ok(v) => Ok(v),
+                Err(backoff::Error::Transient { err, .. }) => Err(err),
+                Err(backoff::Error::Permanent(err)) => Err(err),
+            };
+
+            result
+        }};
+    }
+
+    #[macro_export]
     macro_rules! spawn_read_only_blocking {
         ($pool:expr, $query:expr, $repeatable_read:expr) => {{
             use downcast::Any;
