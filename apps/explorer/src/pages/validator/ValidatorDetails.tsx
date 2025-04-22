@@ -8,15 +8,8 @@ import {
     useGetValidatorsApy,
     useGetValidatorsEvents,
 } from '@iota/core';
-import { useMemo } from 'react';
 import { useParams } from 'react-router-dom';
-import {
-    type InactiveValidatorDataProps,
-    InactiveValidators,
-    PageLayout,
-    ValidatorMeta,
-    ValidatorStats,
-} from '~/components';
+import { InactiveValidators, PageLayout, ValidatorMeta, ValidatorStats } from '~/components';
 import { VALIDATOR_LOW_STAKE_GRACE_PERIOD } from '~/lib/constants';
 import { getValidatorMoveEvent } from '~/lib/utils';
 import { InfoBox, InfoBoxStyle, InfoBoxType, LoadingIndicator } from '@iota/apps-ui-kit';
@@ -74,12 +67,22 @@ export const DynamicFieldObjectSchema = z.object({
     }),
 });
 
+export type InactiveValidatorData = {
+    logo: string;
+    validatorName: string;
+    description: string;
+    projectUrl: string;
+    validatorPublicKey: string;
+    validatorAddress: string;
+    validatorStakingPoolId: string;
+};
+
 // Function to get inactive validator data
 // It fetches the validator object and its dynamic fields to extract metadata
 const getInactiveValidatorsData = async (
     client: IotaClient,
     objectId: string,
-): Promise<InactiveValidatorDataProps | null> => {
+): Promise<InactiveValidatorData | null> => {
     const validatorObject = await client.getObject({
         id: normalizeIotaAddress(objectId),
         options: {
@@ -125,18 +128,19 @@ const getInactiveValidatorsData = async (
 
 function ValidatorDetails(): JSX.Element {
     const { id } = useParams();
-    const { data, isPending } = useGetLatestIotaSystemState();
+    const { data: systemStateData, isLoading: isLoadingSystemState } =
+        useGetLatestIotaSystemState();
 
     const iotaClient = useIotaClient();
 
-    const { data: pendingInactiveValidatorsData } = useQuery({
-        queryKey: [data?.inactivePoolsId, id],
+    const { data: inactiveValidatorData, isLoading: isInactiveValidatorDataLoading } = useQuery({
+        queryKey: [systemStateData?.inactivePoolsId, id],
         async queryFn() {
-            if (!data?.inactivePoolsId || !id) {
+            if (!systemStateData?.inactivePoolsId || !id) {
                 throw Error('Missing params');
             }
             const inactiveValidators = await iotaClient.getDynamicFields({
-                parentId: normalizeIotaAddress(data?.inactivePoolsId),
+                parentId: normalizeIotaAddress(systemStateData.inactivePoolsId),
             });
 
             const pendingInactiveValidatorsData = await Promise.all(
@@ -148,47 +152,47 @@ function ValidatorDetails(): JSX.Element {
 
             return pendingInactiveValidatorsData;
         },
-        enabled: !!data?.inactivePoolsId && !!id,
+        enabled: !!systemStateData?.inactivePoolsId && !!id,
+        select(validators) {
+            return validators.find((validator) => validator?.validatorAddress === id);
+        },
     });
-    const inactiveValidatorData =
-        (pendingInactiveValidatorsData ?? []).find(
-            (validator) => validator?.validatorAddress === id,
-        ) || null;
 
-    const validatorData = useMemo(() => {
-        if (!data) return null;
-        return (
-            data.activeValidators.find(
-                ({ iotaAddress, stakingPoolId }) => iotaAddress === id || stakingPoolId === id,
-            ) || null
-        );
-    }, [id, data]);
-    const atRiskRemainingEpochs = getAtRiskRemainingEpochs(data, id);
-
-    const numberOfValidators = data?.activeValidators.length ?? null;
-    const { data: rollingAverageApys, isPending: validatorsApysLoading } = useGetValidatorsApy();
-
-    const { data: validatorEvents, isPending: validatorsEventsLoading } = useGetValidatorsEvents({
+    const numberOfValidators = systemStateData?.activeValidators.length ?? null;
+    const { data: rollingAverageApys, isLoading: isValidatorsApysLoading } = useGetValidatorsApy();
+    const { data: validatorEvents, isLoading: isValidatorsEventsLoading } = useGetValidatorsEvents({
         limit: numberOfValidators,
         order: 'descending',
     });
-    const validatorRewards = useMemo(() => {
+
+    const validatorRewards = (() => {
         if (!validatorEvents || !id) return 0;
         const rewards = (
             getValidatorMoveEvent(validatorEvents, id) as { pool_staking_reward: string }
         )?.pool_staking_reward;
 
         return rewards ? Number(rewards) : null;
-    }, [id, validatorEvents]);
+    })();
+
+    const validatorData = (() => {
+        return (
+            systemStateData?.activeValidators.find(
+                ({ iotaAddress, stakingPoolId }) => iotaAddress === id || stakingPoolId === id,
+            ) || null
+        );
+    })();
+
+    const atRiskRemainingEpochs = getAtRiskRemainingEpochs(systemStateData, id);
 
     if (
-        isPending ||
-        validatorsEventsLoading ||
-        validatorsApysLoading ||
-        !pendingInactiveValidatorsData
+        isLoadingSystemState ||
+        isValidatorsEventsLoading ||
+        isValidatorsApysLoading ||
+        isInactiveValidatorDataLoading
     ) {
         return <PageLayout content={<LoadingIndicator />} />;
     }
+
     if (inactiveValidatorData) {
         return (
             <PageLayout
@@ -208,7 +212,8 @@ function ValidatorDetails(): JSX.Element {
             />
         );
     }
-    if (!validatorData || !data || !validatorEvents || !id) {
+
+    if (!validatorData || !systemStateData || !validatorEvents || !id) {
         return (
             <PageLayout
                 content={
@@ -242,7 +247,7 @@ function ValidatorDetails(): JSX.Element {
                     <ValidatorMeta validatorData={validatorData} />
                     <ValidatorStats
                         validatorData={validatorData}
-                        epoch={data.epoch}
+                        epoch={systemStateData.epoch}
                         epochRewards={validatorRewards}
                         apy={isApyApproxZero ? '~0' : apy}
                         tallyingScore={tallyingScore}

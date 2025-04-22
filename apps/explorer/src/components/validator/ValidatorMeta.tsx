@@ -6,19 +6,10 @@ import { type IotaValidatorSummary } from '@iota/iota-sdk/client';
 import { ArrowTopRight } from '@iota/apps-ui-icons';
 import { AddressLink } from '~/components/ui';
 import { ImageIcon, ImageIconSize, toast } from '@iota/core';
+import type { InactiveValidatorData } from '~/pages/validator/ValidatorDetails';
 
 type ValidatorMetaProps = {
     validatorData: IotaValidatorSummary;
-};
-
-export type InactiveValidatorDataProps = {
-    logo: string;
-    validatorName: string;
-    description: string;
-    projectUrl: string;
-    validatorPublicKey: string;
-    validatorAddress: string;
-    validatorStakingPoolId: string;
 };
 
 export function InactiveValidators({
@@ -32,7 +23,7 @@ export function InactiveValidators({
         validatorStakingPoolId,
     },
 }: {
-    validatorData: InactiveValidatorDataProps;
+    validatorData: InactiveValidatorData;
 }): JSX.Element {
     function handleOnCopy() {
         toast('Copied to clipboard');
