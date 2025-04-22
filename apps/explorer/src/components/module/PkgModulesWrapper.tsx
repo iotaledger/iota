@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { useCallback, useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { type Direction } from 'react-resizable-panels';
 
 import { SplitPanes, useSearchParamsMerged, VerticalList } from '~/components/ui';
