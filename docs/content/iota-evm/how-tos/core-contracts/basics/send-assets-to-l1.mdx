@@ -21,7 +21,7 @@ IOTA EVM have 18 decimal places, while IOTA have 6. This means that any decimals
 
 :::
 
-This guide will show you how to use the ISC sandbox interface to send assets from L2 to L1. This includes base tokens, native tokens, and NFTs. Before you can send these assets, you need to know how you get them on L2 and how you allow a contract to use them.
+This guide will show you how to use the ISC sandbox interface to send assets from L2 to L1. This includes coins and objects. Before you can send these assets, you need to know how you get them on L2 and how you allow a contract to use them.
 
 Note that assets on L1 require a storage deposit; therefore, the number of base tokens sent to L1 should cover at least the storage deposit required to hold the assets on L1.
 
@@ -44,7 +44,7 @@ Finally, you can send the assets to the specified L1 address. This will create a
 ```solidity
 ISCSendMetadata memory metadata;
 ISCSendOptions memory options;
-ISC.sandbox.send(to, allowance, false, metadata, options);
+ISC.sandbox.send(to, allowance, metadata, options);
 ```
 
 ## Full Example Code
@@ -57,13 +57,13 @@ pragma solidity ^0.8.0;
 import "@iota/iscmagic/ISC.sol";
 
 contract L1Assets {
-  function withdraw(L1Address memory to) public {
+  function withdraw(IotaAddress to) public {
     ISCAssets memory allowance = ISC.sandbox.getAllowanceFrom(msg.sender);
     ISC.sandbox.takeAllowedFunds(msg.sender, allowance);
 
     ISCSendMetadata memory metadata;
     ISCSendOptions memory options;
-    ISC.sandbox.send(to, allowance, false, metadata, options);
+    ISC.sandbox.send(to, allowance, metadata, options);
   }
 }
 ```
