@@ -56,15 +56,6 @@ export function PkgModulesWrapper({
     const filteredModules = query
         ? moduleNames.filter((name) => name.toLowerCase().includes(query.toLowerCase()))
         : [];
-
-    const submitSearch = useCallback(() => {
-        if (filteredModules.length === 1) {
-            setSearchParams({
-                module: filteredModules[0],
-            });
-        }
-    }, [filteredModules, setSearchParams]);
-
     const onChangeModule = (newModule: string) => {
         setSearchParams(
             {
