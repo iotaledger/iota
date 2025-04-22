@@ -1161,20 +1161,25 @@ impl SequenceNumber {
 
     // NOTE: if you want to add new SequenceNumber constants used for cancellation
     // reasons different than those used for cancellations due to shared object
-    // congestion, please make sure their offset is less than CONGESTED_BASE_OFFSET
+    // congestion, please make sure their offset is less than
+    // CONGESTED_BASE_OFFSET_FOR_GAS_PRICE_FEEDBACK
 
-    // In the gas price feedback mechanism, sequence numbers >=
-    // (SequenceNumber::MAX_VALID + CONGESTED_BASE_OFFSET) are assigned to
-    // objects that cause transactions cancellations due to congestion.
-    //
-    // Sequence numbers larger than SequenceNumber::MAX_VALID but smaller
-    // than (SequenceNumber::MAX_VALID + CONGESTED_BASE_OFFSET) are
-    // intended for other transaction cancellation reasons.
-    //
-    // There unlikely will be more than 1_000 non-congestion cancellation reasons,
-    // this offset can be increased if needed, as long as
-    // (SequenceNumber::MIN_CONGESTED.value() + maximum gas price) does not
-    // overflow u64::MAX.
+    /// The meaning of this constant is as follows:
+    ///
+    /// In the gas price feedback mechanism, sequence numbers >=
+    /// `SequenceNumber::MAX_VALID` +
+    /// `CONGESTED_BASE_OFFSET_FOR_GAS_PRICE_FEEDBACK` are assigned to
+    /// objects that cause transactions cancellations due to congestion.
+    ///
+    /// Sequence numbers larger than `SequenceNumber::MAX_VALID` but smaller
+    /// than `SequenceNumber::MAX_VALID` +
+    /// `CONGESTED_BASE_OFFSET_FOR_GAS_PRICE_FEEDBACK` are
+    /// intended for other transaction cancellation reasons.
+    ///
+    /// There unlikely will be more than 1000 non-congestion cancellation
+    /// reasons, but this offset can be increased if needed, as long as
+    /// (`SequenceNumber::MIN_CONGESTED.value()` + maximum gas price) does not
+    /// overflow `u64::MAX`.
     const CONGESTED_BASE_OFFSET_FOR_GAS_PRICE_FEEDBACK: u64 = 1_000;
 
     /// Minimum congested sequence number used in the gas price feedback
