@@ -4248,20 +4248,20 @@ impl AuthorityState {
         #[cfg(msim)]
         let extra_packages = framework_injection::get_extra_packages(self.name);
         #[cfg(msim)]
-        let system_packages = system_packages.chain(&extra_packages);
+        let system_packages = system_packages.map(|p| p).chain(extra_packages.iter());
 
         for system_package in system_packages {
             let modules = system_package.modules().to_vec();
             // In simtests, we could override the current built-in framework packages.
             #[cfg(msim)]
-            let modules = framework_injection::get_override_modules(system_package.id(), self.name)
+            let modules = framework_injection::get_override_modules(&system_package.id, self.name)
                 .unwrap_or(modules);
 
             let Some(obj_ref) = iota_framework::compare_system_package(
                 &self.get_object_store(),
-                system_package.id(),
+                &system_package.id,
                 &modules,
-                system_package.dependencies().to_vec(),
+                system_package.dependencies.to_vec(),
                 binary_config,
             )
             .await
@@ -5187,7 +5187,7 @@ pub mod framework_injection {
         let bytes = get_override_bytes(package_id, name)?;
         let dependencies = if is_system_package(*package_id) {
             BuiltInFramework::get_package_by_id(package_id)
-                .dependencies()
+                .dependencies
                 .to_vec()
         } else {
             // Assume that entirely new injected packages depend on all existing system

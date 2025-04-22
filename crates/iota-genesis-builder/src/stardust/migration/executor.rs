@@ -112,7 +112,7 @@ impl Executor {
                 executor.as_ref(),
                 &mut tx_context,
                 &system_package.modules(),
-                system_package.dependencies().to_vec(),
+                system_package.dependencies,
                 &protocol_config,
                 metrics.clone(),
             )?;
