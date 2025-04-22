@@ -9,11 +9,14 @@ publish = false
 [dependencies]
 # external dependencies
 anyhow = "1.0"
+fastcrypto = { git = "https://github.com/MystenLabs/fastcrypto", rev = "2f502fd8570fe4e9cff36eea5bbd6fef22002898" }
+hex = "0.4.3"
 
 # internal dependencies
 iota-keys = { path = "../../../crates/iota-keys" }
 iota-move-build = { path = "../../../crates/iota-move-build" }
 iota-sdk = { path = "../../../crates/iota-sdk" }
+iota-types = { path = "../../../crates/iota-types" }
 move-binary-format = { path = "../../../external-crates/move/crates/move-binary-format", features = ["fuzzing"] }
 shared-crypto = { path = "../../../crates/shared-crypto" }
 
@@ -27,6 +30,7 @@ tokio = "1.44"
 # internal dependencies
 move-core-types = { path = "../../../external-crates/move/crates/move-core-types" }
 
+# Stardust examples
 [[example]]
 name = "address-unlock-condition"
 path = "stardust/address-unlock-condition.rs"
@@ -62,3 +66,12 @@ path = "stardust/foundry-output-claim.rs"
 [[example]]
 name = "iota-self-sponsor"
 path = "stardust/iota-self-sponsor.rs"
+
+# Exchange examples
+[[example]]
+name = "derive-address"
+path = "exchange/derive-address.rs"
+
+[[example]]
+name = "get-balance"
+path = "exchange/get-balance.rs"
