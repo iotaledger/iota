@@ -7,7 +7,7 @@ import {
     InfoBox,
     InfoBoxStyle,
     InfoBoxType,
-    LoadingIndicator,
+    Placeholder,
     Select,
     SelectSize,
     type TablePaginationOptions,
@@ -16,12 +16,11 @@ import { useIotaClient } from '@iota/dapp-kit';
 import { type IotaTransactionBlockResponse } from '@iota/iota-sdk/client';
 import { Warning } from '@iota/apps-ui-icons';
 import { useInfiniteQuery } from '@tanstack/react-query';
-import { TableCard } from '~/components/ui';
+import { PlaceholderTable, TableCard } from '~/components/ui';
 import { generateTransactionsTableColumns } from '~/lib/ui';
 import { useState } from 'react';
 import { PAGE_SIZES_RANGE_10_50 } from '~/lib';
 import { useCursorPagination } from '@iota/core';
-import clsx from 'clsx';
 
 const PAGE_RANGE = PAGE_SIZES_RANGE_10_50;
 
@@ -52,8 +51,13 @@ export function TransactionsForAddressTable({
 }: TransactionsForAddressTableProps): JSX.Element {
     if (isPending || isFetchingNextPage) {
         return (
-            <div>
-                <LoadingIndicator />
+            <div className="flex flex-col gap-y-6">
+                <PlaceholderTable
+                    rowCount={limit}
+                    rowHeight="16px"
+                    colHeadings={['Digest', 'Sender', 'Txns', 'Gas', 'Time']}
+                />
+                <Placeholder width="w-full" height="h-5" />
             </div>
         );
     }
@@ -129,29 +133,19 @@ export function TransactionsForAddress({ address }: TransactionsForAddressProps)
             lastPage.hasNextPage ? (lastPage.nextCursor ?? null) : null,
     });
 
-    const { data, isPending, isFetchingNextPage, isError, pagination, hasNextPage } =
+    const { data, isPending, isFetchingNextPage, isError, pagination } =
         useCursorPagination(transactions);
 
     return (
-        <div
-            className={clsx(
-                hasNextPage && limit === 10 && 'min-h-[700px]',
-                hasNextPage && limit === 20 && 'min-h-[1240px]',
-                hasNextPage && limit === 30 && 'min-h-[1800px]',
-                hasNextPage && limit === 40 && 'min-h-[2360px]',
-                hasNextPage && limit === 50 && 'min-h-[2920px]',
-            )}
-        >
-            <TransactionsForAddressTable
-                data={data?.data ?? []}
-                isPending={isPending}
-                isError={isError}
-                address={address}
-                limit={limit}
-                setLimit={setLimit}
-                pagination={pagination}
-                isFetchingNextPage={isFetchingNextPage}
-            />
-        </div>
+        <TransactionsForAddressTable
+            data={data?.data ?? []}
+            isPending={isPending}
+            isError={isError}
+            address={address}
+            limit={limit}
+            setLimit={setLimit}
+            pagination={pagination}
+            isFetchingNextPage={isFetchingNextPage || isPending}
+        />
     );
 }
