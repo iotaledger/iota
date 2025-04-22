@@ -140,7 +140,7 @@ function ValidatorDetails(): JSX.Element {
                 throw Error('Missing params');
             }
             const inactiveValidators = await iotaClient.getDynamicFields({
-                parentId: normalizeIotaAddress(systemStateData.inactivePoolsId),
+                parentId: normalizeIotaAddress(systemStateData?.inactivePoolsId),
             });
 
             const pendingInactiveValidatorsData = await Promise.all(
@@ -174,13 +174,9 @@ function ValidatorDetails(): JSX.Element {
         return rewards ? Number(rewards) : null;
     })();
 
-    const validatorData = (() => {
-        return (
-            systemStateData?.activeValidators.find(
-                ({ iotaAddress, stakingPoolId }) => iotaAddress === id || stakingPoolId === id,
-            ) || null
-        );
-    })();
+    const validatorData = systemStateData?.activeValidators.find(
+        ({ iotaAddress, stakingPoolId }) => iotaAddress === id || stakingPoolId === id,
+    );
 
     const atRiskRemainingEpochs = getAtRiskRemainingEpochs(systemStateData, id);
 
