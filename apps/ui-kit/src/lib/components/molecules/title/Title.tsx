@@ -1,7 +1,8 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { Tooltip, TooltipPosition } from '../../atoms';
+import type { TooltipPosition } from '../../atoms';
+import { Tooltip } from '../../atoms';
 import { Info } from '@iota/apps-ui-icons';
 import { TitleSize } from './titleSize.enums';
 import cx from 'classnames';

@@ -1,7 +1,7 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { PropsWithChildren } from 'react';
+import type { PropsWithChildren } from 'react';
 import { BACKGROUND_COLORS, OUTLINED_BORDER } from './segmentedButton.classes';
 import cx from 'classnames';
 import { SegmentedButtonType } from './segmentedButton.enums';
