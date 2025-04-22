@@ -113,7 +113,7 @@ pub async fn main() -> anyhow::Result<()> {
                         event.transaction_module,
                         event.sender,
                         event.type_,
-                        serde_json::to_string_pretty(&result).expect("json deserializeion error")
+                        serde_json::to_string_pretty(&result).expect("json deserialization error")
                     );
                 }
             } else {
@@ -144,7 +144,7 @@ pub async fn main() -> anyhow::Result<()> {
                 println!(
                     "OID: {oid}\n - Version: {version}\n - Hash: {hash}\n - Owner: {}\n - Type: {object_type}\n{}",
                     object.owner,
-                    serde_json::to_string_pretty(&result).expect("json deserializeion error")
+                    serde_json::to_string_pretty(&result).expect("json deserialization error")
                 );
             }
         }
