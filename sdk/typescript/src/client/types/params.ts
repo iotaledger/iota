@@ -247,6 +247,15 @@ export interface GetDynamicFieldObjectParams {
     /** The Name of the dynamic field */
     name: RpcTypes.DynamicFieldName;
 }
+/** Return the dynamic field object information for a specified object with content options. */
+export interface GetDynamicFieldObjectV2Params {
+    /** The ID of the queried parent object */
+    parentObjectId: string;
+    /** The Name of the dynamic field */
+    name: RpcTypes.DynamicFieldName;
+    /** Options for specifying the content to be returned */
+    options?: RpcTypes.IotaObjectDataOptions | null | undefined;
+}
 /** Return the list of dynamic field objects owned by an object. */
 export interface GetDynamicFieldsParams {
     /** The ID of the parent object */
