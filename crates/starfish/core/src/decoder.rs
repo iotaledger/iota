@@ -6,25 +6,22 @@ use std::collections::HashMap;
 use reed_solomon_simd::ReedSolomonDecoder;
 use starfish_config::Committee;
 
-use crate::{
-    Transaction,
-    block::{BlockBody, Shard},
-    error::ConsensusError,
-};
+use crate::{Transaction, block::Shard, error::ConsensusError};
 
 /// Trait for decoding shard collections using systematic Reed-Solomon decoding
 /// and reconstructing the original transactions.
 pub trait ShardsDecoder {
-    /// Attempts to decode a shard collection into a valid `BlockBody`.
+    /// Attempts to decode a collection of arbitrary >= info_length shards into
+    /// a vector of Transactions.
     #[expect(dead_code)]
     fn decode_shards(
         &mut self,
         committee: &Committee,
         shards_collection: Vec<Option<Shard>>,
-    ) -> Result<BlockBody, ConsensusError>;
+    ) -> Result<Vec<Transaction>, ConsensusError>;
 
-    /// Reconstructs the original list of `Transaction` objects from a list of
-    /// shards.
+    /// Reconstructs the original vector of Transactions from a vector of first
+    /// info_length shards.
     fn reconstruct_transactions(
         shards: Vec<Shard>,
         info_length: usize,
@@ -36,7 +33,7 @@ impl ShardsDecoder for ReedSolomonDecoder {
         &mut self,
         committee: &Committee,
         shards_collection: Vec<Option<Shard>>,
-    ) -> Result<BlockBody, ConsensusError> {
+    ) -> Result<Vec<Transaction>, ConsensusError> {
         let info_length = committee.info_length();
         let total_length = committee.size();
         let parity_length = total_length - info_length;
@@ -88,8 +85,7 @@ impl ShardsDecoder for ReedSolomonDecoder {
         }
         drop(result);
 
-        let transactions = Self::reconstruct_transactions(data, info_length)?;
-        Ok(BlockBody::new_transactions(transactions))
+        Self::reconstruct_transactions(data, info_length)
     }
 
     fn reconstruct_transactions(

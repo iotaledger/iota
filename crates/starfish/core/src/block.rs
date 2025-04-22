@@ -29,6 +29,11 @@ use crate::{
 /// Round number of a block.
 pub type Round = u32;
 
+// In consensus modification with encoding and decoding we divide data into a
+// sequence of smaller pieces -- Shards, which then serve as smallest piece of
+// information, being sent between validators and so on
+pub type Shard = Vec<u8>;
+
 pub(crate) const GENESIS_ROUND: Round = 0;
 
 /// Block proposal as epoch UNIX timestamp in milliseconds.
