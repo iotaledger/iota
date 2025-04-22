@@ -110,7 +110,7 @@ impl ExecutionSlot {
 // transaction should be assigned. If true, the tracker will assign the start
 // time according to the minimum free execution slot for a transaction over all
 // its shared objects. If false, the tracker will assign the start time
-// according to the maximum end time of of the occupied execution slots for a
+// according to the maximum end time of the occupied execution slots for a
 // transaction over all its shared objects.
 #[derive(PartialEq, Eq, Clone, Debug)]
 pub struct SharedObjectCongestionTracker {
