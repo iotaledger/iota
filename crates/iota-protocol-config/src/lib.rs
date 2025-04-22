@@ -46,7 +46,8 @@ pub const MAX_PROTOCOL_VERSION: u64 = 7;
 //            Enable consensus garbage collection for testnet
 //            Enable the new consensus commit rule for testnet.
 //            Enable the gas price feedback mechanism in devnet.
-//            Set suggested gas price calculation mode to None in devnet.
+//            Set suggested gas price calculation mode to simply use
+//            certificate's gas price in the gas price feedback mechanism.
 
 #[derive(Copy, Clone, Debug, Hash, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ProtocolVersion(u64);
