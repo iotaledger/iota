@@ -4242,14 +4242,13 @@ impl AuthorityState {
     ) -> Vec<ObjectRef> {
         let mut results = vec![];
 
-        let mut system_packages: Vec<SystemPackage> = Vec::new();
-        system_packages.extend(BuiltInFramework::iter_system_packages().cloned());
-
+        let system_packages = BuiltInFramework::iter_system_packages();
+        
         // Add extra framework packages during simtest
         #[cfg(msim)]
         let extra_packages = framework_injection::get_extra_packages(self.name);
         #[cfg(msim)]
-        system_packages.extend(extra_packages);
+        let system_packages = system_packages.map(|p| p).chain(extra_packages.iter());
 
         for system_package in system_packages {
             let modules = system_package.modules().to_vec();
