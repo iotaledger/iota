@@ -37,7 +37,6 @@ archive_store_config:
   no-sign-request: true
   aws-region: "weur"
   object-store-connection-limit: 20
-
 ```
 
 ## Sync

@@ -35,11 +35,11 @@ roaring.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 serde_yaml.workspace = true
+telemetry-subscribers.workspace = true
 tempfile = "3.8.0"
 tokio = { workspace = true, features = ["full"] }
 tracing.workspace = true
 url.workspace = true
-telemetry-subscribers.workspace = true
 
 # internal dependencies
 iota-archival.workspace = true

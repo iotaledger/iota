@@ -216,7 +216,7 @@ pub fn verify_proof(committee: &Committee, proof: &Proof) -> anyhow::Result<()> 
             changed_objects
                 .iter()
                 .find(|effects_object_ref| &effects_object_ref.0 == object_ref)
-                .ok_or(anyhow!("Object not found"))?;
+                .ok_or_else(|| anyhow!("Object not found"))?;
         }
 
         // MILESTONE 7: Object references are correct and in the effects

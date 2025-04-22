@@ -31,7 +31,7 @@ pub async fn query_last_checkpoint_of_epoch(config: &Config, epoch_id: u64) -> R
             .graphql_url
             .as_ref()
             .cloned()
-            .ok_or(anyhow!("missing graphql url"))?,
+            .ok_or_else(|| anyhow!("missing graphql url"))?,
     );
     // Submit the query by POSTing to the GraphQL endpoint
     let resp = client

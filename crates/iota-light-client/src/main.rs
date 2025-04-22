@@ -100,8 +100,8 @@ pub async fn main() -> anyhow::Result<()> {
                 exec_digests.transaction, exec_digests.effects
             );
 
-            if events.is_some() {
-                for event in events.as_ref().unwrap().data.iter() {
+            if let Some(events) = &events {
+                for event in &events.data {
                     let type_layout = resolver.type_layout(event.type_.clone().into()).await?;
 
                     let result = BoundedVisitor::deserialize_value(&event.contents, &type_layout)

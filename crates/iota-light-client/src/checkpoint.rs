@@ -362,7 +362,7 @@ pub async fn sync_and_check_checkpoints(config: &Config) -> anyhow::Result<()> {
         // Download summaries from the full node
         let client = iota_rest_api::Client::new(&config.rpc_url);
 
-        // We only need the first 2 end-of-epoch checkpoints for the tests
+        // Download all missing checkpoints
         for seq in missing {
             info!("Downloading checkpoint: {seq}");
 

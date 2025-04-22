@@ -45,7 +45,7 @@ pub fn extract_verified_effects_and_events(
         .find(|(tx, digest)| {
             tx.effects.execution_digests() == **digest && digest.transaction == tid
         })
-        .ok_or(anyhow!("Transaction not found in checkpoint contents"))?;
+        .ok_or_else(|| anyhow!("Transaction not found in checkpoint contents"))?;
 
     // Check the events are all correct.
     let events_digest = matching_tx.events.as_ref().map(|events| events.digest());
@@ -88,8 +88,7 @@ pub async fn get_verified_object(config: &Config, id: ObjectID) -> Result<Object
         .all_changed_objects()
         .iter()
         .find(|object_ref| object_ref.0 == target_object_ref)
-        .ok_or(anyhow!("Object not found"))
-        .expect("Object not found");
+        .ok_or_else(|| anyhow!("Object not found"))?;
 
     Ok(object)
 }
@@ -112,7 +111,7 @@ pub async fn get_verified_effects_and_events(
         .await
         .context("Cannot get transaction")?
         .checkpoint
-        .ok_or(anyhow!("Transaction not found"))?;
+        .ok_or_else(|| anyhow!("Transaction not found"))?;
 
     // Create object store
     let object_store = IotaObjectStore::new(config)?;
@@ -147,9 +146,7 @@ pub async fn get_verified_effects_and_events(
         let current_committee = prev_ckp
             .end_of_epoch_data
             .as_ref()
-            .ok_or(anyhow!(
-                "Expected all checkpoints to be end-of-epoch checkpoints"
-            ))?
+            .ok_or_else(|| anyhow!("Expected all checkpoints to be end-of-epoch checkpoints"))?
             .next_epoch_committee
             .iter()
             .cloned()
@@ -199,7 +196,7 @@ pub async fn get_verified_checkpoint(
         .await
         .context("Cannot get transaction")?
         .checkpoint
-        .ok_or(anyhow!("Transaction not found"))?;
+        .ok_or_else(|| anyhow!("Transaction not found"))?;
 
     // Need to authenticate this object
     let (effects, _) = get_verified_effects_and_events(config, object.previous_transaction)
@@ -212,8 +209,7 @@ pub async fn get_verified_checkpoint(
         .all_changed_objects()
         .iter()
         .find(|object_ref| object_ref.0 == target_object_ref)
-        .ok_or(anyhow!("Object not found"))
-        .expect("Object not found");
+        .ok_or_else(|| anyhow!("Object not found"))?;
 
     // Create object store
     let object_store = IotaObjectStore::new(config)?;
@@ -248,9 +244,7 @@ pub async fn get_verified_checkpoint(
         let current_committee = prev_ckp
             .end_of_epoch_data
             .as_ref()
-            .ok_or(anyhow!(
-                "Expected all checkpoints to be end-of-epoch checkpoints"
-            ))?
+            .ok_or_else(|| anyhow!("Expected all checkpoints to be end-of-epoch checkpoints"))?
             .next_epoch_committee
             .iter()
             .cloned()

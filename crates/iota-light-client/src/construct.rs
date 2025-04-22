@@ -71,7 +71,7 @@ pub fn construct_proof(targets: ProofTarget, data: &CheckpointData) -> anyhow::R
         .transactions
         .iter()
         .find(|t| t.effects.transaction_digest() == &target_tx_id)
-        .ok_or(anyhow!("Transaction not found in checkpoint data"))?
+        .ok_or_else(|| anyhow!("Transaction not found in checkpoint data"))?
         .clone();
 
     let CheckpointTransaction {
