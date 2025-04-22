@@ -217,9 +217,12 @@ impl NameCommand {
                 args.extend(opts.into_args());
 
                 NameCommandResult::Client(
-                    IotaClientCommands::PTB(PTB { args })
-                        .execute(context)
-                        .await?,
+                    IotaClientCommands::PTB(PTB {
+                        args,
+                        display: Default::default(),
+                    })
+                    .execute(context)
+                    .await?,
                 )
             }
             Self::Auction(AuctionCommand::Claim { domain, opts }) => {
@@ -238,9 +241,12 @@ impl NameCommand {
                 args.extend(opts.into_args());
 
                 NameCommandResult::Client(
-                    IotaClientCommands::PTB(PTB { args })
-                        .execute(context)
-                        .await?,
+                    IotaClientCommands::PTB(PTB {
+                        args,
+                        display: Default::default(),
+                    })
+                    .execute(context)
+                    .await?,
                 )
             }
             Self::Auction(AuctionCommand::Metadata { domain }) => {
@@ -274,9 +280,12 @@ impl NameCommand {
                 args.extend(opts.into_args());
 
                 NameCommandResult::Client(
-                    IotaClientCommands::PTB(PTB { args })
-                        .execute(context)
-                        .await?,
+                    IotaClientCommands::PTB(PTB {
+                        args,
+                        display: Default::default(),
+                    })
+                    .execute(context)
+                    .await?,
                 )
             }
             Self::Burn { domain, opts } => {
@@ -388,9 +397,12 @@ impl NameCommand {
                 ];
                 args.extend(opts.into_args());
                 NameCommandResult::Client(
-                    IotaClientCommands::PTB(PTB { args })
-                        .execute(context)
-                        .await?,
+                    IotaClientCommands::PTB(PTB {
+                        args,
+                        display: Default::default(),
+                    })
+                    .execute(context)
+                    .await?,
                 )
             }
             Self::Renew {
@@ -437,9 +449,12 @@ impl NameCommand {
                 args.extend(opts.into_args());
 
                 NameCommandResult::Client(
-                    IotaClientCommands::PTB(PTB { args })
-                        .execute(context)
-                        .await?,
+                    IotaClientCommands::PTB(PTB {
+                        args,
+                        display: Default::default(),
+                    })
+                    .execute(context)
+                    .await?,
                 )
             }
             Self::ReverseLookup { address } => {
@@ -771,9 +786,12 @@ impl SubdomainCommand {
                 ];
                 args.extend(opts.into_args());
                 NameCommandResult::Client(
-                    IotaClientCommands::PTB(PTB { args })
-                        .execute(context)
-                        .await?,
+                    IotaClientCommands::PTB(PTB {
+                        args,
+                        display: Default::default(),
+                    })
+                    .execute(context)
+                    .await?,
                 )
             }
             Self::UpdateMetadata {
