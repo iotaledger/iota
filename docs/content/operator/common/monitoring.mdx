@@ -28,16 +28,16 @@ curl -s localhost:9184/metrics | grep -E "^last_executed_checkpoint|^highest_syn
 ```
 
 ```sh
-highest_known_checkpoint 43448601
-highest_synced_checkpoint 43448600
-last_executed_checkpoint 43448601
-last_executed_checkpoint_age_ms{pct="50"} 188
-last_executed_checkpoint_age_ms{pct="95"} 221
-last_executed_checkpoint_age_ms{pct="99"} 297
-last_executed_checkpoint_age_ms_count 287523
-last_executed_checkpoint_age_ms_sum 4291692609431
-last_executed_checkpoint_timestamp_ms 1741700144842
-uptime{chain_identifier="2304aa97",process="fullnode",version="0.10.3-rc-c2adf3fd68e9"} 20925
+highest_known_checkpoint 59675325
+highest_synced_checkpoint 2357101
+last_executed_checkpoint 2079478
+last_executed_checkpoint_age_ms{pct="50"} 12920312362
+last_executed_checkpoint_age_ms{pct="95"} 12924548836
+last_executed_checkpoint_age_ms{pct="99"} 12924925894
+last_executed_checkpoint_age_ms_count 2063700
+last_executed_checkpoint_age_ms_sum 27190533202683796
+last_executed_checkpoint_timestamp_ms 1732397544761
+uptime{chain_identifier="2304aa97",is_docker="false",os_version="Linux (Ubuntu 24.04)",process="fullnode",version="0.12.0-rc-8e554870d787"} 2844
 ```
 
 2. Follow the latest checkpoint known by your node via the JSON-RPC endpoint:
