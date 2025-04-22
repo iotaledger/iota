@@ -212,6 +212,58 @@ impl Deref for TrustedCommit {
     }
 }
 
+/// `CertifiedCommits` keeps the synchronized certified commits along with the
+/// corresponding votes received from the peer that provided these commits.
+/// The `votes` contain the blocks as those provided by the peer, and certify
+/// the tip of the synced commits.
+#[derive(Clone, Debug)]
+pub(crate) struct CertifiedCommits {
+    commits: Vec<CertifiedCommit>,
+    votes: Vec<VerifiedBlock>,
+}
+
+impl CertifiedCommits {
+    pub(crate) fn new(commits: Vec<CertifiedCommit>, votes: Vec<VerifiedBlock>) -> Self {
+        Self { commits, votes }
+    }
+
+    pub(crate) fn commits(&self) -> &[CertifiedCommit] {
+        &self.commits
+    }
+
+    pub(crate) fn votes(&self) -> &[VerifiedBlock] {
+        &self.votes
+    }
+}
+
+/// A commit that has been synced and certified by a quorum of authorities.
+#[derive(Clone, Debug)]
+pub(crate) struct CertifiedCommit {
+    commit: Arc<TrustedCommit>,
+    blocks: Vec<VerifiedBlock>,
+}
+
+impl CertifiedCommit {
+    pub(crate) fn new_certified(commit: TrustedCommit, blocks: Vec<VerifiedBlock>) -> Self {
+        Self {
+            commit: Arc::new(commit),
+            blocks,
+        }
+    }
+
+    pub fn blocks(&self) -> &[VerifiedBlock] {
+        &self.blocks
+    }
+}
+
+impl Deref for CertifiedCommit {
+    type Target = TrustedCommit;
+
+    fn deref(&self) -> &Self::Target {
+        &self.commit
+    }
+}
+
 /// Digest of a consensus commit.
 #[derive(Clone, Copy, Default, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 pub struct CommitDigest([u8; consensus_config::DIGEST_LENGTH]);
@@ -410,6 +462,7 @@ pub fn load_committed_subdag_from_store(
 pub(crate) enum Decision {
     Direct,
     Indirect,
+    Certified, // This is a commit certified leader so no commit decision was made locally.
 }
 
 /// The status of a leader slot from the direct and indirect commit rules.
@@ -518,16 +571,6 @@ pub(crate) struct CommitInfo {
     pub(crate) reputation_scores: ReputationScores,
 }
 
-impl CommitInfo {
-    // Returns a new CommitInfo.
-    pub(crate) fn new(committed_rounds: Vec<Round>, reputation_scores: ReputationScores) -> Self {
-        CommitInfo {
-            committed_rounds,
-            reputation_scores,
-        }
-    }
-}
-
 /// CommitRange stores a range of CommitIndex. The range contains the start
 /// (inclusive) and end (inclusive) commit indices and can be ordered for use as
 /// the key of a table.
@@ -555,9 +598,22 @@ impl CommitRange {
         self.0.end.saturating_sub(1)
     }
 
+    pub(crate) fn extend_to(&mut self, other: CommitIndex) {
+        let new_end = other.saturating_add(1);
+        assert!(self.0.end <= new_end);
+        self.0 = self.0.start..new_end;
+    }
+
+    pub(crate) fn size(&self) -> usize {
+        self.0
+            .end
+            .checked_sub(self.0.start)
+            .expect("Range should never have end < start") as usize
+    }
+
     /// Check whether the two ranges have the same size.
     pub(crate) fn is_equal_size(&self, other: &Self) -> bool {
-        self.0.end.wrapping_sub(self.0.start) == other.0.end.wrapping_sub(other.0.start)
+        self.size() == other.size()
     }
 
     /// Check if the provided range is sequentially after this range.
@@ -681,14 +737,20 @@ mod tests {
     #[tokio::test]
     async fn test_commit_range() {
         telemetry_subscribers::init_for_testing();
-        let range1 = CommitRange::new(1..=5);
+        let mut range1 = CommitRange::new(1..=5);
         let range2 = CommitRange::new(2..=6);
         let range3 = CommitRange::new(5..=10);
         let range4 = CommitRange::new(6..=10);
         let range5 = CommitRange::new(6..=9);
+        let range6 = CommitRange::new(1..=1);
 
         assert_eq!(range1.start(), 1);
         assert_eq!(range1.end(), 5);
+
+        // Test range size
+        assert_eq!(range1.size(), 5);
+        assert_eq!(range3.size(), 6);
+        assert_eq!(range6.size(), 1);
 
         // Test next range check
         assert!(!range1.is_next_range(&range2));
@@ -707,5 +769,15 @@ mod tests {
         assert!(range2 < range3);
         assert!(range3 < range4);
         assert!(range5 < range4);
+
+        // Test extending range
+        range1.extend_to(10);
+        assert_eq!(range1.start(), 1);
+        assert_eq!(range1.end(), 10);
+        assert_eq!(range1.size(), 10);
+        range1.extend_to(20);
+        assert_eq!(range1.start(), 1);
+        assert_eq!(range1.end(), 20);
+        assert_eq!(range1.size(), 20);
     }
 }

@@ -1454,6 +1454,7 @@ export const RPC_METHODS: {
             binary_friend_decls: 'u16',
             max_package_dependencies: 'u32',
             bridge_should_try_to_finalize_committee: 'bool',
+            consensus_gc_depth: 'u32',
         };
 
         for (const { key, value } of protocolConfig.configs) {

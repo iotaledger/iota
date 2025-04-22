@@ -20,15 +20,15 @@ without requiring consensus, as long as they don’t share common objects.
 ## Creating Address-Owned Objects
 
 To create an address-owned object,
-use one of the following functions from the [transfer module](../../../../references/framework/iota-framework/transfer.mdx):
+use one of the following functions from the [transfer module](../../../../references/framework/iota/transfer.mdx):
 
 ```move
 public fun transfer<T: key>(obj: T, recipient: address)
 public fun public_transfer<T: key + store>(obj: T, recipient: address)
 ```
 
-- Use [`iota::transfer::transfer`](../../../../references/framework/iota-framework/transfer.mdx#function-transfer) when defining a [custom transfer policy](../transfers/custom-rules.mdx) for the object.
-- Use [`iota::transfer::public_transfer`](../../../../references/framework/iota-framework/transfer.mdx#function-public_transfer) if the object has the `store` capability and you do not need a custom policy.
+- Use [`iota::transfer::transfer`](../../../../references/framework/iota/transfer.mdx#function-transfer) when defining a [custom transfer policy](../transfers/custom-rules.mdx) for the object.
+- Use [`iota::transfer::public_transfer`](../../../../references/framework/iota/transfer.mdx#function-public_transfer) if the object has the `store` capability and you do not need a custom policy.
 
 After creating an address-owned object, its ownership can change over time by transferring it,
 adding it as a dynamic object field, or making it immutable.
@@ -50,7 +50,7 @@ making them less susceptible to throughput bottlenecks in high-usage scenarios.
 
 ## Example
 
-A common example of an address-owned object is a [Coin object](../../../../references/framework/iota-framework/coin.mdx).
+A common example of an address-owned object is a [Coin object](../../../../references/framework/iota/coin.mdx).
 Suppose address `0xA11CE` owns a coin `C` containing 100 IOTA and wants to transfer them to address `0xB0B`:
 
 ```move

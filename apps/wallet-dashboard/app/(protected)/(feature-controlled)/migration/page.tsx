@@ -9,6 +9,7 @@ import clsx from 'clsx';
 import { useGetStardustMigratableObjects, useGroupedStardustObjects } from '@/hooks';
 import { getStardustObjectsTotals } from '@/lib/utils';
 import {
+    Address,
     Button,
     ButtonSize,
     ButtonType,
@@ -24,6 +25,9 @@ import { useCurrentAccount, useIotaClient } from '@iota/dapp-kit';
 import {
     STARDUST_BASIC_OUTPUT_TYPE,
     STARDUST_NFT_OUTPUT_TYPE,
+    toast,
+    addressToStardustBech32,
+    useCopyToClipboard,
     useFormatCoin,
     useStardustIndexerClientContext,
 } from '@iota/core';
@@ -34,6 +38,7 @@ import { useRouter } from 'next/navigation';
 function MigrationDashboardPage(): JSX.Element {
     const account = useCurrentAccount();
     const address = account?.address || '';
+    const bech32Address = addressToStardustBech32(address);
     const queryClient = useQueryClient();
     const iotaClient = useIotaClient();
     const router = useRouter();
@@ -176,6 +181,12 @@ function MigrationDashboardPage(): JSX.Element {
         router.replace('/home');
     }
 
+    const copyToClipBoard = useCopyToClipboard(() => toast('Address copied'));
+
+    async function handleCopy() {
+        await copyToClipBoard(bech32Address);
+    }
+
     return (
         <div className="flex h-full w-full flex-wrap items-center justify-center space-y-4">
             <div
@@ -205,6 +216,19 @@ function MigrationDashboardPage(): JSX.Element {
                         />
                     )}
                     <Panel>
+                        <div className="flex flex-col gap-y-xxxs break-all rounded-md px-md--rs py-sm--rs">
+                            <span className="text-label-md">Stardust address</span>
+                            <Address
+                                text={bech32Address}
+                                isExternal
+                                externalLink={`https://explorer.iota.org/mainnet/addr/${bech32Address}`}
+                                isCopyable
+                                copyText={bech32Address}
+                                onCopySuccess={handleCopy}
+                            />
+                        </div>
+                    </Panel>
+                    <Panel>
                         <Title
                             title="Migration"
                             trailingElement={
@@ -216,7 +240,7 @@ function MigrationDashboardPage(): JSX.Element {
                                 />
                             }
                         />
-                        <div className="flex flex-col gap-xs p-md--rs">
+                        <div className="flex flex-col gap-xs p-sm--rs">
                             {MIGRATION_CARDS.map((card) => (
                                 <MigrationDisplayCard
                                     key={card.subtitle}
@@ -244,7 +268,7 @@ function MigrationDashboardPage(): JSX.Element {
 
                     <Panel>
                         <Title title="Time-locked Assets" />
-                        <div className="flex flex-col gap-xs p-md--rs">
+                        <div className="flex flex-col gap-xs p-sm--rs">
                             {TIMELOCKED_ASSETS_CARDS.map((card) => (
                                 <MigrationDisplayCard
                                     key={card.subtitle}

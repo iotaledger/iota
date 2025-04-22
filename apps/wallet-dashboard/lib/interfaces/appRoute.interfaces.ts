@@ -5,6 +5,7 @@ export interface ProtectedRoute {
     title: string;
     path: string;
     icon: (props: React.SVGProps<SVGSVGElement>) => React.JSX.Element;
+    id: string;
 }
 
 export interface PublicRoute extends Pick<ProtectedRoute, 'path'> {}

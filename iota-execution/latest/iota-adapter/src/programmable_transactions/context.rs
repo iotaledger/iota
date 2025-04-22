@@ -1267,7 +1267,7 @@ mod checked {
                 .type_to_fully_annotated_layout(&obj_value.type_)
                 .map_err(|e| convert_vm_error(e, vm, linkage_view))?;
             let mut bytes = vec![];
-            obj_value.write_bcs_bytes(&mut bytes);
+            obj_value.write_bcs_bytes(&mut bytes, None)?;
             match get_all_uids(&fully_annotated_layout, &bytes) {
                 Err(e) => {
                     invariant_violation!("Unable to retrieve UIDs for object. Got error: {e}")

@@ -1,5 +1,17 @@
 # @iota/apps-ui-kit
 
+## 0.4.0
+
+### Minor Changes
+
+-   a3f08da: add toggle component
+
+### Patch Changes
+
+-   1ad39f9: Update dependencies
+-   4e4f710: replace supportingText from string to ReactNode in InfoBox component
+-   d0cb92e: manage unreachable images by displaying a placeholder instead in VisualAssetCard
+
 ## 0.3.0
 
 ### Minor Changes

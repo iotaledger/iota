@@ -19,7 +19,10 @@ export function Sidebar() {
     });
 
     return (
-        <nav className="flex h-screen flex-col items-center gap-y-2xl bg-neutral-100 py-xl dark:bg-neutral-6">
+        <nav
+            data-testid="sidebar"
+            className="flex h-screen flex-col items-center gap-y-2xl bg-neutral-100 py-xl dark:bg-neutral-6"
+        >
             <IotaLogoMark className="h-10 w-10 text-neutral-10 dark:text-neutral-92" />
             <div className="flex flex-col gap-y-xs">
                 {filteredRoutes.map((route) => (
