@@ -194,9 +194,6 @@ pub enum ExecutionFailureStatus {
     #[error("Certificate cannot be executed due to a dependency on a deleted shared object")]
     InputObjectDeleted,
 
-    // NOTE: this error is obsolete but kept for backward compatibility;
-    // instead, use `ExecutionCancelledDueToSharedObjectCongestionV1`, which
-    // includes gas price feedback for transactions cancelled due to congestion
     #[error("Certificate is cancelled due to congestion on shared objects: {congested_objects}.")]
     ExecutionCancelledDueToSharedObjectCongestion { congested_objects: CongestedObjects },
 
