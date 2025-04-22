@@ -178,6 +178,9 @@ impl SharedObjVerManager {
                             .as_ref()
                             .is_some_and(|info| info.contains(id))
                         {
+                            // TODO: this `if-else` branch can be modified to include only `if`'s
+                            // block contents once `congested_objects_gas_price_feedback_mechanism`
+                            // is enabled on the mainnet.
                             if congested_objects_gas_price_feedback_mechanism_feature_flag {
                                 SequenceNumber::new_congested_with_suggested_gas_price(
                                     *suggested_gas_price,

@@ -338,6 +338,9 @@ mod checked {
             } else if let Some((cancelled_objects, reason)) = cancelled_objects {
                 match reason {
                     version if version.is_congested() => Err(ExecutionError::new(
+                        // TODO: this `if-else` branch can be modified to include only `if`'s block
+                        // contents once `congested_objects_gas_price_feedback_mechanism` is
+                        // enabled on the mainnet.
                         if protocol_config.congested_objects_gas_price_feedback_mechanism() {
                             ExecutionErrorKind::ExecutionCancelledDueToSharedObjectCongestionV1 {
                                 congested_objects: CongestedObjects(cancelled_objects),
