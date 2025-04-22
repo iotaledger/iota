@@ -66,7 +66,7 @@ use crate::{
         tx_changed_objects, tx_digests, tx_input_objects, tx_insertion_order, tx_kinds,
         tx_recipients, tx_senders,
     },
-    transactional_blocking_with_retry,
+    serializable_transactional_blocking_with_retry, transactional_blocking_with_retry,
     types::{
         EventIndex, IndexedCheckpoint, IndexedDeletedObject, IndexedEvent, IndexedObject,
         IndexedPackage, IndexedTransaction, TxIndex,
@@ -348,8 +348,11 @@ impl PgIndexerStore {
         let mut coin_type_vec = Vec::with_capacity(chunk_size);
         let mut coin_balance_vec = Vec::with_capacity(chunk_size);
         let mut df_kind_vec = Vec::with_capacity(chunk_size);
+        let mut object_type_package_vec = Vec::with_capacity(chunk_size);
+        let mut object_type_module_vec = Vec::with_capacity(chunk_size);
+        let mut object_type_name_vec = Vec::with_capacity(chunk_size);
 
-        for obj in mutated_object_mutation_chunk.iter().cloned() {
+        for obj in mutated_object_mutation_chunk {
             object_id_vec.push(obj.object_id);
             object_version_vec.push(obj.object_version);
             object_digest_vec.push(obj.object_digest);
@@ -360,86 +363,94 @@ impl PgIndexerStore {
             coin_type_vec.push(obj.coin_type);
             coin_balance_vec.push(obj.coin_balance);
             df_kind_vec.push(obj.df_kind);
+            object_type_package_vec.push(obj.object_type_package);
+            object_type_module_vec.push(obj.object_type_module);
+            object_type_name_vec.push(obj.object_type_name);
         }
-
-        let query = diesel::sql_query(
-            r#"
-        WITH new_data AS (
-            SELECT
-                unnest($1::bytea[]) AS object_id,
-                unnest($2::bigint[]) AS object_version,
-                unnest($3::bytea[]) AS object_digest,
-                unnest($4::smallint[]) AS owner_type,
-                unnest($5::bytea[]) AS owner_id,
-                unnest($6::text[]) AS object_type,
-                unnest($7::bytea[]) AS serialized_object,
-                unnest($8::text[]) AS coin_type,
-                unnest($9::bigint[]) AS coin_balance,
-                unnest($10::smallint[]) AS df_kind
-        ),
-        locked_objects AS (
-            SELECT o.*
-            FROM objects o
-            JOIN new_data nd ON o.object_id = nd.object_id
-            FOR UPDATE
-        ),
-        locked_deletes AS (
-            SELECT del.*
-            FROM optimistic_deleted_objects_versions del
-            JOIN new_data nd ON del.object_id = nd.object_id
-            FOR SHARE
-        )
-        INSERT INTO objects (
-            object_id,
-            object_version,
-            object_digest,
-            owner_type,
-            owner_id,
-            object_type,
-            serialized_object,
-            coin_type,
-            coin_balance,
-            df_kind
-        )
-        SELECT nd.*
-        FROM new_data nd
-        LEFT JOIN optimistic_deleted_objects_versions del
-          ON del.object_id = nd.object_id
-        WHERE COALESCE(del.object_version, -1) < nd.object_version
-        ON CONFLICT (object_id)
-        DO UPDATE SET
-            object_version = EXCLUDED.object_version,
-            object_digest = EXCLUDED.object_digest,
-            owner_type = EXCLUDED.owner_type,
-            owner_id = EXCLUDED.owner_id,
-            object_type = EXCLUDED.object_type,
-            serialized_object = EXCLUDED.serialized_object,
-            coin_type = EXCLUDED.coin_type,
-            coin_balance = EXCLUDED.coin_balance,
-            df_kind = EXCLUDED.df_kind
-        WHERE
-            EXCLUDED.object_version > objects.object_version;
-    "#,
-        )
-        .bind::<sql_types::Array<sql_types::Binary>, _>(object_id_vec)
-        .bind::<sql_types::Array<sql_types::BigInt>, _>(object_version_vec)
-        .bind::<sql_types::Array<sql_types::Binary>, _>(object_digest_vec)
-        .bind::<sql_types::Array<sql_types::SmallInt>, _>(owner_type_vec)
-        .bind::<sql_types::Array<sql_types::Nullable<sql_types::Binary>>, _>(owner_id_vec)
-        .bind::<sql_types::Array<sql_types::Nullable<sql_types::Text>>, _>(object_type_vec)
-        .bind::<sql_types::Array<sql_types::Binary>, _>(serialized_object_vec)
-        .bind::<sql_types::Array<sql_types::Nullable<sql_types::Text>>, _>(coin_type_vec)
-        .bind::<sql_types::Array<sql_types::Nullable<sql_types::BigInt>>, _>(coin_balance_vec)
-        .bind::<sql_types::Array<sql_types::Nullable<sql_types::SmallInt>>, _>(df_kind_vec);
 
         let guard = self
             .metrics
             .checkpoint_db_commit_latency_objects_chunks
             .start_timer();
-        transactional_blocking_with_retry!(
+
+        serializable_transactional_blocking_with_retry!(
             &self.blocking_cp,
             |conn| {
-                query.clone().execute(conn)?;
+                diesel::sql_query(
+                    r#"
+                    WITH new_data AS (
+                        SELECT
+                            unnest($1::bytea[]) AS object_id,
+                            unnest($2::bigint[]) AS object_version,
+                            unnest($3::bytea[]) AS object_digest,
+                            unnest($4::smallint[]) AS owner_type,
+                            unnest($5::bytea[]) AS owner_id,
+                            unnest($6::text[]) AS object_type,
+                            unnest($7::bytea[]) AS serialized_object,
+                            unnest($8::text[]) AS coin_type,
+                            unnest($9::bigint[]) AS coin_balance,
+                            unnest($10::smallint[]) AS df_kind,
+                            unnest($11::bytea[]) AS object_type_package,
+                            unnest($12::text[]) AS object_type_module,
+                            unnest($13::text[]) AS object_type_name
+                    )
+                    INSERT INTO objects (
+                        object_id,
+                        object_version,
+                        object_digest,
+                        owner_type,
+                        owner_id,
+                        object_type,
+                        serialized_object,
+                        coin_type,
+                        coin_balance,
+                        df_kind,
+                        object_type_package,
+                        object_type_module,
+                        object_type_name
+                    )
+                    SELECT nd.*
+                    FROM new_data nd
+                    LEFT JOIN optimistic_deleted_objects_versions del
+                      ON del.object_id = nd.object_id
+                    WHERE COALESCE(del.object_version, -1) < nd.object_version
+                    ON CONFLICT (object_id)
+                    DO UPDATE SET
+                        object_version = EXCLUDED.object_version,
+                        object_digest = EXCLUDED.object_digest,
+                        owner_type = EXCLUDED.owner_type,
+                        owner_id = EXCLUDED.owner_id,
+                        object_type = EXCLUDED.object_type,
+                        serialized_object = EXCLUDED.serialized_object,
+                        coin_type = EXCLUDED.coin_type,
+                        coin_balance = EXCLUDED.coin_balance,
+                        df_kind = EXCLUDED.df_kind
+                    WHERE
+                        EXCLUDED.object_version > objects.object_version;
+                    "#,
+                )
+                .bind::<sql_types::Array<sql_types::Binary>, _>(&object_id_vec)
+                .bind::<sql_types::Array<sql_types::BigInt>, _>(&object_version_vec)
+                .bind::<sql_types::Array<sql_types::Binary>, _>(&object_digest_vec)
+                .bind::<sql_types::Array<sql_types::SmallInt>, _>(&owner_type_vec)
+                .bind::<sql_types::Array<sql_types::Nullable<sql_types::Binary>>, _>(&owner_id_vec)
+                .bind::<sql_types::Array<sql_types::Nullable<sql_types::Text>>, _>(&object_type_vec)
+                .bind::<sql_types::Array<sql_types::Binary>, _>(&serialized_object_vec)
+                .bind::<sql_types::Array<sql_types::Nullable<sql_types::Text>>, _>(&coin_type_vec)
+                .bind::<sql_types::Array<sql_types::Nullable<sql_types::BigInt>>, _>(
+                    &coin_balance_vec,
+                )
+                .bind::<sql_types::Array<sql_types::Nullable<sql_types::SmallInt>>, _>(&df_kind_vec)
+                .bind::<sql_types::Array<sql_types::Nullable<sql_types::Binary>>, _>(
+                    &object_type_package_vec,
+                )
+                .bind::<sql_types::Array<sql_types::Nullable<sql_types::Text>>, _>(
+                    &object_type_module_vec,
+                )
+                .bind::<sql_types::Array<sql_types::Nullable<sql_types::Text>>, _>(
+                    &object_type_name_vec,
+                )
+                .execute(conn)?;
                 Ok::<(), IndexerError>(())
             },
             PG_DB_COMMIT_SLEEP_DURATION
@@ -464,55 +475,41 @@ impl PgIndexerStore {
         let chunk_size = deleted_objects_chunk.len();
 
         let (object_id_vec, object_version_vec): (Vec<_>, Vec<_>) = deleted_objects_chunk
+            .clone()
             .into_iter()
             .map(|obj| (obj.object_id, obj.object_version))
             .unzip();
 
-        let query = diesel::sql_query(
-            r#"
-                WITH new_data AS (
-                    SELECT
-                        unnest($1::bytea[])  AS object_id,
-                        unnest($2::bigint[]) AS object_version
-                ),
-                locked_objects AS (
-                    SELECT o.*
-                    FROM objects o
-                    JOIN new_data nd ON o.object_id = nd.object_id
-                    FOR UPDATE
-                ),
-                locked_deletes AS (
-                    SELECT del.*
-                    FROM optimistic_deleted_objects_versions del
-                    JOIN new_data nd ON del.object_id = nd.object_id
-                    FOR UPDATE
-                ),
-                deleted AS (
-                    DELETE FROM objects o
-                    USING new_data nd
-                    WHERE o.object_id = nd.object_id
-                      AND nd.object_version > o.object_version
-                )
-                INSERT INTO optimistic_deleted_objects_versions (object_id, object_version)
-                SELECT object_id, object_version
-                FROM new_data
-                ON CONFLICT (object_id)
-                DO UPDATE
-                SET object_version = EXCLUDED.object_version
-                WHERE EXCLUDED.object_version > optimistic_deleted_objects_versions.object_version;
-            "#,
-        )
-        .bind::<sql_types::Array<sql_types::Bytea>, _>(object_id_vec)
-        .bind::<sql_types::Array<sql_types::BigInt>, _>(object_version_vec);
-
-        transactional_blocking_with_retry!(
+        serializable_transactional_blocking_with_retry!(
             &self.blocking_cp,
             |conn| {
-                query
-                    .clone()
-                    .execute(conn)
-                    .map_err(IndexerError::from)
-                    .context("Failed to write object deletion to PostgresDB")?;
+                diesel::sql_query(
+                    r#"
+                    WITH new_data AS (
+                        SELECT
+                            unnest($1::bytea[])  AS object_id,
+                            unnest($2::bigint[]) AS object_version
+                    ),
+                    deleted AS (
+                        DELETE FROM objects o
+                        USING new_data nd
+                        WHERE o.object_id = nd.object_id
+                          AND nd.object_version > o.object_version
+                    )
+                    INSERT INTO optimistic_deleted_objects_versions (object_id, object_version)
+                    SELECT object_id, object_version
+                    FROM new_data
+                    ON CONFLICT (object_id)
+                    DO UPDATE
+                    SET object_version = EXCLUDED.object_version
+                    WHERE EXCLUDED.object_version > optimistic_deleted_objects_versions.object_version;
+                    "#,
+                )
+                .bind::<sql_types::Array<sql_types::Bytea>, _>(&object_id_vec)
+                .bind::<sql_types::Array<sql_types::BigInt>, _>(&object_version_vec)
+                .execute(conn)
+                .map_err(IndexerError::from)
+                .context("Failed to write object deletion to PostgresDB")?;
                 Ok::<(), IndexerError>(())
             },
             PG_DB_COMMIT_SLEEP_DURATION
