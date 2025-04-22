@@ -703,7 +703,13 @@ impl MoveTestAdapter<'_> for IotaTestAdapter {
 
                 let mut output = vec![];
                 if show_headers {
-                    output.push(format!("Headers: {:#?}", resp.http_headers.unwrap()));
+                    let headers_map: BTreeMap<_, _> = resp
+                        .http_headers
+                        .into_iter()
+                        .flatten()
+                        .filter_map(|(h, v)| Some((h?.to_string(), v)))
+                        .collect();
+                    output.push(format!("Headers: {headers_map:#?}"));
                 }
                 if show_service_version {
                     output.push(format!(
@@ -716,7 +722,7 @@ impl MoveTestAdapter<'_> for IotaTestAdapter {
                 Ok(Some(output.join("\n")))
             }
             IotaSubcommand::ViewCheckpoint => {
-                let latest_chk = self.executor.try_get_latest_checkpoint_sequence_number()?;
+                let latest_chk = self.executor.get_latest_checkpoint_sequence_number()?;
                 let chk = self
                     .executor
                     .try_get_checkpoint_by_sequence_number(latest_chk)?
