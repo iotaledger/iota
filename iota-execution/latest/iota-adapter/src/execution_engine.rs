@@ -403,10 +403,11 @@ mod checked {
         // to the 0x5 object so that it's not lost.
         temporary_store.conserve_unmetered_storage_rebate(gas_charger.unmetered_storage_rebate());
 
+        let digest = tx_ctx.digest();
         if let Err(e) = run_conservation_checks::<Mode>(
             temporary_store,
             gas_charger,
-            tx_ctx,
+            digest,
             move_vm,
             enable_expensive_checks,
             &cost_summary,
@@ -432,7 +433,7 @@ mod checked {
     fn run_conservation_checks<Mode: ExecutionMode>(
         temporary_store: &mut TemporaryStore<'_>,
         gas_charger: &mut GasCharger,
-        tx_ctx: &mut TxContext,
+        tx_digest: TransactionDigest,
         move_vm: &Arc<MoveVM>,
         enable_expensive_checks: bool,
         cost_summary: &GasCostSummary,
@@ -494,7 +495,7 @@ mod checked {
                     // we will create or destroy IOTA otherwise
                     panic!(
                         "IOTA conservation fail in tx block {}: {}\nGas status is {}\nTx was ",
-                        tx_ctx.digest(),
+                        tx_digest,
                         recovery_err,
                         gas_charger.summary()
                     )

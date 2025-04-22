@@ -25,6 +25,7 @@ use iota_types::{
     coin_manager::{CoinManager, CoinManagerTreasuryCap},
     collection_types::Bag,
     dynamic_field::Field,
+    epoch_data::EpochData,
     id::UID,
     in_memory_storage::InMemoryStorage,
     inner_temporary_store::InnerTemporaryStore,
@@ -88,7 +89,7 @@ impl Executor {
         target_network: MigrationTargetNetwork,
         coin_type: CoinType,
     ) -> Result<Self> {
-        let mut tx_context = create_migration_context(&coin_type, target_network);
+        let tx_context = create_migration_context(&coin_type, target_network);
         // Use a throwaway metrics registry for transaction execution.
         let metrics = Arc::new(LimitsMetrics::new(&prometheus::Registry::new()));
         let mut store = InMemoryStorage::new(Vec::new());
@@ -110,7 +111,8 @@ impl Executor {
             process_package(
                 &mut store,
                 executor.as_ref(),
-                &mut tx_context,
+                &EpochData::new_genesis(0),
+                &tx_context.digest(),
                 &system_package.modules(),
                 system_package.dependencies().to_vec(),
                 &protocol_config,
