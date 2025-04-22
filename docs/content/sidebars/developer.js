@@ -436,11 +436,7 @@ const developer = [
             },
         ],
     },
-    {
-        type: 'category',
-        label: 'Exchange integration',
-        items: ['developer/exchange-integration/exchange-integration'],
-    },
+    'developer/exchange-integration',
     'developer/dev-cheat-sheet',
 ];
 module.exports = developer;
