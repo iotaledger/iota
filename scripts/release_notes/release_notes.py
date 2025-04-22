@@ -164,13 +164,13 @@ def extract_notes(commit, seen):
         # Otherwise, find the release notes section from the squashed commit message
         match = RE_HEADING.search(message)
         if not match:
-            return pr, result
+            return pr, []
         notes = match.group(1)
 
     if pr in seen:
         # a PR can be in multiple commits if it's from a rebase,
         # so we only want to process it once
-        return pr, result
+        return pr, []
 
     start = 0
     while True:
@@ -193,7 +193,7 @@ def extract_notes(commit, seen):
         )
         start = end
 
-    return pr, result
+    return pr, result.items()
 
 
 def extract_protocol_version(commit):
@@ -219,7 +219,7 @@ def extract_protocol_version(commit):
 
 def print_changelog(pr, log):
     if pr:
-        print(f"https://github.com/iotaledger/iota/pull/{pr}:")
+        print(f"https://github.com/iotaledger/iota/pull/{pr}: ", end='')
     print(log)
 
 
@@ -234,7 +234,7 @@ def do_check(commit):
 
     _, notes = extract_notes(commit, set())
     issues = []
-    for impacted, note in notes.items():
+    for impacted, note in notes:
         if impacted not in NOTE_ORDER:
             issues.append(f" - Found unfamiliar impact area '{impacted}'.")
 
@@ -291,7 +291,7 @@ def do_generate(from_, to):
     for commit in commits.split("\n"):
         pr, notes = extract_notes(commit, seen_prs)
         seen_prs.add(pr)
-        for impacted, note in notes.items():
+        for impacted, note in notes:
             if note.checked:
                 results[impacted].append((pr, note.note))
 

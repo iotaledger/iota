@@ -32,41 +32,31 @@ The default signature scheme is ED25519 (flag `0x00`).  For this option, you onl
 
 The following code sample demonstrates how to derive an ED25519 (default) IOTA address in Rust:
 
-```rust
-let mut hasher = iota_types::crypto::DefaultHash::default();
-let pk: &str = "Your ED25519 public key here";
-hasher.update(pk);
-let arr = hasher.finalize();
-let iota_address_string = hex::encode(arr);
-println!("Address: 0x{}", iota_address_string);
+```rust file=<rootDir>/docs/examples/rust/exchange/derive-address.rs#L6-L11
 ```
+
+:::info SDK
+
+If you are using the IOTA SDK already you can also use the type alias for iota_types instead:
+
+```rust
+iota_sdk::types::crypto::DefaultHash::default();
+```
+
+:::
 
 ### Derive An `Secp256k1` Address
 
 This example uses a alternative `Secp256k1` signature scheme:
 
-```rust
-let flag = 0x01; // 0x01 = Secp256k1, 0x02 = Secp256r1, 0x03 = multiSig
-// Hash the [flag, public key] bytearray using Blake2b
-let mut hasher = iota_types::crypto::DefaultHash::default();
-let pk: &str = "Your public key here";
-hasher.update([flag]);
-hasher.update(pk);
-let arr = hasher.finalize();
-let iota_address_string = hex::encode(arr);
-println!("Address: 0x{}", iota_address_string);
+```rust file=<rootDir>/docs/examples/rust/exchange/derive-address.rs#L14-L22
 ```
 
 ### Generate an ED25519 Address With the Typescript SDK
 
 This example generates a new address with the TypeScript SDK:
 
-```ts
-import { Ed25519Keypair } from '@iota/iota-sdk/keypairs/ed25519';
- 
-const keypair = new Ed25519Keypair();
-const address = keypair.getPublicKey().toIotaAddress();
-console.log(address);
+```ts file=<rootDir>/docs/examples/typescript/src/exchange/derive-address.ts
 ```
 
 ## Displaying addresses
@@ -111,21 +101,7 @@ The response is a JSON object that includes the `totalBalance` for the address:
 ### Using Rust
 
 The following example demonstrates using `iotax_getBalance` in Rust:
-```rust
-use std::str::FromStr;
-use iota_sdk::types::base_types::IotaAddress;
-use iota_sdk::IotaClientBuilder;
-
-#[tokio::main]
-async fn main() -> Result<(), anyhow::Error> {
-   let iota = IotaClientBuilder::default().build(
-      "https://api.devnet.iota.cafe:443",
-   ).await.unwrap();
-   let address = IotaAddress::from_str("0x849d63687330447431a2e76fecca4f3c10f6884ebaa9909674123c6c662612a3")?;
-   let objects = iota.coin_read_api().get_balance(address, None).await?;
-   println!("{:?}", objects);
-   Ok(())
-}
+```rust file=<rootDir>/docs/examples/rust/exchange/get-balance.rs
 ```
 
 
@@ -133,18 +109,7 @@ async fn main() -> Result<(), anyhow::Error> {
 
 This example does the same with TypeScript:
 
-```ts
-import { getFullnodeUrl, IotaClient } from '@iota/iota-sdk/client';
-
-const iotaClient = new IotaClient({ url: getFullnodeUrl('devnet') });
-
-const MY_ADDRESS = '0x849d63687330447431a2e76fecca4f3c10f6884ebaa9909674123c6c662612a3';
-
-const balance = await iotaClient.getBalance({
-    owner: MY_ADDRESS,
-});
-
-console.log('Balance in Nano (1_000_000_000 Nano = 1 IOTA): ', balance.totalBalance);
+```ts file=<rootDir>/docs/examples/typescript/src/exchange/get-balance.ts
 ```
 
 :::info Event Tracking
