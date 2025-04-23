@@ -11,9 +11,9 @@ pub enum IotaNamesError {
     #[error("String length: {0} outside of valid range: [{1}, {2}]")]
     InvalidLength(usize, usize, usize),
     #[error("Hyphens are not allowed as the first or last character")]
-    InvalidHyphens,
-    #[error("Only lowercase letters, numbers, and hyphens are allowed")]
-    InvalidUnderscore,
+    HyphensAsFirstOrLastChar,
+    #[error("Only lowercase letters, numbers, and hyphens are allowed as label characters")]
+    InvalidLabelChar,
     #[error("Domain must contain at least one label")]
     LabelsEmpty,
     #[error("Domain must include only one separator")]

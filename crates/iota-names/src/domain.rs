@@ -264,8 +264,8 @@ pub fn validate_label(label: &str) -> Result<&str, IotaNamesError> {
     for (i, character) in bytes.iter().enumerate() {
         match character {
             b'a'..=b'z' | b'0'..=b'9' => continue,
-            b'-' if i == 0 || i == len - 1 => return Err(IotaNamesError::InvalidHyphens),
-            _ => return Err(IotaNamesError::InvalidUnderscore),
+            b'-' if i == 0 || i == len - 1 => return Err(IotaNamesError::HyphensAsFirstOrLastChar),
+            _ => return Err(IotaNamesError::InvalidLabelChar),
         };
     }
 
