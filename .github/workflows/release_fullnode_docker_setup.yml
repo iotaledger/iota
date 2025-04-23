@@ -21,9 +21,10 @@ jobs:
           mkdir -p .cache/fullnode-docker-setup/setup/docker
           cp setups/fullnode/fullnode-template-devnet.yaml .cache/fullnode-docker-setup/setup
           cp setups/fullnode/fullnode-template-testnet.yaml .cache/fullnode-docker-setup/setup
-          cp -r setups/fullnode/docker .cache/fullnode-docker-setup/setup/
+          cp setups/fullnode/docker/prepare_devnet.sh .cache/fullnode-docker-setup/setup/docker/prepare_devnet.sh
+          cp setups/fullnode/docker/prepare_testnet.sh.cache/fullnode-docker-setup/setup/docker/prepare_testnet.sh
+          cp setups/fullnode/docker/docker-compose.yaml .cache/fullnode-docker-setup/docker-compose.yaml
           tree .cache
-          mv .cache/fullnode-docker-setup/setup/docker/docker-compose.yaml .cache/fullnode-docker-setup/
           
       - name: Create fullnode-docker-setup.tar.gz
         run: |
