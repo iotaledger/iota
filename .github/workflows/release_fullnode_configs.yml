@@ -28,6 +28,9 @@ jobs:
         with:
           root_dir: .cache/fullnode-docker-setup
           file_path: fullnode-docker-setup_${{ github.ref_name }}.tar.gz
+
+      - name: List files
+        run: ls -la .
           
       - name: Upload PR artifact
         if: github.event_name == 'pull_request'
