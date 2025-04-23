@@ -76,7 +76,7 @@ fun hex_char_value(c: u8): u8 {
     else abort EAddressParseError
 }
 
-/// Length of a Iota address in bytes
+/// Length of a IOTA address in bytes
 public fun length(): u64 {
     LENGTH
 }

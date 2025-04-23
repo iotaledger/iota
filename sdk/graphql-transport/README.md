@@ -2,8 +2,6 @@
 
 `@iota/graphql-transport` is part of the **IOTA Rebased SDK**, designed specifically for interacting with the IOTA Rebased protocol.
 
-> **Note**: This package is currently supported **only in Testnet and Devnet**, it is **not yet supported in Mainnet**.
-
 This package provides a `IotaTransport` that enables `IotaClient` to make requests using the RPC 2.0
 (GraphQL) API instead of the JSON RPC API.
 
@@ -47,6 +45,7 @@ error, or fallback to the JSON RPC API if a `fallbackFullNodeUrl` is provided:
 - `executeTransactionBlock`
 - `getParticipationMetrics`
 - `getCirculatingSupply`
+- `getDynamicFieldObjectV2`
 
 ### Unsupported parameters
 
