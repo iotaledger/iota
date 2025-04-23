@@ -608,9 +608,9 @@ export class IotaClient {
             : {
                   ...iotaSystemStateSummary.V1,
                   committeeMembers: iotaSystemStateSummary.V1.activeValidators,
-                  safeModeComputationCharges: iotaSystemStateSummary.V1.safeModeStorageCharges,
+                  safeModeComputationCharges: iotaSystemStateSummary.V1.safeModeComputationRewards,
                   safeModeComputationChargesBurned:
-                      iotaSystemStateSummary.V1.safeModeStorageCharges,
+                      iotaSystemStateSummary.V1.safeModeComputationRewards,
               };
     }
 
