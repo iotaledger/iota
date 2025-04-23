@@ -16,6 +16,7 @@ pub mod genesis_inspector;
 pub mod iota_commands;
 pub mod key_identity;
 pub mod keytool;
+#[cfg(feature = "iota-names")]
 pub mod name_commands;
 pub mod upgrade_compatibility;
 pub mod validator_commands;
