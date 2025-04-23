@@ -1,8 +1,12 @@
-#!/bin/bash
+#!/bin/bash -ex
 WORKDIR="$( dirname "${BASH_SOURCE[0]}" )"
 DOCKER_DIR="$WORKDIR/docker"
 DATA_DIR="$DOCKER_DIR/data"
 CONFIG_DIR="$DATA_DIR/config"
+echo "[INFO] WORKDIR: $WORKDIR"
+echo "[INFO] DOCKER_DIR: $DOCKER_DIR"
+echo "[INFO] DATA_DIR: $DATA_DIR"
+echo "[INFO] CONFIG_DIR: $CONFIG_DIR"
 
 # check if the "data" folder exists
 if [ -d "$DATA_DIR" ] && [ "$(ls -A "$DATA_DIR")" ]; then
@@ -21,5 +25,5 @@ curl -fLJ https://dbfiles.devnet.iota.cafe/migration.blob -o "$CONFIG_DIR/migrat
 # check if the "fullnode.yaml" file exists
 if [ ! -f "$CONFIG_DIR/fullnode.yaml" ]; then
     echo "[INFO] fullnode.yaml not found, will create it from the devnet template."
-    cp "$WORKDIR/../fullnode-template-devnet.yaml" ./data/config/fullnode.yaml
+    cp "$WORKDIR/fullnode-template-devnet.yaml" "$CONFIG_DIR/fullnode.yaml"
 fi

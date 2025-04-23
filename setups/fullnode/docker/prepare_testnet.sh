@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/bash -ex
 
 # check if the "data" folder exists
 if [ -d ./data ] && [ "$(ls -A ./data)" ]; then
