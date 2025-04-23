@@ -140,6 +140,9 @@ impl Domain {
     /// Returns the number of labels including TLD.
     ///
     /// ```
+    /// use std::str::FromStr;
+    ///
+    /// use iota_names::domain::Domain;
     /// assert_eq!(
     ///     Domain::from_str("test.example.iota").unwrap().num_labels(),
     ///     3
@@ -239,9 +242,14 @@ fn convert_from_new_format(s: &str, separator: &char) -> Result<String, IotaName
     Ok(parts.join(&separator.to_string()))
 }
 
+/// Checks the validity of a label according to these rules:
+/// - length must be in [MIN_LABEL_LENGTH..MAX_LABEL_LENGTH]
+/// - must contain only '0'..'9', 'a'..'z' and '-'
+/// - must not start or end with '-'
 pub fn validate_label(label: &str) -> Result<&str, IotaNamesError> {
     const MIN_LABEL_LENGTH: usize = 1;
     const MAX_LABEL_LENGTH: usize = 63;
+
     let bytes = label.as_bytes();
     let len = bytes.len();
 
@@ -254,38 +262,15 @@ pub fn validate_label(label: &str) -> Result<&str, IotaNamesError> {
     }
 
     for (i, character) in bytes.iter().enumerate() {
-        let is_valid_character = match character {
-            b'a'..=b'z' => true,
-            b'0'..=b'9' => true,
-            b'-' if i != 0 && i != len - 1 => true,
-            _ => false,
-        };
-
-        if !is_valid_character {
-            match character {
-                b'-' => return Err(IotaNamesError::InvalidHyphens),
-                _ => return Err(IotaNamesError::InvalidUnderscore),
-            }
+        match character {
+            b'a'..=b'z' | b'0'..=b'9' => continue,
+            b'-' if i == 0 || i == len - 1 => return Err(IotaNamesError::InvalidHyphens),
+            _ => return Err(IotaNamesError::InvalidUnderscore),
         };
     }
+
     Ok(label)
 }
-
-// fn parse_domain_label(label: &str) -> anyhow::Result<String> {
-//     anyhow::ensure!(
-//         label.len() >= MIN_LABEL_LEN && label.len() <= MAX_LABEL_LEN,
-//         "label length outside allowed range
-// [{MIN_LABEL_LEN}..{MAX_LABEL_LEN}]: {}",         label.len()
-//     );
-//     let regex =
-// regex::Regex::new("^[a-zA-Z0-9][a-zA-Z0-9-]+[a-zA-Z0-9]$").unwrap();
-
-//     anyhow::ensure!(
-//         regex.is_match(label),
-//         "invalid characters in domain: {label}"
-//     );
-//     Ok(label.to_owned())
-// }
 
 #[cfg(test)]
 mod tests {
