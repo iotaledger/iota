@@ -27,22 +27,22 @@ jobs:
         uses: ihiroky/archive-action@v1
         with:
           root_dir: .cache/fullnode-docker-setup
-          file_path: fullnode-docker-setup_${{ github.ref_name }}.tar.gz
+          file_path: .cache/fullnode-docker-setup_${{ github.ref_name }}.tar.gz
 
       - name: List files
-        run: ls -la .
+        run: ls -la .cache/
           
       - name: Upload PR artifact
         if: github.event_name == 'pull_request'
         uses: actions/upload-artifact@v4
         with:
-          name: fullnode-docker-setup-${{ github.run_id }}.tar.gz
-          path: fullnode-docker-setup_${{ github.ref_name }}.tar.gz
+          name: fullnode-docker-setup-${{ github.ref_name }}.tar.gz
+          path: .cache/fullnode-docker-setup_${{ github.ref_name }}.tar.gz
           
       - name: Upload fullnode-docker-setup.tar.gz
         if: github.event_name == 'release'
         uses: Shopify/upload-to-release@v2.0.0
         with:
           name: fullnode-docker-setup_${{ github.ref_name }}.tar.gz
-          path: fullnode-docker-setup_${{ github.ref_name }}.tar.gz
+          path: .cache/fullnode-docker-setup_${{ github.ref_name }}.tar.gz
           repo-token: ${{ secrets.GITHUB_TOKEN }}
