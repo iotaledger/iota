@@ -147,6 +147,7 @@ function ValidatorPageResult(): JSX.Element {
             rollingAverageApys: validatorsApy,
             highlightValidatorName: true,
             includeColumns,
+            currentEpoch: data.epoch,
         });
     }, [data, validatorEvents, validatorsApy]);
 

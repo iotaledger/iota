@@ -28,7 +28,9 @@ import { TokenStats } from './stats/TokenStats';
 import { EpochTopStats } from './stats/EpochTopStats';
 import { getEpochStorageFundFlow } from '~/lib/utils';
 import { Warning } from '@iota/apps-ui-icons';
-import { useGetLatestIotaSystemState } from '@iota/core';
+import { useGetLatestIotaSystemState, VALIDATORS_EVENTS_QUERY } from '@iota/core';
+import { useEndOfEpochTransactionFromCheckpoint } from '~/hooks/useEndOfEpochTransactionFromCheckpoint';
+import { type IotaEvent } from '@iota/iota-sdk/src/client';
 
 enum EpochTabs {
     Checkpoints = 'checkpoints',
@@ -51,10 +53,25 @@ export function EpochDetail() {
     });
 
     const [epochData] = data?.data ?? [];
+
+    const endOfPreviousEpochCheckpoint = epochData?.firstCheckpointId
+        ? (Number(epochData.firstCheckpointId) - 1).toString()
+        : undefined;
+    const { data: endOfEpochTransaction } = useEndOfEpochTransactionFromCheckpoint(
+        endOfPreviousEpochCheckpoint,
+    );
+    const validatorEvents: IotaEvent[] | undefined = endOfEpochTransaction?.events?.filter(
+        (event): event is IotaEvent => event.type === VALIDATORS_EVENTS_QUERY,
+    );
+
     const isCurrentEpoch = useMemo(
         () => systemState?.epoch === epochData?.epoch,
         [systemState, epochData],
     );
+    const committeeMembers =
+        epochData?.committeeMembers?.map(
+            (committeeMemberIndex) => epochData.validators[Number(committeeMemberIndex)],
+        ) ?? [];
 
     const tableColumns = useMemo(() => {
         if (!epochData?.validators || epochData.validators.length === 0) return null;
@@ -71,15 +88,13 @@ export function EpochDetail() {
         // todo: enrich this historical validator data when we have
         // at-risk / pending validators for historical epochs
         return generateValidatorsTableColumns({
-            committeeMembers:
-                epochData.committeeMembers?.map(
-                    (committeeMemberIndex) =>
-                        epochData.validators[Number(committeeMemberIndex)].iotaAddress,
-                ) ?? [],
+            committeeMembers: committeeMembers.map((member) => member.iotaAddress),
+            validatorEvents: validatorEvents ?? [],
             showValidatorIcon: true,
             includeColumns,
+            currentEpoch: epochData.epoch,
         });
-    }, [epochData]);
+    }, [epochData, validatorEvents, committeeMembers]);
 
     if (isPending) return <PageLayout content={<LoadingIndicator />} />;
 
@@ -97,9 +112,6 @@ export function EpochDetail() {
                 }
             />
         );
-
-    const tableData = epochData.validators;
-
     const { fundInflow, fundOutflow, netInflow } = getEpochStorageFundFlow(
         epochData.endOfEpochInfo,
     );
@@ -197,11 +209,13 @@ export function EpochDetail() {
                                     initialLimit={20}
                                 />
                             ) : null}
-                            {activeTabId === EpochTabs.Validators && tableData && tableColumns ? (
+                            {activeTabId === EpochTabs.Validators &&
+                            committeeMembers &&
+                            tableColumns ? (
                                 <TableCard
                                     sortTable
                                     defaultSorting={[{ id: 'stakingPoolIotaBalance', desc: true }]}
-                                    data={tableData}
+                                    data={committeeMembers}
                                     columns={tableColumns}
                                 />
                             ) : null}

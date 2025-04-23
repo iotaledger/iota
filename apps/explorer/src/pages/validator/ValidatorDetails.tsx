@@ -164,11 +164,11 @@ function ValidatorDetails(): JSX.Element {
         limit: numberOfValidators,
         order: 'descending',
     });
-
+    const epochId = systemStateData?.epoch;
     const validatorRewards = (() => {
-        if (!validatorEvents || !id) return 0;
+        if (!validatorEvents || !id || !epochId) return 0;
         const rewards = (
-            getValidatorMoveEvent(validatorEvents, id) as { pool_staking_reward: string }
+            getValidatorMoveEvent(validatorEvents, id, epochId) as { pool_staking_reward: string }
         )?.pool_staking_reward;
 
         return rewards ? Number(rewards) : null;
