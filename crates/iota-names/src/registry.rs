@@ -20,7 +20,7 @@ pub struct Table<K, V> {
     pub id: ObjectID,
     pub size: u64,
 
-    // TODO: remove these fields and <K, V> if they aren't needed for the indexer
+    // TODO: Are K & V actually necessary https://github.com/iotaledger/iota/issues/6529 ?
     #[serde(skip)]
     _key: PhantomData<K>,
     #[serde(skip)]
