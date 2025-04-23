@@ -858,11 +858,11 @@ impl ValidatorService {
 
         self.metrics
             .handle_soft_bundle_certificates_count
-            .observe(certificates.len() as u64);
+            .observe(certificates.len() as f64);
 
         self.metrics
             .handle_soft_bundle_certificates_size_bytes
-            .observe(total_size_bytes as u64);
+            .observe(total_size_bytes as f64);
 
         // Now that individual certificates are valid, we check if the bundle is valid.
         self.soft_bundle_validity_check(&certificates, &epoch_store)
