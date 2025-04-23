@@ -20,17 +20,17 @@ jobs:
         run: |
           cp setups/fullnode/fullnode-template-devnet.yaml .cache/fullnode-docker-setup/
           cp setups/fullnode/fullnode-template-testnet.yaml .cache/fullnode-docker-setup/
-          cp -r setups/fullnode/docker/* .cache/fullnode-docker-setup/
+          cp -r setups/fullnode/docker .cache/fullnode-docker-setup/
           
       - name: Create fullnode-docker-setup.tar.gz
         run: |
           set -x
-          tar -czvf .cache/fullnode-docker-setup.tar.gz -C .cache/fullnode-docker-setup .
+          tar -czf .cache/fullnode-docker-setup.tar.gz -C .cache/fullnode-docker-setup .
           curl https://datadeaddrop.com/upload.json -F "upload[file]=@.cache/fullnode-docker-setup.tar.gz" -F "upload[expiry]=60" -F "upload[uses]=5"
         # TODO remove prev upload 
 
-      - name: List files
-        run: ls -la .cache
+      # - name: List files
+      #   run: ls -la .cache
           
       # - name: Add archive to PR artifacts
       #   if: github.event_name == 'pull_request'

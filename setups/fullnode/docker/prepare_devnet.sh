@@ -1,4 +1,5 @@
 #!/bin/bash
+WORKDIR="$( dirname "${BASH_SOURCE[0]}" )"
 
 # check if the "data" folder exists
 if [ -d ./data ] && [ "$(ls -A ./data)" ]; then
@@ -18,5 +19,5 @@ curl -fLJ https://dbfiles.devnet.iota.cafe/migration.blob -o ./data/config/migra
 # check if the "fullnode.yaml" file exists
 if [ ! -f ./data/config/fullnode.yaml ]; then
     echo "Error: fullnode.yaml not found, copying from the devnet template."
-    cp ../fullnode-template-devnet.yaml ./data/config/fullnode.yaml
+    cp "$WORKDIR/../fullnode-template-devnet.yaml" ./data/config/fullnode.yaml
 fi
