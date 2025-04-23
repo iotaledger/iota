@@ -1042,7 +1042,11 @@ mod tests {
     /// gc is disabled.
     #[rstest]
     #[tokio::test]
-    async fn accept_blocks_unsuspend_children_blocks(#[values(false, true)] gc_enabled: bool) {
+    async fn accept_blocks_unsuspend_children_blocks(
+        // TODO: return if gc is reimplemented
+        // #[values(false, true)] gc_enabled: bool) {
+        #[values(false)] gc_enabled: bool,
+    ) {
         // GIVEN
         let (mut context, _key_pairs) = Context::new_for_test(4);
 

@@ -483,7 +483,9 @@ mod tests {
     #[tokio::test(flavor = "current_thread")]
     async fn test_authority_committee(
         #[values(ConsensusNetwork::Tonic)] network_type: ConsensusNetwork,
-        #[values(0, 5, 10)] gc_depth: u32,
+        // TODO: return if gc is reimplemented
+        //#[values(0, 5, 10)] gc_depth: u32,
+        #[values(0)] gc_depth: u32,
     ) {
         let db_registry = Registry::new();
         DBMetrics::init(&db_registry);
@@ -687,7 +689,9 @@ mod tests {
     #[tokio::test(flavor = "current_thread")]
     async fn test_amnesia_recovery_success(
         #[values(ConsensusNetwork::Tonic)] network_type: ConsensusNetwork,
-        #[values(0, 5, 10)] gc_depth: u32,
+        // TODO: return if gc is reimplemented
+        //#[values(0, 5, 10)] gc_depth: u32,
+        #[values(0)] gc_depth: u32,
     ) {
         telemetry_subscribers::init_for_testing();
         let db_registry = Registry::new();

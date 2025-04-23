@@ -1564,7 +1564,11 @@ mod test {
     // TODO: Remove when DistributedVoteScoring is enabled.
     #[rstest]
     #[tokio::test]
-    async fn test_flush_and_recovery_with_unscored_subdag(#[values(0, 5)] gc_depth: u32) {
+    async fn test_flush_and_recovery_with_unscored_subdag(
+        // TODO: return if gc is reimplemented
+        //#[values(0, 5)] gc_depth: u32
+        #[values(0)] gc_depth: u32,
+    ) {
         telemetry_subscribers::init_for_testing();
         let num_authorities: u32 = 4;
         let (mut context, _) = Context::new_for_test(num_authorities as usize);
@@ -1871,7 +1875,11 @@ mod test {
 
     #[rstest]
     #[tokio::test]
-    async fn test_get_last_cached_block(#[values(0, 1)] gc_depth: u32) {
+    async fn test_get_last_cached_block(
+        // TODO: return if gc is reimplemented
+        //#[values(0, 1)] gc_depth: u32) {
+        #[values(0)] gc_depth: u32,
+    ) {
         // GIVEN
         const CACHED_ROUNDS: Round = 2;
         let (mut context, _) = Context::new_for_test(4);
