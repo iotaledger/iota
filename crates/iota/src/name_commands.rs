@@ -385,7 +385,7 @@ impl NameCommand {
                     "--assign payment_intent".to_string(),
                     format!(
                         "--move-call {}::payments::handle_base_payment <0x0000000000000000000000000000000000000000000000000000000000000002::iota::IOTA> @{} payment_intent coins.0",
-                        iota_names_config.payment_package_address, iota_names_config.object_id
+                        iota_names_config.payments_package_address, iota_names_config.object_id
                     ),
                     "--assign receipt".to_string(),
                     format!(
@@ -438,7 +438,7 @@ impl NameCommand {
                     "--assign renewal_intent".to_string(),
                     format!(
                         "--move-call {}::payments::handle_base_payment <0x0000000000000000000000000000000000000000000000000000000000000002::iota::IOTA> @{} renewal_intent coins.0",
-                        iota_names_config.payment_package_address, iota_names_config.object_id
+                        iota_names_config.payments_package_address, iota_names_config.object_id
                     ),
                     "--assign receipt".to_string(),
                     format!(
