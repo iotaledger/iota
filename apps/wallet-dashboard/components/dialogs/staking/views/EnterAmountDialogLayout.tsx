@@ -71,7 +71,7 @@ export function EnterAmountDialogLayout({
     const { stakedRewardsStartEpoch, timeBeforeStakeRewardsRedeemableAgoDisplay } = useStakeTxnInfo(
         system?.epoch,
     );
-
+    const isValidatorCommitteeMember = isCommitteeMember(selectedValidator);
     return (
         <DialogLayout>
             <Header title="Enter amount" onClose={handleClose} onBack={onBack} titleCentered />
@@ -113,7 +113,7 @@ export function EnterAmountDialogLayout({
                                 }}
                             </Field>
                             {renderInfo ? <div className="mt-md">{renderInfo}</div> : null}
-                            {!isCommitteeMember(selectedValidator) && (
+                            {!isValidatorCommitteeMember && (
                                 <InfoBox
                                     type={InfoBoxType.Warning}
                                     title="Validator is not earning rewards."
