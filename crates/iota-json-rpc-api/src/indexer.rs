@@ -26,8 +26,8 @@ use jsonrpsee::{
 pub trait IndexerApi {
     /// Return the list of objects owned by an address.
     /// Note that if the address owns more than `QUERY_MAX_RESULT_LIMIT` objects,
-    /// the pagination is not accurate, because previous page may have been updated when
-    /// the next page is fetched.
+    /// the pagination is not accurate, because previous page may have been updated
+    /// when the next page is fetched.
     /// Please use iotax_queryObjects if this is a concern.
     #[rustfmt::skip]
     #[method(name = "getOwnedObjects")]
@@ -110,7 +110,8 @@ pub trait IndexerApi {
         name: DynamicFieldName,
     ) -> RpcResult<IotaObjectResponse>;
 
-    /// Return the dynamic field object information for a specified object with content options.
+    /// Return the dynamic field object information for a specified object with
+    /// content options.
     #[rustfmt::skip]
     #[method(name = "getDynamicFieldObjectV2")]
     async fn get_dynamic_field_object_v2(

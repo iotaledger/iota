@@ -44,7 +44,7 @@ use move_package::{
         build_plan::BuildPlan, compiled_package::CompiledPackage as MoveCompiledPackage,
     },
     package_hooks::{PackageHooks, PackageIdentifier},
-    resolution::resolution_graph::{Package, ResolvedGraph},
+    resolution::resolution_graph::ResolvedGraph,
     source_package::parsed_manifest::{OnChainInfo, PackageName, SourceManifest},
 };
 use move_symbol_pool::Symbol;
@@ -739,9 +739,8 @@ pub fn gather_published_ids(
     )
 }
 
-pub fn published_at_property(package: &Package) -> Result<ObjectID, PublishedAtError> {
-    let Some(value) = package
-        .source_package
+pub fn published_at_property(manifest: &SourceManifest) -> Result<ObjectID, PublishedAtError> {
+    let Some(value) = manifest
         .package
         .custom_properties
         .get(&Symbol::from(PUBLISHED_AT_MANIFEST_FIELD))
