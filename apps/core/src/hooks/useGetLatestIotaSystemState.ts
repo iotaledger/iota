@@ -15,6 +15,7 @@ export type IotaSystemStateSummaryCompat = {
     pendingActiveValidatorsId: string;
     pendingActiveValidatorsSize: string;
     protocolVersion: string;
+    inactivePoolsId: string;
 };
 
 export function useGetLatestIotaSystemState() {
@@ -49,6 +50,7 @@ export function useGetLatestIotaSystemState() {
                       pendingActiveValidatorsSize:
                           iotaSystemStateSummary.V2.pendingActiveValidatorsSize,
                       protocolVersion: iotaSystemStateSummary.V2.protocolVersion,
+                      inactivePoolsId: iotaSystemStateSummary.V2.inactivePoolsId,
                   }
                 : {
                       activeValidators: iotaSystemStateSummary.V1.activeValidators,
@@ -62,6 +64,7 @@ export function useGetLatestIotaSystemState() {
                       pendingActiveValidatorsSize:
                           iotaSystemStateSummary.V1.pendingActiveValidatorsSize,
                       protocolVersion: iotaSystemStateSummary.V1.protocolVersion,
+                      inactivePoolsId: iotaSystemStateSummary.V1.inactivePoolsId,
                   };
         },
     });
