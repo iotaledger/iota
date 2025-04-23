@@ -3,10 +3,7 @@ DOCKER_DIR="$( dirname "${BASH_SOURCE[0]}" )"
 WORKDIR="$(dirname "$DOCKER_DIR")"
 DATA_DIR="$DOCKER_DIR/data"
 CONFIG_DIR="$DATA_DIR/config"
-echo "[INFO] WORKDIR: $WORKDIR"
-echo "[INFO] DOCKER_DIR: $DOCKER_DIR"
-echo "[INFO] DATA_DIR: $DATA_DIR"
-echo "[INFO] CONFIG_DIR: $CONFIG_DIR"
+
 
 # check if the "data" folder exists
 if [ -d "$DATA_DIR" ] && [ "$(ls -A "$DATA_DIR")" ]; then
