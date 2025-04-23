@@ -414,7 +414,7 @@ impl NameCommand {
                         .transpose()?;
                     let address = get_identity_address(identity, context)?;
                     args.push(format!(
-                        "--move-call {}::controller::set_target_address @{} nft @{address} @0x6",
+                        "--move-call {}::controller::set_target_address @{} nft some(@{address}) @0x6",
                         iota_names_config.package_address, iota_names_config.object_id,
                     ));
                 }
