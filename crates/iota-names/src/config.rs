@@ -30,7 +30,8 @@ pub struct IotaNamesConfig {
 
 impl Default for IotaNamesConfig {
     fn default() -> Self {
-        // TODO change to mainnet
+        // TODO change to mainnet https://github.com/iotaledger/iota/issues/6532
+        // TODO change to testnet https://github.com/iotaledger/iota/issues/6531
         Self::devnet()
     }
 }
@@ -56,10 +57,9 @@ impl IotaNamesConfig {
 
     pub fn from_chain(chain: &Chain) -> Self {
         match chain {
-            // Chain::Mainnet => IotaNamesConfig::mainnet(),
-            // Chain::Testnet => IotaNamesConfig::testnet(),
+            Chain::Mainnet => todo!("https://github.com/iotaledger/iota/issues/6531"),
+            Chain::Testnet => todo!("https://github.com/iotaledger/iota/issues/6532"),
             Chain::Unknown => IotaNamesConfig::devnet(),
-            _ => todo!("uncomment Mainnet and Testnet when IOTA-Names is published there"),
         }
     }
 
@@ -84,9 +84,11 @@ impl IotaNamesConfig {
         .unwrap()
     }
 
-    // TODO add mainnet() and testnet()
+    // TODO add mainnet https://github.com/iotaledger/iota/issues/6532
 
-    // Create a config based on the package and object ids published on devnet
+    // TODO add testnet https://github.com/iotaledger/iota/issues/6531
+
+    // Create a config based on the package and object ids published on devnet.
     pub fn devnet() -> Self {
         const PACKAGE_ADDRESS: &str =
             "0xe27899d691184f66821f8fed5e7c26f3c65b26921947956435a655c8d7efc573";
