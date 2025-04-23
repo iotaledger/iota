@@ -1,0 +1,80 @@
+---
+title: Troubleshooting
+description: Troubleshooting common issues with your IOTA validator node.
+teams:
+  - iotaledger/node
+---
+
+## Validator Recovery In Case Of Database Corruption:
+
+By following these steps, you can quickly recover your validator node, minimizing downtime and maintaining your participation in the consensus.
+
+### Stop the failed validator node
+
+<Tabs  groupId="validator-troubleshooting">
+  <TabItem label="Systemd" value="logs-systemd">
+      ```sh
+      sudo systemctl stop iota-node
+      ```
+  </TabItem>
+  <TabItem label="Docker" value="logs-docker">
+      ```sh
+      docker compose stop
+      ```
+  </TabItem>
+</Tabs>
+
+### Delete the database folders
+
+Find and delete the `db-path` and `consensus-config: db-path` folders in your `validator.yaml`.  
+Commands if you are using default values for these paths:
+
+<Tabs groupId="validator-troubleshooting">
+  <TabItem label="Systemd" value="logs-systemd">
+      ```sh
+      rm -rf /opt/iota/db/authorities_db/*
+      rm -rf /opt/iota/db/consensus_db/*
+      ```
+  </TabItem>
+  <TabItem label="Docker" value="logs-docker">
+      ```sh      
+      ```
+  </TabItem>
+</Tabs>
+
+### Restore from formal snapshot
+
+Follow the steps in this document:  
+https://docs.iota.org/operator/validator-node/configs/snapshots#restoring-from-formal-snapshots
+
+### Start the validator node
+
+<Tabs groupId="validator-troubleshooting">
+  <TabItem label="Systemd" value="logs-systemd">
+      ```sh
+      sudo systemctl start iota-node
+      ```
+  </TabItem>
+  <TabItem label="Docker" value="logs-docker">
+      ```sh
+      docker compose up -d
+      ```
+  </TabItem>
+</Tabs>
+
+5. Let the validator sync all databases (including `consensus_db`) and monitor recovery progress:
+
+<Tabs groupId="validator-troubleshooting">
+  <TabItem label="Systemd" value="logs-systemd">
+      ```sh
+      sudo journalctl -fu iota-node
+      ```
+  </TabItem>
+  <TabItem label="Docker" value="logs-docker">
+      ```sh
+      docker compose logs -f
+      ```
+  </TabItem>
+</Tabs>
+
+See also https://docs.iota.org/operator/validator-node/monitoring.
