@@ -21,7 +21,7 @@ jobs:
           mkdir -p .cache/fullnode-docker-setup/setup/docker
           cp setups/fullnode/fullnode-template-devnet.yaml .cache/fullnode-docker-setup/setup
           cp setups/fullnode/fullnode-template-testnet.yaml .cache/fullnode-docker-setup/setup
-          cp -r setups/fullnode/docker .cache/fullnode-docker-setup/setup/docker
+          cp -r setups/fullnode/docker .cache/fullnode-docker-setup/setup/
           tree .cache
           mv .cache/fullnode-docker-setup/setup/docker/docker-compose.yaml .cache/fullnode-docker-setup/
           
