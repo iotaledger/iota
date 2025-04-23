@@ -19,6 +19,7 @@ similar.workspace = true
 tempfile.workspace = true
 toml_edit.workspace = true
 walkdir.workspace = true
+serde_json.workspace = true
 
 # internal dependencies
 move-binary-format.workspace = true
