@@ -22,8 +22,7 @@ jobs:
           cp setups/fullnode/fullnode-template-testnet.yaml .cache/fullnode-docker-setup/
           cp -r setups/fullnode/docker/* .cache/fullnode-docker-setup/
           
-      - name: Create fullnode-docker-setup.tar.gz
-        if: github.event_name == 'release'
+      - name: Create fullnode-docker-setup Archive
         uses: ihiroky/archive-action@v1
         with:
           root_dir: .cache/fullnode-docker-setup
