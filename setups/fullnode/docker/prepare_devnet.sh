@@ -1,6 +1,6 @@
 #!/bin/bash -ex
-WORKDIR="$( dirname "${BASH_SOURCE[0]}" )"
-DOCKER_DIR="$WORKDIR/docker"
+DOCKER_DIR="$( dirname "${BASH_SOURCE[0]}" )"
+WORKDIR="$(dirname "$DOCKER_DIR")"
 DATA_DIR="$DOCKER_DIR/data"
 CONFIG_DIR="$DATA_DIR/config"
 echo "[INFO] WORKDIR: $WORKDIR"
