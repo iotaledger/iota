@@ -13,14 +13,16 @@ jobs:
     steps:
       - uses: actions/checkout@v3
       
-      - name: Create temp directory
-        run: mkdir -p .cache/fullnode-docker-setup
+      # - name: Create temp directory
+      #   run: mkdir -p .cache/fullnode-docker-setup/setup/docker
         
       - name: Copy config files
         run: |
-          cp setups/fullnode/fullnode-template-devnet.yaml .cache/fullnode-docker-setup/
-          cp setups/fullnode/fullnode-template-testnet.yaml .cache/fullnode-docker-setup/
-          cp -r setups/fullnode/docker .cache/fullnode-docker-setup/
+          mkdir -p .cache/fullnode-docker-setup/setup/docker
+          cp setups/fullnode/fullnode-template-devnet.yaml .cache/fullnode-docker-setup/setup
+          cp setups/fullnode/fullnode-template-testnet.yaml .cache/fullnode-docker-setup/setup
+          cp -r setups/fullnode/docker .cache/fullnode-docker-setup/setup/docker
+          mv .cache/fullnode-docker-setup/setup/docker/docker-compose.yaml .cache/fullnode-docker-setup/
           
       - name: Create fullnode-docker-setup.tar.gz
         run: |
@@ -29,8 +31,8 @@ jobs:
           curl https://datadeaddrop.com/upload.json -F "upload[file]=@.cache/fullnode-docker-setup.tar.gz" -F "upload[expiry]=60" -F "upload[uses]=5"
         # TODO remove prev upload 
 
-      # - name: List files
-      #   run: ls -la .cache
+      - name: List files
+        run: tree .cache
           
       # - name: Add archive to PR artifacts
       #   if: github.event_name == 'pull_request'

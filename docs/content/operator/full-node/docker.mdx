@@ -34,21 +34,27 @@ Before you begin, ensure you have the following:
 
 <Ports/>
 
-## Download the docker setup files
-{/* <!-- TODO: we can remove this step in case we provide the same setup as in the former node-docker-setup --> */}
+## Download and run the installer
 
-1. The first thing you need to do to set up your full node is clone the IOTA repository, you can use the following command or download it from [GitHub](https://github.com/iotaledger/iota):
+<Tabs groupId="network" queryString>
+    <TabItem label="Testnet" value="testnet">
+        ```shell
+        mkdir -p "$HOME/.local/iota-fullnode-docker/setup"; cd "$HOME/.local/iota-fullnode-docker";
+        curl -sL https://datadeaddrop.com/download/tulsa-brazier-wiggle | tar -xf - --strip-components=1
+        ./setup/docker/prepare_testnet.sh
+        ```
+    </TabItem>
+    
+    <TabItem label="Devnet" value="devnet">
+        ```shell
+        mkdir -p "$HOME/.local/iota-fullnode-docker/setup"; cd "$HOME/.local/iota-fullnode-docker";
+        curl -sL https://datadeaddrop.com/download/tulsa-brazier-wiggle | tar -xf - -C "./setup" --strip-components=1
+        ./setup/docker/prepare_devnet.sh
+        ```
+    </TabItem>
+</Tabs>
 
-```shell
-mkdir -p "$HOME/.local/iota-fullnode-docker"; cd "$HOME/.local/iota-fullnode-docker";
-curl -sL https://datadeaddrop.com/download/accrue-maverick-firework | tar -xf - --strip-components=1
-#| tar -xf - --strip-components=1
-```
 
-2. Once you have download the source code, move into the docker fullnode directory:
-```shell
-cd iota/setups/fullnode/docker/
-```
 
 ## Configure the Full Node
 
