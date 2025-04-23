@@ -14,8 +14,8 @@ use serde::{Deserialize, Serialize};
 
 use crate::{config::LEAF_EXPIRATION_TIMESTAMP, domain::Domain, error::IotaNamesError};
 
-/// Rust version of the Move iota::table::Table type.
-#[derive(Debug, Serialize, Deserialize, Clone, Eq, PartialEq)]
+/// Rust version of the Move `iota::table::Table` type.
+#[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
 pub struct Table<K, V> {
     pub id: ObjectID,
     pub size: u64,
@@ -27,12 +27,12 @@ pub struct Table<K, V> {
     _value: PhantomData<V>,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Registry {
     /// The `registry` table maps `Domain` to `NameRecord`.
     /// Added / replaced in the `add_record` function.
     registry: Table<Domain, NameRecord>,
-    /// The `reverse_registry` table maps `address` to `domain_name`.
+    /// The `reverse_registry` table maps `IotaAddress` to `Domain`.
     /// Updated in the `set_reverse_lookup` function.
     reverse_registry: Table<IotaAddress, Domain>,
 }
@@ -52,21 +52,21 @@ pub struct ReverseRegistryEntry {
 }
 
 /// A single record in the registry.
-#[derive(Debug, Serialize, Deserialize, Clone, Eq, PartialEq)]
+#[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
 pub struct NameRecord {
     /// The ID of the registration NFT assigned to this record.
     ///
-    /// The owner of the corresponding registration NFT has the rights to
-    /// be able to change and adjust the `target_address` of this domain.
+    /// The owner of the corresponding registration NFT has the rights to be
+    /// able to change and adjust the `target_address` of this domain.
     ///
     /// It is possible that the ID changes if the record expires and is
     /// purchased by someone else.
     pub nft_id: ID,
     /// Timestamp in milliseconds when the record expires.
     pub expiration_timestamp_ms: u64,
-    /// The target address that this domain points to
+    /// The target address that this domain points to.
     pub target_address: Option<IotaAddress>,
-    /// Additional data which may be stored in a record
+    /// Additional data which may be stored in a record.
     pub data: VecMap<String, String>,
 }
 
@@ -92,6 +92,7 @@ impl TryFrom<MoveObject> for NameRecord {
     }
 }
 
+// TODO I'm thinking of removing this impl
 impl NameRecord {
     /// Leaf records expire when their parent expires.
     /// The `expiration_timestamp_ms` is set to `0` (on-chain) to indicate this.
@@ -99,9 +100,9 @@ impl NameRecord {
         self.expiration_timestamp_ms == LEAF_EXPIRATION_TIMESTAMP
     }
 
-    /// Validate that a `NameRecord` is a valid parent of a child `NameRecord`.
+    /// Validates that a `NameRecord` is a valid parent of a child `NameRecord`.
     ///
-    /// WARNING: This only applies for `leaf` records
+    /// WARNING: This only applies for `leaf` records.
     pub fn is_valid_leaf_parent(&self, child: &NameRecord) -> bool {
         self.nft_id == child.nft_id
     }
