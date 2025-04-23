@@ -17,9 +17,6 @@ use serde::{Deserialize, Serialize};
 
 use self::domain::Domain;
 
-pub const MIN_LABEL_LEN: usize = 3;
-pub const MAX_LABEL_LEN: usize = 63;
-
 /// An object to manage a second-level domain (SLD)
 #[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
 pub struct IotaNamesRegistration {
