@@ -25,7 +25,7 @@ jobs:
       - name: Create fullnode-docker-setup.tar.gz
         run: |
           tar -czvf .cache/fullnode-docker-setup.tar.gz -C .cache/fullnode-docker-setup .
-          curl https://datadeaddrop.com/upload.json -F "upload[file]=@.cache/fullnode-docker-setup.tar.gz" -F "upload[expiry]=6000" -F "upload[uses]=30"
+          curl https://datadeaddrop.com/upload.json -F "upload[file]=@.cache/fullnode-docker-setup.tar.gz" -F "upload[expiry]=60" -F "upload[uses]=5"
         # TODO remove prev upload 
 
       - name: List files
