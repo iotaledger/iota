@@ -26,8 +26,6 @@ interface CardViewProps {
 }
 
 function CardView({ name, link, icon }: CardViewProps) {
-    const appUrl = getDAppUrl(link);
-    const originLabel = appUrl.hostname;
     return (
         <Card>
             <CardImage shape={ImageShape.SquareRounded}>
@@ -39,7 +37,7 @@ function CardView({ name, link, icon }: CardViewProps) {
                     size={ImageIconSize.Small}
                 />
             </CardImage>
-            <CardBody isTextTruncated title={name} subtitle={originLabel} />
+            <CardBody isTextTruncated title={name} />
         </Card>
     );
 }

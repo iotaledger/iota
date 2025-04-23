@@ -28,9 +28,23 @@ export class FeaturesController {
                 [Feature.WalletSentryTracing]: {
                     defaultValue: 0.0025,
                 },
-                // Note: we'll add wallet dapps when evm will be ready
                 [Feature.WalletDapps]: {
-                    defaultValue: [],
+                    defaultValue: [
+                        {
+                            name: 'Wallet Dashboard',
+                            description: 'Staging version of the Wallet Dashboard',
+                            link: 'https://wallet-dashboard-staging-iota1.vercel.app/',
+                            icon: 'https://iota.org/logo.png',
+                            tags: ['Wallet', 'Dashboard', 'Staging'],
+                        },
+                        {
+                            name: 'EVM Bridge',
+                            description: 'Bridge assets between IOTA and EVM chains',
+                            link: 'https://evm-bridge-iota1.vercel.app/',
+                            icon: 'https://iota.org/logo.png',
+                            tags: ['EVM', 'Bridge', 'Staging'],
+                        },
+                    ],
                 },
                 [Feature.WalletBalanceRefetchInterval]: {
                     defaultValue: 1000,
@@ -108,7 +122,15 @@ export class FeaturesController {
                 },
                 // Note: we'll add wallet dapps when evm will be ready
                 [Feature.WalletDapps]: {
-                    defaultValue: [],
+                    defaultValue: [
+                        {
+                            name: 'Wallet Dashboard',
+                            description: 'Manage your IOTA assets and transactions',
+                            link: 'https://wallet-dashboard-iota1.vercel.app/',
+                            icon: 'https://iota.org/logo.png',
+                            tags: ['Wallet', 'Dashboard'],
+                        },
+                    ],
                 },
                 [Feature.WalletBalanceRefetchInterval]: {
                     defaultValue: 1000,
