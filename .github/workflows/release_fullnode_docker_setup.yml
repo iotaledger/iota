@@ -32,7 +32,7 @@ jobs:
         # TODO remove prev upload 
 
       - name: List files
-        run: tree .cache
+        run: tree .cache 
           
       # - name: Add archive to PR artifacts
       #   if: github.event_name == 'pull_request'
