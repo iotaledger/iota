@@ -23,7 +23,7 @@ jobs:
           cp -r setups/fullnode/docker/* .cache/fullnode-docker-setup/
           
       - name: Create fullnode-docker-setup.tar.gz
-        run: tar -czvf fullnode-docker-setup.tar.gz -C .cache/fullnode-docker-setup .
+        run: tar -czvf .cache/fullnode-docker-setup.tar.gz -C .cache/fullnode-docker-setup .
 
       - name: List files
         run: ls -la .cache
