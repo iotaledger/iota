@@ -114,6 +114,10 @@ export function DelegationDetailCard({ validatorAddress, stakedId }: DelegationD
         ({ stakingPoolId }) => stakingPoolId === validatorData?.stakingPoolId,
     );
 
+    const inactiveValidator = !system?.activeValidators?.find(
+        ({ stakingPoolId }) => stakingPoolId === validatorData?.stakingPoolId,
+    );
+
     // check if the validator is at risk
     const isAtRisk = system?.atRiskValidators.find(([address]) => address === validatorAddress);
 
@@ -148,11 +152,19 @@ export function DelegationDetailCard({ validatorAddress, stakedId }: DelegationD
         <div className="flex h-full w-full flex-col justify-between">
             <div className="flex flex-col gap-y-md">
                 <Validator address={validatorAddress} type={CardType.Filled} />
-                {isNotCommitteeMember ? (
+                {isNotCommitteeMember && !inactiveValidator ? (
                     <InfoBox
                         type={InfoBoxType.Warning}
                         title="Validator is not earning rewards."
                         supportingText="Validator is not part of the current Epoch. Continue staking at your own discretion."
+                        icon={<Warning />}
+                        style={InfoBoxStyle.Elevated}
+                    />
+                ) : inactiveValidator ? (
+                    <InfoBox
+                        type={InfoBoxType.Error}
+                        title="Disabled Validator is not earning rewards"
+                        supportingText="This validator is flagged as a bad actor. Continue staking at your own discretion."
                         icon={<Warning />}
                         style={InfoBoxStyle.Elevated}
                     />

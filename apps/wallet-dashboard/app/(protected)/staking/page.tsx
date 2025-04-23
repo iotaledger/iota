@@ -41,6 +41,7 @@ function StakingDashboardPage(): React.JSX.Element {
     const account = useCurrentAccount();
     const { data: system } = useGetLatestIotaSystemState();
     const committeeMembers = system?.committeeMembers;
+    const activeValidators = system?.activeValidators;
     const iotaClient = useIotaClient();
 
     const {
@@ -77,17 +78,23 @@ function StakingDashboardPage(): React.JSX.Element {
 
     const delegations = useMemo(() => {
         return delegatedStakeData?.flatMap((delegation) => {
+            const isInCommittee = committeeMembers?.find(
+                (member) => member.stakingPoolId === delegation.stakingPool,
+            );
+            const isActive = activeValidators?.find(
+                (validator) => validator.stakingPoolId === delegation.stakingPool,
+            );
+            const inactiveValidator = !isActive;
             return delegation.stakes.map((d) => ({
                 ...d,
                 // flag any inactive validator for the stakeIota object
                 // if the stakingPoolId is not found in the committeeMembers list flag as inactive
-                activeButNotInTheCommittee: !committeeMembers?.find(
-                    ({ stakingPoolId }) => stakingPoolId === delegation.stakingPool,
-                ),
+                activeButNotInTheCommittee: !isInCommittee && isActive,
+                inactiveValidator: inactiveValidator,
                 validatorAddress: delegation.validatorAddress,
             }));
         });
-    }, [committeeMembers, delegatedStakeData]);
+    }, [activeValidators, committeeMembers, delegatedStakeData]);
 
     const viewStakeDetails = (extendedStake: ExtendedDelegatedStake) => {
         setStakeDialogView(StakeDialogView.Details);
@@ -183,8 +190,8 @@ function StakingDashboardPage(): React.JSX.Element {
                                 {system &&
                                     delegations
                                         ?.filter(
-                                            ({ activeButNotInTheCommittee }) =>
-                                                !activeButNotInTheCommittee,
+                                            ({ activeButNotInTheCommittee, inactiveValidator }) =>
+                                                !activeButNotInTheCommittee && !inactiveValidator,
                                         )
                                         .map((delegation) => (
                                             <div
@@ -193,6 +200,25 @@ function StakingDashboardPage(): React.JSX.Element {
                                             >
                                                 <StakedCard
                                                     extendedStake={delegation}
+                                                    currentEpoch={Number(system.epoch)}
+                                                    onClick={() => viewStakeDetails(delegation)}
+                                                />
+                                            </div>
+                                        ))}
+                                {system &&
+                                    delegations
+                                        ?.filter(
+                                            ({ inactiveValidator, activeButNotInTheCommittee }) =>
+                                                inactiveValidator && !activeButNotInTheCommittee,
+                                        )
+                                        .map((delegation) => (
+                                            <div
+                                                className="w-full gap-2"
+                                                key={delegation.stakedIotaId}
+                                            >
+                                                <StakedCard
+                                                    extendedStake={delegation}
+                                                    inactiveValidator
                                                     currentEpoch={Number(system.epoch)}
                                                     onClick={() => viewStakeDetails(delegation)}
                                                 />

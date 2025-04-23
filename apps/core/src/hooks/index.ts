@@ -60,6 +60,7 @@ export * from './useGetAllBalances';
 export * from './useCoinsReFetchingConfig';
 export * from './useGetLatestIotaSystemState';
 export * from './useIsValidatorCommitteeMember';
+export * from './useIsActiveValidator';
 
 export * from './stake';
 export * from './ui';

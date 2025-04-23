@@ -10,6 +10,7 @@ import {
     useValidatorInfo,
     toast,
     useIsValidatorCommitteeMember,
+    useIsActiveValidator,
 } from '@iota/core';
 import {
     Header,
@@ -64,6 +65,7 @@ export function DetailsView({
         validatorAddress,
     });
     const { isCommitteeMember } = useIsValidatorCommitteeMember();
+    const { isActiveValidator } = useIsActiveValidator();
 
     const iotaEarned = BigInt(stakedDetails?.estimatedReward || 0n);
     const [iotaEarnedFormatted, iotaEarnedSymbol] = useFormatCoin({ balance: iotaEarned });
@@ -94,6 +96,7 @@ export function DetailsView({
     }
 
     const isValidatorCommitteeMember = isCommitteeMember(validatorAddress);
+    const inactiveValidator = !isActiveValidator(validatorAddress);
 
     return (
         <DialogLayout>
@@ -111,7 +114,7 @@ export function DetailsView({
                         </CardImage>
                         <CardBody title={validatorName} subtitle={subtitle} isTextTruncated />
                     </Card>
-                    {!isValidatorCommitteeMember && (
+                    {!isValidatorCommitteeMember && !inactiveValidator ? (
                         <InfoBox
                             type={InfoBoxType.Warning}
                             title="Validator is not earning rewards."
@@ -119,7 +122,15 @@ export function DetailsView({
                             icon={<Warning />}
                             style={InfoBoxStyle.Elevated}
                         />
-                    )}
+                    ) : inactiveValidator ? (
+                        <InfoBox
+                            type={InfoBoxType.Error}
+                            title="Disabled Validator is not earning rewards"
+                            supportingText="This validator is flagged as a bad actor. Continue staking at your own discretion."
+                            icon={<Warning />}
+                            style={InfoBoxStyle.Elevated}
+                        />
+                    ) : null}
                     <Panel hasBorder>
                         <div className="flex flex-col gap-y-sm p-md">
                             <KeyValueInfo
