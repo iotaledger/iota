@@ -584,7 +584,7 @@ export class IotaClient {
      * as more protocol versions are released with changes to the system state.
      *
      * This is quite useful in case your app does not know in advance what node is it going to be using,
-     * this way you as developer dont need to handle each possible system state variantm,
+     * this way you as developer dont need to handle each possible system state variant,
      * this is already handled by this method.
      */
     async getLatestIotaSystemState(): Promise<LatestIotaSystemStateSummary> {
