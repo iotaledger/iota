@@ -118,7 +118,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_expirations() {
+    fn expirations() {
         let system_time: u64 = 100;
 
         let mut name = NameRecord {
