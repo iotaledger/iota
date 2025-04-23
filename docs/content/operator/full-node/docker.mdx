@@ -41,8 +41,8 @@ Before you begin, ensure you have the following:
 
 ```shell
 mkdir -p "$HOME/.local/iota-fullnode-docker"; cd "$HOME/.local/iota-fullnode-docker";
-curl -sL https://github.com/iotaledger/iota/actions/runs/14622677057/artifacts/2995312346 -o fullnode-docker-setup.tar.gz
-cat fullnode-docker-setup.tar.gz | tar -xf - --strip-components=1
+curl -sL https://github.com/iotaledger/iota/actions/runs/14623910752/artifacts/2995814395 | funzip > out_dir
+#| tar -xf - --strip-components=1
 ```
 
 2. Once you have download the source code, move into the docker fullnode directory:
