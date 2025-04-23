@@ -26,7 +26,7 @@ jobs:
         run: |
           cp setups/fullnode/fullnode-template-devnet.yaml .cache/fullnode-docker-setup/
           cp setups/fullnode/fullnode-template-testnet.yaml .cache/fullnode-docker-setup/
-          cp -r setups/fullnode/docker .cache/fullnode-docker-setup/
+          cp -r setups/fullnode/docker/* .cache/fullnode-docker-setup/
           
       # - name: Create fullnode-docker-setup.tar.gz
       #   if: github.event_name == 'release'
