@@ -59,13 +59,14 @@ use rand::rngs::OsRng;
 use tempfile::tempdir;
 use tracing::{self, info};
 
+#[cfg(feature = "iota-names")]
+use crate::name_commands;
 use crate::{
     PrintableResult,
     client_commands::IotaClientCommands,
     fire_drill::{FireDrill, run_fire_drill},
     genesis_ceremony::{Ceremony, run},
     keytool::KeyToolCommand,
-    name_commands,
     validator_commands::IotaValidatorCommand,
 };
 
@@ -332,6 +333,7 @@ pub enum IotaCommand {
         #[command(subcommand)]
         cmd: iota_move::Command,
     },
+    #[cfg(feature = "iota-names")]
     /// Manage names registered in IOTA-Names.
     Name {
         /// The file storing the state of the user accounts
@@ -520,6 +522,7 @@ impl IotaCommand {
                 };
                 execute_move_command(package_path.as_deref(), build_config, cmd)
             }
+            #[cfg(feature = "iota-names")]
             IotaCommand::Name { config, json, cmd } => {
                 let config_path = config.unwrap_or(iota_config_dir()?.join(IOTA_CLIENT_CONFIG));
                 prompt_if_no_config(&config_path, false, true, true)?;
