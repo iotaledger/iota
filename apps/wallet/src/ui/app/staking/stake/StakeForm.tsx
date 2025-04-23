@@ -165,22 +165,6 @@ export function StakeFormComponent({ validatorAddress, epoch, onSuccess }: Stake
     const transaction = newStakeData?.transaction;
     const gasSummary = newStakeData?.gasSummary;
 
-    // const [maxTokenFormatted, symbol] = useFormatCoin({
-    //     balance: maxTokenBalance,
-    // const { data: maxAmountTransactionData } = useNewStakeTransaction(
-    //     validatorAddress,
-    //     coinBalance,
-    //     activeAddress,
-    // );
-    // const maxAmountTxGasBudget = BigInt(maxAmountTransactionData?.gasSummary?.budget ?? 0n);
-    // // do not remove: gasBudget field is used in the validation schema apps/core/src/utils/stake/createValidationSchema.ts
-    // useEffect(() => {
-    //     setFieldValue('gasBudget', maxAmountTxGasBudget);
-    // }, [maxAmountTxGasBudget]);
-
-    // for user we show available amount as available_balance - gas_budget
-    // const availableBalance = coinBalance - maxAmountTxGasBudget;
-
     const isLoading =
         isIotaBalanceLoading ||
         isSubmitting ||

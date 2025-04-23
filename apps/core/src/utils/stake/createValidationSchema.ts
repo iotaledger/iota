@@ -7,7 +7,7 @@ import BigNumber from 'bignumber.js';
 import { mixed, object } from 'yup';
 
 export function createValidationSchema(
-    coinBalance: bigint,
+    availableBalance: bigint,
     coinSymbol: string,
     decimals: number,
     minimumStake: bigint,
@@ -34,27 +34,27 @@ export function createValidationSchema(
                     amount ? amount.shiftedBy(decimals).gte(minimumStake.toString()) : false,
             )
             .test('max', (amount, ctx) => {
-                if (coinBalance < 0) {
+                if (availableBalance < 0) {
                     return ctx.createError({
                         message: 'Insufficient funds',
                     });
                 }
 
-                const canStake = coinBalance >= minimumStake;
+                const canStake = availableBalance >= minimumStake;
                 if (!canStake)
                     return ctx.createError({
                         message: `Insufficient funds to stake a minimum of ${MIN_NUMBER_IOTA_TO_STAKE} ${coinSymbol}`,
                     });
 
                 const enoughBalance = amount
-                    ? amount.shiftedBy(decimals).lte(coinBalance.toString())
+                    ? amount.shiftedBy(decimals).lte(availableBalance.toString())
                     : false;
                 if (enoughBalance) {
                     return true;
                 }
                 return ctx.createError({
                     message: `\${path} must be less than ${formatBalance(
-                        coinBalance,
+                        availableBalance,
                         decimals,
                         CoinFormat.FULL,
                     )} ${coinSymbol}`,
