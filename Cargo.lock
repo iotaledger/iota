@@ -5925,7 +5925,6 @@ name = "iota-archival"
 version = "0.13.0-alpha"
 dependencies = [
  "anyhow",
- "bcs",
  "byteorder",
  "bytes",
  "ed25519-consensus",

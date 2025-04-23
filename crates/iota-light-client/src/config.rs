@@ -56,7 +56,8 @@ impl Config {
         Ok(config)
     }
 
-    /// Creates the necessary checkpoint directory and files if not already present.
+    /// Creates the necessary checkpoint directory and files if not already
+    /// present.
     pub async fn setup(&self) -> Result<()> {
         // Create the checkpoints directory if it doesn't exist yet
         if !self.checkpoints_dir.is_dir() {
@@ -124,17 +125,8 @@ impl Config {
         path
     }
 
-    pub fn checkpoint_summary_file_path<'a>(
-        &self,
-        seq: u64,
-        custom_path: impl Into<Option<&'a str>>,
-    ) -> PathBuf {
-        let mut path = self.checkpoints_dir.clone();
-        if let Some(custom) = custom_path.into() {
-            path.push(custom);
-        }
-        path.push(format!("{seq}.sum"));
-        path
+    pub fn checkpoint_summary_file_path(&self, seq: u64) -> PathBuf {
+        Path::new(&self.checkpoints_dir).join(format!("{seq}.sum"))
     }
 }
 

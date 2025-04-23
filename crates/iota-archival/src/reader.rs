@@ -6,7 +6,6 @@ use std::{
     borrow::Borrow,
     future,
     ops::Range,
-    path::Path,
     sync::{
         Arc,
         atomic::{AtomicU64, Ordering},
@@ -370,57 +369,6 @@ impl ArchiveReader {
                             .try_for_each(|summary| {
                                 Self::insert_certified_checkpoint(&store, summary)?;
                                 checkpoint_counter.fetch_add(1, Ordering::Relaxed);
-                                Ok::<(), anyhow::Error>(())
-                            })
-                    });
-                futures::future::ready(result)
-            })
-            .await
-    }
-
-    /// Downloads a given list of checkpoints from archive to disk while
-    /// skipping those that exist already.
-    pub async fn download_summaries_for_list_no_verify(
-        &self,
-        checkpoints: Vec<CheckpointSequenceNumber>,
-        download_dir: impl AsRef<Path>,
-    ) -> Result<()> {
-        let summary_files = self.get_summary_files_for_list(checkpoints.clone()).await?;
-        let remote_object_store = self.remote_object_store.clone();
-        let stream = futures::stream::iter(summary_files.iter())
-            .map(|summary_metadata| {
-                let remote_object_store = remote_object_store.clone();
-                async move {
-                    let summary_data =
-                        get(&remote_object_store, &summary_metadata.file_path()).await?;
-                    Ok::<Bytes, anyhow::Error>(summary_data)
-                }
-            })
-            .boxed();
-
-        stream
-            .buffer_unordered(self.concurrency)
-            .try_for_each(|summary_data| {
-                let result: Result<(), anyhow::Error> =
-                    make_iterator::<CertifiedCheckpointSummary, Reader<Bytes>>(
-                        SUMMARY_FILE_MAGIC,
-                        summary_data.reader(),
-                    )
-                    .and_then(|summary_iter| {
-                        summary_iter
-                            .filter(|s| checkpoints.contains(&s.sequence_number))
-                            .try_for_each(|summary| {
-                                let path = format!(
-                                    "{}/{}.sum",
-                                    download_dir.as_ref().display(),
-                                    summary.sequence_number()
-                                );
-                                info!("Writing checkpoint file to '{path}'");
-                                bcs::serialize_into(
-                                    &mut std::fs::File::create(path).expect("error creating file"),
-                                    &summary,
-                                )
-                                .expect("error serializing summary checkpoint to bcs");
                                 Ok::<(), anyhow::Error>(())
                             })
                     });

@@ -2,11 +2,13 @@
 // Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use core::sync::atomic::AtomicU64;
 use std::{
     collections::HashSet,
     fs,
     io::{Read, Write},
     num::NonZeroUsize,
+    sync::Arc,
 };
 
 use anyhow::{Context, Result, bail};
@@ -17,7 +19,8 @@ use iota_json_rpc_types::CheckpointId;
 use iota_sdk::IotaClientBuilder;
 use iota_types::{
     committee::Committee,
-    messages_checkpoint::{CertifiedCheckpointSummary, EndOfEpochData},
+    messages_checkpoint::{CertifiedCheckpointSummary, EndOfEpochData, VerifiedCheckpoint},
+    storage::{ObjectStore, ReadStore, WriteStore},
 };
 use prometheus::Registry;
 use serde::{Deserialize, Serialize};
@@ -63,15 +66,14 @@ pub fn write_checkpoint_list(config: &Config, checkpoints_list: &CheckpointList)
 }
 
 pub fn read_checkpoint_summary(config: &Config, seq: u64) -> Result<CertifiedCheckpointSummary> {
-    read_checkpoint_summary_general(config, seq, None)
+    read_checkpoint_summary_general(config, seq)
 }
 
 fn read_checkpoint_summary_general(
     config: &Config,
     seq: u64,
-    path: Option<&str>,
 ) -> Result<CertifiedCheckpointSummary> {
-    let checkpoint_path = config.checkpoint_summary_file_path(seq, path);
+    let checkpoint_path = config.checkpoint_summary_file_path(seq);
     let mut reader = fs::File::open(checkpoint_path)?;
     let mut buffer = Vec::new();
     reader.read_to_end(&mut buffer)?;
@@ -82,15 +84,14 @@ pub fn write_checkpoint_summary(
     config: &Config,
     summary: &CertifiedCheckpointSummary,
 ) -> Result<()> {
-    write_checkpoint_summary_general(config, summary, None)
+    write_checkpoint_summary_general(config, summary)
 }
 
 fn write_checkpoint_summary_general(
     config: &Config,
     summary: &CertifiedCheckpointSummary,
-    path: Option<&str>,
 ) -> Result<()> {
-    let checkpoint_path = config.checkpoint_summary_file_path(*summary.sequence_number(), path);
+    let checkpoint_path = config.checkpoint_summary_file_path(*summary.sequence_number());
     let mut writer = fs::File::create(checkpoint_path)?;
     let bytes = bcs::to_bytes(summary).expect("unable to serialize checkpoint summary");
     writer.write_all(&bytes)?;
@@ -324,7 +325,7 @@ pub async fn sync_and_check_checkpoints(config: &Config) -> anyhow::Result<()> {
     // Create a list of summaries that need to be downloaded
     let mut missing = Vec::new();
     for seq in checkpoints_list.checkpoints.iter().copied() {
-        if !config.checkpoint_summary_file_path(seq, None).exists() {
+        if !config.checkpoint_summary_file_path(seq).exists() {
             missing.push(seq);
         }
     }
@@ -350,11 +351,13 @@ pub async fn sync_and_check_checkpoints(config: &Config) -> anyhow::Result<()> {
             use_for_pruning_watermark: false,
         };
 
+        let store = CheckpointSummaryFileStore::new(config);
+        let counter = Arc::new(AtomicU64::new(0));
         let metrics = ArchiveReaderMetrics::new(&Registry::default());
         let archive_reader = ArchiveReader::new(archive_reader_config, &metrics)?;
         archive_reader.sync_manifest_once().await?;
         archive_reader
-            .download_summaries_for_list_no_verify(missing, &config.checkpoints_dir)
+            .read_summaries_for_list_no_verify(store.clone(), missing, counter)
             .await?;
     } else {
         info!("Downloading missing checkpoints from full node.");
@@ -370,10 +373,10 @@ pub async fn sync_and_check_checkpoints(config: &Config) -> anyhow::Result<()> {
                 .get_checkpoint_summary(seq)
                 .await
                 .context(format!("Failed to download checkpoint summary '{seq}'"))?;
-            let path = format!("{}/{seq}.sum", config.checkpoints_dir.display());
+            let path = config.checkpoint_summary_file_path(seq);
             bcs::serialize_into(
                 &mut std::fs::File::create(&path)
-                    .context(format!("error creating summary file '{path}'"))?,
+                    .context(format!("error creating summary file '{}'", path.display()))?,
                 &summary,
             )
             .expect("error serializing to bcs");
@@ -387,7 +390,7 @@ pub async fn sync_and_check_checkpoints(config: &Config) -> anyhow::Result<()> {
     for seq in checkpoints_list.checkpoints {
         // Check if there is a corresponding checkpoint summary file in the checkpoints
         // directory
-        let summary_path = config.checkpoint_summary_file_path(seq, None);
+        let summary_path = config.checkpoint_summary_file_path(seq);
 
         // If file exists read the file otherwise download it from the server
         let summary = if summary_path.exists() {
@@ -420,6 +423,182 @@ pub async fn sync_and_check_checkpoints(config: &Config) -> anyhow::Result<()> {
     }
 
     Ok(())
+}
+
+#[derive(Clone, Debug)]
+struct CheckpointSummaryFileStore<'a> {
+    config: &'a Config,
+}
+
+impl<'a> CheckpointSummaryFileStore<'a> {
+    fn new(config: &'a Config) -> Self {
+        Self { config }
+    }
+}
+
+impl WriteStore for CheckpointSummaryFileStore<'_> {
+    fn insert_checkpoint(
+        &self,
+        checkpoint: &VerifiedCheckpoint,
+    ) -> iota_types::storage::error::Result<()> {
+        let path = self
+            .config
+            .checkpoint_summary_file_path(*checkpoint.sequence_number());
+        info!("Downloading checkpoint summary to '{}'", path.display());
+        bcs::serialize_into(
+            &mut fs::File::create(&path).expect("error writing file"),
+            &checkpoint.clone().into_inner(),
+        )
+        .expect("error serializing summary checkpoint to bcs");
+        Ok(())
+    }
+
+    fn update_highest_synced_checkpoint(
+        &self,
+        _: &iota_types::messages_checkpoint::VerifiedCheckpoint,
+    ) -> iota_types::storage::error::Result<()> {
+        unimplemented!()
+    }
+
+    fn update_highest_verified_checkpoint(
+        &self,
+        _: &iota_types::messages_checkpoint::VerifiedCheckpoint,
+    ) -> iota_types::storage::error::Result<()> {
+        unimplemented!()
+    }
+
+    fn insert_checkpoint_contents(
+        &self,
+        _: &iota_types::messages_checkpoint::VerifiedCheckpoint,
+        _: iota_types::messages_checkpoint::VerifiedCheckpointContents,
+    ) -> iota_types::storage::error::Result<()> {
+        unimplemented!()
+    }
+
+    fn insert_committee(&self, _: Committee) -> iota_types::storage::error::Result<()> {
+        unimplemented!()
+    }
+}
+
+impl ReadStore for CheckpointSummaryFileStore<'_> {
+    fn get_committee(
+        &self,
+        _: iota_types::committee::EpochId,
+    ) -> iota_types::storage::error::Result<Option<Arc<Committee>>> {
+        unimplemented!()
+    }
+
+    fn get_latest_checkpoint(&self) -> iota_types::storage::error::Result<VerifiedCheckpoint> {
+        unimplemented!()
+    }
+
+    fn get_highest_verified_checkpoint(
+        &self,
+    ) -> iota_types::storage::error::Result<VerifiedCheckpoint> {
+        unimplemented!()
+    }
+
+    fn get_highest_synced_checkpoint(
+        &self,
+    ) -> iota_types::storage::error::Result<VerifiedCheckpoint> {
+        unimplemented!()
+    }
+
+    fn get_lowest_available_checkpoint(
+        &self,
+    ) -> iota_types::storage::error::Result<iota_types::messages_checkpoint::CheckpointSequenceNumber>
+    {
+        unimplemented!()
+    }
+
+    fn get_checkpoint_by_digest(
+        &self,
+        _: &iota_types::digests::CheckpointDigest,
+    ) -> iota_types::storage::error::Result<Option<VerifiedCheckpoint>> {
+        unimplemented!()
+    }
+
+    fn get_checkpoint_by_sequence_number(
+        &self,
+        _: iota_types::messages_checkpoint::CheckpointSequenceNumber,
+    ) -> iota_types::storage::error::Result<Option<VerifiedCheckpoint>> {
+        unimplemented!()
+    }
+
+    fn get_checkpoint_contents_by_digest(
+        &self,
+        _: &iota_types::digests::CheckpointContentsDigest,
+    ) -> iota_types::storage::error::Result<
+        Option<iota_types::messages_checkpoint::CheckpointContents>,
+    > {
+        unimplemented!()
+    }
+
+    fn get_checkpoint_contents_by_sequence_number(
+        &self,
+        _: iota_types::messages_checkpoint::CheckpointSequenceNumber,
+    ) -> iota_types::storage::error::Result<
+        Option<iota_types::messages_checkpoint::CheckpointContents>,
+    > {
+        unimplemented!()
+    }
+
+    fn get_transaction(
+        &self,
+        _: &iota_types::digests::TransactionDigest,
+    ) -> iota_types::storage::error::Result<Option<Arc<iota_types::transaction::VerifiedTransaction>>>
+    {
+        unimplemented!()
+    }
+
+    fn get_transaction_effects(
+        &self,
+        _: &iota_types::digests::TransactionDigest,
+    ) -> iota_types::storage::error::Result<Option<iota_types::effects::TransactionEffects>> {
+        unimplemented!()
+    }
+
+    fn get_events(
+        &self,
+        _: &iota_types::digests::TransactionEventsDigest,
+    ) -> iota_types::storage::error::Result<Option<iota_types::effects::TransactionEvents>> {
+        unimplemented!()
+    }
+
+    fn get_full_checkpoint_contents_by_sequence_number(
+        &self,
+        _: iota_types::messages_checkpoint::CheckpointSequenceNumber,
+    ) -> iota_types::storage::error::Result<
+        Option<iota_types::messages_checkpoint::FullCheckpointContents>,
+    > {
+        unimplemented!()
+    }
+
+    fn get_full_checkpoint_contents(
+        &self,
+        _: &iota_types::digests::CheckpointContentsDigest,
+    ) -> iota_types::storage::error::Result<
+        Option<iota_types::messages_checkpoint::FullCheckpointContents>,
+    > {
+        unimplemented!()
+    }
+}
+
+impl ObjectStore for CheckpointSummaryFileStore<'_> {
+    fn get_object(
+        &self,
+        _: &iota_types::base_types::ObjectID,
+    ) -> iota_types::storage::error::Result<Option<iota_types::object::Object>> {
+        unimplemented!()
+    }
+
+    fn get_object_by_key(
+        &self,
+        _: &iota_types::base_types::ObjectID,
+        _: iota_types::base_types::VersionNumber,
+    ) -> iota_types::storage::error::Result<Option<iota_types::object::Object>> {
+        unimplemented!()
+    }
 }
 
 #[cfg(test)]
