@@ -62,7 +62,9 @@ test.describe('Wallet staking', () => {
         walletApprovePage = await walletApprovePagePromise;
         await walletApprovePage.getByRole('button', { name: 'Approve' }).click();
 
-        await dashboardPage.reload();
+        await dashboardPage.waitForSelector('text=Start Staking', {
+            timeout: 30_000,
+        });
 
         expect(dashboardPage.getByRole('button', { name: 'Stake' })).toBeVisible();
         expect(dashboardPage.getByText('validator-1')).not.toBeVisible();
