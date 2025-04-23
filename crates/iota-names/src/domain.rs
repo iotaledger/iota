@@ -8,7 +8,7 @@ use move_core_types::{ident_str, identifier::IdentStr, language_storage::StructT
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    config::{ACCEPTED_SEPARATORS, DEFAULT_TLD, IOTA_NEW_FORMAT_SEPARATOR},
+    config::{ACCEPTED_SEPARATORS, DEFAULT_TLD, IOTA_AT_FORMAT_SEPARATOR},
     error::IotaNamesError,
 };
 
@@ -17,13 +17,6 @@ pub struct Domain {
     // Labels of the domain name, in reverse order
     labels: Vec<String>,
 }
-
-// impl std::fmt::Display for Domain {
-//     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-//         let labels = self.labels.iter().rev().cloned().collect::<Vec<_>>();
-//         write!(f, "{}", labels.join("."))
-//     }
-// }
 
 // impl FromStr for Domain {
 //     type Err = anyhow::Error;
@@ -179,7 +172,7 @@ impl Domain {
         let _tld = labels.pop();
         let sld = labels.pop().unwrap();
 
-        format!("{}{}{}", labels.join(sep), IOTA_NEW_FORMAT_SEPARATOR, sld)
+        format!("{}{}{}", labels.join(sep), IOTA_AT_FORMAT_SEPARATOR, sld)
     }
 }
 
@@ -216,7 +209,7 @@ fn separator(s: &str) -> Result<char, IotaNamesError> {
 ///
 /// E.g. `@example` -> `example.iota` | `test@example` -> `test.example.iota`
 fn convert_from_new_format(s: &str, separator: &char) -> Result<String, IotaNamesError> {
-    let mut splits = s.split(IOTA_NEW_FORMAT_SEPARATOR);
+    let mut splits = s.split(IOTA_AT_FORMAT_SEPARATOR);
 
     let Some(before) = splits.next() else {
         return Err(IotaNamesError::InvalidSeparator);
