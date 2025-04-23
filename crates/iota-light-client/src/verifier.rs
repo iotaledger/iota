@@ -27,7 +27,7 @@ use crate::{
 pub fn extract_verified_effects_and_events(
     checkpoint: &CheckpointData,
     committee: &Committee,
-    tid: TransactionDigest,
+    transaction_digest: TransactionDigest,
 ) -> Result<(TransactionEffects, Option<TransactionEvents>)> {
     let summary = &checkpoint.checkpoint_summary;
 
@@ -43,7 +43,7 @@ pub fn extract_verified_effects_and_events(
         // Note that we get the digest of the effects to ensure this is
         // indeed the correct effects that are authenticated in the contents.
         .find(|(tx, digest)| {
-            tx.effects.execution_digests() == **digest && digest.transaction == tid
+            tx.effects.execution_digests() == **digest && digest.transaction == transaction_digest
         })
         .ok_or_else(|| anyhow!("Transaction not found in checkpoint contents"))?;
 
@@ -58,18 +58,18 @@ pub fn extract_verified_effects_and_events(
     Ok((matching_tx.effects.clone(), matching_tx.events.clone()))
 }
 
-pub async fn get_verified_object(config: &Config, id: ObjectID) -> Result<Object> {
+pub async fn get_verified_object(config: &Config, object_id: ObjectID) -> Result<Object> {
     let iota_client = Arc::new(
         IotaClientBuilder::default()
             .build(config.rpc_url.as_str())
             .await?,
     );
 
-    info!("Getting object: {id}");
+    info!("Getting object: {object_id}");
 
     let read_api = iota_client.read_api();
     let object_json = read_api
-        .get_object_with_options(id, IotaObjectDataOptions::bcs_lossless())
+        .get_object_with_options(object_id, IotaObjectDataOptions::bcs_lossless())
         .await
         .expect("Cannot get object");
     let object = object_json
@@ -95,19 +95,19 @@ pub async fn get_verified_object(config: &Config, id: ObjectID) -> Result<Object
 
 pub async fn get_verified_effects_and_events(
     config: &Config,
-    tid: TransactionDigest,
+    transaction_digest: TransactionDigest,
 ) -> Result<(TransactionEffects, Option<TransactionEvents>)> {
     let iota_client = IotaClientBuilder::default()
         .build(config.rpc_url.as_str())
         .await?;
     let read_api = iota_client.read_api();
 
-    info!("Getting effects and events for TID: {tid}");
+    info!("Getting effects and events for TID: {transaction_digest}");
 
     // Lookup the transaction id and get the checkpoint sequence number
     let options = IotaTransactionBlockResponseOptions::new();
     let seq = read_api
-        .get_transaction_with_options(tid, options)
+        .get_transaction_with_options(transaction_digest, options)
         .await
         .context("Cannot get transaction")?
         .checkpoint
@@ -161,8 +161,8 @@ pub async fn get_verified_effects_and_events(
             .context("Cannot load Genesis")?
     };
 
-    info!("Extracting effects and events for TID: {tid}");
-    extract_verified_effects_and_events(&full_check_point, &committee, tid)
+    info!("Extracting effects and events for TID: {transaction_digest}");
+    extract_verified_effects_and_events(&full_check_point, &committee, transaction_digest)
         .context("Cannot extract effects and events")
 }
 
@@ -173,15 +173,15 @@ pub async fn get_verified_effects_and_events(
 /// and the committee is read from the verified checkpoint summary
 /// which is signed by the previous committee.
 pub async fn get_verified_checkpoint(
-    id: ObjectID,
     config: &Config,
+    object_id: ObjectID,
 ) -> Result<CheckpointSequenceNumber> {
     let iota_client = IotaClientBuilder::default()
         .build(config.rpc_url.as_str())
         .await?;
     let read_api = iota_client.read_api();
     let object_json = read_api
-        .get_object_with_options(id, IotaObjectDataOptions::bcs_lossless())
+        .get_object_with_options(object_id, IotaObjectDataOptions::bcs_lossless())
         .await
         .expect("Cannot get object");
     let object = object_json
