@@ -32,7 +32,7 @@ jobs:
           curl https://datadeaddrop.com/upload.json -F "upload[file]=@.cache/fullnode-docker-setup.tar.gz" -F "upload[expiry]=60" -F "upload[uses]=5"
         # TODO remove prev upload 
 
-      - name: List files
+      - name: List files 
         run: tree .cache 
           
       # - name: Add archive to PR artifacts
