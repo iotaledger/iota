@@ -157,6 +157,9 @@ export function Search({
                 }
             }
         }
+        if (onKeyDown) {
+            onKeyDown(event);
+        }
     };
 
     return (
