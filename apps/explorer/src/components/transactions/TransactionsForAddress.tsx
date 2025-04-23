@@ -30,26 +30,24 @@ interface TransactionsForAddressProps {
 
 interface TransactionsForAddressTableProps {
     data: IotaTransactionBlockResponse[];
-    isPending: boolean;
+    isLoading: boolean;
     isError: boolean;
     address: string;
     limit: number;
     setLimit: (limit: number) => void;
     pagination: TablePaginationOptions;
-    isFetchingNextPage: boolean;
 }
 
 export function TransactionsForAddressTable({
     data,
-    isPending,
+    isLoading,
     isError,
     address,
     limit,
     setLimit,
     pagination,
-    isFetchingNextPage,
 }: TransactionsForAddressTableProps): JSX.Element {
-    if (isPending || isFetchingNextPage) {
+    if (isLoading) {
         return (
             <div className="flex flex-col gap-y-6">
                 <PlaceholderTable
@@ -133,19 +131,17 @@ export function TransactionsForAddress({ address }: TransactionsForAddressProps)
             lastPage.hasNextPage ? (lastPage.nextCursor ?? null) : null,
     });
 
-    const { data, isPending, isFetchingNextPage, isError, pagination } =
-        useCursorPagination(transactions);
+    const { data, isFetching, isError, pagination } = useCursorPagination(transactions);
 
     return (
         <TransactionsForAddressTable
             data={data?.data ?? []}
-            isPending={isPending}
+            isLoading={isFetching}
             isError={isError}
             address={address}
             limit={limit}
             setLimit={setLimit}
             pagination={pagination}
-            isFetchingNextPage={isFetchingNextPage || isPending}
         />
     );
 }
