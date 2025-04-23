@@ -33,12 +33,12 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: fullnode-docker-setup
-          path: fullnode-docker-setup.tar.gz
+          path: .cache/fullnode-docker-setup
           
       - name: Upload fullnode-docker-setup.tar.gz
         if: github.event_name == 'release'
         uses: Shopify/upload-to-release@v2.0.0
         with:
           name: fullnode-docker-setup.tar.gz
-          path: fullnode-docker-setup.tar.gz
+          path: .cache/fullnode-docker-setup.tar.gz
           repo-token: ${{ secrets.GITHUB_TOKEN }}
