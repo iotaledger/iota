@@ -118,9 +118,6 @@ export function DelegationDetailCard({ validatorAddress, stakedId }: DelegationD
         ({ stakingPoolId }) => stakingPoolId === validatorData?.stakingPoolId,
     );
 
-    // check if the validator is at risk
-    const isAtRisk = system?.atRiskValidators.find(([address]) => address === validatorAddress);
-
     if (isPending || loadingValidators) {
         return (
             <div className="flex h-full w-full items-center justify-center p-2">
@@ -198,7 +195,7 @@ export function DelegationDetailCard({ validatorAddress, stakedId }: DelegationD
                         />
                     </div>
                 </Panel>
-                {isAtRisk ? (
+                {(!inactiveValidator && isNotCommitteeMember) || inactiveValidator ? (
                     <Panel hasBorder>
                         <div className="flex flex-col gap-y-sm p-md">
                             <KeyValueInfo
