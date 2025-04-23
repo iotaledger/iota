@@ -172,7 +172,7 @@ impl Domain {
         let _tld = labels.pop();
         let sld = labels.pop().unwrap();
 
-        format!("{}{}{}", labels.join(sep), IOTA_AT_FORMAT_SEPARATOR, sld)
+        format!("{}{IOTA_AT_FORMAT_SEPARATOR}{sld}", labels.join(sep))
     }
 }
 
