@@ -1,26 +1,18 @@
 #!/bin/bash -ex
 WORKDIR="$( dirname "${BASH_SOURCE[0]}" )"
-# WORKDIR="$(dirname "$DOCKER_DIR")"
 DATA_DIR="$WORKDIR/data"
 CONFIG_DIR="$DATA_DIR/config"
 
-
 # check if the "data" folder exists
-if [ -d "$DATA_DIR" ] && [ "$(ls -A "$DATA_DIR")" ]; then
-    echo "Data folder found and not empty. Aborting."
+if [ -d "$CONFIG_DIR" ] && ([ -f "$CONFIG_DIR/genesis.blob" ] || [ -f "$CONFIG_DIR/migration.blob" ]); then
+    echo "Config folder found and not empty. Aborting."
     exit 1
 fi
 
-# create the "data" folder if it does not exist
+# create "data/" and "data/config/"
 mkdir -p "$CONFIG_DIR"
-
 # download the genesis file
 curl -fLJ https://dbfiles.devnet.iota.cafe/genesis.blob -o "$CONFIG_DIR/genesis.blob"
 # download the migration file
 curl -fLJ https://dbfiles.devnet.iota.cafe/migration.blob -o "$CONFIG_DIR/migration.blob"
 
-# check if the "fullnode.yaml" file exists
-if [ ! -f "$CONFIG_DIR/fullnode.yaml" ]; then
-    echo "[INFO] fullnode.yaml not found, will create it from the devnet template."
-    cp "$WORKDIR/fullnode-template-devnet.yaml" "$CONFIG_DIR/fullnode.yaml"
-fi

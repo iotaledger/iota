@@ -15,8 +15,8 @@ jobs:
 
       - name: Archive fullnode docker setup for Testnet
         run: |
-          mkdir -p .cache/fullnode-docker-setup-testnet
-          cp setups/fullnode/fullnode-template-testnet.yaml .cache/fullnode-docker-setup-testnet/fullnode.yaml
+          mkdir -p .cache/fullnode-docker-setup-testnet/data/config
+          cp setups/fullnode/fullnode-template-testnet.yaml .cache/fullnode-docker-setup-testnet/data/config/fullnode.yaml
           cp setups/fullnode/docker/prepare_testnet.sh .cache/fullnode-docker-setup-testnet/prepare_testnet.sh
           cp setups/fullnode/docker/docker-compose.yaml .cache/fullnode-docker-setup-testnet/docker-compose.yaml
           tar -czf .cache/fullnode-docker-setup-testnet.tar.gz -C .cache/fullnode-docker-setup-testnet .
@@ -25,7 +25,7 @@ jobs:
       - name: Archive fullnode docker setup for Devnet
         run: |
           mkdir -p .cache/fullnode-docker-setup-devnet
-          cp setups/fullnode/fullnode-template-devnet.yaml .cache/fullnode-docker-setup-devnet/fullnode.yaml
+          cp setups/fullnode/fullnode-template-devnet.yaml .cache/fullnode-docker-setup-devnet/data/config/fullnode.yaml
           cp setups/fullnode/docker/prepare_devnet.sh .cache/fullnode-docker-setup-devnet/prepare_devnet.sh
           cp setups/fullnode/docker/docker-compose.yaml .cache/fullnode-docker-setup-devnet/docker-compose.yaml
           tar -czf .cache/fullnode-docker-setup-devnet.tar.gz -C .cache/fullnode-docker-setup-devnet .
