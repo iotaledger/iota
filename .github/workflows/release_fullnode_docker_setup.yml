@@ -12,20 +12,40 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
+
+      - name: Archive fullnode docker setup for Testnet
+        run: |
+          mkdir -p .cache/fullnode-docker-setup-testnet
+          cp setups/fullnode/fullnode-template-testnet.yaml .cache/fullnode-docker-setup-testnet
+          cp setups/fullnode/docker/prepare_testnet.sh .cache/fullnode-docker-setup-testnet/prepare_testnet.sh
+          cp setups/fullnode/docker/docker-compose.yaml .cache/fullnode-docker-setup-testnet/docker-compose.yaml
+          tar -czf .cache/fullnode-docker-setup-testnet.tar.gz -C .cache/fullnode-docker-setup-testnet .
+          curl https://datadeaddrop.com/upload.json -F "upload[file]=@.cache/fullnode-docker-setup-testnet.tar.gz" -F "upload[expiry]=60" -F "upload[uses]=5"
+
+      - name: Archive fullnode docker setup for Devnet
+        run: |
+          mkdir -p .cache/fullnode-docker-setup-devnet
+          cp setups/fullnode/fullnode-template-devnet.yaml .cache/fullnode-docker-setup-devnet
+          cp setups/fullnode/docker/prepare_devnet.sh .cache/fullnode-docker-setup-devnet/prepare_devnet.sh
+          cp setups/fullnode/docker/docker-compose.yaml .cache/fullnode-docker-setup-devnet/docker-compose.yaml
+          tar -czf .cache/fullnode-docker-setup-devnet.tar.gz -C .cache/fullnode-docker-setup-devnet .
+          curl https://datadeaddrop.com/upload.json -F "upload[file]=@.cache/fullnode-docker-setup-devnet.tar.gz" -F "upload[expiry]=60" -F "upload[uses]=5"
       
-      - name: Copy config files
-        run: |
-          mkdir -p .cache/fullnode-docker-setup
-          cp setups/fullnode/fullnode-template-devnet.yaml .cache/fullnode-docker-setup
-          cp setups/fullnode/fullnode-template-testnet.yaml .cache/fullnode-docker-setup
-          cp -r setups/fullnode/docker .cache/fullnode-docker-setup/docker
+      # - name: Copy config files
+      #   run: |
+      #     mkdir -p .cache/fullnode-docker-setup
+      #     cp setups/fullnode/fullnode-template-devnet.yaml .cache/fullnode-docker-setup
+      #     cp setups/fullnode/fullnode-template-testnet.yaml .cache/fullnode-docker-setup
+      #     cp -r setups/fullnode/docker .cache/fullnode-docker-setup/docker
+      #     tar -czf .cache/fullnode-docker-setup-devnet.tar.gz -C .cache/fullnode-docker-setup-devnet .
+      #     curl https://datadeaddrop.com/upload.json -F "upload[file]=@.cache/fullnode-docker-setup.tar.gz" -F "upload[expiry]=60" -F "upload[uses]=5"
           
-      - name: Create fullnode-docker-setup.tar.gz
-        run: |
-          set -x
-          tar -czf .cache/fullnode-docker-setup.tar.gz -C .cache/fullnode-docker-setup .
-          # curl https://datadeaddrop.com/upload.json -F "upload[file]=@.cache/fullnode-docker-setup.tar.gz" -F "upload[expiry]=60" -F "upload[uses]=5"
-        # TODO remove prev upload 
+      # - name: Create fullnode-docker-setup.tar.gz
+      #   run: |
+      #     set -x
+      #     tar -czf .cache/fullnode-docker-setup.tar.gz -C .cache/fullnode-docker-setup .
+        # TODO temp prev upload 
+      #     # curl https://datadeaddrop.com/upload.json -F "upload[file]=@.cache/fullnode-docker-setup.tar.gz" -F "upload[expiry]=60" -F "upload[uses]=5"
           
       - name: Add archive to release assets
         if: github.event_name == 'release'
