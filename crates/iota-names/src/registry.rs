@@ -92,7 +92,6 @@ impl TryFrom<MoveObject> for NameRecord {
     }
 }
 
-// TODO I'm thinking of removing this impl
 impl NameRecord {
     /// Leaf records expire when their parent expires.
     /// The `expiration_timestamp_ms` is set to `0` (on-chain) to indicate this.
