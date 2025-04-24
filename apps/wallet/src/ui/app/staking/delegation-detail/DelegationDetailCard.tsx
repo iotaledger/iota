@@ -17,7 +17,6 @@ import {
     Validator,
     getValidatorCommission,
     toast,
-    useGetLatestIotaSystemState,
     useIsValidatorCommitteeMember,
     useIsActiveValidator,
 } from '@iota/core';
@@ -43,6 +42,7 @@ import {
 } from '@iota/apps-ui-kit';
 import { useNavigate } from 'react-router-dom';
 import { Warning } from '@iota/apps-ui-icons';
+import { useIotaClientQuery } from '@iota/dapp-kit';
 
 interface DelegationDetailCardProps {
     validatorAddress: string;
@@ -55,7 +55,7 @@ export function DelegationDetailCard({ validatorAddress, stakedId }: DelegationD
         data: system,
         isPending: loadingValidators,
         isError: errorValidators,
-    } = useGetLatestIotaSystemState();
+    } = useIotaClientQuery('getLatestIotaSystemState');
 
     const accountAddress = useActiveAddress();
     const {

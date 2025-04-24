@@ -2,9 +2,8 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { type IotaSystemStateSummaryCompat, useGetLatestIotaSystemState } from '@iota/core';
-import { useIotaClient } from '@iota/dapp-kit';
-import type { IotaClient } from '@iota/iota-sdk/client';
+import { useIotaClient, useIotaClientQuery } from '@iota/dapp-kit';
+import type { IotaClient, LatestIotaSystemStateSummary } from '@iota/iota-sdk/client';
 import {
     isValidTransactionDigest,
     isValidIotaAddress,
@@ -97,7 +96,7 @@ const getResultsForAddress = async (client: IotaClient, query: string): Promise<
 
 // Query for validator by pool id or iota address.
 const getResultsForValidatorByPoolIdOrIotaAddress = async (
-    systemStateSummary: IotaSystemStateSummaryCompat | null,
+    systemStateSummary: LatestIotaSystemStateSummary | null,
     query: string,
 ): Promise<Results | null> => {
     const normalized = normalizeIotaObjectId(query);
@@ -125,7 +124,7 @@ const getResultsForValidatorByPoolIdOrIotaAddress = async (
 
 export function useSearch(query: string): UseQueryResult<Results, Error> {
     const client = useIotaClient();
-    const { data: systemStateSummary } = useGetLatestIotaSystemState();
+    const { data: systemStateSummary } = useIotaClientQuery('getLatestIotaSystemState');
 
     return useQuery<Results, Error>({
         // eslint-disable-next-line @tanstack/query/exhaustive-deps

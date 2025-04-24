@@ -4,7 +4,6 @@
 import {
     CoinFormat,
     useFormatCoin,
-    useGetLatestIotaSystemState,
     useIsValidatorCommitteeMember,
     useStakeTxnInfo,
     Validator,
@@ -26,6 +25,7 @@ import { Field, type FieldProps, useFormikContext } from 'formik';
 import { Exclamation, Loader, Warning } from '@iota/apps-ui-icons';
 import { StakedInfo } from './StakedInfo';
 import { DialogLayout, DialogLayoutBody, DialogLayoutFooter } from '../../layout';
+import { useIotaClientQuery } from '@iota/dapp-kit';
 import React from 'react';
 
 interface FormValues {
@@ -61,7 +61,7 @@ export function EnterAmountDialogLayout({
     handleStake,
     renderInputAction,
 }: EnterAmountDialogLayoutProps): JSX.Element {
-    const { data: system } = useGetLatestIotaSystemState();
+    const { data: system } = useIotaClientQuery('getLatestIotaSystemState');
     const { values, errors } = useFormikContext<FormValues>();
     const amount = values.amount;
     const { isCommitteeMember } = useIsValidatorCommitteeMember();
@@ -178,6 +178,7 @@ export function EnterAmountDialogLayout({
                             ) : null
                         }
                         iconAfterText
+                        testId="stake-confirm-btn"
                     />
                 </div>
             </DialogLayoutFooter>

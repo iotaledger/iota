@@ -14,8 +14,9 @@ import {
 import { useMemo } from 'react';
 import { ImageIcon } from '../icon';
 import { ExtendedDelegatedStake } from '../../utils';
-import { useFormatCoin, useGetLatestIotaSystemState, useStakeRewardStatus } from '../../hooks';
+import { useFormatCoin, useStakeRewardStatus } from '../../hooks';
 import { RewardsOff, Warning } from '@iota/apps-ui-icons';
+import { useIotaClientQuery } from '@iota/dapp-kit';
 
 interface StakedCardProps {
     extendedStake: ExtendedDelegatedStake;
@@ -52,7 +53,7 @@ export function StakedCard({
                 : principal,
     });
 
-    const { data } = useGetLatestIotaSystemState();
+    const { data } = useIotaClientQuery('getLatestIotaSystemState');
 
     const validatorMeta = useMemo(() => {
         if (!data) return null;
