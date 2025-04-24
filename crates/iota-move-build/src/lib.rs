@@ -398,7 +398,7 @@ impl CompiledPackage {
     /// dependencies' storage package IDs (where to load those packages
     /// on-chain).
     pub fn get_dependency_storage_package_ids(&self) -> Vec<ObjectID> {
-        self.dependency_ids.published.values().cloned().collect()
+        self.dependency_ids.published.values().copied().collect()
     }
 
     pub fn get_package_digest(&self, with_unpublished_deps: bool) -> [u8; 32] {
@@ -598,10 +598,6 @@ impl CompiledPackage {
         Err(IotaError::ModulePublishFailure {
             error: error_message.join("\n"),
         })
-    }
-
-    pub fn published_dependency_ids(&self) -> Vec<ObjectID> {
-        self.dependency_ids.published.values().cloned().collect()
     }
 }
 
