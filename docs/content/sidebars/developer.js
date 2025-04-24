@@ -321,6 +321,7 @@ const developer = [
                 ]
             },
             'developer/tutorials/live-concert',
+            'developer/tutorials/retail-store',
         ],
     },
     {
