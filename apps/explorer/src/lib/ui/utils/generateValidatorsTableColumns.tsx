@@ -24,6 +24,7 @@ interface GenerateValidatorsTableColumnsArgs {
     showValidatorIcon?: boolean;
     includeColumns?: string[];
     highlightValidatorName?: boolean;
+    currentEpoch?: string;
 }
 
 function ValidatorWithImage({
@@ -94,6 +95,7 @@ export function generateValidatorsTableColumns({
     showValidatorIcon = true,
     includeColumns,
     highlightValidatorName,
+    currentEpoch,
 }: GenerateValidatorsTableColumnsArgs): ColumnDef<IotaValidatorSummaryExtended>[] {
     let columns: ColumnDef<IotaValidatorSummaryExtended>[] = [
         {
@@ -194,16 +196,17 @@ export function generateValidatorsTableColumns({
             id: 'lastReward',
             enableSorting: true,
             sortingFn: (rowA, rowB) => {
-                const lastRewardA = getLastReward(validatorEvents, rowA);
-                const lastRewardB = getLastReward(validatorEvents, rowB);
+                const lastRewardA = getLastReward(validatorEvents, rowA, currentEpoch);
+                const lastRewardB = getLastReward(validatorEvents, rowB, currentEpoch);
 
+                if (lastRewardA === null && lastRewardB === null) return 0;
                 if (lastRewardA === null) return 1;
                 if (lastRewardB === null) return -1;
 
-                return lastRewardA > lastRewardB ? 1 : -1;
+                return lastRewardA > lastRewardB ? -1 : 1;
             },
             cell({ row }) {
-                const lastReward = getLastReward(validatorEvents, row);
+                const lastReward = getLastReward(validatorEvents, row, currentEpoch);
                 return (
                     <TableCellBase>
                         <TableCellText>
@@ -291,9 +294,10 @@ function sortByNumber(
 function getLastReward(
     validatorEvents: IotaEvent[],
     row: Row<IotaValidatorSummaryExtended>,
+    currentEpoch?: string,
 ): number | null {
     const { original: validator } = row;
-    const event = getValidatorMoveEvent(validatorEvents, validator.iotaAddress) as {
+    const event = getValidatorMoveEvent(validatorEvents, validator.iotaAddress, currentEpoch) as {
         pool_staking_reward?: string;
     };
     return event?.pool_staking_reward ? Number(event.pool_staking_reward) : null;

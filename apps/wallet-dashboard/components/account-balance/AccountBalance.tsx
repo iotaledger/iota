@@ -66,7 +66,10 @@ export function AccountBalance() {
                                     />
                                 </div>
                             )}
-                            <span className="text-headline-lg text-neutral-10 dark:text-neutral-92">
+                            <span
+                                data-testid="balance-amount"
+                                className="text-headline-lg text-neutral-10 dark:text-neutral-92"
+                            >
                                 {formatted} {symbol}
                             </span>
                             {fiatBalance && (
