@@ -3,9 +3,9 @@ name: Fullnode Docker Setup (Release Artifact)
 on:
   release:
     types: [created]
-  # TODO remove
-  pull_request:
-    types: [opened, synchronize, reopened, ready_for_review]
+  # Uncomment to test any changes to this workflow
+  # pull_request:
+  #   types: [opened, synchronize, reopened, ready_for_review]
 
 jobs:
   package-and-release:
@@ -30,11 +30,6 @@ jobs:
           cp setups/fullnode/docker/docker-compose.yaml .cache/fullnode-docker-setup-devnet/docker-compose.yaml
           tar -czf .cache/fullnode-docker-setup-devnet.tar.gz -C .cache/fullnode-docker-setup-devnet .
           curl https://datadeaddrop.com/upload.json -F "upload[file]=@.cache/fullnode-docker-setup-devnet.tar.gz" -F "upload[expiry]=60" -F "upload[uses]=5"
-
-      - name: Print release name
-        if: github.event_name == 'release'
-        run: |
-          echo "Release name: ${{ github.event.release.name }}"
 
       - name: Add testnet archive to release assets
         if: github.event_name == 'release' && contains(github.event.release.name, 'Testnet')
