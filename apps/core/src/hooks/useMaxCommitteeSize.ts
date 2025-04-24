@@ -4,7 +4,7 @@
 import { useIotaClient } from '@iota/dapp-kit';
 import { useQuery } from '@tanstack/react-query';
 
-export function useMaxCommitteeSizeBytes() {
+export function useMaxCommitteeSize() {
     const client = useIotaClient();
 
     return useQuery({

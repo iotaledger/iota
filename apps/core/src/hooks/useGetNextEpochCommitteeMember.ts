@@ -3,13 +3,13 @@
 
 import { useIotaClientQuery } from '@iota/dapp-kit';
 import { useMemo } from 'react';
-import { useMaxCommitteeSizeBytes } from './useMaxCommitteeSizeBytes';
+import { useMaxCommitteeSize } from './useMaxCommitteeSize';
 
 export function useGetNextEpochCommitteeMember(validatorAddress: string): {
     isValidatorExpectedToBeInTheCommittee: boolean;
 } {
     const { data: systemState } = useIotaClientQuery('getLatestIotaSystemState');
-    const { data: maxCommitteeSize } = useMaxCommitteeSizeBytes();
+    const { data: maxCommitteeSize } = useMaxCommitteeSize();
 
     const isValidatorExpectedToBeInTheCommittee = useMemo(() => {
         if (!systemState || !maxCommitteeSize) return false;

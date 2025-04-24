@@ -60,7 +60,7 @@ export * from './useGetAllBalances';
 export * from './useCoinsReFetchingConfig';
 export * from './useIsValidatorCommitteeMember';
 export * from './useIsActiveValidator';
-export * from './useMaxCommitteeSizeBytes';
+export * from './useMaxCommitteeSize';
 export * from './useGetNextEpochCommitteeMember';
 
 export * from './stake';
