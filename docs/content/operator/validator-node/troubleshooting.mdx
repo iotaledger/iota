@@ -12,12 +12,12 @@ By following these steps, you can quickly recover your validator node, minimizin
 ### Stop the failed validator node
 
 <Tabs  groupId="validator-troubleshooting">
-  <TabItem label="Systemd" value="logs-systemd">
+  <TabItem label="Systemd" value="recover-systemd">
       ```sh
       sudo systemctl stop iota-node
       ```
   </TabItem>
-  <TabItem label="Docker" value="logs-docker">
+  <TabItem label="Docker" value="recover-docker">
       ```sh
       docker compose stop
       ```
@@ -25,19 +25,20 @@ By following these steps, you can quickly recover your validator node, minimizin
 </Tabs>
 
 ### Delete the database folders
-
+  
 Find and delete the `db-path` and `consensus-config: db-path` folders in your `validator.yaml`.  
-Commands if you are using default values for these paths:
+
+Command if you are using default values for these paths:
 
 <Tabs groupId="validator-troubleshooting">
-  <TabItem label="Systemd" value="logs-systemd">
+  <TabItem label="Systemd" value="recover-systemd">
       ```sh
-      rm -rf /opt/iota/db/authorities_db/*
-      rm -rf /opt/iota/db/consensus_db/*
+      rm -rf /opt/iota/db/*
       ```
   </TabItem>
-  <TabItem label="Docker" value="logs-docker">
-      ```sh      
+  <TabItem label="Docker" value="recover-docker">
+      ```sh
+      rm -rf <path-to-docker-installation>/iotadb/*      
       ```
   </TabItem>
 </Tabs>
@@ -50,12 +51,12 @@ https://docs.iota.org/operator/validator-node/configs/snapshots#restoring-from-f
 ### Start the validator node
 
 <Tabs groupId="validator-troubleshooting">
-  <TabItem label="Systemd" value="logs-systemd">
+  <TabItem label="Systemd" value="recover-systemd">
       ```sh
       sudo systemctl start iota-node
       ```
   </TabItem>
-  <TabItem label="Docker" value="logs-docker">
+  <TabItem label="Docker" value="recover-docker">
       ```sh
       docker compose up -d
       ```
@@ -65,12 +66,12 @@ https://docs.iota.org/operator/validator-node/configs/snapshots#restoring-from-f
 5. Let the validator sync all databases (including `consensus_db`) and monitor recovery progress:
 
 <Tabs groupId="validator-troubleshooting">
-  <TabItem label="Systemd" value="logs-systemd">
+  <TabItem label="Systemd" value="recover-systemd">
       ```sh
       sudo journalctl -fu iota-node
       ```
   </TabItem>
-  <TabItem label="Docker" value="logs-docker">
+  <TabItem label="Docker" value="recover-docker">
       ```sh
       docker compose logs -f
       ```
