@@ -24,7 +24,7 @@ Make sure to provide instructions for the maintainer as well as any relevant con
 - [ ] Basic tests (linting, compilation, formatting, unit/integration tests)
 - [ ] Patch-specific tests (correctness, functionality coverage)
 
-### Infrastructure QA
+### Infrastructure QA (only required for crates that are maintained by @iotaledger/infrastructure)
 
 - [ ] Synchronization of the indexer from genesis for a network including migration objects.
 - [ ] Restart of indexer synchronization locally without resetting the database.
