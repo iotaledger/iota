@@ -221,14 +221,13 @@ impl Manifest {
                     .filter(|f| f.file_type == FileType::CheckpointSummary)
                     .collect();
                 summary_files.sort_by_key(|f| f.checkpoint_seq_range.start);
-                assert!(
-                    summary_files
-                        .windows(2)
-                        .all(|w| w[1].checkpoint_seq_range.start == w[0].checkpoint_seq_range.end)
-                );
                 assert_eq!(summary_files.first().unwrap().checkpoint_seq_range.start, 0);
                 // get last checkpoint seq num per epoch
                 let res = summary_files.windows(2).filter_map(|w| {
+                    assert_eq!(
+                        w[1].checkpoint_seq_range.start,
+                        w[0].checkpoint_seq_range.end
+                    );
                     if w[1].epoch_num == w[0].epoch_num + 1 {
                         Some(w[0].checkpoint_seq_range.end - 1)
                     } else {
