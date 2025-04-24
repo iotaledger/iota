@@ -5,7 +5,7 @@ This docker-compose configuration allows launching instances of the Prometheus a
 ## Prerequisites
 
 In order to run this monitoring setup, you first need to have `iota-indexer` setup running. By default, Prometheus will listen at the `client-metrics-port` at `9184` in order to scrape the metrics.
-You can change this port in the `prometheus.yml` file if needed.
+You can change this port in the `prometheus.yml` file if needed. For the indexer to correctly expose its metrics it should be in the same docker network as the prometheus and grafana services.
 
 To deploy the setup, simply run `docker compose up -d`.
 

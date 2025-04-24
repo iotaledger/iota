@@ -186,7 +186,7 @@ pub struct IndexerMetrics {
     pub get_protocol_config_latency: Histogram, // not used
     // latency of event websocket subscription
     pub subscription_process_latency: Histogram, // not used
-    pub transaction_per_checkpoint: Histogram,   // not used
+    pub transaction_per_checkpoint: Histogram,
     // indexer state metrics
     pub db_conn_pool_size: IntGauge,
     pub idle_db_conn: IntGauge,
