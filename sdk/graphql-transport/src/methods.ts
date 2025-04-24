@@ -775,7 +775,7 @@ export const RPC_METHODS: {
 
         return mapGraphQLStakeToRpcStake(stakes);
     },
-    async getLatestIotaSystemState(transport) {
+    async getLatestIotaSystemStateV2(transport) {
         const systemState = await transport.graphqlQuery(
             {
                 query: GetLatestIotaSystemStateDocument,
@@ -830,61 +830,75 @@ export const RPC_METHODS: {
         }
 
         return {
-            activeValidators: systemState.validatorSet?.activeValidators?.nodes.map(
-                mapGraphQlValidatorToRpcValidator,
-            )!,
-            committeeMembers: systemState.validatorSet?.committeeMembers?.nodes?.map(
-                mapGraphQlValidatorToRpcValidator,
-            )!,
-            atRiskValidators: systemState.validatorSet?.activeValidators.nodes
-                ?.filter((validator) => validator.atRisk)
-                .map((validator) => [validator.address.address!, validator.atRisk!.toString()])!,
-            epoch: String(systemState.epochId),
-            epochDurationMs: String(
-                new Date(systemState.endTimestamp).getTime() -
-                    new Date(systemState.startTimestamp).getTime(),
-            ),
-            epochStartTimestampMs: String(new Date(systemState.startTimestamp).getTime()),
-            inactivePoolsSize: String(systemState.validatorSet?.inactivePoolsSize),
-            iotaTotalSupply: String(systemState.iotaTotalSupply),
-            iotaTreasuryCapId: String(systemState.iotaTreasuryCapId),
-            maxValidatorCount: String(systemState.systemParameters?.maxValidatorCount),
-            minValidatorCount: String(systemState.systemParameters?.minValidatorCount),
-            minValidatorJoiningStake: String(
-                systemState.systemParameters?.minValidatorJoiningStake,
-            ),
-            pendingActiveValidatorsSize: String(
-                systemState.validatorSet?.pendingActiveValidatorsSize,
-            ),
-            pendingRemovals:
-                systemState.validatorSet?.pendingRemovals?.map((idx) => String(idx)) ?? [],
-            protocolVersion: String(systemState.protocolConfigs?.protocolVersion),
-            referenceGasPrice: String(systemState.referenceGasPrice),
-            safeMode: systemState.safeMode?.enabled!,
-            safeModeComputationRewards: String(systemState.safeMode?.gasSummary?.computationCost),
-            safeModeNonRefundableStorageFee: String(
-                systemState.safeMode?.gasSummary?.nonRefundableStorageFee,
-            ),
-            safeModeStorageRebates: String(systemState.safeMode?.gasSummary?.storageRebate),
-            safeModeStorageCharges: String(systemState.safeMode?.gasSummary?.storageCost),
-            stakingPoolMappingsSize: String(systemState.validatorSet?.stakingPoolMappingsSize),
-            storageFundNonRefundableBalance: String(systemState.storageFund?.nonRefundableBalance),
-            storageFundTotalObjectStorageRebates: String(
-                systemState.storageFund?.totalObjectStorageRebates,
-            ),
-            systemStateVersion: String(systemState.systemStateVersion),
-            totalStake: systemState.validatorSet?.totalStake,
-            validatorCandidatesSize: systemState.validatorSet?.validatorCandidatesSize?.toString()!,
-            validatorLowStakeGracePeriod:
-                systemState.systemParameters?.validatorLowStakeGracePeriod,
-            validatorLowStakeThreshold: systemState.systemParameters?.validatorLowStakeThreshold,
-            validatorReportRecords: [], // TODO
-            validatorVeryLowStakeThreshold:
-                systemState.systemParameters?.validatorVeryLowStakeThreshold,
-            validatorCandidatesId: systemState.validatorSet?.validatorCandidatesId,
-            inactivePoolsId: systemState.validatorSet?.inactivePoolsId,
-            pendingActiveValidatorsId: systemState.validatorSet?.pendingActiveValidatorsId,
-            stakingPoolMappingsId: systemState.validatorSet?.stakingPoolMappingsId,
+            V2: {
+                activeValidators: systemState.validatorSet?.activeValidators?.nodes.map(
+                    mapGraphQlValidatorToRpcValidator,
+                )!,
+                committeeMembers: systemState.validatorSet?.committeeMembers?.nodes?.map(
+                    (_, index) => index.toString(),
+                )!,
+                atRiskValidators: systemState.validatorSet?.activeValidators.nodes
+                    ?.filter((validator) => validator.atRisk)
+                    .map((validator) => [
+                        validator.address.address!,
+                        validator.atRisk!.toString(),
+                    ])!,
+                epoch: String(systemState.epochId),
+                epochDurationMs: String(
+                    new Date(systemState.endTimestamp).getTime() -
+                        new Date(systemState.startTimestamp).getTime(),
+                ),
+                epochStartTimestampMs: String(new Date(systemState.startTimestamp).getTime()),
+                inactivePoolsSize: String(systemState.validatorSet?.inactivePoolsSize),
+                iotaTotalSupply: String(systemState.iotaTotalSupply),
+                iotaTreasuryCapId: String(systemState.iotaTreasuryCapId),
+                maxValidatorCount: String(systemState.systemParameters?.maxValidatorCount),
+                minValidatorCount: String(systemState.systemParameters?.minValidatorCount),
+                minValidatorJoiningStake: String(
+                    systemState.systemParameters?.minValidatorJoiningStake,
+                ),
+                pendingActiveValidatorsSize: String(
+                    systemState.validatorSet?.pendingActiveValidatorsSize,
+                ),
+                pendingRemovals:
+                    systemState.validatorSet?.pendingRemovals?.map((idx) => String(idx)) ?? [],
+                protocolVersion: String(systemState.protocolConfigs?.protocolVersion),
+                referenceGasPrice: String(systemState.referenceGasPrice),
+                safeMode: systemState.safeMode?.enabled!,
+                safeModeComputationCharges: String(
+                    systemState.safeMode?.gasSummary?.computationCost,
+                ),
+                safeModeComputationChargesBurned: String(
+                    systemState.safeMode?.gasSummary?.computationCostBurned,
+                ),
+                safeModeNonRefundableStorageFee: String(
+                    systemState.safeMode?.gasSummary?.nonRefundableStorageFee,
+                ),
+                safeModeStorageRebates: String(systemState.safeMode?.gasSummary?.storageRebate),
+                safeModeStorageCharges: String(systemState.safeMode?.gasSummary?.storageCost),
+                stakingPoolMappingsSize: String(systemState.validatorSet?.stakingPoolMappingsSize),
+                storageFundNonRefundableBalance: String(
+                    systemState.storageFund?.nonRefundableBalance,
+                ),
+                storageFundTotalObjectStorageRebates: String(
+                    systemState.storageFund?.totalObjectStorageRebates,
+                ),
+                systemStateVersion: String(systemState.systemStateVersion),
+                totalStake: systemState.validatorSet?.totalStake,
+                validatorCandidatesSize:
+                    systemState.validatorSet?.validatorCandidatesSize?.toString()!,
+                validatorLowStakeGracePeriod:
+                    systemState.systemParameters?.validatorLowStakeGracePeriod,
+                validatorLowStakeThreshold:
+                    systemState.systemParameters?.validatorLowStakeThreshold,
+                validatorReportRecords: [], // TODO
+                validatorVeryLowStakeThreshold:
+                    systemState.systemParameters?.validatorVeryLowStakeThreshold,
+                validatorCandidatesId: systemState.validatorSet?.validatorCandidatesId,
+                inactivePoolsId: systemState.validatorSet?.inactivePoolsId,
+                pendingActiveValidatorsId: systemState.validatorSet?.pendingActiveValidatorsId,
+                stakingPoolMappingsId: systemState.validatorSet?.stakingPoolMappingsId,
+            },
         };
     },
     async queryEvents(transport, [query, cursor, limit, descending]) {
