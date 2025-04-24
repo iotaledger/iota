@@ -11,7 +11,6 @@ import {
     useGetValidatorsApy,
     useGetValidatorsEvents,
     useMultiGetObjects,
-    useGetLatestIotaSystemState,
 } from '@iota/core';
 import {
     Badge,
@@ -36,7 +35,7 @@ import { sanitizePendingValidators } from '~/lib';
 import { IOTA_TYPE_ARG, normalizeIotaAddress } from '@iota/iota-sdk/utils';
 
 function ValidatorPageResult(): JSX.Element {
-    const { data, isPending, isSuccess, isError } = useGetLatestIotaSystemState();
+    const { data, isPending, isSuccess, isError } = useIotaClientQuery('getLatestIotaSystemState');
     const activeValidators = data?.activeValidators;
     const numberOfValidators = activeValidators?.length || 0;
 

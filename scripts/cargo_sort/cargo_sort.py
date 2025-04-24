@@ -66,7 +66,10 @@ def process_cargo_toml(file_path, internal_crates_dict, debug):
             self.unknown_lines_end = []
         
         def add_node(self, node):
-            if not node.name in internal_crates_dict:
+            # we only want to add "internal crates" if we are in a "dependencies" section,
+            # otherwise we treat everything as external crates, so we don't have different
+            # groups for external and internal crates, but we still sort them.
+            if ('dependencies' not in self.line) or (not node.name in internal_crates_dict):
                 self.external_crates[node.alias] = node
             else:
                 self.internal_crates[node.alias] = node

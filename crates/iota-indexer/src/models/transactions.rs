@@ -196,6 +196,12 @@ impl StoredTransaction {
         self.events.get(idx).cloned().flatten()
     }
 
+    /// True for checkpointed transactions, False for optimistically indexed
+    /// transactions
+    pub fn is_checkpointed_transaction(&self) -> bool {
+        self.checkpoint_sequence_number >= 0
+    }
+
     pub async fn try_into_iota_transaction_block_response(
         self,
         options: IotaTransactionBlockResponseOptions,
@@ -209,6 +215,13 @@ impl StoredTransaction {
                     self.transaction_digest
                 ))
             })?;
+
+        let timestamp_ms = self
+            .is_checkpointed_transaction()
+            .then_some(self.timestamp_ms as u64);
+        let checkpoint = self
+            .is_checkpointed_transaction()
+            .then_some(self.checkpoint_sequence_number as u64);
 
         let transaction = if options.show_input {
             let sender_signed_data = self.try_into_sender_signed_data()?;
@@ -316,8 +329,8 @@ impl StoredTransaction {
             events,
             object_changes,
             balance_changes,
-            timestamp_ms: Some(self.timestamp_ms as u64),
-            checkpoint: Some(self.checkpoint_sequence_number as u64),
+            timestamp_ms,
+            checkpoint,
             confirmed_local_execution: None,
             errors: vec![],
             raw_effects,

@@ -40,7 +40,6 @@ mod tests {
     use axum::{Router, http::StatusCode, routing::post};
     use iota_tls::{ClientCertVerifier, TlsAcceptor};
     use prometheus::{Encoder, PROTOBUF_FORMAT};
-    use protobuf::RepeatedField;
 
     use super::*;
     use crate::{
@@ -179,10 +178,10 @@ mod tests {
             "foo_metric",
             "some help this is",
             None,
-            RepeatedField::from_vec(vec![create_metric_counter(
-                RepeatedField::from_vec(create_labels(vec![("some", "label")])),
+            vec![create_metric_counter(
+                create_labels(vec![("some", "label")]),
                 create_counter(2046.0),
-            )]),
+            )],
         );
 
         let mut buf = vec![];
@@ -296,10 +295,10 @@ mod tests {
             "foo_metric",
             "some help this is",
             None,
-            RepeatedField::from_vec(vec![create_metric_counter(
-                RepeatedField::from_vec(create_labels(vec![("some", "label")])),
+            vec![create_metric_counter(
+                create_labels(vec![("some", "label")]),
                 create_counter(2046.0),
-            )]),
+            )],
         );
 
         let mut buf = vec![];

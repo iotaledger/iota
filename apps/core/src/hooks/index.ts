@@ -58,7 +58,6 @@ export * from './useAssetGasBudgetEstimation';
 export * from './useRecognizedPackages';
 export * from './useGetAllBalances';
 export * from './useCoinsReFetchingConfig';
-export * from './useGetLatestIotaSystemState';
 
 export * from './stake';
 export * from './ui';
