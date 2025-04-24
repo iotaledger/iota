@@ -48,5 +48,5 @@ Once all transactions have been evaluated, the allocation map implicitly defines
 The sequencing algorithm guarantees that the longest sequential execution trace remains within a predefined load threshold.
 
 ### Fairness in sequencing
-In IOTA, identical transactions included in the same consensus commit are guaranteed to be executed in descending order of their gas prices.
+In IOTA, transactions included in the same consensus commit that write to an identical set of shared objects are guaranteed to be executed in descending order of their gas prices.
 
