@@ -2,6 +2,8 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use std::path::PathBuf;
+
 use anyhow::{bail, ensure};
 use clap::{self, Args, Parser};
 use iota_types::{
@@ -75,6 +77,13 @@ pub struct IotaInitArgs {
     /// range will be pruned by the indexer.
     #[arg(long)]
     pub epochs_to_keep: Option<u64>,
+    /// Dir for simulacrum to write checkpoint files to. To be passed to the offchain indexer and
+     /// reader.
+     #[clap(long)]
+     pub data_ingestion_path: Option<PathBuf>,
+     /// URL for the IOTA REST API. To be passed to the offchain indexer and reader.
+     #[clap(long)]
+     pub rest_api_url: Option<String>,
 }
 
 #[derive(Debug, clap::Parser)]

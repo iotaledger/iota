@@ -6773,6 +6773,8 @@ dependencies = [
 name = "iota-graphql-e2e-tests"
 version = "0.13.0-alpha"
 dependencies = [
+ "anyhow",
+ "async-trait",
  "datatest-stable",
  "iota-graphql-rpc",
  "iota-transactional-test-runner",
@@ -8315,6 +8317,7 @@ dependencies = [
  "eyre",
  "fastcrypto",
  "futures",
+ "http 1.1.0",
  "iota-config",
  "iota-core",
  "iota-framework",
@@ -8347,6 +8350,7 @@ dependencies = [
  "telemetry-subscribers",
  "tempfile",
  "tokio",
+ "tracing",
  "typed-store",
  "typed-store-derive",
 ]
