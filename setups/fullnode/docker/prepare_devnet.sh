@@ -9,10 +9,7 @@ if [ -d "$CONFIG_DIR" ] && ([ -f "$CONFIG_DIR/genesis.blob" ] || [ -f "$CONFIG_D
     exit 1
 fi
 
-# create "data/" and "data/config/"
-mkdir -p "$CONFIG_DIR"
 # download the genesis file
 curl -fLJ https://dbfiles.devnet.iota.cafe/genesis.blob -o "$CONFIG_DIR/genesis.blob"
 # download the migration file
 curl -fLJ https://dbfiles.devnet.iota.cafe/migration.blob -o "$CONFIG_DIR/migration.blob"
-
