@@ -68,7 +68,7 @@ If an unsupported parameter is used, the request will error, or fallback to JSON
   - missing `id` for `events`
 - `getStakes` and `getStakesByIds`
   - missing `validatorAddress`
-- `getLatestIotaSystemState`
+- `getLatestIotaSystemState` and `getLatestIotaSystemStateV2`
   - missing `stakingPoolMappingsId`, `inactivePoolsId`, `pendingActiveValidatorsId`,
     `validatorCandidatesId`
   - missing `reportRecords` on validators
@@ -96,7 +96,7 @@ Some may require multiple requests to properly resolve:
   - may require additional requests to load all `friends`, `functions`, and `structs`
 - `getCheckpoint` and `getCheckpoints`,
   - may require additional requests to load all `transactionBlocks` and `validators`
-- `getLatestIotaSystemState`, `getCurrentEpoch`, `getValidatorsApy` and `getCommitteeInfo`:
+- `getLatestIotaSystemState`,`getLatestIotaSystemStateV2`, `getCurrentEpoch`, `getValidatorsApy` and `getCommitteeInfo`:
   - may require additional requests to load all `validators`
 
 ### Pagination
