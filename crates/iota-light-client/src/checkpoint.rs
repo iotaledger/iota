@@ -27,9 +27,7 @@ use serde::{Deserialize, Serialize};
 use tracing::{info, warn};
 
 use crate::{
-    config::Config,
-    graphql::query_last_checkpoint_of_epoch,
-    object_store::{IotaObjectStore, ObjectStoreExt},
+    config::Config, graphql::query_last_checkpoint_of_epoch, object_store::CheckpointStore,
 };
 
 // The list of checkpoints at the end of each epoch
@@ -273,7 +271,7 @@ async fn sync_checkpoint_list_to_latest_using_archive_store(
 async fn _sync_checkpoint_list_to_latest_using_checkpoints_store(
     config: &Config,
 ) -> anyhow::Result<CheckpointList> {
-    info!("Syncing checkpoint list from object store.");
+    info!("Syncing checkpoint list from checkpoint store.");
 
     // Get the local checkpoint list, or create an empty one if it doesn't exist
     let mut checkpoints_list = match read_checkpoint_list(config) {
@@ -297,8 +295,8 @@ async fn _sync_checkpoint_list_to_latest_using_checkpoints_store(
         last_seq
     };
 
-    let object_store = IotaObjectStore::new(config)?;
-    let last_sum = object_store.get_checkpoint_summary(last_seq).await?;
+    let checkpoint_store = CheckpointStore::new(config)?;
+    let last_sum = checkpoint_store.fetch_checkpoint_summary(last_seq).await?;
     let client = IotaClientBuilder::default()
         .build(config.rpc_url.as_str())
         .await?;
@@ -306,7 +304,9 @@ async fn _sync_checkpoint_list_to_latest_using_checkpoints_store(
         .read_api()
         .get_latest_checkpoint_sequence_number()
         .await?;
-    let latest_sum = object_store.get_checkpoint_summary(latest_seq).await?;
+    let latest_sum = checkpoint_store
+        .fetch_checkpoint_summary(latest_seq)
+        .await?;
     // Sequentially record all the missing end of epoch checkpoints numbers
     for target_epoch in (last_sum.epoch() + 1)..latest_sum.epoch() {
         let target_seq = query_last_checkpoint_of_epoch(config, target_epoch).await?;
@@ -338,48 +338,50 @@ pub async fn sync_and_check_checkpoints(config: &Config) -> anyhow::Result<()> {
     if let Some(_checkpoint_store_url) = &config.object_store_url {
         // Download summaries from checkpoint object store
         // TODO implement it, blocked by https://github.com/iotaledger/iota/issues/4908
-        warn!("Downloading from a checkpoint store is not supported yet.");
+        warn!("Downloading checkpoint summaries from a checkpoint store is not supported yet.");
     }
 
-    if let Some(archive_store_config) = &config.archive_store_config {
-        info!("Downloading missing checkpoints from archive store.");
+    if !missing.is_empty() {
+        if let Some(archive_store_config) = &config.archive_store_config {
+            info!("Downloading missing checkpoints from archive store.");
 
-        // Download summaries from archive store
-        let archive_reader_config = ArchiveReaderConfig {
-            remote_store_config: archive_store_config.clone(),
-            download_concurrency: NonZeroUsize::new(5).unwrap(),
-            use_for_pruning_watermark: false,
-        };
+            // Download summaries from archive store
+            let archive_reader_config = ArchiveReaderConfig {
+                remote_store_config: archive_store_config.clone(),
+                download_concurrency: NonZeroUsize::new(5).unwrap(),
+                use_for_pruning_watermark: false,
+            };
 
-        let store = CheckpointSummaryFileStore::new(config);
-        let counter = Arc::new(AtomicU64::new(0));
-        let metrics = ArchiveReaderMetrics::new(&Registry::default());
-        let archive_reader = ArchiveReader::new(archive_reader_config, &metrics)?;
-        archive_reader.sync_manifest_once().await?;
-        archive_reader
-            .read_summaries_for_list_no_verify(store.clone(), missing, counter)
-            .await?;
-    } else {
-        info!("Downloading missing checkpoints from full node.");
+            let store = CheckpointSummaryFileStore::new(config);
+            let counter = Arc::new(AtomicU64::new(0));
+            let metrics = ArchiveReaderMetrics::new(&Registry::default());
+            let archive_reader = ArchiveReader::new(archive_reader_config, &metrics)?;
+            archive_reader.sync_manifest_once().await?;
+            archive_reader
+                .read_summaries_for_list_no_verify(store.clone(), missing, counter)
+                .await?;
+        } else {
+            info!("Downloading missing checkpoints from full node.");
 
-        // Download summaries from the full node
-        let client = iota_rest_api::Client::new(&config.rpc_url);
+            // Download summaries from the full node
+            let client = iota_rest_api::Client::new(&config.rpc_url);
 
-        // Download all missing checkpoints
-        for seq in missing {
-            info!("Downloading checkpoint: {seq}");
+            // Download all missing checkpoints
+            for seq in missing {
+                info!("Downloading checkpoint: {seq}");
 
-            let summary = client
-                .get_checkpoint_summary(seq)
-                .await
-                .context(format!("Failed to download checkpoint summary '{seq}'"))?;
-            let path = config.checkpoint_summary_file_path(seq);
-            bcs::serialize_into(
-                &mut std::fs::File::create(&path)
-                    .context(format!("error creating summary file '{}'", path.display()))?,
-                &summary,
-            )
-            .expect("error serializing to bcs");
+                let summary = client
+                    .get_checkpoint_summary(seq)
+                    .await
+                    .context(format!("Failed to download checkpoint summary '{seq}'"))?;
+                let path = config.checkpoint_summary_file_path(seq);
+                bcs::serialize_into(
+                    &mut std::fs::File::create(&path)
+                        .context(format!("error creating summary file '{}'", path.display()))?,
+                    &summary,
+                )
+                .expect("error serializing to bcs");
+            }
         }
     }
 

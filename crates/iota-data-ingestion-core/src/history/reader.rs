@@ -251,7 +251,7 @@ impl HistoricalReader {
             })?
             .file_path();
 
-        for chk in self.iter_for_file(file_path).await?.into_iter() {
+        for chk in self.iter_for_file(file_path).await? {
             if chk.checkpoint_summary.sequence_number() == &seq {
                 return Ok(chk);
             }

@@ -21,7 +21,7 @@ use tracing::info;
 use crate::{
     checkpoint::{CheckpointList, read_checkpoint_list, read_checkpoint_summary},
     config::Config,
-    object_store::IotaObjectStore,
+    object_store::CheckpointStore,
 };
 
 pub fn extract_verified_effects_and_events(
@@ -102,7 +102,7 @@ pub async fn get_verified_effects_and_events(
         .await?;
     let read_api = iota_client.read_api();
 
-    info!("Getting effects and events for TID: {transaction_digest}");
+    info!("Getting effects and events for transaction: {transaction_digest}");
 
     // Lookup the transaction id and get the checkpoint sequence number
     let options = IotaTransactionBlockResponseOptions::new();
@@ -113,11 +113,10 @@ pub async fn get_verified_effects_and_events(
         .checkpoint
         .ok_or_else(|| anyhow!("Transaction not found"))?;
 
-    // Create object store
-    let object_store = IotaObjectStore::new(config)?;
+    let checkpoint_store = CheckpointStore::new(config)?;
 
     // Download the full checkpoint for this sequence number
-    let full_check_point = object_store
+    let full_check_point = checkpoint_store
         .fetch_full_checkpoint(seq)
         .await
         .context("Cannot get full checkpoint")?;
@@ -161,7 +160,8 @@ pub async fn get_verified_effects_and_events(
             .context("Cannot load Genesis")?
     };
 
-    info!("Extracting effects and events for TID: {transaction_digest}");
+    info!("Extracting effects and events for transaction: {transaction_digest}");
+
     extract_verified_effects_and_events(&full_check_point, &committee, transaction_digest)
         .context("Cannot extract effects and events")
 }
@@ -212,7 +212,7 @@ pub async fn get_verified_checkpoint(
         .ok_or_else(|| anyhow!("Object not found"))?;
 
     // Create object store
-    let object_store = IotaObjectStore::new(config)?;
+    let object_store = CheckpointStore::new(config)?;
 
     // Download the full checkpoint for this sequence number
     let full_check_point = object_store

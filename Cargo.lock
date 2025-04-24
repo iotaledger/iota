@@ -7127,6 +7127,7 @@ dependencies = [
  "getset",
  "iota-archival",
  "iota-config",
+ "iota-data-ingestion-core",
  "iota-graphql-rpc-client",
  "iota-json-rpc-types",
  "iota-package-resolver",

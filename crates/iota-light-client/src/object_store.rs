@@ -2,31 +2,49 @@
 // Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use anyhow::{Context, Result, anyhow};
-use async_trait::async_trait;
+use core::num::NonZeroUsize;
+
+use anyhow::{Result, anyhow};
+use iota_config::{
+    node::ArchiveReaderConfig,
+    object_storage_config::{ObjectStoreConfig, ObjectStoreType},
+};
+use iota_data_ingestion_core::history::reader::HistoricalReader;
 use iota_types::{
     full_checkpoint_content::CheckpointData, messages_checkpoint::CertifiedCheckpointSummary,
 };
-use object_store::{ObjectStore, path::Path};
 use tracing::info;
-use url::Url;
 
 use crate::config::Config;
 
-pub struct IotaObjectStore {
-    store: Box<dyn ObjectStore>,
+pub struct CheckpointStore {
+    historical_reader: HistoricalReader,
 }
 
-impl IotaObjectStore {
+impl CheckpointStore {
     pub fn new(config: &Config) -> Result<Self> {
-        let url = Url::parse(
-            config
-                .object_store_url
-                .as_ref()
-                .ok_or_else(|| anyhow!("missing object store url"))?,
-        )?;
-        let (store, _) = object_store::parse_url(&url)?;
-        Ok(Self { store })
+        let url = config
+            .object_store_url
+            .as_ref()
+            .cloned()
+            .ok_or_else(|| anyhow!("missing checkpoint store url"))?;
+
+        let object_store_config = ObjectStoreConfig {
+            object_store: Some(ObjectStoreType::S3),
+            aws_endpoint: Some(url),
+            aws_virtual_hosted_style_request: true,
+            no_sign_request: true,
+            ..Default::default()
+        };
+        let config = ArchiveReaderConfig {
+            remote_store_config: object_store_config,
+            download_concurrency: NonZeroUsize::new(5).unwrap(),
+            use_for_pruning_watermark: false,
+        };
+
+        Ok(Self {
+            historical_reader: HistoricalReader::new(config)?,
+        })
     }
 
     pub async fn fetch_checkpoint_summary(&self, seq: u64) -> Result<CertifiedCheckpointSummary> {
@@ -36,37 +54,11 @@ impl IotaObjectStore {
     }
 
     pub async fn fetch_full_checkpoint(&self, seq: u64) -> Result<CheckpointData> {
-        let path = Path::from(format!("{seq}.chk"));
-        let response = self
-            .store
-            .get(&path)
-            .await
-            .context("Failed to fetch full checkpoint from object store")?;
-        let bytes = response.bytes().await?;
-        let (_, full_checkpoint) = bcs::from_bytes::<(u8, CheckpointData)>(&bytes)?;
+        self.historical_reader.sync_manifest_once().await?;
+        let checkpoint = self.historical_reader.get_checkpoint(seq).await?;
 
-        info!("Fetched full checkpoint '{path}' from object store:");
+        info!("Fetched full checkpoint '{seq}' from checkpoint store:",);
 
-        Ok(full_checkpoint)
+        Ok(checkpoint)
     }
-}
-
-#[async_trait]
-pub trait ObjectStoreExt {
-    async fn get_checkpoint_summary(&self, seq: u64) -> Result<CertifiedCheckpointSummary>;
-}
-
-#[async_trait]
-impl ObjectStoreExt for IotaObjectStore {
-    async fn get_checkpoint_summary(&self, seq: u64) -> Result<CertifiedCheckpointSummary> {
-        self.fetch_checkpoint_summary(seq).await
-    }
-}
-
-pub async fn download_checkpoint_summary(
-    config: &Config,
-    seq: u64,
-) -> Result<CertifiedCheckpointSummary> {
-    let store = IotaObjectStore::new(config)?;
-    store.get_checkpoint_summary(seq).await
 }
