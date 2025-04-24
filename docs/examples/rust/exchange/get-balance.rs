@@ -1,3 +1,6 @@
+// Copyright (c) 2025 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 use std::str::FromStr;
 
 use iota_sdk::{IotaClientBuilder, types::base_types::IotaAddress};

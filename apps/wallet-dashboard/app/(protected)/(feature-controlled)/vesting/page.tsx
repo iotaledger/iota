@@ -49,9 +49,13 @@ import {
     GAS_BALANCE_TOO_LOW_ID,
     MIN_NUMBER_IOTA_TO_STAKE,
     NOT_ENOUGH_BALANCE_ID,
-    useGetLatestIotaSystemState,
 } from '@iota/core';
-import { useCurrentAccount, useIotaClient, useSignAndExecuteTransaction } from '@iota/dapp-kit';
+import {
+    useCurrentAccount,
+    useIotaClient,
+    useIotaClientQuery,
+    useSignAndExecuteTransaction,
+} from '@iota/dapp-kit';
 import { IotaValidatorSummary } from '@iota/iota-sdk/client';
 import { Calendar, StarHex, Warning } from '@iota/apps-ui-icons';
 import { useState } from 'react';
@@ -67,7 +71,7 @@ export default function VestingDashboardPage(): JSX.Element {
     const account = useCurrentAccount();
     const address = account?.address || '';
     const iotaClient = useIotaClient();
-    const { data: system } = useGetLatestIotaSystemState();
+    const { data: system } = useIotaClientQuery('getLatestIotaSystemState');
     const [isVestingScheduleDialogOpen, setIsVestingScheduleDialogOpen] = useState(false);
     const { mutateAsync: signAndExecuteTransaction } = useSignAndExecuteTransaction();
     const { theme } = useTheme();

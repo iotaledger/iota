@@ -63,15 +63,15 @@ use crate::{
         objects::{CoinBalance, StoredHistoryObject, StoredObject},
         participation_metrics::StoredParticipationMetrics,
         transactions::{
-            StoredTransaction, StoredTransactionEvents, stored_events_to_events,
-            tx_events_to_iota_tx_events,
+            OptimisticTransaction, StoredTransaction, StoredTransactionEvents,
+            stored_events_to_events, tx_events_to_iota_tx_events,
         },
         tx_indices::TxSequenceNumber,
     },
     schema::{
         address_metrics, addresses, chain_identifier, checkpoints, display, epochs, events,
-        objects, objects_history, objects_snapshot, objects_version, packages, pruner_cp_watermark,
-        transactions, tx_digests,
+        objects, objects_history, objects_snapshot, objects_version, optimistic_transactions,
+        packages, pruner_cp_watermark, transactions, tx_digests, tx_insertion_order,
     },
     store::{diesel_macro::*, package_resolver::IndexerStorePackageResolver},
     types::{IndexerResult, OwnerType},
@@ -633,8 +633,8 @@ impl IndexerReader {
         let digests = digests
             .iter()
             .map(|digest| digest.inner().to_vec())
-            .collect::<Vec<_>>();
-        run_query!(&self.pool, |conn| {
+            .collect::<HashSet<_>>();
+        let checkpointed_txs = run_query!(&self.pool, |conn| {
             transactions::table
                 .inner_join(
                     tx_digests::table
@@ -642,10 +642,33 @@ impl IndexerReader {
                 )
                 // we filter the tx_digests table because it is indexed by digest,
                 // transactions table is not
-                .filter(tx_digests::tx_digest.eq_any(digests))
+                .filter(tx_digests::tx_digest.eq_any(&digests))
                 .select(StoredTransaction::as_select())
                 .load::<StoredTransaction>(conn)
-        })
+        })?;
+        if checkpointed_txs.len() == digests.len() {
+            return Ok(checkpointed_txs);
+        }
+        let mut missing_digests = digests;
+        for tx in &checkpointed_txs {
+            missing_digests.remove(&tx.transaction_digest);
+        }
+        let optimistic_txs = run_query!(&self.pool, |conn| {
+            optimistic_transactions::table
+                .inner_join(
+                    tx_insertion_order::table.on(optimistic_transactions::insertion_order
+                        .eq(tx_insertion_order::insertion_order)),
+                )
+                // we filter the tx_insertion_order table because it is indexed by digest,
+                // optimistic_transactions table is not
+                .filter(tx_insertion_order::tx_digest.eq_any(missing_digests))
+                .select(OptimisticTransaction::as_select())
+                .load::<OptimisticTransaction>(conn)
+        })?;
+        Ok(checkpointed_txs
+            .into_iter()
+            .chain(optimistic_txs.into_iter().map(Into::into))
+            .collect())
     }
 
     async fn multi_get_transactions_in_blocking_task(

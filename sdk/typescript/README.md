@@ -7,8 +7,6 @@ For more complete docs, visit the
 
 `@iota/iota-sdk` is part of the **IOTA Rebased SDK**, designed specifically for interacting with the IOTA Rebased protocol.
 
-> **Note**: This package is currently supported **only in Testnet and Devnet**, it is **not yet supported in Mainnet**.
-
 This is the IOTA TypeScript SDK built on the IOTA
 [JSON RPC API](https://github.com/iotaledger/iota/blob/develop/docs/content/references/iota-api.mdx).
 It provides utility classes and functions for applications to sign transactions and interact with
