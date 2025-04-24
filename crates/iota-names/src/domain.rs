@@ -8,7 +8,7 @@ use move_core_types::{ident_str, identifier::IdentStr, language_storage::StructT
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    config::{ACCEPTED_SEPARATORS, DEFAULT_TLD, IOTA_AT_FORMAT_SEPARATOR},
+    config::{DEFAULT_TLD, IOTA_NAMES_SEPARATOR_AT, IOTA_NAMES_SEPARATOR_DOT},
     error::IotaNamesError,
 };
 
@@ -45,12 +45,11 @@ impl FromStr for Domain {
         if s.len() > MAX_DOMAIN_LENGTH {
             return Err(IotaNamesError::ExceedsMaxLength(s.len(), MAX_DOMAIN_LENGTH));
         }
-        let separator = separator(s)?;
 
-        let formatted_string = convert_from_at_format(s, &separator)?;
+        let formatted_string = convert_from_at_format(s, &IOTA_NAMES_SEPARATOR_DOT)?;
 
         let labels = formatted_string
-            .split(separator)
+            .split(IOTA_NAMES_SEPARATOR_DOT)
             .rev()
             .map(validate_label)
             .collect::<Result<Vec<_>, Self::Err>>()?;
@@ -61,6 +60,7 @@ impl FromStr for Domain {
         }
 
         let labels = labels.into_iter().map(ToOwned::to_owned).collect();
+
         Ok(Domain { labels })
     }
 }
@@ -160,7 +160,7 @@ impl Domain {
     /// The default separator is `.`
     pub fn format(&self, format: DomainFormat) -> String {
         let mut labels = self.labels.clone();
-        let sep = &ACCEPTED_SEPARATORS[0].to_string();
+        let sep = &IOTA_NAMES_SEPARATOR_DOT.to_string();
         labels.reverse();
 
         if format == DomainFormat::Dot {
@@ -172,7 +172,7 @@ impl Domain {
         let _tld = labels.pop();
         let sld = labels.pop().unwrap();
 
-        format!("{}{IOTA_AT_FORMAT_SEPARATOR}{sld}", labels.join(sep))
+        format!("{}{IOTA_NAMES_SEPARATOR_AT}{sld}", labels.join(sep))
     }
 }
 
@@ -184,32 +184,11 @@ pub enum DomainFormat {
     Dot,
 }
 
-/// Parses a separator from the domain string input.
-/// E.g.  `example.iota` -> `.` | example*iota -> `@` | `example*iota` -> `*`
-fn separator(s: &str) -> Result<char, IotaNamesError> {
-    let mut domain_separator: Option<char> = None;
-
-    for separator in ACCEPTED_SEPARATORS.iter() {
-        if s.contains(*separator) {
-            if domain_separator.is_some() {
-                return Err(IotaNamesError::InvalidSeparator);
-            }
-
-            domain_separator = Some(*separator);
-        }
-    }
-
-    match domain_separator {
-        Some(separator) => Ok(separator),
-        None => Ok(ACCEPTED_SEPARATORS[0]),
-    }
-}
-
 /// Converts @label ending to label{separator}iota ending.
 ///
 /// E.g. `@example` -> `example.iota` | `test@example` -> `test.example.iota`
 fn convert_from_at_format(s: &str, separator: &char) -> Result<String, IotaNamesError> {
-    let mut splits = s.split(IOTA_AT_FORMAT_SEPARATOR);
+    let mut splits = s.split(IOTA_NAMES_SEPARATOR_AT);
 
     let Some(before) = splits.next() else {
         return Err(IotaNamesError::InvalidSeparator);
@@ -304,13 +283,7 @@ mod tests {
             "iota@iota".parse::<Domain>().unwrap().to_string(),
             "iota.iota.iota"
         );
-
         assert_eq!("@iota".parse::<Domain>().unwrap().to_string(), "iota.iota");
-
-        assert_eq!(
-            "test*test@test".parse::<Domain>().unwrap().to_string(),
-            "test.test.test.iota"
-        );
         assert_eq!(
             "test.test.iota".parse::<Domain>().unwrap().to_string(),
             "test.test.iota"
@@ -322,19 +295,10 @@ mod tests {
     }
 
     #[test]
-    fn different_wildcard() {
-        assert_eq!("test.iota".parse::<Domain>(), "test*iota".parse::<Domain>(),);
-
-        assert_eq!("@test".parse::<Domain>(), "test*iota".parse::<Domain>(),);
-    }
-
-    #[test]
     fn invalid_inputs() {
-        assert!("*".parse::<Domain>().is_err());
         assert!(".".parse::<Domain>().is_err());
         assert!("@".parse::<Domain>().is_err());
         assert!("@inner.iota".parse::<Domain>().is_err());
-        assert!("@inner*iota".parse::<Domain>().is_err());
         assert!("test@".parse::<Domain>().is_err());
         assert!("iota".parse::<Domain>().is_err());
         assert!("test.test@example.iota".parse::<Domain>().is_err());
