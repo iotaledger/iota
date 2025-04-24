@@ -115,6 +115,7 @@ export function DelegationDetailCard({ validatorAddress, stakedId }: DelegationD
 
     const isValidatorCommitteeMember = isCommitteeMember(validatorAddress);
     const isAnActiveValidator = isActiveValidator(validatorAddress);
+    const activeButNotInTheCommittee = isAnActiveValidator && !isValidatorCommitteeMember;
 
     if (isPending || loadingValidators) {
         return (
@@ -147,7 +148,7 @@ export function DelegationDetailCard({ validatorAddress, stakedId }: DelegationD
         <div className="flex h-full w-full flex-col justify-between">
             <div className="flex flex-col gap-y-md">
                 <Validator address={validatorAddress} type={CardType.Filled} />
-                {!isValidatorCommitteeMember && isAnActiveValidator ? (
+                {activeButNotInTheCommittee ? (
                     <InfoBox
                         type={InfoBoxType.Warning}
                         title="Validator is not earning rewards."
@@ -193,7 +194,7 @@ export function DelegationDetailCard({ validatorAddress, stakedId }: DelegationD
                         />
                     </div>
                 </Panel>
-                {(isAnActiveValidator && !isValidatorCommitteeMember) || !isAnActiveValidator ? (
+                {activeButNotInTheCommittee || !isAnActiveValidator ? (
                     <Panel hasBorder>
                         <div className="flex flex-col gap-y-sm p-md">
                             <KeyValueInfo
