@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::collections::HashMap;
+use std::{collections::HashMap, sync::Arc};
 
 use async_trait::async_trait;
 use iota_json_rpc::{IotaRpcModule, error::IotaRpcInputError};
@@ -185,18 +185,20 @@ impl ReadApiServer for ReadApi {
             .await?;
 
         // Map the returned `StoredObject`s to `ObjectID`
-        let object_map: HashMap<ObjectID, StoredObject> = stored_objects
-            .into_iter()
-            .map(|obj| {
-                let object_id = ObjectID::try_from(obj.object_id.clone()).map_err(|_| {
-                    IndexerError::PersistentStorageDataCorruption(format!(
-                        "failed to parse ObjectID: {:?}",
-                        obj.object_id
-                    ))
-                })?;
-                Ok::<(ObjectID, StoredObject), IndexerError>((object_id, obj))
-            })
-            .collect::<Result<_, IndexerError>>()?;
+        let object_map: Arc<HashMap<ObjectID, StoredObject>> = Arc::new(
+            stored_objects
+                .into_iter()
+                .map(|obj| {
+                    let object_id = ObjectID::try_from(obj.object_id.clone()).map_err(|_| {
+                        IndexerError::PersistentStorageDataCorruption(format!(
+                            "failed to parse ObjectID: {:?}",
+                            obj.object_id
+                        ))
+                    })?;
+                    Ok::<(ObjectID, StoredObject), IndexerError>((object_id, obj))
+                })
+                .collect::<Result<_, IndexerError>>()?,
+        );
 
         let options = options.unwrap_or_default();
         let resolver = self.inner.package_resolver();
