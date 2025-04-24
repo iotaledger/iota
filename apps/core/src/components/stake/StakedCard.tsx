@@ -5,8 +5,11 @@
 import { Card, CardImage, CardType, CardBody, CardAction, CardActionType } from '@iota/apps-ui-kit';
 import { useMemo } from 'react';
 import { ImageIcon } from '../icon';
-import { ExtendedDelegatedStake } from '../../utils';
+import { ExtendedDelegatedStake, getInactiveValidatorsData } from '../../utils';
 import { useFormatCoin, useGetLatestIotaSystemState, useStakeRewardStatus } from '../../hooks';
+import { useIotaClient } from '@iota/dapp-kit';
+import { useQuery } from '@tanstack/react-query';
+import { normalizeIotaAddress } from '@iota/iota-sdk/utils';
 
 interface StakedCardProps {
     extendedStake: ExtendedDelegatedStake;
@@ -24,6 +27,8 @@ export function StakedCard({
     onClick,
 }: StakedCardProps) {
     const { principal, stakeRequestEpoch, estimatedReward, validatorAddress } = extendedStake;
+    const { data } = useGetLatestIotaSystemState();
+    const iotaClient = useIotaClient();
 
     const { rewards, title, subtitle } = useStakeRewardStatus({
         stakeRequestEpoch,
@@ -37,8 +42,6 @@ export function StakedCard({
         balance: inactiveValidator ? BigInt(principal) + rewards : principal,
     });
 
-    const { data } = useGetLatestIotaSystemState();
-
     const validatorMeta = useMemo(() => {
         if (!data) return null;
 
@@ -48,17 +51,50 @@ export function StakedCard({
         );
     }, [validatorAddress, data]);
 
+    const { data: inactiveValidatorData } = useQuery({
+        queryKey: [data?.inactivePoolsId, validatorAddress],
+        async queryFn() {
+            if (!data?.inactivePoolsId || !validatorAddress) {
+                throw Error('Missing params');
+            }
+            const inactiveValidators = await iotaClient.getDynamicFields({
+                parentId: normalizeIotaAddress(data?.inactivePoolsId),
+            });
+
+            const pendingInactiveValidatorsData = await Promise.all(
+                inactiveValidators.data.map(
+                    async (validator) =>
+                        await getInactiveValidatorsData(iotaClient, validator.objectId),
+                ),
+            );
+
+            return pendingInactiveValidatorsData;
+        },
+        enabled: !!data?.inactivePoolsId && !!validatorAddress,
+        select(validators) {
+            return validators.find((validator) => validator?.validatorAddress === validatorAddress);
+        },
+    });
+
+    const combinedValidatorData = useMemo(() => {
+        if (!validatorMeta && !inactiveValidatorData) return null;
+        return {
+            ...validatorMeta,
+            ...inactiveValidatorData,
+        };
+    }, [validatorMeta, inactiveValidatorData]);
+
     return (
         <Card testId="staked-card" type={CardType.Default} isHoverable onClick={onClick}>
             <CardImage>
                 <ImageIcon
-                    src={validatorMeta?.imageUrl || null}
-                    label={validatorMeta?.name || ''}
-                    fallback={validatorMeta?.name || ''}
+                    src={combinedValidatorData?.imageUrl || null}
+                    label={combinedValidatorData?.name || ''}
+                    fallback={combinedValidatorData?.name || ''}
                 />
             </CardImage>
             <CardBody
-                title={validatorMeta?.name || '--'}
+                title={combinedValidatorData?.name || '--'}
                 subtitle={`${principalStaked} ${symbol}`}
             />
             <CardAction title={title} subtitle={subtitle} type={CardActionType.SupportingText} />

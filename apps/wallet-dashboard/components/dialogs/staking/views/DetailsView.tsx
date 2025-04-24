@@ -56,6 +56,7 @@ export function DetailsView({
         isPendingValidators,
         errorValidators,
         validatorSummary,
+        inactiveValidatorSummary,
         apy,
         isApyApproxZero,
         newValidator,
@@ -69,7 +70,15 @@ export function DetailsView({
     const [iotaEarnedFormatted, iotaEarnedSymbol] = useFormatCoin({ balance: iotaEarned });
     const [totalStakeFormatted, totalStakeSymbol] = useFormatCoin({ balance: totalStake });
 
-    const validatorName = validatorSummary?.name || '--';
+    let validatorName = null;
+    let validatorImageUrl = null;
+    if (validatorSummary === null && inactiveValidatorSummary !== null) {
+        validatorName = inactiveValidatorSummary?.name;
+        validatorImageUrl = inactiveValidatorSummary?.imageUrl;
+    } else if (validatorSummary !== null && inactiveValidatorSummary === null) {
+        validatorName = validatorSummary?.name;
+        validatorImageUrl = validatorSummary?.imageUrl;
+    }
 
     const subtitle = showActiveStatus ? (
         <div className="flex items-center gap-1">
@@ -80,7 +89,6 @@ export function DetailsView({
     ) : (
         formatAddress(validatorAddress)
     );
-
     if (isPendingValidators) {
         return (
             <div className="flex h-full w-full items-center justify-center p-2">
@@ -94,7 +102,6 @@ export function DetailsView({
     }
 
     const isValidatorCommitteeMember = isCommitteeMember(validatorAddress);
-
     return (
         <DialogLayout>
             <Header title="Validator" onClose={handleClose} onBack={handleClose} titleCentered />
@@ -103,13 +110,13 @@ export function DetailsView({
                     <Card type={CardType.Filled}>
                         <CardImage>
                             <ImageIcon
-                                src={validatorSummary?.imageUrl ?? null}
-                                label={validatorName}
-                                fallback={validatorName}
+                                src={validatorImageUrl ?? null}
+                                label={validatorName ?? ''}
+                                fallback={validatorName ?? ''}
                                 size={ImageIconSize.Large}
                             />
                         </CardImage>
-                        <CardBody title={validatorName} subtitle={subtitle} isTextTruncated />
+                        <CardBody title={validatorName ?? ''} subtitle={subtitle} isTextTruncated />
                     </Card>
                     {!isValidatorCommitteeMember && (
                         <InfoBox
