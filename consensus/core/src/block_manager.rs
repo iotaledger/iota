@@ -381,7 +381,7 @@ impl BlockManager {
                 .metrics
                 .node_metrics
                 .invalid_blocks
-                .with_label_values(&[&hostname, "accept_block", "InvalidAncestors"])
+                .with_label_values(&[hostname.as_str(), "accept_block", "InvalidAncestors"])
                 .inc();
             warn!("Invalid block {:?} is rejected", block);
         }
