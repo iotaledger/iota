@@ -47,7 +47,7 @@ impl FromStr for Domain {
         }
         let separator = separator(s)?;
 
-        let formatted_string = convert_from_new_format(s, &separator)?;
+        let formatted_string = convert_from_at_format(s, &separator)?;
 
         let labels = formatted_string
             .split(separator)
@@ -208,7 +208,7 @@ fn separator(s: &str) -> Result<char, IotaNamesError> {
 /// Converts @label ending to label{separator}iota ending.
 ///
 /// E.g. `@example` -> `example.iota` | `test@example` -> `test.example.iota`
-fn convert_from_new_format(s: &str, separator: &char) -> Result<String, IotaNamesError> {
+fn convert_from_at_format(s: &str, separator: &char) -> Result<String, IotaNamesError> {
     let mut splits = s.split(IOTA_AT_FORMAT_SEPARATOR);
 
     let Some(before) = splits.next() else {
