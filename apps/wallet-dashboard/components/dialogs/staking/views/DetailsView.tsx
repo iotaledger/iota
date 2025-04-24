@@ -191,7 +191,6 @@ export function DetailsView({
                         text="Stake"
                         onClick={handleStake}
                         fullWidth
-                        disabled={isAtRisk}
                     />
                 </div>
             </DialogLayoutFooter>
