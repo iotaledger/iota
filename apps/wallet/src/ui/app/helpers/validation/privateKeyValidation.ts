@@ -25,7 +25,8 @@ export const privateKeyValidation = z
                 } catch (_) {
                     context.addIssue({
                         code: 'custom',
-                        message: 'Invalid Private Key, please use a Bech32 encoded 33-byte string or Base58 encoded string.',
+                        message:
+                            'Invalid Private Key, please use a Bech32 encoded 33-byte string or Base58 encoded string.',
                     });
                     return z.NEVER;
                 }
