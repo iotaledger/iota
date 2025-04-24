@@ -40,8 +40,7 @@ last_executed_checkpoint_timestamp_ms 1732397544761
 uptime{chain_identifier="2304aa97",is_docker="false",os_version="Linux (Ubuntu 24.04)",process="fullnode",version="0.12.0-rc-8e554870d787"} 2844
 ```
 
-One possible check is to run the command above and convert the Unix timestamp `last_executed_checkpoint_timestamp_ms` value to a human-readable date.
-
+You can run the command above and convert the `last_executed_checkpoint_timestamp_ms` value from Unix timestamp to human-readable UTC time. Compare it with the current time - a difference of 10-30 seconds indicates normal operation.
 
 2. Follow the latest checkpoint known by your node via the JSON-RPC endpoint:
 
