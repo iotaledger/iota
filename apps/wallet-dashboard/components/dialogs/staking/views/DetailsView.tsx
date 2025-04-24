@@ -11,6 +11,7 @@ import {
     toast,
     useIsValidatorCommitteeMember,
     useIsActiveValidator,
+    useGetNextEpochCommitteeMember,
 } from '@iota/core';
 import {
     Header,
@@ -52,6 +53,9 @@ export function DetailsView({
 }: StakeDialogProps): JSX.Element {
     const totalStake = BigInt(stakedDetails?.principal || 0n);
     const validatorAddress = stakedDetails?.validatorAddress;
+    const { isValidatorExpectedToBeInTheCommittee } =
+        useGetNextEpochCommitteeMember(validatorAddress);
+
     const {
         isAtRisk,
         isPendingValidators,
@@ -159,7 +163,7 @@ export function DetailsView({
                             />
                         </div>
                     </Panel>
-                    {activeButNotInTheCommittee || !isAnActiveValidator ? (
+                    {!isValidatorExpectedToBeInTheCommittee ? (
                         <Panel hasBorder>
                             <div className="flex flex-col gap-y-sm p-md">
                                 <KeyValueInfo

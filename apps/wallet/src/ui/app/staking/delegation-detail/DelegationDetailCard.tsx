@@ -19,6 +19,7 @@ import {
     toast,
     useIsValidatorCommitteeMember,
     useIsActiveValidator,
+    useGetNextEpochCommitteeMember,
 } from '@iota/core';
 import { Network, type StakeObject } from '@iota/iota-sdk/client';
 import { NANOS_PER_IOTA, IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
@@ -74,6 +75,8 @@ export function DelegationDetailCard({ validatorAddress, stakedId }: DelegationD
     const { data: metadata } = useCoinMetadata(IOTA_TYPE_ARG);
     const { isCommitteeMember } = useIsValidatorCommitteeMember();
     const { isActiveValidator } = useIsActiveValidator();
+    const { isValidatorExpectedToBeInTheCommittee } =
+        useGetNextEpochCommitteeMember(validatorAddress);
     // set minimum stake amount to 1 IOTA
     const showRequestMoreIotaToken = useMemo(() => {
         if (!coinBalance?.totalBalance || !metadata?.decimals || network === Network.Mainnet)
@@ -194,7 +197,7 @@ export function DelegationDetailCard({ validatorAddress, stakedId }: DelegationD
                         />
                     </div>
                 </Panel>
-                {activeButNotInTheCommittee || !isAnActiveValidator ? (
+                {!isValidatorExpectedToBeInTheCommittee ? (
                     <Panel hasBorder>
                         <div className="flex flex-col gap-y-sm p-md">
                             <KeyValueInfo
