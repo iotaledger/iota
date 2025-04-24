@@ -6,20 +6,20 @@ use serde::{Deserialize, Serialize};
 
 #[derive(thiserror::Error, Debug, Serialize, Deserialize, Clone, Eq, PartialEq)]
 pub enum IotaNamesError {
-    #[error("Name Service: String length: {0} exceeds maximum allowed length: {1}")]
+    #[error("String length: {0} exceeds maximum allowed length: {1}")]
     ExceedsMaxLength(usize, usize),
-    #[error("Name Service: String length: {0} outside of valid range: [{1}, {2}]")]
+    #[error("String length: {0} outside of valid range: [{1}, {2}]")]
     InvalidLength(usize, usize, usize),
-    #[error("Name Service: Hyphens are not allowed as the first or last character")]
-    InvalidHyphens,
-    #[error("Name Service: Only lowercase letters, numbers, and hyphens are allowed")]
-    InvalidUnderscore,
-    #[error("Name Service: Domain must contain at least one label")]
+    #[error("Hyphens are not allowed as the first or last character")]
+    HyphensAsFirstOrLastChar,
+    #[error("Only lowercase letters, numbers, and hyphens are allowed as label characters")]
+    InvalidLabelChar,
+    #[error("Domain must contain at least one label")]
     LabelsEmpty,
-    #[error("Name Service: Domain must include only one separator")]
+    #[error("Domain must include only one separator")]
     InvalidSeparator,
-    #[error("Name Service: Name has expired")]
+    #[error("Name has expired")]
     NameExpired,
-    #[error("Name Service: Malformed object for {0}")]
+    #[error("Malformed object for {0}")]
     MalformedObject(ObjectID),
 }

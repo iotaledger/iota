@@ -17,10 +17,7 @@ use serde::{Deserialize, Serialize};
 
 use self::domain::Domain;
 
-pub const MIN_LABEL_LEN: usize = 3;
-pub const MAX_LABEL_LEN: usize = 63;
-
-/// An object to manage a second-level domain (SLD)
+/// An object to manage a second-level domain (SLD).
 #[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
 pub struct IotaNamesRegistration {
     id: ObjectID,
@@ -63,7 +60,9 @@ pub trait IotaNamesNft {
 
     fn expiration_timestamp_ms(&self) -> u64;
 
-    fn expiration_time(&self) -> SystemTime;
+    fn expiration_time(&self) -> SystemTime {
+        UNIX_EPOCH + Duration::from_millis(self.expiration_timestamp_ms())
+    }
 
     fn has_expired(&self) -> bool {
         self.expiration_time() <= SystemTime::now()
@@ -90,10 +89,6 @@ impl IotaNamesNft for IotaNamesRegistration {
         self.expiration_timestamp_ms
     }
 
-    fn expiration_time(&self) -> SystemTime {
-        UNIX_EPOCH + Duration::from_millis(self.expiration_timestamp_ms())
-    }
-
     fn image_url(&self) -> &str {
         &self.image_url
     }
@@ -117,10 +112,6 @@ impl IotaNamesNft for SubdomainRegistration {
 
     fn expiration_timestamp_ms(&self) -> u64 {
         self.nft.expiration_timestamp_ms()
-    }
-
-    fn expiration_time(&self) -> SystemTime {
-        self.nft.expiration_time()
     }
 
     fn image_url(&self) -> &str {

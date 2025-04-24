@@ -8,7 +8,7 @@ use move_core_types::{ident_str, identifier::IdentStr, language_storage::StructT
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    config::{ACCEPTED_SEPARATORS, DEFAULT_TLD, IOTA_NEW_FORMAT_SEPARATOR},
+    config::{ACCEPTED_SEPARATORS, DEFAULT_TLD, IOTA_AT_FORMAT_SEPARATOR},
     error::IotaNamesError,
 };
 
@@ -17,13 +17,6 @@ pub struct Domain {
     // Labels of the domain name, in reverse order
     labels: Vec<String>,
 }
-
-// impl std::fmt::Display for Domain {
-//     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-//         let labels = self.labels.iter().rev().cloned().collect::<Vec<_>>();
-//         write!(f, "{}", labels.join("."))
-//     }
-// }
 
 // impl FromStr for Domain {
 //     type Err = anyhow::Error;
@@ -54,7 +47,7 @@ impl FromStr for Domain {
         }
         let separator = separator(s)?;
 
-        let formatted_string = convert_from_new_format(s, &separator)?;
+        let formatted_string = convert_from_at_format(s, &separator)?;
 
         let labels = formatted_string
             .split(separator)
@@ -140,6 +133,9 @@ impl Domain {
     /// Returns the number of labels including TLD.
     ///
     /// ```
+    /// use std::str::FromStr;
+    ///
+    /// use iota_names::domain::Domain;
     /// assert_eq!(
     ///     Domain::from_str("test.example.iota").unwrap().num_labels(),
     ///     3
@@ -176,7 +172,7 @@ impl Domain {
         let _tld = labels.pop();
         let sld = labels.pop().unwrap();
 
-        format!("{}{}{}", labels.join(sep), IOTA_NEW_FORMAT_SEPARATOR, sld)
+        format!("{}{IOTA_AT_FORMAT_SEPARATOR}{sld}", labels.join(sep))
     }
 }
 
@@ -212,8 +208,8 @@ fn separator(s: &str) -> Result<char, IotaNamesError> {
 /// Converts @label ending to label{separator}iota ending.
 ///
 /// E.g. `@example` -> `example.iota` | `test@example` -> `test.example.iota`
-fn convert_from_new_format(s: &str, separator: &char) -> Result<String, IotaNamesError> {
-    let mut splits = s.split(IOTA_NEW_FORMAT_SEPARATOR);
+fn convert_from_at_format(s: &str, separator: &char) -> Result<String, IotaNamesError> {
+    let mut splits = s.split(IOTA_AT_FORMAT_SEPARATOR);
 
     let Some(before) = splits.next() else {
         return Err(IotaNamesError::InvalidSeparator);
@@ -239,9 +235,14 @@ fn convert_from_new_format(s: &str, separator: &char) -> Result<String, IotaName
     Ok(parts.join(&separator.to_string()))
 }
 
+/// Checks the validity of a label according to these rules:
+/// - length must be in [MIN_LABEL_LENGTH..MAX_LABEL_LENGTH]
+/// - must contain only '0'..'9', 'a'..'z' and '-'
+/// - must not start or end with '-'
 pub fn validate_label(label: &str) -> Result<&str, IotaNamesError> {
     const MIN_LABEL_LENGTH: usize = 1;
     const MAX_LABEL_LENGTH: usize = 63;
+
     let bytes = label.as_bytes();
     let len = bytes.len();
 
@@ -254,38 +255,15 @@ pub fn validate_label(label: &str) -> Result<&str, IotaNamesError> {
     }
 
     for (i, character) in bytes.iter().enumerate() {
-        let is_valid_character = match character {
-            b'a'..=b'z' => true,
-            b'0'..=b'9' => true,
-            b'-' if i != 0 && i != len - 1 => true,
-            _ => false,
-        };
-
-        if !is_valid_character {
-            match character {
-                b'-' => return Err(IotaNamesError::InvalidHyphens),
-                _ => return Err(IotaNamesError::InvalidUnderscore),
-            }
+        match character {
+            b'a'..=b'z' | b'0'..=b'9' => continue,
+            b'-' if i == 0 || i == len - 1 => return Err(IotaNamesError::HyphensAsFirstOrLastChar),
+            _ => return Err(IotaNamesError::InvalidLabelChar),
         };
     }
+
     Ok(label)
 }
-
-// fn parse_domain_label(label: &str) -> anyhow::Result<String> {
-//     anyhow::ensure!(
-//         label.len() >= MIN_LABEL_LEN && label.len() <= MAX_LABEL_LEN,
-//         "label length outside allowed range
-// [{MIN_LABEL_LEN}..{MAX_LABEL_LEN}]: {}",         label.len()
-//     );
-//     let regex =
-// regex::Regex::new("^[a-zA-Z0-9][a-zA-Z0-9-]+[a-zA-Z0-9]$").unwrap();
-
-//     anyhow::ensure!(
-//         regex.is_match(label),
-//         "invalid characters in domain: {label}"
-//     );
-//     Ok(label.to_owned())
-// }
 
 #[cfg(test)]
 mod tests {
