@@ -28,7 +28,7 @@ export function useStakeRewardStatus({
 
     const delegationState =
         inactiveValidator || activeButNotInTheCommittee
-            ? StakeState.NotEarningMore
+            ? StakeState.NotEarning
             : isEarnedRewards
               ? StakeState.Earning
               : StakeState.WarmUp;
@@ -47,7 +47,7 @@ export function useStakeRewardStatus({
         // Epoch time before redrawing
         [StakeState.CoolDown]: `Epoch #`,
         [StakeState.Withdraw]: 'Now',
-        [StakeState.NotEarningMore]: `${rewardsStaked} ${symbol}`,
+        [StakeState.NotEarning]: `${rewardsStaked} ${symbol}`,
     };
 
     const { data: rewardEpochTime } = useGetTimeBeforeEpochNumber(Number(epochBeforeRewards) || 0);
@@ -81,7 +81,7 @@ export enum StakeState {
     Earning = 'EARNING',
     CoolDown = 'COOL_DOWN',
     Withdraw = 'WITHDRAW',
-    NotEarningMore = 'NOT_EARNING_MORE',
+    NotEarning = 'NOT_EARNING',
 }
 export const STATUS_COPY: {
     [key in StakeState]: string;
@@ -90,5 +90,5 @@ export const STATUS_COPY: {
     [StakeState.Earning]: 'Staking Rewards',
     [StakeState.CoolDown]: 'Available to withdraw',
     [StakeState.Withdraw]: 'Withdraw',
-    [StakeState.NotEarningMore]: 'Rewards',
+    [StakeState.NotEarning]: 'Rewards',
 };

@@ -14,8 +14,9 @@ import {
 import { useMemo } from 'react';
 import { ImageIcon } from '../icon';
 import { ExtendedDelegatedStake } from '../../utils';
-import { useFormatCoin, useGetLatestIotaSystemState, useStakeRewardStatus } from '../../hooks';
+import { useFormatCoin, useStakeRewardStatus } from '../../hooks';
 import { RewardsOff, Warning } from '@iota/apps-ui-icons';
+import { useIotaClientQuery } from '@iota/dapp-kit';
 
 interface StakedCardProps {
     extendedStake: ExtendedDelegatedStake;
@@ -52,7 +53,7 @@ export function StakedCard({
                 : principal,
     });
 
-    const { data } = useGetLatestIotaSystemState();
+    const { data } = useIotaClientQuery('getLatestIotaSystemState');
 
     const validatorMeta = useMemo(() => {
         if (!data) return null;
@@ -84,9 +85,9 @@ export function StakedCard({
                 }
                 tooltipText={
                     activeButNotInTheCommittee
-                        ? 'This validator is not part of the next epoch, so you will not earn rewards.'
+                        ? 'This validator is active but not in the current committee, so it’s not earning rewards right now. It may earn in future epochs.'
                         : inactiveValidator
-                          ? 'This validator is inactive, so you will not earn rewards.'
+                          ? 'This validator is inactive and will no longer earn rewards. '
                           : ''
                 }
                 tooltipPosition={TooltipPosition.Bottom}

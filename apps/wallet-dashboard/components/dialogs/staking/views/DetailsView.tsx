@@ -11,6 +11,7 @@ import {
     toast,
     useIsValidatorCommitteeMember,
     useIsActiveValidator,
+    useGetNextEpochCommitteeMember,
 } from '@iota/core';
 import {
     Header,
@@ -52,6 +53,9 @@ export function DetailsView({
 }: StakeDialogProps): JSX.Element {
     const totalStake = BigInt(stakedDetails?.principal || 0n);
     const validatorAddress = stakedDetails?.validatorAddress;
+    const { isValidatorExpectedToBeInTheCommittee } =
+        useGetNextEpochCommitteeMember(validatorAddress);
+
     const {
         isAtRisk,
         isPendingValidators,
@@ -97,6 +101,7 @@ export function DetailsView({
 
     const isValidatorCommitteeMember = isCommitteeMember(validatorAddress);
     const isAnActiveValidator = isActiveValidator(validatorAddress);
+    const activeButNotInTheCommittee = isAnActiveValidator && !isValidatorCommitteeMember;
 
     return (
         <DialogLayout>
@@ -114,19 +119,19 @@ export function DetailsView({
                         </CardImage>
                         <CardBody title={validatorName} subtitle={subtitle} isTextTruncated />
                     </Card>
-                    {!isValidatorCommitteeMember && isAnActiveValidator ? (
+                    {activeButNotInTheCommittee ? (
                         <InfoBox
                             type={InfoBoxType.Warning}
                             title="Validator is not earning rewards."
-                            supportingText="Validator is not part of the current Epoch. Continue staking at your own discretion."
+                            supportingText="Validator is active but not in the current committee, so not earning rewards this epoch. It may earn in future epochs. Stake at your discretion."
                             icon={<Warning />}
                             style={InfoBoxStyle.Elevated}
                         />
                     ) : !isAnActiveValidator ? (
                         <InfoBox
                             type={InfoBoxType.Error}
-                            title="Disabled Validator is not earning rewards"
-                            supportingText="This validator is flagged as a bad actor. Continue staking at your own discretion."
+                            title="Inactive Validator is not earning rewards"
+                            supportingText="This validator is inactive and will no longer earn rewards. Stake at your own risk."
                             icon={<Warning />}
                             style={InfoBoxStyle.Elevated}
                         />
@@ -158,8 +163,7 @@ export function DetailsView({
                             />
                         </div>
                     </Panel>
-                    {(isAnActiveValidator && !isValidatorCommitteeMember) ||
-                    !isAnActiveValidator ? (
+                    {!isValidatorExpectedToBeInTheCommittee ? (
                         <Panel hasBorder>
                             <div className="flex flex-col gap-y-sm p-md">
                                 <KeyValueInfo
@@ -167,7 +171,7 @@ export function DetailsView({
                                     value={<Badge label="Not Earning" type={BadgeType.Warning} />}
                                     fullwidth
                                     tooltipPosition={TooltipPosition.Top}
-                                    tooltipText="Currently, the validator does not meet the criteria required to receive rewards in the upcoming epoch."
+                                    tooltipText="Currently, the validator does not meet the criteria required to generate rewards in the next epoch, but this may change."
                                 />
                             </div>
                         </Panel>
@@ -187,7 +191,6 @@ export function DetailsView({
                         text="Stake"
                         onClick={handleStake}
                         fullWidth
-                        disabled={isAtRisk}
                     />
                 </div>
             </DialogLayoutFooter>

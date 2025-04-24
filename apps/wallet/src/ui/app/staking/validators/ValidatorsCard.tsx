@@ -12,7 +12,6 @@ import {
     DELEGATED_STAKES_QUERY_STALE_TIME,
     useFormatCoin,
     StakedCard,
-    useGetLatestIotaSystemState,
 } from '@iota/core';
 import { useMemo } from 'react';
 import { useActiveAddress } from '_hooks';
@@ -29,6 +28,7 @@ import {
 } from '@iota/apps-ui-kit';
 import { useNavigate } from 'react-router-dom';
 import { Warning } from '@iota/apps-ui-icons';
+import { useIotaClientQuery } from '@iota/dapp-kit';
 
 export function ValidatorsCard() {
     const accountAddress = useActiveAddress();
@@ -44,7 +44,7 @@ export function ValidatorsCard() {
     });
     const navigate = useNavigate();
 
-    const { data: system } = useGetLatestIotaSystemState();
+    const { data: system } = useIotaClientQuery('getLatestIotaSystemState');
     const committeeMembers = system?.committeeMembers;
     const activeValidators = system?.activeValidators;
     const delegatedStake = delegatedStakeData ? formatDelegatedStake(delegatedStakeData) : [];
@@ -128,6 +128,28 @@ export function ValidatorsCard() {
                 <div className="w-full gap-2">
                     {system &&
                         delegations
+                            ?.filter(({ inactiveValidator }) => inactiveValidator)
+                            .map((delegation) => (
+                                <div className="w-full gap-2" key={delegation.stakedIotaId}>
+                                    <StakedCard
+                                        extendedStake={delegation}
+                                        inactiveValidator
+                                        currentEpoch={Number(system.epoch)}
+                                        onClick={() =>
+                                            navigate(
+                                                `/stake/delegation-detail?${new URLSearchParams({
+                                                    validator: delegation.validatorAddress,
+                                                    staked: delegation.stakedIotaId,
+                                                }).toString()}`,
+                                            )
+                                        }
+                                    />
+                                </div>
+                            ))}
+                </div>
+                <div className="w-full gap-2">
+                    {system &&
+                        delegations
                             ?.filter(({ activeButNotInTheCommittee }) => activeButNotInTheCommittee)
                             .map((delegation) => (
                                 <StakedCard
@@ -168,31 +190,6 @@ export function ValidatorsCard() {
                                         )
                                     }
                                 />
-                            ))}
-                </div>
-                <div className="w-full gap-2">
-                    {system &&
-                        delegations
-                            ?.filter(
-                                ({ inactiveValidator, activeButNotInTheCommittee }) =>
-                                    inactiveValidator && !activeButNotInTheCommittee,
-                            )
-                            .map((delegation) => (
-                                <div className="w-full gap-2" key={delegation.stakedIotaId}>
-                                    <StakedCard
-                                        extendedStake={delegation}
-                                        inactiveValidator
-                                        currentEpoch={Number(system.epoch)}
-                                        onClick={() =>
-                                            navigate(
-                                                `/stake/delegation-detail?${new URLSearchParams({
-                                                    validator: delegation.validatorAddress,
-                                                    staked: delegation.stakedIotaId,
-                                                }).toString()}`,
-                                            )
-                                        }
-                                    />
-                                </div>
                             ))}
                 </div>
             </div>

@@ -17,7 +17,9 @@ import {
     Validator,
     getValidatorCommission,
     toast,
-    useGetLatestIotaSystemState,
+    useIsValidatorCommitteeMember,
+    useIsActiveValidator,
+    useGetNextEpochCommitteeMember,
 } from '@iota/core';
 import { Network, type StakeObject } from '@iota/iota-sdk/client';
 import { NANOS_PER_IOTA, IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
@@ -41,6 +43,7 @@ import {
 } from '@iota/apps-ui-kit';
 import { useNavigate } from 'react-router-dom';
 import { Warning } from '@iota/apps-ui-icons';
+import { useIotaClientQuery } from '@iota/dapp-kit';
 
 interface DelegationDetailCardProps {
     validatorAddress: string;
@@ -53,7 +56,7 @@ export function DelegationDetailCard({ validatorAddress, stakedId }: DelegationD
         data: system,
         isPending: loadingValidators,
         isError: errorValidators,
-    } = useGetLatestIotaSystemState();
+    } = useIotaClientQuery('getLatestIotaSystemState');
 
     const accountAddress = useActiveAddress();
     const {
@@ -70,6 +73,10 @@ export function DelegationDetailCard({ validatorAddress, stakedId }: DelegationD
     const network = useAppSelector(({ app }) => app.network);
     const { data: coinBalance } = useBalance(accountAddress!);
     const { data: metadata } = useCoinMetadata(IOTA_TYPE_ARG);
+    const { isCommitteeMember } = useIsValidatorCommitteeMember();
+    const { isActiveValidator } = useIsActiveValidator();
+    const { isValidatorExpectedToBeInTheCommittee } =
+        useGetNextEpochCommitteeMember(validatorAddress);
     // set minimum stake amount to 1 IOTA
     const showRequestMoreIotaToken = useMemo(() => {
         if (!coinBalance?.totalBalance || !metadata?.decimals || network === Network.Mainnet)
@@ -109,14 +116,9 @@ export function DelegationDetailCard({ validatorAddress, stakedId }: DelegationD
         staked: stakedId,
     }).toString()}`;
 
-    // check if the validator is in the committee members list
-    const isNotCommitteeMember = !system?.committeeMembers?.find(
-        ({ stakingPoolId }) => stakingPoolId === validatorData?.stakingPoolId,
-    );
-
-    const inactiveValidator = !system?.activeValidators?.find(
-        ({ stakingPoolId }) => stakingPoolId === validatorData?.stakingPoolId,
-    );
+    const isValidatorCommitteeMember = isCommitteeMember(validatorAddress);
+    const isAnActiveValidator = isActiveValidator(validatorAddress);
+    const activeButNotInTheCommittee = isAnActiveValidator && !isValidatorCommitteeMember;
 
     if (isPending || loadingValidators) {
         return (
@@ -149,19 +151,19 @@ export function DelegationDetailCard({ validatorAddress, stakedId }: DelegationD
         <div className="flex h-full w-full flex-col justify-between">
             <div className="flex flex-col gap-y-md">
                 <Validator address={validatorAddress} type={CardType.Filled} />
-                {isNotCommitteeMember && !inactiveValidator ? (
+                {activeButNotInTheCommittee ? (
                     <InfoBox
                         type={InfoBoxType.Warning}
                         title="Validator is not earning rewards."
-                        supportingText="Validator is not part of the current Epoch. Continue staking at your own discretion."
+                        supportingText="Validator is active but not in the current committee, so not earning rewards this epoch. It may earn in future epochs. Stake at your discretion."
                         icon={<Warning />}
                         style={InfoBoxStyle.Elevated}
                     />
-                ) : inactiveValidator ? (
+                ) : !isAnActiveValidator ? (
                     <InfoBox
                         type={InfoBoxType.Error}
-                        title="Disabled Validator is not earning rewards"
-                        supportingText="This validator is flagged as a bad actor. Continue staking at your own discretion."
+                        title="Inactive Validator is not earning rewards"
+                        supportingText="This validator is inactive and will no longer earn rewards. Stake at your own risk."
                         icon={<Warning />}
                         style={InfoBoxStyle.Elevated}
                     />
@@ -195,7 +197,7 @@ export function DelegationDetailCard({ validatorAddress, stakedId }: DelegationD
                         />
                     </div>
                 </Panel>
-                {(!inactiveValidator && isNotCommitteeMember) || inactiveValidator ? (
+                {!isValidatorExpectedToBeInTheCommittee ? (
                     <Panel hasBorder>
                         <div className="flex flex-col gap-y-sm p-md">
                             <KeyValueInfo
@@ -203,7 +205,7 @@ export function DelegationDetailCard({ validatorAddress, stakedId }: DelegationD
                                 value={<Badge label="Not Earning" type={BadgeType.Warning} />}
                                 fullwidth
                                 tooltipPosition={TooltipPosition.Top}
-                                tooltipText="Currently, the validator does not meet the criteria required to receive rewards in the upcoming epoch."
+                                tooltipText="Currently, the validator does not meet the criteria required to generate rewards in the next epoch, but this may change."
                             />
                         </div>
                     </Panel>
@@ -218,15 +220,13 @@ export function DelegationDetailCard({ validatorAddress, stakedId }: DelegationD
                         fullWidth
                     />
                 )}
-                {!isNotCommitteeMember ? (
-                    <Button
-                        type={ButtonType.Primary}
-                        text="Stake"
-                        onClick={handleAddNewStake}
-                        disabled={showRequestMoreIotaToken}
-                        fullWidth
-                    />
-                ) : null}
+                <Button
+                    type={ButtonType.Primary}
+                    text="Stake"
+                    onClick={handleAddNewStake}
+                    disabled={showRequestMoreIotaToken}
+                    fullWidth
+                />
             </div>
         </div>
     );
