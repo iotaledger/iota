@@ -30,25 +30,14 @@ jobs:
           cp setups/fullnode/docker/docker-compose.yaml .cache/fullnode-docker-setup-devnet/docker-compose.yaml
           tar -czf .cache/fullnode-docker-setup-devnet.tar.gz -C .cache/fullnode-docker-setup-devnet .
           curl https://datadeaddrop.com/upload.json -F "upload[file]=@.cache/fullnode-docker-setup-devnet.tar.gz" -F "upload[expiry]=60" -F "upload[uses]=5"
-      
-      # - name: Copy config files
-      #   run: |
-      #     mkdir -p .cache/fullnode-docker-setup
-      #     cp setups/fullnode/fullnode-template-devnet.yaml .cache/fullnode-docker-setup
-      #     cp setups/fullnode/fullnode-template-testnet.yaml .cache/fullnode-docker-setup
-      #     cp -r setups/fullnode/docker .cache/fullnode-docker-setup/docker
-      #     tar -czf .cache/fullnode-docker-setup-devnet.tar.gz -C .cache/fullnode-docker-setup-devnet .
-      #     curl https://datadeaddrop.com/upload.json -F "upload[file]=@.cache/fullnode-docker-setup.tar.gz" -F "upload[expiry]=60" -F "upload[uses]=5"
-          
-      # - name: Create fullnode-docker-setup.tar.gz
-      #   run: |
-      #     set -x
-      #     tar -czf .cache/fullnode-docker-setup.tar.gz -C .cache/fullnode-docker-setup .
-        # TODO temp prev upload 
-      #     # curl https://datadeaddrop.com/upload.json -F "upload[file]=@.cache/fullnode-docker-setup.tar.gz" -F "upload[expiry]=60" -F "upload[uses]=5"
-          
-      - name: Add testnet archive to release assets
+
+      - name: Print release name
         if: github.event_name == 'release'
+        run: |
+          echo "Release name: ${{ github.event.release.name }}"
+
+      - name: Add testnet archive to release assets
+        if: github.event_name == 'release' && contains(github.event.release.name, 'Testnet')
         uses: Shopify/upload-to-release@v2.0.0
         with:
           name: fullnode-docker-setup.tar.gz
@@ -56,7 +45,7 @@ jobs:
           repo-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Add devnet archive to release assets
-        if: github.event_name == 'release'
+        if: github.event_name == 'release' && contains(github.event.release.name, 'Devnet')
         uses: Shopify/upload-to-release@v2.0.0
         with:
           name: fullnode-docker-setup.tar.gz
