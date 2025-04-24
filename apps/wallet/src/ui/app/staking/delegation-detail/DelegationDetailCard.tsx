@@ -220,13 +220,15 @@ export function DelegationDetailCard({ validatorAddress, stakedId }: DelegationD
                         fullWidth
                     />
                 )}
-                <Button
-                    type={ButtonType.Primary}
-                    text="Stake"
-                    onClick={handleAddNewStake}
-                    disabled={showRequestMoreIotaToken}
-                    fullWidth
-                />
+                {isAnActiveValidator ? (
+                    <Button
+                        type={ButtonType.Primary}
+                        text="Stake"
+                        onClick={handleAddNewStake}
+                        disabled={showRequestMoreIotaToken}
+                        fullWidth
+                    />
+                ) : null}
             </div>
         </div>
     );
