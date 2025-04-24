@@ -117,7 +117,7 @@ export function EnterAmountDialogLayout({
                                 <InfoBox
                                     type={InfoBoxType.Warning}
                                     title="Validator is not earning rewards."
-                                    supportingText="Validator is not part of the current Epoch. Continue staking at your own discretion."
+                                    supportingText="Validator is active but not in the current committee, so not earning rewards this epoch. It may earn in future epochs. Stake at your discretion."
                                     icon={<Warning />}
                                     style={InfoBoxStyle.Elevated}
                                 />

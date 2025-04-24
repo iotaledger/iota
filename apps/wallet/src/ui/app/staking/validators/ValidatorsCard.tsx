@@ -128,6 +128,28 @@ export function ValidatorsCard() {
                 <div className="w-full gap-2">
                     {system &&
                         delegations
+                            ?.filter(({ inactiveValidator }) => inactiveValidator)
+                            .map((delegation) => (
+                                <div className="w-full gap-2" key={delegation.stakedIotaId}>
+                                    <StakedCard
+                                        extendedStake={delegation}
+                                        inactiveValidator
+                                        currentEpoch={Number(system.epoch)}
+                                        onClick={() =>
+                                            navigate(
+                                                `/stake/delegation-detail?${new URLSearchParams({
+                                                    validator: delegation.validatorAddress,
+                                                    staked: delegation.stakedIotaId,
+                                                }).toString()}`,
+                                            )
+                                        }
+                                    />
+                                </div>
+                            ))}
+                </div>
+                <div className="w-full gap-2">
+                    {system &&
+                        delegations
                             ?.filter(({ activeButNotInTheCommittee }) => activeButNotInTheCommittee)
                             .map((delegation) => (
                                 <StakedCard
@@ -168,31 +190,6 @@ export function ValidatorsCard() {
                                         )
                                     }
                                 />
-                            ))}
-                </div>
-                <div className="w-full gap-2">
-                    {system &&
-                        delegations
-                            ?.filter(
-                                ({ inactiveValidator, activeButNotInTheCommittee }) =>
-                                    inactiveValidator && !activeButNotInTheCommittee,
-                            )
-                            .map((delegation) => (
-                                <div className="w-full gap-2" key={delegation.stakedIotaId}>
-                                    <StakedCard
-                                        extendedStake={delegation}
-                                        inactiveValidator
-                                        currentEpoch={Number(system.epoch)}
-                                        onClick={() =>
-                                            navigate(
-                                                `/stake/delegation-detail?${new URLSearchParams({
-                                                    validator: delegation.validatorAddress,
-                                                    staked: delegation.stakedIotaId,
-                                                }).toString()}`,
-                                            )
-                                        }
-                                    />
-                                </div>
                             ))}
                 </div>
             </div>

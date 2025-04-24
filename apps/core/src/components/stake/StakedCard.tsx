@@ -85,9 +85,9 @@ export function StakedCard({
                 }
                 tooltipText={
                     activeButNotInTheCommittee
-                        ? 'This validator is not part of the next epoch, so you will not earn rewards.'
+                        ? 'This validator is active but not in the current committee, so it’s not earning rewards right now. It may earn in future epochs.'
                         : inactiveValidator
-                          ? 'This validator is inactive, so you will not earn rewards.'
+                          ? 'This validator is inactive and not earning rewards. It must become active and join the committee to earn in the future.'
                           : ''
                 }
                 tooltipPosition={TooltipPosition.Bottom}

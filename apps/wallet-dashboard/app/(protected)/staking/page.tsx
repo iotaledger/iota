@@ -83,13 +83,12 @@ function StakingDashboardPage(): React.JSX.Element {
             const isActive = activeValidators?.find(
                 (validator) => validator.stakingPoolId === delegation.stakingPool,
             );
-            const inactiveValidator = !isActive;
             return delegation.stakes.map((d) => ({
                 ...d,
                 // flag any inactive validator for the stakeIota object
                 // if the stakingPoolId is not found in the committeeMembers list flag as inactive
                 activeButNotInTheCommittee: !isInCommittee && isActive,
-                inactiveValidator: inactiveValidator,
+                inactiveValidator: !isActive,
                 validatorAddress: delegation.validatorAddress,
             }));
         });
@@ -169,6 +168,22 @@ function StakingDashboardPage(): React.JSX.Element {
                             <div className="flex max-h-[420px] w-full flex-1 flex-col items-start overflow-auto">
                                 {system &&
                                     delegations
+                                        ?.filter(({ inactiveValidator }) => inactiveValidator)
+                                        .map((delegation) => (
+                                            <div
+                                                className="w-full gap-2"
+                                                key={delegation.stakedIotaId}
+                                            >
+                                                <StakedCard
+                                                    extendedStake={delegation}
+                                                    inactiveValidator
+                                                    currentEpoch={Number(system.epoch)}
+                                                    onClick={() => viewStakeDetails(delegation)}
+                                                />
+                                            </div>
+                                        ))}
+                                {system &&
+                                    delegations
                                         ?.filter(
                                             ({ activeButNotInTheCommittee }) =>
                                                 activeButNotInTheCommittee,
@@ -199,25 +214,6 @@ function StakingDashboardPage(): React.JSX.Element {
                                             >
                                                 <StakedCard
                                                     extendedStake={delegation}
-                                                    currentEpoch={Number(system.epoch)}
-                                                    onClick={() => viewStakeDetails(delegation)}
-                                                />
-                                            </div>
-                                        ))}
-                                {system &&
-                                    delegations
-                                        ?.filter(
-                                            ({ inactiveValidator, activeButNotInTheCommittee }) =>
-                                                inactiveValidator && !activeButNotInTheCommittee,
-                                        )
-                                        .map((delegation) => (
-                                            <div
-                                                className="w-full gap-2"
-                                                key={delegation.stakedIotaId}
-                                            >
-                                                <StakedCard
-                                                    extendedStake={delegation}
-                                                    inactiveValidator
                                                     currentEpoch={Number(system.epoch)}
                                                     onClick={() => viewStakeDetails(delegation)}
                                                 />
