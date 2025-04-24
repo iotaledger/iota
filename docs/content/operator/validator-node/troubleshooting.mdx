@@ -25,10 +25,10 @@ By following these steps, you can quickly recover your validator node, minimizin
 </Tabs>
 
 ### Delete the database folders
-  
-Find and delete the `db-path` and `consensus-config: db-path` folders in your `validator.yaml`.  
 
-Command if you are using default values for these paths:
+There are two database folders to delete, specified in your `validator.yaml` under the keys `db-path:` and `consensus-config -> db-path:`.
+
+If you used default values for these folders, run this command to delete both folders at once:
 
 <Tabs groupId="validator-troubleshooting">
   <TabItem label="Systemd" value="recover-systemd">
@@ -42,6 +42,8 @@ Command if you are using default values for these paths:
       ```
   </TabItem>
 </Tabs>
+
+If you customized them at setup, replace the previous paths with the ones you specified in `validator.yaml` under `db-path:` and `consensus-config -> db-path:`.
 
 ### Restore from formal snapshot
 
