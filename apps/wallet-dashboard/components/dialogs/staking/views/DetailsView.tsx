@@ -186,12 +186,14 @@ export function DetailsView({
                         text="Unstake"
                         fullWidth
                     />
-                    <Button
-                        type={ButtonType.Primary}
-                        text="Stake"
-                        onClick={handleStake}
-                        fullWidth
-                    />
+                    {isAnActiveValidator ? (
+                        <Button
+                            type={ButtonType.Primary}
+                            text="Stake"
+                            onClick={handleStake}
+                            fullWidth
+                        />
+                    ) : null}
                 </div>
             </DialogLayoutFooter>
         </DialogLayout>
