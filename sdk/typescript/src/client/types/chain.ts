@@ -11,7 +11,9 @@ import type {
     IotaCallArg,
     IotaMoveNormalizedModule,
     IotaParsedData,
+    IotaSystemStateSummaryV2,
     IotaTransaction,
+    IotaValidatorSummary,
 } from './generated.js';
 
 export type EpochPage = {
@@ -58,3 +60,7 @@ export type ProgrammableTransaction = {
     transactions: IotaTransaction[];
     inputs: IotaCallArg[];
 };
+
+export type LatestIotaSystemStateSummary = {
+    committeeMembers: IotaValidatorSummary[];
+} & Omit<IotaSystemStateSummaryV2, 'committeeMembers'>;

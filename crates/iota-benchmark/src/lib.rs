@@ -456,7 +456,7 @@ impl ValidatorProxy for LocalValidatorAggregatorProxy {
                         .load()
                         .metrics
                         .process_tx_errors
-                        .with_label_values(&[&name.concise().to_string(), e.as_ref()])
+                        .with_label_values(&[name.concise().to_string().as_str(), e.as_ref()])
                         .inc();
                     tracing::warn!("Failed to submit transaction: {e}")
                 }
@@ -559,7 +559,7 @@ impl ValidatorProxy for LocalValidatorAggregatorProxy {
                     auth_agg
                         .metrics
                         .process_cert_errors
-                        .with_label_values(&[&name.concise().to_string(), e.as_ref()])
+                        .with_label_values(&[name.concise().to_string().as_str(), e.as_ref()])
                         .inc();
                     tracing::warn!("Failed to submit certificate: {e}")
                 }

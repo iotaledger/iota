@@ -11,6 +11,7 @@ import { useIotaClient } from '@iota/dapp-kit';
 import { useQuery } from '@tanstack/react-query';
 import { normalizeIotaAddress } from '@iota/iota-sdk/utils';
 
+
 interface StakedCardProps {
     extendedStake: ExtendedDelegatedStake;
     currentEpoch: number;

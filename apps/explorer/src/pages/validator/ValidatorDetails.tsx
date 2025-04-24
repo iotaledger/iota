@@ -2,12 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import {
-    type IotaSystemStateSummaryCompat,
-    useGetLatestIotaSystemState,
-    useGetValidatorsApy,
-    useGetValidatorsEvents,
-} from '@iota/core';
+import { useGetValidatorsApy, useGetValidatorsEvents } from '@iota/core';
 import { useParams } from 'react-router-dom';
 import { InactiveValidators, PageLayout, ValidatorMeta, ValidatorStats } from '~/components';
 import { VALIDATOR_LOW_STAKE_GRACE_PERIOD } from '~/lib/constants';
@@ -15,13 +10,13 @@ import { getValidatorMoveEvent } from '~/lib/utils';
 import { InfoBox, InfoBoxStyle, InfoBoxType, LoadingIndicator } from '@iota/apps-ui-kit';
 import { Warning } from '@iota/apps-ui-icons';
 import { useQuery } from '@tanstack/react-query';
-import type { IotaClient } from '@iota/iota-sdk/client';
+import type { IotaClient, LatestIotaSystemStateSummary } from '@iota/iota-sdk/client';
 import { normalizeIotaAddress, toB64 } from '@iota/iota-sdk/utils';
-import { useIotaClient } from '@iota/dapp-kit';
+import { useIotaClient, useIotaClientQuery } from '@iota/dapp-kit';
 import { z } from 'zod';
 
 const getAtRiskRemainingEpochs = (
-    data: IotaSystemStateSummaryCompat | undefined,
+    data: LatestIotaSystemStateSummary | undefined,
     validatorId: string | undefined,
 ): number | null => {
     if (!data || !validatorId) return null;
@@ -128,8 +123,9 @@ const getInactiveValidatorsData = async (
 
 function ValidatorDetails(): JSX.Element {
     const { id } = useParams();
-    const { data: systemStateData, isLoading: isLoadingSystemState } =
-        useGetLatestIotaSystemState();
+    const { data: systemStateData, isLoading: isLoadingSystemState } = useIotaClientQuery(
+        'getLatestIotaSystemState',
+    );
 
     const iotaClient = useIotaClient();
 

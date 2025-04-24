@@ -10,9 +10,11 @@ import {
     SIZE_LIMIT_EXCEEDED,
     useGetClockTimestamp,
     toast,
+    parseAmount,
+    useCoinMetadata,
     getGasBudgetErrorMessage,
 } from '@iota/core';
-import { NANOS_PER_IOTA } from '@iota/iota-sdk/utils';
+import { IOTA_TYPE_ARG, NANOS_PER_IOTA } from '@iota/iota-sdk/utils';
 import { useFormikContext } from 'formik';
 import { useSignAndExecuteTransaction } from '@iota/dapp-kit';
 import { getAmountFromGroupedTimelockObjects, useNewStakeTimelockedTransaction } from '@/hooks';
@@ -29,7 +31,6 @@ interface FormValues {
 interface EnterTimelockedAmountViewProps {
     selectedValidator: string;
     maxStakableTimelockedAmount: bigint;
-    amountWithoutDecimals: bigint;
     senderAddress: string;
     onBack: () => void;
     handleClose: () => void;
@@ -42,16 +43,18 @@ const REDUCTION_STEP_SIZE = BigInt(1_000_000_000);
 export function EnterTimelockedAmountView({
     selectedValidator,
     maxStakableTimelockedAmount,
-    amountWithoutDecimals,
     senderAddress,
     onBack,
     handleClose,
     onSuccess,
 }: EnterTimelockedAmountViewProps): JSX.Element {
     const { mutateAsync: signAndExecuteTransaction } = useSignAndExecuteTransaction();
-    const { resetForm } = useFormikContext<FormValues>();
+    const { values, resetForm } = useFormikContext<FormValues>();
     const [possibleAmount, setPossibleAmount] = useState<bigint | null>(null);
     const [isSearchingProtocolMaxAmount, setSearchingProtocolMaxAmount] = useState(false);
+    const { data: metadata } = useCoinMetadata(IOTA_TYPE_ARG);
+    const decimals = metadata?.decimals ?? 0;
+    const amountWithoutDecimals = parseAmount(values.amount, decimals);
 
     const { data: clockTimestampMs } = useGetClockTimestamp();
     const { data: timelockedObjects } = useGetAllOwnedObjects(senderAddress, {
