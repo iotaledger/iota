@@ -1,7 +1,7 @@
 #!/bin/bash -ex
-DOCKER_DIR="$( dirname "${BASH_SOURCE[0]}" )"
-WORKDIR="$(dirname "$DOCKER_DIR")"
-DATA_DIR="$DOCKER_DIR/data"
+WORKDIR="$( dirname "${BASH_SOURCE[0]}" )"
+# WORKDIR="$(dirname "$DOCKER_DIR")"
+DATA_DIR="$WORKDIR/data"
 CONFIG_DIR="$DATA_DIR/config"
 
 

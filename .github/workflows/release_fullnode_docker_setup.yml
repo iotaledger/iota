@@ -16,7 +16,7 @@ jobs:
       - name: Archive fullnode docker setup for Testnet
         run: |
           mkdir -p .cache/fullnode-docker-setup-testnet
-          cp setups/fullnode/fullnode-template-testnet.yaml .cache/fullnode-docker-setup-testnet
+          cp setups/fullnode/fullnode-template-testnet.yaml .cache/fullnode-docker-setup-testnet/fullnode.yaml
           cp setups/fullnode/docker/prepare_testnet.sh .cache/fullnode-docker-setup-testnet/prepare_testnet.sh
           cp setups/fullnode/docker/docker-compose.yaml .cache/fullnode-docker-setup-testnet/docker-compose.yaml
           tar -czf .cache/fullnode-docker-setup-testnet.tar.gz -C .cache/fullnode-docker-setup-testnet .
@@ -25,7 +25,7 @@ jobs:
       - name: Archive fullnode docker setup for Devnet
         run: |
           mkdir -p .cache/fullnode-docker-setup-devnet
-          cp setups/fullnode/fullnode-template-devnet.yaml .cache/fullnode-docker-setup-devnet
+          cp setups/fullnode/fullnode-template-devnet.yaml .cache/fullnode-docker-setup-devnet/fullnode.yaml
           cp setups/fullnode/docker/prepare_devnet.sh .cache/fullnode-docker-setup-devnet/prepare_devnet.sh
           cp setups/fullnode/docker/docker-compose.yaml .cache/fullnode-docker-setup-devnet/docker-compose.yaml
           tar -czf .cache/fullnode-docker-setup-devnet.tar.gz -C .cache/fullnode-docker-setup-devnet .
@@ -47,10 +47,18 @@ jobs:
         # TODO temp prev upload 
       #     # curl https://datadeaddrop.com/upload.json -F "upload[file]=@.cache/fullnode-docker-setup.tar.gz" -F "upload[expiry]=60" -F "upload[uses]=5"
           
-      - name: Add archive to release assets
+      - name: Add testnet archive to release assets
         if: github.event_name == 'release'
         uses: Shopify/upload-to-release@v2.0.0
         with:
           name: fullnode-docker-setup.tar.gz
-          path: .cache/fullnode-docker-setup.tar.gz
+          path: .cache/fullnode-docker-setup-testnet.tar.gz
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Add devnet archive to release assets
+        if: github.event_name == 'release'
+        uses: Shopify/upload-to-release@v2.0.0
+        with:
+          name: fullnode-docker-setup.tar.gz
+          path: .cache/fullnode-docker-setup-devnet.tar.gz
           repo-token: ${{ secrets.GITHUB_TOKEN }}
