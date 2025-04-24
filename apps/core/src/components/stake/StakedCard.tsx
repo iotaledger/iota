@@ -6,11 +6,10 @@ import { Card, CardImage, CardType, CardBody, CardAction, CardActionType } from 
 import { useMemo } from 'react';
 import { ImageIcon } from '../icon';
 import { ExtendedDelegatedStake, getInactiveValidatorsData } from '../../utils';
-import { useFormatCoin, useGetLatestIotaSystemState, useStakeRewardStatus } from '../../hooks';
-import { useIotaClient } from '@iota/dapp-kit';
+import { useFormatCoin, useStakeRewardStatus } from '../../hooks';
+import { useIotaClient, useIotaClientQuery } from '@iota/dapp-kit';
 import { useQuery } from '@tanstack/react-query';
 import { normalizeIotaAddress } from '@iota/iota-sdk/utils';
-
 
 interface StakedCardProps {
     extendedStake: ExtendedDelegatedStake;
@@ -28,7 +27,7 @@ export function StakedCard({
     onClick,
 }: StakedCardProps) {
     const { principal, stakeRequestEpoch, estimatedReward, validatorAddress } = extendedStake;
-    const { data } = useGetLatestIotaSystemState();
+    const { data } = useIotaClientQuery('getLatestIotaSystemState');
     const iotaClient = useIotaClient();
 
     const { rewards, title, subtitle } = useStakeRewardStatus({
