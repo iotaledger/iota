@@ -276,8 +276,8 @@ async fn _sync_checkpoint_list_to_latest_using_checkpoints_store(
     // Get the local checkpoint list, or create an empty one if it doesn't exist
     let mut checkpoints_list = match read_checkpoint_list(config) {
         Ok(list) => list,
-        Err(e) => {
-            info!("Could not read existing checkpoint list, starting with empty list: {e}");
+        Err(_) => {
+            info!("Could not read existing checkpoint list, starting with empty list.");
             CheckpointList::default()
         }
     };
