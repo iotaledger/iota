@@ -2,7 +2,7 @@ rpc_url: "https://api.devnet.iota.cafe"
 graphql_url: "https://graphql.devnet.iota.cafe"
 checkpoints_dir: "checkpoints_devnet"
 genesis_blob_download_url: "https://dbfiles.devnet.iota.cafe/genesis.blob"
-sync_before_check: false
+sync_before_check: true
 object_store_url: "https://checkpoints.devnet.iota.cafe"
 archive_store_config:
   object-store: "S3"

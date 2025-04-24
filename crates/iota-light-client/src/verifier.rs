@@ -104,7 +104,7 @@ pub async fn get_verified_effects_and_events(
 
     info!("Getting effects and events for transaction: {transaction_digest}");
 
-    // Lookup the transaction id and get the checkpoint sequence number
+    // Lookup the transaction digest and get the checkpoint sequence number
     let options = IotaTransactionBlockResponseOptions::new();
     let seq = read_api
         .get_transaction_with_options(transaction_digest, options)
@@ -113,13 +113,19 @@ pub async fn get_verified_effects_and_events(
         .checkpoint
         .ok_or_else(|| anyhow!("Transaction not found"))?;
 
-    let checkpoint_store = CheckpointStore::new(config)?;
+    let checkpoint = if config.object_store_url.is_some() {
+        let checkpoint_store = CheckpointStore::new(config)?;
 
-    // Download the full checkpoint for this sequence number
-    let full_check_point = checkpoint_store
-        .fetch_full_checkpoint(seq)
-        .await
-        .context("Cannot get full checkpoint")?;
+        // Download the full checkpoint for this sequence number
+        checkpoint_store
+            .fetch_full_checkpoint(seq)
+            .await
+            .context("Cannot get full checkpoint")?
+    } else {
+        // try REST API (for custom networks)
+        let client = iota_rest_api::Client::new(&config.rpc_url);
+        client.get_full_checkpoint(seq).await?
+    };
 
     // Load the list of stored checkpoints
     let checkpoints_list: CheckpointList = read_checkpoint_list(config)?;
@@ -137,7 +143,7 @@ pub async fn get_verified_effects_and_events(
 
         // Check we have the right checkpoint
         anyhow::ensure!(
-            prev_ckp.epoch().checked_add(1).unwrap() == full_check_point.checkpoint_summary.epoch(),
+            prev_ckp.epoch().checked_add(1).unwrap() == checkpoint.checkpoint_summary.epoch(),
             "Checkpoint sequence number does not match. Need to Sync."
         );
 
@@ -162,7 +168,7 @@ pub async fn get_verified_effects_and_events(
 
     info!("Extracting effects and events for transaction: {transaction_digest}");
 
-    extract_verified_effects_and_events(&full_check_point, &committee, transaction_digest)
+    extract_verified_effects_and_events(&checkpoint, &committee, transaction_digest)
         .context("Cannot extract effects and events")
 }
 
