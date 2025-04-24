@@ -92,7 +92,7 @@ export function DelegationDetailCard({ validatorAddress, stakedId }: DelegationD
         if (!system) return null;
         return system.activeValidators.find((av) => av.iotaAddress === validatorAddress);
     }, [validatorAddress, system]);
-    console.log('system', system);
+
     const delegationData = useMemo(() => {
         return allDelegation ? getDelegationDataByStakeId(allDelegation, stakedId) : null;
     }, [allDelegation, stakedId]);
