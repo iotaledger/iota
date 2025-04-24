@@ -54,8 +54,6 @@ export function useValidatorInfo({ validatorAddress }: { validatorAddress: strin
             projectUrl: inactiveValidatorData?.projectUrl || '',
         };
     }
-    console.log('inactiveValidatorData222: ', inactiveValidatorData);
-    console.log('inactiveValidatorSummary222: ', inactiveValidatorSummary);
 
     const currentEpoch = Number(system?.epoch || 0);
     const stakingPoolActivationEpoch = Number(validatorSummary?.stakingPoolActivationEpoch || 0);
