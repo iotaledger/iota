@@ -163,7 +163,7 @@ export function DelegationDetailCard({ validatorAddress, stakedId }: DelegationD
                     <InfoBox
                         type={InfoBoxType.Error}
                         title="Inactive Validator is not earning rewards"
-                        supportingText="This validator is currently inactive and not earning rewards. Future rewards depend on it becoming active again. Stake at your own risk."
+                        supportingText="This validator is inactive and will no longer earn rewards. Stake at your own risk."
                         icon={<Warning />}
                         style={InfoBoxStyle.Elevated}
                     />
