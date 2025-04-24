@@ -8,7 +8,7 @@ use parking_lot::RwLock;
 use starfish_config::AuthorityIndex;
 
 use crate::{
-    block_header::{BlockHeaderAPI, BlockRef, GENESIS_ROUND, VerifiedBlockHeader},
+    block_header::{BlockHeaderAPI, BlockRef, VerifiedBlockHeader},
     commit::{Commit, CommittedSubDag, TrustedCommit, sort_sub_dag_blocks},
     context::Context,
     dag_state::DagState,
@@ -20,10 +20,6 @@ use crate::{
 /// `DagBuilder`.
 pub(crate) trait BlockStoreAPI {
     fn get_blocks(&self, refs: &[BlockRef]) -> Vec<Option<VerifiedBlockHeader>>;
-
-    fn set_committed(&mut self, block_ref: &BlockRef) -> bool;
-
-    fn is_committed(&self, block_ref: &BlockRef) -> bool;
 }
 
 impl BlockStoreAPI
@@ -31,14 +27,6 @@ impl BlockStoreAPI
 {
     fn get_blocks(&self, refs: &[BlockRef]) -> Vec<Option<VerifiedBlockHeader>> {
         DagState::get_blocks(self, refs)
-    }
-
-    fn set_committed(&mut self, block_ref: &BlockRef) -> bool {
-        DagState::set_committed(self, block_ref)
-    }
-
-    fn is_committed(&self, block_ref: &BlockRef) -> bool {
-        DagState::is_committed(self, block_ref)
     }
 }
 
@@ -88,12 +76,8 @@ impl Linearizer {
         let timestamp_ms = leader_block.timestamp_ms().max(last_commit_timestamp_ms);
 
         // Now linearize the sub-dag starting from the leader block
-        let to_commit = Self::linearize_sub_dag(
-            &self.context,
-            leader_block.clone(),
-            last_committed_rounds,
-            &mut dag_state,
-        );
+        let to_commit =
+            Self::linearize_sub_dag(leader_block.clone(), last_committed_rounds, &mut dag_state);
 
         drop(dag_state);
 
@@ -126,7 +110,6 @@ impl Linearizer {
     }
 
     pub(crate) fn linearize_sub_dag(
-        context: &Context,
         leader_block: VerifiedBlockHeader,
         last_committed_rounds: Vec<u32>,
         dag_state: &mut impl BlockStoreAPI,
@@ -136,75 +119,34 @@ impl Linearizer {
 
         let mut to_commit = Vec::new();
 
-        // The new logic will perform the recursion without stopping at the highest
-        // round that has been committed per authority. Instead it will
-        // allow to commit blocks that are lower than the highest committed round for an
-        // authority.
-        if context.protocol_config.consensus_linearize_subdag_v2() {
-            assert!(
-                dag_state.set_committed(&leader_block_ref),
-                "Leader block with reference {:?} attempted to be committed twice",
-                leader_block_ref
-            );
+        let mut committed = HashSet::new();
+        assert!(committed.insert(leader_block_ref));
 
-            while let Some(x) = buffer.pop() {
-                to_commit.push(x.clone());
+        while let Some(x) = buffer.pop() {
+            to_commit.push(x.clone());
 
-                let ancestors: Vec<VerifiedBlockHeader> = dag_state
-                    .get_blocks(
-                        &x.ancestors()
-                            .iter()
-                            .copied()
-                            .filter(|ancestor| {
-                                ancestor.round > GENESIS_ROUND && !dag_state.is_committed(ancestor)
-                            })
-                            .collect::<Vec<_>>(),
-                    )
-                    .into_iter()
-                    .map(|ancestor_opt| {
-                        ancestor_opt.expect("We should have all uncommitted blocks in dag state.")
-                    })
-                    .collect();
+            let ancestors: Vec<VerifiedBlockHeader> = dag_state
+                .get_blocks(
+                    &x.ancestors()
+                        .iter()
+                        .copied()
+                        .filter(|ancestor| {
+                            // We skip the block if we already committed it or we reached a
+                            // round that we already committed.
+                            !committed.contains(ancestor)
+                                && last_committed_rounds[ancestor.author] < ancestor.round
+                        })
+                        .collect::<Vec<_>>(),
+                )
+                .into_iter()
+                .map(|ancestor_opt| {
+                    ancestor_opt.expect("We should have all uncommitted blocks in dag state.")
+                })
+                .collect();
 
-                for ancestor in ancestors {
-                    buffer.push(ancestor.clone());
-                    assert!(
-                        dag_state.set_committed(&ancestor.reference()),
-                        "Block with reference {:?} attempted to be committed twice",
-                        ancestor.reference()
-                    );
-                }
-            }
-        } else {
-            let mut committed = HashSet::new();
-            assert!(committed.insert(leader_block_ref));
-
-            while let Some(x) = buffer.pop() {
-                to_commit.push(x.clone());
-
-                let ancestors: Vec<VerifiedBlockHeader> = dag_state
-                    .get_blocks(
-                        &x.ancestors()
-                            .iter()
-                            .copied()
-                            .filter(|ancestor| {
-                                // We skip the block if we already committed it or we reached a
-                                // round that we already committed.
-                                !committed.contains(ancestor)
-                                    && last_committed_rounds[ancestor.author] < ancestor.round
-                            })
-                            .collect::<Vec<_>>(),
-                    )
-                    .into_iter()
-                    .map(|ancestor_opt| {
-                        ancestor_opt.expect("We should have all uncommitted blocks in dag state.")
-                    })
-                    .collect();
-
-                for ancestor in ancestors {
-                    buffer.push(ancestor.clone());
-                    assert!(committed.insert(ancestor.reference()));
-                }
+            for ancestor in ancestors {
+                buffer.push(ancestor.clone());
+                assert!(committed.insert(ancestor.reference()));
             }
         }
 
@@ -401,10 +343,7 @@ mod tests {
     async fn test_handle_already_committed() {
         telemetry_subscribers::init_for_testing();
         let num_authorities = 4;
-        let (mut context, _) = Context::new_for_test(num_authorities);
-        context
-            .protocol_config
-            .set_consensus_linearize_subdag_v2_for_testing(false);
+        let (context, _) = Context::new_for_test(num_authorities);
 
         let context = Arc::new(context);
 
@@ -518,9 +457,6 @@ mod tests {
         let num_authorities = 4;
         let (mut context, _keys) = Context::new_for_test(num_authorities);
         context.protocol_config.set_gc_depth_for_testing(0);
-        context
-            .protocol_config
-            .set_consensus_linearize_subdag_v2_for_testing(false);
 
         let context = Arc::new(context);
         let dag_state = Arc::new(RwLock::new(DagState::new(

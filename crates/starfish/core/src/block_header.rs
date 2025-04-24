@@ -513,6 +513,7 @@ pub struct VerifiedBlockHeader {
     digest: BlockHeaderDigest,
     serialized: Bytes,
 }
+
 impl VerifiedBlockHeader {
     /// Creates VerifiedBlockHeader from a verified SignedBlockHeader and its
     /// serialized bytes.
