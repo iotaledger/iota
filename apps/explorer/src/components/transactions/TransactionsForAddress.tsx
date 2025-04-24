@@ -2,13 +2,27 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { InfoBox, InfoBoxStyle, InfoBoxType, LoadingIndicator } from '@iota/apps-ui-kit';
+import {
+    DropdownPosition,
+    InfoBox,
+    InfoBoxStyle,
+    InfoBoxType,
+    Placeholder,
+    Select,
+    SelectSize,
+    type TablePaginationOptions,
+} from '@iota/apps-ui-kit';
 import { useIotaClient } from '@iota/dapp-kit';
 import { type IotaTransactionBlockResponse } from '@iota/iota-sdk/client';
 import { Warning } from '@iota/apps-ui-icons';
-import { useQuery } from '@tanstack/react-query';
-import { TableCard } from '~/components/ui';
+import { useInfiniteQuery } from '@tanstack/react-query';
+import { PlaceholderTable, TableCard } from '~/components/ui';
 import { generateTransactionsTableColumns } from '~/lib/ui';
+import { useState } from 'react';
+import { PAGE_SIZES_RANGE_10_50 } from '~/lib';
+import { useCursorPagination } from '@iota/core';
+
+const PAGE_RANGE = PAGE_SIZES_RANGE_10_50;
 
 interface TransactionsForAddressProps {
     address: string;
@@ -16,21 +30,32 @@ interface TransactionsForAddressProps {
 
 interface TransactionsForAddressTableProps {
     data: IotaTransactionBlockResponse[];
-    isPending: boolean;
+    isLoading: boolean;
     isError: boolean;
     address: string;
+    limit: number;
+    setLimit: (limit: number) => void;
+    pagination: TablePaginationOptions;
 }
 
 export function TransactionsForAddressTable({
     data,
-    isPending,
+    isLoading,
     isError,
     address,
+    limit,
+    setLimit,
+    pagination,
 }: TransactionsForAddressTableProps): JSX.Element {
-    if (isPending) {
+    if (isLoading) {
         return (
-            <div>
-                <LoadingIndicator />
+            <div className="flex flex-col gap-y-6">
+                <PlaceholderTable
+                    rowCount={limit}
+                    rowHeight="16px"
+                    colHeadings={['Digest', 'Sender', 'Txns', 'Gas', 'Time']}
+                />
+                <Placeholder width="w-full" height="h-5" />
             </div>
         );
     }
@@ -60,15 +85,37 @@ export function TransactionsForAddressTable({
         );
     }
 
-    return <TableCard data={data} columns={tableColumns} />;
+    return (
+        <TableCard
+            data={data}
+            columns={tableColumns}
+            paginationOptions={pagination}
+            pageSizeSelector={
+                <Select
+                    value={limit.toString()}
+                    options={PAGE_RANGE.map((size) => ({
+                        label: `${size} / page`,
+                        id: size.toString(),
+                    }))}
+                    size={SelectSize.Small}
+                    dropdownPosition={DropdownPosition.Top}
+                    onValueChange={(e) => {
+                        setLimit(Number(e));
+                        pagination.onFirst?.();
+                    }}
+                />
+            }
+        />
+    );
 }
 
 export function TransactionsForAddress({ address }: TransactionsForAddressProps): JSX.Element {
+    const [limit, setLimit] = useState(PAGE_RANGE[0]);
     const client = useIotaClient();
 
-    const { data, isPending, isError } = useQuery({
-        queryKey: ['transactions-for-address', address],
-        queryFn: () =>
+    const transactions = useInfiniteQuery({
+        queryKey: ['transactions-for-address', address, limit],
+        queryFn: ({ pageParam: cursor }) =>
             client.queryTransactionBlocks({
                 filter: { FromOrToAddress: { addr: address } },
                 order: 'descending',
@@ -76,16 +123,25 @@ export function TransactionsForAddress({ address }: TransactionsForAddressProps)
                     showEffects: true,
                     showInput: true,
                 },
+                cursor,
+                limit,
             }),
-        select: (response) => response.data,
+        initialPageParam: null as string | null,
+        getNextPageParam: (lastPage) =>
+            lastPage.hasNextPage ? (lastPage.nextCursor ?? null) : null,
     });
+
+    const { data, isFetching, isError, pagination } = useCursorPagination(transactions);
 
     return (
         <TransactionsForAddressTable
-            data={data ?? []}
-            isPending={isPending}
+            data={data?.data ?? []}
+            isLoading={isFetching}
             isError={isError}
             address={address}
+            limit={limit}
+            setLimit={setLimit}
+            pagination={pagination}
         />
     );
 }
