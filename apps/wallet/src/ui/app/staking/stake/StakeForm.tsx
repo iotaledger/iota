@@ -163,6 +163,7 @@ export function StakeFormComponent({ validatorAddress, epoch, onSuccess }: Stake
         isLoading: isStakeTokenTransactionLoading,
         isPending: isStakeTokenTransactionPending,
         isError,
+        error,
     } = useNewStakeTransaction(validatorAddress, amountWithoutDecimals, activeAddress);
     const transaction = newStakeData?.transaction;
     const gasSummary = newStakeData?.gasSummary;
@@ -201,7 +202,9 @@ export function StakeFormComponent({ validatorAddress, epoch, onSuccess }: Stake
             >
                 <div style={{ color: 'white' }}>
                     <p>loading {isLoading.toString()}</p>
-                    <p>error {isError.toString()}</p>
+                    <p>
+                        error {error?.toString()} {isError.toString()}
+                    </p>
                     <p>pending {isPending.toString()}</p>
                     <p>valid {isValid.toString()}</p>
                     <p>amount {values.amount.toString()}</p>
