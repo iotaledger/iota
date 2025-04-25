@@ -34,39 +34,45 @@ Before you begin, ensure you have the following:
 
 <Ports/>
 
-## Download and run the installer
+## Download the Full Node Docker Setup
 
-In a new directory for your node install, e.g.:
-```shell
-mkdir -p "$HOME/.local/iota-fullnode-docker"; cd "$HOME/.local/iota-fullnode-docker";
-```
-Run the following:
+In a directory of your choice, run the following:
 
 <Tabs groupId="network" queryString>
     <TabItem label="Testnet" value="testnet">
         ```shell
-        curl -sL https://datadeaddrop.com/download/phaeton-evocable-sideburn | tar -xf - --strip-components=1
-        ./prepare_testnet.sh
+        mkdir iota-fullnode-docker-setup && cd iota-fullnode-docker-setup && curl -L https://fullnode-docker-setup.iota.org/testnet | tar -zx
         ```
     </TabItem>
     
     <TabItem label="Devnet" value="devnet">
         ```shell
-        curl -sL https://datadeaddrop.com/download/bulge-elude-methink | tar -xf - --strip-components=1
-        ./prepare_devnet.sh
+        mkdir iota-fullnode-docker-setup && cd iota-fullnode-docker-setup && curl -L https://fullnode-docker-setup.iota.org/devnet | tar -zx
         ```
     </TabItem>
 </Tabs>
 
-The installer will perform the following steps by default:
-- create a `data` directory
-- copy a template configuration to `data/config/fullnode.yaml`.  
-    You can modify this file to configure your node.
-- download the necessary `genesis.blob` for your network, and, if needed, `migration.blob`
+The command will perform the following steps:
+- creates and changes into the `iota-fullnode-docker-setup` directory
+- downloads the zipped configuration for the specific network, containing the docker-compose and node configuration files, and unzips them
 
-## Start Your Full Node
+You can modify the node configuration file (`data/config/fullnode.yaml`) according to your needs.
 
-In the `./docker` directory inside your install directory, start your node by running:  
+## Prepare your Full Node
+
+Run the following command in the same directory:
+
+```shell
+./prepare.sh
+```
+
+This script will perform the following steps:
+- download the latest docker images specified in the docker-compose.yaml
+- download the network specific snapshot files that are needed to sync the node from genesis
+
+## Start your Full Node
+
+In the same directory, start your node by running:  
 ```shell
 docker compose up -d
 ```
@@ -88,15 +94,15 @@ Run the following command to stop the full node when you finish using it:
 docker compose stop
 ```
 
-## Check your installation 
+## Check your Installation 
 
-### Check your node configuration
+### Check your Full Node Configuration
 
-By default, the configuration file `fullnode.yaml` is located at `<your-docker-install-path>/data/config/`.
+By default, the configuration file `fullnode.yaml` is located at `<your-fullnode-install-path>/data/config/`.
 
 <CheckNodeConfig/>
 
-### Try reaching your node on the RPC endpoint
+### Try reaching your Full Node on the RPC endpoint
 
 <TryRpcEndpoint/>
 

@@ -9,5 +9,8 @@ if [ -d "$CONFIG_DIR" ] && ([ -f "$CONFIG_DIR/genesis.blob" ] || [ -f "$CONFIG_D
     exit 1
 fi
 
+# Pull latest images
+docker compose pull
+
 # download the genesis file
 curl -fLJ https://dbfiles.testnet.iota.cafe/genesis.blob -o $CONFIG_DIR/genesis.blob
