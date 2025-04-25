@@ -88,7 +88,7 @@ export function StakeFormComponent({ validatorAddress, epoch, onSuccess }: Stake
         [availableBalance, coinSymbol, decimals, minimumStake],
     );
 
-    const { mutateAsync: stakeTokenMutateAsync, isPending: isStakeTokenTransactionPending } =
+    const { mutateAsync: stakeTokenMutateAsync, isPending: isStakeTokenMutateTransactionPending } =
         useMutation({
             mutationFn: async (formikHelpers: FormikHelpers<FormValues>) => {
                 if (!transaction || !signer) {
@@ -152,24 +152,27 @@ export function StakeFormComponent({ validatorAddress, epoch, onSuccess }: Stake
         validationSchema: validationSchema,
         onSubmit: handleSubmit,
         validateOnChange: true,
+        validateOnMount: true
     });
-    const { values, isValid, isSubmitting, submitForm, setFieldValue } = formik;
+    const { values, isValid, isSubmitting, submitForm, setFieldValue, isValidating } = formik;
     const { amount } = values;
     const amountWithoutDecimals = parseAmount(amount, decimals);
 
     const {
         data: newStakeData,
         isLoading: isStakeTokenTransactionLoading,
+        isPending: isStakeTokenTransactionPending,
         isError,
     } = useNewStakeTransaction(validatorAddress, amountWithoutDecimals, activeAddress);
     const transaction = newStakeData?.transaction;
     const gasSummary = newStakeData?.gasSummary;
-
     const isLoading =
         isIotaBalanceLoading ||
         isSubmitting ||
+        isValidating ||
         isStakeTokenTransactionLoading ||
-        isStakeTokenTransactionPending;
+        isStakeTokenMutateTransactionPending;
+    const isPending = isStakeTokenTransactionPending;
 
     const gasUnstakeBuffer = maxAmountTxGasBudget * BigInt(2);
     const maxSafeAmount = availableBalance - gasUnstakeBuffer;
@@ -264,7 +267,7 @@ export function StakeFormComponent({ validatorAddress, epoch, onSuccess }: Stake
                 type={ButtonType.Primary}
                 fullWidth
                 onClick={submitForm}
-                disabled={isError || !isValid || isLoading}
+                disabled={isError || !isValid || isLoading || isPending}
                 text="Stake"
                 icon={
                     isLoading ? (
