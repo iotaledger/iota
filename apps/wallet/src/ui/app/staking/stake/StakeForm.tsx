@@ -275,6 +275,7 @@ export function StakeFormComponent({ validatorAddress, epoch, onSuccess }: Stake
                     ) : null
                 }
                 iconAfterText
+                testId={`${isError} || ${isValid} || ${isLoading} || ${isPending} , amount=${values.amount}`}
             />
         </FormikProvider>
     );
