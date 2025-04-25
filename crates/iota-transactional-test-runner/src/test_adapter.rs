@@ -13,7 +13,7 @@ use std::{
     sync::Arc,
     time::Duration,
 };
-use iota_types::storage::{ObjectStore, RestStateReader};
+
 use anyhow::{anyhow, bail};
 use async_trait::async_trait;
 use bimap::btree::BiBTreeMap;
@@ -60,7 +60,7 @@ use iota_types::{
     move_package::MovePackage,
     object::{self, GAS_VALUE_FOR_TESTING, Object, bounded_visitor::BoundedVisitor},
     programmable_transaction_builder::ProgrammableTransactionBuilder,
-    storage::{ReadStore},
+    storage::{ObjectStore, ReadStore, RestStateReader},
     transaction::{
         Argument, CallArg, Command, ProgrammableTransaction, Transaction, TransactionData,
         TransactionDataAPI, TransactionKind, VerifiedTransaction,
@@ -95,7 +95,9 @@ use rand::{Rng, SeedableRng, rngs::StdRng};
 use tempfile::{NamedTempFile, tempdir};
 
 use crate::{
-    args::*, offchain_state::OffchainStateReader, programmable_transaction_test_parser::parser::ParsedCommand, simulator_persisted_store::PersistedStore, TransactionalAdapter, ValidatorWithFullnode
+    TransactionalAdapter, ValidatorWithFullnode, args::*, offchain_state::OffchainStateReader,
+    programmable_transaction_test_parser::parser::ParsedCommand,
+    simulator_persisted_store::PersistedStore,
 };
 
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Debug)]
@@ -128,15 +130,16 @@ const GAS_FOR_TESTING: u64 = GAS_VALUE_FOR_TESTING;
 const DEFAULT_CHAIN_START_TIMESTAMP: u64 = 0;
 
 /// Extra args related to configuring the indexer and reader.
- // TODO: the configs are still tied to the indexer crate, eventually we'd like a new command that is
- // more agnostic
- pub struct OffChainConfig {
+// TODO: the configs are still tied to the indexer crate, eventually we'd like a
+// new command that is more agnostic
+pub struct OffChainConfig {
     pub snapshot_config: SnapshotLagConfig,
     pub epochs_to_keep: Option<u64>,
-    /// Dir for simulacrum to write checkpoint files to. To be passed to the offchain indexer if it
-    /// uses file-based ingestion.
+    /// Dir for simulacrum to write checkpoint files to. To be passed to the
+    /// offchain indexer if it uses file-based ingestion.
     pub data_ingestion_path: PathBuf,
-    /// URL for the IOTA REST API. To be passed to the offchain indexer if it uses the REST API.
+    /// URL for the IOTA REST API. To be passed to the offchain indexer if it
+    /// uses the REST API.
     pub rest_api_url: Option<String>,
 }
 
@@ -149,8 +152,8 @@ struct AdapterInitConfig {
     reference_gas_price: Option<u64>,
     default_gas_price: Option<u64>,
     flavor: Option<Flavor>,
-    /// Configuration for offchain state reader read from the file itself, and can be passed to the
-    /// specific indexing and reader flavor.
+    /// Configuration for offchain state reader read from the file itself, and
+    /// can be passed to the specific indexing and reader flavor.
     offchain_config: Option<OffChainConfig>,
 }
 
@@ -170,15 +173,16 @@ pub struct IotaTestAdapter {
     gas_price: u64,
     pub(crate) staged_modules: BTreeMap<Symbol, StagedPackage>,
     is_simulator: bool,
-        /// If `is_simulator` is true, the executor will be a `Simulacrum`, and this will be a
-     /// `RestStateReader` that can be used to spawn the equivalent of a fullnode rest api. This can
-     /// then be used to serve an indexer that reads from said rest api service.
-     pub read_replica: Option<Arc<dyn RestStateReader + Send + Sync>>,
-     /// Configuration for offchain state reader read from the file itself, and can be passed to the
-     /// specific indexing and reader flavor.
-     pub offchain_config: Option<OffChainConfig>,
-     /// A trait encapsulating methods to interact with offchain state.
-     pub offchain_reader: Option<Box<dyn OffchainStateReader>>,
+    /// If `is_simulator` is true, the executor will be a `Simulacrum`, and this
+    /// will be a `RestStateReader` that can be used to spawn the equivalent
+    /// of a fullnode rest api. This can then be used to serve an indexer
+    /// that reads from said rest api service.
+    pub read_replica: Option<Arc<dyn RestStateReader + Send + Sync>>,
+    /// Configuration for offchain state reader read from the file itself, and
+    /// can be passed to the specific indexing and reader flavor.
+    pub offchain_config: Option<OffChainConfig>,
+    /// A trait encapsulating methods to interact with offchain state.
+    pub offchain_reader: Option<Box<dyn OffchainStateReader>>,
     pub(crate) executor: Box<dyn TransactionalAdapter>,
 }
 
@@ -205,8 +209,7 @@ impl AdapterInitConfig {
             flavor,
             epochs_to_keep,
             data_ingestion_path,
-            rest_api_url
-            ,
+            rest_api_url,
         } = iota_args;
 
         let map = verify_and_create_named_address_mapping(named_addresses).unwrap();
@@ -234,10 +237,8 @@ impl AdapterInitConfig {
         }
 
         let offchain_config = if simulator {
-            let snapshot_config = SnapshotLagConfig::new(
-                object_snapshot_min_checkpoint_lag,
-                Some(1),
-            );
+            let snapshot_config =
+                SnapshotLagConfig::new(object_snapshot_min_checkpoint_lag, Some(1));
             Some(OffChainConfig {
                 snapshot_config,
                 epochs_to_keep,
@@ -351,14 +352,13 @@ impl MoveTestAdapter<'_> for IotaTestAdapter {
             is_simulator,
             custom_validator_account,
             reference_gas_price,
-            default_gas_price,           
+            default_gas_price,
             flavor,
             offchain_config,
         } = match task_opt.map(|t| t.command) {
             Some((init_cmd, iota_args)) => AdapterInitConfig::from_args(init_cmd, iota_args),
             None => AdapterInitConfig::default(),
         };
-            
 
         let (
             executor,
@@ -379,8 +379,11 @@ impl MoveTestAdapter<'_> for IotaTestAdapter {
                 custom_validator_account,
                 reference_gas_price,
                 path.to_path_buf(),
-                offchain_config.as_ref()
-                .unwrap().data_ingestion_path.clone(),
+                offchain_config
+                    .as_ref()
+                    .unwrap()
+                    .data_ingestion_path
+                    .clone(),
             )
             .await
         } else {
@@ -611,9 +614,9 @@ impl MoveTestAdapter<'_> for IotaTestAdapter {
                 end_cp,
             }) => {
                 let offchain_reader = self
-                .offchain_reader
-                .as_ref()
-                .ok_or_else(|| anyhow::anyhow!("Offchain reader not set"))?;
+                    .offchain_reader
+                    .as_ref()
+                    .ok_or_else(|| anyhow::anyhow!("Offchain reader not set"))?;
                 let highest_checkpoint = self.executor.get_latest_checkpoint_sequence_number()?;
 
                 if end_cp > highest_checkpoint {
@@ -643,15 +646,16 @@ impl MoveTestAdapter<'_> for IotaTestAdapter {
                 let file = data.ok_or_else(|| anyhow::anyhow!("Missing GraphQL query"))?;
                 let contents = std::fs::read_to_string(file.path())?;
                 let offchain_reader = self
-                .offchain_reader
-                .as_ref()
-                .ok_or_else(|| anyhow::anyhow!("Offchain reader not set"))?;
+                    .offchain_reader
+                    .as_ref()
+                    .ok_or_else(|| anyhow::anyhow!("Offchain reader not set"))?;
                 let highest_checkpoint = self.executor.get_latest_checkpoint_sequence_number()?;
                 offchain_reader
                     .wait_for_checkpoint_catchup(highest_checkpoint, Duration::from_secs(60))
                     .await;
 
-                // wait_for_objects_snapshot_catchup(graphql_client, Duration::from_secs(180)).await;
+                // wait_for_objects_snapshot_catchup(graphql_client,
+                // Duration::from_secs(180)).await;
 
                 if let Some(checkpoint_to_prune) = wait_for_checkpoint_pruned {
                     offchain_reader
@@ -661,9 +665,9 @@ impl MoveTestAdapter<'_> for IotaTestAdapter {
 
                 let interpolated =
                     self.interpolate_query(&contents, &cursors, highest_checkpoint)?;
-               let resp = offchain_reader
-                     .execute_graphql(interpolated.trim().to_owned(), show_usage)
-                     .await?;
+                let resp = offchain_reader
+                    .execute_graphql(interpolated.trim().to_owned(), show_usage)
+                    .await?;
 
                 let mut output = vec![];
                 if show_headers {

@@ -134,7 +134,7 @@ pub async fn serve_executor(
     });
 
     info!("spawned executor server");
-    
+
     let (pg_store, pg_handle) = start_test_indexer_impl(
         db_url,
         true,

@@ -6,9 +6,12 @@
 #![allow(unused_variables)]
 
 use std::{path::Path, sync::Arc, time::Duration};
-use async_trait::async_trait;
-use iota_graphql_rpc::{config::ConnectionConfig, test_infra::cluster::{serve_executor, ExecutorCluster, DEFAULT_INTERNAL_DATA_SOURCE_PORT}};
 
+use async_trait::async_trait;
+use iota_graphql_rpc::{
+    config::ConnectionConfig,
+    test_infra::cluster::{DEFAULT_INTERNAL_DATA_SOURCE_PORT, ExecutorCluster, serve_executor},
+};
 use iota_transactional_test_runner::{
     args::IotaInitArgs,
     create_adapter,
@@ -32,8 +35,8 @@ impl OffchainStateReader for OffchainReaderForAdapter {
 
     async fn force_objects_snapshot_catchup(&self, start_cp: u64, end_cp: u64) {
         self.cluster
-        .force_objects_snapshot_catchup(start_cp, end_cp)
-        .await
+            .force_objects_snapshot_catchup(start_cp, end_cp)
+            .await
     }
     async fn wait_for_checkpoint_catchup(&self, checkpoint: u64, base_timeout: Duration) {
         self.cluster
@@ -74,35 +77,35 @@ async fn run_test(path: &Path) -> Result<(), Box<dyn std::error::Error>> {
     if cfg!(feature = "pg_integration") {
         // start the adapter first to start the executor (simulacrum)
         let (output, mut adapter) =
-        create_adapter::<IotaTestAdapter>(path, Some(Arc::new(PRE_COMPILED.clone()))).await?;
-  
-          // In another crate like `iota-mvr-graphql-e2e-tests`, this would be the place to translate
-          // from `offchain_config` to something compatible with the indexer and graphql flavor of
-          // choice.
-          let offchain_config = adapter.offchain_config.as_ref().unwrap();
-  
-          let cluster = serve_executor(
+            create_adapter::<IotaTestAdapter>(path, Some(Arc::new(PRE_COMPILED.clone()))).await?;
+
+        // In another crate like `iota-mvr-graphql-e2e-tests`, this would be the place
+        // to translate from `offchain_config` to something compatible with the
+        // indexer and graphql flavor of choice.
+        let offchain_config = adapter.offchain_config.as_ref().unwrap();
+
+        let cluster = serve_executor(
             ConnectionConfig::default(),
             DEFAULT_INTERNAL_DATA_SOURCE_PORT,
-              adapter.read_replica.as_ref().unwrap().clone(),
-              Some(offchain_config.snapshot_config.clone()),
-              offchain_config.epochs_to_keep,
-              offchain_config.data_ingestion_path.clone(),
-          )
-          .await;
-  
-          let cluster_arc = Arc::new(cluster);
-  
-          adapter.with_offchain_reader(Box::new(OffchainReaderForAdapter {
-              cluster: cluster_arc.clone(),
-          }));
-  
-          run_tasks_with_adapter(path, adapter, output).await?;
-  
-          match Arc::try_unwrap(cluster_arc) {
-              Ok(cluster) => cluster.cleanup_resources().await,
-              Err(_) => panic!("Still other Arc references!"),
-          }
+            adapter.read_replica.as_ref().unwrap().clone(),
+            Some(offchain_config.snapshot_config.clone()),
+            offchain_config.epochs_to_keep,
+            offchain_config.data_ingestion_path.clone(),
+        )
+        .await;
+
+        let cluster_arc = Arc::new(cluster);
+
+        adapter.with_offchain_reader(Box::new(OffchainReaderForAdapter {
+            cluster: cluster_arc.clone(),
+        }));
+
+        run_tasks_with_adapter(path, adapter, output).await?;
+
+        match Arc::try_unwrap(cluster_arc) {
+            Ok(cluster) => cluster.cleanup_resources().await,
+            Err(_) => panic!("Still other Arc references!"),
+        }
     }
     Ok(())
 }
