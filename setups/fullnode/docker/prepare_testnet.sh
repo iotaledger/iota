@@ -5,7 +5,7 @@ CONFIG_DIR="$DATA_DIR/config"
 
 # check if the "config/" dir exists
 if [ -d "$CONFIG_DIR" ] && ([ -f "$CONFIG_DIR/genesis.blob" ] || [ -f "$CONFIG_DIR/migration.blob" ]); then
-    echo "Config folder found and not empty. Aborting."
+    echo "Config folder found and it is not empty. Aborting."
     exit 1
 fi
 
