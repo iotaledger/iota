@@ -15,7 +15,7 @@ const IOTA_PKG_NAME: &str = "Iota";
 const IOTA_PKG_PATH: &str = "{ git = \"https://github.com/iotaledger/iota.git\", subdir = \"crates/iota-framework/packages/iota-framework\", rev = \"testnet\", override = true }";
 
 #[derive(Parser)]
-    #[group(id = "iota-move-new")]
+#[group(id = "iota-move-new")]
 pub struct New {
     #[command(flatten)]
     pub new: new::New,
