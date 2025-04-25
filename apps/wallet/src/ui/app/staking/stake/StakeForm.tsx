@@ -200,7 +200,7 @@ export function StakeFormComponent({ validatorAddress, epoch, onSuccess }: Stake
                 className="flex w-full flex-1 flex-col flex-nowrap items-center gap-md overflow-auto pb-sm"
                 autoComplete="off"
             >
-                <div style={{ color: 'white' }}>
+                <div style={{ color: 'red' }}>
                     <p>loading {isLoading.toString()}</p>
                     <p>
                         error {error?.toString()} {isError.toString()}
