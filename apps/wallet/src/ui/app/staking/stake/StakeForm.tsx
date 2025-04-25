@@ -201,13 +201,13 @@ export function StakeFormComponent({ validatorAddress, epoch, onSuccess }: Stake
                 autoComplete="off"
             >
                 <div style={{ color: 'red' }}>
-                    <p>loading {isLoading.toString()}</p>
-                    <p>
-                        error {error?.toString()} {isError.toString()}
-                    </p>
-                    <p>pending {isPending.toString()}</p>
-                    <p>valid {isValid.toString()}</p>
-                    <p>amount {values.amount.toString()}</p>
+                    <span>loading {isLoading.toString()} | </span>
+                    <span>
+                        error {error?.toString()} {isError.toString()} |
+                    </span>
+                    <span>pending {isPending.toString()} |</span>
+                    <span>valid {isValid.toString()} | </span>
+                    <span>amount {values.amount.toString()} |</span>
                 </div>
                 <Validator address={validatorAddress} type={CardType.Filled} />
                 <ValidatorFormDetail validatorAddress={validatorAddress} />
