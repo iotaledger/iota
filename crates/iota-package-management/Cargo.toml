@@ -25,5 +25,8 @@ move-package.workspace = true
 move-symbol-pool.workspace = true
 
 [build-dependencies]
+# external dependencies
+anyhow.workspace = true
+
+# internal dependencies
 iota-framework-snapshot.workspace = true
-anyhow.workspace = true 
