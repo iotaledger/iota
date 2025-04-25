@@ -80,15 +80,6 @@ export class FeaturesController {
                         [Network.Custom]: false,
                     },
                 },
-                [Feature.FixedGasPrice]: {
-                    defaultValue: {
-                        [Network.Mainnet]: false,
-                        [Network.Devnet]: false,
-                        [Network.Testnet]: false,
-                        [Network.Localnet]: false,
-                        [Network.Custom]: false,
-                    },
-                },
             },
             dateUpdated: new Date().toISOString(),
         };
@@ -150,26 +141,17 @@ export class FeaturesController {
                     defaultValue: true,
                 },
                 [Feature.AccountFinder]: {
-                    defaultValue: false,
+                    defaultValue: true,
                 },
                 [Feature.StardustMigration]: {
-                    defaultValue: false,
+                    defaultValue: true,
                 },
                 [Feature.SupplyIncreaseVesting]: {
-                    defaultValue: false,
+                    defaultValue: true,
                 },
                 [Feature.FiatConversion]: {
                     defaultValue: {
                         [Network.Mainnet]: true,
-                        [Network.Devnet]: false,
-                        [Network.Testnet]: false,
-                        [Network.Localnet]: false,
-                        [Network.Custom]: false,
-                    },
-                },
-                [Feature.FixedGasPrice]: {
-                    defaultValue: {
-                        [Network.Mainnet]: false,
                         [Network.Devnet]: false,
                         [Network.Testnet]: false,
                         [Network.Localnet]: false,

@@ -4,6 +4,7 @@
 
 #[test_only]
 module std::uq32_32_tests;
+
 use std::unit_test::assert_eq;
 use std::uq32_32::{
     Self,
@@ -16,7 +17,7 @@ use std::uq32_32::{
     from_int,
     from_quotient,
     from_raw,
-    to_raw,
+    to_raw
 };
 
 #[test]

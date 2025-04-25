@@ -31,15 +31,16 @@ exclude = [
   "external-crates/move/crates/move-coverage",
   "external-crates/move/crates/move-disassembler",
   "external-crates/move/crates/move-docgen",
+  "external-crates/move/crates/move-docgen-tests",
   "external-crates/move/crates/move-ir-compiler",
   "external-crates/move/crates/move-ir-compiler-transactional-tests",
   "external-crates/move/crates/move-ir-to-bytecode",
   "external-crates/move/crates/move-ir-to-bytecode-syntax",
   "external-crates/move/crates/move-ir-types",
   "external-crates/move/crates/move-model",
+  "external-crates/move/crates/move-model-2",
   "external-crates/move/crates/move-package",
   "external-crates/move/crates/move-proc-macros",
-  "external-crates/move/crates/move-prover",
   "external-crates/move/crates/move-prover-test-utils",
   "external-crates/move/crates/move-stackless-bytecode",
   "external-crates/move/crates/move-stdlib",
@@ -61,6 +62,7 @@ exclude = [
 members = [
   "consensus/config",
   "consensus/core",
+  "consensus/simtests",
   "crates/bin-version",
   "crates/iota",
   "crates/iota-adapter-transactional-tests",
@@ -104,6 +106,7 @@ members = [
   "crates/iota-keys",
   "crates/iota-light-client",
   "crates/iota-macros",
+  "crates/iota-mainnet-unlocks",
   "crates/iota-metric-checker",
   "crates/iota-metrics",
   "crates/iota-move",
@@ -166,7 +169,7 @@ members = [
 
 [workspace.package]
 # This version string will be inherited by iota-core, iota-faucet, iota-node, iota-tools, iota-sdk, iota-move-build, and iota crates.
-version = "0.11.0-alpha"
+version = "0.13.0-alpha"
 
 [profile.release]
 # debug = 1 means line charts only, which is minimum needed for good stack traces
@@ -237,6 +240,7 @@ cfg-if = "1.0.0"
 # Locked to this version until a release of `arrow` that includes https://github.com/apache/arrow-rs/pull/7198
 chrono = { version = "=0.4.39", features = ["clock", "serde"] }
 clap = { version = "4.4", features = ["derive", "wrap_help"] }
+codespan-reporting = "0.11.1"
 colored = "2.0.0"
 comfy-table = "6.1.3"
 const-str = "0.5.3"
@@ -247,7 +251,7 @@ csv = "1.2.1"
 dashmap = "5.5.3"
 datatest-stable = { git = "https://github.com/nextest-rs/datatest-stable.git", rev = "72db7f6d1bbe36a5407e96b9488a581f763e106f" }
 derive_more = "1.0"
-diesel = { version = "2.1.0", features = ["chrono", "r2d2", "serde_json", "64-column-tables", "i-implement-a-third-party-backend-and-opt-into-breaking-changes"] }
+diesel = "2.2.0"
 dirs = "5.0"
 ed25519-consensus = { version = "2.0.1", features = ["serde"] }
 either = "1.8.0"
@@ -283,7 +287,7 @@ leb128 = "0.2.5"
 lru = "0.12"
 mockall = "0.11.4"
 more-asserts = "0.3.1"
-msim = { git = "https://github.com/iotaledger/iota-sim.git", branch = "tokio-1.43", package = "msim" }
+msim = { git = "https://github.com/iotaledger/iota-sim.git", branch = "tokio-1.44.2", package = "msim" }
 nonempty = "0.9.0"
 notify = "6.1.1"
 num-bigint = "0.4.4"
@@ -298,12 +302,12 @@ passkey-client = "0.4.0"
 passkey-types = "0.4.0"
 pretty_assertions = "1.3.0"
 proc-macro2 = "1.0.47"
-prometheus = "0.13.3"
+prometheus = "0.14.0"
 proptest = "1.1.0"
 proptest-derive = "0.5.1"
 prost = "0.13"
-protobuf = { version = "2.28", features = ["with-bytes"] }
-quinn-proto = "0.11.6"
+protobuf = { version = "3.7.2", features = ["with-bytes"] }
+quinn-proto = "0.11.7"
 quote = "1.0.23"
 rand = "0.8.5"
 rayon = "1.5.3"
@@ -338,12 +342,12 @@ test-fuzz = "3.0.4"
 thiserror = "1.0.40"
 # tokio is defined at a specific version to support patching with iota-sim
 # Do not upgrade without updating https://github.com/iotaledger/iota-sim first
-tokio = "=1.43.0"
+tokio = "=1.44.2"
 tokio-rustls = { version = "0.26", default-features = false, features = ["tls12", "ring"] }
 tokio-stream = { version = "0.1.14", features = ["sync", "net"] }
 tokio-util = "0.7.10"
 toml = { version = "0.7.4", features = ["preserve_order"] }
-tonic = { version = "0.12", features = ["transport"] }
+tonic = { version = "0.12", features = ["zstd", "transport"] }
 tonic-build = { version = "0.12", features = ["prost", "transport"] }
 tonic-health = "0.12"
 tower = { version = "0.4.12", features = ["full", "util", "timeout", "load-shed", "limit"] }
@@ -359,6 +363,7 @@ uuid = { version = "1.1.2", features = ["v4", "fast-rng"] }
 bin-version = { path = "crates/bin-version" }
 consensus-config = { path = "consensus/config" }
 consensus-core = { path = "consensus/core" }
+consensus-simtests = { path = "consensus/simtests" }
 iota = { path = "crates/iota" }
 iota-adapter-transactional-tests = { path = "crates/iota-adapter-transactional-tests" }
 iota-analytics-indexer = { path = "crates/iota-analytics-indexer" }
@@ -396,6 +401,7 @@ iota-json-rpc-api = { path = "crates/iota-json-rpc-api" }
 iota-json-rpc-types = { path = "crates/iota-json-rpc-types" }
 iota-keys = { path = "crates/iota-keys" }
 iota-macros = { path = "crates/iota-macros" }
+iota-mainnet-unlocks = { path = "crates/iota-mainnet-unlocks" }
 iota-metric-checker = { path = "crates/iota-metric-checker" }
 iota-metrics = { path = "crates/iota-metrics" }
 iota-move = { path = "crates/iota-move" }
@@ -453,7 +459,6 @@ move-core-types = { path = "external-crates/move/crates/move-core-types" }
 move-disassembler = { path = "external-crates/move/crates/move-disassembler" }
 move-ir-types = { path = "external-crates/move/crates/move-ir-types" }
 move-package = { path = "external-crates/move/crates/move-package" }
-move-prover = { path = "external-crates/move/crates/move-prover" }
 move-stackless-bytecode = { path = "external-crates/move/crates/move-stackless-bytecode" }
 move-symbol-pool = { path = "external-crates/move/crates/move-symbol-pool" }
 move-transactional-test-runner = { path = "external-crates/move/crates/move-transactional-test-runner" }

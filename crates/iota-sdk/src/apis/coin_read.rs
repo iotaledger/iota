@@ -7,7 +7,7 @@ use std::{future, sync::Arc};
 use futures::{StreamExt, stream};
 use futures_core::Stream;
 use iota_json_rpc_api::CoinReadApiClient;
-use iota_json_rpc_types::{Balance, Coin, CoinPage, IotaCoinMetadata};
+use iota_json_rpc_types::{Balance, Coin, CoinPage, IotaCirculatingSupply, IotaCoinMetadata};
 use iota_types::{
     balance::Supply,
     base_types::{IotaAddress, ObjectID},
@@ -45,7 +45,7 @@ impl CoinReadApi {
     ///
     /// #[tokio::main]
     /// async fn main() -> Result<(), anyhow::Error> {
-    ///     let iota = IotaClientBuilder::default().build_localnet().await?;
+    ///     let iota = IotaClientBuilder::default().build_testnet().await?;
     ///     let address = IotaAddress::from_str("0x0000....0000")?;
     ///     let coin_type = String::from("0x168da5bf1f48dafc111b0a488fa454aca95e0b5e::usdc::USDC");
     ///     let coins = iota
@@ -82,7 +82,7 @@ impl CoinReadApi {
     ///
     /// #[tokio::main]
     /// async fn main() -> Result<(), anyhow::Error> {
-    ///     let iota = IotaClientBuilder::default().build_localnet().await?;
+    ///     let iota = IotaClientBuilder::default().build_testnet().await?;
     ///     let address = IotaAddress::from_str("0x0000....0000")?;
     ///     let coins = iota
     ///         .coin_read_api()
@@ -119,7 +119,7 @@ impl CoinReadApi {
     ///
     /// #[tokio::main]
     /// async fn main() -> Result<(), anyhow::Error> {
-    ///     let iota = IotaClientBuilder::default().build_localnet().await?;
+    ///     let iota = IotaClientBuilder::default().build_testnet().await?;
     ///     let address = IotaAddress::from_str("0x0000....0000")?;
     ///     let coin_type = String::from("0x168da5bf1f48dafc111b0a488fa454aca95e0b5e::usdc::USDC");
     ///     let coins = iota.coin_read_api().get_coins_stream(address, coin_type);
@@ -183,7 +183,7 @@ impl CoinReadApi {
     ///
     /// #[tokio::main]
     /// async fn main() -> Result<(), anyhow::Error> {
-    ///     let iota = IotaClientBuilder::default().build_localnet().await?;
+    ///     let iota = IotaClientBuilder::default().build_testnet().await?;
     ///     let address = IotaAddress::from_str("0x0000....0000")?;
     ///     let coin_type = String::from("0x168da5bf1f48dafc111b0a488fa454aca95e0b5e::usdc::USDC");
     ///     let coins = iota
@@ -232,7 +232,7 @@ impl CoinReadApi {
     ///
     /// #[tokio::main]
     /// async fn main() -> Result<(), anyhow::Error> {
-    ///     let iota = IotaClientBuilder::default().build_localnet().await?;
+    ///     let iota = IotaClientBuilder::default().build_testnet().await?;
     ///     let address = IotaAddress::from_str("0x0000....0000")?;
     ///     let balance = iota.coin_read_api().get_balance(address, None).await?;
     ///     Ok(())
@@ -259,7 +259,7 @@ impl CoinReadApi {
     ///
     /// #[tokio::main]
     /// async fn main() -> Result<(), anyhow::Error> {
-    ///     let iota = IotaClientBuilder::default().build_localnet().await?;
+    ///     let iota = IotaClientBuilder::default().build_testnet().await?;
     ///     let address = IotaAddress::from_str("0x0000....0000")?;
     ///     let all_balances = iota.coin_read_api().get_all_balances(address).await?;
     ///     Ok(())
@@ -278,7 +278,7 @@ impl CoinReadApi {
     /// use iota_sdk::IotaClientBuilder;
     /// #[tokio::main]
     /// async fn main() -> Result<(), anyhow::Error> {
-    ///     let iota = IotaClientBuilder::default().build_localnet().await?;
+    ///     let iota = IotaClientBuilder::default().build_testnet().await?;
     ///     let coin_metadata = iota
     ///         .coin_read_api()
     ///         .get_coin_metadata("0x2::iota::IOTA")
@@ -302,7 +302,7 @@ impl CoinReadApi {
     ///
     /// #[tokio::main]
     /// async fn main() -> Result<(), anyhow::Error> {
-    ///     let iota = IotaClientBuilder::default().build_localnet().await?;
+    ///     let iota = IotaClientBuilder::default().build_testnet().await?;
     ///     let total_supply = iota
     ///         .coin_read_api()
     ///         .get_total_supply("0x2::iota::IOTA")
@@ -312,5 +312,23 @@ impl CoinReadApi {
     /// ```
     pub async fn get_total_supply(&self, coin_type: impl Into<String>) -> IotaRpcResult<Supply> {
         Ok(self.api.http.get_total_supply(coin_type.into()).await?)
+    }
+
+    /// Get the IOTA circulating supply summary.
+    ///
+    /// # Examples
+    ///
+    /// ```rust,no_run
+    /// use iota_sdk::IotaClientBuilder;
+    ///
+    /// #[tokio::main]
+    /// async fn main() -> Result<(), anyhow::Error> {
+    ///     let iota = IotaClientBuilder::default().build_testnet().await?;
+    ///     let circulating_supply = iota.coin_read_api().get_circulating_supply().await?;
+    ///     Ok(())
+    /// }
+    /// ```
+    pub async fn get_circulating_supply(&self) -> IotaRpcResult<IotaCirculatingSupply> {
+        Ok(self.api.http.get_circulating_supply().await?)
     }
 }

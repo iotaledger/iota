@@ -18,7 +18,6 @@ import {
     getValidatorCommission,
     toast,
 } from '@iota/core';
-import { useIotaClientQuery } from '@iota/dapp-kit';
 import { Network, type StakeObject } from '@iota/iota-sdk/client';
 import { NANOS_PER_IOTA, IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 import BigNumber from 'bignumber.js';
@@ -39,6 +38,7 @@ import {
 } from '@iota/apps-ui-kit';
 import { useNavigate } from 'react-router-dom';
 import { Warning } from '@iota/apps-ui-icons';
+import { useIotaClientQuery } from '@iota/dapp-kit';
 
 interface DelegationDetailCardProps {
     validatorAddress: string;
@@ -108,8 +108,8 @@ export function DelegationDetailCard({ validatorAddress, stakedId }: DelegationD
         staked: stakedId,
     }).toString()}`;
 
-    // check if the validator is in the active validator list, if not, is inactive validator
-    const hasInactiveValidatorDelegation = !system?.activeValidators?.find(
+    // check if the validator is in the committee members list
+    const hasInactiveValidatorDelegation = !system?.committeeMembers?.find(
         ({ stakingPoolId }) => stakingPoolId === validatorData?.stakingPoolId,
     );
 
@@ -146,16 +146,22 @@ export function DelegationDetailCard({ validatorAddress, stakedId }: DelegationD
                 <Validator address={validatorAddress} type={CardType.Filled} />
                 {hasInactiveValidatorDelegation ? (
                     <InfoBox
-                        type={InfoBoxType.Error}
-                        title="Earn with active validators"
-                        supportingText="Unstake IOTA from the inactive validators and stake on an active
-                                validator to start earning rewards again."
+                        type={InfoBoxType.Warning}
+                        title="Earn with validators in the committee"
+                        supportingText="You are delegating to a validator that is not part of the committee. Stake to a member of the current committee to start earning rewards again."
                         icon={<Warning />}
                         style={InfoBoxStyle.Elevated}
                     />
                 ) : null}
                 <Panel hasBorder>
                     <div className="flex flex-col gap-y-sm p-md">
+                        <KeyValueInfo
+                            keyText="Member of Committee"
+                            tooltipPosition={TooltipPosition.Bottom}
+                            tooltipText="If the validator is part of the current committee."
+                            value={!hasInactiveValidatorDelegation ? 'Yes' : 'No'}
+                            fullwidth
+                        />
                         <KeyValueInfo
                             keyText="Your Stake"
                             value={totalStakeFormatted}

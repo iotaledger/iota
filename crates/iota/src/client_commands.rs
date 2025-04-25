@@ -23,11 +23,12 @@ use fastcrypto::{
 use iota_config::verifier_signing_config::VerifierSigningConfig;
 use iota_json::IotaJsonValue;
 use iota_json_rpc_types::{
-    Coin, DevInspectArgs, DevInspectResults, DryRunTransactionBlockResponse, DynamicFieldPage,
-    IotaCoinMetadata, IotaData, IotaExecutionStatus, IotaObjectData, IotaObjectDataOptions,
-    IotaObjectResponse, IotaObjectResponseQuery, IotaParsedData, IotaProtocolConfigValue,
-    IotaRawData, IotaTransactionBlockEffects, IotaTransactionBlockEffectsAPI,
-    IotaTransactionBlockResponse, IotaTransactionBlockResponseOptions,
+    Coin, DevInspectArgs, DevInspectResults, DryRunTransactionBlockResponse, DynamicFieldInfo,
+    DynamicFieldPage, IotaCoinMetadata, IotaData, IotaExecutionStatus, IotaObjectData,
+    IotaObjectDataOptions, IotaObjectResponse, IotaObjectResponseQuery, IotaParsedData,
+    IotaProtocolConfigValue, IotaRawData, IotaTransactionBlockEffects,
+    IotaTransactionBlockEffectsAPI, IotaTransactionBlockResponse,
+    IotaTransactionBlockResponseOptions,
 };
 use iota_keys::keystore::AccountKeystore;
 use iota_move::manage_package::resolve_lock_file_path;
@@ -50,8 +51,7 @@ use iota_source_validation::{BytecodeSourceVerifier, ValidationMode};
 use iota_types::{
     base_types::{IotaAddress, ObjectID, SequenceNumber},
     crypto::{EmptySignInfo, SignatureScheme},
-    digests::TransactionDigest,
-    dynamic_field::DynamicFieldInfo,
+    digests::{ChainIdentifier, TransactionDigest},
     error::IotaError,
     gas::GasCostSummary,
     gas_coin::GasCoin,
@@ -95,6 +95,8 @@ use crate::{
     client_ptb::ptb::PTB,
     displays::Pretty,
     key_identity::{KeyIdentity, get_identity_address},
+    keytool::Key,
+    upgrade_compatibility::check_compatibility,
     verifier_meter::{AccumulatingMeter, Accumulator},
 };
 
@@ -350,7 +352,7 @@ pub enum IotaClientCommands {
         /// Check that the dependency source code compiles to the on-chain
         /// bytecode before publishing the package (currently the
         /// default behavior)
-        #[clap(long, conflicts_with = "skip_dependency_verification")]
+        #[arg(long, conflicts_with = "skip_dependency_verification")]
         verify_deps: bool,
         /// Also publish transitive dependencies that have not already been
         /// published.
@@ -415,6 +417,11 @@ pub enum IotaClientCommands {
         build_config: MoveBuildConfig,
         #[command(flatten)]
         opts: OptsWithGas,
+
+        /// Verify package compatibility locally before publishing.
+        #[arg(long)]
+        verify_compatibility: bool,
+
         /// Upgrade the package without checking whether dependency source code
         /// compiles to the on-chain bytecode
         #[arg(long)]
@@ -422,7 +429,7 @@ pub enum IotaClientCommands {
         /// Check that the dependency source code compiles to the on-chain
         /// bytecode before upgrading the package (currently the default
         /// behavior)
-        #[clap(long, conflicts_with = "skip_dependency_verification")]
+        #[arg(long, conflicts_with = "skip_dependency_verification")]
         verify_deps: bool,
         /// Also publish transitive dependencies that have not already been
         /// published.
@@ -570,10 +577,10 @@ pub struct Opts {
 
     /// Select which fields of the response to display.
     /// If not provided, all fields are displayed.
-    /// The fields are: effects, input, events, object_changes,
+    /// The fields are: input, effects, events, object_changes,
     /// balance_changes.
-    #[arg(long, required = false, num_args = 0.., value_parser = parse_emit_option, default_value = "effects,input,events,object_changes,balance_changes")]
-    pub emit: HashSet<EmitOption>,
+    #[arg(long, required = false, num_args = 0.., value_parser = parse_display_option, default_value = "input,effects,events,object_changes,balance_changes")]
+    pub display: HashSet<DisplayOption>,
 }
 
 /// Global options with gas
@@ -589,9 +596,9 @@ pub struct OptsWithGas {
 }
 
 impl Opts {
-    /// Uses the passed gas_budget for the gas budget variable and sets all
-    /// other flags to false, and emit to an empty vector(defaulting to all emit
-    /// options).
+    /// Uses the passed `gas_budget` for the gas budget variable and sets all
+    /// other flags to false, and `display`` to an empty `HashSet` (defaulting
+    /// to all display options).
     pub fn for_testing(gas_budget: u64) -> Self {
         Self {
             gas_budget: Some(gas_budget),
@@ -599,12 +606,12 @@ impl Opts {
             dev_inspect: false,
             serialize_unsigned_transaction: false,
             serialize_signed_transaction: false,
-            emit: HashSet::new(),
+            display: HashSet::new(),
         }
     }
-    /// Uses the passed gas_budget for the gas budget variable, sets dry run to
-    /// true, and sets all other flags to false, and emit to an empty
-    /// vector(defaulting to all emit options).
+    /// Uses the passed `gas_budget` for the gas budget variable, sets
+    /// `dry_run` to true, and sets all other flags to false, and `display``
+    /// to an empty `HashSet` (defaulting to all display options).
     pub fn for_testing_dry_run(gas_budget: u64) -> Self {
         Self {
             gas_budget: Some(gas_budget),
@@ -612,36 +619,37 @@ impl Opts {
             dev_inspect: false,
             serialize_unsigned_transaction: false,
             serialize_signed_transaction: false,
-            emit: HashSet::new(),
+            display: HashSet::new(),
         }
     }
 
-    /// Uses the passed gas_budget for the gas budget variable, sets dry run to
-    /// false, and sets all other flags to false, and emit to the passed emit
-    /// vector.
-    pub fn for_testing_emit_options(gas_budget: u64, emit: HashSet<EmitOption>) -> Self {
+    /// Uses the passed `gas_budget` for the gas budget variable, sets
+    /// `dry_run` to false, and sets all other flags to false, and `display`
+    /// to the passed display `HashSet`.
+    pub fn for_testing_display_options(gas_budget: u64, display: HashSet<DisplayOption>) -> Self {
         Self {
             gas_budget: Some(gas_budget),
             dry_run: false,
             dev_inspect: false,
             serialize_unsigned_transaction: false,
             serialize_signed_transaction: false,
-            emit,
+            display,
         }
     }
 }
 
 impl OptsWithGas {
-    /// Sets the gas object to gas, and uses the passed gas_budget for the gas
-    /// budget variable. All other flags are set to false.
+    /// Sets the `gas` object to gas, and uses the passed `gas_budget` for the
+    /// gas budget variable. All other flags are set to false.
     pub fn for_testing(gas: Option<ObjectID>, gas_budget: u64) -> Self {
         Self {
             gas,
             rest: Opts::for_testing(gas_budget),
         }
     }
-    /// Sets the gas object to gas, and uses the passed gas_budget for the gas
-    /// budget variable. Dry run is set to true, all other flags to false.
+    /// Sets the `gas` object to gas, and uses the passed `gas_budget` for the
+    /// gas budget variable. `dry_run` is set to true, all other flags to
+    /// false.
     pub fn for_testing_dry_run(gas: Option<ObjectID>, gas_budget: u64) -> Self {
         Self {
             gas,
@@ -649,26 +657,26 @@ impl OptsWithGas {
         }
     }
 
-    /// Sets the gas object to gas, and uses the passed gas_budget for the gas
-    /// budget variable. Dry run is set to false, and emit to the passed emit
-    /// vector. All other flags are set to false.
-    pub fn for_testing_emit_options(
+    /// Sets the `gas` object to gas, and uses the passed `gas_budget` for the
+    /// gas budget variable. `dry_run` is set to false, and `display` to the
+    /// passed display `HashSet`. All other flags are set to false.
+    pub fn for_testing_display_options(
         gas: Option<ObjectID>,
         gas_budget: u64,
-        emit: HashSet<EmitOption>,
+        display: HashSet<DisplayOption>,
     ) -> Self {
         Self {
             gas,
-            rest: Opts::for_testing_emit_options(gas_budget, emit),
+            rest: Opts::for_testing_display_options(gas_budget, display),
         }
     }
 }
 
 #[derive(Clone, Debug, EnumString, Hash, Eq, PartialEq)]
 #[strum(serialize_all = "snake_case")]
-pub enum EmitOption {
-    Effects,
+pub enum DisplayOption {
     Input,
+    Effects,
     Events,
     ObjectChanges,
     BalanceChanges,
@@ -874,6 +882,7 @@ impl IotaClientCommands {
                 build_config,
                 skip_dependency_verification,
                 verify_deps,
+                verify_compatibility,
                 with_unpublished_dependencies,
                 opts,
             } => {
@@ -881,6 +890,21 @@ impl IotaClientCommands {
                 let sender = sender.unwrap_or(context.active_address()?);
                 let client = context.get_client().await?;
                 let chain_id = client.read_api().get_chain_identifier().await.ok();
+                let protocol_version = client
+                    .read_api()
+                    .get_protocol_config(None)
+                    .await?
+                    .protocol_version;
+                let protocol_config = ProtocolConfig::get_for_version(
+                    protocol_version,
+                    match chain_id
+                        .as_ref()
+                        .and_then(ChainIdentifier::from_chain_short_id)
+                    {
+                        Some(chain_id) => chain_id.chain(),
+                        None => Chain::Unknown,
+                    },
+                );
 
                 check_protocol_version_and_warn(&client).await?;
 
@@ -923,8 +947,26 @@ impl IotaClientCommands {
                         previous_id,
                     )?;
                 }
-                let (package_id, compiled_modules, dependencies, package_digest, upgrade_policy) =
-                    upgrade_result?;
+                let (
+                    package_id,
+                    compiled_modules,
+                    dependencies,
+                    package_digest,
+                    upgrade_policy,
+                    compiled_module,
+                ) = upgrade_result?;
+
+                if verify_compatibility {
+                    check_compatibility(
+                        &client,
+                        package_id,
+                        compiled_module,
+                        package_path,
+                        upgrade_policy,
+                        protocol_config,
+                    )
+                    .await?;
+                }
 
                 let tx_kind = client
                     .transaction_builder()
@@ -1409,10 +1451,18 @@ impl IotaClientCommands {
                     context.config_mut().set_active_address(address);
                     context.config().save()?;
                 }
+                let key = context
+                    .config()
+                    .keystore()
+                    .get_key(&address)
+                    .map(Key::from)
+                    .expect("missing generated key");
 
                 IotaClientCommandResult::NewAddress(NewAddressOutput {
                     alias,
                     address,
+                    public_base64_key: key.public_base64_key,
+                    public_base64_key_with_flag: key.public_base64_key_with_flag,
                     key_scheme: scheme,
                     recovery_phrase: phrase,
                 })
@@ -1726,7 +1776,17 @@ pub(crate) async fn upgrade_package(
     with_unpublished_dependencies: bool,
     skip_dependency_verification: bool,
     env_alias: Option<String>,
-) -> Result<(ObjectID, Vec<Vec<u8>>, PackageDependencies, [u8; 32], u8), anyhow::Error> {
+) -> Result<
+    (
+        ObjectID,
+        Vec<Vec<u8>>,
+        PackageDependencies,
+        [u8; 32],
+        u8,
+        CompiledPackage,
+    ),
+    anyhow::Error,
+> {
     let (dependencies, compiled_modules, compiled_package, package_id) = compile_package(
         read_api,
         build_config,
@@ -1793,6 +1853,7 @@ pub(crate) async fn upgrade_package(
         dependencies,
         package_digest,
         upgrade_policy,
+        compiled_package,
     ))
 }
 
@@ -2039,6 +2100,14 @@ impl Display for IotaClientCommandResult {
                 builder.push_record(vec!["alias", new_address.alias.as_str()]);
                 builder.push_record(vec!["address", new_address.address.to_string().as_str()]);
                 builder.push_record(vec![
+                    "publicBase64Key",
+                    new_address.public_base64_key.as_str(),
+                ]);
+                builder.push_record(vec![
+                    "publicBase64KeyWithFlag",
+                    new_address.public_base64_key_with_flag.as_str(),
+                ]);
+                builder.push_record(vec![
                     "keyScheme",
                     new_address.key_scheme.to_string().as_str(),
                 ]);
@@ -2062,7 +2131,7 @@ impl Display for IotaClientCommandResult {
                         .with(TableBorder::default().corner_top_right('─')),
                 );
 
-                write!(f, "{}", table)?
+                write!(f, "{table}")?
             }
             IotaClientCommandResult::Object(object_read) => match object_read.object() {
                 Ok(obj) => {
@@ -2406,6 +2475,8 @@ pub struct DynamicFieldOutput {
 pub struct NewAddressOutput {
     pub alias: String,
     pub address: IotaAddress,
+    pub public_base64_key: String,
+    pub public_base64_key_with_flag: String,
     pub key_scheme: SignatureScheme,
     pub recovery_phrase: String,
 }
@@ -2958,7 +3029,7 @@ pub(crate) async fn dry_run_or_execute_or_serialize(
                 .quorum_driver_api()
                 .execute_transaction_block(
                     transaction,
-                    opts_from_cli(opts.emit),
+                    opts_from_cli(opts.display),
                     Some(ExecuteTransactionRequestType::WaitForLocalExecution),
                 )
                 .await?;
@@ -3040,39 +3111,39 @@ pub(crate) async fn prerender_clever_errors(
     }
 }
 
-fn opts_from_cli(opts: HashSet<EmitOption>) -> IotaTransactionBlockResponseOptions {
+fn opts_from_cli(opts: HashSet<DisplayOption>) -> IotaTransactionBlockResponseOptions {
     if opts.is_empty() {
         IotaTransactionBlockResponseOptions::new()
-            .with_effects()
             .with_input()
+            .with_effects()
             .with_events()
             .with_object_changes()
             .with_balance_changes()
     } else {
         IotaTransactionBlockResponseOptions {
-            show_input: opts.contains(&EmitOption::Input),
-            show_events: opts.contains(&EmitOption::Events),
-            show_object_changes: opts.contains(&EmitOption::ObjectChanges),
-            show_balance_changes: opts.contains(&EmitOption::BalanceChanges),
+            show_input: opts.contains(&DisplayOption::Input),
+            show_raw_input: false,
             show_effects: true,
             show_raw_effects: false,
-            show_raw_input: false,
+            show_events: opts.contains(&DisplayOption::Events),
+            show_object_changes: opts.contains(&DisplayOption::ObjectChanges),
+            show_balance_changes: opts.contains(&DisplayOption::BalanceChanges),
         }
     }
 }
 
-fn parse_emit_option(s: &str) -> Result<HashSet<EmitOption>, String> {
+pub(crate) fn parse_display_option(s: &str) -> Result<HashSet<DisplayOption>, String> {
     let mut options = HashSet::new();
 
     // Split the input string by commas and try to parse each part
     for part in s.split(',') {
         let part = part.trim(); // Trim whitespace
-        match EmitOption::from_str(part) {
+        match DisplayOption::from_str(part) {
             Ok(option) => {
                 options.insert(option);
             }
-            Err(_) => return Err(format!("Invalid emit option: {}", part)), /* Return error if
-                                                                             * invalid */
+            Err(_) => return Err(format!("Invalid display option: {}", part)), /* Return error if
+                                                                                * invalid */
         }
     }
 

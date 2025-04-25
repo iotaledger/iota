@@ -49,10 +49,10 @@ use iota_core::{
     connection_monitor::ConnectionMonitor,
     consensus_adapter::{
         CheckConnection, ConnectionMonitorStatus, ConsensusAdapter, ConsensusAdapterMetrics,
-        SubmitToConsensus,
+        ConsensusClient,
     },
     consensus_handler::ConsensusHandlerInitializer,
-    consensus_manager::{ConsensusClient, ConsensusManager, ConsensusManagerTrait},
+    consensus_manager::{ConsensusManager, ConsensusManagerTrait, UpdatableConsensusClient},
     consensus_validator::{IotaTxValidator, IotaTxValidatorMetrics},
     db_checkpoint_handler::DBCheckpointHandler,
     epoch::{
@@ -1198,7 +1198,7 @@ impl IotaNode {
             .as_mut()
             .ok_or_else(|| anyhow!("Validator is missing consensus config"))?;
 
-        let client = Arc::new(ConsensusClient::new());
+        let client = Arc::new(UpdatableConsensusClient::new());
         let consensus_adapter = Arc::new(Self::construct_consensus_adapter(
             &committee,
             consensus_config,
@@ -1423,7 +1423,7 @@ impl IotaNode {
         authority: AuthorityName,
         connection_monitor_status: Arc<ConnectionMonitorStatus>,
         prometheus_registry: &Registry,
-        consensus_client: Arc<dyn SubmitToConsensus>,
+        consensus_client: Arc<dyn ConsensusClient>,
     ) -> ConsensusAdapter {
         let ca_metrics = ConsensusAdapterMetrics::new(prometheus_registry);
         // The consensus adapter allows the authority to send user certificates through
@@ -1733,6 +1733,11 @@ impl IotaNode {
                     )
                 } else {
                     info!("This node is no longer a validator after reconfiguration");
+
+                    consensus_adapter.unregister_consensus_adapter_metrics(
+                        &self.registry_service.default_registry(),
+                    );
+                    debug!("Unregistered consensus adapter metrics");
                     None
                 }
             } else {
@@ -2043,7 +2048,7 @@ pub async fn build_http_server(
             state.clone(),
             kv_store.clone(),
             metrics.clone(),
-        ))?;
+        )?)?;
 
         // if run_with_range is enabled we want to prevent any transactions
         // run_with_range = None is normal operating conditions

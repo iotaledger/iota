@@ -145,6 +145,35 @@ impl<R: ReadApiServer> IndexerApi<R> {
             Err(_) => bail!("Resources exhausted"),
         }
     }
+
+    async fn get_dynamic_field_object(
+        &self,
+        parent_object_id: ObjectID,
+        name: DynamicFieldName,
+        options: Option<IotaObjectDataOptions>,
+    ) -> RpcResult<IotaObjectResponse> {
+        async move {
+            let (name_type, name_bcs_value) = self.extract_values_from_dynamic_field_name(name)?;
+
+            let id = self
+                .state
+                .get_dynamic_field_object_id(parent_object_id, name_type, &name_bcs_value)
+                .map_err(Error::from)?;
+
+            if let Some(id) = id {
+                self.read_api
+                    .get_object(id, options)
+                    .await
+                    .map_err(|e| Error::Internal(anyhow!(e)))
+            } else {
+                Ok(IotaObjectResponse::new_with_error(
+                    IotaObjectResponseError::DynamicFieldNotFound { parent_object_id },
+                ))
+            }
+        }
+        .trace()
+        .await
+    }
 }
 
 #[async_trait]
@@ -377,7 +406,7 @@ impl<R: ReadApiServer> IndexerApiServer for IndexerApi<R> {
                 .get_dynamic_fields_result_size_total
                 .inc_by(data.len() as u64);
             Ok(DynamicFieldPage {
-                data: data.into_iter().map(|(_, w)| w).collect(),
+                data: data.into_iter().map(|(_, w)| w.into()).collect(),
                 next_cursor,
                 has_next_page,
             })
@@ -392,27 +421,23 @@ impl<R: ReadApiServer> IndexerApiServer for IndexerApi<R> {
         parent_object_id: ObjectID,
         name: DynamicFieldName,
     ) -> RpcResult<IotaObjectResponse> {
-        async move {
-            let (name_type, name_bcs_value) = self.extract_values_from_dynamic_field_name(name)?;
-
-            let id = self
-                .state
-                .get_dynamic_field_object_id(parent_object_id, name_type, &name_bcs_value)
-                .map_err(Error::from)?;
-            // TODO(chris): add options to `get_dynamic_field_object` API as well
-            if let Some(id) = id {
-                self.read_api
-                    .get_object(id, Some(IotaObjectDataOptions::full_content()))
-                    .await
-                    .map_err(|e| Error::Internal(anyhow!(e)))
-            } else {
-                Ok(IotaObjectResponse::new_with_error(
-                    IotaObjectResponseError::DynamicFieldNotFound { parent_object_id },
-                ))
-            }
-        }
-        .trace()
+        self.get_dynamic_field_object(
+            parent_object_id,
+            name,
+            Some(IotaObjectDataOptions::full_content()),
+        )
         .await
+    }
+
+    #[instrument(skip(self))]
+    async fn get_dynamic_field_object_v2(
+        &self,
+        parent_object_id: ObjectID,
+        name: DynamicFieldName,
+        options: Option<IotaObjectDataOptions>,
+    ) -> RpcResult<IotaObjectResponse> {
+        self.get_dynamic_field_object(parent_object_id, name, options)
+            .await
     }
 }
 

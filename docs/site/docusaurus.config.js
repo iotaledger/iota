@@ -211,7 +211,7 @@ const config = {
             "1.0.0",
           ],*/
           remarkPlugins: [
-            math,
+            [math,{singleDollarTextMath:false}],
             [
               require("@docusaurus/remark-plugin-npm2yarn"),
               { sync: true, converters: ["yarn", "pnpm"] },
@@ -322,6 +322,7 @@ const config = {
         ],
       },
       footer: {
+        style: "dark",
         logo: {
           alt: "IOTA Wiki Logo",
           src: "/logo/iota-logo.svg",

@@ -4,6 +4,7 @@
 
 import { useTimeAgo } from '@iota/core';
 import { useIotaClientQuery } from '@iota/dapp-kit';
+import { useEffect } from 'react';
 
 interface EpochProgress {
     epoch?: number;
@@ -14,15 +15,49 @@ interface EpochProgress {
 }
 
 export function useEpochProgress(suffix: string = 'left'): EpochProgress {
-    const { data } = useIotaClientQuery('getLatestIotaSystemState');
+    const { data, refetch } = useIotaClientQuery('getLatestIotaSystemState');
     const start = data?.epochStartTimestampMs ? Number(data.epochStartTimestampMs) : undefined;
     const duration = data?.epochDurationMs ? Number(data.epochDurationMs) : undefined;
     const end = start !== undefined && duration !== undefined ? start + duration : undefined;
+
     const time = useTimeAgo({
         timeFrom: end || null,
         shortedTimeLabel: true,
         shouldEnd: true,
     });
+
+    // Effect to handle refetch logic
+    useEffect(() => {
+        if (!end) return;
+
+        let interval: NodeJS.Timeout | null = null;
+        let timeout: NodeJS.Timeout | null = null;
+
+        // Set up a timer start checking new epoch when end time is reached
+        const timeToEnd = end - Date.now();
+
+        timeout = setTimeout(() => {
+            // Check if end time has expired
+            const now = Date.now();
+            const isExpired = now >= end;
+
+            if (isExpired) {
+                // End time expired, start refetching
+                interval = setInterval(() => {
+                    refetch();
+                }, 5000);
+            }
+        }, timeToEnd);
+
+        return () => {
+            if (interval) {
+                clearInterval(interval);
+            }
+            if (timeout) {
+                clearTimeout(timeout);
+            }
+        };
+    }, [end, refetch]);
 
     if (!start || !end) {
         return {

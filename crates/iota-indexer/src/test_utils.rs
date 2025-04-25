@@ -60,8 +60,13 @@ use crate::{
 pub type DBInitHook = Box<dyn FnOnce(&PgIndexerStore) + Send>;
 
 pub enum IndexerTypeConfig {
-    Reader { reader_mode_rpc_url: String },
-    Writer { snapshot_config: SnapshotLagConfig },
+    Reader {
+        reader_mode_rpc_url: String,
+    },
+    Writer {
+        snapshot_config: SnapshotLagConfig,
+        epochs_to_keep: Option<u64>,
+    },
     AnalyticalWorker,
 }
 
@@ -72,9 +77,13 @@ impl IndexerTypeConfig {
         }
     }
 
-    pub fn writer_mode(snapshot_config: Option<SnapshotLagConfig>) -> Self {
+    pub fn writer_mode(
+        snapshot_config: Option<SnapshotLagConfig>,
+        epochs_to_keep: Option<u64>,
+    ) -> Self {
         Self::Writer {
             snapshot_config: snapshot_config.unwrap_or_default(),
+            epochs_to_keep,
         }
     }
 }
@@ -146,7 +155,10 @@ pub async fn start_test_indexer_impl(
             config.rpc_server_port = reader_mode_rpc_url.port();
             tokio::spawn(async move { Indexer::start_reader(&config, &registry, db_url).await })
         }
-        IndexerTypeConfig::Writer { snapshot_config } => {
+        IndexerTypeConfig::Writer {
+            snapshot_config,
+            epochs_to_keep,
+        } => {
             let store_clone = store.clone();
 
             init_metrics(&registry);
@@ -158,6 +170,7 @@ pub async fn start_test_indexer_impl(
                     store_clone,
                     indexer_metrics,
                     snapshot_config,
+                    epochs_to_keep,
                     cancel,
                 )
                 .await
@@ -195,7 +208,7 @@ pub fn create_pg_store(db_url: Secret<String>, reset_database: bool) -> PgIndexe
 
     let mut parsed_url = db_url.clone();
     if reset_database {
-        let db_name = parsed_url.expose_secret().split('/').last().unwrap();
+        let db_name = parsed_url.expose_secret().split('/').next_back().unwrap();
         // Switch to default to create a new database
         let (default_db_url, _) = replace_db_name(parsed_url.expose_secret(), "postgres");
 

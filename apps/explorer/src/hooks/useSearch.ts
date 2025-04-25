@@ -2,8 +2,8 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { useIotaClientQuery, useIotaClient } from '@iota/dapp-kit';
-import { type IotaSystemStateSummaryV1, type IotaClient } from '@iota/iota-sdk/client';
+import { useIotaClient, useIotaClientQuery } from '@iota/dapp-kit';
+import type { IotaClient, LatestIotaSystemStateSummary } from '@iota/iota-sdk/client';
 import {
     isValidTransactionDigest,
     isValidIotaAddress,
@@ -70,26 +70,20 @@ const getResultsForAddress = async (client: IotaClient, query: string): Promise<
     const normalized = normalizeIotaObjectId(query);
     if (!isValidIotaAddress(normalized) || isGenesisLibAddress(normalized)) return null;
 
-    const [from, to] = await Promise.all([
-        client.queryTransactionBlocks({
-            filter: { FromAddress: normalized },
-            limit: 1,
-        }),
-        client.queryTransactionBlocks({
-            filter: { ToAddress: normalized },
-            limit: 1,
-        }),
-    ]);
+    const fromOrTo = await client.queryTransactionBlocks({
+        filter: { FromOrToAddress: { addr: normalized } },
+        limit: 1,
+    });
 
     // Note: we need to query owned objects separately
     // because genesis addresses might not be involved in any transaction yet.
     let ownedObjects = [];
-    if (!from.data?.length && !to.data?.length) {
+    if (!fromOrTo.data?.length) {
         const response = await client.getOwnedObjects({ owner: normalized, limit: 1 });
         ownedObjects = response.data;
     }
 
-    if (!from.data?.length && !to.data?.length && !ownedObjects?.length) return null;
+    if (!fromOrTo.data?.length && !ownedObjects?.length) return null;
 
     return [
         {
@@ -102,7 +96,7 @@ const getResultsForAddress = async (client: IotaClient, query: string): Promise<
 
 // Query for validator by pool id or iota address.
 const getResultsForValidatorByPoolIdOrIotaAddress = async (
-    systemStateSummary: IotaSystemStateSummaryV1 | null,
+    systemStateSummary: LatestIotaSystemStateSummary | null,
     query: string,
 ): Promise<Results | null> => {
     const normalized = normalizeIotaObjectId(query);

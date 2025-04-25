@@ -4,6 +4,7 @@
 
 use iota_json_rpc_types::{
     AddressMetrics, EpochInfo, EpochMetricsPage, EpochPage, MoveCallMetrics, NetworkMetrics,
+    ParticipationMetrics,
 };
 use iota_open_rpc_macros::open_rpc;
 use iota_types::iota_serde::BigInt;
@@ -71,4 +72,11 @@ pub trait ExtendedApi {
     /// indexer.
     #[method(name = "getTotalTransactions")]
     async fn get_total_transactions(&self) -> RpcResult<BigInt<u64>>;
+
+    /// Returns the participation metrics. Participation is defined as the total
+    /// number of unique addresses that have delegated stake in the current
+    /// epoch. Includes both staked and timelocked staked IOTA.
+    /// Exclusively served by the indexer.
+    #[method(name = "getParticipationMetrics")]
+    async fn get_participation_metrics(&self) -> RpcResult<ParticipationMetrics>;
 }

@@ -4,10 +4,10 @@
 
 import { Card, CardImage, CardType, CardBody, CardAction, CardActionType } from '@iota/apps-ui-kit';
 import { useMemo } from 'react';
-import { useIotaClientQuery } from '@iota/dapp-kit';
 import { ImageIcon } from '../icon';
 import { ExtendedDelegatedStake } from '../../utils';
 import { useFormatCoin, useStakeRewardStatus } from '../../hooks';
+import { useIotaClientQuery } from '@iota/dapp-kit';
 
 interface StakedCardProps {
     extendedStake: ExtendedDelegatedStake;
