@@ -199,6 +199,13 @@ export function StakeFormComponent({ validatorAddress, epoch, onSuccess }: Stake
                 className="flex w-full flex-1 flex-col flex-nowrap items-center gap-md overflow-auto pb-sm"
                 autoComplete="off"
             >
+                <div style={{ color: 'white' }}>
+                    <p>loading {isLoading.toString()}</p>
+                    <p>error {isError.toString()}</p>
+                    <p>pending {isPending.toString()}</p>
+                    <p>valid {isValid.toString()}</p>
+                    <p>amount {values.amount.toString()}</p>
+                </div>
                 <Validator address={validatorAddress} type={CardType.Filled} />
                 <ValidatorFormDetail validatorAddress={validatorAddress} />
                 <Field name="amount">
