@@ -3,9 +3,14 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { ampli } from '_src/shared/analytics/ampli';
-import { calculateStakeShare, useGetValidatorsApy, Validator } from '@iota/core';
+import {
+    calculateStakeShare,
+    useGetValidatorsApy,
+    useIsValidatorCommitteeMember,
+    Validator,
+} from '@iota/core';
 import cl from 'clsx';
-import { useCallback, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import {
     Button,
     InfoBox,
@@ -35,6 +40,7 @@ export function SelectValidatorCard() {
 
     const { data, isPending, isError, error } = useIotaClientQuery('getLatestIotaSystemState');
     const { data: rollingAverageApys } = useGetValidatorsApy();
+    const { isCommitteeMember } = useIsValidatorCommitteeMember();
 
     const selectValidator = (validator: Validator) => {
         setSelectedValidator((state) => (state?.address !== validator.address ? validator : null));
@@ -53,26 +59,18 @@ export function SelectValidatorCard() {
         [data?.activeValidators],
     );
 
-    const isAddressCommitteeMember = useCallback(
-        (address: string) =>
-            data?.committeeMembers.some(
-                (committeeMember) => address === committeeMember.iotaAddress,
-            ),
-        [data?.committeeMembers],
-    );
-
     const validatorList: Validator[] = useMemo(() => {
         const sortedAsc = allValidatorsRandomOrder.map((validator) => {
             const { apy, isApyApproxZero } = rollingAverageApys?.[validator.iotaAddress] ?? {
                 apy: null,
             };
-            const isCommitteeMember = isAddressCommitteeMember(validator.iotaAddress);
+            const isInTheCommittee = isCommitteeMember(validator.iotaAddress);
             return {
                 name: validator.name,
                 address: validator.iotaAddress,
                 apy,
                 isApyApproxZero,
-                stakeShare: isCommitteeMember
+                stakeShare: isInTheCommittee
                     ? calculateStakeShare(
                           BigInt(validator.stakingPoolIotaBalance),
                           BigInt(totalStake),
@@ -81,7 +79,7 @@ export function SelectValidatorCard() {
             };
         });
         return sortedAsc;
-    }, [allValidatorsRandomOrder, rollingAverageApys, totalStake, isAddressCommitteeMember]);
+    }, [allValidatorsRandomOrder, rollingAverageApys, totalStake]);
 
     if (isPending) {
         return (
@@ -92,10 +90,10 @@ export function SelectValidatorCard() {
     }
 
     const committeeMemberValidators = validatorList.filter((validator) =>
-        isAddressCommitteeMember(validator.address),
+        isCommitteeMember(validator.address),
     );
     const nonCommitteeMemberValidators = validatorList.filter(
-        (validator) => !isAddressCommitteeMember(validator.address),
+        (validator) => !isCommitteeMember(validator.address),
     );
 
     if (isError) {
