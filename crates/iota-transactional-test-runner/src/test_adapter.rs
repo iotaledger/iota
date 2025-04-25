@@ -25,10 +25,7 @@ use fastcrypto::{
 };
 use iota_core::authority::{AuthorityState, test_authority_builder::TestAuthorityBuilder};
 use iota_framework::DEFAULT_FRAMEWORK_PATH;
-use iota_graphql_rpc::{
-    config::ConnectionConfig,
-    test_infra::cluster::{ExecutorCluster, SnapshotLagConfig, serve_executor},
-};
+use iota_graphql_rpc::test_infra::cluster::SnapshotLagConfig;
 use iota_json_rpc_api::QUERY_MAX_RESULT_LIMIT;
 use iota_json_rpc_types::{
     DevInspectResults, DryRunTransactionBlockResponse, IotaExecutionStatus,
@@ -217,6 +214,9 @@ impl AdapterInitConfig {
             .map(|v| v.into_iter().collect::<BTreeSet<_>>())
             .unwrap_or_default();
 
+        if let Some(version) = move_binary_format_version {
+            protocol_config.set_move_binary_format_version_for_testing(version);
+        }
         let mut protocol_config = if let Some(protocol_version) = protocol_version {
             ProtocolConfig::get_for_version(protocol_version.into(), Chain::Unknown)
         } else {
@@ -2341,18 +2341,6 @@ async fn init_sim_executor(
             None,
         );
 
-    // Hash the file path to create custom unique DB name
-    let mut hasher = std::collections::hash_map::DefaultHasher::new();
-    test_file_path.hash(&mut hasher);
-    let hash = hasher.finish();
-    let db_name = format!("iota_graphql_test_{}", hash);
-
-    // Use the hash as a seed to generate a random port number
-    let base_port = hash as u16 % 8192;
-
-    let graphql_port = 20000 + base_port;
-    let graphql_prom_port = graphql_port + 1;
-    let internal_data_port = graphql_prom_port + 1;
     sim.set_data_ingestion_path(data_ingestion_path.clone());
 
     // Get the actual object values from the simulator
