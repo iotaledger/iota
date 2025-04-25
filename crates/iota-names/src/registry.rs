@@ -12,7 +12,7 @@ use iota_types::{
 };
 use serde::{Deserialize, Serialize};
 
-use crate::{config::LEAF_EXPIRATION_TIMESTAMP, domain::Domain, error::IotaNamesError};
+use crate::{constants::LEAF_EXPIRATION_TIMESTAMP, domain::Domain, error::IotaNamesError};
 
 /// Rust version of the Move `iota::table::Table` type.
 #[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]

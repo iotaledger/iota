@@ -8,7 +8,7 @@ use move_core_types::{ident_str, identifier::IdentStr, language_storage::StructT
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    config::{DEFAULT_TLD, IOTA_NAMES_SEPARATOR_AT, IOTA_NAMES_SEPARATOR_DOT},
+    constants::{DEFAULT_TLD, IOTA_NAMES_SEPARATOR_AT, IOTA_NAMES_SEPARATOR_DOT},
     error::IotaNamesError,
 };
 
