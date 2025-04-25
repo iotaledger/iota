@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import cn from 'clsx';
-import { useConnectedApps } from '../../hooks/useConnectedApps';
+import { useConnectedApps } from '../../hooks';
 import { Loading, NoData, PageTemplate } from '_components';
 import { IotaApp } from './IotaApp';
 
