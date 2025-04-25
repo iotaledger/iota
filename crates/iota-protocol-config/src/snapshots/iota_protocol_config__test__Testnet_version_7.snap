@@ -1,10 +1,12 @@
 ---
 source: crates/iota-protocol-config/src/lib.rs
 expression: "ProtocolConfig::get_for_version(cur, *chain_id)"
+snapshot_kind: text
 ---
 version: 7
 feature_flags:
   consensus_transaction_ordering: ByGasPrice
+  accept_passkey_in_multisig: true
   per_object_congestion_control_mode: TotalTxCount
   zklogin_max_epoch_upper_bound_delta: 30
   relocate_event_module: true
