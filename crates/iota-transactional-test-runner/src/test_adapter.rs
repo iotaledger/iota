@@ -8,7 +8,6 @@
 use std::{
     collections::{BTreeMap, BTreeSet},
     fmt::{self, Write},
-    hash::{Hash, Hasher},
     path::{Path, PathBuf},
     sync::Arc,
     time::Duration,
@@ -335,7 +334,7 @@ impl MoveTestAdapter<'_> for IotaTestAdapter {
                 Self::ExtraInitArgs,
             )>,
         >,
-        path: &Path,
+        _path: &Path,
     ) -> (Self, Option<String>) {
         let rng = StdRng::from_seed(RNG_SEED);
         assert!(
@@ -377,7 +376,6 @@ impl MoveTestAdapter<'_> for IotaTestAdapter {
                 &protocol_config,
                 custom_validator_account,
                 reference_gas_price,
-                path.to_path_buf(),
                 offchain_config
                     .as_ref()
                     .unwrap()
@@ -2271,7 +2269,6 @@ async fn init_sim_executor(
     protocol_config: &ProtocolConfig,
     custom_validator_account: bool,
     reference_gas_price: Option<u64>,
-    test_file_path: PathBuf,
     data_ingestion_path: PathBuf,
 ) -> (
     Box<dyn TransactionalAdapter>,
