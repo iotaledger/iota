@@ -152,6 +152,10 @@ impl GenesisValidatorInfo {
             bail!("proof of possession is incorrect: {e}");
         }
 
+        if self.info.protocol_key() == self.info.network_key() {
+            bail!("protocol pubkey must be different from the network pubkey");
+        }
+
         Ok(())
     }
 }

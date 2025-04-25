@@ -3,10 +3,8 @@
 
 import {
     useFormatCoin,
-    useBalance,
     CoinFormat,
     useCoinMetadata,
-    safeParseAmount,
     toast,
     useNewStakeTransaction,
     parseAmount,
@@ -17,7 +15,9 @@ import { useFormikContext } from 'formik';
 import { useSignAndExecuteTransaction } from '@iota/dapp-kit';
 import { EnterAmountDialogLayout } from './EnterAmountDialogLayout';
 import { ampli } from '@/lib/utils/analytics';
-import { useEffect, useMemo } from 'react';
+import { ButtonPill, InfoBox, InfoBoxStyle, InfoBoxType } from '@iota/apps-ui-kit';
+import { useMemo } from 'react';
+import { Exclamation } from '@iota/apps-ui-icons';
 
 export interface FormValues {
     amount: string;
@@ -28,7 +28,7 @@ interface EnterAmountViewProps {
     onBack: () => void;
     showActiveStatus?: boolean;
     handleClose: () => void;
-    amountWithoutDecimals: bigint;
+    availableBalance: bigint;
     senderAddress: string;
     onSuccess: (digest: string) => void;
 }
@@ -37,58 +37,49 @@ export function EnterAmountView({
     selectedValidator,
     onBack,
     handleClose,
-    amountWithoutDecimals,
+    availableBalance,
     senderAddress,
     onSuccess,
 }: EnterAmountViewProps): JSX.Element {
     const { mutateAsync: signAndExecuteTransaction } = useSignAndExecuteTransaction();
     const { values, resetForm, setFieldValue } = useFormikContext<FormValues>();
-
-    const coinType = IOTA_TYPE_ARG;
-    const { data: metadata } = useCoinMetadata(coinType);
+    const { data: metadata } = useCoinMetadata(IOTA_TYPE_ARG);
     const decimals = metadata?.decimals ?? 0;
-
-    const { data: iotaBalance } = useBalance(senderAddress);
-    const coinBalance = BigInt(iotaBalance?.totalBalance || 0);
+    const amount = parseAmount(values.amount, decimals);
 
     const {
         data: newStakeData,
         isLoading: isTransactionLoading,
         isError,
         error: stakeTransactionError,
-    } = useNewStakeTransaction(selectedValidator, amountWithoutDecimals, senderAddress);
+    } = useNewStakeTransaction(selectedValidator, amount, senderAddress);
 
     const gasSummary = newStakeData?.gasSummary;
 
-    const { data: maxAmountTransactionData } = useNewStakeTransaction(
-        selectedValidator,
-        coinBalance,
-        senderAddress,
-    );
-    const maxAmountTxGasBudget = BigInt(maxAmountTransactionData?.gasSummary?.budget ?? 0n);
-
-    useEffect(() => {
-        setFieldValue('gasBudget', maxAmountTxGasBudget);
-    }, [maxAmountTxGasBudget, setFieldValue]);
-
-    const maxTokenBalance = coinBalance - maxAmountTxGasBudget;
-    const [maxTokenFormatted, maxTokenFormattedSymbol] = useFormatCoin({
-        balance: maxTokenBalance,
+    const [availableBalanceFormatted, availableBalanceFormattedSymbol] = useFormatCoin({
+        balance: availableBalance,
         format: CoinFormat.FULL,
     });
 
-    const caption = maxAmountTxGasBudget
-        ? `${maxTokenFormatted} ${maxTokenFormattedSymbol} Available`
+    const caption = availableBalance
+        ? `${availableBalanceFormatted} ${availableBalanceFormattedSymbol} Available`
         : '--';
-    const infoMessage =
-        'You have selected an amount that will leave you with insufficient funds to pay for gas fees for unstaking or any other transactions.';
 
-    const hasAmount = values.amount.length > 0;
-    const amount = safeParseAmount(coinType === IOTA_TYPE_ARG ? values.amount : '0', decimals);
-    const gasAmount = BigInt(2) * maxAmountTxGasBudget;
+    const gasUnstakeBuffer = gasSummary?.budget ? BigInt(gasSummary.budget) * BigInt(2) : BigInt(0);
+    const maxSafeAmount = availableBalance - gasUnstakeBuffer;
+    const [maxSafeAmountFormatted, maxSafeAmountSymbol] = useFormatCoin({
+        balance: maxSafeAmount,
+        format: CoinFormat.FULL,
+    });
+    const isUnsafeAmount = amount && amount > maxSafeAmount && amount <= availableBalance;
 
-    const canPay = amount !== null ? maxTokenBalance > amount + gasAmount : false;
-    const hasEnoughRemainingBalance = !(hasAmount && !canPay);
+    function setMaxAmount() {
+        setFieldValue('amount', availableBalanceFormatted, true);
+    }
+
+    function setRecommendedAmount() {
+        setFieldValue('amount', maxSafeAmountFormatted, true);
+    }
 
     function handleStake(): void {
         if (!newStakeData?.transaction) {
@@ -129,12 +120,36 @@ export function EnterAmountView({
             totalGas={gasSummary?.totalGas}
             senderAddress={senderAddress}
             caption={caption}
-            showInfo={!hasEnoughRemainingBalance}
-            infoMessage={infoMessage}
+            renderInfo={
+                isUnsafeAmount ? (
+                    <InfoBox
+                        type={InfoBoxType.Warning}
+                        supportingText={
+                            <>
+                                Staking your full balance may leave you without enough funds to
+                                cover gas fees for future actions like unstaking. To avoid this, we
+                                recommend staking up to {maxSafeAmountFormatted}&nbsp;
+                                {maxSafeAmountSymbol}.
+                                <div>
+                                    <span
+                                        onClick={setRecommendedAmount}
+                                        className="cursor-pointer underline hover:opacity-80"
+                                    >
+                                        Set recommended amount
+                                    </span>
+                                </div>
+                            </>
+                        }
+                        style={InfoBoxStyle.Elevated}
+                        icon={<Exclamation />}
+                    />
+                ) : undefined
+            }
             isLoading={isTransactionLoading}
             onBack={onBack}
             handleClose={handleClose}
             handleStake={handleStake}
+            renderInputAction={<ButtonPill onClick={setMaxAmount}>Max</ButtonPill>}
             errorMessage={errorMessage}
         />
     );

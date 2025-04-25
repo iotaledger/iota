@@ -3,11 +3,12 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { IOTA_PRIMITIVES_COLOR_PALETTE, Panel, Title } from '@iota/apps-ui-kit';
-import { Theme, useGetLatestIotaSystemState, useTheme } from '@iota/core';
+import { Theme, useTheme } from '@iota/core';
+import { useIotaClientQuery } from '@iota/dapp-kit';
 import { RingChart, RingChartLegend } from '~/components/ui';
 
 export function ValidatorStatus(): JSX.Element | null {
-    const { data } = useGetLatestIotaSystemState();
+    const { data } = useIotaClientQuery('getLatestIotaSystemState');
     const { theme } = useTheme();
 
     if (!data) return null;

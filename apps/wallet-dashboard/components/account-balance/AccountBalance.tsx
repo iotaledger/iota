@@ -55,7 +55,7 @@ export function AccountBalance() {
                     <div className="flex h-full flex-col items-center justify-center gap-y-lg p-lg">
                         <div className="flex flex-col items-center gap-y-xs">
                             {address && (
-                                <div className="-mr-lg">
+                                <div className="-mr-lg" data-full-address={address}>
                                     <Address
                                         text={formattedAddress}
                                         isCopyable
@@ -66,7 +66,10 @@ export function AccountBalance() {
                                     />
                                 </div>
                             )}
-                            <span className="text-headline-lg text-neutral-10 dark:text-neutral-92">
+                            <span
+                                data-testid="balance-amount"
+                                className="text-headline-lg text-neutral-10 dark:text-neutral-92"
+                            >
                                 {formatted} {symbol}
                             </span>
                             {fiatBalance && (

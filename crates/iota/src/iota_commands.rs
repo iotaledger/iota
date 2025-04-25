@@ -4,7 +4,7 @@
 
 use std::{
     fs, io,
-    io::{Write, stderr, stdout},
+    io::{Write, stdout},
     net::{AddrParseError, IpAddr, Ipv4Addr, SocketAddr},
     num::NonZeroUsize,
     path::{Path, PathBuf},
@@ -61,7 +61,6 @@ use tracing::{self, info};
 
 use crate::{
     client_commands::IotaClientCommands,
-    console::start_console,
     fire_drill::{FireDrill, run_fire_drill},
     genesis_ceremony::{Ceremony, run},
     keytool::KeyToolCommand,
@@ -286,13 +285,6 @@ pub enum IotaCommand {
         #[command(subcommand)]
         cmd: KeyToolCommand,
     },
-    /// Start IOTA interactive console.
-    Console {
-        /// Sets the file storing the state of our user accounts (an empty one
-        /// will be created if missing)
-        #[arg(long = "client.config")]
-        config: Option<PathBuf>,
-    },
     /// Client for interacting with the IOTA network.
     Client {
         /// Sets the file storing the state of our user accounts (an empty one
@@ -443,12 +435,6 @@ impl IotaCommand {
                 let mut keystore = Keystore::from(FileBasedKeystore::new(&keystore_path)?);
                 cmd.execute(&mut keystore).await?.print(!json);
                 Ok(())
-            }
-            IotaCommand::Console { config } => {
-                let config = config.unwrap_or(iota_config_dir()?.join(IOTA_CLIENT_CONFIG));
-                prompt_if_no_config(&config, false, true, true)?;
-                let context = WalletContext::new(&config, None, None)?;
-                start_console(context, &mut stdout(), &mut stderr()).await
             }
             IotaCommand::Client {
                 config,

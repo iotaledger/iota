@@ -13,7 +13,6 @@ import { type NetworkId, getAllNetworks } from '@iota/iota-sdk/client';
 import { Button, ButtonSize, ButtonType, Dropdown, ListItem } from '@iota/apps-ui-kit';
 import { ArrowDown, CheckmarkFilled } from '@iota/apps-ui-icons';
 import { Transition } from '@headlessui/react';
-import { useGetLatestIotaSystemState } from '@iota/core';
 
 interface NetworkOption {
     id: string;
@@ -23,7 +22,7 @@ interface NetworkOption {
 export function NetworkSelector(): JSX.Element {
     const elementRef = useRef<HTMLDivElement>(null);
     const [network, setNetwork] = useContext(NetworkContext);
-    const { data } = useGetLatestIotaSystemState();
+    const { data } = useIotaClientQuery('getLatestIotaSystemState');
     const { data: binaryVersion } = useIotaClientQuery('getRpcApiVersion');
     const [isDropdownOpen, setIsDropdownOpen] = useState(false);
 

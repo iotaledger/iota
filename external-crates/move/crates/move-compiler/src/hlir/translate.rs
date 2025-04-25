@@ -18,7 +18,7 @@ use crate::{
     FullyCompiledProgram, debug_display, debug_display_verbose, diag,
     diagnostics::{Diagnostic, DiagnosticReporter, Diagnostics, warning_filters::WarningFilters},
     editions::{FeatureGate, Flavor},
-    expansion::ast::{self as E, Fields, ModuleIdent, Mutability, TargetKind},
+    expansion::ast::{self as E, Fields, ModuleIdent, Mutability},
     hlir::{
         ast::{self as H, Block, BlockLabel, MoveOpAnnotation, UnpackType},
         detect_dead_code::program as detect_dead_code_analysis,
@@ -28,7 +28,8 @@ use crate::{
     iota_mode::ID_FIELD_NAME,
     naming::ast as N,
     parser::ast::{
-        Ability_, BinOp, BinOp_, ConstantName, DatatypeName, Field, FunctionName, VariantName,
+        Ability_, BinOp, BinOp_, ConstantName, DatatypeName, Field, FunctionName, TargetKind,
+        VariantName,
     },
     shared::{
         matching::{MATCH_TEMP_PREFIX, MatchContext, new_match_var_name},
@@ -127,8 +128,6 @@ pub(super) struct HLIRDebugFlags {
     #[allow(dead_code)]
     pub(super) match_specialization: bool,
     #[allow(dead_code)]
-    pub(super) match_work_queue: bool,
-    #[allow(dead_code)]
     pub(super) function_translation: bool,
     #[allow(dead_code)]
     pub(super) eval_order: bool,
@@ -162,7 +161,6 @@ impl<'env> Context<'env> {
             eval_order: false,
             match_translation: false,
             match_specialization: false,
-            match_work_queue: false,
         };
         let reporter = env.diagnostic_reporter_at_top_level();
         Context {
@@ -296,11 +294,14 @@ impl MatchContext<true> for Context<'_> {
         // current color scope is. Since these are only used as match
         // temporaries, however, and they have names that may not be written as
         // input, it's impossible for these to shadow macro argument names.
-        sp(loc, N::Var_ {
-            name,
-            id: id as u16,
-            color: 0,
-        })
+        sp(
+            loc,
+            N::Var_ {
+                name,
+                id: id as u16,
+                color: 0,
+            },
+        )
     }
 
     fn program_info(&self) -> &program_info::ProgramInfo<true> {
@@ -350,6 +351,7 @@ fn module(
     mdef: T::ModuleDefinition,
 ) -> (ModuleIdent, H::ModuleDefinition) {
     let T::ModuleDefinition {
+        doc: _,
         loc: _,
         warning_filter,
         package_name,
@@ -384,18 +386,21 @@ fn module(
 
     context.current_package = None;
     context.pop_warning_filter_scope();
-    (module_ident, H::ModuleDefinition {
-        warning_filter,
-        package_name,
-        attributes,
-        target_kind,
-        dependency_order,
-        friends,
-        structs,
-        enums,
-        constants,
-        functions,
-    })
+    (
+        module_ident,
+        H::ModuleDefinition {
+            warning_filter,
+            package_name,
+            attributes,
+            target_kind,
+            dependency_order,
+            friends,
+            structs,
+            enums,
+            constants,
+            functions,
+        },
+    )
 }
 
 //**************************************************************************************************
@@ -406,6 +411,7 @@ fn function(context: &mut Context, _name: FunctionName, f: T::Function) -> H::Fu
     assert!(context.has_empty_locals());
     assert!(context.tmp_counter == 0);
     let T::Function {
+        doc: _,
         warning_filter,
         index,
         attributes,
@@ -474,7 +480,7 @@ fn function_body(
             let (locals, body) = function_body_defined(context, sig, loc, seq);
             debug_print!(context.debug.function_translation,
                          (msg "--------"),
-                         (lines "body" => &body));
+                         (lines "body" => &body; verbose));
             HB::Defined { locals, body }
         }
         TB::Macro => unreachable!("ICE macros filtered above"),
@@ -520,6 +526,7 @@ fn visibility(evisibility: E::Visibility) -> H::Visibility {
 
 fn constant(context: &mut Context, _name: ConstantName, cdef: T::Constant) -> H::Constant {
     let T::Constant {
+        doc: _,
         warning_filter,
         index,
         attributes,
@@ -562,6 +569,7 @@ fn struct_def(
     sdef: N::StructDefinition,
 ) -> H::StructDefinition {
     let N::StructDefinition {
+        doc: _,
         warning_filter,
         index,
         loc: _loc,
@@ -590,7 +598,7 @@ fn struct_fields(context: &mut Context, tfields: N::StructFields) -> H::StructFi
     };
     let mut indexed_fields = tfields_map
         .into_iter()
-        .map(|(f, (idx, t))| (idx, (f, base_type(context, t))))
+        .map(|(f, (idx, (_doc, t)))| (idx, (f, base_type(context, t))))
         .collect::<Vec<_>>();
     indexed_fields.sort_by(|(idx1, _), (idx2, _)| idx1.cmp(idx2));
     H::StructFields::Defined(indexed_fields.into_iter().map(|(_, f_ty)| f_ty).collect())
@@ -606,6 +614,7 @@ fn enum_def(
     edef: N::EnumDefinition,
 ) -> H::EnumDefinition {
     let N::EnumDefinition {
+        doc: _,
         warning_filter,
         index,
         loc: _loc,
@@ -638,7 +647,7 @@ fn variant_fields(context: &mut Context, tfields: N::VariantFields) -> Vec<(Fiel
     };
     let mut indexed_fields = tfields_map
         .into_iter()
-        .map(|(f, (idx, t))| (idx, (f, base_type(context, t))))
+        .map(|(f, (idx, (_doc, t)))| (idx, (f, base_type(context, t))))
         .collect::<Vec<_>>();
     indexed_fields.sort_by(|(idx1, _), (idx2, _)| idx1.cmp(idx2));
     indexed_fields.into_iter().map(|(_, f_ty)| f_ty).collect()
@@ -866,10 +875,11 @@ fn tail(
         E::Match(subject, arms) => {
             debug_print!(context.debug.match_translation,
                 ("subject" => subject),
+                ("type" => in_type),
                 (lines "arms" => &arms.value)
             );
             let compiled = match_compilation::compile_match(context, in_type, *subject, arms);
-            debug_print!(context.debug.match_translation, ("compiled" => compiled));
+            debug_print!(context.debug.match_translation, ("compiled" => compiled; verbose));
             let result = tail(context, block, expected_type, compiled);
             debug_print!(context.debug.match_variant_translation,
                          (lines "block" => block; verbose),
@@ -943,11 +953,14 @@ fn tail(
             };
             context.enter_named_block(name, binders, out_type.clone());
             let (loop_body, has_break) = process_loop_body(context, &name, *body);
-            block.push_back(sp(eloc, S::Loop {
-                name,
-                has_break,
-                block: loop_body,
-            }));
+            block.push_back(sp(
+                eloc,
+                S::Loop {
+                    name,
+                    has_break,
+                    block: loop_body,
+                },
+            ));
             context.exit_named_block(name);
             if has_break { Some(result) } else { None }
         }
@@ -973,10 +986,13 @@ fn tail(
             if let Some(exp) = final_exp {
                 bind_value_in_block(context, binders, Some(out_type), &mut body_block, exp);
             }
-            block.push_back(sp(eloc, S::NamedBlock {
-                name,
-                block: body_block,
-            }));
+            block.push_back(sp(
+                eloc,
+                S::NamedBlock {
+                    name,
+                    block: body_block,
+                },
+            ));
             context.exit_named_block(name);
             Some(result)
         }
@@ -1100,11 +1116,14 @@ fn value(
             let code = bind_exp(context, block, code_value);
             let if_block = make_block!();
             let else_block = make_block!(make_command(eloc, C::Abort(code.exp.loc, code)));
-            block.push_back(sp(eloc, S::IfElse {
-                cond: Box::new(cond),
-                if_block,
-                else_block,
-            }));
+            block.push_back(sp(
+                eloc,
+                S::IfElse {
+                    cond: Box::new(cond),
+                    if_block,
+                    else_block,
+                },
+            ));
             unit_exp(eloc)
         }
         E::Builtin(bt, arguments)
@@ -1130,11 +1149,14 @@ fn value(
             let code = value(context, &mut else_block, None, ecode);
             let if_block = make_block!();
             else_block.push_back(make_command(eloc, C::Abort(code.exp.loc, code)));
-            block.push_back(sp(eloc, S::IfElse {
-                cond: Box::new(cond),
-                if_block,
-                else_block,
-            }));
+            block.push_back(sp(
+                eloc,
+                S::IfElse {
+                    cond: Box::new(cond),
+                    if_block,
+                    else_block,
+                },
+            ));
             unit_exp(eloc)
         }
 
@@ -1183,10 +1205,11 @@ fn value(
         E::Match(subject, arms) => {
             debug_print!(context.debug.match_translation,
                 ("subject" => subject),
+                ("type" => in_type),
                 (lines "arms" => &arms.value)
             );
             let compiled = match_compilation::compile_match(context, in_type, *subject, arms);
-            debug_print!(context.debug.match_translation, ("compiled" => compiled));
+            debug_print!(context.debug.match_translation, ("compiled" => compiled; verbose));
             let result = value(context, block, None, compiled);
             debug_print!(context.debug.match_variant_translation, ("result" => &result));
             result
@@ -1246,11 +1269,14 @@ fn value(
             let (binders, bound_exp) = make_binders(context, eloc, out_type.clone());
             context.enter_named_block(name, binders, out_type.clone());
             let (loop_body, has_break) = process_loop_body(context, &name, *body);
-            block.push_back(sp(eloc, S::Loop {
-                name,
-                has_break,
-                block: loop_body,
-            }));
+            block.push_back(sp(
+                eloc,
+                S::Loop {
+                    name,
+                    has_break,
+                    block: loop_body,
+                },
+            ));
             let result = if has_break {
                 bound_exp
             } else {
@@ -1270,10 +1296,13 @@ fn value(
             let mut body_block = make_block!();
             let final_exp = value_block(context, &mut body_block, Some(&out_type), eloc, seq);
             bind_value_in_block(context, binders, Some(out_type), &mut body_block, final_exp);
-            block.push_back(sp(eloc, S::NamedBlock {
-                name,
-                block: body_block,
-            }));
+            block.push_back(sp(
+                eloc,
+                S::NamedBlock {
+                    name,
+                    block: body_block,
+                },
+            ));
             context.exit_named_block(name);
             bound_exp
         }
@@ -1808,11 +1837,14 @@ fn statement(context: &mut Context, block: &mut Block, e: T::Exp) {
             let mut else_block = make_block!();
             let alt = alt_opt.unwrap_or_else(|| Box::new(typing_unit_exp(eloc)));
             statement(context, &mut else_block, *alt);
-            block.push_back(sp(eloc, S::IfElse {
-                cond: Box::new(cond),
-                if_block,
-                else_block,
-            }));
+            block.push_back(sp(
+                eloc,
+                S::IfElse {
+                    cond: Box::new(cond),
+                    if_block,
+                    else_block,
+                },
+            ));
         }
         E::Match(subject, arms) => {
             debug_print!(context.debug.match_translation,
@@ -1821,7 +1853,7 @@ fn statement(context: &mut Context, block: &mut Block, e: T::Exp) {
             );
             let subject_type = subject.ty.clone();
             let compiled = match_compilation::compile_match(context, &subject_type, *subject, arms);
-            debug_print!(context.debug.match_translation, ("compiled" => compiled));
+            debug_print!(context.debug.match_translation, ("compiled" => compiled; verbose));
             statement(context, block, compiled);
             debug_print!(context.debug.match_variant_translation, (lines "block" => block));
         }
@@ -1853,11 +1885,14 @@ fn statement(context: &mut Context, block: &mut Block, e: T::Exp) {
             context.enter_named_block(name, vec![], tunit(eloc));
             let mut body_block = make_block!();
             statement(context, &mut body_block, *body);
-            block.push_back(sp(eloc, S::While {
-                cond,
-                name,
-                block: body_block,
-            }));
+            block.push_back(sp(
+                eloc,
+                S::While {
+                    cond,
+                    name,
+                    block: body_block,
+                },
+            ));
             context.exit_named_block(name);
         }
         E::Loop { name, body, .. } => {
@@ -1866,11 +1901,14 @@ fn statement(context: &mut Context, block: &mut Block, e: T::Exp) {
             let (binders, bound_exp) = make_binders(context, eloc, out_type.clone());
             context.enter_named_block(name, binders, out_type);
             let (loop_body, has_break) = process_loop_body(context, &name, *body);
-            block.push_back(sp(eloc, S::Loop {
-                name,
-                has_break,
-                block: loop_body,
-            }));
+            block.push_back(sp(
+                eloc,
+                S::Loop {
+                    name,
+                    has_break,
+                    block: loop_body,
+                },
+            ));
             if has_break {
                 make_ignore_and_pop(block, bound_exp);
             }
@@ -2038,18 +2076,24 @@ fn typing_unit_exp(loc: Loc) -> T::Exp {
 fn unit_exp(loc: Loc) -> H::Exp {
     H::exp(
         tunit(loc),
-        sp(loc, H::UnannotatedExp_::Unit {
-            case: H::UnitCase::Implicit,
-        }),
+        sp(
+            loc,
+            H::UnannotatedExp_::Unit {
+                case: H::UnitCase::Implicit,
+            },
+        ),
     )
 }
 
 fn trailing_unit_exp(loc: Loc) -> H::Exp {
     H::exp(
         tunit(loc),
-        sp(loc, H::UnannotatedExp_::Unit {
-            case: H::UnitCase::Trailing,
-        }),
+        sp(
+            loc,
+            H::UnannotatedExp_::Unit {
+                case: H::UnitCase::Trailing,
+            },
+        ),
     )
 }
 
@@ -2395,10 +2439,13 @@ fn make_ignore_and_pop(block: &mut Block, exp: H::Exp) {
             block.push_back(sp(loc, H::Statement_::Command(c)));
         }
         H::Type_::Multiple(tys) => {
-            let c = sp(loc, H::Command_::IgnoreAndPop {
-                pop_num: tys.len(),
-                exp,
-            });
+            let c = sp(
+                loc,
+                H::Command_::IgnoreAndPop {
+                    pop_num: tys.len(),
+                    exp,
+                },
+            );
             block.push_back(sp(loc, H::Statement_::Command(c)));
         }
     };
@@ -2506,9 +2553,12 @@ fn make_binders(context: &mut Context, loc: Loc, ty: H::Type) -> (Vec<H::LValue>
             vec![],
             H::exp(
                 tunit(loc),
-                sp(loc, E::Unit {
-                    case: H::UnitCase::Implicit,
-                }),
+                sp(
+                    loc,
+                    E::Unit {
+                        case: H::UnitCase::Implicit,
+                    },
+                ),
             ),
         ),
         T::Single(single_type) => {
@@ -2539,10 +2589,13 @@ fn make_temp(context: &mut Context, loc: Loc, sp!(_, ty): H::SingleType) -> (H::
         unused_assignment: false,
     };
     let lvalue = sp(loc, lvalue_);
-    let uexp = sp(loc, H::UnannotatedExp_::Move {
-        annotation: MoveOpAnnotation::InferredLastUsage,
-        var: binder,
-    });
+    let uexp = sp(
+        loc,
+        H::UnannotatedExp_::Move {
+            annotation: MoveOpAnnotation::InferredLastUsage,
+            var: binder,
+        },
+    );
     (lvalue, H::exp(H::Type_::single(sp(loc, ty)), uexp))
 }
 
@@ -2993,9 +3046,12 @@ fn gen_unused_warnings(
     target_kind: TargetKind,
     structs: &UniqueMap<DatatypeName, H::StructDefinition>,
 ) {
-    if !matches!(target_kind, TargetKind::Source {
-        is_root_package: true
-    }) {
+    if !matches!(
+        target_kind,
+        TargetKind::Source {
+            is_root_package: true
+        }
+    ) {
         // generate warnings only for modules compiled in this pass rather than for all
         // modules including pre-compiled libraries for which we do not have
         // source code available and cannot be analyzed in this pass
