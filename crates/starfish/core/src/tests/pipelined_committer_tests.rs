@@ -139,7 +139,7 @@ async fn multiple_direct_commit() {
 
         // Update the last decided leader so only one new leader is committed as
         // each new wave is completed.
-        let last = sequence.into_iter().last().unwrap();
+        let last = sequence.into_iter().next_back().unwrap();
         last_decided = Slot::new(last.round(), last.authority());
     }
 }
