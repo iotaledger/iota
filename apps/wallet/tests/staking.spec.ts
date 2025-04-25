@@ -9,21 +9,29 @@ const SHORT_TIMEOUT = 30 * 1000;
 const STAKE_AMOUNT = 100;
 
 test('staking', async ({ page, extensionUrl }) => {
-    test.setTimeout(4 * SHORT_TIMEOUT);
+    test.setTimeout(2 * SHORT_TIMEOUT);
 
     await createWallet(page, extensionUrl);
+    await page.screenshot({ path: '0-start.png' });
 
     await page.getByText(/Request localnet tokens/i).click();
     await expect(page.getByTestId('coin-balance')).not.toHaveText('0', { timeout: SHORT_TIMEOUT });
-
+    await page.screenshot({ path: '1-before-stake.png' });
     await page.getByText(/Start Staking/).click();
+    await page.screenshot({ path: '2-before-validator.png' });
     await page
         .getByText(/validator-/, { exact: false })
         .first()
         .click();
+
+
+    await page.screenshot({ path: '3-before-next.png' });
     await page.getByText(/Next/).click();
+    await page.screenshot({ path: '4-before-input.png' });
     await page.getByPlaceholder('0 IOTA').fill(STAKE_AMOUNT.toString());
+    await page.screenshot({ path: '5-before-stake.png' });
     await page.getByRole('button', { name: 'Stake' }).click();
+    await page.screenshot({ path: '6-before-transaction.png' });
 
     await expect(page.getByTestId('overlay-title')).toHaveText('Transaction', {
         timeout: SHORT_TIMEOUT,
