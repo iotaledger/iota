@@ -24,7 +24,6 @@ test('staking', async ({ page, extensionUrl }) => {
         .first()
         .click();
 
-
     await page.screenshot({ path: '3-before-next.png' });
     await page.getByText(/Next/).click();
     await page.screenshot({ path: '4-before-input.png' });
