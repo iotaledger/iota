@@ -133,9 +133,8 @@ impl Domain {
     /// Returns the number of labels including TLD.
     ///
     /// ```
-    /// use std::str::FromStr;
-    ///
-    /// use iota_names::domain::Domain;
+    /// # use std::str::FromStr;
+    /// # use iota_names::domain::Domain;
     /// assert_eq!(
     ///     Domain::from_str("test.example.iota").unwrap().num_labels(),
     ///     3
