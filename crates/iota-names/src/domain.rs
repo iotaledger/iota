@@ -8,7 +8,10 @@ use move_core_types::{ident_str, identifier::IdentStr, language_storage::StructT
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    constants::{DEFAULT_TLD, IOTA_NAMES_SEPARATOR_AT, IOTA_NAMES_SEPARATOR_DOT},
+    constants::{
+        DEFAULT_TLD, IOTA_NAMES_SEPARATOR_AT, IOTA_NAMES_SEPARATOR_DOT, MAX_DOMAIN_LENGTH,
+        MAX_LABEL_LENGTH, MIN_LABEL_LENGTH,
+    },
     error::IotaNamesError,
 };
 
@@ -39,9 +42,6 @@ impl FromStr for Domain {
     type Err = IotaNamesError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        /// The maximum length of a full domain
-        const MAX_DOMAIN_LENGTH: usize = 235;
-
         if s.len() > MAX_DOMAIN_LENGTH {
             return Err(IotaNamesError::DomainLengthExceeded(
                 s.len(),
@@ -221,9 +221,6 @@ fn convert_from_at_format(s: &str, separator: &char) -> Result<String, IotaNames
 /// - must contain only '0'..'9', 'a'..'z' and '-'
 /// - must not start or end with '-'
 pub fn validate_label(label: &str) -> Result<&str, IotaNamesError> {
-    const MIN_LABEL_LENGTH: usize = 1;
-    const MAX_LABEL_LENGTH: usize = 63;
-
     let bytes = label.as_bytes();
     let len = bytes.len();
 
