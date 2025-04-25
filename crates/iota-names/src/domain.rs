@@ -43,7 +43,10 @@ impl FromStr for Domain {
         const MAX_DOMAIN_LENGTH: usize = 235;
 
         if s.len() > MAX_DOMAIN_LENGTH {
-            return Err(IotaNamesError::ExceedsMaxLength(s.len(), MAX_DOMAIN_LENGTH));
+            return Err(IotaNamesError::DomainLengthExceeded(
+                s.len(),
+                MAX_DOMAIN_LENGTH,
+            ));
         }
 
         let formatted_string = convert_from_at_format(s, &IOTA_NAMES_SEPARATOR_DOT)?;
@@ -225,7 +228,7 @@ pub fn validate_label(label: &str) -> Result<&str, IotaNamesError> {
     let len = bytes.len();
 
     if !(MIN_LABEL_LENGTH..=MAX_LABEL_LENGTH).contains(&len) {
-        return Err(IotaNamesError::InvalidLength(
+        return Err(IotaNamesError::InvalidLabelLength(
             len,
             MIN_LABEL_LENGTH,
             MAX_LABEL_LENGTH,
@@ -235,7 +238,9 @@ pub fn validate_label(label: &str) -> Result<&str, IotaNamesError> {
     for (i, character) in bytes.iter().enumerate() {
         match character {
             b'a'..=b'z' | b'0'..=b'9' => continue,
-            b'-' if i == 0 || i == len - 1 => return Err(IotaNamesError::HyphensAsFirstOrLastChar),
+            b'-' if i == 0 || i == len - 1 => {
+                return Err(IotaNamesError::HyphensAsFirstOrLastLabelChar);
+            }
             _ => return Err(IotaNamesError::InvalidLabelChar),
         };
     }
