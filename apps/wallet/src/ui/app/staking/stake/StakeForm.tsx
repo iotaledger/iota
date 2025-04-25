@@ -152,7 +152,7 @@ export function StakeFormComponent({ validatorAddress, epoch, onSuccess }: Stake
         validationSchema: validationSchema,
         onSubmit: handleSubmit,
         validateOnChange: true,
-        validateOnMount: true
+        validateOnMount: true,
     });
     const { values, isValid, isSubmitting, submitForm, setFieldValue, isValidating } = formik;
     const { amount } = values;
