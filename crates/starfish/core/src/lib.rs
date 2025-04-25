@@ -6,7 +6,7 @@ mod ancestor;
 mod authority_node;
 mod authority_service;
 mod base_committer;
-mod block;
+mod block_header;
 mod block_manager;
 mod block_verifier;
 mod broadcaster;
@@ -58,9 +58,9 @@ mod test_dag_parser;
 
 /// Exported consensus API.
 pub use authority_node::ConsensusAuthority;
-pub use block::{BlockAPI, BlockRef, Round};
+pub use block_header::{BlockHeaderAPI, BlockRef, Round};
 /// Exported API for testing.
-pub use block::{TestBlock, Transaction, VerifiedBlock};
+pub use block_header::{TestBlockHeader, Transaction, VerifiedBlockHeader};
 pub use commit::{CommitDigest, CommitIndex, CommitRef, CommittedSubDag};
 pub use commit_consumer::{CommitConsumer, CommitConsumerMonitor};
 pub use network::tonic_network::to_socket_addr;

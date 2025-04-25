@@ -17,7 +17,7 @@ use super::{
 };
 use crate::{
     Round,
-    block::{TestBlock, VerifiedBlock},
+    block_header::{TestBlockHeader, VerifiedBlockHeader},
     context::Context,
 };
 
@@ -94,7 +94,7 @@ async fn send_and_receive_blocks_with_auth(
     sleep(Duration::from_secs(5)).await;
 
     // Test that servers can receive client RPCs.
-    let test_block_0 = VerifiedBlock::new_for_test(TestBlock::new(9, 0).build());
+    let test_block_0 = VerifiedBlockHeader::new_for_test(TestBlockHeader::new(9, 0).build());
     client_0
         .send_block(
             context.committee.to_authority_index(1).unwrap(),
@@ -103,7 +103,7 @@ async fn send_and_receive_blocks_with_auth(
         )
         .await
         .unwrap();
-    let test_block_1 = VerifiedBlock::new_for_test(TestBlock::new(9, 1).build());
+    let test_block_1 = VerifiedBlockHeader::new_for_test(TestBlockHeader::new(9, 1).build());
     client_1
         .send_block(
             context.committee.to_authority_index(0).unwrap(),
@@ -147,7 +147,7 @@ async fn send_and_receive_blocks_with_auth(
 
     // client_4 should not be able to reach service_0 or service_1, because of the
     // AllowedPeers filter.
-    let test_block_2 = VerifiedBlock::new_for_test(TestBlock::new(9, 2).build());
+    let test_block_2 = VerifiedBlockHeader::new_for_test(TestBlockHeader::new(9, 2).build());
     assert!(
         client_4
             .send_block(
@@ -158,7 +158,7 @@ async fn send_and_receive_blocks_with_auth(
             .await
             .is_err()
     );
-    let test_block_3 = VerifiedBlock::new_for_test(TestBlock::new(9, 3).build());
+    let test_block_3 = VerifiedBlockHeader::new_for_test(TestBlockHeader::new(9, 3).build());
     assert!(
         client_4
             .send_block(

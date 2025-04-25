@@ -37,7 +37,7 @@ use super::{
 };
 use crate::{
     CommitIndex, Round,
-    block::{BlockRef, VerifiedBlock},
+    block_header::{BlockRef, VerifiedBlockHeader},
     commit::CommitRange,
     context::Context,
     error::{ConsensusError, ConsensusResult},
@@ -103,7 +103,7 @@ impl NetworkClient for TonicClient {
     async fn send_block(
         &self,
         peer: AuthorityIndex,
-        block: &VerifiedBlock,
+        block: &VerifiedBlockHeader,
         timeout: Duration,
     ) -> ConsensusResult<()> {
         let mut client = self.get_client(peer, timeout).await?;

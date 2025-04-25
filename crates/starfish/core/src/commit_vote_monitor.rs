@@ -8,7 +8,7 @@ use parking_lot::Mutex;
 
 use crate::{
     CommitIndex,
-    block::{BlockAPI as _, VerifiedBlock},
+    block_header::{BlockHeaderAPI as _, VerifiedBlockHeader},
     commit::GENESIS_COMMIT_INDEX,
     context::Context,
 };
@@ -30,7 +30,7 @@ impl CommitVoteMonitor {
     }
 
     /// Keeps track of the highest commit voted by each authority.
-    pub(crate) fn observe_block(&self, block: &VerifiedBlock) {
+    pub(crate) fn observe_block(&self, block: &VerifiedBlockHeader) {
         let mut highest_voted_commits = self.highest_voted_commits.lock();
         for vote in block.commit_votes() {
             if vote.index > highest_voted_commits[block.author()] {
@@ -70,7 +70,7 @@ mod test {
 
     use super::CommitVoteMonitor;
     use crate::{
-        block::{TestBlock, VerifiedBlock},
+        block_header::{TestBlockHeader, VerifiedBlockHeader},
         commit::{CommitDigest, CommitRef},
         context::Context,
     };
@@ -83,8 +83,8 @@ mod test {
         // Observe commit votes for indices 5, 6, 7, 8 from blocks.
         let blocks = (0..4)
             .map(|i| {
-                VerifiedBlock::new_for_test(
-                    TestBlock::new(10, i)
+                VerifiedBlockHeader::new_for_test(
+                    TestBlockHeader::new(10, i)
                         .set_commit_votes(vec![CommitRef::new(5 + i, CommitDigest::MIN)])
                         .build(),
                 )
@@ -100,8 +100,8 @@ mod test {
         // Observe new blocks with new votes from authority 0 and 1.
         let blocks = (0..2)
             .map(|i| {
-                VerifiedBlock::new_for_test(
-                    TestBlock::new(11, i)
+                VerifiedBlockHeader::new_for_test(
+                    TestBlockHeader::new(11, i)
                         .set_commit_votes(vec![
                             CommitRef::new(6 + i, CommitDigest::MIN),
                             CommitRef::new(7 + i, CommitDigest::MIN),

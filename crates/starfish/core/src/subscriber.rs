@@ -13,7 +13,7 @@ use tracing::{debug, error, info};
 
 use crate::{
     Round,
-    block::BlockAPI as _,
+    block_header::BlockHeaderAPI as _,
     context::Context,
     dag_state::DagState,
     error::ConsensusError,
@@ -236,8 +236,8 @@ mod test {
 
     use super::*;
     use crate::{
-        VerifiedBlock,
-        block::BlockRef,
+        VerifiedBlockHeader,
+        block_header::BlockRef,
         commit::CommitRange,
         error::ConsensusResult,
         network::{BlockStream, ExtendedSerializedBlock, test_network::TestService},
@@ -259,7 +259,7 @@ mod test {
         async fn send_block(
             &self,
             _peer: AuthorityIndex,
-            _block: &VerifiedBlock,
+            _block: &VerifiedBlockHeader,
             _timeout: Duration,
         ) -> ConsensusResult<()> {
             unimplemented!("Unimplemented")

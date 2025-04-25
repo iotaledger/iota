@@ -8,7 +8,7 @@ use std::sync::Arc;
 use parking_lot::RwLock;
 
 use crate::{
-    base_committer::base_committer_builder::BaseCommitterBuilder, block::BlockAPI,
+    base_committer::base_committer_builder::BaseCommitterBuilder, block_header::BlockHeaderAPI,
     commit::LeaderStatus, context::Context, dag_state::DagState, storage::mem_store::MemStore,
     test_dag_parser::parse_dag,
 };

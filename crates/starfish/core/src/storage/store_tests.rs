@@ -8,7 +8,9 @@ use tempfile::TempDir;
 
 use super::{Store, WriteBatch, mem_store::MemStore, rocksdb_store::RocksDBStore};
 use crate::{
-    block::{BlockAPI, BlockDigest, BlockRef, Slot, TestBlock, VerifiedBlock},
+    block_header::{
+        BlockHeaderAPI, BlockHeaderDigest, BlockRef, Slot, TestBlockHeader, VerifiedBlockHeader,
+    },
     commit::{CommitDigest, TrustedCommit},
 };
 
@@ -46,11 +48,11 @@ async fn read_and_contain_blocks(
 ) {
     let store = test_store.store();
 
-    let written_blocks: Vec<VerifiedBlock> = vec![
-        VerifiedBlock::new_for_test(TestBlock::new(1, 1).build()),
-        VerifiedBlock::new_for_test(TestBlock::new(1, 0).build()),
-        VerifiedBlock::new_for_test(TestBlock::new(1, 2).build()),
-        VerifiedBlock::new_for_test(TestBlock::new(2, 3).build()),
+    let written_blocks: Vec<VerifiedBlockHeader> = vec![
+        VerifiedBlockHeader::new_for_test(TestBlockHeader::new(1, 1).build()),
+        VerifiedBlockHeader::new_for_test(TestBlockHeader::new(1, 0).build()),
+        VerifiedBlockHeader::new_for_test(TestBlockHeader::new(1, 2).build()),
+        VerifiedBlockHeader::new_for_test(TestBlockHeader::new(2, 3).build()),
     ];
     store
         .write(WriteBatch::default().blocks(written_blocks.clone()))
@@ -83,7 +85,11 @@ async fn read_and_contain_blocks(
     {
         let refs = vec![
             written_blocks[3].reference(),
-            BlockRef::new(1, AuthorityIndex::new_for_test(3), BlockDigest::default()),
+            BlockRef::new(
+                1,
+                AuthorityIndex::new_for_test(3),
+                BlockHeaderDigest::default(),
+            ),
             written_blocks[2].reference(),
         ];
         let read_blocks = store
@@ -126,14 +132,14 @@ async fn scan_blocks(
     let store = test_store.store();
 
     let written_blocks = vec![
-        VerifiedBlock::new_for_test(TestBlock::new(9, 0).build()),
-        VerifiedBlock::new_for_test(TestBlock::new(10, 0).build()),
-        VerifiedBlock::new_for_test(TestBlock::new(10, 1).build()),
-        VerifiedBlock::new_for_test(TestBlock::new(11, 1).build()),
-        VerifiedBlock::new_for_test(TestBlock::new(11, 3).build()),
-        VerifiedBlock::new_for_test(TestBlock::new(12, 1).build()),
-        VerifiedBlock::new_for_test(TestBlock::new(13, 2).build()),
-        VerifiedBlock::new_for_test(TestBlock::new(13, 1).build()),
+        VerifiedBlockHeader::new_for_test(TestBlockHeader::new(9, 0).build()),
+        VerifiedBlockHeader::new_for_test(TestBlockHeader::new(10, 0).build()),
+        VerifiedBlockHeader::new_for_test(TestBlockHeader::new(10, 1).build()),
+        VerifiedBlockHeader::new_for_test(TestBlockHeader::new(11, 1).build()),
+        VerifiedBlockHeader::new_for_test(TestBlockHeader::new(11, 3).build()),
+        VerifiedBlockHeader::new_for_test(TestBlockHeader::new(12, 1).build()),
+        VerifiedBlockHeader::new_for_test(TestBlockHeader::new(13, 2).build()),
+        VerifiedBlockHeader::new_for_test(TestBlockHeader::new(13, 1).build()),
     ];
     store
         .write(WriteBatch::default().blocks(written_blocks.clone()))
@@ -158,10 +164,10 @@ async fn scan_blocks(
     }
 
     let additional_blocks = vec![
-        VerifiedBlock::new_for_test(TestBlock::new(14, 2).build()),
-        VerifiedBlock::new_for_test(TestBlock::new(15, 0).build()),
-        VerifiedBlock::new_for_test(TestBlock::new(15, 1).build()),
-        VerifiedBlock::new_for_test(TestBlock::new(16, 3).build()),
+        VerifiedBlockHeader::new_for_test(TestBlockHeader::new(14, 2).build()),
+        VerifiedBlockHeader::new_for_test(TestBlockHeader::new(15, 0).build()),
+        VerifiedBlockHeader::new_for_test(TestBlockHeader::new(15, 1).build()),
+        VerifiedBlockHeader::new_for_test(TestBlockHeader::new(16, 3).build()),
     ];
     store
         .write(WriteBatch::default().blocks(additional_blocks.clone()))
@@ -220,28 +226,44 @@ async fn read_and_scan_commits(
             1,
             CommitDigest::MIN,
             1,
-            BlockRef::new(1, AuthorityIndex::new_for_test(0), BlockDigest::default()),
+            BlockRef::new(
+                1,
+                AuthorityIndex::new_for_test(0),
+                BlockHeaderDigest::default(),
+            ),
             vec![],
         ),
         TrustedCommit::new_for_test(
             2,
             CommitDigest::MIN,
             2,
-            BlockRef::new(2, AuthorityIndex::new_for_test(0), BlockDigest::default()),
+            BlockRef::new(
+                2,
+                AuthorityIndex::new_for_test(0),
+                BlockHeaderDigest::default(),
+            ),
             vec![],
         ),
         TrustedCommit::new_for_test(
             3,
             CommitDigest::MIN,
             3,
-            BlockRef::new(3, AuthorityIndex::new_for_test(0), BlockDigest::default()),
+            BlockRef::new(
+                3,
+                AuthorityIndex::new_for_test(0),
+                BlockHeaderDigest::default(),
+            ),
             vec![],
         ),
         TrustedCommit::new_for_test(
             4,
             CommitDigest::MIN,
             4,
-            BlockRef::new(4, AuthorityIndex::new_for_test(0), BlockDigest::default()),
+            BlockRef::new(
+                4,
+                AuthorityIndex::new_for_test(0),
+                BlockHeaderDigest::default(),
+            ),
             vec![],
         ),
     ];

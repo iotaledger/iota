@@ -8,7 +8,7 @@ use parking_lot::RwLock;
 use starfish_config::AuthorityIndex;
 
 use crate::{
-    block::{BlockAPI, Slot, TestBlock, Transaction, VerifiedBlock},
+    block_header::{BlockHeaderAPI, Slot, TestBlockHeader, VerifiedBlockHeader},
     commit::{DEFAULT_WAVE_LENGTH, DecidedLeader},
     context::Context,
     dag_state::DagState,
@@ -211,8 +211,8 @@ async fn direct_skip_no_leader() {
         .authorities()
         .map(|index| {
             let author_idx = index.0.value() as u32;
-            let block = TestBlock::new(0, author_idx).build();
-            VerifiedBlock::new_for_test(block).reference()
+            let block = TestBlockHeader::new(0, author_idx).build();
+            VerifiedBlockHeader::new_for_test(block).reference()
         })
         .collect();
     let connections = context
@@ -621,30 +621,31 @@ async fn test_byzantine_validator() {
 
     // Accept these references/blocks as ancestors from decision round blocks in dag
     // state
-    let byzantine_block_b13_1 = VerifiedBlock::new_for_test(
-        TestBlock::new(13, 1)
+    let byzantine_block_b13_1 = VerifiedBlockHeader::new_for_test(
+        TestBlockHeader::new(13, 1)
             .set_ancestors(references_without_leader_round_wave_4.clone())
-            .set_transactions(vec![Transaction::new(vec![1])])
             .build(),
     );
+    // change timestamp for equivocating blocks to build different blocks
+    let timestamp_b13_1 = byzantine_block_b13_1.timestamp_ms();
     dag_state
         .write()
         .accept_block(byzantine_block_b13_1.clone());
 
-    let byzantine_block_b13_2 = VerifiedBlock::new_for_test(
-        TestBlock::new(13, 1)
+    let byzantine_block_b13_2 = VerifiedBlockHeader::new_for_test(
+        TestBlockHeader::new(13, 1)
             .set_ancestors(references_without_leader_round_wave_4.clone())
-            .set_transactions(vec![Transaction::new(vec![2])])
+            .set_timestamp_ms(timestamp_b13_1 + 1)
             .build(),
     );
     dag_state
         .write()
         .accept_block(byzantine_block_b13_2.clone());
 
-    let byzantine_block_b13_3 = VerifiedBlock::new_for_test(
-        TestBlock::new(13, 1)
+    let byzantine_block_b13_3 = VerifiedBlockHeader::new_for_test(
+        TestBlockHeader::new(13, 1)
             .set_ancestors(references_without_leader_round_wave_4)
-            .set_transactions(vec![Transaction::new(vec![3])])
+            .set_timestamp_ms(timestamp_b13_1 + 2)
             .build(),
     );
     dag_state
@@ -656,8 +657,8 @@ async fn test_byzantine_validator() {
     // Additionally only one of the non-votes per authority should be counted so
     // we should not skip leader A12.
     let mut references_round_14 = vec![];
-    let decision_block_a14 = VerifiedBlock::new_for_test(
-        TestBlock::new(14, 0)
+    let decision_block_a14 = VerifiedBlockHeader::new_for_test(
+        TestBlockHeader::new(14, 0)
             .set_ancestors(good_references_voting_round_wave_4.clone())
             .build(),
     );
@@ -669,8 +670,8 @@ async fn test_byzantine_validator() {
         .filter(|r| r.author != AuthorityIndex::new_for_test(1))
         .collect::<Vec<_>>();
 
-    let decision_block_b14 = VerifiedBlock::new_for_test(
-        TestBlock::new(14, 1)
+    let decision_block_b14 = VerifiedBlockHeader::new_for_test(
+        TestBlockHeader::new(14, 1)
             .set_ancestors(
                 good_references_voting_round_wave_4_without_b13
                     .iter()
@@ -683,8 +684,8 @@ async fn test_byzantine_validator() {
     references_round_14.push(decision_block_b14.reference());
     dag_state.write().accept_block(decision_block_b14.clone());
 
-    let decision_block_c14 = VerifiedBlock::new_for_test(
-        TestBlock::new(14, 2)
+    let decision_block_c14 = VerifiedBlockHeader::new_for_test(
+        TestBlockHeader::new(14, 2)
             .set_ancestors(
                 good_references_voting_round_wave_4_without_b13
                     .iter()
@@ -697,8 +698,8 @@ async fn test_byzantine_validator() {
     references_round_14.push(decision_block_c14.reference());
     dag_state.write().accept_block(decision_block_c14.clone());
 
-    let decision_block_d14 = VerifiedBlock::new_for_test(
-        TestBlock::new(14, 3)
+    let decision_block_d14 = VerifiedBlockHeader::new_for_test(
+        TestBlockHeader::new(14, 3)
             .set_ancestors(
                 good_references_voting_round_wave_4_without_b13
                     .iter()

@@ -15,7 +15,8 @@ use tokio::{
 use tracing::{debug, warn};
 
 use crate::{
-    block::Round, context::Context, core::CoreSignalsReceivers, core_thread::CoreThreadDispatcher,
+    block_header::Round, context::Context, core::CoreSignalsReceivers,
+    core_thread::CoreThreadDispatcher,
 };
 
 pub(crate) struct LeaderTimeoutTaskHandle {
@@ -141,7 +142,7 @@ mod tests {
     use tokio::time::{Instant, sleep};
 
     use crate::{
-        block::{BlockRef, Round, VerifiedBlock},
+        block_header::{BlockRef, Round, VerifiedBlockHeader},
         commit::CertifiedCommits,
         context::Context,
         core::CoreSignals,
@@ -167,7 +168,7 @@ mod tests {
     impl CoreThreadDispatcher for MockCoreThreadDispatcher {
         async fn add_blocks(
             &self,
-            _blocks: Vec<VerifiedBlock>,
+            _blocks: Vec<VerifiedBlockHeader>,
         ) -> Result<BTreeSet<BlockRef>, CoreError> {
             todo!()
         }
