@@ -8,7 +8,9 @@ use std::{
 };
 
 use clap::*;
-use iota_protocol_config_macros::{ProtocolConfigAccessors, ProtocolConfigFeatureFlagsGetters};
+use iota_protocol_config_macros::{
+    ProtocolConfigAccessors, ProtocolConfigFeatureFlagsGetters, ProtocolConfigOverride,
+};
 use move_vm_config::verifier::VerifierConfig;
 use serde::{Deserialize, Serialize};
 use serde_with::skip_serializing_none;
@@ -130,7 +132,7 @@ pub struct Error(pub String);
 // TODO: There are quite a few non boolean values in the feature flags. We
 // should move them out.
 /// Records on/off feature flags that may vary at each protocol version.
-#[derive(Default, Clone, Serialize, Debug, ProtocolConfigFeatureFlagsGetters)]
+#[derive(Default, Clone, Serialize, Deserialize, Debug, ProtocolConfigFeatureFlagsGetters)]
 struct FeatureFlags {
     // Add feature flags here, e.g.:
     // new_protocol_feature: bool,
@@ -270,7 +272,7 @@ fn is_false(b: &bool) -> bool {
 }
 
 /// Ordering mechanism for transactions in one consensus output.
-#[derive(Default, Copy, Clone, PartialEq, Eq, Serialize, Debug)]
+#[derive(Default, Copy, Clone, PartialEq, Eq, Serialize, Deserialize, Debug)]
 pub enum ConsensusTransactionOrdering {
     /// No ordering. Transactions are processed in the order they appear in the
     /// consensus output.
@@ -287,7 +289,7 @@ impl ConsensusTransactionOrdering {
 }
 
 // The config for per object congestion control in consensus handler.
-#[derive(Default, Copy, Clone, PartialEq, Eq, Serialize, Debug)]
+#[derive(Default, Copy, Clone, PartialEq, Eq, Serialize, Deserialize, Debug)]
 pub enum PerObjectCongestionControlMode {
     #[default]
     None, // No congestion control.
@@ -302,7 +304,7 @@ impl PerObjectCongestionControlMode {
 }
 
 // Configuration options for consensus algorithm.
-#[derive(Default, Copy, Clone, PartialEq, Eq, Serialize, Debug)]
+#[derive(Default, Copy, Clone, PartialEq, Eq, Serialize, Deserialize, Debug)]
 pub enum ConsensusChoice {
     #[default]
     Mysticeti,
@@ -315,7 +317,7 @@ impl ConsensusChoice {
 }
 
 // Configuration options for consensus network.
-#[derive(Default, Copy, Clone, PartialEq, Eq, Serialize, Debug)]
+#[derive(Default, Copy, Clone, PartialEq, Eq, Serialize, Deserialize, Debug)]
 pub enum ConsensusNetwork {
     #[default]
     Tonic,
@@ -361,7 +363,7 @@ impl ConsensusNetwork {
 /// version.
 /// - If you want a customized getter, you can add a method in the impl.
 #[skip_serializing_none]
-#[derive(Clone, Serialize, Debug, ProtocolConfigAccessors)]
+#[derive(Clone, Serialize, Debug, ProtocolConfigAccessors, ProtocolConfigOverride)]
 pub struct ProtocolConfig {
     pub version: ProtocolVersion,
 
@@ -1260,7 +1262,7 @@ impl ProtocolConfig {
         let mut ret = Self::get_for_version_impl(version, chain);
         ret.version = version;
 
-        CONFIG_OVERRIDE.with(|ovr| {
+        ret = CONFIG_OVERRIDE.with(|ovr| {
             if let Some(override_fn) = &*ovr.borrow() {
                 warn!(
                     "overriding ProtocolConfig settings with custom settings (you should not see this log outside of tests)"
@@ -1269,7 +1271,19 @@ impl ProtocolConfig {
             } else {
                 ret
             }
-        })
+        });
+
+        if std::env::var("IOTA_PROTOCOL_CONFIG_OVERRIDE_ENABLE").is_ok() {
+            warn!(
+                "overriding ProtocolConfig settings with custom settings; this may break non-local networks"
+            );
+            let overrides: ProtocolConfigOptional =
+                serde_env::from_env_with_prefix("IOTA_PROTOCOL_CONFIG_OVERRIDE")
+                    .expect("failed to parse ProtocolConfig override env variables");
+            overrides.apply_to(&mut ret);
+        }
+
+        ret
     }
 
     /// Get the value ProtocolConfig that are in effect during the given
