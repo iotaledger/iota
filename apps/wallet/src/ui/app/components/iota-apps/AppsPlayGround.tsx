@@ -8,7 +8,7 @@ import { prepareLinkToCompare } from '_src/shared/utils';
 import { useFeature } from '@growthbook/growthbook-react';
 import { useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import cn from 'clsx';
+import cx from 'clsx';
 import { permissionsSelectors } from '../../redux/slices/permissions';
 import { AppsPageBanner } from './Banner';
 import { IotaApp, type DAppEntry } from './IotaApp';
@@ -58,7 +58,7 @@ export function AppsPlayGround() {
     return (
         <PageTemplate title="IOTA Apps" isTitleCentered>
             <div
-                className={cn('flex flex-1 flex-col gap-md', {
+                className={cx('flex flex-1 flex-col gap-md', {
                     'h-full items-center': !filteredEcosystemApps?.length,
                 })}
             >
@@ -69,8 +69,8 @@ export function AppsPlayGround() {
                             navigate('/apps/connected');
                         }}
                     >
-                        <CardImage shape={ImageShape.SquareRounded} type={ImageType.BgSolid}>
-                            <Vest className="h-4 w-4" />
+                        <CardImage shape={ImageShape.SquareRounded} type={ImageType.BgWhite}>
+                            <Vest className="h-4 w-4 text-neutral-10 dark:text-white" />
                         </CardImage>
                         <CardBody
                             isTextTruncated
