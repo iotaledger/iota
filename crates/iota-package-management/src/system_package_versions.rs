@@ -81,6 +81,7 @@ fn test_nonempty_version_table() {
 fn test_exact_version() {
     let (system_packages, protocol) = system_packages_for_protocol(4.into()).unwrap();
     assert_eq!(system_packages.git_revision, "49d5d7d99313");
+    assert_eq!(protocol, 4.into());
     assert!(
         system_packages
             .packages
