@@ -21,23 +21,6 @@ pub struct Domain {
     labels: Vec<String>,
 }
 
-// impl FromStr for Domain {
-//     type Err = anyhow::Error;
-
-//     fn from_str(s: &str) -> Result<Self, Self::Err> {
-//         const VALID_TLDS: &[&str] = &["iota"];
-//         let mut segments = s.split('.').collect::<Vec<_>>();
-//         anyhow::ensure!(segments.len() >= 2, "domain has too few labels");
-//         let tld = segments.pop().unwrap();
-//         anyhow::ensure!(VALID_TLDS.contains(&tld), "invalid TLD: {tld}");
-//         let mut labels = vec![tld.to_owned()];
-//         for segment in segments.into_iter().rev() {
-//             labels.push(parse_domain_label(segment)?);
-//         }
-//         Ok(Self { labels })
-//     }
-// }
-
 impl FromStr for Domain {
     type Err = IotaNamesError;
 
