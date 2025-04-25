@@ -12,7 +12,6 @@ mod completions;
 pub mod console;
 pub mod displays;
 pub mod fire_drill;
-pub mod framework_versions;
 pub mod genesis_ceremony;
 pub mod genesis_inspector;
 pub mod iota_commands;

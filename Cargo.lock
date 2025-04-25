@@ -5805,7 +5805,6 @@ dependencies = [
  "iota-config",
  "iota-execution",
  "iota-faucet",
- "iota-framework-snapshot",
  "iota-genesis-builder",
  "iota-graphql-rpc",
  "iota-indexer",
@@ -7523,7 +7522,9 @@ name = "iota-package-management"
 version = "0.13.0-alpha"
 dependencies = [
  "anyhow",
+ "iota-framework-snapshot",
  "iota-json-rpc-types",
+ "iota-protocol-config",
  "iota-sdk 0.13.0-alpha",
  "iota-types",
  "move-core-types",
