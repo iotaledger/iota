@@ -11,8 +11,8 @@ use std::{
 
 use iota_framework_snapshot::{load_bytecode_snapshot_manifest, manifest_path};
 
-/// Output a file `OUT_DIR/system_packages_version_table.rs` containing the contents
-/// of the manifest as a rust literal of type `[(ProtocolVersion,
+/// Output a file `OUT_DIR/system_packages_version_table.rs` containing the
+/// contents of the manifest as a rust literal of type `[(ProtocolVersion,
 /// SystemPackages)]`. This is included as the
 /// static [system_packages::VERSION_TABLE]
 fn generate_system_packages_version_table() -> anyhow::Result<()> {
