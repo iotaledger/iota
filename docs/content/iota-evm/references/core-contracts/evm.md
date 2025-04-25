@@ -32,8 +32,7 @@ We only list the entry points not exposed through the JSON-RPC interface in this
 ### `registerERC20Coin`
 
 Registers an ERC20 contract to act as a proxy for the L1 coin, at address
-`0x107402xxxxxxxx00000000000000000000000000`, where `xxxxxxxx` is the
-hash of the coin type. <!--TODO: Check this info-->
+`0x107402xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx`, where `xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx` is the first 17 bytes of the Keccak hash of the coin type (`0x123...module::yourcoin`).
 
 Only the foundry owner can call this endpoint.
 
