@@ -9,7 +9,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     constants::{
-        DEFAULT_TLD, IOTA_NAMES_SEPARATOR_AT, IOTA_NAMES_SEPARATOR_DOT, MAX_DOMAIN_LENGTH,
+        IOTA_NAMES_SEPARATOR_AT, IOTA_NAMES_SEPARATOR_DOT, IOTA_NAMES_TLD, MAX_DOMAIN_LENGTH,
         MAX_LABEL_LENGTH, MIN_LABEL_LENGTH,
     },
     error::IotaNamesError,
@@ -60,6 +60,10 @@ impl FromStr for Domain {
         // A valid domain in our system has at least a TLD and an SLD (len == 2).
         if labels.len() < 2 {
             return Err(IotaNamesError::LabelsEmpty);
+        }
+
+        if labels[0] != IOTA_NAMES_TLD {
+            return Err(IotaNamesError::InvalidTld(labels[0].to_string()));
         }
 
         let labels = labels.into_iter().map(ToOwned::to_owned).collect();
@@ -211,7 +215,7 @@ fn convert_from_at_format(s: &str, separator: &char) -> Result<String, IotaNames
     }
 
     parts.push(after);
-    parts.push(DEFAULT_TLD);
+    parts.push(IOTA_NAMES_TLD);
 
     Ok(parts.join(&separator.to_string()))
 }
@@ -304,6 +308,7 @@ mod tests {
         assert!("iota".parse::<Domain>().is_err());
         assert!("test.test@example.iota".parse::<Domain>().is_err());
         assert!("test@test@example".parse::<Domain>().is_err());
+        assert!("test.atoi".parse::<Domain>().is_err());
     }
 
     #[test]

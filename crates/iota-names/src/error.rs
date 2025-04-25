@@ -22,4 +22,6 @@ pub enum IotaNamesError {
     NameExpired,
     #[error("Malformed object for {0}")]
     MalformedObject(ObjectID),
+    #[error("Invalid TLD {0}")]
+    InvalidTld(String),
 }
