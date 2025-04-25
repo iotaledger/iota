@@ -32,7 +32,6 @@ use crate::{
     dag_state::DagState,
     error::{ConsensusError, ConsensusResult},
     leader_schedule::LeaderSchedule,
-    round_prober::QuorumRound,
     stake_aggregator::{QuorumThreshold, StakeAggregator},
     transaction::TransactionConsumer,
     universal_committer::{
@@ -718,38 +717,6 @@ impl Core {
     pub(crate) fn set_subscriber_exists(&mut self, exists: bool) {
         info!("Block subscriber exists: {exists}");
         self.subscriber_exists = exists;
-    }
-
-    /// Sets the delay by round for propagating blocks to a quorum and the
-    /// received & accepted quorum rounds per authority for ancestor state
-    /// manager.
-    pub(crate) fn set_propagation_delay_and_quorum_rounds(
-        &mut self,
-        delay: Round,
-        received_quorum_rounds: Vec<QuorumRound>,
-        accepted_quorum_rounds: Vec<QuorumRound>,
-    ) {
-        info!(
-            "Received quorum round per authority in ancestor state manager set to: {}",
-            self.context
-                .committee
-                .authorities()
-                .zip(received_quorum_rounds.iter())
-                .map(|((i, _), rounds)| format!("{i}: {rounds:?}"))
-                .join(", ")
-        );
-        info!(
-            "Accepted quorum round per authority in ancestor state manager set to: {}",
-            self.context
-                .committee
-                .authorities()
-                .zip(accepted_quorum_rounds.iter())
-                .map(|((i, _), rounds)| format!("{i}: {rounds:?}"))
-                .join(", ")
-        );
-
-        info!("Propagation round delay set to: {delay}");
-        self.propagation_delay = delay;
     }
 
     /// Sets the min propose round for the proposer allowing to propose blocks
@@ -1832,77 +1799,6 @@ mod test {
 
         // Let Core know subscriber exists.
         core.set_subscriber_exists(true);
-
-        // Proposing now would succeed.
-        assert!(core.try_propose(true).unwrap().is_some());
-    }
-
-    #[tokio::test]
-    async fn test_core_set_propagation_delay_per_authority() {
-        // TODO: create helper to avoid the duplicated code here.
-        telemetry_subscribers::init_for_testing();
-        let (context, mut key_pairs) = Context::new_for_test(4);
-        let context = Arc::new(context);
-        let store = Arc::new(MemStore::new());
-        let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store.clone())));
-
-        let block_manager = BlockManager::new(
-            context.clone(),
-            dag_state.clone(),
-            Arc::new(NoopBlockVerifier),
-        );
-        let leader_schedule = Arc::new(LeaderSchedule::from_store(
-            context.clone(),
-            dag_state.clone(),
-        ));
-
-        let (_transaction_client, tx_receiver) = TransactionClient::new(context.clone());
-        let transaction_consumer = TransactionConsumer::new(tx_receiver, context.clone());
-        let (signals, signal_receivers) = CoreSignals::new(context.clone());
-        // Need at least one subscriber to the block broadcast channel.
-        let _block_receiver = signal_receivers.block_broadcast_receiver();
-
-        let (sender, _receiver) = unbounded_channel("consensus_output");
-        let commit_observer = CommitObserver::new(
-            context.clone(),
-            CommitConsumer::new(sender.clone(), 0),
-            dag_state.clone(),
-            store.clone(),
-            leader_schedule.clone(),
-        );
-
-        let mut core = Core::new(
-            context.clone(),
-            leader_schedule,
-            transaction_consumer,
-            block_manager,
-            // Set to no subscriber exists initially.
-            false,
-            commit_observer,
-            signals,
-            key_pairs.remove(context.own_index.value()).1,
-            dag_state.clone(),
-            false,
-        );
-
-        // There is no proposal during recovery because there is no subscriber.
-        assert_eq!(
-            core.last_proposed_round(),
-            GENESIS_ROUND,
-            "No block should have been created other than genesis"
-        );
-
-        // Use a large propagation delay to disable proposing.
-        core.set_propagation_delay_and_quorum_rounds(1000, vec![], vec![]);
-
-        // Make propagation delay the only reason for not proposing.
-        core.set_subscriber_exists(true);
-
-        // There is no proposal even with forced proposing.
-        assert!(core.try_propose(true).unwrap().is_none());
-
-        // Let Core know there is no propagation delay.
-        core.set_propagation_delay_and_quorum_rounds(0, vec![], vec![]);
 
         // Proposing now would succeed.
         assert!(core.try_propose(true).unwrap().is_some());
