@@ -100,8 +100,8 @@ export function DetailsView({
     }
 
     const isValidatorCommitteeMember = isCommitteeMember(validatorAddress);
-    const isAnActiveValidator = isActiveValidator(validatorAddress);
-    const activeButNotInTheCommittee = isAnActiveValidator && !isValidatorCommitteeMember;
+    const isValidatorActive = isActiveValidator(validatorAddress);
+    const isActiveButNotInTheCommittee = isValidatorActive && !isValidatorCommitteeMember;
 
     return (
         <DialogLayout>
@@ -119,7 +119,7 @@ export function DetailsView({
                         </CardImage>
                         <CardBody title={validatorName} subtitle={subtitle} isTextTruncated />
                     </Card>
-                    {activeButNotInTheCommittee ? (
+                    {isActiveButNotInTheCommittee ? (
                         <InfoBox
                             type={InfoBoxType.Warning}
                             title="Validator is not earning rewards."
@@ -127,7 +127,7 @@ export function DetailsView({
                             icon={<Warning />}
                             style={InfoBoxStyle.Elevated}
                         />
-                    ) : !isAnActiveValidator ? (
+                    ) : !isValidatorActive ? (
                         <InfoBox
                             type={InfoBoxType.Error}
                             title="Inactive Validator is not earning rewards"
@@ -186,7 +186,7 @@ export function DetailsView({
                         text="Unstake"
                         fullWidth
                     />
-                    {isAnActiveValidator ? (
+                    {isValidatorActive ? (
                         <Button
                             type={ButtonType.Primary}
                             text="Stake"

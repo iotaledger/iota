@@ -62,13 +62,12 @@ export function ValidatorsCard() {
             const isActive = activeValidators?.find(
                 (validator) => validator.stakingPoolId === delegation.stakingPool,
             );
-            const inactiveValidator = !isActive;
             return delegation.stakes.map((d) => ({
                 ...d,
                 // flag any inactive validator for the stakeIota object
                 // if the stakingPoolId is not found in the committeeMembers list flag as inactive
                 activeButNotInTheCommittee: !isInCommittee && isActive,
-                inactiveValidator: inactiveValidator,
+                inactiveValidator: !isActive,
                 validatorAddress: delegation.validatorAddress,
             }));
         });
