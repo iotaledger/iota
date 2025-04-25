@@ -2,13 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{
-    collections::{BTreeMap, BTreeSet},
-    iter,
-    sync::Arc,
-    time::Duration,
-    vec,
-};
+use std::{collections::BTreeSet, iter, sync::Arc, time::Duration, vec};
 
 use iota_macros::fail_point;
 #[cfg(test)]
@@ -37,7 +31,7 @@ use crate::{
         SignedBlock, Slot, VerifiedBlock,
     },
     block_manager::BlockManager,
-    commit::{CertifiedCommit, CertifiedCommits, CommitAPI, CommittedSubDag},
+    commit::{CertifiedCommits, CommittedSubDag},
     commit_observer::CommitObserver,
     context::Context,
     dag_state::DagState,
@@ -230,7 +224,7 @@ impl Core {
 
         // Try to commit and propose, since they may not have run after the last storage
         // write.
-        self.try_commit(vec![]).unwrap();
+        self.try_commit().unwrap();
         let last_proposed_block = if let Some(last_proposed_block) = self.try_propose(true).unwrap()
         {
             last_proposed_block
@@ -301,7 +295,7 @@ impl Core {
             );
 
             // Try to commit the new blocks if possible.
-            self.try_commit(vec![])?;
+            self.try_commit()?;
 
             // Try to propose now since there are new blocks accepted.
             self.try_propose(false)?;
@@ -425,48 +419,6 @@ impl Core {
         Ok(None)
     }
 
-    /// Keeps only the certified commits that have a commit index > last commit
-    /// index. It also ensures that the first commit in the list is the next one
-    /// in line, otherwise it panics.
-    #[cfg_attr(not(test), expect(dead_code))]
-    fn validate_certified_commits(
-        &mut self,
-        commits: Vec<CertifiedCommit>,
-    ) -> ConsensusResult<Vec<CertifiedCommit>> {
-        // Filter out the commits that have been already locally committed and keep only
-        // anything that is above the last committed index.
-        let last_commit_index = self.dag_state.read().last_commit_index();
-        let commits = commits
-            .iter()
-            .filter(|commit| {
-                if commit.index() > last_commit_index {
-                    true
-                } else {
-                    tracing::debug!(
-                        "Skip commit for index {} as it is already committed with last commit index {}",
-                        commit.index(),
-                        last_commit_index
-                    );
-                    false
-                }
-            })
-            .cloned()
-            .collect::<Vec<_>>();
-
-        // Make sure that the first commit we find is the next one in line and there is
-        // no gap.
-        if let Some(commit) = commits.first() {
-            if commit.index() != last_commit_index + 1 {
-                return Err(ConsensusError::UnexpectedCertifiedCommitIndex {
-                    expected_commit_index: last_commit_index + 1,
-                    commit_index: commit.index(),
-                });
-            }
-        }
-
-        Ok(commits)
-    }
-
     // Attempts to create a new block, persist and propose it to all peers.
     // When force is true, ignore if leader from the last round exists among
     // ancestors and if the minimum round delay has passed.
@@ -480,7 +432,7 @@ impl Core {
             fail_point!("consensus-after-propose");
 
             // The new block may help commit.
-            self.try_commit(vec![])?;
+            self.try_commit()?;
             return Ok(Some(extended_block.block));
         }
         Ok(None)
@@ -697,10 +649,7 @@ impl Core {
     /// Runs commit rule to attempt to commit additional blocks from the DAG. If
     /// any `certified_commits` are provided, then it will attempt to commit
     /// those first before trying to commit any further leaders.
-    fn try_commit(
-        &mut self,
-        certified_commits: Vec<CertifiedCommit>,
-    ) -> ConsensusResult<Vec<CommittedSubDag>> {
+    fn try_commit(&mut self) -> ConsensusResult<Vec<CommittedSubDag>> {
         let _s = self
             .context
             .metrics
@@ -708,21 +657,6 @@ impl Core {
             .scope_processing_time
             .with_label_values(&["Core::try_commit"])
             .start_timer();
-
-        let mut certified_commits_map = BTreeMap::new();
-        for c in &certified_commits {
-            certified_commits_map.insert(c.index(), c.reference());
-        }
-
-        if !certified_commits.is_empty() {
-            info!(
-                "Will try to commit synced commits first : {:?}",
-                certified_commits
-                    .iter()
-                    .map(|c| (c.index(), c.leader()))
-                    .collect::<Vec<_>>()
-            );
-        }
 
         let mut committed_sub_dags = Vec::new();
         // TODO: Add optimization to abort early without quorum for a round.
@@ -837,17 +771,6 @@ impl Core {
             committed_sub_dags.extend(subdags);
 
             fail_point!("consensus-after-handle-commit");
-        }
-
-        // Sanity check: for commits that have been linearized using the certified
-        // commits, ensure that the same sub dag has been committed.
-        for sub_dag in &committed_sub_dags {
-            if let Some(commit_ref) = certified_commits_map.remove(&sub_dag.commit_ref.index) {
-                assert_eq!(
-                    commit_ref, sub_dag.commit_ref,
-                    "Certified commit has different reference than the committed sub dag"
-                );
-            }
         }
 
         // Notify about our own committed blocks
@@ -1680,7 +1603,7 @@ mod test {
         }
 
         // Run commit rule.
-        core.try_commit(vec![]).ok();
+        core.try_commit().ok();
         let last_commit = store
             .read_last_commit()
             .unwrap()
@@ -2929,112 +2852,6 @@ mod test {
     }
 
     #[tokio::test]
-    async fn test_validate_certified_commits() {
-        telemetry_subscribers::init_for_testing();
-
-        let (context, _key_pairs) = Context::new_for_test(4);
-        let context = context.with_parameters(Parameters {
-            sync_last_known_own_block_timeout: Duration::from_millis(2_000),
-            ..Default::default()
-        });
-
-        let authority_index = AuthorityIndex::new_for_test(0);
-        let core = CoreTextFixture::new(context, vec![1, 1, 1, 1], authority_index, true);
-        let mut core = core.core;
-
-        // No new block should have been produced
-        assert_eq!(
-            core.last_proposed_round(),
-            GENESIS_ROUND,
-            "No block should have been created other than genesis"
-        );
-
-        // create a DAG of 12 rounds
-        let mut dag_builder = DagBuilder::new(core.context.clone());
-        dag_builder.layers(1..=12).build();
-
-        // Store all blocks up to round 6 which should be enough to decide up to leader
-        // 4
-        dag_builder.print();
-        let blocks = dag_builder.blocks(1..=6);
-
-        for block in blocks {
-            core.dag_state.write().accept_block(block);
-        }
-
-        // Get all the committed sub dags up to round 10
-        let sub_dags_and_commits = dag_builder.get_sub_dag_and_certified_commits(1..=10);
-
-        // Now try to commit up to the latest leader (round = 4). Do not provide any
-        // certified commits.
-        let committed_sub_dags = core.try_commit(vec![]).unwrap();
-
-        // We should have committed up to round 4
-        assert_eq!(committed_sub_dags.len(), 4);
-
-        // Now validate the certified commits. We'll try 3 different scenarios:
-        println!("Case 1. Provide certified commits that are all before the last committed round.");
-
-        // Highest certified commit should be for leader of round 4.
-        let certified_commits = sub_dags_and_commits
-            .iter()
-            .take(4)
-            .map(|(_, c)| c)
-            .cloned()
-            .collect::<Vec<_>>();
-        assert!(
-            certified_commits.last().unwrap().index()
-                <= committed_sub_dags.last().unwrap().commit_ref.index,
-            "Highest certified commit should older than the highest committed index."
-        );
-
-        let certified_commits = core.validate_certified_commits(certified_commits).unwrap();
-
-        // No commits should be processed
-        assert!(certified_commits.is_empty());
-
-        println!("Case 2. Provide certified commits that are all after the last committed round.");
-
-        // Highest certified commit should be for leader of round 4.
-        let certified_commits = sub_dags_and_commits
-            .iter()
-            .take(5)
-            .map(|(_, c)| c.clone())
-            .collect::<Vec<_>>();
-
-        let certified_commits = core
-            .validate_certified_commits(certified_commits.clone())
-            .unwrap();
-
-        // The certified commit of index 5 should be processed.
-        assert_eq!(certified_commits.len(), 1);
-        assert_eq!(certified_commits.first().unwrap().reference().index, 5);
-
-        println!(
-            "Case 3. Provide certified commits where the first certified commit index is not the last_committed_index + 1."
-        );
-
-        // Highest certified commit should be for leader of round 4.
-        let certified_commits = sub_dags_and_commits
-            .iter()
-            .skip(5)
-            .take(1)
-            .map(|(_, c)| c.clone())
-            .collect::<Vec<_>>();
-
-        let err = core
-            .validate_certified_commits(certified_commits.clone())
-            .unwrap_err();
-        match err {
-            ConsensusError::UnexpectedCertifiedCommitIndex {
-                expected_commit_index: 5,
-                commit_index: 6,
-            } => (),
-            _ => panic!("Unexpected error: {:?}", err),
-        }
-    }
-
-    #[tokio::test]
     async fn test_add_certified_commits() {
         telemetry_subscribers::init_for_testing();
 
@@ -3074,7 +2891,7 @@ mod test {
 
         // Now try to commit up to the latest leader (round = 4). Do not provide any
         // certified commits.
-        let committed_sub_dags = core.try_commit(vec![]).unwrap();
+        let committed_sub_dags = core.try_commit().unwrap();
 
         // We should have committed up to round 4
         assert_eq!(committed_sub_dags.len(), 4);
@@ -3115,7 +2932,7 @@ mod test {
 
         // The corresponding blocks of the certified commits should be accepted and
         // stored before linearizing and committing the DAG.
-        core.add_certified_commits(CertifiedCommits::new(certified_commits.clone(), vec![]))
+        core.add_certified_commits(CertifiedCommits::new(certified_commits.clone()))
             .expect("Should not fail");
 
         let commits = store.scan_commits((6..=10).into()).unwrap();

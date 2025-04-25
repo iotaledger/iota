@@ -219,21 +219,15 @@ impl Deref for TrustedCommit {
 #[derive(Clone, Debug)]
 pub(crate) struct CertifiedCommits {
     commits: Vec<CertifiedCommit>,
-    votes: Vec<VerifiedBlock>,
 }
 
 impl CertifiedCommits {
-    pub(crate) fn new(commits: Vec<CertifiedCommit>, votes: Vec<VerifiedBlock>) -> Self {
-        Self { commits, votes }
+    pub(crate) fn new(commits: Vec<CertifiedCommit>) -> Self {
+        Self { commits }
     }
 
     pub(crate) fn commits(&self) -> &[CertifiedCommit] {
         &self.commits
-    }
-
-    #[expect(dead_code)]
-    pub(crate) fn votes(&self) -> &[VerifiedBlock] {
-        &self.votes
     }
 }
 
@@ -463,8 +457,6 @@ pub fn load_committed_subdag_from_store(
 pub(crate) enum Decision {
     Direct,
     Indirect,
-    #[expect(dead_code)]
-    Certified, // This is a commit certified leader so no commit decision was made locally.
 }
 
 /// The status of a leader slot from the direct and indirect commit rules.

@@ -695,7 +695,7 @@ impl<C: NetworkClient> CommitSyncer<C> {
             certified_commits.push(CertifiedCommit::new_certified(commit.clone(), blocks));
         }
 
-        Ok(CertifiedCommits::new(certified_commits, vote_blocks))
+        Ok(CertifiedCommits::new(certified_commits))
     }
 
     fn unhandled_commits_threshold(&self) -> CommitIndex {

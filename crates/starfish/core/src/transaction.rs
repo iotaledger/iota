@@ -40,8 +40,6 @@ pub(crate) struct TransactionsGuard {
 /// channel which is shared between the TransactionConsumer and the
 /// TransactionClient and are pulled every time the `next` method is called.
 pub(crate) struct TransactionConsumer {
-    #[expect(dead_code)]
-    context: Arc<Context>,
     tx_receiver: Receiver<TransactionsGuard>,
     max_transactions_in_block_bytes: u64,
     max_num_transactions_in_block: u64,
@@ -75,7 +73,6 @@ impl TransactionConsumer {
                 .protocol_config
                 .max_transactions_in_block_bytes(),
             max_num_transactions_in_block: context.protocol_config.max_num_transactions_in_block(),
-            context,
             pending_transactions: None,
             block_status_subscribers: Arc::new(Mutex::new(BTreeMap::new())),
         }
@@ -139,13 +136,9 @@ impl TransactionConsumer {
             }
         }
 
-        let block_status_subscribers = self.block_status_subscribers.clone();
-
         (
             transactions,
             Box::new(move |block_ref: BlockRef| {
-                let _block_status_subscribers = block_status_subscribers.lock();
-
                 for ack in acks {
                     let (status_tx, status_rx) = oneshot::channel();
 
