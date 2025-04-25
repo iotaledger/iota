@@ -214,15 +214,14 @@ impl AdapterInitConfig {
             .map(|v| v.into_iter().collect::<BTreeSet<_>>())
             .unwrap_or_default();
 
-        if let Some(version) = move_binary_format_version {
-            protocol_config.set_move_binary_format_version_for_testing(version);
-        }
         let mut protocol_config = if let Some(protocol_version) = protocol_version {
             ProtocolConfig::get_for_version(protocol_version.into(), Chain::Unknown)
         } else {
             ProtocolConfig::get_for_max_version_UNSAFE()
         };
-
+        if let Some(version) = move_binary_format_version {
+            protocol_config.set_move_binary_format_version_for_testing(version);
+        }
         if let Some(mx_tx_gas_override) = max_gas {
             if simulator {
                 panic!("Cannot set max gas in simulator mode");
