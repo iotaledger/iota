@@ -1430,6 +1430,7 @@ mod test {
     use futures::{StreamExt, stream::FuturesUnordered};
     use iota_metrics::monitored_mpsc::unbounded_channel;
     use iota_protocol_config::ProtocolConfig;
+    use rstest::rstest;
     use starfish_config::{AuthorityIndex, Parameters};
     use tokio::time::sleep;
 
@@ -1442,6 +1443,7 @@ mod test {
         leader_scoring::ReputationScores,
         storage::{Store, WriteBatch, mem_store::MemStore},
         test_dag_builder::DagBuilder,
+        test_dag_parser::parse_dag,
         transaction::{BlockStatus, TransactionClient},
     };
 
@@ -3592,28 +3594,20 @@ mod test {
         *receiver.borrow_and_update()
     }
 
-    #[cfg(any())]
-    mod gc_tests {
-        #[rstest]
-        #[tokio::test]
-        async fn test_commit_and_notify_for_block_status(#[values(0, 2)] gc_depth: u32) {
-            telemetry_subscribers::init_for_testing();
-            let (mut context, mut key_pairs) = Context::new_for_test(4);
+    #[rstest]
+    #[tokio::test]
+    async fn test_commit_and_notify_for_block_status() {
+        telemetry_subscribers::init_for_testing();
+        let (context, mut key_pairs) = Context::new_for_test(4);
 
-            if gc_depth > 0 {
-                context
-                    .protocol_config
-                    .set_consensus_gc_depth_for_testing(gc_depth);
-            }
+        let context = Arc::new(context);
 
-            let context = Arc::new(context);
+        let store = Arc::new(MemStore::new());
+        let (_transaction_client, tx_receiver) = TransactionClient::new(context.clone());
+        let transaction_consumer = TransactionConsumer::new(tx_receiver, context.clone());
+        let mut block_status_subscriptions = FuturesUnordered::new();
 
-            let store = Arc::new(MemStore::new());
-            let (_transaction_client, tx_receiver) = TransactionClient::new(context.clone());
-            let transaction_consumer = TransactionConsumer::new(tx_receiver, context.clone());
-            let mut block_status_subscriptions = FuturesUnordered::new();
-
-            let dag_str = "DAG {
+        let dag_str = "DAG {
             Round 0 : { 4 },
             Round 1 : { * },
             Round 2 : { * },
@@ -3639,408 +3633,80 @@ mod test {
             Round 8 : { * },
         }";
 
-            let (_, dag_builder) = parse_dag(dag_str).expect("Invalid dag");
-            dag_builder.print();
+        let (_, dag_builder) = parse_dag(dag_str).expect("Invalid dag");
+        dag_builder.print();
 
-            // Subscribe to all created "own" blocks. We know that for our node (A) we'll be
-            // able to commit up to round 5.
-            for block in dag_builder.blocks(1..=5) {
-                if block.author() == context.own_index {
-                    let subscription =
-                        transaction_consumer.subscribe_for_block_status_testing(block.reference());
-                    block_status_subscriptions.push(subscription);
-                }
-            }
-
-            // write them in store
-            store
-                .write(WriteBatch::default().blocks(dag_builder.blocks(1..=8)))
-                .expect("Storage error");
-
-            // create dag state after all blocks have been written to store
-            let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store.clone())));
-            let block_manager = BlockManager::new(
-                context.clone(),
-                dag_state.clone(),
-                Arc::new(NoopBlockVerifier),
-            );
-            let leader_schedule = Arc::new(LeaderSchedule::from_store(
-                context.clone(),
-                dag_state.clone(),
-            ));
-
-            let (sender, _receiver) = unbounded_channel("consensus_output");
-            let commit_consumer = CommitConsumer::new(sender.clone(), 0);
-            let commit_observer = CommitObserver::new(
-                context.clone(),
-                commit_consumer,
-                dag_state.clone(),
-                store.clone(),
-                leader_schedule.clone(),
-            );
-
-            // Check no commits have been persisted to dag_state or store.
-            let last_commit = store.read_last_commit().unwrap();
-            assert!(last_commit.is_none());
-            assert_eq!(dag_state.read().last_commit_index(), 0);
-
-            // Now spin up core
-            let (signals, signal_receivers) = CoreSignals::new(context.clone());
-            // Need at least one subscriber to the block broadcast channel.
-            let _block_receiver = signal_receivers.block_broadcast_receiver();
-            let _core = Core::new(
-                context.clone(),
-                leader_schedule,
-                transaction_consumer,
-                block_manager,
-                true,
-                commit_observer,
-                signals,
-                key_pairs.remove(context.own_index.value()).1,
-                dag_state.clone(),
-                false,
-            );
-
-            let last_commit = store
-                .read_last_commit()
-                .unwrap()
-                .expect("last commit should be set");
-
-            assert_eq!(last_commit.index(), 5);
-
-            while let Some(result) = block_status_subscriptions.next().await {
-                let status = result.unwrap();
-
-                // If gc is enabled, then we expect some blocks to be garbage collected.
-                if gc_depth > 0 {
-                    match status {
-                        BlockStatus::Sequenced(block_ref) => {
-                            assert!(block_ref.round == 1 || block_ref.round == 5);
-                        }
-                        BlockStatus::GarbageCollected(block_ref) => {
-                            assert!(block_ref.round == 2 || block_ref.round == 3);
-                        }
-                    }
-                } else {
-                    // otherwise all of them should be committed
-                    assert!(matches!(status, BlockStatus::Sequenced(_)));
-                }
+        // Subscribe to all created "own" blocks. We know that for our node (A) we'll be
+        // able to commit up to round 5.
+        for block in dag_builder.blocks(1..=5) {
+            if block.author() == context.own_index {
+                let subscription =
+                    transaction_consumer.subscribe_for_block_status_testing(block.reference());
+                block_status_subscriptions.push(subscription);
             }
         }
 
-        // Tests that the threshold clock advances when blocks get unsuspended due to
-        // GC'ed blocks and newly created blocks are always higher than the last
-        // advanced gc round.
-        #[tokio::test]
-        async fn test_multiple_commits_advance_threshold_clock() {
-            telemetry_subscribers::init_for_testing();
-            let (mut context, mut key_pairs) = Context::new_for_test(4);
-            const GC_DEPTH: u32 = 2;
+        // write them in store
+        store
+            .write(WriteBatch::default().blocks(dag_builder.blocks(1..=8)))
+            .expect("Storage error");
 
-            context
-                .protocol_config
-                .set_consensus_gc_depth_for_testing(GC_DEPTH);
+        // create dag state after all blocks have been written to store
+        let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store.clone())));
+        let block_manager = BlockManager::new(
+            context.clone(),
+            dag_state.clone(),
+            Arc::new(NoopBlockVerifier),
+        );
+        let leader_schedule = Arc::new(LeaderSchedule::from_store(
+            context.clone(),
+            dag_state.clone(),
+        ));
 
-            let context = Arc::new(context);
+        let (sender, _receiver) = unbounded_channel("consensus_output");
+        let commit_consumer = CommitConsumer::new(sender.clone(), 0);
+        let commit_observer = CommitObserver::new(
+            context.clone(),
+            commit_consumer,
+            dag_state.clone(),
+            store.clone(),
+            leader_schedule.clone(),
+        );
 
-            let store = Arc::new(MemStore::new());
-            let (_transaction_client, tx_receiver) = TransactionClient::new(context.clone());
-            let transaction_consumer = TransactionConsumer::new(tx_receiver, context.clone());
+        // Check no commits have been persisted to dag_state or store.
+        let last_commit = store.read_last_commit().unwrap();
+        assert!(last_commit.is_none());
+        assert_eq!(dag_state.read().last_commit_index(), 0);
 
-            // On round 1 we do produce the block for authority D but we do not link it
-            // until round 6. This is making round 6 unable to get processed
-            // until leader of round 3 is committed where round 1 gets garbage collected.
-            // Then we add more rounds so we can trigger a commit for leader of round 9
-            // which will move the gc round to 7.
-            let dag_str = "DAG {
-            Round 0 : { 4 },
-            Round 1 : { * },
-            Round 2 : {
-                B -> [-D1],
-                C -> [-D1],
-                D -> [-D1],
-            },
-            Round 3 : {
-                B -> [*],
-                C -> [*]
-                D -> [*],
-            },
-            Round 4 : {
-                A -> [*],
-                B -> [*],
-                C -> [*]
-                D -> [*],
-            },
-            Round 5 : {
-                B -> [*],
-                C -> [*],
-                D -> [*],
-            },
-            Round 6 : {
-                B -> [A6, B6, C6, D1],
-                C -> [A6, B6, C6, D1],
-                D -> [A6, B6, C6, D1],
-            },
-            Round 7 : {
-                B -> [*],
-                C -> [*],
-                D -> [*],
-            },
-            Round 8 : {
-                B -> [*],
-                C -> [*],
-                D -> [*],
-            },
-            Round 9 : {
-                B -> [*],
-                C -> [*],
-                D -> [*],
-            },
-            Round 10 : {
-                B -> [*],
-                C -> [*],
-                D -> [*],
-            },
-            Round 11 : {
-                B -> [*],
-                C -> [*],
-                D -> [*],
-            },
-        }";
+        // Now spin up core
+        let (signals, signal_receivers) = CoreSignals::new(context.clone());
+        // Need at least one subscriber to the block broadcast channel.
+        let _block_receiver = signal_receivers.block_broadcast_receiver();
+        let _core = Core::new(
+            context.clone(),
+            leader_schedule,
+            transaction_consumer,
+            block_manager,
+            true,
+            commit_observer,
+            signals,
+            key_pairs.remove(context.own_index.value()).1,
+            dag_state.clone(),
+            false,
+        );
 
-            let (_, dag_builder) = parse_dag(dag_str).expect("Invalid dag");
-            dag_builder.print();
+        let last_commit = store
+            .read_last_commit()
+            .unwrap()
+            .expect("last commit should be set");
 
-            // create dag state after all blocks have been written to store
-            let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store.clone())));
-            let block_manager = BlockManager::new(
-                context.clone(),
-                dag_state.clone(),
-                Arc::new(NoopBlockVerifier),
-            );
-            let leader_schedule = Arc::new(LeaderSchedule::from_store(
-                context.clone(),
-                dag_state.clone(),
-            ));
-            let (sender, _receiver) = unbounded_channel("consensus_output");
-            let commit_consumer = CommitConsumer::new(sender.clone(), 0);
-            let commit_observer = CommitObserver::new(
-                context.clone(),
-                commit_consumer,
-                dag_state.clone(),
-                store.clone(),
-                leader_schedule.clone(),
-            );
+        assert_eq!(last_commit.index(), 5);
 
-            // Check no commits have been persisted to dag_state or store.
-            let last_commit = store.read_last_commit().unwrap();
-            assert!(last_commit.is_none());
-            assert_eq!(dag_state.read().last_commit_index(), 0);
+        while let Some(result) = block_status_subscriptions.next().await {
+            let status = result.unwrap();
 
-            // Now spin up core
-            let (signals, signal_receivers) = CoreSignals::new(context.clone());
-            // Need at least one subscriber to the block broadcast channel.
-            let _block_receiver = signal_receivers.block_broadcast_receiver();
-            let mut core = Core::new(
-                context.clone(),
-                leader_schedule,
-                transaction_consumer,
-                block_manager,
-                true,
-                commit_observer,
-                signals,
-                key_pairs.remove(context.own_index.value()).1,
-                dag_state.clone(),
-                true,
-            );
-            // We set the last known round to 4 so we avoid creating new blocks until then -
-            // otherwise it will crash as the already created DAG contains blocks for this
-            // authority.
-            core.set_last_known_proposed_round(4);
-
-            // We add all the blocks except D1. The only ones we can immediately accept are
-            // the ones up to round 5 as they don't have a dependency on D1. Rest of blocks
-            // do have causal dependency to D1 so they can't be processed until the
-            // leader of round 3 can get committed and gc round moves to 1. That will make
-            // all the blocks that depend to D1 get accepted. However, our threshold
-            // clock is now at round 6 as the last quorum that we managed to process was the
-            // round 5. As commits happen blocks of later rounds get accepted and
-            // more leaders get committed. Eventually the leader of round 9 gets committed
-            // and gc is moved to 9 - 2 = 7. If our node attempts to produce a block
-            // for the threshold clock 6, that will make the acceptance checks fail as now
-            // gc has moved far past this round.
-            core.add_blocks(
-                dag_builder
-                    .blocks(1..=11)
-                    .into_iter()
-                    .filter(|b| !(b.round() == 1 && b.author() == AuthorityIndex::new_for_test(3)))
-                    .collect(),
-            )
-            .expect("Should not fail");
-
-            assert_eq!(core.last_proposed_round(), 12);
-        }
-
-        #[tokio::test]
-        async fn try_commit_with_certified_commits_gced_blocks() {
-            const GC_DEPTH: u32 = 3;
-            telemetry_subscribers::init_for_testing();
-
-            let (mut context, mut key_pairs) = Context::new_for_test(5);
-            context
-                .protocol_config
-                .set_consensus_gc_depth_for_testing(GC_DEPTH);
-            // context.protocol_config.
-            // set_narwhal_new_leader_election_schedule_for_testing(val);
-            let context = Arc::new(context.with_parameters(Parameters {
-                sync_last_known_own_block_timeout: Duration::from_millis(2_000),
-                ..Default::default()
-            }));
-
-            let store = Arc::new(MemStore::new());
-            let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store.clone())));
-
-            let block_manager = BlockManager::new(
-                context.clone(),
-                dag_state.clone(),
-                Arc::new(NoopBlockVerifier),
-            );
-            let leader_schedule = Arc::new(
-                LeaderSchedule::from_store(context.clone(), dag_state.clone())
-                    .with_num_commits_per_schedule(10),
-            );
-
-            let (_transaction_client, tx_receiver) = TransactionClient::new(context.clone());
-            let transaction_consumer = TransactionConsumer::new(tx_receiver, context.clone());
-            let (signals, signal_receivers) = CoreSignals::new(context.clone());
-            // Need at least one subscriber to the block broadcast channel.
-            let _block_receiver = signal_receivers.block_broadcast_receiver();
-
-            let (sender, _receiver) = unbounded_channel("consensus_output");
-            let commit_consumer = CommitConsumer::new(sender.clone(), 0);
-            let commit_observer = CommitObserver::new(
-                context.clone(),
-                commit_consumer,
-                dag_state.clone(),
-                store.clone(),
-                leader_schedule.clone(),
-            );
-
-            let mut core = Core::new(
-                context.clone(),
-                leader_schedule,
-                transaction_consumer,
-                block_manager,
-                true,
-                commit_observer,
-                signals,
-                key_pairs.remove(context.own_index.value()).1,
-                dag_state.clone(),
-                true,
-            );
-
-            // No new block should have been produced
-            assert_eq!(
-                core.last_proposed_round(),
-                GENESIS_ROUND,
-                "No block should have been created other than genesis"
-            );
-
-            let dag_str = "DAG {
-            Round 0 : { 5 },
-            Round 1 : { * },
-            Round 2 : {
-                A -> [-E1],
-                B -> [-E1],
-                C -> [-E1],
-                D -> [-E1],
-            },
-            Round 3 : {
-                A -> [*],
-                B -> [*],
-                C -> [*],
-                D -> [*],
-            },
-            Round 4 : {
-                A -> [*],
-                B -> [*],
-                C -> [*],
-                D -> [*],
-            },
-            Round 5 : {
-                A -> [*],
-                B -> [*],
-                C -> [*],
-                D -> [*],
-                E -> [A4, B4, C4, D4, E1]
-            },
-            Round 6 : { * },
-            Round 7 : { * },
-        }";
-
-            let (_, mut dag_builder) = parse_dag(dag_str).expect("Invalid dag");
-            dag_builder.print();
-
-            // Now get all the committed sub dags from the DagBuilder
-            let (_sub_dags, certified_commits): (Vec<_>, Vec<_>) = dag_builder
-                .get_sub_dag_and_certified_commits(1..=5)
-                .into_iter()
-                .unzip();
-
-            // Now try to commit up to the latest leader (round = 5) with the provided
-            // certified commits. Not that we have not accepted any blocks. That
-            // should happen during the commit process.
-            let committed_sub_dags = core.try_commit(certified_commits).unwrap();
-
-            // We should have committed up to round 4
-            assert_eq!(committed_sub_dags.len(), 4);
-            for (index, committed_sub_dag) in committed_sub_dags.iter().enumerate() {
-                assert_eq!(committed_sub_dag.commit_ref.index as usize, index + 1);
-
-                // ensure that block from E1 node has not been committed
-                for block in committed_sub_dag.blocks.iter() {
-                    if block.round() == 1 && block.author() == AuthorityIndex::new_for_test(5) {
-                        panic!("Did not expect to commit block E1");
-                    }
-                }
-            }
-        }
-
-        #[tokio::test]
-        async fn try_decide_certified() {
-            // GIVEN
-            telemetry_subscribers::init_for_testing();
-
-            let (context, _) = Context::new_for_test(4);
-
-            let authority_index = AuthorityIndex::new_for_test(0);
-            let core =
-                CoreTextFixture::new(context.clone(), vec![1, 1, 1, 1], authority_index, true);
-            let mut core = core.core;
-
-            let mut dag_builder = DagBuilder::new(Arc::new(context.clone()));
-            dag_builder.layers(1..=12).build();
-
-            let limit = 2;
-
-            let blocks = dag_builder.blocks(1..=12);
-
-            for block in blocks {
-                core.dag_state.write().accept_block(block);
-            }
-
-            // WHEN
-            let sub_dags_and_commits = dag_builder.get_sub_dag_and_certified_commits(1..=4);
-            let mut certified_commits = sub_dags_and_commits
-                .into_iter()
-                .map(|(_, commit)| commit)
-                .collect::<Vec<_>>();
-
-            let leaders = core.try_decide_certified(&mut certified_commits, limit);
-
-            // THEN
-            assert_eq!(leaders.len(), 2);
-            assert_eq!(certified_commits.len(), 2);
+            // otherwise all of them should be committed
+            assert!(matches!(status, BlockStatus::Sequenced(_)));
         }
     }
 }

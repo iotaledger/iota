@@ -50,8 +50,6 @@ mod test {
         const NUM_OF_AUTHORITIES: usize = 10;
         let (committee, keypairs) = local_committee_and_keys(0, [1; NUM_OF_AUTHORITIES].to_vec());
         let mut protocol_config = ProtocolConfig::get_for_max_version_UNSAFE();
-        // TODO: return if gc is reimplemented; and enable v2 linearizer
-        // protocol_config.set_consensus_gc_depth_for_testing(3);
         protocol_config.set_consensus_gc_depth_for_testing(0);
         protocol_config.set_consensus_linearize_subdag_v2_for_testing(false);
 

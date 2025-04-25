@@ -483,9 +483,6 @@ mod tests {
     #[tokio::test(flavor = "current_thread")]
     async fn test_authority_committee(
         #[values(ConsensusNetwork::Tonic)] network_type: ConsensusNetwork,
-        // TODO: return if gc is reimplemented
-        //#[values(0, 5, 10)] gc_depth: u32,
-        #[values(0)] gc_depth: u32,
     ) {
         let db_registry = Registry::new();
         DBMetrics::init(&db_registry);
@@ -493,11 +490,8 @@ mod tests {
         const NUM_OF_AUTHORITIES: usize = 4;
         let (committee, keypairs) = local_committee_and_keys(0, [1; NUM_OF_AUTHORITIES].to_vec());
         let mut protocol_config = ProtocolConfig::get_for_max_version_UNSAFE();
-        protocol_config.set_consensus_gc_depth_for_testing(gc_depth);
-
-        if gc_depth == 0 {
-            protocol_config.set_consensus_linearize_subdag_v2_for_testing(false);
-        }
+        protocol_config.set_consensus_gc_depth_for_testing(0);
+        protocol_config.set_consensus_linearize_subdag_v2_for_testing(false);
 
         let temp_dirs = (0..NUM_OF_AUTHORITIES)
             .map(|_| TempDir::new().unwrap())
@@ -689,9 +683,6 @@ mod tests {
     #[tokio::test(flavor = "current_thread")]
     async fn test_amnesia_recovery_success(
         #[values(ConsensusNetwork::Tonic)] network_type: ConsensusNetwork,
-        // TODO: return if gc is reimplemented
-        //#[values(0, 5, 10)] gc_depth: u32,
-        #[values(0)] gc_depth: u32,
     ) {
         telemetry_subscribers::init_for_testing();
         let db_registry = Registry::new();
@@ -705,11 +696,8 @@ mod tests {
         let mut boot_counters = [0; NUM_OF_AUTHORITIES];
 
         let mut protocol_config = ProtocolConfig::get_for_max_version_UNSAFE();
-        protocol_config.set_consensus_gc_depth_for_testing(gc_depth);
-
-        if gc_depth == 0 {
-            protocol_config.set_consensus_linearize_subdag_v2_for_testing(false);
-        }
+        protocol_config.set_consensus_gc_depth_for_testing(0);
+        protocol_config.set_consensus_linearize_subdag_v2_for_testing(false);
 
         for (index, _authority_info) in committee.authorities() {
             let dir = TempDir::new().unwrap();

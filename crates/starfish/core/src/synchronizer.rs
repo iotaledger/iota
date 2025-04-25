@@ -1578,9 +1578,6 @@ mod tests {
      {
         // GIVEN
         let (mut context, _) = Context::new_for_test(4);
-
-        // We want to run this test only when gc is disabled. Once gc gets enabled this
-        // logic won't execute any more.
         context
             .protocol_config
             .set_consensus_gc_depth_for_testing(0);
