@@ -5,7 +5,12 @@
 #![allow(unused_imports)]
 #![allow(unused_variables)]
 
-use std::{path::Path, sync::Arc, time::Duration};
+use std::{
+    hash::{Hash, Hasher},
+    path::Path,
+    sync::Arc,
+    time::Duration,
+};
 
 use async_trait::async_trait;
 use iota_graphql_rpc::{
@@ -84,9 +89,25 @@ async fn run_test(path: &Path) -> Result<(), Box<dyn std::error::Error>> {
         // indexer and graphql flavor of choice.
         let offchain_config = adapter.offchain_config.as_ref().unwrap();
 
+        // Hash the file path to create custom unique DB name
+        let mut hasher = std::collections::hash_map::DefaultHasher::new();
+        path.to_path_buf().hash(&mut hasher);
+        let hash = hasher.finish();
+        let db_name = format!("iota_graphql_test_{}", hash);
+
+        // Use the hash as a seed to generate a random port number
+        let base_port = hash as u16 % 8192;
+
+        let graphql_port = 20000 + base_port;
+        let graphql_prom_port = graphql_port + 1;
+        let internal_data_port = graphql_prom_port + 1;
         let cluster = serve_executor(
-            ConnectionConfig::default(),
-            DEFAULT_INTERNAL_DATA_SOURCE_PORT,
+            ConnectionConfig::ci_integration_test_cfg_with_db_name(
+                db_name,
+                graphql_port,
+                graphql_prom_port,
+            ),
+            internal_data_port,
             adapter.read_replica.as_ref().unwrap().clone(),
             Some(offchain_config.snapshot_config.clone()),
             offchain_config.epochs_to_keep,
