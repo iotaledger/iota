@@ -52,11 +52,11 @@ pub fn latest_system_packages() -> &'static SystemPackagesVersion {
 /// `version` (or `Err` if there is no such version).
 ///
 /// The returned [ProtocolVersion] is the protocol version that introduced the
-/// returned [FrameworkVersion]; this may be older than the requested `version`
+/// returned [SystemPackagesVersion]; this may be older than the requested `version`
 /// if either:
-/// 1. the framework did not change when `version` was released, or
+/// 1. the system packages did not change when `version` was released, or
 /// 2. this binary is older than the requested version and therefore doesn't
-///    know about the latest framework version
+///    know about the latest version of the system packages
 ///
 /// You can distinguish these cases by comparing `version` with
 /// [ProtocolVersion::MAX].
