@@ -108,7 +108,7 @@ impl Display for Pretty<'_, DryRunTransactionBlockResponse> {
         )?;
 
         if let Some(err) = &response.execution_error_source {
-            writeln!(f, "Execution error: {}", err)?;
+            writeln!(f, "Execution error: {err}")?;
         }
 
         Ok(())
