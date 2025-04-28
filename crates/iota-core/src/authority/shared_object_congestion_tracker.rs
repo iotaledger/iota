@@ -94,6 +94,12 @@ impl ExecutionSlot {
     }
 }
 
+// TODO:
+// type ExecutionLineId = u64;
+// struct ExecutionLine {
+//     id: ExecutionLineId,
+// }
+
 // `SharedObjectCongestionTracker` stores the available and occupied execution
 // slots for the transactions within a consensus commit.
 //
@@ -117,6 +123,7 @@ pub struct SharedObjectCongestionTracker {
     object_execution_slots: HashMap<ObjectID, Vec<ExecutionSlot>>,
     mode: PerObjectCongestionControlMode,
     assign_min_free_execution_slot: bool,
+    transaction_execution_line: HashMap<TransactionDigest, u64>,
 }
 
 impl SharedObjectCongestionTracker {
@@ -125,6 +132,7 @@ impl SharedObjectCongestionTracker {
             object_execution_slots: HashMap::new(),
             mode,
             assign_min_free_execution_slot,
+            transaction_execution_line: HashMap::new(),
         }
     }
 
@@ -1332,6 +1340,68 @@ mod object_cost_tests {
                     .unwrap()
             ),
             MAX_EXECUTION_TIME
+        );
+    }
+
+    #[test]
+    fn my_test() {
+        let mut shared_object_congestion_tracker =
+            SharedObjectCongestionTracker::new(PerObjectCongestionControlMode::TotalTxCount, false);
+
+        let object_a = ObjectID::random();
+        let object_b = ObjectID::random();
+        let object_c = ObjectID::random();
+        let object_d = ObjectID::random();
+
+        let max_execution_duration_per_commit = 2;
+
+        let tx_1 = build_transaction(&[(object_a, true), (object_b, true)], 1);
+        let tx_2 = build_transaction(&[(object_b, true), (object_c, true)], 1);
+        let tx_3 = build_transaction(&[(object_c, true), (object_d, true)], 1);
+
+        let sequencing_result = shared_object_congestion_tracker.try_schedule(
+            &tx_1,
+            max_execution_duration_per_commit,
+            &HashMap::new(),
+            0,
+        );
+        if let SequencingResult::Schedule(start_time) = sequencing_result {
+            shared_object_congestion_tracker.bump_object_execution_slots(&tx_1, start_time);
+        } else {
+            panic!("tx 1 must be scheduled");
+        }
+
+        let sequencing_result = shared_object_congestion_tracker.try_schedule(
+            &tx_2,
+            max_execution_duration_per_commit,
+            &HashMap::new(),
+            0,
+        );
+        if let SequencingResult::Schedule(start_time) = sequencing_result {
+            shared_object_congestion_tracker.bump_object_execution_slots(&tx_2, start_time);
+        } else {
+            panic!("tx 2 must be scheduled");
+        }
+
+        let sequencing_result = shared_object_congestion_tracker.try_schedule(
+            &tx_3,
+            max_execution_duration_per_commit,
+            &HashMap::new(),
+            0,
+        );
+        if let SequencingResult::Schedule(start_time) = sequencing_result {
+            shared_object_congestion_tracker.bump_object_execution_slots(&tx_3, start_time);
+        } else {
+            // panic!("tx 3 must be scheduled");
+        }
+
+        println!("Object A: {}", object_a);
+        println!("Object B: {}", object_b);
+        println!("Object C: {}", object_c);
+        println!("Object D: {}", object_d);
+        println!(
+            "{:#?}",
+            shared_object_congestion_tracker.object_execution_slots
         );
     }
 }
