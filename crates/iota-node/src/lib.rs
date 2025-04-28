@@ -90,7 +90,7 @@ use iota_network::{
     api::ValidatorServer, discovery, discovery::TrustedPeerChangeEvent, randomness, state_sync,
 };
 use iota_network_stack::server::ServerBuilder;
-use iota_protocol_config::{Chain, ProtocolConfig};
+use iota_protocol_config::ProtocolConfig;
 use iota_rest_api::RestMetrics;
 use iota_snapshot::uploader::StateSnapshotUploader;
 use iota_storage::{
@@ -1976,7 +1976,7 @@ fn build_kv_store(
         )
     })?;
 
-    let http_store = HttpKVStore::new_kv(&base_url, metrics.clone())?;
+    let http_store = HttpKVStore::new_kv(base_url, metrics.clone())?;
     info!("using local key-value store with fallback to http key-value store");
     Ok(Arc::new(FallbackTransactionKVStore::new_kv(
         db_store,
