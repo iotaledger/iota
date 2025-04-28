@@ -5,7 +5,7 @@ import { useGetValidatorsApy } from '..';
 import { useQuery } from '@tanstack/react-query';
 import { normalizeIotaAddress } from '@iota/iota-sdk/utils';
 import { useIotaClient, useIotaClientQuery } from '@iota/dapp-kit';
-import { getInactiveValidatorsData } from '../../utils';
+import { getInactiveValidatorsData } from '../../hooks';
 import { InactiveValidatorData } from '../../types';
 
 export function useValidatorInfo({ validatorAddress }: { validatorAddress: string }) {
