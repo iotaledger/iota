@@ -4,7 +4,7 @@
 
 use std::{collections::BTreeMap, sync::LazyLock};
 
-use anyhow::{Context};
+use anyhow::Context;
 use iota_protocol_config::ProtocolVersion;
 
 /// Static mapping from protocol versions to the metadata for the system
@@ -48,16 +48,18 @@ pub fn latest_system_packages() -> &'static SystemPackagesVersion {
         .1
 }
 
-/// Return the latest protocol version that is not newer than the requested `version`
-/// (or `Err` if there is no such version).
+/// Return the latest protocol version that is not newer than the requested
+/// `version` (or `Err` if there is no such version).
 ///
-/// The returned [ProtocolVersion] is the protocol version that introduced the returned
-/// [FrameworkVersion]; this may be older than the requested `version` if either:
+/// The returned [ProtocolVersion] is the protocol version that introduced the
+/// returned [FrameworkVersion]; this may be older than the requested `version`
+/// if either:
 /// 1. the framework did not change when `version` was released, or
-/// 2. this binary is older than the requested version and therefore doesn't know about the latest
-///    framework version
+/// 2. this binary is older than the requested version and therefore doesn't
+///    know about the latest framework version
 ///
-/// You can distinguish these cases by comparing `version` with [ProtocolVersion::MAX].
+/// You can distinguish these cases by comparing `version` with
+/// [ProtocolVersion::MAX].
 pub fn system_packages_for_protocol(
     version: ProtocolVersion,
 ) -> anyhow::Result<(&'static SystemPackagesVersion, ProtocolVersion)> {
