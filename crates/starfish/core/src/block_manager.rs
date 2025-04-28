@@ -101,9 +101,7 @@ impl BlockManager {
         self.try_accept_blocks_internal(blocks)
     }
 
-    /// Attempts to accept the provided blocks. When `committed = true` then the
-    /// blocks are considered to be committed via certified commits and
-    /// are handled differently.
+    /// Attempts to accept the provided blocks.
     fn try_accept_blocks_internal(
         &mut self,
         mut blocks: Vec<VerifiedBlock>,
