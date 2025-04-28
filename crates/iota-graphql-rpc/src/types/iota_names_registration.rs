@@ -637,7 +637,7 @@ impl IotaNamesRegistration {
         Ok(Self {
             super_: move_object.clone(),
             native: bcs::from_bytes(move_object.native.contents())
-                .map_err(|e| IotaNamesRegistrationDowncastError::Bcs(e))?,
+                .map_err(IotaNamesRegistrationDowncastError::Bcs)?,
         })
     }
 }
