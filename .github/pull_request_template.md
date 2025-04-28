@@ -21,6 +21,17 @@ Describe the tests that you ran to verify your changes.
 
 Make sure to provide instructions for the maintainer as well as any relevant configurations.
 
+- [ ] Basic tests (linting, compilation, formatting, unit/integration tests)
+- [ ] Patch-specific tests (correctness, functionality coverage)
+
+### Infrastructure QA (only required for crates that are maintained by @iotaledger/infrastructure)
+
+- [ ] Synchronization of the indexer from genesis for a network including migration objects.
+- [ ] Restart of indexer synchronization locally without resetting the database.
+- [ ] Restart of indexer synchronization on a production-like database.
+- [ ] Deployment of services using Docker.
+- [ ] Verification of API backward compatibility.
+
 ## Change checklist
 
 Tick the boxes that are relevant to your changes, and delete any items that are not.
