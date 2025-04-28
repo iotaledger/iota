@@ -5,9 +5,9 @@ teams:
   - iotaledger/vm-language
 ---
 
-The previous articles in this section showcase how to create a [`Coin`](../../../references/framework/iota-framework/coin.mdx) object with different constructors. Namely,  [`create_currency`](create-coin.mdx) and [`create_regulated_currency`](regulated.mdx).
+The previous articles in this section showcase how to create a [`Coin`](../../../references/framework/iota/coin.mdx) object with different constructors. Namely,  [`create_currency`](create-coin.mdx) and [`create_regulated_currency`](regulated.mdx).
 
-This article will show how an existing `Coin` object can be migrated to [`CoinManager`](../../../references/framework/iota-framework/coin_manager.mdx). By doing so, the `Coin` deployer and its end-users will gain [extra-functionalites](../../standards/coin-manager.mdx). Generally, we recommend initially creating a `Coin` via `CoinManager` to avoid the need for migration later on. However, if you have an existing `Coin` and wish to migrate it to `CoinManager`, this article will guide you through the process.
+This article will show how an existing `Coin` object can be migrated to [`CoinManager`](../../../references/framework/iota/coin_manager.mdx). By doing so, the `Coin` deployer and its end-users will gain [extra-functionalites](../../standards/coin-manager.mdx). Generally, we recommend initially creating a `Coin` via `CoinManager` to avoid the need for migration later on. However, if you have an existing `Coin` and wish to migrate it to `CoinManager`, this article will guide you through the process.
 
 
 ### Pre-requisites
@@ -17,7 +17,7 @@ This article will show how an existing `Coin` object can be migrated to [`CoinMa
 
 ### 1. Create a Simple Coin
 
-First, we will create a simple coin to be migrated [`CoinManager`](../../../references/framework/iota-framework/coin_manager.mdx). 
+First, we will create a simple coin to be migrated [`CoinManager`](../../../references/framework/iota/coin_manager.mdx). 
 
 1. Create a new empty package called `my_coin`:
 ``` bash
@@ -205,9 +205,9 @@ fun init(witness: EXCLUSIVE_COIN, ctx: &mut TxContext) {
 }
 ```
 
-However, since you are migrating from a `Coin`, you will use another constructor for `CoinManager`: [`CoinManager::new_with_immutable_metadata(cap,meta,ctx)`](../../../references/framework/iota-framework/coin_manager.mdx#0x2_coin_manager_new_with_immutable_metadata) if the metadata is already frozen, and [`CoinManager::new(cap,meta,ctx)`](../../../references/framework/iota-framework/coin_manager.mdx#0x2_coin_manager_new) if the metadata is mutable.
+However, since you are migrating from a `Coin`, you will use another constructor for `CoinManager`: [`CoinManager::new_with_immutable_metadata(cap,meta,ctx)`](../../../references/framework/iota/coin_manager.mdx#iota_coin_manager_new_with_immutable_metadata) if the metadata is already frozen, and [`CoinManager::new(cap,meta,ctx)`](../../../references/framework/iota/coin_manager.mdx#iota_coin_manager_new) if the metadata is mutable.
 
-In that case, `init` would have to take two extra parameters: the [`Coin`'s `CoinMetadata`](../../../references/framework/iota-framework/coin.mdx#0x2_coin_CoinMetadata) object and the [`TreasuryCap`](../../../references/framework/iota-framework/coin.mdx#resource-treasurycap) object. IOTA's Move only allows `TxContext` and an optional Witness. There is no means to pass in the extra argument.
+In that case, `init` would have to take two extra parameters: the [`Coin`'s `CoinMetadata`](../../../references/framework/iota/coin.mdx#iota_coin_CoinMetadata) object and the [`TreasuryCap`](../../../references/framework/iota/coin.mdx#struct-treasurycap) object. IOTA's Move only allows `TxContext` and an optional Witness. There is no means to pass in the extra argument.
 
 You can use the [`One Time Witness Pattern`](../../iota-101/move-overview/one-time-witness.mdx) to resolve this.
 

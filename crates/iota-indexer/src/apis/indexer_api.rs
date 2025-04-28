@@ -91,6 +91,64 @@ impl IndexerApi {
             has_next_page,
         })
     }
+
+    async fn get_dynamic_field_object(
+        &self,
+        parent_object_id: ObjectID,
+        name: DynamicFieldName,
+        options: Option<IotaObjectDataOptions>,
+    ) -> RpcResult<IotaObjectResponse> {
+        let name_bcs_value = self.inner.bcs_name_from_dynamic_field_name(&name).await?;
+
+        // Try as Dynamic Field
+        let id = iota_types::dynamic_field::derive_dynamic_field_id(
+            parent_object_id,
+            &name.type_,
+            &name_bcs_value,
+        )
+        .map_err(internal_error)?;
+
+        let options = options.unwrap_or_default();
+
+        match self.inner.get_object_read_in_blocking_task(id).await? {
+            ObjectRead::NotExists(_) | ObjectRead::Deleted(_) => {}
+            ObjectRead::Exists(object_ref, o, layout) => {
+                return Ok(IotaObjectResponse::new_with_data(
+                    IotaObjectData::new(object_ref, o, layout, options, None)
+                        .map_err(internal_error)?,
+                ));
+            }
+        }
+
+        // Try as Dynamic Field Object
+        let dynamic_object_field_struct =
+            iota_types::dynamic_field::DynamicFieldInfo::dynamic_object_field_wrapper(name.type_);
+        let dynamic_object_field_type = TypeTag::Struct(Box::new(dynamic_object_field_struct));
+        let dynamic_object_field_id = iota_types::dynamic_field::derive_dynamic_field_id(
+            parent_object_id,
+            &dynamic_object_field_type,
+            &name_bcs_value,
+        )
+        .map_err(internal_error)?;
+
+        match self
+            .inner
+            .get_object_read_in_blocking_task(dynamic_object_field_id)
+            .await?
+        {
+            ObjectRead::NotExists(_) | ObjectRead::Deleted(_) => {}
+            ObjectRead::Exists(object_ref, o, layout) => {
+                return Ok(IotaObjectResponse::new_with_data(
+                    IotaObjectData::new(object_ref, o, layout, options, None)
+                        .map_err(internal_error)?,
+                ));
+            }
+        }
+
+        Ok(IotaObjectResponse::new_with_error(
+            IotaObjectResponseError::DynamicFieldNotFound { parent_object_id },
+        ))
+    }
 }
 
 async fn construct_object_response(
@@ -238,56 +296,22 @@ impl IndexerApiServer for IndexerApi {
         parent_object_id: ObjectID,
         name: DynamicFieldName,
     ) -> RpcResult<IotaObjectResponse> {
-        let name_bcs_value = self.inner.bcs_name_from_dynamic_field_name(&name).await?;
-
-        // Try as Dynamic Field
-        let id = iota_types::dynamic_field::derive_dynamic_field_id(
+        self.get_dynamic_field_object(
             parent_object_id,
-            &name.type_,
-            &name_bcs_value,
+            name,
+            Some(IotaObjectDataOptions::full_content()),
         )
-        .expect("deriving dynamic field id can't fail");
+        .await
+    }
 
-        let options = iota_json_rpc_types::IotaObjectDataOptions::full_content();
-        match self.inner.get_object_read_in_blocking_task(id).await? {
-            iota_types::object::ObjectRead::NotExists(_)
-            | iota_types::object::ObjectRead::Deleted(_) => {}
-            iota_types::object::ObjectRead::Exists(object_ref, o, layout) => {
-                return Ok(IotaObjectResponse::new_with_data(
-                    IotaObjectData::new(object_ref, o, layout, options, None)
-                        .map_err(internal_error)?,
-                ));
-            }
-        }
-
-        // Try as Dynamic Field Object
-        let dynamic_object_field_struct =
-            iota_types::dynamic_field::DynamicFieldInfo::dynamic_object_field_wrapper(name.type_);
-        let dynamic_object_field_type = TypeTag::Struct(Box::new(dynamic_object_field_struct));
-        let dynamic_object_field_id = iota_types::dynamic_field::derive_dynamic_field_id(
-            parent_object_id,
-            &dynamic_object_field_type,
-            &name_bcs_value,
-        )
-        .expect("deriving dynamic field id can't fail");
-        match self
-            .inner
-            .get_object_read_in_blocking_task(dynamic_object_field_id)
-            .await?
-        {
-            iota_types::object::ObjectRead::NotExists(_)
-            | iota_types::object::ObjectRead::Deleted(_) => {}
-            iota_types::object::ObjectRead::Exists(object_ref, o, layout) => {
-                return Ok(IotaObjectResponse::new_with_data(
-                    IotaObjectData::new(object_ref, o, layout, options, None)
-                        .map_err(internal_error)?,
-                ));
-            }
-        }
-
-        Ok(IotaObjectResponse::new_with_error(
-            iota_types::error::IotaObjectResponseError::DynamicFieldNotFound { parent_object_id },
-        ))
+    async fn get_dynamic_field_object_v2(
+        &self,
+        parent_object_id: ObjectID,
+        name: DynamicFieldName,
+        options: Option<IotaObjectDataOptions>,
+    ) -> RpcResult<IotaObjectResponse> {
+        self.get_dynamic_field_object(parent_object_id, name, options)
+            .await
     }
 
     fn subscribe_event(

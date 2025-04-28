@@ -10,10 +10,10 @@ import {
     useBalance,
     createValidationSchema,
     MIN_NUMBER_IOTA_TO_STAKE,
-    useGetLatestIotaSystemState,
+    useNewStakeTransaction,
 } from '@iota/core';
 import { FormikProvider, useFormik } from 'formik';
-import { useCurrentAccount } from '@iota/dapp-kit';
+import { useCurrentAccount, useIotaClientQuery } from '@iota/dapp-kit';
 import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 import { Dialog } from '@iota/apps-ui-kit';
 import { DetailsView } from './views';
@@ -61,15 +61,22 @@ export function StakeDialog({
     const coinSymbol = metadata?.symbol ?? '';
     const minimumStake = parseAmount(MIN_NUMBER_IOTA_TO_STAKE.toString(), coinDecimals);
 
+    const { data: maxAmountTransactionData } = useNewStakeTransaction(
+        selectedValidator,
+        coinBalance,
+        senderAddress,
+    );
+    const maxAmountTxGasBudget = BigInt(maxAmountTransactionData?.gasSummary?.budget ?? 0n);
+    const availableBalance = coinBalance - maxAmountTxGasBudget;
     const validationSchema = useMemo(
         () =>
             createValidationSchema(
-                maxStakableTimelockedAmount ?? coinBalance,
+                maxStakableTimelockedAmount ?? availableBalance,
                 coinSymbol,
                 coinDecimals,
                 minimumStake,
             ),
-        [maxStakableTimelockedAmount, coinBalance, coinSymbol, coinDecimals, minimumStake],
+        [maxStakableTimelockedAmount, availableBalance, coinSymbol, coinDecimals, minimumStake],
     );
 
     const formik = useFormik({
@@ -79,13 +86,10 @@ export function StakeDialog({
         validateOnMount: true,
     });
 
-    const { data: systemState } = useGetLatestIotaSystemState();
+    const { data: systemState } = useIotaClientQuery('getLatestIotaSystemState');
     const validatorAddresses = (systemState?.activeValidators ?? []).map(
         (validator) => validator.iotaAddress,
     );
-
-    const amount = formik.values.amount;
-    const amountWithoutDecimals = parseAmount(amount, coinDecimals);
 
     function handleBack(): void {
         setView(StakeDialogView.SelectValidator);
@@ -152,7 +156,7 @@ export function StakeDialog({
                             selectedValidator={selectedValidator}
                             handleClose={handleClose}
                             onBack={handleBack}
-                            amountWithoutDecimals={amountWithoutDecimals}
+                            availableBalance={availableBalance}
                             senderAddress={senderAddress}
                             onSuccess={handleTransactionSuccess}
                         />
@@ -165,7 +169,6 @@ export function StakeDialog({
                             onBack={handleBack}
                             senderAddress={senderAddress}
                             onSuccess={handleTransactionSuccess}
-                            amountWithoutDecimals={amountWithoutDecimals}
                         />
                     )}
                     {view === StakeDialogView.TransactionDetails && (
