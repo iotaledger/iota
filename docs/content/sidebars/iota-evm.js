@@ -442,11 +442,6 @@ const iotaEvm = [
                     },
                     {
                         type: 'doc',
-                        label: 'blob',
-                        id: 'iota-evm/references/core-contracts/blob',
-                    },
-                    {
-                        type: 'doc',
                         label: 'blocklog',
                         id: 'iota-evm/references/core-contracts/blocklog',
                     },
@@ -464,6 +459,11 @@ const iotaEvm = [
                         type: 'doc',
                         label: 'EVM',
                         id: 'iota-evm/references/core-contracts/evm',
+                    },
+                    {
+                        type: 'doc',
+                        label: 'Types',
+                        id: 'iota-evm/references/core-contracts/types',
                     },
                 ],
             },
