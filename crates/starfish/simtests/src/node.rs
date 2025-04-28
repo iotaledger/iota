@@ -9,15 +9,15 @@ use std::{
 
 use anyhow::Result;
 use arc_swap::ArcSwapOption;
-use consensus_config::{AuthorityIndex, Committee, NetworkKeyPair, Parameters, ProtocolKeyPair};
-use consensus_core::{
-    CommitConsumer, CommitConsumerMonitor, CommittedSubDag, ConsensusAuthority, TransactionClient,
-    network::tonic_network::to_socket_addr, transaction::NoopTransactionVerifier,
-};
 use iota_metrics::monitored_mpsc::{UnboundedReceiver, unbounded_channel};
 use iota_protocol_config::{ConsensusNetwork, ProtocolConfig};
 use parking_lot::Mutex;
 use prometheus::Registry;
+use starfish_config::{AuthorityIndex, Committee, NetworkKeyPair, Parameters, ProtocolKeyPair};
+use starfish_core::{
+    CommitConsumer, CommitConsumerMonitor, CommittedSubDag, ConsensusAuthority, TransactionClient,
+    network::tonic_network::to_socket_addr, transaction::NoopTransactionVerifier,
+};
 use tempfile::TempDir;
 use tracing::{info, trace};
 

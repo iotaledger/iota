@@ -5,10 +5,6 @@
 mod test {
     use std::{sync::Arc, time::Duration};
 
-    use consensus_config::{
-        Authority, AuthorityIndex, AuthorityKeyPair, Committee, Epoch, NetworkKeyPair,
-        ProtocolKeyPair, Stake,
-    };
     use iota_config::local_ip_utils;
     use iota_macros::sim_test;
     use iota_network_stack::Multiaddr;
@@ -19,6 +15,10 @@ mod test {
     };
     use prometheus::Registry;
     use rand::{SeedableRng as _, rngs::StdRng};
+    use starfish_config::{
+        Authority, AuthorityIndex, AuthorityKeyPair, Committee, Epoch, NetworkKeyPair,
+        ProtocolKeyPair, Stake,
+    };
     use tempfile::TempDir;
     use tokio::time::sleep;
     use typed_store::DBMetrics;
