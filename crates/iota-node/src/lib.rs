@@ -2066,8 +2066,8 @@ pub async fn build_http_server(
             ))?;
         }
 
-        // TODO: Init from chain if config is not set when `IotaNamesConfig::from_chain`
-        // once implemented
+        // TODO: Init from chain if config is not set once `IotaNamesConfig::from_chain`
+        // is implemented
         let iota_names_config = config.iota_names_config.clone().unwrap_or_default();
 
         server.register_module(IndexerApi::new(
