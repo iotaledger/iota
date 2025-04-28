@@ -98,7 +98,7 @@ impl BlockManager {
         blocks: Vec<VerifiedBlock>,
     ) -> (Vec<VerifiedBlock>, BTreeSet<BlockRef>) {
         let _s = monitored_scope("BlockManager::try_accept_blocks");
-        self.try_accept_blocks_internal(blocks, false)
+        self.try_accept_blocks_internal(blocks)
     }
 
     /// Attempts to accept the provided blocks. When `committed = true` then the
@@ -106,9 +106,7 @@ impl BlockManager {
     /// are handled differently.
     fn try_accept_blocks_internal(
         &mut self,
-        mut blocks: Vec<VerifiedBlock>,
-        committed: bool,
-    ) -> (Vec<VerifiedBlock>, BTreeSet<BlockRef>) {
+        mut blocks: Vec<VerifiedBlock>) -> (Vec<VerifiedBlock>, BTreeSet<BlockRef>) {
         let _s = monitored_scope("BlockManager::try_accept_blocks_internal");
 
         blocks.sort_by_key(|b| b.round());
@@ -127,21 +125,7 @@ impl BlockManager {
             let block_ref = block.reference();
 
             let mut to_verify_timestamps_and_accept = vec![];
-            if committed {
-                match self.try_accept_one_committed_block(block) {
-                    TryAcceptResult::Accepted(block) => {
-                        // As this is a committed block, then it's already accepted and there is no
-                        // need to verify its timestamps. Just add it to the
-                        // accepted blocks list.
-                        accepted_blocks.push(block);
-                    }
-                    TryAcceptResult::Processed => continue,
-                    TryAcceptResult::Suspended(_) => panic!(
-                        "Did not expect to suspend or skip a committed block: {:?}",
-                        block_ref
-                    ),
-                };
-            } else {
+
                 match self.try_accept_one_block(block) {
                     TryAcceptResult::Accepted(block) => {
                         to_verify_timestamps_and_accept.push(block);
@@ -156,7 +140,7 @@ impl BlockManager {
                     }
                     TryAcceptResult::Processed => continue,
                 };
-            };
+
 
             // If the block is accepted, try to unsuspend its children blocks if any.
             let unsuspended_blocks = self.try_unsuspend_children_blocks(block_ref);
