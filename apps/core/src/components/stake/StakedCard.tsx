@@ -5,8 +5,8 @@
 import { Card, CardImage, CardType, CardBody, CardAction, CardActionType } from '@iota/apps-ui-kit';
 import { useMemo } from 'react';
 import { ImageIcon } from '../icon';
-import { ExtendedDelegatedStake, getInactiveValidatorsData } from '../../utils';
-import { useFormatCoin, useStakeRewardStatus } from '../../hooks';
+import { ExtendedDelegatedStake } from '../../utils';
+import { useFormatCoin, useStakeRewardStatus, getInactiveValidatorsData } from '../../hooks';
 import { useIotaClient, useIotaClientQuery } from '@iota/dapp-kit';
 import { useQuery } from '@tanstack/react-query';
 import { normalizeIotaAddress } from '@iota/iota-sdk/utils';
