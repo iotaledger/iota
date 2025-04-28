@@ -4,6 +4,7 @@
 
 use std::{
     cell::RefCell,
+    cmp::min,
     sync::atomic::{AtomicBool, Ordering},
 };
 
@@ -1196,7 +1197,7 @@ impl ProtocolConfig {
     pub fn gc_depth(&self) -> u32 {
         if cfg!(msim) {
             // exercise a very low gc_depth
-            5
+            min(5, self.consensus_gc_depth.unwrap_or(0))
         } else {
             self.consensus_gc_depth.unwrap_or(0)
         }
