@@ -772,7 +772,7 @@ async fn run_bench_worker(
                 } else {
                     metrics_cloned
                         .num_error
-                        .with_label_values(&[&payload.to_string(), "execution"])
+                        .with_label_values(&[&payload.to_string(), &"execution".to_string()])
                         .inc();
                 }
 
@@ -813,7 +813,7 @@ async fn run_bench_worker(
                 } else {
                     metrics_cloned
                         .num_error
-                        .with_label_values(&[&payload.to_string(), "rpc"])
+                        .with_label_values(&[&payload.to_string(), &"rpc".to_string()])
                         .inc();
                     NextOp::Retry(Box::new((transaction, payload)))
                 }
