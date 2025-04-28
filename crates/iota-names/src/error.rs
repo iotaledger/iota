@@ -14,8 +14,8 @@ pub enum IotaNamesError {
     HyphensAsFirstOrLastLabelChar,
     #[error("Only lowercase letters, numbers, and hyphens are allowed as label characters")]
     InvalidLabelChar,
-    #[error("Domain must contain at least one label")]
-    LabelsEmpty, //
+    #[error("Domain must contain at least two labels, TLD and SLD")]
+    NotEnoughLabels,
     #[error("Domain must include only one separator")]
     InvalidSeparator, //
     #[error("Name has expired")]

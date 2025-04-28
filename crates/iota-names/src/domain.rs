@@ -42,7 +42,7 @@ impl FromStr for Domain {
 
         // A valid domain in our system has at least a TLD and an SLD (len == 2).
         if labels.len() < 2 {
-            return Err(IotaNamesError::LabelsEmpty);
+            return Err(IotaNamesError::NotEnoughLabels);
         }
 
         if labels[0] != IOTA_NAMES_TLD {
