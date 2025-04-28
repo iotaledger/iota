@@ -8,3 +8,4 @@ export * from './transactionSummary';
 export * from './gasSummary';
 export * from './transactionExecute';
 export * from './validators';
+export * from './schema';

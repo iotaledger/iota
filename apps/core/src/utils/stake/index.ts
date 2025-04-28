@@ -13,4 +13,3 @@ export * from './getUnstakeDetailsFromEvents';
 export * from './getTransactionAmountForTimelocked';
 export * from './getValidatorCommission';
 export * from './types';
-export * from './getInactiveValidatorsData';

@@ -4,7 +4,7 @@
 import type { IotaClient } from '@iota/iota-sdk/client';
 import { normalizeIotaAddress, toB64 } from '@iota/iota-sdk/utils';
 import { InactiveValidatorData } from '../../types';
-import { ValidatorSchema, DynamicFieldObjectSchema } from '../../constants';
+import { ValidatorSchema, DynamicFieldObjectSchema } from '../../types';
 
 // Function to get inactive validator data
 // It fetches the validator object and its dynamic fields to extract metadata
