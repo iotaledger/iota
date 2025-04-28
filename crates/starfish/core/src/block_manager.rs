@@ -158,35 +158,6 @@ impl BlockManager {
         (accepted_blocks, missing_blocks)
     }
 
-    fn try_accept_one_committed_block(&mut self, block: VerifiedBlock) -> TryAcceptResult {
-        if self.dag_state.read().contains_block(&block.reference()) {
-            return TryAcceptResult::Processed;
-        }
-
-        // Remove the block from missing and suspended blocks
-        self.missing_blocks.remove(&block.reference());
-
-        // If the block has been already fetched and parked as suspended block, then
-        // remove it. Also find all the references of missing ancestors to
-        // remove those as well. If we don't do that then it's possible once the missing
-        // ancestor is fetched to cause a panic when trying to unsuspend this
-        // children as it won't be found in the suspended blocks map.
-        if let Some(suspended_block) = self.suspended_blocks.remove(&block.reference()) {
-            suspended_block
-                .missing_ancestors
-                .iter()
-                .for_each(|ancestor| {
-                    if let Some(references) = self.missing_ancestors.get_mut(ancestor) {
-                        references.remove(&block.reference());
-                    }
-                });
-        }
-
-        // Accept this block before any unsuspended children blocks
-        self.dag_state.write().accept_blocks(vec![block.clone()]);
-
-        TryAcceptResult::Accepted(block)
-    }
 
     /// Tries to find the provided block_refs in DagState and BlockManager,
     /// and returns missing block refs.
