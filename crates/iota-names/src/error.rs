@@ -17,7 +17,7 @@ pub enum IotaNamesError {
     #[error("Domain must contain at least two labels, TLD and SLD")]
     NotEnoughLabels,
     #[error("Domain must include only one separator")]
-    InvalidSeparator, //
+    InvalidSeparator,
     #[error("Name has expired")]
     NameExpired,
     #[error("Malformed object for {0}")]
