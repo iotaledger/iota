@@ -258,7 +258,17 @@ function ValidatorPageResult(): JSX.Element {
                                         <PlaceholderTable
                                             rowCount={20}
                                             rowHeight="13px"
-                                            colHeadings={['Name', 'Address', 'Stake']}
+                                            colHeadings={[
+                                                'Name',
+                                                'Stake',
+                                                'APY',
+                                                'Commission',
+                                                'Last Epoch Rewards',
+                                                'Voting Power',
+                                                'Status',
+                                                'Current Epoch Rewards',
+                                                'Next Epoch Rewards',
+                                            ]}
                                         />
                                     )}
                                     {isSuccess &&
