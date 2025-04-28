@@ -1067,18 +1067,13 @@ fn missing_definition_diag(
     let mut diags = Diagnostics::new();
 
     // capitalize the first letter
-    let capital_declaration_kind = declaration_kind
-        .chars()
-        .enumerate()
-        .map(|(i, c)| {
-            if i == 0 {
-                c.to_uppercase().next().unwrap_or(c)
-            } else {
-                c
-            }
-        })
-        .collect::<String>();
-
+    let capital_declaration_kind = {
+        let mut chars = declaration_kind.chars();
+        match chars.next() {
+            None => String::new(),
+            Some(c) => c.to_uppercase().collect::<String>() + chars.as_str(),
+        }
+    };
     let module_name = compiled_unit_with_source.unit.name.as_str();
     let loc = compiled_unit_with_source
         .unit
