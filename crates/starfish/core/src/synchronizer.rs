@@ -1578,9 +1578,6 @@ mod tests {
      {
         // GIVEN
         let (mut context, _) = Context::new_for_test(4);
-        context
-            .protocol_config
-            .set_consensus_gc_depth_for_testing(0);
 
         let context = Arc::new(context);
         let block_verifier = Arc::new(NoopBlockVerifier {});
