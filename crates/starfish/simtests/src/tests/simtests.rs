@@ -50,7 +50,7 @@ mod test {
         const NUM_OF_AUTHORITIES: usize = 10;
         let (committee, keypairs) = local_committee_and_keys(0, [1; NUM_OF_AUTHORITIES].to_vec());
         let mut protocol_config = ProtocolConfig::get_for_max_version_UNSAFE();
-        protocol_config.set_consensus_gc_depth_for_testing(3);
+        protocol_config.set_consensus_linearize_subdag_v2_for_testing(false);
 
         let mut authorities = Vec::with_capacity(committee.size());
         let mut transaction_clients = Vec::with_capacity(committee.size());
@@ -96,7 +96,7 @@ mod test {
         // wait for authorities
         sleep(Duration::from_secs(60)).await;
 
-        // Now start the fourth authority and let it start
+        // Now start the last authority and let it start
         authorities[NUM_OF_AUTHORITIES - 1].start().await.unwrap();
         authorities[NUM_OF_AUTHORITIES - 1]
             .spawn_committed_subdag_consumer()
