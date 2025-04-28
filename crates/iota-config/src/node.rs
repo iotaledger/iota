@@ -210,7 +210,10 @@ pub struct NodeConfig {
     #[serde(default)]
     pub indexer_max_subscriptions: Option<usize>,
 
+<<<<<<< HEAD
     #[serde(default)]
+=======
+>>>>>>> ffea27a21d (Remove default value for the base_url)
     pub transaction_kv_store_read_config: TransactionKeyValueStoreReadConfig,
 
     // TODO: write config seem to be unused.
@@ -275,24 +278,10 @@ pub enum ServerType {
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(rename_all = "kebab-case")]
 pub struct TransactionKeyValueStoreReadConfig {
-    #[serde(default = "default_base_url")]
     pub base_url: String,
 
     #[serde(default = "default_cache_size")]
     pub cache_size: u64,
-}
-
-impl Default for TransactionKeyValueStoreReadConfig {
-    fn default() -> Self {
-        Self {
-            base_url: default_base_url(),
-            cache_size: default_cache_size(),
-        }
-    }
-}
-
-fn default_base_url() -> String {
-    "https://transactions.iota.cafe/".to_string()
 }
 
 fn default_cache_size() -> u64 {
