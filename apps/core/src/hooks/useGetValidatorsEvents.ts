@@ -12,7 +12,7 @@ type GetValidatorsEvent = {
 
 // NOTE: This copies the query limit from our Rust JSON RPC backend, this needs to be kept in sync!
 const QUERY_MAX_RESULT_LIMIT = 50;
-const VALIDATORS_EVENTS_QUERY = '0x3::validator_set::ValidatorEpochInfoEventV1';
+export const VALIDATORS_EVENTS_QUERY = '0x3::validator_set::ValidatorEpochInfoEventV1';
 
 //TODO: get validatorEvents by validator address
 export function useGetValidatorsEvents({ limit, order }: GetValidatorsEvent) {

@@ -1,5 +1,17 @@
 # @iota/iota-sdk
 
+## 0.7.0
+
+### Minor Changes
+
+-   42898f1: Add support for getDynamicFieldObjectV2
+-   bdb736e: Update clients after RPC updates to base64
+-   65a0900: Add circulating supply support to the iota client
+
+### Patch Changes
+
+-   1ad39f9: Update dependencies
+
 ## 0.6.0
 
 ### Minor Changes

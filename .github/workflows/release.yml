@@ -39,8 +39,34 @@ env:
   CARGO_NET_RETRY: 10
   RUSTUP_MAX_RETRIES: 10
   TMP_BUILD_DIR: "./tmp/release"
+  RELEASE_NOTES_FILE: "release_notes.txt"
 
 jobs:
+  generate-tag:
+    runs-on: ubuntu-latest
+    outputs:
+      iota_ref: ${{ steps.ref.outputs.iota_ref }}
+    steps:
+      - name: Clean up and validate ref to build and create artifact name
+        id: ref
+        shell: bash
+        run: |
+          # Manual dispatch on a branch ref
+          if [ "${{ github.event_name == 'workflow_dispatch' }}" == "true" ]; then
+            echo "iota_ref=${{ inputs.iota_branch }}" >> $GITHUB_OUTPUT
+          fi
+
+          # Release builds on a tag ref
+          if [ "${{ github.event_name == 'release' }}" == "true" ]; then
+            export iota_ref=$(echo ${{ github.ref }} | sed s/'refs\/tags\/'// )
+            echo "iota_ref=${iota_ref}" >> $GITHUB_OUTPUT
+          fi
+
+          # Scheduled nightly builds are always cut from develop
+          if [ "${{ github.event_name == 'schedule' }}" == "true" ]; then
+            echo "iota_ref=develop" >> $GITHUB_OUTPUT
+          fi
+
   release-build:
     name: Build Binaries
     timeout-minutes: 240
@@ -57,34 +83,33 @@ jobs:
             os_type: windows-x86_64
       fail-fast: false
     runs-on: ${{ matrix.os }}
+    needs: generate-tag
+
     steps:
-      - name: Clean up and validate ref to build and create artifact name
+      - name: Create artifact name
+        id: create-artifact
         shell: bash
         run: |
           # Manual dispatch on a branch ref
           if [ "${{ github.event_name == 'workflow_dispatch' }}" == "true" ]; then
-            echo "iota_ref=${{ inputs.iota_branch }}" >> $GITHUB_ENV
-            echo "artifact_name=iota-$(echo ${{ inputs.iota_branch }} | tr "/" "-")-${{ matrix.os_type }}" >> $GITHUB_ENV
+            echo "artifact_name=iota-$(echo ${{ inputs.iota_branch }} | tr "/" "-")-${{ matrix.os_type }}" >> $GITHUB_OUTPUT
           fi
 
           # Release builds on a tag ref
           if [ "${{ github.event_name == 'release' }}" == "true" ]; then
-            export iota_ref=$(echo ${{ github.ref }} | sed s/'refs\/tags\/'// )
-
-            echo "iota_ref=${iota_ref}" >> $GITHUB_ENV
-            echo "artifact_name=iota-${iota_ref}-${{ matrix.os_type }}" >> $GITHUB_ENV
+            echo "artifact_name=iota-${{ needs.generate-tag.outputs.iota_ref }}-${{ matrix.os_type }}" >> $GITHUB_OUTPUT
           fi
 
           # Scheduled nightly builds are always cut from develop
           if [ "${{ github.event_name == 'schedule' }}" == "true" ]; then
-            echo "iota_ref=develop" >> $GITHUB_ENV
-            echo "artifact_name=iota-nightly-$(date -Idate)-${{ matrix.os_type }}" >> $GITHUB_ENV
+            echo "artifact_name=iota-nightly-$(date -Idate)-${{ matrix.os_type }}" >> $GITHUB_OUTPUT
           fi
 
-      - name: Check out ${{ env.iota_ref }}
+      - name: Check out ${{ needs.generate-tag.outputs.iota_ref }}
         uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871 # v4.2.1
         with:
-          ref: ${{ env.iota_ref }}
+          fetch-depth: 0
+          ref: ${{ needs.generate-tag.outputs.iota_ref }}
 
       - name: Set os/arch variables (Windows)
         if: ${{ matrix.os_type == 'windows-x86_64' }}
@@ -95,12 +120,6 @@ jobs:
       - name: Setup caching
         # Fork of 'Swatinem/rust-cache' which allows caching additional paths
         uses: bmwill/rust-cache@cb2cf0cc7c5198d3364b9630e2c3d457f160790c # v1.4.0
-
-      - name: Install nexttest (Windows)
-        if: ${{ matrix.os_type == 'windows-x86_64' }}
-        uses: taiki-e/install-action@375e0c7f08a66b8c2ba7e7eef31a6f91043a81b0 # v2.44.38
-        with:
-          tool: nextest
 
       - name: Install postgres (Windows)
         if: ${{ matrix.os_type == 'windows-x86_64' }}
@@ -154,7 +173,7 @@ jobs:
             mv ./target/release/${binary}${{ env.extension }} ${{ env.TMP_BUILD_DIR }}/${binary}${{ env.extension }}
           done
 
-          tar -cvzf ./tmp/${{ env.artifact_name }}.tgz -C ${{ env.TMP_BUILD_DIR }} .
+          tar -cvzf ./tmp/${{ steps.create-artifact.outputs.artifact_name }}.tgz -C ${{ env.TMP_BUILD_DIR }} .
 
       #      - name: Publish Windows iota binary to Chocolatey
       #        if: ${{ matrix.os == 'windows-latest' && github.event_name == 'release' &&  && contains(env.iota_ref, '-rc') }}
@@ -180,18 +199,61 @@ jobs:
       - name: Upload artifacts for ${{ matrix.os_type }} platform
         uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # v4.4.3
         with:
-          name: ${{ env.artifact_name }}
+          name: ${{ steps.create-artifact.outputs.artifact_name }}
           if-no-files-found: error
           path: |
-            ./tmp/${{ env.artifact_name }}.tgz
+            ./tmp/${{ steps.create-artifact.outputs.artifact_name }}.tgz
 
-      - name: Attach artifacts to ${{ env.iota_ref }} release in GH
+      - name: Attach artifacts to ${{ needs.generate-tag.outputs.iota_ref }} release in GH
         if: ${{ github.event_name == 'release' }}
         uses: softprops/action-gh-release@c062e08bd532815e2082a85e87e3ef29c3e6d191 # v2.0.8
         with:
-          tag_name: ${{ env.iota_ref }}
+          tag_name: ${{ needs.generate-tag.outputs.iota_ref }}
           files: |
-            ./tmp/${{ env.artifact_name }}.tgz
+            ./tmp/${{ steps.create-artifact.outputs.artifact_name }}.tgz
+
+  generate-release-notes:
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      PRERELEASE: ${{ contains(github.ref, '-alpha') || contains(github.ref, '-beta') }}
+    runs-on: ubuntu-latest
+    if: ${{ github.event_name == 'release' }}
+    needs: generate-tag
+    steps:
+      - name: Check out ${{ needs.generate-tag.outputs.iota_ref }}
+        uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871 # v4.2.1
+        with:
+          fetch-depth: 0
+          ref: ${{ needs.generate-tag.outputs.iota_ref }}
+      - name: Generate release notes
+        run: |
+          new_commit_hash=$(git rev-parse HEAD)
+          echo "New commit hash: $new_commit_hash"
+
+          iota_tag="$(echo ${{ needs.generate-tag.outputs.iota_ref }} | sed s/'refs\/tags\/'//)"
+          echo "iota_tag = $iota_tag"
+          trl=$(echo "$iota_tag" | sed -n 's/^[^-]*\(-.*\)/\1/p')
+          echo "trl = $trl"
+          previous_tag=$(git tag --sort=-version:refname | grep -E "^v[0-9]+\.[0-9]+\.[0-9]+" | grep -- "$trl" | grep -Fv $iota_tag | head -n 1)
+          echo "Previous tag: $previous_tag"
+          previous_commit_hash=$(git rev-list -n 1 "${previous_tag}")
+          echo "Previous commit hash: $previous_commit_hash"
+
+          pushd "scripts/release_notes" > /dev/null
+          ./run.sh generate $previous_commit_hash $new_commit_hash | tee -a "../../${{ env.RELEASE_NOTES_FILE }}" > /dev/null
+          popd > /dev/null
+          echo "---" >> ${{ env.RELEASE_NOTES_FILE }}
+          echo "#### Full Log: https://github.com/iotaledger/iota/compare/$previous_tag...${{ needs.generate-tag.outputs.iota_ref }}" >> ${{ env.RELEASE_NOTES_FILE }}
+
+          echo "Generated notes:\n---"
+          cat ${{ env.RELEASE_NOTES_FILE }}
+
+      - name: Add release notes to ${{ needs.generate-tag.outputs.iota_ref }} release in GH
+        uses: softprops/action-gh-release@c062e08bd532815e2082a85e87e3ef29c3e6d191 # v2.0.8
+        with:
+          tag_name: ${{ needs.generate-tag.outputs.iota_ref }}
+          body_path: ${{ env.RELEASE_NOTES_FILE }}
+          prerelease: ${{ env.PRERELEASE }}
 
   update-homebrew-formula:
     name: Update the homebrew-tap formula
@@ -207,21 +269,22 @@ jobs:
       - name: Install github CLI
         run: brew install gh
       - name: Get tag for the release
+        id: tag
         shell: bash
         run: |
-          echo iota_tag="$(echo ${{ github.ref }} | sed s/'refs\/tags\/'//)" >> $GITHUB_ENV
+          echo iota_tag="$(echo ${{ github.ref }} | sed s/'refs\/tags\/'//)" >> $GITHUB_OUTPUT
       - uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871 # v4.2.1
       - name: Get binary checksums
         uses: thewh1teagle/checksum@6577963a29f57d780d12a2e5495601298ba739d1 # v2
         with:
-          tag: ${{ env.iota_tag }}
+          tag: ${{ steps.tag.outputs.iota_tag }}
           # These two parameters are needed to make the resulting checksum file work with shasum256 -c
           reverse-order: true
           separator: " "
 
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      - run: ./scripts/homebrew/update_formula.sh ${{ env.iota_tag }}
+      - run: ./scripts/homebrew/update_formula.sh ${{ steps.tag.outputs.iota_tag }}
         env:
           # GH_TOKEN needs write access to the repository specified by the homebrew-tap input,
           # or enough privileges to fork the tap repo (usually homebrew-core) and submit a PR to it.

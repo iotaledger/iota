@@ -1,0 +1,51 @@
+import NetworkConfigTestnet from '../network-node-config-testnet.mdx';
+import NetworkConfigDevnet from '../network-node-config-devnet.mdx';
+
+By default, the configuration file `fullnode.yaml` is located at `/opt/iota/config/fullnode.yaml`.  
+You may have specified a different `$CONFIG_DIR` during setup.  
+
+The p2p section should include known public peer nodes, like this:
+
+<Tabs groupId="network" queryString>
+  <TabItem label="Testnet" value="testnet">
+    <NetworkConfigTestnet/>
+  </TabItem>
+
+  <TabItem label="Devnet" value="devnet">
+    <NetworkConfigDevnet/>
+  </TabItem>
+</Tabs>
+
+The archival section of the config file should look like this:
+
+<Tabs groupId="network" queryString>
+  <TabItem label="Testnet" value="testnet">
+    ```yaml
+    state-archive-read-config:
+      - object-store-config:
+          object-store: "S3"
+          aws-endpoint: "https://archive.testnet.iota.cafe"
+          aws-virtual-hosted-style-request: true
+          object-store-connection-limit: 20
+          no-sign-request: true
+        concurrency: 5
+        use-for-pruning-watermark: false
+    ```
+  </TabItem>
+
+  <TabItem label="Devnet" value="devnet">
+    ```yaml
+    state-archive-read-config:
+      - object-store-config:
+          object-store: "S3"
+          aws-endpoint: "https://archive.devnet.iota.cafe"
+          aws-virtual-hosted-style-request: true
+          object-store-connection-limit: 20
+          no-sign-request: true
+        concurrency: 5
+        use-for-pruning-watermark: false
+    ```
+  </TabItem>
+</Tabs>
+
+This allows nodes that fall behind to catch up by downloading archive data rather than relying on synchronization. See [IOTA Archives](configs/archives) for details.

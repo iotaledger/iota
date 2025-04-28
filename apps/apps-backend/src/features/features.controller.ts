@@ -141,13 +141,13 @@ export class FeaturesController {
                     defaultValue: true,
                 },
                 [Feature.AccountFinder]: {
-                    defaultValue: false,
+                    defaultValue: true,
                 },
                 [Feature.StardustMigration]: {
-                    defaultValue: false,
+                    defaultValue: true,
                 },
                 [Feature.SupplyIncreaseVesting]: {
-                    defaultValue: false,
+                    defaultValue: true,
                 },
                 [Feature.FiatConversion]: {
                     defaultValue: {

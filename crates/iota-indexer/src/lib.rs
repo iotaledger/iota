@@ -65,7 +65,7 @@ pub struct IndexerConfig {
     pub db_name: Option<String>,
     #[arg(long, default_value = "http://0.0.0.0:9000", global = true)]
     pub rpc_client_url: String,
-    #[arg(long, default_value = Some("https://api.testnet.iota.cafe/api/v1"), global = true)]
+    #[arg(long, default_value = Some("http://0.0.0.0:9000/api/v1"), global = true)]
     pub remote_store_url: Option<String>,
     #[arg(long, default_value = "0.0.0.0", global = true)]
     pub client_metric_host: String,
@@ -147,7 +147,7 @@ impl Default for IndexerConfig {
             db_port: None,
             db_name: None,
             rpc_client_url: "http://127.0.0.1:9000".to_string(),
-            remote_store_url: Some("https://api.testnet.iota.cafe/api/v1".to_string()),
+            remote_store_url: Some("http://127.0.0.1:9000/api/v1".to_string()),
             client_metric_host: "0.0.0.0".to_string(),
             client_metric_port: 9184,
             rpc_server_url: "0.0.0.0".to_string(),
