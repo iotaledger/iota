@@ -210,10 +210,7 @@ pub struct NodeConfig {
     #[serde(default)]
     pub indexer_max_subscriptions: Option<usize>,
 
-<<<<<<< HEAD
     #[serde(default)]
-=======
->>>>>>> ffea27a21d (Remove default value for the base_url)
     pub transaction_kv_store_read_config: TransactionKeyValueStoreReadConfig,
 
     // TODO: write config seem to be unused.
@@ -275,7 +272,7 @@ pub enum ServerType {
     Both,
 }
 
-#[derive(Clone, Debug, Deserialize, Serialize)]
+#[derive(Clone, Debug, Deserialize, Serialize, Default)]
 #[serde(rename_all = "kebab-case")]
 pub struct TransactionKeyValueStoreReadConfig {
     pub base_url: String,
