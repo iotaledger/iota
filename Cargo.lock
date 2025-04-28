@@ -13478,6 +13478,97 @@ dependencies = [
 ]
 
 [[package]]
+name = "starfish-config"
+version = "0.1.0"
+dependencies = [
+ "fastcrypto",
+ "insta",
+ "iota-network-stack",
+ "rand 0.8.5",
+ "serde",
+ "shared-crypto",
+]
+
+[[package]]
+name = "starfish-core"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "arc-swap",
+ "async-trait",
+ "base64 0.21.7",
+ "bcs",
+ "bytes",
+ "cfg-if",
+ "dashmap",
+ "enum_dispatch",
+ "fastcrypto",
+ "futures",
+ "http 1.1.0",
+ "iota-common",
+ "iota-http",
+ "iota-macros",
+ "iota-metrics",
+ "iota-network-stack",
+ "iota-protocol-config",
+ "iota-tls",
+ "itertools 0.13.0",
+ "nom",
+ "parking_lot 0.12.3",
+ "prometheus",
+ "prost",
+ "quinn-proto",
+ "rand 0.8.5",
+ "rstest",
+ "rustls 0.23.18",
+ "serde",
+ "shared-crypto",
+ "starfish-config",
+ "strum_macros 0.26.4",
+ "tap",
+ "telemetry-subscribers",
+ "tempfile",
+ "thiserror 1.0.64",
+ "tokio",
+ "tokio-rustls 0.26.0",
+ "tokio-stream",
+ "tokio-util 0.7.12",
+ "tonic",
+ "tonic-build",
+ "tonic-rustls",
+ "tower 0.4.13",
+ "tower-http",
+ "tracing",
+ "typed-store",
+]
+
+[[package]]
+name = "starfish-simtests"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "arc-swap",
+ "iota-config",
+ "iota-macros",
+ "iota-metrics",
+ "iota-network-stack",
+ "iota-protocol-config",
+ "iota-simulator",
+ "parking_lot 0.12.3",
+ "prometheus",
+ "rand 0.8.5",
+ "starfish-config",
+ "starfish-core",
+ "telemetry-subscribers",
+ "tempfile",
+ "tokio",
+ "tokio-stream",
+ "tokio-util 0.7.12",
+ "tracing",
+ "typed-store",
+]
+
+[[package]]
 name = "static_assertions"
 version = "1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
