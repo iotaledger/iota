@@ -11,7 +11,9 @@
     "foundry-output-claim": "ts-node src/stardust/foundry-output-claim.ts",
     "iota-self-sponsor": "ts-node src/stardust/iota-self-sponsor.ts",
     "nft-migration": "ts-node src/stardust/nft-migration.ts",
-    "nft-output-claim": "ts-node src/stardust/nft-output-claim.ts"
+    "nft-output-claim": "ts-node src/stardust/nft-output-claim.ts",
+    "derive-address": "ts-node src/exchange/derive-address.ts",
+    "get-balance": "ts-node src/exchange/get-balance.ts"
   },
   "keywords": [],
   "author": "",
