@@ -74,7 +74,7 @@ validator_configs:
       concurrency: 0
     indexer-max-subscriptions: ~
     transaction-kv-store-read-config:
-      base-url: "https://transactions.iota.cafe/"
+      base-url: ""
       cache-size: 100000
     jwk-fetch-interval-seconds: 3600
     zklogin-oauth-providers:
@@ -201,7 +201,7 @@ validator_configs:
       concurrency: 0
     indexer-max-subscriptions: ~
     transaction-kv-store-read-config:
-      base-url: "https://transactions.iota.cafe/"
+      base-url: ""
       cache-size: 100000
     jwk-fetch-interval-seconds: 3600
     zklogin-oauth-providers:
@@ -328,7 +328,7 @@ validator_configs:
       concurrency: 0
     indexer-max-subscriptions: ~
     transaction-kv-store-read-config:
-      base-url: "https://transactions.iota.cafe/"
+      base-url: ""
       cache-size: 100000
     jwk-fetch-interval-seconds: 3600
     zklogin-oauth-providers:
@@ -455,7 +455,7 @@ validator_configs:
       concurrency: 0
     indexer-max-subscriptions: ~
     transaction-kv-store-read-config:
-      base-url: "https://transactions.iota.cafe/"
+      base-url: ""
       cache-size: 100000
     jwk-fetch-interval-seconds: 3600
     zklogin-oauth-providers:
@@ -582,7 +582,7 @@ validator_configs:
       concurrency: 0
     indexer-max-subscriptions: ~
     transaction-kv-store-read-config:
-      base-url: "https://transactions.iota.cafe/"
+      base-url: ""
       cache-size: 100000
     jwk-fetch-interval-seconds: 3600
     zklogin-oauth-providers:
@@ -709,7 +709,7 @@ validator_configs:
       concurrency: 0
     indexer-max-subscriptions: ~
     transaction-kv-store-read-config:
-      base-url: "https://transactions.iota.cafe/"
+      base-url: ""
       cache-size: 100000
     jwk-fetch-interval-seconds: 3600
     zklogin-oauth-providers:
@@ -836,7 +836,7 @@ validator_configs:
       concurrency: 0
     indexer-max-subscriptions: ~
     transaction-kv-store-read-config:
-      base-url: "https://transactions.iota.cafe/"
+      base-url: ""
       cache-size: 100000
     jwk-fetch-interval-seconds: 3600
     zklogin-oauth-providers:
