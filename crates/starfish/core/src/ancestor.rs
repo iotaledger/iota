@@ -204,7 +204,7 @@ impl AncestorStateManager {
                         .metrics
                         .node_metrics
                         .ancestor_state_change_by_authority
-                        .with_label_values(&[block_hostname, "exclude"])
+                        .with_label_values(&[block_hostname.as_str(), "exclude"])
                         .inc();
                 }
             }
@@ -227,7 +227,7 @@ impl AncestorStateManager {
                         .metrics
                         .node_metrics
                         .ancestor_state_change_by_authority
-                        .with_label_values(&[block_hostname, "include"])
+                        .with_label_values(&[block_hostname.as_str(), "include"])
                         .inc();
                 }
             }
