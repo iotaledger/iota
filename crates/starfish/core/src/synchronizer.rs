@@ -574,13 +574,13 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> Synchronizer<C
         let peer_hostname = &context.committee.authority(peer_index).hostname;
         metrics
             .synchronizer_fetched_blocks_by_peer
-            .with_label_values(&[peer_hostname, sync_method])
+            .with_label_values(&[peer_hostname.as_str(), sync_method])
             .inc_by(blocks.len() as u64);
         for block in &blocks {
             let block_hostname = &context.committee.authority(block.author()).hostname;
             metrics
                 .synchronizer_fetched_blocks_by_authority
-                .with_label_values(&[block_hostname, sync_method])
+                .with_label_values(&[block_hostname.as_str(), sync_method])
                 .inc();
         }
 
@@ -657,7 +657,7 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> Synchronizer<C
                     .metrics
                     .node_metrics
                     .invalid_blocks
-                    .with_label_values(&[&hostname, "synchronizer", e.clone().name()])
+                    .with_label_values(&[hostname.as_str(), "synchronizer", e.clone().name()])
                     .inc();
                 warn!("Invalid block received from {}: {}", peer_index, e);
                 return Err(e);
@@ -769,7 +769,7 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> Synchronizer<C
                                                 .metrics
                                                 .node_metrics
                                                 .invalid_blocks
-                                                .with_label_values(&[&hostname, "synchronizer_own_block", err.clone().name()])
+                                                .with_label_values(&[hostname.as_str(), "synchronizer_own_block", err.clone().name()])
                                                 .inc();
                                             warn!("Invalid block received from {}: {}", authority_index, err);
                                         })?;
@@ -891,14 +891,6 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> Synchronizer<C
 
         let (commit_lagging, last_commit_index, quorum_commit_index) = self.is_commit_lagging();
         if commit_lagging {
-            // If gc is enabled and we are commit lagging, then we don't want to enable the
-            // scheduler. As the new logic of processing the certified commits
-            // takes place we are guaranteed that commits will happen for all the certified
-            // commits.
-            if dag_state.read().gc_enabled() {
-                return Ok(());
-            }
-
             // As node is commit lagging try to sync only the missing blocks that are within
             // the acceptable round thresholds to sync. The rest we don't attempt to
             // sync yet.
@@ -1585,13 +1577,7 @@ mod tests {
     async fn synchronizer_periodic_task_when_commit_lagging_with_missing_blocks_in_acceptable_thresholds()
      {
         // GIVEN
-        let (mut context, _) = Context::new_for_test(4);
-
-        // We want to run this test only when gc is disabled. Once gc gets enabled this
-        // logic won't execute any more.
-        context
-            .protocol_config
-            .set_consensus_gc_depth_for_testing(0);
+        let (context, _) = Context::new_for_test(4);
 
         let context = Arc::new(context);
         let block_verifier = Arc::new(NoopBlockVerifier {});

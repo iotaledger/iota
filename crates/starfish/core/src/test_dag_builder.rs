@@ -155,8 +155,6 @@ impl DagBuilder {
             };
 
         struct BlockStorage {
-            gc_round: Round,
-            context: Arc<Context>,
             blocks: BTreeMap<BlockRef, (VerifiedBlock, bool)>, /* the tuple represents the block
                                                                 * and whether it is committed */
         }
@@ -169,14 +167,6 @@ impl DagBuilder {
                             .map(|(block, _committed)| block.clone())
                     })
                     .collect()
-            }
-
-            fn gc_round(&self) -> Round {
-                self.gc_round
-            }
-
-            fn gc_enabled(&self) -> bool {
-                self.context.protocol_config.gc_depth() > 0
             }
 
             fn set_committed(&mut self, block_ref: &BlockRef) -> bool {
@@ -198,14 +188,12 @@ impl DagBuilder {
             }
         }
         let mut storage = BlockStorage {
-            context: self.context.clone(),
             blocks: self
                 .blocks
                 .clone()
                 .into_iter()
                 .map(|(k, v)| (k, (v, false)))
                 .collect(),
-            gc_round: 0,
         };
 
         // Create any remaining committed sub dags
@@ -214,12 +202,6 @@ impl DagBuilder {
             .into_iter()
             .flatten()
         {
-            // set the gc round to the round of the leader block
-            storage.gc_round = leader_block
-                .round()
-                .saturating_sub(1)
-                .saturating_sub(self.context.protocol_config.gc_depth());
-
             let leader_block_ref = leader_block.reference();
             last_timestamp_ms = leader_block.timestamp_ms().max(last_timestamp_ms);
 
