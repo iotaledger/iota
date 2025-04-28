@@ -19,7 +19,7 @@ pub const MAX_EXECUTION_TIME: ExecutionTime = ExecutionTime::MAX;
 
 /// Represents a sequencing result: schedule transaction, or defer it
 /// due to shared object congestion. Sequencing result is returned by
-/// the `try_schedule` method of the shared object congestion tracker.
+/// the `try_schedule` method of the `SharedObjectCongestionTracker`.
 pub enum SequencingResult {
     /// Sequencing result indicating that a transaction is scheduled to be
     /// executed at start time

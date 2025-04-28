@@ -155,7 +155,7 @@ type JwkAggregator = GenericMultiStakeAggregator<(JwkId, JWK), true>;
 
 /// Represents a scheduling result: a transaction can be either scheduled
 /// for execution, or deferred for some reason. Scheduling result is
-/// returned by the `try_schedule` method of authority per epoch store.
+/// returned by the `try_schedule` method of `AuthorityPerEpochStore`.
 enum SchedulingResult {
     /// Scheduling result indicating that a transaction is scheduled to be
     /// executed at start time
