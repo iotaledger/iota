@@ -472,7 +472,10 @@ mod tests {
     async fn test_handle_already_committed() {
         telemetry_subscribers::init_for_testing();
         let num_authorities = 4;
-        let (context, _) = Context::new_for_test(num_authorities);
+        let (mut context, _) = Context::new_for_test(num_authorities);
+        context
+            .protocol_config
+            .set_consensus_linearize_subdag_v2_for_testing(false);
 
         let context = Arc::new(context);
 
