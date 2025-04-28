@@ -209,13 +209,13 @@ impl MoveType {
 impl From<MoveObjectType> for MoveType {
     fn from(obj: MoveObjectType) -> Self {
         let tag: TypeTag = obj.into();
-        Self { native: tag.into() }
+        Self { native: tag }
     }
 }
 
 impl From<TypeTag> for MoveType {
     fn from(tag: TypeTag) -> Self {
-        Self { native: tag.into() }
+        Self { native: tag }
     }
 }
 
