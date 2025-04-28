@@ -1577,7 +1577,7 @@ mod tests {
     async fn synchronizer_periodic_task_when_commit_lagging_with_missing_blocks_in_acceptable_thresholds()
      {
         // GIVEN
-        let (mut context, _) = Context::new_for_test(4);
+        let (context, _) = Context::new_for_test(4);
 
         let context = Arc::new(context);
         let block_verifier = Arc::new(NoopBlockVerifier {});

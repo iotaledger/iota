@@ -489,7 +489,7 @@ mod tests {
 
         const NUM_OF_AUTHORITIES: usize = 4;
         let (committee, keypairs) = local_committee_and_keys(0, [1; NUM_OF_AUTHORITIES].to_vec());
-        let mut protocol_config = ProtocolConfig::get_for_max_version_UNSAFE();
+        let protocol_config = ProtocolConfig::get_for_max_version_UNSAFE();
 
         let temp_dirs = (0..NUM_OF_AUTHORITIES)
             .map(|_| TempDir::new().unwrap())
@@ -693,7 +693,7 @@ mod tests {
         let mut temp_dirs = BTreeMap::new();
         let mut boot_counters = [0; NUM_OF_AUTHORITIES];
 
-        let mut protocol_config = ProtocolConfig::get_for_max_version_UNSAFE();
+        let protocol_config = ProtocolConfig::get_for_max_version_UNSAFE();
 
         for (index, _authority_info) in committee.authorities() {
             let dir = TempDir::new().unwrap();

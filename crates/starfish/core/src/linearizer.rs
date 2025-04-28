@@ -472,7 +472,7 @@ mod tests {
     async fn test_handle_already_committed() {
         telemetry_subscribers::init_for_testing();
         let num_authorities = 4;
-        let (mut context, _) = Context::new_for_test(num_authorities);
+        let (context, _) = Context::new_for_test(num_authorities);
 
         let context = Arc::new(context);
 
