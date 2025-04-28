@@ -106,7 +106,8 @@ impl BlockManager {
     /// are handled differently.
     fn try_accept_blocks_internal(
         &mut self,
-        mut blocks: Vec<VerifiedBlock>) -> (Vec<VerifiedBlock>, BTreeSet<BlockRef>) {
+        mut blocks: Vec<VerifiedBlock>,
+    ) -> (Vec<VerifiedBlock>, BTreeSet<BlockRef>) {
         let _s = monitored_scope("BlockManager::try_accept_blocks_internal");
 
         blocks.sort_by_key(|b| b.round());
@@ -126,21 +127,20 @@ impl BlockManager {
 
             let mut to_verify_timestamps_and_accept = vec![];
 
-                match self.try_accept_one_block(block) {
-                    TryAcceptResult::Accepted(block) => {
-                        to_verify_timestamps_and_accept.push(block);
-                    }
-                    TryAcceptResult::Suspended(ancestors_to_fetch) => {
-                        debug!(
-                            "Missing ancestors to fetch for block {block_ref}: {}",
-                            ancestors_to_fetch.iter().map(|b| b.to_string()).join(",")
-                        );
-                        missing_blocks.extend(ancestors_to_fetch);
-                        continue;
-                    }
-                    TryAcceptResult::Processed => continue,
-                };
-
+            match self.try_accept_one_block(block) {
+                TryAcceptResult::Accepted(block) => {
+                    to_verify_timestamps_and_accept.push(block);
+                }
+                TryAcceptResult::Suspended(ancestors_to_fetch) => {
+                    debug!(
+                        "Missing ancestors to fetch for block {block_ref}: {}",
+                        ancestors_to_fetch.iter().map(|b| b.to_string()).join(",")
+                    );
+                    missing_blocks.extend(ancestors_to_fetch);
+                    continue;
+                }
+                TryAcceptResult::Processed => continue,
+            };
 
             // If the block is accepted, try to unsuspend its children blocks if any.
             let unsuspended_blocks = self.try_unsuspend_children_blocks(block_ref);
@@ -157,7 +157,6 @@ impl BlockManager {
         // Figure out the new missing blocks
         (accepted_blocks, missing_blocks)
     }
-
 
     /// Tries to find the provided block_refs in DagState and BlockManager,
     /// and returns missing block refs.
