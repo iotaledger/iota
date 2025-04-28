@@ -4,7 +4,7 @@
 
 use std::{collections::BTreeMap, sync::LazyLock};
 
-use anyhow::{Context, bail};
+use anyhow::{Context};
 use iota_protocol_config::ProtocolVersion;
 
 /// Static mapping from protocol versions to the metadata for the system
@@ -48,21 +48,19 @@ pub fn latest_system_packages() -> &'static SystemPackagesVersion {
         .1
 }
 
-/// Return the best commit hash for the given protocol version. Returns an error
-/// if `version` is newer than the maximum protocol version or older than the
-/// first known framework.
+/// Return the latest protocol version that is not newer than the requested `version`
+/// (or `Err` if there is no such version).
+///
+/// The returned [ProtocolVersion] is the protocol version that introduced the returned
+/// [FrameworkVersion]; this may be older than the requested `version` if either:
+/// 1. the framework did not change when `version` was released, or
+/// 2. this binary is older than the requested version and therefore doesn't know about the latest
+///    framework version
+///
+/// You can distinguish these cases by comparing `version` with [ProtocolVersion::MAX].
 pub fn system_packages_for_protocol(
     version: ProtocolVersion,
 ) -> anyhow::Result<(&'static SystemPackagesVersion, ProtocolVersion)> {
-    if version > ProtocolVersion::MAX {
-        bail!("Protocol version {version:?} is newer than the one this binary was built with.");
-    }
-
-    // There are gaps in the manifest when multiple protocol versions use the same
-    // framework version. Therefore, we return the newest framework version that
-    // is not newer than the requested protocol version. Note that it's possible
-    // that there is no such version if the requested version is older than the
-    // oldest framework; we return an error in this case.
     let (protocol, system_packages) = VERSION_TABLE
         .range(..=version)
         .next_back()
@@ -129,5 +127,4 @@ fn test_version_latest() {
 /// We get an error if the protocol version is too small or too large.
 fn test_version_errors() {
     assert!(system_packages_for_protocol(0.into()).is_err());
-    assert!(system_packages_for_protocol(ProtocolVersion::MAX + 1).is_err());
 }
