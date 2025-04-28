@@ -46,8 +46,6 @@ pub const MAX_PROTOCOL_VERSION: u64 = 7;
 //            Enable consensus garbage collection for testnet
 //            Enable the new consensus commit rule for testnet.
 //            Enable the gas price feedback mechanism in devnet.
-//            Set suggested gas price calculation mode to simply use
-//            certificate's gas price in the gas price feedback mechanism.
 
 #[derive(Copy, Clone, Debug, Hash, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ProtocolVersion(u64);
@@ -267,10 +265,6 @@ struct FeatureFlags {
     // cancelled due to shared object congestion
     #[serde(skip_serializing_if = "is_false")]
     congested_objects_gas_price_feedback_mechanism: bool,
-
-    // Suggested gas price calculation mode for the gas price feedback mechanism
-    #[serde(skip_serializing_if = "SuggestedGasPriceCalculationMode::is_none")]
-    suggested_gas_price_calculation_mode: SuggestedGasPriceCalculationMode,
 }
 
 fn is_true(b: &bool) -> bool {
@@ -336,21 +330,6 @@ pub enum ConsensusNetwork {
 impl ConsensusNetwork {
     pub fn is_tonic(&self) -> bool {
         matches!(self, ConsensusNetwork::Tonic)
-    }
-}
-
-/// Configuration options for how the suggested gas price should be
-/// calculated in the gas price feedback mechanism
-#[derive(Default, Copy, Clone, PartialEq, Eq, Serialize, Debug)]
-pub enum SuggestedGasPriceCalculationMode {
-    /// Suggested gas price simply equals certificate's gas price
-    #[default]
-    None,
-}
-
-impl SuggestedGasPriceCalculationMode {
-    pub fn is_none(&self) -> bool {
-        matches!(self, Self::None)
     }
 }
 
@@ -1261,12 +1240,6 @@ impl ProtocolConfig {
         self.feature_flags
             .congested_objects_gas_price_feedback_mechanism
     }
-
-    /// Returns suggested gas price calculation mode in the gas price feedback
-    /// mechanism
-    pub fn suggested_gas_price_calculation_mode(&self) -> SuggestedGasPriceCalculationMode {
-        self.feature_flags.suggested_gas_price_calculation_mode
-    }
 }
 
 #[cfg(not(msim))]
@@ -1858,8 +1831,6 @@ impl ProtocolConfig {
         cfg.feature_flags.consensus_zstd_compression = false;
         cfg.feature_flags
             .congested_objects_gas_price_feedback_mechanism = false;
-        cfg.feature_flags.suggested_gas_price_calculation_mode =
-            SuggestedGasPriceCalculationMode::None;
 
         // Devnet
         if chain != Chain::Mainnet && chain != Chain::Testnet {

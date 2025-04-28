@@ -4,7 +4,7 @@
 
 use std::collections::HashMap;
 
-use iota_protocol_config::{PerObjectCongestionControlMode, SuggestedGasPriceCalculationMode};
+use iota_protocol_config::PerObjectCongestionControlMode;
 use iota_types::{
     base_types::{CommitRound, ObjectID, TransactionDigest},
     executable_transaction::VerifiedExecutableTransaction,
@@ -23,37 +23,26 @@ use crate::authority::transaction_deferral::DeferralKey;
 // The goal of this data structure is to capture the critical path of
 // transaction execution latency on each objects.
 //
-// The `per_object_congestion_control_mode` field determines how the cost
+// The `mode` field determines how the cost
 // is calculated. The cost can be calculated based on the total gas budget,
 // or total number of transaction count.
-//
-// The `suggested_gas_price_calculation_mode` field determines how the
-// suggested gas price is calculated. Currently, we use certificate's
-// gas price as a placeholder for the suggested gas price used in
-// the gas price feedback mechanism.
 #[derive(PartialEq, Eq, Clone, Debug)]
 pub struct SharedObjectCongestionTracker {
     object_execution_cost: HashMap<ObjectID, u64>,
-    per_object_congestion_control_mode: PerObjectCongestionControlMode,
-    suggested_gas_price_calculation_mode: SuggestedGasPriceCalculationMode,
+    mode: PerObjectCongestionControlMode,
 }
 
 impl SharedObjectCongestionTracker {
-    pub fn new(
-        per_object_congestion_control_mode: PerObjectCongestionControlMode,
-        suggested_gas_price_calculation_mode: SuggestedGasPriceCalculationMode,
-    ) -> Self {
+    pub fn new(mode: PerObjectCongestionControlMode) -> Self {
         Self {
             object_execution_cost: HashMap::new(),
-            per_object_congestion_control_mode,
-            suggested_gas_price_calculation_mode,
+            mode,
         }
     }
 
     pub fn new_with_initial_value_for_test(
         init_values: &[(ObjectID, u64)],
-        per_object_congestion_control_mode: PerObjectCongestionControlMode,
-        suggested_gas_price_calculation_mode: SuggestedGasPriceCalculationMode,
+        mode: PerObjectCongestionControlMode,
     ) -> Self {
         let mut object_execution_cost = HashMap::new();
         for (object_id, total_cost) in init_values {
@@ -61,8 +50,7 @@ impl SharedObjectCongestionTracker {
         }
         Self {
             object_execution_cost,
-            per_object_congestion_control_mode,
-            suggested_gas_price_calculation_mode,
+            mode,
         }
     }
 
@@ -82,13 +70,11 @@ impl SharedObjectCongestionTracker {
     // NOTE: this function will be rewritten anyway in the new sequencer
     // (see PR #5763), so we simple return the certificate's gas price here.
     pub fn compute_suggested_gas_price(&self, cert: &VerifiedExecutableTransaction) -> Option<u64> {
-        match self.suggested_gas_price_calculation_mode {
-            SuggestedGasPriceCalculationMode::None => Some(cert.transaction_data().gas_price()),
-        }
+        Some(cert.transaction_data().gas_price())
     }
 
     pub fn get_tx_cost(&self, cert: &VerifiedExecutableTransaction) -> Option<u64> {
-        match self.per_object_congestion_control_mode {
+        match self.mode {
             PerObjectCongestionControlMode::None => None,
             PerObjectCongestionControlMode::TotalGasBudget => Some(cert.gas_budget()),
             PerObjectCongestionControlMode::TotalTxCount => Some(1),
@@ -222,7 +208,6 @@ mod object_cost_tests {
             SharedObjectCongestionTracker::new_with_initial_value_for_test(
                 &[(object_id_0, 5), (object_id_1, 10)],
                 PerObjectCongestionControlMode::TotalGasBudget,
-                SuggestedGasPriceCalculationMode::None,
             );
 
         let shared_input_objects = construct_shared_input_objects(&[(object_id_0, false)]);
@@ -300,7 +285,7 @@ mod object_cost_tests {
             PerObjectCongestionControlMode::TotalGasBudget,
             PerObjectCongestionControlMode::TotalTxCount
         )]
-        per_object_congestion_control_mode: PerObjectCongestionControlMode,
+        mode: PerObjectCongestionControlMode,
     ) {
         // Creates two shared objects and three transactions that operate on these
         // objects.
@@ -311,14 +296,13 @@ mod object_cost_tests {
 
         // Set max_accumulated_txn_cost_per_object_in_commit to only allow 1 transaction
         // to go through.
-        let max_accumulated_txn_cost_per_object_in_commit = match per_object_congestion_control_mode
-        {
+        let max_accumulated_txn_cost_per_object_in_commit = match mode {
             PerObjectCongestionControlMode::None => unreachable!(),
             PerObjectCongestionControlMode::TotalGasBudget => tx_gas_budget + 1,
             PerObjectCongestionControlMode::TotalTxCount => 2,
         };
 
-        let shared_object_congestion_tracker = match per_object_congestion_control_mode {
+        let shared_object_congestion_tracker = match mode {
             PerObjectCongestionControlMode::None => unreachable!(),
             PerObjectCongestionControlMode::TotalGasBudget => {
                 // Construct object execution cost as following
@@ -327,8 +311,7 @@ mod object_cost_tests {
                 // object 1:      |
                 SharedObjectCongestionTracker::new_with_initial_value_for_test(
                     &[(shared_obj_0, 10), (shared_obj_1, 1)],
-                    per_object_congestion_control_mode,
-                    SuggestedGasPriceCalculationMode::None,
+                    mode,
                 )
             }
             PerObjectCongestionControlMode::TotalTxCount => {
@@ -338,8 +321,7 @@ mod object_cost_tests {
                 // object 1:      |
                 SharedObjectCongestionTracker::new_with_initial_value_for_test(
                     &[(shared_obj_0, 2), (shared_obj_1, 1)],
-                    per_object_congestion_control_mode,
-                    SuggestedGasPriceCalculationMode::None,
+                    mode,
                 )
             }
         };
@@ -408,16 +390,13 @@ mod object_cost_tests {
             PerObjectCongestionControlMode::TotalGasBudget,
             PerObjectCongestionControlMode::TotalTxCount
         )]
-        per_object_congestion_control_mode: PerObjectCongestionControlMode,
+        mode: PerObjectCongestionControlMode,
     ) {
         let shared_obj_0 = ObjectID::random();
         let tx = build_transaction(&[(shared_obj_0, true)], 100);
         // Make should_defer_due_to_object_congestion always defer transactions.
         let max_accumulated_txn_cost_per_object_in_commit = 0;
-        let shared_object_congestion_tracker = SharedObjectCongestionTracker::new(
-            per_object_congestion_control_mode,
-            SuggestedGasPriceCalculationMode::None,
-        );
+        let shared_object_congestion_tracker = SharedObjectCongestionTracker::new(mode);
 
         // Insert a random pre-existing transaction.
         let mut previously_deferred_tx_digests = HashMap::new();
@@ -512,7 +491,7 @@ mod object_cost_tests {
             PerObjectCongestionControlMode::TotalGasBudget,
             PerObjectCongestionControlMode::TotalTxCount
         )]
-        per_object_congestion_control_mode: PerObjectCongestionControlMode,
+        mode: PerObjectCongestionControlMode,
     ) {
         let object_id_0 = ObjectID::random();
         let object_id_1 = ObjectID::random();
@@ -521,8 +500,7 @@ mod object_cost_tests {
         let mut shared_object_congestion_tracker =
             SharedObjectCongestionTracker::new_with_initial_value_for_test(
                 &[(object_id_0, 5), (object_id_1, 10)],
-                per_object_congestion_control_mode,
-                SuggestedGasPriceCalculationMode::None,
+                mode,
             );
         assert_eq!(shared_object_congestion_tracker.max_cost(), 10);
 
@@ -533,8 +511,7 @@ mod object_cost_tests {
             shared_object_congestion_tracker,
             SharedObjectCongestionTracker::new_with_initial_value_for_test(
                 &[(object_id_0, 5), (object_id_1, 10)],
-                per_object_congestion_control_mode,
-                SuggestedGasPriceCalculationMode::None,
+                mode,
             )
         );
         assert_eq!(shared_object_congestion_tracker.max_cost(), 10);
@@ -543,7 +520,7 @@ mod object_cost_tests {
         // should be object 1's cost.
         let cert = build_transaction(&[(object_id_0, true), (object_id_1, false)], 10);
         shared_object_congestion_tracker.bump_object_execution_cost(&cert);
-        let expected_object_0_cost = match per_object_congestion_control_mode {
+        let expected_object_0_cost = match mode {
             PerObjectCongestionControlMode::None => unreachable!(),
             PerObjectCongestionControlMode::TotalGasBudget => 20,
             PerObjectCongestionControlMode::TotalTxCount => 11,
@@ -552,8 +529,7 @@ mod object_cost_tests {
             shared_object_congestion_tracker,
             SharedObjectCongestionTracker::new_with_initial_value_for_test(
                 &[(object_id_0, expected_object_0_cost), (object_id_1, 10)],
-                per_object_congestion_control_mode,
-                SuggestedGasPriceCalculationMode::None,
+                mode,
             )
         );
         assert_eq!(
@@ -571,7 +547,7 @@ mod object_cost_tests {
             ],
             10,
         );
-        let expected_object_cost = match per_object_congestion_control_mode {
+        let expected_object_cost = match mode {
             PerObjectCongestionControlMode::None => unreachable!(),
             PerObjectCongestionControlMode::TotalGasBudget => 30,
             PerObjectCongestionControlMode::TotalTxCount => 12,
@@ -585,8 +561,7 @@ mod object_cost_tests {
                     (object_id_1, expected_object_cost),
                     (object_id_2, expected_object_cost)
                 ],
-                per_object_congestion_control_mode,
-                SuggestedGasPriceCalculationMode::None,
+                mode,
             )
         );
         assert_eq!(
@@ -608,7 +583,6 @@ mod object_cost_tests {
             SharedObjectCongestionTracker::new_with_initial_value_for_test(
                 &[(object_id_0, u64::MAX - 1), (object_id_1, u64::MAX - 1)],
                 PerObjectCongestionControlMode::TotalGasBudget,
-                SuggestedGasPriceCalculationMode::None,
             );
 
         let tx = build_transaction(&[(object_id_0, true)], 1);
@@ -629,7 +603,6 @@ mod object_cost_tests {
             SharedObjectCongestionTracker::new_with_initial_value_for_test(
                 &[(object_id_0, u64::MAX), (object_id_1, u64::MAX - 1),],
                 PerObjectCongestionControlMode::TotalGasBudget,
-                SuggestedGasPriceCalculationMode::None,
             )
         );
 
@@ -653,7 +626,6 @@ mod object_cost_tests {
             SharedObjectCongestionTracker::new_with_initial_value_for_test(
                 &[(object_id_0, u64::MAX), (object_id_1, u64::MAX),],
                 PerObjectCongestionControlMode::TotalGasBudget,
-                SuggestedGasPriceCalculationMode::None,
             )
         );
 
@@ -677,7 +649,6 @@ mod object_cost_tests {
             SharedObjectCongestionTracker::new_with_initial_value_for_test(
                 &[(object_id_0, u64::MAX), (object_id_1, u64::MAX),],
                 PerObjectCongestionControlMode::TotalGasBudget,
-                SuggestedGasPriceCalculationMode::None,
             )
         );
 
@@ -686,7 +657,6 @@ mod object_cost_tests {
             SharedObjectCongestionTracker::new_with_initial_value_for_test(
                 &[(object_id_0, 0), (object_id_1, 1), (object_id_2, 2)],
                 PerObjectCongestionControlMode::TotalGasBudget,
-                SuggestedGasPriceCalculationMode::None,
             );
 
         let tx = build_transaction(
@@ -720,7 +690,6 @@ mod object_cost_tests {
                     (object_id_2, u64::MAX),
                 ],
                 PerObjectCongestionControlMode::TotalGasBudget,
-                SuggestedGasPriceCalculationMode::None,
             )
         );
 
@@ -729,7 +698,6 @@ mod object_cost_tests {
             SharedObjectCongestionTracker::new_with_initial_value_for_test(
                 &[(object_id_0, u64::MAX)],
                 PerObjectCongestionControlMode::TotalGasBudget,
-                SuggestedGasPriceCalculationMode::None,
             );
 
         let tx = build_transaction(&[(object_id_0, true)], u64::MAX);
@@ -752,7 +720,6 @@ mod object_cost_tests {
             SharedObjectCongestionTracker::new_with_initial_value_for_test(
                 &[(object_id_0, u64::MAX),],
                 PerObjectCongestionControlMode::TotalGasBudget,
-                SuggestedGasPriceCalculationMode::None,
             )
         );
     }

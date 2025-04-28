@@ -3067,14 +3067,10 @@ impl AuthorityPerEpochStore {
         // checkpoints.
         let mut shared_object_congestion_tracker = SharedObjectCongestionTracker::new(
             self.protocol_config().per_object_congestion_control_mode(),
-            self.protocol_config()
-                .suggested_gas_price_calculation_mode(),
         );
         let mut shared_object_using_randomness_congestion_tracker =
             SharedObjectCongestionTracker::new(
                 self.protocol_config().per_object_congestion_control_mode(),
-                self.protocol_config()
-                    .suggested_gas_price_calculation_mode(),
             );
 
         fail_point_arg!(
