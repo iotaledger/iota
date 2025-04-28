@@ -9,8 +9,8 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     constants::{
-        IOTA_NAMES_SEPARATOR_AT, IOTA_NAMES_SEPARATOR_DOT, IOTA_NAMES_TLD, MAX_DOMAIN_LENGTH,
-        MAX_LABEL_LENGTH, MIN_LABEL_LENGTH,
+        IOTA_NAMES_MAX_DOMAIN_LENGTH, IOTA_NAMES_MAX_LABEL_LENGTH, IOTA_NAMES_MIN_LABEL_LENGTH,
+        IOTA_NAMES_SEPARATOR_AT, IOTA_NAMES_SEPARATOR_DOT, IOTA_NAMES_TLD,
     },
     error::IotaNamesError,
 };
@@ -25,10 +25,10 @@ impl FromStr for Domain {
     type Err = IotaNamesError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        if s.len() > MAX_DOMAIN_LENGTH {
+        if s.len() > IOTA_NAMES_MAX_DOMAIN_LENGTH {
             return Err(IotaNamesError::DomainLengthExceeded(
                 s.len(),
-                MAX_DOMAIN_LENGTH,
+                IOTA_NAMES_MAX_DOMAIN_LENGTH,
             ));
         }
 
@@ -204,18 +204,19 @@ fn convert_from_at_format(s: &str, separator: &char) -> Result<String, IotaNames
 }
 
 /// Checks the validity of a label according to these rules:
-/// - length must be in [MIN_LABEL_LENGTH..MAX_LABEL_LENGTH]
+/// - length must be in
+///   [IOTA_NAMES_MIN_LABEL_LENGTH..IOTA_NAMES_MAX_LABEL_LENGTH]
 /// - must contain only '0'..'9', 'a'..'z' and '-'
 /// - must not start or end with '-'
 pub fn validate_label(label: &str) -> Result<&str, IotaNamesError> {
     let bytes = label.as_bytes();
     let len = bytes.len();
 
-    if !(MIN_LABEL_LENGTH..=MAX_LABEL_LENGTH).contains(&len) {
+    if !(IOTA_NAMES_MIN_LABEL_LENGTH..=IOTA_NAMES_MAX_LABEL_LENGTH).contains(&len) {
         return Err(IotaNamesError::InvalidLabelLength(
             len,
-            MIN_LABEL_LENGTH,
-            MAX_LABEL_LENGTH,
+            IOTA_NAMES_MIN_LABEL_LENGTH,
+            IOTA_NAMES_MAX_LABEL_LENGTH,
         ));
     }
 
