@@ -25,7 +25,7 @@ import {
     FormikProvider,
     useFormik,
 } from 'formik';
-import { memo, useEffect, useMemo } from 'react';
+import { memo, useMemo } from 'react';
 import { useActiveAccount, useSigner } from '_hooks';
 import {
     Button,
@@ -71,9 +71,21 @@ export function StakeFormComponent({ validatorAddress, epoch, onSuccess }: Stake
 
     // set minimum stake amount to 1 IOTA
     const minimumStake = parseAmount(MIN_NUMBER_IOTA_TO_STAKE.toString(), decimals);
+    const { data: maxAmountTransactionData } = useNewStakeTransaction(
+        validatorAddress,
+        coinBalance,
+        activeAddress,
+    );
+    const maxAmountTxGasBudget = BigInt(maxAmountTransactionData?.gasSummary?.budget ?? 0n);
+    const availableBalance = coinBalance - maxAmountTxGasBudget;
+    const [availableBalanceFormatted, symbol] = useFormatCoin({
+        balance: availableBalance,
+        format: CoinFormat.FULL,
+    });
+
     const validationSchema = useMemo(
-        () => createValidationSchema(coinBalance, coinSymbol, decimals, minimumStake),
-        [coinBalance, coinSymbol, decimals, minimumStake],
+        () => createValidationSchema(availableBalance, coinSymbol, decimals, minimumStake),
+        [availableBalance, coinSymbol, decimals, minimumStake],
     );
 
     const { mutateAsync: stakeTokenMutateAsync, isPending: isStakeTokenTransactionPending } =
@@ -141,7 +153,7 @@ export function StakeFormComponent({ validatorAddress, epoch, onSuccess }: Stake
         onSubmit: handleSubmit,
         validateOnChange: true,
     });
-    const { values, isValid, isSubmitting, setFieldValue, submitForm } = formik;
+    const { values, isValid, isSubmitting, submitForm, setFieldValue } = formik;
     const { amount } = values;
     const amountWithoutDecimals = parseAmount(amount, decimals);
 
@@ -152,24 +164,6 @@ export function StakeFormComponent({ validatorAddress, epoch, onSuccess }: Stake
     } = useNewStakeTransaction(validatorAddress, amountWithoutDecimals, activeAddress);
     const transaction = newStakeData?.transaction;
     const gasSummary = newStakeData?.gasSummary;
-
-    const { data: maxAmountTransactionData } = useNewStakeTransaction(
-        validatorAddress,
-        coinBalance,
-        activeAddress,
-    );
-    const maxAmountTxGasBudget = BigInt(maxAmountTransactionData?.gasSummary?.budget ?? 0n);
-    // do not remove: gasBudget field is used in the validation schema apps/core/src/utils/stake/createValidationSchema.ts
-    useEffect(() => {
-        setFieldValue('gasBudget', maxAmountTxGasBudget);
-    }, [maxAmountTxGasBudget]);
-
-    // for user we show available amount as available_balance - gas_budget
-    const availableBalance = coinBalance - maxAmountTxGasBudget;
-    const [availableBalanceFormatted, symbol] = useFormatCoin({
-        balance: availableBalance,
-        format: CoinFormat.FULL,
-    });
 
     const isLoading =
         isIotaBalanceLoading ||

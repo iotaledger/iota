@@ -27,7 +27,7 @@ jobs:
         run: |
           sudo apt-get install -y qemu-user-static
           sudo apt-get install -y libxcb-xinerama0
-          sudo pip install speculos --break-system-packages
+          sudo python3 -m pip install speculos
 
       - name: Download ledgernano bin
         run: |
