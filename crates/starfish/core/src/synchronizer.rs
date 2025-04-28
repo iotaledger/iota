@@ -574,13 +574,13 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> Synchronizer<C
         let peer_hostname = &context.committee.authority(peer_index).hostname;
         metrics
             .synchronizer_fetched_blocks_by_peer
-            .with_label_values(&[peer_hostname, sync_method])
+            .with_label_values(&[peer_hostname.as_str(), sync_method])
             .inc_by(blocks.len() as u64);
         for block in &blocks {
             let block_hostname = &context.committee.authority(block.author()).hostname;
             metrics
                 .synchronizer_fetched_blocks_by_authority
-                .with_label_values(&[block_hostname, sync_method])
+                .with_label_values(&[block_hostname.as_str(), sync_method])
                 .inc();
         }
 
@@ -657,7 +657,7 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> Synchronizer<C
                     .metrics
                     .node_metrics
                     .invalid_blocks
-                    .with_label_values(&[&hostname, "synchronizer", e.clone().name()])
+                    .with_label_values(&[hostname.as_str(), "synchronizer", e.clone().name()])
                     .inc();
                 warn!("Invalid block received from {}: {}", peer_index, e);
                 return Err(e);
@@ -769,7 +769,7 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> Synchronizer<C
                                                 .metrics
                                                 .node_metrics
                                                 .invalid_blocks
-                                                .with_label_values(&[&hostname, "synchronizer_own_block", err.clone().name()])
+                                                .with_label_values(&[hostname.as_str(), "synchronizer_own_block", err.clone().name()])
                                                 .inc();
                                             warn!("Invalid block received from {}: {}", authority_index, err);
                                         })?;
