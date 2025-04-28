@@ -153,15 +153,18 @@ impl Domain {
         labels.reverse();
 
         if format == DomainFormat::Dot {
-            return labels.join(sep);
-        };
+            // DOT format, all labels joined together with dots, including the TLD.
+            labels.join(sep)
+        } else {
+            // SAFETY: This is a safe operation because we only allow a
+            // domain's label vector size to be >= 2 (see `Domain::from_str`)
+            let _tld = labels.pop();
+            let sld = labels.pop().unwrap();
 
-        // SAFETY: This is a safe operation because we only allow a
-        // domain's label vector size to be >= 2 (see `Domain::from_str`)
-        let _tld = labels.pop();
-        let sld = labels.pop().unwrap();
-
-        format!("{}{IOTA_NAMES_SEPARATOR_AT}{sld}", labels.join(sep))
+            // AT format, labels minus SLD joined together with dots, then joined to SLD
+            // with @, no TLD.
+            format!("{}{IOTA_NAMES_SEPARATOR_AT}{sld}", labels.join(sep))
+        }
     }
 }
 
