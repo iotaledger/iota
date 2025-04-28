@@ -11,6 +11,7 @@ import {
     useGetValidatorsApy,
     useGetValidatorsEvents,
     useMultiGetObjects,
+    useMaxCommitteeSize,
 } from '@iota/core';
 import {
     Badge,
@@ -37,11 +38,11 @@ import { IOTA_TYPE_ARG, normalizeIotaAddress } from '@iota/iota-sdk/utils';
 function ValidatorPageResult(): JSX.Element {
     const { data, isPending, isSuccess, isError } = useIotaClientQuery('getLatestIotaSystemState');
     const {
-        data: protocolConfig,
-        isPending: isProtocolConfigPending,
-        isSuccess: isProtocolConfigSuccess,
-        isError: isProtocolConfigError,
-    } = useIotaClientQuery('getProtocolConfig');
+        data: maxCommitteeSize,
+        isPending: isMaxCommitteeSizePending,
+        isSuccess: isMaxCommitteeSizeSuccess,
+        isError: isMaxCommitteeSizeError,
+    } = useMaxCommitteeSize();
     const activeValidators = data?.activeValidators;
     const numberOfValidators = activeValidators?.length || 0;
 
@@ -134,7 +135,7 @@ function ValidatorPageResult(): JSX.Element {
         : [];
 
     const tableColumns = useMemo(() => {
-        if (!data || !protocolConfig || !validatorEvents) return null;
+        if (!data || !maxCommitteeSize || !validatorEvents) return null;
         const includeColumns = [
             'Name',
             'Stake',
@@ -147,17 +148,11 @@ function ValidatorPageResult(): JSX.Element {
             'Next Epoch Rewards',
         ];
 
-        const maxCommitteeSizeCountAttr = protocolConfig?.attributes['max_committee_members_count'];
-        const maxCommitteeMembers =
-            maxCommitteeSizeCountAttr && 'u64' in maxCommitteeSizeCountAttr
-                ? Number(maxCommitteeSizeCountAttr.u64)
-                : undefined;
-
         return generateValidatorsTableColumns({
             activeValidators: data.activeValidators,
             committeeMembers: data.committeeMembers.map((validator) => validator.iotaAddress),
             atRiskValidators: data.atRiskValidators,
-            maxCommitteeMembers,
+            maxCommitteeMembers: maxCommitteeSize,
             validatorEvents,
             rollingAverageApys: validatorsApy,
             highlightValidatorName: true,
@@ -211,7 +206,7 @@ function ValidatorPageResult(): JSX.Element {
     return (
         <PageLayout
             content={
-                isError || isProtocolConfigError || validatorEventError ? (
+                isError || isMaxCommitteeSizeError || validatorEventError ? (
                     <InfoBox
                         title="Failed to load data"
                         supportingText="Validator data could not be loaded"
@@ -253,7 +248,7 @@ function ValidatorPageResult(): JSX.Element {
                             <div className="p-md">
                                 <ErrorBoundary>
                                     {(isPending ||
-                                        isProtocolConfigPending ||
+                                        isMaxCommitteeSizePending ||
                                         validatorsEventsLoading) && (
                                         <PlaceholderTable
                                             rowCount={20}
@@ -272,7 +267,7 @@ function ValidatorPageResult(): JSX.Element {
                                         />
                                     )}
                                     {isSuccess &&
-                                        isProtocolConfigSuccess &&
+                                        isMaxCommitteeSizeSuccess &&
                                         tableData &&
                                         tableColumns && (
                                             <TableCard
