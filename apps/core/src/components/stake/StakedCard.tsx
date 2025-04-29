@@ -37,7 +37,7 @@ export function StakedCard({
 }: StakedCardProps) {
     const { principal, stakeRequestEpoch, estimatedReward, validatorAddress } = extendedStake;
 
-    const { rewards, title, subtitle } = useStakeRewardStatus({
+    const { title, subtitle } = useStakeRewardStatus({
         stakeRequestEpoch,
         currentEpoch,
         estimatedReward,
@@ -45,12 +45,8 @@ export function StakedCard({
         activeButNotInTheCommittee,
     });
 
-    // For inactive validator, show principal + rewards
     const [principalStaked, symbol] = useFormatCoin({
-        balance:
-            inactiveValidator || activeButNotInTheCommittee
-                ? BigInt(principal) + rewards
-                : principal,
+        balance: principal,
     });
 
     const { data } = useIotaClientQuery('getLatestIotaSystemState');

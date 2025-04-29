@@ -1,0 +1,49 @@
+## Node Health Metrics 
+
+IOTA nodes expose a wide range of metrics to be scraped by [Prometheus](https://prometheus.io/).
+By default, metrics are available at the `http://localhost:9184/metrics` endpoint.
+The best way to visualize these metrics is to use [Grafana](https://grafana.com/).
+Additionally, a common approach is to use [node exporter](https://github.com/prometheus/node_exporter) to scrape performance metrics from the node and push them to Prometheus.
+
+### Fetch key health metrics
+
+Key health metrics via the `/metrics` HTTP endpoint:
+
+```sh
+curl -s localhost:9184/metrics | grep -E "^last_executed_checkpoint|^highest_synced_checkpoint|^highest_known_checkpoint|^last_committed_round|^consensus_threshold_clock_round|^highest_received_round|^consensus_proposed_blocks|^uptime"
+```
+
+For instance, for a validator node, the output would be:
+```sh
+consensus_proposed_blocks{force="false"} 840272
+consensus_proposed_blocks{force="true"} 2255
+consensus_threshold_clock_round 1318080
+highest_known_checkpoint 60575714
+highest_synced_checkpoint 60575710
+last_executed_checkpoint 60575714
+last_executed_checkpoint_age_ms{pct="50"} 0
+last_executed_checkpoint_age_ms{pct="95"} 0
+last_executed_checkpoint_age_ms{pct="99"} 0
+last_executed_checkpoint_age_ms_count 1342973
+last_executed_checkpoint_age_ms_sum 367068033
+last_executed_checkpoint_timestamp_ms 1745504535018
+uptime{chain_identifier="2304aa97",is_docker="false",os_version="Linux (Ubuntu 24.04)",process="validator",version="0.12.0-rc-7e49c58b826b"} 700369
+```
+
+### Ensure node health using last checkpoint timestamp
+
+To make sure your node runs properly, we check that the last processed checkpoint is recent enough:
+- 10 seconds is typical
+- 30 seconds is still fine
+- You want to check that the timestamp difference stays under 1 minute
+
+You can check that from the previous metric `last_executed_checkpoint_timestamp_ms`, and compare timestamps with now using this command:
+```shell
+last_executed_checkpoint_timestamp_ms="$(curl -s localhost:9184/metrics | grep ^last_executed_checkpoint_timestamp_ms | awk '{print $2}')"
+now_timestamp="$(date +%s%3N)"
+if (now_timestamp - last_executed_checkpoint_timestamp_ms < 60000); then
+	echo "[OK] healthy & in sync"
+else
+	echo "[ERROR] Node unhealthy. Last known checkpoint is too old."
+fi
+```
