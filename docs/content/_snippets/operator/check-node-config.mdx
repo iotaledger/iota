@@ -1,16 +1,19 @@
-import NetworkConfigTestnet from '../network-node-config-testnet.mdx';
-import NetworkConfigDevnet from '../network-node-config-devnet.mdx';
+import MainnetNodeConfig from "../network-node-config-mainnet.mdx";
+import TestnetNodeConfig from '../network-node-config-testnet.mdx';
+import DevnetNodeConfig from '../network-node-config-devnet.mdx';
 
 The p2p section should include known public peer nodes, like this:
 
 <Tabs groupId="network" queryString>
-  <TabItem label="Testnet" value="testnet">
-    <NetworkConfigTestnet/>
-  </TabItem>
-
-  <TabItem label="Devnet" value="devnet">
-    <NetworkConfigDevnet/>
-  </TabItem>
+    <TabItem label="Mainnet" value="mainnet">
+        <MainnetNodeConfig />
+    </TabItem>
+    <TabItem label="Testnet" value="testnet">
+        <TestnetNodeConfig />
+    </TabItem>
+    <TabItem label="Devnet" value="devnet">
+        <DevnetNodeConfig />
+    </TabItem>
 </Tabs>
 
 The archival section of the config file should look like this:
