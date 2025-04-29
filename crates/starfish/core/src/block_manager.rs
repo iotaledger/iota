@@ -546,9 +546,7 @@ mod tests {
     use starfish_config::AuthorityIndex;
 
     use crate::{
-        block_header::{
-            BlockHeaderAPI, BlockRef, SignedBlockHeader, VerifiedBlockHeader,
-        },
+        block_header::{BlockHeaderAPI, BlockRef, SignedBlockHeader, VerifiedBlockHeader},
         block_manager::BlockManager,
         block_verifier::{BlockVerifier, NoopBlockVerifier},
         context::Context,
