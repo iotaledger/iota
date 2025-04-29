@@ -22,7 +22,7 @@ import Ports from '../../_snippets/operator/fullnode-ports.mdx'
 
 ## 1. Software requirements
 
-- Linux (recommended) or MacOS:
+- Linux (recommended):
   - For this installer to work, use a Linux distribution with `systemd` and `apt-get`.
   - IOTA recommends and supports Ubuntu or Debian.
   - Building from source also works on macOS (but systemd-related steps won't).
@@ -41,71 +41,37 @@ NETWORK="testnet" bash -i <(curl -sSf https://raw.githubusercontent.com/iotaledg
 Set the network environment variable to the network you want to connect to ("testnet", "mainnet", or "devnet")
 :::
 
-<Tabs groupId="system">
-  <TabItem value="linux" label="Linux">
-    The installer will perform the following steps:
-    1. Check your rust toolchain version
-    2. Install system packages (libraries & other dependencies):  
-      `tzdata`, `libprotobuf-dev`, `ca-certificates`, `build-essential`, `libssl-dev`, `libclang-dev`, `libpq-dev`, `pkg-config`, `openssl`, `protobuf-compiler`, `git`, `clang`, `cmake`
-    3. Clone the [iota repo](https://github.com/iotaledger/iota), set to the right branch for the [network](../../developer/getting-started/connect.mdx#iota-networks) you chose
-    4. Build the iota-node binary  
-      The built binary is located at `/opt/iota/bin/iota-node` by default.
-    5. Create a user called iota, make it own directories for service binary, config, data
-    6. Create a node config file, download genesis/migration blobs  
-      The config and blob files are located at `/opt/iota/config` by default.
-    6. Create a systemd service unit file  
-      The service definition file is located at `/etc/systemd/system/iota-node.service`.
-    7. Start the service
-  </TabItem>
-
-  <TabItem value="macos" label="MacOS">
-    The installer will perform the following steps:
-    1. Check your rust toolchain version
-    2. Install system packages (libraries & other dependencies):  
-      `tzdata`, `libprotobuf-dev`, `ca-certificates`, `build-essential`, `libssl-dev`, `libclang-dev`, `libpq-dev`, `pkg-config`, `openssl`, `protobuf-compiler`, `git`, `clang`, `cmake`
-    3. Clone the [iota repo](https://github.com/iotaledger/iota), set to the right branch for the [network](../../developer/getting-started/connect.mdx#iota-networks) you chose
-    4. Build the iota-node binary  
-      The built binary is located at `/opt/iota/bin/iota-node` by default.
-    5. Create a user called iota, make it own directories for service binary, config, data
-    6. Create a node config file, download genesis/migration blobs  
-      The config and blob files are located at `/opt/iota/config` by default.
-
-    On MacOS, you still need to launch the node manually. Run:
-    ```shell
-    /opt/iota/bin/iota-node --config-path /opt/iota/config/fullnode.yaml
-    ```
-
-    For better reliability, we suggest [setting up a launchd service](https://www.launchd.info/). 
-  </TabItem>
-</Tabs>
-
-
+The installer will perform the following steps:
+1. Check your rust toolchain version
+2. Install system packages (libraries & other dependencies):  
+  `tzdata`, `libprotobuf-dev`, `ca-certificates`, `build-essential`, `libssl-dev`, `libclang-dev`, `libpq-dev`, `pkg-config`, `openssl`, `protobuf-compiler`, `git`, `clang`, `cmake`
+3. Clone the [iota repo](https://github.com/iotaledger/iota), set to the right branch for the [network](../../developer/getting-started/connect.mdx#iota-networks) you chose
+4. Build the iota-node binary  
+  The built binary is located at `/opt/iota/bin/iota-node` by default.
+5. Create a user called iota, make it own directories for service binary, config, data
+6. Create a node config file, download genesis/migration blobs  
+  The config and blob files are located at `/opt/iota/config` by default.
+6. Create a systemd service unit file  
+  The service definition file is located at `/etc/systemd/system/iota-node.service`.
+7. Start the service
 
 ## 3. Check your installation
 
+Your IOTA node should now be running and connected to the network you chose.
 
+Check that the iota-node service is active and running:
+```shell
+sudo systemctl status iota-node
+```
 
-<Tabs groupId="system">
-  <TabItem value="linux" label="Linux">
-    Your IOTA node should now be running and connected to the network you chose.
+Check (and follow) the logs:
+```shell
+journalctl -u iota-node -f
+```
 
-    Check that the iota-node service is active and running:
-    ```shell
-    sudo systemctl status iota-node
-    ```
+If you need to stop the service, you can run `sudo systemctl stop iota-node`
 
-    Check (and follow) the logs:
-    ```shell
-    journalctl -u iota-node -f
-    ```
-
-    If you need to stop the service, you can run `sudo systemctl stop iota-node`
-  </TabItem>
-
-  <TabItem value="macos" label="MacOS">
-    Your IOTA node should now be running and connected to the network you chose.
-  </TabItem>
-</Tabs>
+Your IOTA node should now be running and connected to the network you chose.
 
 ### Check your node configuration
 
