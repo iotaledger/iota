@@ -104,6 +104,16 @@ Create or modify your SSFN's configuration file with these specific settings:
       metrics:
         push-interval-seconds: 60
         push-url: https://metrics-proxy.mainnet.iota.cafe:8443/publish/metrics
+      
+      state-archive-read-config:
+        - object-store-config:
+            object-store: "S3"
+            aws-endpoint: "https://archive.mainnet.iota.cafe"
+            aws-virtual-hosted-style-request: true
+            object-store-connection-limit: 20
+            no-sign-request: true
+          concurrency: 5
+          use-for-pruning-watermark: false
       ```
     </TabItem>
     <TabItem label="Testnet" value="testnet">
@@ -139,6 +149,16 @@ Create or modify your SSFN's configuration file with these specific settings:
       metrics:
         push-interval-seconds: 60
         push-url: https://metrics-proxy.testnet.iota.cafe:8443/publish/metrics
+
+      state-archive-read-config:
+        - object-store-config:
+            object-store: "S3"
+            aws-endpoint: "https://archive.testnet.iota.cafe"
+            aws-virtual-hosted-style-request: true
+            object-store-connection-limit: 20
+            no-sign-request: true
+          concurrency: 5
+          use-for-pruning-watermark: false
       ```
     </TabItem>
 </Tabs>
