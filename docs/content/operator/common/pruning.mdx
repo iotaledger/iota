@@ -118,7 +118,7 @@ authority-store-pruning-config:
   # When set to 0, IOTA prunes old object versions as soon
   # as possible. This is also called *aggressive pruning*, and results in the most effective
   # garbage collection method with the lowest disk usage possible.
-  # This is the recommended setting for IOTA Validator nodes since older object versions aren't
+  # This is the recommended setting for IOTA validator nodes since older object versions aren't
   # necessary to execute transactions.
   # When set to 1, IOTA prunes only object versions from transaction checkpoints
   # previous to the current epoch. In general, when set to N (where N >= 1), IOTA prunes
@@ -143,7 +143,7 @@ IOTA periodically creates checkpoints. Each checkpoint contains the transactions
 
 IOTA performs transaction pruning in the background after checkpoints complete.
 
-You can enable transaction pruning for your full node or Validator node by adding  `num-epochs-to-retain-for-checkpoints`
+You can enable transaction pruning for your full node or validator node by adding  `num-epochs-to-retain-for-checkpoints`
 to the `authority-store-pruning-config` config for the node:
 
 ```yaml
@@ -156,7 +156,7 @@ authority-store-pruning-config:
   # Number of epochs to wait before performing transaction pruning.
   # When this is N (where N >= 2), IOTA prunes transactions and effects from
   # checkpoints up to the `current - N` epoch. IOTA never prunes transactions and effects from the current and
-  # immediately prior epoch. N = 2 is a recommended setting for IOTA Validator nodes and IOTA full nodes that don't
+  # immediately prior epoch. N = 2 is a recommended setting for IOTA validator nodes and IOTA full nodes that don't
   # serve RPC requests.
   num-epochs-to-retain-for-checkpoints: 2
   # Ensures that individual database files periodically go through the compaction process.
