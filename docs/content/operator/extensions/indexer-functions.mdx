@@ -18,11 +18,11 @@ The IOTA Indexer provides three main functionalities:
 - Serve online transaction processing (OLTP) RPC requests. With data in relational databases, IOTA indexer spins a stateless reader binary as JSON RPC server with the associated [interface](/iota-api-ref).
 - Other than OLTP data ingestion and requests, the Indexer also supports some analytical data ingestion like transactions per second (TPS) and daily active user (DAU) metrics.
 
-## Run an indexer
+## Run an Indexer
 
 Refer to the [IOTA Indexer README](https://github.com/iotaledger/iota/tree/develop/crates/iota-indexer) to run an indexer with a local or managed Postgres-compatible database.
 
-## Run GraphQL interface
+## Run GraphQL Interface
 
 Alternatively to the JSON-RPC, a GraphQL [interface](/references/iota-graphql) can be used to provide read access to the Indexer database, and enable execution of transactions to the full node.
 
