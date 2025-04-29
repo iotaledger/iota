@@ -3451,20 +3451,15 @@ impl AuthorityPerEpochStore {
                                         "cancelled transaction must have at least one shared \
                                             object and calculated suggested gas price",
                                     );
-                                let actual_gas_price = certificate.transaction_data().gas_price();
-                                assert!(
-                                    suggested_gas_price >= actual_gas_price,
-                                    "Gas price of cancelled transaction cannot be larger than \
-                                        gas price of some non-cancelled transaction"
-                                );
 
                                 debug!(
                                     "Cancelling consensus certificate for transaction {:?} with \
                                         deferral key {deferral_key:?} due to congestion on \
                                         objects {congested_objects:?}: actual gas price: \
-                                        {actual_gas_price}, suggested gas price: \
+                                        {}, suggested gas price: \
                                         {suggested_gas_price}",
                                     certificate.digest(),
+                                    certificate.transaction_data().gas_price(),
                                 );
 
                                 ConsensusCertificateResult::Cancelled((
