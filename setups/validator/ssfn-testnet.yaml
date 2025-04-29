@@ -11,7 +11,6 @@ consensus-config:
 # Genesis Configuration
 genesis:
   genesis-file-location: /opt/iota/config/genesis.blob
-migration-tx-data-path: /opt/iota/config/migration.blob
 
 # Network Configuration
 network-address: /ip4/0.0.0.0/tcp/8080/http
@@ -35,6 +34,9 @@ authority-store-pruning-config:
 
 # Resource Optimization
 enable-index-processing: false
+checkpoint-executor-config:
+  local-execution-timeout-sec: 10
+indirect-objects-threshold: 18446744073709551615
 
 # Metrics Configuration
 metrics:

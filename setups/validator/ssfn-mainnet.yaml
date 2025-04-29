@@ -39,6 +39,9 @@ authority-store-pruning-config:
 
 # Resource Optimization
 enable-index-processing: false
+checkpoint-executor-config:
+  local-execution-timeout-sec: 10
+indirect-objects-threshold: 18446744073709551615
 
 # Metrics Configuration
 metrics:
