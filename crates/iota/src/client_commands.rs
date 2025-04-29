@@ -1543,8 +1543,7 @@ impl IotaClientCommands {
                         client
                             .transaction_builder()
                             .pay_iota_tx_kind(vec![signer; amounts.len()], amounts)?
-                    } else {
-                        let count_to_compute = count.expect("count is None");
+                    } else if let Some(count_to_compute) = count {
                         let amount = gas_coins_page.data[0].balance / count_to_compute;
                         // Reduce by 1 as the gas coin is not included in the split
                         let count_to_split = count_to_compute.saturating_sub(1);
@@ -1552,6 +1551,8 @@ impl IotaClientCommands {
                             vec![signer; count_to_split as usize],
                             vec![amount; count_to_split as usize],
                         )?
+                    } else {
+                        unreachable!("amount or count must be provided")
                     }
                 } else {
                     client
