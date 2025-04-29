@@ -26,7 +26,6 @@
   - [`set-random-state`](#set-random-state)
   - [`view-checkpoint`](#view-checkpoint)
   - [`run-graphql`](#run-graphql)
-  - [`force-object-snapshot-catchup`](#force-object-snapshot-catchup)
   - [`bench`](#bench)
 - [How `run_test` Compares a Move File With the Corresponding `.exp` File](#how-run_test-compares-a-move-file-with-the-corresponding-exp-file)
   - [Execution Process in `handle_actual_output`](#execution-process-in-handle_actual_output)
@@ -1350,51 +1349,6 @@ An example of a query that generates an object cursor at runtime:
 }
 ```
 
-### `force-object-snapshot-catchup`
-
-The `force-object-snapshot-catchup` subcommand (`ForceObjectSnapshotCatchup` in Rust) forces the system to catch up on object snapshots between a specified range of checkpoints. This is useful for ensuring that object state updates are fully synchronized across nodes, particularly in scenarios where snapshots may be lagging behind.
-
-#### Syntax
-
-```
-//# force-object-snapshot-catchup -start-cp <START_CP> --end-cp <END_CP>
-```
-
-#### Options
-
-```
---start-cp <START_CP>: the starting checkpoint sequence number from which to begin catching up object snapshots.
---end-cp <END_CP>: the ending checkpoint sequence number up to which object snapshots should be caught up.
-```
-
-#### Example
-
-```move
-//# init --accounts acc1 --simulator
-
-//# create-checkpoint
-
-//# force-object-snapshot-catchup --start-cp 0 --end-cp 1
-```
-
-`.exp` output:
-
-```
-processed 4 tasks
-
-init:
-acc1: object(0,0)
-
-task 1 'create-checkpoint'. lines 3-3:
-Checkpoint created: 1
-
-task 2 'force-object-snapshot-catchup'. lines 5-5:
-Objects snapshot updated to [0 to 1)
-```
-
-- Forces object snapshots to catch up from checkpoint 100 to checkpoint 110.
-- Ensures that any missed object state updates between these checkpoints are processed.
-
 ### `bench`
 
 The `bench` subcommand (`Bench` in Rust) is used to benchmark a specific transaction execution. This is particularly useful for measuring the performance of a Move function execution by running it under benchmarking conditions.
@@ -1670,7 +1624,6 @@ pub enum IotaSubcommand<ExtraValueArgs, ExtraRunArgs> {
     AdvanceEpoch(AdvanceEpochCommand),
     AdvanceClock(AdvanceClockCommand),
     CreateCheckpoint(CreateCheckpointCommand),
-    ForceObjectSnapshotCatchup(ForceObjectSnapshotCatchup),
     SetAddress(SetAddressCommand),
     SetRandomState(SetRandomStateCommand),
     RunGraphql(RunGraphqlCommand),
