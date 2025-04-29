@@ -48,8 +48,8 @@ jobs:
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v3
         with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID_IOTA_WIKI }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY_IOTA_WIKI }}
           aws-region: eu-central-1 # Change if needed
 
       # ----------- Upload Docs to S3 -----------

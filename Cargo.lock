@@ -2101,9 +2101,9 @@ dependencies = [
 
 [[package]]
 name = "bytes-varint"
-version = "1.0.3"
+version = "1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "54c1820c7c366b9d26c47143e1604454105a59969aade54e4f695d96acc8332f"
+checksum = "2e95ba58c659da9789048773ebecf5bd17fe7d3858b10f693bb579912f0d55ed"
 dependencies = [
  "bytes",
 ]
@@ -7528,6 +7528,7 @@ dependencies = [
  "move-vm-config",
  "schemars",
  "serde",
+ "serde-env",
  "serde_with",
  "tracing",
 ]
@@ -13344,6 +13345,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c8e3592472072e6e22e0a54d5904d9febf8508f65fb8552499a1abc7d1078c3a"
 dependencies = [
  "serde_derive",
+]
+
+[[package]]
+name = "serde-env"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d13536c0c431652192b75c7d5afa83dedae98f91d7e687ff30a009e9d15284fb"
+dependencies = [
+ "anyhow",
+ "serde",
 ]
 
 [[package]]
