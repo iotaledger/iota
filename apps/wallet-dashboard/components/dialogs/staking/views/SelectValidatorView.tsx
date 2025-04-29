@@ -1,12 +1,17 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { Button, Header, Title, TitleSize, TooltipPosition } from '@iota/apps-ui-kit';
+import { Button, Header, Search, Title, TitleSize, TooltipPosition } from '@iota/apps-ui-kit';
 import { useIsValidatorCommitteeMember, Validator } from '@iota/core';
 import { DialogLayout, DialogLayoutBody, DialogLayoutFooter } from '../../layout';
+import { useState } from 'react';
 
+interface Validator {
+    iotaAddress: string;
+    name: string;
+}
 interface SelectValidatorViewProps {
-    validators: string[];
+    validators: Validator[];
     onSelect: (validator: string) => void;
     onNext: () => void;
     selectedValidator: string;
@@ -20,13 +25,23 @@ export function SelectValidatorView({
     selectedValidator,
     handleClose,
 }: SelectValidatorViewProps): JSX.Element {
+    const [searchValidator, setSearchValidator] = useState('');
+
     const { isCommitteeMember } = useIsValidatorCommitteeMember();
 
-    const committeeMemberValidators = validators.filter((validator) =>
-        isCommitteeMember(validator),
+    const filteredValidators = validators.filter((validator) => {
+        const valueToLowerCase = searchValidator.toLowerCase();
+        return (
+            validator.name.toLowerCase().includes(valueToLowerCase) ||
+            validator.iotaAddress.toLowerCase().includes(valueToLowerCase)
+        );
+    });
+
+    const committeeMemberValidators = filteredValidators.filter((validator) =>
+        isCommitteeMember(validator.iotaAddress),
     );
-    const nonCommitteeMemberValidators = validators.filter(
-        (validator) => !isCommitteeMember(validator),
+    const nonCommitteeMemberValidators = filteredValidators.filter(
+        (validator) => !isCommitteeMember(validator.iotaAddress),
     );
 
     return (
@@ -34,13 +49,19 @@ export function SelectValidatorView({
             <Header title="Validator" onClose={handleClose} onBack={handleClose} titleCentered />
             <DialogLayoutBody>
                 <div className="flex w-full flex-col gap-md">
+                    <Search
+                        searchValue={searchValidator}
+                        onSearchValueChange={setSearchValidator}
+                        placeholder="Search validators"
+                        isLoading={false}
+                    />
                     <div className="flex w-full flex-col">
                         {committeeMemberValidators.map((validator) => (
-                            <div key={validator}>
+                            <div key={validator.iotaAddress}>
                                 <Validator
-                                    address={validator}
-                                    onClick={() => onSelect(validator)}
-                                    isSelected={selectedValidator === validator}
+                                    address={validator.iotaAddress}
+                                    onClick={() => onSelect(validator.iotaAddress)}
+                                    isSelected={selectedValidator === validator.iotaAddress}
                                 />
                             </div>
                         ))}
@@ -55,27 +76,26 @@ export function SelectValidatorView({
                     )}
                     <div className="flex w-full flex-col">
                         {nonCommitteeMemberValidators.map((validator) => (
-                            <div key={validator}>
+                            <div key={validator.iotaAddress}>
                                 <Validator
-                                    address={validator}
-                                    onClick={() => onSelect(validator)}
-                                    isSelected={selectedValidator === validator}
+                                    address={validator.iotaAddress}
+                                    onClick={() => onSelect(validator.iotaAddress)}
+                                    isSelected={selectedValidator === validator.iotaAddress}
                                 />
                             </div>
                         ))}
                     </div>
                 </div>
             </DialogLayoutBody>
-            {!!selectedValidator && (
-                <DialogLayoutFooter>
-                    <Button
-                        fullWidth
-                        data-testid="select-validator-cta"
-                        onClick={onNext}
-                        text="Next"
-                    />
-                </DialogLayoutFooter>
-            )}
+            <DialogLayoutFooter>
+                <Button
+                    fullWidth
+                    data-testid="select-validator-cta"
+                    onClick={onNext}
+                    text="Next"
+                    disabled={!selectedValidator}
+                />
+            </DialogLayoutFooter>
         </DialogLayout>
     );
 }

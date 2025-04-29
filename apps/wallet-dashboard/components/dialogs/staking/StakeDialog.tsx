@@ -79,9 +79,12 @@ export function StakeDialog({
     });
 
     const { data: systemState } = useIotaClientQuery('getLatestIotaSystemState');
-    const activeValidatorAddresses = (systemState?.activeValidators ?? []).map(
-        (validator) => validator.iotaAddress,
-    );
+    const activeValidatorAddresses = (systemState?.activeValidators ?? []).map((validator) => {
+        return {
+            iotaAddress: validator.iotaAddress,
+            name: validator.name,
+        };
+    });
 
     const amount = formik.values.amount;
     const amountWithoutDecimals = parseAmount(amount, coinDecimals);
