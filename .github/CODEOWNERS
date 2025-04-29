@@ -96,6 +96,7 @@
 # Docker
 /docker/ @iotaledger/infrastructure @iotaledger/node @iotaledger/devops-admin
 /dev-tools/ @iotaledger/infrastructure @iotaledger/node @iotaledger/devops-admin
+/dev-tools/iota-indexer-monitoring/ @iotaledger/infrastructure
 /setups/ @iotaledger/infrastructure @iotaledger/node @iotaledger/devops-admin
 
 # Frontend apps to be looked after by Boxfish Studio or the tooling team

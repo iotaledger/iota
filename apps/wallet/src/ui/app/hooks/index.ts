@@ -22,6 +22,7 @@ export * from './useActiveAccount';
 export * from './useAutoLockMinutes';
 export * from './useAutoLockMinutesMutation';
 export * from './useBackgroundClient';
+export * from './useConnectedApps';
 export * from './useCreateAccountsMutation';
 export * from './useExportPassphraseMutation';
 export * from './useExportSeedMutation';
