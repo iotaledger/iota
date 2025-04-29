@@ -5,9 +5,9 @@ import { useQuery } from '@tanstack/react-query';
 import { normalizeIotaAddress } from '@iota/iota-sdk/utils';
 import type { IotaClient } from '@iota/iota-sdk/client';
 import { InactiveValidatorData } from '../../types';
-import { getInactiveValidatorsData } from './../../utils';
+import { getInactiveValidatorsData } from '../../utils';
 
-export function getInactiveValidator(
+export function useGetInactiveValidatorData(
     client: IotaClient,
     inactivePoolsId: string,
     validatorAddress: string,

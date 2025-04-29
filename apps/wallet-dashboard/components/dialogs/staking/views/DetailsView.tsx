@@ -61,7 +61,7 @@ export async function DetailsView({
         isApyApproxZero,
         newValidator,
         commission,
-    } = await useValidatorInfo({
+    } = useValidatorInfo({
         validatorAddress,
     });
     const { isCommitteeMember } = useIsValidatorCommitteeMember();

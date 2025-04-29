@@ -1,14 +1,12 @@
 // Copyright (c) Mysten Labs, Inc.
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
-
 import { Card, CardImage, CardType, CardBody, CardAction, CardActionType } from '@iota/apps-ui-kit';
 import { useMemo } from 'react';
 import { ImageIcon } from '../icon';
 import { ExtendedDelegatedStake } from '../../utils';
-import { getInactiveValidator, useFormatCoin, useStakeRewardStatus } from '../../hooks';
+import { useFormatCoin, useStakeRewardStatus, useGetInactiveValidatorData } from '../../hooks';
 import { useIotaClient, useIotaClientQuery } from '@iota/dapp-kit';
-
 interface StakedCardProps {
     extendedStake: ExtendedDelegatedStake;
     currentEpoch: number;
@@ -49,7 +47,7 @@ export function StakedCard({
         );
     }, [validatorAddress, data]);
 
-    const inactiveValidatorData = getInactiveValidator(
+    const inactiveValidatorData = useGetInactiveValidatorData(
         iotaClient,
         data?.inactivePoolsId || '',
         validatorAddress,
