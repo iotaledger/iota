@@ -68,98 +68,12 @@ Create or modify your SSFN's configuration file with these specific settings:
 
 <Tabs groupId="network">
     <TabItem label="Mainnet" value="mainnet">
-      ```yaml
-      # Network Configuration
-      network-key-pair:
-        path: /opt/iota/key-pairs/network.key
-
-      # Peering Configuration
-      p2p-config:
-        seed-peers:
-          - address: /dns/validator-hostname/udp/8084
-            peer-id: <validator-peer-id>  # Get this from your validator's network.key
-          - address: /dns/access-0.r.mainnet.iota.cafe/udp/8084
-            peer-id: 66b55de43e925417761f3c66cd734451b5876e1496b961052095bdd8a7732189
-          - address: /dns/access-1.r.mainnet.iota.cafe/udp/8084
-            peer-id: 7f8dc46616df5b5640ffd118c6ef640b3f7f5cae8a2bedfa700769e12150a197
-          - address: /dns/access-2.r.mainnet.iota.cafe/udp/8084
-            peer-id: c9fbf6fb511fc5243989c7a455d36f277844288b1a1d8453331c200b6ac4d99f
-          - address: /dns/access-3.r.mainnet.iota.cafe/udp/8084
-            peer-id: 2c1e05e9bddaf505b70184baf21a188a7c270b1b58f38d55e3aea42d067c5fb6
-
-      # Resource Optimization
-      enable-index-processing: false
-
-      # Pruning Configuration
-      authority-store-pruning-config:
-        num-latest-epoch-dbs-to-retain: 3
-        epoch-db-pruning-period-secs: 3600
-        max-checkpoints-in-batch: 10
-        max-transactions-in-batch: 1000
-        num-epochs-to-retain: 0
-        num-epochs-to-retain-for-checkpoints: 2
-        periodic-compaction-threshold-days: 1
-
-      # Metrics Configuration
-      metrics:
-        push-interval-seconds: 60
-        push-url: https://metrics-proxy.mainnet.iota.cafe:8443/publish/metrics
-      
-      state-archive-read-config:
-        - object-store-config:
-            object-store: "S3"
-            aws-endpoint: "https://archive.mainnet.iota.cafe"
-            aws-virtual-hosted-style-request: true
-            object-store-connection-limit: 20
-            no-sign-request: true
-          concurrency: 5
-          use-for-pruning-watermark: false
-      ```
+        ```yaml file=<rootDir>/setups/validator/ssfn-mainnet.yaml
+        ```
     </TabItem>
     <TabItem label="Testnet" value="testnet">
-      ```yaml
-      # Network Configuration
-      network-key-pair:
-        path: /opt/iota/key-pairs/network.key
-
-      # Peering Configuration
-      p2p-config:
-        seed-peers:
-          - address: /dns/validator-hostname/udp/8084
-            peer-id: <validator-peer-id>  # Get this from your validator's network.key
-          - address: /dns/access-0.r.testnet.iota.cafe/udp/8084
-            peer-id: 46064108d0b689ed89d1f44153e532bb101ce8f8ca3a3d01ab991d4dea122cfc
-          - address: /dns/access-1.r.testnet.iota.cafe/udp/8084
-            peer-id: 8ffd25fa4e86c30c3f8da7092695e8a103462d7a213b815d77d6da7f0a2a52f5
-
-      # Resource Optimization
-      enable-index-processing: false
-
-      # Pruning Configuration
-      authority-store-pruning-config:
-        num-latest-epoch-dbs-to-retain: 3
-        epoch-db-pruning-period-secs: 3600
-        max-checkpoints-in-batch: 10
-        max-transactions-in-batch: 1000
-        num-epochs-to-retain: 0
-        num-epochs-to-retain-for-checkpoints: 2
-        periodic-compaction-threshold-days: 1
-
-      # Metrics Configuration
-      metrics:
-        push-interval-seconds: 60
-        push-url: https://metrics-proxy.testnet.iota.cafe:8443/publish/metrics
-
-      state-archive-read-config:
-        - object-store-config:
-            object-store: "S3"
-            aws-endpoint: "https://archive.testnet.iota.cafe"
-            aws-virtual-hosted-style-request: true
-            object-store-connection-limit: 20
-            no-sign-request: true
-          concurrency: 5
-          use-for-pruning-watermark: false
-      ```
+        ```yaml file=<rootDir>/setups/validator/ssfn-testnet.yaml
+        ```
     </TabItem>
 </Tabs>
 
