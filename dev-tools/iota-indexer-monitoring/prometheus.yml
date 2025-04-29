@@ -1,0 +1,7 @@
+global:
+  scrape_interval: 15s
+
+scrape_configs:
+  - job_name: "iota_indexer"
+    static_configs:
+      - targets: ["host.docker.internal:9184"]
