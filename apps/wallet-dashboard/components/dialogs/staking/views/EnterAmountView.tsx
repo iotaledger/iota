@@ -3,10 +3,8 @@
 
 import {
     useFormatCoin,
-    useBalance,
     CoinFormat,
     useCoinMetadata,
-    safeParseAmount,
     toast,
     useNewStakeTransaction,
     parseAmount,
@@ -18,7 +16,7 @@ import { useSignAndExecuteTransaction } from '@iota/dapp-kit';
 import { EnterAmountDialogLayout } from './EnterAmountDialogLayout';
 import { ampli } from '@/lib/utils/analytics';
 import { ButtonPill, InfoBox, InfoBoxStyle, InfoBoxType } from '@iota/apps-ui-kit';
-import { useEffect, useMemo } from 'react';
+import { useMemo } from 'react';
 import { Exclamation } from '@iota/apps-ui-icons';
 
 export interface FormValues {
@@ -30,7 +28,7 @@ interface EnterAmountViewProps {
     onBack: () => void;
     showActiveStatus?: boolean;
     handleClose: () => void;
-    amountWithoutDecimals: bigint;
+    availableBalance: bigint;
     senderAddress: string;
     onSuccess: (digest: string) => void;
 }
@@ -39,54 +37,35 @@ export function EnterAmountView({
     selectedValidator,
     onBack,
     handleClose,
-    amountWithoutDecimals,
+    availableBalance,
     senderAddress,
     onSuccess,
 }: EnterAmountViewProps): JSX.Element {
     const { mutateAsync: signAndExecuteTransaction } = useSignAndExecuteTransaction();
     const { values, resetForm, setFieldValue } = useFormikContext<FormValues>();
-
-    const coinType = IOTA_TYPE_ARG;
-    const { data: metadata } = useCoinMetadata(coinType);
+    const { data: metadata } = useCoinMetadata(IOTA_TYPE_ARG);
     const decimals = metadata?.decimals ?? 0;
-
-    const { data: iotaBalance } = useBalance(senderAddress);
-    const coinBalance = BigInt(iotaBalance?.totalBalance || 0);
+    const amount = parseAmount(values.amount, decimals);
 
     const {
         data: newStakeData,
         isLoading: isTransactionLoading,
         isError,
         error: stakeTransactionError,
-    } = useNewStakeTransaction(selectedValidator, amountWithoutDecimals, senderAddress);
+    } = useNewStakeTransaction(selectedValidator, amount, senderAddress);
 
     const gasSummary = newStakeData?.gasSummary;
 
-    const { data: maxAmountTransactionData } = useNewStakeTransaction(
-        selectedValidator,
-        coinBalance,
-        senderAddress,
-    );
-    const maxAmountTxGasBudget = BigInt(maxAmountTransactionData?.gasSummary?.budget ?? 0n);
-
-    useEffect(() => {
-        setFieldValue('gasBudget', maxAmountTxGasBudget);
-    }, [maxAmountTxGasBudget, setFieldValue]);
-
-    // for user we show available amount as available_balance - gas_budget
-    const availableBalance = coinBalance - maxAmountTxGasBudget;
     const [availableBalanceFormatted, availableBalanceFormattedSymbol] = useFormatCoin({
         balance: availableBalance,
         format: CoinFormat.FULL,
     });
 
-    const amount = safeParseAmount(coinType === IOTA_TYPE_ARG ? values.amount : '0', decimals);
-
-    const caption = maxAmountTxGasBudget
+    const caption = availableBalance
         ? `${availableBalanceFormatted} ${availableBalanceFormattedSymbol} Available`
         : '--';
 
-    const gasUnstakeBuffer = maxAmountTxGasBudget * BigInt(2);
+    const gasUnstakeBuffer = gasSummary?.budget ? BigInt(gasSummary.budget) * BigInt(2) : BigInt(0);
     const maxSafeAmount = availableBalance - gasUnstakeBuffer;
     const [maxSafeAmountFormatted, maxSafeAmountSymbol] = useFormatCoin({
         balance: maxSafeAmount,

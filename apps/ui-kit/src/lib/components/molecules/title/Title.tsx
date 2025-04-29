@@ -36,6 +36,10 @@ interface TitleProps {
      * The size of the component
      */
     size?: TitleSize;
+    /**
+     * The 'data-testid' attribute value (used in e2e tests)
+     */
+    testId?: string;
 }
 
 export function Title({
@@ -46,9 +50,13 @@ export function Title({
     supportingElement,
     tooltipPosition,
     size = TitleSize.Medium,
+    testId,
 }: TitleProps) {
     return (
-        <div className={cx('flex flex-row items-center justify-between', TITLE_PADDINGS[size])}>
+        <div
+            className={cx('flex flex-row items-center justify-between', TITLE_PADDINGS[size])}
+            data-testid={testId}
+        >
             <div className="flex flex-row items-center gap-x-xxxs">
                 <div className="flex flex-col justify-start">
                     <div className="flex flex-row items-center gap-x-0.5 text-neutral-10 dark:text-neutral-92">

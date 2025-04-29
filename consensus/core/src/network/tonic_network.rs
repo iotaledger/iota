@@ -22,12 +22,12 @@ use iota_network_stack::{
 };
 use parking_lot::RwLock;
 use tokio_stream::{Iter, iter};
-use tonic::{Request, Response, Streaming};
+use tonic::{Request, Response, Streaming, codec::CompressionEncoding};
 use tower_http::trace::{DefaultMakeSpan, DefaultOnFailure, TraceLayer};
 use tracing::{debug, error, info, trace, warn};
 
 use super::{
-    BlockStream, NetworkClient, NetworkManager, NetworkService,
+    BlockStream, ExtendedSerializedBlock, NetworkClient, NetworkManager, NetworkService,
     metrics_layer::{MetricsCallbackMaker, MetricsResponseCallback, SizedRequest, SizedResponse},
     tonic_gen::{
         consensus_service_client::ConsensusServiceClient,
@@ -81,9 +81,16 @@ impl TonicClient {
             .channel_pool
             .get_channel(self.network_keypair.clone(), peer, timeout)
             .await?;
-        Ok(ConsensusServiceClient::new(channel)
+        let mut client = ConsensusServiceClient::new(channel)
             .max_encoding_message_size(config.message_size_limit)
-            .max_decoding_message_size(config.message_size_limit))
+            .max_decoding_message_size(config.message_size_limit);
+
+        if self.context.protocol_config.consensus_zstd_compression() {
+            client = client
+                .send_compressed(CompressionEncoding::Zstd)
+                .accept_compressed(CompressionEncoding::Zstd);
+        }
+        Ok(client)
     }
 }
 
@@ -132,7 +139,10 @@ impl NetworkClient for TonicClient {
             .take_while(|b| futures::future::ready(b.is_ok()))
             .filter_map(move |b| async move {
                 match b {
-                    Ok(response) => Some(response.block),
+                    Ok(response) => Some(ExtendedSerializedBlock {
+                        block: response.block,
+                        excluded_ancestors: response.excluded_ancestors,
+                    }),
                     Err(e) => {
                         debug!("Network error received from {}: {e:?}", peer);
                         None
@@ -294,13 +304,28 @@ impl NetworkClient for TonicClient {
                             "fetch_blocks failed mid-stream: {e:?}"
                         )));
                     } else {
-                        warn!("fetch_blocks failed mid-stream: {e:?}");
+                        warn!("fetch_latest_blocks failed mid-stream: {e:?}");
                         break;
                     }
                 }
             }
         }
         Ok(blocks)
+    }
+
+    async fn get_latest_rounds(
+        &self,
+        peer: AuthorityIndex,
+        timeout: Duration,
+    ) -> ConsensusResult<(Vec<Round>, Vec<Round>)> {
+        let mut client = self.get_client(peer, timeout).await?;
+        let mut request = Request::new(GetLatestRoundsRequest {});
+        request.set_timeout(timeout);
+        let response = client.get_latest_rounds(request).await.map_err(|e| {
+            ConsensusError::NetworkRequest(format!("get_latest_rounds failed: {e:?}"))
+        })?;
+        let response = response.into_inner();
+        Ok((response.highest_received, response.highest_accepted))
     }
 }
 
@@ -370,7 +395,7 @@ impl ChannelPool {
             match endpoint.connect().await {
                 Ok(channel) => break channel,
                 Err(e) => {
-                    warn!("Failed to connect to endpoint at {address}: {e:?}");
+                    debug!("Failed to connect to endpoint at {address}: {e:?}");
                     if tokio::time::Instant::now() >= deadline {
                         return Err(ConsensusError::NetworkClientConnection(format!(
                             "Timed out connecting to endpoint at {address}: {e:?}"
@@ -427,6 +452,10 @@ impl<S: NetworkService> ConsensusService for TonicServiceProxy<S> {
             return Err(tonic::Status::internal("PeerInfo not found"));
         };
         let block = request.into_inner().block;
+        let block = ExtendedSerializedBlock {
+            block,
+            excluded_ancestors: vec![],
+        };
         self.service
             .handle_send_block(peer_index, block)
             .await
@@ -467,7 +496,12 @@ impl<S: NetworkService> ConsensusService for TonicServiceProxy<S> {
             .handle_subscribe_blocks(peer_index, first_request.last_received_round)
             .await
             .map_err(|e| tonic::Status::internal(format!("{e:?}")))?
-            .map(|block| Ok(SubscribeBlocksResponse { block }));
+            .map(|block| {
+                Ok(SubscribeBlocksResponse {
+                    block: block.block,
+                    excluded_ancestors: block.excluded_ancestors,
+                })
+            });
         let rate_limited_stream =
             tokio_stream::StreamExt::throttle(stream, self.context.parameters.min_round_delay / 2)
                 .boxed();
@@ -591,6 +625,28 @@ impl<S: NetworkService> ConsensusService for TonicServiceProxy<S> {
         let stream = iter(responses);
         Ok(Response::new(stream))
     }
+
+    async fn get_latest_rounds(
+        &self,
+        request: Request<GetLatestRoundsRequest>,
+    ) -> Result<Response<GetLatestRoundsResponse>, tonic::Status> {
+        let Some(peer_index) = request
+            .extensions()
+            .get::<PeerInfo>()
+            .map(|p| p.authority_index)
+        else {
+            return Err(tonic::Status::internal("PeerInfo not found"));
+        };
+        let (highest_received, highest_accepted) = self
+            .service
+            .handle_get_latest_rounds(peer_index)
+            .await
+            .map_err(|e| tonic::Status::internal(format!("{e:?}")))?;
+        Ok(Response::new(GetLatestRoundsResponse {
+            highest_received,
+            highest_accepted,
+        }))
+    }
 }
 
 /// Manages the lifecycle of Tonic network client and service. Typical usage
@@ -678,13 +734,19 @@ impl<S: NetworkService> NetworkManager<S> for TonicManager {
             )
             .layer_fn(|service| iota_network_stack::grpc_timeout::GrpcTimeout::new(service, None));
 
-        let consensus_service = tonic::service::Routes::new(
-            ConsensusServiceServer::new(service)
-                .max_encoding_message_size(config.message_size_limit)
-                .max_decoding_message_size(config.message_size_limit),
-        )
-        .into_axum_router()
-        .route_layer(layers);
+        let mut consensus_service_server = ConsensusServiceServer::new(service)
+            .max_encoding_message_size(config.message_size_limit)
+            .max_decoding_message_size(config.message_size_limit);
+
+        if self.context.protocol_config.consensus_zstd_compression() {
+            consensus_service_server = consensus_service_server
+                .send_compressed(CompressionEncoding::Zstd)
+                .accept_compressed(CompressionEncoding::Zstd);
+        }
+
+        let consensus_service = tonic::service::Routes::new(consensus_service_server)
+            .into_axum_router()
+            .route_layer(layers);
 
         let tls_server_config =
             create_rustls_server_config(&self.context, self.network_keypair.clone());
@@ -819,7 +881,7 @@ fn peer_info_from_certs(
 
 /// Attempts to convert a multiaddr of the form `/[ip4,ip6,dns]/{}/udp/{port}`
 /// into a host:port string.
-fn to_host_port_str(addr: &Multiaddr) -> Result<String, &'static str> {
+fn to_host_port_str(addr: &Multiaddr) -> Result<String, String> {
     let mut iter = addr.iter();
 
     match (iter.next(), iter.next()) {
@@ -833,16 +895,13 @@ fn to_host_port_str(addr: &Multiaddr) -> Result<String, &'static str> {
             Ok(format!("{}:{}", hostname, port))
         }
 
-        _ => {
-            tracing::warn!("unsupported multiaddr: '{addr}'");
-            Err("invalid address")
-        }
+        _ => Err(format!("unsupported multiaddr: {addr}")),
     }
 }
 
 /// Attempts to convert a multiaddr of the form `/[ip4,ip6]/{}/[udp,tcp]/{port}`
 /// into a SocketAddr value.
-fn to_socket_addr(addr: &Multiaddr) -> Result<SocketAddr, &'static str> {
+pub fn to_socket_addr(addr: &Multiaddr) -> Result<SocketAddr, String> {
     let mut iter = addr.iter();
 
     match (iter.next(), iter.next()) {
@@ -856,10 +915,7 @@ fn to_socket_addr(addr: &Multiaddr) -> Result<SocketAddr, &'static str> {
             Ok(SocketAddr::V6(SocketAddrV6::new(ipaddr, port, 0, 0)))
         }
 
-        _ => {
-            tracing::warn!("unsupported multiaddr: '{addr}'");
-            Err("invalid address")
-        }
+        _ => Err(format!("unsupported multiaddr: {addr}")),
     }
 }
 
@@ -984,6 +1040,9 @@ pub(crate) struct SubscribeBlocksRequest {
 pub(crate) struct SubscribeBlocksResponse {
     #[prost(bytes = "bytes", tag = "1")]
     block: Bytes,
+    // Serialized BlockRefs that are excluded from the blocks ancestors.
+    #[prost(bytes = "vec", repeated, tag = "2")]
+    excluded_ancestors: Vec<Vec<u8>>,
 }
 
 #[derive(Clone, prost::Message)]
@@ -1032,6 +1091,19 @@ pub(crate) struct FetchLatestBlocksResponse {
     // The response of the requested blocks as Serialized SignedBlock.
     #[prost(bytes = "bytes", repeated, tag = "1")]
     blocks: Vec<Bytes>,
+}
+
+#[derive(Clone, prost::Message)]
+pub(crate) struct GetLatestRoundsRequest {}
+
+#[derive(Clone, prost::Message)]
+pub(crate) struct GetLatestRoundsResponse {
+    // Highest received round per authority.
+    #[prost(uint32, repeated, tag = "1")]
+    highest_received: Vec<u32>,
+    // Highest accepted round per authority.
+    #[prost(uint32, repeated, tag = "2")]
+    highest_accepted: Vec<u32>,
 }
 
 fn chunk_blocks(blocks: Vec<Bytes>, chunk_limit: usize) -> Vec<Vec<Bytes>> {

@@ -12,3 +12,4 @@ export * from './coinTypeToFiatTokenName.constants';
 export * from './coinGeckoUrl.constants';
 export * from './vesting.constants';
 export * from './errorMessages.constants';
+export * from './legal.constants';

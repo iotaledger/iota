@@ -54,7 +54,6 @@ const config = {
     mermaid: true,
   },
   plugins: [
-    // ....
     [
       "@graphql-markdown/docusaurus",
       /** @type {import('@graphql-markdown/types').ConfigOptions} */
@@ -149,7 +148,25 @@ const config = {
         },
       },
     ],
-    'plugin-image-zoom'
+    'plugin-image-zoom',
+    [
+      'docusaurus-plugin-openapi-docs',
+      {
+        id: 'openapi',
+        docsPluginId: 'classic',
+        config: {
+          coreApiV2: {
+            specPath:
+              'https://raw.githubusercontent.com/iotaledger/wasp/refs/heads/develop/clients/apiclient/api/openapi.yaml',
+            outputDir: 
+              '../content/iota-evm/references/openapi',
+            sidebarOptions: {
+              groupPathsBy: 'tag',
+            }
+          }
+        }
+      }
+    ]
   ],
   presets: [
     [
@@ -160,6 +177,8 @@ const config = {
           path: "../content",
           routeBasePath: "/",
           sidebarPath: require.resolve("./sidebars.js"),
+          docItemComponent: "@theme/ApiItem", // Derived from docusaurus-theme-openapi
+          docRootComponent: "@theme/DocRoot", // add @theme/DocRoot
           async sidebarItemsGenerator({
             isCategoryIndex: defaultCategoryIndexMatcher, // The default matcher implementation, given below
             defaultSidebarItemsGenerator,
@@ -192,7 +211,7 @@ const config = {
             "1.0.0",
           ],*/
           remarkPlugins: [
-            math,
+            [math,{singleDollarTextMath:false}],
             [
               require("@docusaurus/remark-plugin-npm2yarn"),
               { sync: true, converters: ["yarn", "pnpm"] },
@@ -230,8 +249,12 @@ const config = {
       type: "text/css",
     },
   ],
-  themes: ["@docusaurus/theme-mermaid",
-    '@saucelabs/theme-github-codeblock', '@docusaurus/theme-live-codeblock'],
+  themes: [
+    '@docusaurus/theme-mermaid',
+    '@saucelabs/theme-github-codeblock', 
+    '@docusaurus/theme-live-codeblock',
+    'docusaurus-theme-openapi-docs',
+  ],
   themeConfig:
     /** @type {import('@docusaurus/preset-classic').ThemeConfig} */
     ({

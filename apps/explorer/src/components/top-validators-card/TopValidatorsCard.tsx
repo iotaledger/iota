@@ -16,7 +16,7 @@ import {
 } from '@iota/apps-ui-kit';
 import { ErrorBoundary } from '../error-boundary/ErrorBoundary';
 import { Warning } from '@iota/apps-ui-icons';
-import { useGetLatestIotaSystemState } from '@iota/core';
+import { useIotaClientQuery } from '@iota/dapp-kit';
 
 const NUMBER_OF_VALIDATORS = 10;
 
@@ -26,7 +26,7 @@ type TopValidatorsCardProps = {
 };
 
 export function TopValidatorsCard({ limit, showIcon }: TopValidatorsCardProps): JSX.Element {
-    const { data, isPending, isSuccess, isError } = useGetLatestIotaSystemState();
+    const { data, isPending, isSuccess, isError } = useIotaClientQuery('getLatestIotaSystemState');
 
     const topCommitteeMembers =
         data?.committeeMembers.slice(0, limit || NUMBER_OF_VALIDATORS) ?? [];

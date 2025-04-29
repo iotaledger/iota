@@ -10,7 +10,6 @@ import {
     useBackgroundClient,
     useActiveAccount,
 } from '_hooks';
-import { FAQ_LINK, ToS_LINK } from '_src/shared/constants';
 import { FaucetRequestButton } from '_src/ui/app/shared/faucet/FaucetRequestButton';
 import { getNetwork, Network } from '@iota/iota-sdk/client';
 import Browser from 'webextension-polyfill';
@@ -39,7 +38,7 @@ import {
     ImageType,
 } from '@iota/apps-ui-kit';
 import { ampli } from '_src/shared/analytics/ampli';
-import { useTheme, getCustomNetwork } from '@iota/core';
+import { useTheme, getCustomNetwork, FAQ_LINK, ToS_LINK } from '@iota/core';
 
 export function MenuList() {
     const { themePreference } = useTheme();

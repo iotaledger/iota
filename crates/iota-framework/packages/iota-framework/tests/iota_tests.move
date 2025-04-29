@@ -2,165 +2,164 @@
 // SPDX-License-Identifier: Apache-2.0
 
 #[test_only]
-module iota::iota_tests {
+module iota::iota_tests;
 
-    use iota::iota;
-    use iota::test_scenario;
-    use iota::test_utils::{Self, assert_eq};
+use iota::iota;
+use iota::test_scenario;
+use iota::test_utils::{Self, assert_eq};
 
-    #[test]
-    #[expected_failure(abort_code = iota::ENotSystemAddress)]
-    fun test_create_iota_from_wrong_address() {
-        // Set up a test environment.
-        let mut scenario = test_scenario::begin(@0xA);
+#[test]
+#[expected_failure(abort_code = iota::ENotSystemAddress)]
+fun test_create_iota_from_wrong_address() {
+    // Set up a test environment.
+    let mut scenario = test_scenario::begin(@0xA);
 
-        // Create an IOTA treasury capability.
-        let iota_treasury_cap = iota::create_for_testing(scenario.ctx());
+    // Create an IOTA treasury capability.
+    let iota_treasury_cap = iota::create_for_testing(scenario.ctx());
 
-        // Cleanup.
-        test_utils::destroy(iota_treasury_cap);
+    // Cleanup.
+    test_utils::destroy(iota_treasury_cap);
 
-        scenario.end();
-    }
+    scenario.end();
+}
 
-    #[test]
-    #[expected_failure(abort_code = iota::EAlreadyMinted)]
-    fun test_create_iota_during_wrong_epoch() {
-        // Set up a test environment.
-        let mut scenario = test_scenario::begin(@0x0);
+#[test]
+#[expected_failure(abort_code = iota::EAlreadyMinted)]
+fun test_create_iota_during_wrong_epoch() {
+    // Set up a test environment.
+    let mut scenario = test_scenario::begin(@0x0);
 
-        // Advance the scenario to a new epoch.
-        scenario.next_epoch(@0x0);
+    // Advance the scenario to a new epoch.
+    scenario.next_epoch(@0x0);
 
-        // Create an IOTA treasury capability.
-        let iota_treasury_cap = iota::create_for_testing(scenario.ctx());
+    // Create an IOTA treasury capability.
+    let iota_treasury_cap = iota::create_for_testing(scenario.ctx());
 
-        // Cleanup.
-        test_utils::destroy(iota_treasury_cap);
+    // Cleanup.
+    test_utils::destroy(iota_treasury_cap);
 
-        scenario.end();
-    }
+    scenario.end();
+}
 
-    #[test]
-    fun test_mint_burn_flow() {
-        // Set up a test environment.
-        let mut scenario = test_scenario::begin(@0x0);
-        let ctx = scenario.ctx();
+#[test]
+fun test_mint_burn_flow() {
+    // Set up a test environment.
+    let mut scenario = test_scenario::begin(@0x0);
+    let ctx = scenario.ctx();
 
-        // Create an IOTA treasury capability.
-        let mut iota_treasury_cap = iota::create_for_testing(ctx);
+    // Create an IOTA treasury capability.
+    let mut iota_treasury_cap = iota::create_for_testing(ctx);
 
-        // Mint some IOTA.
-        let iota_coin = iota_treasury_cap.mint(100, ctx);
+    // Mint some IOTA.
+    let iota_coin = iota_treasury_cap.mint(100, ctx);
 
-        assert_eq(iota_treasury_cap.total_supply(), 100);
+    assert_eq(iota_treasury_cap.total_supply(), 100);
 
-        let iota_balance = iota_treasury_cap.mint_balance(200, ctx);
+    let iota_balance = iota_treasury_cap.mint_balance(200, ctx);
 
-        assert_eq(iota_treasury_cap.total_supply(), 300);
+    assert_eq(iota_treasury_cap.total_supply(), 300);
 
-        // Burn some IOTA.
-        iota_treasury_cap.burn(iota_coin, ctx);
+    // Burn some IOTA.
+    iota_treasury_cap.burn(iota_coin, ctx);
 
-        assert_eq(iota_treasury_cap.total_supply(), 200);
+    assert_eq(iota_treasury_cap.total_supply(), 200);
 
-        iota_treasury_cap.burn_balance(iota_balance, ctx);
+    iota_treasury_cap.burn_balance(iota_balance, ctx);
 
-        assert_eq(iota_treasury_cap.total_supply(), 0);
+    assert_eq(iota_treasury_cap.total_supply(), 0);
 
-        // Cleanup.
-        test_utils::destroy(iota_treasury_cap);
-    
-        scenario.end();
-    }
+    // Cleanup.
+    test_utils::destroy(iota_treasury_cap);
 
-    #[test]
-    #[expected_failure(abort_code = iota::ENotSystemAddress)]
-    fun test_mint_coins_by_wrong_address() {
-        // Set up a test environment.
-        let mut scenario = test_scenario::begin(@0xA);
+    scenario.end();
+}
 
-        // Create an IOTA treasury capability.
-        let mut iota_treasury_cap = iota::create_for_testing(scenario.ctx());
+#[test]
+#[expected_failure(abort_code = iota::ENotSystemAddress)]
+fun test_mint_coins_by_wrong_address() {
+    // Set up a test environment.
+    let mut scenario = test_scenario::begin(@0xA);
 
-        // Mint some IOTA coins.
-        let iota = iota_treasury_cap.mint(100, scenario.ctx());
+    // Create an IOTA treasury capability.
+    let mut iota_treasury_cap = iota::create_for_testing(scenario.ctx());
 
-        // Cleanup.
-        test_utils::destroy(iota);
-        test_utils::destroy(iota_treasury_cap);
+    // Mint some IOTA coins.
+    let iota = iota_treasury_cap.mint(100, scenario.ctx());
 
-        scenario.end();
-    }
+    // Cleanup.
+    test_utils::destroy(iota);
+    test_utils::destroy(iota_treasury_cap);
 
-    #[test]
-    #[expected_failure(abort_code = iota::ENotSystemAddress)]
-    fun test_burn_coins_by_wrong_address() {
-        // Set up a test environment.
-        let mut scenario = test_scenario::begin(@0x0);
+    scenario.end();
+}
 
-        // Create an IOTA treasury capability.
-        let mut iota_treasury_cap = iota::create_for_testing(scenario.ctx());
+#[test]
+#[expected_failure(abort_code = iota::ENotSystemAddress)]
+fun test_burn_coins_by_wrong_address() {
+    // Set up a test environment.
+    let mut scenario = test_scenario::begin(@0x0);
 
-        // Mint some IOTA coins.
-        let iota = iota_treasury_cap.mint(100, scenario.ctx());
+    // Create an IOTA treasury capability.
+    let mut iota_treasury_cap = iota::create_for_testing(scenario.ctx());
 
-        assert_eq(iota_treasury_cap.total_supply(), 100);
+    // Mint some IOTA coins.
+    let iota = iota_treasury_cap.mint(100, scenario.ctx());
 
-        // Switch to a wrong address.
-        scenario.next_tx(@0xA);
+    assert_eq(iota_treasury_cap.total_supply(), 100);
 
-        // Burn some IOTA coins.
-        iota_treasury_cap.burn(iota, scenario.ctx());
+    // Switch to a wrong address.
+    scenario.next_tx(@0xA);
 
-        // Cleanup.
-        test_utils::destroy(iota_treasury_cap);
+    // Burn some IOTA coins.
+    iota_treasury_cap.burn(iota, scenario.ctx());
 
-        scenario.end();
-    }
+    // Cleanup.
+    test_utils::destroy(iota_treasury_cap);
 
-    #[test]
-    #[expected_failure(abort_code = iota::ENotSystemAddress)]
-    fun test_mint_balance_by_wrong_address() {
-        // Set up a test environment.
-        let mut scenario = test_scenario::begin(@0xA);
+    scenario.end();
+}
 
-        // Create an IOTA treasury capability.
-        let mut iota_treasury_cap = iota::create_for_testing(scenario.ctx());
+#[test]
+#[expected_failure(abort_code = iota::ENotSystemAddress)]
+fun test_mint_balance_by_wrong_address() {
+    // Set up a test environment.
+    let mut scenario = test_scenario::begin(@0xA);
 
-        // Mint some IOTA balance.
-        let iota = iota_treasury_cap.mint_balance(100, scenario.ctx());
+    // Create an IOTA treasury capability.
+    let mut iota_treasury_cap = iota::create_for_testing(scenario.ctx());
 
-        // Cleanup.
-        test_utils::destroy(iota);
-        test_utils::destroy(iota_treasury_cap);
+    // Mint some IOTA balance.
+    let iota = iota_treasury_cap.mint_balance(100, scenario.ctx());
 
-        scenario.end();
-    }
+    // Cleanup.
+    test_utils::destroy(iota);
+    test_utils::destroy(iota_treasury_cap);
 
-    #[test]
-    #[expected_failure(abort_code = iota::ENotSystemAddress)]
-    fun test_burn_balance_by_custom_address() {
-        // Set up a test environment.
-        let mut scenario = test_scenario::begin(@0x0);
+    scenario.end();
+}
 
-        // Create an IOTA treasury capability.
-        let mut iota_treasury_cap = iota::create_for_testing(scenario.ctx());
+#[test]
+#[expected_failure(abort_code = iota::ENotSystemAddress)]
+fun test_burn_balance_by_custom_address() {
+    // Set up a test environment.
+    let mut scenario = test_scenario::begin(@0x0);
 
-        // Mint some IOTA balance.
-        let iota = iota_treasury_cap.mint_balance(100, scenario.ctx());
+    // Create an IOTA treasury capability.
+    let mut iota_treasury_cap = iota::create_for_testing(scenario.ctx());
 
-        assert_eq(iota_treasury_cap.total_supply(), 100);
+    // Mint some IOTA balance.
+    let iota = iota_treasury_cap.mint_balance(100, scenario.ctx());
 
-        // Switch to a wrong address.
-        scenario.next_tx(@0xA);
+    assert_eq(iota_treasury_cap.total_supply(), 100);
 
-        // Burn some IOTA balance.
-        iota_treasury_cap.burn_balance(iota, scenario.ctx());
+    // Switch to a wrong address.
+    scenario.next_tx(@0xA);
 
-        // Cleanup.
-        test_utils::destroy(iota_treasury_cap);
+    // Burn some IOTA balance.
+    iota_treasury_cap.burn_balance(iota, scenario.ctx());
 
-        scenario.end();
-    }
+    // Cleanup.
+    test_utils::destroy(iota_treasury_cap);
+
+    scenario.end();
 }
