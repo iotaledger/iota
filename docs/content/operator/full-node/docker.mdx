@@ -13,11 +13,7 @@ import FullnodeRequirements from '../../_snippets/operator/fullnode-requirements
 import CheckNodeConfig from '../../_snippets/operator/check-node-config.mdx'
 import TryRpcEndpoint from '../../_snippets/operator/try-rpc-endpoint.mdx'
 
-Use this guide to install and configure an full node locally using Docker for testing. The instructions apply to the following operating system and processor combinations:
-
-- Linux/AMD64
-- Darwin/AMD64
-- Darwin/ARM64
+Use this guide to install and configure an full node locally using Docker.
 
 <WarningAdvanced/>
 
@@ -34,51 +30,50 @@ Before you begin, ensure you have the following:
 
 <Ports/>
 
-## Clone the IOTA repository
-<!-- TODO: we can remove this step in case we provide the same setup as in the former node-docker-setup -->
-1. The first thing you need to do to set up your full node is clone the IOTA repository, you can use the following command or download it from [GitHub](https://github.com/iotaledger/iota):
+## Download the Full Node Docker Setup
 
-```shell
-git clone https://github.com/iotaledger/iota.git
-```
-
-2. Once you have download the source code, move into the docker fullnode directory:
-```shell
-cd iota/setups/fullnode/docker/
-```
-
-## Configure the Full Node
-
-Run the respective prepare script, depending on the network you want to run the Node on.
-
-This will create the `data` folder and copy a template configuration into the `config` subfolder.
-You can modify this config file to your needs afterwards.
-The script will also download the necessary `genesis.blob` and optionally `migration.blob` for the network.
+In a directory of your choice, run the following:
 
 <Tabs groupId="network" queryString>
     <TabItem label="Testnet" value="testnet">
-If you want to run the Node on `testnet`, run the following command:
-```shell
-./prepare_testnet.sh
-```
+        ```shell
+        mkdir iota-fullnode-docker-setup && cd iota-fullnode-docker-setup && curl -L https://fullnode-docker-setup.iota.org/testnet | tar -zx
+        ```
     </TabItem>
+    
     <TabItem label="Devnet" value="devnet">
-If you want to run the Node on `devnet` instead, run the following command:
-```shell
-./prepare_devnet.sh
-```
+        ```shell
+        mkdir iota-fullnode-docker-setup && cd iota-fullnode-docker-setup && curl -L https://fullnode-docker-setup.iota.org/devnet | tar -zx
+        ```
     </TabItem>
 </Tabs>
 
-## Start Your Full Node
+The command will perform the following steps:
+- creates and changes into the `iota-fullnode-docker-setup` directory
+- downloads the zipped configuration for the specific network, containing the docker-compose and node configuration files, and unzips them
 
-Run the following command to start the full node in Docker in a detached mode:
+You can modify the node configuration file (`data/config/fullnode.yaml`) according to your needs.
 
+## Prepare your Full Node
+
+Run the following command in the same directory:
+
+```shell
+./prepare.sh
+```
+
+This script will perform the following steps:
+- download the latest docker images specified in the docker-compose.yaml
+- download the network specific snapshot files that are needed to sync the node from genesis
+
+## Start your Full Node
+
+In the same directory, start your node by running:  
 ```shell
 docker compose up -d
 ```
-You can check the logs of the full node by running the following command:
 
+You can check the logs of the full node by running:
 ```shell
 docker compose logs -f
 ```
@@ -95,13 +90,15 @@ Run the following command to stop the full node when you finish using it:
 docker compose stop
 ```
 
-## Check your installation 
+## Check your Installation 
 
-### Check your node configuration
+### Check your Full Node Configuration
+
+By default, the configuration file `fullnode.yaml` is located at `<your-fullnode-install-path>/data/config/`.
 
 <CheckNodeConfig/>
 
-### Try reaching your node on the RPC endpoint
+### Try reaching your Full Node on the RPC endpoint
 
 <TryRpcEndpoint/>
 

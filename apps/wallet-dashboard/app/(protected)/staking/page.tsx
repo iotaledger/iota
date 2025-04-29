@@ -34,17 +34,32 @@ import {
     DELEGATED_STAKES_QUERY_STALE_TIME,
     StakedCard,
     useFormatCoin,
+    useGetAllOwnedObjects,
+    TIMELOCK_IOTA_TYPE,
+    Feature,
 } from '@iota/core';
 import { useCurrentAccount, useIotaClient, useIotaClientQuery } from '@iota/dapp-kit';
 import { Warning } from '@iota/apps-ui-icons';
 import { useMemo } from 'react';
 import { IotaSignAndExecuteTransactionOutput } from '@iota/wallet-standard';
+import { isSupplyIncreaseVestingObject, mapTimelockObjects } from '@/lib/utils';
+import { useFeature } from '@growthbook/growthbook-react';
+import { useRouter } from 'next/navigation';
 
 function StakingDashboardPage(): React.JSX.Element {
+    const router = useRouter();
     const account = useCurrentAccount();
     const { data: system } = useIotaClientQuery('getLatestIotaSystemState');
     const committeeMembers = system?.committeeMembers;
     const iotaClient = useIotaClient();
+
+    const { data: timelockedObjects } = useGetAllOwnedObjects(account?.address || '', {
+        StructType: TIMELOCK_IOTA_TYPE,
+    });
+    const hasAvailableVestedStaking = mapTimelockObjects(timelockedObjects || []).some(
+        isSupplyIncreaseVestingObject,
+    );
+    const supplyIncreaseVestingEnabled = useFeature<boolean>(Feature.SupplyIncreaseVesting).value;
 
     const {
         isDialogStakeOpen,
@@ -140,7 +155,7 @@ function StakingDashboardPage(): React.JSX.Element {
 
     return (
         <div className="flex justify-center">
-            <div className="w-full md:w-3/4">
+            <div className="flex w-full flex-col gap-y-md md:w-3/4">
                 {(delegatedStakeData?.length ?? 0) > 0 ? (
                     <Panel>
                         <Title
@@ -234,6 +249,26 @@ function StakingDashboardPage(): React.JSX.Element {
                 ) : (
                     <div className="flex h-[270px] p-lg">
                         <StartStaking />
+                    </div>
+                )}
+                {hasAvailableVestedStaking && supplyIncreaseVestingEnabled && (
+                    <div className="px-lg">
+                        <Panel bgColor="bg-secondary-90 dark:bg-secondary-10">
+                            <div className="py-sm">
+                                <Title
+                                    title="Available Vested Staking"
+                                    subtitle="In progress vested staking"
+                                    trailingElement={
+                                        <Button
+                                            onClick={() => router.push('/vesting')}
+                                            size={ButtonSize.Small}
+                                            type={ButtonType.Outlined}
+                                            text="View"
+                                        />
+                                    }
+                                />
+                            </div>
+                        </Panel>
                     </div>
                 )}
             </div>

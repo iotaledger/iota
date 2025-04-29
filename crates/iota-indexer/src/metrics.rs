@@ -84,19 +84,20 @@ const JSON_RPC_LATENCY_SEC_BUCKETS: &[f64] = &[
     0.01, 0.02, 0.05, 0.1, 0.2, 0.5, 1.0, 2.0, 5.0, 10.0, 20.0, 50.0, 100.0, 200.0, 500.0, 1000.0,
 ];
 
+// TODO: handle unused metrics
 #[derive(Clone)]
 pub struct IndexerMetrics {
-    pub total_checkpoint_received: IntCounter,
+    pub total_checkpoint_received: IntCounter, // not used
     pub total_tx_checkpoint_committed: IntCounter,
-    pub total_object_checkpoint_committed: IntCounter,
+    pub total_object_checkpoint_committed: IntCounter, // not used
     pub total_transaction_committed: IntCounter,
-    pub total_object_change_committed: IntCounter,
-    pub total_transaction_chunk_committed: IntCounter,
-    pub total_object_change_chunk_committed: IntCounter,
+    pub total_object_change_committed: IntCounter, // not used
+    pub total_transaction_chunk_committed: IntCounter, // not used
+    pub total_object_change_chunk_committed: IntCounter, // not used
     pub total_epoch_committed: IntCounter,
     pub latest_fullnode_checkpoint_sequence_number: IntGauge,
     pub latest_tx_checkpoint_sequence_number: IntGauge,
-    pub latest_indexer_object_checkpoint_sequence_number: IntGauge,
+    pub latest_indexer_object_checkpoint_sequence_number: IntGauge, // not used
     pub latest_object_snapshot_sequence_number: IntGauge,
     // max checkpoint sequence numbers on various stages of indexer data ingestion
     pub max_downloaded_checkpoint_sequence_number: IntGauge,
@@ -109,7 +110,7 @@ pub struct IndexerMetrics {
     // lag starting from the timestamp of the latest checkpoint to the current time
     pub download_lag_ms: IntGauge,
     pub index_lag_ms: IntGauge,
-    pub db_commit_lag_ms: IntGauge,
+    pub db_commit_lag_ms: IntGauge, // not used
     // latencies of various steps of data ingestion.
     // checkpoint E2E latency is: fullnode_download_latency + checkpoint_index_latency +
     // db_commit_latency
@@ -117,22 +118,22 @@ pub struct IndexerMetrics {
     pub latest_move_call_metrics_tx_seq: IntGauge,
     pub latest_address_metrics_tx_seq: IntGauge,
     pub latest_network_metrics_cp_seq: IntGauge,
-    pub checkpoint_download_bytes_size: IntGauge,
+    pub checkpoint_download_bytes_size: IntGauge, // not used
     pub tokio_blocking_task_wait_latency: Histogram,
-    pub fullnode_checkpoint_data_download_latency: Histogram,
-    pub fullnode_checkpoint_wait_and_download_latency: Histogram,
-    pub fullnode_transaction_download_latency: Histogram,
-    pub fullnode_object_download_latency: Histogram,
-    pub checkpoint_index_latency: Histogram,
-    pub indexing_batch_size: IntGauge,
+    pub fullnode_checkpoint_data_download_latency: Histogram, // not used
+    pub fullnode_checkpoint_wait_and_download_latency: Histogram, // not used
+    pub fullnode_transaction_download_latency: Histogram,     // not used
+    pub fullnode_object_download_latency: Histogram,          // not used
+    pub checkpoint_index_latency: Histogram,                  // not used
+    pub indexing_batch_size: IntGauge,                        // not used
     pub indexing_tx_object_changes_latency: Histogram,
     pub indexing_objects_latency: Histogram,
     pub indexing_get_object_in_mem_hit: IntCounter,
-    pub indexing_get_object_db_hit: IntCounter,
-    pub indexing_module_resolver_in_mem_hit: IntCounter,
-    pub indexing_package_resolver_in_mem_hit: IntCounter,
+    pub indexing_get_object_db_hit: IntCounter, // not used
+    pub indexing_module_resolver_in_mem_hit: IntCounter, // not used
+    pub indexing_package_resolver_in_mem_hit: IntCounter, // not used
     pub indexing_packages_latency: Histogram,
-    pub checkpoint_objects_index_latency: Histogram,
+    pub checkpoint_objects_index_latency: Histogram, // not used
     pub checkpoint_db_commit_latency: Histogram,
     pub checkpoint_db_commit_latency_step_1: Histogram,
     pub checkpoint_db_commit_latency_transactions: Histogram,
@@ -156,46 +157,46 @@ pub struct IndexerMetrics {
     pub checkpoint_db_commit_latency_checkpoints: Histogram,
     pub checkpoint_db_commit_latency_epoch: Histogram,
     pub thousand_transaction_avg_db_commit_latency: Histogram,
-    pub object_db_commit_latency: Histogram,
-    pub object_mutation_db_commit_latency: Histogram,
-    pub object_deletion_db_commit_latency: Histogram,
-    pub epoch_db_commit_latency: Histogram,
+    pub object_db_commit_latency: Histogram, // not used
+    pub object_mutation_db_commit_latency: Histogram, // not used
+    pub object_deletion_db_commit_latency: Histogram, // not used
+    pub epoch_db_commit_latency: Histogram,  // not used
     // latencies of slow DB update queries, now only advance epoch and objects_snapshot update
     pub advance_epoch_latency: Histogram,
     pub update_object_snapshot_latency: Histogram,
     // latencies of RPC endpoints in read.rs
-    pub get_transaction_block_latency: Histogram,
+    pub get_transaction_block_latency: Histogram, // not used
     pub multi_get_transaction_blocks_latency: Histogram,
-    pub get_object_latency: Histogram,
-    pub multi_get_objects_latency: Histogram,
-    pub try_get_past_object_latency: Histogram,
-    pub try_multi_get_past_objects_latency: Histogram,
-    pub get_checkpoint_latency: Histogram,
-    pub get_checkpoints_latency: Histogram,
-    pub get_events_latency: Histogram,
-    pub get_loaded_child_objects_latency: Histogram,
-    pub get_total_transaction_blocks_latency: Histogram,
-    pub get_latest_checkpoint_sequence_number_latency: Histogram,
+    pub get_object_latency: Histogram,                   // not used
+    pub multi_get_objects_latency: Histogram,            // not used
+    pub try_get_past_object_latency: Histogram,          // not used
+    pub try_multi_get_past_objects_latency: Histogram,   // not used
+    pub get_checkpoint_latency: Histogram,               // not used
+    pub get_checkpoints_latency: Histogram,              // not used
+    pub get_events_latency: Histogram,                   // not used
+    pub get_loaded_child_objects_latency: Histogram,     // not used
+    pub get_total_transaction_blocks_latency: Histogram, // not used
+    pub get_latest_checkpoint_sequence_number_latency: Histogram, // not used
     // latencies of RPC endpoints in indexer.rs
-    pub get_owned_objects_latency: Histogram,
-    pub query_transaction_blocks_latency: Histogram,
-    pub query_events_latency: Histogram,
-    pub get_dynamic_fields_latency: Histogram,
-    pub get_dynamic_field_object_latency: Histogram,
-    pub get_protocol_config_latency: Histogram,
+    pub get_owned_objects_latency: Histogram, // not used
+    pub query_transaction_blocks_latency: Histogram, // not used
+    pub query_events_latency: Histogram,      // not used
+    pub get_dynamic_fields_latency: Histogram, // not used
+    pub get_dynamic_field_object_latency: Histogram, // not used
+    pub get_protocol_config_latency: Histogram, // not used
     // latency of event websocket subscription
-    pub subscription_process_latency: Histogram,
+    pub subscription_process_latency: Histogram, // not used
     pub transaction_per_checkpoint: Histogram,
     // indexer state metrics
     pub db_conn_pool_size: IntGauge,
     pub idle_db_conn: IntGauge,
-    pub address_processor_failure: IntCounter,
-    pub checkpoint_metrics_processor_failure: IntCounter,
+    pub address_processor_failure: IntCounter, // not used
+    pub checkpoint_metrics_processor_failure: IntCounter, // not used
     // pruner metrics
     pub last_pruned_epoch: IntGauge,
     pub last_pruned_checkpoint: IntGauge,
     pub last_pruned_transaction: IntGauge,
-    pub epoch_pruning_latency: Histogram,
+    pub epoch_pruning_latency: Histogram, // not used
 }
 
 impl IndexerMetrics {

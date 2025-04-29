@@ -54,7 +54,11 @@ components except `iota-node`. If you want to see more detailed logs, you can re
 Data on the local network does not persist when the `--force-regenesis` flag is
 used.
 
-To persist data use the `--config-dir` flag instead.
+To persist data use the `--network.config` flag instead.
+
+``bash
+iota start --network.config persisted-localnet --with-faucet --committee-size 2 --epoch-duration-ms 60000
+```
 
 :::
 

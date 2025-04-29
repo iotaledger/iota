@@ -90,7 +90,7 @@ use iota_network::{
     api::ValidatorServer, discovery, discovery::TrustedPeerChangeEvent, randomness, state_sync,
 };
 use iota_network_stack::server::ServerBuilder;
-use iota_protocol_config::{Chain, ProtocolConfig};
+use iota_protocol_config::ProtocolConfig;
 use iota_rest_api::RestMetrics;
 use iota_snapshot::uploader::StateSnapshotUploader;
 use iota_storage::{
@@ -1969,24 +1969,14 @@ fn build_kv_store(
         return Ok(Arc::new(db_store));
     }
 
-    let base_url: url::Url = base_url.parse().tap_err(|e| {
+    base_url.parse::<url::Url>().tap_err(|e| {
         error!(
             "failed to parse config.transaction_kv_store_config.base_url ({:?}) as url: {}",
             base_url, e
         )
     })?;
 
-    let network_str = match state.get_chain_identifier().map(|c| c.chain()) {
-        Some(Chain::Mainnet) => "/mainnet",
-        Some(Chain::Testnet) => "/testnet",
-        _ => {
-            info!("using local db only for kv store for unknown chain");
-            return Ok(Arc::new(db_store));
-        }
-    };
-
-    let base_url = base_url.join(network_str)?.to_string();
-    let http_store = HttpKVStore::new_kv(&base_url, metrics.clone())?;
+    let http_store = HttpKVStore::new_kv(base_url, metrics.clone())?;
     info!("using local key-value store with fallback to http key-value store");
     Ok(Arc::new(FallbackTransactionKVStore::new_kv(
         db_store,

@@ -47,12 +47,12 @@ The installer will perform the following steps:
   `tzdata`, `libprotobuf-dev`, `ca-certificates`, `build-essential`, `libssl-dev`, `libclang-dev`, `libpq-dev`, `pkg-config`, `openssl`, `protobuf-compiler`, `git`, `clang`, `cmake`
 3. Clone the [iota repo](https://github.com/iotaledger/iota), set to the right branch for the [network](../../developer/getting-started/connect.mdx#iota-networks) you chose
 4. Build the iota-node binary  
-  The built binary is located at `/opt/iota/bin/iota-node` (or in `$BIN_DIR` if specified)
+  The built binary is located at `/opt/iota/bin/iota-node` by default.
 5. Create a user called iota, make it own directories for service binary, config, data
 6. Create a node config file, download genesis/migration blobs  
-  The config and blob files are located at `/opt/iota/config` (or in `$CONFIG_DIR` if specified)
+  The config and blob files are located at `/opt/iota/config` by default.
 6. Create a systemd service unit file  
-  The service definition file is located at `/etc/systemd/system/iota-node.service`
+  The service definition file is located at `/etc/systemd/system/iota-node.service`.
 7. Start the service
 
 ## 3. Check your installation
@@ -71,7 +71,11 @@ journalctl -u iota-node -f
 
 If you need to stop the service, you can run `sudo systemctl stop iota-node`
 
+Your IOTA node should now be running and connected to the network you chose.
+
 ### Check your node configuration
+
+By default, the configuration file `fullnode.yaml` is located at  `/opt/iota/config/fullnode.yaml`.
 
 <CheckNodeConfig/>
 
