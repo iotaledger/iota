@@ -152,7 +152,7 @@ function ValidatorPageResult(): JSX.Element {
             activeValidators: data.activeValidators,
             committeeMembers: data.committeeMembers.map((validator) => validator.iotaAddress),
             atRiskValidators: data.atRiskValidators,
-            maxCommitteeMembers: maxCommitteeSize,
+            maxCommitteeSize,
             validatorEvents,
             rollingAverageApys: validatorsApy,
             highlightValidatorName: true,

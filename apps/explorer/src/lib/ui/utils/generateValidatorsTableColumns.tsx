@@ -19,7 +19,7 @@ interface GenerateValidatorsTableColumnsArgs {
     activeValidators?: IotaValidatorSummary[];
     committeeMembers?: string[];
     atRiskValidators?: [string, string][];
-    maxCommitteeMembers?: number;
+    maxCommitteeSize?: number;
     validatorEvents?: IotaEvent[];
     rollingAverageApys?: ApyByValidator;
     limit?: number;
@@ -93,7 +93,7 @@ export function generateValidatorsTableColumns({
     activeValidators = [],
     committeeMembers = [],
     atRiskValidators = [],
-    maxCommitteeMembers,
+    maxCommitteeSize,
     validatorEvents = [],
     rollingAverageApys,
     showValidatorIcon = true,
@@ -309,7 +309,7 @@ export function generateValidatorsTableColumns({
                 );
 
                 const sortedActiveValidators = activeValidators.toSorted(sortByStakingBalanceDesc);
-                const topValidators = sortedActiveValidators.slice(0, maxCommitteeMembers);
+                const topValidators = sortedActiveValidators.slice(0, maxCommitteeSize);
                 const isInTopStakers = !!topValidators.find(
                     (v) => v.iotaAddress === row.original.iotaAddress,
                 );
