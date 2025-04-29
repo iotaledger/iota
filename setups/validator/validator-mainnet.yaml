@@ -22,6 +22,9 @@ p2p-config:
   external-address: /dns/$HOSTNAME/udp/8084 # UPDATE THIS
   anemo-config:
     max-concurrent-connections: 0
+  seed-peers: # Add your SSFN peers here
+#    - address: /dns/ssfn1-hostname/udp/8084
+#      peer-id: <ssfn1-peer-id>
 
 genesis:
   genesis-file-location: /opt/iota/config/genesis.blob
