@@ -105,7 +105,7 @@ impl BlockManager {
     fn try_accept_blocks_internal(
         &mut self,
         mut blocks: Vec<VerifiedBlockHeader>,
-    ) -> (Vec<VerifiedBlock>, BTreeSet<BlockRef>) {
+    ) -> (Vec<VerifiedBlockHeader>, BTreeSet<BlockRef>) {
         let _s = monitored_scope("BlockManager::try_accept_blocks_internal");
 
         blocks.sort_by_key(|b| b.round());
@@ -221,7 +221,7 @@ impl BlockManager {
     // and persisted blocks.
     fn verify_block_timestamps_and_accept(
         &mut self,
-        unsuspended_blocks: impl IntoIterator<Item = VerifiedBlock>,
+        unsuspended_blocks: impl IntoIterator<Item = VerifiedBlockHeader>,
     ) -> Vec<VerifiedBlockHeader> {
         // Try to verify the block and its children for timestamp, with ancestor blocks.
         let mut blocks_to_accept: BTreeMap<BlockRef, VerifiedBlockHeader> = BTreeMap::new();

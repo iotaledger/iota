@@ -155,8 +155,10 @@ impl DagBuilder {
             };
 
         struct BlockStorage {
-            blocks: BTreeMap<BlockRef, (VerifiedBlockHeader, bool)>, /* the tuple represents the block
-                                                                * and whether it is committed */
+            blocks: BTreeMap<BlockRef, (VerifiedBlockHeader, bool)>, /* the tuple represents the
+                                                                      * block
+                                                                      * and whether it is
+                                                                      * committed */
         }
         impl BlockStoreAPI for BlockStorage {
             fn get_blocks(&self, refs: &[BlockRef]) -> Vec<Option<VerifiedBlockHeader>> {

@@ -9,7 +9,7 @@ use starfish_config::AuthorityIndex;
 
 use crate::{
     Round,
-    block_header::{BlockHeaderAPI, BlockRef, VerifiedBlockHeader},
+    block_header::{BlockHeaderAPI, BlockRef, GENESIS_ROUND, VerifiedBlockHeader},
     commit::{Commit, CommittedSubDag, TrustedCommit, sort_sub_dag_blocks},
     context::Context,
     dag_state::DagState,
