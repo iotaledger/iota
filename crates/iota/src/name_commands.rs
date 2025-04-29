@@ -651,6 +651,7 @@ pub enum SubdomainCommand {
         ///  - YYYY-MM-DD HH:MM:SS +0000 (Ex. 2015-02-18 23:16:09 -0500)
         ///  - YYYY-MM-DD HH:MM:SS.MMM +0000 (Ex. 2015-02-18 23:16:09.123 -0500)
         ///  - unix timestamp (Ex. 1424297769000)
+        ///
         /// Defaults to the parent's expiration
         #[arg(long, short = 'e', verbatim_doc_comment)]
         expiration_timestamp: Option<Timestamp>,
