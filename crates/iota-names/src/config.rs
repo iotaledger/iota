@@ -12,11 +12,6 @@ use serde::{Deserialize, Serialize};
 
 use crate::Domain;
 
-pub const LEAF_EXPIRATION_TIMESTAMP: u64 = 0;
-pub const DEFAULT_TLD: &str = "iota";
-pub const ACCEPTED_SEPARATORS: [char; 2] = ['.', '*'];
-pub const IOTA_AT_FORMAT_SEPARATOR: char = '@';
-
 #[derive(Clone, Debug, Serialize, Deserialize, Eq, PartialEq)]
 #[serde(rename_all = "kebab-case")]
 pub struct IotaNamesConfig {

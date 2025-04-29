@@ -12,7 +12,9 @@ use iota_types::{
 };
 use serde::{Deserialize, Serialize};
 
-use crate::{config::LEAF_EXPIRATION_TIMESTAMP, domain::Domain, error::IotaNamesError};
+use crate::{
+    constants::IOTA_NAMES_LEAF_EXPIRATION_TIMESTAMP, domain::Domain, error::IotaNamesError,
+};
 
 /// Rust version of the Move `iota::table::Table` type.
 #[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
@@ -96,7 +98,7 @@ impl NameRecord {
     /// Leaf records expire when their parent expires.
     /// The `expiration_timestamp_ms` is set to `0` (on-chain) to indicate this.
     pub fn is_leaf_record(&self) -> bool {
-        self.expiration_timestamp_ms == LEAF_EXPIRATION_TIMESTAMP
+        self.expiration_timestamp_ms == IOTA_NAMES_LEAF_EXPIRATION_TIMESTAMP
     }
 
     /// Validates that a `NameRecord` is a valid parent of a child `NameRecord`.

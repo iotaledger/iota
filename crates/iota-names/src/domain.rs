@@ -8,7 +8,10 @@ use move_core_types::{ident_str, identifier::IdentStr, language_storage::StructT
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    config::{ACCEPTED_SEPARATORS, DEFAULT_TLD, IOTA_AT_FORMAT_SEPARATOR},
+    constants::{
+        IOTA_NAMES_MAX_DOMAIN_LENGTH, IOTA_NAMES_MAX_LABEL_LENGTH, IOTA_NAMES_MIN_LABEL_LENGTH,
+        IOTA_NAMES_SEPARATOR_AT, IOTA_NAMES_SEPARATOR_DOT, IOTA_NAMES_TLD,
+    },
     error::IotaNamesError,
 };
 
@@ -18,49 +21,36 @@ pub struct Domain {
     labels: Vec<String>,
 }
 
-// impl FromStr for Domain {
-//     type Err = anyhow::Error;
-
-//     fn from_str(s: &str) -> Result<Self, Self::Err> {
-//         const VALID_TLDS: &[&str] = &["iota"];
-//         let mut segments = s.split('.').collect::<Vec<_>>();
-//         anyhow::ensure!(segments.len() >= 2, "domain has too few labels");
-//         let tld = segments.pop().unwrap();
-//         anyhow::ensure!(VALID_TLDS.contains(&tld), "invalid TLD: {tld}");
-//         let mut labels = vec![tld.to_owned()];
-//         for segment in segments.into_iter().rev() {
-//             labels.push(parse_domain_label(segment)?);
-//         }
-//         Ok(Self { labels })
-//     }
-// }
-
 impl FromStr for Domain {
     type Err = IotaNamesError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        /// The maximum length of a full domain
-        const MAX_DOMAIN_LENGTH: usize = 235;
-
-        if s.len() > MAX_DOMAIN_LENGTH {
-            return Err(IotaNamesError::ExceedsMaxLength(s.len(), MAX_DOMAIN_LENGTH));
+        if s.len() > IOTA_NAMES_MAX_DOMAIN_LENGTH {
+            return Err(IotaNamesError::DomainLengthExceeded(
+                s.len(),
+                IOTA_NAMES_MAX_DOMAIN_LENGTH,
+            ));
         }
-        let separator = separator(s)?;
 
-        let formatted_string = convert_from_at_format(s, &separator)?;
+        let formatted_string = convert_from_at_format(s, &IOTA_NAMES_SEPARATOR_DOT)?;
 
         let labels = formatted_string
-            .split(separator)
+            .split(IOTA_NAMES_SEPARATOR_DOT)
             .rev()
             .map(validate_label)
             .collect::<Result<Vec<_>, Self::Err>>()?;
 
         // A valid domain in our system has at least a TLD and an SLD (len == 2).
         if labels.len() < 2 {
-            return Err(IotaNamesError::LabelsEmpty);
+            return Err(IotaNamesError::NotEnoughLabels);
+        }
+
+        if labels[0] != IOTA_NAMES_TLD {
+            return Err(IotaNamesError::InvalidTld(labels[0].to_string()));
         }
 
         let labels = labels.into_iter().map(ToOwned::to_owned).collect();
+
         Ok(Domain { labels })
     }
 }
@@ -133,9 +123,8 @@ impl Domain {
     /// Returns the number of labels including TLD.
     ///
     /// ```
-    /// use std::str::FromStr;
-    ///
-    /// use iota_names::domain::Domain;
+    /// # use std::str::FromStr;
+    /// # use iota_names::domain::Domain;
     /// assert_eq!(
     ///     Domain::from_str("test.example.iota").unwrap().num_labels(),
     ///     3
@@ -160,19 +149,22 @@ impl Domain {
     /// The default separator is `.`
     pub fn format(&self, format: DomainFormat) -> String {
         let mut labels = self.labels.clone();
-        let sep = &ACCEPTED_SEPARATORS[0].to_string();
+        let sep = &IOTA_NAMES_SEPARATOR_DOT.to_string();
         labels.reverse();
 
         if format == DomainFormat::Dot {
-            return labels.join(sep);
-        };
+            // DOT format, all labels joined together with dots, including the TLD.
+            labels.join(sep)
+        } else {
+            // SAFETY: This is a safe operation because we only allow a
+            // domain's label vector size to be >= 2 (see `Domain::from_str`)
+            let _tld = labels.pop();
+            let sld = labels.pop().unwrap();
 
-        // SAFETY: This is a safe operation because we only allow a
-        // domain's label vector size to be >= 2 (see `Domain::from_str`)
-        let _tld = labels.pop();
-        let sld = labels.pop().unwrap();
-
-        format!("{}{IOTA_AT_FORMAT_SEPARATOR}{sld}", labels.join(sep))
+            // AT format, labels minus SLD joined together with dots, then joined to SLD
+            // with @, no TLD.
+            format!("{}{IOTA_NAMES_SEPARATOR_AT}{sld}", labels.join(sep))
+        }
     }
 }
 
@@ -184,32 +176,11 @@ pub enum DomainFormat {
     Dot,
 }
 
-/// Parses a separator from the domain string input.
-/// E.g.  `example.iota` -> `.` | example*iota -> `@` | `example*iota` -> `*`
-fn separator(s: &str) -> Result<char, IotaNamesError> {
-    let mut domain_separator: Option<char> = None;
-
-    for separator in ACCEPTED_SEPARATORS.iter() {
-        if s.contains(*separator) {
-            if domain_separator.is_some() {
-                return Err(IotaNamesError::InvalidSeparator);
-            }
-
-            domain_separator = Some(*separator);
-        }
-    }
-
-    match domain_separator {
-        Some(separator) => Ok(separator),
-        None => Ok(ACCEPTED_SEPARATORS[0]),
-    }
-}
-
 /// Converts @label ending to label{separator}iota ending.
 ///
 /// E.g. `@example` -> `example.iota` | `test@example` -> `test.example.iota`
 fn convert_from_at_format(s: &str, separator: &char) -> Result<String, IotaNamesError> {
-    let mut splits = s.split(IOTA_AT_FORMAT_SEPARATOR);
+    let mut splits = s.split(IOTA_NAMES_SEPARATOR_AT);
 
     let Some(before) = splits.next() else {
         return Err(IotaNamesError::InvalidSeparator);
@@ -230,34 +201,34 @@ fn convert_from_at_format(s: &str, separator: &char) -> Result<String, IotaNames
     }
 
     parts.push(after);
-    parts.push(DEFAULT_TLD);
+    parts.push(IOTA_NAMES_TLD);
 
     Ok(parts.join(&separator.to_string()))
 }
 
 /// Checks the validity of a label according to these rules:
-/// - length must be in [MIN_LABEL_LENGTH..MAX_LABEL_LENGTH]
+/// - length must be in
+///   [IOTA_NAMES_MIN_LABEL_LENGTH..IOTA_NAMES_MAX_LABEL_LENGTH]
 /// - must contain only '0'..'9', 'a'..'z' and '-'
 /// - must not start or end with '-'
 pub fn validate_label(label: &str) -> Result<&str, IotaNamesError> {
-    const MIN_LABEL_LENGTH: usize = 1;
-    const MAX_LABEL_LENGTH: usize = 63;
-
     let bytes = label.as_bytes();
     let len = bytes.len();
 
-    if !(MIN_LABEL_LENGTH..=MAX_LABEL_LENGTH).contains(&len) {
-        return Err(IotaNamesError::InvalidLength(
+    if !(IOTA_NAMES_MIN_LABEL_LENGTH..=IOTA_NAMES_MAX_LABEL_LENGTH).contains(&len) {
+        return Err(IotaNamesError::InvalidLabelLength(
             len,
-            MIN_LABEL_LENGTH,
-            MAX_LABEL_LENGTH,
+            IOTA_NAMES_MIN_LABEL_LENGTH,
+            IOTA_NAMES_MAX_LABEL_LENGTH,
         ));
     }
 
     for (i, character) in bytes.iter().enumerate() {
         match character {
             b'a'..=b'z' | b'0'..=b'9' => continue,
-            b'-' if i == 0 || i == len - 1 => return Err(IotaNamesError::HyphensAsFirstOrLastChar),
+            b'-' if i == 0 || i == len - 1 => {
+                return Err(IotaNamesError::HyphensAsFirstOrLastLabelChar);
+            }
             _ => return Err(IotaNamesError::InvalidLabelChar),
         };
     }
@@ -304,13 +275,7 @@ mod tests {
             "iota@iota".parse::<Domain>().unwrap().to_string(),
             "iota.iota.iota"
         );
-
         assert_eq!("@iota".parse::<Domain>().unwrap().to_string(), "iota.iota");
-
-        assert_eq!(
-            "test*test@test".parse::<Domain>().unwrap().to_string(),
-            "test.test.test.iota"
-        );
         assert_eq!(
             "test.test.iota".parse::<Domain>().unwrap().to_string(),
             "test.test.iota"
@@ -322,23 +287,15 @@ mod tests {
     }
 
     #[test]
-    fn different_wildcard() {
-        assert_eq!("test.iota".parse::<Domain>(), "test*iota".parse::<Domain>(),);
-
-        assert_eq!("@test".parse::<Domain>(), "test*iota".parse::<Domain>(),);
-    }
-
-    #[test]
     fn invalid_inputs() {
-        assert!("*".parse::<Domain>().is_err());
         assert!(".".parse::<Domain>().is_err());
         assert!("@".parse::<Domain>().is_err());
         assert!("@inner.iota".parse::<Domain>().is_err());
-        assert!("@inner*iota".parse::<Domain>().is_err());
         assert!("test@".parse::<Domain>().is_err());
         assert!("iota".parse::<Domain>().is_err());
         assert!("test.test@example.iota".parse::<Domain>().is_err());
         assert!("test@test@example".parse::<Domain>().is_err());
+        assert!("test.atoi".parse::<Domain>().is_err());
     }
 
     #[test]
