@@ -7,7 +7,6 @@ network-key-pair:
 db-path: /opt/iota/db/authorities_db
 consensus-config:
   db-path: /opt/iota/db/consensus_db
-  internal-worker-address: null
 
 # Genesis Configuration
 genesis:
@@ -30,10 +29,6 @@ p2p-config:
 
 # Pruning Configuration
 authority-store-pruning-config:
-  num-latest-epoch-dbs-to-retain: 3
-  epoch-db-pruning-period-secs: 3600
-  max-checkpoints-in-batch: 10
-  max-transactions-in-batch: 1000
   num-epochs-to-retain: 0
   num-epochs-to-retain-for-checkpoints: 2
   periodic-compaction-threshold-days: 1
