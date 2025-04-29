@@ -1,9 +1,5 @@
 ---
 # Key pairs
-authority-key-pair:
-  path: /opt/iota/key-pairs/authority.key
-protocol-key-pair:
-  path: /opt/iota/key-pairs/protocol.key
 network-key-pair:
   path: /opt/iota/key-pairs/network.key
 
@@ -18,19 +14,23 @@ genesis:
 
 # Network Configuration
 network-address: /ip4/0.0.0.0/tcp/8080/http
+
 p2p-config:
   listen-address: "0.0.0.0:8084"
   external-address: /dns/$HOSTNAME/udp/8084 # UPDATE THIS
-  anemo-config:
-    max-concurrent-connections: 0
-  seed-peers: # Add your SSFN peers here
-#    - address: /dns/ssfn-hostname/udp/8084
-#      peer-id: <ssfn-peer-id>
+  seed-peers:
+    - address: /dns/validator-hostname/udp/8084 # UPDATE THIS
+      peer-id: <validator-peer-id> # UPDATE THIS: Get this from your validator's network.key
+    - address: /dns/access-0.r.testnet.iota.cafe/udp/8084
+      peer-id: 46064108d0b689ed89d1f44153e532bb101ce8f8ca3a3d01ab991d4dea122cfc
+    - address: /dns/access-1.r.testnet.iota.cafe/udp/8084
+      peer-id: 8ffd25fa4e86c30c3f8da7092695e8a103462d7a213b815d77d6da7f0a2a52f5
 
 # Pruning Configuration
 authority-store-pruning-config:
   num-epochs-to-retain: 0
   num-epochs-to-retain-for-checkpoints: 2
+  periodic-compaction-threshold-days: 1
 
 # Resource Optimization
 enable-index-processing: false

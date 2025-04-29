@@ -13,6 +13,7 @@ import ValidatorGenerateInfo from '../../_snippets/operator/validator-generate-i
 import ValidatorDownloadConfig from '../../_snippets/operator/validator-download-config.mdx'
 import ValidatorP2P from '../../_snippets/operator/validator-p2p.mdx'
 import ValidatorJoinMonitor from '../../_snippets/operator/validator-join-monitor.mdx'
+import ValidatorSetupSSFN from '../../_snippets/operator/validator-setup-ssfn.mdx'
 
 <ValidatorRequirements/ >
 
@@ -33,9 +34,19 @@ Perform these steps on the server that will be running the validator instance.
 
 Download the docker compose file:
 
-```bash
-curl -fLJO https://github.com/iotaledger/iota/raw/refs/heads/develop/setups/validator/docker-compose.yml
-```
+<Tabs groupId="network" queryString>
+    <TabItem label="Mainnet" value="mainnet">
+      ```bash
+      curl -fLJ -o docker-compose.yml https://github.com/iotaledger/iota/raw/refs/heads/develop/setups/validator/docker-compose-mainnet.yml
+      ```
+    </TabItem>
+    <TabItem label="Testnet" value="testnet">
+      ```bash
+      curl -fLJ -o docker-compose.yml https://github.com/iotaledger/iota/raw/refs/heads/develop/setups/validator/docker-compose-testnet.yml
+      ```
+    </TabItem>
+</Tabs>
+
 
 ### 2.2. Download Configuration Template
 
@@ -55,7 +66,7 @@ Copy the `protocol.key`, `network.key` and `authority.key` you created previousl
 
 ### 2.6. Download the latest Formal Snapshot
 
-<Tabs groupId="network">
+<Tabs groupId="network" queryString>
     <TabItem label="Mainnet" value="mainnet">
       ```bash
       docker run --rm -v ./iotadb:/opt/iota/db -v ./genesis.blob:/opt/iota/config/genesis.blob iotaledger/iota-tools:mainnet /bin/sh -c "/usr/local/bin/iota-tool download-formal-snapshot --latest --genesis /opt/iota/config/genesis.blob --path /opt/iota/db/authorities_db --num-parallel-downloads 50 --no-sign-request --verify normal --network mainnet --verbose"
@@ -78,3 +89,5 @@ docker compose logs -f
 <ValidatorJoinMonitor />
 
 You can also check the [Monitoring](./monitoring.mdx) about metrics endpoint.
+
+<ValidatorSetupSSFN />
