@@ -7,6 +7,7 @@ teams:
 ---
 
 import Ports from './../../../_snippets/operator/fullnode-ports.mdx'
+import MainnetNodeConfig from "../../../_snippets/network-node-config-mainnet.mdx";
 import TestnetNodeConfig from "../../../_snippets/network-node-config-testnet.mdx";
 import DevnetNodeConfig from "../../../_snippets/network-node-config-devnet.mdx";
 
@@ -23,9 +24,14 @@ The full node uses the following ports by default:
 By default, your config file (`fullnode.yaml`) should include the following known peers (from public nodes run by the IOTA Foundation):
 
 <Tabs groupId="network" queryString>
+    <TabItem label="Mainnet" value="mainnet">
+        <MainnetNodeConfig />
+    </TabItem>
+
     <TabItem label="Testnet" value="testnet">
         <TestnetNodeConfig />
     </TabItem>
+        
     <TabItem label="Devnet" value="devnet">
         <DevnetNodeConfig />
     </TabItem>

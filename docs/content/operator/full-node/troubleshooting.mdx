@@ -85,7 +85,6 @@ If you continue to see issues, do the following steps:
       :::
     </TabItem>
 
-
     <TabItem label="Docker" value="docker">
       Stop the full node
       ```shell
@@ -105,11 +104,18 @@ If you continue to see issues, do the following steps:
 
       Run the respective prepare script again depending on your network
       <Tabs groupId="network" queryString>
+          <TabItem label="Mainnet" value="mainnet">
+            ```shell
+            ./prepare_mainnet.sh
+            ```
+          </TabItem>
+              
           <TabItem label="Testnet" value="testnet">
             ```shell
             ./prepare_testnet.sh
             ```
           </TabItem>
+
           <TabItem label="Devnet" value="devnet">
             ```shell
             ./prepare_devnet.sh
