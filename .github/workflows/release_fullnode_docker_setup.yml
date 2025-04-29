@@ -112,7 +112,7 @@ jobs:
 
       - name: Copy fullnode docker files
         run: |
-          cp setups/fullnode/fullnode-template-${{ matrix.network }}.yaml \
+          cp setups/fullnode/fullnode-${{ matrix.network }}.yaml \
              ${{ steps.vars.outputs.work_dir }}/data/config/fullnode.yaml
           cp setups/fullnode/docker/prepare_${{ matrix.network }}.sh \
              ${{ steps.vars.outputs.work_dir }}/prepare.sh
