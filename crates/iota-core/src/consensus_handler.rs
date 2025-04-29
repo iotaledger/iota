@@ -502,8 +502,8 @@ pub struct StarfishConsensusHandler {
 impl StarfishConsensusHandler {
     pub fn new(
         mut consensus_handler: ConsensusHandler<CheckpointService>,
-        mut receiver: UnboundedReceiver<consensus_core::CommittedSubDag>,
-        commit_consumer_monitor: Arc<CommitConsumerMonitor>,
+        mut receiver: UnboundedReceiver<starfish_core::CommittedSubDag>,
+        commit_consumer_monitor: Arc<starfish_core::CommitConsumerMonitor>,
     ) -> Self {
         let handle = spawn_monitored_task!(async move {
             // TODO: pause when execution is overloaded, so consensus can detect the

@@ -5,8 +5,6 @@ use std::{path::PathBuf, sync::Arc};
 
 use arc_swap::ArcSwapOption;
 use async_trait::async_trait;
-use consensus_config::{Committee, NetworkKeyPair, Parameters, ProtocolKeyPair};
-use consensus_core::{CommitConsumer, CommitConsumerMonitor, CommitIndex, ConsensusAuthority};
 use fastcrypto::ed25519;
 use iota_config::NodeConfig;
 use iota_metrics::{RegistryID, RegistryService, monitored_mpsc::unbounded_channel};
@@ -16,6 +14,8 @@ use iota_types::{
     iota_system_state::epoch_start_iota_system_state::EpochStartSystemStateTrait,
 };
 use prometheus::Registry;
+use starfish_config::{Committee, NetworkKeyPair, Parameters, ProtocolKeyPair};
+use starfish_core::{CommitConsumer, CommitConsumerMonitor, CommitIndex, ConsensusAuthority};
 use tokio::sync::Mutex;
 use tracing::info;
 
@@ -112,7 +112,7 @@ impl ConsensusManagerTrait for StarfishManager {
         tx_validator: IotaTxValidator,
     ) {
         let system_state = epoch_store.epoch_start_state();
-        let committee: Committee = system_state.get_consensus_committee();
+        let committee: Committee = system_state.get_starfish_committee();
         let epoch = epoch_store.epoch();
         let protocol_config = epoch_store.protocol_config();
         let network_type = self.pick_network(&epoch_store);
@@ -128,13 +128,11 @@ impl ConsensusManagerTrait for StarfishManager {
             return;
         };
 
-        let consensus_config = config
-            .consensus_config()
-            .expect("consensus_config should exist");
-
+        // TODO: fill in real values for the rest of the parameters before deploying on
+        //  a public network.
         let parameters = Parameters {
             db_path: self.get_store_path(epoch),
-            ..consensus_config.parameters.clone().unwrap_or_default()
+            ..Default::default()
         };
 
         let own_protocol_key = self.protocol_keypair.public();

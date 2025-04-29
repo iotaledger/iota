@@ -4,13 +4,16 @@
 use std::{sync::Arc, time::Duration};
 
 use arc_swap::{ArcSwapOption, Guard};
-use consensus_core::{ClientError, TransactionClient};
 use iota_types::{
     error::{IotaError, IotaResult},
     messages_consensus::{ConsensusTransaction, ConsensusTransactionKind},
 };
+use starfish_core::{ClientError, TransactionClient};
 use tap::prelude::*;
-use tokio::time::{Instant, sleep};
+use tokio::{
+    sync::oneshot,
+    time::{Instant, sleep},
+};
 use tracing::{error, info, warn};
 
 use crate::{
@@ -88,7 +91,9 @@ impl ConsensusClient for LazyStarfishClient {
             .iter()
             .map(|t| bcs::to_bytes(t).expect("Serializing consensus transaction cannot fail"))
             .collect::<Vec<_>>();
-        let (block_ref, status_waiter) = client
+
+        // TODO: remove the block status waiter from the submit function in Starfish
+        let (block_ref, _) = client
             .as_ref()
             .expect("Client should always be returned")
             .submit(transactions_bytes)
@@ -127,6 +132,17 @@ impl ConsensusClient for LazyStarfishClient {
             let transaction_key = SequencedConsensusTransactionKey::External(transactions[0].key());
             tracing::info!("Transaction {transaction_key:?} was included in {block_ref}",)
         };
+
+        // Starfish does not support GC at this point, but to be compatible with
+        // Mysticeti adapter, we always notify the status waiter that the block has been
+        // sequenced. The value is currently ignored, so for simplicity we just send
+        //  the default BlockRef value, but it should be checked that it won't cause
+        // problems in the future when the logic that handles the status is
+        // changed.
+        let (tx, status_waiter) = oneshot::channel();
+        let _ = tx.send(consensus_core::BlockStatus::Sequenced(
+            consensus_core::BlockRef::default(),
+        )); // immediately send
         Ok(status_waiter)
     }
 }
