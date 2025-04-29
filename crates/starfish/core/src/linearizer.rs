@@ -8,7 +8,6 @@ use parking_lot::RwLock;
 use starfish_config::AuthorityIndex;
 
 use crate::{
-    Round,
     block_header::{BlockHeaderAPI, BlockRef, GENESIS_ROUND, VerifiedBlockHeader},
     commit::{Commit, CommittedSubDag, TrustedCommit, sort_sub_dag_blocks},
     context::Context,

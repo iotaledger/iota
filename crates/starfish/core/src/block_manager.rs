@@ -15,7 +15,7 @@ use tracing::{debug, warn};
 
 use crate::{
     Round,
-    block_header::{BlockHeaderAPI, BlockRef, GENESIS_ROUND, VerifiedBlockHeader},
+    block_header::{BlockHeaderAPI, BlockRef, VerifiedBlockHeader},
     block_verifier::BlockVerifier,
     context::Context,
     dag_state::DagState,
@@ -546,9 +546,8 @@ mod tests {
     use starfish_config::AuthorityIndex;
 
     use crate::{
-        CommitDigest, Round,
         block_header::{
-            BlockHeaderAPI, BlockHeaderDigest, BlockRef, SignedBlockHeader, VerifiedBlockHeader,
+            BlockHeaderAPI, BlockRef, SignedBlockHeader, VerifiedBlockHeader,
         },
         block_manager::BlockManager,
         block_verifier::{BlockVerifier, NoopBlockVerifier},

@@ -5,7 +5,6 @@
 use std::{collections::BTreeSet, sync::Arc};
 
 use crate::{
-    Round,
     block_header::{
         BlockHeaderAPI, BlockRef, BlockTimestampMs, GENESIS_ROUND, SignedBlockHeader,
         VerifiedBlockHeader, genesis_block_headers,
