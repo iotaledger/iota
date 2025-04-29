@@ -692,6 +692,14 @@ async fn start(
         let network_config_path = config_path.join(IOTA_NETWORK_CONFIG);
         // Auto genesis if no configuration exists in the configuration directory.
         if !network_config_path.exists() {
+            if !config_path.exists() {
+                fs::create_dir(&config_path).map_err(|err| {
+                    anyhow!(err).context(format!(
+                        "Cannot create network config dir {}",
+                        config_path.display()
+                    ))
+                })?;
+            }
             genesis(
                 None,
                 None,
@@ -742,7 +750,7 @@ async fn start(
         };
 
         swarm_builder = swarm_builder
-            .dir(config_path)
+            .dir(config_path.clone())
             .with_network_config(network_config);
     }
 
@@ -851,13 +859,11 @@ async fn start(
         let faucet_address = parse_host_port(input, DEFAULT_FAUCET_PORT)
             .map_err(|_| anyhow!("Invalid faucet host and port"))?;
         tracing::info!("Starting the faucet service at {faucet_address}");
-        let config_dir = if force_regenesis {
+        let faucet_config_dir = if force_regenesis {
+            // tempdir is used so the faucet file is cleaned up afterwards
             tempdir()?.into_path()
         } else {
-            match config_dir {
-                Some(config) => config,
-                None => iota_config_dir()?,
-            }
+            config_path
         };
 
         let host_ip = match faucet_address {
@@ -876,7 +882,7 @@ async fn start(
         let prometheus_registry = prometheus::Registry::new();
         if force_regenesis {
             let kp = swarm.config_mut().account_keys.swap_remove(0);
-            let keystore_path = config_dir.join(IOTA_KEYSTORE_FILENAME);
+            let keystore_path = faucet_config_dir.join(IOTA_KEYSTORE_FILENAME);
             let mut keystore = Keystore::from(FileBasedKeystore::new(&keystore_path).unwrap());
             let address: IotaAddress = kp.public().into();
             keystore.add_key(None, IotaKeyPair::Ed25519(kp)).unwrap();
@@ -884,13 +890,13 @@ async fn start(
                 .with_envs([IotaEnv::new("localnet", fullnode_url)])
                 .with_active_address(address)
                 .with_active_env("localnet".to_string())
-                .persisted(config_dir.join(IOTA_CLIENT_CONFIG).as_path())
+                .persisted(faucet_config_dir.join(IOTA_CLIENT_CONFIG).as_path())
                 .save()
                 .unwrap();
         }
-        let faucet_wal = config_dir.join("faucet.wal");
+        let faucet_wal = faucet_config_dir.join("faucet.wal");
         let simple_faucet = SimpleFaucet::new(
-            create_wallet_context(config.wallet_client_timeout_secs, config_dir)?,
+            create_wallet_context(config.wallet_client_timeout_secs, faucet_config_dir)?,
             &prometheus_registry,
             faucet_wal.as_path(),
             config.clone(),
