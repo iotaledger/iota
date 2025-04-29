@@ -1,11 +1,8 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { useGetValidatorsApy } from '..';
-import { useQuery } from '@tanstack/react-query';
-import { normalizeIotaAddress } from '@iota/iota-sdk/utils';
+import { getInactiveValidator, useGetValidatorsApy } from '..';
 import { useIotaClient, useIotaClientQuery } from '@iota/dapp-kit';
-import { getInactiveValidatorsData } from '../../hooks';
 import { InactiveValidatorData } from '../../types';
 
 export function useValidatorInfo({ validatorAddress }: { validatorAddress: string }) {
@@ -19,30 +16,11 @@ export function useValidatorInfo({ validatorAddress }: { validatorAddress: strin
     const validatorSummary =
         system?.activeValidators.find((validator) => validator.iotaAddress === validatorAddress) ||
         null;
-    const { data: inactiveValidatorData } = useQuery({
-        queryKey: [system?.inactivePoolsId, validatorAddress],
-        async queryFn() {
-            if (!system?.inactivePoolsId || !validatorAddress) {
-                throw Error('Missing params');
-            }
-            const inactiveValidators = await iotaClient.getDynamicFields({
-                parentId: normalizeIotaAddress(system?.inactivePoolsId),
-            });
-
-            const pendingInactiveValidatorsData = await Promise.all(
-                inactiveValidators.data.map(
-                    async (validator) =>
-                        await getInactiveValidatorsData(iotaClient, validator.objectId),
-                ),
-            );
-
-            return pendingInactiveValidatorsData;
-        },
-        enabled: !!system?.inactivePoolsId && !!validatorAddress,
-        select(validators) {
-            return validators.find((validator) => validator?.validatorAddress === validatorAddress);
-        },
-    });
+    const inactiveValidatorData = getInactiveValidator(
+        iotaClient,
+        system?.inactivePoolsId || '',
+        validatorAddress,
+    );
     let inactiveValidatorSummary: InactiveValidatorData | null = null;
     if (validatorSummary === null && inactiveValidatorData !== null) {
         inactiveValidatorSummary = {

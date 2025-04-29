@@ -42,13 +42,13 @@ interface StakeDialogProps {
     handleUnstake?: () => void;
 }
 
-export function DetailsView({
+export async function DetailsView({
     handleClose,
     handleUnstake,
     handleStake,
     stakedDetails,
     showActiveStatus,
-}: StakeDialogProps): JSX.Element {
+}: StakeDialogProps): Promise<JSX.Element> {
     const totalStake = BigInt(stakedDetails?.principal || 0n);
     const validatorAddress = stakedDetails?.validatorAddress;
     const {
@@ -61,7 +61,7 @@ export function DetailsView({
         isApyApproxZero,
         newValidator,
         commission,
-    } = useValidatorInfo({
+    } = await useValidatorInfo({
         validatorAddress,
     });
     const { isCommitteeMember } = useIsValidatorCommitteeMember();
