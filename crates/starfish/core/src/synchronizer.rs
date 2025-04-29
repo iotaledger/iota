@@ -1027,13 +1027,13 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> Synchronizer<C
                 .metrics
                 .node_metrics
                 .synchronizer_missing_blocks_by_authority
-                .with_label_values(&[&authority.hostname])
+                .with_label_values(&[&authority.hostname.as_str()])
                 .inc_by(missing as u64);
             context
                 .metrics
                 .node_metrics
                 .synchronizer_current_missing_blocks_by_authority
-                .with_label_values(&[&authority.hostname])
+                .with_label_values(&[&authority.hostname.as_str()])
                 .set(missing as i64);
         }
 
