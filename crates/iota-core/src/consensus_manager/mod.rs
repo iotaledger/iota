@@ -159,27 +159,25 @@ impl ConsensusManager {
     // Picks the consensus protocol based on the protocol config and the epoch.
     fn pick_protocol(&self, epoch_store: &AuthorityPerEpochStore) -> ConsensusProtocol {
         let protocol_config = epoch_store.protocol_config();
-        if protocol_config.version >= ProtocolVersion::new(7) {
-            if let Ok(consensus_choice) = std::env::var("CONSENSUS") {
-                match consensus_choice.to_lowercase().as_str() {
-                    "mysticeti" => return ConsensusProtocol::Mysticeti,
-                    "starfish" => return ConsensusProtocol::Starfish,
-                    "swap_each_epoch" => {
-                        let protocol = if epoch_store.epoch() % 2 == 0 {
-                            ConsensusProtocol::Starfish
-                        } else {
-                            ConsensusProtocol::Mysticeti
-                        };
-                        return protocol;
-                    }
-                    _ => {
-                        info!(
-                            "Invalid consensus choice {} in env var. Continue to pick consensus with protocol config",
-                            consensus_choice
-                        );
-                    }
-                };
-            }
+        if let Ok(consensus_choice) = std::env::var("CONSENSUS_PROTOCOL") {
+            match consensus_choice.to_lowercase().as_str() {
+                "mysticeti" => return ConsensusProtocol::Mysticeti,
+                "starfish" => return ConsensusProtocol::Starfish,
+                "swap_each_epoch" => {
+                    let protocol = if epoch_store.epoch() % 2 == 0 {
+                        ConsensusProtocol::Starfish
+                    } else {
+                        ConsensusProtocol::Mysticeti
+                    };
+                    return protocol;
+                }
+                _ => {
+                    info!(
+                        "Invalid consensus choice {} in env var. Continue to pick consensus with protocol config",
+                        consensus_choice
+                    );
+                }
+            };
         }
 
         match protocol_config.consensus_choice() {
