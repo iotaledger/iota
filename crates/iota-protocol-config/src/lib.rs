@@ -4,11 +4,14 @@
 
 use std::{
     cell::RefCell,
+    cmp::min,
     sync::atomic::{AtomicBool, Ordering},
 };
 
 use clap::*;
-use iota_protocol_config_macros::{ProtocolConfigAccessors, ProtocolConfigFeatureFlagsGetters};
+use iota_protocol_config_macros::{
+    ProtocolConfigAccessors, ProtocolConfigFeatureFlagsGetters, ProtocolConfigOverride,
+};
 use move_vm_config::verifier::VerifierConfig;
 use serde::{Deserialize, Serialize};
 use serde_with::skip_serializing_none;
@@ -131,7 +134,7 @@ pub struct Error(pub String);
 // TODO: There are quite a few non boolean values in the feature flags. We
 // should move them out.
 /// Records on/off feature flags that may vary at each protocol version.
-#[derive(Default, Clone, Serialize, Debug, ProtocolConfigFeatureFlagsGetters)]
+#[derive(Default, Clone, Serialize, Deserialize, Debug, ProtocolConfigFeatureFlagsGetters)]
 struct FeatureFlags {
     // Add feature flags here, e.g.:
     // new_protocol_feature: bool,
@@ -276,7 +279,7 @@ fn is_false(b: &bool) -> bool {
 }
 
 /// Ordering mechanism for transactions in one consensus output.
-#[derive(Default, Copy, Clone, PartialEq, Eq, Serialize, Debug)]
+#[derive(Default, Copy, Clone, PartialEq, Eq, Serialize, Deserialize, Debug)]
 pub enum ConsensusTransactionOrdering {
     /// No ordering. Transactions are processed in the order they appear in the
     /// consensus output.
@@ -293,7 +296,7 @@ impl ConsensusTransactionOrdering {
 }
 
 // The config for per object congestion control in consensus handler.
-#[derive(Default, Copy, Clone, PartialEq, Eq, Serialize, Debug)]
+#[derive(Default, Copy, Clone, PartialEq, Eq, Serialize, Deserialize, Debug)]
 pub enum PerObjectCongestionControlMode {
     #[default]
     None, // No congestion control.
@@ -308,7 +311,7 @@ impl PerObjectCongestionControlMode {
 }
 
 // Configuration options for consensus algorithm.
-#[derive(Default, Copy, Clone, PartialEq, Eq, Serialize, Debug)]
+#[derive(Default, Copy, Clone, PartialEq, Eq, Serialize, Deserialize, Debug)]
 pub enum ConsensusChoice {
     #[default]
     Mysticeti,
@@ -321,7 +324,7 @@ impl ConsensusChoice {
 }
 
 // Configuration options for consensus network.
-#[derive(Default, Copy, Clone, PartialEq, Eq, Serialize, Debug)]
+#[derive(Default, Copy, Clone, PartialEq, Eq, Serialize, Deserialize, Debug)]
 pub enum ConsensusNetwork {
     #[default]
     Tonic,
@@ -367,7 +370,7 @@ impl ConsensusNetwork {
 /// version.
 /// - If you want a customized getter, you can add a method in the impl.
 #[skip_serializing_none]
-#[derive(Clone, Serialize, Debug, ProtocolConfigAccessors)]
+#[derive(Clone, Serialize, Debug, ProtocolConfigAccessors, ProtocolConfigOverride)]
 pub struct ProtocolConfig {
     pub version: ProtocolVersion,
 
@@ -1202,7 +1205,7 @@ impl ProtocolConfig {
     pub fn gc_depth(&self) -> u32 {
         if cfg!(msim) {
             // exercise a very low gc_depth
-            5
+            min(5, self.consensus_gc_depth.unwrap_or(0))
         } else {
             self.consensus_gc_depth.unwrap_or(0)
         }
@@ -1273,7 +1276,7 @@ impl ProtocolConfig {
         let mut ret = Self::get_for_version_impl(version, chain);
         ret.version = version;
 
-        CONFIG_OVERRIDE.with(|ovr| {
+        ret = CONFIG_OVERRIDE.with(|ovr| {
             if let Some(override_fn) = &*ovr.borrow() {
                 warn!(
                     "overriding ProtocolConfig settings with custom settings (you should not see this log outside of tests)"
@@ -1282,7 +1285,19 @@ impl ProtocolConfig {
             } else {
                 ret
             }
-        })
+        });
+
+        if std::env::var("IOTA_PROTOCOL_CONFIG_OVERRIDE_ENABLE").is_ok() {
+            warn!(
+                "overriding ProtocolConfig settings with custom settings; this may break non-local networks"
+            );
+            let overrides: ProtocolConfigOptional =
+                serde_env::from_env_with_prefix("IOTA_PROTOCOL_CONFIG_OVERRIDE")
+                    .expect("failed to parse ProtocolConfig override env variables");
+            overrides.apply_to(&mut ret);
+        }
+
+        ret
     }
 
     /// Get the value ProtocolConfig that are in effect during the given
@@ -1801,10 +1816,7 @@ impl ProtocolConfig {
 
         // zkLogin related flags
         {
-            cfg.feature_flags.zklogin_auth = false;
-            cfg.feature_flags.enable_jwk_consensus_updates = false;
             cfg.feature_flags.zklogin_max_epoch_upper_bound_delta = Some(30);
-            cfg.feature_flags.accept_zklogin_in_multisig = false;
         }
 
         // Enable Mysticeti on mainnet.
@@ -1817,20 +1829,6 @@ impl ProtocolConfig {
 
         // Do not allow bridge committee to finalize on mainnet.
         cfg.bridge_should_try_to_finalize_committee = Some(chain != Chain::Mainnet);
-
-        cfg.feature_flags.bridge = false;
-
-        cfg.feature_flags.consensus_round_prober = false;
-        cfg.feature_flags
-            .consensus_distributed_vote_scoring_strategy = false;
-        cfg.feature_flags.consensus_linearize_subdag_v2 = false;
-        cfg.feature_flags.variant_nodes = false;
-        cfg.feature_flags.consensus_smart_ancestor_selection = false;
-        cfg.feature_flags
-            .consensus_round_prober_probe_accepted_rounds = false;
-        cfg.feature_flags.consensus_zstd_compression = false;
-        cfg.feature_flags
-            .congested_objects_gas_price_feedback_mechanism = false;
 
         // Devnet
         if chain != Chain::Mainnet && chain != Chain::Testnet {

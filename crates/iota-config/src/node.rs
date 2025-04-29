@@ -209,7 +209,7 @@ pub struct NodeConfig {
     #[serde(default)]
     pub indexer_max_subscriptions: Option<usize>,
 
-    #[serde(default = "default_transaction_kv_store_config")]
+    #[serde(default)]
     pub transaction_kv_store_read_config: TransactionKeyValueStoreReadConfig,
 
     // TODO: write config seem to be unused.
@@ -308,12 +308,6 @@ pub fn default_zklogin_oauth_providers() -> BTreeMap<Chain, BTreeSet<String>> {
     map.insert(Chain::Testnet, providers);
     map.insert(Chain::Unknown, experimental_providers);
     map
-}
-
-fn default_transaction_kv_store_config() -> TransactionKeyValueStoreReadConfig {
-    TransactionKeyValueStoreReadConfig {
-        base_url: "https://transactions.iota.cafe/".to_string(),
-    }
 }
 
 fn default_authority_store_pruning_config() -> AuthorityStorePruningConfig {
