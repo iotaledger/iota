@@ -18,19 +18,6 @@ To synchronize the state, the node needs to establish connections with other nod
 
 To run a validator successfully, it is critical that ports are open as outlined, including the specific protocol (TCP/UDP).
 
-## Known peers
-
-By default, your config file (`validator.yaml`) should include the following known peers: (from public nodes run by IOTA):
-
-<Tabs groupId="network">
-    <TabItem label="Testnet" value="testnet">
-        <TestnetNodeConfig />
-    </TabItem>
-    <TabItem label="Devnet" value="devnet">
-        <DevnetNodeConfig />
-    </TabItem>
-</Tabs>
-
 ## Network Buffer
 
 From load testing IOTA validator networks, it has been determined that the default Linux network buffer sizes are too small. We recommend increasing them using one of the following two methods:

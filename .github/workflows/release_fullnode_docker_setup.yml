@@ -1,0 +1,146 @@
+name: Build fullnode docker setup artifacts
+run-name: Build fullnode docker setup artifacts for ${{ inputs.iota_branch || github.ref }}
+
+on:
+  release:
+    types: [created]
+  schedule:
+    - cron: "0 4 * * *" # Runs every day at 4 AM
+  workflow_dispatch:
+    inputs:
+      iota_branch:
+        description: "Branch to build from"
+        type: string
+        default: "develop"
+        required: true
+
+concurrency: ${{ github.workflow }}-${{ inputs.iota_branch || github.ref }}
+
+env:
+  TMP_BUILD_DIR: "./tmp"
+  GITHUB_EVENT_NAME: ${{ github.event_name }}
+
+jobs:
+  determine-ref-and-networks:
+    name: Determine ref and networks to build
+    runs-on: ubuntu-latest
+    outputs:
+      iota_ref: ${{ steps.ref.outputs.iota_ref }}
+      iota_networks: ${{ steps.ref.outputs.iota_networks }}
+      upload_artifacts: ${{ steps.ref.outputs.upload_artifacts }}
+    steps:
+      - name: Clean up and validate ref and networks to build and create artifacts
+        id: ref
+        shell: bash
+        run: |
+          # Manual dispatch on a branch ref
+          if [ "$GITHUB_EVENT_NAME" == "workflow_dispatch" ]; then
+            echo "iota_ref=${{ inputs.iota_branch }}" >> $GITHUB_OUTPUT
+            # TODO: https://github.com/iotaledger/iota/issues/6603
+            echo 'iota_networks=["testnet","devnet"]' >> $GITHUB_OUTPUT
+            echo "upload_artifacts=true" >> $GITHUB_OUTPUT
+
+          # Release builds on a tag ref
+          elif [ "$GITHUB_EVENT_NAME" == "release" ]; then
+            export iota_ref=$(echo ${{ github.ref }} | sed s/'refs\/tags\/'// )
+            echo "iota_ref=${iota_ref}" >> $GITHUB_OUTPUT
+
+            # Check if the release name starts with a network tag
+            release_name="${{ github.event.release.name }}"
+            release_name_lower=$(echo "$release_name" | tr '[:upper:]' '[:lower:]')
+
+            if [[ "$release_name_lower" == "[mainnet]"* ]]; then
+              echo 'iota_networks=["mainnet"]' >> $GITHUB_OUTPUT
+              echo "upload_artifacts=true" >> $GITHUB_OUTPUT
+            elif [[ "$release_name_lower" == "[testnet]"* ]]; then
+              echo 'iota_networks=["testnet"]' >> $GITHUB_OUTPUT
+              echo "upload_artifacts=true" >> $GITHUB_OUTPUT
+            elif [[ "$release_name_lower" == "[devnet]"* ]]; then
+              echo 'iota_networks=["devnet"]' >> $GITHUB_OUTPUT
+              echo "upload_artifacts=true" >> $GITHUB_OUTPUT
+            else
+              echo 'iota_networks=[]' >> $GITHUB_OUTPUT
+              echo "upload_artifacts=false" >> $GITHUB_OUTPUT
+            fi
+
+          # Scheduled nightly builds are always cut from develop
+          elif [ "$GITHUB_EVENT_NAME" == "schedule" ]; then
+            echo "iota_ref=develop" >> $GITHUB_OUTPUT
+            # TODO: https://github.com/iotaledger/iota/issues/6603
+            echo 'iota_networks=["testnet","devnet"]' >> $GITHUB_OUTPUT
+            echo "upload_artifacts=true" >> $GITHUB_OUTPUT
+
+          else
+            echo "iota_ref=develop" >> $GITHUB_OUTPUT
+            echo 'iota_networks=[]' >> $GITHUB_OUTPUT
+            echo "upload_artifacts=false" >> $GITHUB_OUTPUT
+          fi
+
+  build-artifacts-and-upload:
+    name: Build artifacts and upload
+    needs: determine-ref-and-networks
+    if: needs.determine-ref-and-networks.outputs.upload_artifacts == 'true'
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        network: ${{ fromJson(needs.determine-ref-and-networks.outputs.iota_networks) }}
+    steps:
+      - name: Check out ${{ needs.determine-ref-and-networks.outputs.iota_ref }}
+        uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871 # v4.2.1
+        with:
+          fetch-depth: 0
+          ref: ${{ needs.determine-ref-and-networks.outputs.iota_ref }}
+
+      - name: Set variables
+        id: vars
+        run: |
+          # replace potential slashes in the ref with dashes, so we can use it in the folder name and archive name
+          raw_ref="${{ needs.determine-ref-and-networks.outputs.iota_ref }}"
+          safe_ref="${raw_ref//\//-}"  # Replace all slashes with dashes
+
+          export work_dir="${{ env.TMP_BUILD_DIR }}/fullnode-docker-setup_${{ matrix.network }}-${safe_ref}"
+          export target_dir="${{ env.TMP_BUILD_DIR }}/archive_fullnode-docker-setup_${{ matrix.network }}-${safe_ref}"
+          export archive_name="fullnode-docker-setup_${{ matrix.network }}-${safe_ref}.tgz"
+          echo "work_dir=$work_dir" >> $GITHUB_OUTPUT
+          echo "target_dir=$target_dir" >> $GITHUB_OUTPUT
+          echo "archive_name=$archive_name" >> $GITHUB_OUTPUT
+
+      - name: Create working folder and data/config subfolder
+        run: |
+          mkdir -p ${{ steps.vars.outputs.work_dir }}/data/config
+          mkdir -p ${{ steps.vars.outputs.target_dir }}
+
+      - name: Copy fullnode docker files
+        run: |
+          cp setups/fullnode/fullnode-template-${{ matrix.network }}.yaml \
+             ${{ steps.vars.outputs.work_dir }}/data/config/fullnode.yaml
+          cp setups/fullnode/docker/prepare_${{ matrix.network }}.sh \
+             ${{ steps.vars.outputs.work_dir }}/prepare.sh
+          cp setups/fullnode/docker/docker-compose.yaml \
+             ${{ steps.vars.outputs.work_dir }}/docker-compose.yaml
+
+      - name: Replace docker image placeholder
+        run: |
+          sed -i "s|iotaledger/iota-node:_network_placeholder_|iotaledger/iota-node:${{ matrix.network }}|g" \
+              ${{ steps.vars.outputs.work_dir }}/docker-compose.yaml
+
+      - name: Archive artifact
+        shell: bash
+        run: |
+          tar -cvzf ${{ steps.vars.outputs.target_dir }}/${{ steps.vars.outputs.archive_name }} \
+              -C ${{ steps.vars.outputs.work_dir }} .
+
+      - name: Upload artifact to workflow run
+        if: github.event_name != 'release'
+        uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # v4.4.3
+        with:
+          name: ${{ steps.vars.outputs.archive_name }}
+          if-no-files-found: error
+          retention-days: 7
+          path: ${{ steps.vars.outputs.target_dir }}/${{ steps.vars.outputs.archive_name }}
+
+      - name: Attach artifact to ${{ needs.determine-ref-and-networks.outputs.iota_ref }} release in GH
+        if: github.event_name == 'release'
+        uses: softprops/action-gh-release@c062e08bd532815e2082a85e87e3ef29c3e6d191 # v2.0.8
+        with:
+          files: ${{ steps.vars.outputs.target_dir }}/${{ steps.vars.outputs.archive_name }}

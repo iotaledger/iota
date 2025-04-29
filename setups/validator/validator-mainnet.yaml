@@ -1,4 +1,5 @@
 ---
+# Key pairs
 authority-key-pair:
   path: /opt/iota/key-pairs/authority.key
 protocol-key-pair:
@@ -6,45 +7,44 @@ protocol-key-pair:
 network-key-pair:
   path: /opt/iota/key-pairs/network.key
 
+# Database Configuration
 db-path: /opt/iota/db/authorities_db
-
-network-address: /ip4/0.0.0.0/tcp/8080/http
-metrics-address: "0.0.0.0:9184"
-admin-interface-address: "127.0.0.1:1337"
-
 consensus-config:
   db-path: /opt/iota/db/consensus_db
-  internal-worker-address: null
-enable-event-processing: false
 
+# Genesis Configuration
+genesis:
+  genesis-file-location: /opt/iota/config/genesis.blob
+migration-tx-data-path: /opt/iota/config/migration.blob
+
+# Network Configuration
+network-address: /ip4/0.0.0.0/tcp/8080/http
 p2p-config:
   listen-address: "0.0.0.0:8084"
   external-address: /dns/$HOSTNAME/udp/8084 # UPDATE THIS
   anemo-config:
     max-concurrent-connections: 0
+  seed-peers: # Add your SSFN peers here
+#    - address: /dns/ssfn-hostname/udp/8084
+#      peer-id: <ssfn-peer-id>
 
-genesis:
-  genesis-file-location: /opt/iota/config/genesis.blob
-migration-tx-data-path: /opt/iota/config/migration.blob
-
+# Pruning Configuration
 authority-store-pruning-config:
-  num-latest-epoch-dbs-to-retain: 3
-  epoch-db-pruning-period-secs: 3600
-  num-epochs-to-retain: 1
-  max-checkpoints-in-batch: 5
-  max-transactions-in-batch: 1000
-end-of-epoch-broadcast-channel-capacity: 128
+  num-epochs-to-retain: 0
+  num-epochs-to-retain-for-checkpoints: 2
+
+# Resource Optimization
+enable-index-processing: false
 checkpoint-executor-config:
-  checkpoint-execution-max-concurrency: 200
   local-execution-timeout-sec: 10
-db-checkpoint-config:
-  perform-db-checkpoints-at-epoch-end: false
 indirect-objects-threshold: 18446744073709551615
 
+# Metrics Configuration
 metrics:
   push-interval-seconds: 60
   push-url: https://metrics-proxy.mainnet.iota.cafe:8443/publish/metrics
 
+# State Sync Archive Fallback
 state-archive-read-config:
   - object-store-config:
       object-store: "S3"

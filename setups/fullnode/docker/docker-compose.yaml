@@ -1,7 +1,6 @@
 services:
   fullnode:
-    # Note: Update the tag to the latest version of iotaledger/iota-node for mainnet or testnet.
-    image: iotaledger/iota-node:testnet
+    image: iotaledger/iota-node:_network_placeholder_
     ports:
       - "8084:8084/udp" # P2P port
       - "9000:9000/tcp" # JSON-RPC port
