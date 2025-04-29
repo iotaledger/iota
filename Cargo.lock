@@ -2101,9 +2101,9 @@ dependencies = [
 
 [[package]]
 name = "bytes-varint"
-version = "1.0.3"
+version = "1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "54c1820c7c366b9d26c47143e1604454105a59969aade54e4f695d96acc8332f"
+checksum = "2e95ba58c659da9789048773ebecf5bd17fe7d3858b10f693bb579912f0d55ed"
 dependencies = [
  "bytes",
 ]
