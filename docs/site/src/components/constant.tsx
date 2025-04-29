@@ -109,11 +109,10 @@ export const Networks = {
   },
   iota_move: {
     baseToken: 'IOTA Token',
-    jsonRpcUrl: 'jsonRpcUrl placeholder',
-    jsonRpcWebsocketUrl: 'jsonRpcWebsocketUrl placeholder',
-    indexerRpc: 'indexerRpc placeholder',
-    graphqlRpc: 'graphqlRpc placeholder',
-    faucetUrl: 'faucetUrl placeholder',
+    jsonRpcUrl: 'https://api.mainnet.iota.cafe',
+    jsonRpcWebsocketUrl: 'wss://api.mainnet.iota.cafe',
+    indexerRpc: 'https://indexer.mainnet.iota.cafe',
+    graphqlRpc: 'https://graphql.mainnet.iota.cafe',
     explorerUrl: 'https://explorer.rebased.iota.org'
   },
   iota_move_testnet: {
@@ -135,7 +134,7 @@ export const Networks = {
     explorerUrl: 'https://explorer.rebased.iota.org/?network=devnet'
   },
   iota_localnet: {
-    baseToken: "IOTA Token",
+    baseToken: "IOTA Token (no value)",
     jsonRpcUrl: 'http://127.0.0.1:9000',
     jsonRpcWebsocketUrl: 'ws://127.0.0.1:9000',
     indexerRpc: 'http://127.0.0.1:9124',
