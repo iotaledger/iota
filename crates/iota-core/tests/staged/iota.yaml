@@ -499,7 +499,7 @@ ExecutionFailureStatus:
     36:
       ExecutionCancelledDueToRandomnessUnavailable: UNIT
     37:
-      ExecutionCancelledDueToSharedObjectCongestionV1:
+      ExecutionCancelledDueToSharedObjectCongestionV2:
         STRUCT:
           - congested_objects:
               TYPENAME: CongestedObjects

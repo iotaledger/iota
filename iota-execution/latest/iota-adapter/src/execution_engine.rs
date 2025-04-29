@@ -339,7 +339,7 @@ mod checked {
                 match reason {
                     version if version.is_congested() => Err(ExecutionError::new(
                         if protocol_config.congested_objects_gas_price_feedback_mechanism() {
-                            ExecutionErrorKind::ExecutionCancelledDueToSharedObjectCongestionV1 {
+                            ExecutionErrorKind::ExecutionCancelledDueToSharedObjectCongestionV2 {
                                 congested_objects: CongestedObjects(cancelled_objects),
                                 suggested_gas_price: version
                                     .get_congested_version_suggested_gas_price(),

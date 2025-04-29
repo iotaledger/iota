@@ -343,7 +343,7 @@ async fn test_congestion_control_execution_cancellation() {
     assert_eq!(
         effects.status(),
         &ExecutionStatus::Failure {
-            error: ExecutionFailureStatus::ExecutionCancelledDueToSharedObjectCongestionV1 {
+            error: ExecutionFailureStatus::ExecutionCancelledDueToSharedObjectCongestionV2 {
                 congested_objects: CongestedObjects(vec![shared_object_1.0]),
                 suggested_gas_price: TEST_ONLY_GAS_PRICE,
             },
@@ -382,7 +382,7 @@ async fn test_congestion_control_execution_cancellation() {
     // Should result in the same cancellation.
     assert_eq!(
         execution_error.unwrap().to_execution_status().0,
-        ExecutionFailureStatus::ExecutionCancelledDueToSharedObjectCongestionV1 {
+        ExecutionFailureStatus::ExecutionCancelledDueToSharedObjectCongestionV2 {
             congested_objects: CongestedObjects(vec![shared_object_1.0]),
             suggested_gas_price: TEST_ONLY_GAS_PRICE,
         }

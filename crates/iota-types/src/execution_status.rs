@@ -216,7 +216,7 @@ pub enum ExecutionFailureStatus {
             To give this certificate more priority to be executed, its gas price can be increased \
             to at least {suggested_gas_price}."
     )]
-    ExecutionCancelledDueToSharedObjectCongestionV1 {
+    ExecutionCancelledDueToSharedObjectCongestionV2 {
         congested_objects: CongestedObjects,
         suggested_gas_price: u64,
     },
