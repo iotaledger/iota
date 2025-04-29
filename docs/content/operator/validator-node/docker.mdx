@@ -34,9 +34,19 @@ Perform these steps on the server that will be running the validator instance.
 
 Download the docker compose file:
 
-```bash
-curl -fLJO https://github.com/iotaledger/iota/raw/refs/heads/develop/setups/validator/docker-compose.yml
-```
+<Tabs groupId="network">
+    <TabItem label="Mainnet" value="mainnet">
+      ```bash
+      curl -fLJ -o docker-compose.yml https://github.com/iotaledger/iota/raw/refs/heads/develop/setups/validator/docker-compose-mainnet.yml
+      ```
+    </TabItem>
+    <TabItem label="Testnet" value="testnet">
+      ```bash
+      curl -fLJ -o docker-compose.yml https://github.com/iotaledger/iota/raw/refs/heads/develop/setups/validator/docker-compose-testnet.yml
+      ```
+    </TabItem>
+</Tabs>
+
 
 ### 2.2. Download Configuration Template
 
