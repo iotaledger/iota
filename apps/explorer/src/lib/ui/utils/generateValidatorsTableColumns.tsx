@@ -305,23 +305,17 @@ export function generateValidatorsTableColumns({
             id: 'isEarningNext',
             enableSorting: true,
             cell({ row }) {
-                const { atRisk, isPending, isCommitteeMember } = determineRisk(
-                    committeeMembers,
-                    atRiskValidators,
-                    row,
-                );
+                const { atRisk } = determineRisk(committeeMembers, atRiskValidators, row);
 
                 const isInTopStakers = !!topValidators.find(
                     (v) => v.iotaAddress === row.original.iotaAddress,
                 );
 
-                // if its active or pending validator, not at high risk (high risk, not normal risk),
+                // if its active or pending validator (all validators in this context are either active or pending),
+                // not at high risk (high risk, not normal risk),
                 // and is part of the top X stakers,
-                // it will generate rewards, otherwise not.
-                const isEarningNext =
-                    (isPending || isCommitteeMember) &&
-                    (atRisk === null || atRisk > 1) &&
-                    isInTopStakers;
+                // it will generate rewards in the next epoch, otherwise not.
+                const isEarningNext = (atRisk === null || atRisk > 1) && isInTopStakers;
 
                 const label = isEarningNext ? 'Earning' : 'Not Earning';
 
