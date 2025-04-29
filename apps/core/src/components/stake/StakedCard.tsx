@@ -1,16 +1,28 @@
 // Copyright (c) Mysten Labs, Inc.
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
-import { Card, CardImage, CardType, CardBody, CardAction, CardActionType } from '@iota/apps-ui-kit';
+
+import {
+    Card,
+    CardImage,
+    CardType,
+    CardBody,
+    CardAction,
+    CardActionType,
+    TooltipPosition,
+} from '@iota/apps-ui-kit';
 import { useMemo } from 'react';
 import { ImageIcon } from '../icon';
 import { ExtendedDelegatedStake } from '../../utils';
 import { useFormatCoin, useStakeRewardStatus, useGetInactiveValidatorData } from '../../hooks';
+import { RewardsOff, Warning } from '@iota/apps-ui-icons';
 import { useIotaClient, useIotaClientQuery } from '@iota/dapp-kit';
+
 interface StakedCardProps {
     extendedStake: ExtendedDelegatedStake;
     currentEpoch: number;
     inactiveValidator?: boolean;
+    activeButNotInTheCommittee?: boolean;
     onClick: () => void;
 }
 
@@ -20,22 +32,23 @@ export function StakedCard({
     extendedStake,
     currentEpoch,
     inactiveValidator = false,
+    activeButNotInTheCommittee = false,
     onClick,
 }: StakedCardProps) {
     const { principal, stakeRequestEpoch, estimatedReward, validatorAddress } = extendedStake;
     const { data } = useIotaClientQuery('getLatestIotaSystemState');
     const iotaClient = useIotaClient();
 
-    const { rewards, title, subtitle } = useStakeRewardStatus({
+    const { title, subtitle } = useStakeRewardStatus({
         stakeRequestEpoch,
         currentEpoch,
         estimatedReward,
         inactiveValidator,
+        activeButNotInTheCommittee,
     });
 
-    // For inactive validator, show principal + rewards
     const [principalStaked, symbol] = useFormatCoin({
-        balance: inactiveValidator ? BigInt(principal) + rewards : principal,
+        balance: principal,
     });
 
     const validatorMeta = useMemo(() => {
@@ -65,6 +78,21 @@ export function StakedCard({
             <CardBody
                 title={validatorData?.name || '--'}
                 subtitle={`${principalStaked} ${symbol}`}
+                icon={
+                    activeButNotInTheCommittee ? (
+                        <RewardsOff className="text-warning-60" />
+                    ) : inactiveValidator ? (
+                        <Warning className="text-error-30" />
+                    ) : null
+                }
+                tooltipText={
+                    activeButNotInTheCommittee
+                        ? 'This validator is active but not in the current committee, so it’s not earning rewards right now. It may earn in future epochs.'
+                        : inactiveValidator
+                          ? 'This validator is inactive and will no longer earn rewards. '
+                          : ''
+                }
+                tooltipPosition={TooltipPosition.Bottom}
             />
             <CardAction title={title} subtitle={subtitle} type={CardActionType.SupportingText} />
         </Card>
