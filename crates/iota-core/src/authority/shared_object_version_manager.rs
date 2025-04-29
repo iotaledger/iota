@@ -135,7 +135,7 @@ impl SharedObjVerManager {
         cert: &VerifiedExecutableTransaction,
         shared_input_next_versions: &mut HashMap<ObjectID, SequenceNumber>,
         cancelled_txns: &BTreeMap<TransactionDigest, CancelConsensusCertificateReason>,
-        congested_objects_gas_price_feedback_mechanism_feature_flag: bool,
+        enable_gas_price_feedback: bool,
     ) -> Vec<(ObjectID, SequenceNumber)> {
         let tx_digest = cert.digest();
 
@@ -178,7 +178,7 @@ impl SharedObjVerManager {
                             .as_ref()
                             .is_some_and(|info| info.contains(id))
                         {
-                            if congested_objects_gas_price_feedback_mechanism_feature_flag {
+                            if enable_gas_price_feedback {
                                 SequenceNumber::new_congested_with_suggested_gas_price(
                                     *suggested_gas_price,
                                 )
