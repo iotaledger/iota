@@ -2841,7 +2841,7 @@
               "error": {
                 "type": "string",
                 "enum": [
-                  "execution_cancelled_due_to_shared_object_congestion_v1"
+                  "execution_cancelled_due_to_shared_object_congestion_v2"
                 ]
               },
               "suggested_gas_price": {
