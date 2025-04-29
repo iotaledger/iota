@@ -2780,6 +2780,7 @@ async fn test_split_coin() -> Result<(), anyhow::Error> {
         .await;
     let rgp = test_cluster.get_reference_gas_price().await;
     let address = test_cluster.get_address_0();
+    let address_1 = test_cluster.get_address_1();
     let context = &mut test_cluster.wallet;
     let client = context.get_client().await?;
     let object_refs = client
@@ -2975,6 +2976,61 @@ async fn test_split_coin() -> Result<(), anyhow::Error> {
     // Check values expected
     assert_eq!(get_gas_value(&updated_coin) + 1000 + 10, orig_value);
     assert!((get_gas_value(&new_coins[0]) == 1000) || (get_gas_value(&new_coins[0]) == 10));
+    assert!((get_gas_value(&new_coins[1]) == 1000) || (get_gas_value(&new_coins[1]) == 10));
+
+    // Test with single gas coin
+    context.config_mut().set_active_address(Some(address_1));
+    let object_refs = client
+        .coin_read_api()
+        .get_coins(address_1, None, None, None)
+        .await?;
+    // First merge all coins so we only have a single one left
+    let resp = IotaClientCommands::PayAllIota {
+        input_coins: object_refs.data.iter().map(|o| o.coin_object_id).collect(),
+        recipient: KeyIdentity::Address(address_1),
+        opts: Opts::for_testing(rgp * TEST_ONLY_GAS_UNIT_FOR_TRANSFER),
+    }
+    .execute(context)
+    .await?;
+    if let IotaClientCommandResult::TransactionBlock(r) = resp {
+        assert!(r.status_ok().unwrap(), "Command PayAllIota failed: {r:?}");
+    } else {
+        panic!("Command PayAllIota failed")
+    };
+
+    let object_refs = client
+        .coin_read_api()
+        .get_coins(address_1, None, None, None)
+        .await?;
+    assert_eq!(object_refs.data.len(), 1, "More than one coin");
+
+    let gas = object_refs.data.first().unwrap().coin_object_id;
+    let resp = IotaClientCommands::SplitCoin {
+        opts: OptsWithGas::for_testing(None, rgp * TEST_ONLY_GAS_UNIT_FOR_SPLIT_COIN),
+        coin_id: gas,
+        amounts: Some(vec![10, 1000]),
+        count: None,
+    }
+    .execute(context)
+    .await?;
+
+    let new_coins = if let IotaClientCommandResult::TransactionBlock(r) = resp {
+        assert!(r.status_ok().unwrap(), "Command SplitCoin failed: {r:?}");
+        let effects = r.effects.as_ref().unwrap();
+        assert_eq!(effects.gas_object().object_id(), gas);
+
+        let new_object_refs = effects.created().to_vec();
+        let mut new_objects = Vec::with_capacity(new_object_refs.len());
+        for obj_ref in new_object_refs {
+            new_objects.push(
+                get_parsed_object_assert_existence(obj_ref.reference.object_id, context).await,
+            );
+        }
+        new_objects
+    } else {
+        panic!("Command SplitCoin failed")
+    };
+    assert!((get_gas_value(&new_coins[0]) == 10) || (get_gas_value(&new_coins[0]) == 1000));
     assert!((get_gas_value(&new_coins[1]) == 1000) || (get_gas_value(&new_coins[1]) == 10));
     Ok(())
 }
