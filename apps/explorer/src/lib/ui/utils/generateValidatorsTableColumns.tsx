@@ -101,6 +101,9 @@ export function generateValidatorsTableColumns({
     highlightValidatorName,
     currentEpoch,
 }: GenerateValidatorsTableColumnsArgs): ColumnDef<IotaValidatorSummaryExtended>[] {
+    const sortedActiveValidators = activeValidators.toSorted(sortByStakingBalanceDesc);
+    const topValidators = sortedActiveValidators.slice(0, maxCommitteeSize);
+
     let columns: ColumnDef<IotaValidatorSummaryExtended>[] = [
         {
             header: 'Name',
@@ -308,8 +311,6 @@ export function generateValidatorsTableColumns({
                     row,
                 );
 
-                const sortedActiveValidators = activeValidators.toSorted(sortByStakingBalanceDesc);
-                const topValidators = sortedActiveValidators.slice(0, maxCommitteeSize);
                 const isInTopStakers = !!topValidators.find(
                     (v) => v.iotaAddress === row.original.iotaAddress,
                 );
