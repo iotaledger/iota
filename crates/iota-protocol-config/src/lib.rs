@@ -1803,10 +1803,7 @@ impl ProtocolConfig {
 
         // zkLogin related flags
         {
-            cfg.feature_flags.zklogin_auth = false;
-            cfg.feature_flags.enable_jwk_consensus_updates = false;
             cfg.feature_flags.zklogin_max_epoch_upper_bound_delta = Some(30);
-            cfg.feature_flags.accept_zklogin_in_multisig = false;
         }
 
         // Enable Mysticeti on mainnet.
@@ -1819,18 +1816,6 @@ impl ProtocolConfig {
 
         // Do not allow bridge committee to finalize on mainnet.
         cfg.bridge_should_try_to_finalize_committee = Some(chain != Chain::Mainnet);
-
-        cfg.feature_flags.bridge = false;
-
-        cfg.feature_flags.consensus_round_prober = false;
-        cfg.feature_flags
-            .consensus_distributed_vote_scoring_strategy = false;
-        cfg.feature_flags.consensus_linearize_subdag_v2 = false;
-        cfg.feature_flags.variant_nodes = false;
-        cfg.feature_flags.consensus_smart_ancestor_selection = false;
-        cfg.feature_flags
-            .consensus_round_prober_probe_accepted_rounds = false;
-        cfg.feature_flags.consensus_zstd_compression = false;
 
         // Devnet
         if chain != Chain::Mainnet && chain != Chain::Testnet {
