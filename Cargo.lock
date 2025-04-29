@@ -5978,7 +5978,6 @@ dependencies = [
  "aws-config",
  "aws-runtime",
  "aws-sdk-ec2",
- "aws-smithy-http",
  "aws-smithy-runtime-api",
  "clap",
  "color-eyre",
