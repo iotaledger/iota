@@ -184,12 +184,6 @@ pub enum ConsensusCertificateResult {
     ),
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug, Default, PartialEq, Eq)]
-pub struct ExecutionIndicesWithHash {
-    pub index: ExecutionIndices,
-    pub hash: u64,
-}
-
 /// ConsensusStats is versioned because we may iterate on the struct, and it is
 /// stored on disk.
 #[enum_dispatch]
@@ -290,6 +284,7 @@ impl PartialOrd for ExecutionIndices {
 #[derive(Serialize, Deserialize, Clone, Debug, Default, PartialEq, Eq)]
 pub struct ExecutionIndicesWithStats {
     pub index: ExecutionIndices,
+    // Hash is always 0 and kept for compatibility only.
     pub hash: u64,
     pub stats: ConsensusStats,
 }
@@ -502,13 +497,9 @@ pub struct AuthorityEpochTables {
     #[default_options_override_fn = "pending_consensus_transactions_table_default_config"]
     pending_consensus_transactions: DBMap<ConsensusTransactionKey, ConsensusTransaction>,
 
-    /// The following table is used to store a single value (the corresponding
-    /// key is a constant). The value represents the index of the latest
-    /// consensus message this authority processed. This field is written by
-    /// a single process acting as consensus (light) client. It is used to
-    /// ensure the authority processes every message output by consensus
-    /// (and in the right order).
-    last_consensus_index: DBMap<u64, ExecutionIndicesWithHash>,
+    /// this table is not used
+    #[allow(dead_code)]
+    last_consensus_index: DBMap<(), ()>,
 
     /// The following table is used to store a single value (the corresponding
     /// key is a constant). The value represents the index of the latest
@@ -720,8 +711,11 @@ impl AuthorityEpochTables {
         Ok(())
     }
 
-    pub fn get_last_consensus_index(&self) -> IotaResult<Option<ExecutionIndicesWithHash>> {
-        Ok(self.last_consensus_index.get(&LAST_CONSENSUS_STATS_ADDR)?)
+    pub fn get_last_consensus_index(&self) -> IotaResult<Option<ExecutionIndices>> {
+        Ok(self
+            .last_consensus_stats
+            .get(&LAST_CONSENSUS_STATS_ADDR)?
+            .map(|s| s.index))
     }
 
     pub fn get_last_consensus_stats(&self) -> IotaResult<Option<ExecutionIndicesWithStats>> {
@@ -1339,24 +1333,17 @@ impl AuthorityPerEpochStore {
             .collect()
     }
 
-    pub fn get_last_consensus_index(&self) -> IotaResult<ExecutionIndicesWithHash> {
-        self.tables()?
-            .get_last_consensus_index()
-            .map(|x| x.unwrap_or_default())
-    }
-
     pub fn get_last_consensus_stats(&self) -> IotaResult<ExecutionIndicesWithStats> {
         match self.tables()?.get_last_consensus_stats()? {
             Some(stats) => Ok(stats),
-            // TODO: stop reading from last_consensus_index after rollout.
             None => {
                 let indices = self
                     .tables()?
                     .get_last_consensus_index()
                     .map(|x| x.unwrap_or_default())?;
                 Ok(ExecutionIndicesWithStats {
-                    index: indices.index,
-                    hash: indices.hash,
+                    index: indices,
+                    hash: 0, // unused
                     stats: ConsensusStats::default(),
                 })
             }
@@ -2530,7 +2517,7 @@ impl AuthorityPerEpochStore {
     }
 
     fn db_batch(&self) -> IotaResult<DBBatch> {
-        Ok(self.tables()?.last_consensus_index.batch())
+        Ok(self.tables()?.last_consensus_stats.batch())
     }
 
     #[cfg(test)]
@@ -4100,16 +4087,6 @@ impl ConsensusCommitOutput {
         }
 
         if let Some(consensus_commit_stats) = &self.consensus_commit_stats {
-            batch.insert_batch(
-                &tables.last_consensus_index,
-                [(
-                    LAST_CONSENSUS_STATS_ADDR,
-                    ExecutionIndicesWithHash {
-                        index: consensus_commit_stats.index,
-                        hash: consensus_commit_stats.hash,
-                    },
-                )],
-            )?;
             batch.insert_batch(
                 &tables.last_consensus_stats,
                 [(LAST_CONSENSUS_STATS_ADDR, consensus_commit_stats)],
