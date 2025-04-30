@@ -1288,7 +1288,7 @@ impl SequenceNumber {
     }
 
     /// Checks if this sequence number is cancelled, i.e., the corresponding
-    /// object is appears in a cancelled transaction
+    /// object appears in a cancelled transaction.
     pub fn is_cancelled(&self) -> bool {
         self == &SequenceNumber::CANCELLED_READ
             || self == &SequenceNumber::RANDOMNESS_UNAVAILABLE
