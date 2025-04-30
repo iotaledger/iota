@@ -112,7 +112,7 @@ pub enum NameCommand {
         coin: Option<ObjectID>,
         /// The address or alias to which the domain will point. If the flag is
         /// specified without a value, the current active address will be used.
-        #[arg(long, require_equals = true, default_missing_value = "true", num_args = 0..=1)]
+        #[arg(long, require_equals = true, default_missing_value = "", num_args = 0..=1)]
         set_target_address: Option<String>,
         /// Set the reverse lookup for the domain.
         #[arg(long)]
@@ -408,7 +408,7 @@ impl NameCommand {
                     "--assign nft".to_string(),
                 ];
                 if let Some(identity) = set_target_address {
-                    let identity = (identity != "true")
+                    let identity = (!identity.is_empty())
                         .then(|| identity.parse::<KeyIdentity>())
                         .transpose()?;
                     let address = get_identity_address(identity, context)?;
