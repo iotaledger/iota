@@ -85,21 +85,24 @@ pub mod json_rpc_error;
 pub mod wallet_context;
 
 use std::{
+    collections::VecDeque,
     fmt::{Debug, Formatter},
+    marker::PhantomData,
     sync::Arc,
+    task::Poll,
     time::Duration,
 };
 
 use async_trait::async_trait;
 use base64::Engine;
+use futures::{StreamExt, TryStreamExt};
 pub use iota_json as json;
 use iota_json_rpc_api::{
     CLIENT_SDK_TYPE_HEADER, CLIENT_SDK_VERSION_HEADER, CLIENT_TARGET_API_VERSION_HEADER,
 };
 pub use iota_json_rpc_types as rpc_types;
 use iota_json_rpc_types::{
-    IotaObjectDataFilter, IotaObjectDataOptions, IotaObjectResponse, IotaObjectResponseQuery,
-    ObjectsPage, Page,
+    IotaObjectDataFilter, IotaObjectDataOptions, IotaObjectResponse, IotaObjectResponseQuery, Page,
 };
 use iota_transaction_builder::{DataReader, TransactionBuilder};
 pub use iota_types as types;
@@ -598,7 +601,6 @@ impl DataReader for ReadApi {
         address: IotaAddress,
         object_type: StructTag,
     ) -> Result<Vec<ObjectInfo>, anyhow::Error> {
-        let mut result = vec![];
         let query = Some(IotaObjectResponseQuery {
             filter: Some(IotaObjectDataFilter::StructType(object_type)),
             options: Some(
@@ -609,25 +611,14 @@ impl DataReader for ReadApi {
             ),
         });
 
-        let mut has_next = true;
-        let mut cursor = None;
+        let result = GetAllPages::get_all_pages_stream(async |cursor| {
+            self.get_owned_objects(address, query.clone(), cursor, None)
+                .await
+        })
+        .map(|v| v?.try_into())
+        .try_collect::<Vec<_>>()
+        .await?;
 
-        while has_next {
-            let ObjectsPage {
-                data,
-                next_cursor,
-                has_next_page,
-            } = self
-                .get_owned_objects(address, query.clone(), cursor, None)
-                .await?;
-            result.extend(
-                data.iter()
-                    .map(|r| r.clone().try_into())
-                    .collect::<Result<Vec<_>, _>>()?,
-            );
-            cursor = next_cursor;
-            has_next = has_next_page;
-        }
         Ok(result)
     }
 
@@ -645,26 +636,18 @@ impl DataReader for ReadApi {
     }
 }
 
-#[async_trait]
 pub trait GetAllPages<O, C, F, E>: Sized + Fn(Option<C>) -> F
 where
     O: Send,
     C: Send,
     F: futures::Future<Output = Result<Page<O, C>, E>> + Send,
 {
-    async fn get_all_pages(self) -> Result<Vec<O>, E> {
-        let mut res = Vec::new();
-        let mut cursor = None;
-        loop {
-            let page = self(cursor).await?;
-            res.extend(page.data);
-            if page.has_next_page {
-                cursor = page.next_cursor;
-            } else {
-                break;
-            }
-        }
-        Ok(res)
+    fn get_all_pages(self) -> impl futures::Future<Output = Result<Vec<O>, E>> {
+        self.get_all_pages_stream().try_collect()
+    }
+
+    fn get_all_pages_stream(self) -> std::pin::Pin<Box<GetAllPagesStream<O, C, F, E, Self>>> {
+        GetAllPagesStream::new(self)
     }
 }
 
@@ -675,4 +658,69 @@ where
     C: Send,
     F: futures::Future<Output = Result<Page<O, C>, E>> + Send,
 {
+}
+
+#[pin_project::pin_project]
+pub struct GetAllPagesStream<O, C, F, E, Fun> {
+    cursor: Option<C>,
+    fun: Fun,
+    #[pin]
+    fut: F,
+    next: VecDeque<O>,
+    _data: PhantomData<fn(E) -> E>,
+}
+
+impl<O, C, F, E, Fun> GetAllPagesStream<O, C, F, E, Fun>
+where
+    O: Send,
+    C: Send,
+    F: futures::Future<Output = Result<Page<O, C>, E>> + Send,
+    Fun: Fn(Option<C>) -> F,
+{
+    pub fn new(fun: Fun) -> std::pin::Pin<Box<Self>> {
+        let fut = fun(None);
+        Box::pin(Self {
+            cursor: None,
+            fun,
+            fut,
+            next: Default::default(),
+            _data: PhantomData,
+        })
+    }
+}
+
+impl<O, C, F, E, Fun> futures::Stream for GetAllPagesStream<O, C, F, E, Fun>
+where
+    O: Send,
+    C: Send,
+    F: futures::Future<Output = Result<Page<O, C>, E>> + Send,
+    Fun: Fn(Option<C>) -> F,
+{
+    type Item = Result<O, E>;
+
+    fn poll_next(
+        self: std::pin::Pin<&mut Self>,
+        cx: &mut std::task::Context<'_>,
+    ) -> Poll<Option<Self::Item>> {
+        let mut this = self.project();
+        loop {
+            if let Some(next) = this.next.pop_front() {
+                return Poll::Ready(Some(Ok(next)));
+            }
+            let res = this.fut.as_mut().poll(cx);
+            match res {
+                Poll::Ready(res) => {
+                    this.fut.set((this.fun)(this.cursor.take()));
+                    match res {
+                        Ok(mut page) => {
+                            *this.cursor = page.next_cursor.take();
+                            this.next.extend(page.data);
+                        }
+                        Err(e) => return Poll::Ready(Some(Err(e))),
+                    }
+                }
+                Poll::Pending => return Poll::Pending,
+            }
+        }
+    }
 }
