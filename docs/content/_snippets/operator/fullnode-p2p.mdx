@@ -1,0 +1,15 @@
+Configure the P2P settings in your `fullnode.yaml` file by following these steps:
+
+1. Update the external address:
+
+```yaml
+p2p-config:
+  external-address: /dns/<YOUR-DOMAIN>/udp/8084
+```
+
+:::note
+Replace `<YOUR-DOMAIN>` with your public hostname.
+In case you don't have a public hostname, you can alternatively use a public IPv4 like `/ip4/1.2.3.4/udp/8084/` or IPv6 like `/ip6/2001:db8::1234:5678/udp/8084`
+
+This address must be accessible from the internet.
+:::

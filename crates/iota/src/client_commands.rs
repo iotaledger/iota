@@ -51,7 +51,7 @@ use iota_source_validation::{BytecodeSourceVerifier, ValidationMode};
 use iota_types::{
     base_types::{IotaAddress, ObjectID, SequenceNumber},
     crypto::{EmptySignInfo, SignatureScheme},
-    digests::TransactionDigest,
+    digests::{ChainIdentifier, TransactionDigest},
     error::IotaError,
     gas::GasCostSummary,
     gas_coin::GasCoin,
@@ -88,14 +88,16 @@ use tabled::{
         style::HorizontalLine,
     },
 };
-use tracing::{debug, info};
+use tracing::debug;
 
 use crate::{
+    PrintableResult,
     clever_error_rendering::render_clever_error_opt,
     client_ptb::ptb::PTB,
     displays::Pretty,
     key_identity::{KeyIdentity, get_identity_address},
     keytool::Key,
+    upgrade_compatibility::check_compatibility,
     verifier_meter::{AccumulatingMeter, Accumulator},
 };
 
@@ -351,7 +353,7 @@ pub enum IotaClientCommands {
         /// Check that the dependency source code compiles to the on-chain
         /// bytecode before publishing the package (currently the
         /// default behavior)
-        #[clap(long, conflicts_with = "skip_dependency_verification")]
+        #[arg(long, conflicts_with = "skip_dependency_verification")]
         verify_deps: bool,
         /// Also publish transitive dependencies that have not already been
         /// published.
@@ -416,6 +418,11 @@ pub enum IotaClientCommands {
         build_config: MoveBuildConfig,
         #[command(flatten)]
         opts: OptsWithGas,
+
+        /// Verify package compatibility locally before publishing.
+        #[arg(long)]
+        verify_compatibility: bool,
+
         /// Upgrade the package without checking whether dependency source code
         /// compiles to the on-chain bytecode
         #[arg(long)]
@@ -423,7 +430,7 @@ pub enum IotaClientCommands {
         /// Check that the dependency source code compiles to the on-chain
         /// bytecode before upgrading the package (currently the default
         /// behavior)
-        #[clap(long, conflicts_with = "skip_dependency_verification")]
+        #[arg(long, conflicts_with = "skip_dependency_verification")]
         verify_deps: bool,
         /// Also publish transitive dependencies that have not already been
         /// published.
@@ -539,7 +546,7 @@ pub enum IotaClientCommands {
 }
 
 /// Global options for most transaction execution related commands
-#[derive(Args, Debug)]
+#[derive(Args, Debug, Clone)]
 pub struct Opts {
     /// An optional gas budget for this transaction (in NANOS). If gas budget is
     /// not provided, the tool will first perform a dry run to estimate the
@@ -578,7 +585,7 @@ pub struct Opts {
 }
 
 /// Global options with gas
-#[derive(Args, Debug)]
+#[derive(Args, Debug, Clone)]
 pub struct OptsWithGas {
     /// ID of the gas object for gas payment.
     /// If not provided, a gas object with at least gas_budget value will be
@@ -663,6 +670,32 @@ impl OptsWithGas {
             gas,
             rest: Opts::for_testing_display_options(gas_budget, display),
         }
+    }
+
+    // `--emit` is not supported with a PTB call (https://github.com/iotaledger/iota/issues/5722)
+    /// Output the options as a vec of strings that can be provided as args to
+    /// the PTB CLI.
+    pub fn into_args(self) -> Vec<String> {
+        let mut args = Vec::default();
+        if let Some(gas) = self.gas {
+            args.push(format!("--gas {gas}"));
+        }
+        if let Some(gas_budget) = self.rest.gas_budget {
+            args.push(format!("--gas-budget {gas_budget}"));
+        }
+        if self.rest.dry_run {
+            args.push("--dry-run".to_string());
+        }
+        if self.rest.dev_inspect {
+            args.push("--dev-inspect".to_string());
+        }
+        if self.rest.serialize_signed_transaction {
+            args.push("--serialize_signed_transaction".to_string());
+        }
+        if self.rest.serialize_unsigned_transaction {
+            args.push("--serialize_unsigned_transaction".to_string());
+        }
+        args
     }
 }
 
@@ -876,6 +909,7 @@ impl IotaClientCommands {
                 build_config,
                 skip_dependency_verification,
                 verify_deps,
+                verify_compatibility,
                 with_unpublished_dependencies,
                 opts,
             } => {
@@ -883,6 +917,21 @@ impl IotaClientCommands {
                 let sender = sender.unwrap_or(context.active_address()?);
                 let client = context.get_client().await?;
                 let chain_id = client.read_api().get_chain_identifier().await.ok();
+                let protocol_version = client
+                    .read_api()
+                    .get_protocol_config(None)
+                    .await?
+                    .protocol_version;
+                let protocol_config = ProtocolConfig::get_for_version(
+                    protocol_version,
+                    match chain_id
+                        .as_ref()
+                        .and_then(ChainIdentifier::from_chain_short_id)
+                    {
+                        Some(chain_id) => chain_id.chain(),
+                        None => Chain::Unknown,
+                    },
+                );
 
                 check_protocol_version_and_warn(&client).await?;
 
@@ -925,8 +974,26 @@ impl IotaClientCommands {
                         previous_id,
                     )?;
                 }
-                let (package_id, compiled_modules, dependencies, package_digest, upgrade_policy) =
-                    upgrade_result?;
+                let (
+                    package_id,
+                    compiled_modules,
+                    dependencies,
+                    package_digest,
+                    upgrade_policy,
+                    compiled_module,
+                ) = upgrade_result?;
+
+                if verify_compatibility {
+                    check_compatibility(
+                        &client,
+                        package_id,
+                        compiled_module,
+                        package_path,
+                        upgrade_policy,
+                        protocol_config,
+                    )
+                    .await?;
+                }
 
                 let tx_kind = client
                     .transaction_builder()
@@ -1736,7 +1803,17 @@ pub(crate) async fn upgrade_package(
     with_unpublished_dependencies: bool,
     skip_dependency_verification: bool,
     env_alias: Option<String>,
-) -> Result<(ObjectID, Vec<Vec<u8>>, PackageDependencies, [u8; 32], u8), anyhow::Error> {
+) -> Result<
+    (
+        ObjectID,
+        Vec<Vec<u8>>,
+        PackageDependencies,
+        [u8; 32],
+        u8,
+        CompiledPackage,
+    ),
+    anyhow::Error,
+> {
     let (dependencies, compiled_modules, compiled_package, package_id) = compile_package(
         read_api,
         build_config,
@@ -1803,6 +1880,7 @@ pub(crate) async fn upgrade_package(
         dependencies,
         package_digest,
         upgrade_policy,
+        compiled_package,
     ))
 }
 
@@ -1936,6 +2014,16 @@ pub(crate) async fn compile_package(
         }
     } else {
         eprintln!("{}", "Skipping dependency verification".bold().yellow());
+    }
+
+    if compiled_package
+        .get_package_bytes(with_unpublished_dependencies)
+        .is_empty()
+    {
+        return Err(IotaError::ModulePublishFailure {
+            error: "No modules found in the package".to_string(),
+        }
+        .into());
     }
 
     compiled_package
@@ -2302,7 +2390,7 @@ fn convert_number_to_string(value: Value) -> Value {
 
 impl Debug for IotaClientCommandResult {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let s = unwrap_err_to_string(|| match self {
+        let s = crate::unwrap_err_to_string(|| match self {
             IotaClientCommandResult::Gas(gas_coins) => {
                 let gas_coins = gas_coins
                     .iter()
@@ -2320,14 +2408,7 @@ impl Debug for IotaClientCommandResult {
             }
             _ => Ok(serde_json::to_string_pretty(self)?),
         });
-        write!(f, "{}", s)
-    }
-}
-
-fn unwrap_err_to_string<T: Display, F: FnOnce() -> Result<T, anyhow::Error>>(func: F) -> String {
-    match func() {
-        Ok(s) => format!("{s}"),
-        Err(err) => format!("{err}").red().to_string(),
+        write!(f, "{s}")
     }
 }
 
@@ -2338,21 +2419,6 @@ impl IotaClientCommandResult {
             Object(o) | RawObject(o) => Some(vec![o.clone()]),
             Objects(o) => Some(o.clone()),
             _ => None,
-        }
-    }
-
-    pub fn print(&self, pretty: bool) {
-        let line = if pretty {
-            format!("{self}")
-        } else {
-            format!("{:?}", self)
-        };
-        // Log line by line
-        for line in line.lines() {
-            // Logs write to a file on the side.  Print to stdout and also log to file, for
-            // tests to pass.
-            println!("{line}");
-            info!("{line}")
         }
     }
 
@@ -2403,6 +2469,8 @@ impl IotaClientCommandResult {
         self
     }
 }
+
+impl PrintableResult for IotaClientCommandResult {}
 
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -2603,7 +2671,7 @@ pub async fn request_tokens_from_faucet(
         .await?;
 
     match resp.status() {
-        StatusCode::ACCEPTED | StatusCode::CREATED => {
+        StatusCode::ACCEPTED | StatusCode::CREATED | StatusCode::OK => {
             let faucet_resp: FaucetResponse = resp.json().await?;
 
             if let Some(err) = faucet_resp.error {

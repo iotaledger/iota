@@ -67,6 +67,8 @@ export { default as QrCode } from './QrCode';
 export { default as RadioOff } from './RadioOff';
 export { default as RadioOn } from './RadioOn';
 export { default as RecognizedBadge } from './RecognizedBadge';
+export { default as Refresh } from './Refresh';
+export { default as RewardsOff } from './RewardsOff';
 export { default as Save } from './Save';
 export { default as Search } from './Search';
 export { default as Seed } from './Seed';

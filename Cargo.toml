@@ -112,6 +112,7 @@ members = [
   "crates/iota-move",
   "crates/iota-move-build",
   "crates/iota-move-lsp",
+  "crates/iota-names",
   "crates/iota-network",
   "crates/iota-network-stack",
   "crates/iota-node",
@@ -240,6 +241,7 @@ cfg-if = "1.0.0"
 # Locked to this version until a release of `arrow` that includes https://github.com/apache/arrow-rs/pull/7198
 chrono = { version = "=0.4.39", features = ["clock", "serde"] }
 clap = { version = "4.4", features = ["derive", "wrap_help"] }
+codespan-reporting = "0.11.1"
 colored = "2.0.0"
 comfy-table = "6.1.3"
 const-str = "0.5.3"
@@ -301,11 +303,11 @@ passkey-client = "0.4.0"
 passkey-types = "0.4.0"
 pretty_assertions = "1.3.0"
 proc-macro2 = "1.0.47"
-prometheus = "0.13.3"
+prometheus = "0.14.0"
 proptest = "1.1.0"
 proptest-derive = "0.5.1"
 prost = "0.13"
-protobuf = { version = "2.28", features = ["with-bytes"] }
+protobuf = { version = "3.7.2", features = ["with-bytes"] }
 quinn-proto = "0.11.7"
 quote = "1.0.23"
 rand = "0.8.5"
@@ -406,6 +408,7 @@ iota-metrics = { path = "crates/iota-metrics" }
 iota-move = { path = "crates/iota-move" }
 iota-move-build = { path = "crates/iota-move-build" }
 iota-move-lsp = { path = "crates/iota-move-lsp" }
+iota-names = { path = "crates/iota-names" }
 iota-network = { path = "crates/iota-network" }
 iota-network-stack = { path = "crates/iota-network-stack" }
 iota-node = { path = "crates/iota-node" }

@@ -123,9 +123,9 @@ impl HardwareMetrics {
         m.set_label(
             labels
                 .iter()
-                .filter_map(|opt| opt.clone())
-                .collect::<Vec<_>>()
-                .into(),
+                .filter_map(|opt| opt.as_ref())
+                .cloned()
+                .collect::<Vec<_>>(),
         );
 
         mf.mut_metric().push(m);
@@ -137,8 +137,8 @@ impl HardwareMetrics {
 
     fn metric_family_desc(fam: &MetricFamily) -> Result<Desc, HardwareMetricsErr> {
         Desc::new(
-            fam.get_name().to_string(),
-            fam.get_help().to_string(),
+            fam.name().to_string(),
+            fam.help().to_string(),
             vec![],
             HashMap::new(),
         )
@@ -357,7 +357,7 @@ mod tests {
             let fname_namespaced = format!("hw_{}", family_name.trim_start_matches("hw_"));
             let metric = metric_families
                 .iter()
-                .find(|mf| mf.get_name() == fname_namespaced)
+                .find(|mf| mf.name() == fname_namespaced)
                 .ok_or_else(|| format!("Metric family not found: {fname_namespaced}"))?
                 .get_metric()
                 .first()
@@ -369,14 +369,14 @@ mod tests {
             Ok(metric
                 .get_label()
                 .iter()
-                .find(|l| l.get_name() == label_name)
+                .find(|l| l.name() == label_name)
                 .ok_or_else(|| format!("Label not found: {label_name}"))?
-                .get_value()
+                .value()
                 .to_string())
         };
 
         let cpu_core_count = find_metric("cpu_core_count")?;
-        let core_count: usize = cpu_core_count.get_gauge().get_value() as usize;
+        let core_count: usize = cpu_core_count.get_gauge().value() as usize;
         assert!(core_count > 0 && core_count < 513);
 
         // we only check specs are present in labels
@@ -384,17 +384,15 @@ mod tests {
         let _ = find_metric_label("cpu_core_count", "vendor_id")?;
         let _ = find_metric_label("cpu_core_count", "arch")?;
 
-        let mem_total_bytes = find_metric("memory_total_bytes")?.get_gauge().get_value();
+        let mem_total_bytes = find_metric("memory_total_bytes")?.get_gauge().value();
         assert!(mem_total_bytes > 0.0);
-        let mem_available_bytes = find_metric("memory_available_bytes")?
-            .get_gauge()
-            .get_value();
+        let mem_available_bytes = find_metric("memory_available_bytes")?.get_gauge().value();
         assert!(mem_available_bytes > 0.0);
 
         let disk_1_total_bytes = find_metric("disk_1_total_bytes")?;
-        assert!(disk_1_total_bytes.get_gauge().get_value() > 0.0);
+        assert!(disk_1_total_bytes.get_gauge().value() > 0.0);
         let disk_available = find_metric("disk_1_available_bytes")?;
-        assert!(disk_available.get_gauge().get_value() > 0.0);
+        assert!(disk_available.get_gauge().value() > 0.0);
 
         Ok(())
     }

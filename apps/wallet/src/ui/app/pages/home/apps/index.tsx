@@ -3,12 +3,12 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { useFeature } from '@growthbook/growthbook-react';
-import { FiltersPortal, ConnectedAppsCard, type DAppEntry } from '_components';
+import { FiltersPortal, ConnectedAppsCard, type DAppEntry, AppsPlayGround } from '_components';
 import { getFromSessionStorage, setToSessionStorage } from '_src/background/storageUtils';
 import { Feature } from '@iota/core';
 import { useUnlockedGuard } from '_hooks';
 import { useEffect } from 'react';
-import { Navigate, Route, Routes, useNavigate } from 'react-router-dom';
+import { Route, Routes, useNavigate } from 'react-router-dom';
 
 import st from './AppsPage.module.scss';
 
@@ -75,9 +75,7 @@ export function AppsPage() {
                 callback={handleFiltersPortalClick}
             />
             <Routes>
-                {/* Note: because we disabled the featured apps playground, disable any subroute that is not connected dapps */}
-                {/* <Route path="/:tagName?" element={<AppsPlayGround />} /> */}
-                <Route path="/*" element={<Navigate to="/apps/connected" replace={true} />} />
+                <Route path="/:tagName?" element={<AppsPlayGround />} />
                 <Route path="/connected" element={<ConnectedAppsCard />} />
             </Routes>
         </div>
