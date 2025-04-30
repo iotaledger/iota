@@ -88,9 +88,10 @@ use tabled::{
         style::HorizontalLine,
     },
 };
-use tracing::{debug, info};
+use tracing::debug;
 
 use crate::{
+    PrintableResult,
     clever_error_rendering::render_clever_error_opt,
     client_ptb::ptb::PTB,
     displays::Pretty,
@@ -545,7 +546,7 @@ pub enum IotaClientCommands {
 }
 
 /// Global options for most transaction execution related commands
-#[derive(Args, Debug)]
+#[derive(Args, Debug, Clone)]
 pub struct Opts {
     /// An optional gas budget for this transaction (in NANOS). If gas budget is
     /// not provided, the tool will first perform a dry run to estimate the
@@ -584,7 +585,7 @@ pub struct Opts {
 }
 
 /// Global options with gas
-#[derive(Args, Debug)]
+#[derive(Args, Debug, Clone)]
 pub struct OptsWithGas {
     /// ID of the gas object for gas payment.
     /// If not provided, a gas object with at least gas_budget value will be
@@ -669,6 +670,32 @@ impl OptsWithGas {
             gas,
             rest: Opts::for_testing_display_options(gas_budget, display),
         }
+    }
+
+    // `--emit` is not supported with a PTB call (https://github.com/iotaledger/iota/issues/5722)
+    /// Output the options as a vec of strings that can be provided as args to
+    /// the PTB CLI.
+    pub fn into_args(self) -> Vec<String> {
+        let mut args = Vec::default();
+        if let Some(gas) = self.gas {
+            args.push(format!("--gas {gas}"));
+        }
+        if let Some(gas_budget) = self.rest.gas_budget {
+            args.push(format!("--gas-budget {gas_budget}"));
+        }
+        if self.rest.dry_run {
+            args.push("--dry-run".to_string());
+        }
+        if self.rest.dev_inspect {
+            args.push("--dev-inspect".to_string());
+        }
+        if self.rest.serialize_signed_transaction {
+            args.push("--serialize_signed_transaction".to_string());
+        }
+        if self.rest.serialize_unsigned_transaction {
+            args.push("--serialize_unsigned_transaction".to_string());
+        }
+        args
     }
 }
 
@@ -2353,7 +2380,7 @@ fn convert_number_to_string(value: Value) -> Value {
 
 impl Debug for IotaClientCommandResult {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let s = unwrap_err_to_string(|| match self {
+        let s = crate::unwrap_err_to_string(|| match self {
             IotaClientCommandResult::Gas(gas_coins) => {
                 let gas_coins = gas_coins
                     .iter()
@@ -2371,14 +2398,7 @@ impl Debug for IotaClientCommandResult {
             }
             _ => Ok(serde_json::to_string_pretty(self)?),
         });
-        write!(f, "{}", s)
-    }
-}
-
-fn unwrap_err_to_string<T: Display, F: FnOnce() -> Result<T, anyhow::Error>>(func: F) -> String {
-    match func() {
-        Ok(s) => format!("{s}"),
-        Err(err) => format!("{err}").red().to_string(),
+        write!(f, "{s}")
     }
 }
 
@@ -2389,21 +2409,6 @@ impl IotaClientCommandResult {
             Object(o) | RawObject(o) => Some(vec![o.clone()]),
             Objects(o) => Some(o.clone()),
             _ => None,
-        }
-    }
-
-    pub fn print(&self, pretty: bool) {
-        let line = if pretty {
-            format!("{self}")
-        } else {
-            format!("{:?}", self)
-        };
-        // Log line by line
-        for line in line.lines() {
-            // Logs write to a file on the side.  Print to stdout and also log to file, for
-            // tests to pass.
-            println!("{line}");
-            info!("{line}")
         }
     }
 
@@ -2454,6 +2459,8 @@ impl IotaClientCommandResult {
         self
     }
 }
+
+impl PrintableResult for IotaClientCommandResult {}
 
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]

@@ -3,10 +3,25 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { ampli } from '_src/shared/analytics/ampli';
-import { calculateStakeShare, useGetValidatorsApy, Validator } from '@iota/core';
+import {
+    calculateStakeShare,
+    useGetValidatorsApy,
+    useIsValidatorCommitteeMember,
+    Validator,
+} from '@iota/core';
 import cl from 'clsx';
-import { useCallback, useMemo, useState } from 'react';
-import { Button, InfoBox, InfoBoxStyle, InfoBoxType, LoadingIndicator } from '@iota/apps-ui-kit';
+import { useMemo, useState } from 'react';
+import {
+    Button,
+    InfoBox,
+    InfoBoxStyle,
+    InfoBoxType,
+    LoadingIndicator,
+    Search,
+    Title,
+    TitleSize,
+    TooltipPosition,
+} from '@iota/apps-ui-kit';
 import { useNavigate } from 'react-router-dom';
 import { Warning } from '@iota/apps-ui-icons';
 import { useIotaClientQuery } from '@iota/dapp-kit';
@@ -21,11 +36,13 @@ type Validator = {
 
 export function SelectValidatorCard() {
     const [selectedValidator, setSelectedValidator] = useState<Validator | null>(null);
+    const [searchValidator, setSearchValidator] = useState('');
 
     const navigate = useNavigate();
 
     const { data, isPending, isError, error } = useIotaClientQuery('getLatestIotaSystemState');
     const { data: rollingAverageApys } = useGetValidatorsApy();
+    const { isCommitteeMember } = useIsValidatorCommitteeMember();
 
     const selectValidator = (validator: Validator) => {
         setSelectedValidator((state) => (state?.address !== validator.address ? validator : null));
@@ -44,26 +61,18 @@ export function SelectValidatorCard() {
         [data?.activeValidators],
     );
 
-    const isAddressCommitteeMember = useCallback(
-        (address: string) =>
-            data?.committeeMembers.some(
-                (committeeMember) => address === committeeMember.iotaAddress,
-            ),
-        [data?.committeeMembers],
-    );
-
     const validatorList: Validator[] = useMemo(() => {
         const sortedAsc = allValidatorsRandomOrder.map((validator) => {
             const { apy, isApyApproxZero } = rollingAverageApys?.[validator.iotaAddress] ?? {
                 apy: null,
             };
-            const isCommitteeMember = isAddressCommitteeMember(validator.iotaAddress);
+            const isInTheCommittee = isCommitteeMember(validator.iotaAddress);
             return {
                 name: validator.name,
                 address: validator.iotaAddress,
                 apy,
                 isApyApproxZero,
-                stakeShare: isCommitteeMember
+                stakeShare: isInTheCommittee
                     ? calculateStakeShare(
                           BigInt(validator.stakingPoolIotaBalance),
                           BigInt(totalStake),
@@ -72,7 +81,22 @@ export function SelectValidatorCard() {
             };
         });
         return sortedAsc;
-    }, [allValidatorsRandomOrder, rollingAverageApys, totalStake, isAddressCommitteeMember]);
+    }, [allValidatorsRandomOrder, rollingAverageApys, totalStake]);
+
+    const filteredValidators = validatorList.filter((validator) => {
+        const valueToLowerCase = searchValidator.toLowerCase();
+        return (
+            validator.name.toLowerCase().includes(valueToLowerCase) ||
+            validator.address.toLowerCase().includes(valueToLowerCase)
+        );
+    });
+
+    const committeeMemberValidators = filteredValidators.filter((validator) =>
+        isCommitteeMember(validator.address),
+    );
+    const nonCommitteeMemberValidators = filteredValidators.filter(
+        (validator) => !isCommitteeMember(validator.address),
+    );
 
     if (isPending) {
         return (
@@ -95,45 +119,71 @@ export function SelectValidatorCard() {
             </div>
         );
     }
+
     return (
-        <div className="flex h-full w-full flex-col justify-between overflow-hidden">
-            <div className="flex max-h-[530px] w-full flex-1 flex-col items-start overflow-auto">
-                {data &&
-                    validatorList.map((validator) => (
-                        <div
-                            className={cl('group relative w-full cursor-pointer', {
-                                'rounded-xl bg-shader-neutral-light-8':
-                                    selectedValidator?.address === validator.address,
-                                'opacity-50': !isAddressCommitteeMember(validator.address),
-                            })}
-                            key={validator.address}
-                        >
-                            <Validator
-                                address={validator.address}
-                                onClick={() => {
-                                    selectValidator(validator);
-                                }}
-                            />
-                        </div>
-                    ))}
+        <div className="flex h-full w-full flex-col justify-between gap-3 overflow-hidden">
+            <Search
+                searchValue={searchValidator}
+                onSearchValueChange={setSearchValidator}
+                placeholder="Search validators"
+                isLoading={false}
+            />
+            <div className="flex max-h-[530px] w-full flex-1 flex-col items-start gap-3 overflow-auto">
+                {committeeMemberValidators.map((validator) => (
+                    <div
+                        className={cl('group relative w-full cursor-pointer', {
+                            'rounded-xl bg-shader-neutral-light-8':
+                                selectedValidator?.address === validator.address,
+                        })}
+                        key={validator.address}
+                    >
+                        <Validator
+                            address={validator.address}
+                            onClick={() => selectValidator(validator)}
+                        />
+                    </div>
+                ))}
+                {nonCommitteeMemberValidators.length > 0 && (
+                    <Title
+                        size={TitleSize.Small}
+                        title="Currently not earning rewards"
+                        tooltipText="These validators are not part of the committee."
+                        tooltipPosition={TooltipPosition.Left}
+                    />
+                )}
+                {nonCommitteeMemberValidators.map((validator) => (
+                    <div
+                        className={cl('group relative w-full cursor-pointer', {
+                            'rounded-xl bg-shader-neutral-light-8':
+                                selectedValidator?.address === validator.address,
+                        })}
+                        key={validator.address}
+                    >
+                        <Validator
+                            address={validator.address}
+                            onClick={() => selectValidator(validator)}
+                        />
+                    </div>
+                ))}
             </div>
-            {selectedValidator && (
-                <Button
-                    fullWidth
-                    data-testid="select-validator-cta"
-                    onClick={() => {
-                        ampli.selectedValidator({
-                            validatorName: selectedValidator.name,
-                            validatorAddress: selectedValidator.address,
-                            validatorAPY: selectedValidator.apy || 0,
-                        });
+
+            <Button
+                fullWidth
+                data-testid="select-validator-cta"
+                onClick={() => {
+                    ampli.selectedValidator({
+                        validatorName: selectedValidator?.name,
+                        validatorAddress: selectedValidator?.address,
+                        validatorAPY: selectedValidator?.apy || 0,
+                    });
+                    selectedValidator &&
                         navigate(
-                            `/stake/new?address=${encodeURIComponent(selectedValidator.address)}`,
+                            `/stake/new?address=${encodeURIComponent(selectedValidator?.address)}`,
                         );
-                    }}
-                    text="Next"
-                />
-            )}
+                }}
+                text="Next"
+                disabled={!selectedValidator}
+            />
         </div>
     );
 }

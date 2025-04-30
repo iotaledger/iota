@@ -18,7 +18,7 @@ use serde::{Deserialize, Serialize};
 use crate::{
     connection::ScanConnection,
     consistency::Checkpointed,
-    data::{self, DataLoader, Db, DbConnection, QueryExecutor},
+    data::{self, Conn, DataLoader, Db, DbConnection, QueryExecutor},
     error::Error,
     types::{
         base64::Base64,
@@ -291,6 +291,24 @@ impl Checkpoint {
             stored,
             checkpoint_viewed_at,
         }))
+    }
+
+    /// Look up a `Checkpoint` in the database and retrieve its `timestamp_ms`
+    /// field. This method takes a connection, so that it can be used within
+    /// a transaction.
+    pub(crate) fn query_timestamp(
+        conn: &mut Conn<'_>,
+        seq_num: u64,
+    ) -> Result<u64, diesel::result::Error> {
+        use checkpoints::dsl;
+
+        let stored: i64 = conn.first(|| {
+            dsl::checkpoints
+                .select(dsl::timestamp_ms)
+                .filter(dsl::sequence_number.eq(seq_num as i64))
+        })?;
+
+        Ok(stored as u64)
     }
 
     /// Query the database for a `page` of checkpoints. The Page uses the

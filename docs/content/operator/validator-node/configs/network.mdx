@@ -6,8 +6,6 @@ teams:
   - iotaledger/node
 ---
 
-import TestnetNodeConfig from "../../../_snippets/network-node-config-testnet.mdx";
-import DevnetNodeConfig from "../../../_snippets/network-node-config-devnet.mdx";
 import ValidatorPorts from '../../../_snippets/operator/validator-ports.mdx'
 
 ## Connectivity
@@ -17,19 +15,6 @@ To synchronize the state, the node needs to establish connections with other nod
 <ValidatorPorts />
 
 To run a validator successfully, it is critical that ports are open as outlined, including the specific protocol (TCP/UDP).
-
-## Known peers
-
-By default, your config file (`validator.yaml`) should include the following known peers: (from public nodes run by IOTA):
-
-<Tabs groupId="network">
-    <TabItem label="Testnet" value="testnet">
-        <TestnetNodeConfig />
-    </TabItem>
-    <TabItem label="Devnet" value="devnet">
-        <DevnetNodeConfig />
-    </TabItem>
-</Tabs>
 
 ## Network Buffer
 
