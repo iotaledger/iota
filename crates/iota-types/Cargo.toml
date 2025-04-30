@@ -79,7 +79,6 @@ move-vm-test-utils.workspace = true
 move-vm-types.workspace = true
 shared-crypto.workspace = true
 starfish-config.workspace = true
-starfish-core.workspace = true
 typed-store-error.workspace = true
 
 [dev-dependencies]
