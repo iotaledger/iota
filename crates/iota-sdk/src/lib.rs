@@ -99,7 +99,7 @@ use iota_json_rpc_api::{
 pub use iota_json_rpc_types as rpc_types;
 use iota_json_rpc_types::{
     IotaObjectDataFilter, IotaObjectDataOptions, IotaObjectResponse, IotaObjectResponseQuery,
-    ObjectsPage,
+    ObjectsPage, Page,
 };
 use iota_transaction_builder::{DataReader, TransactionBuilder};
 pub use iota_types as types;
@@ -643,4 +643,36 @@ impl DataReader for ReadApi {
     async fn get_reference_gas_price(&self) -> Result<u64, anyhow::Error> {
         Ok(self.get_reference_gas_price().await?)
     }
+}
+
+#[async_trait]
+pub trait GetAllPages<O, C, F, E>: Sized + Fn(Option<C>) -> F
+where
+    O: Send,
+    C: Send,
+    F: futures::Future<Output = Result<Page<O, C>, E>> + Send,
+{
+    async fn get_all_pages(self) -> Result<Vec<O>, E> {
+        let mut res = Vec::new();
+        let mut cursor = None;
+        loop {
+            let page = self(cursor).await?;
+            res.extend(page.data);
+            if page.has_next_page {
+                cursor = page.next_cursor;
+            } else {
+                break;
+            }
+        }
+        Ok(res)
+    }
+}
+
+impl<T, O, C, F, E> GetAllPages<O, C, F, E> for T
+where
+    T: Fn(Option<C>) -> F,
+    O: Send,
+    C: Send,
+    F: futures::Future<Output = Result<Page<O, C>, E>> + Send,
+{
 }
