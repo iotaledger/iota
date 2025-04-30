@@ -1296,7 +1296,7 @@ impl SequenceNumber {
     }
 
     /// Checks if this sequence number is valid, i.e., the corresponding
-    /// object is does not appear in a cancelled transaction
+    /// object does not appear in a cancelled transaction.
     pub fn is_valid(&self) -> bool {
         self < &SequenceNumber::MAX_VALID
     }
