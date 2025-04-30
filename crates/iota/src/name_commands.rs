@@ -114,10 +114,9 @@ pub enum NameCommand {
         /// specified without a value, the current active address will be used.
         #[arg(long, require_equals = true, default_missing_value = "true", num_args = 0..=1)]
         set_target_address: Option<String>,
-        /// Set the reverse lookup domain. If the flag is specified without a
-        /// value, the registered domain will be used.
-        #[arg(long, require_equals = true, default_missing_value = "true", num_args = 0..=1)]
-        set_reverse_lookup: Option<String>,
+        /// Set the reverse lookup for the domain.
+        #[arg(long)]
+        set_reverse_lookup: bool,
         #[command(flatten)]
         opts: OptsWithGas,
     },
@@ -418,12 +417,7 @@ impl NameCommand {
                         iota_names_config.package_address, iota_names_config.object_id,
                     ));
                 }
-                if let Some(domain_str) = set_reverse_lookup {
-                    let domain = if domain_str == "true" {
-                        domain
-                    } else {
-                        domain_str.parse()?
-                    };
+                if set_reverse_lookup {
                     args.push(format!(
                         "--move-call {}::controller::set_reverse_lookup @{} '{domain}'",
                         iota_names_config.package_address, iota_names_config.object_id,
