@@ -9,7 +9,7 @@ use thiserror::Error;
 use typed_store::TypedStoreError;
 
 use crate::{
-    block::{BlockRef, Round},
+    block_header::{BlockRef, Round},
     commit::{Commit, CommitIndex},
 };
 
@@ -128,8 +128,9 @@ pub(crate) enum ConsensusError {
     #[error("Insufficient stake from parents: {parent_stakes} < {quorum}")]
     InsufficientParentStakes { parent_stakes: Stake, quorum: Stake },
 
+    #[expect(dead_code)]
     #[error("Invalid transaction: {0}")]
-    InvalidTransaction(String),
+    InvalidTransaction(String), // TODO: To be used for transaction validation errors in tests
 
     #[error("Ancestors max timestamp {max_timestamp_ms} > block timestamp {block_timestamp_ms}")]
     InvalidBlockTimestamp {

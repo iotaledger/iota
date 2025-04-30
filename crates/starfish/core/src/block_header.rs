@@ -1,5 +1,4 @@
-// Copyright (c) Mysten Labs, Inc.
-// Modifications Copyright (c) 2024 IOTA Stiftung
+// Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use std::{
@@ -39,7 +38,7 @@ pub(crate) const GENESIS_ROUND: Round = 0;
 /// Block proposal as epoch UNIX timestamp in milliseconds.
 pub type BlockTimestampMs = u64;
 
-/// IOTA transaction in serialised bytes
+/// IOTA transaction is considered as serialised bytes inside consensus
 #[derive(Clone, Eq, PartialEq, Serialize, Deserialize, Default, Debug)]
 pub struct Transaction {
     data: Bytes,
@@ -59,62 +58,67 @@ impl Transaction {
     }
 }
 
-/// A block includes references to previous round blocks and transactions that
-/// the authority considers valid.
-/// Well behaved authorities produce at most one block per round, but malicious
-/// authorities can equivocate.
+/// A block header includes references to previous round blocks and a commitment
+/// to transactions that the authority considers valid.
+/// Well behaved authorities produce at most one block header per round, but
+/// malicious authorities can equivocate.
 #[derive(Clone, Deserialize, Serialize)]
-#[enum_dispatch(BlockAPI)]
-pub enum Block {
-    V1(BlockV1),
+#[enum_dispatch(BlockHeaderAPI)]
+pub enum BlockHeader {
+    V1(BlockHeaderV1),
 }
 
 #[enum_dispatch]
-pub trait BlockAPI {
+pub trait BlockHeaderAPI {
     fn epoch(&self) -> Epoch;
     fn round(&self) -> Round;
     fn author(&self) -> AuthorityIndex;
     fn slot(&self) -> Slot;
+    fn acknowledgments(&self) -> &[BlockRef];
     fn timestamp_ms(&self) -> BlockTimestampMs;
     fn ancestors(&self) -> &[BlockRef];
-    fn transactions(&self) -> &[Transaction];
     fn commit_votes(&self) -> &[CommitVote];
-    fn misbehavior_reports(&self) -> &[MisbehaviorReport];
 }
 
 #[derive(Clone, Default, Deserialize, Serialize)]
-pub struct BlockV1 {
+pub struct BlockHeaderV1 {
     epoch: Epoch,
     round: Round,
     author: AuthorityIndex,
     // TODO: during verification ensure that timestamp_ms >= ancestors.timestamp
     timestamp_ms: BlockTimestampMs,
+    // ancestors are BlockRefs such that there are at least 2f+1 BlockRefs (by stake) from the
+    // previous round
     ancestors: Vec<BlockRef>,
-    transactions: Vec<Transaction>,
+    // acknowledgments are BlockRefs for blocks for which a validator acknowledges data
+    // availability of transactions
+    // TODO: we should compress it together with ancestors to
+    // avoid duplications since in most cases these sets have a big overlap
+    acknowledgments: Vec<BlockRef>,
+    transactions_commitment: TransactionDigest,
     commit_votes: Vec<CommitVote>,
-    misbehavior_reports: Vec<MisbehaviorReport>,
 }
 
-impl BlockV1 {
+impl BlockHeaderV1 {
     pub(crate) fn new(
         epoch: Epoch,
         round: Round,
         author: AuthorityIndex,
         timestamp_ms: BlockTimestampMs,
         ancestors: Vec<BlockRef>,
-        transactions: Vec<Transaction>,
         commit_votes: Vec<CommitVote>,
-        misbehavior_reports: Vec<MisbehaviorReport>,
-    ) -> BlockV1 {
+    ) -> BlockHeaderV1 {
         Self {
             epoch,
             round,
             author,
             timestamp_ms,
-            ancestors,
-            transactions,
+            ancestors: ancestors.clone(),
+            // TODO: we should track availability of transaction data separately and take this
+            // information from the pending state of DagState. We clone ancestors for now
+            acknowledgments: ancestors,
+            transactions_commitment: TransactionDigest::default(),
             commit_votes,
-            misbehavior_reports,
         }
     }
 
@@ -125,14 +129,14 @@ impl BlockV1 {
             author,
             timestamp_ms: 0,
             ancestors: vec![],
-            transactions: vec![],
+            acknowledgments: vec![],
             commit_votes: vec![],
-            misbehavior_reports: vec![],
+            transactions_commitment: TransactionDigest::default(),
         }
     }
 }
 
-impl BlockAPI for BlockV1 {
+impl BlockHeaderAPI for BlockHeaderV1 {
     fn epoch(&self) -> Epoch {
         self.epoch
     }
@@ -156,17 +160,12 @@ impl BlockAPI for BlockV1 {
     fn ancestors(&self) -> &[BlockRef] {
         &self.ancestors
     }
-
-    fn transactions(&self) -> &[Transaction] {
-        &self.transactions
+    fn acknowledgments(&self) -> &[BlockRef] {
+        &self.acknowledgments
     }
 
     fn commit_votes(&self) -> &[CommitVote] {
         &self.commit_votes
-    }
-
-    fn misbehavior_reports(&self) -> &[MisbehaviorReport] {
-        &self.misbehavior_reports
     }
 }
 
@@ -177,23 +176,23 @@ impl BlockAPI for BlockV1 {
 pub struct BlockRef {
     pub round: Round,
     pub author: AuthorityIndex,
-    pub digest: BlockDigest,
+    pub digest: BlockHeaderDigest,
 }
 
 impl BlockRef {
     pub const MIN: Self = Self {
         round: 0,
         author: AuthorityIndex::MIN,
-        digest: BlockDigest::MIN,
+        digest: BlockHeaderDigest::MIN,
     };
 
     pub const MAX: Self = Self {
         round: u32::MAX,
         author: AuthorityIndex::MAX,
-        digest: BlockDigest::MAX,
+        digest: BlockHeaderDigest::MAX,
     };
 
-    pub fn new(round: Round, author: AuthorityIndex, digest: BlockDigest) -> Self {
+    pub fn new(round: Round, author: AuthorityIndex, digest: BlockHeaderDigest) -> Self {
         Self {
             round,
             author,
@@ -221,34 +220,34 @@ impl Hash for BlockRef {
     }
 }
 
-/// Digest of a `VerifiedBlock` or verified `SignedBlock`, which covers the
-/// `Block` and its signature.
+/// Digest of a `VerifiedBlockHeader` or verified `SignedBlockHeader`, which
+/// covers the `BlockHeader` and its signature.
 ///
 /// Note: the signature algorithm is assumed to be non-malleable, so it is
 /// impossible for another party to create an altered but valid signature,
 /// producing an equivocating `BlockDigest`.
 #[derive(Clone, Copy, Serialize, Deserialize, Default, PartialEq, Eq, PartialOrd, Ord)]
-pub struct BlockDigest([u8; starfish_config::DIGEST_LENGTH]);
+pub struct BlockHeaderDigest([u8; starfish_config::DIGEST_LENGTH]);
 
-impl BlockDigest {
+impl BlockHeaderDigest {
     /// Lexicographic min & max digest.
     pub const MIN: Self = Self([u8::MIN; starfish_config::DIGEST_LENGTH]);
     pub const MAX: Self = Self([u8::MAX; starfish_config::DIGEST_LENGTH]);
 }
 
-impl Hash for BlockDigest {
+impl Hash for BlockHeaderDigest {
     fn hash<H: Hasher>(&self, state: &mut H) {
         state.write(&self.0[..8]);
     }
 }
 
-impl From<BlockDigest> for Digest<{ DIGEST_LENGTH }> {
-    fn from(hd: BlockDigest) -> Self {
+impl From<BlockHeaderDigest> for Digest<{ DIGEST_LENGTH }> {
+    fn from(hd: BlockHeaderDigest) -> Self {
         Digest::new(hd.0)
     }
 }
 
-impl fmt::Display for BlockDigest {
+impl fmt::Display for BlockHeaderDigest {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
         write!(
             f,
@@ -260,7 +259,7 @@ impl fmt::Display for BlockDigest {
     }
 }
 
-impl fmt::Debug for BlockDigest {
+impl fmt::Debug for BlockHeaderDigest {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
         write!(
             f,
@@ -270,7 +269,61 @@ impl fmt::Debug for BlockDigest {
     }
 }
 
-impl AsRef<[u8]> for BlockDigest {
+impl AsRef<[u8]> for BlockHeaderDigest {
+    fn as_ref(&self) -> &[u8] {
+        &self.0
+    }
+}
+
+// TODO: we might need to join TransactionDigest with BlockDigest since we use
+// the same parameters for both structures. TransactionDigest is used for
+// including a commitment for a transaction data to a block header. This digest
+// is used for BlockDigest computations of BlockHeader does not include
+// explicitly the transaction data.
+#[derive(Clone, Copy, Serialize, Deserialize, Default, PartialEq, Eq, PartialOrd, Ord)]
+pub struct TransactionDigest([u8; starfish_config::DIGEST_LENGTH]);
+
+impl TransactionDigest {
+    /// Lexicographic min & max digest.
+    pub const MIN: Self = Self([u8::MIN; starfish_config::DIGEST_LENGTH]);
+    pub const MAX: Self = Self([u8::MAX; starfish_config::DIGEST_LENGTH]);
+}
+
+impl Hash for TransactionDigest {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        state.write(&self.0[..8]);
+    }
+}
+
+impl From<TransactionDigest> for Digest<{ DIGEST_LENGTH }> {
+    fn from(hd: TransactionDigest) -> Self {
+        Digest::new(hd.0)
+    }
+}
+
+impl fmt::Display for TransactionDigest {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
+        write!(
+            f,
+            "{}",
+            base64::Engine::encode(&base64::engine::general_purpose::STANDARD, self.0)
+                .get(0..4)
+                .ok_or(fmt::Error)?
+        )
+    }
+}
+
+impl fmt::Debug for TransactionDigest {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
+        write!(
+            f,
+            "{}",
+            base64::Engine::encode(&base64::engine::general_purpose::STANDARD, self.0)
+        )
+    }
+}
+
+impl AsRef<[u8]> for TransactionDigest {
     fn as_ref(&self) -> &[u8] {
         &self.0
     }
@@ -317,30 +370,33 @@ impl fmt::Debug for Slot {
     }
 }
 
-/// A Block with its signature, before they are verified.
+/// A BlockHeader with its signature, before they are verified.
 ///
 /// Note: `BlockDigest` is computed over this struct, so any added field
 /// (without `#[serde(skip)]`) will affect the values of `BlockDigest` and
 /// `BlockRef`.
 #[derive(Deserialize, Serialize)]
-pub(crate) struct SignedBlock {
-    inner: Block,
+pub(crate) struct SignedBlockHeader {
+    inner: BlockHeader,
     signature: Bytes,
 }
 
-impl SignedBlock {
-    /// Should only be used when constructing the genesis blocks
-    pub(crate) fn new_genesis(block: Block) -> Self {
+impl SignedBlockHeader {
+    /// Should only be used when constructing the genesis block headers
+    pub(crate) fn new_genesis(block_header: BlockHeader) -> Self {
         Self {
-            inner: block,
+            inner: block_header,
             signature: Bytes::default(),
         }
     }
 
-    pub(crate) fn new(block: Block, protocol_keypair: &ProtocolKeyPair) -> ConsensusResult<Self> {
-        let signature = compute_block_signature(&block, protocol_keypair)?;
+    pub(crate) fn new(
+        block_header: BlockHeader,
+        protocol_keypair: &ProtocolKeyPair,
+    ) -> ConsensusResult<Self> {
+        let signature = compute_block_header_signature(&block_header, protocol_keypair)?;
         Ok(Self {
-            inner: block,
+            inner: block_header,
             signature: Bytes::copy_from_slice(signature.to_bytes()),
         })
     }
@@ -349,23 +405,23 @@ impl SignedBlock {
         &self.signature
     }
 
-    /// This method only verifies this block's signature. Verification of the
-    /// full block should be done via BlockVerifier.
+    /// This method only verifies this block header's signature. Verification of
+    /// the full block header should be done via BlockHeaderVerifier.
     pub(crate) fn verify_signature(&self, context: &Context) -> ConsensusResult<()> {
-        let block = &self.inner;
+        let block_header = &self.inner;
         let committee = &context.committee;
         ensure!(
-            committee.is_valid_index(block.author()),
+            committee.is_valid_index(block_header.author()),
             ConsensusError::InvalidAuthorityIndex {
-                index: block.author(),
+                index: block_header.author(),
                 max: committee.size() - 1
             }
         );
-        let authority = committee.authority(block.author());
-        verify_block_signature(block, self.signature(), &authority.protocol_key)
+        let authority = committee.authority(block_header.author());
+        verify_block_header_signature(block_header, self.signature(), &authority.protocol_key)
     }
 
-    /// Serialises the block using the bcs serializer
+    /// Serialises the block header using the bcs serializer
     pub(crate) fn serialize(&self) -> Result<Bytes, bcs::Error> {
         let bytes = bcs::to_bytes(self)?;
         Ok(bytes.into())
@@ -378,45 +434,49 @@ impl SignedBlock {
     }
 }
 
-/// Digest of a block, covering all `Block` fields without its signature.
-/// This is used during Block signing and signature verification.
+/// Digest of a block header, covering all `BlockHeader` fields (no signature).
+/// This is used during BlockHeader signing and signature verification.
 /// This should never be used outside of this file, to avoid confusion with
 /// `BlockDigest`.
 #[derive(Serialize, Deserialize)]
-struct InnerBlockDigest([u8; starfish_config::DIGEST_LENGTH]);
+struct InnerBlockHeaderDigest([u8; starfish_config::DIGEST_LENGTH]);
 
 /// Computes the digest of a Block, only for signing and verifications.
-fn compute_inner_block_digest(block: &Block) -> ConsensusResult<InnerBlockDigest> {
+fn compute_inner_block_header_digest(
+    block_header: &BlockHeader,
+) -> ConsensusResult<InnerBlockHeaderDigest> {
     let mut hasher = DefaultHashFunction::new();
-    hasher.update(bcs::to_bytes(block).map_err(ConsensusError::SerializationFailure)?);
-    Ok(InnerBlockDigest(hasher.finalize().into()))
+    hasher.update(bcs::to_bytes(block_header).map_err(ConsensusError::SerializationFailure)?);
+    Ok(InnerBlockHeaderDigest(hasher.finalize().into()))
 }
 
 /// Wrap a InnerBlockDigest in the intent message.
-fn to_consensus_block_intent(digest: InnerBlockDigest) -> IntentMessage<InnerBlockDigest> {
+fn to_consensus_block_header_intent(
+    digest: InnerBlockHeaderDigest,
+) -> IntentMessage<InnerBlockHeaderDigest> {
     IntentMessage::new(Intent::consensus_app(IntentScope::ConsensusBlock), digest)
 }
 
-/// Process for signing & verying a block signature:
-/// 1. Compute the digest of `Block`.
+/// Process for signing & verifying a block signature:
+/// 1. Compute the digest of `BlockHeader`.
 /// 2. Wrap the digest in `IntentMessage`.
-/// 3. Sign the serialized `IntentMessage`, or verify signature against it.
-fn compute_block_signature(
-    block: &Block,
+/// 3. Sign the serialized `IntentMessage`, or verify the signature against it.
+fn compute_block_header_signature(
+    block_header: &BlockHeader,
     protocol_keypair: &ProtocolKeyPair,
 ) -> ConsensusResult<ProtocolKeySignature> {
-    let digest = compute_inner_block_digest(block)?;
-    let message = bcs::to_bytes(&to_consensus_block_intent(digest))
+    let digest = compute_inner_block_header_digest(block_header)?;
+    let message = bcs::to_bytes(&to_consensus_block_header_intent(digest))
         .map_err(ConsensusError::SerializationFailure)?;
     Ok(protocol_keypair.sign(&message))
 }
-fn verify_block_signature(
-    block: &Block,
+fn verify_block_header_signature(
+    block_header: &BlockHeader,
     signature: &[u8],
     protocol_pubkey: &ProtocolPublicKey,
 ) -> ConsensusResult<()> {
-    let digest = compute_inner_block_digest(block)?;
-    let message = bcs::to_bytes(&to_consensus_block_intent(digest))
+    let digest = compute_inner_block_header_digest(block_header)?;
+    let message = bcs::to_bytes(&to_consensus_block_header_intent(digest))
         .map_err(ConsensusError::SerializationFailure)?;
     let sig =
         ProtocolKeySignature::from_bytes(signature).map_err(ConsensusError::MalformedSignature)?;
@@ -425,10 +485,10 @@ fn verify_block_signature(
         .map_err(ConsensusError::SignatureVerificationFailure)
 }
 
-/// Allow quick access on the underlying Block without having to always refer to
-/// the inner block ref.
-impl Deref for SignedBlock {
-    type Target = Block;
+/// Allow quick access on the underlying BlockHeader without having to always
+/// refer to the inner block ref.
+impl Deref for SignedBlockHeader {
+    type Target = BlockHeader;
 
     fn deref(&self) -> &Self::Target {
         &self.inner
@@ -438,38 +498,38 @@ impl Deref for SignedBlock {
 /// VerifiedBlock allows full access to its content.
 /// Note: clone() is relatively cheap with most underlying data refcounted.
 #[derive(Clone)]
-pub struct VerifiedBlock {
-    block: Arc<SignedBlock>,
+pub struct VerifiedBlockHeader {
+    signed_block_header: Arc<SignedBlockHeader>,
 
     // Cached Block digest and serialized SignedBlock, to avoid re-computing these values.
-    digest: BlockDigest,
+    digest: BlockHeaderDigest,
     serialized: Bytes,
 }
 
-impl VerifiedBlock {
-    /// Creates VerifiedBlock from a verified SignedBlock and its serialized
-    /// bytes.
-    pub(crate) fn new_verified(signed_block: SignedBlock, serialized: Bytes) -> Self {
+impl VerifiedBlockHeader {
+    /// Creates VerifiedBlockHeader from a verified SignedBlockHeader and its
+    /// serialized bytes.
+    pub(crate) fn new_verified(signed_block_header: SignedBlockHeader, serialized: Bytes) -> Self {
         let digest = Self::compute_digest(&serialized);
-        VerifiedBlock {
-            block: Arc::new(signed_block),
+        VerifiedBlockHeader {
+            signed_block_header: Arc::new(signed_block_header),
             digest,
             serialized,
         }
     }
 
     /// This method is public for testing in other crates.
-    pub fn new_for_test(block: Block) -> Self {
-        let signed_block = SignedBlock {
-            inner: block,
+    pub fn new_for_test(block_header: BlockHeader) -> Self {
+        let signed_block_header = SignedBlockHeader {
+            inner: block_header,
             signature: Default::default(),
         };
-        let serialized: Bytes = bcs::to_bytes(&signed_block)
+        let serialized: Bytes = bcs::to_bytes(&signed_block_header)
             .expect("Serialization should not fail")
             .into();
         let digest = Self::compute_digest(&serialized);
-        VerifiedBlock {
-            block: Arc::new(signed_block),
+        VerifiedBlockHeader {
+            signed_block_header: Arc::new(signed_block_header),
             digest,
             serialized,
         }
@@ -484,55 +544,55 @@ impl VerifiedBlock {
         }
     }
 
-    pub(crate) fn digest(&self) -> BlockDigest {
+    pub(crate) fn digest(&self) -> BlockHeaderDigest {
         self.digest
     }
 
-    /// Returns the serialized block with signature.
+    /// Returns the serialization of the signed block header.
     pub(crate) fn serialized(&self) -> &Bytes {
         &self.serialized
     }
 
-    /// Computes digest from the serialized block with signature.
-    pub(crate) fn compute_digest(serialized: &[u8]) -> BlockDigest {
+    /// Computes digest from the serialization of the signed block header.
+    pub(crate) fn compute_digest(serialized: &[u8]) -> BlockHeaderDigest {
         let mut hasher = DefaultHashFunction::new();
         hasher.update(serialized);
-        BlockDigest(hasher.finalize().into())
+        BlockHeaderDigest(hasher.finalize().into())
     }
 }
 
-/// Allow quick access on the underlying Block without having to always refer to
-/// the inner block ref.
-impl Deref for VerifiedBlock {
-    type Target = Block;
+/// Allow quick access on the underlying Block header without having to always
+/// refer to the inner block ref.
+impl Deref for VerifiedBlockHeader {
+    type Target = BlockHeader;
 
     fn deref(&self) -> &Self::Target {
-        &self.block.inner
+        &self.signed_block_header.inner
     }
 }
 
-impl PartialEq for VerifiedBlock {
+impl PartialEq for VerifiedBlockHeader {
     fn eq(&self, other: &Self) -> bool {
         self.digest() == other.digest()
     }
 }
 
-impl fmt::Display for VerifiedBlock {
+impl fmt::Display for VerifiedBlockHeader {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
         write!(f, "{}", self.reference())
     }
 }
 
 // TODO: re-evaluate formats for production debugging.
-impl fmt::Debug for VerifiedBlock {
+impl fmt::Debug for VerifiedBlockHeader {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
         write!(
             f,
-            "{:?}({}ms;{:?};{}t;{}c)",
+            "{:?}({}ms;{:?}r;{:?}a;{}c)",
             self.reference(),
             self.timestamp_ms(),
             self.ancestors(),
-            self.transactions().len(),
+            self.acknowledgments(),
             self.commit_votes().len(),
         )
     }
@@ -544,40 +604,39 @@ impl fmt::Debug for VerifiedBlock {
 /// authorities.
 #[derive(Clone, Debug)]
 pub(crate) struct ExtendedBlock {
-    pub block: VerifiedBlock,
+    pub block_header: VerifiedBlockHeader,
     pub excluded_ancestors: Vec<BlockRef>,
 }
 
 /// Generates the genesis blocks for the current Committee.
 /// The blocks are returned in authority index order.
-pub(crate) fn genesis_blocks(context: Arc<Context>) -> Vec<VerifiedBlock> {
+pub(crate) fn genesis_block_headers(context: Arc<Context>) -> Vec<VerifiedBlockHeader> {
     context
         .committee
         .authorities()
         .map(|(authority_index, _)| {
-            let signed_block = SignedBlock::new_genesis(Block::V1(BlockV1::genesis_block(
-                context.committee.epoch(),
-                authority_index,
-            )));
+            let signed_block = SignedBlockHeader::new_genesis(BlockHeader::V1(
+                BlockHeaderV1::genesis_block(context.committee.epoch(), authority_index),
+            ));
             let serialized = signed_block
                 .serialize()
                 .expect("Genesis block serialization failed.");
-            // Unnecessary to verify genesis blocks.
-            VerifiedBlock::new_verified(signed_block, serialized)
+            // Unnecessary to verify genesis block headers.
+            VerifiedBlockHeader::new_verified(signed_block, serialized)
         })
-        .collect::<Vec<VerifiedBlock>>()
+        .collect::<Vec<VerifiedBlockHeader>>()
 }
 
 /// This struct is public for testing in other crates.
 #[derive(Clone)]
-pub struct TestBlock {
-    block: BlockV1,
+pub struct TestBlockHeader {
+    block_header: BlockHeaderV1,
 }
 
-impl TestBlock {
+impl TestBlockHeader {
     pub fn new(round: Round, author: u32) -> Self {
         Self {
-            block: BlockV1 {
+            block_header: BlockHeaderV1 {
                 round,
                 author: AuthorityIndex::new_for_test(author),
                 ..Default::default()
@@ -586,57 +645,38 @@ impl TestBlock {
     }
 
     pub fn set_epoch(mut self, epoch: Epoch) -> Self {
-        self.block.epoch = epoch;
+        self.block_header.epoch = epoch;
         self
     }
 
     pub fn set_round(mut self, round: Round) -> Self {
-        self.block.round = round;
+        self.block_header.round = round;
         self
     }
 
     pub fn set_author(mut self, author: AuthorityIndex) -> Self {
-        self.block.author = author;
+        self.block_header.author = author;
         self
     }
 
     pub fn set_timestamp_ms(mut self, timestamp_ms: BlockTimestampMs) -> Self {
-        self.block.timestamp_ms = timestamp_ms;
+        self.block_header.timestamp_ms = timestamp_ms;
         self
     }
 
     pub fn set_ancestors(mut self, ancestors: Vec<BlockRef>) -> Self {
-        self.block.ancestors = ancestors;
-        self
-    }
-
-    pub fn set_transactions(mut self, transactions: Vec<Transaction>) -> Self {
-        self.block.transactions = transactions;
+        self.block_header.ancestors = ancestors;
         self
     }
 
     pub fn set_commit_votes(mut self, commit_votes: Vec<CommitVote>) -> Self {
-        self.block.commit_votes = commit_votes;
+        self.block_header.commit_votes = commit_votes;
         self
     }
 
-    pub fn build(self) -> Block {
-        Block::V1(self.block)
+    pub fn build(self) -> BlockHeader {
+        BlockHeader::V1(self.block_header)
     }
-}
-
-/// A block can attach reports of misbehavior by other authorities.
-#[derive(Clone, Serialize, Deserialize, Debug)]
-pub struct MisbehaviorReport {
-    pub target: AuthorityIndex,
-    pub proof: MisbehaviorProof,
-}
-
-/// Proof of misbehavior are usually signed block(s) from the misbehaving
-/// authority.
-#[derive(Clone, Serialize, Deserialize, Debug)]
-pub enum MisbehaviorProof {
-    InvalidBlock(BlockRef),
 }
 
 // TODO: add basic verification for BlockRef and BlockDigest.
@@ -649,7 +689,7 @@ mod tests {
     use fastcrypto::error::FastCryptoError;
 
     use crate::{
-        block::{SignedBlock, TestBlock},
+        block_header::{SignedBlockHeader, TestBlockHeader},
         context::Context,
         error::ConsensusError,
     };
@@ -659,24 +699,26 @@ mod tests {
         let (context, key_pairs) = Context::new_for_test(4);
         let context = Arc::new(context);
 
-        // Create a block that authority 2 has created
-        let block = TestBlock::new(10, 2).build();
+        // Create a block header by authority 2
+        let block_header = TestBlockHeader::new(10, 2).build();
 
         // Create a signed block with authority's 2 private key
         let author_two_key = &key_pairs[2].1;
-        let signed_block = SignedBlock::new(block, author_two_key).expect("Shouldn't fail signing");
+        let signed_block_header =
+            SignedBlockHeader::new(block_header, author_two_key).expect("Shouldn't fail signing");
 
         // Now verify the block's signature
-        let result = signed_block.verify_signature(&context);
+        let result = signed_block_header.verify_signature(&context);
         assert!(result.is_ok());
 
-        // Try to sign authority's 2 block with authority's 1 key
-        let block = TestBlock::new(10, 2).build();
+        // Try to sign authority's 2 block header with authority's 1 key
+        let block_header = TestBlockHeader::new(10, 2).build();
         let author_one_key = &key_pairs[1].1;
-        let signed_block = SignedBlock::new(block, author_one_key).expect("Shouldn't fail signing");
+        let signed_block_header =
+            SignedBlockHeader::new(block_header, author_one_key).expect("Shouldn't fail signing");
 
         // Now verify the block, it should fail
-        let result = signed_block.verify_signature(&context);
+        let result = signed_block_header.verify_signature(&context);
         match result.err().unwrap() {
             ConsensusError::SignatureVerificationFailure(err) => {
                 assert_eq!(err, FastCryptoError::InvalidSignature);

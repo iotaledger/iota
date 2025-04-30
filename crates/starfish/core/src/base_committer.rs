@@ -9,7 +9,7 @@ use starfish_config::{AuthorityIndex, Stake};
 use tracing::warn;
 
 use crate::{
-    block::{BlockAPI, BlockRef, Round, Slot, VerifiedBlock},
+    block_header::{BlockHeaderAPI, BlockRef, Round, Slot, VerifiedBlockHeader},
     commit::{DEFAULT_WAVE_LENGTH, LeaderStatus, MINIMUM_WAVE_LENGTH, WaveNumber},
     context::Context,
     dag_state::DagState,
@@ -192,7 +192,11 @@ impl BaseCommitter {
     /// block. If block A supports B at a slot, it is guaranteed that any
     /// processed block by the same author that directly or indirectly
     /// includes A will also support B at that slot.
-    fn find_supported_block(&self, leader_slot: Slot, from: &VerifiedBlock) -> Option<BlockRef> {
+    fn find_supported_block(
+        &self,
+        leader_slot: Slot,
+        from: &VerifiedBlockHeader,
+    ) -> Option<BlockRef> {
         if from.round() < leader_slot.round {
             return None;
         }
@@ -218,7 +222,11 @@ impl BaseCommitter {
 
     /// Check whether the specified block (`potential_vote`) is a vote for
     /// the specified leader (`leader_block`).
-    fn is_vote(&self, potential_vote: &VerifiedBlock, leader_block: &VerifiedBlock) -> bool {
+    fn is_vote(
+        &self,
+        potential_vote: &VerifiedBlockHeader,
+        leader_block: &VerifiedBlockHeader,
+    ) -> bool {
         let reference = leader_block.reference();
         let leader_slot = Slot::from(reference);
         self.find_supported_block(leader_slot, potential_vote) == Some(reference)
@@ -233,8 +241,8 @@ impl BaseCommitter {
     /// reused for different leaders.
     fn is_certificate(
         &self,
-        potential_certificate: &VerifiedBlock,
-        leader_block: &VerifiedBlock,
+        potential_certificate: &VerifiedBlockHeader,
+        leader_block: &VerifiedBlockHeader,
         all_votes: &mut HashMap<BlockRef, bool>,
     ) -> bool {
         let mut votes_stake_aggregator = StakeAggregator::<QuorumThreshold>::new();
@@ -275,7 +283,11 @@ impl BaseCommitter {
     /// Decide the status of a target leader from the specified anchor. We
     /// commit the target leader if it has a certified link to the anchor.
     /// Otherwise, we skip the target leader.
-    fn decide_leader_from_anchor(&self, anchor: &VerifiedBlock, leader_slot: Slot) -> LeaderStatus {
+    fn decide_leader_from_anchor(
+        &self,
+        anchor: &VerifiedBlockHeader,
+        leader_slot: Slot,
+    ) -> LeaderStatus {
         // Get the block(s) proposed by the leader. There could be more than one leader
         // block in the slot from a Byzantine authority.
         let leader_blocks = self
@@ -363,7 +375,11 @@ impl BaseCommitter {
 
     /// Check whether the specified leader has 2f+1 certificates to be directly
     /// committed.
-    fn enough_leader_support(&self, decision_round: Round, leader_block: &VerifiedBlock) -> bool {
+    fn enough_leader_support(
+        &self,
+        decision_round: Round,
+        leader_block: &VerifiedBlockHeader,
+    ) -> bool {
         let decision_blocks = self
             .dag_state
             .read()

@@ -16,7 +16,10 @@ use tracing::{debug, info, warn};
 
 use crate::{
     CommitIndex, Round,
-    block::{BlockAPI as _, BlockRef, ExtendedBlock, GENESIS_ROUND, SignedBlock, VerifiedBlock},
+    block_header::{
+        BlockHeaderAPI as _, BlockRef, ExtendedBlock, GENESIS_ROUND, SignedBlockHeader,
+        VerifiedBlockHeader,
+    },
     block_verifier::BlockVerifier,
     commit::{CommitAPI as _, CommitRange, TrustedCommit},
     commit_vote_monitor::CommitVoteMonitor,
@@ -87,7 +90,7 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
         let peer_hostname = &self.context.committee.authority(peer).hostname;
 
         // TODO: dedup block verifications, here and with fetched blocks.
-        let signed_block: SignedBlock =
+        let signed_block: SignedBlockHeader =
             bcs::from_bytes(&serialized_block.block).map_err(ConsensusError::MalformedBlock)?;
 
         // Reject blocks not produced by the peer.
@@ -123,7 +126,8 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
             info!("Invalid block from {}: {}", peer, e);
             return Err(e);
         }
-        let verified_block = VerifiedBlock::new_verified(signed_block, serialized_block.block);
+        let verified_block =
+            VerifiedBlockHeader::new_verified(signed_block, serialized_block.block);
         let block_ref = verified_block.reference();
         debug!("Received block {} via send block.", block_ref);
 
@@ -411,7 +415,7 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
         &self,
         _peer: AuthorityIndex,
         commit_range: CommitRange,
-    ) -> ConsensusResult<(Vec<TrustedCommit>, Vec<VerifiedBlock>)> {
+    ) -> ConsensusResult<(Vec<TrustedCommit>, Vec<VerifiedBlockHeader>)> {
         fail_point_async!("consensus-rpc-response");
 
         // Compute an inclusive end index and bound the maximum number of commits
@@ -719,7 +723,9 @@ mod tests {
     use crate::{
         Round,
         authority_service::AuthorityService,
-        block::{BlockAPI, BlockRef, SignedBlock, TestBlock, VerifiedBlock},
+        block_header::{
+            BlockHeaderAPI, BlockRef, SignedBlockHeader, TestBlockHeader, VerifiedBlockHeader,
+        },
         commit::{CertifiedCommits, CommitRange},
         commit_vote_monitor::CommitVoteMonitor,
         context::Context,
@@ -734,7 +740,7 @@ mod tests {
     };
 
     struct FakeCoreThreadDispatcher {
-        blocks: Mutex<Vec<VerifiedBlock>>,
+        blocks: Mutex<Vec<VerifiedBlockHeader>>,
     }
 
     impl FakeCoreThreadDispatcher {
@@ -744,7 +750,7 @@ mod tests {
             }
         }
 
-        fn get_blocks(&self) -> Vec<VerifiedBlock> {
+        fn get_blocks(&self) -> Vec<VerifiedBlockHeader> {
             self.blocks.lock().clone()
         }
     }
@@ -753,7 +759,7 @@ mod tests {
     impl CoreThreadDispatcher for FakeCoreThreadDispatcher {
         async fn add_blocks(
             &self,
-            blocks: Vec<VerifiedBlock>,
+            blocks: Vec<VerifiedBlockHeader>,
         ) -> Result<BTreeSet<BlockRef>, CoreError> {
             let block_refs = blocks.iter().map(|b| b.reference()).collect();
             self.blocks.lock().extend(blocks);
@@ -814,7 +820,7 @@ mod tests {
         async fn send_block(
             &self,
             _peer: AuthorityIndex,
-            _block: &VerifiedBlock,
+            _block: &VerifiedBlockHeader,
             _timeout: Duration,
         ) -> ConsensusResult<()> {
             unimplemented!("Unimplemented")
@@ -900,8 +906,8 @@ mod tests {
         // Test delaying blocks with time drift.
         let now = context.clock.timestamp_utc_ms();
         let max_drift = context.parameters.max_forward_time_drift;
-        let input_block = VerifiedBlock::new_for_test(
-            TestBlock::new(9, 0)
+        let input_block = VerifiedBlockHeader::new_for_test(
+            TestBlockHeader::new(9, 0)
                 .set_timestamp_ms(now + max_drift.as_millis() as u64)
                 .build(),
         );
@@ -982,9 +988,9 @@ mod tests {
         // THEN
         let serialised_blocks = results.unwrap();
         for serialised_block in serialised_blocks {
-            let signed_block: SignedBlock =
+            let signed_block: SignedBlockHeader =
                 bcs::from_bytes(&serialised_block).expect("Error while deserialising block");
-            let verified_block = VerifiedBlock::new_verified(signed_block, serialised_block);
+            let verified_block = VerifiedBlockHeader::new_verified(signed_block, serialised_block);
 
             assert_eq!(verified_block.round(), 10);
         }

@@ -31,9 +31,9 @@ use tokio::{
 use tracing::{debug, error, info, trace, warn};
 
 use crate::{
-    BlockAPI, CommitIndex, Round,
+    BlockHeaderAPI, CommitIndex, Round,
     authority_service::COMMIT_LAG_MULTIPLIER,
-    block::{BlockRef, SignedBlock, VerifiedBlock},
+    block_header::{BlockRef, SignedBlockHeader, VerifiedBlockHeader},
     block_verifier::BlockVerifier,
     commit_vote_monitor::CommitVoteMonitor,
     context::Context,
@@ -640,11 +640,11 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> Synchronizer<C
         block_verifier: Arc<V>,
         context: &Context,
         peer_index: AuthorityIndex,
-    ) -> ConsensusResult<Vec<VerifiedBlock>> {
+    ) -> ConsensusResult<Vec<VerifiedBlockHeader>> {
         let mut verified_blocks = Vec::new();
 
         for serialized_block in serialized_blocks {
-            let signed_block: SignedBlock =
+            let signed_block: SignedBlockHeader =
                 bcs::from_bytes(&serialized_block).map_err(ConsensusError::MalformedBlock)?;
 
             // TODO: dedup block verifications, here and with fetched blocks.
@@ -662,7 +662,7 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> Synchronizer<C
                 warn!("Invalid block received from {}: {}", peer_index, e);
                 return Err(e);
             }
-            let verified_block = VerifiedBlock::new_verified(signed_block, serialized_block);
+            let verified_block = VerifiedBlockHeader::new_verified(signed_block, serialized_block);
 
             // Dropping is ok because the block will be refetched.
             // TODO: improve efficiency, maybe suspend and continue processing the block
@@ -759,7 +759,7 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> Synchronizer<C
                     }
                 };
 
-                let process_blocks = |blocks: Vec<Bytes>, authority_index: AuthorityIndex| -> ConsensusResult<Vec<VerifiedBlock>> {
+                let process_blocks = |blocks: Vec<Bytes>, authority_index: AuthorityIndex| -> ConsensusResult<Vec<VerifiedBlockHeader >> {
                                     let mut result = Vec::new();
                                     for serialized_block in blocks {
                                         let signed_block = bcs::from_bytes(&serialized_block).map_err(ConsensusError::MalformedBlock)?;
@@ -774,7 +774,7 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> Synchronizer<C
                                             warn!("Invalid block received from {}: {}", authority_index, err);
                                         })?;
 
-                                        let verified_block = VerifiedBlock::new_verified(signed_block, serialized_block);
+                                        let verified_block = VerifiedBlockHeader::new_verified(signed_block, serialized_block);
                                         if verified_block.author() != context.own_index {
                                             return Err(ConsensusError::UnexpectedLastOwnBlock { index: authority_index, block_ref: verified_block.reference()});
                                         }
@@ -1163,9 +1163,9 @@ mod tests {
     use tokio::{sync::Mutex, time::sleep};
 
     use crate::{
-        BlockAPI, CommitDigest, CommitIndex,
+        BlockHeaderAPI, CommitDigest, CommitIndex,
         authority_service::COMMIT_LAG_MULTIPLIER,
-        block::{BlockDigest, BlockRef, Round, TestBlock, VerifiedBlock},
+        block_header::{BlockHeaderDigest, BlockRef, Round, TestBlockHeader, VerifiedBlockHeader},
         block_verifier::NoopBlockVerifier,
         commit::{CommitRange, CommitVote, TrustedCommit},
         commit_vote_monitor::CommitVoteMonitor,
@@ -1182,9 +1182,9 @@ mod tests {
     };
 
     type FetchRequestKey = (Vec<BlockRef>, AuthorityIndex);
-    type FetchRequestResponse = (Vec<VerifiedBlock>, Option<Duration>);
+    type FetchRequestResponse = (Vec<VerifiedBlockHeader>, Option<Duration>);
     type FetchLatestBlockKey = (AuthorityIndex, Vec<AuthorityIndex>);
-    type FetchLatestBlockResponse = (Vec<VerifiedBlock>, Option<Duration>);
+    type FetchLatestBlockResponse = (Vec<VerifiedBlockHeader>, Option<Duration>);
 
     #[derive(Default)]
     struct MockNetworkClient {
@@ -1196,7 +1196,7 @@ mod tests {
     impl MockNetworkClient {
         async fn stub_fetch_blocks(
             &self,
-            blocks: Vec<VerifiedBlock>,
+            blocks: Vec<VerifiedBlockHeader>,
             peer: AuthorityIndex,
             latency: Option<Duration>,
         ) {
@@ -1210,7 +1210,7 @@ mod tests {
 
         async fn stub_fetch_latest_blocks(
             &self,
-            blocks: Vec<VerifiedBlock>,
+            blocks: Vec<VerifiedBlockHeader>,
             peer: AuthorityIndex,
             authorities: Vec<AuthorityIndex>,
             latency: Option<Duration>,
@@ -1234,7 +1234,7 @@ mod tests {
         async fn send_block(
             &self,
             _peer: AuthorityIndex,
-            _serialized_block: &VerifiedBlock,
+            _serialized_block: &VerifiedBlockHeader,
             _timeout: Duration,
         ) -> ConsensusResult<()> {
             unimplemented!("Unimplemented")
@@ -1330,10 +1330,10 @@ mod tests {
         // GIVEN
         let map = InflightBlocksMap::new();
         let some_block_refs = [
-            BlockRef::new(1, AuthorityIndex::new_for_test(0), BlockDigest::MIN),
-            BlockRef::new(10, AuthorityIndex::new_for_test(0), BlockDigest::MIN),
-            BlockRef::new(12, AuthorityIndex::new_for_test(3), BlockDigest::MIN),
-            BlockRef::new(15, AuthorityIndex::new_for_test(2), BlockDigest::MIN),
+            BlockRef::new(1, AuthorityIndex::new_for_test(0), BlockHeaderDigest::MIN),
+            BlockRef::new(10, AuthorityIndex::new_for_test(0), BlockHeaderDigest::MIN),
+            BlockRef::new(12, AuthorityIndex::new_for_test(3), BlockHeaderDigest::MIN),
+            BlockRef::new(15, AuthorityIndex::new_for_test(2), BlockHeaderDigest::MIN),
         ];
         let missing_block_refs = some_block_refs.iter().cloned().collect::<BTreeSet<_>>();
 
@@ -1419,7 +1419,7 @@ mod tests {
 
         // Create some test blocks
         let expected_blocks = (0..10)
-            .map(|round| VerifiedBlock::new_for_test(TestBlock::new(round, 0).build()))
+            .map(|round| VerifiedBlockHeader::new_for_test(TestBlockHeader::new(round, 0).build()))
             .collect::<Vec<_>>();
         let missing_blocks = expected_blocks
             .iter()
@@ -1467,7 +1467,9 @@ mod tests {
 
         // Create some test blocks
         let expected_blocks = (0..=2 * FETCH_BLOCKS_CONCURRENCY)
-            .map(|round| VerifiedBlock::new_for_test(TestBlock::new(round as Round, 0).build()))
+            .map(|round| {
+                VerifiedBlockHeader::new_for_test(TestBlockHeader::new(round as Round, 0).build())
+            })
             .collect::<Vec<_>>();
 
         // Now start sending requests to fetch blocks by trying to saturate peer 1 task
@@ -1516,7 +1518,7 @@ mod tests {
 
         // Create some test blocks
         let expected_blocks = (0..10)
-            .map(|round| VerifiedBlock::new_for_test(TestBlock::new(round, 0).build()))
+            .map(|round| VerifiedBlockHeader::new_for_test(TestBlockHeader::new(round, 0).build()))
             .collect::<Vec<_>>();
         let missing_blocks = expected_blocks
             .iter()
@@ -1590,7 +1592,7 @@ mod tests {
         // AND stub some missing blocks. The highest accepted round is 0. Create some
         // blocks that are below and above the threshold sync.
         let expected_blocks = (0..SYNC_MISSING_BLOCK_ROUND_THRESHOLD * 2)
-            .map(|round| VerifiedBlock::new_for_test(TestBlock::new(round, 0).build()))
+            .map(|round| VerifiedBlockHeader::new_for_test(TestBlockHeader::new(round, 0).build()))
             .collect::<Vec<_>>();
 
         let missing_blocks = expected_blocks
@@ -1627,11 +1629,11 @@ mod tests {
         let blocks = (0..4)
             .map(|authority| {
                 let commit_votes = vec![CommitVote::new(commit_index, CommitDigest::MIN)];
-                let block = TestBlock::new(round, authority)
+                let block = TestBlockHeader::new(round, authority)
                     .set_commit_votes(commit_votes)
                     .build();
 
-                VerifiedBlock::new_for_test(block)
+                VerifiedBlockHeader::new_for_test(block)
             })
             .collect::<Vec<_>>();
 
@@ -1681,7 +1683,7 @@ mod tests {
         // that are above the threshold sync.
         let mut expected_blocks = (SYNC_MISSING_BLOCK_ROUND_THRESHOLD * 2
             ..SYNC_MISSING_BLOCK_ROUND_THRESHOLD * 3)
-            .map(|round| VerifiedBlock::new_for_test(TestBlock::new(round, 0).build()))
+            .map(|round| VerifiedBlockHeader::new_for_test(TestBlockHeader::new(round, 0).build()))
             .collect::<Vec<_>>();
         let missing_blocks = expected_blocks
             .iter()
@@ -1713,11 +1715,11 @@ mod tests {
         let blocks = (0..4)
             .map(|authority| {
                 let commit_votes = vec![CommitVote::new(commit_index, CommitDigest::MIN)];
-                let block = TestBlock::new(round, authority)
+                let block = TestBlockHeader::new(round, authority)
                     .set_commit_votes(commit_votes)
                     .build();
 
-                VerifiedBlock::new_for_test(block)
+                VerifiedBlockHeader::new_for_test(block)
             })
             .collect::<Vec<_>>();
 
@@ -1797,7 +1799,7 @@ mod tests {
 
         // Create some test blocks
         let mut expected_blocks = (9..=10)
-            .map(|round| VerifiedBlock::new_for_test(TestBlock::new(round, 0).build()))
+            .map(|round| VerifiedBlockHeader::new_for_test(TestBlockHeader::new(round, 0).build()))
             .collect::<Vec<_>>();
 
         // Now set different latest blocks for the peers

@@ -16,7 +16,7 @@ use nom::{
 use starfish_config::AuthorityIndex;
 
 use crate::{
-    block::{BlockRef, Round, Slot},
+    block_header::{BlockRef, Round, Slot},
     context::Context,
     test_dag_builder::DagBuilder,
 };
@@ -282,7 +282,7 @@ mod tests {
     use std::sync::Arc;
 
     use super::*;
-    use crate::block::BlockAPI;
+    use crate::block_header::BlockHeaderAPI;
 
     #[tokio::test]
     async fn test_dag_parsing() {

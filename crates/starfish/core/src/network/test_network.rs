@@ -11,7 +11,7 @@ use starfish_config::AuthorityIndex;
 use super::ExtendedSerializedBlock;
 use crate::{
     Round,
-    block::{BlockRef, VerifiedBlock},
+    block_header::{BlockRef, VerifiedBlockHeader},
     commit::{CommitRange, TrustedCommit},
     error::ConsensusResult,
     network::{BlockStream, NetworkService},
@@ -85,7 +85,7 @@ impl NetworkService for Mutex<TestService> {
         &self,
         peer: AuthorityIndex,
         commit_range: CommitRange,
-    ) -> ConsensusResult<(Vec<TrustedCommit>, Vec<VerifiedBlock>)> {
+    ) -> ConsensusResult<(Vec<TrustedCommit>, Vec<VerifiedBlockHeader>)> {
         self.lock().handle_fetch_commits.push((peer, commit_range));
         Ok((vec![], vec![]))
     }

@@ -15,20 +15,20 @@ use tracing::{debug, warn};
 
 use crate::{
     Round,
-    block::{BlockAPI, BlockRef, VerifiedBlock},
+    block_header::{BlockHeaderAPI, BlockRef, VerifiedBlockHeader},
     block_verifier::BlockVerifier,
     context::Context,
     dag_state::DagState,
 };
 
 struct SuspendedBlock {
-    block: VerifiedBlock,
+    block: VerifiedBlockHeader,
     missing_ancestors: BTreeSet<BlockRef>,
     timestamp: Instant,
 }
 
 impl SuspendedBlock {
-    fn new(block: VerifiedBlock, missing_ancestors: BTreeSet<BlockRef>) -> Self {
+    fn new(block: VerifiedBlockHeader, missing_ancestors: BTreeSet<BlockRef>) -> Self {
         Self {
             block,
             missing_ancestors,
@@ -95,8 +95,8 @@ impl BlockManager {
     #[tracing::instrument(skip_all)]
     pub(crate) fn try_accept_blocks(
         &mut self,
-        blocks: Vec<VerifiedBlock>,
-    ) -> (Vec<VerifiedBlock>, BTreeSet<BlockRef>) {
+        blocks: Vec<VerifiedBlockHeader>,
+    ) -> (Vec<VerifiedBlockHeader>, BTreeSet<BlockRef>) {
         let _s = monitored_scope("BlockManager::try_accept_blocks");
         self.try_accept_blocks_internal(blocks)
     }
@@ -104,8 +104,8 @@ impl BlockManager {
     /// Attempts to accept the provided blocks.
     fn try_accept_blocks_internal(
         &mut self,
-        mut blocks: Vec<VerifiedBlock>,
-    ) -> (Vec<VerifiedBlock>, BTreeSet<BlockRef>) {
+        mut blocks: Vec<VerifiedBlockHeader>,
+    ) -> (Vec<VerifiedBlockHeader>, BTreeSet<BlockRef>) {
         let _s = monitored_scope("BlockManager::try_accept_blocks_internal");
 
         blocks.sort_by_key(|b| b.round());
@@ -221,11 +221,11 @@ impl BlockManager {
     // and persisted blocks.
     fn verify_block_timestamps_and_accept(
         &mut self,
-        unsuspended_blocks: impl IntoIterator<Item = VerifiedBlock>,
-    ) -> Vec<VerifiedBlock> {
+        unsuspended_blocks: impl IntoIterator<Item = VerifiedBlockHeader>,
+    ) -> Vec<VerifiedBlockHeader> {
         // Try to verify the block and its children for timestamp, with ancestor blocks.
-        let mut blocks_to_accept: BTreeMap<BlockRef, VerifiedBlock> = BTreeMap::new();
-        let mut blocks_to_reject: BTreeMap<BlockRef, VerifiedBlock> = BTreeMap::new();
+        let mut blocks_to_accept: BTreeMap<BlockRef, VerifiedBlockHeader> = BTreeMap::new();
+        let mut blocks_to_reject: BTreeMap<BlockRef, VerifiedBlockHeader> = BTreeMap::new();
         {
             'block: for b in unsuspended_blocks {
                 let ancestors = self.dag_state.read().get_blocks(b.ancestors());
@@ -301,7 +301,7 @@ impl BlockManager {
     /// have been already successfully accepted. If block is accepted then
     /// Some result is returned. None is returned when either the block is
     /// suspended or the block has been already accepted before.
-    fn try_accept_one_block(&mut self, block: VerifiedBlock) -> TryAcceptResult {
+    fn try_accept_one_block(&mut self, block: VerifiedBlockHeader) -> TryAcceptResult {
         let block_ref = block.reference();
         let mut missing_ancestors = BTreeSet::new();
         let mut ancestors_to_fetch = BTreeSet::new();
@@ -385,7 +385,10 @@ impl BlockManager {
     /// Given an accepted block `accepted_block` it attempts to accept all the
     /// suspended children blocks assuming such exist. All the unsuspended /
     /// accepted blocks are returned as a vector in causal order.
-    fn try_unsuspend_children_blocks(&mut self, accepted_block: BlockRef) -> Vec<VerifiedBlock> {
+    fn try_unsuspend_children_blocks(
+        &mut self,
+        accepted_block: BlockRef,
+    ) -> Vec<VerifiedBlockHeader> {
         let mut unsuspended_blocks = vec![];
         let mut to_process_blocks = vec![accepted_block];
 
@@ -482,7 +485,7 @@ impl BlockManager {
             .set(self.missing_blocks.len() as i64);
     }
 
-    fn update_block_received_metrics(&mut self, block: &VerifiedBlock) {
+    fn update_block_received_metrics(&mut self, block: &VerifiedBlockHeader) {
         let (min_round, max_round) =
             if let Some((curr_min, curr_max)) = self.received_block_rounds[block.author()] {
                 (curr_min.min(block.round()), curr_max.max(block.round()))
@@ -525,7 +528,7 @@ impl BlockManager {
 // Result of trying to accept one block.
 enum TryAcceptResult {
     // The block is accepted. Wraps the block itself.
-    Accepted(VerifiedBlock),
+    Accepted(VerifiedBlockHeader),
     // The block is suspended. Wraps ancestors to be fetched.
     Suspended(BTreeSet<BlockRef>),
     // The block has been processed before and already exists in BlockManager (and is suspended)
@@ -543,7 +546,7 @@ mod tests {
     use starfish_config::AuthorityIndex;
 
     use crate::{
-        block::{BlockAPI, BlockRef, SignedBlock, VerifiedBlock},
+        block_header::{BlockHeaderAPI, BlockRef, SignedBlockHeader, VerifiedBlockHeader},
         block_manager::BlockManager,
         block_verifier::{BlockVerifier, NoopBlockVerifier},
         context::Context,
@@ -580,7 +583,7 @@ mod tests {
             .blocks
             .into_iter()
             .filter_map(|(_, block)| (block.round() == 2).then_some(block))
-            .collect::<Vec<VerifiedBlock>>();
+            .collect::<Vec<VerifiedBlockHeader>>();
 
         // WHEN
         let (accepted_blocks, missing) = block_manager.try_accept_blocks(round_2_blocks.clone());
@@ -677,7 +680,7 @@ mod tests {
                 .iter()
                 .filter(|block| block.round() > 0)
                 .cloned()
-                .collect::<Vec<VerifiedBlock>>()
+                .collect::<Vec<VerifiedBlockHeader>>()
         );
         assert!(missing.is_empty());
         assert!(block_manager.is_empty());
@@ -747,14 +750,14 @@ mod tests {
     }
 
     impl BlockVerifier for TestBlockVerifier {
-        fn verify(&self, _block: &SignedBlock) -> ConsensusResult<()> {
+        fn verify(&self, _block: &SignedBlockHeader) -> ConsensusResult<()> {
             Ok(())
         }
 
         fn check_ancestors(
             &self,
-            block: &VerifiedBlock,
-            _ancestors: &[Option<VerifiedBlock>],
+            block: &VerifiedBlockHeader,
+            _ancestors: &[Option<VerifiedBlockHeader>],
         ) -> ConsensusResult<()> {
             if self.fail.contains(&block.reference()) {
                 Err(ConsensusError::InvalidBlockTimestamp {
@@ -858,7 +861,7 @@ mod tests {
             .blocks
             .iter()
             .filter_map(|(_, block)| (block.round() == 2).then_some(block.clone()))
-            .collect::<Vec<VerifiedBlock>>();
+            .collect::<Vec<VerifiedBlockHeader>>();
 
         // All blocks should be missing
         let missing_block_refs_from_find =
