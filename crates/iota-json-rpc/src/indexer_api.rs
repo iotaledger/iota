@@ -14,17 +14,22 @@ use iota_json_rpc_api::{
     cap_page_limit, validate_limit,
 };
 use iota_json_rpc_types::{
-    DynamicFieldPage, EventFilter, EventPage, IotaObjectDataOptions, IotaObjectResponse,
-    IotaObjectResponseQuery, IotaTransactionBlockResponse, IotaTransactionBlockResponseQuery,
-    ObjectsPage, Page, TransactionBlocksPage, TransactionFilter,
+    DynamicFieldPage, EventFilter, EventPage, IotaNameRecord, IotaObjectDataFilter,
+    IotaObjectDataOptions, IotaObjectResponse, IotaObjectResponseQuery,
+    IotaTransactionBlockResponse, IotaTransactionBlockResponseQuery, ObjectsPage, Page,
+    TransactionBlocksPage, TransactionFilter,
 };
 use iota_metrics::spawn_monitored_task;
+use iota_names::{
+    IotaNamesNft, IotaNamesRegistration, config::IotaNamesConfig, domain::Domain,
+    error::IotaNamesError, registry::NameRecord,
+};
 use iota_open_rpc::Module;
 use iota_storage::key_value_store::TransactionKeyValueStore;
 use iota_types::{
     base_types::{IotaAddress, ObjectID},
     digests::TransactionDigest,
-    dynamic_field::DynamicFieldName,
+    dynamic_field::{DynamicFieldName, Field},
     error::IotaObjectResponseError,
     event::EventID,
 };
@@ -40,7 +45,7 @@ use tracing::{debug, instrument};
 
 use crate::{
     IotaRpcModule,
-    authority_state::StateRead,
+    authority_state::{StateRead, StateReadResult},
     error::{Error, IotaRpcInputError},
     logger::FutureWithTracing as _,
 };
@@ -102,6 +107,7 @@ pub struct IndexerApi<R> {
     state: Arc<dyn StateRead>,
     read_api: R,
     transaction_kv_store: Arc<TransactionKeyValueStore>,
+    iota_names_config: IotaNamesConfig,
     pub metrics: Arc<JsonRpcMetrics>,
     subscription_semaphore: Arc<Semaphore>,
 }
@@ -112,6 +118,7 @@ impl<R: ReadApiServer> IndexerApi<R> {
         read_api: R,
         transaction_kv_store: Arc<TransactionKeyValueStore>,
         metrics: Arc<JsonRpcMetrics>,
+        iota_names_config: IotaNamesConfig,
         max_subscriptions: Option<usize>,
     ) -> Self {
         let max_subscriptions = max_subscriptions.unwrap_or(DEFAULT_MAX_SUBSCRIPTIONS);
@@ -120,6 +127,7 @@ impl<R: ReadApiServer> IndexerApi<R> {
             transaction_kv_store,
             read_api,
             metrics,
+            iota_names_config,
             subscription_semaphore: Arc::new(Semaphore::new(max_subscriptions)),
         }
     }
@@ -173,6 +181,16 @@ impl<R: ReadApiServer> IndexerApi<R> {
         }
         .trace()
         .await
+    }
+
+    fn get_latest_checkpoint_timestamp_ms(&self) -> StateReadResult<u64> {
+        let latest_checkpoint = self.state.get_latest_checkpoint_sequence_number()?;
+
+        let checkpoint = self
+            .state
+            .get_verified_checkpoint_by_sequence_number(latest_checkpoint)?;
+
+        Ok(checkpoint.timestamp_ms)
     }
 }
 
@@ -438,6 +456,131 @@ impl<R: ReadApiServer> IndexerApiServer for IndexerApi<R> {
     ) -> RpcResult<IotaObjectResponse> {
         self.get_dynamic_field_object(parent_object_id, name, options)
             .await
+    }
+
+    async fn iota_names_lookup(&self, name: &str) -> RpcResult<Option<IotaNameRecord>> {
+        let domain = name.parse::<Domain>().map_err(Error::from)?;
+
+        // Construct the record id to lookup.
+        let record_id = self.iota_names_config.record_field_id(&domain);
+
+        let parent_record_id = domain
+            .parent()
+            .map(|parent_domain| self.iota_names_config.record_field_id(&parent_domain));
+
+        // Keep record IDs alive by declaring both before creating futures
+        let mut requests = vec![self.state.get_object(&record_id)];
+
+        // We only want to fetch both the child and the parent if the domain is a
+        // subdomain.
+        if let Some(ref parent_record_id) = parent_record_id {
+            requests.push(self.state.get_object(parent_record_id));
+        }
+
+        // Couldn't find a `multi_get_object` for this crate (looks like it uses a k,v
+        // db) Always fetching both parent + child at the same time (even for
+        // node subdomains), to avoid sequential db reads. We do this because we
+        // do not know if the requested domain is a node subdomain or a leaf
+        // subdomain, and we can save a trip to the db.
+        let mut results = futures::future::try_join_all(requests)
+            .await
+            .map_err(Error::from)?;
+
+        // Removing without checking vector len, since it is known (== 1 or 2 depending
+        // on whether it is a subdomain or not).
+        let Some(object) = results.remove(0) else {
+            return Ok(None);
+        };
+
+        let name_record = NameRecord::try_from(object).map_err(Error::from)?;
+
+        let current_timestamp_ms = self
+            .get_latest_checkpoint_timestamp_ms()
+            .map_err(Error::from)?;
+
+        // Handling SLD names & node subdomains is the same (we handle them as `node`
+        // records). We check their expiration, and if not expired, return the
+        // target address.
+        if !name_record.is_leaf_record() {
+            return if !name_record.is_node_expired(current_timestamp_ms) {
+                Ok(Some(name_record.into()))
+            } else {
+                Err(Error::from(IotaNamesError::NameExpired).into())
+            };
+        } else {
+            // Handle the `leaf` record case which requires to check the parent for
+            // expiration. We can remove since we know that if we're here, we have a parent
+            // result for the parent request. If the parent result is `None` for the
+            // existing leaf record, we consider it expired.
+            let Some(parent_object) = results.remove(0) else {
+                return Err(Error::from(IotaNamesError::NameExpired).into());
+            };
+
+            let parent_name_record = NameRecord::try_from(parent_object).map_err(Error::from)?;
+
+            // For a leaf record, we check that:
+            // 1. The parent is a valid parent for that leaf record
+            // 2. The parent is not expired
+            if parent_name_record.is_valid_leaf_parent(&name_record)
+                && !parent_name_record.is_node_expired(current_timestamp_ms)
+            {
+                Ok(Some(name_record.into()))
+            } else {
+                Err(Error::from(IotaNamesError::NameExpired).into())
+            }
+        }
+    }
+
+    #[instrument(skip(self))]
+    async fn iota_names_reverse_lookup(&self, address: IotaAddress) -> RpcResult<Option<String>> {
+        let reverse_record_id = self.iota_names_config.reverse_record_field_id(&address);
+
+        let Some(field_reverse_record_object) = self
+            .state
+            .get_object(&reverse_record_id)
+            .await
+            .map_err(Error::from)?
+        else {
+            return Ok(None);
+        };
+
+        let domain = field_reverse_record_object
+            .to_rust::<Field<IotaAddress, Domain>>()
+            .ok_or_else(|| Error::Unexpected(format!("malformed Object {reverse_record_id}")))?
+            .value;
+
+        let domain_name = domain.to_string();
+
+        let resolved_record = self.iota_names_lookup(&domain_name).await?;
+
+        // If looking up the domain returns an empty result, we return an empty result.
+        if resolved_record.is_none() {
+            return Ok(None);
+        }
+
+        Ok(Some(domain_name))
+    }
+
+    #[instrument(skip(self))]
+    async fn iota_names_find_all_registration_nfts(
+        &self,
+        address: IotaAddress,
+        cursor: Option<ObjectID>,
+        limit: Option<usize>,
+        options: Option<IotaObjectDataOptions>,
+    ) -> RpcResult<ObjectsPage> {
+        let query = IotaObjectResponseQuery {
+            filter: Some(IotaObjectDataFilter::StructType(
+                IotaNamesRegistration::type_(self.iota_names_config.package_address.into()),
+            )),
+            options,
+        };
+
+        let owned_objects = self
+            .get_owned_objects(address, Some(query), cursor, limit)
+            .await?;
+
+        Ok(owned_objects)
     }
 }
 

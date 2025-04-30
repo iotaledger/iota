@@ -5746,6 +5746,7 @@ dependencies = [
  "bin-version",
  "bip32",
  "camino",
+ "chrono",
  "clap",
  "clap_complete",
  "codespan-reporting",
@@ -5769,6 +5770,7 @@ dependencies = [
  "iota-faucet",
  "iota-genesis-builder",
  "iota-graphql-rpc",
+ "iota-graphql-rpc-client",
  "iota-indexer",
  "iota-json",
  "iota-json-rpc-types",
@@ -5777,6 +5779,7 @@ dependencies = [
  "iota-metrics",
  "iota-move",
  "iota-move-build",
+ "iota-names",
  "iota-package-management",
  "iota-protocol-config",
  "iota-replay",
@@ -5975,7 +5978,6 @@ dependencies = [
  "aws-config",
  "aws-runtime",
  "aws-sdk-ec2",
- "aws-smithy-http",
  "aws-smithy-runtime-api",
  "clap",
  "color-eyre",
@@ -6217,6 +6219,7 @@ dependencies = [
  "fastcrypto",
  "iota-genesis-common",
  "iota-keys",
+ "iota-names",
  "iota-protocol-config",
  "iota-types",
  "move-vm-config",
@@ -6773,6 +6776,7 @@ dependencies = [
  "iota-json-rpc",
  "iota-json-rpc-types",
  "iota-metrics",
+ "iota-names",
  "iota-network-stack",
  "iota-package-resolver",
  "iota-protocol-config",
@@ -6886,6 +6890,7 @@ dependencies = [
  "iota-mainnet-unlocks",
  "iota-metrics",
  "iota-move-build",
+ "iota-names",
  "iota-open-rpc",
  "iota-package-resolver",
  "iota-protocol-config",
@@ -6980,6 +6985,7 @@ dependencies = [
  "iota-json-rpc-types",
  "iota-mainnet-unlocks",
  "iota-metrics",
+ "iota-names",
  "iota-open-rpc",
  "iota-open-rpc-macros",
  "iota-protocol-config",
@@ -7082,6 +7088,7 @@ dependencies = [
  "iota-json",
  "iota-macros",
  "iota-metrics",
+ "iota-names",
  "iota-package-resolver",
  "iota-protocol-config",
  "iota-types",
@@ -7306,6 +7313,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "iota-names"
+version = "0.13.0-alpha"
+dependencies = [
+ "bcs",
+ "iota-types",
+ "move-core-types",
+ "serde",
+ "thiserror 1.0.64",
+]
+
+[[package]]
 name = "iota-network"
 version = "0.13.0-alpha"
 dependencies = [
@@ -7394,6 +7412,7 @@ dependencies = [
  "iota-json-rpc-api",
  "iota-macros",
  "iota-metrics",
+ "iota-names",
  "iota-network",
  "iota-network-stack",
  "iota-protocol-config",

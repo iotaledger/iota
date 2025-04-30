@@ -31,7 +31,7 @@ SSFNs play a crucial role in a validator's infrastructure for several reasons:
 
 For optimal validator operation, we recommend:
 
-- Running at least 2 SSFNs per validator
+- Running at least 1 SSFN per validator
 - Deploying SSFNs on separate machines from the validator
 - Ensuring high-bandwidth, low-latency connections between SSFNs and their validator
 
@@ -66,35 +66,16 @@ iota keytool generate ed25519
 
 Create or modify your SSFN's configuration file with these specific settings:
 
-```yaml
-# Network Configuration
-network-key-pair:
-  path: /opt/iota/key-pairs/network.key
-
-# Peering Configuration
-p2p-config:
-  seed-peers:
-    - address: /dns/validator-hostname/udp/8084
-      peer-id: <validator-peer-id>  # Get this from your validator's network.key
-
-# Resource Optimization
-enable-index-processing: false
-
-# Pruning Configuration
-authority-store-pruning-config:
-  num-latest-epoch-dbs-to-retain: 3
-  epoch-db-pruning-period-secs: 3600
-  max-checkpoints-in-batch: 10
-  max-transactions-in-batch: 1000
-  num-epochs-to-retain: 0
-  num-epochs-to-retain-for-checkpoints: 2
-  periodic-compaction-threshold-days: 1
-
-# Metrics Configuration
-metrics:
-  push-interval-seconds: 60
-  push-url: https://metrics-proxy.mainnet.iota.cafe:8443/publish/metrics
-```
+<Tabs groupId="network">
+    <TabItem label="Mainnet" value="mainnet">
+        ```yaml file=<rootDir>/setups/validator/ssfn-mainnet.yaml
+        ```
+    </TabItem>
+    <TabItem label="Testnet" value="testnet">
+        ```yaml file=<rootDir>/setups/validator/ssfn-testnet.yaml
+        ```
+    </TabItem>
+</Tabs>
 
 ### 3. Metrics Whitelisting
 
