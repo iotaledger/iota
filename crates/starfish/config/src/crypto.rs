@@ -170,6 +170,7 @@ impl AuthorityKeyPair {
 }
 
 /// Defines algorithm and format of block and commit digests.
+// TODO: change Blake2b256 to Blake3 when starting optimizations
 pub type DefaultHashFunction = Blake2b256;
 pub const DIGEST_LENGTH: usize = DefaultHashFunction::OUTPUT_SIZE;
 pub const INTENT_MESSAGE_LENGTH: usize = INTENT_PREFIX_LENGTH + DIGEST_LENGTH;
