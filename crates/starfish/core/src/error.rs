@@ -26,6 +26,9 @@ pub(crate) enum ConsensusError {
     #[error("Error serializing: {0}")]
     SerializationFailure(bcs::Error),
 
+    #[error("Error deserializing: {0}")]
+    DeserializationFailure(bcs::Error),
+
     #[error("Block contains a transaction that is too large: {size} > {limit}")]
     TransactionTooLarge { size: usize, limit: usize },
 
@@ -186,6 +189,26 @@ pub(crate) enum ConsensusError {
 
     #[error("Consensus has shut down!")]
     Shutdown,
+
+    #[error("Shard encoder reset failed: {0}")]
+    EncoderResetFailed(String),
+
+    #[error("Failed to add original shard to encoder: {0}")]
+    AddShardFailed(String),
+
+    #[error("Reed-Solomon encoding failed in encoder: {0}")]
+    ShardsEncodingFailed(String),
+
+    #[error("Reed-Solomon decoding failed in decoder: {0}")]
+    ShardsDecodingFailed(String),
+
+    #[error(
+        "Shards collection does not contain enough valid shards for decoding: {0} found, at least {1} needed"
+    )]
+    InsufficientShardsInDecoder(usize, usize),
+
+    #[error("Vector of shards is too small: {0} bytes found, at least {1} bytes needed")]
+    ShardsVecIsTooSmall(usize, usize),
 }
 
 impl ConsensusError {

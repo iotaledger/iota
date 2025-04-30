@@ -1,5 +1,5 @@
 ---
-source: consensus-starfish/config/tests/committee_test.rs
+source: crates/starfish/config/tests/committee_test.rs
 expression: committee
 ---
 epoch: 100
@@ -67,4 +67,4 @@ authorities:
     authority_key: tC8uWyTrohwv5Gp+pEytkyFtTo7JKqgrOGlltChHjqGFN+t9jhIqo0P/opo5xly9DeFNmwlRMLmHdyvtTwRNvuYV06NgrXHnoLRoRcKC0XP93I10DHus5GdB1roOKoYf
     protocol_key: Edh6VmJUkuP4TiU3owC8Qlg13OytuOpAdfHTUyLCGN8=
     network_key: OKXew91B23hZ7ihzvjYptdWUWnQ8qTnvxzWxSIzR84c=
-
+info_length: 4
