@@ -105,7 +105,8 @@ export function AccountBalanceItem({
 
     const hasMigrationObjects =
         !!stardustOwnedObjects?.pages?.[0]?.[0]?.data?.length ||
-        !!stardustSharedObjects?.pages?.[0]?.length;
+        !!stardustSharedObjects?.pages?.[0]?.[0]?.basicOutputs.length ||
+        !!stardustSharedObjects?.pages?.[0]?.[0]?.nftOutputs.length;
 
     const hasAccountAssets = !!ownedObjects?.pages?.[0]?.[0]?.data?.length;
 
