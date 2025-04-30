@@ -1018,7 +1018,7 @@ async fn get_owned_nfts<T: DeserializeOwned + IotaNamesNft>(
     })
     .await?;
 
-    Ok(responses
+    responses
         .into_iter()
         .map(|res| {
             let data = res.data.expect("missing object data");
@@ -1028,7 +1028,7 @@ async fn get_owned_nfts<T: DeserializeOwned + IotaNamesNft>(
                 .expect("invalid move type")
                 .deserialize::<T>()
         })
-        .collect::<Result<_, _>>()?)
+        .collect::<Result<_, _>>()
 }
 
 #[derive(Copy, Clone)]
