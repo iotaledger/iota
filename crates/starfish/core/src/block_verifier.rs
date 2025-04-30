@@ -40,7 +40,7 @@ pub(crate) trait BlockVerifier: Send + Sync + 'static {
 pub(crate) struct SignedBlockVerifier {
     context: Arc<Context>,
     genesis: BTreeSet<BlockRef>,
-    #[allow(dead_code)]
+    #[expect(dead_code)]
     transaction_verifier: Arc<dyn TransactionVerifier>, /* Expected to be unused until
                                                          * transaction verification is
                                                          * implemented */
@@ -63,7 +63,7 @@ impl SignedBlockVerifier {
     }
 
     // TODO: enable this function when including the transactions in data flow
-    #[allow(dead_code)]
+    #[cfg_attr(not(test), expect(unused))]
     pub(crate) fn check_transactions(&self, batch: &[&[u8]]) -> ConsensusResult<()> {
         let max_transaction_size_limit =
             self.context.protocol_config.max_transaction_size_bytes() as usize;

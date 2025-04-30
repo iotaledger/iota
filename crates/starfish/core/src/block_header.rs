@@ -87,10 +87,12 @@ pub struct BlockHeaderV1 {
     author: AuthorityIndex,
     // TODO: during verification ensure that timestamp_ms >= ancestors.timestamp
     timestamp_ms: BlockTimestampMs,
-    // ancestors are BlockRefs such that there are at least 2f+1 BlockRefs from the previous round
+    // ancestors are BlockRefs such that there are at least 2f+1 BlockRefs (by stake) from the
+    // previous round
     ancestors: Vec<BlockRef>,
     // acknowledgments are BlockRefs for blocks for which a validator acknowledges data
-    // availability of transactions TODO: we should compress it together with ancestors to
+    // availability of transactions
+    // TODO: we should compress it together with ancestors to
     // avoid duplications since in most cases these sets have a big overlap
     acknowledgments: Vec<BlockRef>,
     transactions_commitment: TransactionDigest,
@@ -274,10 +276,10 @@ impl AsRef<[u8]> for BlockHeaderDigest {
 }
 
 // TODO: we might need to join TransactionDigest with BlockDigest since we use
-// the same parameters for both structures TransactionDigest is used for
+// the same parameters for both structures. TransactionDigest is used for
 // including a commitment for a transaction data to a block header. This digest
-// is used for BlockDigest computations Block header does not include the
-// transaction data.
+// is used for BlockDigest computations of BlockHeader does not include
+// explicitly the transaction data.
 #[derive(Clone, Copy, Serialize, Deserialize, Default, PartialEq, Eq, PartialOrd, Ord)]
 pub struct TransactionDigest([u8; starfish_config::DIGEST_LENGTH]);
 
