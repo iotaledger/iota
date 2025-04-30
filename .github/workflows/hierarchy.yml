@@ -36,7 +36,7 @@ jobs:
 
   release-notes-check:
     concurrency:
-      group: license-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+      group: release-notes-check-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
       cancel-in-progress: ${{ github.ref != 'refs/heads/develop' }}
     if: github.event_name == 'pull_request'
     runs-on: [ubuntu-latest]
