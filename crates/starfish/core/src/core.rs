@@ -26,9 +26,9 @@ use crate::{
 };
 use crate::{
     ancestor::{AncestorState, AncestorStateManager},
-    block::{
-        Block, BlockAPI, BlockRef, BlockTimestampMs, BlockV1, ExtendedBlock, GENESIS_ROUND, Round,
-        SignedBlock, Slot, VerifiedBlock,
+    block_header::{
+        BlockHeader, BlockHeaderAPI, BlockHeaderV1, BlockRef, BlockTimestampMs, ExtendedBlock,
+        GENESIS_ROUND, Round, SignedBlockHeader, Slot, VerifiedBlockHeader,
     },
     block_manager::BlockManager,
     commit::{CertifiedCommits, CommittedSubDag},
@@ -241,7 +241,7 @@ impl Core {
             // ensure liveness.
             self.signals
                 .new_block(ExtendedBlock {
-                    block: last_proposed_block.clone(),
+                    block_header: last_proposed_block.clone(),
                     excluded_ancestors: vec![],
                 })
                 .unwrap();
@@ -267,7 +267,7 @@ impl Core {
     #[tracing::instrument(skip_all)]
     pub(crate) fn add_blocks(
         &mut self,
-        blocks: Vec<VerifiedBlock>,
+        blocks: Vec<VerifiedBlockHeader>,
     ) -> ConsensusResult<BTreeSet<BlockRef>> {
         let _scope = monitored_scope("Core::add_blocks");
         let _s = self
@@ -402,7 +402,7 @@ impl Core {
         &mut self,
         round: Round,
         force: bool,
-    ) -> ConsensusResult<Option<VerifiedBlock>> {
+    ) -> ConsensusResult<Option<VerifiedBlockHeader>> {
         let _scope = monitored_scope("Core::new_block");
         if self.last_proposed_round() < round {
             self.context
@@ -422,7 +422,7 @@ impl Core {
     // Attempts to create a new block, persist and propose it to all peers.
     // When force is true, ignore if leader from the last round exists among
     // ancestors and if the minimum round delay has passed.
-    fn try_propose(&mut self, force: bool) -> ConsensusResult<Option<VerifiedBlock>> {
+    fn try_propose(&mut self, force: bool) -> ConsensusResult<Option<VerifiedBlockHeader>> {
         if !self.should_propose() {
             return Ok(None);
         }
@@ -433,7 +433,7 @@ impl Core {
 
             // The new block may help commit.
             self.try_commit()?;
-            return Ok(Some(extended_block.block));
+            return Ok(Some(extended_block.block_header));
         }
         Ok(None)
     }
@@ -578,18 +578,16 @@ impl Core {
             .take_commit_votes(MAX_COMMIT_VOTES_PER_BLOCK);
 
         // Create the block and insert to storage.
-        let block = Block::V1(BlockV1::new(
+        let block = BlockHeader::V1(BlockHeaderV1::new(
             self.context.committee.epoch(),
             clock_round,
             self.context.own_index,
             now,
             ancestors.iter().map(|b| b.reference()).collect(),
-            transactions,
             commit_votes,
-            vec![],
         ));
         let signed_block =
-            SignedBlock::new(block, &self.block_signer).expect("Block signing failed.");
+            SignedBlockHeader::new(block, &self.block_signer).expect("Block signing failed.");
         let serialized = signed_block
             .serialize()
             .expect("Block serialization failed.");
@@ -599,7 +597,7 @@ impl Core {
             .proposed_block_size
             .observe(serialized.len() as f64);
         // Own blocks are assumed to be valid.
-        let verified_block = VerifiedBlock::new_verified(signed_block, serialized);
+        let verified_block = VerifiedBlockHeader::new_verified(signed_block, serialized);
 
         // Record the interval from last proposal, before accepting the proposed block.
         let last_proposed_block = self.last_proposed_block();
@@ -641,7 +639,7 @@ impl Core {
             .inc();
 
         Some(ExtendedBlock {
-            block: verified_block,
+            block_header: verified_block,
             excluded_ancestors,
         })
     }
@@ -908,7 +906,7 @@ impl Core {
         &mut self,
         clock_round: Round,
         smart_select: bool,
-    ) -> (Vec<VerifiedBlock>, BTreeSet<BlockRef>) {
+    ) -> (Vec<VerifiedBlockHeader>, BTreeSet<BlockRef>) {
         let node_metrics = &self.context.metrics.node_metrics;
         let _s = node_metrics
             .scope_processing_time
@@ -1164,7 +1162,7 @@ impl Core {
         self.last_proposed_block().round()
     }
 
-    fn last_proposed_block(&self) -> VerifiedBlock {
+    fn last_proposed_block(&self) -> VerifiedBlockHeader {
         self.dag_state.read().get_last_proposed_block()
     }
 }
@@ -1208,7 +1206,7 @@ impl CoreSignals {
         // When there is only one authority in committee, it is unnecessary to broadcast
         // the block which will fail anyway without subscribers to the signal.
         if self.context.committee.size() > 1 {
-            if extended_block.block.round() == GENESIS_ROUND {
+            if extended_block.block_header.round() == GENESIS_ROUND {
                 debug!("Ignoring broadcasting genesis block to peers");
                 return Ok(());
             }
@@ -1360,7 +1358,7 @@ mod test {
     use super::*;
     use crate::{
         CommitConsumer, CommitIndex,
-        block::{TestBlock, genesis_blocks},
+        block_header::{TestBlockHeader, genesis_block_headers},
         block_verifier::NoopBlockVerifier,
         commit::CommitAPI,
         leader_scoring::ReputationScores,
@@ -1384,13 +1382,13 @@ mod test {
 
         // Create test blocks for all the authorities for 4 rounds and populate them in
         // store
-        let mut last_round_blocks = genesis_blocks(context.clone());
-        let mut all_blocks: Vec<VerifiedBlock> = last_round_blocks.clone();
+        let mut last_round_blocks = genesis_block_headers(context.clone());
+        let mut all_blocks: Vec<VerifiedBlockHeader> = last_round_blocks.clone();
         for round in 1..=4 {
             let mut this_round_blocks = Vec::new();
             for (index, _authority) in context.committee.authorities() {
-                let block = VerifiedBlock::new_for_test(
-                    TestBlock::new(round, index.value() as u32)
+                let block = VerifiedBlockHeader::new_for_test(
+                    TestBlockHeader::new(round, index.value() as u32)
                         .set_ancestors(last_round_blocks.iter().map(|b| b.reference()).collect())
                         .build(),
                 );
@@ -1465,8 +1463,8 @@ mod test {
             .recv()
             .await
             .expect("A block should have been created");
-        assert_eq!(proposed_block.block.round(), 5);
-        let ancestors = proposed_block.block.ancestors();
+        assert_eq!(proposed_block.block_header.round(), 5);
+        let ancestors = proposed_block.block_header.ancestors();
 
         // Only ancestors of round 4 should be included.
         assert_eq!(ancestors.len(), 4);
@@ -1508,7 +1506,7 @@ mod test {
         let transaction_consumer = TransactionConsumer::new(tx_receiver, context.clone());
 
         // Create test blocks for all authorities except our's (index = 0).
-        let mut last_round_blocks = genesis_blocks(context.clone());
+        let mut last_round_blocks = genesis_block_headers(context.clone());
         let mut all_blocks = last_round_blocks.clone();
         for round in 1..=4 {
             let mut this_round_blocks = Vec::new();
@@ -1523,10 +1521,10 @@ mod test {
             };
 
             for (index, _authority) in context.committee.authorities().skip(authorities_to_skip) {
-                let block = TestBlock::new(round, index.value() as u32)
+                let block = TestBlockHeader::new(round, index.value() as u32)
                     .set_ancestors(last_round_blocks.iter().map(|b| b.reference()).collect())
                     .build();
-                this_round_blocks.push(VerifiedBlock::new_for_test(block));
+                this_round_blocks.push(VerifiedBlockHeader::new_for_test(block));
             }
             all_blocks.extend(this_round_blocks.clone());
             last_round_blocks = this_round_blocks;
@@ -1590,8 +1588,8 @@ mod test {
             .recv()
             .await
             .expect("A block should have been created");
-        assert_eq!(proposed_block.block.round(), 4);
-        let ancestors = proposed_block.block.ancestors();
+        assert_eq!(proposed_block.block_header.round(), 4);
+        let ancestors = proposed_block.block_header.ancestors();
 
         assert_eq!(ancestors.len(), 4);
         for ancestor in ancestors {
@@ -1695,27 +1693,14 @@ mod test {
             .expect("A new block should have been created");
 
         // A new block created - assert the details
-        assert_eq!(extended_block.block.round(), 1);
-        assert_eq!(extended_block.block.author().value(), 0);
-        assert_eq!(extended_block.block.ancestors().len(), 4);
-
-        let mut total = 0;
-        for (i, transaction) in extended_block.block.transactions().iter().enumerate() {
-            total += transaction.data().len() as u64;
-            let transaction: String = bcs::from_bytes(transaction.data()).unwrap();
-            assert_eq!(format!("Transaction {i}"), transaction);
-        }
-        assert!(
-            total
-                <= context
-                    .protocol_config
-                    .consensus_max_transactions_in_block_bytes()
-        );
+        assert_eq!(extended_block.block_header.round(), 1);
+        assert_eq!(extended_block.block_header.author().value(), 0);
+        assert_eq!(extended_block.block_header.ancestors().len(), 4);
 
         // genesis blocks should be referenced
-        let all_genesis = genesis_blocks(context);
+        let all_genesis = genesis_block_headers(context);
 
-        for ancestor in extended_block.block.ancestors() {
+        for ancestor in extended_block.block_header.ancestors() {
             all_genesis
                 .iter()
                 .find(|block| block.reference() == *ancestor)
@@ -1783,7 +1768,7 @@ mod test {
         let mut expected_ancestors = BTreeSet::new();
 
         // Adding one block now will trigger the creation of new block for round 1
-        let block_1 = VerifiedBlock::new_for_test(TestBlock::new(1, 1).build());
+        let block_1 = VerifiedBlockHeader::new_for_test(TestBlockHeader::new(1, 1).build());
         expected_ancestors.insert(block_1.reference());
         // Wait for min round delay to allow blocks to be proposed.
         sleep(context.parameters.min_round_delay).await;
@@ -1797,7 +1782,7 @@ mod test {
 
         // Adding another block now forms a quorum for round 1, so block at round 2 will
         // proposed
-        let block_3 = VerifiedBlock::new_for_test(TestBlock::new(1, 2).build());
+        let block_3 = VerifiedBlockHeader::new_for_test(TestBlockHeader::new(1, 2).build());
         expected_ancestors.insert(block_3.reference());
         // Wait for min round delay to allow blocks to be proposed.
         sleep(context.parameters.min_round_delay).await;
@@ -1918,7 +1903,7 @@ mod test {
         // need to manually wait for the time diff before processing them. By
         // calling the `tokio::time::sleep` we implicitly also advance the tokio
         // clock.
-        async fn wait_blocks(blocks: &[VerifiedBlock], context: &Context) {
+        async fn wait_blocks(blocks: &[VerifiedBlockHeader], context: &Context) {
             // Simulate the time wait before processing a block to ensure that
             // block.timestamp <= now
             let now = context.clock.timestamp_utc_ms();
@@ -1945,7 +1930,7 @@ mod test {
 
         // Now iterate over a few rounds and ensure the corresponding signals are
         // created while network advances
-        let mut last_round_blocks = Vec::<VerifiedBlock>::new();
+        let mut last_round_blocks = Vec::<VerifiedBlockHeader>::new();
         for round in 1..=3 {
             let mut this_round_blocks = Vec::new();
 
@@ -2028,7 +2013,7 @@ mod test {
         // need to manually wait for the time diff before processing them. By
         // calling the `tokio::time::sleep` we implicitly also advance the tokio
         // clock.
-        async fn wait_blocks(blocks: &[VerifiedBlock], context: &Context) {
+        async fn wait_blocks(blocks: &[VerifiedBlockHeader], context: &Context) {
             // Simulate the time wait before processing a block to ensure that
             // block.timestamp <= now
             let now = context.clock.timestamp_utc_ms();
@@ -2050,7 +2035,7 @@ mod test {
 
         // Create blocks for rounds 1..=30 from all Cores except last Core of authority
         // 3.
-        let mut last_round_blocks = Vec::<VerifiedBlock>::new();
+        let mut last_round_blocks = Vec::<VerifiedBlockHeader>::new();
         for round in 1..=30 {
             let mut this_round_blocks = Vec::new();
 
@@ -2276,14 +2261,17 @@ mod test {
                     .await
                     .unwrap()
                     .unwrap();
-            if extended_block.block.round() == 16 {
+            if extended_block.block_header.round() == 16 {
                 break extended_block;
             }
         };
-        assert_eq!(extended_block.block.round(), 16);
-        assert_eq!(extended_block.block.author(), core.context.own_index);
-        assert_eq!(extended_block.block.ancestors().len(), 6);
-        assert_eq!(extended_block.block.ancestors(), included_block_references);
+        assert_eq!(extended_block.block_header.round(), 16);
+        assert_eq!(extended_block.block_header.author(), core.context.own_index);
+        assert_eq!(extended_block.block_header.ancestors().len(), 6);
+        assert_eq!(
+            extended_block.block_header.ancestors(),
+            included_block_references
+        );
         assert_eq!(extended_block.excluded_ancestors.len(), 1);
         assert_eq!(
             extended_block.excluded_ancestors[0],
@@ -2321,9 +2309,9 @@ mod test {
             .await
             .unwrap()
             .unwrap();
-        assert_eq!(extended_block.block.round(), 17);
-        assert_eq!(extended_block.block.author(), core.context.own_index);
-        assert_eq!(extended_block.block.ancestors().len(), 5);
+        assert_eq!(extended_block.block_header.round(), 17);
+        assert_eq!(extended_block.block_header.author(), core.context.own_index);
+        assert_eq!(extended_block.block_header.ancestors().len(), 5);
         assert_eq!(extended_block.excluded_ancestors.len(), 0);
 
         // Set quorum rounds for authority which will unlock the Excluded
@@ -2372,10 +2360,13 @@ mod test {
             .await
             .unwrap()
             .unwrap();
-        assert_eq!(extended_block.block.round(), 18);
-        assert_eq!(extended_block.block.author(), core.context.own_index);
-        assert_eq!(extended_block.block.ancestors().len(), 7);
-        assert_eq!(extended_block.block.ancestors(), included_block_references);
+        assert_eq!(extended_block.block_header.round(), 18);
+        assert_eq!(extended_block.block_header.author(), core.context.own_index);
+        assert_eq!(extended_block.block_header.ancestors().len(), 7);
+        assert_eq!(
+            extended_block.block_header.ancestors(),
+            included_block_references
+        );
         assert_eq!(extended_block.excluded_ancestors.len(), 0);
     }
 
@@ -2464,9 +2455,9 @@ mod test {
             .await
             .unwrap()
             .unwrap();
-        assert_eq!(extended_block.block.round(), 5);
-        assert_eq!(extended_block.block.author(), core.context.own_index);
-        assert_eq!(extended_block.block.ancestors().len(), 4);
+        assert_eq!(extended_block.block_header.round(), 5);
+        assert_eq!(extended_block.block_header.author(), core.context.own_index);
+        assert_eq!(extended_block.block_header.ancestors().len(), 4);
         assert_eq!(extended_block.excluded_ancestors.len(), 8);
     }
 
@@ -2649,9 +2640,9 @@ mod test {
                 .await
                 .unwrap()
                 .unwrap();
-                assert_eq!(extended_block.block.round(), round);
+                assert_eq!(extended_block.block_header.round(), round);
                 assert_eq!(
-                    extended_block.block.author(),
+                    extended_block.block_header.author(),
                     core_fixture.core.context.own_index
                 );
 
@@ -2773,9 +2764,9 @@ mod test {
                 .await
                 .unwrap()
                 .unwrap();
-                assert_eq!(extended_block.block.round(), round);
+                assert_eq!(extended_block.block_header.round(), round);
                 assert_eq!(
-                    extended_block.block.author(),
+                    extended_block.block_header.author(),
                     core_fixture.core.context.own_index
                 );
 
@@ -2987,9 +2978,9 @@ mod test {
                 .await
                 .unwrap()
                 .unwrap();
-                assert_eq!(extended_block.block.round(), round);
+                assert_eq!(extended_block.block_header.round(), round);
                 assert_eq!(
-                    extended_block.block.author(),
+                    extended_block.block_header.author(),
                     core_fixture.core.context.own_index
                 );
 
@@ -3128,9 +3119,9 @@ mod test {
                 .await
                 .unwrap()
                 .unwrap();
-                assert_eq!(extended_block.block.round(), round);
+                assert_eq!(extended_block.block_header.round(), round);
                 assert_eq!(
-                    extended_block.block.author(),
+                    extended_block.block_header.author(),
                     core_fixture.core.context.own_index
                 );
 
@@ -3268,9 +3259,9 @@ mod test {
                 .await
                 .unwrap()
                 .unwrap();
-                assert_eq!(extended_block.block.round(), round);
+                assert_eq!(extended_block.block_header.round(), round);
                 assert_eq!(
-                    extended_block.block.author(),
+                    extended_block.block_header.author(),
                     core_fixture.core.context.own_index
                 );
 

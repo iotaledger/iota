@@ -18,7 +18,7 @@ use tokio::{
 use tracing::{trace, warn};
 
 use crate::{
-    block::{BlockAPI as _, ExtendedBlock, VerifiedBlock},
+    block_header::{BlockHeaderAPI as _, ExtendedBlock, VerifiedBlockHeader},
     context::Context,
     core::CoreSignalsReceivers,
     error::ConsensusResult,
@@ -85,7 +85,7 @@ impl Broadcaster {
         // produced for awhile. Even if the peer has acknowledged the last
         // block, the block might have been dropped afterwards if the peer
         // crashed.
-        let mut last_block: Option<VerifiedBlock> = None;
+        let mut last_block: Option<VerifiedBlockHeader> = None;
 
         // Retry last block with an interval.
         let mut retry_timer = tokio::time::interval(Self::LAST_BLOCK_RETRY_INTERVAL);
@@ -107,8 +107,12 @@ impl Broadcaster {
             network_client: Arc<C>,
             peer: AuthorityIndex,
             rtt_estimate: Duration,
-            block: VerifiedBlock,
-        ) -> (Result<ConsensusResult<()>, Elapsed>, Instant, VerifiedBlock) {
+            block: VerifiedBlockHeader,
+        ) -> (
+            Result<ConsensusResult<()>, Elapsed>,
+            Instant,
+            VerifiedBlockHeader,
+        ) {
             let start = Instant::now();
             let req_timeout = rtt_estimate.mul_f64(TIMEOUT_THRESHOLD_MULTIPLIER);
             // Use a minimum timeout of 5s so the receiver does not terminate the request
@@ -132,7 +136,7 @@ impl Broadcaster {
                 result = rx_block_broadcast.recv(), if requests.len() < BROADCAST_CONCURRENCY => {
                     let block = match result {
                         // Other info from ExtendedBlock are ignored, because Broadcaster is not used in production.
-                        Ok(block) => block.block,
+                        Ok(block) => block.block_header,
                         Err(broadcast::error::RecvError::Closed) => {
                             trace!("Sender to {peer} is shutting down!");
                             return;
@@ -203,7 +207,7 @@ mod test {
     use super::*;
     use crate::{
         Round,
-        block::{BlockRef, ExtendedBlock, TestBlock},
+        block_header::{BlockRef, ExtendedBlock, TestBlockHeader},
         commit::CommitRange,
         core::CoreSignals,
         network::BlockStream,
@@ -235,7 +239,7 @@ mod test {
         async fn send_block(
             &self,
             peer: AuthorityIndex,
-            block: &VerifiedBlock,
+            block: &VerifiedBlockHeader,
             _timeout: Duration,
         ) -> ConsensusResult<()> {
             let mut blocks_sent = self.blocks_sent.lock();
@@ -299,11 +303,11 @@ mod test {
         let _broadcaster =
             Broadcaster::new(context.clone(), network_client.clone(), &signals_receiver);
 
-        let block = VerifiedBlock::new_for_test(TestBlock::new(9, 1).build());
+        let block = VerifiedBlockHeader::new_for_test(TestBlockHeader::new(9, 1).build());
         assert!(
             core_signals
                 .new_block(ExtendedBlock {
-                    block: block.clone(),
+                    block_header: block.clone(),
                     excluded_ancestors: vec![],
                 })
                 .is_ok(),

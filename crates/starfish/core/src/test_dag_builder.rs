@@ -14,9 +14,9 @@ use starfish_config::AuthorityIndex;
 
 use crate::{
     CommitRef, CommittedSubDag,
-    block::{
-        BlockAPI, BlockDigest, BlockRef, BlockTimestampMs, Round, Slot, TestBlock, VerifiedBlock,
-        genesis_blocks,
+    block_header::{
+        BlockHeaderAPI, BlockHeaderDigest, BlockRef, BlockTimestampMs, Round, Slot,
+        TestBlockHeader, VerifiedBlockHeader, genesis_block_headers,
     },
     commit::{CertifiedCommit, CommitDigest, DEFAULT_WAVE_LENGTH, TrustedCommit},
     context::Context,
@@ -81,12 +81,12 @@ pub(crate) struct DagBuilder {
     pub(crate) context: Arc<Context>,
     pub(crate) leader_schedule: LeaderSchedule,
     // The genesis blocks
-    pub(crate) genesis: BTreeMap<BlockRef, VerifiedBlock>,
+    pub(crate) genesis: BTreeMap<BlockRef, VerifiedBlockHeader>,
     // The current set of ancestors that any new layer will attempt to connect to.
     pub(crate) last_ancestors: Vec<BlockRef>,
     // All blocks created by dag builder. Will be used to pretty print or to be
     // retrieved for testing/persiting to dag state.
-    pub(crate) blocks: BTreeMap<BlockRef, VerifiedBlock>,
+    pub(crate) blocks: BTreeMap<BlockRef, VerifiedBlockHeader>,
     // All the committed sub dags created by the dag builder.
     pub(crate) committed_sub_dags: Vec<(CommittedSubDag, TrustedCommit)>,
     pub(crate) last_committed_rounds: Vec<Round>,
@@ -99,8 +99,8 @@ pub(crate) struct DagBuilder {
 impl DagBuilder {
     pub(crate) fn new(context: Arc<Context>) -> Self {
         let leader_schedule = LeaderSchedule::new(context.clone(), LeaderSwapTable::default());
-        let genesis_blocks = genesis_blocks(context.clone());
-        let genesis: BTreeMap<BlockRef, VerifiedBlock> = genesis_blocks
+        let genesis_blocks = genesis_block_headers(context.clone());
+        let genesis: BTreeMap<BlockRef, VerifiedBlockHeader> = genesis_blocks
             .into_iter()
             .map(|block| (block.reference(), block))
             .collect();
@@ -119,7 +119,7 @@ impl DagBuilder {
         }
     }
 
-    pub(crate) fn blocks(&self, rounds: RangeInclusive<Round>) -> Vec<VerifiedBlock> {
+    pub(crate) fn blocks(&self, rounds: RangeInclusive<Round>) -> Vec<VerifiedBlockHeader> {
         assert!(
             !self.blocks.is_empty(),
             "No blocks have been created, please make sure that you have called build method"
@@ -128,10 +128,10 @@ impl DagBuilder {
             .iter()
             .filter_map(|(block_ref, block)| rounds.contains(&block_ref.round).then_some(block))
             .cloned()
-            .collect::<Vec<VerifiedBlock>>()
+            .collect::<Vec<VerifiedBlockHeader>>()
     }
 
-    pub(crate) fn all_blocks(&self) -> Vec<VerifiedBlock> {
+    pub(crate) fn all_blocks(&self) -> Vec<VerifiedBlockHeader> {
         assert!(
             !self.blocks.is_empty(),
             "No blocks have been created, please make sure that you have called build method"
@@ -155,11 +155,13 @@ impl DagBuilder {
             };
 
         struct BlockStorage {
-            blocks: BTreeMap<BlockRef, (VerifiedBlock, bool)>, /* the tuple represents the block
-                                                                * and whether it is committed */
+            blocks: BTreeMap<BlockRef, (VerifiedBlockHeader, bool)>, /* the tuple represents the
+                                                                      * block
+                                                                      * and whether it is
+                                                                      * committed */
         }
         impl BlockStoreAPI for BlockStorage {
-            fn get_blocks(&self, refs: &[BlockRef]) -> Vec<Option<VerifiedBlock>> {
+            fn get_blocks(&self, refs: &[BlockRef]) -> Vec<Option<VerifiedBlockHeader>> {
                 refs.iter()
                     .map(|block_ref| {
                         self.blocks
@@ -251,7 +253,7 @@ impl DagBuilder {
     pub(crate) fn leader_blocks(
         &self,
         rounds: RangeInclusive<Round>,
-    ) -> Vec<Option<VerifiedBlock>> {
+    ) -> Vec<Option<VerifiedBlockHeader>> {
         assert!(
             !self.blocks.is_empty(),
             "No blocks have been created, please make sure that you have called build method"
@@ -277,7 +279,7 @@ impl DagBuilder {
             .collect()
     }
 
-    pub(crate) fn leader_block(&self, round: Round) -> Option<VerifiedBlock> {
+    pub(crate) fn leader_block(&self, round: Round) -> Option<VerifiedBlockHeader> {
         assert!(
             !self.blocks.is_empty(),
             "No blocks have been created, please make sure that you have called build method"
@@ -352,8 +354,8 @@ impl DagBuilder {
         for (authority, ancestors) in connections {
             let author = authority.value() as u32;
             let base_ts = round as BlockTimestampMs * 1000;
-            let block = VerifiedBlock::new_for_test(
-                TestBlock::new(round, author)
+            let block = VerifiedBlockHeader::new_for_test(
+                TestBlockHeader::new(round, author)
                     .set_ancestors(ancestors)
                     .set_timestamp_ms(base_ts + author as u64)
                     .build(),
@@ -365,11 +367,19 @@ impl DagBuilder {
     }
 
     /// Gets all uncommitted blocks in a slot.
-    pub(crate) fn get_uncommitted_blocks_at_slot(&self, slot: Slot) -> Vec<VerifiedBlock> {
+    pub(crate) fn get_uncommitted_blocks_at_slot(&self, slot: Slot) -> Vec<VerifiedBlockHeader> {
         let mut blocks = vec![];
         for (_block_ref, block) in self.blocks.range((
-            Included(BlockRef::new(slot.round, slot.authority, BlockDigest::MIN)),
-            Included(BlockRef::new(slot.round, slot.authority, BlockDigest::MAX)),
+            Included(BlockRef::new(
+                slot.round,
+                slot.authority,
+                BlockHeaderDigest::MIN,
+            )),
+            Included(BlockRef::new(
+                slot.round,
+                slot.authority,
+                BlockHeaderDigest::MAX,
+            )),
         )) {
             blocks.push(block.clone())
         }
@@ -421,7 +431,7 @@ pub struct LayerBuilder<'a> {
     ancestors: Vec<BlockRef>,
 
     // Accumulated blocks to write to dag state
-    blocks: Vec<VerifiedBlock>,
+    blocks: Vec<VerifiedBlockHeader>,
 }
 
 #[expect(unused)]
@@ -722,8 +732,8 @@ impl<'a> LayerBuilder<'a> {
             for num_block in 0..num_blocks {
                 let author = authority.value() as u32;
                 let base_ts = round as BlockTimestampMs * 1000;
-                let block = VerifiedBlock::new_for_test(
-                    TestBlock::new(round, author)
+                let block = VerifiedBlockHeader::new_for_test(
+                    TestBlockHeader::new(round, author)
                         .set_ancestors(ancestors.clone())
                         .set_timestamp_ms(base_ts + (author + round + num_block) as u64)
                         .build(),

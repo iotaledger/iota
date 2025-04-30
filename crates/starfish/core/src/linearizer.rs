@@ -8,7 +8,7 @@ use parking_lot::RwLock;
 use starfish_config::AuthorityIndex;
 
 use crate::{
-    block::{BlockAPI, BlockRef, GENESIS_ROUND, VerifiedBlock},
+    block_header::{BlockHeaderAPI, BlockRef, GENESIS_ROUND, VerifiedBlockHeader},
     commit::{Commit, CommittedSubDag, TrustedCommit, sort_sub_dag_blocks},
     context::Context,
     dag_state::DagState,
@@ -19,7 +19,7 @@ use crate::{
 /// been mostly introduced for allowing to inject the test store in
 /// `DagBuilder`.
 pub(crate) trait BlockStoreAPI {
-    fn get_blocks(&self, refs: &[BlockRef]) -> Vec<Option<VerifiedBlock>>;
+    fn get_blocks(&self, refs: &[BlockRef]) -> Vec<Option<VerifiedBlockHeader>>;
 
     fn set_committed(&mut self, block_ref: &BlockRef) -> bool;
 
@@ -29,7 +29,7 @@ pub(crate) trait BlockStoreAPI {
 impl BlockStoreAPI
     for parking_lot::lock_api::RwLockWriteGuard<'_, parking_lot::RawRwLock, DagState>
 {
-    fn get_blocks(&self, refs: &[BlockRef]) -> Vec<Option<VerifiedBlock>> {
+    fn get_blocks(&self, refs: &[BlockRef]) -> Vec<Option<VerifiedBlockHeader>> {
         DagState::get_blocks(self, refs)
     }
 
@@ -69,7 +69,7 @@ impl Linearizer {
     /// (within previous sub-dags).
     fn collect_sub_dag_and_commit(
         &mut self,
-        leader_block: VerifiedBlock,
+        leader_block: VerifiedBlockHeader,
         reputation_scores_desc: Vec<(AuthorityIndex, u64)>,
     ) -> (CommittedSubDag, TrustedCommit) {
         let _s = self
@@ -127,10 +127,10 @@ impl Linearizer {
 
     pub(crate) fn linearize_sub_dag(
         context: &Context,
-        leader_block: VerifiedBlock,
+        leader_block: VerifiedBlockHeader,
         last_committed_rounds: Vec<u32>,
         dag_state: &mut impl BlockStoreAPI,
-    ) -> Vec<VerifiedBlock> {
+    ) -> Vec<VerifiedBlockHeader> {
         let leader_block_ref = leader_block.reference();
         let mut buffer = vec![leader_block];
 
@@ -150,7 +150,7 @@ impl Linearizer {
             while let Some(x) = buffer.pop() {
                 to_commit.push(x.clone());
 
-                let ancestors: Vec<VerifiedBlock> = dag_state
+                let ancestors: Vec<VerifiedBlockHeader> = dag_state
                     .get_blocks(
                         &x.ancestors()
                             .iter()
@@ -182,7 +182,7 @@ impl Linearizer {
             while let Some(x) = buffer.pop() {
                 to_commit.push(x.clone());
 
-                let ancestors: Vec<VerifiedBlock> = dag_state
+                let ancestors: Vec<VerifiedBlockHeader> = dag_state
                     .get_blocks(
                         &x.ancestors()
                             .iter()
@@ -219,7 +219,7 @@ impl Linearizer {
     // committed sub-dags.
     pub(crate) fn handle_commit(
         &mut self,
-        committed_leaders: Vec<VerifiedBlock>,
+        committed_leaders: Vec<VerifiedBlockHeader>,
     ) -> Vec<CommittedSubDag> {
         if committed_leaders.is_empty() {
             return vec![];

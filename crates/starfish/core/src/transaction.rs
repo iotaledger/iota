@@ -13,7 +13,7 @@ use tokio::sync::oneshot;
 use tracing::{error, warn};
 
 use crate::{
-    block::{BlockRef, Transaction},
+    block_header::{BlockRef, Transaction},
     context::Context,
 };
 
@@ -347,7 +347,7 @@ mod tests {
     use tokio::time::timeout;
 
     use crate::{
-        block::{BlockDigest, BlockRef},
+        block_header::{BlockHeaderDigest, BlockRef},
         block_verifier::SignedBlockVerifier,
         context::Context,
         transaction::{
@@ -439,7 +439,7 @@ mod tests {
                 ack_transactions(BlockRef::new(
                     i,
                     AuthorityIndex::new_for_test(0),
-                    BlockDigest::MIN,
+                    BlockHeaderDigest::MIN,
                 ));
             }
         }

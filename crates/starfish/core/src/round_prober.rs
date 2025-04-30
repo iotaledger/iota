@@ -31,8 +31,8 @@ use starfish_config::{AuthorityIndex, Committee};
 use tokio::{task::JoinHandle, time::MissedTickBehavior};
 
 use crate::{
-    BlockAPI as _, Round, context::Context, core_thread::CoreThreadDispatcher, dag_state::DagState,
-    network::NetworkClient,
+    BlockHeaderAPI as _, Round, context::Context, core_thread::CoreThreadDispatcher,
+    dag_state::DagState, network::NetworkClient,
 };
 
 /// A [`QuorumRound`] is a round range [low, high]. It is computed from
@@ -368,8 +368,8 @@ mod test {
 
     use super::QuorumRound;
     use crate::{
-        Round, TestBlock, VerifiedBlock,
-        block::BlockRef,
+        Round, TestBlockHeader, VerifiedBlockHeader,
+        block_header::BlockRef,
         commit::{CertifiedCommits, CommitRange},
         context::Context,
         core_thread::{CoreError, CoreThreadDispatcher},
@@ -414,7 +414,7 @@ mod test {
     impl CoreThreadDispatcher for FakeThreadDispatcher {
         async fn add_blocks(
             &self,
-            _blocks: Vec<VerifiedBlock>,
+            _blocks: Vec<VerifiedBlockHeader>,
         ) -> Result<BTreeSet<BlockRef>, CoreError> {
             unimplemented!()
         }
@@ -494,7 +494,7 @@ mod test {
         async fn send_block(
             &self,
             _peer: AuthorityIndex,
-            _serialized_block: &VerifiedBlock,
+            _serialized_block: &VerifiedBlockHeader,
             _timeout: Duration,
         ) -> ConsensusResult<()> {
             unimplemented!("Unimplemented")
@@ -594,7 +594,9 @@ mod test {
         let blocks = (0..NUM_AUTHORITIES)
             .map(|authority| {
                 let round = 110 + (authority as u32 * 10);
-                VerifiedBlock::new_for_test(TestBlock::new(round, authority as u32).build())
+                VerifiedBlockHeader::new_for_test(
+                    TestBlockHeader::new(round, authority as u32).build(),
+                )
             })
             .collect::<Vec<_>>();
 
