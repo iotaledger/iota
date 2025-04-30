@@ -519,12 +519,7 @@ mod execution_slot_tests {
         // Test intersection of non-overlapping slots with a gap between them
         let slot_1 = ExecutionSlot::new(1, 3);
         let slot_2 = ExecutionSlot::new(5, 9);
-        if let Some(intersection) = slot_1.intersection(&slot_2) {
-            assert_eq!(intersection, ExecutionSlot::new(5, 5));
-            assert_eq!(intersection.duration(), 0);
-        } else {
-            panic!("Expected intersection to be Some");
-        }
+        assert!(slot_1.intersection(&slot_2).is_none());
     }
 
     #[test]
@@ -616,6 +611,23 @@ pub mod shared_object_test_utils {
     ) -> Option<ExecutionTime> {
         shared_object_congestion_tracker.initialize_for_shared_objects(&shared_input_objects);
         shared_object_congestion_tracker.compute_tx_start_time(&shared_input_objects, tx_duration)
+    }
+
+    pub(crate) fn initialize_tracker_and_try_schedule(
+        shared_object_congestion_tracker: &mut SharedObjectCongestionTracker,
+        cert: &VerifiedExecutableTransaction,
+        max_execution_duration_per_commit: u64,
+        previously_deferred_tx_digests: &HashMap<TransactionDigest, DeferralKey>,
+        commit_round: CommitRound,
+    ) -> SequencingResult {
+        let shared_input_objects: Vec<_> = cert.shared_input_objects().collect();
+        shared_object_congestion_tracker.initialize_for_shared_objects(&shared_input_objects);
+        shared_object_congestion_tracker.try_schedule(
+            cert,
+            max_execution_duration_per_commit,
+            previously_deferred_tx_digests,
+            commit_round,
+        )
     }
 
     pub(crate) fn new_congestion_tracker_with_initial_value_for_test(
@@ -938,7 +950,8 @@ mod object_cost_tests {
         // `assign_min_free_execution_slot` and deferred otherwise.
         for mutable in [true, false].iter() {
             let tx = build_transaction(&[(shared_obj_1, *mutable)], tx_gas_budget);
-            let sequencing_result = shared_object_congestion_tracker.try_schedule(
+            let sequencing_result = initialize_tracker_and_try_schedule(
+                &mut shared_object_congestion_tracker,
                 &tx,
                 max_execution_duration_per_commit,
                 &HashMap::new(),
@@ -963,7 +976,8 @@ mod object_cost_tests {
                     tx_gas_budget,
                 );
                 if let SequencingResult::Defer(_, congested_objects) =
-                    shared_object_congestion_tracker.try_schedule(
+                    initialize_tracker_and_try_schedule(
+                        &mut shared_object_congestion_tracker,
                         &tx,
                         max_execution_duration_per_commit,
                         &HashMap::new(),
@@ -993,7 +1007,7 @@ mod object_cost_tests {
         let tx = build_transaction(&[(shared_obj_0, true)], 100);
         // Make try_schedule always defers transactions.
         let max_execution_duration_per_commit = 0;
-        let shared_object_congestion_tracker = SharedObjectCongestionTracker::new(mode, false);
+        let mut shared_object_congestion_tracker = SharedObjectCongestionTracker::new(mode, false);
 
         // Insert a random pre-existing transaction.
         let mut previously_deferred_tx_digests = HashMap::new();
@@ -1012,7 +1026,8 @@ mod object_cost_tests {
                 deferred_from_round,
             },
             _,
-        ) = shared_object_congestion_tracker.try_schedule(
+        ) = initialize_tracker_and_try_schedule(
+            &mut shared_object_congestion_tracker,
             &tx,
             max_execution_duration_per_commit,
             &previously_deferred_tx_digests,
@@ -1040,7 +1055,8 @@ mod object_cost_tests {
                 deferred_from_round,
             },
             _,
-        ) = shared_object_congestion_tracker.try_schedule(
+        ) = initialize_tracker_and_try_schedule(
+            &mut shared_object_congestion_tracker,
             &tx,
             max_execution_duration_per_commit,
             &previously_deferred_tx_digests,
@@ -1069,7 +1085,8 @@ mod object_cost_tests {
                 deferred_from_round,
             },
             _,
-        ) = shared_object_congestion_tracker.try_schedule(
+        ) = initialize_tracker_and_try_schedule(
+            &mut shared_object_congestion_tracker,
             &tx,
             max_execution_duration_per_commit,
             &previously_deferred_tx_digests,
@@ -1251,9 +1268,13 @@ mod object_cost_tests {
             );
 
         let tx = build_transaction(&[(object_id_0, true)], 1);
-        if let SequencingResult::Schedule(start_time) = shared_object_congestion_tracker
-            .try_schedule(&tx, max_execution_duration_per_commit, &HashMap::new(), 0)
-        {
+        if let SequencingResult::Schedule(start_time) = initialize_tracker_and_try_schedule(
+            &mut shared_object_congestion_tracker,
+            &tx,
+            max_execution_duration_per_commit,
+            &HashMap::new(),
+            0,
+        ) {
             // add the small transaction to the tracker
             // the object execution slots becomes:
             //               object 0       object 1
@@ -1284,9 +1305,13 @@ mod object_cost_tests {
         }
 
         let tx = build_transaction(&[(object_id_0, true), (object_id_1, true)], 1);
-        if let SequencingResult::Defer(_, congested_objects) = shared_object_congestion_tracker
-            .try_schedule(&tx, max_execution_duration_per_commit, &HashMap::new(), 0)
-        {
+        if let SequencingResult::Defer(_, congested_objects) = initialize_tracker_and_try_schedule(
+            &mut shared_object_congestion_tracker,
+            &tx,
+            max_execution_duration_per_commit,
+            &HashMap::new(),
+            0,
+        ) {
             assert_eq!(congested_objects.len(), 2);
             assert_eq!(congested_objects[0], object_id_0);
             assert_eq!(congested_objects[1], object_id_1);
@@ -1320,9 +1345,13 @@ mod object_cost_tests {
             MAX_EXECUTION_TIME
         );
 
-        if let SequencingResult::Defer(_, congested_objects) = shared_object_congestion_tracker
-            .try_schedule(&tx, max_execution_duration_per_commit, &HashMap::new(), 0)
-        {
+        if let SequencingResult::Defer(_, congested_objects) = initialize_tracker_and_try_schedule(
+            &mut shared_object_congestion_tracker,
+            &tx,
+            max_execution_duration_per_commit,
+            &HashMap::new(),
+            0,
+        ) {
             // both objects should be reported as congested.
             assert_eq!(congested_objects.len(), 2);
             assert_eq!(congested_objects[0], object_id_0);
@@ -1378,9 +1407,13 @@ mod object_cost_tests {
             ],
             MAX_EXECUTION_TIME - 1,
         );
-        if let SequencingResult::Defer(_, congested_objects) = shared_object_congestion_tracker
-            .try_schedule(&tx, max_execution_duration_per_commit, &HashMap::new(), 0)
-        {
+        if let SequencingResult::Defer(_, congested_objects) = initialize_tracker_and_try_schedule(
+            &mut shared_object_congestion_tracker,
+            &tx,
+            max_execution_duration_per_commit,
+            &HashMap::new(),
+            0,
+        ) {
             // objects 1, 2 and 3 should be reported as congested.
             assert_eq!(congested_objects.len(), 3);
             assert_eq!(congested_objects[0], object_id_0);
@@ -1439,9 +1472,13 @@ mod object_cost_tests {
             );
 
         let tx = build_transaction(&[(object_id_0, true)], u64::MAX);
-        if let SequencingResult::Defer(_, congested_objects) = shared_object_congestion_tracker
-            .try_schedule(&tx, max_execution_duration_per_commit, &HashMap::new(), 0)
-        {
+        if let SequencingResult::Defer(_, congested_objects) = initialize_tracker_and_try_schedule(
+            &mut shared_object_congestion_tracker,
+            &tx,
+            max_execution_duration_per_commit,
+            &HashMap::new(),
+            0,
+        ) {
             assert_eq!(congested_objects.len(), 1);
             assert_eq!(congested_objects[0], object_id_0);
         } else {
