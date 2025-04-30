@@ -34,6 +34,10 @@ pub struct Committee {
     validity_threshold: Stake,
     /// Protocol and network info of each authority.
     authorities: Vec<Authority>,
+    /// transaction data in a block is divided into info_length equal
+    /// parts(shards) that are encoded into n shards with erasure correcting
+    /// code info_length equals n-2f for the case with uniform stakes
+    info_length: usize,
 }
 
 impl Committee {
@@ -49,12 +53,18 @@ impl Committee {
         assert_ne!(total_stake, 0, "Total stake cannot be zero!");
         let quorum_threshold = 2 * total_stake / 3 + 1;
         let validity_threshold = total_stake.div_ceil(3);
+        let committee_size = authorities.len();
+        // f and info_length are computed for uniform stakes
+        // TODO: change when we implement encoding/decoding for non-uniform stakes
+        let f = (committee_size - 1) / 3;
+        let info_length = committee_size - 2 * f;
         Self {
             epoch,
             total_stake,
             quorum_threshold,
             validity_threshold,
             authorities,
+            info_length,
         }
     }
 
@@ -75,6 +85,10 @@ impl Committee {
 
     pub fn validity_threshold(&self) -> Stake {
         self.validity_threshold
+    }
+
+    pub fn info_length(&self) -> usize {
+        self.info_length
     }
 
     pub fn stake(&self, authority_index: AuthorityIndex) -> Stake {
