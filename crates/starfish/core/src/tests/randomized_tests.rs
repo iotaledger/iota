@@ -9,7 +9,7 @@ use rand::{Rng, SeedableRng, prelude::SliceRandom, rngs::StdRng};
 use starfish_config::AuthorityIndex;
 
 use crate::{
-    block::{BlockAPI, Slot},
+    block_header::{BlockHeaderAPI, Slot},
     block_manager::BlockManager,
     block_verifier::NoopBlockVerifier,
     commit::DecidedLeader,

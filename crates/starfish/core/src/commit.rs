@@ -17,7 +17,7 @@ use serde::{Deserialize, Serialize};
 use starfish_config::{AuthorityIndex, DIGEST_LENGTH, DefaultHashFunction};
 
 use crate::{
-    block::{BlockAPI, BlockRef, BlockTimestampMs, Round, Slot, VerifiedBlock},
+    block_header::{BlockHeaderAPI, BlockRef, BlockTimestampMs, Round, Slot, VerifiedBlockHeader},
     leader_scoring::ReputationScores,
     storage::Store,
 };
@@ -235,18 +235,18 @@ impl CertifiedCommits {
 #[derive(Clone, Debug)]
 pub(crate) struct CertifiedCommit {
     commit: Arc<TrustedCommit>,
-    blocks: Vec<VerifiedBlock>,
+    blocks: Vec<VerifiedBlockHeader>,
 }
 
 impl CertifiedCommit {
-    pub(crate) fn new_certified(commit: TrustedCommit, blocks: Vec<VerifiedBlock>) -> Self {
+    pub(crate) fn new_certified(commit: TrustedCommit, blocks: Vec<VerifiedBlockHeader>) -> Self {
         Self {
             commit: Arc::new(commit),
             blocks,
         }
     }
 
-    pub fn blocks(&self) -> &[VerifiedBlock] {
+    pub fn blocks(&self) -> &[VerifiedBlockHeader] {
         &self.blocks
     }
 }
@@ -346,7 +346,7 @@ pub struct CommittedSubDag {
     /// A reference to the leader of the sub-dag
     pub leader: BlockRef,
     /// All the committed blocks that are part of this sub-dag
-    pub blocks: Vec<VerifiedBlock>,
+    pub blocks: Vec<VerifiedBlockHeader>,
     /// The timestamp of the commit, obtained from the timestamp of the leader
     /// block.
     pub timestamp_ms: BlockTimestampMs,
@@ -364,7 +364,7 @@ impl CommittedSubDag {
     /// Creates a new committed sub dag.
     pub fn new(
         leader: BlockRef,
-        blocks: Vec<VerifiedBlock>,
+        blocks: Vec<VerifiedBlockHeader>,
         timestamp_ms: BlockTimestampMs,
         commit_ref: CommitRef,
         reputation_scores_desc: Vec<(AuthorityIndex, u64)>,
@@ -381,7 +381,7 @@ impl CommittedSubDag {
 
 // Sort the blocks of the sub-dag blocks by round number then authority index.
 // Any deterministic & stable algorithm works.
-pub(crate) fn sort_sub_dag_blocks(blocks: &mut [VerifiedBlock]) {
+pub(crate) fn sort_sub_dag_blocks(blocks: &mut [VerifiedBlockHeader]) {
     blocks.sort_by(|a, b| {
         a.round()
             .cmp(&b.round())
@@ -462,7 +462,7 @@ pub(crate) enum Decision {
 /// The status of a leader slot from the direct and indirect commit rules.
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) enum LeaderStatus {
-    Commit(VerifiedBlock),
+    Commit(VerifiedBlockHeader),
     Skip(Slot),
     Undecided(Slot),
 }
@@ -506,7 +506,7 @@ impl Display for LeaderStatus {
 /// Decision of each leader slot.
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) enum DecidedLeader {
-    Commit(VerifiedBlock),
+    Commit(VerifiedBlockHeader),
     Skip(Slot),
 }
 
@@ -521,7 +521,7 @@ impl DecidedLeader {
 
     // Converts to committed block if the decision is to commit. Returns None
     // otherwise.
-    pub(crate) fn into_committed_block(self) -> Option<VerifiedBlock> {
+    pub(crate) fn into_committed_block(self) -> Option<VerifiedBlockHeader> {
         match self {
             Self::Commit(block) => Some(block),
             Self::Skip(_) => None,
@@ -649,7 +649,7 @@ mod tests {
 
     use super::*;
     use crate::{
-        block::TestBlock,
+        block_header::TestBlockHeader,
         context::Context,
         storage::{WriteBatch, mem_store::MemStore},
     };
@@ -670,8 +670,8 @@ mod tests {
             .authorities()
             .map(|index| {
                 let author_idx = index.0.value() as u32;
-                let block = TestBlock::new(0, author_idx).build();
-                VerifiedBlock::new_for_test(block)
+                let block = TestBlockHeader::new(0, author_idx).build();
+                VerifiedBlockHeader::new_for_test(block)
             })
             .map(|block| (block.reference(), block))
             .unzip();
@@ -685,8 +685,8 @@ mod tests {
             let mut new_ancestors = vec![];
             for author in 0..num_authorities {
                 let base_ts = round as BlockTimestampMs * 1000;
-                let block = VerifiedBlock::new_for_test(
-                    TestBlock::new(round, author)
+                let block = VerifiedBlockHeader::new_for_test(
+                    TestBlockHeader::new(round, author)
                         .set_timestamp_ms(base_ts + (author + round) as u64)
                         .set_ancestors(ancestors.clone())
                         .build(),

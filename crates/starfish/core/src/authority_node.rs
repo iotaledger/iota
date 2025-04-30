@@ -412,11 +412,7 @@ where
 mod tests {
     #![allow(non_snake_case)]
 
-    use std::{
-        collections::{BTreeMap, BTreeSet},
-        sync::Arc,
-        time::Duration,
-    };
+    use std::{collections::BTreeMap, sync::Arc, time::Duration};
 
     use iota_metrics::monitored_mpsc::{UnboundedReceiver, unbounded_channel};
     use iota_protocol_config::ProtocolConfig;
@@ -430,7 +426,7 @@ mod tests {
     use super::*;
     use crate::{
         CommittedSubDag,
-        block::{BlockAPI as _, GENESIS_ROUND},
+        block_header::{BlockHeaderAPI as _, GENESIS_ROUND},
         transaction::NoopTransactionVerifier,
     };
 
@@ -478,7 +474,7 @@ mod tests {
         authority.stop().await;
     }
 
-    // TODO: build AuthorityFixture.
+    // TODO: add transactions to control how the consensus works
     #[rstest]
     #[tokio::test(flavor = "current_thread")]
     async fn test_authority_committee(
@@ -515,42 +511,6 @@ mod tests {
             authorities.push(authority);
         }
 
-        const NUM_TRANSACTIONS: u8 = 15;
-        let mut submitted_transactions = BTreeSet::<Vec<u8>>::new();
-        for i in 0..NUM_TRANSACTIONS {
-            let txn = vec![i; 16];
-            submitted_transactions.insert(txn.clone());
-            authorities[i as usize % authorities.len()]
-                .transaction_client()
-                .submit(vec![txn])
-                .await
-                .unwrap();
-        }
-
-        for receiver in &mut output_receivers {
-            let mut expected_transactions = submitted_transactions.clone();
-            loop {
-                let committed_subdag =
-                    tokio::time::timeout(Duration::from_secs(1), receiver.recv())
-                        .await
-                        .unwrap()
-                        .unwrap();
-                for b in committed_subdag.blocks {
-                    for txn in b.transactions().iter().map(|t| t.data().to_vec()) {
-                        assert!(
-                            expected_transactions.remove(&txn),
-                            "Transaction not submitted or already seen: {:?}",
-                            txn
-                        );
-                    }
-                }
-                assert_eq!(committed_subdag.reputation_scores_desc, vec![]);
-                if expected_transactions.is_empty() {
-                    break;
-                }
-            }
-        }
-
         // Stop authority 1.
         let index = committee.to_authority_index(1).unwrap();
         authorities.remove(index.value()).stop().await;
@@ -578,6 +538,7 @@ mod tests {
         }
     }
 
+    // TODO: add transactions to control how the consensus works
     #[rstest]
     #[tokio::test(flavor = "current_thread")]
     async fn test_small_committee(
@@ -612,42 +573,6 @@ mod tests {
             boot_counters[index] += 1;
             output_receivers.push(receiver);
             authorities.push(authority);
-        }
-
-        const NUM_TRANSACTIONS: u8 = 15;
-        let mut submitted_transactions = BTreeSet::<Vec<u8>>::new();
-        for i in 0..NUM_TRANSACTIONS {
-            let txn = vec![i; 16];
-            submitted_transactions.insert(txn.clone());
-            authorities[i as usize % authorities.len()]
-                .transaction_client()
-                .submit(vec![txn])
-                .await
-                .unwrap();
-        }
-
-        for receiver in &mut output_receivers {
-            let mut expected_transactions = submitted_transactions.clone();
-            loop {
-                let committed_subdag =
-                    tokio::time::timeout(Duration::from_secs(1), receiver.recv())
-                        .await
-                        .unwrap()
-                        .unwrap();
-                for b in committed_subdag.blocks {
-                    for txn in b.transactions().iter().map(|t| t.data().to_vec()) {
-                        assert!(
-                            expected_transactions.remove(&txn),
-                            "Transaction not submitted or already seen: {:?}",
-                            txn
-                        );
-                    }
-                }
-                assert_eq!(committed_subdag.reputation_scores_desc, vec![]);
-                if expected_transactions.is_empty() {
-                    break;
-                }
-            }
         }
 
         // Stop authority 0.

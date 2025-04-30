@@ -14,7 +14,7 @@ use tokio::time::Instant;
 
 #[cfg(test)]
 use crate::metrics::test_metrics;
-use crate::{block::BlockTimestampMs, metrics::Metrics};
+use crate::{block_header::BlockTimestampMs, metrics::Metrics};
 
 /// Context contains per-epoch configuration and metrics shared by all
 /// components of this authority.

@@ -16,7 +16,10 @@ use typed_store::{
 
 use super::{CommitInfo, Store, WriteBatch};
 use crate::{
-    block::{BlockAPI as _, BlockDigest, BlockRef, Round, SignedBlock, VerifiedBlock},
+    block_header::{
+        BlockHeaderAPI as _, BlockHeaderDigest, BlockRef, Round, SignedBlockHeader,
+        VerifiedBlockHeader,
+    },
     commit::{CommitAPI as _, CommitDigest, CommitIndex, CommitRange, CommitRef, TrustedCommit},
     error::{ConsensusError, ConsensusResult},
 };
@@ -24,9 +27,9 @@ use crate::{
 /// Persistent storage with RocksDB.
 pub(crate) struct RocksDBStore {
     /// Stores SignedBlock by refs.
-    blocks: DBMap<(Round, AuthorityIndex, BlockDigest), Bytes>,
+    blocks: DBMap<(Round, AuthorityIndex, BlockHeaderDigest), Bytes>,
     /// A secondary index that orders refs first by authors.
-    digests_by_authorities: DBMap<(AuthorityIndex, Round, BlockDigest), ()>,
+    digests_by_authorities: DBMap<(AuthorityIndex, Round, BlockHeaderDigest), ()>,
     /// Maps commit index to Commit.
     commits: DBMap<(CommitIndex, CommitDigest), Bytes>,
     /// Collects votes on commits.
@@ -74,8 +77,8 @@ impl RocksDBStore {
         .expect("Cannot open database");
 
         let (blocks, digests_by_authorities, commits, commit_votes, commit_info) = reopen!(&rocksdb,
-            Self::BLOCKS_CF;<(Round, AuthorityIndex, BlockDigest), bytes::Bytes>,
-            Self::DIGESTS_BY_AUTHORITIES_CF;<(AuthorityIndex, Round, BlockDigest), ()>,
+            Self::BLOCKS_CF;<(Round, AuthorityIndex, BlockHeaderDigest), bytes::Bytes>,
+            Self::DIGESTS_BY_AUTHORITIES_CF;<(AuthorityIndex, Round, BlockHeaderDigest), ()>,
             Self::COMMITS_CF;<(CommitIndex, CommitDigest), Bytes>,
             Self::COMMIT_VOTES_CF;<(CommitIndex, CommitDigest, BlockRef), ()>,
             Self::COMMIT_INFO_CF;<(CommitIndex, CommitDigest), CommitInfo>
@@ -146,7 +149,7 @@ impl Store for RocksDBStore {
         Ok(())
     }
 
-    fn read_blocks(&self, refs: &[BlockRef]) -> ConsensusResult<Vec<Option<VerifiedBlock>>> {
+    fn read_blocks(&self, refs: &[BlockRef]) -> ConsensusResult<Vec<Option<VerifiedBlockHeader>>> {
         let keys = refs
             .iter()
             .map(|r| (r.round, r.author, r.digest))
@@ -155,10 +158,10 @@ impl Store for RocksDBStore {
         let mut blocks = vec![];
         for (key, serialized) in refs.iter().zip(serialized) {
             if let Some(serialized) = serialized {
-                let signed_block: SignedBlock =
+                let signed_block: SignedBlockHeader =
                     bcs::from_bytes(&serialized).map_err(ConsensusError::MalformedBlock)?;
                 // Only accepted blocks should have been written to storage.
-                let block = VerifiedBlock::new_verified(signed_block, serialized);
+                let block = VerifiedBlockHeader::new_verified(signed_block, serialized);
                 // Makes sure block data is not corrupted, by comparing digests.
                 assert_eq!(*key, block.reference());
                 blocks.push(Some(block));
@@ -178,12 +181,12 @@ impl Store for RocksDBStore {
         Ok(exist)
     }
 
-    fn contains_block_at_slot(&self, slot: crate::block::Slot) -> ConsensusResult<bool> {
+    fn contains_block_at_slot(&self, slot: crate::block_header::Slot) -> ConsensusResult<bool> {
         let found = self
             .digests_by_authorities
             .safe_range_iter((
-                Included((slot.authority, slot.round, BlockDigest::MIN)),
-                Included((slot.authority, slot.round, BlockDigest::MAX)),
+                Included((slot.authority, slot.round, BlockHeaderDigest::MIN)),
+                Included((slot.authority, slot.round, BlockHeaderDigest::MAX)),
             ))
             .next()
             .is_some();
@@ -194,11 +197,11 @@ impl Store for RocksDBStore {
         &self,
         author: AuthorityIndex,
         start_round: Round,
-    ) -> ConsensusResult<Vec<VerifiedBlock>> {
+    ) -> ConsensusResult<Vec<VerifiedBlockHeader>> {
         let mut refs = vec![];
         for kv in self.digests_by_authorities.safe_range_iter((
-            Included((author, start_round, BlockDigest::MIN)),
-            Included((author, Round::MAX, BlockDigest::MAX)),
+            Included((author, start_round, BlockHeaderDigest::MIN)),
+            Included((author, Round::MAX, BlockHeaderDigest::MAX)),
         )) {
             let ((author, round, digest), _) = kv?;
             refs.push(BlockRef::new(round, author, digest));
@@ -222,14 +225,14 @@ impl Store for RocksDBStore {
         author: AuthorityIndex,
         num_of_rounds: u64,
         before_round: Option<Round>,
-    ) -> ConsensusResult<Vec<VerifiedBlock>> {
+    ) -> ConsensusResult<Vec<VerifiedBlockHeader>> {
         let before_round = before_round.unwrap_or(Round::MAX);
         let mut refs = std::collections::VecDeque::new();
         for kv in self
             .digests_by_authorities
             .safe_range_iter((
-                Included((author, Round::MIN, BlockDigest::MIN)),
-                Included((author, before_round, BlockDigest::MAX)),
+                Included((author, Round::MIN, BlockHeaderDigest::MIN)),
+                Included((author, before_round, BlockHeaderDigest::MAX)),
             ))
             .skip_to_last()
             .reverse()
