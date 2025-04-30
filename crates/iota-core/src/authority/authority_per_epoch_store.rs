@@ -1777,6 +1777,9 @@ impl AuthorityPerEpochStore {
     }
 
     fn get_max_execution_duration_per_commit(&self) -> Option<ExecutionTime> {
+        // The old name for this config parameter referred to "cost", but the current
+        // implementation of the shared object congestion tracker uses the term
+        // "execution duration" to describe the same concept.
         self.protocol_config()
             .max_accumulated_txn_cost_per_object_in_mysticeti_commit_as_option()
     }
@@ -1807,6 +1810,10 @@ impl AuthorityPerEpochStore {
         if let Some(max_execution_duration_per_commit) =
             self.get_max_execution_duration_per_commit()
         {
+            // Initialise the free execution slots for the objects that are not in the
+            // tracker.
+            let shared_input_objects: Vec<_> = cert.shared_input_objects().collect();
+            shared_object_congestion_tracker.initialize_for_shared_objects(&shared_input_objects);
             // Defer transaction if it uses shared objects that are congested.
             match shared_object_congestion_tracker.try_schedule(
                 cert,
@@ -3096,7 +3103,11 @@ impl AuthorityPerEpochStore {
                 .congestion_control_min_free_execution_slot(),
         );
         let mut shared_object_using_randomness_congestion_tracker =
-            shared_object_congestion_tracker.clone();
+            SharedObjectCongestionTracker::new(
+                self.protocol_config().per_object_congestion_control_mode(),
+                self.protocol_config()
+                    .congestion_control_min_free_execution_slot(),
+            );
 
         fail_point_arg!(
             "initial_congestion_tracker",
@@ -3485,20 +3496,12 @@ impl AuthorityPerEpochStore {
                                     ConsensusCertificateResult::Deferred(deferral_key)
                                 } else {
                                     // Cancel the transaction that has been deferred for too long.
-                                    if congested_objects.is_empty() {
-                                        debug!(
-                                            "Cancelling consensus certificate for transaction {:?} with deferral key {:?}. No single congested object is responsible for the final deferral, but the combination of all objects did not allow scheduling.",
-                                            certificate.digest(),
-                                            deferral_key
-                                        );
-                                    } else {
-                                        debug!(
-                                            "Cancelling consensus certificate for transaction {:?} with deferral key {:?} due to congestion on objects {:?}",
-                                            certificate.digest(),
-                                            deferral_key,
-                                            congested_objects
-                                        );
-                                    }
+                                    debug!(
+                                        "Cancelling consensus certificate for transaction {:?} with deferral key {:?} due to congestion on objects {:?}",
+                                        certificate.digest(),
+                                        deferral_key,
+                                        congested_objects
+                                    );
                                     ConsensusCertificateResult::Cancelled((
                                         certificate,
                                         CancelConsensusCertificateReason::CongestionOnObjects(
