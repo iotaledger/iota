@@ -968,7 +968,6 @@ impl std::fmt::Display for NameCommandResult {
                         nft.id().to_string(),
                         nft.domain_name().to_owned(),
                         format!("{} ({expiration_datetime})", nft.expiration_timestamp_ms()),
-                        nft.image_url().to_owned(),
                     ]);
                 }
 
