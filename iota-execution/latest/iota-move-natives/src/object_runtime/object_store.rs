@@ -622,7 +622,7 @@ impl<'a> ChildObjectStore<'a> {
                     inner,
                     parent,
                     child,
-                    SequenceNumber::MAX_VALID,
+                    SequenceNumber::MAX_VALID_EXCL,
                     true
                 );
                 let Some(move_obj) = obj_opt.as_ref().map(|obj| obj.data.try_as_move().unwrap())

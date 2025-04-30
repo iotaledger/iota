@@ -1122,7 +1122,7 @@ async fn test_dry_run_dev_inspect_max_gas_version() {
     let (fullnode, _object_basics) = publish_object_basics(fullnode).await;
     let gas_object = Object::with_id_owner_version_for_testing(
         gas_object_id,
-        SequenceNumber::from_u64(SequenceNumber::MAX_VALID.value() - 1),
+        SequenceNumber::from_u64(SequenceNumber::MAX_VALID_EXCL.value() - 1),
         sender,
     );
     let gas_object_ref = gas_object.compute_object_reference();
@@ -1258,7 +1258,7 @@ async fn test_handle_transfer_transaction_with_max_sequence_number() {
     let gas_object_id = ObjectID::random();
     let recipient = dbg_addr(2);
     let authority_state = init_state_with_ids_and_versions(vec![
-        (sender, object_id, SequenceNumber::MAX_VALID),
+        (sender, object_id, SequenceNumber::MAX_VALID_EXCL),
         (sender, gas_object_id, SequenceNumber::new()),
     ])
     .await;
@@ -1297,8 +1297,10 @@ async fn test_handle_transfer_transaction_with_max_sequence_number() {
 #[tokio::test]
 async fn test_handle_shared_object_with_max_sequence_number() {
     let (authority, _fullnode, transaction, _, _) =
-        construct_shared_object_transaction_with_sequence_number(Some(SequenceNumber::MAX_VALID))
-            .await;
+        construct_shared_object_transaction_with_sequence_number(Some(
+            SequenceNumber::MAX_VALID_EXCL,
+        ))
+        .await;
     let epoch_store = authority.load_epoch_store_one_call_per_task();
     // Submit the transaction and assemble a certificate.
     let response = authority

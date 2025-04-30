@@ -1313,14 +1313,14 @@ fn create_genesis_transaction(
             .into_iter()
             .map(|mut object| {
                 if let Some(o) = object.data.try_as_move_mut() {
-                    o.decrement_version_to(SequenceNumber::MIN_VALID);
+                    o.decrement_version_to(SequenceNumber::MIN_VALID_INCL);
                 }
 
                 if let Owner::Shared {
                     initial_shared_version,
                 } = &mut object.owner
                 {
-                    *initial_shared_version = SequenceNumber::MIN_VALID;
+                    *initial_shared_version = SequenceNumber::MIN_VALID_INCL;
                 }
 
                 let object = object.into_inner();
