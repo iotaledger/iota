@@ -30,6 +30,7 @@ prometheus.workspace = true
 prost.workspace = true
 quinn-proto.workspace = true
 rand.workspace = true
+reed-solomon-simd = { version = "3.0.1" }
 rustls.workspace = true
 serde.workspace = true
 strum_macros.workspace = true
