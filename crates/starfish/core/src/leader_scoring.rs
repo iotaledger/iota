@@ -13,8 +13,8 @@ use serde::{Deserialize, Serialize};
 use starfish_config::AuthorityIndex;
 
 use crate::{
-    Round, VerifiedBlock,
-    block::{BlockAPI, BlockDigest, BlockRef, Slot},
+    Round, VerifiedBlockHeader,
+    block_header::{BlockHeaderAPI, BlockHeaderDigest, BlockRef, Slot},
     commit::{CommitRange, CommittedSubDag},
     context::Context,
     stake_aggregator::{QuorumThreshold, StakeAggregator},
@@ -334,7 +334,7 @@ pub(crate) struct UnscoredSubdag {
     // that the CommittedSubDag instances are contiguous in commit index order.
     // Therefore we can guarantee the blocks of UnscoredSubdag are also sorted
     // via the commit index.
-    pub(crate) blocks: BTreeMap<BlockRef, VerifiedBlock>,
+    pub(crate) blocks: BTreeMap<BlockRef, VerifiedBlockHeader>,
 }
 
 impl UnscoredSubdag {
@@ -382,7 +382,7 @@ impl UnscoredSubdag {
     pub(crate) fn find_supported_leader_block(
         &self,
         leader_slot: Slot,
-        from: &VerifiedBlock,
+        from: &VerifiedBlockHeader,
     ) -> Option<BlockRef> {
         if from.round() < leader_slot.round {
             return None;
@@ -413,33 +413,26 @@ impl UnscoredSubdag {
 
     pub(crate) fn is_vote(
         &self,
-        potential_vote: &VerifiedBlock,
-        leader_block: &VerifiedBlock,
+        potential_vote: &VerifiedBlockHeader,
+        leader_block: &VerifiedBlockHeader,
     ) -> bool {
         let reference = leader_block.reference();
         let leader_slot = Slot::from(reference);
         self.find_supported_leader_block(leader_slot, potential_vote) == Some(reference)
     }
 
-    pub(crate) fn get_blocks_at_slot(&self, slot: Slot) -> Vec<VerifiedBlock> {
+    pub(crate) fn get_blocks_at_slot(&self, slot: Slot) -> Vec<VerifiedBlockHeader> {
         let mut blocks = vec![];
         for (_block_ref, block) in self.blocks.range((
-            Included(BlockRef::new(slot.round, slot.authority, BlockDigest::MIN)),
-            Included(BlockRef::new(slot.round, slot.authority, BlockDigest::MAX)),
-        )) {
-            blocks.push(block.clone())
-        }
-        blocks
-    }
-
-    pub(crate) fn get_blocks_at_round(&self, round: Round) -> Vec<VerifiedBlock> {
-        let mut blocks = vec![];
-        for (_block_ref, block) in self.blocks.range((
-            Included(BlockRef::new(round, AuthorityIndex::ZERO, BlockDigest::MIN)),
-            Excluded(BlockRef::new(
-                round + 1,
-                AuthorityIndex::ZERO,
-                BlockDigest::MIN,
+            Included(BlockRef::new(
+                slot.round,
+                slot.authority,
+                BlockHeaderDigest::MIN,
+            )),
+            Included(BlockRef::new(
+                slot.round,
+                slot.authority,
+                BlockHeaderDigest::MAX,
             )),
         )) {
             blocks.push(block.clone())
@@ -447,7 +440,26 @@ impl UnscoredSubdag {
         blocks
     }
 
-    pub(crate) fn get_block(&self, block_ref: &BlockRef) -> Option<VerifiedBlock> {
+    pub(crate) fn get_blocks_at_round(&self, round: Round) -> Vec<VerifiedBlockHeader> {
+        let mut blocks = vec![];
+        for (_block_ref, block) in self.blocks.range((
+            Included(BlockRef::new(
+                round,
+                AuthorityIndex::ZERO,
+                BlockHeaderDigest::MIN,
+            )),
+            Excluded(BlockRef::new(
+                round + 1,
+                AuthorityIndex::ZERO,
+                BlockHeaderDigest::MIN,
+            )),
+        )) {
+            blocks.push(block.clone())
+        }
+        blocks
+    }
+
+    pub(crate) fn get_block(&self, block_ref: &BlockRef) -> Option<VerifiedBlockHeader> {
         self.blocks.get(block_ref).cloned()
     }
 }
@@ -588,7 +600,7 @@ mod tests {
 
         let blocks = vec![];
         let unscored_subdags = vec![CommittedSubDag::new(
-            BlockRef::new(1, AuthorityIndex::ZERO, BlockDigest::MIN),
+            BlockRef::new(1, AuthorityIndex::ZERO, BlockHeaderDigest::MIN),
             blocks,
             context.clock.timestamp_utc_ms(),
             CommitRef::new(1, CommitDigest::MIN),

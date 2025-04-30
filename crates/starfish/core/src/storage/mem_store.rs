@@ -12,7 +12,9 @@ use starfish_config::AuthorityIndex;
 
 use super::{Store, WriteBatch};
 use crate::{
-    block::{BlockAPI as _, BlockDigest, BlockRef, Round, Slot, VerifiedBlock},
+    block_header::{
+        BlockHeaderAPI as _, BlockHeaderDigest, BlockRef, Round, Slot, VerifiedBlockHeader,
+    },
     commit::{
         CommitAPI as _, CommitDigest, CommitIndex, CommitInfo, CommitRange, CommitRef,
         TrustedCommit,
@@ -26,8 +28,8 @@ pub(crate) struct MemStore {
 }
 
 struct Inner {
-    blocks: BTreeMap<(Round, AuthorityIndex, BlockDigest), VerifiedBlock>,
-    digests_by_authorities: BTreeSet<(AuthorityIndex, Round, BlockDigest)>,
+    blocks: BTreeMap<(Round, AuthorityIndex, BlockHeaderDigest), VerifiedBlockHeader>,
+    digests_by_authorities: BTreeSet<(AuthorityIndex, Round, BlockHeaderDigest)>,
     commits: BTreeMap<(CommitIndex, CommitDigest), TrustedCommit>,
     commit_votes: BTreeSet<(CommitIndex, CommitDigest, BlockRef)>,
     commit_info: BTreeMap<(CommitIndex, CommitDigest), CommitInfo>,
@@ -84,7 +86,7 @@ impl Store for MemStore {
         Ok(())
     }
 
-    fn read_blocks(&self, refs: &[BlockRef]) -> ConsensusResult<Vec<Option<VerifiedBlock>>> {
+    fn read_blocks(&self, refs: &[BlockRef]) -> ConsensusResult<Vec<Option<VerifiedBlockHeader>>> {
         let inner = self.inner.read();
         let blocks = refs
             .iter()
@@ -106,12 +108,12 @@ impl Store for MemStore {
         &self,
         author: AuthorityIndex,
         start_round: Round,
-    ) -> ConsensusResult<Vec<VerifiedBlock>> {
+    ) -> ConsensusResult<Vec<VerifiedBlockHeader>> {
         let inner = self.inner.read();
         let mut refs = vec![];
         for &(author, round, digest) in inner.digests_by_authorities.range((
-            Included((author, start_round, BlockDigest::MIN)),
-            Included((author, Round::MAX, BlockDigest::MAX)),
+            Included((author, start_round, BlockHeaderDigest::MIN)),
+            Included((author, Round::MAX, BlockHeaderDigest::MAX)),
         )) {
             refs.push(BlockRef::new(round, author, digest));
         }
@@ -132,8 +134,8 @@ impl Store for MemStore {
         let found = inner
             .digests_by_authorities
             .range((
-                Included((slot.authority, slot.round, BlockDigest::MIN)),
-                Included((slot.authority, slot.round, BlockDigest::MAX)),
+                Included((slot.authority, slot.round, BlockHeaderDigest::MIN)),
+                Included((slot.authority, slot.round, BlockHeaderDigest::MAX)),
             ))
             .next()
             .is_some();
@@ -145,7 +147,7 @@ impl Store for MemStore {
         author: AuthorityIndex,
         num_of_rounds: u64,
         before_round: Option<Round>,
-    ) -> ConsensusResult<Vec<VerifiedBlock>> {
+    ) -> ConsensusResult<Vec<VerifiedBlockHeader>> {
         let before_round = before_round.unwrap_or(Round::MAX);
         let mut refs = VecDeque::new();
         for &(author, round, digest) in self
@@ -153,8 +155,8 @@ impl Store for MemStore {
             .read()
             .digests_by_authorities
             .range((
-                Included((author, Round::MIN, BlockDigest::MIN)),
-                Included((author, before_round, BlockDigest::MAX)),
+                Included((author, Round::MIN, BlockHeaderDigest::MIN)),
+                Included((author, before_round, BlockHeaderDigest::MAX)),
             ))
             .rev()
             .take(num_of_rounds as usize)

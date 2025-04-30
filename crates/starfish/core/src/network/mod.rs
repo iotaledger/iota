@@ -31,7 +31,7 @@ use starfish_config::{AuthorityIndex, NetworkKeyPair};
 
 use crate::{
     Round,
-    block::{BlockRef, ExtendedBlock, VerifiedBlock},
+    block_header::{BlockRef, ExtendedBlock, VerifiedBlockHeader},
     commit::{CommitRange, TrustedCommit},
     context::Context,
     error::ConsensusResult,
@@ -72,7 +72,7 @@ pub(crate) trait NetworkClient: Send + Sync + Sized + 'static {
     async fn send_block(
         &self,
         peer: AuthorityIndex,
-        block: &VerifiedBlock,
+        block: &VerifiedBlockHeader,
         timeout: Duration,
     ) -> ConsensusResult<()>;
 
@@ -166,7 +166,7 @@ pub(crate) trait NetworkService: Send + Sync + 'static {
         &self,
         peer: AuthorityIndex,
         commit_range: CommitRange,
-    ) -> ConsensusResult<(Vec<TrustedCommit>, Vec<VerifiedBlock>)>;
+    ) -> ConsensusResult<(Vec<TrustedCommit>, Vec<VerifiedBlockHeader>)>;
 
     /// Handles the request to fetch the latest block for the provided
     /// `authorities`.
@@ -216,7 +216,7 @@ pub(crate) struct ExtendedSerializedBlock {
 impl From<ExtendedBlock> for ExtendedSerializedBlock {
     fn from(extended_block: ExtendedBlock) -> Self {
         Self {
-            block: extended_block.block.serialized().clone(),
+            block: extended_block.block_header.serialized().clone(),
             excluded_ancestors: extended_block
                 .excluded_ancestors
                 .iter()

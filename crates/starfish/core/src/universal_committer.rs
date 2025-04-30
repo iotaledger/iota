@@ -9,7 +9,7 @@ use starfish_config::AuthorityIndex;
 
 use crate::{
     base_committer::BaseCommitter,
-    block::{GENESIS_ROUND, Round, Slot},
+    block_header::{GENESIS_ROUND, Round, Slot},
     commit::{DecidedLeader, Decision},
     context::Context,
     dag_state::DagState,

@@ -512,7 +512,9 @@ mod tests {
 
     use super::*;
     use crate::{
-        block::{BlockDigest, BlockRef, BlockTimestampMs, TestBlock, VerifiedBlock},
+        block_header::{
+            BlockHeaderDigest, BlockRef, BlockTimestampMs, TestBlockHeader, VerifiedBlockHeader,
+        },
         commit::{CommitDigest, CommitInfo, CommitRef, CommittedSubDag, TrustedCommit},
         storage::{Store, WriteBatch, mem_store::MemStore},
         test_dag_builder::DagBuilder,
@@ -752,7 +754,7 @@ mod tests {
             Arc::new(MemStore::new()),
         )));
         let unscored_subdags = vec![CommittedSubDag::new(
-            BlockRef::new(1, AuthorityIndex::ZERO, BlockDigest::MIN),
+            BlockRef::new(1, AuthorityIndex::ZERO, BlockHeaderDigest::MIN),
             vec![],
             context.clock.timestamp_utc_ms(),
             CommitRef::new(1, CommitDigest::MIN),
@@ -792,8 +794,8 @@ mod tests {
             .authorities()
             .map(|index| {
                 let author_idx = index.0.value() as u32;
-                let block = TestBlock::new(0, author_idx).build();
-                VerifiedBlock::new_for_test(block)
+                let block = TestBlockHeader::new(0, author_idx).build();
+                VerifiedBlockHeader::new_for_test(block)
             })
             .map(|block| (block.reference(), block))
             .unzip();
@@ -805,8 +807,8 @@ mod tests {
             let mut new_ancestors = vec![];
             for author in 0..num_authorities {
                 let base_ts = round as BlockTimestampMs * 1000;
-                let block = VerifiedBlock::new_for_test(
-                    TestBlock::new(round, author)
+                let block = VerifiedBlockHeader::new_for_test(
+                    TestBlockHeader::new(round, author)
                         .set_timestamp_ms(base_ts + (author + round) as u64)
                         .set_ancestors(ancestors.clone())
                         .build(),
@@ -1062,7 +1064,7 @@ mod tests {
             Arc::new(MemStore::new()),
         )));
         let unscored_subdags = vec![CommittedSubDag::new(
-            BlockRef::new(1, AuthorityIndex::ZERO, BlockDigest::MIN),
+            BlockRef::new(1, AuthorityIndex::ZERO, BlockHeaderDigest::MIN),
             vec![],
             context.clock.timestamp_utc_ms(),
             CommitRef::new(1, CommitDigest::MIN),
@@ -1105,8 +1107,8 @@ mod tests {
             .authorities()
             .map(|index| {
                 let author_idx = index.0.value() as u32;
-                let block = TestBlock::new(0, author_idx).build();
-                VerifiedBlock::new_for_test(block)
+                let block = TestBlockHeader::new(0, author_idx).build();
+                VerifiedBlockHeader::new_for_test(block)
             })
             .map(|block| (block.reference(), block))
             .unzip();
@@ -1117,8 +1119,8 @@ mod tests {
             let mut new_ancestors = vec![];
             for author in 0..num_authorities {
                 let base_ts = round as BlockTimestampMs * 1000;
-                let block = VerifiedBlock::new_for_test(
-                    TestBlock::new(round, author)
+                let block = VerifiedBlockHeader::new_for_test(
+                    TestBlockHeader::new(round, author)
                         .set_timestamp_ms(base_ts + (author + round) as u64)
                         .set_ancestors(ancestors.clone())
                         .build(),

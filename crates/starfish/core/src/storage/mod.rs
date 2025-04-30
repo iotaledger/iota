@@ -13,7 +13,7 @@ use starfish_config::AuthorityIndex;
 
 use crate::{
     CommitIndex,
-    block::{BlockRef, Round, VerifiedBlock},
+    block_header::{BlockRef, Round, VerifiedBlockHeader},
     commit::{CommitInfo, CommitRange, CommitRef, TrustedCommit},
     error::ConsensusResult,
 };
@@ -24,21 +24,21 @@ pub(crate) trait Store: Send + Sync {
     fn write(&self, write_batch: WriteBatch) -> ConsensusResult<()>;
 
     /// Reads blocks for the given refs.
-    fn read_blocks(&self, refs: &[BlockRef]) -> ConsensusResult<Vec<Option<VerifiedBlock>>>;
+    fn read_blocks(&self, refs: &[BlockRef]) -> ConsensusResult<Vec<Option<VerifiedBlockHeader>>>;
 
     /// Checks if blocks exist in the store.
     fn contains_blocks(&self, refs: &[BlockRef]) -> ConsensusResult<Vec<bool>>;
 
     /// Checks whether there is any block at the given slot
     #[allow(dead_code)]
-    fn contains_block_at_slot(&self, slot: crate::block::Slot) -> ConsensusResult<bool>;
+    fn contains_block_at_slot(&self, slot: crate::block_header::Slot) -> ConsensusResult<bool>;
 
     /// Reads blocks for an authority, from start_round.
     fn scan_blocks_by_author(
         &self,
         authority: AuthorityIndex,
         start_round: Round,
-    ) -> ConsensusResult<Vec<VerifiedBlock>>;
+    ) -> ConsensusResult<Vec<VerifiedBlockHeader>>;
 
     // The method returns the last `num_of_rounds` rounds blocks by author in round
     // ascending order. When a `before_round` is defined then the blocks of
@@ -50,7 +50,7 @@ pub(crate) trait Store: Send + Sync {
         author: AuthorityIndex,
         num_of_rounds: u64,
         before_round: Option<Round>,
-    ) -> ConsensusResult<Vec<VerifiedBlock>>;
+    ) -> ConsensusResult<Vec<VerifiedBlockHeader>>;
 
     /// Reads the last commit.
     fn read_last_commit(&self) -> ConsensusResult<Option<TrustedCommit>>;
@@ -68,14 +68,14 @@ pub(crate) trait Store: Send + Sync {
 /// Represents data to be written to the store together atomically.
 #[derive(Debug, Default)]
 pub(crate) struct WriteBatch {
-    pub(crate) blocks: Vec<VerifiedBlock>,
+    pub(crate) blocks: Vec<VerifiedBlockHeader>,
     pub(crate) commits: Vec<TrustedCommit>,
     pub(crate) commit_info: Vec<(CommitRef, CommitInfo)>,
 }
 
 impl WriteBatch {
     pub(crate) fn new(
-        blocks: Vec<VerifiedBlock>,
+        blocks: Vec<VerifiedBlockHeader>,
         commits: Vec<TrustedCommit>,
         commit_info: Vec<(CommitRef, CommitInfo)>,
     ) -> Self {
@@ -89,7 +89,7 @@ impl WriteBatch {
     // Test setters.
 
     #[cfg(test)]
-    pub(crate) fn blocks(mut self, blocks: Vec<VerifiedBlock>) -> Self {
+    pub(crate) fn blocks(mut self, blocks: Vec<VerifiedBlockHeader>) -> Self {
         self.blocks = blocks;
         self
     }

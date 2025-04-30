@@ -11,7 +11,7 @@ use tracing::{debug, info};
 
 use crate::{
     CommitConsumer, CommittedSubDag,
-    block::{BlockAPI, VerifiedBlock},
+    block_header::{BlockHeaderAPI, VerifiedBlockHeader},
     commit::{CommitAPI, CommitIndex, load_committed_subdag_from_store},
     context::Context,
     dag_state::DagState,
@@ -74,7 +74,7 @@ impl CommitObserver {
 
     pub(crate) fn handle_commit(
         &mut self,
-        committed_leaders: Vec<VerifiedBlock>,
+        committed_leaders: Vec<VerifiedBlockHeader>,
     ) -> ConsensusResult<Vec<CommittedSubDag>> {
         let _s = self
             .context
@@ -227,8 +227,8 @@ mod tests {
 
     use super::*;
     use crate::{
-        block::BlockRef, context::Context, dag_state::DagState, storage::mem_store::MemStore,
-        test_dag_builder::DagBuilder,
+        block_header::BlockRef, context::Context, dag_state::DagState,
+        storage::mem_store::MemStore, test_dag_builder::DagBuilder,
     };
 
     #[tokio::test]

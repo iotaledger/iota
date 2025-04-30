@@ -52,7 +52,7 @@ use tracing::{debug, info, warn};
 
 use crate::{
     CommitConsumerMonitor, CommitIndex,
-    block::{BlockAPI, BlockRef, SignedBlock, VerifiedBlock},
+    block_header::{BlockHeaderAPI, BlockRef, SignedBlockHeader, VerifiedBlockHeader},
     block_verifier::BlockVerifier,
     commit::{
         CertifiedCommit, CertifiedCommits, Commit, CommitAPI as _, CommitDigest, CommitRange,
@@ -612,7 +612,7 @@ impl<C: NetworkClient> CommitSyncer<C> {
                     let signed_blocks = serialized_blocks
                         .iter()
                         .map(|serialized| {
-                            let block: SignedBlock = bcs::from_bytes(serialized)
+                            let block: SignedBlockHeader = bcs::from_bytes(serialized)
                                 .map_err(ConsensusError::MalformedBlock)?;
                             Ok(block)
                         })
@@ -625,7 +625,7 @@ impl<C: NetworkClient> CommitSyncer<C> {
                         .zip(signed_blocks.into_iter())
                         .zip(serialized_blocks.into_iter())
                     {
-                        let signed_block_digest = VerifiedBlock::compute_digest(&serialized);
+                        let signed_block_digest = VerifiedBlockHeader::compute_digest(&serialized);
                         let received_block_ref = BlockRef::new(
                             signed_block.round(),
                             signed_block.author(),
@@ -638,7 +638,7 @@ impl<C: NetworkClient> CommitSyncer<C> {
                                 received: received_block_ref,
                             });
                         }
-                        blocks.push(VerifiedBlock::new_verified(signed_block, serialized));
+                        blocks.push(VerifiedBlockHeader::new_verified(signed_block, serialized));
                     }
                     Ok(blocks)
                 }
@@ -749,7 +749,7 @@ impl<C: NetworkClient> Inner<C> {
         commit_range: CommitRange,
         serialized_commits: Vec<Bytes>,
         serialized_vote_blocks: Vec<Bytes>,
-    ) -> ConsensusResult<(Vec<TrustedCommit>, Vec<VerifiedBlock>)> {
+    ) -> ConsensusResult<(Vec<TrustedCommit>, Vec<VerifiedBlockHeader>)> {
         // Parse and verify commits.
         let mut commits = Vec::new();
         for serialized in &serialized_commits {
@@ -794,7 +794,7 @@ impl<C: NetworkClient> Inner<C> {
         let mut stake_aggregator = StakeAggregator::<QuorumThreshold>::new();
         let mut vote_blocks = Vec::new();
         for serialized in serialized_vote_blocks {
-            let block: SignedBlock =
+            let block: SignedBlockHeader =
                 bcs::from_bytes(&serialized).map_err(ConsensusError::MalformedBlock)?;
             // The block signature needs to be verified.
             self.block_verifier.verify(&block)?;
@@ -803,7 +803,7 @@ impl<C: NetworkClient> Inner<C> {
                     stake_aggregator.add(block.author(), &self.context.committee);
                 }
             }
-            vote_blocks.push(VerifiedBlock::new_verified(block, serialized));
+            vote_blocks.push(VerifiedBlockHeader::new_verified(block, serialized));
         }
 
         // Check if the end commit has enough votes.
@@ -834,7 +834,7 @@ mod tests {
 
     use crate::{
         CommitConsumerMonitor, CommitDigest, CommitRef, Round,
-        block::{BlockRef, TestBlock, VerifiedBlock},
+        block_header::{BlockRef, TestBlockHeader, VerifiedBlockHeader},
         block_verifier::NoopBlockVerifier,
         commit::CommitRange,
         commit_syncer::CommitSyncer,
@@ -857,7 +857,7 @@ mod tests {
         async fn send_block(
             &self,
             _peer: AuthorityIndex,
-            _serialized_block: &VerifiedBlock,
+            _serialized_block: &VerifiedBlockHeader,
             _timeout: Duration,
         ) -> ConsensusResult<()> {
             unimplemented!("Unimplemented")
@@ -953,10 +953,10 @@ mod tests {
         // Observe round 15 blocks voting for commit 10 from authorities 0 to 2 in
         // CommitVoteMonitor
         for i in 0..3 {
-            let test_block = TestBlock::new(15, i)
+            let test_block = TestBlockHeader::new(15, i)
                 .set_commit_votes(vec![CommitRef::new(10, CommitDigest::MIN)])
                 .build();
-            let block = VerifiedBlock::new_for_test(test_block);
+            let block = VerifiedBlockHeader::new_for_test(test_block);
             commit_vote_monitor.observe_block(&block);
         }
 
@@ -973,10 +973,10 @@ mod tests {
         // Observe round 40 blocks voting for commit 35 from authorities 0 to 2 in
         // CommitVoteMonitor
         for i in 0..3 {
-            let test_block = TestBlock::new(40, i)
+            let test_block = TestBlockHeader::new(40, i)
                 .set_commit_votes(vec![CommitRef::new(35, CommitDigest::MIN)])
                 .build();
-            let block = VerifiedBlock::new_for_test(test_block);
+            let block = VerifiedBlockHeader::new_for_test(test_block);
             commit_vote_monitor.observe_block(&block);
         }
 
