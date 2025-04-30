@@ -154,7 +154,7 @@ pub enum IotaCommand {
     ///
     /// Note that if you want to start an indexer, Postgres DB is required.
     ///
-    /// ProtocolConfig parameters can be overridden individually by setting env
+    /// Protocol config parameters can be overridden individually by setting environment
     /// variables as follows:
     /// - IOTA_PROTOCOL_CONFIG_OVERRIDE_ENABLE=1
     /// - Then, to configure an override, use the prefix
@@ -163,7 +163,7 @@ pub enum IotaCommand {
     ///   you might set:
     ///   IOTA_PROTOCOL_CONFIG_OVERRIDE_min_checkpoint_interval_ms=1000
     ///
-    /// Note that ProtocolConfig parameters must match between all nodes, or the
+    /// Note that protocol config parameters must match between all nodes, or the
     /// network may break. Changing these values outside of local networks
     /// is very dangerous.
     #[clap(verbatim_doc_comment)]
