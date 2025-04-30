@@ -88,6 +88,7 @@ use std::{
     collections::VecDeque,
     fmt::{Debug, Formatter},
     marker::PhantomData,
+    pin::Pin,
     sync::Arc,
     task::Poll,
     time::Duration,
@@ -646,7 +647,7 @@ where
         self.get_all_pages_stream().try_collect()
     }
 
-    fn get_all_pages_stream(self) -> std::pin::Pin<Box<GetAllPagesStream<O, C, F, E, Self>>> {
+    fn get_all_pages_stream(self) -> GetAllPagesStream<O, C, F, E, Self> {
         GetAllPagesStream::new(self)
     }
 }
@@ -660,32 +661,27 @@ where
 {
 }
 
-#[pin_project::pin_project]
 pub struct GetAllPagesStream<O, C, F, E, Fun> {
     cursor: Option<C>,
     fun: Fun,
-    #[pin]
-    fut: F,
+    fut: Pin<Box<F>>,
     next: VecDeque<O>,
     _data: PhantomData<fn(E) -> E>,
 }
 
 impl<O, C, F, E, Fun> GetAllPagesStream<O, C, F, E, Fun>
 where
-    O: Send,
-    C: Send,
-    F: futures::Future<Output = Result<Page<O, C>, E>> + Send,
     Fun: Fn(Option<C>) -> F,
 {
-    pub fn new(fun: Fun) -> std::pin::Pin<Box<Self>> {
+    pub fn new(fun: Fun) -> Self {
         let fut = fun(None);
-        Box::pin(Self {
+        Self {
             cursor: None,
             fun,
-            fut,
+            fut: Box::pin(fut),
             next: Default::default(),
             _data: PhantomData,
-        })
+        }
     }
 }
 
@@ -702,7 +698,7 @@ where
         self: std::pin::Pin<&mut Self>,
         cx: &mut std::task::Context<'_>,
     ) -> Poll<Option<Self::Item>> {
-        let mut this = self.project();
+        let this = unsafe { self.get_unchecked_mut() };
         loop {
             if let Some(next) = this.next.pop_front() {
                 return Poll::Ready(Some(Ok(next)));
@@ -713,7 +709,7 @@ where
                     this.fut.set((this.fun)(this.cursor.take()));
                     match res {
                         Ok(mut page) => {
-                            *this.cursor = page.next_cursor.take();
+                            this.cursor = page.next_cursor.take();
                             this.next.extend(page.data);
                         }
                         Err(e) => return Poll::Ready(Some(Err(e))),
