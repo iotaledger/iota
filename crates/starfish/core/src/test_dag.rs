@@ -9,7 +9,10 @@ use rand::{Rng, SeedableRng, rngs::StdRng};
 use starfish_config::AuthorityIndex;
 
 use crate::{
-    block::{BlockRef, BlockTimestampMs, Round, TestBlock, VerifiedBlock, genesis_blocks},
+    block_header::{
+        BlockRef, BlockTimestampMs, Round, TestBlockHeader, VerifiedBlockHeader,
+        genesis_block_headers,
+    },
     context::Context,
     dag_state::DagState,
     test_dag_builder::DagBuilder,
@@ -36,7 +39,7 @@ pub(crate) fn build_dag(
             );
             start
         }
-        None => genesis_blocks(context.clone())
+        None => genesis_block_headers(context.clone())
             .iter()
             .map(|x| x.reference())
             .collect::<Vec<_>>(),
@@ -54,8 +57,8 @@ pub(crate) fn build_dag(
                 // from round R.
                 let ts = round as BlockTimestampMs / 2 * num_authorities as BlockTimestampMs
                     + author_idx as BlockTimestampMs;
-                let block = VerifiedBlock::new_for_test(
-                    TestBlock::new(round, author_idx)
+                let block = VerifiedBlockHeader::new_for_test(
+                    TestBlockHeader::new(round, author_idx)
                         .set_timestamp_ms(ts)
                         .set_ancestors(ancestors.clone())
                         .build(),
@@ -82,8 +85,8 @@ pub(crate) fn build_dag_layer(
     for (authority, ancestors) in connections {
         let round = ancestors.first().unwrap().round + 1;
         let author = authority.value() as u32;
-        let block = VerifiedBlock::new_for_test(
-            TestBlock::new(round, author)
+        let block = VerifiedBlockHeader::new_for_test(
+            TestBlockHeader::new(round, author)
                 .set_ancestors(ancestors)
                 .build(),
         );

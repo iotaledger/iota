@@ -22,8 +22,8 @@ use tokio::sync::{oneshot, watch};
 use tracing::warn;
 
 use crate::{
-    BlockAPI as _,
-    block::{BlockRef, Round, VerifiedBlock},
+    BlockHeaderAPI as _,
+    block_header::{BlockRef, Round, VerifiedBlockHeader},
     commit::CertifiedCommits,
     context::Context,
     core::Core,
@@ -37,7 +37,10 @@ const CORE_THREAD_COMMANDS_CHANNEL_SIZE: usize = 2000;
 
 enum CoreThreadCommand {
     /// Add blocks to be processed and accepted
-    AddBlocks(Vec<VerifiedBlock>, oneshot::Sender<BTreeSet<BlockRef>>),
+    AddBlocks(
+        Vec<VerifiedBlockHeader>,
+        oneshot::Sender<BTreeSet<BlockRef>>,
+    ),
     /// Checks if block refs exist locally and sync missing ones.
     CheckBlockRefs(Vec<BlockRef>, oneshot::Sender<BTreeSet<BlockRef>>),
     /// Add committed sub dag blocks for processing and acceptance.
@@ -62,8 +65,10 @@ pub enum CoreError {
 /// Also this allows the easier mocking during unit tests.
 #[async_trait]
 pub trait CoreThreadDispatcher: Sync + Send + 'static {
-    async fn add_blocks(&self, blocks: Vec<VerifiedBlock>)
-    -> Result<BTreeSet<BlockRef>, CoreError>;
+    async fn add_blocks(
+        &self,
+        blocks: Vec<VerifiedBlockHeader>,
+    ) -> Result<BTreeSet<BlockRef>, CoreError>;
 
     async fn check_block_refs(
         &self,
@@ -301,7 +306,7 @@ impl ChannelCoreThreadDispatcher {
 impl CoreThreadDispatcher for ChannelCoreThreadDispatcher {
     async fn add_blocks(
         &self,
-        blocks: Vec<VerifiedBlock>,
+        blocks: Vec<VerifiedBlockHeader>,
     ) -> Result<BTreeSet<BlockRef>, CoreError> {
         for block in &blocks {
             self.highest_received_rounds[block.author()].fetch_max(block.round(), Ordering::AcqRel);
@@ -423,13 +428,13 @@ pub(crate) mod tests {
     // TODO: complete the Mock for thread dispatcher to be used from several tests
     #[derive(Default)]
     pub(crate) struct MockCoreThreadDispatcher {
-        add_blocks: parking_lot::Mutex<Vec<VerifiedBlock>>,
+        add_blocks: parking_lot::Mutex<Vec<VerifiedBlockHeader>>,
         missing_blocks: parking_lot::Mutex<BTreeSet<BlockRef>>,
         last_known_proposed_round: parking_lot::Mutex<Vec<Round>>,
     }
 
     impl MockCoreThreadDispatcher {
-        pub(crate) async fn get_add_blocks(&self) -> Vec<VerifiedBlock> {
+        pub(crate) async fn get_add_blocks(&self) -> Vec<VerifiedBlockHeader> {
             let mut add_blocks = self.add_blocks.lock();
             add_blocks.drain(0..).collect()
         }
@@ -449,7 +454,7 @@ pub(crate) mod tests {
     impl CoreThreadDispatcher for MockCoreThreadDispatcher {
         async fn add_blocks(
             &self,
-            blocks: Vec<VerifiedBlock>,
+            blocks: Vec<VerifiedBlockHeader>,
         ) -> Result<BTreeSet<BlockRef>, CoreError> {
             let mut add_blocks = self.add_blocks.lock();
             add_blocks.extend(blocks);
