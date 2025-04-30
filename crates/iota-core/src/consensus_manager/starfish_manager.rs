@@ -106,7 +106,7 @@ impl ConsensusManagerTrait for StarfishManager {
     /// Starts the Starfish consensus manager for the current epoch.
     async fn start(
         &self,
-        config: &NodeConfig,
+        _config: &NodeConfig,
         epoch_store: Arc<AuthorityPerEpochStore>,
         consensus_handler_initializer: ConsensusHandlerInitializer,
         tx_validator: IotaTxValidator,
