@@ -6,6 +6,13 @@ teams:
   - iotaledger/node
 ---
 
-import MonitoringContent from '../common/monitoring.mdx';
+import MonitoringHealthMetrics from '../../_snippets/operator/monitoring-health-metrics.mdx';
+import MonitoringLogs from '../../_snippets/operator/monitoring-logs.mdx';
+import MonitoringServices from '../../_snippets/operator/monitoring-services.mdx';
 
-<MonitoringContent />
+After a successful setup of a validator node, the next important step is to set up monitoring.
+Monitoring is important to keep track of the node's health and performance.
+
+<MonitoringHealthMetrics />
+<MonitoringLogs />
+<MonitoringServices />

@@ -9,11 +9,13 @@ export function useStakeRewardStatus({
     stakeRequestEpoch,
     currentEpoch,
     inactiveValidator,
+    activeButNotInTheCommittee,
     estimatedReward,
 }: {
     stakeRequestEpoch: string;
     currentEpoch: number;
     inactiveValidator: boolean;
+    activeButNotInTheCommittee?: boolean;
     estimatedReward?: string | number | bigint;
 }) {
     // TODO: Once two step withdraw is available, add cool down and withdraw now logic
@@ -24,11 +26,12 @@ export function useStakeRewardStatus({
 
     const isEarnedRewards = currentEpoch >= Number(earningRewardsEpoch);
 
-    const delegationState = inactiveValidator
-        ? StakeState.InActive
-        : isEarnedRewards
-          ? StakeState.Earning
-          : StakeState.WarmUp;
+    const delegationState =
+        inactiveValidator || activeButNotInTheCommittee
+            ? StakeState.NotEarning
+            : isEarnedRewards
+              ? StakeState.Earning
+              : StakeState.WarmUp;
 
     const rewards = isEarnedRewards && estimatedReward ? BigInt(estimatedReward) : 0n;
 
@@ -44,7 +47,7 @@ export function useStakeRewardStatus({
         // Epoch time before redrawing
         [StakeState.CoolDown]: `Epoch #`,
         [StakeState.Withdraw]: 'Now',
-        [StakeState.InActive]: 'Not earning rewards',
+        [StakeState.NotEarning]: `${rewardsStaked} ${symbol}`,
     };
 
     const { data: rewardEpochTime } = useGetTimeBeforeEpochNumber(Number(epochBeforeRewards) || 0);
@@ -78,7 +81,7 @@ export enum StakeState {
     Earning = 'EARNING',
     CoolDown = 'COOL_DOWN',
     Withdraw = 'WITHDRAW',
-    InActive = 'IN_ACTIVE',
+    NotEarning = 'NOT_EARNING',
 }
 export const STATUS_COPY: {
     [key in StakeState]: string;
@@ -87,5 +90,5 @@ export const STATUS_COPY: {
     [StakeState.Earning]: 'Staking Rewards',
     [StakeState.CoolDown]: 'Available to withdraw',
     [StakeState.Withdraw]: 'Withdraw',
-    [StakeState.InActive]: 'Inactive',
+    [StakeState.NotEarning]: 'Rewards',
 };

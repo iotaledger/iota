@@ -72,10 +72,10 @@ export const Networks = {
         decimals: 18,
       },
       rpcUrls: [
-        'https://json-rpc.evm.testnet.iotaledger.net',
+        'https://json-rpc.evm.testnet.iota.cafe',
         'wss://ws.json-rpc.evm.testnet.iotaledger.net',
       ],
-      blockExplorerUrls: ['https://explorer.evm.testnet.iotaledger.net'],
+      blockExplorerUrls: ['https://explorer.evm.testnet.iota.cafe'],
     },
     evmCustom: {
       chainAddress:

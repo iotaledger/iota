@@ -136,7 +136,6 @@ db-path: /opt/iota/db
 network-address: /dns/0.0.0.0/tcp/8080/http
 metrics-address: "0.0.0.0:9184"
 json-rpc-address: "0.0.0.0:9000"
-enable-event-processing: true
 
 # Network key configuration
 network-key-pair:
