@@ -622,8 +622,8 @@ pub mod shared_object_test_utils {
         shared_input_objects: &[SharedInputObject],
         tx_duration: ExecutionTime,
     ) -> Option<ExecutionTime> {
-        shared_object_congestion_tracker.initialize_for_shared_objects(&shared_input_objects);
-        shared_object_congestion_tracker.compute_tx_start_time(&shared_input_objects, tx_duration)
+        shared_object_congestion_tracker.initialize_for_shared_objects(shared_input_objects);
+        shared_object_congestion_tracker.compute_tx_start_time(shared_input_objects, tx_duration)
     }
 
     pub(crate) fn initialize_tracker_and_try_schedule(
