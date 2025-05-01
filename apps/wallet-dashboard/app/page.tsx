@@ -5,7 +5,8 @@
 
 import { ConnectButton } from '@iota/dapp-kit';
 import { IotaLogoWeb } from '@iota/apps-ui-icons';
-import { Theme, ThemeSwitcher, useTheme } from '@iota/core';
+import { Theme, ThemeSwitcher, ToS_LINK, useTheme } from '@iota/core';
+import Link from 'next/link';
 
 function HomeDashboardPage(): JSX.Element {
     const { theme } = useTheme();
@@ -17,7 +18,7 @@ function HomeDashboardPage(): JSX.Element {
             : 'https://files.iota.org/media/tooling/wallet-dashboard-welcome-light.mp4';
 
     return (
-        <main className="flex h-screen">
+        <main className="welcome-page flex h-screen">
             <div className="relative hidden sm:flex md:w-1/3">
                 <video
                     key={theme}
@@ -48,10 +49,17 @@ function HomeDashboardPage(): JSX.Element {
                         <ConnectButton connectText="Connect" />
                     </div>
                 </div>
-                <div className="text-center text-body-lg text-neutral-60">
-                    &copy; IOTA Foundation {CURRENT_YEAR}
-                    <br />
-                    {process.env.NEXT_PUBLIC_DASHBOARD_REV}
+                <div className="flex flex-col items-center gap-y-1 text-center text-body-lg text-neutral-60">
+                    <span>&copy; IOTA Foundation {CURRENT_YEAR}</span>
+                    <span>{process.env.NEXT_PUBLIC_DASHBOARD_REV}</span>
+                    <Link
+                        href={ToS_LINK}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-label-sm text-primary-30 dark:text-primary-80"
+                    >
+                        Terms of Service
+                    </Link>
                 </div>
             </div>
         </main>

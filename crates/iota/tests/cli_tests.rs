@@ -24,9 +24,10 @@ use expect_test::expect;
 #[cfg(feature = "indexer")]
 use iota::iota_commands::IndexerFeatureArgs;
 use iota::{
+    PrintableResult,
     client_commands::{
-        EmitOption, IotaClientCommandResult, IotaClientCommands, Opts, OptsWithGas, SwitchResponse,
-        estimate_gas_budget,
+        DisplayOption, IotaClientCommandResult, IotaClientCommands, Opts, OptsWithGas,
+        SwitchResponse, estimate_gas_budget,
     },
     client_ptb::ptb::PTB,
     iota_commands::{IotaCommand, parse_host_port},
@@ -378,7 +379,7 @@ async fn test_ptb_publish_and_complex_arg_resolution() -> Result<(), anyhow::Err
     let args = shlex::split(&complex_ptb_string).unwrap();
     iota::client_ptb::ptb::PTB {
         args: args.clone(),
-        emit: HashSet::new(),
+        display: HashSet::new(),
     }
     .execute(context)
     .await?;
@@ -397,7 +398,7 @@ async fn test_ptb_publish_and_complex_arg_resolution() -> Result<(), anyhow::Err
     let args = shlex::split(&delete_object_ptb_string).unwrap();
     iota::client_ptb::ptb::PTB {
         args: args.clone(),
-        emit: HashSet::new(),
+        display: HashSet::new(),
     }
     .execute(context)
     .await?;
@@ -429,7 +430,7 @@ async fn test_ptb_publish() -> Result<(), anyhow::Error> {
     let args = shlex::split(&publish_ptb_string).unwrap();
     iota::client_ptb::ptb::PTB {
         args: args.clone(),
-        emit: HashSet::new(),
+        display: HashSet::new(),
     }
     .execute(context)
     .await?;
@@ -1809,6 +1810,61 @@ async fn test_package_publish_test_flag() -> Result<(), anyhow::Error> {
 }
 
 #[sim_test]
+async fn test_package_publish_empty() -> Result<(), anyhow::Error> {
+    let mut test_cluster = TestClusterBuilder::new().build().await;
+    let rgp = test_cluster.get_reference_gas_price().await;
+    let address = test_cluster.get_address_0();
+    let context = &mut test_cluster.wallet;
+
+    let client = context.get_client().await?;
+    let object_refs = client
+        .read_api()
+        .get_owned_objects(
+            address,
+            Some(IotaObjectResponseQuery::new_with_options(
+                IotaObjectDataOptions::new()
+                    .with_type()
+                    .with_owner()
+                    .with_previous_transaction(),
+            )),
+            None,
+            None,
+        )
+        .await?
+        .data;
+
+    // Check log output contains all object ids.
+    let gas_obj_id = object_refs.first().unwrap().object().unwrap().object_id;
+
+    // Provide path to well formed package sources
+    let mut package_path = PathBuf::from(TEST_DATA_DIR);
+    package_path.push("empty");
+    let build_config = BuildConfig::new_for_testing().config;
+    let result = IotaClientCommands::Publish {
+        package_path,
+        build_config,
+        opts: OptsWithGas::for_testing(Some(gas_obj_id), rgp * TEST_ONLY_GAS_UNIT_FOR_PUBLISH),
+        skip_dependency_verification: false,
+        verify_deps: true,
+        with_unpublished_dependencies: false,
+    }
+    .execute(context)
+    .await;
+
+    // should return error
+    let expect = expect![[r#"
+        Err(
+            ModulePublishFailure {
+                error: "No modules found in the package",
+            },
+        )
+    "#]];
+
+    expect.assert_debug_eq(&result);
+    Ok(())
+}
+
+#[sim_test]
 async fn test_package_upgrade_command() -> Result<(), anyhow::Error> {
     move_package::package_hooks::register_package_hooks(Box::new(IotaPackageHooks));
     let mut test_cluster = TestClusterBuilder::new()
@@ -1921,6 +1977,7 @@ async fn test_package_upgrade_command() -> Result<(), anyhow::Error> {
         upgrade_capability: cap.reference.object_id,
         build_config,
         opts: OptsWithGas::for_testing(Some(gas_obj_id), rgp * TEST_ONLY_GAS_UNIT_FOR_PUBLISH),
+        verify_compatibility: true,
         skip_dependency_verification: false,
         verify_deps: true,
         with_unpublished_dependencies: false,
@@ -2045,6 +2102,7 @@ async fn test_package_management_on_upgrade_command() -> Result<(), anyhow::Erro
         upgrade_capability: cap.reference.object_id,
         build_config: build_config.clone(),
         opts: OptsWithGas::for_testing(Some(gas_obj_id), rgp * TEST_ONLY_GAS_UNIT_FOR_PUBLISH),
+        verify_compatibility: true,
         skip_dependency_verification: false,
         verify_deps: true,
         with_unpublished_dependencies: false,
@@ -2202,6 +2260,7 @@ async fn test_package_management_on_upgrade_command_conflict() -> Result<(), any
         upgrade_capability: cap.reference.object_id,
         build_config: build_config_upgrade.clone(),
         opts: OptsWithGas::for_testing(Some(gas_obj_id), rgp * TEST_ONLY_GAS_UNIT_FOR_PUBLISH),
+        verify_compatibility: true,
         skip_dependency_verification: false,
         verify_deps: true,
         with_unpublished_dependencies: false,
@@ -3058,7 +3117,7 @@ async fn test_serialize_tx() -> Result<(), anyhow::Error> {
             dev_inspect: false,
             serialize_unsigned_transaction: true,
             serialize_signed_transaction: false,
-            emit: HashSet::new(),
+            display: HashSet::new(),
         },
     }
     .execute(context)
@@ -3074,7 +3133,7 @@ async fn test_serialize_tx() -> Result<(), anyhow::Error> {
             dev_inspect: false,
             serialize_unsigned_transaction: false,
             serialize_signed_transaction: true,
-            emit: HashSet::new(),
+            display: HashSet::new(),
         },
     }
     .execute(context)
@@ -3091,7 +3150,7 @@ async fn test_serialize_tx() -> Result<(), anyhow::Error> {
             dev_inspect: false,
             serialize_unsigned_transaction: false,
             serialize_signed_transaction: true,
-            emit: HashSet::new(),
+            display: HashSet::new(),
         },
     }
     .execute(context)
@@ -3113,14 +3172,14 @@ async fn test_serialize_tx() -> Result<(), anyhow::Error> {
     args.push("--serialize-signed-transaction".to_string());
     let ptb = PTB {
         args,
-        emit: HashSet::new(),
+        display: HashSet::new(),
     };
     IotaClientCommands::PTB(ptb).execute(context).await.unwrap();
     let mut args = ptb_args.clone();
     args.push("--serialize-unsigned-transaction".to_string());
     let ptb = PTB {
         args,
-        emit: HashSet::new(),
+        display: HashSet::new(),
     };
     IotaClientCommands::PTB(ptb).execute(context).await.unwrap();
 
@@ -3871,7 +3930,7 @@ async fn test_gas_estimation() -> Result<(), anyhow::Error> {
             dev_inspect: false,
             serialize_unsigned_transaction: false,
             serialize_signed_transaction: false,
-            emit: HashSet::new(),
+            display: HashSet::new(),
         },
     }
     .execute(context)
@@ -4488,7 +4547,7 @@ async fn test_move_new() -> Result<(), anyhow::Error> {
 }
 
 #[sim_test]
-async fn test_call_command_emit_args() -> Result<(), anyhow::Error> {
+async fn test_call_command_display_args() -> Result<(), anyhow::Error> {
     // Publish the package
     move_package::package_hooks::register_package_hooks(Box::new(IotaPackageHooks));
     let mut test_cluster = TestClusterBuilder::new()
@@ -4550,10 +4609,10 @@ async fn test_call_command_emit_args() -> Result<(), anyhow::Error> {
         type_args: vec![],
         gas_price: None,
         args: vec![],
-        opts: OptsWithGas::for_testing_emit_options(
+        opts: OptsWithGas::for_testing_display_options(
             None,
             rgp * TEST_ONLY_GAS_UNIT_FOR_PUBLISH,
-            HashSet::from([EmitOption::BalanceChanges]),
+            HashSet::from([DisplayOption::BalanceChanges]),
         ),
     }
     .execute(context)
@@ -4573,7 +4632,7 @@ async fn test_call_command_emit_args() -> Result<(), anyhow::Error> {
         panic!("Transaction block response is None");
     }
 
-    // Make another call, this time with multiple emit args
+    // Make another call, this time with multiple display args
     let start_call_result = IotaClientCommands::Call {
         package: package.reference.object_id,
         module: "trusted_coin".to_string(),
@@ -4581,13 +4640,13 @@ async fn test_call_command_emit_args() -> Result<(), anyhow::Error> {
         type_args: vec![],
         gas_price: None,
         args: vec![],
-        opts: OptsWithGas::for_testing_emit_options(
+        opts: OptsWithGas::for_testing_display_options(
             None,
             rgp * TEST_ONLY_GAS_UNIT_FOR_PUBLISH,
             HashSet::from([
-                EmitOption::BalanceChanges,
-                EmitOption::Effects,
-                EmitOption::ObjectChanges,
+                DisplayOption::BalanceChanges,
+                DisplayOption::Effects,
+                DisplayOption::ObjectChanges,
             ]),
         ),
     }
@@ -4608,8 +4667,8 @@ async fn test_call_command_emit_args() -> Result<(), anyhow::Error> {
         panic!("Transaction block response is None");
     }
 
-    // Make another call, this time with no emit args. This should return the full
-    // response
+    // Make another call, this time without display args. This should return the
+    // full response
     let start_call_result = IotaClientCommands::Call {
         package: package.reference.object_id,
         module: "trusted_coin".to_string(),
@@ -4617,7 +4676,7 @@ async fn test_call_command_emit_args() -> Result<(), anyhow::Error> {
         type_args: vec![],
         gas_price: None,
         args: vec![],
-        opts: OptsWithGas::for_testing_emit_options(
+        opts: OptsWithGas::for_testing_display_options(
             None,
             rgp * TEST_ONLY_GAS_UNIT_FOR_PUBLISH,
             HashSet::new(),
@@ -4656,7 +4715,7 @@ async fn test_ptb_dev_inspect() -> Result<(), anyhow::Error> {
     let args = shlex::split(publish_ptb_string).unwrap();
     let res = iota::client_ptb::ptb::PTB {
         args,
-        emit: HashSet::new(),
+        display: HashSet::new(),
     }
     .execute(context)
     .await?;
@@ -4665,7 +4724,7 @@ async fn test_ptb_dev_inspect() -> Result<(), anyhow::Error> {
 }
 
 #[sim_test]
-async fn test_ptb_emit_args() -> Result<(), anyhow::Error> {
+async fn test_ptb_display_args() -> Result<(), anyhow::Error> {
     let mut test_cluster = TestClusterBuilder::new()
         .with_num_validators(2)
         .build()
@@ -4678,7 +4737,7 @@ async fn test_ptb_emit_args() -> Result<(), anyhow::Error> {
     let args = shlex::split(ptb_string).unwrap();
     let res = iota::client_ptb::ptb::PTB {
         args,
-        emit: HashSet::from([EmitOption::Input]),
+        display: HashSet::from([DisplayOption::Input]),
     }
     .execute(context)
     .await?;
@@ -4692,11 +4751,11 @@ async fn test_ptb_emit_args() -> Result<(), anyhow::Error> {
     let args = shlex::split(ptb_string).unwrap();
     let res = iota::client_ptb::ptb::PTB {
         args,
-        emit: HashSet::from([EmitOption::Events]),
+        display: HashSet::from([DisplayOption::Events]),
     }
     .execute(context)
     .await?;
-    // `EmitOption::Input` wasn't provided, so there is no `Transaction Data`
+    // `DisplayOption::Input` wasn't provided, so there is no `Transaction Data`
     assert!(!res.contains("Transaction Data"));
     assert!(res.contains("Transaction Effects"));
 

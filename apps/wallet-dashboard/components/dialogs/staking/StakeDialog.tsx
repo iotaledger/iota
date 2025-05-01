@@ -10,10 +10,9 @@ import {
     useBalance,
     createValidationSchema,
     MIN_NUMBER_IOTA_TO_STAKE,
-    useGetLatestIotaSystemState,
 } from '@iota/core';
 import { FormikProvider, useFormik } from 'formik';
-import { useCurrentAccount } from '@iota/dapp-kit';
+import { useCurrentAccount, useIotaClientQuery } from '@iota/dapp-kit';
 import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 import { Dialog } from '@iota/apps-ui-kit';
 import { DetailsView } from './views';
@@ -79,10 +78,13 @@ export function StakeDialog({
         validateOnMount: true,
     });
 
-    const { data: systemState } = useGetLatestIotaSystemState();
-    const validatorAddresses = (systemState?.activeValidators ?? []).map(
-        (validator) => validator.iotaAddress,
-    );
+    const { data: systemState } = useIotaClientQuery('getLatestIotaSystemState');
+    const activeValidatorAddresses = (systemState?.activeValidators ?? []).map((validator) => {
+        return {
+            iotaAddress: validator.iotaAddress,
+            name: validator.name,
+        };
+    });
 
     const amount = formik.values.amount;
     const amountWithoutDecimals = parseAmount(amount, coinDecimals);
@@ -142,7 +144,7 @@ export function StakeDialog({
                         <SelectValidatorView
                             selectedValidator={selectedValidator}
                             handleClose={handleClose}
-                            validators={validatorAddresses}
+                            validators={activeValidatorAddresses}
                             onSelect={handleValidatorSelect}
                             onNext={selectValidatorHandleNext}
                         />

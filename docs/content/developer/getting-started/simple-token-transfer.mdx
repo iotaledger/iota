@@ -76,10 +76,10 @@ cd ~/.iota/iota_config/
 #### [`init`](https://github.com/iota-community/token-transfer-tutorial/blob/ea71112c1156d1885567353fee0a03e09308e293/sources/token_transfer.move#L9-L13)
 
 - Executes at the time of publication of the package.
-- Takes `MY_TOKEN` as a witness and the transaction context ([ctx](https://docs.iota.org/references/framework/iota-framework/tx_context#0x2_tx_context_sender)).
-- Uses the [`coin::create_currency`](https://docs.iota.org/references/framework/iota-framework/coin#0x2_coin_create_currency) function to create the token by specifying the name, symbol, and decimal precision of the token.
-- The [`coin::create_currency`](https://docs.iota.org/references/framework/iota-framework/coin#0x2_coin_create_currency) function returns a TreasuryCap, which allows the owner to mint and transfer the token, and the metadata of the token.
-- Transfers the metadata to the owner of the contract using [`transfer::public_freeze_object(metadata)`](https://docs.iota.org/references/framework/iota-framework/transfer#0x2_transfer_public_freeze_object) and [`transfer::public_transfer(treasury, ctx.sender())`](https://docs.iota.org/references/framework/iota-framework/transfer#function-public_transfer).
+- Takes `MY_TOKEN` as a witness and the transaction context ([ctx](https://docs.iota.org/references/framework/iota/tx_context#0x2_tx_context_sender)).
+- Uses the [`coin::create_currency`](https://docs.iota.org/references/framework/iota/coin#0x2_coin_create_currency) function to create the token by specifying the name, symbol, and decimal precision of the token.
+- The [`coin::create_currency`](https://docs.iota.org/references/framework/iota/coin#0x2_coin_create_currency) function returns a TreasuryCap, which allows the owner to mint and transfer the token, and the metadata of the token.
+- Transfers the metadata to the owner of the contract using [`transfer::public_freeze_object(metadata)`](https://docs.iota.org/references/framework/iota/transfer#0x2_transfer_public_freeze_object) and [`transfer::public_transfer(treasury, ctx.sender())`](https://docs.iota.org/references/framework/iota/transfer#function-public_transfer).
 
 ```move reference
 https://github.com/iota-community/token-transfer-tutorial/blob/ea71112c1156d1885567353fee0a03e09308e293/sources/token_transfer.move#L9-L13
@@ -101,7 +101,7 @@ https://github.com/iota-community/token-transfer-tutorial/blob/ea71112c1156d1885
 
 - Transfers the token from the caller address to the recipient address.
 - Requires the correct token object address that is owned by the caller.
-- The function first uses the [`coin::split`](https://docs.iota.org/references/framework/iota-framework/coin#function-split) function to split the specified amount from the token and then uses [`transfer::public_transfer`](https://docs.iota.org/references/framework/iota-framework/transfer#function-public_transfer) to transfer the split tokens to the recipient.
+- The function first uses the [`coin::split`](https://docs.iota.org/references/framework/iota/coin#function-split) function to split the specified amount from the token and then uses [`transfer::public_transfer`](https://docs.iota.org/references/framework/iota/transfer#function-public_transfer) to transfer the split tokens to the recipient.
 
 ```move reference
 https://github.com/iota-community/token-transfer-tutorial/blob/ea71112c1156d1885567353fee0a03e09308e293/sources/token_transfer.move#L25-L33
@@ -111,7 +111,7 @@ https://github.com/iota-community/token-transfer-tutorial/blob/ea71112c1156d1885
 
 - Returns the balance of the token for the specified owner.
 - Requires passing the token address to retrieve the balance.
-- Uses [`coin::balance`](https://docs.iota.org/references/framework/iota-framework/coin#function-balance) to query the balance and returns the value held by the coin object.
+- Uses [`coin::balance`](https://docs.iota.org/references/framework/iota/coin#function-balance) to query the balance and returns the value held by the coin object.
 
 ```move reference
 https://github.com/iota-community/token-transfer-tutorial/blob/ea71112c1156d1885567353fee0a03e09308e293/sources/token_transfer.move#L34-L37

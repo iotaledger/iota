@@ -14,7 +14,7 @@ import {
     getValidatorCommission,
 } from '../utils';
 import { useFormatCoin } from './useFormatCoin';
-import { useGetLatestIotaSystemState } from './useGetLatestIotaSystemState';
+import { useIotaClientQuery } from '@iota/dapp-kit';
 
 interface UseGetStakingValidatorDetailsArgs {
     accountAddress: string | null;
@@ -29,7 +29,7 @@ export function useGetStakingValidatorDetails({
     validatorAddress,
     unstake,
 }: UseGetStakingValidatorDetailsArgs) {
-    const systemDataResult = useGetLatestIotaSystemState();
+    const systemDataResult = useIotaClientQuery('getLatestIotaSystemState');
 
     const delegatedStakeDataResult = useGetDelegatedStake({
         address: accountAddress || '',
@@ -86,8 +86,5 @@ export function useGetStakingValidatorDetails({
         systemDataResult,
         delegatedStakeDataResult,
         commission: getValidatorCommission(validatorData),
-        isCommitteeMember: system?.committeeMembers.find(
-            (committeeMember) => validatorAddress === committeeMember.iotaAddress,
-        ),
     };
 }

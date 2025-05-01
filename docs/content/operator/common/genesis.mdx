@@ -1,11 +1,10 @@
-
-import Genesis from '../../_snippets/operator/genesis.mdx'
+import GenesisBlobLocation from '../../_snippets/operator/genesis-blob-location.mdx';
 
 Genesis is the initial state of the IOTA blockchain. To launch a network, the initial committee of validators collaborate by providing their validator information (public keys, network addresses, and so on) to a shared workspace. After all of the initial validators have contributed their information, IOTA generates the initial, unsigned genesis checkpoint (checkpoint with sequence number 0) and each validator provides their signature. IOTA aggregates these signatures to form a _certificate_ on the genesis checkpoint. IOTA bundles this checkpoint, as well as the initial objects, together into a single genesis.blob file that is used to initialize the state when running the `iota-node` binary for both validators and full nodes.
 
 ## Genesis blob locations
 
-The genesis.blob files for each network are in:
+The genesis.blob files for each network are located at:
 
-<Genesis/>
+<GenesisBlobLocation/>
     

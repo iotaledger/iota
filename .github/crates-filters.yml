@@ -94,6 +94,8 @@ iota-move-build:
   - "crates/iota-move-build/**"
 iota-move-lsp:
   - "crates/iota-move-lsp/**"
+iota-names:
+  - "crates/iota-names/**"
 iota-network:
   - "crates/iota-network/**"
 iota-network-stack:

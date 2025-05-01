@@ -2,6 +2,8 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use std::{collections::HashMap, sync::Arc};
+
 use async_trait::async_trait;
 use iota_json_rpc::{IotaRpcModule, error::IotaRpcInputError};
 use iota_json_rpc_api::{QUERY_MAX_RESULT_LIMIT, ReadApiServer, internal_error};
@@ -21,7 +23,7 @@ use iota_types::{
 };
 use jsonrpsee::{RpcModule, core::RpcResult};
 
-use crate::{errors::IndexerError, indexer_reader::IndexerReader};
+use crate::{errors::IndexerError, indexer_reader::IndexerReader, models::objects::StoredObject};
 
 #[derive(Clone)]
 pub(crate) struct ReadApi {
@@ -56,6 +58,48 @@ impl ReadApi {
     async fn get_chain_identifier(&self) -> RpcResult<ChainIdentifier> {
         let genesis_checkpoint = self.get_checkpoint(CheckpointId::SequenceNumber(0)).await?;
         Ok(ChainIdentifier::from(genesis_checkpoint.digest))
+    }
+
+    async fn object_read_to_object_response(
+        &self,
+        object_read: ObjectRead,
+        options: IotaObjectDataOptions,
+    ) -> RpcResult<IotaObjectResponse> {
+        match object_read {
+            ObjectRead::NotExists(id) => Ok(IotaObjectResponse::new_with_error(
+                IotaObjectResponseError::NotExists { object_id: id },
+            )),
+            ObjectRead::Exists(object_ref, o, layout) => {
+                let mut display_fields = None;
+                if options.show_display {
+                    match self.inner.get_display_fields(&o, &layout).await {
+                        Ok(rendered_fields) => display_fields = Some(rendered_fields),
+                        Err(e) => {
+                            return Ok(IotaObjectResponse::new(
+                                Some(
+                                    IotaObjectData::new(object_ref, o, layout, options, None)
+                                        .map_err(internal_error)?,
+                                ),
+                                Some(IotaObjectResponseError::Display {
+                                    error: e.to_string(),
+                                }),
+                            ));
+                        }
+                    }
+                }
+                Ok(IotaObjectResponse::new_with_data(
+                    IotaObjectData::new(object_ref, o, layout, options, display_fields)
+                        .map_err(internal_error)?,
+                ))
+            }
+            ObjectRead::Deleted((object_id, version, digest)) => Ok(
+                IotaObjectResponse::new_with_error(IotaObjectResponseError::Deleted {
+                    object_id,
+                    version,
+                    digest,
+                }),
+            ),
+        }
     }
 
     async fn past_object_read_to_response(
@@ -115,52 +159,14 @@ impl ReadApiServer for ReadApi {
         object_id: ObjectID,
         options: Option<IotaObjectDataOptions>,
     ) -> RpcResult<IotaObjectResponse> {
-        let options = options.unwrap_or_default();
         let object_read = self
             .inner
             .get_object_read_in_blocking_task(object_id)
             .await?;
-
-        match object_read {
-            ObjectRead::NotExists(id) => Ok(IotaObjectResponse::new_with_error(
-                IotaObjectResponseError::NotExists { object_id: id },
-            )),
-            ObjectRead::Exists(object_ref, o, layout) => {
-                let mut display_fields = None;
-                if options.show_display {
-                    match self.inner.get_display_fields(&o, &layout).await {
-                        Ok(rendered_fields) => display_fields = Some(rendered_fields),
-                        Err(e) => {
-                            return Ok(IotaObjectResponse::new(
-                                Some(
-                                    IotaObjectData::new(object_ref, o, layout, options, None)
-                                        .map_err(internal_error)?,
-                                ),
-                                Some(IotaObjectResponseError::Display {
-                                    error: e.to_string(),
-                                }),
-                            ));
-                        }
-                    }
-                }
-                Ok(IotaObjectResponse::new_with_data(
-                    IotaObjectData::new(object_ref, o, layout, options, display_fields)
-                        .map_err(internal_error)?,
-                ))
-            }
-            ObjectRead::Deleted((object_id, version, digest)) => Ok(
-                IotaObjectResponse::new_with_error(IotaObjectResponseError::Deleted {
-                    object_id,
-                    version,
-                    digest,
-                }),
-            ),
-        }
+        self.object_read_to_object_response(object_read, options.unwrap_or_default())
+            .await
     }
 
-    // For ease of implementation we just forward to the single object query,
-    // although in the future we may want to improve the performance by having a
-    // more naitive multi_get functionality
     async fn multi_get_objects(
         &self,
         object_ids: Vec<ObjectID>,
@@ -172,15 +178,55 @@ impl ReadApiServer for ReadApi {
             );
         }
 
-        let mut futures = vec![];
-        for object_id in object_ids {
-            futures.push(self.get_object(object_id, options.clone()));
-        }
+        // Doesn't take care of missing objects.
+        let stored_objects = self
+            .inner
+            .multi_get_objects_in_blocking_task(object_ids.clone())
+            .await?;
 
-        futures::future::join_all(futures)
-            .await
-            .into_iter()
-            .collect::<Result<Vec<_>, _>>()
+        // Map the returned `StoredObject`s to `ObjectID`
+        let object_map: Arc<HashMap<ObjectID, StoredObject>> = Arc::new(
+            stored_objects
+                .into_iter()
+                .map(|obj| {
+                    let object_id = ObjectID::try_from(obj.object_id.clone()).map_err(|_| {
+                        IndexerError::PersistentStorageDataCorruption(format!(
+                            "failed to parse ObjectID: {:?}",
+                            obj.object_id
+                        ))
+                    })?;
+                    Ok::<(ObjectID, StoredObject), IndexerError>((object_id, obj))
+                })
+                .collect::<Result<_, IndexerError>>()?,
+        );
+
+        let options = options.unwrap_or_default();
+        let resolver = self.inner.package_resolver();
+
+        // Create a future for each requested object id
+        let futures = object_ids.into_iter().map(|object_id| {
+            let options = options.clone();
+            let resolver = resolver.clone();
+            let maybe_stored = object_map.get(&object_id).cloned();
+            async move {
+                match maybe_stored {
+                    Some(stored) => {
+                        let object_read = stored.try_into_object_read(resolver).await?;
+                        self.object_read_to_object_response(object_read, options)
+                            .await
+                    }
+                    None => {
+                        self.object_read_to_object_response(
+                            ObjectRead::NotExists(object_id),
+                            options,
+                        )
+                        .await
+                    }
+                }
+            }
+        });
+
+        futures::future::try_join_all(futures).await
     }
 
     async fn get_total_transaction_blocks(&self) -> RpcResult<BigInt<u64>> {

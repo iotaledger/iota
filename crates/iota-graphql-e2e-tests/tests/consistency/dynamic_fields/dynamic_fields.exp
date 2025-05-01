@@ -1,4 +1,4 @@
-processed 35 tasks
+processed 37 tasks
 
 init:
 A: object(0,0)
@@ -786,23 +786,31 @@ task 30, line 440:
 //# create-checkpoint
 Checkpoint created: 6
 
-task 31, line 442:
-//# force-object-snapshot-catchup --start-cp 0 --end-cp 5
-Objects snapshot updated to [0 to 5)
-
 task 32, line 444:
 //# create-checkpoint
 Checkpoint created: 7
 
-task 33, lines 446-496:
+task 34, line 448:
+//# create-checkpoint
+Checkpoint created: 8
+
+task 35, lines 450-508:
 //# run-graphql --cursors @{obj_5_0,2} @{obj_5_0,4}
 Response: {
   "data": {
+    "availableRange": {
+      "first": {
+        "sequenceNumber": 4
+      },
+      "last": {
+        "sequenceNumber": 8
+      }
+    },
     "parent_version_4_outside_consistent_range": {
       "dynamicFields": {
         "edges": [
           {
-            "cursor": "IO53M+MvTXpggmw3a4XxAozDxT5+PDBBgqapE3N1EXl7BwAAAAAAAAA=",
+            "cursor": "IO53M+MvTXpggmw3a4XxAozDxT5+PDBBgqapE3N1EXl7CAAAAAAAAAA=",
             "node": {
               "name": {
                 "bcs": "pAEAAAAAAAA=",
@@ -828,7 +836,7 @@ Response: {
       "dynamicFields": {
         "edges": [
           {
-            "cursor": "IBxoBlEqIeqmI9eBax5SEVGQRo+yTy+i55I36oG94avbBwAAAAAAAAA=",
+            "cursor": "IBxoBlEqIeqmI9eBax5SEVGQRo+yTy+i55I36oG94avbCAAAAAAAAAA=",
             "node": {
               "name": {
                 "bcs": "A2RmNA==",
@@ -842,7 +850,7 @@ Response: {
             }
           },
           {
-            "cursor": "IE1BzrRT50K3dCDInv5mJWqf/SVPi3/qS2aBHIz2ZVdfBwAAAAAAAAA=",
+            "cursor": "IE1BzrRT50K3dCDInv5mJWqf/SVPi3/qS2aBHIz2ZVdfCAAAAAAAAAA=",
             "node": {
               "name": {
                 "bcs": "A2RmNQ==",
@@ -856,7 +864,7 @@ Response: {
             }
           },
           {
-            "cursor": "IE6/qBv5bWyoRdTXt5h7xiCoGQrWaZsQFVr8OYY2DeFdBwAAAAAAAAA=",
+            "cursor": "IE6/qBv5bWyoRdTXt5h7xiCoGQrWaZsQFVr8OYY2DeFdCAAAAAAAAAA=",
             "node": {
               "name": {
                 "bcs": "A2RmNg==",
@@ -870,7 +878,7 @@ Response: {
             }
           },
           {
-            "cursor": "IO53M+MvTXpggmw3a4XxAozDxT5+PDBBgqapE3N1EXl7BwAAAAAAAAA=",
+            "cursor": "IO53M+MvTXpggmw3a4XxAozDxT5+PDBBgqapE3N1EXl7CAAAAAAAAAA=",
             "node": {
               "name": {
                 "bcs": "pAEAAAAAAAA=",
@@ -902,7 +910,7 @@ Response: {
       "message": "Requested data is outside the available range",
       "locations": [
         {
-          "line": 34,
+          "line": 42,
           "column": 5
         }
       ],
@@ -917,7 +925,7 @@ Response: {
   ]
 }
 
-task 34, lines 498-529:
+task 36, lines 510-541:
 //# run-graphql
 Response: {
   "data": {

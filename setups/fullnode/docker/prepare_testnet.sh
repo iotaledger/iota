@@ -1,19 +1,16 @@
-#!/bin/bash
+#!/bin/bash -ex
+WORKDIR="$(dirname "${BASH_SOURCE[0]}")"
+DATA_DIR="$WORKDIR/data"
+CONFIG_DIR="$DATA_DIR/config"
 
-# check if the "data" folder exists
-if [ -d ./data ] && [ "$(ls -A ./data)" ]; then
-    echo "Data folder found and not empty. Aborting."
-    exit 1
+# check if the "config/" dir exists
+if [ -d "$CONFIG_DIR" ] && ([ -f "$CONFIG_DIR/genesis.blob" ] || [ -f "$CONFIG_DIR/migration.blob" ]); then
+	echo "Config folder found and snapshot files already exist. Aborting."
+	exit 1
 fi
 
-# create the "data" folder if it does not exist
-mkdir -p ./data/config
+# Pull latest images
+docker compose pull
 
 # download the genesis file
-curl -fLJ https://dbfiles.testnet.iota.cafe/genesis.blob -o ./data/config/genesis.blob
-
-# check if the "fullnode.yaml" file exists
-if [ ! -f ./data/config/fullnode.yaml ]; then
-    echo "Error: fullnode.yaml not found, copying from the testnet template."
-    cp ../fullnode-template-testnet.yaml ./data/config/fullnode.yaml
-fi
+curl -fLJ https://dbfiles.testnet.iota.cafe/genesis.blob -o $CONFIG_DIR/genesis.blob

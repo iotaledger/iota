@@ -11,7 +11,7 @@ use crate::{
     expansion::ast::{self as E, ModuleIdent},
     ice,
     naming::ast as N,
-    parser::ast::{FunctionName, Visibility},
+    parser::ast::{DocComment, FunctionName, Visibility},
     shared::{program_info::NamingProgramInfo, unique_map::UniqueMap, *},
     typing::core,
 };
@@ -236,6 +236,7 @@ fn use_funs(context: &mut Context, uf: &mut N::UseFuns) {
             }
         };
         let nuf = N::UseFun {
+            doc: DocComment::empty(),
             loc,
             attributes,
             is_public,
