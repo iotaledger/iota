@@ -158,7 +158,7 @@ In Firefly, accounts were structured using a multi-account index,
 which allowed generating multiple addresses under a single account without exposing the underlying BIP32 derivation
 paths. In practice, this means that Firefly would display a single wallet account that actually represented `n` addresses.
 
-The IOTA Wallet now each address individually.
+The IOTA Wallet now displays each address individually.
 This change provides transparency for users managing accounts across different wallets or tools.
 
 When restoring accounts by importing a mnemonic phrase or seed,
@@ -178,8 +178,7 @@ IOTA Web Wallet and move all your funds in `Legacy` addresses to a new address t
 
 :::danger 
 
-Restoring a wallet account using a seed is not an industry standard, it may not work on wallets that are not maintained
-by the IOTA Foundation. Once you restore your account using the seed, make sure to [export your mnemonic](./how-to/multi-account.mdx#export-a-mnemonic-for-an-account).
+Restoring a wallet account using a seed is not an industry standard, it may not work on wallets that are not maintained by the IOTA Foundation. Once you restore your account using the seed, you should transfer your funds to an account with a known mnemonic
 
 :::
 
