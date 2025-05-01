@@ -55,7 +55,7 @@ impl ExecutionSlot {
         );
         Self {
             start_time,
-            end_time: end_time,
+            end_time,
         }
     }
 
