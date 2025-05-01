@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { useIotaClient, useIotaClientContext } from '@iota/dapp-kit';
+import { useIotaClient } from '@iota/dapp-kit';
 import { CoinMetadata, IotaClient } from '@iota/iota-sdk/client';
 import { IOTA_DECIMALS, IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 import { useQuery, type UseQueryResult } from '@tanstack/react-query';
@@ -54,8 +54,6 @@ const NAME_TRUNCATE_LENGTH = 10;
 
 export function useCoinMetadata(coinType?: string | null) {
     const client = useIotaClient();
-    const config = useIotaClientContext();
-
     const graphQLClient = useMemo(() => {
         return new IotaClient({
             transport: new IotaClientGraphQLTransport({
@@ -63,7 +61,7 @@ export function useCoinMetadata(coinType?: string | null) {
                 url: 'https://api.devnet.iota.cafe',
             }),
         });
-    }, [config]);
+    }, []);
 
     return useQuery({
         queryKey: ['coin-metadata', coinType],
@@ -79,17 +77,12 @@ export function useCoinMetadata(coinType?: string | null) {
 
             try {
                 const primary = await client.getCoinMetadata({ coinType });
-                console.log('Primary metadata result:', primary);
 
                 if (primary) return primary;
 
-                if (graphQLClient) {
-                    console.log('Using fallback client to fetch metadata');
-                    const fallback = await graphQLClient.getCoinMetadata({ coinType });
-                    console.log('Fallback metadata result:', fallback);
+                const fallback = await graphQLClient?.getCoinMetadata({ coinType });
 
-                    if (fallback) return fallback;
-                }
+                if (fallback) return fallback;
 
                 return null;
             } catch (err) {

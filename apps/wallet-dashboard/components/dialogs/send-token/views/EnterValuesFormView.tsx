@@ -176,7 +176,8 @@ export function EnterValuesFormView({
                         !hasEnoughBalance ||
                         !!gasBudgetError ||
                         !gasBudgetEst ||
-                        coinMetadata?.data === null
+                        !coinMetadata ||
+                        coinMetadata.data === null
                     }
                     text="Review"
                     fullWidth

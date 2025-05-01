@@ -105,8 +105,6 @@ export function SendTokenForm({
         }
     }, [iotaBalance, isBuildingTransaction, isSendCoinErrored, sendCoinError]);
 
-    console.log('coinMetadata', coinMetadata);
-
     return (
         <Loading
             loading={
@@ -126,6 +124,7 @@ export function SendTokenForm({
                             onActionClick={onMaxTokenButtonClick}
                             isMaxActionDisabled={isMaxActionDisabled}
                             totalGas={transactionData?.gasSummary?.totalGas}
+                            coinMetadata={coinMetadata.data}
                         />
                         <AddressInput name="to" placeholder="Enter Address" />
                     </div>
@@ -155,7 +154,8 @@ export function SendTokenForm({
                             !hasEnoughBalance ||
                             gasBudgetEst === '' ||
                             gasBudgetEst === undefined ||
-                            coinMetadata?.data === null
+                            !coinMetadata ||
+                            coinMetadata.data === null
                         }
                         text="Review"
                         fullWidth
