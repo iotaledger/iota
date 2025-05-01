@@ -56,7 +56,6 @@ export function useCoinMetadata(coinType?: string | null) {
     const client = useIotaClient();
     const config = useIotaClientContext();
 
-    // Only create fallback client if needed
     const graphQLClient = useMemo(() => {
         return new IotaClient({
             transport: new IotaClientGraphQLTransport({
@@ -92,11 +91,9 @@ export function useCoinMetadata(coinType?: string | null) {
                     if (fallback) return fallback;
                 }
 
-                // Return a defined falsy value to avoid retry
                 return null;
             } catch (err) {
                 console.error('Failed to fetch coin metadata:', err);
-                // Throwing causes the query to enter the "error" state
                 throw err;
             }
         },
