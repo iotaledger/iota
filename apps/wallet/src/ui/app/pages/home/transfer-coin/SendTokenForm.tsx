@@ -152,7 +152,8 @@ export function SendTokenForm({
                             isSubmitting ||
                             !hasEnoughBalance ||
                             gasBudgetEst === '' ||
-                            gasBudgetEst === undefined
+                            gasBudgetEst === undefined ||
+                            coinMetadata?.data === null
                         }
                         text="Review"
                         fullWidth

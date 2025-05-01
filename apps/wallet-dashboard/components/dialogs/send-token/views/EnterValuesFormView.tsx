@@ -175,7 +175,8 @@ export function EnterValuesFormView({
                         formik.isSubmitting ||
                         !hasEnoughBalance ||
                         !!gasBudgetError ||
-                        !gasBudgetEst
+                        !gasBudgetEst ||
+                        coinMetadata?.data === null
                     }
                     text="Review"
                     fullWidth

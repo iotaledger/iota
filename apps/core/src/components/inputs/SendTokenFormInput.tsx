@@ -38,7 +38,8 @@ export function SendTokenFormInput({
     });
 
     const [field, meta, helpers] = useField<string>(name);
-    const errorMessage = meta.error;
+    const errorMessage =
+        coinMetadata === null ? 'There was an error fetching the coin metadata' : meta.error;
     const isActionButtonDisabled = isSubmitting || isMaxActionDisabled;
 
     const gasAmount = formattedGasBudgetEstimation
