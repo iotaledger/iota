@@ -30,6 +30,7 @@
         "@iota/apps-ui-kit": "workspace:*",
         "@iota/dapp-kit": "workspace:*",
         "@iota/iota-sdk": "workspace:*",
+        "@iota/graphql-transport": "workspace:*",
         "@iota/kiosk": "workspace:*",
         "@noble/hashes": "^1.4.0",
         "@sentry/react": "^7.59.2",

@@ -2,14 +2,15 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { useIotaClient } from '@iota/dapp-kit';
-import { CoinMetadata } from '@iota/iota-sdk/client';
+import { useIotaClient, useIotaClientContext } from '@iota/dapp-kit';
+import { CoinMetadata, IotaClient } from '@iota/iota-sdk/client';
 import { IOTA_DECIMALS, IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 import { useQuery, type UseQueryResult } from '@tanstack/react-query';
 import BigNumber from 'bignumber.js';
 import { useMemo } from 'react';
 
 import { formatAmount } from '../utils/formatAmount';
+import { IotaClientGraphQLTransport } from '@iota/graphql-transport';
 
 type FormattedCoin = [
     formattedBalance: string,
@@ -53,23 +54,51 @@ const NAME_TRUNCATE_LENGTH = 10;
 
 export function useCoinMetadata(coinType?: string | null) {
     const client = useIotaClient();
+    const config = useIotaClientContext();
+
+    // Only create fallback client if needed
+    const graphQLClient = useMemo(() => {
+        return new IotaClient({
+            transport: new IotaClientGraphQLTransport({
+                // TODO: the url should be the same as the one in the primary client
+                url: 'https://api.devnet.iota.cafe',
+            }),
+        });
+    }, [config]);
+
     return useQuery({
         queryKey: ['coin-metadata', coinType],
         queryFn: async () => {
             if (!coinType) {
-                throw new Error(
-                    'Fetching coin metadata should be disabled when coin type is disabled.',
-                );
+                console.warn('coinType is null or undefined');
+                return null;
             }
 
-            // Optimize the known case of IOTA to avoid a network call:
             if (coinType === IOTA_TYPE_ARG) {
-                const metadata: CoinMetadata = IOTA_COIN_METADATA;
-
-                return metadata;
+                return IOTA_COIN_METADATA;
             }
 
-            return client.getCoinMetadata({ coinType });
+            try {
+                const primary = await client.getCoinMetadata({ coinType });
+                console.log('Primary metadata result:', primary);
+
+                if (primary) return primary;
+
+                if (graphQLClient) {
+                    console.log('Using fallback client to fetch metadata');
+                    const fallback = await graphQLClient.getCoinMetadata({ coinType });
+                    console.log('Fallback metadata result:', fallback);
+
+                    if (fallback) return fallback;
+                }
+
+                // Return a defined falsy value to avoid retry
+                return null;
+            } catch (err) {
+                console.error('Failed to fetch coin metadata:', err);
+                // Throwing causes the query to enter the "error" state
+                throw err;
+            }
         },
         select(data) {
             if (!data) return null;
@@ -88,7 +117,6 @@ export function useCoinMetadata(coinType?: string | null) {
         },
         retry: false,
         enabled: !!coinType,
-        staleTime: Infinity,
         gcTime: 24 * 60 * 60 * 1000,
     });
 }

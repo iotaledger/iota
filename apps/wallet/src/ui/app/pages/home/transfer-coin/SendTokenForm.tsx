@@ -105,6 +105,8 @@ export function SendTokenForm({
         }
     }, [iotaBalance, isBuildingTransaction, isSendCoinErrored, sendCoinError]);
 
+    console.log('coinMetadata', coinMetadata);
+
     return (
         <Loading
             loading={
