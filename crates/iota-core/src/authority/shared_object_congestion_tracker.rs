@@ -73,10 +73,7 @@ impl ExecutionSlot {
         let start_time = self.start_time.max(other.start_time);
         let end_time = self.end_time.min(other.end_time);
         if start_time < end_time {
-            Some(Self::new(
-                self.start_time.max(other.start_time),
-                self.end_time.min(other.end_time),
-            ))
+            Some(Self::new(start_time, end_time))
         } else {
             None
         }
@@ -122,7 +119,7 @@ impl ObjectExecutionSlots {
     /// returns None.
     fn max_object_free_slot_start_time(&self, tx_duration: ExecutionTime) -> Option<ExecutionTime> {
         if let Some(last_free_slot) = self.0.last() {
-            if MAX_EXECUTION_TIME - last_free_slot.start_time > tx_duration {
+            if MAX_EXECUTION_TIME - last_free_slot.start_time >= tx_duration {
                 // if the transaction will fit in the last free slot, return its start time.
                 return Some(last_free_slot.start_time);
             }
@@ -265,15 +262,31 @@ impl SharedObjectCongestionTracker {
             // If `assign_min_free_execution_slot` is false, we assign the transaction start
             // time based on the maximum start time of free execution slots for the
             // transaction over all its shared objects.
-            shared_input_objects
+            let object_start_times: Vec<_> = shared_input_objects
                 .iter()
                 .map(|obj| {
                     self.object_execution_slots
                         .get(&obj.id)
                         .expect("object should have been inserted at the start of this function.")
                 })
-                .filter_map(|slots| slots.max_object_free_slot_start_time(tx_duration))
-                .max()
+                .map(|slots| slots.max_object_free_slot_start_time(tx_duration))
+                .collect();
+
+            if object_start_times
+                .iter()
+                .all(|start_time| start_time.is_some())
+            {
+                Some(
+                    object_start_times
+                        .iter()
+                        .map(|start_time| start_time.unwrap())
+                        .max()
+                        .unwrap(),
+                )
+            } else {
+                // If any object does not have a free slot, return None.
+                None
+            }
         }
     }
 
@@ -604,7 +617,7 @@ pub mod shared_object_test_utils {
         )
     }
 
-    pub(crate) fn initialize_tracker_and_compute_tx_start_cost(
+    pub(crate) fn initialize_tracker_and_compute_tx_start_time(
         shared_object_congestion_tracker: &mut SharedObjectCongestionTracker,
         shared_input_objects: &[SharedInputObject],
         tx_duration: ExecutionTime,
@@ -644,7 +657,7 @@ pub mod shared_object_test_utils {
                 PerObjectCongestionControlMode::TotalGasBudget => {
                     let transaction = build_transaction(&[(*object_id, true)], *duration);
                     let shared_input_objects: Vec<_> = transaction.shared_input_objects().collect();
-                    let start_time = initialize_tracker_and_compute_tx_start_cost(&mut shared_object_congestion_tracker, &shared_input_objects, *duration).expect("inital value should be fit within the available range of slots in the tracker");
+                    let start_time = initialize_tracker_and_compute_tx_start_time(&mut shared_object_congestion_tracker, &shared_input_objects, *duration).expect("initial value should be fit within the available range of slots in the tracker");
                     shared_object_congestion_tracker
                         .bump_object_execution_slots(&transaction, start_time);
                 }
@@ -653,7 +666,7 @@ pub mod shared_object_test_utils {
                         let transaction = build_transaction(&[(*object_id, true)], 1);
                         let shared_input_objects: Vec<_> =
                             transaction.shared_input_objects().collect();
-                        let start_time = initialize_tracker_and_compute_tx_start_cost(&mut shared_object_congestion_tracker, &shared_input_objects, 1).expect("inital value should be fit within the available range of slots in the tracker");
+                        let start_time = initialize_tracker_and_compute_tx_start_time(&mut shared_object_congestion_tracker, &shared_input_objects, 1).expect("initial value should be fit within the available range of slots in the tracker");
                         shared_object_congestion_tracker
                             .bump_object_execution_slots(&transaction, start_time);
                     }
@@ -718,7 +731,7 @@ mod object_cost_tests {
         ];
         let shared_input_objects = construct_shared_input_objects(objects);
         assert_eq!(
-            initialize_tracker_and_compute_tx_start_cost(
+            initialize_tracker_and_compute_tx_start_time(
                 &mut shared_object_congestion_tracker,
                 &shared_input_objects,
                 10
@@ -748,7 +761,7 @@ mod object_cost_tests {
         // `assign_min_free_execution_slot`.
         let shared_input_objects = construct_shared_input_objects(&[(object_id_0, false)]);
         assert_eq!(
-            initialize_tracker_and_compute_tx_start_cost(
+            initialize_tracker_and_compute_tx_start_time(
                 &mut shared_object_congestion_tracker,
                 &shared_input_objects,
                 4
@@ -762,7 +775,7 @@ mod object_cost_tests {
         // a transaction with duration 5 that reads object 0 should have start_time 10
         // with or without `assign_min_free_execution_slot`.
         assert_eq!(
-            initialize_tracker_and_compute_tx_start_cost(
+            initialize_tracker_and_compute_tx_start_time(
                 &mut shared_object_congestion_tracker,
                 &shared_input_objects,
                 5
@@ -774,7 +787,7 @@ mod object_cost_tests {
         // with or without `assign_min_free_execution_slot`.
         let shared_input_objects = construct_shared_input_objects(&[(object_id_1, true)]);
         assert_eq!(
-            initialize_tracker_and_compute_tx_start_cost(
+            initialize_tracker_and_compute_tx_start_time(
                 &mut shared_object_congestion_tracker,
                 &shared_input_objects,
                 5
@@ -787,7 +800,7 @@ mod object_cost_tests {
         let shared_input_objects =
             construct_shared_input_objects(&[(object_id_0, false), (object_id_1, false)]);
         assert_eq!(
-            initialize_tracker_and_compute_tx_start_cost(
+            initialize_tracker_and_compute_tx_start_time(
                 &mut shared_object_congestion_tracker,
                 &shared_input_objects,
                 5
@@ -800,7 +813,7 @@ mod object_cost_tests {
         let shared_input_objects =
             construct_shared_input_objects(&[(object_id_0, true), (object_id_1, true)]);
         assert_eq!(
-            initialize_tracker_and_compute_tx_start_cost(
+            initialize_tracker_and_compute_tx_start_time(
                 &mut shared_object_congestion_tracker,
                 &shared_input_objects,
                 5
@@ -813,7 +826,7 @@ mod object_cost_tests {
         // `assign_min_free_execution_slot`.
         let shared_input_objects = construct_shared_input_objects(&[(object_id_2, true)]);
         assert_eq!(
-            initialize_tracker_and_compute_tx_start_cost(
+            initialize_tracker_and_compute_tx_start_time(
                 &mut shared_object_congestion_tracker,
                 &shared_input_objects,
                 5
@@ -830,7 +843,7 @@ mod object_cost_tests {
         // `assign_min_free_execution_slot`.
         let shared_input_objects = construct_shared_input_objects(&[(object_id_3, true)]);
         assert_eq!(
-            initialize_tracker_and_compute_tx_start_cost(
+            initialize_tracker_and_compute_tx_start_time(
                 &mut shared_object_congestion_tracker,
                 &shared_input_objects,
                 5
@@ -844,7 +857,7 @@ mod object_cost_tests {
         let shared_input_objects =
             construct_shared_input_objects(&[(object_id_0, false), (object_id_2, false)]);
         assert_eq!(
-            initialize_tracker_and_compute_tx_start_cost(
+            initialize_tracker_and_compute_tx_start_time(
                 &mut shared_object_congestion_tracker,
                 &shared_input_objects,
                 3
@@ -1128,7 +1141,7 @@ mod object_cost_tests {
         let shared_input_objects: Vec<_> = cert.shared_input_objects().collect();
         let cert_duration =
             shared_object_congestion_tracker.get_estimated_execution_duration(&cert);
-        let start_time = initialize_tracker_and_compute_tx_start_cost(
+        let start_time = initialize_tracker_and_compute_tx_start_time(
             &mut shared_object_congestion_tracker,
             &shared_input_objects,
             cert_duration,
@@ -1155,7 +1168,7 @@ mod object_cost_tests {
         let shared_input_objects: Vec<_> = cert.shared_input_objects().collect();
         let cert_duration =
             shared_object_congestion_tracker.get_estimated_execution_duration(&cert);
-        let start_time = initialize_tracker_and_compute_tx_start_cost(
+        let start_time = initialize_tracker_and_compute_tx_start_time(
             &mut shared_object_congestion_tracker,
             &shared_input_objects,
             cert_duration,
@@ -1206,7 +1219,7 @@ mod object_cost_tests {
         let shared_input_objects: Vec<_> = cert.shared_input_objects().collect();
         let cert_duration =
             shared_object_congestion_tracker.get_estimated_execution_duration(&cert);
-        let start_time = initialize_tracker_and_compute_tx_start_cost(
+        let start_time = initialize_tracker_and_compute_tx_start_time(
             &mut shared_object_congestion_tracker,
             &shared_input_objects,
             cert_duration,
@@ -1320,29 +1333,13 @@ mod object_cost_tests {
         }
         let shared_input_objects: Vec<_> = tx.shared_input_objects().collect();
         let cert_duration = shared_object_congestion_tracker.get_estimated_execution_duration(&tx);
-        let start_time = initialize_tracker_and_compute_tx_start_cost(
-            &mut shared_object_congestion_tracker,
-            &shared_input_objects,
-            cert_duration,
-        )
-        .expect("start time should be computable");
-        println!("start_time: {}", start_time);
-        shared_object_congestion_tracker.bump_object_execution_slots(&tx, start_time);
-        assert_eq!(
-            shared_object_congestion_tracker
-                .object_execution_slots
-                .get(&object_id_0)
-                .unwrap()
-                .max_object_occupied_slot_end_time(),
-            MAX_EXECUTION_TIME
-        );
-        assert_eq!(
-            shared_object_congestion_tracker
-                .object_execution_slots
-                .get(&object_id_1)
-                .unwrap()
-                .max_object_occupied_slot_end_time(),
-            MAX_EXECUTION_TIME
+        assert!(
+            initialize_tracker_and_compute_tx_start_time(
+                &mut shared_object_congestion_tracker,
+                &shared_input_objects,
+                cert_duration,
+            )
+            .is_none()
         );
 
         if let SequencingResult::Defer(_, congested_objects) = initialize_tracker_and_try_schedule(
@@ -1362,28 +1359,13 @@ mod object_cost_tests {
 
         let shared_input_objects: Vec<_> = tx.shared_input_objects().collect();
         let cert_duration = shared_object_congestion_tracker.get_estimated_execution_duration(&tx);
-        let start_time = initialize_tracker_and_compute_tx_start_cost(
-            &mut shared_object_congestion_tracker,
-            &shared_input_objects,
-            cert_duration,
-        )
-        .expect("start time should be computable");
-        shared_object_congestion_tracker.bump_object_execution_slots(&tx, start_time);
-        assert_eq!(
-            shared_object_congestion_tracker
-                .object_execution_slots
-                .get(&object_id_0)
-                .unwrap()
-                .max_object_occupied_slot_end_time(),
-            MAX_EXECUTION_TIME
-        );
-        assert_eq!(
-            shared_object_congestion_tracker
-                .object_execution_slots
-                .get(&object_id_1)
-                .unwrap()
-                .max_object_occupied_slot_end_time(),
-            MAX_EXECUTION_TIME
+        assert!(
+            initialize_tracker_and_compute_tx_start_time(
+                &mut shared_object_congestion_tracker,
+                &shared_input_objects,
+                cert_duration,
+            )
+            .is_none()
         );
 
         // case 2: small initial duration, large tx duration
@@ -1425,36 +1407,13 @@ mod object_cost_tests {
 
         let shared_input_objects: Vec<_> = tx.shared_input_objects().collect();
         let cert_duration = shared_object_congestion_tracker.get_estimated_execution_duration(&tx);
-        let start_time = initialize_tracker_and_compute_tx_start_cost(
-            &mut shared_object_congestion_tracker,
-            &shared_input_objects,
-            cert_duration,
-        )
-        .expect("start time should be computable");
-        shared_object_congestion_tracker.bump_object_execution_slots(&tx, start_time);
-        assert_eq!(
-            shared_object_congestion_tracker
-                .object_execution_slots
-                .get(&object_id_0)
-                .unwrap()
-                .max_object_occupied_slot_end_time(),
-            MAX_EXECUTION_TIME
-        );
-        assert_eq!(
-            shared_object_congestion_tracker
-                .object_execution_slots
-                .get(&object_id_1)
-                .unwrap()
-                .max_object_occupied_slot_end_time(),
-            MAX_EXECUTION_TIME
-        );
-        assert_eq!(
-            shared_object_congestion_tracker
-                .object_execution_slots
-                .get(&object_id_2)
-                .unwrap()
-                .max_object_occupied_slot_end_time(),
-            MAX_EXECUTION_TIME
+        assert!(
+            initialize_tracker_and_compute_tx_start_time(
+                &mut shared_object_congestion_tracker,
+                &shared_input_objects,
+                cert_duration,
+            )
+            .is_none()
         );
 
         // case 3: max initial duration, max tx duration
@@ -1487,20 +1446,13 @@ mod object_cost_tests {
 
         let shared_input_objects: Vec<_> = tx.shared_input_objects().collect();
         let cert_duration = shared_object_congestion_tracker.get_estimated_execution_duration(&tx);
-        let start_time = initialize_tracker_and_compute_tx_start_cost(
-            &mut shared_object_congestion_tracker,
-            &shared_input_objects,
-            cert_duration,
-        )
-        .expect("start time should be computable");
-        shared_object_congestion_tracker.bump_object_execution_slots(&tx, start_time);
-        assert_eq!(
-            shared_object_congestion_tracker
-                .object_execution_slots
-                .get(&object_id_0)
-                .unwrap()
-                .max_object_occupied_slot_end_time(),
-            MAX_EXECUTION_TIME
+        assert!(
+            initialize_tracker_and_compute_tx_start_time(
+                &mut shared_object_congestion_tracker,
+                &shared_input_objects,
+                cert_duration,
+            )
+            .is_none()
         );
     }
 }
