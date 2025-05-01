@@ -46,7 +46,7 @@ struct ExecutionSlot {
 }
 
 impl ExecutionSlot {
-    /// Constructs a new execution slot where start_time must be stricly less
+    /// Constructs a new execution slot where start_time must be strictly less
     /// than end_time.
     fn new(start_time: ExecutionTime, end_time: ExecutionTime) -> Self {
         debug_assert!(
