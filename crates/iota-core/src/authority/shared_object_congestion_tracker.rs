@@ -1345,8 +1345,12 @@ mod object_cost_tests {
 
     #[test]
     fn my_test() {
-        let mut shared_object_congestion_tracker =
-            SharedObjectCongestionTracker::new(PerObjectCongestionControlMode::TotalTxCount, false);
+        let schedule_third_tx = true;
+
+        let mut shared_object_congestion_tracker = SharedObjectCongestionTracker::new(
+            PerObjectCongestionControlMode::TotalTxCount,
+            schedule_third_tx,
+        );
 
         let object_a = ObjectID::random();
         let object_b = ObjectID::random();
@@ -1391,17 +1395,37 @@ mod object_cost_tests {
         );
         if let SequencingResult::Schedule(start_time) = sequencing_result {
             shared_object_congestion_tracker.bump_object_execution_slots(&tx_3, start_time);
-        } else {
-            // panic!("tx 3 must be scheduled");
+        } else if schedule_third_tx {
+            panic!("tx 3 must be scheduled");
         }
 
-        println!("Object A: {}", object_a);
-        println!("Object B: {}", object_b);
-        println!("Object C: {}", object_c);
-        println!("Object D: {}", object_d);
         println!(
-            "{:#?}",
-            shared_object_congestion_tracker.object_execution_slots
+            "Object A:\n{:#?}\n",
+            shared_object_congestion_tracker
+                .object_execution_slots
+                .get(&object_a)
+                .unwrap()
+        );
+        println!(
+            "Object B:\n{:#?}\n",
+            shared_object_congestion_tracker
+                .object_execution_slots
+                .get(&object_b)
+                .unwrap()
+        );
+        println!(
+            "Object C:\n{:#?}\n",
+            shared_object_congestion_tracker
+                .object_execution_slots
+                .get(&object_c)
+                .unwrap()
+        );
+        println!(
+            "Object D:\n{:#?}\n",
+            shared_object_congestion_tracker
+                .object_execution_slots
+                .get(&object_d)
+                .unwrap()
         );
     }
 }
