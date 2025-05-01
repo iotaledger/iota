@@ -33,6 +33,9 @@ pub enum SequencingResult {
 /// An execution slot represents the allocated time slot for a transaction to be
 /// executed. We can only estimate the time to execute a transaction.
 ///
+/// Execution slots must have strictly positive duration, i.e., the start time
+/// must be strictly less than the end time.
+///
 /// Execution slots of transactions with common shared objects cannot overlap.
 /// Transactions can occupy overlapping execution slots if they do not touch
 /// any common shared objects.
@@ -43,13 +46,16 @@ struct ExecutionSlot {
 }
 
 impl ExecutionSlot {
-    /// Constructs a new execution slot. If provided `end_time` is smaller than
-    /// `start_time`, this returns an execution slot with `end_time` being equal
-    /// `start_time`, i.e., duration of such slot is 0.
+    /// Constructs a new execution slot where start_time must be stricly less
+    /// than end_time.
     fn new(start_time: ExecutionTime, end_time: ExecutionTime) -> Self {
+        debug_assert!(
+            start_time < end_time,
+            "invalid execution slot: start time must be less than end time"
+        );
         Self {
             start_time,
-            end_time: end_time.max(start_time),
+            end_time: end_time,
         }
     }
 
@@ -60,8 +66,8 @@ impl ExecutionSlot {
     /// is used for creating an execution slot.
     fn duration(&self) -> ExecutionTime {
         debug_assert!(
-            self.end_time >= self.start_time,
-            "invalid execution slot: end time cannot be smaller than start time"
+            self.start_time < self.end_time,
+            "invalid execution slot: start time must be less than end time"
         );
 
         self.end_time - self.start_time
@@ -461,13 +467,20 @@ mod execution_slot_tests {
         // Creating a slot with `start_time`  < `end_time`
         let slot = ExecutionSlot::new(1, 3);
         assert_eq!(slot.duration(), 2);
+    }
 
-        // Creating a slot with `start_time`  >= `end_time` should result in zero
-        // duration
-        let slot = ExecutionSlot::new(3, 1);
-        assert_eq!(slot.duration(), 0);
-        let slot = ExecutionSlot::new(1, 1);
-        assert_eq!(slot.duration(), 0);
+    #[test]
+    #[should_panic]
+    fn test_execution_slot_new_zero_duration() {
+        // Creating a slot with `start_time`  == `end_time` should panic.
+        ExecutionSlot::new(1, 1);
+    }
+
+    #[test]
+    #[should_panic]
+    fn test_execution_slot_new_negative_duration() {
+        // Creating a slot with `start_time`  > `end_time` should panic.
+        ExecutionSlot::new(3, 1);
     }
 
     #[test]
