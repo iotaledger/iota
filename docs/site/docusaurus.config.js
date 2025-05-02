@@ -29,7 +29,7 @@ const config = {
   },
 
   // TODO: Revert the changes when the docs are ready
-  onBrokenLinks: "ignore",
+  onBrokenLinks: "throw",
   onBrokenMarkdownLinks: "warn",
   onBrokenAnchors: "warn",
 
