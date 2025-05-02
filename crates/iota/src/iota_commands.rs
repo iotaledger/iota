@@ -169,7 +169,7 @@ pub enum IotaCommand {
     /// Note that protocol config parameters must match between all nodes, or
     /// the network may break. Changing these values outside of local
     /// networks is very dangerous.
-    #[clap(verbatim_doc_comment)]
+    #[command(verbatim_doc_comment)]
     Start {
         /// Config directory that will be used to store network config, node db,
         /// keystore.
