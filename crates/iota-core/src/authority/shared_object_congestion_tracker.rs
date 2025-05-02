@@ -8,7 +8,7 @@ use iota_protocol_config::PerObjectCongestionControlMode;
 use iota_types::{
     base_types::{CommitRound, ObjectID, TransactionDigest},
     executable_transaction::VerifiedExecutableTransaction,
-    transaction::SharedInputObject,
+    transaction::{SharedInputObject, TransactionDataAPI},
 };
 
 use super::transaction_deferral::DeferralKey;
@@ -190,9 +190,6 @@ impl ObjectExecutionSlots {
         }
     }
 }
-
-// constructor that ensures non empty
-// splitting a free slot into two when we add slots
 
 // `SharedObjectCongestionTracker` stores the available and occupied execution
 // slots for the transactions within a consensus commit.
@@ -384,7 +381,12 @@ impl SharedObjectCongestionTracker {
             return SequencingResult::Schedule(0);
         }
 
-        let shared_input_objects: Vec<_> = cert.shared_input_objects().collect();
+        let shared_input_objects = cert
+            .data()
+            .inner()
+            .intent_message()
+            .value
+            .shared_input_objects();
         if shared_input_objects.is_empty() {
             // This is an owned object only transaction. No need to defer.
             return SequencingResult::Schedule(0);
@@ -646,8 +648,14 @@ pub mod shared_object_test_utils {
         previously_deferred_tx_digests: &HashMap<TransactionDigest, DeferralKey>,
         commit_round: CommitRound,
     ) -> SequencingResult {
-        let shared_input_objects: Vec<_> = cert.shared_input_objects().collect();
-        shared_object_congestion_tracker.initialize_for_shared_objects(&shared_input_objects);
+        shared_object_congestion_tracker.initialize_for_shared_objects(
+            &cert
+                .data()
+                .inner()
+                .intent_message()
+                .value
+                .shared_input_objects(),
+        );
         shared_object_congestion_tracker.try_schedule(
             cert,
             max_execution_duration_per_commit,
@@ -669,17 +677,14 @@ pub mod shared_object_test_utils {
                 PerObjectCongestionControlMode::None => {}
                 PerObjectCongestionControlMode::TotalGasBudget => {
                     let transaction = build_transaction(&[(*object_id, true)], *duration);
-                    let shared_input_objects: Vec<_> = transaction.shared_input_objects().collect();
-                    let start_time = initialize_tracker_and_compute_tx_start_time(&mut shared_object_congestion_tracker, &shared_input_objects, *duration).expect("initial value should be fit within the available range of slots in the tracker");
+                    let start_time = initialize_tracker_and_compute_tx_start_time(&mut shared_object_congestion_tracker, &transaction.data().inner().intent_message().value.shared_input_objects(), *duration).expect("initial value should be fit within the available range of slots in the tracker");
                     shared_object_congestion_tracker
                         .bump_object_execution_slots(&transaction, start_time);
                 }
                 PerObjectCongestionControlMode::TotalTxCount => {
                     for _ in 0..*duration {
                         let transaction = build_transaction(&[(*object_id, true)], 1);
-                        let shared_input_objects: Vec<_> =
-                            transaction.shared_input_objects().collect();
-                        let start_time = initialize_tracker_and_compute_tx_start_time(&mut shared_object_congestion_tracker, &shared_input_objects, 1).expect("initial value should be fit within the available range of slots in the tracker");
+                        let start_time = initialize_tracker_and_compute_tx_start_time(&mut shared_object_congestion_tracker, &transaction.data().inner().intent_message().value.shared_input_objects(), 1).expect("initial value should be fit within the available range of slots in the tracker");
                         shared_object_congestion_tracker
                             .bump_object_execution_slots(&transaction, start_time);
                     }
@@ -1151,12 +1156,16 @@ mod object_cost_tests {
 
         // Read two objects should not change the object execution slots.
         let cert = build_transaction(&[(object_id_0, false), (object_id_1, false)], 10);
-        let shared_input_objects: Vec<_> = cert.shared_input_objects().collect();
         let cert_duration =
             shared_object_congestion_tracker.get_estimated_execution_duration(&cert);
         let start_time = initialize_tracker_and_compute_tx_start_time(
             &mut shared_object_congestion_tracker,
-            &shared_input_objects,
+            &cert
+                .data()
+                .inner()
+                .intent_message()
+                .value
+                .shared_input_objects(),
             cert_duration,
         )
         .expect("start time should be computable");
@@ -1178,12 +1187,16 @@ mod object_cost_tests {
         // Write to object 0 should only bump object 0's execution slots. The start time
         // should be object 1's duration.
         let cert = build_transaction(&[(object_id_0, true), (object_id_1, false)], 10);
-        let shared_input_objects: Vec<_> = cert.shared_input_objects().collect();
         let cert_duration =
             shared_object_congestion_tracker.get_estimated_execution_duration(&cert);
         let start_time = initialize_tracker_and_compute_tx_start_time(
             &mut shared_object_congestion_tracker,
-            &shared_input_objects,
+            &cert
+                .data()
+                .inner()
+                .intent_message()
+                .value
+                .shared_input_objects(),
             cert_duration,
         )
         .expect("start time should be computable");
@@ -1229,12 +1242,16 @@ mod object_cost_tests {
             PerObjectCongestionControlMode::TotalGasBudget => 30,
             PerObjectCongestionControlMode::TotalTxCount => 12,
         };
-        let shared_input_objects: Vec<_> = cert.shared_input_objects().collect();
         let cert_duration =
             shared_object_congestion_tracker.get_estimated_execution_duration(&cert);
         let start_time = initialize_tracker_and_compute_tx_start_time(
             &mut shared_object_congestion_tracker,
-            &shared_input_objects,
+            &cert
+                .data()
+                .inner()
+                .intent_message()
+                .value
+                .shared_input_objects(),
             cert_duration,
         )
         .expect("start time should be computable");
@@ -1344,12 +1361,15 @@ mod object_cost_tests {
         } else {
             panic!("object 0 is congesting, should defer");
         }
-        let shared_input_objects: Vec<_> = tx.shared_input_objects().collect();
         let cert_duration = shared_object_congestion_tracker.get_estimated_execution_duration(&tx);
         assert!(
             initialize_tracker_and_compute_tx_start_time(
                 &mut shared_object_congestion_tracker,
-                &shared_input_objects,
+                &tx.data()
+                    .inner()
+                    .intent_message()
+                    .value
+                    .shared_input_objects(),
                 cert_duration,
             )
             .is_none()
@@ -1370,12 +1390,15 @@ mod object_cost_tests {
             panic!("objects 0 and 1 are congesting, should defer");
         }
 
-        let shared_input_objects: Vec<_> = tx.shared_input_objects().collect();
         let cert_duration = shared_object_congestion_tracker.get_estimated_execution_duration(&tx);
         assert!(
             initialize_tracker_and_compute_tx_start_time(
                 &mut shared_object_congestion_tracker,
-                &shared_input_objects,
+                &tx.data()
+                    .inner()
+                    .intent_message()
+                    .value
+                    .shared_input_objects(),
                 cert_duration,
             )
             .is_none()
@@ -1418,12 +1441,15 @@ mod object_cost_tests {
             panic!("case 2: object 2 is congested, should defer");
         }
 
-        let shared_input_objects: Vec<_> = tx.shared_input_objects().collect();
         let cert_duration = shared_object_congestion_tracker.get_estimated_execution_duration(&tx);
         assert!(
             initialize_tracker_and_compute_tx_start_time(
                 &mut shared_object_congestion_tracker,
-                &shared_input_objects,
+                &tx.data()
+                    .inner()
+                    .intent_message()
+                    .value
+                    .shared_input_objects(),
                 cert_duration,
             )
             .is_none()
@@ -1457,12 +1483,15 @@ mod object_cost_tests {
             panic!("case 3: object 0 is congested, should defer");
         }
 
-        let shared_input_objects: Vec<_> = tx.shared_input_objects().collect();
         let cert_duration = shared_object_congestion_tracker.get_estimated_execution_duration(&tx);
         assert!(
             initialize_tracker_and_compute_tx_start_time(
                 &mut shared_object_congestion_tracker,
-                &shared_input_objects,
+                &tx.data()
+                    .inner()
+                    .intent_message()
+                    .value
+                    .shared_input_objects(),
                 cert_duration,
             )
             .is_none()
