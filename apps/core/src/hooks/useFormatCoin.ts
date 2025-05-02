@@ -2,15 +2,16 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { useIotaClient } from '@iota/dapp-kit';
-import { CoinMetadata, IotaClient } from '@iota/iota-sdk/client';
+import { useCurrentAccount, useIotaClient } from '@iota/dapp-kit';
+import { CoinMetadata } from '@iota/iota-sdk/client';
 import { IOTA_DECIMALS, IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 import { useQuery, type UseQueryResult } from '@tanstack/react-query';
 import BigNumber from 'bignumber.js';
 import { useMemo } from 'react';
 
 import { formatAmount } from '../utils/formatAmount';
-import { IotaClientGraphQLTransport } from '@iota/graphql-transport';
+import { IotaGraphQLClient } from '@iota/iota-sdk/graphql';
+import { graphql } from '@iota/iota-sdk/graphql/schemas/2025.2';
 
 type FormattedCoin = [
     formattedBalance: string,
@@ -53,20 +54,18 @@ const SYMBOL_TRUNCATE_LENGTH = 5;
 const NAME_TRUNCATE_LENGTH = 10;
 
 export function useCoinMetadata(coinType?: string | null) {
+    const account = useCurrentAccount();
     const client = useIotaClient();
     const graphQLClient = useMemo(() => {
-        return new IotaClient({
-            transport: new IotaClientGraphQLTransport({
-                // TODO: the url should be the same as the one in the primary client
-                url: 'https://api.devnet.iota.cafe',
-            }),
+        return new IotaGraphQLClient({
+            url: 'https://graphql.devnet.iota.cafe/',
         });
     }, []);
 
     return useQuery({
-        queryKey: ['coin-metadata', coinType],
+        queryKey: ['coin-metadata', coinType, account?.address],
         queryFn: async () => {
-            if (!coinType) {
+            if (!coinType || !account?.address) {
                 console.warn('coinType is null or undefined');
                 return null;
             }
@@ -80,7 +79,30 @@ export function useCoinMetadata(coinType?: string | null) {
 
                 if (primary) return primary;
 
-                const fallback = await graphQLClient?.getCoinMetadata({ coinType });
+                const structType = `0x2::coin_manager::CoinManager<${coinType}>`;
+                const query = graphql(`
+                    query getCoinManager($type: String!) {
+                        objects(filter: { type: $type }) {
+                            nodes {
+                                asMoveObject {
+                                    contents {
+                                        json
+                                    }
+                                }
+                            }
+                        }
+                    }
+                `);
+
+                console.log('graphql', structType, query);
+
+                const fallback = await graphQLClient.execute(query, {
+                    variables: {
+                        type: structType,
+                    },
+                });
+
+                console.log('fallback', fallback);
 
                 if (fallback) return fallback;
 
