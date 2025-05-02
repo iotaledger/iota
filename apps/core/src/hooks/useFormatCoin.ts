@@ -12,6 +12,7 @@ import { useMemo } from 'react';
 import { formatAmount } from '../utils/formatAmount';
 import { IotaGraphQLClient } from '@iota/iota-sdk/graphql';
 import { graphql } from '@iota/iota-sdk/graphql/schemas/2025.2';
+import { useIotaGraphQLClientContext } from '../contexts';
 
 type FormattedCoin = [
     formattedBalance: string,
@@ -55,11 +56,7 @@ const NAME_TRUNCATE_LENGTH = 10;
 
 export function useCoinMetadata(coinType?: string | null) {
     const client = useIotaClient();
-    const graphQLClient = useMemo(() => {
-        return new IotaGraphQLClient({
-            url: 'https://graphql.devnet.iota.cafe/',
-        });
-    }, []);
+    const { iotaGraphQLClient: graphQLClient } = useIotaGraphQLClientContext();
 
     return useQuery({
         queryKey: ['coin-metadata', coinType],
@@ -74,13 +71,14 @@ export function useCoinMetadata(coinType?: string | null) {
             }
 
             try {
-                const primary = await client.getCoinMetadata({ coinType });
+                const rpcData = await client.getCoinMetadata({ coinType });
 
-                if (primary) return primary;
+                if (rpcData) return rpcData;
+
+                if (!graphQLClient) return null;
 
                 const structType = `0x2::coin_manager::CoinManager<${coinType}>`;
-
-                const fallback = await graphQLClient.query({
+                const { data: graphqlData } = await graphQLClient.query<any>({
                     query: graphql(`
                         query getCoinManager($type: String!) {
                             objects(filter: { type: $type }) {
@@ -98,10 +96,11 @@ export function useCoinMetadata(coinType?: string | null) {
                         type: structType,
                     },
                 });
-                const fallbackData = fallback.data as any;
+
+                if (!graphqlData) return null;
 
                 const coinMetadata: CoinMetadata | undefined =
-                    fallbackData['objects']['nodes'][0]?.asMoveObject?.contents?.json?.metadata ??
+                    graphqlData['objects']['nodes'][0]?.asMoveObject?.contents?.json?.metadata ??
                     undefined;
 
                 if (coinMetadata) return coinMetadata;
