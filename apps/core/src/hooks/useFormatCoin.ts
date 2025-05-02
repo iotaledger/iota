@@ -80,8 +80,6 @@ export function useCoinMetadata(coinType?: string | null) {
 
                 const structType = `0x2::coin_manager::CoinManager<${coinType}>`;
 
-                console.log('graphql', structType);
-
                 const fallback = await graphQLClient.query({
                     query: graphql(`
                         query getCoinManager($type: String!) {
@@ -106,9 +104,7 @@ export function useCoinMetadata(coinType?: string | null) {
                     fallbackData['objects']['nodes'][0]?.asMoveObject?.contents?.json?.metadata ??
                     undefined;
 
-                console.log('fallback', coinMetadata);
-
-                if (fallback) return fallbackData;
+                if (coinMetadata) return coinMetadata;
 
                 return null;
             } catch (err) {

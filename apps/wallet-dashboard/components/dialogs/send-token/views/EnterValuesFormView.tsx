@@ -147,6 +147,7 @@ export function EnterValuesFormView({
                                 onActionClick={onMaxTokenButtonClick}
                                 isMaxActionDisabled={isMaxActionDisabled}
                                 totalGas={sendCoinTransactionQuery.data?.gasSummary?.totalGas}
+                                coinMetadata={coinMetadata.data}
                             />
                             <AddressInput name="to" placeholder="Enter Address" />
                         </div>
