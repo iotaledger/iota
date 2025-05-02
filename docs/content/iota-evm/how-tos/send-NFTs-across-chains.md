@@ -269,7 +269,7 @@ Done in 9.34s.
 
 #### On the source chain
 
-You can use the following command to set batch size limits on the `ProxyONFT` contract on the source chain (e.g., Iota EVM Testnet):
+You can use the following command to set batch size limits on the `ProxyONFT` contract on the source chain (e.g., IOTA EVM Testnet):
 
 ```bash
 yarn set-batch-size-limit-proxy-onft-smr-Testnet
@@ -305,7 +305,7 @@ Done in 4.26s.
 
 #### On the source chain
 
-You can use the following command to set a trusted remote on the `ProxyONFT` contract on the source chain (e.g., Iota EVM Testnet):
+You can use the following command to set a trusted remote on the `ProxyONFT` contract on the source chain (e.g., IOTA EVM Testnet):
 
 ```bash
 yarn set-remote-proxy-onft-smr-Testnet
