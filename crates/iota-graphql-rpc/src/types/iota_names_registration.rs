@@ -64,7 +64,6 @@ pub(crate) struct NativeIotaNamesRegistration {
     pub domain: NativeDomain,
     pub domain_name: String,
     pub expiration_timestamp_ms: u64,
-    pub image_url: String,
 }
 
 #[derive(Clone)]

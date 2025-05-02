@@ -75,20 +75,16 @@ impl AuthorityServerHandle {
     /// Waits for the server to complete.
     pub async fn join(self) -> Result<(), io::Error> {
         // Note that dropping `self.complete` would terminate the server.
-        self.handle
-            .await?
-            .map_err(|e| io::Error::new(io::ErrorKind::Other, e))?;
+        self.handle.await?.map_err(io::Error::other)?;
         Ok(())
     }
 
     /// Kills the server.
     pub async fn kill(self) -> Result<(), io::Error> {
-        self.tx_cancellation.send(()).map_err(|_e| {
-            io::Error::new(io::ErrorKind::Other, "could not send cancellation signal!")
-        })?;
-        self.handle
-            .await?
-            .map_err(|e| io::Error::new(io::ErrorKind::Other, e))?;
+        self.tx_cancellation
+            .send(())
+            .map_err(|_e| io::Error::other("could not send cancellation signal!"))?;
+        self.handle.await?.map_err(io::Error::other)?;
         Ok(())
     }
 
