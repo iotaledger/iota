@@ -58,8 +58,11 @@ use tabled::{
 };
 use tracing::info;
 
-use crate::key_identity::{
-    KeyIdentity, get_identity_address_from_keystore, get_identity_alias_from_keystore,
+use crate::{
+    PrintableResult,
+    key_identity::{
+        KeyIdentity, get_identity_address_from_keystore, get_identity_alias_from_keystore,
+    },
 };
 
 #[derive(Subcommand)]
@@ -1249,23 +1252,6 @@ impl Display for CommandOutput {
     }
 }
 
-impl CommandOutput {
-    pub fn print(&self, pretty: bool) {
-        let line = if pretty {
-            format!("{self}")
-        } else {
-            format!("{:?}", self)
-        };
-        // Log line by line
-        for line in line.lines() {
-            // Logs write to a file on the side.  Print to stdout and also log to file, for
-            // tests to pass.
-            println!("{line}");
-            info!("{line}")
-        }
-    }
-}
-
 // when --json flag is used, any output result is transformed into a JSON pretty
 // string and sent to std output
 impl Debug for CommandOutput {
@@ -1276,6 +1262,8 @@ impl Debug for CommandOutput {
         }
     }
 }
+
+impl PrintableResult for CommandOutput {}
 
 /// Converts legacy formatted private key to 33 bytes bech32 encoded private key
 /// or vice versa. It can handle:

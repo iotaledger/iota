@@ -1,6 +1,6 @@
-processed 5 tasks
+processed 17 tasks
 
-task 1, lines 7-29:
+task 1, lines 9-31:
 //# run-graphql
 Response: {
   "data": {
@@ -25,26 +25,96 @@ Response: {
   }
 }
 
-task 2, line 31:
+task 3, line 35:
 //# create-checkpoint
 Checkpoint created: 1
 
-task 3, line 34:
-//# create-checkpoint
-Checkpoint created: 2
-
-task 4, lines 37-59:
+task 4, lines 37-47:
 //# run-graphql
 Response: {
   "data": {
     "availableRange": {
       "first": {
-        "digest": "HA81rp38NCuAG3umu7XtxzZLVcWpJeTFuE33BCCq6Ztw",
         "sequenceNumber": 0
       },
       "last": {
-        "digest": "AvoRNpTTFfBKDkC4X6jGnwBQAxKFFbo6cWM6QvVjMtao",
+        "sequenceNumber": 1
+      }
+    }
+  }
+}
+
+task 6, line 51:
+//# create-checkpoint
+Checkpoint created: 2
+
+task 7, lines 53-63:
+//# run-graphql
+Response: {
+  "data": {
+    "availableRange": {
+      "first": {
+        "sequenceNumber": 0
+      },
+      "last": {
         "sequenceNumber": 2
+      }
+    }
+  }
+}
+
+task 9, line 67:
+//# create-checkpoint
+Checkpoint created: 3
+
+task 10, lines 69-79:
+//# run-graphql
+Response: {
+  "data": {
+    "availableRange": {
+      "first": {
+        "sequenceNumber": 1
+      },
+      "last": {
+        "sequenceNumber": 3
+      }
+    }
+  }
+}
+
+task 12, line 83:
+//# create-checkpoint
+Checkpoint created: 4
+
+task 13, lines 85-95:
+//# run-graphql
+Response: {
+  "data": {
+    "availableRange": {
+      "first": {
+        "sequenceNumber": 2
+      },
+      "last": {
+        "sequenceNumber": 4
+      }
+    }
+  }
+}
+
+task 15, line 99:
+//# create-checkpoint
+Checkpoint created: 5
+
+task 16, lines 101-121:
+//# run-graphql
+Response: {
+  "data": {
+    "availableRange": {
+      "first": {
+        "sequenceNumber": 3
+      },
+      "last": {
+        "sequenceNumber": 5
       }
     },
     "first": {
@@ -52,8 +122,8 @@ Response: {
       "sequenceNumber": 0
     },
     "last": {
-      "digest": "AvoRNpTTFfBKDkC4X6jGnwBQAxKFFbo6cWM6QvVjMtao",
-      "sequenceNumber": 2
+      "digest": "2QtPyuUTV9HN6wS2YUGop4yBYfRFqYwrKsC3fC8Q8ZeJ",
+      "sequenceNumber": 5
     }
   }
 }

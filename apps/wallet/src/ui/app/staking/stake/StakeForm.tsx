@@ -14,6 +14,7 @@ import {
     useNewStakeTransaction,
     Validator,
     toast,
+    useIsValidatorCommitteeMember,
 } from '@iota/core';
 import * as Sentry from '@sentry/react';
 import { ampli } from '_src/shared/analytics/ampli';
@@ -38,7 +39,7 @@ import {
     Input,
     InputType,
 } from '@iota/apps-ui-kit';
-import { Exclamation, Loader } from '@iota/apps-ui-icons';
+import { Exclamation, Loader, Warning } from '@iota/apps-ui-icons';
 import { ExplorerLinkHelper } from '../../components';
 import { useMutation } from '@tanstack/react-query';
 import { getSignerOperationErrorMessage } from '../../helpers';
@@ -64,7 +65,7 @@ export function StakeFormComponent({ validatorAddress, epoch, onSuccess }: Stake
     const signer = useSigner(activeAccount);
     const { data: iotaBalance, isPending: isIotaBalanceLoading } = useBalance(activeAddress);
     const coinBalance = BigInt(iotaBalance?.totalBalance || 0);
-
+    const { isCommitteeMember } = useIsValidatorCommitteeMember();
     const { data: metadata } = useCoinMetadata(IOTA_TYPE_ARG);
     const decimals = metadata?.decimals ?? 0;
     const coinSymbol = metadata?.symbol ?? '';
@@ -235,6 +236,15 @@ export function StakeFormComponent({ validatorAddress, epoch, onSuccess }: Stake
                         );
                     }}
                 </Field>
+                {!isCommitteeMember(validatorAddress) && (
+                    <InfoBox
+                        type={InfoBoxType.Warning}
+                        title="Validator is not earning rewards."
+                        supportingText="Validator is active but not in the current committee, so not earning rewards this epoch. It may earn in future epochs. Stake at your discretion."
+                        icon={<Warning />}
+                        style={InfoBoxStyle.Elevated}
+                    />
+                )}
 
                 {isUnsafeAmount ? (
                     <InfoBox

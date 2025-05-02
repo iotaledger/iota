@@ -1,7 +1,7 @@
 ---
 title: IOTA Indexer
 description: IOTA Indexer is a node data service that serves data from the IOTA protocol, including both data directly generated from chain and derivative data.
-tags: 
+tags:
   - infrastructure
 teams:
   - iotaledger/infrastructure
@@ -11,13 +11,41 @@ The IOTA Indexer is a node data service that serves data from the IOTA protocol,
 
 ![Indexer architecture](/img/operator/indexer-functions/indexer-arch.png)
 
-## Functions 
+## Functions
 
 The IOTA Indexer provides three main functionalities:
 - Ingest data from a full node to a relational database. Data on full nodes is stored as BCS bytes in an embedded RocksDB database, thus the query capabilities are very limited. The indexer pulls checkpoint blob data, schematizing them into various tables like objects, transactions, and so on, with proper indices.
-- Serve online transaction processing (OLTP) RPC requests. With data in relational databases, IOTA indexer spins a stateless reader binary as JSON RPC server with an [interface](/references/iota-api).
+- Serve online transaction processing (OLTP) RPC requests. With data in relational databases, IOTA indexer spins a stateless reader binary as JSON RPC server with the associated [interface](/iota-api-ref).
 - Other than OLTP data ingestion and requests, the Indexer also supports some analytical data ingestion like transactions per second (TPS) and daily active user (DAU) metrics.
 
-## Run an indexer
+## Run an Indexer
 
 Refer to the [IOTA Indexer README](https://github.com/iotaledger/iota/tree/develop/crates/iota-indexer) to run an indexer with a local or managed Postgres-compatible database.
+
+## Run GraphQL Interface
+
+Alternatively to the JSON-RPC, a GraphQL [interface](/references/iota-graphql) can be used to provide read access to the Indexer database, and enable execution of transactions to the full node.
+
+![GraphQL server architecture](/img/operator/indexer-functions/graphql-rpc-arch.png)
+
+A running Indexer database instance is required for the GraphQL API to be functional, so it is advised that an Indexer sync worker is setup and started first.
+
+Then the GraphQL server can be started with the following command:
+
+```sh
+$ iota-graphql-rpc start-server [OPTIONS]
+
+Options:
+  -i, --ide-title <IDE_TITLE>        The title to display at the top of the page
+  -d, --db-url <DB_URL>              DB URL for data fetching
+      --db-pool-size <DB_POOL_SIZE>  Pool size for DB connections
+  -p, --port <PORT>                  Port to bind the server to
+      --host <HOST>                  Host to bind the server to
+      --prom-port <PROM_PORT>        Port to bind the prometheus server to
+      --prom-host <PROM_HOST>        Host to bind the prometheus server to
+  -c, --config <CONFIG>              Path to TOML file containing configuration for service
+      --node-rpc-url <NODE_RPC_URL>  RPC url to the Node for tx execution
+  -h, --help                         Print help
+```
+
+For more information see [IOTA GraphQL-RPC README](https://github.com/iotaledger/iota/blob/develop/crates/iota-graphql-rpc/README.md#launching-the-graphql-rpc-server).

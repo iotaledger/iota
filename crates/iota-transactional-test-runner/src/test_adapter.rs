@@ -240,7 +240,7 @@ impl MoveTestAdapter<'_> for IotaTestAdapter {
             custom_validator_account,
             reference_gas_price,
             default_gas_price,
-            object_snapshot_min_checkpoint_lag,
+            objects_snapshot_min_checkpoint_lag,
             flavor,
             epochs_to_keep,
         ) = match task_opt.map(|t| t.command) {
@@ -255,7 +255,7 @@ impl MoveTestAdapter<'_> for IotaTestAdapter {
                     custom_validator_account,
                     reference_gas_price,
                     default_gas_price,
-                    object_snapshot_min_checkpoint_lag,
+                    objects_snapshot_min_checkpoint_lag,
                     flavor,
                     epochs_to_keep,
                 },
@@ -294,7 +294,7 @@ impl MoveTestAdapter<'_> for IotaTestAdapter {
                     custom_validator_account,
                     reference_gas_price,
                     default_gas_price,
-                    object_snapshot_min_checkpoint_lag,
+                    objects_snapshot_min_checkpoint_lag,
                     flavor,
                     epochs_to_keep,
                 )
@@ -334,7 +334,7 @@ impl MoveTestAdapter<'_> for IotaTestAdapter {
                 &protocol_config,
                 custom_validator_account,
                 reference_gas_price,
-                object_snapshot_min_checkpoint_lag,
+                objects_snapshot_min_checkpoint_lag,
                 path.to_path_buf(),
                 epochs_to_keep,
             )
@@ -559,30 +559,6 @@ impl MoveTestAdapter<'_> for IotaTestAdapter {
             ($fake_id:ident) => {{ get_obj!($fake_id, None) }};
         }
         match command {
-            IotaSubcommand::ForceObjectSnapshotCatchup(ForceObjectSnapshotCatchup {
-                start_cp,
-                end_cp,
-            }) => {
-                let cluster = self.cluster.as_ref().unwrap();
-                let highest_checkpoint = self.executor.get_latest_checkpoint_sequence_number()?;
-
-                if end_cp > highest_checkpoint {
-                    bail!(
-                        "end_cp {} is greater than highest checkpoint {}",
-                        end_cp,
-                        highest_checkpoint,
-                    );
-                }
-
-                cluster
-                    .force_objects_snapshot_catchup(start_cp, end_cp)
-                    .await;
-
-                Ok(Some(format!(
-                    "Objects snapshot updated to [{} to {})",
-                    start_cp, end_cp
-                )))
-            }
             IotaSubcommand::RunGraphql(RunGraphqlCommand {
                 show_usage,
                 show_headers,
@@ -2137,7 +2113,7 @@ async fn init_sim_executor(
     protocol_config: &ProtocolConfig,
     custom_validator_account: bool,
     reference_gas_price: Option<u64>,
-    object_snapshot_min_checkpoint_lag: Option<usize>,
+    objects_snapshot_min_checkpoint_lag: Option<usize>,
     test_file_path: PathBuf,
     epochs_to_keep: Option<u64>,
 ) -> (
@@ -2230,7 +2206,7 @@ async fn init_sim_executor(
         internal_data_port,
         Arc::new(read_replica),
         Some(SnapshotLagConfig::new(
-            object_snapshot_min_checkpoint_lag,
+            objects_snapshot_min_checkpoint_lag,
             Some(1),
         )),
         epochs_to_keep,
