@@ -1,5 +1,11 @@
 # @iota/bcs
 
+## 1.0.0
+
+### Major Changes
+
+-   daa968f: Initial release of `@iota/bcs` and `@iota/iota-sdk`
+
 ## 0.2.1
 
 ### Patch Changes
