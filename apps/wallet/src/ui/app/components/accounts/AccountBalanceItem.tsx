@@ -3,13 +3,13 @@
 
 import { type SerializedUIAccount } from '_src/background/accounts/account';
 import {
+    haveSupplyIncreaseLabel,
     COIN_TYPE,
     Collapsible,
     formatBalance,
     IOTA_COIN_METADATA,
     STARDUST_BASIC_OUTPUT_TYPE,
     STARDUST_NFT_OUTPUT_TYPE,
-    SUPPLY_INCREASE_VESTING_LABEL,
     TIMELOCK_IOTA_TYPE,
     TIMELOCK_STAKED_TYPE,
     useBalance,
@@ -26,7 +26,6 @@ import {
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useIotaClientContext } from '@iota/dapp-kit';
 import { useEffect, useState } from 'react';
-import { type PaginatedObjectsResponse } from '@iota/iota-sdk/client';
 
 interface AccountBalanceItemProps {
     accounts: SerializedUIAccount[];
@@ -125,19 +124,9 @@ export function AccountBalanceItem({
         10,
     );
 
-    const checkForVestingObject = (pages: PaginatedObjectsResponse[]) => {
-        return pages[pages.length - 1]?.data.some(
-            (object) =>
-                object.data?.content?.dataType === 'moveObject' &&
-                object.data?.content?.fields &&
-                'label' in object.data.content.fields &&
-                object.data?.content?.fields?.label === SUPPLY_INCREASE_VESTING_LABEL,
-        );
-    };
-
     useEffect(() => {
         if (vestingObjects?.pages) {
-            const foundVestingObject = checkForVestingObject(vestingObjects.pages.flat());
+            const foundVestingObject = haveSupplyIncreaseLabel(vestingObjects.pages.flat());
             setHasVestingObjects(foundVestingObject);
 
             if (!foundVestingObject && hasNextPage) {
