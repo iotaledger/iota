@@ -108,7 +108,7 @@ export function useCoinMetadata(coinType?: string | null) {
 
                 console.log('fallback', coinMetadata);
 
-                if (fallback) return fallback;
+                if (fallback) return fallbackData;
 
                 return null;
             } catch (err) {
