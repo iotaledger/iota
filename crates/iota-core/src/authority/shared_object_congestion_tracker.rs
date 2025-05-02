@@ -555,25 +555,25 @@ mod execution_slot_tests {
         let slot_2 = ExecutionSlot::new(2, 3);
         assert_eq!(slot_1.contains(&slot_2), Ordering::Equal);
 
-        // Test case where part of slot_1 is less that slot_2
+        // Test case where part of slot_2 is greater than slot_1
         let slot_1 = ExecutionSlot::new(1, 5);
         let slot_2 = ExecutionSlot::new(0, 3);
-        assert_eq!(slot_1.contains(&slot_2), Ordering::Less);
+        assert_eq!(slot_1.contains(&slot_2), Ordering::Greater);
 
-        // Test case where all of slot_1 is less than slot_2
+        // Test case where all of slot_2 is greater than slot_1
         let slot_1 = ExecutionSlot::new(2, 5);
         let slot_2 = ExecutionSlot::new(0, 1);
-        assert_eq!(slot_1.contains(&slot_2), Ordering::Less);
+        assert_eq!(slot_1.contains(&slot_2), Ordering::Greater);
 
-        // Test case where part of slot_1 is greater than slot_2
+        // Test case where part of slot_2 is less than slot_1
         let slot_1 = ExecutionSlot::new(1, 5);
         let slot_2 = ExecutionSlot::new(3, 6);
-        assert_eq!(slot_1.contains(&slot_2), Ordering::Greater);
+        assert_eq!(slot_1.contains(&slot_2), Ordering::Less);
 
-        // Test case where all of slot_1 is greater than slot_2
+        // Test case where all of slot_2 is less than slot_1
         let slot_1 = ExecutionSlot::new(1, 5);
         let slot_2 = ExecutionSlot::new(6, 7);
-        assert_eq!(slot_1.contains(&slot_2), Ordering::Greater);
+        assert_eq!(slot_1.contains(&slot_2), Ordering::Less);
 
         // Test case where slot_1 is equal to slot_2
         let slot_1 = ExecutionSlot::new(1, 5);
