@@ -1,13 +1,10 @@
 import Quiz from '@site/src/components/Quiz';
 import questions from '/json/node-operators/archives.json';
 
-
 An IOTA archive instance stores the full IOTA transaction history since genesis in a database agnostic format. This includes information about transactions (with client authentication), effects, events, and checkpoints. As such, archival storage can be used for data auditing and for replaying historic transactions.
 
 :::info
-
 The current archival storage format doesn't include historic object versions. 
-
 :::
 
 As a full node operator, you can enable archival fallback for your full node by specifying the URL to upload archival data. To ensure a healthy network, we encourage the IOTA community to set up additional archives to ensure archival data availability across the network. In a typical configuration, an archive trails behind the latest checkpoint by approximately 10 minutes.
@@ -66,46 +63,43 @@ state-archive-read-config:
 To enable your node to fallback to an archive in case of lag, add this to your `fullnode.yaml` file:
 
 <Tabs groupId="object-store">
-<TabItem value="s3" label="Amazon S3">
+  <TabItem value="s3" label="Amazon S3">
+    ```yaml
+    state-archive-read-config:
+      - object-store-config:
+          object-store: "S3"
+          # Use iota-testnet-archive for testnet 
+          # Use iota-mainnet-archive for mainnet
+          bucket: "iota-<testnet|mainnet>-archive"
+          aws-access-key-id: "<AWS-ACCESS-KEY-ID>"
+          aws-secret-access-key: "<AWS-SECRET-ACCESS-KEY>"
+          aws-region: "<AWS-REGION>"
+          object-store-connection-limit: 20
+        # How many objects to read ahead when catching up  
+        concurrency: 5
+        # Whether to prune local state based on latest checkpoint in archive.
+        # This should stay false for most use cases
+        use-for-pruning-watermark: false
+    ```
+  </TabItem>
 
-```yaml
-state-archive-read-config:
-  - object-store-config:
-      object-store: "S3"
-      # Use iota-testnet-archive for testnet 
-      # Use iota-mainnet-archive for mainnet
-      bucket: "iota-<testnet|mainnet>-archive"
-      aws-access-key-id: "<AWS-ACCESS-KEY-ID>"
-      aws-secret-access-key: "<AWS-SECRET-ACCESS-KEY>"
-      aws-region: "<AWS-REGION>"
-      object-store-connection-limit: 20
-    # How many objects to read ahead when catching up  
-    concurrency: 5
-    # Whether to prune local state based on latest checkpoint in archive.
-    # This should stay false for most use cases
-    use-for-pruning-watermark: false
-```
-
-</TabItem>
-<TabItem value="gcs" label="Google Cloud Storage">
-
-```yaml
-state-archive-read-config:
-  - object-store-config:
-      object-store: "GCS"
-      # Use iota-mainnet-archive for mainnet
-      # Notice there is no archive bucket setup for testnet in GCS
-      bucket: "iota-<testnet|mainnet>-archive"
-      google-service-account: "</path/to/service/account/credentials>"
-      object-store-connection-limit: 20
-    # How many objects to read ahead when catching up  
-    concurrency: 5
-    # Whether to prune local state based on latest checkpoint in archive.
-    # This should stay false for most use cases
-    use-for-pruning-watermark: false
-```
-
-</TabItem>
+  <TabItem value="gcs" label="Google Cloud Storage">
+    ```yaml
+    state-archive-read-config:
+      - object-store-config:
+          object-store: "GCS"
+          # Use iota-mainnet-archive for mainnet
+          # Notice there is no archive bucket setup for testnet in GCS
+          bucket: "iota-<testnet|mainnet>-archive"
+          google-service-account: "</path/to/service/account/credentials>"
+          object-store-connection-limit: 20
+        # How many objects to read ahead when catching up  
+        concurrency: 5
+        # Whether to prune local state based on latest checkpoint in archive.
+        # This should stay false for most use cases
+        use-for-pruning-watermark: false
+    ```
+  </TabItem>
 </Tabs>
 
 
@@ -118,55 +112,48 @@ Here's an example IAM policy that grants read-only access to the IOTA mainnet/te
 This policy should be attached to the IAM user or role that your node uses to access the archive.
 
 <Tabs groupId="iam-policy">
-<TabItem value="iam-mainnet" label="Mainnet IAM Policy">
+  <TabItem value="iam-mainnet" label="Mainnet IAM Policy">
+    ```json
+    {
+      "Version": "2012-10-17",
+      "Statement": [
+          {
+              "Action": [
+                  "s3:ListBucket",  // Allows listing objects in the bucket
+                  "s3:GetObject"    // Allows reading objects from the bucket
+              ],
+              "Effect": "Allow",
+              "Resource": [
+                  "arn:aws:s3:::iota-mainnet-archive/*",
+                  "arn:aws:s3:::iota-mainnet-archive"
+              ]
+          }
+      ]
+    }
+    ```
+  </TabItem>
 
-```json
-{
-  "Version": "2012-10-17",
-  "Statement": [
-      {
-          "Action": [
-              "s3:ListBucket",  // Allows listing objects in the bucket
-              "s3:GetObject"    // Allows reading objects from the bucket
-          ],
-          "Effect": "Allow",
-          "Resource": [
-              "arn:aws:s3:::iota-mainnet-archive/*",
-              "arn:aws:s3:::iota-mainnet-archive"
-          ]
-      }
-  ]
-}
-```
-
-</TabItem>
-<TabItem value="iam-testnet" label="Testnet IAM Policy">
-
-```json
-{
-  "Version": "2012-10-17",
-  "Statement": [
-      {
-          "Action": [
-              "s3:ListBucket",  // Allows listing objects in the bucket
-              "s3:GetObject"    // Allows reading objects from the bucket
-          ],
-          "Effect": "Allow",
-          "Resource": [
-              "arn:aws:s3:::iota-testnet-archive/*",
-              "arn:aws:s3:::iota-testnet-archive"
-          ]
-      }
-  ]
-}
-```
-
-</TabItem>
+  <TabItem value="iam-testnet" label="Testnet IAM Policy">
+    ```json
+    {
+      "Version": "2012-10-17",
+      "Statement": [
+          {
+              "Action": [
+                  "s3:ListBucket",  // Allows listing objects in the bucket
+                  "s3:GetObject"    // Allows reading objects from the bucket
+              ],
+              "Effect": "Allow",
+              "Resource": [
+                  "arn:aws:s3:::iota-testnet-archive/*",
+                  "arn:aws:s3:::iota-testnet-archive"
+              ]
+          }
+      ]
+    }
+    ```
+  </TabItem>
 </Tabs>
-
-
-
- -->
-
+-->
 
 <Quiz questions={questions} />
