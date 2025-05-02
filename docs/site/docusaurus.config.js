@@ -30,7 +30,7 @@ const config = {
 
   // TODO: Revert the changes when the docs are ready
   onBrokenLinks: "throw",
-  onBrokenMarkdownLinks: "warn",
+  onBrokenMarkdownLinks: "throw",
   onBrokenAnchors: "warn",
 
   // Even if you don't use internationalization, you can use this field to set
