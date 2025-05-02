@@ -177,17 +177,17 @@ function EvmCustom(props: NetworkProps) {
           <th>Chain Address</th>
           <td>
             <a
-              href={props.explorer + '/addr/' + props.evmCustom.chainAddress}
+              href={props.explorer + '/object/' + props.evmCustom.chainId}
               target='_blank'
               rel='noopener noreferrer'
             >
-              {props.evmCustom.chainAddress}
+              {props.evmCustom.chainId}
             </a>
           </td>
         </tr>
         <tr>
-          <th>Alias ID</th>
-          <td>{props.evmCustom.aliasId}</td>
+          <th>Package ID</th>
+          <td>{props.evmCustom.packageId}</td>
         </tr>
       </tbody>
     </table>

@@ -20,16 +20,15 @@ export const Networks: Record<string, NetworkProps> = {
         decimals: 18,
       },
       rpcUrls: [
-        'https://json-rpc.evm.iotaledger.net',
-        'wss://ws.json-rpc.evm.iotaledger.net',
+        'https://json-rpc.evm.iota.cafe',
       ],
       blockExplorerUrls: ['https://explorer.evm.iota.org'],
     },
     evmCustom: {
-      chainAddress:
-        'iota1pzt3mstq6khgc3tl0mwuzk3eqddkryqnpdxmk4nr25re2466uxwm28qqxu5',
-      aliasId:
-        '0x971dc160d5ae8c457f7eddc15a39035b6190130b4dbb5663550795575ae19db5',
+      chainId:
+        '',
+      packageId:
+        '',
       ankrApiUrls: ['https://rpc.ankr.com/iota_evm'],
       blastApiUrls: [
         'https://iota-mainnet-evm.public.blastapi.io',
@@ -40,10 +39,10 @@ export const Networks: Record<string, NetworkProps> = {
         },
       ],
       toolkit: {
-        url: 'https://evm-toolkit.evm.iotaledger.net',
+        url: 'https://evm-bridge.iota.org',
         hasFaucet: false,
       },
-      api: 'https://api.evm.iotaledger.net',
+      api: '',
     },
   },
   iota_testnet: {
@@ -60,7 +59,7 @@ export const Networks: Record<string, NetworkProps> = {
     faucet: 'https://faucet.testnet.iota.cafe',
     explorer: 'https://explorer.rebased.iota.org/?network=testnet',
     evm: {
-      chainId: '0x433',
+      chainId: '0x434',
       chainName: 'IOTA EVM Testnet',
       nativeCurrency: {
         name: 'IOTA',
@@ -69,15 +68,14 @@ export const Networks: Record<string, NetworkProps> = {
       },
       rpcUrls: [
         'https://json-rpc.evm.testnet.iota.cafe',
-        'wss://ws.json-rpc.evm.testnet.iotaledger.net',
       ],
-      blockExplorerUrls: ['https://explorer.evm.testnet.iota.cafe'],
+      blockExplorerUrls: ['https://explorer.evm.testnet.iota.cafe/'],
     },
     evmCustom: {
-      chainAddress:
-        'tst1pzxsrr7apqkdzz633dyntmvxwtyvk029p39te5j0m33q6946h7akzv663zu',
-      aliasId:
-        '0x8d018fdd082cd10b518b4935ed8672c8cb3d450c4abcd24fdc620d16babfbb61',
+      chainId:
+        '0x2f11f5ea9d3c093c9cc2e329cf92e05aa00ac052ada96c4c14a2f6869a7cbcaf',
+      packageId:
+        '0x1e6e060b87f55acc0a7632acab9cf5712ff01643f8577c9a6f99ebd1010e3f4c',
       ankrApiUrls: ['https://rpc.ankr.com/iota_evm_testnet'],
       blastApiUrls: [
         'https://iota-testnet-evm.public.blastapi.io',
@@ -88,10 +86,10 @@ export const Networks: Record<string, NetworkProps> = {
         },
       ],
       toolkit: {
-        url: 'https://evm-toolkit.evm.testnet.iotaledger.net',
-        hasFaucet: false,
+        url: 'https://testnet.evm-bridge.iota.org',
+        hasFaucet: true,
       },
-      api: 'https://api.evm.testnet.iotaledger.net',
+      api: '',
     },
   },
   iota_devnet: {
@@ -150,8 +148,8 @@ export interface NetworkProps {
   explorer: string;
   evm?: AddEthereumChainParameter;
   evmCustom?: {
-    chainAddress: string;
-    aliasId: string;
+    chainId: string;
+    packageId: string;
     blastApiUrls?: Array<string | object>;
     ankrApiUrls?: Array<string | object>;
     toolkit?: Toolkit;

@@ -52,7 +52,7 @@ const iotaEvm = [
                     {
                         label: 'Toolkit',
                         type: 'link',
-                        href: 'https://evm-toolkit.evm.iotaledger.net',
+                        href: 'https://evm-bridge.iota.org',
                     },
                 ],
             },
@@ -74,7 +74,7 @@ const iotaEvm = [
                     {
                         label: 'Toolkit & Faucet',
                         type: 'link',
-                        href: 'https://evm-toolkit.evm.testnet.iotaledger.net',
+                        href: 'https://testnet.evm-bridge.iota.org',
                     },
                 ],
             },
