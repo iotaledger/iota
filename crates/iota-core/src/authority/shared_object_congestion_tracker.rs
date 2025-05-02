@@ -92,16 +92,16 @@ impl ExecutionSlot {
 
     // Returns an ordering indicating whether this execution slot contains the other
     // execution slot. The ordering is defined as follows:
-    // - Greater: the other slot is not contained by this slot and its end time is
-    //   greater this this slot's end time.
-    // - Less: the other slot is not contained by this slot and its start time is
-    //   less than this slot's start time.
+    // - Less: the other slot is not contained by this slot and this slot's end time
+    //   is less than the other slot's end time.
+    // - Greater: the other slot is not contained by this slot and this slot's start
+    //   time is greater than the other slot's start time.
     // - Equal: the other slot is contained by this slot.
     fn contains(&self, other: &Self) -> Ordering {
         if self.end_time < other.end_time {
-            Ordering::Greater
-        } else if self.start_time > other.start_time {
             Ordering::Less
+        } else if self.start_time > other.start_time {
+            Ordering::Greater
         } else {
             Ordering::Equal
         }
