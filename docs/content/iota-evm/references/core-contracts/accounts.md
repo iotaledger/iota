@@ -75,26 +75,6 @@ The data will be BCS encoded
 | ------- | ------- | -------- | --------------------- |
 | agentID | AgentID | No       | The target L2 account |
 
-### `transferAccountToChain`
-
-Transfers the specified allowance from the sender SC's L2 account on
-the target chain to the sender SC's L2 account on the origin chain.
-
-#### Parameters
-
-| Name                                                                 | Type | Optional | Description                                |
-| -------------------------------------------------------------------- | ---- | -------- | ------------------------------------------ |
-| optionalGasReserve                                                   | u64  | Yes      | Gas amount to reserve in the allowance for |
-| the internal call to transferAllowanceTo(). Default 100 (MinGasFee). |      |          |                                            |
-
-:::note Important Detailed Information
-
-[Read carefully before using this function.](xfer.md)
-
-:::
-
----
-
 ### `setCoinMetadata`
 
 Sets metadata for a specific coin.
@@ -220,23 +200,6 @@ Returns the Object IDs for all Objects owned by the given account.
 | --------------- | ---- | --------------------------------- |
 | bcsEncodedBytes | [u8] | A BSC encoded array of Object IDs |
 
-### `accountObjectsInCollection`
-
-Returns the Object IDs for all Objects in the given collection/object that are owned by the given account.
-
-#### Parameters
-
-| Name            | Type     | Optional | Description                     |
-| --------------- | -------- | -------- | ------------------------------- |
-| optionalAgentID | AgentID  | Yes      | The account Agent ID            |
-| collectionID    | [u8; 32] | No       | The Object ID of the collection |
-
-#### Returns
-
-| Name            | Type | Description                       |
-| --------------- | ---- | --------------------------------- |
-| bcsEncodedBytes | [u8] | A BSC encoded array of Object IDs |
-
 ### `getAccountNonce`
 
 Returns the current account nonce for a give AgentID `agentID`.
@@ -253,19 +216,3 @@ The account nonce is used to issue off-ledger requests.
 | Name  | Type | Description       |
 | ----- | ---- | ----------------- |
 | nonce | u64  | The account Nonce |
-
-### `objectBCS`
-
-Returns the Object data for a given ObjectID
-
-#### Parameters
-
-| Name     | Type     | Optional | Description   |
-| -------- | -------- | -------- | ------------- |
-| objectID | [u8; 32] | No       | The Object ID |
-
-#### Returns
-
-| Name            | Type | Description                                 |
-| --------------- | ---- | ------------------------------------------- |
-| bcsEncodedBytes | [u8] | The data of the object as bcs encoded bytes |
