@@ -1,0 +1,50 @@
+---
+description: Learn how to migrate your Stardust NFT and native assets using the IOTA Wallet Dashboard.
+teams:
+   - iotaledger/tooling
+tags: [iota-wallet-dashboard]
+---
+
+# Migrate Stardust Assets
+
+You can use the IOTA Wallet Dashboard to migrate native NFTs and
+native tokens that need migrating. 
+
+
+## Access the Migration View
+
+If your wallet has assets you need to migrate, you will see a `Start Migration` button in the top right of the
+Dashboard. 
+Alternatively, you can access the Migration View from the left side menu.
+
+   ![Access Migration](/img/about-iota/iota-wallet-dashboard/how-to/migration/access-migration.png)
+
+## View Migration Details
+
+Once in the [Migration view](#access-migration-view), you will see an overview of any assets you need to migrate. 
+
+   ![Migration Overview](/img/about-iota/iota-wallet-dashboard/how-to/migration/see-all.png)
+
+You can click on the `See All` button to get a detailed view of the assets by type.
+
+   ![Asset Details](/img/about-iota/iota-wallet-dashboard/how-to/migration/migration-details.png)
+
+## Start the Migration
+
+:::info About Time-locked Assets
+
+In Stardust, you could add time locks to assets. This means that you could send transfers tokens that could only be
+unlocked after a set amount of time. The migration tool can give you an overview of these, but since the assets are
+still time-lock you will not be able to migrate them until the lock has expired.
+
+:::
+
+Once you've reviewed the migration details, you can click on the `Migrate All` button to start the asset migration.
+
+The migration dashboard will give you an overview of assets that will be migrated, their legacy storage deposit that
+will be rebated and the [gas fees](../../tokenomics/gas-in-iota.mdx) for the transaction.
+
+   ![Migration Confirmation](/img/about-iota/iota-wallet-dashboard/how-to/migration/migration-confirmation.png)
+
+After you have reviewed the assets and costs, hit the `Migrate` button, and confirm the transaction in your [IOTA Wallet](../../iota-wallet/getting-started.mdx).
+

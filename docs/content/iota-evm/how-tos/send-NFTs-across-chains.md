@@ -14,7 +14,7 @@ teams:
 ## Introduction
 
 [LayerZero ONFT V1FV](https://docs.layerzero.network/V1) enables cross-chain transfers of existing ERC721 tokens. For
-testing purposes, the ShimmerEVM Testnet is chosen as the source chain, while the BNB Testnet is chosen as the destination
+testing purposes, the IOTA EVM Testnet is chosen as the source chain, while the BNB Testnet is chosen as the destination
 chain.
 
 :::info Community Libs
@@ -188,14 +188,14 @@ yarn deploy-ERC721-mock-smr-Testnet
 Expected log output :
 
 ```bash
-npx hardhat run scripts/deploy_ERC721.ts --network shimmerEvmTestnet
+npx hardhat run scripts/deploy_ERC721.ts --network iotaEvmTestnet
 Deployed ERC721Mock contract address:0xFddbA8928a763679fb8C99d12541B7c6177e9c3c
 Done in 4.49s.
 ```
 
 #### Deploy `ProxyONFT721` on the source chain
 
-You can use the following command to deploy ProxyONFT721 on the source chain (e.g., ShimmerEVM Testnet):
+You can use the following command to deploy ProxyONFT721 on the source chain (e.g., IOTA EVM Testnet):
 
 ```bash
 yarn deploy-proxy-onft-smr-Testnet
@@ -204,7 +204,7 @@ yarn deploy-proxy-onft-smr-Testnet
 Expected log output :
 
 ```bash
-npx hardhat run scripts/deploy_proxy_onft721.ts --network shimmerEvmTestnet
+npx hardhat run scripts/deploy_proxy_onft721.ts --network iotaEvmTestnet
 Deployed MyProxyONFT721 contract address:0x7B0D46219C915e7Ff503C7F83a805c0b2F4ab2F2
 Done in 4.50s.
 ```
@@ -231,7 +231,7 @@ Done in 9.34s.
 
 #### On the source chain
 
-You can use the following command to set the minimum destination gas on the `ProxyONFT` contract on the source chain (e.g., ShimmerEVM Testnet):
+You can use the following command to set the minimum destination gas on the `ProxyONFT` contract on the source chain (e.g., IOTA EVM Testnet):
 
 ```bash
 yarn set-min-dest-gas-proxy-onft-smr-Testnet
@@ -240,7 +240,7 @@ yarn set-min-dest-gas-proxy-onft-smr-Testnet
 Expected log output :
 
 ```bash
-export isForProxy=true && npx hardhat run scripts/set_min_destination_gas.ts --network shimmerEvmTestnet
+export isForProxy=true && npx hardhat run scripts/set_min_destination_gas.ts --network iotaEvmTestnet
 setMinDstGas - isForProxy:true, proxyONFTContractAddress:0x7B0D46219C915e7Ff503C7F83a805c0b2F4ab2F2, onftContractAddress:0xC617A0Bd9DC6093a304515d3dbFF4244333fDeBB, lzEndpointIdOnRemoteChain:10102, minDstGas:150000
 setMinDstGas (packetType 0) tx: 0xcab06e9989448153a4bbc1bb166fc2d33467f3311d1851bf2ff719d982daa613
 setMinDstGas (packetType 1) tx: 0xe78fd3f0bf668fafbc423decd2cf14a27d74543af3ac9daf031f0b278c22ea78
@@ -269,7 +269,7 @@ Done in 9.34s.
 
 #### On the source chain
 
-You can use the following command to set batch size limits on the `ProxyONFT` contract on the source chain (e.g., ShimmerEVM Testnet):
+You can use the following command to set batch size limits on the `ProxyONFT` contract on the source chain (e.g., IOTA EVM Testnet):
 
 ```bash
 yarn set-batch-size-limit-proxy-onft-smr-Testnet
@@ -278,7 +278,7 @@ yarn set-batch-size-limit-proxy-onft-smr-Testnet
 Expected log output :
 
 ```bash
-export isForProxy=true && npx hardhat run scripts/set_batch_size_limit.ts --network shimmerEvmTestnet
+export isForProxy=true && npx hardhat run scripts/set_batch_size_limit.ts --network iotaEvmTestnet
 setBatchSizeLimit - isForProxy:true, proxyONFTContractAddress:0x7B0D46219C915e7Ff503C7F83a805c0b2F4ab2F2, onftContractAddress:0xC617A0Bd9DC6093a304515d3dbFF4244333fDeBB, lzEndpointIdOnRemoteChain:10102, batchSizeLimit:1
 setBatchSizeLimit tx: 0x70c23b3d3d5e94ef82e50944f7eba93fa1fe8db3a5487ac371015e7a14482e75
 Done in 4.28s.
@@ -305,7 +305,7 @@ Done in 4.26s.
 
 #### On the source chain
 
-You can use the following command to set a trusted remote on the `ProxyONFT` contract on the source chain (e.g., ShimmerEVM Testnet):
+You can use the following command to set a trusted remote on the `ProxyONFT` contract on the source chain (e.g., IOTA EVM Testnet):
 
 ```bash
 yarn set-remote-proxy-onft-smr-Testnet
@@ -314,7 +314,7 @@ yarn set-remote-proxy-onft-smr-Testnet
 Expected log output :
 
 ```bash
-export isForProxy=true && npx hardhat run scripts/set_trusted_remote.ts --network shimmerEvmTestnet
+export isForProxy=true && npx hardhat run scripts/set_trusted_remote.ts --network iotaEvmTestnet
 setTrustedRemote - isForProxy:true, proxyONFTContractAddress:0x7B0D46219C915e7Ff503C7F83a805c0b2F4ab2F2, onftContractAddress:0xC617A0Bd9DC6093a304515d3dbFF4244333fDeBB, lzEndpointIdOnRemoteChain:10102
 setTrustedRemote tx: 0xce52c0f25090ef7c1668ef04ff2f6098551c9f56b3ce881d17181bf106457016
 Done in 4.24s.
@@ -346,7 +346,7 @@ yarn send-onft-from-smr-Testnet
 Expected log output:
 
 ```bash
-npx hardhat run scripts/send_onft.ts --network shimmerEvmTestnet
+npx hardhat run scripts/send_onft.ts --network iotaEvmTestnet
 sendONFT - proxyONFTContractAddress:0x7B0D46219C915e7Ff503C7F83a805c0b2F4ab2F2, onftContractAddress:0xC617A0Bd9DC6093a304515d3dbFF4244333fDeBB, lzEndpointIdOnSrcChain:10230, lzEndpointIdOnDestChain:10102, gasDropInWeiOnDestChain:0, providedGasLimit:200000, receivingAccountAddress:0x5e812d3128D8fD7CEac08CEca1Cd879E76a6E028, sender: 0x57A4bD139Fb673D364A6f12Df9177A3f686625F3, nftTokenId:2, nftTokenAddress:0xFddbA8928a763679fb8C99d12541B7c6177e9c3c
 sendONFT - approve tx: 0xa871bc79e45bf20f33c626044d6e208460c5745ab1f13d476dcbe04e1da7e592
 sendONFT - estimated nativeFee: 158.319172348046094655

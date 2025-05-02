@@ -10,6 +10,8 @@ import BigNumber from 'bignumber.js';
 import { useMemo } from 'react';
 
 import { formatAmount } from '../utils/formatAmount';
+import { graphql } from '@iota/iota-sdk/graphql/schemas/2025.2';
+import { useIotaGraphQLClientContext } from '../contexts';
 
 type FormattedCoin = [
     formattedBalance: string,
@@ -53,23 +55,64 @@ const NAME_TRUNCATE_LENGTH = 10;
 
 export function useCoinMetadata(coinType?: string | null) {
     const client = useIotaClient();
+    const { iotaGraphQLClient } = useIotaGraphQLClientContext();
+
     return useQuery({
         queryKey: ['coin-metadata', coinType],
         queryFn: async () => {
             if (!coinType) {
-                throw new Error(
-                    'Fetching coin metadata should be disabled when coin type is disabled.',
-                );
+                console.warn('coinType is null or undefined');
+                return null;
             }
 
-            // Optimize the known case of IOTA to avoid a network call:
             if (coinType === IOTA_TYPE_ARG) {
-                const metadata: CoinMetadata = IOTA_COIN_METADATA;
-
-                return metadata;
+                return IOTA_COIN_METADATA;
             }
 
-            return client.getCoinMetadata({ coinType });
+            try {
+                const rpcData = await client.getCoinMetadata({ coinType });
+
+                if (rpcData) return rpcData;
+
+                if (!iotaGraphQLClient) return null;
+
+                // The RPC Node does not currently expose querying coin metadata of migrated coins,
+                // but the GraphQL Node does
+
+                const structType = `0x2::coin_manager::CoinManager<${coinType}>`;
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                const { data: graphqlData } = await iotaGraphQLClient.query<any>({
+                    query: graphql(`
+                        query getCoinManager($type: String!) {
+                            objects(filter: { type: $type }) {
+                                nodes {
+                                    asMoveObject {
+                                        contents {
+                                            json
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    `),
+                    variables: {
+                        type: structType,
+                    },
+                });
+
+                if (!graphqlData) return null;
+
+                const coinMetadata: CoinMetadata | undefined =
+                    graphqlData['objects']['nodes'][0]?.asMoveObject?.contents?.json?.metadata ??
+                    undefined;
+
+                if (coinMetadata) return coinMetadata;
+
+                return null;
+            } catch (err) {
+                console.error('Failed to fetch coin metadata:', err);
+                throw err;
+            }
         },
         select(data) {
             if (!data) return null;
@@ -88,7 +131,6 @@ export function useCoinMetadata(coinType?: string | null) {
         },
         retry: false,
         enabled: !!coinType,
-        staleTime: Infinity,
         gcTime: 24 * 60 * 60 * 1000,
     });
 }
