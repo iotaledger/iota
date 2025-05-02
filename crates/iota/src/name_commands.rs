@@ -957,7 +957,7 @@ impl std::fmt::Display for NameCommandResult {
             Self::List(nfts) => {
                 let mut table_builder = TableBuilder::default();
 
-                table_builder.set_header(["id", "domain", "expiration", "image URL"]);
+                table_builder.set_header(["id", "domain", "expiration"]);
 
                 for nft in nfts {
                     let expiration_datetime = DateTime::<Utc>::from(nft.expiration_time())
@@ -968,7 +968,6 @@ impl std::fmt::Display for NameCommandResult {
                         nft.id().to_string(),
                         nft.domain_name().to_owned(),
                         format!("{} ({expiration_datetime})", nft.expiration_timestamp_ms()),
-                        nft.image_url().to_owned(),
                     ]);
                 }
 

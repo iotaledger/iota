@@ -1,25 +1,25 @@
-processed 20 tasks
+processed 33 tasks
 
 init:
 A: object(0,0)
 
-task 1, lines 20-57:
+task 1, lines 18-55:
 //# publish
 created: object(1,0)
 mutated: object(0,1)
 gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 7007200,  storage_rebate: 0, non_refundable_storage_fee: 0
 
-task 2, line 59:
+task 2, line 57:
 //# run Test::M1::create --args 0 @A
 created: object(2,0)
 mutated: object(0,1)
 gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2287600,  storage_rebate: 980400, non_refundable_storage_fee: 0
 
-task 3, line 61:
+task 3, line 59:
 //# create-checkpoint
 Checkpoint created: 1
 
-task 4, lines 63-76:
+task 4, lines 61-74:
 //# run-graphql
 Response: {
   "data": {
@@ -38,16 +38,16 @@ Response: {
   }
 }
 
-task 5, line 78:
+task 5, line 76:
 //# run Test::M1::update --sender A --args object(2,0) 1
 mutated: object(0,0), object(2,0)
 gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2287600,  storage_rebate: 1307200, non_refundable_storage_fee: 0
 
-task 6, line 80:
+task 6, line 78:
 //# create-checkpoint
 Checkpoint created: 2
 
-task 7, lines 82-108:
+task 7, lines 80-106:
 //# run-graphql
 Response: {
   "data": {
@@ -78,18 +78,18 @@ Response: {
   }
 }
 
-task 8, line 110:
+task 8, line 108:
 //# run Test::M1::wrap --sender A --args object(2,0)
 created: object(8,0)
 mutated: object(0,0)
 wrapped: object(2,0)
 gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2538400,  storage_rebate: 2287600, non_refundable_storage_fee: 0
 
-task 9, line 112:
+task 9, line 110:
 //# create-checkpoint
 Checkpoint created: 3
 
-task 10, lines 114-140:
+task 10, lines 112-138:
 //# run-graphql
 Response: {
   "data": {
@@ -113,18 +113,18 @@ Response: {
   }
 }
 
-task 11, line 142:
+task 11, line 140:
 //# run Test::M1::unwrap --sender A --args object(8,0)
 mutated: object(0,0)
 unwrapped: object(2,0)
 deleted: object(8,0)
 gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2287600,  storage_rebate: 2538400, non_refundable_storage_fee: 0
 
-task 12, line 144:
+task 12, line 142:
 //# create-checkpoint
 Checkpoint created: 4
 
-task 13, lines 146-184:
+task 13, lines 144-182:
 //# run-graphql
 Response: {
   "data": {
@@ -160,17 +160,17 @@ Response: {
   }
 }
 
-task 14, line 186:
+task 14, line 184:
 //# run Test::M1::delete --sender A --args object(2,0)
 mutated: object(0,0)
 deleted: object(2,0)
 gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 980400,  storage_rebate: 2287600, non_refundable_storage_fee: 0
 
-task 15, line 188:
+task 15, line 186:
 //# create-checkpoint
 Checkpoint created: 5
 
-task 16, lines 190-216:
+task 16, lines 188-214:
 //# run-graphql
 Response: {
   "data": {
@@ -187,19 +187,83 @@ Response: {
   }
 }
 
-task 17, line 218:
-//# force-object-snapshot-catchup --start-cp 0 --end-cp 5
-Objects snapshot updated to [0 to 5)
+task 17, line 216:
+//# run Test::M1::create --args 0 @A
+created: object(17,0)
+mutated: object(0,1)
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2287600,  storage_rebate: 980400, non_refundable_storage_fee: 0
 
-task 18, line 220:
+task 18, line 218:
 //# create-checkpoint
 Checkpoint created: 6
 
-task 19, lines 222-261:
+task 19, line 220:
+//# run Test::M1::create --args 0 @A
+created: object(19,0)
+mutated: object(0,1)
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2287600,  storage_rebate: 980400, non_refundable_storage_fee: 0
+
+task 20, line 222:
+//# create-checkpoint
+Checkpoint created: 7
+
+task 21, line 224:
+//# run Test::M1::create --args 0 @A
+created: object(21,0)
+mutated: object(0,1)
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2287600,  storage_rebate: 980400, non_refundable_storage_fee: 0
+
+task 22, line 226:
+//# create-checkpoint
+Checkpoint created: 8
+
+task 23, line 228:
+//# run Test::M1::create --args 0 @A
+created: object(23,0)
+mutated: object(0,1)
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2287600,  storage_rebate: 980400, non_refundable_storage_fee: 0
+
+task 24, line 230:
+//# create-checkpoint
+Checkpoint created: 9
+
+task 25, line 232:
+//# run Test::M1::create --args 0 @A
+created: object(25,0)
+mutated: object(0,1)
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2287600,  storage_rebate: 980400, non_refundable_storage_fee: 0
+
+task 26, line 234:
+//# create-checkpoint
+Checkpoint created: 10
+
+task 27, line 236:
+//# run Test::M1::create --args 0 @A
+created: object(27,0)
+mutated: object(0,1)
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2287600,  storage_rebate: 980400, non_refundable_storage_fee: 0
+
+task 28, line 238:
+//# create-checkpoint
+Checkpoint created: 11
+
+task 30, line 242:
+//# create-checkpoint
+Checkpoint created: 12
+
+task 31, lines 244-291:
 //# run-graphql
 Response: {
   "data": {
-    "object_within_available_range": {
+    "availableRange": {
+      "first": {
+        "sequenceNumber": 7
+      },
+      "last": {
+        "sequenceNumber": 12
+      }
+    },
+    "indexed_object": {
       "status": "INDEXED",
       "version": 6,
       "asMoveObject": {
@@ -211,7 +275,7 @@ Response: {
         }
       }
     },
-    "object_outside_available_range": {
+    "wrapped_or_deleted_object": {
       "status": "WRAPPED_OR_DELETED",
       "version": 5,
       "asMoveObject": null
@@ -229,4 +293,27 @@ Response: {
       }
     }
   }
+}
+
+task 32, lines 293-313:
+//# run-graphql --cursors @{obj_1_0,6}
+Response: {
+  "data": null,
+  "errors": [
+    {
+      "message": "Requested data is outside the available range",
+      "locations": [
+        {
+          "line": 11,
+          "column": 3
+        }
+      ],
+      "path": [
+        "objects"
+      ],
+      "extensions": {
+        "code": "BAD_USER_INPUT"
+      }
+    }
+  ]
 }
