@@ -1219,7 +1219,7 @@ impl IotaNamesNftProxy {
                 fetch_package_id_by_module_and_name(
                     client,
                     &Identifier::from_str("subdomains")?,
-                    &Identifier::from_str("Subdomains")?,
+                    &Identifier::from_str("SubdomainsAuth")?,
                 )
                 .await?
             }
@@ -1411,7 +1411,7 @@ async fn get_auction_package_address(context: &mut WalletContext) -> anyhow::Res
     let auction_package_address = fetch_package_id_by_module_and_name(
         &client,
         &Identifier::from_str("auction")?,
-        &Identifier::from_str("App")?,
+        &Identifier::from_str("AuctionAuth")?,
     )
     .await?;
     Ok(auction_package_address)
