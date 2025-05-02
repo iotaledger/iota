@@ -4,7 +4,7 @@
 import { PaginatedObjectsResponse } from '@iota/iota-sdk/client';
 import { SUPPLY_INCREASE_VESTING_LABEL } from '../../constants';
 
-export function checkIfTimelockedObjectsHaveSupplyIncreaseLabel(pages: PaginatedObjectsResponse[]) {
+export function haveSupplyIncreaseLabel(pages: PaginatedObjectsResponse[]) {
     return pages[pages.length - 1]?.data.some(
         (object) =>
             object.data?.content?.dataType === 'moveObject' &&

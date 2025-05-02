@@ -3,7 +3,7 @@
 
 import { type SerializedUIAccount } from '_src/background/accounts/account';
 import {
-    checkIfTimelockedObjectsHaveSupplyIncreaseLabel,
+    haveSupplyIncreaseLabel,
     COIN_TYPE,
     Collapsible,
     formatBalance,
@@ -122,9 +122,7 @@ export function AccountBalanceItem({
 
     useEffect(() => {
         if (vestingObjects?.pages) {
-            const foundVestingObject = checkIfTimelockedObjectsHaveSupplyIncreaseLabel(
-                vestingObjects.pages.flat(),
-            );
+            const foundVestingObject = haveSupplyIncreaseLabel(vestingObjects.pages.flat());
             setHasVestingObjects(foundVestingObject);
 
             if (!foundVestingObject && hasNextPage) {

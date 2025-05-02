@@ -21,7 +21,7 @@ import {
     useGetStardustSharedNftObjects,
     useGetAllBalances,
     toast,
-    checkIfTimelockedObjectsHaveSupplyIncreaseLabel,
+    haveSupplyIncreaseLabel,
 } from '@iota/core';
 import {
     Button,
@@ -136,12 +136,8 @@ export function TokenDetails() {
 
     if (supplyIncreaseVestingEnabled) {
         hasSupplyIncreaseVestingObjects =
-            checkIfTimelockedObjectsHaveSupplyIncreaseLabel(
-                supplyIncreaseVestingObjects?.pages || [],
-            ) ||
-            checkIfTimelockedObjectsHaveSupplyIncreaseLabel(
-                supplyIncreaseVestingObjectsStaked?.pages || [],
-            );
+            haveSupplyIncreaseLabel(supplyIncreaseVestingObjects?.pages || []) ||
+            haveSupplyIncreaseLabel(supplyIncreaseVestingObjectsStaked?.pages || []);
     }
 
     if (migrationEnabled) {
