@@ -4,6 +4,7 @@ teams:
    - iotaledger/tooling
 tags: [iota-wallet]
 ---
+import Seed from '../../_snippets/about-iota/iota-wallet/seed.md'
 
 # Getting Started with the IOTA Wallet
 
@@ -176,11 +177,7 @@ IOTA Web Wallet and move all your funds in `Legacy` addresses to a new address t
 
 ### Stronghold Has Been Deprecated
 
-:::danger 
-
-Restoring a wallet account using a seed is not an industry standard, it may not work on wallets that are not maintained by the IOTA Foundation. Once you restore your account using the seed, you should transfer your funds to an account with a known mnemonic
-
-:::
+<Seed />
 
 The new IOTA Wallet does not support Stronghold. If you have your mnemonic, private key or seed, you can use them to
 [import your account](#importing-an-existing-wallet). 
