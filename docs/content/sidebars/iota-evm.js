@@ -1,3 +1,5 @@
+const apiDocs = require("../iota-evm/references/openapi/sidebar");
+
 const iotaEvm = [
     'iota-evm/iota-evm',
     {
@@ -476,6 +478,11 @@ const iotaEvm = [
                         dirName: 'iota-evm/references/iscutils',
                     },
                 ],
+            },
+            {
+                type: 'category',
+                label: 'WASP API',
+                items: apiDocs,
             },
         ],
     },

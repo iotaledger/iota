@@ -1,0 +1,40 @@
+---
+# Database Configuration
+# Important: update this value to the location you want IOTA to store its database
+db-path: "/opt/iota/db"
+
+# Genesis Configuration
+# Important: update these to the location where the genesis and migration files are stored
+genesis:
+  genesis-file-location: "/opt/iota/config/genesis.blob"
+migration-tx-data-path: "/opt/iota/config/migration.blob"
+
+# Pruning Configuration (see https://docs.iota.org/operator/full-node/configs/pruning)
+authority-store-pruning-config:
+  # Use 18446744073709551615 to disable object versions pruning
+  num-epochs-to-retain: 1
+  # Use 18446744073709551615 to disable transaction pruning
+  num-epochs-to-retain-for-checkpoints: 2
+
+# Network Configuration
+# This address is also used for web socket connections
+json-rpc-address: "0.0.0.0:9000"
+p2p-config:
+  listen-address: "0.0.0.0:8084"
+  external-address: /dns/$HOSTNAME/udp/8084 # Important: update this to your external DNS address
+  seed-peers:
+    - address: /dns/access-0.r.devnet.iota.cafe/udp/8084
+      peer-id: 01589ac910a5993f80fbc34a6e0c8b2041ddc5526a951c838df3037e11ab0188
+    - address: /dns/access-1.r.devnet.iota.cafe/udp/8084
+      peer-id: 32875c547ea3b44fa08a711646cedb70fa0c97959d236578131505da09723add
+
+# State Sync Archive Fallback
+state-archive-read-config:
+  - object-store-config:
+      object-store: "S3"
+      aws-endpoint: "https://archive.devnet.iota.cafe"
+      aws-virtual-hosted-style-request: true
+      object-store-connection-limit: 20
+      no-sign-request: true
+    concurrency: 5
+    use-for-pruning-watermark: false

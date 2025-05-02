@@ -4591,6 +4591,101 @@
       ]
     },
     {
+      "name": "iotax_iotaNamesFindAllRegistrationNFTs",
+      "tags": [
+        {
+          "name": "Extended API"
+        }
+      ],
+      "description": "Find all registration NFTs for the given address.",
+      "params": [
+        {
+          "name": "address",
+          "required": true,
+          "schema": {
+            "$ref": "#/components/schemas/IotaAddress"
+          }
+        },
+        {
+          "name": "cursor",
+          "schema": {
+            "$ref": "#/components/schemas/ObjectID"
+          }
+        },
+        {
+          "name": "limit",
+          "schema": {
+            "type": "integer",
+            "format": "uint",
+            "minimum": 0.0
+          }
+        },
+        {
+          "name": "options",
+          "schema": {
+            "$ref": "#/components/schemas/ObjectDataOptions"
+          }
+        }
+      ],
+      "result": {
+        "name": "ObjectsPage",
+        "required": true,
+        "schema": {
+          "$ref": "#/components/schemas/Page_for_IotaObjectResponse_and_ObjectID"
+        }
+      }
+    },
+    {
+      "name": "iotax_iotaNamesLookup",
+      "tags": [
+        {
+          "name": "Extended API"
+        }
+      ],
+      "description": "Return the resolved record for the given name.",
+      "params": [
+        {
+          "name": "name",
+          "description": "The name to resolve",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "result": {
+        "name": "IotaNameRecord",
+        "schema": {
+          "$ref": "#/components/schemas/IotaNameRecord"
+        }
+      }
+    },
+    {
+      "name": "iotax_iotaNamesReverseLookup",
+      "tags": [
+        {
+          "name": "Extended API"
+        }
+      ],
+      "description": "Return the resolved name for the given address.",
+      "params": [
+        {
+          "name": "address",
+          "description": "The address to resolve.",
+          "required": true,
+          "schema": {
+            "$ref": "#/components/schemas/IotaAddress"
+          }
+        }
+      ],
+      "result": {
+        "name": "String",
+        "schema": {
+          "type": "string"
+        }
+      }
+    },
+    {
       "name": "iotax_queryEvents",
       "tags": [
         {
@@ -8339,6 +8434,49 @@
           "Public",
           "Friend"
         ]
+      },
+      "IotaNameRecord": {
+        "description": "A single record in the registry.",
+        "type": "object",
+        "required": [
+          "data",
+          "expirationTimestampMs",
+          "nftId"
+        ],
+        "properties": {
+          "data": {
+            "description": "Additional data which may be stored in a record",
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            }
+          },
+          "expirationTimestampMs": {
+            "description": "Timestamp in milliseconds when the record expires.",
+            "type": "integer",
+            "format": "uint64",
+            "minimum": 0.0
+          },
+          "nftId": {
+            "description": "The ID of the registration NFT assigned to this record.\n\nThe owner of the corresponding NFT has the rights to be able to change and adjust the `target_address` of this domain.\n\nIt is possible that the ID changes if the record expires and is purchased by someone else.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ObjectID"
+              }
+            ]
+          },
+          "targetAddress": {
+            "description": "The target address that this domain points to",
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/IotaAddress"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        }
       },
       "IotaObjectDataFilter": {
         "oneOf": [

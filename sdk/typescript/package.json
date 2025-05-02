@@ -3,7 +3,7 @@
     "author": "IOTA Foundation <info@iota.org>",
     "description": "IOTA TypeScript API",
     "homepage": "https://docs.iota.org/ts-sdk/typescript/",
-    "version": "0.7.0",
+    "version": "1.0.0",
     "license": "Apache-2.0",
     "sideEffects": false,
     "files": [

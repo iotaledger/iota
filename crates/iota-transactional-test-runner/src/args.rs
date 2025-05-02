@@ -68,7 +68,7 @@ pub struct IotaInitArgs {
     #[arg(long)]
     pub default_gas_price: Option<u64>,
     #[arg(long)]
-    pub object_snapshot_min_checkpoint_lag: Option<usize>,
+    pub objects_snapshot_min_checkpoint_lag: Option<usize>,
     #[arg(long)]
     pub flavor: Option<Flavor>,
     /// The number of epochs to keep in the database. Epochs outside of this
@@ -182,14 +182,6 @@ pub struct RunGraphqlCommand {
 }
 
 #[derive(Debug, clap::Parser)]
-pub struct ForceObjectSnapshotCatchup {
-    #[arg(long)]
-    pub start_cp: u64,
-    #[arg(long)]
-    pub end_cp: u64,
-}
-
-#[derive(Debug, clap::Parser)]
 pub struct CreateCheckpointCommand {
     pub count: Option<u64>,
 }
@@ -224,7 +216,6 @@ pub enum IotaSubcommand<ExtraValueArgs: ParsableValue, ExtraRunArgs: Parser> {
     SetRandomState(SetRandomStateCommand),
     ViewCheckpoint,
     RunGraphql(RunGraphqlCommand),
-    ForceObjectSnapshotCatchup(ForceObjectSnapshotCatchup),
     Bench(RunCommand<ExtraValueArgs>, ExtraRunArgs),
 }
 
@@ -272,11 +263,6 @@ impl<ExtraValueArgs: ParsableValue, ExtraRunArgs: Parser> clap::FromArgMatches
             Some(("run-graphql", matches)) => {
                 IotaSubcommand::RunGraphql(RunGraphqlCommand::from_arg_matches(matches)?)
             }
-            Some(("force-object-snapshot-catchup", matches)) => {
-                IotaSubcommand::ForceObjectSnapshotCatchup(
-                    ForceObjectSnapshotCatchup::from_arg_matches(matches)?,
-                )
-            }
             Some(("bench", matches)) => IotaSubcommand::Bench(
                 RunCommand::from_arg_matches(matches)?,
                 ExtraRunArgs::from_arg_matches(matches)?,
@@ -314,7 +300,6 @@ impl<ExtraValueArgs: ParsableValue, ExtraRunArgs: Parser> clap::CommandFactory
             .subcommand(SetRandomStateCommand::command().name("set-random-state"))
             .subcommand(clap::Command::new("view-checkpoint"))
             .subcommand(RunGraphqlCommand::command().name("run-graphql"))
-            .subcommand(ForceObjectSnapshotCatchup::command().name("force-object-snapshot-catchup"))
             .subcommand(
                 RunCommand::<ExtraValueArgs>::augment_args(ExtraRunArgs::command()).name("bench"),
             )
