@@ -1,9 +1,8 @@
 ---
 description: This page gives an overview around the different networks available in the IOTA ecosystem.
 
-tags: [getting-started, devnet, testnet]
+tags: [getting-started, devnet, testnet, mainnet]
 ---
-import MainnetRunsStardust from '../_snippets/mainnet-runs-stardust.mdx';
 import NetworkInfo from "@site/src/components/NetworkInfo/index.tsx";
 import { Networks } from '@site/src/components/constant.tsx';
 
@@ -18,18 +17,18 @@ In general, all endpoints are load-balanced but also subject to rate limiting. I
 
 ## IOTA Mainnet
 
-<MainnetRunsStardust />
+<NetworkInfo.L1 {...Networks['iota']}/>
 
 ## IOTA Testnet
 
-<NetworkInfo.Move {...Networks['iota_move_testnet']}/>
+<NetworkInfo.L1 {...Networks['iota_testnet']}/>
 
 ## IOTA Devnet
 
-<NetworkInfo.Move {...Networks['iota_move_devnet']}/>
+<NetworkInfo.L1 {...Networks['iota_devnet']}/>
 
 ## IOTA Localnet
 
 To create a local IOTA network, you can refer to [Local Development](/developer/getting-started/local-network) page.
 
-<NetworkInfo.Move {...Networks['iota_localnet']}/>
+<NetworkInfo.L1 {...Networks['iota_localnet']}/>

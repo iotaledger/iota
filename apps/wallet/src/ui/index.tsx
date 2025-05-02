@@ -17,6 +17,7 @@ import store from '_store';
 import { thunkExtras } from '_src/ui/app/redux/store/thunkExtras';
 import {
     ClipboardPasteSafetyWrapper,
+    IotaGraphQLClientProvider,
     KioskClientProvider,
     StardustIndexerClientProvider,
     ThemeProvider,
@@ -100,29 +101,31 @@ function AppWrapper() {
                                 }}
                             >
                                 <StardustIndexerClientProvider>
-                                    <KioskClientProvider>
-                                        <AccountsFormProvider>
-                                            <ThemeProvider appId="iota-wallet">
-                                                <UnlockAccountProvider>
-                                                    <ClipboardPasteSafetyWrapper>
-                                                        <div
-                                                            className={cn(
-                                                                'relative flex h-screen max-h-popup-height min-h-popup-minimum w-popup-width flex-col flex-nowrap items-center justify-center overflow-hidden',
-                                                                isFullscreen &&
-                                                                    'rounded-xl shadow-lg',
-                                                            )}
-                                                        >
-                                                            <ErrorBoundary>
-                                                                <App />
-                                                            </ErrorBoundary>
-                                                            <div id="overlay-portal-container"></div>
-                                                            <div id="toaster-portal-container"></div>
-                                                        </div>
-                                                    </ClipboardPasteSafetyWrapper>
-                                                </UnlockAccountProvider>
-                                            </ThemeProvider>
-                                        </AccountsFormProvider>
-                                    </KioskClientProvider>
+                                    <IotaGraphQLClientProvider>
+                                        <KioskClientProvider>
+                                            <AccountsFormProvider>
+                                                <ThemeProvider appId="iota-wallet">
+                                                    <UnlockAccountProvider>
+                                                        <ClipboardPasteSafetyWrapper>
+                                                            <div
+                                                                className={cn(
+                                                                    'relative flex h-screen max-h-popup-height min-h-popup-minimum w-popup-width flex-col flex-nowrap items-center justify-center overflow-hidden',
+                                                                    isFullscreen &&
+                                                                        'rounded-xl shadow-lg',
+                                                                )}
+                                                            >
+                                                                <ErrorBoundary>
+                                                                    <App />
+                                                                </ErrorBoundary>
+                                                                <div id="overlay-portal-container"></div>
+                                                                <div id="toaster-portal-container"></div>
+                                                            </div>
+                                                        </ClipboardPasteSafetyWrapper>
+                                                    </UnlockAccountProvider>
+                                                </ThemeProvider>
+                                            </AccountsFormProvider>
+                                        </KioskClientProvider>
+                                    </IotaGraphQLClientProvider>
                                 </StardustIndexerClientProvider>
                             </IotaClientProvider>
                         </PersistQueryClientProvider>

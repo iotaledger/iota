@@ -1,11 +1,16 @@
-export const Networks = {
+export const Networks: Record<string, NetworkProps> = {
   iota: {
     baseToken: 'IOTA Token',
-    protocol: 'Stardust',
-    httpRestApi: 'https://api.stardust-mainnet.iotaledger.net',
-    eventApi: 'wss://api.stardust-mainnet.iotaledger.net:443 (MQTT 3.1, /mqtt)',
-    permaNodeApi: 'https://chronicle.stardust-mainnet.iotaledger.net',
-    explorer: 'https://explorer.iota.org/mainnet',
+    protocol: 'Rebased',
+    rpc: {
+      json: {
+        core: 'https://api.mainnet.iota.cafe',
+        websocket: 'wss://api.mainnet.iota.cafe',
+        indexer: 'https://indexer.mainnet.iota.cafe',
+      },
+      graphql: 'https://graphql.mainnet.iota.cafe',
+    },
+    explorer: 'https://explorer.iota.org',
     evm: {
       chainId: '0x2276',
       chainName: 'IOTA EVM',
@@ -19,20 +24,6 @@ export const Networks = {
         'wss://ws.json-rpc.evm.iotaledger.net',
       ],
       blockExplorerUrls: ['https://explorer.evm.iota.org'],
-      core: {
-        chainId: '0x2276',
-        chainName: 'IOTA EVM',
-        nativeCurrency: {
-          name: 'IOTA',
-          symbol: 'IOTA',
-          decimals: 18,
-        },
-        rpcUrls: [
-          'https://json-rpc.evm.iotaledger.net',
-          'wss://ws.json-rpc.evm.iotaledger.net',
-        ],
-        blockExplorerUrls: ['https://explorer.evm.iota.org'],
-      },
     },
     evmCustom: {
       chainAddress:
@@ -56,13 +47,18 @@ export const Networks = {
     },
   },
   iota_testnet: {
-    baseToken: 'Testnet Token (no value)',
-    protocol: 'Stardust',
-    httpRestApi: 'https://api.testnet.iotaledger.net',
-    eventApi: 'wss://api.testnet.iotaledger.net:443 (MQTT 3.1, /mqtt)',
-    permaNodeApi: 'https://chronicle.testnet.iotaledger.net',
-    faucet: 'https://faucet.testnet.iotaledger.net',
-    explorer: 'https://explorer.iota.org/iota-testnet',
+    baseToken: 'IOTA Token (no value)',
+    protocol: 'Rebased',
+    rpc: {
+      json: {
+        core: 'https://api.testnet.iota.cafe',
+        websocket: 'wss://api.testnet.iota.cafe',
+        indexer: 'https://indexer.testnet.iota.cafe',
+      },
+      graphql: 'https://graphql.testnet.iota.cafe',
+    },
+    faucet: 'https://faucet.testnet.iota.cafe',
+    explorer: 'https://explorer.rebased.iota.org/?network=testnet',
     evm: {
       chainId: '0x433',
       chainName: 'IOTA EVM Testnet',
@@ -98,49 +94,33 @@ export const Networks = {
       api: 'https://api.evm.testnet.iotaledger.net',
     },
   },
-  iota_2_testnet: {
-    baseToken: 'Testnet Token (no value)',
-    protocol: 'IOTA 2.0',
-    httpRestApi: 'https://api.nova-testnet.iotaledger.net/',
-    eventApi: 'wss://api.nova-testnet.iotaledger.net:443 (MQTT 3.1, /mqtt)',
-    permaNodeApi: 'https://chronicle.nova-testnet.iotaledger.net',
-    explorer: 'https://explorer.iota.org/iota2-testnet',
-    faucet: 'https://faucet.nova-testnet.iotaledger.net',
-  },
-  iota_move: {
-    baseToken: 'IOTA Token',
-    jsonRpcUrl: 'jsonRpcUrl placeholder',
-    jsonRpcWebsocketUrl: 'jsonRpcWebsocketUrl placeholder',
-    indexerRpc: 'indexerRpc placeholder',
-    graphqlRpc: 'graphqlRpc placeholder',
-    faucetUrl: 'faucetUrl placeholder',
-    explorerUrl: 'https://explorer.rebased.iota.org'
-  },
-  iota_move_testnet: {
+  iota_devnet: {
     baseToken: 'IOTA Token (no value)',
-    jsonRpcUrl: 'https://api.testnet.iota.cafe',
-    jsonRpcWebsocketUrl: 'wss://api.testnet.iota.cafe',
-    indexerRpc: 'https://indexer.testnet.iota.cafe',
-    graphqlRpc: 'https://graphql.testnet.iota.cafe',
-    faucetUrl: 'https://faucet.testnet.iota.cafe',
-    explorerUrl: 'https://explorer.rebased.iota.org/?network=testnet'
-  },
-  iota_move_devnet: {
-    baseToken: 'IOTA Token (no value)',
-    jsonRpcUrl: 'https://api.devnet.iota.cafe',
-    jsonRpcWebsocketUrl: 'wss://api.devnet.iota.cafe',
-    indexerRpc: 'https://indexer.devnet.iota.cafe',
-    graphqlRpc: 'https://graphql.devnet.iota.cafe',
-    faucetUrl: 'https://faucet.devnet.iota.cafe',
-    explorerUrl: 'https://explorer.rebased.iota.org/?network=devnet'
+    protocol: 'Rebased',
+    rpc: {
+      json: {
+        core: 'https://api.devnet.iota.cafe',
+        websocket: 'wss://api.devnet.iota.cafe',
+        indexer: 'https://indexer.devnet.iota.cafe',
+      },
+      graphql: 'https://graphql.devnet.iota.cafe',
+    },
+    faucet: 'https://faucet.devnet.iota.cafe',
+    explorer: 'https://explorer.rebased.iota.org/?network=devnet',
   },
   iota_localnet: {
-    baseToken: "IOTA Token",
-    jsonRpcUrl: 'http://127.0.0.1:9000',
-    jsonRpcWebsocketUrl: 'ws://127.0.0.1:9000',
-    indexerRpc: 'http://127.0.0.1:9124',
-    graphqlRpc: 'http://127.0.0.1:8000',
-    faucetUrl: 'http://127.0.0.1:9123/gas'
+    baseToken: "IOTA Token (no value)",
+    protocol: 'Custom',
+    rpc: {
+      json: {
+        core: 'http://127.0.0.1:9000',
+        websocket: 'ws://127.0.0.1:9000',
+        indexer: 'http://127.0.0.1:9124',
+      },
+      graphql: 'http://127.0.0.1:8000',
+    },
+    faucet: 'http://127.0.0.1:9123/gas',
+    explorer: 'https://explorer.rebased.iota.org/?network=http://127.0.0.1:9000',
   },
 };
 
@@ -165,13 +145,11 @@ export interface AddEthereumChainParameter {
 export interface NetworkProps {
   baseToken: string;
   protocol: string;
-  httpRestApi: string;
-  eventApi: string;
-  permaNodeApi: string;
-  faucetUrl?: string;
+  rpc: Rpc;
+  faucet?: string;
   explorer: string;
-  evm: AddEthereumChainParameter;
-  evmCustom: {
+  evm?: AddEthereumChainParameter;
+  evmCustom?: {
     chainAddress: string;
     aliasId: string;
     blastApiUrls?: Array<string | object>;
@@ -181,11 +159,11 @@ export interface NetworkProps {
   };
 }
 
-export interface MoveProps {
-  jsonRpcUrl: string;
-  jsonRpcWebsocketUrl: string;
-  indexerRpc: string;
-  graphqlRpc: string;
-  faucetUrl: string;
-  explorerUrl?: string;
-};
+export interface Rpc {
+  json: {
+    core: string;
+    indexer: string;
+    websocket: string;
+  };
+  graphql: string;
+}
