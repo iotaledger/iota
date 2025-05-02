@@ -1499,6 +1499,8 @@ mod object_cost_tests {
         let tx_2 = build_transaction(&[(object_b, true), (object_c, true)], 1);
         let tx_3 = build_transaction(&[(object_c, true), (object_d, true)], 1);
 
+        let shared_input_objects: Vec<_> = tx_1.shared_input_objects().collect();
+        shared_object_congestion_tracker.initialize_for_shared_objects(&shared_input_objects);
         let sequencing_result = shared_object_congestion_tracker.try_schedule(
             &tx_1,
             max_execution_duration_per_commit,
@@ -1511,6 +1513,8 @@ mod object_cost_tests {
             panic!("tx 1 must be scheduled");
         }
 
+        let shared_input_objects: Vec<_> = tx_2.shared_input_objects().collect();
+        shared_object_congestion_tracker.initialize_for_shared_objects(&shared_input_objects);
         let sequencing_result = shared_object_congestion_tracker.try_schedule(
             &tx_2,
             max_execution_duration_per_commit,
@@ -1523,6 +1527,8 @@ mod object_cost_tests {
             panic!("tx 2 must be scheduled");
         }
 
+        let shared_input_objects: Vec<_> = tx_3.shared_input_objects().collect();
+        shared_object_congestion_tracker.initialize_for_shared_objects(&shared_input_objects);
         let sequencing_result = shared_object_congestion_tracker.try_schedule(
             &tx_3,
             max_execution_duration_per_commit,
