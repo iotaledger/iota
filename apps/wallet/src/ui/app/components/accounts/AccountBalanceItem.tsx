@@ -104,10 +104,14 @@ export function AccountBalanceItem({
     );
 
     const hasMigrationObjects =
-        !!stardustOwnedObjects?.pages?.[0]?.[0]?.data?.length ||
-        !!stardustSharedObjects?.pages?.[0]?.length;
+        stardustOwnedObjects?.pages?.some((data) => data.some((data) => data.data.length > 0)) ||
+        stardustSharedObjects?.pages?.some((data) =>
+            data.some((data) => data.nftOutputs.length > 0 || data.basicOutputs.length > 0),
+        );
 
-    const hasAccountAssets = !!ownedObjects?.pages?.[0]?.[0]?.data?.length;
+    const hasAccountAssets = !!ownedObjects?.pages.some((data) =>
+        data.some((data) => data.data.length > 0),
+    );
 
     const {
         data: vestingObjects,
