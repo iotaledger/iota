@@ -10,7 +10,6 @@ import BigNumber from 'bignumber.js';
 import { useMemo } from 'react';
 
 import { formatAmount } from '../utils/formatAmount';
-import { IotaGraphQLClient } from '@iota/iota-sdk/graphql';
 import { graphql } from '@iota/iota-sdk/graphql/schemas/2025.2';
 import { useIotaGraphQLClientContext } from '../contexts';
 
@@ -56,7 +55,7 @@ const NAME_TRUNCATE_LENGTH = 10;
 
 export function useCoinMetadata(coinType?: string | null) {
     const client = useIotaClient();
-    const { iotaGraphQLClient: graphQLClient } = useIotaGraphQLClientContext();
+    const { iotaGraphQLClient } = useIotaGraphQLClientContext();
 
     return useQuery({
         queryKey: ['coin-metadata', coinType],
@@ -75,10 +74,13 @@ export function useCoinMetadata(coinType?: string | null) {
 
                 if (rpcData) return rpcData;
 
-                if (!graphQLClient) return null;
+                if (!iotaGraphQLClient) return null;
+
+                // The RPC Node does not currently expose querying coin metadata of migrated coins,
+                // but the GraphQL Node does
 
                 const structType = `0x2::coin_manager::CoinManager<${coinType}>`;
-                const { data: graphqlData } = await graphQLClient.query<any>({
+                const { data: graphqlData } = await iotaGraphQLClient.query<any>({
                     query: graphql(`
                         query getCoinManager($type: String!) {
                             objects(filter: { type: $type }) {
