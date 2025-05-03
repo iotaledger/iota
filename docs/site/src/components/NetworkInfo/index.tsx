@@ -76,18 +76,18 @@ function Evm(props: NetworkProps) {
         <tr>
           <th>Chain ID</th>
           <td>
-            <ChainId url={props.evm.rpcUrls[0]} />
+            <ChainId url={props.evm?.rpcUrls?.[0]} />
           </td>
         </tr>
         <tr>
           <th>RPC URL</th>
           <td>
-            {props.evm.rpcUrls.map((url, index) => (
+            {props.evm?.rpcUrls?.map((url, index) => (
               <CodeBlock key={index}>{url}</CodeBlock>
             ))}
           </td>
         </tr>
-        {props.evmCustom.ankrApiUrls && (
+        {props.evmCustom?.ankrApiUrls && (
           <tr>
             <th>
               <Admonition type='tip' title='Ankr API URLs'>
@@ -96,7 +96,7 @@ function Evm(props: NetworkProps) {
               </Admonition>
             </th>
             <td>
-              {props.evmCustom.ankrApiUrls.map((object, index) =>
+              {props.evmCustom?.ankrApiUrls.map((object, index) =>
                 typeof object === 'string' ? (
                   <CodeBlock key={index}> {object as string} </CodeBlock>
                 ) : (
@@ -109,7 +109,7 @@ function Evm(props: NetworkProps) {
             </td>
           </tr>
         )}
-        {props.evmCustom.blastApiUrls && (
+        {props.evmCustom?.blastApiUrls && (
           <tr>
             <th>
               <Admonition type='tip' title='Blast API URLs'>
@@ -118,7 +118,7 @@ function Evm(props: NetworkProps) {
               </Admonition>
             </th>
             <td>
-              {props.evmCustom.blastApiUrls.map((object, index) =>
+              {props.evmCustom?.blastApiUrls.map((object, index) =>
                 typeof object === 'string' ? (
                   <CodeBlock key={index}> {object as string} </CodeBlock>
                 ) : (
@@ -135,34 +135,36 @@ function Evm(props: NetworkProps) {
           <th>Explorer</th>
           <td>
             <a
-              href={props.evm.blockExplorerUrls[0]}
+              href={props.evm?.blockExplorerUrls?.[0]}
               target='_blank'
               rel='noopener noreferrer'
             >
-              {props.evm.blockExplorerUrls[0]}
+              {props.evm?.blockExplorerUrls?.[0]}
             </a>
           </td>
         </tr>
         <tr>
           <th>
-            {props.evmCustom.toolkit.hasFaucet ? 'Toolkit & Faucet' : 'Toolkit'}
+            {props.evmCustom?.bridge?.hasFaucet ? 'Toolkit & Faucet' : 'Toolkit'}
           </th>
           <td>
             <a
-              href={props.evmCustom.toolkit.url}
+              href={props.evmCustom?.bridge?.url}
               target='_blank'
               rel='noopener noreferrer'
             >
-              {props.evmCustom.toolkit.url}
+              {props.evmCustom?.bridge?.url}
             </a>
           </td>
         </tr>
-        <tr>
-          <th>WASP API</th>
-          <td>
-            <CodeBlock> {props.evmCustom.api} </CodeBlock>
-          </td>
-        </tr>
+        {props.evmCustom?.api && (
+          <tr>
+            <th>WASP API</th>
+            <td>
+              <CodeBlock> {props.evmCustom.api} </CodeBlock>
+            </td>
+          </tr>
+        )}
       </tbody>
     </table>
   );
@@ -170,24 +172,39 @@ function Evm(props: NetworkProps) {
 
 // EvmCustom component
 function EvmCustom(props: NetworkProps) {
+  const hasQuery = typeof props.explorer !== 'string'
+
+  const buildHref = (id: string | undefined) =>
+    hasQuery
+      ? `${(props.explorer as { url: string; query: string }).url}/object/${id}${(props.explorer as { url: string; query: string }).query}`
+      : `${props.explorer}/object/${id}`;
+
   return (
     <table>
       <tbody>
         <tr>
-          <th>Chain Address</th>
+          <th>Chain ID</th>
           <td>
             <a
-              href={props.explorer + '/object/' + props.evmCustom.chainId}
+              href={buildHref(props.evmCustom?.chainId)}
               target='_blank'
               rel='noopener noreferrer'
             >
-              {props.evmCustom.chainId}
+              {props.evmCustom?.chainId}
             </a>
           </td>
         </tr>
         <tr>
           <th>Package ID</th>
-          <td>{props.evmCustom.packageId}</td>
+          <td>
+            <a
+            href={buildHref(props.evmCustom?.packageId)}
+              target='_blank'
+              rel='noopener noreferrer'
+            >
+              {props.evmCustom?.packageId}
+            </a>
+          </td>
         </tr>
       </tbody>
     </table>

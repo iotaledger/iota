@@ -38,7 +38,7 @@ export const Networks: Record<string, NetworkProps> = {
             'https://iota-mainnet-evm.blastapi.io/e7596858-fc63-4a54-8727-b885a2af4ec8',
         },
       ],
-      toolkit: {
+      bridge: {
         url: 'https://evm-bridge.iota.org',
         hasFaucet: false,
       },
@@ -57,7 +57,10 @@ export const Networks: Record<string, NetworkProps> = {
       graphql: 'https://graphql.testnet.iota.cafe',
     },
     faucet: 'https://faucet.testnet.iota.cafe',
-    explorer: 'https://explorer.rebased.iota.org/?network=testnet',
+    explorer: {
+      url: 'https://explorer.rebased.iota.org/',
+      query: '?network=testnet',
+    },
     evm: {
       chainId: '0x434',
       chainName: 'IOTA EVM Testnet',
@@ -85,7 +88,7 @@ export const Networks: Record<string, NetworkProps> = {
             'https://iota-testnet-evm.blastapi.io/e7596858-fc63-4a54-8727-b885a2af4ec8',
         },
       ],
-      toolkit: {
+      bridge: {
         url: 'https://testnet.evm-bridge.iota.org',
         hasFaucet: true,
       },
@@ -104,7 +107,10 @@ export const Networks: Record<string, NetworkProps> = {
       graphql: 'https://graphql.devnet.iota.cafe',
     },
     faucet: 'https://faucet.devnet.iota.cafe',
-    explorer: 'https://explorer.rebased.iota.org/?network=devnet',
+    explorer: {
+      url: 'https://explorer.rebased.iota.org/',
+      query: '?network=devnet',
+    },
   },
   iota_localnet: {
     baseToken: "IOTA Token (no value)",
@@ -118,7 +124,10 @@ export const Networks: Record<string, NetworkProps> = {
       graphql: 'http://127.0.0.1:8000',
     },
     faucet: 'http://127.0.0.1:9123/gas',
-    explorer: 'https://explorer.rebased.iota.org/?network=http://127.0.0.1:9000',
+    explorer: {
+      url: 'https://explorer.rebased.iota.org/',
+      query: '?network=http://127.0.0.1:9000',
+    }
   },
 };
 
@@ -145,14 +154,17 @@ export interface NetworkProps {
   protocol: string;
   rpc: Rpc;
   faucet?: string;
-  explorer: string;
+  explorer: {
+    url: string;
+    query: string;
+  } | string;
   evm?: AddEthereumChainParameter;
   evmCustom?: {
     chainId: string;
     packageId: string;
     blastApiUrls?: Array<string | object>;
     ankrApiUrls?: Array<string | object>;
-    toolkit?: Toolkit;
+    bridge?: Toolkit;
     api?: string;
   };
 }
