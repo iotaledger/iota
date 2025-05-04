@@ -63,7 +63,7 @@ npm init vite
 Now that you have a React app, you can install the necessary dependencies to use dApp Kit:
 
 ```bash npm2yarn
-npm install @iota/iota-sdk @iota/dapp-kit @tanstack/react-query
+npm install @iota/iota-sdk @iota/dapp-kit @tanstack/react-query @radix-ui/themes
 ```
 
 :::info Local version of the SDK
@@ -134,6 +134,7 @@ Finally, set up the `WalletProvider` from `@iota/dapp-kit`, and import styles fo
 
 ```ts
 import '@iota/dapp-kit/dist/index.css';
+import '@radix-ui/themes/styles.css';
 
 import { IotaClientProvider, WalletProvider } from '@iota/dapp-kit';
 import { getFullnodeUrl } from '@iota/iota-sdk/client';
@@ -157,6 +158,15 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
 	</React.StrictMode>,
 );
 ```
+
+:::info Style Requirements
+The dApp Kit components are built on top of Radix UI. Make sure to import both the dApp Kit and Radix UI styles for the components to work properly:
+```ts
+import '@iota/dapp-kit/dist/index.css';
+import '@radix-ui/themes/styles.css';
+```
+This is especially important for Next.js applications where the wallet connect button may not respond without the Radix UI styles.
+:::
 
 ## Connecting to a Wallet
 
