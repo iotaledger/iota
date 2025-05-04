@@ -574,6 +574,9 @@ pub struct Opts {
     /// --signed-tx-bytes <SIGNED_TX_BYTES>`.
     #[arg(long, required = false)]
     pub serialize_signed_transaction: bool,
+    /// Use a custom signer for the transaction.
+    #[arg(long, required = false, value_parser)]
+    pub custom_signer: Option<IotaAddress>,
 
     /// Select which fields of the response to display.
     /// If not provided, all fields are displayed.
@@ -607,6 +610,7 @@ impl Opts {
             serialize_unsigned_transaction: false,
             serialize_signed_transaction: false,
             display: HashSet::new(),
+            custom_signer: None,
         }
     }
     /// Uses the passed `gas_budget` for the gas budget variable, sets
@@ -620,6 +624,7 @@ impl Opts {
             serialize_unsigned_transaction: false,
             serialize_signed_transaction: false,
             display: HashSet::new(),
+            custom_signer: None,
         }
     }
 
@@ -634,6 +639,7 @@ impl Opts {
             serialize_unsigned_transaction: false,
             serialize_signed_transaction: false,
             display,
+            custom_signer: None,
         }
     }
 }
@@ -2924,12 +2930,14 @@ pub(crate) async fn dry_run_or_execute_or_serialize(
         gas_budget,
         serialize_unsigned_transaction,
         serialize_signed_transaction,
+        custom_signer,
     ) = (
         opts.dry_run,
         opts.dev_inspect,
         opts.gas_budget,
         opts.serialize_unsigned_transaction,
         opts.serialize_signed_transaction,
+        opts.custom_signer,
     );
     ensure!(
         !serialize_unsigned_transaction || !serialize_signed_transaction,
@@ -2943,18 +2951,24 @@ pub(crate) async fn dry_run_or_execute_or_serialize(
 
     let client = context.get_client().await?;
 
+    let new_signer = if let Some(custom) = custom_signer {
+        custom
+    } else {
+        signer
+    };
+
     if dev_inspect {
-        return execute_dev_inspect(
-            context,
-            signer,
-            tx_kind,
-            gas_budget,
-            gas_price,
-            gas_payment,
-            None,
-            None,
-        )
-        .await;
+        // return execute_dev_inspect(
+        //     context,
+        //     signer,
+        //     tx_kind,
+        //     gas_budget,
+        //     gas_price,
+        //     gas.clone(),
+        //     None,
+        //     None,
+        // )
+        // .await;
     }
 
     let gas = match gas_payment {
@@ -2965,7 +2979,7 @@ pub(crate) async fn dry_run_or_execute_or_serialize(
     if dry_run {
         return execute_dry_run(
             context,
-            signer,
+            new_signer,
             tx_kind,
             gas_budget,
             gas_price,
@@ -2981,7 +2995,7 @@ pub(crate) async fn dry_run_or_execute_or_serialize(
             debug!("Estimating gas budget");
             let budget = estimate_gas_budget(
                 context,
-                signer,
+                new_signer,
                 tx_kind.clone(),
                 gas_price,
                 gas.clone(),
@@ -2997,7 +3011,7 @@ pub(crate) async fn dry_run_or_execute_or_serialize(
     let tx_data = client
         .transaction_builder()
         .tx_data(
-            signer,
+            new_signer,
             tx_kind,
             gas_budget,
             gas_price,

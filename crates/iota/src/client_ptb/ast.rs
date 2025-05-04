@@ -40,6 +40,7 @@ pub const DRY_RUN: &str = "dry-run";
 pub const DEV_INSPECT: &str = "dev-inspect";
 pub const SERIALIZE_UNSIGNED: &str = "serialize-unsigned-transaction";
 pub const SERIALIZE_SIGNED: &str = "serialize-signed-transaction";
+pub const CUSTOM_SIGNER: &str = "custom-signer";
 
 // Types
 pub const U8: &str = "u8";
@@ -80,6 +81,7 @@ pub const COMMANDS: &[&str] = &[
     DEV_INSPECT,
     SERIALIZE_UNSIGNED,
     SERIALIZE_SIGNED,
+    CUSTOM_SIGNER,
 ];
 
 pub fn is_keyword(s: &str) -> bool {
@@ -112,6 +114,7 @@ pub struct ProgramMetadata {
     pub summary_set: bool,
     pub serialize_unsigned_set: bool,
     pub serialize_signed_set: bool,
+    pub custom_signer_set: bool,
     pub gas_object_id: Option<Spanned<ObjectID>>,
     pub json_set: bool,
     pub dry_run_set: bool,
