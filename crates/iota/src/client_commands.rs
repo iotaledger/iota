@@ -2958,17 +2958,17 @@ pub(crate) async fn dry_run_or_execute_or_serialize(
     };
 
     if dev_inspect {
-        // return execute_dev_inspect(
-        //     context,
-        //     signer,
-        //     tx_kind,
-        //     gas_budget,
-        //     gas_price,
-        //     gas.clone(),
-        //     None,
-        //     None,
-        // )
-        // .await;
+        return execute_dev_inspect(
+            context,
+            signer,
+            tx_kind,
+            gas_budget,
+            gas_price,
+            gas_payment,
+            None,
+            None,
+        )
+        .await;
     }
 
     let gas = match gas_payment {

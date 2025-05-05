@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "docusaurus": "docusaurus",
-    "dev": "docusaurus start",
+    "dev": "pnpm download-iota-references; pnpm download-external-references; pnpm generate-graphql-docs; docusaurus start",
     "build": "pnpm download-iota-references; pnpm download-external-references; pnpm generate-graphql-docs; docusaurus build",
     "generate-ts-docs": "docusaurus generate-typedoc;",
     "generate-graphql-docs": "docusaurus graphql-to-doc:devnet; docusaurus graphql-to-doc:testnet;",
