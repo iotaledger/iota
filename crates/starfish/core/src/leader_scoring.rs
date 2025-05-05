@@ -128,10 +128,6 @@ impl ReputationScores {
         }
     }
 
-    pub(crate) fn highest_score(&self) -> u64 {
-        *self.scores_per_authority.iter().max().unwrap_or(&0)
-    }
-
     // Returns the authorities index with score tuples.
     pub(crate) fn authorities_by_score(&self, context: Arc<Context>) -> Vec<(AuthorityIndex, u64)> {
         self.scores_per_authority
