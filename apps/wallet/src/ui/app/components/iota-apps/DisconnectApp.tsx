@@ -85,7 +85,7 @@ export function DisconnectApp({
                 <SummaryPanel
                     title={'Connected Account' + (connectedAccounts.length > 1 ? 's' : '')}
                     body={
-                        <div className="px-md">
+                        <div className="max-h-[160px] overflow-y-auto px-md">
                             {connectedAccounts.length > 1 ? (
                                 <WalletListSelect
                                     visibleValues={connectedAccounts}
