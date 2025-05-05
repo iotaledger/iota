@@ -656,7 +656,6 @@ mod tests {
         dag_state::DagState,
         error::ConsensusResult,
         network::{BlockStream, NetworkClient, NetworkService},
-        round_prober::QuorumRound,
         storage::mem_store::MemStore,
         synchronizer::Synchronizer,
         test_dag_builder::DagBuilder,
@@ -705,15 +704,6 @@ mod tests {
         }
 
         fn set_subscriber_exists(&self, _exists: bool) -> Result<(), CoreError> {
-            todo!()
-        }
-
-        fn set_propagation_delay_and_quorum_rounds(
-            &self,
-            _delay: Round,
-            _received_quorum_rounds: Vec<QuorumRound>,
-            _accepted_quorum_rounds: Vec<QuorumRound>,
-        ) -> Result<(), CoreError> {
             todo!()
         }
 
@@ -776,14 +766,6 @@ mod tests {
             _authorities: Vec<AuthorityIndex>,
             _timeout: Duration,
         ) -> ConsensusResult<Vec<Bytes>> {
-            unimplemented!("Unimplemented")
-        }
-
-        async fn get_latest_rounds(
-            &self,
-            _peer: AuthorityIndex,
-            _timeout: Duration,
-        ) -> ConsensusResult<(Vec<Round>, Vec<Round>)> {
             unimplemented!("Unimplemented")
         }
     }
