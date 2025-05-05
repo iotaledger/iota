@@ -666,6 +666,7 @@ pub struct GetAllPagesStream<O, C, F, E, Fun> {
     fun: Fun,
     fut: Pin<Box<F>>,
     next: VecDeque<O>,
+    has_next_page: bool,
     _data: PhantomData<fn(E) -> E>,
 }
 
@@ -680,6 +681,7 @@ where
             fun,
             fut: Box::pin(fut),
             next: Default::default(),
+            has_next_page: true,
             _data: PhantomData,
         }
     }
@@ -699,24 +701,25 @@ where
         cx: &mut std::task::Context<'_>,
     ) -> Poll<Option<Self::Item>> {
         let this = unsafe { self.get_unchecked_mut() };
-        loop {
-            if let Some(next) = this.next.pop_front() {
-                return Poll::Ready(Some(Ok(next)));
-            }
-            let res = this.fut.as_mut().poll(cx);
-            match res {
-                Poll::Ready(res) => {
-                    this.fut.set((this.fun)(this.cursor.take()));
-                    match res {
-                        Ok(mut page) => {
-                            this.cursor = page.next_cursor.take();
-                            this.next.extend(page.data);
+        if this.next.is_empty() && this.has_next_page {
+            match this.fut.as_mut().poll(cx) {
+                Poll::Ready(res) => match res {
+                    Ok(mut page) => {
+                        this.cursor = page.next_cursor.take();
+                        this.next.extend(page.data);
+                        this.has_next_page = page.has_next_page;
+                        if this.has_next_page {
+                            this.fut.set((this.fun)(this.cursor.take()));
                         }
-                        Err(e) => return Poll::Ready(Some(Err(e))),
                     }
-                }
+                    Err(e) => {
+                        this.has_next_page = false;
+                        return Poll::Ready(Some(Err(e)));
+                    }
+                },
                 Poll::Pending => return Poll::Pending,
             }
         }
+        return Poll::Ready(this.next.pop_front().map(Ok));
     }
 }
