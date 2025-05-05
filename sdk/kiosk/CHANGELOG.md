@@ -1,5 +1,21 @@
 # @iota/kiosk
 
+## 0.4.0
+
+### Minor Changes
+
+-   864fd32: Rename `getLatestIotaSystemState` to `getLatestIotaSystemStateV1` and add a new
+    backwards-compatible and future-proof `getLatestIotaSystemState` method that dynamically calls
+    ``getLatestIotaSystemStateV1`or`getLatestIotaSystemStateV2` based on the protocol version of the
+    node.
+
+### Patch Changes
+
+-   Updated dependencies [f4d75c7]
+-   Updated dependencies [daa968f]
+-   Updated dependencies [864fd32]
+    -   @iota/iota-sdk@1.0.0
+
 ## 0.3.4
 
 ### Patch Changes

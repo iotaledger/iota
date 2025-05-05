@@ -183,9 +183,6 @@ pub struct IotaNamesOptions {
     #[arg(default_value_t = IotaNamesConfig::default().reverse_registry_id)]
     #[arg(long = "iota-names-reverse-registry-id")]
     pub reverse_registry_id: ObjectID,
-    #[arg(default_value_t = IotaNamesConfig::default().subdomain_proxy_package_id)]
-    #[arg(long = "iota-names-subdomain-proxy-package-id")]
-    pub subdomain_proxy_package_id: ObjectID,
 }
 
 impl From<IotaNamesOptions> for IotaNamesConfig {
@@ -196,7 +193,6 @@ impl From<IotaNamesOptions> for IotaNamesConfig {
             payments_package_address,
             registry_id,
             reverse_registry_id,
-            subdomain_proxy_package_id,
         } = options;
         Self {
             package_address,
@@ -204,7 +200,6 @@ impl From<IotaNamesOptions> for IotaNamesConfig {
             payments_package_address,
             registry_id,
             reverse_registry_id,
-            subdomain_proxy_package_id,
         }
     }
 }
@@ -217,7 +212,6 @@ impl From<IotaNamesConfig> for IotaNamesOptions {
             payments_package_address,
             registry_id,
             reverse_registry_id,
-            subdomain_proxy_package_id,
         } = config;
         Self {
             package_address,
@@ -225,7 +219,6 @@ impl From<IotaNamesConfig> for IotaNamesOptions {
             payments_package_address,
             registry_id,
             reverse_registry_id,
-            subdomain_proxy_package_id,
         }
     }
 }

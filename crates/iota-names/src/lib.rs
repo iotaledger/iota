@@ -25,7 +25,6 @@ pub struct IotaNamesRegistration {
     domain: Domain,
     domain_name: String,
     expiration_timestamp_ms: u64,
-    image_url: String,
 }
 
 /// An object to manage a subdomain.
@@ -69,8 +68,6 @@ pub trait IotaNamesNft {
         self.expiration_time() <= SystemTime::now()
     }
 
-    fn image_url(&self) -> &str;
-
     fn id(&self) -> ObjectID;
 }
 
@@ -88,10 +85,6 @@ impl IotaNamesNft for IotaNamesRegistration {
 
     fn expiration_timestamp_ms(&self) -> u64 {
         self.expiration_timestamp_ms
-    }
-
-    fn image_url(&self) -> &str {
-        &self.image_url
     }
 
     fn id(&self) -> ObjectID {
@@ -113,10 +106,6 @@ impl IotaNamesNft for SubdomainRegistration {
 
     fn expiration_timestamp_ms(&self) -> u64 {
         self.nft.expiration_timestamp_ms()
-    }
-
-    fn image_url(&self) -> &str {
-        self.nft.image_url()
     }
 
     fn id(&self) -> ObjectID {

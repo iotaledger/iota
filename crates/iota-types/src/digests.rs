@@ -159,8 +159,7 @@ impl fmt::UpperHex for Digest {
 )]
 pub struct ChainIdentifier(pub(crate) CheckpointDigest);
 
-// TODO: https://github.com/iotaledger/iota/issues/5484
-pub const MAINNET_CHAIN_IDENTIFIER_BASE58: &str = "4btiuiMPvEENsttpZC7CZ53DruC3MAgfznDbASZ7DR6S";
+pub const MAINNET_CHAIN_IDENTIFIER_BASE58: &str = "7gzPnGnmjqvpmF7NXTCmtacXLqx1cMaJFV6GCmi1peqr";
 pub const TESTNET_CHAIN_IDENTIFIER_BASE58: &str = "3MhPzSaSTHGffwPSV2Ws2DaK8LR8DBGPozTd2CbiJRwe";
 
 pub static MAINNET_CHAIN_IDENTIFIER: OnceCell<ChainIdentifier> = OnceCell::new();
@@ -1052,7 +1051,7 @@ mod test {
 
     #[test]
     fn test_chain_id_mainnet() {
-        let chain_id = ChainIdentifier::from_chain_short_id("35834a8a");
+        let chain_id = ChainIdentifier::from_chain_short_id("6364aad5");
         assert_eq!(
             chain_id.unwrap().chain(),
             iota_protocol_config::Chain::Mainnet
