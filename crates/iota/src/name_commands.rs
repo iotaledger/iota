@@ -399,12 +399,12 @@ impl NameCommand {
                     ),
                     "--assign payment_intent".to_string(),
                     format!(
-                        "--move-call {}::payments::handle_base_payment <0x0000000000000000000000000000000000000000000000000000000000000002::iota::IOTA> @{} payment_intent coins.0",
+                        "--move-call {}::payments::handle_base_payment <{IOTA_FRAMEWORK_PACKAGE_ID}::iota::IOTA> @{} payment_intent coins.0",
                         iota_names_config.payments_package_address, iota_names_config.object_id
                     ),
                     "--assign receipt".to_string(),
                     format!(
-                        "--move-call {}::payment::register receipt @{} @0x6",
+                        "--move-call {}::payment::register receipt @{} @{IOTA_CLOCK_OBJECT_ID}",
                         iota_names_config.package_address, iota_names_config.object_id
                     ),
                     "--assign nft".to_string(),
@@ -420,7 +420,7 @@ impl NameCommand {
                         );
                     }
                     args.push(format!(
-                        "--move-call {}::controller::set_target_address @{} nft some(@{address}) @0x6",
+                        "--move-call {}::controller::set_target_address @{} nft some(@{address}) @{IOTA_CLOCK_OBJECT_ID}",
                         iota_names_config.package_address, iota_names_config.object_id,
                     ));
                 }
@@ -478,12 +478,12 @@ impl NameCommand {
                     ),
                     "--assign renewal_intent".to_string(),
                     format!(
-                        "--move-call {}::payments::handle_base_payment <0x0000000000000000000000000000000000000000000000000000000000000002::iota::IOTA> @{} renewal_intent coins.0",
+                        "--move-call {}::payments::handle_base_payment <{IOTA_FRAMEWORK_PACKAGE_ID}::iota::IOTA> @{} renewal_intent coins.0",
                         iota_names_config.payments_package_address, iota_names_config.object_id
                     ),
                     "--assign receipt".to_string(),
                     format!(
-                        "--move-call {}::payment::renew receipt @{} @{nft_id} @0x6",
+                        "--move-call {}::payment::renew receipt @{} @{nft_id} @{IOTA_CLOCK_OBJECT_ID}",
                         iota_names_config.package_address, iota_names_config.object_id,
                     ),
                 ];
