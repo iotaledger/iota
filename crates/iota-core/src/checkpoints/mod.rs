@@ -991,6 +991,9 @@ impl CheckpointBuilder {
                 self.metrics.checkpoint_errors.inc();
                 return;
             }
+            // Ensure that the task can be cancelled at end of epoch, even if no other await
+            // yields execution.
+            tokio::task::yield_now().await;
         }
         debug!(
             "Waiting for more checkpoints from consensus after processing {last_height:?}; {} pending checkpoints left unprocessed until next interval",
