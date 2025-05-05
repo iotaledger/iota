@@ -114,7 +114,9 @@ pub enum NameCommand {
         /// specified without a value, the current active address will be used.
         #[arg(long, require_equals = true, default_missing_value = "", num_args = 0..=1)]
         set_target_address: Option<String>,
-        /// Set the reverse lookup for the domain.
+        /// Set the reverse lookup for the domain. This will fail if the
+        /// `set-target-address` flag is provided with an address other than the
+        /// sender.
         #[arg(long)]
         set_reverse_lookup: bool,
         #[command(flatten)]
@@ -412,6 +414,11 @@ impl NameCommand {
                         .then(|| identity.parse::<KeyIdentity>())
                         .transpose()?;
                     let address = get_identity_address(identity, context)?;
+                    if set_reverse_lookup && address != context.active_address()? {
+                        anyhow::bail!(
+                            "cannot set reverse lookup if target address is not the sender"
+                        );
+                    }
                     args.push(format!(
                         "--move-call {}::controller::set_target_address @{} nft some(@{address}) @0x6",
                         iota_names_config.package_address, iota_names_config.object_id,
