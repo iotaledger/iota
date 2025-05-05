@@ -633,6 +633,9 @@ async fn test_byzantine_validator() {
     // Make equivocation through timestamp
     let timestamp = byzantine_block_b13_1.timestamp_ms();
 
+    // Make equivocation through timestamp
+    let timestamp = byzantine_block_b13_1.timestamp_ms();
+
     let byzantine_block_b13_2 = VerifiedBlockHeader::new_for_test(
         TestBlockHeader::new(13, 1)
             .set_ancestors(references_without_leader_round_wave_4.clone())
