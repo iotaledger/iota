@@ -3,7 +3,7 @@
 
 pub(crate) use reed_solomon_simd::ReedSolomonEncoder;
 
-use crate::{Transaction, block::Shard, error::ConsensusError};
+use crate::{Transaction, block_header::Shard, error::ConsensusError};
 
 /// Trait for encoding data into shards using systematic coding with
 /// configurable redundancy.

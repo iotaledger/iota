@@ -12,8 +12,7 @@ use starfish_config::NetworkKeyPair;
 use tokio::time::sleep;
 
 use super::{
-    ExtendedSerializedBlock, NetworkClient, NetworkManager, test_network::TestService,
-    tonic_network::TonicManager,
+    NetworkClient, NetworkManager, test_network::TestService, tonic_network::TonicManager,
 };
 use crate::{
     Round,
@@ -41,11 +40,8 @@ impl ManagerBuilder for TonicManagerBuilder {
     }
 }
 
-fn block_for_round(round: Round) -> ExtendedSerializedBlock {
-    ExtendedSerializedBlock {
-        block: Bytes::from(vec![round as u8; 16]),
-        excluded_ancestors: vec![],
-    }
+fn block_for_round(round: Round) -> Bytes {
+    Bytes::from(vec![round as u8; 16])
 }
 
 fn service_with_own_blocks() -> Arc<Mutex<TestService>> {
@@ -117,19 +113,13 @@ async fn send_and_receive_blocks_with_auth(
     assert_eq!(service_0.lock().handle_send_block[0].0.value(), 1);
     assert_eq!(
         service_0.lock().handle_send_block[0].1,
-        ExtendedSerializedBlock {
-            block: test_block_1.serialized().clone(),
-            excluded_ancestors: vec![],
-        },
+        test_block_1.serialized().clone(),
     );
     assert_eq!(service_1.lock().handle_send_block.len(), 1);
     assert_eq!(service_1.lock().handle_send_block[0].0.value(), 0);
     assert_eq!(
         service_1.lock().handle_send_block[0].1,
-        ExtendedSerializedBlock {
-            block: test_block_0.serialized().clone(),
-            excluded_ancestors: vec![],
-        },
+        test_block_0.serialized().clone()
     );
 
     // `Committee` is generated with the same random seed in

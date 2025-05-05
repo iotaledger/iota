@@ -6,7 +6,7 @@ use std::collections::HashMap;
 use reed_solomon_simd::ReedSolomonDecoder;
 use starfish_config::Committee;
 
-use crate::{Transaction, block::Shard, error::ConsensusError};
+use crate::{Transaction, block_header::Shard, error::ConsensusError};
 
 /// Trait for decoding shard collections using systematic Reed-Solomon decoding
 /// and reconstructing the original transactions.
