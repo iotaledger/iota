@@ -33,3 +33,4 @@ export * from './transaction';
 export * from './validation';
 export * from './migration';
 export * from './legacy';
+export * from './vesting';

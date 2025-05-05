@@ -40,7 +40,7 @@ https://github.com/iotaledger/iota/blob/0494dad2b1d64c054795bac75342597e2eda1e9a
 
 This function deposits IOTA coins into `SharedCoins` by adding them to the `coins` array of `SharedCoins`.  
 Before using this function, ensure that some IOTA coins have been transferred to the address/object ID of the `SharedCoins` object.
-For the `coin` parameter, provide the address/object ID of the IOTA coin you transferred to `SharedCoins`. For further details, refer to [Receiving](../../../references/framework/iota/transfer.mdx#iota_transfer_Receiving) and [public_receive](../../../references/framework/iota/transfer.mdx#function-public_receive).
+For the `coin` parameter, provide the address/object ID of the IOTA coin you transferred to `SharedCoins`. For further details, refer to [Receiving](../../../references/framework/iota-framework/transfer.mdx#struct-receiving) and [public_receive](../../../references/framework/iota-framework/transfer.mdx#function-public_receive).
 
 ```move reference
 https://github.com/iotaledger/iota/blob/0494dad2b1d64c054795bac75342597e2eda1e9a/examples/move/transfer-to-shared-object/sources/shared_coins.move#L31-L38
@@ -48,7 +48,7 @@ https://github.com/iotaledger/iota/blob/0494dad2b1d64c054795bac75342597e2eda1e9a
 
 ### [`transfer_coin`](https://github.com/iotaledger/iota/blob/0494dad2b1d64c054795bac75342597e2eda1e9a/examples/move/transfer-to-shared-object/sources/shared_coins.move#L41-L48)
 
-This function transfers an IOTA coin to the specified `recipient` address. It removes the coin object from the `coins` array and utilizes the [`public_transfer`](../../../references/framework/iota/transfer.mdx#function-public_transfer) function to complete the transfer.
+This function transfers an IOTA coin to the specified `recipient` address. It removes the coin object from the `coins` array and utilizes the [`public_transfer`](../../../references/framework/iota-framework/transfer.mdx#function-public_transfer) function to complete the transfer.
 
 ```move reference
 https://github.com/iotaledger/iota/blob/0494dad2b1d64c054795bac75342597e2eda1e9a/examples/move/transfer-to-shared-object/sources/shared_coins.move#L41-L48
