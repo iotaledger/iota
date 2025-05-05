@@ -334,6 +334,7 @@ pub type CommitVote = CommitRef;
 ///
 /// The application processing CommittedSubDag can arbitrarily sort the blocks
 /// within each sub-dag (but using a deterministic algorithm).
+// TODO: add transaction data to the sub-dag and use it in the consensus output.
 #[derive(Clone, PartialEq)]
 pub struct CommittedSubDag {
     /// A reference to the leader of the sub-dag
