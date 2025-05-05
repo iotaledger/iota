@@ -9,7 +9,7 @@ use starfish_config::AuthorityIndex;
 
 use crate::{
     block_header::{BlockHeaderAPI, Slot, TestBlockHeader, VerifiedBlockHeader},
-    commit::{DEFAULT_WAVE_LENGTH, DecidedLeader},
+    commit::{DecidedLeader, WAVE_LENGTH},
     context::Context,
     dag_state::DagState,
     leader_schedule::{LeaderSchedule, LeaderSwapTable},
@@ -24,7 +24,7 @@ async fn direct_commit() {
     let (context, dag_state, committer) = basic_test_setup();
 
     // note: pipelines, waves & rounds are zero-indexed.
-    let decision_round_wave_0_pipeline_1 = committer.committers[1].decision_round(0);
+    let decision_round_wave_0_pipeline_1 = committer.committers[1].certifying_round(0);
     build_dag(context, dag_state, None, decision_round_wave_0_pipeline_1);
 
     let last_decided = Slot::new_for_test(0, 0);
@@ -52,12 +52,12 @@ async fn idempotence() {
     // Add enough blocks to reach decision round of pipeline 1 wave 0 which is round
     // 4. note: pipelines, waves & rounds are zero-indexed.
     let leader_round_pipeline_1_wave_0 = committer.committers[1].leader_round(0);
-    let decision_round_pipeline_1_wave_0 = committer.committers[1].decision_round(0);
+    let certifying_round_pipeline_1_wave_0 = committer.committers[1].certifying_round(0);
     build_dag(
         context.clone(),
         dag_state.clone(),
         None,
-        decision_round_pipeline_1_wave_0,
+        certifying_round_pipeline_1_wave_0,
     );
 
     // Commit one leader.
@@ -102,7 +102,7 @@ async fn idempotence() {
 #[tokio::test]
 async fn multiple_direct_commit() {
     let (context, dag_state, committer) = basic_test_setup();
-    let wave_length = DEFAULT_WAVE_LENGTH;
+    let wave_length = WAVE_LENGTH;
 
     let mut last_decided = Slot::new_for_test(0, 0);
     let mut ancestors = None;
@@ -112,14 +112,14 @@ async fn multiple_direct_commit() {
         // note: pipelines, waves & rounds are zero-indexed.
         let pipeline = n % wave_length as usize;
         let wave_number = committer.committers[pipeline].wave_number(n as u32);
-        let decision_round = committer.committers[pipeline].decision_round(wave_number);
+        let certifying_round = committer.committers[pipeline].certifying_round(wave_number);
         let leader_round = committer.committers[pipeline].leader_round(wave_number);
 
         ancestors = Some(build_dag(
             context.clone(),
             dag_state.clone(),
             ancestors,
-            decision_round,
+            certifying_round,
         ));
 
         // Because of pipelining we are committing a leader every round.
@@ -148,15 +148,15 @@ async fn multiple_direct_commit() {
 #[tokio::test]
 async fn direct_commit_late_call() {
     let (context, dag_state, committer) = basic_test_setup();
-    let wave_length = DEFAULT_WAVE_LENGTH;
+    let wave_length = WAVE_LENGTH;
 
     // note: pipelines, waves & rounds are zero-indexed.
     let n = 10;
     let pipeline = n % wave_length as usize;
     let wave_number = committer.committers[pipeline].wave_number(n as u32);
-    let decision_round = committer.committers[pipeline].decision_round(wave_number);
+    let certifying_round = committer.committers[pipeline].certifying_round(wave_number);
 
-    build_dag(context.clone(), dag_state.clone(), None, decision_round);
+    build_dag(context.clone(), dag_state.clone(), None, certifying_round);
 
     let last_decided = Slot::new_for_test(0, 0);
     let sequence = committer.try_decide(last_decided);
@@ -183,10 +183,10 @@ async fn no_genesis_commit() {
     // Pipeline 0 wave 0 will not have a commit because its leader round is the
     // genesis round.
     // note: pipelines, waves & rounds are zero-indexed.
-    let decision_round_pipeline_0_wave_0 = committer.committers[0].decision_round(0);
+    let certifying_round_pipeline_0_wave_0 = committer.committers[0].certifying_round(0);
 
     let mut ancestors = None;
-    for r in 0..decision_round_pipeline_0_wave_0 {
+    for r in 0..certifying_round_pipeline_0_wave_0 {
         ancestors = Some(build_dag(context.clone(), dag_state.clone(), ancestors, r));
 
         let last_decided = Slot::new_for_test(0, 0);
@@ -223,7 +223,7 @@ async fn direct_skip_no_leader() {
         .collect::<Vec<_>>();
     let references = build_dag_layer(connections, dag_state.clone());
 
-    let decision_round_pipeline_1_wave_0 = committer.committers[1].decision_round(0);
+    let decision_round_pipeline_1_wave_0 = committer.committers[1].certifying_round(0);
     build_dag(
         context.clone(),
         dag_state.clone(),
@@ -297,7 +297,7 @@ async fn direct_skip_enough_blame() {
 
     // Add enough blocks to reach the decision round of the wave 0 leader for
     // pipeline 1.
-    let decision_round_pipeline_1_wave_0 = committer.committers[1].decision_round(0);
+    let decision_round_pipeline_1_wave_0 = committer.committers[1].certifying_round(0);
     build_dag(
         context.clone(),
         dag_state.clone(),
@@ -324,7 +324,7 @@ async fn direct_skip_enough_blame() {
 #[tokio::test]
 async fn indirect_commit() {
     let (context, dag_state, committer) = basic_test_setup();
-    let wave_length = DEFAULT_WAVE_LENGTH;
+    let wave_length = WAVE_LENGTH;
 
     // Add enough blocks to reach the wave 0 leader of pipeline 1.
     // note: pipelines, waves & rounds are zero-indexed.
@@ -404,7 +404,7 @@ async fn indirect_commit() {
     let leader_round_5 = 5;
     let pipeline_leader_5 = leader_round_5 % wave_length as usize;
     let wave_leader_5 = committer.committers[pipeline_leader_5].wave_number(leader_round_5 as u32);
-    let decision_round_5 = committer.committers[pipeline_leader_5].decision_round(wave_leader_5);
+    let decision_round_5 = committer.committers[pipeline_leader_5].certifying_round(wave_leader_5);
     build_dag(
         context.clone(),
         dag_state.clone(),
@@ -441,7 +441,7 @@ async fn indirect_commit() {
 #[tokio::test]
 async fn indirect_skip() {
     let (context, dag_state, committer) = basic_test_setup();
-    let wave_length = DEFAULT_WAVE_LENGTH;
+    let wave_length = WAVE_LENGTH;
 
     // Add enough blocks to reach the 4th leader.
     // note: pipelines, waves & rounds are zero-indexed.
@@ -484,7 +484,7 @@ async fn indirect_skip() {
     let leader_round_7 = 7;
     let pipeline_leader_7 = leader_round_7 % wave_length as usize;
     let wave_leader_7 = committer.committers[pipeline_leader_7].wave_number(leader_round_7 as u32);
-    let decision_round_7 = committer.committers[pipeline_leader_7].decision_round(wave_leader_7);
+    let decision_round_7 = committer.committers[pipeline_leader_7].certifying_round(wave_leader_7);
     build_dag(
         context.clone(),
         dag_state.clone(),
@@ -563,7 +563,7 @@ async fn undecided() {
     let references_voting_round_1 = build_dag_layer(connections, dag_state.clone());
 
     // Add enough blocks to reach the first decision round
-    let decision_round_1 = committer.committers[1].decision_round(0);
+    let decision_round_1 = committer.committers[1].certifying_round(0);
     build_dag(
         context.clone(),
         dag_state.clone(),
@@ -619,23 +619,24 @@ async fn test_byzantine_validator() {
         .filter(|x| x.author != leader_12)
         .collect();
 
-    // Accept these references/blocks as ancestors from decision round blocks in dag
-    // state
+    // Accept these references/blocks as ancestors from certifying round blocks in
+    // dag state
     let byzantine_block_b13_1 = VerifiedBlockHeader::new_for_test(
         TestBlockHeader::new(13, 1)
             .set_ancestors(references_without_leader_round_wave_4.clone())
             .build(),
     );
-    // change timestamp for equivocating blocks to build different blocks
-    let timestamp_b13_1 = byzantine_block_b13_1.timestamp_ms();
     dag_state
         .write()
         .accept_block(byzantine_block_b13_1.clone());
 
+    // Make equivocation through timestamp
+    let timestamp = byzantine_block_b13_1.timestamp_ms();
+
     let byzantine_block_b13_2 = VerifiedBlockHeader::new_for_test(
         TestBlockHeader::new(13, 1)
             .set_ancestors(references_without_leader_round_wave_4.clone())
-            .set_timestamp_ms(timestamp_b13_1 + 1)
+            .set_timestamp_ms(timestamp + 1)
             .build(),
     );
     dag_state
@@ -645,7 +646,7 @@ async fn test_byzantine_validator() {
     let byzantine_block_b13_3 = VerifiedBlockHeader::new_for_test(
         TestBlockHeader::new(13, 1)
             .set_ancestors(references_without_leader_round_wave_4)
-            .set_timestamp_ms(timestamp_b13_1 + 2)
+            .set_timestamp_ms(timestamp + 2)
             .build(),
     );
     dag_state
@@ -792,9 +793,7 @@ fn basic_test_setup() -> (
 
     // Create committer with pipelining and only 1 leader per leader round
     let committer =
-        UniversalCommitterBuilder::new(context.clone(), leader_schedule, dag_state.clone())
-            .with_pipeline(true)
-            .build();
+        UniversalCommitterBuilder::new(context.clone(), leader_schedule, dag_state.clone()).build();
 
     // note: with pipelining and without multi-leader enabled there should be
     // three committers.

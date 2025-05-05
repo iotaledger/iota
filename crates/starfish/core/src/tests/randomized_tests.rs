@@ -196,9 +196,7 @@ fn authority_setup(num_authorities: usize, authority_index: u32) -> AuthorityTes
 
     // Create committer with pipelining and only 1 leader per leader round
     let committer =
-        UniversalCommitterBuilder::new(context.clone(), leader_schedule, dag_state.clone())
-            .with_pipeline(true)
-            .build();
+        UniversalCommitterBuilder::new(context.clone(), leader_schedule, dag_state.clone()).build();
 
     let block_manager = BlockManager::new(
         context.clone(),
