@@ -1,10 +1,10 @@
 #!/bin/sh
 
 # Define main network 
-main_network="testnet"
+main_network="mainnet"
 
 # Define the other networks to process
-networks="devnet"
+networks="testnet devnet"
 
 # Create temporary directory to work in
 mkdir -p tmp

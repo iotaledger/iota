@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { ChainId } from '../ChainId';
-import { NetworkProps, MoveProps } from '../constant';
+import { NetworkProps } from '../constant';
 import CodeBlock from '@theme/CodeBlock';
 import Admonition from '@theme/Admonition';
 
@@ -18,29 +18,39 @@ function L1(props: NetworkProps) {
           <td>{props.protocol}</td>
         </tr>
         <tr>
-          <th>HTTP REST API</th>
-          <td>
-            <CodeBlock>{props.httpRestApi}</CodeBlock>
+          <th>Explorer</th>
+          <td>{props.explorer}</td>
+        </tr>
+        <tr>
+          <th>JSON RPC URL</th>
+            <td>
+              <CodeBlock>{props.rpc.json.core}</CodeBlock>
+              <tr>
+                <th>Websocket</th>
+                <td>
+                  <CodeBlock>{props.rpc.json.websocket}</CodeBlock>
+                </td>
+              </tr>
+              <tr>
+                <th>Indexer</th>
+                <td>
+                  <CodeBlock>{props.rpc.json.indexer}</CodeBlock>
+                </td>
+              </tr>
           </td>
         </tr>
         <tr>
-          <th>Event API</th>
+          <th>GraphQL RPC URL</th>
           <td>
-            <CodeBlock>{props.eventApi}</CodeBlock>
+            <CodeBlock>{props.rpc.graphql}</CodeBlock>
           </td>
         </tr>
-        <tr>
-          <th>Permanode API</th>
-          <td>
-            <CodeBlock>{props.permaNodeApi}</CodeBlock>
-          </td>
-        </tr>
-        {props.faucetUrl && (
+        {props.faucet && (
           <tr>
             <th>Faucet</th>
             <td>
               <CodeBlock>
-                {props.faucetUrl}
+                {props.faucet}
               </CodeBlock>
             </td>
           </tr>
@@ -50,97 +60,6 @@ function L1(props: NetworkProps) {
   );
 }
 
-// Testnet Component
-function Testnet(props: NetworkProps) {
-  return (
-    <table>
-      <tbody>
-        <tr>
-          <th>Base Token</th>
-          <td>{props.baseToken}</td>
-        </tr>
-        {props.protocol &&<tr>
-          <th>Protocol</th>
-          <td>{props.protocol}</td>
-        </tr>}
-        <tr>
-          <th>HTTP REST API</th>
-          <td>
-            <CodeBlock>{props.httpRestApi}</CodeBlock>
-          </td>
-        </tr>
-        <tr>
-          <th>Event API</th>
-          <td>
-            <CodeBlock>{props.eventApi}</CodeBlock>
-          </td>
-        </tr>
-        <tr>
-          <th>Permanode API</th>
-          <td>
-            <CodeBlock>{props.permaNodeApi}</CodeBlock>
-          </td>
-        </tr>
-        {props.faucetUrl && (
-          <tr>
-            <th>Faucet</th>
-            <td>
-              <CodeBlock>
-                {props.faucetUrl}
-              </CodeBlock>
-            </td>
-          </tr>
-        )}
-      </tbody>
-    </table>
-  );
-}
-
-// Devtnet Component
-function Devnet(props: NetworkProps) {
-  return (
-    <table>
-      <tbody>
-        <tr>
-          <th>Base Token</th>
-          <td>{props.baseToken}</td>
-        </tr>
-        <tr>
-          <th>Protocol</th>
-          <td>{props.protocol}</td>
-        </tr>
-        <tr>
-          <th>HTTP REST API</th>
-          <td>
-            <CodeBlock>{props.httpRestApi}</CodeBlock>
-          </td>
-        </tr>
-        <tr>
-          <th>Event API</th>
-          <td>
-            <CodeBlock>{props.eventApi}</CodeBlock>
-          </td>
-        </tr>
-        <tr>
-          <th>Permanode API</th>
-          <td>
-            <CodeBlock>{props.permaNodeApi}</CodeBlock>
-          </td>
-        </tr>
-        {props.faucetUrl && (
-          <tr>
-            <th>Faucet</th>
-            <td>
-              <CodeBlock>
-                {props.faucetUrl}
-              </CodeBlock>
-            </td>
-          </tr>
-        )}
-      </tbody>
-    </table>
-  );
-}
 // EVM component
 function Evm(props: NetworkProps) {
   return (
@@ -275,67 +194,8 @@ function EvmCustom(props: NetworkProps) {
   );
 }
 
-// Move component
-function Move(props: MoveProps) {
-  return (
-    <table>
-      <tbody>
-        <tr>
-          <th>Base Token</th>
-          <td>{props.baseToken}</td>
-        </tr>
-        {props.explorerUrl && (
-          <tr>
-            <th scope="row">Explorer URL</th>
-            <td>
-              <CodeBlock>{props.explorerUrl}</CodeBlock>
-            </td>
-          </tr>
-        )}
-        <tr>
-          <th>JSON RPC URL</th>
-          <td>
-            <CodeBlock>{props.jsonRpcUrl}</CodeBlock>
-          </td>
-        </tr>
-        <tr>
-          <th>Indexer RPC</th>
-          <td>
-            <CodeBlock>{props.indexerRpc}</CodeBlock>
-          </td>
-        </tr>
-        <tr>
-          <th>GraphQL RPC</th>
-          <td>
-            <CodeBlock>{props.graphqlRpc}</CodeBlock>
-          </td>
-        </tr>
-        <tr>
-          <th>RPC Websocket URL</th>
-          <td>
-            <CodeBlock>{props.jsonRpcWebsocketUrl}</CodeBlock>
-          </td>
-        </tr>
-        {props.faucetUrl && (
-          <tr>
-            <th>Faucet URL</th>
-            <td>
-              <CodeBlock>
-                {props.faucetUrl}
-              </CodeBlock>
-            </td>
-          </tr>
-        )}
-      </tbody>
-    </table>
-  );
-}
-
 export default {
   L1,
   Evm,
   EvmCustom,
-  Move,
-  Testnet,
-  Devnet
 };
