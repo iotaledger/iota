@@ -41,8 +41,6 @@ enum CoreThreadCommand {
         Vec<VerifiedBlockHeader>,
         oneshot::Sender<BTreeSet<BlockRef>>,
     ),
-    /// Checks if block refs exist locally and sync missing ones.
-    CheckBlockRefs(Vec<BlockRef>, oneshot::Sender<BTreeSet<BlockRef>>),
     /// Add committed sub dag blocks for processing and acceptance.
     AddCertifiedCommits(CertifiedCommits, oneshot::Sender<BTreeSet<BlockRef>>),
     /// Called when the min round has passed or the leader timeout occurred and
@@ -68,11 +66,6 @@ pub trait CoreThreadDispatcher: Sync + Send + 'static {
     async fn add_blocks(
         &self,
         blocks: Vec<VerifiedBlockHeader>,
-    ) -> Result<BTreeSet<BlockRef>, CoreError>;
-
-    async fn check_block_refs(
-        &self,
-        block_refs: Vec<BlockRef>,
     ) -> Result<BTreeSet<BlockRef>, CoreError>;
 
     async fn add_certified_commits(
@@ -143,11 +136,6 @@ impl CoreThread {
                         CoreThreadCommand::AddBlocks(blocks, sender) => {
                             let _scope = monitored_scope("CoreThread::loop::add_blocks");
                             let missing_block_refs = self.core.add_blocks(blocks)?;
-                            sender.send(missing_block_refs).ok();
-                        }
-                        CoreThreadCommand::CheckBlockRefs(blocks, sender) => {
-                            let _scope = monitored_scope("CoreThread::loop::find_excluded_blocks");
-                            let missing_block_refs = self.core.check_block_refs(blocks)?;
                             sender.send(missing_block_refs).ok();
                         }
                         CoreThreadCommand::AddCertifiedCommits(commits, sender) => {
@@ -319,21 +307,6 @@ impl CoreThreadDispatcher for ChannelCoreThreadDispatcher {
         Ok(missing_block_refs)
     }
 
-    async fn check_block_refs(
-        &self,
-        block_refs: Vec<BlockRef>,
-    ) -> Result<BTreeSet<BlockRef>, CoreError> {
-        let (sender, receiver) = oneshot::channel();
-        self.send(CoreThreadCommand::CheckBlockRefs(
-            block_refs.clone(),
-            sender,
-        ))
-        .await;
-        let missing_block_refs = receiver.await.map_err(|e| Shutdown(e.to_string()))?;
-
-        Ok(missing_block_refs)
-    }
-
     async fn add_certified_commits(
         &self,
         commits: CertifiedCommits,
@@ -458,13 +431,6 @@ pub(crate) mod tests {
         ) -> Result<BTreeSet<BlockRef>, CoreError> {
             let mut add_blocks = self.add_blocks.lock();
             add_blocks.extend(blocks);
-            Ok(BTreeSet::new())
-        }
-
-        async fn check_block_refs(
-            &self,
-            _block_refs: Vec<BlockRef>,
-        ) -> Result<BTreeSet<BlockRef>, CoreError> {
             Ok(BTreeSet::new())
         }
 
