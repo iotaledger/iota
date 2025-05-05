@@ -116,7 +116,7 @@ pub enum NameCommand {
         set_target_address: Option<String>,
         /// Set the reverse lookup for the domain. This will fail if the
         /// `set-target-address` flag is provided with an address other than the
-        /// sender.
+        /// sender or if no target address is set.
         #[arg(long)]
         set_reverse_lookup: bool,
         #[command(flatten)]
@@ -409,7 +409,7 @@ impl NameCommand {
                     ),
                     "--assign nft".to_string(),
                 ];
-                if let Some(identity) = set_target_address {
+                if let Some(identity) = &set_target_address {
                     let identity = (!identity.is_empty())
                         .then(|| identity.parse::<KeyIdentity>())
                         .transpose()?;
@@ -425,6 +425,11 @@ impl NameCommand {
                     ));
                 }
                 if set_reverse_lookup {
+                    if set_target_address.is_none() {
+                        anyhow::bail!(
+                            "cannot set reverse lookup without first setting the target address"
+                        );
+                    }
                     args.push(format!(
                         "--move-call {}::controller::set_reverse_lookup @{} '{domain}'",
                         iota_names_config.package_address, iota_names_config.object_id,
