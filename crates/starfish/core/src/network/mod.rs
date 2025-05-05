@@ -118,14 +118,6 @@ pub(crate) trait NetworkClient: Send + Sync + Sized + 'static {
         authorities: Vec<AuthorityIndex>,
         timeout: Duration,
     ) -> ConsensusResult<Vec<Bytes>>;
-
-    /// Gets the latest received & accepted rounds of all authorities from the
-    /// peer.
-    async fn get_latest_rounds(
-        &self,
-        peer: AuthorityIndex,
-        timeout: Duration,
-    ) -> ConsensusResult<(Vec<Round>, Vec<Round>)>;
 }
 
 /// Network service for handling requests from peers.
