@@ -1215,7 +1215,7 @@ impl SequenceNumber {
         let (version, overflows) = Self::MIN_CONGESTED_FOR_GAS_PRICE_FEEDBACK
             .value()
             .overflowing_add(suggested_gas_price);
-        assert!(
+        debug_assert!(
             !overflows,
             "the calculated version for a congested shared objects overflows"
         );
