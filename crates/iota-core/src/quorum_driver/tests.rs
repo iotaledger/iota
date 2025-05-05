@@ -314,12 +314,7 @@ async fn test_quorum_driver_object_locked() -> Result<(), anyhow::Error> {
     // there are not enough retryable errors to push the original tx or the most
     // staked conflicting tx >= 2f+1 stake. Neither transaction can be retried
     // due to client double spend and this is a fatal error.
-    if let Err(QuorumDriverError::ObjectsDoubleUsed {
-        conflicting_txes,
-        retried_tx_status,
-    }) = res
-    {
-        assert_eq!(retried_tx_status, None);
+    if let Err(QuorumDriverError::ObjectsDoubleUsed { conflicting_txes }) = res {
         assert_eq!(conflicting_txes.len(), 1);
         assert_eq!(conflicting_txes.iter().next().unwrap().0, tx.digest());
     } else {
@@ -360,12 +355,7 @@ async fn test_quorum_driver_object_locked() -> Result<(), anyhow::Error> {
         .unwrap()
         .await;
     // Aggregator gets three bad responses, and tries tx, which should succeed.
-    if let Err(QuorumDriverError::ObjectsDoubleUsed {
-        conflicting_txes,
-        retried_tx_status,
-    }) = res
-    {
-        assert_eq!(retried_tx_status, Some((*tx.digest(), true)));
+    if let Err(QuorumDriverError::ObjectsDoubleUsed { conflicting_txes }) = res {
         assert_eq!(conflicting_txes.len(), 1);
         assert_eq!(conflicting_txes.iter().next().unwrap().0, tx.digest());
     } else {
@@ -433,12 +423,7 @@ async fn test_quorum_driver_object_locked() -> Result<(), anyhow::Error> {
         .unwrap()
         .await;
 
-    if let Err(QuorumDriverError::ObjectsDoubleUsed {
-        conflicting_txes,
-        retried_tx_status,
-    }) = res
-    {
-        assert_eq!(retried_tx_status, None);
+    if let Err(QuorumDriverError::ObjectsDoubleUsed { conflicting_txes }) = res {
         assert_eq!(conflicting_txes.len(), 2);
         let tx_stake = conflicting_txes.get(tx.digest()).unwrap().1;
         assert!(tx_stake == 2500 || tx_stake == 5000);
@@ -480,12 +465,7 @@ async fn test_quorum_driver_object_locked() -> Result<(), anyhow::Error> {
         .unwrap()
         .await;
 
-    if let Err(QuorumDriverError::ObjectsDoubleUsed {
-        conflicting_txes,
-        retried_tx_status,
-    }) = res
-    {
-        assert_eq!(retried_tx_status, None);
+    if let Err(QuorumDriverError::ObjectsDoubleUsed { conflicting_txes }) = res {
         assert_eq!(conflicting_txes.len(), 1);
         assert_eq!(conflicting_txes.get(tx.digest()).unwrap().1, 5000);
     } else {
@@ -563,12 +543,7 @@ async fn test_quorum_driver_object_locked() -> Result<(), anyhow::Error> {
         .unwrap()
         .await;
 
-    if let Err(QuorumDriverError::ObjectsDoubleUsed {
-        conflicting_txes,
-        retried_tx_status,
-    }) = res
-    {
-        assert_eq!(retried_tx_status, None);
+    if let Err(QuorumDriverError::ObjectsDoubleUsed { conflicting_txes }) = res {
         assert!(conflicting_txes.len() == 3 || conflicting_txes.len() == 2);
         assert!(
             conflicting_txes
