@@ -509,6 +509,8 @@ impl NodeConfig {
 pub enum ConsensusProtocol {
     #[serde(rename = "mysticeti")]
     Mysticeti,
+    #[serde(rename = "starfish")]
+    Starfish,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
