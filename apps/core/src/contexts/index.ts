@@ -5,3 +5,4 @@ export * from './ThemeContext';
 export * from './HiddenAssetsProvider';
 export * from './StardustIndexerClientContext';
 export * from './StardustIndexerClientProvider';
+export * from './IotaGraphQLClientContext';
