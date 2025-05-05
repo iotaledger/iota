@@ -720,6 +720,6 @@ where
                 Poll::Pending => return Poll::Pending,
             }
         }
-        return Poll::Ready(this.next.pop_front().map(Ok));
+        Poll::Ready(this.next.pop_front().map(Ok))
     }
 }
