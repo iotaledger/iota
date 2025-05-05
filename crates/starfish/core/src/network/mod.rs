@@ -30,8 +30,8 @@ use futures::Stream;
 use starfish_config::{AuthorityIndex, NetworkKeyPair};
 
 use crate::{
-    Round,
-    block::{BlockRef, ExtendedBlock, VerifiedBlock},
+    Round, VerifiedBlockHeader,
+    block_header::BlockRef,
     commit::{CommitRange, TrustedCommit},
     context::Context,
     error::ConsensusResult,

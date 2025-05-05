@@ -18,11 +18,8 @@ use tokio::{
 use tracing::{trace, warn};
 
 use crate::{
-    block::{BlockAPI as _, VerifiedBlock},
-    context::Context,
-    core::CoreSignalsReceivers,
-    error::ConsensusResult,
-    network::NetworkClient,
+    BlockHeaderAPI, VerifiedBlockHeader, context::Context, core::CoreSignalsReceivers,
+    error::ConsensusResult, network::NetworkClient,
 };
 
 /// Number of Blocks that can be inflight sending to a peer.
@@ -76,7 +73,7 @@ impl Broadcaster {
     async fn push_blocks<C: NetworkClient>(
         context: Arc<Context>,
         network_client: Arc<C>,
-        mut rx_block_broadcast: broadcast::Receiver<VerifiedBlock>,
+        mut rx_block_broadcast: broadcast::Receiver<VerifiedBlockHeader>,
         peer: AuthorityIndex,
     ) {
         let peer_hostname = &context.committee.authority(peer).hostname;
@@ -205,10 +202,7 @@ mod test {
 
     use super::*;
     use crate::{
-        Round,
-        block::{BlockRef, ExtendedBlock, TestBlock},
-        commit::CommitRange,
-        core::CoreSignals,
+        Round, TestBlockHeader, block_header::BlockRef, commit::CommitRange, core::CoreSignals,
         network::BlockStream,
     };
 

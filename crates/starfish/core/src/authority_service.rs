@@ -15,8 +15,8 @@ use tokio_util::sync::ReusableBoxFuture;
 use tracing::{debug, info, warn};
 
 use crate::{
-    CommitIndex, Round,
-    block::{BlockAPI as _, BlockRef, GENESIS_ROUND, SignedBlock, VerifiedBlock},
+    BlockHeaderAPI, CommitIndex, Round, VerifiedBlockHeader,
+    block_header::{BlockRef, GENESIS_ROUND, SignedBlockHeader},
     block_verifier::BlockVerifier,
     commit::{CommitAPI as _, CommitRange, TrustedCommit},
     commit_vote_monitor::CommitVoteMonitor,
@@ -40,7 +40,7 @@ pub(crate) struct AuthorityService<C: CoreThreadDispatcher> {
     block_verifier: Arc<dyn BlockVerifier>,
     synchronizer: Arc<SynchronizerHandle>,
     core_dispatcher: Arc<C>,
-    rx_block_broadcaster: broadcast::Receiver<VerifiedBlock>,
+    rx_block_broadcaster: broadcast::Receiver<VerifiedBlockHeader>,
     subscription_counter: Arc<SubscriptionCounter>,
     dag_state: Arc<RwLock<DagState>>,
     store: Arc<dyn Store>,
@@ -53,7 +53,7 @@ impl<C: CoreThreadDispatcher> AuthorityService<C> {
         commit_vote_monitor: Arc<CommitVoteMonitor>,
         synchronizer: Arc<SynchronizerHandle>,
         core_dispatcher: Arc<C>,
-        rx_block_broadcaster: broadcast::Receiver<VerifiedBlock>,
+        rx_block_broadcaster: broadcast::Receiver<VerifiedBlockHeader>,
         dag_state: Arc<RwLock<DagState>>,
         store: Arc<dyn Store>,
     ) -> Self {
@@ -541,7 +541,7 @@ impl SubscriptionCounter {
 
 /// Each broadcasted block stream wraps a broadcast receiver for blocks.
 /// It yields blocks that are broadcasted after the stream is created.
-type BroadcastedBlockStream = BroadcastStream<VerifiedBlock>;
+type BroadcastedBlockStream = BroadcastStream<VerifiedBlockHeader>;
 
 /// Adapted from `tokio_stream::wrappers::BroadcastStream`. The main difference
 /// is that this tolerates lags with only logging, without yielding errors.

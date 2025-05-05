@@ -37,7 +37,10 @@ const CORE_THREAD_COMMANDS_CHANNEL_SIZE: usize = 2000;
 
 enum CoreThreadCommand {
     /// Add blocks to be processed and accepted
-    AddBlocks(Vec<VerifiedBlockHeader>, oneshot::Sender<BTreeSet<BlockRef>>),
+    AddBlocks(
+        Vec<VerifiedBlockHeader>,
+        oneshot::Sender<BTreeSet<BlockRef>>,
+    ),
     /// Add committed sub dag blocks for processing and acceptance.
     AddCertifiedCommits(CertifiedCommits, oneshot::Sender<BTreeSet<BlockRef>>),
     /// Called when the min round has passed or the leader timeout occurred and

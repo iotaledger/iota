@@ -131,7 +131,7 @@ impl DagBuilder {
             .collect::<Vec<VerifiedBlockHeader>>()
     }
 
-    pub(crate) fn all_blocks(&self) -> Vec<VerifiedBlock> {
+    pub(crate) fn all_blocks(&self) -> Vec<VerifiedBlockHeader> {
         assert!(
             !self.blocks.is_empty(),
             "No blocks have been created, please make sure that you have called build method"

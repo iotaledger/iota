@@ -536,7 +536,7 @@ impl DagState {
         authority: AuthorityIndex,
         start_round: Round,
         end_round: Round,
-    ) -> Option<VerifiedBlock> {
+    ) -> Option<VerifiedBlockHeader> {
         if end_round == GENESIS_ROUND {
             panic!(
                 "Attempted to retrieve blocks earlier than the genesis round which is impossible"
@@ -545,11 +545,15 @@ impl DagState {
 
         let block_ref = self.recent_refs_by_authority[authority]
             .range((
-                Included(BlockRef::new(start_round, authority, BlockDigest::MIN)),
+                Included(BlockRef::new(
+                    start_round,
+                    authority,
+                    BlockHeaderDigest::MIN,
+                )),
                 Excluded(BlockRef::new(
                     end_round,
                     AuthorityIndex::MIN,
-                    BlockDigest::MIN,
+                    BlockHeaderDigest::MIN,
                 )),
             ))
             .last()?;
@@ -1943,7 +1947,7 @@ mod test {
         let (_, dag_builder) = parse_dag(dag_str).expect("Invalid dag");
 
         // Add equivocating block for round 2 authority 3
-        let block = VerifiedBlock::new_for_test(TestBlock::new(2, 2).build());
+        let block = VerifiedBlockHeader::new_for_test(TestBlockHeader::new(2, 2).build());
 
         // Accept all blocks
         for block in dag_builder

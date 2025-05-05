@@ -19,15 +19,11 @@ use tokio::{
 };
 use tracing::{debug, info, trace, warn};
 
-#[cfg(test)]
 use crate::{
-    CommitConsumer, TransactionClient, block_verifier::NoopBlockVerifier,
-    storage::mem_store::MemStore,
-};
-use crate::{
-    block::{
-        Block, BlockAPI, BlockRef, BlockTimestampMs, BlockV1, ExtendedBlock, GENESIS_ROUND, Round,
-        SignedBlock, Slot, VerifiedBlock,
+    BlockHeaderAPI, VerifiedBlockHeader,
+    block_header::{
+        BlockHeader, BlockHeaderV1, BlockRef, BlockTimestampMs, GENESIS_ROUND, Round,
+        SignedBlockHeader, Slot,
     },
     block_manager::BlockManager,
     commit::{CertifiedCommits, CommittedSubDag},
@@ -42,6 +38,11 @@ use crate::{
     universal_committer::{
         UniversalCommitter, universal_committer_builder::UniversalCommitterBuilder,
     },
+};
+#[cfg(test)]
+use crate::{
+    CommitConsumer, TransactionClient, block_verifier::NoopBlockVerifier,
+    storage::mem_store::MemStore,
 };
 
 // Maximum number of commit votes to include in a block.
@@ -388,7 +389,7 @@ impl Core {
     /// Attempts to propose a new block for the next round. If a block has
     /// already proposed for latest or earlier round, then no block is
     /// created and None is returned.
-    fn try_new_block(&mut self, force: bool) -> Option<VerifiedBlock> {
+    fn try_new_block(&mut self, force: bool) -> Option<VerifiedBlockHeader> {
         let _s = self
             .context
             .metrics
@@ -824,7 +825,11 @@ impl Core {
     /// enough, then this function will wait. It force=true and stake is not
     /// big enough then the function will panic, because it means that there is
     /// a bug somewhere
-    fn ancestors_to_propose(&mut self, clock_round: Round, force: bool) -> Vec<VerifiedBlockHeader> {
+    fn ancestors_to_propose(
+        &mut self,
+        clock_round: Round,
+        force: bool,
+    ) -> Vec<VerifiedBlockHeader> {
         let node_metrics = &self.context.metrics.node_metrics;
         let _s = node_metrics
             .scope_processing_time
@@ -937,7 +942,7 @@ impl Core {
 /// Senders of signals from Core, for outputs and events (ex new block
 /// produced).
 pub(crate) struct CoreSignals {
-    tx_block_broadcast: broadcast::Sender<VerifiedBlock>,
+    tx_block_broadcast: broadcast::Sender<VerifiedBlockHeader>,
     new_round_sender: watch::Sender<Round>,
     context: Arc<Context>,
 }
@@ -947,7 +952,7 @@ impl CoreSignals {
         // Blocks buffered in broadcast channel should be roughly equal to thosed cached
         // in dag state, since the underlying blocks are ref counted so a lower
         // buffer here will not reduce memory usage significantly.
-        let (tx_block_broadcast, rx_block_broadcast) = broadcast::channel::<VerifiedBlock>(
+        let (tx_block_broadcast, rx_block_broadcast) = broadcast::channel::<VerifiedBlockHeader>(
             context.parameters.dag_state_cached_rounds as usize,
         );
         let (new_round_sender, new_round_receiver) = watch::channel(0);
@@ -969,7 +974,7 @@ impl CoreSignals {
     /// Sends a signal to all the waiters that a new block has been produced.
     /// The method will return true if block has reached even one
     /// subscriber, false otherwise.
-    pub(crate) fn new_block(&self, verified_block: VerifiedBlock) -> ConsensusResult<()> {
+    pub(crate) fn new_block(&self, verified_block: VerifiedBlockHeader) -> ConsensusResult<()> {
         // When there is only one authority in committee, it is unnecessary to broadcast
         // the block which will fail anyway without subscribers to the signal.
         if self.context.committee.size() > 1 {
@@ -1002,12 +1007,12 @@ impl CoreSignals {
 /// Intentionally un-cloneable. Components should only subscribe to channels
 /// they need.
 pub(crate) struct CoreSignalsReceivers {
-    rx_block_broadcast: broadcast::Receiver<VerifiedBlock>,
+    rx_block_broadcast: broadcast::Receiver<VerifiedBlockHeader>,
     new_round_receiver: watch::Receiver<Round>,
 }
 
 impl CoreSignalsReceivers {
-    pub(crate) fn block_broadcast_receiver(&self) -> broadcast::Receiver<VerifiedBlock> {
+    pub(crate) fn block_broadcast_receiver(&self) -> broadcast::Receiver<VerifiedBlockHeader> {
         self.rx_block_broadcast.resubscribe()
     }
 
@@ -1035,7 +1040,7 @@ pub(crate) fn create_cores(context: Context, authorities: Vec<Stake>) -> Vec<Cor
 pub(crate) struct CoreTextFixture {
     pub core: Core,
     pub signal_receivers: CoreSignalsReceivers,
-    pub block_receiver: broadcast::Receiver<VerifiedBlock>,
+    pub block_receiver: broadcast::Receiver<VerifiedBlockHeader>,
     #[expect(unused)]
     pub commit_receiver: UnboundedReceiver<CommittedSubDag>,
     pub store: Arc<MemStore>,
@@ -1463,19 +1468,6 @@ mod test {
         assert_eq!(verified_block.round(), 1);
         assert_eq!(verified_block.author().value(), 0);
         assert_eq!(verified_block.ancestors().len(), 4);
-
-        let mut total = 0;
-        for (i, transaction) in verified_block.transactions().iter().enumerate() {
-            total += transaction.data().len() as u64;
-            let transaction: String = bcs::from_bytes(transaction.data()).unwrap();
-            assert_eq!(format!("Transaction {i}"), transaction);
-        }
-        assert!(
-            total
-                <= context
-                    .protocol_config
-                    .consensus_max_transactions_in_block_bytes()
-        );
 
         // genesis blocks should be referenced
         let all_genesis = genesis_block_headers(context);
