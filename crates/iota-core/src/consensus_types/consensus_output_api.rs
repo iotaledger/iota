@@ -6,7 +6,7 @@ use std::fmt::Display;
 
 use consensus_core::{BlockAPI, CommitDigest};
 use iota_types::{digests::ConsensusCommitDigest, messages_consensus::ConsensusTransaction};
-use starfish_core::BlockAPI as StarfishBlockAPI;
+use starfish_core::BlockHeaderAPI as StarfishBlockAPI;
 
 use crate::consensus_types::AuthorityIndex;
 

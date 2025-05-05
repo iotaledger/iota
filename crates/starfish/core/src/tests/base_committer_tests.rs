@@ -63,7 +63,7 @@ async fn try_direct_commit() {
         } else {
             // The base committer should mark the potential leader in r6 as undecided
             // as there is no way to get enough certificates because we did not build
-            // the dag layer for the decision round of wave 3.
+            // the dag layer for the certifying round of wave 3.
             if let LeaderStatus::Undecided(undecided_slot) = leader_status {
                 assert_eq!(undecided_slot, leader)
             } else {
@@ -86,9 +86,9 @@ async fn idempotence() {
     let committer = BaseCommitterBuilder::new(context.clone(), dag_state.clone()).build();
 
     // Build fully connected dag with empty blocks. Adding 5 rounds to the dag
-    // aka the decision round of wave 1.
-    let decision_round_wave_1 = committer.decision_round(1);
-    build_dag(context, dag_state, None, decision_round_wave_1);
+    // aka the certifying round of wave 1.
+    let certifying_round_wave_1 = committer.certifying_round(1);
+    build_dag(context, dag_state, None, certifying_round_wave_1);
 
     // Commit one leader.
     let leader_round_wave_1 = committer.leader_round(1);
@@ -132,12 +132,12 @@ async fn multiple_direct_commit() {
     let mut ancestors = None;
     for n in 1..=10 {
         // note: rounds are zero indexed.
-        let decision_round = committer.decision_round(n);
+        let certifying_round = committer.certifying_round(n);
         ancestors = Some(build_dag(
             context.clone(),
             dag_state.clone(),
             ancestors,
-            decision_round,
+            certifying_round,
         ));
 
         // Leader round is the first round of each wave.
@@ -189,13 +189,13 @@ async fn direct_skip() {
         .filter(|x| x.author != leader_wave_1.authority)
         .collect();
 
-    // Add enough blocks to reach the decision round of wave 1.
-    let decision_round_wave_1 = committer.decision_round(1);
+    // Add enough blocks to reach the certifying round of wave 1.
+    let certifying_round_wave_1 = committer.certifying_round(1);
     build_dag(
         context.clone(),
         dag_state.clone(),
         Some(references_without_leader_wave_1),
-        decision_round_wave_1,
+        certifying_round_wave_1,
     );
 
     // Ensure no blocks are committed.
@@ -263,7 +263,7 @@ async fn indirect_commit() {
         build_dag_layer(connections_without_leader_wave_1, dag_state.clone());
 
     // Only f+1 validators certify the leader of wave 1.
-    let mut references_decision_round_wave_1 = Vec::new();
+    let mut references_certifying_round_wave_1 = Vec::new();
 
     let connections_with_certs_for_leader_wave_1 = context
         .committee
@@ -271,7 +271,7 @@ async fn indirect_commit() {
         .take(context.committee.validity_threshold() as usize)
         .map(|authority| (authority.0, references_with_votes_for_leader_wave_1.clone()))
         .collect();
-    references_decision_round_wave_1.extend(build_dag_layer(
+    references_certifying_round_wave_1.extend(build_dag_layer(
         connections_with_certs_for_leader_wave_1,
         dag_state.clone(),
     ));
@@ -290,19 +290,19 @@ async fn indirect_commit() {
         .skip(context.committee.validity_threshold() as usize)
         .map(|authority| (authority.0, references_voting_round_wave_1.clone()))
         .collect();
-    references_decision_round_wave_1.extend(build_dag_layer(
+    references_certifying_round_wave_1.extend(build_dag_layer(
         connections_without_votes_for_leader_1,
         dag_state.clone(),
     ));
 
     // Add enough blocks to decide the leader of wave 2 connecting to the references
-    // manually constructed of the decision round of wave 1.
-    let decision_round_wave_2 = committer.decision_round(2);
+    // manually constructed of the certifying round of wave 1.
+    let certifying_round_wave_2 = committer.certifying_round(2);
     build_dag(
         context.clone(),
         dag_state.clone(),
-        Some(references_decision_round_wave_1),
-        decision_round_wave_2,
+        Some(references_certifying_round_wave_1),
+        certifying_round_wave_2,
     );
 
     // Try direct commit leader from wave 2 which should result in Commit
@@ -412,13 +412,13 @@ async fn indirect_skip() {
         dag_state.clone(),
     ));
 
-    // Add enough blocks to reach the decision round of wave 3.
-    let decision_round_wave_3 = committer.decision_round(3);
+    // Add enough blocks to reach the certifying round of wave 3.
+    let certifying_round_wave_3 = committer.certifying_round(3);
     build_dag(
         context.clone(),
         dag_state.clone(),
         Some(references_voting_round_wave_2),
-        decision_round_wave_3,
+        certifying_round_wave_3,
     );
 
     // Ensure we commit the leaders of wave 1 and 3 and skip the leader of wave 2
@@ -536,13 +536,13 @@ async fn undecided() {
     let references_voting_round_wave_1 =
         build_dag_layer(connections_voting_round_wave_1, dag_state.clone());
 
-    // Add enough blocks to reach the decision round of wave 1.
-    let decision_round_wave_1 = committer.decision_round(1);
+    // Add enough blocks to reach the certifying round of wave 1.
+    let certifying_round_wave_1 = committer.certifying_round(1);
     build_dag(
         context.clone(),
         dag_state.clone(),
         Some(references_voting_round_wave_1),
-        decision_round_wave_1,
+        certifying_round_wave_1,
     );
 
     // Ensure we directly mark leader of wave 1 undecided as there are less than
@@ -610,7 +610,7 @@ async fn test_byzantine_direct_commit() {
     // - 'A' will then get a bad vote from 'C' indirectly through the ancenstors of
     //   the wave 4 decision blocks of B C D
 
-    // Add block layer for wave 4 decision round with no votes for leader A12
+    // Add block layer for wave 4 certifying round with no votes for leader A12
     // from a byzantine validator C that sent different blocks to all validators.
 
     // Filter out leader from wave 4.
@@ -624,8 +624,8 @@ async fn test_byzantine_direct_commit() {
         .filter(|x| x.author != leader_wave_4.authority)
         .collect();
 
-    // Accept these references/blocks as ancestors from decision round blocks in dag
-    // state
+    // Accept these references/blocks as ancestors from certifying round blocks in
+    // dag state
     let byzantine_block_c13_1 = VerifiedBlockHeader::new_for_test(
         TestBlockHeader::new(13, 2)
             .set_ancestors(references_without_leader_round_wave_4.clone())
@@ -711,10 +711,10 @@ async fn test_byzantine_direct_commit() {
     // DagState Update:
     // - We have A13, B13, D13 & C13 as good votes in the voting round of wave 4
     // - We have 3 byzantine C13 nonvotes that we received as ancestors from
-    //   decision round blocks from B, C, & D.
+    //   certifying round blocks from B, C, & D.
     // - We have  B14, C14 & D14 that include this byzantine nonvote and A14 from
-    //   the decision round. But all of these blocks also have good votes from A, B,
-    //   C & D.
+    //   the certifying round. But all of these blocks also have good votes from A,
+    //   B, C & D.
     // Expect a successful direct commit.
 
     tracing::info!("Try direct commit for leader {leader_wave_4}");
