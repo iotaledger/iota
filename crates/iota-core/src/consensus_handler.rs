@@ -477,6 +477,51 @@ impl Drop for MysticetiConsensusHandler {
     }
 }
 
+/// Consensus handler used by Starfish.
+/// During initialization, the sender is passed into Starfish which can send
+/// consensus output to the channel.
+pub struct StarfishConsensusHandler {
+    handle: Option<tokio::task::JoinHandle<()>>,
+}
+
+impl StarfishConsensusHandler {
+    pub fn new(
+        mut consensus_handler: ConsensusHandler<CheckpointService>,
+        mut receiver: UnboundedReceiver<starfish_core::CommittedSubDag>,
+        commit_consumer_monitor: Arc<starfish_core::CommitConsumerMonitor>,
+    ) -> Self {
+        let handle = spawn_monitored_task!(async move {
+            // TODO: pause when execution is overloaded, so consensus can detect the
+            // backpressure.
+            while let Some(consensus_output) = receiver.recv().await {
+                let commit_index = consensus_output.commit_ref.index;
+                consensus_handler
+                    .handle_consensus_output(consensus_output)
+                    .await;
+                commit_consumer_monitor.set_highest_handled_commit(commit_index);
+            }
+        });
+        Self {
+            handle: Some(handle),
+        }
+    }
+
+    pub async fn abort(&mut self) {
+        if let Some(handle) = self.handle.take() {
+            handle.abort();
+            let _ = handle.await;
+        }
+    }
+}
+
+impl Drop for StarfishConsensusHandler {
+    fn drop(&mut self) {
+        if let Some(handle) = self.handle.take() {
+            handle.abort();
+        }
+    }
+}
+
 impl<C> ConsensusHandler<C> {
     fn authenticator_state_update_transaction(
         &self,
