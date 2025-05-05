@@ -1,8 +1,15 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { Search } from '@iota/apps-ui-icons';
-import { Button, ButtonType, LoadingIndicator } from '@iota/apps-ui-kit';
+import { Info, Search } from '@iota/apps-ui-icons';
+import {
+    Button,
+    ButtonType,
+    InfoBox,
+    InfoBoxStyle,
+    InfoBoxType,
+    LoadingIndicator,
+} from '@iota/apps-ui-kit';
 import {
     AccountBalanceItem,
     VerifyPasswordModal,
@@ -172,6 +179,15 @@ export function AccountsFinderView(): JSX.Element {
                         />
                     ) : (
                         <>
+                            {searchOptions.text === 'Search again' ? (
+                                <InfoBox
+                                    title="Unable to find all your funds?"
+                                    supportingText="You may need to search multiple times to find all your funds or addresses. Search again if something appears to be missing."
+                                    icon={<Info />}
+                                    type={InfoBoxType.Default}
+                                    style={InfoBoxStyle.Elevated}
+                                />
+                            ) : null}
                             <Button
                                 type={ButtonType.Secondary}
                                 text={searchOptions.text}
