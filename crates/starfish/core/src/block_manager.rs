@@ -157,7 +157,9 @@ impl BlockManager {
     }
 
     /// Tries to find the provided block_refs in DagState and BlockManager,
-    /// and returns missing block refs.
+    /// and returns missing block refs. Used to test behavior in case of
+    /// equivocation.
+    #[cfg(test)]
     pub(crate) fn try_find_blocks(&mut self, block_refs: Vec<BlockRef>) -> BTreeSet<BlockRef> {
         let _s = monitored_scope("BlockManager::try_find_blocks");
 

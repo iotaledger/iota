@@ -15,11 +15,8 @@ use tokio_util::sync::ReusableBoxFuture;
 use tracing::{debug, info, warn};
 
 use crate::{
-    CommitIndex, Round,
-    block_header::{
-        BlockHeaderAPI as _, BlockRef, ExtendedBlock, GENESIS_ROUND, SignedBlockHeader,
-        VerifiedBlockHeader,
-    },
+    BlockHeaderAPI, CommitIndex, Round, VerifiedBlockHeader,
+    block_header::{BlockRef, GENESIS_ROUND, SignedBlockHeader},
     block_verifier::BlockVerifier,
     commit::{CommitAPI as _, CommitRange, TrustedCommit},
     commit_vote_monitor::CommitVoteMonitor,
@@ -27,7 +24,7 @@ use crate::{
     core_thread::CoreThreadDispatcher,
     dag_state::DagState,
     error::{ConsensusError, ConsensusResult},
-    network::{BlockStream, ExtendedSerializedBlock, NetworkService},
+    network::{BlockStream, NetworkService},
     stake_aggregator::{QuorumThreshold, StakeAggregator},
     storage::Store,
     synchronizer::SynchronizerHandle,
@@ -43,7 +40,7 @@ pub(crate) struct AuthorityService<C: CoreThreadDispatcher> {
     block_verifier: Arc<dyn BlockVerifier>,
     synchronizer: Arc<SynchronizerHandle>,
     core_dispatcher: Arc<C>,
-    rx_block_broadcaster: broadcast::Receiver<ExtendedBlock>,
+    rx_block_broadcaster: broadcast::Receiver<VerifiedBlockHeader>,
     subscription_counter: Arc<SubscriptionCounter>,
     dag_state: Arc<RwLock<DagState>>,
     store: Arc<dyn Store>,
@@ -56,7 +53,7 @@ impl<C: CoreThreadDispatcher> AuthorityService<C> {
         commit_vote_monitor: Arc<CommitVoteMonitor>,
         synchronizer: Arc<SynchronizerHandle>,
         core_dispatcher: Arc<C>,
-        rx_block_broadcaster: broadcast::Receiver<ExtendedBlock>,
+        rx_block_broadcaster: broadcast::Receiver<VerifiedBlockHeader>,
         dag_state: Arc<RwLock<DagState>>,
         store: Arc<dyn Store>,
     ) -> Self {
@@ -83,7 +80,7 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
     async fn handle_send_block(
         &self,
         peer: AuthorityIndex,
-        serialized_block: ExtendedSerializedBlock,
+        serialized_block: Bytes,
     ) -> ConsensusResult<()> {
         fail_point_async!("consensus-rpc-response");
 
@@ -91,7 +88,7 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
 
         // TODO: dedup block verifications, here and with fetched blocks.
         let signed_block: SignedBlockHeader =
-            bcs::from_bytes(&serialized_block.block).map_err(ConsensusError::MalformedBlock)?;
+            bcs::from_bytes(&serialized_block).map_err(ConsensusError::MalformedBlock)?;
 
         // Reject blocks not produced by the peer.
         if peer != signed_block.author() {
@@ -126,8 +123,7 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
             info!("Invalid block from {}: {}", peer, e);
             return Err(e);
         }
-        let verified_block =
-            VerifiedBlockHeader::new_verified(signed_block, serialized_block.block);
+        let verified_block = VerifiedBlockHeader::new_verified(signed_block, serialized_block);
         let block_ref = verified_block.reference();
         debug!("Received block {} via send block.", block_ref);
 
@@ -237,76 +233,6 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
                 warn!("Errored while trying to fetch missing ancestors via synchronizer: {err}");
             }
         }
-
-        // After processing the block, process the excluded ancestors
-
-        let mut excluded_ancestors = serialized_block
-            .excluded_ancestors
-            .into_iter()
-            .map(|serialized| bcs::from_bytes::<BlockRef>(&serialized))
-            .collect::<Result<Vec<BlockRef>, bcs::Error>>()
-            .map_err(ConsensusError::MalformedBlock)?;
-
-        let excluded_ancestors_limit = self.context.committee.size() * 2;
-        if excluded_ancestors.len() > excluded_ancestors_limit {
-            debug!(
-                "Dropping {} excluded ancestor(s) from {} {} due to size limit",
-                excluded_ancestors.len() - excluded_ancestors_limit,
-                peer,
-                peer_hostname,
-            );
-            excluded_ancestors.truncate(excluded_ancestors_limit);
-        }
-
-        self.context
-            .metrics
-            .node_metrics
-            .network_received_excluded_ancestors_from_authority
-            .with_label_values(&[peer_hostname])
-            .inc_by(excluded_ancestors.len() as u64);
-
-        for excluded_ancestor in &excluded_ancestors {
-            let excluded_ancestor_hostname = &self
-                .context
-                .committee
-                .authority(excluded_ancestor.author)
-                .hostname;
-            self.context
-                .metrics
-                .node_metrics
-                .network_excluded_ancestors_count_by_authority
-                .with_label_values(&[excluded_ancestor_hostname])
-                .inc();
-        }
-
-        let missing_excluded_ancestors = self
-            .core_dispatcher
-            .check_block_refs(excluded_ancestors)
-            .await
-            .map_err(|_| ConsensusError::Shutdown)?;
-
-        if !missing_excluded_ancestors.is_empty() {
-            self.context
-                .metrics
-                .node_metrics
-                .network_excluded_ancestors_sent_to_fetch
-                .with_label_values(&[peer_hostname])
-                .inc_by(missing_excluded_ancestors.len() as u64);
-
-            let synchronizer = self.synchronizer.clone();
-            tokio::spawn(async move {
-                // schedule the fetching of them from this peer in the background
-                if let Err(err) = synchronizer
-                    .fetch_blocks(missing_excluded_ancestors, peer)
-                    .await
-                {
-                    warn!(
-                        "Errored while trying to fetch missing excluded ancestors via synchronizer: {err}"
-                    );
-                }
-            });
-        }
-
         Ok(())
     }
 
@@ -326,10 +252,7 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
             dag_state
                 .get_cached_blocks(self.context.own_index, last_received + 1)
                 .into_iter()
-                .map(|block| ExtendedSerializedBlock {
-                    block: block.serialized().clone(),
-                    excluded_ancestors: vec![],
-                }),
+                .map(|block| block.serialized().clone()),
         );
 
         let broadcasted_blocks = BroadcastedBlockStream::new(
@@ -341,7 +264,7 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
         // Return a stream of blocks that first yields missed blocks as requested, then
         // new blocks.
         Ok(Box::pin(missed_blocks.chain(
-            broadcasted_blocks.map(ExtendedSerializedBlock::from),
+            broadcasted_blocks.map(|block| block.serialized().clone()),
         )))
     }
 
@@ -618,7 +541,7 @@ impl SubscriptionCounter {
 
 /// Each broadcasted block stream wraps a broadcast receiver for blocks.
 /// It yields blocks that are broadcasted after the stream is created.
-type BroadcastedBlockStream = BroadcastStream<ExtendedBlock>;
+type BroadcastedBlockStream = BroadcastStream<VerifiedBlockHeader>;
 
 /// Adapted from `tokio_stream::wrappers::BroadcastStream`. The main difference
 /// is that this tolerates lags with only logging, without yielding errors.
@@ -732,7 +655,7 @@ mod tests {
         core_thread::{CoreError, CoreThreadDispatcher},
         dag_state::DagState,
         error::ConsensusResult,
-        network::{BlockStream, ExtendedSerializedBlock, NetworkClient, NetworkService},
+        network::{BlockStream, NetworkClient, NetworkService},
         round_prober::QuorumRound,
         storage::mem_store::MemStore,
         synchronizer::Synchronizer,
@@ -764,13 +687,6 @@ mod tests {
             let block_refs = blocks.iter().map(|b| b.reference()).collect();
             self.blocks.lock().extend(blocks);
             Ok(block_refs)
-        }
-
-        async fn check_block_refs(
-            &self,
-            _block_refs: Vec<BlockRef>,
-        ) -> Result<BTreeSet<BlockRef>, CoreError> {
-            Ok(BTreeSet::new())
         }
 
         async fn add_certified_commits(
@@ -913,10 +829,7 @@ mod tests {
         );
 
         let service = authority_service.clone();
-        let serialized = ExtendedSerializedBlock {
-            block: input_block.serialized().clone(),
-            excluded_ancestors: vec![],
-        };
+        let serialized = input_block.serialized().clone();
 
         tokio::spawn(async move {
             service
