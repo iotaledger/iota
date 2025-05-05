@@ -214,7 +214,8 @@ pub(crate) struct SharedObjectCongestionTracker {
     object_execution_slots: HashMap<ObjectID, ObjectExecutionSlots>,
     mode: PerObjectCongestionControlMode,
     assign_min_free_execution_slot: bool,
-    transaction_execution_line: HashMap<TransactionDigest, u64>,
+    /// Stores the lowest gas price of non-deferred transaction for objects
+    object_lowest_executed_gas_price: HashMap<ObjectID, u64>,
 }
 
 impl SharedObjectCongestionTracker {
@@ -223,7 +224,7 @@ impl SharedObjectCongestionTracker {
             object_execution_slots: HashMap::new(),
             mode,
             assign_min_free_execution_slot,
-            transaction_execution_line: HashMap::new(),
+            object_lowest_executed_gas_price: HashMap::new(),
         }
     }
 
@@ -371,7 +372,7 @@ impl SharedObjectCongestionTracker {
     /// this returns the deferral key and the congested objects responsible for
     /// the deferral.
     pub fn try_schedule(
-        &self,
+        &mut self,
         cert: &VerifiedExecutableTransaction,
         max_execution_duration_per_commit: u64,
         previously_deferred_tx_digests: &HashMap<TransactionDigest, DeferralKey>,
@@ -398,6 +399,10 @@ impl SharedObjectCongestionTracker {
             // `compute_tx_start_time` returns None if the transaction cannot be scheduled,
             // so no need to check for overflow when adding `tx_duration` here.
             if start_time + tx_duration <= max_execution_duration_per_commit {
+                // Update object_lowest_executed_gas_price for input objects as
+                // this certificate is scheduled
+                self.update_object_lowest_executed_gas_price(cert);
+
                 // schedule this transaction and return the start time.
                 return SequencingResult::Schedule(start_time);
             }
@@ -459,9 +464,41 @@ impl SharedObjectCongestionTracker {
             .unwrap_or(0)
     }
 
-    /// TODO: add docs
-    pub fn compute_suggested_gas_price(&self, cert: &VerifiedExecutableTransaction) -> Option<u64> {
-        Some(cert.transaction_data().gas_price())
+    /// Update `object_lowest_executed_gas_price` for input shared objects
+    /// of a given certificate. Note that this must be called only for
+    /// non-deferred certificates.
+    fn update_object_lowest_executed_gas_price(&mut self, cert: &VerifiedExecutableTransaction) {
+        let cert_gas_price = cert.transaction_data().gas_price();
+
+        for obj in cert.shared_input_objects().filter(|obj| obj.mutable) {
+            self.object_lowest_executed_gas_price
+                .entry(obj.id)
+                .and_modify(|lowest_gas_price| {
+                    if cert_gas_price < *lowest_gas_price {
+                        // A non-deferred certificate with a lower gas price appeared,
+                        // so we update the lowest executed gas price for this object
+                        *lowest_gas_price = cert_gas_price;
+                    }
+                })
+                .or_insert(cert_gas_price);
+        }
+    }
+
+    /// Computes suggested gas price for a cancelled certificate
+    pub(crate) fn compute_suggested_gas_price(
+        &self,
+        cert: &VerifiedExecutableTransaction,
+    ) -> Option<u64> {
+        cert.shared_input_objects()
+            .map(|obj| {
+                self.object_lowest_executed_gas_price
+                    .get(&obj.id)
+                    .expect("must only be called for cancelled transactions")
+            })
+            .min()
+            // TODO: check if suggested gas price is not larger than maximum defined in protocol
+            // config
+            .map(|gp| gp + 1)
     }
 }
 
@@ -1538,6 +1575,10 @@ mod object_cost_tests {
         } else {
             panic!("tx 1 must be scheduled");
         }
+        assert_eq!(
+            shared_object_congestion_tracker.compute_suggested_gas_price(&tx_1),
+            Some(1_001)
+        );
 
         let shared_input_objects: Vec<_> = tx_2.shared_input_objects().collect();
         shared_object_congestion_tracker.initialize_for_shared_objects(&shared_input_objects);
@@ -1552,6 +1593,10 @@ mod object_cost_tests {
         } else {
             panic!("tx 2 must be scheduled");
         }
+        assert_eq!(
+            shared_object_congestion_tracker.compute_suggested_gas_price(&tx_2),
+            Some(1_001)
+        );
 
         let shared_input_objects: Vec<_> = tx_3.shared_input_objects().collect();
         shared_object_congestion_tracker.initialize_for_shared_objects(&shared_input_objects);
@@ -1566,30 +1611,50 @@ mod object_cost_tests {
         } else if schedule_third_tx {
             panic!("tx 3 must be scheduled");
         }
+        assert_eq!(
+            shared_object_congestion_tracker.compute_suggested_gas_price(&tx_3),
+            Some(1_001)
+        );
 
         println!(
-            "Object A:\n{:#?}\n",
+            "Object A: {}\n{:#?}\n",
+            shared_object_congestion_tracker
+                .object_lowest_executed_gas_price
+                .get(&object_a)
+                .unwrap(),
             shared_object_congestion_tracker
                 .object_execution_slots
                 .get(&object_a)
                 .unwrap()
         );
         println!(
-            "Object B:\n{:#?}\n",
+            "Object B: {}\n{:#?}\n",
+            shared_object_congestion_tracker
+                .object_lowest_executed_gas_price
+                .get(&object_b)
+                .unwrap(),
             shared_object_congestion_tracker
                 .object_execution_slots
                 .get(&object_b)
                 .unwrap()
         );
         println!(
-            "Object C:\n{:#?}\n",
+            "Object C: {}\n{:#?}\n",
+            shared_object_congestion_tracker
+                .object_lowest_executed_gas_price
+                .get(&object_c)
+                .unwrap(),
             shared_object_congestion_tracker
                 .object_execution_slots
                 .get(&object_c)
                 .unwrap()
         );
         println!(
-            "Object D:\n{:#?}\n",
+            "Object D: {}\n{:#?}\n",
+            shared_object_congestion_tracker
+                .object_lowest_executed_gas_price
+                .get(&object_d)
+                .unwrap(),
             shared_object_congestion_tracker
                 .object_execution_slots
                 .get(&object_d)
