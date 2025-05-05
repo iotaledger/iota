@@ -178,15 +178,6 @@ pub(crate) struct NodeMetrics {
     pub(crate) commit_sync_fetch_once_latency: Histogram,
     pub(crate) commit_sync_fetch_once_errors: IntCounterVec,
     pub(crate) commit_sync_fetch_missing_blocks: IntCounterVec,
-    pub(crate) round_prober_received_quorum_round_gaps: IntGaugeVec,
-    pub(crate) round_prober_accepted_quorum_round_gaps: IntGaugeVec,
-    pub(crate) round_prober_low_received_quorum_round: IntGaugeVec,
-    pub(crate) round_prober_low_accepted_quorum_round: IntGaugeVec,
-    pub(crate) round_prober_current_received_round_gaps: IntGaugeVec,
-    pub(crate) round_prober_current_accepted_round_gaps: IntGaugeVec,
-    pub(crate) round_prober_propagation_delays: Histogram,
-    pub(crate) round_prober_last_propagation_delay: IntGauge,
-    pub(crate) round_prober_request_errors: IntCounterVec,
     pub(crate) uptime: Histogram,
 }
 
@@ -641,59 +632,6 @@ impl NodeMetrics {
                 "commit_sync_fetch_missing_blocks",
                 "Number of ancestor blocks that are missing when processing blocks via commit sync.",
                 &["authority"],
-                registry
-            ).unwrap(),
-            round_prober_received_quorum_round_gaps: register_int_gauge_vec_with_registry!(
-                "round_prober_received_quorum_round_gaps",
-                "Received round gaps among peers for blocks proposed from each authority",
-                &["authority"],
-                registry
-            ).unwrap(),
-            round_prober_accepted_quorum_round_gaps: register_int_gauge_vec_with_registry!(
-                "round_prober_accepted_quorum_round_gaps",
-                "Accepted round gaps among peers for blocks proposed & accepted from each authority",
-                &["authority"],
-                registry
-            ).unwrap(),
-            round_prober_low_received_quorum_round: register_int_gauge_vec_with_registry!(
-                "round_prober_low_received_quorum_round",
-                "Low quorum round among peers for blocks proposed from each authority",
-                &["authority"],
-                registry
-            ).unwrap(),
-            round_prober_low_accepted_quorum_round: register_int_gauge_vec_with_registry!(
-                "round_prober_low_accepted_quorum_round",
-                "Low quorum round among peers for blocks proposed & accepted from each authority",
-                &["authority"],
-                registry
-            ).unwrap(),
-            round_prober_current_received_round_gaps: register_int_gauge_vec_with_registry!(
-                "round_prober_current_received_round_gaps",
-                "Received round gaps from local last proposed round to the low received quorum round of each peer. Can be negative.",
-                &["authority"],
-                registry
-            ).unwrap(),
-            round_prober_current_accepted_round_gaps: register_int_gauge_vec_with_registry!(
-                "round_prober_current_accepted_round_gaps",
-                "Accepted round gaps from local last proposed & accepted round to the low accepted quorum round of each peer. Can be negative.",
-                &["authority"],
-                registry
-            ).unwrap(),
-            round_prober_propagation_delays: register_histogram_with_registry!(
-                "round_prober_propagation_delays",
-                "Round gaps between the last proposed block round and the lower bound of own quorum round",
-                NUM_BUCKETS.to_vec(),
-                registry
-            ).unwrap(),
-            round_prober_last_propagation_delay: register_int_gauge_with_registry!(
-                "round_prober_last_propagation_delay",
-                "Most recent propagation delay observed by RoundProber",
-                registry
-            ).unwrap(),
-            round_prober_request_errors: register_int_counter_vec_with_registry!(
-                "round_prober_request_errors",
-                "Number of errors when probing against peers per error type",
-                &["error_type"],
                 registry
             ).unwrap(),
             uptime: register_histogram_with_registry!(

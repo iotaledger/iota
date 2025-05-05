@@ -309,21 +309,6 @@ impl NetworkClient for TonicClient {
         }
         Ok(blocks)
     }
-
-    async fn get_latest_rounds(
-        &self,
-        peer: AuthorityIndex,
-        timeout: Duration,
-    ) -> ConsensusResult<(Vec<Round>, Vec<Round>)> {
-        let mut client = self.get_client(peer, timeout).await?;
-        let mut request = Request::new(GetLatestRoundsRequest {});
-        request.set_timeout(timeout);
-        let response = client.get_latest_rounds(request).await.map_err(|e| {
-            ConsensusError::NetworkRequest(format!("get_latest_rounds failed: {e:?}"))
-        })?;
-        let response = response.into_inner();
-        Ok((response.highest_received, response.highest_accepted))
-    }
 }
 
 // Tonic channel wrapped with layers.

@@ -148,7 +148,6 @@ mod tests {
         core::CoreSignals,
         core_thread::{CoreError, CoreThreadDispatcher},
         leader_timeout::LeaderTimeoutTask,
-        round_prober::QuorumRound,
     };
 
     #[derive(Clone, Default)]
@@ -192,15 +191,6 @@ mod tests {
         }
 
         fn set_subscriber_exists(&self, _exists: bool) -> Result<(), CoreError> {
-            todo!()
-        }
-
-        fn set_propagation_delay_and_quorum_rounds(
-            &self,
-            _delay: Round,
-            _received_quorum_rounds: Vec<QuorumRound>,
-            _accepted_quorum_rounds: Vec<QuorumRound>,
-        ) -> Result<(), CoreError> {
             todo!()
         }
 

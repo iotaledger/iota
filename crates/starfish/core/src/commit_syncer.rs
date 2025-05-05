@@ -899,14 +899,6 @@ mod tests {
         ) -> ConsensusResult<Vec<Bytes>> {
             unimplemented!("Unimplemented")
         }
-
-        async fn get_latest_rounds(
-            &self,
-            _peer: AuthorityIndex,
-            _timeout: Duration,
-        ) -> ConsensusResult<(Vec<Round>, Vec<Round>)> {
-            unimplemented!("Unimplemented")
-        }
     }
 
     #[tokio::test(flavor = "current_thread", start_paused = true)]
