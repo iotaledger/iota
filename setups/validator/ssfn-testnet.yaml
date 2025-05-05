@@ -5,8 +5,6 @@ network-key-pair:
 
 # Database Configuration
 db-path: /opt/iota/db/authorities_db
-consensus-config:
-  db-path: /opt/iota/db/consensus_db
 
 # Genesis Configuration
 genesis:
