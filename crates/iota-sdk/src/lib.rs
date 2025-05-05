@@ -662,12 +662,11 @@ where
 }
 
 pub struct GetAllPagesStream<O, C, F, E, Fun> {
-    cursor: Option<C>,
     fun: Fun,
     fut: Pin<Box<F>>,
     next: VecDeque<O>,
     has_next_page: bool,
-    _data: PhantomData<fn(E) -> E>,
+    _data: PhantomData<fn(E, C) -> (E, C)>,
 }
 
 impl<O, C, F, E, Fun> GetAllPagesStream<O, C, F, E, Fun>
@@ -677,7 +676,6 @@ where
     pub fn new(fun: Fun) -> Self {
         let fut = fun(None);
         Self {
-            cursor: None,
             fun,
             fut: Box::pin(fut),
             next: Default::default(),
@@ -705,11 +703,10 @@ where
             match this.fut.as_mut().poll(cx) {
                 Poll::Ready(res) => match res {
                     Ok(mut page) => {
-                        this.cursor = page.next_cursor.take();
                         this.next.extend(page.data);
                         this.has_next_page = page.has_next_page;
                         if this.has_next_page {
-                            this.fut.set((this.fun)(this.cursor.take()));
+                            this.fut.set((this.fun)(page.next_cursor.take()));
                         }
                     }
                     Err(e) => {
