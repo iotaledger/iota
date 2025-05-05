@@ -140,6 +140,24 @@ impl TransactionVerifier for IotaTxValidator {
     }
 }
 
+impl starfish_core::TransactionVerifier for IotaTxValidator {
+    fn verify_batch(&self, batch: &[&[u8]]) -> Result<(), starfish_core::ValidationError> {
+        let _scope = monitored_scope("ValidateBatch");
+
+        let txs = batch
+            .iter()
+            .map(|tx| {
+                tx_from_bytes(tx)
+                    .map(|tx| tx.kind)
+                    .map_err(|e| starfish_core::ValidationError::InvalidTransaction(e.to_string()))
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+
+        self.validate_transactions(txs)
+            .map_err(|e| starfish_core::ValidationError::InvalidTransaction(e.to_string()))
+    }
+}
+
 pub struct IotaTxValidatorMetrics {
     certificate_signatures_verified: IntCounter,
     checkpoint_signatures_verified: IntCounter,
