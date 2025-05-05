@@ -128,10 +128,6 @@ impl Core {
             leader_schedule.clone(),
             dag_state.clone(),
         )
-        // we want to keep with_number_of_leaders param to be able to enable it in a future protocol
-        // upgrade
-        .with_number_of_leaders(1)
-        .with_pipeline(true)
         .build();
 
         // Recover the last proposed block
