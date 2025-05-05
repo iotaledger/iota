@@ -131,63 +131,6 @@ const developer = [
     },
     {
         type: 'category',
-        label: 'Transactions',
-        link: {
-            type: 'doc',
-            id: 'developer/iota-101/transactions/transactions',
-        },
-        items: [
-            'developer/iota-101/transactions/sign-and-send-transactions',
-            {
-                type: 'category',
-                label: 'Sponsored Transactions',
-                link: {
-                    type: 'doc',
-                    id: 'developer/iota-101/transactions/sponsored-transactions/about-sponsored-transactions',
-                },
-                items: [
-                    'developer/iota-101/transactions/sponsored-transactions/about-sponsored-transactions',
-                    'developer/iota-101/transactions/sponsored-transactions/use-sponsored-transactions',
-                ],
-            },
-            {
-                type: 'category',
-                label: 'Working with PTBs',
-                link: {
-                    type: 'doc',
-                    id: 'developer/iota-101/transactions/ptb/programmable-transaction-blocks-overview',
-                },
-                items: [
-                    'developer/iota-101/transactions/ptb/programmable-transaction-blocks',
-                    'developer/iota-101/transactions/ptb/building-programmable-transaction-blocks-ts-sdk',
-                    'developer/iota-101/transactions/ptb/simulating-references',
-                    'developer/iota-101/transactions/ptb/coin-management',
-                    'developer/iota-101/transactions/ptb/optimizing-gas-with-coin-merging',
-                ],
-            },
-        ],
-    },
-    {
-        type: 'category',
-        label: 'Create Coins and Tokens',
-        link: {
-            type: 'doc',
-            id: 'developer/iota-101/create-coin/create-coin',
-        },
-        items: [
-            'developer/iota-101/create-coin/regulated',
-            'developer/iota-101/create-coin/migrate-to-coin-manager',
-            'developer/iota-101/create-coin/in-game-token',
-            'developer/iota-101/create-coin/loyalty',
-        ],
-    },
-    {
-        type: 'category',
-        label: 'NFT',
-        items: ['developer/iota-101/nft/create-nft', 'developer/iota-101/nft/rent-nft', 'developer/iota-101/nft/marketplace'],
-    },
-    {
-        type: 'category',
         label: 'Cryptography',
         link: {
             type: 'doc',
@@ -289,15 +232,6 @@ const developer = [
             'developer/evm-to-move/tooling-apis',
             'developer/evm-to-move/creating-token',
             'developer/evm-to-move/creating-nft',
-        ],
-    },
-    {
-        type: 'category',
-        label: 'GraphQL',
-        items: [
-            'developer/getting-started/graphql-rpc',
-            'developer/graphql-rpc',
-            'developer/advanced/graphql-migration',
         ],
     },
     {
@@ -441,6 +375,78 @@ const developer = [
                 ],
             },
             'developer/dev-cheat-sheet',
+        ]
+    },
+    {
+        type: 'category',
+        label: 'How-To Guides',
+        items: [
+            {
+                type: 'category',
+                label: 'Create Coins and Tokens',
+                link: {
+                    type: 'doc',
+                    id: 'developer/iota-101/create-coin/create-coin',
+                },
+                items: [
+                    'developer/iota-101/create-coin/regulated',
+                    'developer/iota-101/create-coin/migrate-to-coin-manager',
+                    'developer/iota-101/create-coin/in-game-token',
+                    'developer/iota-101/create-coin/loyalty',
+                ],
+            },
+            {
+                type: 'category',
+                label: 'NFT',
+                items: ['developer/iota-101/nft/create-nft', 'developer/iota-101/nft/rent-nft', 'developer/iota-101/nft/marketplace'],
+            },
+            {
+                type: 'category',
+                label: 'GraphQL',
+                items: [
+                    'developer/getting-started/graphql-rpc',
+                    'developer/graphql-rpc',
+                    'developer/advanced/graphql-migration',
+                ],
+            },
+            {
+                type: 'category',
+                label: 'Transactions',
+                link: {
+                    type: 'doc',
+                    id: 'developer/iota-101/transactions/transactions',
+                },
+                items: [
+                    'developer/iota-101/transactions/sign-and-send-transactions',
+                    {
+                        type: 'category',
+                        label: 'Sponsored Transactions',
+                        link: {
+                            type: 'doc',
+                            id: 'developer/iota-101/transactions/sponsored-transactions/about-sponsored-transactions',
+                        },
+                        items: [
+                            'developer/iota-101/transactions/sponsored-transactions/about-sponsored-transactions',
+                            'developer/iota-101/transactions/sponsored-transactions/use-sponsored-transactions',
+                        ],
+                    },
+                    {
+                        type: 'category',
+                        label: 'Working with PTBs',
+                        link: {
+                            type: 'doc',
+                            id: 'developer/iota-101/transactions/ptb/programmable-transaction-blocks-overview',
+                        },
+                        items: [
+                            'developer/iota-101/transactions/ptb/programmable-transaction-blocks',
+                            'developer/iota-101/transactions/ptb/building-programmable-transaction-blocks-ts-sdk',
+                            'developer/iota-101/transactions/ptb/simulating-references',
+                            'developer/iota-101/transactions/ptb/coin-management',
+                            'developer/iota-101/transactions/ptb/optimizing-gas-with-coin-merging',
+                        ],
+                    },
+                ],
+            },
         ]
     },
     'developer/exchange-integration',
