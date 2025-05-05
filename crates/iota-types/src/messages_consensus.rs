@@ -80,7 +80,7 @@ pub enum ConsensusTransactionKey {
     Certificate(TransactionDigest),
     CheckpointSignature(AuthorityName, CheckpointSequenceNumber),
     EndOfPublish(AuthorityName),
-    CapabilityNotificationV1(AuthorityName, u64 /* generation */),
+    CapabilityNotification(AuthorityName, u64 /* generation */),
     // Key must include both id and jwk, because honest validators could be given multiple jwks
     // for the same id by malfunctioning providers.
     NewJWKFetched(Box<(AuthorityName, JwkId, JWK)>),
@@ -96,9 +96,9 @@ impl Debug for ConsensusTransactionKey {
                 write!(f, "CheckpointSignature({:?}, {:?})", name.concise(), seq)
             }
             Self::EndOfPublish(name) => write!(f, "EndOfPublish({:?})", name.concise()),
-            Self::CapabilityNotificationV1(name, generation) => write!(
+            Self::CapabilityNotification(name, generation) => write!(
                 f,
-                "CapabilityNotificationV1({:?}, {:?})",
+                "CapabilityNotification({:?}, {:?})",
                 name.concise(),
                 generation
             ),
@@ -415,7 +415,7 @@ impl ConsensusTransaction {
                 ConsensusTransactionKey::EndOfPublish(*authority)
             }
             ConsensusTransactionKind::CapabilityNotificationV1(cap) => {
-                ConsensusTransactionKey::CapabilityNotificationV1(cap.authority, cap.generation)
+                ConsensusTransactionKey::CapabilityNotification(cap.authority, cap.generation)
             }
             ConsensusTransactionKind::NewJWKFetched(authority, id, key) => {
                 ConsensusTransactionKey::NewJWKFetched(Box::new((
