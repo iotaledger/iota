@@ -10,7 +10,7 @@ use tracing::warn;
 
 use crate::{
     block_header::{BlockHeaderAPI, BlockRef, Round, Slot, VerifiedBlockHeader},
-    commit::{DEFAULT_WAVE_LENGTH, LeaderStatus, MINIMUM_WAVE_LENGTH, WaveNumber},
+    commit::{LeaderStatus, WAVE_LENGTH, WaveNumber},
     context::Context,
     dag_state::DagState,
     leader_schedule::LeaderSchedule,
@@ -25,10 +25,8 @@ mod base_committer_tests;
 #[path = "tests/base_committer_declarative_tests.rs"]
 mod base_committer_declarative_tests;
 
+#[derive(Default)]
 pub(crate) struct BaseCommitterOptions {
-    /// TODO: Re-evaluate if we want this to be configurable after running
-    /// experiments. The length of a wave (minimum 3)
-    pub wave_length: u32,
     /// The offset used in the leader-election protocol. This is used by the
     /// multi-committer to ensure that each [`BaseCommitter`] instance elects
     /// a different leader.
@@ -37,16 +35,6 @@ pub(crate) struct BaseCommitterOptions {
     /// ensure that each[`BaseCommitter`] instances operates on a different
     /// view of the dag.
     pub round_offset: u32,
-}
-
-impl Default for BaseCommitterOptions {
-    fn default() -> Self {
-        Self {
-            wave_length: DEFAULT_WAVE_LENGTH,
-            leader_offset: 0,
-            round_offset: 0,
-        }
-    }
 }
 
 /// The [`BaseCommitter`] contains the bare bone commit logic. Once
@@ -72,7 +60,6 @@ impl BaseCommitter {
         dag_state: Arc<RwLock<DagState>>,
         options: BaseCommitterOptions,
     ) -> Self {
-        assert!(options.wave_length >= MINIMUM_WAVE_LENGTH);
         Self {
             context,
             leader_schedule,
@@ -97,11 +84,11 @@ impl BaseCommitter {
         // 2f+1 certificates over the leader. Note that there could be more than
         // one leader block (created by Byzantine leaders).
         let wave = self.wave_number(leader.round);
-        let decision_round = self.decision_round(wave);
+        let certifying_round = self.certifying_round(wave);
         let leader_blocks = self.dag_state.read().get_uncommitted_blocks_at_slot(leader);
         let mut leaders_with_enough_support: Vec<_> = leader_blocks
             .into_iter()
-            .filter(|l| self.enough_leader_support(decision_round, l))
+            .filter(|l| self.enough_leader_support(certifying_round, l))
             .map(LeaderStatus::Commit)
             .collect();
 
@@ -127,7 +114,7 @@ impl BaseCommitter {
         // The anchor is the first committed leader with round higher than the decision
         // round of the target leader. We must stop the iteration upon
         // encountering an undecided leader.
-        let anchors = leaders.filter(|x| leader_slot.round + self.options.wave_length <= x.round());
+        let anchors = leaders.filter(|x| leader_slot.round + WAVE_LENGTH <= x.round());
 
         for anchor in anchors {
             tracing::trace!(
@@ -168,22 +155,21 @@ impl BaseCommitter {
     /// Return the leader round of the specified wave. The leader round is
     /// always the first round of the wave. This takes into account round
     /// offset for when pipelining is enabled.
-    pub(crate) fn leader_round(&self, wave: WaveNumber) -> Round {
-        (wave * self.options.wave_length) + self.options.round_offset
+    pub(crate) fn leader_round(&self, wave_number: WaveNumber) -> Round {
+        (wave_number * WAVE_LENGTH) + self.options.round_offset
     }
 
-    /// Return the decision round of the specified wave. The decision round is
-    /// always the last round of the wave. This takes into account round offset
-    /// for when pipelining is enabled.
-    pub(crate) fn decision_round(&self, wave: WaveNumber) -> Round {
-        let wave_length = self.options.wave_length;
-        (wave * wave_length) + wave_length - 1 + self.options.round_offset
+    /// Return the certifying round of the specified wave. The certifying round
+    /// is always the last round of the wave. This takes into account round
+    /// offset for when pipelining is enabled.
+    pub(crate) fn certifying_round(&self, wave_number: WaveNumber) -> Round {
+        (wave_number * WAVE_LENGTH) + WAVE_LENGTH - 1 + self.options.round_offset
     }
 
     /// Return the wave in which the specified round belongs. This takes into
     /// account the round offset for when pipelining is enabled.
     pub(crate) fn wave_number(&self, round: Round) -> WaveNumber {
-        round.saturating_sub(self.options.round_offset) / self.options.wave_length
+        round.saturating_sub(self.options.round_offset) / WAVE_LENGTH
     }
 
     /// Find which block is supported at a slot (author, round) by the given
@@ -305,14 +291,14 @@ impl BaseCommitter {
         }
 
         // Get all blocks that could be potential certificates for the target leader.
-        // These blocks are in the decision round of the target leader and are
+        // These blocks are in the certifying round of the target leader and are
         // linked to the anchor.
         let wave = self.wave_number(leader_slot.round);
-        let decision_round = self.decision_round(wave);
+        let certifying_round = self.certifying_round(wave);
         let potential_certificates = self
             .dag_state
             .read()
-            .ancestors_at_round(anchor, decision_round);
+            .ancestors_at_round(anchor, certifying_round);
 
         // Use those potential certificates to determine which (if any) of the target
         // leader blocks can be committed.
@@ -377,13 +363,13 @@ impl BaseCommitter {
     /// committed.
     fn enough_leader_support(
         &self,
-        decision_round: Round,
+        certifying_round: Round,
         leader_block: &VerifiedBlockHeader,
     ) -> bool {
         let decision_blocks = self
             .dag_state
             .read()
-            .get_uncommitted_blocks_at_round(decision_round);
+            .get_uncommitted_blocks_at_round(certifying_round);
 
         // Quickly reject if there isn't enough stake to support the leader from
         // the potential certificates.
@@ -434,7 +420,6 @@ mod base_committer_builder {
     pub(crate) struct BaseCommitterBuilder {
         context: Arc<Context>,
         dag_state: Arc<RwLock<DagState>>,
-        wave_length: u32,
         leader_offset: u32,
         round_offset: u32,
     }
@@ -444,16 +429,9 @@ mod base_committer_builder {
             Self {
                 context,
                 dag_state,
-                wave_length: DEFAULT_WAVE_LENGTH,
                 leader_offset: 0,
                 round_offset: 0,
             }
-        }
-
-        #[expect(unused)]
-        pub(crate) fn with_wave_length(mut self, wave_length: u32) -> Self {
-            self.wave_length = wave_length;
-            self
         }
 
         #[expect(unused)]
@@ -470,7 +448,6 @@ mod base_committer_builder {
 
         pub(crate) fn build(self) -> BaseCommitter {
             let options = BaseCommitterOptions {
-                wave_length: self.wave_length,
                 leader_offset: self.leader_offset,
                 round_offset: self.round_offset,
             };

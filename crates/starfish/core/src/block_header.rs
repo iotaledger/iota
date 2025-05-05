@@ -78,6 +78,10 @@ pub trait BlockHeaderAPI {
     fn timestamp_ms(&self) -> BlockTimestampMs;
     fn ancestors(&self) -> &[BlockRef];
     fn commit_votes(&self) -> &[CommitVote];
+
+    // TODO: we should remove this method from the API of the block header and use
+    // another type of a full block in the consensus output
+    fn transactions(&self) -> &[Transaction];
 }
 
 #[derive(Clone, Default, Deserialize, Serialize)]
@@ -166,6 +170,10 @@ impl BlockHeaderAPI for BlockHeaderV1 {
 
     fn commit_votes(&self) -> &[CommitVote] {
         &self.commit_votes
+    }
+
+    fn transactions(&self) -> &[Transaction] {
+        unimplemented!();
     }
 }
 
@@ -505,7 +513,6 @@ pub struct VerifiedBlockHeader {
     digest: BlockHeaderDigest,
     serialized: Bytes,
 }
-
 impl VerifiedBlockHeader {
     /// Creates VerifiedBlockHeader from a verified SignedBlockHeader and its
     /// serialized bytes.

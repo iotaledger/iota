@@ -26,7 +26,7 @@ async fn direct_commit() {
     // Round 3 is a leader round
     // D3 is an elected leader for wave 1
     // Round 4 is a voting round
-    // Round 5 is a decision round (acknowledge)
+    // Round 5 is a certifying round (acknowledge)
     let dag_str = "DAG {
         Round 0 : { 4 },
         Round 1 : { * },
@@ -75,7 +75,7 @@ async fn direct_skip() {
     // Round 3 is a leader round
     // D3 is an elected leader for wave 1
     // Round 4 is a voting round
-    // Round 5 is a decision round (acknowledge)
+    // Round 5 is a certifying round (acknowledge)
     let dag_str = "DAG {
         Round 0 : { 4 },
         Round 1 : { * },
@@ -119,7 +119,7 @@ async fn direct_undecided() {
     // Round 3 is a leader round
     // D3 is an elected leader for wave 1
     // Round 4 is a voting round
-    // Round 5 is a decision round (acknowledge)
+    // Round 5 is a certifying round (acknowledge)
     let dag_str = "DAG {
         Round 0 : { 4 },
         Round 1 : { * },
@@ -164,13 +164,13 @@ async fn indirect_commit() {
     // Round 3 is a leader round
     // D3 is an elected leader for wave 1
     // Round 4 is a voting round
-    // Round 5 is a decision round (acknowledge)
+    // Round 5 is a certifying round (acknowledge)
     //
     // Wave 2
     // Round 6 is a leader round
     // C6 is an elected leader for wave 2
     // Round 7 is a voting round
-    // Round 8 is a decision round (acknowledge)
+    // Round 8 is a certifying round (acknowledge)
     let dag_str = "DAG {
         Round 0 : { 4 },
         Round 1 : { * },
