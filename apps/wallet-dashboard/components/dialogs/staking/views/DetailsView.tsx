@@ -44,13 +44,13 @@ interface StakeDialogProps {
     handleUnstake?: () => void;
 }
 
-export async function DetailsView({
+export function DetailsView({
     handleClose,
     handleUnstake,
     handleStake,
     stakedDetails,
     showActiveStatus,
-}: StakeDialogProps): Promise<JSX.Element> {
+}: StakeDialogProps): JSX.Element {
     const totalStake = BigInt(stakedDetails?.principal || 0n);
     const validatorAddress = stakedDetails?.validatorAddress;
     const { isValidatorExpectedToBeInTheCommittee } =
@@ -76,15 +76,8 @@ export async function DetailsView({
     const [iotaEarnedFormatted, iotaEarnedSymbol] = useFormatCoin({ balance: iotaEarned });
     const [totalStakeFormatted, totalStakeSymbol] = useFormatCoin({ balance: totalStake });
 
-    let validatorName = null;
-    let validatorImageUrl = null;
-    if (validatorSummary === null && inactiveValidatorSummary !== null) {
-        validatorName = inactiveValidatorSummary?.name;
-        validatorImageUrl = inactiveValidatorSummary?.imageUrl;
-    } else if (validatorSummary !== null && inactiveValidatorSummary === null) {
-        validatorName = validatorSummary?.name;
-        validatorImageUrl = validatorSummary?.imageUrl;
-    }
+    const validatorName = inactiveValidatorSummary?.name || validatorSummary?.name;
+    const validatorImageUrl = inactiveValidatorSummary?.imageUrl || validatorSummary?.imageUrl;
 
     const subtitle = showActiveStatus ? (
         <div className="flex items-center gap-1">

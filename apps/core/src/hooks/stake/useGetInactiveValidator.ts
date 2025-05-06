@@ -3,38 +3,42 @@
 
 import { useQuery } from '@tanstack/react-query';
 import { normalizeIotaAddress } from '@iota/iota-sdk/utils';
-import type { IotaClient } from '@iota/iota-sdk/client';
-import { InactiveValidatorData } from '../../types';
-import { getInactiveValidatorsData } from '../../utils';
+import { useIotaClient, useIotaClientQuery } from '@iota/dapp-kit';
 
-export function useGetInactiveValidatorData(
-    client: IotaClient,
-    inactivePoolsId: string,
-    validatorAddress: string,
-): InactiveValidatorData | null {
-    useQuery({
+import { InactiveValidatorData } from '../../types';
+import { getInactiveValidatorsMetadata } from '../../utils';
+
+export function useGetInactiveValidator(validatorAddress: string): InactiveValidatorData | null {
+    const iotaClient = useIotaClient();
+    const { data } = useIotaClientQuery('getLatestIotaSystemState');
+    const inactivePoolsId = data?.inactivePoolsId;
+    const queryResult = useQuery({
         queryKey: [inactivePoolsId, validatorAddress],
         async queryFn() {
-            if (inactivePoolsId || !validatorAddress) {
+            if (!inactivePoolsId || !validatorAddress) {
                 throw Error('Missing params');
             }
-            const inactiveValidators = await client.getDynamicFields({
+            const inactiveValidators = await iotaClient.getDynamicFields({
                 parentId: normalizeIotaAddress(inactivePoolsId),
             });
-
             const pendingInactiveValidatorsData = await Promise.all(
                 inactiveValidators.data.map(
                     async (validator) =>
-                        await getInactiveValidatorsData(client, validator.objectId),
+                        await getInactiveValidatorsMetadata(iotaClient, validator.objectId),
                 ),
             );
-
             return pendingInactiveValidatorsData;
         },
         enabled: !!inactivePoolsId && !!validatorAddress,
-        select(validators) {
-            return validators.find((validator) => validator?.validatorAddress === validatorAddress);
-        },
     });
-    return null;
+
+    if (queryResult.isLoading || queryResult.isError || !queryResult.data) {
+        return null;
+    }
+
+    const validatorData = queryResult.data.find(
+        (validator) => validator?.validatorAddress === validatorAddress,
+    );
+
+    return validatorData || null;
 }

@@ -14,9 +14,9 @@ import {
 import { useMemo } from 'react';
 import { ImageIcon } from '../icon';
 import { ExtendedDelegatedStake } from '../../utils';
-import { useFormatCoin, useStakeRewardStatus, useGetInactiveValidatorData } from '../../hooks';
+import { useFormatCoin, useStakeRewardStatus, useGetInactiveValidator } from '../../hooks';
 import { RewardsOff, Warning } from '@iota/apps-ui-icons';
-import { useIotaClient, useIotaClientQuery } from '@iota/dapp-kit';
+import { useIotaClientQuery } from '@iota/dapp-kit';
 
 interface StakedCardProps {
     extendedStake: ExtendedDelegatedStake;
@@ -37,7 +37,6 @@ export function StakedCard({
 }: StakedCardProps) {
     const { principal, stakeRequestEpoch, estimatedReward, validatorAddress } = extendedStake;
     const { data } = useIotaClientQuery('getLatestIotaSystemState');
-    const iotaClient = useIotaClient();
 
     const { title, subtitle } = useStakeRewardStatus({
         stakeRequestEpoch,
@@ -59,12 +58,7 @@ export function StakedCard({
             null
         );
     }, [validatorAddress, data]);
-
-    const inactiveValidatorData = useGetInactiveValidatorData(
-        iotaClient,
-        data?.inactivePoolsId || '',
-        validatorAddress,
-    );
+    const inactiveValidatorData = useGetInactiveValidator(validatorAddress);
     const validatorData = validatorMeta || inactiveValidatorData || null;
     return (
         <Card testId="staked-card" type={CardType.Default} isHoverable onClick={onClick}>

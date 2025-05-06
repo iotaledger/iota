@@ -3,12 +3,11 @@
 
 import type { IotaClient } from '@iota/iota-sdk/client';
 import { normalizeIotaAddress, toB64 } from '@iota/iota-sdk/utils';
-import { InactiveValidatorData } from '../../types';
-import { ValidatorSchema, DynamicFieldObjectSchema } from '../../types';
+import { InactiveValidatorData, ValidatorSchema, DynamicFieldObjectSchema } from '../../types';
 
 // Function to get inactive validator data
 // It fetches the validator object and its dynamic fields to extract metadata
-export async function getInactiveValidatorsData(
+export async function getInactiveValidatorsMetadata(
     client: IotaClient,
     objectId: string,
 ): Promise<InactiveValidatorData | null> {
@@ -18,7 +17,6 @@ export async function getInactiveValidatorsData(
             showContent: true,
         },
     });
-
     const validator = ValidatorSchema.safeParse(validatorObject.data?.content);
     const validatorFieldId = validator.data?.fields.value.fields.inner.fields.id.id;
     if (!validatorFieldId) {

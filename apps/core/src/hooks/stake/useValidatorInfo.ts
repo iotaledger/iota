@@ -1,8 +1,8 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { getInactiveValidator, useGetValidatorsApy } from '..';
-import { useIotaClient, useIotaClientQuery } from '@iota/dapp-kit';
+import { useGetInactiveValidator, useGetValidatorsApy } from '..';
+import { useIotaClientQuery } from '@iota/dapp-kit';
 import { InactiveValidatorData } from '../../types';
 
 export function useValidatorInfo({ validatorAddress }: { validatorAddress: string }) {
@@ -12,15 +12,10 @@ export function useValidatorInfo({ validatorAddress }: { validatorAddress: strin
         isError: errorValidators,
     } = useIotaClientQuery('getLatestIotaSystemState');
     const { data: rollingAverageApys } = useGetValidatorsApy();
-    const iotaClient = useIotaClient();
     const validatorSummary =
         system?.activeValidators.find((validator) => validator.iotaAddress === validatorAddress) ||
         null;
-    const inactiveValidatorData = getInactiveValidator(
-        iotaClient,
-        system?.inactivePoolsId || '',
-        validatorAddress,
-    );
+    const inactiveValidatorData = useGetInactiveValidator(validatorAddress);
     let inactiveValidatorSummary: InactiveValidatorData | null = null;
     if (validatorSummary === null && inactiveValidatorData !== null) {
         inactiveValidatorSummary = {
