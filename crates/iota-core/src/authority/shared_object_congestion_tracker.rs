@@ -493,7 +493,7 @@ impl SharedObjectCongestionTracker {
             .map(|obj| {
                 self.object_lowest_executed_gas_price
                     .get(&obj.id)
-                    .expect("must only be called for cancelled transactions")
+                    .expect("lowest executed gas price for this object must have been initialized")
             })
             .min()
             // TODO: check if suggested gas price is not larger than maximum defined in protocol
@@ -641,19 +641,22 @@ pub mod shared_object_test_utils {
 
     use super::*;
 
+    pub const TEST_ONLY_GAS_PRICE: u64 = 1_000;
+
     // Builds a certificate with a list of shared objects and their mutability. The
     // certificate is only used to test the SharedObjectCongestionTracker
-    // functions, therefore the content other than shared inputs and gas budget
-    // are not important.
+    // functions, therefore the content other than shared inputs, gas budget
+    // and gas price are not important.
     pub fn build_transaction(
         objects: &[(ObjectID, bool)],
         gas_budget: u64,
+        gas_price: u64,
     ) -> VerifiedExecutableTransaction {
         let (sender, keypair): (_, AccountKeyPair) = get_key_pair();
         let gas_object = random_object_ref();
         VerifiedExecutableTransaction::new_system(
             VerifiedTransaction::new_unchecked(
-                TestTransactionBuilder::new(sender, gas_object, 1000)
+                TestTransactionBuilder::new(sender, gas_object, gas_price)
                     .with_gas_budget(gas_budget)
                     .move_call(
                         ObjectID::random(),
@@ -720,14 +723,16 @@ pub mod shared_object_test_utils {
             match mode {
                 PerObjectCongestionControlMode::None => {}
                 PerObjectCongestionControlMode::TotalGasBudget => {
-                    let transaction = build_transaction(&[(*object_id, true)], *duration);
+                    let transaction =
+                        build_transaction(&[(*object_id, true)], *duration, TEST_ONLY_GAS_PRICE);
                     let start_time = initialize_tracker_and_compute_tx_start_time(&mut shared_object_congestion_tracker, &transaction.data().inner().intent_message().value.shared_input_objects(), *duration).expect("initial value should be fit within the available range of slots in the tracker");
                     shared_object_congestion_tracker
                         .bump_object_execution_slots(&transaction, start_time);
                 }
                 PerObjectCongestionControlMode::TotalTxCount => {
                     for _ in 0..*duration {
-                        let transaction = build_transaction(&[(*object_id, true)], 1);
+                        let transaction =
+                            build_transaction(&[(*object_id, true)], 1, TEST_ONLY_GAS_PRICE);
                         let start_time = initialize_tracker_and_compute_tx_start_time(&mut shared_object_congestion_tracker, &transaction.data().inner().intent_message().value.shared_input_objects(), 1).expect("initial value should be fit within the available range of slots in the tracker");
                         shared_object_congestion_tracker
                             .bump_object_execution_slots(&transaction, start_time);
@@ -801,7 +806,7 @@ mod object_cost_tests {
             Some(9)
         );
         // now add this transaction to the tracker.
-        let tx = build_transaction(objects, 1);
+        let tx = build_transaction(objects, 1, TEST_ONLY_GAS_PRICE);
         shared_object_congestion_tracker.bump_object_execution_slots(&tx, 9);
 
         // That tracker now has the following object execution slots:
@@ -986,7 +991,11 @@ mod object_cost_tests {
             }
         };
         // add a transaction that writes to object 0 and 1.
-        let tx = build_transaction(&[(shared_obj_0, true), (shared_obj_1, true)], 1);
+        let tx = build_transaction(
+            &[(shared_obj_0, true), (shared_obj_1, true)],
+            1,
+            TEST_ONLY_GAS_PRICE,
+        );
         shared_object_congestion_tracker.bump_object_execution_slots(
             &tx,
             match mode {
@@ -1010,7 +1019,11 @@ mod object_cost_tests {
 
         // Read/write to object 0 should be deferred.
         for mutable in [true, false].iter() {
-            let tx = build_transaction(&[(shared_obj_0, *mutable)], tx_gas_budget);
+            let tx = build_transaction(
+                &[(shared_obj_0, *mutable)],
+                tx_gas_budget,
+                TEST_ONLY_GAS_PRICE,
+            );
             if let SequencingResult::Defer(_, congested_objects) = shared_object_congestion_tracker
                 .try_schedule(&tx, max_execution_duration_per_commit, &HashMap::new(), 0)
             {
@@ -1024,7 +1037,11 @@ mod object_cost_tests {
         // Read/write to object 1 should be scheduled with start_time 1 with
         // `assign_min_free_execution_slot` and deferred otherwise.
         for mutable in [true, false].iter() {
-            let tx = build_transaction(&[(shared_obj_1, *mutable)], tx_gas_budget);
+            let tx = build_transaction(
+                &[(shared_obj_1, *mutable)],
+                tx_gas_budget,
+                TEST_ONLY_GAS_PRICE,
+            );
             let sequencing_result = initialize_tracker_and_try_schedule(
                 &mut shared_object_congestion_tracker,
                 &tx,
@@ -1049,6 +1066,7 @@ mod object_cost_tests {
                 let tx = build_transaction(
                     &[(shared_obj_0, *mutable_0), (shared_obj_1, *mutable_1)],
                     tx_gas_budget,
+                    TEST_ONLY_GAS_PRICE,
                 );
                 if let SequencingResult::Defer(_, congested_objects) =
                     initialize_tracker_and_try_schedule(
@@ -1079,7 +1097,7 @@ mod object_cost_tests {
         mode: PerObjectCongestionControlMode,
     ) {
         let shared_obj_0 = ObjectID::random();
-        let tx = build_transaction(&[(shared_obj_0, true)], 100);
+        let tx = build_transaction(&[(shared_obj_0, true)], 100, TEST_ONLY_GAS_PRICE);
         // Make try_schedule always defers transactions.
         let max_execution_duration_per_commit = 0;
         let mut shared_object_congestion_tracker = SharedObjectCongestionTracker::new(mode, false);
@@ -1199,7 +1217,11 @@ mod object_cost_tests {
         );
 
         // Read two objects should not change the object execution slots.
-        let cert = build_transaction(&[(object_id_0, false), (object_id_1, false)], 10);
+        let cert = build_transaction(
+            &[(object_id_0, false), (object_id_1, false)],
+            10,
+            TEST_ONLY_GAS_PRICE,
+        );
         let cert_duration =
             shared_object_congestion_tracker.get_estimated_execution_duration(&cert);
         let start_time = initialize_tracker_and_compute_tx_start_time(
@@ -1230,7 +1252,11 @@ mod object_cost_tests {
 
         // Write to object 0 should only bump object 0's execution slots. The start time
         // should be object 1's duration.
-        let cert = build_transaction(&[(object_id_0, true), (object_id_1, false)], 10);
+        let cert = build_transaction(
+            &[(object_id_0, true), (object_id_1, false)],
+            10,
+            TEST_ONLY_GAS_PRICE,
+        );
         let cert_duration =
             shared_object_congestion_tracker.get_estimated_execution_duration(&cert);
         let start_time = initialize_tracker_and_compute_tx_start_time(
@@ -1280,6 +1306,7 @@ mod object_cost_tests {
                 (object_id_2, true),
             ],
             10,
+            TEST_ONLY_GAS_PRICE,
         );
         let expected_object_duration = match mode {
             PerObjectCongestionControlMode::None => unreachable!(),
@@ -1354,7 +1381,7 @@ mod object_cost_tests {
                 assign_min_free_execution_slot,
             );
 
-        let tx = build_transaction(&[(object_id_0, true)], 1);
+        let tx = build_transaction(&[(object_id_0, true)], 1, TEST_ONLY_GAS_PRICE);
         if let SequencingResult::Schedule(start_time) = initialize_tracker_and_try_schedule(
             &mut shared_object_congestion_tracker,
             &tx,
@@ -1391,7 +1418,11 @@ mod object_cost_tests {
             panic!("transaction is not congesting, should not defer");
         }
 
-        let tx = build_transaction(&[(object_id_0, true), (object_id_1, true)], 1);
+        let tx = build_transaction(
+            &[(object_id_0, true), (object_id_1, true)],
+            1,
+            TEST_ONLY_GAS_PRICE,
+        );
         if let SequencingResult::Defer(_, congested_objects) = initialize_tracker_and_try_schedule(
             &mut shared_object_congestion_tracker,
             &tx,
@@ -1468,6 +1499,7 @@ mod object_cost_tests {
                 (object_id_2, true),
             ],
             MAX_EXECUTION_TIME - 1,
+            TEST_ONLY_GAS_PRICE,
         );
         if let SequencingResult::Defer(_, congested_objects) = initialize_tracker_and_try_schedule(
             &mut shared_object_congestion_tracker,
@@ -1513,7 +1545,7 @@ mod object_cost_tests {
                 assign_min_free_execution_slot,
             );
 
-        let tx = build_transaction(&[(object_id_0, true)], u64::MAX);
+        let tx = build_transaction(&[(object_id_0, true)], u64::MAX, TEST_ONLY_GAS_PRICE);
         if let SequencingResult::Defer(_, congested_objects) = initialize_tracker_and_try_schedule(
             &mut shared_object_congestion_tracker,
             &tx,
@@ -1543,7 +1575,7 @@ mod object_cost_tests {
     }
 
     #[test]
-    fn my_test() {
+    fn test_compute_suggested_gas_price() {
         let schedule_third_tx = true;
 
         let mut shared_object_congestion_tracker = SharedObjectCongestionTracker::new(
@@ -1558,9 +1590,13 @@ mod object_cost_tests {
 
         let max_execution_duration_per_commit = 2;
 
-        let tx_1 = build_transaction(&[(object_a, true), (object_b, true)], 1);
-        let tx_2 = build_transaction(&[(object_b, true), (object_c, true)], 1);
-        let tx_3 = build_transaction(&[(object_c, true), (object_d, true)], 1);
+        let gas_price_of_tx_1 = 1_003;
+        let gas_price_of_tx_2 = 1_002;
+        let gas_price_of_tx_3 = 1_001;
+
+        let tx_1 = build_transaction(&[(object_a, true), (object_b, true)], 1, gas_price_of_tx_1);
+        let tx_2 = build_transaction(&[(object_b, true), (object_c, true)], 1, gas_price_of_tx_2);
+        let tx_3 = build_transaction(&[(object_c, true), (object_d, true)], 1, gas_price_of_tx_3);
 
         let shared_input_objects: Vec<_> = tx_1.shared_input_objects().collect();
         shared_object_congestion_tracker.initialize_for_shared_objects(&shared_input_objects);
@@ -1577,7 +1613,7 @@ mod object_cost_tests {
         }
         assert_eq!(
             shared_object_congestion_tracker.compute_suggested_gas_price(&tx_1),
-            Some(1_001)
+            Some(gas_price_of_tx_1 + 1)
         );
 
         let shared_input_objects: Vec<_> = tx_2.shared_input_objects().collect();
@@ -1595,7 +1631,7 @@ mod object_cost_tests {
         }
         assert_eq!(
             shared_object_congestion_tracker.compute_suggested_gas_price(&tx_2),
-            Some(1_001)
+            Some(gas_price_of_tx_2 + 1)
         );
 
         let shared_input_objects: Vec<_> = tx_3.shared_input_objects().collect();
@@ -1613,7 +1649,7 @@ mod object_cost_tests {
         }
         assert_eq!(
             shared_object_congestion_tracker.compute_suggested_gas_price(&tx_3),
-            Some(1_001)
+            Some(gas_price_of_tx_3 + 1)
         );
 
         println!(
