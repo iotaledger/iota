@@ -56,6 +56,12 @@ impl Transaction {
     pub fn into_data(self) -> Bytes {
         self.data
     }
+
+    /// Serialises a vector of transactions using the bcs serializer
+    pub(crate) fn serialize(transactions: &[Transaction]) -> Result<Bytes, bcs::Error> {
+        let bytes = bcs::to_bytes(transactions)?;
+        Ok(bytes.into())
+    }
 }
 
 /// A block header includes references to previous round blocks and a commitment
@@ -82,6 +88,7 @@ pub trait BlockHeaderAPI {
     // TODO: we should remove this method from the API of the block header and use
     // another type of a full block in the consensus output
     fn transactions(&self) -> &[Transaction];
+    fn transactions_commitment(&self) -> TransactionsCommitment;
 }
 
 #[derive(Clone, Default, Deserialize, Serialize)]
@@ -99,7 +106,7 @@ pub struct BlockHeaderV1 {
     // TODO: we should compress it together with ancestors to
     // avoid duplications since in most cases these sets have a big overlap
     acknowledgments: Vec<BlockRef>,
-    transactions_commitment: TransactionDigest,
+    transactions_commitment: TransactionsCommitment,
     commit_votes: Vec<CommitVote>,
 }
 
@@ -110,18 +117,18 @@ impl BlockHeaderV1 {
         author: AuthorityIndex,
         timestamp_ms: BlockTimestampMs,
         ancestors: Vec<BlockRef>,
+        acknowledgments: Vec<BlockRef>,
         commit_votes: Vec<CommitVote>,
+        transactions_commitment: TransactionsCommitment,
     ) -> BlockHeaderV1 {
         Self {
             epoch,
             round,
             author,
             timestamp_ms,
-            ancestors: ancestors.clone(),
-            // TODO: we should track availability of transaction data separately and take this
-            // information from the pending state of DagState. We clone ancestors for now
-            acknowledgments: ancestors,
-            transactions_commitment: TransactionDigest::default(),
+            ancestors,
+            acknowledgments,
+            transactions_commitment,
             commit_votes,
         }
     }
@@ -135,7 +142,7 @@ impl BlockHeaderV1 {
             ancestors: vec![],
             acknowledgments: vec![],
             commit_votes: vec![],
-            transactions_commitment: TransactionDigest::default(),
+            transactions_commitment: TransactionsCommitment::default(),
         }
     }
 }
@@ -170,6 +177,10 @@ impl BlockHeaderAPI for BlockHeaderV1 {
 
     fn commit_votes(&self) -> &[CommitVote] {
         &self.commit_votes
+    }
+
+    fn transactions_commitment(&self) -> TransactionsCommitment {
+        self.transactions_commitment
     }
 
     fn transactions(&self) -> &[Transaction] {
@@ -289,27 +300,34 @@ impl AsRef<[u8]> for BlockHeaderDigest {
 // is used for BlockDigest computations of BlockHeader does not include
 // explicitly the transaction data.
 #[derive(Clone, Copy, Serialize, Deserialize, Default, PartialEq, Eq, PartialOrd, Ord)]
-pub struct TransactionDigest([u8; starfish_config::DIGEST_LENGTH]);
+pub struct TransactionsCommitment([u8; starfish_config::DIGEST_LENGTH]);
 
-impl TransactionDigest {
+impl TransactionsCommitment {
     /// Lexicographic min & max digest.
     pub const MIN: Self = Self([u8::MIN; starfish_config::DIGEST_LENGTH]);
     pub const MAX: Self = Self([u8::MAX; starfish_config::DIGEST_LENGTH]);
+    pub(crate) fn compute_transactions_commitment(
+        serialized_transactions: &Bytes,
+    ) -> ConsensusResult<TransactionsCommitment> {
+        let mut hasher = DefaultHashFunction::new();
+        hasher.update(serialized_transactions);
+        Ok(TransactionsCommitment(hasher.finalize().into()))
+    }
 }
 
-impl Hash for TransactionDigest {
+impl Hash for TransactionsCommitment {
     fn hash<H: Hasher>(&self, state: &mut H) {
         state.write(&self.0[..8]);
     }
 }
 
-impl From<TransactionDigest> for Digest<{ DIGEST_LENGTH }> {
-    fn from(hd: TransactionDigest) -> Self {
+impl From<TransactionsCommitment> for Digest<{ DIGEST_LENGTH }> {
+    fn from(hd: TransactionsCommitment) -> Self {
         Digest::new(hd.0)
     }
 }
 
-impl fmt::Display for TransactionDigest {
+impl fmt::Display for TransactionsCommitment {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
         write!(
             f,
@@ -321,7 +339,7 @@ impl fmt::Display for TransactionDigest {
     }
 }
 
-impl fmt::Debug for TransactionDigest {
+impl fmt::Debug for TransactionsCommitment {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
         write!(
             f,
@@ -331,7 +349,7 @@ impl fmt::Debug for TransactionDigest {
     }
 }
 
-impl AsRef<[u8]> for TransactionDigest {
+impl AsRef<[u8]> for TransactionsCommitment {
     fn as_ref(&self) -> &[u8] {
         &self.0
     }
@@ -556,6 +574,11 @@ impl VerifiedBlockHeader {
         self.digest
     }
 
+    #[cfg_attr(not(test), expect(unused))]
+    pub(crate) fn transactions_commitment(&self) -> TransactionsCommitment {
+        self.signed_block_header.inner.transactions_commitment()
+    }
+
     /// Returns the serialization of the signed block header.
     pub(crate) fn serialized(&self) -> &Bytes {
         &self.serialized
@@ -603,6 +626,34 @@ impl fmt::Debug for VerifiedBlockHeader {
             self.acknowledgments(),
             self.commit_votes().len(),
         )
+    }
+}
+
+/// VerifiedTransactions are transactions that correspond to an existing block
+pub struct VerifiedTransactions {
+    #[expect(dead_code)]
+    transactions: Vec<Transaction>,
+
+    /// The block reference of the block that contains the transactions.
+    #[expect(dead_code)]
+    block_ref: BlockRef,
+
+    /// The serialized bytes of the transactions.
+    #[expect(dead_code)]
+    serialized: Bytes,
+}
+
+impl VerifiedTransactions {
+    pub(crate) fn new(
+        transactions: Vec<Transaction>,
+        block_ref: BlockRef,
+        serialized: Bytes,
+    ) -> Self {
+        Self {
+            transactions,
+            block_ref,
+            serialized,
+        }
     }
 }
 

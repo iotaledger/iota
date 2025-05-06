@@ -83,6 +83,10 @@ pub(crate) struct DagState {
     // TODO: limit to 1st commit per round with multi-leader.
     pending_commit_votes: VecDeque<CommitVote>,
 
+    // Acknowledgments pending to be included in new blocks. These represent votes indicating
+    // availability of transaction data from the corresponding blocks
+    pending_acknowledgments: Vec<BlockRef>,
+
     // Data to be flushed to storage.
     blocks_to_write: Vec<VerifiedBlockHeader>,
     commits_to_write: Vec<TrustedCommit>,
@@ -170,6 +174,7 @@ impl DagState {
             blocks_to_write: vec![],
             commits_to_write: vec![],
             commit_info_to_write: vec![],
+            pending_acknowledgments: vec![],
             scoring_subdag,
             store: store.clone(),
             cached_rounds,
@@ -791,6 +796,29 @@ impl DagState {
         votes
     }
 
+    /// Takes at most `limit` acknowledgments from `pending_acknowledgments`,
+    /// ensuring they are from rounds below `clock_round`.
+    pub(crate) fn take_acknowledgments(
+        &mut self,
+        limit: usize,
+        clock_round: Round,
+    ) -> Vec<BlockRef> {
+        // Partition based on round
+        let (mut below_clock_round, at_least_clock_round): (Vec<_>, Vec<_>) = self
+            .pending_acknowledgments
+            .drain(..)
+            .partition(|x| x.round < clock_round);
+
+        // Split below_clock_round into taken and leftover
+        let acknowlegments = below_clock_round.drain(..).take(limit).collect::<Vec<_>>();
+
+        // Remaining acknowledgments go back to the queue
+        below_clock_round.extend(at_least_clock_round);
+        self.pending_acknowledgments = below_clock_round;
+
+        acknowlegments
+    }
+
     /// Index of the last commit.
     pub(crate) fn last_commit_index(&self) -> CommitIndex {
         match &self.last_commit {
@@ -995,6 +1023,11 @@ impl DagState {
     #[cfg(test)]
     pub(crate) fn set_last_commit(&mut self, commit: TrustedCommit) {
         self.last_commit = Some(commit);
+    }
+
+    #[cfg(test)]
+    pub(crate) fn set_pending_acknowledgments(&mut self, acknowledgments: Vec<BlockRef>) {
+        self.pending_acknowledgments = acknowledgments;
     }
 }
 #[cfg(test)]
