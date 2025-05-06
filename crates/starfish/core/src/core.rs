@@ -19,11 +19,17 @@ use tokio::{
 };
 use tracing::{debug, info, trace, warn};
 
+#[cfg(test)]
 use crate::{
-    BlockHeaderAPI, VerifiedBlockHeader,
+    CommitConsumer, TransactionClient, block_verifier::NoopBlockVerifier,
+    storage::mem_store::MemStore,
+};
+use crate::{
+    Transaction,
     block_header::{
-        BlockHeader, BlockHeaderV1, BlockRef, BlockTimestampMs, GENESIS_ROUND, Round,
-        SignedBlockHeader, Slot,
+        BlockHeader, BlockHeaderAPI, BlockHeaderV1, BlockRef, BlockTimestampMs, GENESIS_ROUND,
+        Round, SignedBlockHeader, Slot, TransactionsCommitment, VerifiedBlockHeader,
+        VerifiedTransactions,
     },
     block_manager::BlockManager,
     commit::{CertifiedCommits, CommittedSubDag},
@@ -38,15 +44,18 @@ use crate::{
         UniversalCommitter, universal_committer_builder::UniversalCommitterBuilder,
     },
 };
-#[cfg(test)]
-use crate::{
-    CommitConsumer, TransactionClient, block_verifier::NoopBlockVerifier,
-    storage::mem_store::MemStore,
-};
 
 // Maximum number of commit votes to include in a block.
 // TODO: Move to protocol config, and verify in BlockVerifier.
 const MAX_COMMIT_VOTES_PER_BLOCK: usize = 100;
+
+// Maximum number of acknowledgments to be included in a block. It must be
+// reasonably larger than the number of validators because not all validators
+// create their blocks at the same pace. For now we set it as a
+// constant to not make the block header size too large.
+// TODO: after testing decide how to compress acknowledgments and move to a
+// protocol config
+const MAX_ACKNOWLEDGMENTS_PER_BLOCK: usize = 400;
 
 pub(crate) struct Core {
     context: Arc<Context>,
@@ -495,11 +504,29 @@ impl Core {
         // this would acknowledge the inclusion of transactions. Just let this
         // be done in the end of the method.
         let (transactions, ack_transactions, _limit_reached) = self.transaction_consumer.next();
+        // TODO: remove this info debug when transaction consumption is ensured to be
+        // aligned with expectation
+        info!("{} transaction are consumed by a block", transactions.len());
+        // Serialize the transaction
+        let serialized_transactions = Transaction::serialize(&transactions)
+            .expect("We should expect correct serialization for transactions");
+        // Compute transaction commitment that will be included in the block header
+        let transactions_commitment =
+            TransactionsCommitment::compute_transactions_commitment(&serialized_transactions)
+                .expect("We should expect correct computation of the transactions commitment");
+
         self.context
             .metrics
             .node_metrics
             .proposed_block_transactions
             .observe(transactions.len() as f64);
+
+        // Consume the acknowledgments about transaction data availability for past
+        // blocks to be included.
+        let acknowledgments = self
+            .dag_state
+            .write()
+            .take_acknowledgments(MAX_ACKNOWLEDGMENTS_PER_BLOCK, clock_round);
 
         // Consume the commit votes to be included.
         let commit_votes = self
@@ -508,26 +535,32 @@ impl Core {
             .take_commit_votes(MAX_COMMIT_VOTES_PER_BLOCK);
 
         // Create the block and insert to storage.
-        let block = BlockHeader::V1(BlockHeaderV1::new(
+        let block_header = BlockHeader::V1(BlockHeaderV1::new(
             self.context.committee.epoch(),
             clock_round,
             self.context.own_index,
             now,
             ancestors.iter().map(|b| b.reference()).collect(),
+            acknowledgments,
             commit_votes,
+            transactions_commitment,
         ));
-        let signed_block =
-            SignedBlockHeader::new(block, &self.block_signer).expect("Block signing failed.");
-        let serialized = signed_block
+        let signed_block_header = SignedBlockHeader::new(block_header, &self.block_signer)
+            .expect("Block signing failed.");
+
+        // Make serialization over the whole signed block header even though we
+        // serialized the block header when signing it.
+        let serialized_signed_block_header = signed_block_header
             .serialize()
             .expect("Block serialization failed.");
         self.context
             .metrics
             .node_metrics
             .proposed_block_size
-            .observe(serialized.len() as f64);
+            .observe(serialized_signed_block_header.len() as f64);
         // Own blocks are assumed to be valid.
-        let verified_block = VerifiedBlockHeader::new_verified(signed_block, serialized);
+        let verified_block_header =
+            VerifiedBlockHeader::new_verified(signed_block_header, serialized_signed_block_header);
 
         // Record the interval from last proposal, before accepting the proposed block.
         let last_proposed_block = self.last_proposed_block();
@@ -538,7 +571,7 @@ impl Core {
                 .block_proposal_interval
                 .observe(
                     Duration::from_millis(
-                        verified_block
+                        verified_block_header
                             .timestamp_ms()
                             .saturating_sub(last_proposed_block.timestamp_ms()),
                     )
@@ -549,17 +582,25 @@ impl Core {
         // Accept the block into BlockManager and DagState.
         let (accepted_blocks, missing) = self
             .block_manager
-            .try_accept_blocks(vec![verified_block.clone()]);
+            .try_accept_blocks(vec![verified_block_header.clone()]);
         assert_eq!(accepted_blocks.len(), 1);
         assert!(missing.is_empty());
+
+        // Construct verified transactions to be used for storing and broadcasting
+        // TODO: consume this transactions in the data manager and for broadcasting
+        let _verified_transactions = VerifiedTransactions::new(
+            transactions,
+            verified_block_header.reference(),
+            serialized_transactions,
+        );
 
         // Ensure the new block and its ancestors are persisted, before broadcasting it.
         self.dag_state.write().flush();
 
         // Now acknowledge the transactions for their inclusion to block
-        ack_transactions(verified_block.reference());
+        ack_transactions(verified_block_header.reference());
 
-        debug!("Created block {verified_block:?} for round {clock_round}");
+        debug!("Created block {verified_block_header:?} for round {clock_round}");
 
         self.context
             .metrics
@@ -568,7 +609,7 @@ impl Core {
             .with_label_values(&[&force.to_string()])
             .inc();
 
-        Some(verified_block)
+        Some(verified_block_header)
     }
 
     /// Runs commit rule to attempt to commit additional blocks from the DAG. If
@@ -1075,8 +1116,10 @@ mod test {
 
     use super::*;
     use crate::{
-        CommitConsumer, CommitIndex,
-        block_header::{TestBlockHeader, genesis_block_headers},
+        CommitConsumer, CommitIndex, Transaction,
+        block_header::{
+            BlockHeaderDigest, TestBlockHeader, TransactionsCommitment, genesis_block_headers,
+        },
         block_verifier::NoopBlockVerifier,
         commit::CommitAPI,
         leader_scoring::ReputationScores,
@@ -1372,25 +1415,15 @@ mod test {
             leader_schedule.clone(),
         );
 
-        let mut core = Core::new(
-            context.clone(),
-            leader_schedule,
-            transaction_consumer,
-            block_manager,
-            true,
-            commit_observer,
-            signals,
-            key_pairs.remove(context.own_index.value()).1,
-            dag_state.clone(),
-            false,
-        );
-
-        // Send some transactions
+        // First send some transactions, since the block will be created once we recover
+        // core
         let mut total = 0;
         let mut index = 0;
+        let mut transactions = vec![];
         loop {
             let transaction =
                 bcs::to_bytes(&format!("Transaction {index}")).expect("Shouldn't fail");
+            transactions.push(Transaction::new(transaction.clone()));
             total += transaction.len();
             index += 1;
             let _w = transaction_client
@@ -1404,6 +1437,63 @@ mod test {
             }
         }
 
+        // Second set dummy acknowledgments in DagState. First 200 acknowledgments are
+        // from eligible round; the rest are from the clock round, thereby they
+        // will not be taken when creating a block
+        let mut acknowledgments = vec![];
+        let num_acks = 200;
+        let mut num_pending_acks = 0;
+        loop {
+            acknowledgments.push(BlockRef::new(
+                0,
+                AuthorityIndex::new_for_test(2),
+                BlockHeaderDigest::default(),
+            ));
+            num_pending_acks += 1;
+            if num_pending_acks >= num_acks {
+                break;
+            }
+        }
+
+        loop {
+            acknowledgments.push(BlockRef::new(
+                1,
+                AuthorityIndex::new_for_test(3),
+                BlockHeaderDigest::default(),
+            ));
+            num_pending_acks += 1;
+            if num_pending_acks >= 500 {
+                break;
+            }
+        }
+
+        dag_state
+            .write()
+            .set_pending_acknowledgments(acknowledgments.clone());
+
+        // Recover core and immoderately create a new block
+        let mut core = Core::new(
+            context.clone(),
+            leader_schedule,
+            transaction_consumer,
+            block_manager,
+            true,
+            commit_observer,
+            signals,
+            key_pairs.remove(context.own_index.value()).1,
+            dag_state.clone(),
+            false,
+        );
+
+        // Manually check the transaction commitment that is expected to be computed in
+        // next block
+        let serialized_transactions = Transaction::serialize(&transactions)
+            .expect("we should expect correct serialization for transactions");
+        // Compute transaction commitment that will be included in the block header
+        let transactions_commitment =
+            TransactionsCommitment::compute_transactions_commitment(&serialized_transactions)
+                .expect("we should expect correct computation of the transactions commitment");
+
         // a new block should have been created during recovery.
         let verified_block = block_receiver
             .recv()
@@ -1414,6 +1504,11 @@ mod test {
         assert_eq!(verified_block.round(), 1);
         assert_eq!(verified_block.author().value(), 0);
         assert_eq!(verified_block.ancestors().len(), 4);
+        assert_eq!(
+            verified_block.transactions_commitment(),
+            transactions_commitment
+        );
+        assert_eq!(verified_block.acknowledgments().len(), num_acks);
 
         // genesis blocks should be referenced
         let all_genesis = genesis_block_headers(context);
