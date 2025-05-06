@@ -3,6 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use async_trait::async_trait;
+use futures::StreamExt;
 use iota_core::test_utils::compile_managed_coin_package;
 use iota_json::IotaJsonValue;
 use iota_json_rpc_types::{
@@ -501,14 +502,14 @@ impl TestCaseImpl for CoinIndexTest {
         assert_eq!(managed_coins.len(), 40);
         assert!(managed_coins.iter().all(|c| c.balance == 5));
 
-        let total_coins = GetAllPages::get_all_pages(async |cursor| {
+        let total_coins = GetAllPages::get_all_pages_stream(async |cursor| {
             client
                 .coin_read_api()
                 .get_all_coins(account, cursor, None)
                 .await
         })
-        .await?
-        .len();
+        .count()
+        .await;
 
         assert_eq!(iota_coins.len() + managed_coins.len(), total_coins);
 
