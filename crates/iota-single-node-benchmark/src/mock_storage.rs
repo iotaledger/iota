@@ -7,10 +7,7 @@ use std::{
     sync::{Arc, RwLock},
 };
 
-use iota_core::authority::{
-    authority_per_epoch_store::AuthorityPerEpochStore,
-    epoch_start_configuration::EpochStartConfigTrait,
-};
+use iota_core::authority::authority_per_epoch_store::AuthorityPerEpochStore;
 use iota_storage::package_object_cache::PackageObjectCache;
 use iota_types::{
     base_types::{EpochId, ObjectID, SequenceNumber, VersionNumber},
@@ -18,8 +15,7 @@ use iota_types::{
     inner_temporary_store::InnerTemporaryStore,
     object::{Object, Owner},
     storage::{
-        BackingPackageStore, ChildObjectResolver, GetSharedLocks, ObjectStore, PackageObject,
-        get_module_by_id,
+        BackingPackageStore, ChildObjectResolver, ObjectStore, PackageObject, get_module_by_id,
     },
     transaction::{InputObjectKind, InputObjects, ObjectReadResult, TransactionKey},
 };
