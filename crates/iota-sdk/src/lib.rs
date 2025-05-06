@@ -656,9 +656,9 @@ where
     }
 }
 
-impl<T, O, C, F, E> GetAllPages<O, C, F, E> for T
+impl<O, C, F, E, Fun> GetAllPages<O, C, F, E> for Fun
 where
-    T: Fn(Option<C>) -> F,
+    Fun: Fn(Option<C>) -> F,
     O: Send,
     C: Send,
     F: futures::Future<Output = Result<Page<O, C>, E>> + Send,
