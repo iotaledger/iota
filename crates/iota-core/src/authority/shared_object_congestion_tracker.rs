@@ -485,20 +485,29 @@ impl SharedObjectCongestionTracker {
     }
 
     /// Computes suggested gas price for a cancelled certificate
-    pub(crate) fn compute_suggested_gas_price(
-        &self,
-        cert: &VerifiedExecutableTransaction,
-    ) -> Option<u64> {
-        cert.shared_input_objects()
+    pub(crate) fn compute_suggested_gas_price(&self, cert: &VerifiedExecutableTransaction) -> u64 {
+        let gas_price = cert
+            .shared_input_objects()
+            .filter(|obj| obj.mutable)
             .map(|obj| {
                 self.object_lowest_executed_gas_price
                     .get(&obj.id)
-                    .expect("lowest executed gas price for this object must have been initialized")
+                    .cloned()
+                    // u64::MAX is assigned for objects that appear in cancelled transactions,
+                    // but they were not "seen"" by `update_object_lowest_executed_gas_price`.
+                    .unwrap_or(u64::MAX)
             })
             .min()
-            // TODO: check if suggested gas price is not larger than maximum defined in protocol
-            // config
-            .map(|gp| gp + 1)
+            .expect("there must be at least one mutable shared object responsible for congestion");
+        assert_ne!(
+            gas_price,
+            u64::MAX,
+            "at least one congested shared object must have been seen in transactions before"
+        );
+
+        // TODO: check if suggested gas price is not larger than maximum defined in
+        // protocol config
+        gas_price + 1
     }
 }
 
@@ -1574,19 +1583,20 @@ mod object_cost_tests {
         );
     }
 
-    #[test]
-    fn test_compute_suggested_gas_price() {
-        let schedule_third_tx = true;
-
+    #[rstest]
+    fn test_compute_suggested_gas_price(
+        #[values(true, false)] assign_min_free_execution_slot: bool,
+    ) {
         let mut shared_object_congestion_tracker = SharedObjectCongestionTracker::new(
             PerObjectCongestionControlMode::TotalTxCount,
-            schedule_third_tx,
+            assign_min_free_execution_slot,
         );
 
-        let object_a = ObjectID::random();
-        let object_b = ObjectID::random();
-        let object_c = ObjectID::random();
-        let object_d = ObjectID::random();
+        let object_1 = ObjectID::random();
+        let object_2 = ObjectID::random();
+        let object_3 = ObjectID::random();
+        let object_4 = ObjectID::random();
+        let objects = [object_1, object_2, object_3, object_4];
 
         let max_execution_duration_per_commit = 2;
 
@@ -1594,9 +1604,9 @@ mod object_cost_tests {
         let gas_price_of_tx_2 = 1_002;
         let gas_price_of_tx_3 = 1_001;
 
-        let tx_1 = build_transaction(&[(object_a, true), (object_b, true)], 1, gas_price_of_tx_1);
-        let tx_2 = build_transaction(&[(object_b, true), (object_c, true)], 1, gas_price_of_tx_2);
-        let tx_3 = build_transaction(&[(object_c, true), (object_d, true)], 1, gas_price_of_tx_3);
+        let tx_1 = build_transaction(&[(object_1, true), (object_2, true)], 1, gas_price_of_tx_1);
+        let tx_2 = build_transaction(&[(object_2, true), (object_3, true)], 1, gas_price_of_tx_2);
+        let tx_3 = build_transaction(&[(object_3, true), (object_4, true)], 1, gas_price_of_tx_3);
 
         let shared_input_objects: Vec<_> = tx_1.shared_input_objects().collect();
         shared_object_congestion_tracker.initialize_for_shared_objects(&shared_input_objects);
@@ -1613,7 +1623,7 @@ mod object_cost_tests {
         }
         assert_eq!(
             shared_object_congestion_tracker.compute_suggested_gas_price(&tx_1),
-            Some(gas_price_of_tx_1 + 1)
+            gas_price_of_tx_1 + 1
         );
 
         let shared_input_objects: Vec<_> = tx_2.shared_input_objects().collect();
@@ -1631,7 +1641,7 @@ mod object_cost_tests {
         }
         assert_eq!(
             shared_object_congestion_tracker.compute_suggested_gas_price(&tx_2),
-            Some(gas_price_of_tx_2 + 1)
+            gas_price_of_tx_2 + 1
         );
 
         let shared_input_objects: Vec<_> = tx_3.shared_input_objects().collect();
@@ -1644,57 +1654,29 @@ mod object_cost_tests {
         );
         if let SequencingResult::Schedule(start_time) = sequencing_result {
             shared_object_congestion_tracker.bump_object_execution_slots(&tx_3, start_time);
-        } else if schedule_third_tx {
+        } else if assign_min_free_execution_slot {
             panic!("tx 3 must be scheduled");
         }
         assert_eq!(
             shared_object_congestion_tracker.compute_suggested_gas_price(&tx_3),
-            Some(gas_price_of_tx_3 + 1)
+            if assign_min_free_execution_slot {
+                gas_price_of_tx_3
+            } else {
+                gas_price_of_tx_2
+            } + 1
         );
 
-        println!(
-            "Object A: {}\n{:#?}\n",
-            shared_object_congestion_tracker
-                .object_lowest_executed_gas_price
-                .get(&object_a)
-                .unwrap(),
-            shared_object_congestion_tracker
-                .object_execution_slots
-                .get(&object_a)
-                .unwrap()
-        );
-        println!(
-            "Object B: {}\n{:#?}\n",
-            shared_object_congestion_tracker
-                .object_lowest_executed_gas_price
-                .get(&object_b)
-                .unwrap(),
-            shared_object_congestion_tracker
-                .object_execution_slots
-                .get(&object_b)
-                .unwrap()
-        );
-        println!(
-            "Object C: {}\n{:#?}\n",
-            shared_object_congestion_tracker
-                .object_lowest_executed_gas_price
-                .get(&object_c)
-                .unwrap(),
-            shared_object_congestion_tracker
-                .object_execution_slots
-                .get(&object_c)
-                .unwrap()
-        );
-        println!(
-            "Object D: {}\n{:#?}\n",
-            shared_object_congestion_tracker
-                .object_lowest_executed_gas_price
-                .get(&object_d)
-                .unwrap(),
-            shared_object_congestion_tracker
-                .object_execution_slots
-                .get(&object_d)
-                .unwrap()
-        );
+        for (i, obj) in objects.iter().enumerate() {
+            println!(
+                "Object {}:\n\tlowest executed gas price: {:?}\n\texecution slots: {:?}\n",
+                i + 1,
+                shared_object_congestion_tracker
+                    .object_lowest_executed_gas_price
+                    .get(obj),
+                shared_object_congestion_tracker
+                    .object_execution_slots
+                    .get(obj)
+            );
+        }
     }
 }
