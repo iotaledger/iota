@@ -878,6 +878,7 @@ impl AuthorityPerEpochStore {
             signature_verifier_metrics,
             zklogin_env,
             protocol_config.accept_zklogin_in_multisig(),
+            protocol_config.accept_passkey_in_multisig(),
             protocol_config.zklogin_max_epoch_upper_bound_delta(),
         );
 

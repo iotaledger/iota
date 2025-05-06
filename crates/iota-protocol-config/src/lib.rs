@@ -58,6 +58,7 @@ pub const MAX_PROTOCOL_VERSION: u64 = 9;
 //            Enable consensus garbage collection for mainnet
 //            Enable the new consensus commit rule for mainnet.
 //            Increase the committee size to 80.
+//            Enable passkey auth in multisig for testnet.
 
 #[derive(Copy, Clone, Debug, Hash, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ProtocolVersion(u64);
@@ -176,6 +177,10 @@ struct FeatureFlags {
     // If true, multisig containing zkLogin sig is accepted.
     #[serde(skip_serializing_if = "is_false")]
     accept_zklogin_in_multisig: bool,
+
+    // If true, multisig containing passkey sig is accepted.
+    #[serde(skip_serializing_if = "is_false")]
+    accept_passkey_in_multisig: bool,
 
     // If true, use the hardened OTW check
     // This flag is used to provide the correct MoveVM configuration for clients.
@@ -1124,6 +1129,10 @@ impl ProtocolConfig {
         self.feature_flags.accept_zklogin_in_multisig
     }
 
+    pub fn accept_passkey_in_multisig(&self) -> bool {
+        self.feature_flags.accept_passkey_in_multisig
+    }
+
     pub fn zklogin_max_epoch_upper_bound_delta(&self) -> Option<u64> {
         self.feature_flags.zklogin_max_epoch_upper_bound_delta
     }
@@ -1980,6 +1989,8 @@ impl ProtocolConfig {
                         // blocks within a window of ~4 seconds
                         // to be included before be considered garbage collected.
                         cfg.consensus_gc_depth = Some(60);
+                        // Enable passkey in multisig.
+                        cfg.feature_flags.accept_passkey_in_multisig = true;
                     }
                     // Enable min_free_execution_slot for the shared object congestion tracker in
                     // devnet.
@@ -2148,6 +2159,10 @@ impl ProtocolConfig {
     pub fn set_consensus_round_prober_probe_accepted_rounds(&mut self, val: bool) {
         self.feature_flags
             .consensus_round_prober_probe_accepted_rounds = val;
+    }
+
+    pub fn set_accept_passkey_in_multisig_for_testing(&mut self, val: bool) {
+        self.feature_flags.accept_passkey_in_multisig = val;
     }
 }
 
