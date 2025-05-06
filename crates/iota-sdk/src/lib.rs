@@ -637,16 +637,20 @@ impl DataReader for ReadApi {
     }
 }
 
+/// A helper trait for repeatedly calling an async function which returns pages
+/// of data.
 pub trait GetAllPages<O, C, F, E>: Sized + Fn(Option<C>) -> F
 where
     O: Send,
     C: Send,
     F: futures::Future<Output = Result<Page<O, C>, E>> + Send,
 {
+    /// Get all items from the source and collect them into a vector.
     fn get_all_pages(self) -> impl futures::Future<Output = Result<Vec<O>, E>> {
         self.get_all_pages_stream().try_collect()
     }
 
+    /// Get a stream which will return all items from the source.
     fn get_all_pages_stream(self) -> GetAllPagesStream<O, C, F, E, Self> {
         GetAllPagesStream::new(self)
     }
@@ -661,6 +665,8 @@ where
 {
 }
 
+/// A stream which repeatedly calls an async function which returns a page of
+/// data.
 pub struct GetAllPagesStream<O, C, F, E, Fun> {
     fun: Fun,
     fut: Pin<Box<F>>,
@@ -718,5 +724,64 @@ where
             }
         }
         Poll::Ready(this.next.pop_front().map(Ok))
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use iota_json_rpc_types::Page;
+
+    use super::*;
+
+    #[tokio::test]
+    async fn test_get_all_pages() {
+        let data = (0..10000).collect::<Vec<_>>();
+        struct Endpoint {
+            data: Vec<i32>,
+        }
+
+        impl Endpoint {
+            async fn get_page(&self, cursor: Option<usize>) -> anyhow::Result<Page<i32, usize>> {
+                const PAGE_SIZE: usize = 100;
+                anyhow::ensure!(
+                    cursor.map_or(true, |v| v < self.data.len()),
+                    "invalid cursor"
+                );
+                let index = cursor.unwrap_or_default();
+                let data = self.data[index..]
+                    .iter()
+                    .copied()
+                    .take(PAGE_SIZE)
+                    .collect::<Vec<_>>();
+                let has_next_page = self.data.len() > index + PAGE_SIZE;
+                Ok(Page {
+                    data,
+                    next_cursor: has_next_page.then_some(index + PAGE_SIZE),
+                    has_next_page,
+                })
+            }
+        }
+
+        let endpoint = Endpoint { data };
+
+        let mut stream =
+            GetAllPages::get_all_pages_stream(async |cursor| endpoint.get_page(cursor).await);
+
+        assert_eq!(
+            stream
+                .by_ref()
+                .take(9999)
+                .try_collect::<Vec<_>>()
+                .await
+                .unwrap(),
+            endpoint.data[..9999]
+        );
+        assert_eq!(stream.by_ref().try_next().await.unwrap(), Some(9999));
+        assert!(stream.try_next().await.unwrap().is_none());
+
+        let mut bad_stream =
+            GetAllPages::get_all_pages_stream(async |_| endpoint.get_page(Some(99999)).await);
+
+        assert!(bad_stream.try_next().await.is_err());
     }
 }
