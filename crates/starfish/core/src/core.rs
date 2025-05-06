@@ -19,13 +19,17 @@ use tokio::{
 };
 use tracing::{debug, info, trace, warn};
 
+#[cfg(test)]
+use crate::{
+    CommitConsumer, TransactionClient, block_verifier::NoopBlockVerifier,
+    storage::mem_store::MemStore,
+};
 use crate::{
     Transaction,
-    ancestor::{AncestorState, AncestorStateManager},
     block_header::{
-        BlockHeader, BlockHeaderAPI, BlockHeaderV1, BlockRef, BlockTimestampMs, ExtendedBlock,
-        GENESIS_ROUND, Round, SignedBlockHeader, Slot, VerifiedBlockHeader,
-        VerifiedTransactions
+        BlockHeader, BlockHeaderAPI, BlockHeaderV1, BlockRef, BlockTimestampMs, GENESIS_ROUND,
+        Round, SignedBlockHeader, Slot, TransactionsCommitment, VerifiedBlockHeader,
+        VerifiedTransactions,
     },
     block_manager::BlockManager,
     commit::{CertifiedCommits, CommittedSubDag},
@@ -40,20 +44,15 @@ use crate::{
         UniversalCommitter, universal_committer_builder::UniversalCommitterBuilder,
     },
 };
-#[cfg(test)]
-use crate::{
-    CommitConsumer, TransactionClient, block_verifier::NoopBlockVerifier,
-    storage::mem_store::MemStore,
-};
 
 // Maximum number of commit votes to include in a block.
 // TODO: Move to protocol config, and verify in BlockVerifier.
 const MAX_COMMIT_VOTES_PER_BLOCK: usize = 100;
 
 // Maximum number of acknowledgments to be included in a block. It must be
-// larger than a factor of 4/3 multiplied by the number of validators to
-// acknowledge all the blocks. For now we set it as a constant to not
-// make the block header size too large.
+// reasonably larger than the number of validators because not all validators
+// create their blocks at the same pace. For now we set it as a
+// constant to not make the block header size too large.
 // TODO: after testing decide how to compress acknowledgments and move to a
 // protocol config
 const MAX_ACKNOWLEDGMENTS_PER_BLOCK: usize = 400;
@@ -1118,7 +1117,9 @@ mod test {
     use super::*;
     use crate::{
         CommitConsumer, CommitIndex, Transaction,
-        block_header::{BlockHeaderDigest, TestBlockHeader, genesis_block_headers},
+        block_header::{
+            BlockHeaderDigest, TestBlockHeader, TransactionsCommitment, genesis_block_headers,
+        },
         block_verifier::NoopBlockVerifier,
         commit::CommitAPI,
         leader_scoring::ReputationScores,
@@ -1487,11 +1488,11 @@ mod test {
         // Manually check the transaction commitment that is expected to be computed in
         // next block
         let serialized_transactions = Transaction::serialize(&transactions)
-            .expect("We should expect correct serialization for transactions");
+            .expect("we should expect correct serialization for transactions");
         // Compute transaction commitment that will be included in the block header
         let transactions_commitment =
             TransactionsCommitment::compute_transactions_commitment(&serialized_transactions)
-                .expect("We should expect correct computation of the transactions commitment");
+                .expect("we should expect correct computation of the transactions commitment");
 
         // a new block should have been created during recovery.
         let verified_block = block_receiver
@@ -1503,6 +1504,11 @@ mod test {
         assert_eq!(verified_block.round(), 1);
         assert_eq!(verified_block.author().value(), 0);
         assert_eq!(verified_block.ancestors().len(), 4);
+        assert_eq!(
+            verified_block.transactions_commitment(),
+            transactions_commitment
+        );
+        assert_eq!(verified_block.acknowledgments().len(), num_acks);
 
         // genesis blocks should be referenced
         let all_genesis = genesis_block_headers(context);
