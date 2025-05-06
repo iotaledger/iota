@@ -139,10 +139,10 @@ You will add scripts that perform the following tasks in order:
 1. Deploy the `MyERC721` contract to the BNB Testnet. [deploy_erc721_bnb.js](#deploy_erc721_bnbjs)
 2. Mint an NFT using the `MyERC721` contract. [mint_nft.js](#mint_nftjs)
 3. Deploy the `MyProxyONFT721` contract to the BNB Testnet. [deploy_proxyonft_bnb.js](#deploy_proxyonft_bnbjs)
-4. Deploy the `MyONFT721` contract, the receiver, to the IOTA EVM Testnet. [deploy_onft721_shimmer.js](#deploy_onft721_shimmerjs)
+4. Deploy the `MyONFT721` contract, the receiver, to the IOTA EVM Testnet. [deploy_onft721_iota.js](#deploy_onft721_iotajs)
 5. Configure the `MyProxyONFT721` contract to send NFTs to the `MyONFT721` contract. [set_trusted_remote_bnb.js](#set_trusted_remote_bnbjs)
-6. Configure the `MyONFT721` contract to receive NFTs from the `MyProxyONFT721` contract. [set_trusted_remote_shimmer.js](#set_trusted_remote_shimmerjs)
-7. Send an NFT from the BNB Testnet to the ShimmerEVM Testnet. [send_nft_bnb_to_shimmer.js](#send_nftjs)
+6. Configure the `MyONFT721` contract to receive NFTs from the `MyProxyONFT721` contract. [set_trusted_remote_iota.js](#set_trusted_remote_iotajs)
+7. Send an NFT from the BNB Testnet to the IotaEVM Testnet. [send_nft_bnb_to_iota.js](#send_nftjs)
 8. List the received NFT on the NFT marketplace. [list_nft_marketplace.js](#create_listingjs)
 
 :::note
@@ -193,18 +193,18 @@ You can run the script by executing the following command:
 npx hardhat run scripts/deploy_proxyonft_bnb.js --network bnbTestnet
 ```
 
-### deploy_onft721_shimmer.js
+### deploy_onft721_iota.js
 
-Deploy the `MyONFT721` contract to the Shimmer EVM Testnet and save its address in a file called `MyONFT721_Shimmer.txt` using the following script:
+Deploy the `MyONFT721` contract to the Iota EVM Testnet and save its address in a file called `MyONFT721_Iota.txt` using the following script:
 
 ```javascript reference
-https://github.com/iota-community/ISC-Cross-Chain-NFT-Marketplace/blob/main/scripts/deploy_onft_shimmer.js
+https://github.com/iota-community/ISC-Cross-Chain-NFT-Marketplace/blob/main/scripts/deploy_onft_iota.js
 ```
 
 You can run the script by executing the following command:
 
 ```bash
-npx hardhat run scripts/deploy_onft_shimmer.js --network shimmerevm-testnet
+npx hardhat run scripts/deploy_onft_iota.js --network iotaevm-testnet
 ```
 
 ### set_trusted_remote_bnb.js
@@ -221,23 +221,23 @@ You can run the script by executing the following command:
 npx hardhat run scripts/set_trusted_remote_bnb.js --network bnbTestnet
 ```
 
-### set_trusted_remote_shimmer.js
+### set_trusted_remote_iota.js
 
-On the ShimmerEVM Testnet, call the `MyONFT721` contract to set the `MyProxyONFT721` contract as a trusted remote contract. This will allow the `MyONFT721` contract to receive NFTs from the `MyProxyONFT721` contract.
+On the IotaEVM Testnet, call the `MyONFT721` contract to set the `MyProxyONFT721` contract as a trusted remote contract. This will allow the `MyONFT721` contract to receive NFTs from the `MyProxyONFT721` contract.
 
 ```javascript reference
-https://github.com/iota-community/ISC-Cross-Chain-NFT-Marketplace/blob/main/scripts/deploy_onft_shimmer.js
+https://github.com/iota-community/ISC-Cross-Chain-NFT-Marketplace/blob/main/scripts/deploy_onft_iota.js
 ```
 
 You can run the script by executing the following command:
 
 ```bash
-npx hardhat run scripts/set_trusted_remote_shimmer.js --network shimmerevm-testnet
+npx hardhat run scripts/set_trusted_remote_iota.js --network iotaevm-testnet
 ```
 
 ### set_min_dest_gas_bnb.js
 
-On the BNB Testnet, call the `MyProxyONFT721` contract to set the minimum gas required to send an NFT to the ShimmerEVM Testnet. This is ensures that the sender has enough gas to complete the transfer.
+On the BNB Testnet, call the `MyProxyONFT721` contract to set the minimum gas required to send an NFT to the IotaEVM Testnet. This is ensures that the sender has enough gas to complete the transfer.
 
 ```javascript reference
 https://github.com/iota-community/ISC-Cross-Chain-NFT-Marketplace/blob/main/scripts/set_min_dest_gas_bnb.js
@@ -249,23 +249,23 @@ You can run the script by executing the following command:
 npx hardhat run scripts/set_min_dest_gas_bnb.js --network bnbTestnet
 ```
 
-### set_min_dest_gas_shimmer.js
+### set_min_dest_gas_iota.js
 
-On the ShimmerEVM Testnet, call the `MyONFT721` contract to set the minimum gas required to receive an NFT from the BNB Testnet. This is necessary to ensure that the receiver has enough gas to complete the transfer.
+On the IotaEVM Testnet, call the `MyONFT721` contract to set the minimum gas required to receive an NFT from the BNB Testnet. This is necessary to ensure that the receiver has enough gas to complete the transfer.
 
 ```javascript reference
-https://github.com/iota-community/ISC-Cross-Chain-NFT-Marketplace/blob/main/scripts/set_min_dest_gas_shimmer.js
+https://github.com/iota-community/ISC-Cross-Chain-NFT-Marketplace/blob/main/scripts/set_min_dest_gas_iota.js
 ```
 
 You can run the script by executing the following command:
 
 ```bash
-npx hardhat run scripts/set_min_dest_gas_shimmer.js --network shimmerevm-testnet
+npx hardhat run scripts/set_min_dest_gas_iota.js --network iotaevm-testnet
 ```
 
 ### send_nft.js
 
-Finally, call the `MyProxyONFT721` contract on the BNB Testnet to send an NFT to the `MyONFT721` contract on the ShimmerEVM Testnet. This script approves the `MyProxyONFT721` contract to transfer the NFT and then sends the NFT to the `MyONFT721` contract.
+Finally, call the `MyProxyONFT721` contract on the BNB Testnet to send an NFT to the `MyONFT721` contract on the IotaEVM Testnet. This script approves the `MyProxyONFT721` contract to transfer the NFT and then sends the NFT to the `MyONFT721` contract.
 
 ```javascript reference
 https://github.com/iota-community/ISC-Cross-Chain-NFT-Marketplace/blob/main/scripts/send_nft.js
@@ -279,7 +279,7 @@ npx hardhat run scripts/send_nft.js --network bnbTestnet
 
 :::note
 
-The script will take some time to complete, as it waits for the NFT to be received on the ShimmerEVM Testnet.
+The script will take some time to complete, as it waits for the NFT to be received on the IotaEVM Testnet.
 
 :::
 
@@ -294,7 +294,7 @@ https://github.com/iota-community/ISC-Cross-Chain-NFT-Marketplace/blob/main/scri
 You can run the script by executing the following command:
 
 ```bash
-npx hardhat run scripts/create_listing.js --network shimmerevm-testnet
+npx hardhat run scripts/create_listing.js --network iotaevm-testnet
 ```
 
 ### buy_item.js
@@ -308,9 +308,9 @@ https://github.com/iota-community/ISC-Cross-Chain-NFT-Marketplace/blob/main/scri
 You can run the script by executing the following command:
 
 ```bash
-npx hardhat run scripts/buy_item.js --network shimmerevm-testnet
+npx hardhat run scripts/buy_item.js --network iotaevm-testnet
 ```
 
 ## Conclusion
 
-In the second part of this tutorial, you manually bridged an NFT from the BNB Testnet to the ShimmerEVM Testnet and listed it on the NFT marketplace. The final part of the series will explore how to create a cross-chain swap contract that allows users to trade NFTs across chains.
+In the second part of this tutorial, you manually bridged an NFT from the BNB Testnet to the IotaEVM Testnet and listed it on the NFT marketplace. The final part of the series will explore how to create a cross-chain swap contract that allows users to trade NFTs across chains.

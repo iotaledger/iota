@@ -22,12 +22,12 @@ The architecture of the marketplace will evolve as we progress through the tutor
 ### Part I
 
 In part I, we will start with this very simple architecture:
-![Cross Chain MarketPlace V1](/img/iota-evm/tutorials/cross_chain_marketplace/Architecture-V1.png)
+![Cross Chain MarketPlace V1](/img/iota-evm/tutorials/cross_chain_marketplace/1.png)
 
 ### Part II
 
 In Part II, you will add the contracts and scripts to manually bridge NFTs from the BNB Testnet to the IOTA EVM Testnet and list them on the marketplace. The architecture will evolve to look like this:
-![Cross Chain MarketPlace V2](/img/iota-evm/tutorials/cross_chain_marketplace/Architecture-V2.png)
+![Cross Chain MarketPlace V2](/img/iota-evm/tutorials/cross_chain_marketplace/2.png)
 
 <!-- ### Part III
 
@@ -198,33 +198,33 @@ npx hardhat compile
 
 First, create a `scripts` folder in the root of the project and add the following files under it:
 
-### deploy_marketplace_shimmer.js
+### deploy_marketplace_iota.js
 
-The `deploy_marketplace_shimmer.js` script will deploy the NFTMarketplace contract to the ShimmerEVM Testnet and save the contract address to a file called `NFTMarketplace.txt`.
+The `deploy_marketplace_iota.js` script will deploy the NFTMarketplace contract to the IotaEVM Testnet and save the contract address to a file called `NFTMarketplace.txt`.
 
 ```javascript reference
-https://github.com/iota-community/ISC-Cross-Chain-NFT-Marketplace/blob/main/scripts/deploy_marketplace_shimmer.js
+https://github.com/iota-community/ISC-Cross-Chain-NFT-Marketplace/blob/main/scripts/deploy_marketplace_iota.js
 ```
 
-This will deploy the NFTMarketplace contract to the ShimmerEVM Testnet and save the contract address to a file.
+This will deploy the NFTMarketplace contract to the IotaEVM Testnet and save the contract address to a file.
 run it by executing:
 
 ```bash
-npx hardhat run scripts/deploy_marketplace_shimmer.js --network shimmerevm-testnet
+npx hardhat run scripts/deploy_marketplace_iota.js --network iotaevm-testnet
 ```
 
-### deploy_er721_shimmer.js
+### deploy_er721_iota.js
 
-This script will deploy the `MyERC721` contract to the ShimmerEVM Testnet and save the contract's address to a file called `MyERC721.txt`.
+This script will deploy the `MyERC721` contract to the IotaEVM Testnet and save the contract's address to a file called `MyERC721.txt`.
 
 ```javascript reference
-https://github.com/iota-community/ISC-Cross-Chain-NFT-Marketplace/blob/main/scripts/deploy_erc721_shimmer.js
+https://github.com/iota-community/ISC-Cross-Chain-NFT-Marketplace/blob/main/scripts/deploy_erc721_iota.js
 ```
 
 You can run this script with the following command:
 
 ```bash
-npx hardhat run scripts/deploy_er721_shimmer.js --network shimmerevm-testnet
+npx hardhat run scripts/deploy_er721_iota.js --network iotaevm-testnet
 ```
 
 ### mint_nft.js
@@ -238,7 +238,7 @@ https://github.com/iota-community/ISC-Cross-Chain-NFT-Marketplace/blob/main/scri
 You can run the script by executing the following command:
 
 ```bash
-npx hardhat run scripts/mint_nft.js --network shimmerevm-testnet
+npx hardhat run scripts/mint_nft.js --network iotaevm-testnet
 ```
 
 ### approve_myERC721_for_marketplace.js
@@ -252,7 +252,7 @@ https://github.com/iota-community/ISC-Cross-Chain-NFT-Marketplace/blob/main/scri
 You can run the script by executing the following command:
 
 ```bash
-npx hardhat run scripts/approve_myERC721_for_marketplace.js --network shimmerevm-testnet
+npx hardhat run scripts/approve_myERC721_for_marketplace.js --network iotaevm-testnet
 ```
 
 ### create_listing.js
@@ -266,7 +266,7 @@ https://github.com/iota-community/ISC-Cross-Chain-NFT-Marketplace/blob/main/scri
 You can run the script by executing the following command:
 
 ```bash
-npx hardhat run scripts/create_listing.js --network shimmerevm-testnet
+npx hardhat run scripts/create_listing.js --network iotaevm-testnet
 ```
 
 ### buy_item.js
@@ -280,9 +280,9 @@ https://github.com/iota-community/ISC-Cross-Chain-NFT-Marketplace/blob/main/scri
 You can run the script by executing the following command:
 
 ```bash
-npx hardhat run scripts/buy_item.js --network shimmerevm-testnet
+npx hardhat run scripts/buy_item.js --network iotaevm-testnet
 ```
 
 ## Conclusion
 
-In this first part of the cross-chain NFT marketplace tutorial, we have set up the project and deployed the NFTMarketplace contract to the ShimmerEVM Testnet. We have also deployed the MyERC721 contract, minted an NFT and then listed it on the marketplace. In the next part, we will manually bridge NFTs from BNB Testnet and Shimmer Testnet to the ShimmerEVM Testnet and list them on the same marketplace.
+In this first part of the cross-chain NFT marketplace tutorial, we have set up the project and deployed the NFTMarketplace contract to the IotaEVM Testnet. We have also deployed the MyERC721 contract, minted an NFT and then listed it on the marketplace. In the next part, we will manually bridge NFTs from BNB Testnet and Iota Testnet to the IotaEVM Testnet and list them on the same marketplace.
