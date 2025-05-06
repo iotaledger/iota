@@ -32,145 +32,6 @@ const developer = [
     },
     {
         type: 'category',
-        label: 'Move Overview',
-        items: [
-            'developer/iota-101/move-overview/move-overview',
-            'developer/iota-101/move-overview/strings',
-            'developer/iota-101/move-overview/collections',
-            'developer/iota-101/move-overview/init',
-            'developer/iota-101/move-overview/visibility',
-            'developer/iota-101/move-overview/entry-functions',
-            'developer/iota-101/using-events',
-            'developer/iota-101/access-time',
-            {
-                type: 'category',
-                label: 'Structs and Abilities',
-                items: [
-                    'developer/iota-101/move-overview/structs-and-abilities/struct',
-                    'developer/iota-101/move-overview/structs-and-abilities/copy',
-                    'developer/iota-101/move-overview/structs-and-abilities/drop',
-                    'developer/iota-101/move-overview/structs-and-abilities/key',
-                    'developer/iota-101/move-overview/structs-and-abilities/store',
-                ],
-            },
-            'developer/iota-101/move-overview/one-time-witness',
-            {
-                type: 'category',
-                label: 'Package Upgrades',
-                items: [
-                    'developer/iota-101/move-overview/package-upgrades/introduction',
-                    'developer/iota-101/move-overview/package-upgrades/upgrade',
-                    'developer/iota-101/move-overview/package-upgrades/automated-address-management',
-                    'developer/iota-101/move-overview/package-upgrades/custom-policies',
-                ],
-            },
-            'developer/iota-101/move-overview/ownership-scope',
-            'developer/iota-101/move-overview/references',
-            'developer/iota-101/move-overview/generics',
-            {
-                type: 'category',
-                label: 'Patterns',
-                items: [
-                    'developer/iota-101/move-overview/patterns/patterns',
-                    'developer/iota-101/move-overview/patterns/capabilities',
-                    'developer/iota-101/move-overview/patterns/witness',
-                    'developer/iota-101/move-overview/patterns/transferable-witness',
-                    'developer/iota-101/move-overview/patterns/hot-potato',
-                    'developer/iota-101/move-overview/patterns/id-pointer',
-                ],
-            },
-            'developer/iota-101/move-overview/conventions',
-        ],
-    },
-    {
-        type: 'category',
-        label: 'Object Model',
-        items: [
-            'developer/iota-101/objects/object-model',
-            'developer/iota-101/objects/shared-owned',
-            'developer/iota-101/objects/shared-object-example',
-            {
-                type: 'category',
-                label: 'Object Ownership',
-                link: {
-                    type: 'doc',
-                    id: 'developer/iota-101/objects/object-ownership/object-ownership',
-                },
-                items: [
-                    'developer/iota-101/objects/object-ownership/address-owned',
-                    'developer/iota-101/objects/object-ownership/immutable',
-                    'developer/iota-101/objects/object-ownership/shared',
-                    'developer/iota-101/objects/object-ownership/wrapped',
-                ],
-            },
-            'developer/iota-101/objects/uid-id',
-            {
-                type: 'category',
-                label: 'Dynamic Fields',
-                link: {
-                    type: 'doc',
-                    id: 'developer/iota-101/objects/dynamic-fields/dynamic-fields',
-                },
-                items: ['developer/iota-101/objects/dynamic-fields/tables-bags'],
-            },
-            {
-                type: 'category',
-                label: 'Transfers',
-                link: {
-                    type: 'doc',
-                    id: 'developer/iota-101/objects/transfers/transfers',
-                },
-                items: [
-                    'developer/iota-101/objects/transfers/custom-rules',
-                    'developer/iota-101/objects/transfers/transfer-to-object',
-                ],
-            },
-            'developer/iota-101/objects/events',
-            'developer/iota-101/objects/versioning',
-        ],
-    },
-    {
-        type: 'category',
-        label: 'Cryptography',
-        link: {
-            type: 'doc',
-            id: 'developer/cryptography',
-        },
-        items: [
-            {
-                type: 'category',
-                label: 'Transaction Authentication',
-                link: {
-                    type: 'doc',
-                    id: 'developer/cryptography/transaction-auth',
-                },
-                items: [
-                    'developer/cryptography/transaction-auth/keys-addresses',
-                    'developer/cryptography/transaction-auth/signatures',
-                    'developer/cryptography/transaction-auth/multisig',
-                    'developer/cryptography/transaction-auth/offline-signing',
-                    'developer/cryptography/transaction-auth/intent-signing',
-                ],
-            },
-            'developer/cryptography/checkpoint-verification',
-            {
-                type: 'category',
-                label: 'Smart Contract Cryptography',
-                link: {
-                    type: 'doc',
-                    id: 'developer/cryptography/on-chain',
-                },
-                items: [
-                    'developer/cryptography/on-chain/signing',
-                    'developer/cryptography/on-chain/groth16',
-                    'developer/cryptography/on-chain/hashing',
-                    'developer/cryptography/on-chain/ecvrf',
-                ],
-            },
-        ],
-    },
-    {
-        type: 'category',
         label: 'Capture The Flag',
         link: {
             type: 'doc',
@@ -343,6 +204,203 @@ const developer = [
                 ],
             },
             'developer/dev-cheat-sheet',
+        ]
+    },
+    {
+        type: 'category',
+        label: 'Explanation',
+        items: [
+            {
+                type: 'category',
+                label: 'Object Model',
+                items: [
+                    'developer/iota-101/objects/object-model',
+                    'developer/iota-101/objects/shared-owned',
+                    'developer/iota-101/objects/shared-object-example',
+                    {
+                        type: 'category',
+                        label: 'Object Ownership',
+                        link: {
+                            type: 'doc',
+                            id: 'developer/iota-101/objects/object-ownership/object-ownership',
+                        },
+                        items: [
+                            'developer/iota-101/objects/object-ownership/address-owned',
+                            'developer/iota-101/objects/object-ownership/immutable',
+                            'developer/iota-101/objects/object-ownership/shared',
+                            'developer/iota-101/objects/object-ownership/wrapped',
+                        ],
+                    },
+                    'developer/iota-101/objects/uid-id',
+                    {
+                        type: 'category',
+                        label: 'Dynamic Fields',
+                        link: {
+                            type: 'doc',
+                            id: 'developer/iota-101/objects/dynamic-fields/dynamic-fields',
+                        },
+                        items: ['developer/iota-101/objects/dynamic-fields/tables-bags'],
+                    },
+                    {
+                        type: 'category',
+                        label: 'Transfers',
+                        link: {
+                            type: 'doc',
+                            id: 'developer/iota-101/objects/transfers/transfers',
+                        },
+                        items: [
+                            'developer/iota-101/objects/transfers/custom-rules',
+                            'developer/iota-101/objects/transfers/transfer-to-object',
+                        ],
+                    },
+                    'developer/iota-101/objects/events',
+                    'developer/iota-101/objects/versioning',
+                ],
+            },
+            {
+                type: 'category',
+                label: 'Move Overview',
+                items: [
+                    'developer/iota-101/move-overview/move-overview',
+                    'developer/iota-101/move-overview/strings',
+                    'developer/iota-101/move-overview/collections',
+                    'developer/iota-101/move-overview/init',
+                    'developer/iota-101/move-overview/visibility',
+                    'developer/iota-101/move-overview/entry-functions',
+                    'developer/iota-101/using-events',
+                    'developer/iota-101/access-time',
+                    {
+                        type: 'category',
+                        label: 'Structs and Abilities',
+                        items: [
+                            'developer/iota-101/move-overview/structs-and-abilities/struct',
+                            'developer/iota-101/move-overview/structs-and-abilities/copy',
+                            'developer/iota-101/move-overview/structs-and-abilities/drop',
+                            'developer/iota-101/move-overview/structs-and-abilities/key',
+                            'developer/iota-101/move-overview/structs-and-abilities/store',
+                        ],
+                    },
+                    'developer/iota-101/move-overview/one-time-witness',
+                    {
+                        type: 'category',
+                        label: 'Package Upgrades',
+                        items: [
+                            'developer/iota-101/move-overview/package-upgrades/introduction',
+                            'developer/iota-101/move-overview/package-upgrades/upgrade',
+                            'developer/iota-101/move-overview/package-upgrades/automated-address-management',
+                            'developer/iota-101/move-overview/package-upgrades/custom-policies',
+                        ],
+                    },
+                    'developer/iota-101/move-overview/ownership-scope',
+                    'developer/iota-101/move-overview/references',
+                    'developer/iota-101/move-overview/generics',
+                    {
+                        type: 'category',
+                        label: 'Patterns',
+                        items: [
+                            'developer/iota-101/move-overview/patterns/patterns',
+                            'developer/iota-101/move-overview/patterns/capabilities',
+                            'developer/iota-101/move-overview/patterns/witness',
+                            'developer/iota-101/move-overview/patterns/transferable-witness',
+                            'developer/iota-101/move-overview/patterns/hot-potato',
+                            'developer/iota-101/move-overview/patterns/id-pointer',
+                        ],
+                    },
+                    'developer/iota-101/move-overview/conventions',
+                ],
+            },
+            {
+                type: 'category',
+                label: 'Cryptography',
+                link: {
+                    type: 'doc',
+                    id: 'developer/cryptography',
+                },
+                items: [
+                    {
+                        type: 'category',
+                        label: 'Transaction Authentication',
+                        link: {
+                            type: 'doc',
+                            id: 'developer/cryptography/transaction-auth',
+                        },
+                        items: [
+                            'developer/cryptography/transaction-auth/keys-addresses',
+                            'developer/cryptography/transaction-auth/signatures',
+                            'developer/cryptography/transaction-auth/multisig',
+                            'developer/cryptography/transaction-auth/offline-signing',
+                            'developer/cryptography/transaction-auth/intent-signing',
+                        ],
+                    },
+                    'developer/cryptography/checkpoint-verification',
+                    {
+                        type: 'category',
+                        label: 'Smart Contract Cryptography',
+                        link: {
+                            type: 'doc',
+                            id: 'developer/cryptography/on-chain',
+                        },
+                        items: [
+                            'developer/cryptography/on-chain/signing',
+                            'developer/cryptography/on-chain/groth16',
+                            'developer/cryptography/on-chain/hashing',
+                            'developer/cryptography/on-chain/ecvrf',
+                        ],
+                    },
+                ],
+            },
+            {
+                type: 'category',
+                label: 'Move Overview',
+                items: [
+                    'developer/iota-101/move-overview/move-overview',
+                    'developer/iota-101/move-overview/strings',
+                    'developer/iota-101/move-overview/collections',
+                    'developer/iota-101/move-overview/init',
+                    'developer/iota-101/move-overview/visibility',
+                    'developer/iota-101/move-overview/entry-functions',
+                    'developer/iota-101/using-events',
+                    'developer/iota-101/access-time',
+                    {
+                        type: 'category',
+                        label: 'Structs and Abilities',
+                        items: [
+                            'developer/iota-101/move-overview/structs-and-abilities/struct',
+                            'developer/iota-101/move-overview/structs-and-abilities/copy',
+                            'developer/iota-101/move-overview/structs-and-abilities/drop',
+                            'developer/iota-101/move-overview/structs-and-abilities/key',
+                            'developer/iota-101/move-overview/structs-and-abilities/store',
+                        ],
+                    },
+                    'developer/iota-101/move-overview/one-time-witness',
+                    {
+                        type: 'category',
+                        label: 'Package Upgrades',
+                        items: [
+                            'developer/iota-101/move-overview/package-upgrades/introduction',
+                            'developer/iota-101/move-overview/package-upgrades/upgrade',
+                            'developer/iota-101/move-overview/package-upgrades/automated-address-management',
+                            'developer/iota-101/move-overview/package-upgrades/custom-policies',
+                        ],
+                    },
+                    'developer/iota-101/move-overview/ownership-scope',
+                    'developer/iota-101/move-overview/references',
+                    'developer/iota-101/move-overview/generics',
+                    {
+                        type: 'category',
+                        label: 'Patterns',
+                        items: [
+                            'developer/iota-101/move-overview/patterns/patterns',
+                            'developer/iota-101/move-overview/patterns/capabilities',
+                            'developer/iota-101/move-overview/patterns/witness',
+                            'developer/iota-101/move-overview/patterns/transferable-witness',
+                            'developer/iota-101/move-overview/patterns/hot-potato',
+                            'developer/iota-101/move-overview/patterns/id-pointer',
+                        ],
+                    },
+                    'developer/iota-101/move-overview/conventions',
+                ],
+            },
         ]
     },
     {
