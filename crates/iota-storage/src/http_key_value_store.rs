@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{str::FromStr, sync::Arc};
+use std::{str::FromStr, sync::Arc, time::Duration};
 
 use anyhow;
 use async_trait::async_trait;
@@ -20,6 +20,7 @@ use iota_types::{
     storage::ObjectKey,
     transaction::Transaction,
 };
+use moka::sync::{Cache as MokaCache, CacheBuilder as MokaCacheBuilder};
 use reqwest::{
     Client, Url,
     header::{CONTENT_LENGTH, HeaderValue},
@@ -38,6 +39,8 @@ use crate::{
 pub struct HttpKVStore {
     base_url: Url,
     client: Client,
+    cache: MokaCache<Url, Bytes>,
+    metrics: Arc<KeyValueStoreMetrics>,
 }
 
 pub fn encode_digest<T: AsRef<[u8]>>(digest: &T) -> String {
@@ -282,13 +285,18 @@ enum Value {
 impl HttpKVStore {
     pub fn new_kv(
         base_url: &str,
+        cache_size: u64,
         metrics: Arc<KeyValueStoreMetrics>,
     ) -> IotaResult<TransactionKeyValueStore> {
-        let inner = Arc::new(Self::new(base_url)?);
+        let inner = Arc::new(Self::new(base_url, cache_size, metrics.clone())?);
         Ok(TransactionKeyValueStore::new("http", metrics, inner))
     }
 
-    pub fn new(base_url: &str) -> IotaResult<Self> {
+    pub fn new(
+        base_url: &str,
+        cache_size: u64,
+        metrics: Arc<KeyValueStoreMetrics>,
+    ) -> IotaResult<Self> {
         info!("creating HttpKVStore with base_url: {}", base_url);
 
         let client = Client::builder().http2_prior_knowledge().build().unwrap();
@@ -301,7 +309,16 @@ impl HttpKVStore {
 
         let base_url = Url::parse(&base_url).into_iota_result()?;
 
-        Ok(Self { base_url, client })
+        let cache = MokaCacheBuilder::new(cache_size)
+            .time_to_idle(Duration::from_secs(600))
+            .build();
+
+        Ok(Self {
+            base_url,
+            client,
+            cache,
+            metrics,
+        })
     }
 
     fn get_url(&self, key: &Key) -> IotaResult<Url> {
@@ -321,7 +338,23 @@ impl HttpKVStore {
 
     async fn fetch(&self, key: Key) -> IotaResult<Option<Bytes>> {
         let url = self.get_url(&key)?;
+
         trace!("fetching url: {}", url);
+
+        if let Some(res) = self.cache.get(&url) {
+            trace!("found cached data for url: {}, len: {:?}", url, res.len());
+            self.metrics
+                .key_value_store_num_fetches_success
+                .with_label_values(&["http_cache", "url"])
+                .inc();
+            return Ok(Some(res));
+        }
+
+        self.metrics
+            .key_value_store_num_fetches_not_found
+            .with_label_values(&["http_cache", "url"])
+            .inc();
+
         let resp = self
             .client
             .get(url.clone())
@@ -338,7 +371,10 @@ impl HttpKVStore {
         );
         // return None if 400
         if resp.status().is_success() {
-            resp.bytes().await.map(Some).into_iota_result()
+            let bytes = resp.bytes().await.into_iota_result()?;
+            self.cache.insert(url, bytes.clone());
+
+            Ok(Some(bytes))
         } else {
             Ok(None)
         }
