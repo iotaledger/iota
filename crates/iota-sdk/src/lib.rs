@@ -743,10 +743,7 @@ mod test {
         impl Endpoint {
             async fn get_page(&self, cursor: Option<usize>) -> anyhow::Result<Page<i32, usize>> {
                 const PAGE_SIZE: usize = 100;
-                anyhow::ensure!(
-                    cursor.map_or(true, |v| v < self.data.len()),
-                    "invalid cursor"
-                );
+                anyhow::ensure!(cursor.is_none_or(|v| v < self.data.len()), "invalid cursor");
                 let index = cursor.unwrap_or_default();
                 let data = self.data[index..]
                     .iter()
