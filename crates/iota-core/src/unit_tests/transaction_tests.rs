@@ -2206,10 +2206,12 @@ async fn test_handle_soft_bundle_certificates_errors() {
                 .get_object(&owned_objects[i].id())
                 .await
                 .unwrap()
+                .unwrap()
                 .compute_object_reference();
             let gas_object_ref = authority
                 .get_object(&gas_objects[i].id())
                 .await
+                .unwrap()
                 .unwrap()
                 .compute_object_reference();
             let sender = &senders[i];
@@ -2240,8 +2242,8 @@ async fn test_handle_soft_bundle_certificates_errors() {
         }
 
         let response = client
-            .handle_soft_bundle_certificates_v3(
-                HandleSoftBundleCertificatesRequestV3 {
+            .handle_soft_bundle_certificates_v1(
+                HandleSoftBundleCertificatesRequestV1 {
                     certificates,
                     wait_for_effects: true,
                     include_events: false,
@@ -2255,7 +2257,7 @@ async fn test_handle_soft_bundle_certificates_errors() {
         assert!(response.is_err());
         assert_matches!(
             response.unwrap_err(),
-            IotaError::UserInputError {
+            IotaError::UserInput {
                 error: UserInputError::SoftBundleTooLarge {
                     size: 25116,
                     limit: 5000
