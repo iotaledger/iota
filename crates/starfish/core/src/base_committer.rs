@@ -236,7 +236,7 @@ impl BaseCommitter {
             let is_vote = if let Some(is_vote) = all_votes.get(reference) {
                 *is_vote
             } else {
-                let potential_vote = self.dag_state.read().get_block(reference);
+                let potential_vote = self.dag_state.read().get_block_header(reference);
 
                 let is_vote = {
                     let potential_vote = potential_vote

@@ -62,7 +62,7 @@ impl<C: NetworkClient, S: NetworkService> Subscriber<C, S> {
         let authority_service = self.authority_service.clone();
         let last_received = {
             let dag_state = self.dag_state.read();
-            dag_state.get_last_block_for_authority(peer).round()
+            dag_state.get_last_block_header_for_authority(peer).round()
         };
 
         let mut subscriptions = self.subscriptions.lock();
@@ -193,7 +193,7 @@ impl<C: NetworkClient, S: NetworkService> Subscriber<C, S> {
                             .with_label_values(&[peer_hostname])
                             .inc();
                         let result = authority_service
-                            .handle_send_block(peer, block.clone())
+                            .handle_subscribed_block(peer, block.clone())
                             .await;
                         if let Err(e) = result {
                             match e {
@@ -236,11 +236,10 @@ mod test {
 
     use super::*;
     use crate::{
-        VerifiedBlockHeader,
         block_header::BlockRef,
         commit::CommitRange,
         error::ConsensusResult,
-        network::{BlockStream, test_network::TestService},
+        network::{BlockStream, SerializedBlock, test_network::TestService},
         storage::mem_store::MemStore,
     };
 
@@ -254,15 +253,6 @@ mod test {
 
     #[async_trait]
     impl NetworkClient for SubscriberTestClient {
-        async fn send_block(
-            &self,
-            _peer: AuthorityIndex,
-            _block: &VerifiedBlockHeader,
-            _timeout: Duration,
-        ) -> ConsensusResult<()> {
-            unimplemented!("Unimplemented")
-        }
-
         async fn subscribe_blocks(
             &self,
             _peer: AuthorityIndex,
@@ -271,13 +261,23 @@ mod test {
         ) -> ConsensusResult<BlockStream> {
             let block_stream = stream::unfold((), |_| async {
                 sleep(Duration::from_millis(1)).await;
-                Some((Bytes::from(vec![1u8; 8]), ()))
+                Some((SerializedBlock::new_for_test(Bytes::from(vec![1u8; 8])), ()))
             })
             .take(10);
             Ok(Box::pin(block_stream))
         }
 
         async fn fetch_blocks(
+            &self,
+            _peer: AuthorityIndex,
+            _block_refs: Vec<BlockRef>,
+            _highest_accepted_rounds: Vec<Round>,
+            _timeout: Duration,
+        ) -> ConsensusResult<(Vec<Bytes>, Vec<Bytes>)> {
+            unimplemented!("Unimplemented")
+        }
+
+        async fn fetch_block_headers(
             &self,
             _peer: AuthorityIndex,
             _block_refs: Vec<BlockRef>,
@@ -296,7 +296,7 @@ mod test {
             unimplemented!("Unimplemented")
         }
 
-        async fn fetch_latest_blocks(
+        async fn fetch_latest_block_headers(
             &self,
             _peer: AuthorityIndex,
             _authorities: Vec<AuthorityIndex>,
@@ -339,7 +339,10 @@ mod test {
         assert!(service.handle_send_block.len() >= 100);
         for (p, block) in service.handle_send_block.iter() {
             assert_eq!(*p, peer);
-            assert_eq!(*block, Bytes::from(vec![1u8; 8]),);
+            assert_eq!(
+                *block,
+                SerializedBlock::new_for_test(Bytes::from(vec![1u8; 8]))
+            );
         }
     }
 }

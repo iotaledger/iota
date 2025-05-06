@@ -67,7 +67,7 @@ pub(crate) fn build_dag(
                 (block.reference(), block)
             })
             .unzip();
-        dag_state.write().accept_blocks(blocks);
+        dag_state.write().accept_block_headers(blocks);
         ancestors = references;
     }
 
@@ -91,7 +91,7 @@ pub(crate) fn build_dag_layer(
                 .build(),
         );
         references.push(block.reference());
-        dag_state.write().accept_block(block);
+        dag_state.write().accept_block_header(block);
     }
     references
 }

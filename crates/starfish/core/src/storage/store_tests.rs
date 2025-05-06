@@ -9,7 +9,7 @@ use tempfile::TempDir;
 use super::{Store, WriteBatch, mem_store::MemStore, rocksdb_store::RocksDBStore};
 use crate::{
     block_header::{
-        BlockHeaderAPI, BlockHeaderDigest, BlockRef, Slot, TestBlockHeader, VerifiedBlockHeader,
+        BlockHeaderAPI, BlockHeaderDigest, BlockRef, Slot, TestBlockHeader, VerifiedBlock,
     },
     commit::{CommitDigest, TrustedCommit},
 };
@@ -48,11 +48,11 @@ async fn read_and_contain_blocks(
 ) {
     let store = test_store.store();
 
-    let written_blocks: Vec<VerifiedBlockHeader> = vec![
-        VerifiedBlockHeader::new_for_test(TestBlockHeader::new(1, 1).build()),
-        VerifiedBlockHeader::new_for_test(TestBlockHeader::new(1, 0).build()),
-        VerifiedBlockHeader::new_for_test(TestBlockHeader::new(1, 2).build()),
-        VerifiedBlockHeader::new_for_test(TestBlockHeader::new(2, 3).build()),
+    let written_blocks: Vec<VerifiedBlock> = vec![
+        VerifiedBlock::new_for_test(TestBlockHeader::new(1, 1).build()),
+        VerifiedBlock::new_for_test(TestBlockHeader::new(1, 0).build()),
+        VerifiedBlock::new_for_test(TestBlockHeader::new(1, 2).build()),
+        VerifiedBlock::new_for_test(TestBlockHeader::new(2, 3).build()),
     ];
     store
         .write(WriteBatch::default().blocks(written_blocks.clone()))
@@ -124,6 +124,7 @@ async fn read_and_contain_blocks(
     }
 }
 
+// TODO:make test a similar test for headers
 #[rstest]
 #[tokio::test]
 async fn scan_blocks(
@@ -132,14 +133,14 @@ async fn scan_blocks(
     let store = test_store.store();
 
     let written_blocks = vec![
-        VerifiedBlockHeader::new_for_test(TestBlockHeader::new(9, 0).build()),
-        VerifiedBlockHeader::new_for_test(TestBlockHeader::new(10, 0).build()),
-        VerifiedBlockHeader::new_for_test(TestBlockHeader::new(10, 1).build()),
-        VerifiedBlockHeader::new_for_test(TestBlockHeader::new(11, 1).build()),
-        VerifiedBlockHeader::new_for_test(TestBlockHeader::new(11, 3).build()),
-        VerifiedBlockHeader::new_for_test(TestBlockHeader::new(12, 1).build()),
-        VerifiedBlockHeader::new_for_test(TestBlockHeader::new(13, 2).build()),
-        VerifiedBlockHeader::new_for_test(TestBlockHeader::new(13, 1).build()),
+        VerifiedBlock::new_for_test(TestBlockHeader::new(9, 0).build()),
+        VerifiedBlock::new_for_test(TestBlockHeader::new(10, 0).build()),
+        VerifiedBlock::new_for_test(TestBlockHeader::new(10, 1).build()),
+        VerifiedBlock::new_for_test(TestBlockHeader::new(11, 1).build()),
+        VerifiedBlock::new_for_test(TestBlockHeader::new(11, 3).build()),
+        VerifiedBlock::new_for_test(TestBlockHeader::new(12, 1).build()),
+        VerifiedBlock::new_for_test(TestBlockHeader::new(13, 2).build()),
+        VerifiedBlock::new_for_test(TestBlockHeader::new(13, 1).build()),
     ];
     store
         .write(WriteBatch::default().blocks(written_blocks.clone()))
@@ -164,10 +165,10 @@ async fn scan_blocks(
     }
 
     let additional_blocks = vec![
-        VerifiedBlockHeader::new_for_test(TestBlockHeader::new(14, 2).build()),
-        VerifiedBlockHeader::new_for_test(TestBlockHeader::new(15, 0).build()),
-        VerifiedBlockHeader::new_for_test(TestBlockHeader::new(15, 1).build()),
-        VerifiedBlockHeader::new_for_test(TestBlockHeader::new(16, 3).build()),
+        VerifiedBlock::new_for_test(TestBlockHeader::new(14, 2).build()),
+        VerifiedBlock::new_for_test(TestBlockHeader::new(15, 0).build()),
+        VerifiedBlock::new_for_test(TestBlockHeader::new(15, 1).build()),
+        VerifiedBlock::new_for_test(TestBlockHeader::new(16, 3).build()),
     ];
     store
         .write(WriteBatch::default().blocks(additional_blocks.clone()))

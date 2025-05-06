@@ -357,9 +357,9 @@ mod tests {
                 // committed subdag
                 assert_eq!(subdag.blocks.len(), num_authorities);
             }
-            for block in subdag.blocks.iter() {
-                expected_stored_refs.push(block.reference());
-                assert!(block.round() <= leaders[idx].round());
+            for block_header in subdag.blocks.iter() {
+                expected_stored_refs.push(block_header.reference());
+                assert!(block_header.round() <= leaders[idx].round());
             }
             assert_eq!(subdag.commit_ref.index, idx as CommitIndex + 1);
         }
@@ -388,7 +388,9 @@ mod tests {
             .scan_commits((0..=CommitIndex::MAX).into())
             .unwrap();
         assert_eq!(all_stored_commits.len(), leaders.len());
-        let blocks_existence = mem_store.contains_blocks(&expected_stored_refs).unwrap();
+        let blocks_existence = mem_store
+            .contains_block_headers(&expected_stored_refs)
+            .unwrap();
         assert!(blocks_existence.iter().all(|exists| *exists));
     }
 

@@ -27,11 +27,12 @@ use std::{pin::Pin, time::Duration};
 use async_trait::async_trait;
 use bytes::Bytes;
 use futures::Stream;
+use serde::{Deserialize, Serialize};
 use starfish_config::AuthorityIndex;
 
 use crate::{
     Round, VerifiedBlockHeader,
-    block_header::BlockRef,
+    block_header::{BlockRef, VerifiedBlock},
     commit::{CommitRange, TrustedCommit},
     error::ConsensusResult,
 };
@@ -54,7 +55,7 @@ pub mod tonic_network;
 mod tonic_tls;
 
 /// A stream of serialized filtered blocks returned over the network.
-pub(crate) type BlockStream = Pin<Box<dyn Stream<Item = Bytes> + Send>>;
+pub(crate) type BlockStream = Pin<Box<dyn Stream<Item = SerializedBlock> + Send>>;
 
 /// Network client for communicating with peers.
 ///
@@ -64,16 +65,6 @@ pub(crate) type BlockStream = Pin<Box<dyn Stream<Item = Bytes> + Send>>;
 ///   incoming requests.
 #[async_trait]
 pub(crate) trait NetworkClient: Send + Sync + Sized + 'static {
-    /// Sends a serialized SignedBlock to a peer.
-    // TODO: remove this method if after refactoring network code it's still not used.
-    #[cfg_attr(not(test), expect(unused))]
-    async fn send_block(
-        &self,
-        peer: AuthorityIndex,
-        block: &VerifiedBlockHeader,
-        timeout: Duration,
-    ) -> ConsensusResult<()>;
-
     /// Subscribes to blocks from a peer after last_received round.
     async fn subscribe_blocks(
         &self,
@@ -82,13 +73,28 @@ pub(crate) trait NetworkClient: Send + Sync + Sized + 'static {
         timeout: Duration,
     ) -> ConsensusResult<BlockStream>;
 
-    // TODO: add a parameter for maximum total size of blocks returned.
-    /// Fetches serialized `SignedBlock`s from a peer. It also might return
-    /// additional ancestor blocks of the requested blocks according to the
-    /// provided `highest_accepted_rounds`. The `highest_accepted_rounds`
-    /// length should be equal to the committee size. If
-    /// `highest_accepted_rounds` is empty then it will be simply ignored.
+    /// Fetches serialized `SerializedBlocks` from a peer. It also might
+    /// return additional ancestor blocks of the requested blocks according
+    /// to the provided `highest_accepted_rounds`. The
+    /// `highest_accepted_rounds` length should be equal to the committee
+    /// size. If `highest_accepted_rounds` is empty then it will be simply
+    /// ignored.
     async fn fetch_blocks(
+        &self,
+        peer: AuthorityIndex,
+        block_refs: Vec<BlockRef>,
+        highest_accepted_rounds: Vec<Round>,
+        timeout: Duration,
+    ) -> ConsensusResult<(Vec<Bytes>, Vec<Bytes>)>;
+
+    // TODO: add a parameter for maximum total size of blocks returned.
+    /// Fetches serialized `SignedBlockHeader`s from a peer. It also might
+    /// return additional ancestor blocks of the requested blocks according
+    /// to the provided `highest_accepted_rounds`. The
+    /// `highest_accepted_rounds` length should be equal to the committee
+    /// size. If `highest_accepted_rounds` is empty then it will be simply
+    /// ignored.
+    async fn fetch_block_headers(
         &self,
         peer: AuthorityIndex,
         block_refs: Vec<BlockRef>,
@@ -110,7 +116,7 @@ pub(crate) trait NetworkClient: Send + Sync + Sized + 'static {
     /// The latest blocks are returned in the serialised format of
     /// `SignedBlocks`. The method can return multiple blocks per peer as
     /// its possible to have equivocations.
-    async fn fetch_latest_blocks(
+    async fn fetch_latest_block_headers(
         &self,
         peer: AuthorityIndex,
         authorities: Vec<AuthorityIndex>,
@@ -127,7 +133,11 @@ pub(crate) trait NetworkService: Send + Sync + 'static {
     /// contents are trusted.
     /// Excluded ancestors are also included as part of an effort to further
     /// propagate blocks to peers despite the current exclusion.
-    async fn handle_send_block(&self, peer: AuthorityIndex, block: Bytes) -> ConsensusResult<()>;
+    async fn handle_subscribed_block(
+        &self,
+        peer: AuthorityIndex,
+        serialized_block: SerializedBlock,
+    ) -> ConsensusResult<()>;
 
     /// Handles the subscription request from the peer.
     /// A stream of newly proposed blocks is returned to the peer.
@@ -139,13 +149,21 @@ pub(crate) trait NetworkService: Send + Sync + 'static {
         last_received: Round,
     ) -> ConsensusResult<BlockStream>;
 
+    /// Handles the request to fetch block headers by references from the peer.
+    async fn handle_fetch_block_headers(
+        &self,
+        peer: AuthorityIndex,
+        block_refs: Vec<BlockRef>,
+        highest_accepted_rounds: Vec<Round>,
+    ) -> ConsensusResult<Vec<Bytes>>;
+
     /// Handles the request to fetch blocks by references from the peer.
     async fn handle_fetch_blocks(
         &self,
         peer: AuthorityIndex,
         block_refs: Vec<BlockRef>,
         highest_accepted_rounds: Vec<Round>,
-    ) -> ConsensusResult<Vec<Bytes>>;
+    ) -> ConsensusResult<(Vec<Bytes>, Vec<Bytes>)>;
 
     /// Handles the request to fetch commits by index range from the peer.
     async fn handle_fetch_commits(
@@ -168,4 +186,30 @@ pub(crate) trait NetworkService: Send + Sync + 'static {
         &self,
         peer: AuthorityIndex,
     ) -> ConsensusResult<(Vec<Round>, Vec<Round>)>;
+}
+
+#[derive(Clone, PartialEq, Eq, Default, Serialize, Deserialize, Debug)]
+pub(crate) struct SerializedBlock {
+    pub(crate) serialized_block_header: Bytes,
+    pub(crate) serialized_transactions: Bytes,
+}
+
+impl SerializedBlock {
+    #[cfg(test)]
+    pub(crate) fn new_for_test(bytes: Bytes) -> Self {
+        Self {
+            serialized_block_header: bytes.clone(),
+            serialized_transactions: bytes,
+        }
+    }
+}
+
+impl From<VerifiedBlock> for SerializedBlock {
+    fn from(verified_block: VerifiedBlock) -> Self {
+        let (serialized_block_header, serialized_transactions) = verified_block.serialized();
+        Self {
+            serialized_block_header: serialized_block_header.clone(),
+            serialized_transactions: serialized_transactions.clone(),
+        }
+    }
 }

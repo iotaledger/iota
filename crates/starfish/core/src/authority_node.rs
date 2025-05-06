@@ -470,6 +470,7 @@ mod tests {
         }
     }
 
+    // TODO: test is not doing what is described in the comments
     #[rstest]
     #[tokio::test(flavor = "current_thread")]
     async fn test_amnesia_recovery_success() {

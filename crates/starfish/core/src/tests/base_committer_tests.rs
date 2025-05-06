@@ -633,7 +633,7 @@ async fn test_byzantine_direct_commit() {
     );
     dag_state
         .write()
-        .accept_block(byzantine_block_c13_1.clone());
+        .accept_block_header(byzantine_block_c13_1.clone());
 
     let byzantine_block_c13_2 = VerifiedBlockHeader::new_for_test(
         TestBlockHeader::new(13, 2)
@@ -642,7 +642,7 @@ async fn test_byzantine_direct_commit() {
     );
     dag_state
         .write()
-        .accept_block(byzantine_block_c13_2.clone());
+        .accept_block_header(byzantine_block_c13_2.clone());
 
     let byzantine_block_c13_3 = VerifiedBlockHeader::new_for_test(
         TestBlockHeader::new(13, 2)
@@ -651,7 +651,7 @@ async fn test_byzantine_direct_commit() {
     );
     dag_state
         .write()
-        .accept_block(byzantine_block_c13_3.clone());
+        .accept_block_header(byzantine_block_c13_3.clone());
 
     // Ancestors of decision blocks in round 14 should include multiple byzantine
     // non-votes C13 but there are enough good votes to prevent a skip.
@@ -662,7 +662,9 @@ async fn test_byzantine_direct_commit() {
             .set_ancestors(good_references_voting_round_wave_4.clone())
             .build(),
     );
-    dag_state.write().accept_block(decision_block_a14.clone());
+    dag_state
+        .write()
+        .accept_block_header(decision_block_a14.clone());
 
     let good_references_voting_round_wave_4_without_c13 = good_references_voting_round_wave_4
         .into_iter()
@@ -680,7 +682,9 @@ async fn test_byzantine_direct_commit() {
             )
             .build(),
     );
-    dag_state.write().accept_block(decision_block_b14.clone());
+    dag_state
+        .write()
+        .accept_block_header(decision_block_b14.clone());
 
     let decision_block_c14 = VerifiedBlockHeader::new_for_test(
         TestBlockHeader::new(14, 2)
@@ -693,7 +697,9 @@ async fn test_byzantine_direct_commit() {
             )
             .build(),
     );
-    dag_state.write().accept_block(decision_block_c14.clone());
+    dag_state
+        .write()
+        .accept_block_header(decision_block_c14.clone());
 
     let decision_block_d14 = VerifiedBlockHeader::new_for_test(
         TestBlockHeader::new(14, 3)
@@ -706,7 +712,9 @@ async fn test_byzantine_direct_commit() {
             )
             .build(),
     );
-    dag_state.write().accept_block(decision_block_d14.clone());
+    dag_state
+        .write()
+        .accept_block_header(decision_block_d14.clone());
 
     // DagState Update:
     // - We have A13, B13, D13 & C13 as good votes in the voting round of wave 4
