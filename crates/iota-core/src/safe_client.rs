@@ -5,7 +5,6 @@
 
 use std::{collections::HashMap, net::SocketAddr, sync::Arc};
 
-use iota_metrics::histogram::{Histogram, HistogramVec};
 use iota_types::{
     base_types::*,
     committee::*,
@@ -23,7 +22,8 @@ use iota_types::{
     transaction::*,
 };
 use prometheus::{
-    IntCounterVec, Registry, core::GenericCounter, register_int_counter_vec_with_registry,
+    Histogram, HistogramVec, IntCounterVec, Registry, core::GenericCounter,
+    register_histogram_vec_with_registry, register_int_counter_vec_with_registry,
 };
 use tap::TapFallible;
 use tracing::{debug, error, instrument};
@@ -66,12 +66,14 @@ impl SafeClientMetricsBase {
                 registry,
             )
             .unwrap(),
-            latency: HistogramVec::new_in_registry(
+            latency: register_histogram_vec_with_registry!(
                 "safe_client_latency",
                 "RPC latency observed by safe client aggregator, group by address and method",
                 &["address", "method"],
+                iota_metrics::COARSE_LATENCY_SEC_BUCKETS.to_vec(),
                 registry,
-            ),
+            )
+            .unwrap(),
         }
     }
 }
