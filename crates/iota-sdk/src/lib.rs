@@ -666,7 +666,7 @@ pub struct GetAllPagesStream<O, C, F, E, Fun> {
     fut: Pin<Box<F>>,
     next: VecDeque<O>,
     has_next_page: bool,
-    _data: PhantomData<fn(E, C) -> (E, C)>,
+    _data: PhantomData<(E, C)>,
 }
 
 impl<O, C, F, E, Fun> GetAllPagesStream<O, C, F, E, Fun>
