@@ -7,7 +7,7 @@ import { Select, MenuItem, FormControl, InputLabel } from "@mui/material";
 import { StyledEngineProvider } from "@mui/material/styles";
 import ExecutionEnvironment from "@docusaurus/ExecutionEnvironment";
 
-const NETWORKS = ["Devnet", "Testnet"];
+const NETWORKS = ["Mainnet", "Testnet", "Devnet"];
 
 const NetworkSelect = () => {
   const [selection, setSelection] = useState(() => {
@@ -15,11 +15,11 @@ const NetworkSelect = () => {
     if (ExecutionEnvironment.canUseDOM) {
       const network = localStorage.getItem("RPC");
       if (network === null) {
-        return "testnet";
+        return "mainnet";
       }
       return localStorage.getItem("RPC");
     } else {
-      return "testnet";
+      return "mainnet";
     }
   });
 
@@ -50,9 +50,9 @@ const NetworkSelect = () => {
             onChange={handleChange}
             className="dark:text-white dark:bg-iota-ghost-dark"
           >
-            <MenuItem value="devnet">{NETWORKS[0]}</MenuItem>
+            <MenuItem value="mainnet">{NETWORKS[0]}</MenuItem>
             <MenuItem value="testnet">{NETWORKS[1]}</MenuItem>
-            {/*<MenuItem value="mainnet">{NETWORKS[2]}</MenuItem>*/}
+            <MenuItem value="devnet">{NETWORKS[2]}</MenuItem>
           </Select>
         </FormControl>
       </div>
