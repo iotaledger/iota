@@ -8144,6 +8144,7 @@ dependencies = [
  "iota-types",
  "itertools 0.13.0",
  "lru",
+ "moka",
  "move-binary-format",
  "move-bytecode-utils",
  "move-core-types",
