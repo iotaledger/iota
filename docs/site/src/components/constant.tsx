@@ -10,7 +10,7 @@ export const Networks: Record<string, NetworkProps> = {
       },
       graphql: 'https://graphql.mainnet.iota.cafe',
     },
-    explorer: 'https://explorer.iota.org',
+    explorer: 'https://explorer.evm.iota.org/',
     evm: {
       chainId: '0x2276',
       chainName: 'IOTA EVM',
@@ -20,15 +20,15 @@ export const Networks: Record<string, NetworkProps> = {
         decimals: 18,
       },
       rpcUrls: [
-        'https://json-rpc.evm.iota.cafe',
+        'https://json-rpc.evm.iotaledger.net',
       ],
       blockExplorerUrls: ['https://explorer.evm.iota.org'],
     },
     evmCustom: {
       chainId:
-        '',
+        '0x0dc448563a2c54778215b3d655b0d9f8f69f06cf80a4fc9eada72e96a49e409d',
       packageId:
-        '',
+        '0x1b33a3cf7eb5dde04ed7ae571db1763006811ff6b7bb35b3d1c780de153af9dd',
       ankrApiUrls: ['https://rpc.ankr.com/iota_evm'],
       blastApiUrls: [
         'https://iota-mainnet-evm.public.blastapi.io',
