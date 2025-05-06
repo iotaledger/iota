@@ -19,7 +19,7 @@ Relying on a single key to manage on-chain package upgrades can introduce signif
 
 To mitigate these risks while still enabling [live package upgrades](./upgrade.mdx),
 IOTA offers _custom upgrade policies_.
-These policies secure access to the [`UpgradeCap`](../../../../references/framework/iota/package.mdx#struct-upgradecap) and issue [`UpgradeTicket`](../../../../references/framework/iota/package.mdx#struct-upgradeticket) objects,
+These policies secure access to the [`UpgradeCap`](../../../../references/framework/iota-framework/package.mdx#resource-upgradecap) and issue [`UpgradeTicket`](../../../../references/framework/iota-framework/package.mdx#struct-upgradeticket) objects,
 authorizing upgrades on a per-case basis.
 
 ## Compatibility
@@ -79,7 +79,7 @@ Any function pair that produces an `UpgradeTicket` from an `UpgradeCap` and cons
 
 ## UpgradeCap
 
-The [`UpgradeCap`](../../../../references/framework/iota/package.mdx#struct-upgradecap) type is crucial for managing package upgrades:
+The [`UpgradeCap`](../../../../references/framework/iota-framework/package.mdx#resource-upgradecap) type is crucial for managing package upgrades:
 
 ```move
 module iota::package {
@@ -117,7 +117,7 @@ module iota::package {
 }
 ```
 
-An [`UpgradeTicket`](../../../../references/framework/iota/package.mdx#struct-upgradeticket) is a proof of authorization for an upgrade,
+An [`UpgradeTicket`](../../../../references/framework/iota-framework/package.mdx#struct-upgradeticket) is a proof of authorization for an upgrade,
 specific to:
 
 - The latest package version identified by `package: ID`.
@@ -166,7 +166,7 @@ package: ID,
 }
 ```
 
-An [`UpgradeReceipt`](../../../../references/framework/iota/package.mdx#struct-upgradereceipt) confirms
+An [`UpgradeReceipt`](../../../../references/framework/iota-framework/package.mdx#struct-upgradereceipt) confirms
 that the upgrade was successfully executed, and the new package was added to the transaction's created objects.
 
 The `UpgradeReceipt` must be used within the same transaction to update the `UpgradeCap`
@@ -446,7 +446,7 @@ Array [
 </details>
 
 
-You should use the IOTA Client CLI to call [`iota::package::make_immutable`](../../../../references/framework/iota/package.mdx#function-make_immutable) on the
+You should use the IOTA Client CLI to call [`iota::package::make_immutable`](../../../../references/framework/iota-framework/package.mdx#function-make_immutable) on the
 `UpgradeCap` to make the policy immutable.
 
 ```bash
