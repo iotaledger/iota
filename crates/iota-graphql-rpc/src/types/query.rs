@@ -36,6 +36,7 @@ use crate::{
         epoch::Epoch,
         event::{self, Event, EventFilter},
         iota_address::IotaAddress,
+        iota_names_registration::{Domain, IotaNames},
         move_package::{self, MovePackage, MovePackageCheckpointFilter, MovePackageVersionFilter},
         move_type::MoveType,
         object::{self, Object, ObjectFilter},
@@ -538,6 +539,25 @@ impl Query {
         ProtocolConfigs::query(ctx.data_unchecked(), protocol_version.map(|v| v.into()))
             .await
             .extend()
+    }
+
+    /// Resolves an IOTA-Names `domain` name to an address, if it has been
+    /// bound.
+    async fn resolve_iota_names_address(
+        &self,
+        ctx: &Context<'_>,
+        domain: Domain,
+    ) -> Result<Option<Address>> {
+        let Watermark { checkpoint, .. } = *ctx.data()?;
+
+        Ok(IotaNames::resolve_to_record(ctx, &domain, checkpoint)
+            .await
+            .extend()?
+            .and_then(|r| r.target_address)
+            .map(|a| Address {
+                address: a.into(),
+                checkpoint_viewed_at: checkpoint,
+            }))
     }
 
     /// The coin metadata associated with the given coin type.

@@ -2056,11 +2056,16 @@ pub async fn build_http_server(
             ))?;
         }
 
+        // TODO: Init from chain if config is not set once `IotaNamesConfig::from_chain`
+        // is implemented
+        let iota_names_config = config.iota_names_config.clone().unwrap_or_default();
+
         server.register_module(IndexerApi::new(
             state.clone(),
             ReadApi::new(state.clone(), kv_store.clone(), metrics.clone()),
             kv_store,
             metrics,
+            iota_names_config,
             config.indexer_max_subscriptions,
         ))?;
         server.register_module(MoveUtils::new(state.clone()))?;

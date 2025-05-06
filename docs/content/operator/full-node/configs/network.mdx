@@ -7,8 +7,6 @@ teams:
 ---
 
 import Ports from './../../../_snippets/operator/fullnode-ports.mdx'
-import TestnetNodeConfig from "../../../_snippets/network-node-config-testnet.mdx";
-import DevnetNodeConfig from "../../../_snippets/network-node-config-devnet.mdx";
 
 ## Connectivity
 
@@ -23,11 +21,39 @@ The full node uses the following ports by default:
 By default, your config file (`fullnode.yaml`) should include the following known peers (from public nodes run by the IOTA Foundation):
 
 <Tabs groupId="network" queryString>
+    <TabItem label="Mainnet" value="mainnet">
+        ```yaml
+        p2p-config:
+        seed-peers:
+            - address: /dns/access-0.r.mainnet.iota.cafe/udp/8084
+            peer-id: 66b55de43e925417761f3c66cd734451b5876e1496b961052095bdd8a7732189
+            - address: /dns/access-1.r.mainnet.iota.cafe/udp/8084
+            peer-id: 7f8dc46616df5b5640ffd118c6ef640b3f7f5cae8a2bedfa700769e12150a197
+            - address: /dns/access-2.r.mainnet.iota.cafe/udp/8084
+            peer-id: c9fbf6fb511fc5243989c7a455d36f277844288b1a1d8453331c200b6ac4d99f
+            - address: /dns/access-3.r.mainnet.iota.cafe/udp/8084
+            peer-id: 2c1e05e9bddaf505b70184baf21a188a7c270b1b58f38d55e3aea42d067c5fb6
+        ```
+    </TabItem>
     <TabItem label="Testnet" value="testnet">
-        <TestnetNodeConfig />
+        ```yaml
+        p2p-config:
+        seed-peers:
+            - address: /dns/access-0.r.testnet.iota.cafe/udp/8084
+            peer-id: 46064108d0b689ed89d1f44153e532bb101ce8f8ca3a3d01ab991d4dea122cfc
+            - address: /dns/access-1.r.testnet.iota.cafe/udp/8084
+            peer-id: 8ffd25fa4e86c30c3f8da7092695e8a103462d7a213b815d77d6da7f0a2a52f5
+        ```
     </TabItem>
     <TabItem label="Devnet" value="devnet">
-        <DevnetNodeConfig />
+        ```yaml
+        p2p-config:
+        seed-peers:
+            - address: /dns/access-0.r.devnet.iota.cafe/udp/8084
+            peer-id: 01589ac910a5993f80fbc34a6e0c8b2041ddc5526a951c838df3037e11ab0188
+            - address: /dns/access-1.r.devnet.iota.cafe/udp/8084
+            peer-id: 32875c547ea3b44fa08a711646cedb70fa0c97959d236578131505da09723add
+        ```
     </TabItem>
 </Tabs>
 

@@ -51,6 +51,7 @@ use crate::{
         dynamic_field::{DynamicField, DynamicFieldName},
         intersect,
         iota_address::{IotaAddress, addr},
+        iota_names_registration::{DomainFormat, IotaNamesRegistration},
         move_object::MoveObject,
         move_package::MovePackage,
         owner::{Owner, OwnerImpl},
@@ -412,6 +413,33 @@ impl Object {
     ) -> Result<Connection<String, StakedIota>> {
         OwnerImpl::from(self)
             .staked_iotas(ctx, first, after, last, before)
+            .await
+    }
+
+    /// The domain explicitly configured as the default domain pointing to this
+    /// address.
+    pub(crate) async fn iota_names_default_name(
+        &self,
+        ctx: &Context<'_>,
+        format: Option<DomainFormat>,
+    ) -> Result<Option<String>> {
+        OwnerImpl::from(self)
+            .iota_names_default_name(ctx, format)
+            .await
+    }
+
+    /// The IotaNamesRegistration NFTs owned by this address. These grant the
+    /// owner the capability to manage the associated domain.
+    pub(crate) async fn iota_names_registrations(
+        &self,
+        ctx: &Context<'_>,
+        first: Option<u64>,
+        after: Option<Cursor>,
+        last: Option<u64>,
+        before: Option<Cursor>,
+    ) -> Result<Connection<String, IotaNamesRegistration>> {
+        OwnerImpl::from(self)
+            .iota_names_registrations(ctx, first, after, last, before)
             .await
     }
 

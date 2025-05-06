@@ -59,8 +59,25 @@ First, generate a network key for your SSFN:
 
 ```bash
 iota keytool generate ed25519
-# Make note of the generated peerId
 ```
+
+Example output:
+```
+╭─────────────────────────┬──────────────────────────────────────────────────────────────────────────────╮
+│ alias                   │                                                                              │
+│ iotaAddress             │  0x41a6f4b3985d32260c3b616e61eab4ad3d3d30dff10d9f5c55094f7fbf6446d5          │
+│ publicBase64Key         │  WGf/j8NGru668qzxydByVAkosLdh7KbwJ/I7o8qwtfU=                                │
+│ publicBase64KeyWithFlag │  AFhn/4/DRq7uuvKs8cnQclQJKLC3Yeym8CfyO6PKsLX1                                │
+│ keyScheme               │  ed25519                                                                     │
+│ flag                    │  0                                                                           │
+│ mnemonic                │  chalk practice cloud wheat skull stay leader next lesson ceiling cake pink  │
+│ peerId                  │  5867ff8fc346aeeebaf2acf1c9d072540928b0b761eca6f027f23ba3cab0b5f5            │
+╰─────────────────────────┴──────────────────────────────────────────────────────────────────────────────╯
+```
+
+This will create a file like `0x41a6f4b3985d32260c3b616e61eab4ad3d3d30dff10d9f5c55094f7fbf6446d5.key`.
+You can rename the file to `network.key` and make a note of the `peerId` (`5867ff8fc346aeeebaf2acf1c9d072540928b0b761eca6f027f23ba3cab0b5f5`) in the output.
+
 
 ### 2. SSFN Configuration
 
@@ -76,6 +93,11 @@ Create or modify your SSFN's configuration file with these specific settings:
         ```
     </TabItem>
 </Tabs>
+
+:::info
+You can extract the peer-id from your validator `network.key` by running:
+`iota keytool show network.key` and copying the `peerId` from the output.
+:::
 
 ### 3. Metrics Whitelisting
 

@@ -44,6 +44,7 @@
 /crates/iota-move/ @iotaledger/vm-language
 /crates/iota-move-build/ @iotaledger/vm-language
 /crates/iota-move-lsp/ @iotaledger/vm-language
+/crates/iota-names/ @iotaledger/dev-tools
 /crates/iota-network/ @iotaledger/node
 /crates/iota-network-stack/ @iotaledger/node
 /crates/iota-node/ @iotaledger/node

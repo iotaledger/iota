@@ -36,8 +36,7 @@ jobs:
           # Manual dispatch on a branch ref
           if [ "$GITHUB_EVENT_NAME" == "workflow_dispatch" ]; then
             echo "iota_ref=${{ inputs.iota_branch }}" >> $GITHUB_OUTPUT
-            # TODO: https://github.com/iotaledger/iota/issues/6603
-            echo 'iota_networks=["testnet","devnet"]' >> $GITHUB_OUTPUT
+            echo 'iota_networks=["mainnet","testnet","devnet"]' >> $GITHUB_OUTPUT
             echo "upload_artifacts=true" >> $GITHUB_OUTPUT
 
           # Release builds on a tag ref
@@ -66,8 +65,7 @@ jobs:
           # Scheduled nightly builds are always cut from develop
           elif [ "$GITHUB_EVENT_NAME" == "schedule" ]; then
             echo "iota_ref=develop" >> $GITHUB_OUTPUT
-            # TODO: https://github.com/iotaledger/iota/issues/6603
-            echo 'iota_networks=["testnet","devnet"]' >> $GITHUB_OUTPUT
+            echo 'iota_networks=["mainnet","testnet","devnet"]' >> $GITHUB_OUTPUT
             echo "upload_artifacts=true" >> $GITHUB_OUTPUT
 
           else
@@ -112,7 +110,7 @@ jobs:
 
       - name: Copy fullnode docker files
         run: |
-          cp setups/fullnode/fullnode-template-${{ matrix.network }}.yaml \
+          cp setups/fullnode/fullnode-${{ matrix.network }}.yaml \
              ${{ steps.vars.outputs.work_dir }}/data/config/fullnode.yaml
           cp setups/fullnode/docker/prepare_${{ matrix.network }}.sh \
              ${{ steps.vars.outputs.work_dir }}/prepare.sh

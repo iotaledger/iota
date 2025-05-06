@@ -5,16 +5,12 @@ network-key-pair:
 
 # Database Configuration
 db-path: /opt/iota/db/authorities_db
-consensus-config:
-  db-path: /opt/iota/db/consensus_db
 
 # Genesis Configuration
 genesis:
   genesis-file-location: /opt/iota/config/genesis.blob
 
 # Network Configuration
-network-address: /ip4/0.0.0.0/tcp/8080/http
-
 p2p-config:
   listen-address: "0.0.0.0:8084"
   external-address: /dns/$HOSTNAME/udp/8084 # UPDATE THIS

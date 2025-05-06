@@ -2,7 +2,13 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { KioskClientProvider, useCookieConsentBanner, ThemeProvider, Toaster } from '@iota/core';
+import {
+    KioskClientProvider,
+    useCookieConsentBanner,
+    ThemeProvider,
+    Toaster,
+    IotaGraphQLClientProvider,
+} from '@iota/core';
 import { IotaClientProvider, WalletProvider } from '@iota/dapp-kit';
 import type { Network } from '@iota/iota-sdk/client';
 import { ReactQueryDevtools } from '@tanstack/react-query-devtools';
@@ -35,17 +41,19 @@ export function Layout(): JSX.Element {
                 network={network as Network}
                 onNetworkChange={setNetwork}
             >
-                <WalletProvider autoConnect enableUnsafeBurner={import.meta.env.DEV}>
-                    <KioskClientProvider>
-                        <NetworkContext.Provider value={[network, setNetwork]}>
-                            <ThemeProvider appId="iota-explorer">
-                                <Outlet />
-                                <Toaster />
-                                <ReactQueryDevtools />
-                            </ThemeProvider>
-                        </NetworkContext.Provider>
-                    </KioskClientProvider>
-                </WalletProvider>
+                <IotaGraphQLClientProvider>
+                    <WalletProvider autoConnect enableUnsafeBurner={import.meta.env.DEV}>
+                        <KioskClientProvider>
+                            <NetworkContext.Provider value={[network, setNetwork]}>
+                                <ThemeProvider appId="iota-explorer">
+                                    <Outlet />
+                                    <Toaster />
+                                    <ReactQueryDevtools />
+                                </ThemeProvider>
+                            </NetworkContext.Provider>
+                        </KioskClientProvider>
+                    </WalletProvider>
+                </IotaGraphQLClientProvider>
             </IotaClientProvider>
         </Fragment>
     );

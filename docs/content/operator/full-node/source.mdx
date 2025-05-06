@@ -10,7 +10,7 @@ import questions from '/json/node-operators/iota-full-node/node-setup.json';
 import {Networks} from '@site/src/components/constant'
 import WarningAdvanced from '../../_snippets/warning-advanced-instructions-node-setup.mdx'
 import FullnodeRequirements from '../../_snippets/operator/fullnode-requirements-tab.mdx'
-import CheckNodeConfig from '../../_snippets/operator/check-node-config.mdx'
+import FullnodeP2P from '../../_snippets/operator/fullnode-p2p.mdx'
 import TryRpcEndpoint from '../../_snippets/operator/try-rpc-endpoint.mdx'
 import Ports from '../../_snippets/operator/fullnode-ports.mdx'
 
@@ -77,7 +77,11 @@ Your IOTA node should now be running and connected to the network you chose.
 
 By default, the configuration file `fullnode.yaml` is located at  `/opt/iota/config/fullnode.yaml`.
 
-<CheckNodeConfig/>
+If you changed your local configuration you can always go back to the default [Full Node Configuration](https://docs.iota.org/operator/full-node/configuration).
+
+#### Configure P2P Settings
+
+<FullnodeP2P />
 
 ### Reach your node via the RPC endpoint
 
@@ -101,7 +105,7 @@ NETWORK="testnet" bash -i <(curl -sSf https://raw.githubusercontent.com/iotaledg
 Re-use the same network (`testnet`, `mainnet`, `devnet`) your node is already running on.
 :::
 
-Your full node restarts on: <code>{Networks.iota_localnet.jsonRpcUrl}</code>.
+Your full node restarts on: <code>{Networks.iota_localnet.rpc.json.core}</code>.
 
 :::info
 If your full node is configured to prune transactions, Archival nodes can help ensure lagging peer nodes don't lose any information. For more information, see [IOTA Archives](../common/archives.mdx).
