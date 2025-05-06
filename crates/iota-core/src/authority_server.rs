@@ -781,7 +781,7 @@ impl ValidatorService {
             protocol_config.consensus_max_transactions_in_block_bytes() / 2;
         fp_ensure!(
             total_size_bytes <= soft_bundle_max_size_bytes,
-            IotaError::UserInputError {
+            IotaError::UserInput {
                 error: UserInputError::SoftBundleTooLarge {
                     size: total_size_bytes,
                     limit: soft_bundle_max_size_bytes,
