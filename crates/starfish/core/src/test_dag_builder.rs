@@ -170,24 +170,6 @@ impl DagBuilder {
                     })
                     .collect()
             }
-
-            fn set_committed(&mut self, block_ref: &BlockRef) -> bool {
-                let Some((_block, committed)) = self.blocks.get_mut(block_ref) else {
-                    panic!("Block {:?} should be found in store", block_ref);
-                };
-                if !*committed {
-                    *committed = true;
-                    return true;
-                }
-                false
-            }
-
-            fn is_committed(&self, block_ref: &BlockRef) -> bool {
-                self.blocks
-                    .get(block_ref)
-                    .map(|(_, committed)| *committed)
-                    .expect("Block should be found in store")
-            }
         }
         let mut storage = BlockStorage {
             blocks: self
@@ -208,7 +190,6 @@ impl DagBuilder {
             last_timestamp_ms = leader_block.timestamp_ms().max(last_timestamp_ms);
 
             let to_commit = Linearizer::linearize_sub_dag(
-                &self.context.clone(),
                 leader_block,
                 self.last_committed_rounds.clone(),
                 &mut storage,
