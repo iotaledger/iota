@@ -15,9 +15,7 @@ use std::{
 use futures::{StreamExt, future::BoxFuture, stream::FuturesUnordered};
 use iota_authority_aggregation::{AsyncResult, ReduceOutput, quorum_map_then_reduce_with_timeout};
 use iota_config::genesis::Genesis;
-use iota_metrics::{
-    GaugeGuard, MonitorCancellation, histogram::Histogram, monitored_future, spawn_monitored_task,
-};
+use iota_metrics::{GaugeGuard, MonitorCancellation, monitored_future, spawn_monitored_task};
 use iota_network::{
     DEFAULT_CONNECT_TIMEOUT_SEC, DEFAULT_REQUEST_TIMEOUT_SEC, default_iota_network_config,
 };
@@ -48,8 +46,9 @@ use iota_types::{
     transaction::*,
 };
 use prometheus::{
-    IntCounter, IntCounterVec, IntGauge, Registry, register_int_counter_vec_with_registry,
-    register_int_counter_with_registry, register_int_gauge_with_registry,
+    Histogram, IntCounter, IntCounterVec, IntGauge, Registry, register_histogram_with_registry,
+    register_int_counter_vec_with_registry, register_int_counter_with_registry,
+    register_int_gauge_with_registry,
 };
 use thiserror::Error;
 use tokio::time::{sleep, timeout};
@@ -186,16 +185,16 @@ impl AuthAggMetrics {
                 registry,
             )
             .unwrap(),
-            remaining_tasks_when_reaching_cert_quorum: iota_metrics::histogram::Histogram::new_in_registry(
+            remaining_tasks_when_reaching_cert_quorum: register_histogram_with_registry!(
                 "auth_agg_remaining_tasks_when_reaching_cert_quorum",
                 "Number of remaining tasks when reaching certificate quorum",
                 registry,
-            ),
-            remaining_tasks_when_cert_broadcasting_post_quorum_timeout: iota_metrics::histogram::Histogram::new_in_registry(
+            ).unwrap(),
+            remaining_tasks_when_cert_broadcasting_post_quorum_timeout: register_histogram_with_registry!(
                 "auth_agg_remaining_tasks_when_cert_broadcasting_post_quorum_timeout",
                 "Number of remaining tasks when post quorum certificate broadcasting times out",
                 registry,
-            )
+            ).unwrap()
         }
     }
 
@@ -1726,7 +1725,7 @@ where
         let metrics = self.metrics.clone();
         metrics
             .remaining_tasks_when_reaching_cert_quorum
-            .report(remaining_tasks.len() as u64);
+            .observe(remaining_tasks.len() as f64);
         if !remaining_tasks.is_empty() {
             // Use best efforts to send the cert to remaining validators.
             spawn_monitored_task!(async move {
@@ -1736,7 +1735,7 @@ where
                         _ = &mut timeout => {
                             debug!(?tx_digest, "Timed out in post quorum cert broadcasting: {:?}. Remaining tasks: {:?}", timeout_after_quorum, remaining_tasks.len());
                             metrics.cert_broadcasting_post_quorum_timeout.inc();
-                            metrics.remaining_tasks_when_cert_broadcasting_post_quorum_timeout.report(remaining_tasks.len() as u64);
+                            metrics.remaining_tasks_when_cert_broadcasting_post_quorum_timeout.observe(remaining_tasks.len() as f64);
                             break;
                         }
                         res = remaining_tasks.next() => {
