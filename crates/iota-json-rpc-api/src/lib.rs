@@ -12,7 +12,6 @@ pub use coin::{CoinReadApiClient, CoinReadApiOpenRpc, CoinReadApiServer};
 pub use extended::{ExtendedApiClient, ExtendedApiOpenRpc, ExtendedApiServer};
 pub use governance::{GovernanceReadApiClient, GovernanceReadApiOpenRpc, GovernanceReadApiServer};
 pub use indexer::{IndexerApiClient, IndexerApiOpenRpc, IndexerApiServer};
-use iota_metrics::histogram::Histogram;
 use jsonrpsee::{
     core::ClientError,
     types::{
@@ -22,7 +21,9 @@ use jsonrpsee::{
 };
 pub use move_utils::{MoveUtilsClient, MoveUtilsOpenRpc, MoveUtilsServer};
 use once_cell::sync::Lazy;
-use prometheus::{IntCounter, register_int_counter_with_registry};
+use prometheus::{
+    Histogram, IntCounter, register_histogram_with_registry, register_int_counter_with_registry,
+};
 pub use read::{ReadApiClient, ReadApiOpenRpc, ReadApiServer};
 use tap::TapFallible;
 use tracing::warn;
@@ -109,165 +110,207 @@ pub struct JsonRpcMetrics {
 impl JsonRpcMetrics {
     pub fn new(registry: &prometheus::Registry) -> Self {
         Self {
-            get_objects_limit: Histogram::new_in_registry(
+            get_objects_limit: register_histogram_with_registry!(
                 "json_rpc_get_objects_limit",
                 "The input limit for multi_get_objects, after applying the cap",
+                iota_metrics::COUNT_BUCKETS.to_vec(),
                 registry,
-            ),
-            get_objects_result_size: Histogram::new_in_registry(
+            )
+            .unwrap(),
+            get_objects_result_size: register_histogram_with_registry!(
                 "json_rpc_get_objects_result_size",
                 "The return size for multi_get_objects",
+                iota_metrics::COUNT_BUCKETS.to_vec(),
                 registry,
-            ),
+            )
+            .unwrap(),
             get_objects_result_size_total: register_int_counter_with_registry!(
                 "json_rpc_get_objects_result_size_total",
                 "The total return size for multi_get_objects",
                 registry
             )
             .unwrap(),
-            get_tx_blocks_limit: Histogram::new_in_registry(
+            get_tx_blocks_limit: register_histogram_with_registry!(
                 "json_rpc_get_tx_blocks_limit",
                 "The input limit for get_tx_blocks, after applying the cap",
+                iota_metrics::COUNT_BUCKETS.to_vec(),
                 registry,
-            ),
-            get_tx_blocks_result_size: Histogram::new_in_registry(
+            )
+            .unwrap(),
+            get_tx_blocks_result_size: register_histogram_with_registry!(
                 "json_rpc_get_tx_blocks_result_size",
                 "The return size for get_tx_blocks",
+                iota_metrics::COUNT_BUCKETS.to_vec(),
                 registry,
-            ),
+            )
+            .unwrap(),
             get_tx_blocks_result_size_total: register_int_counter_with_registry!(
                 "json_rpc_get_tx_blocks_result_size_total",
                 "The total return size for get_tx_blocks",
                 registry
             )
             .unwrap(),
-            get_checkpoints_limit: Histogram::new_in_registry(
+            get_checkpoints_limit: register_histogram_with_registry!(
                 "json_rpc_get_checkpoints_limit",
                 "The input limit for get_checkpoints, after applying the cap",
+                iota_metrics::COUNT_BUCKETS.to_vec(),
                 registry,
-            ),
-            get_checkpoints_result_size: Histogram::new_in_registry(
+            )
+            .unwrap(),
+            get_checkpoints_result_size: register_histogram_with_registry!(
                 "json_rpc_get_checkpoints_result_size",
                 "The return size for get_checkpoints",
+                iota_metrics::COUNT_BUCKETS.to_vec(),
                 registry,
-            ),
+            )
+            .unwrap(),
             get_checkpoints_result_size_total: register_int_counter_with_registry!(
                 "json_rpc_get_checkpoints_result_size_total",
                 "The total return size for get_checkpoints",
                 registry
             )
             .unwrap(),
-            get_owned_objects_limit: Histogram::new_in_registry(
+            get_owned_objects_limit: register_histogram_with_registry!(
                 "json_rpc_get_owned_objects_limit",
                 "The input limit for get_owned_objects, after applying the cap",
+                iota_metrics::COUNT_BUCKETS.to_vec(),
                 registry,
-            ),
-            get_owned_objects_result_size: Histogram::new_in_registry(
+            )
+            .unwrap(),
+            get_owned_objects_result_size: register_histogram_with_registry!(
                 "json_rpc_get_owned_objects_result_size",
                 "The return size for get_owned_objects",
+                iota_metrics::COUNT_BUCKETS.to_vec(),
                 registry,
-            ),
+            )
+            .unwrap(),
             get_owned_objects_result_size_total: register_int_counter_with_registry!(
                 "json_rpc_get_owned_objects_result_size_total",
                 "The total return size for get_owned_objects",
                 registry
             )
             .unwrap(),
-            get_coins_limit: Histogram::new_in_registry(
+            get_coins_limit: register_histogram_with_registry!(
                 "json_rpc_get_coins_limit",
                 "The input limit for get_coins, after applying the cap",
+                iota_metrics::COUNT_BUCKETS.to_vec(),
                 registry,
-            ),
-            get_coins_result_size: Histogram::new_in_registry(
+            )
+            .unwrap(),
+            get_coins_result_size: register_histogram_with_registry!(
                 "json_rpc_get_coins_result_size",
                 "The return size for get_coins",
+                iota_metrics::COUNT_BUCKETS.to_vec(),
                 registry,
-            ),
+            )
+            .unwrap(),
             get_coins_result_size_total: register_int_counter_with_registry!(
                 "json_rpc_get_coins_result_size_total",
                 "The total return size for get_coins",
                 registry
             )
             .unwrap(),
-            get_dynamic_fields_limit: Histogram::new_in_registry(
+            get_dynamic_fields_limit: register_histogram_with_registry!(
                 "json_rpc_get_dynamic_fields_limit",
                 "The input limit for get_dynamic_fields, after applying the cap",
+                iota_metrics::COUNT_BUCKETS.to_vec(),
                 registry,
-            ),
-            get_dynamic_fields_result_size: Histogram::new_in_registry(
+            )
+            .unwrap(),
+            get_dynamic_fields_result_size: register_histogram_with_registry!(
                 "json_rpc_get_dynamic_fields_result_size",
                 "The return size for get_dynamic_fields",
+                iota_metrics::COUNT_BUCKETS.to_vec(),
                 registry,
-            ),
+            )
+            .unwrap(),
             get_dynamic_fields_result_size_total: register_int_counter_with_registry!(
                 "json_rpc_get_dynamic_fields_result_size_total",
                 "The total return size for get_dynamic_fields",
                 registry
             )
             .unwrap(),
-            query_tx_blocks_limit: Histogram::new_in_registry(
+            query_tx_blocks_limit: register_histogram_with_registry!(
                 "json_rpc_query_tx_blocks_limit",
                 "The input limit for query_tx_blocks, after applying the cap",
+                iota_metrics::COUNT_BUCKETS.to_vec(),
                 registry,
-            ),
-            query_tx_blocks_result_size: Histogram::new_in_registry(
+            )
+            .unwrap(),
+            query_tx_blocks_result_size: register_histogram_with_registry!(
                 "json_rpc_query_tx_blocks_result_size",
                 "The return size for query_tx_blocks",
+                iota_metrics::COUNT_BUCKETS.to_vec(),
                 registry,
-            ),
+            )
+            .unwrap(),
             query_tx_blocks_result_size_total: register_int_counter_with_registry!(
                 "json_rpc_query_tx_blocks_result_size_total",
                 "The total return size for query_tx_blocks",
                 registry
             )
             .unwrap(),
-            query_events_limit: Histogram::new_in_registry(
+            query_events_limit: register_histogram_with_registry!(
                 "json_rpc_query_events_limit",
                 "The input limit for query_events, after applying the cap",
+                iota_metrics::COUNT_BUCKETS.to_vec(),
                 registry,
-            ),
-            query_events_result_size: Histogram::new_in_registry(
+            )
+            .unwrap(),
+            query_events_result_size: register_histogram_with_registry!(
                 "json_rpc_query_events_result_size",
                 "The return size for query_events",
+                iota_metrics::COUNT_BUCKETS.to_vec(),
                 registry,
-            ),
+            )
+            .unwrap(),
             query_events_result_size_total: register_int_counter_with_registry!(
                 "json_rpc_query_events_result_size_total",
                 "The total return size for query_events",
                 registry
             )
             .unwrap(),
-            get_stake_iota_result_size: Histogram::new_in_registry(
+            get_stake_iota_result_size: register_histogram_with_registry!(
                 "json_rpc_get_stake_iota_result_size",
                 "The return size for get_stake_iota",
+                iota_metrics::COUNT_BUCKETS.to_vec(),
                 registry,
-            ),
+            )
+            .unwrap(),
             get_stake_iota_result_size_total: register_int_counter_with_registry!(
                 "json_rpc_get_stake_iota_result_size_total",
                 "The total return size for get_stake_iota",
                 registry
             )
             .unwrap(),
-            get_stake_iota_latency: Histogram::new_in_registry(
+            get_stake_iota_latency: register_histogram_with_registry!(
                 "get_stake_iota_latency",
                 "The latency of get stake iota, in ms",
+                iota_metrics::COARSE_LATENCY_SEC_BUCKETS.to_vec(),
                 registry,
-            ),
-            get_delegated_iota_latency: Histogram::new_in_registry(
+            )
+            .unwrap(),
+            get_delegated_iota_latency: register_histogram_with_registry!(
                 "get_delegated_iota_latency",
                 "The latency of get delegated iota, in ms",
+                iota_metrics::COARSE_LATENCY_SEC_BUCKETS.to_vec(),
                 registry,
-            ),
-            orchestrator_latency_ms: Histogram::new_in_registry(
+            )
+            .unwrap(),
+            orchestrator_latency_ms: register_histogram_with_registry!(
                 "json_rpc_orchestrator_latency",
                 "The latency of submitting transaction via transaction orchestrator, in ms",
+                iota_metrics::COARSE_LATENCY_SEC_BUCKETS.to_vec(),
                 registry,
-            ),
-            post_orchestrator_latency_ms: Histogram::new_in_registry(
+            )
+            .unwrap(),
+            post_orchestrator_latency_ms: register_histogram_with_registry!(
                 "json_rpc_post_orchestrator_latency",
                 "The latency of response processing after transaction orchestrator, in ms",
+                iota_metrics::COARSE_LATENCY_SEC_BUCKETS.to_vec(),
                 registry,
-            ),
+            )
+            .unwrap(),
         }
     }
 

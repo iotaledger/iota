@@ -13,7 +13,7 @@ use std::{
 use anyhow::Result;
 use async_trait::async_trait;
 use iota_config::local_ip_utils::new_local_tcp_address_for_testing;
-use iota_metrics::{histogram::Histogram as IotaHistogram, spawn_monitored_task};
+use iota_metrics::spawn_monitored_task;
 use iota_network::{
     api::{Validator, ValidatorServer},
     tonic,
@@ -38,8 +38,8 @@ use iota_types::{
 };
 use nonempty::{NonEmpty, nonempty};
 use prometheus::{
-    IntCounter, IntCounterVec, Registry, register_int_counter_vec_with_registry,
-    register_int_counter_with_registry,
+    Histogram, IntCounter, IntCounterVec, Registry, register_histogram_with_registry,
+    register_int_counter_vec_with_registry, register_int_counter_with_registry,
 };
 use tap::TapFallible;
 use tokio::task::JoinHandle;
@@ -169,16 +169,16 @@ impl AuthorityServer {
 /// Metrics for the validator service.
 pub struct ValidatorServiceMetrics {
     pub signature_errors: IntCounter,
-    pub tx_verification_latency: IotaHistogram,
-    pub cert_verification_latency: IotaHistogram,
-    pub consensus_latency: IotaHistogram,
-    pub handle_transaction_latency: IotaHistogram,
-    pub submit_certificate_consensus_latency: IotaHistogram,
-    pub handle_certificate_consensus_latency: IotaHistogram,
-    pub handle_certificate_non_consensus_latency: IotaHistogram,
-    pub handle_soft_bundle_certificates_consensus_latency: IotaHistogram,
-    pub handle_soft_bundle_certificates_count: IotaHistogram,
-    pub handle_soft_bundle_certificates_size_bytes: IotaHistogram,
+    pub tx_verification_latency: Histogram,
+    pub cert_verification_latency: Histogram,
+    pub consensus_latency: Histogram,
+    pub handle_transaction_latency: Histogram,
+    pub submit_certificate_consensus_latency: Histogram,
+    pub handle_certificate_consensus_latency: Histogram,
+    pub handle_certificate_non_consensus_latency: Histogram,
+    pub handle_soft_bundle_certificates_consensus_latency: Histogram,
+    pub handle_soft_bundle_certificates_count: Histogram,
+    pub handle_soft_bundle_certificates_size_bytes: Histogram,
 
     num_rejected_tx_in_epoch_boundary: IntCounter,
     num_rejected_cert_in_epoch_boundary: IntCounter,
@@ -200,46 +200,76 @@ impl ValidatorServiceMetrics {
                 registry,
             )
             .unwrap(),
-            tx_verification_latency: IotaHistogram::new_in_registry(
+            tx_verification_latency: register_histogram_with_registry!(
                 "validator_service_tx_verification_latency",
                 "Latency of verifying a transaction",
+                iota_metrics::SUBSECOND_LATENCY_SEC_BUCKETS.to_vec(),
                 registry,
-            ),
-            cert_verification_latency: IotaHistogram::new_in_registry(
+            )
+            .unwrap(),
+            cert_verification_latency: register_histogram_with_registry!(
                 "validator_service_cert_verification_latency",
                 "Latency of verifying a certificate",
+                iota_metrics::SUBSECOND_LATENCY_SEC_BUCKETS.to_vec(),
                 registry,
-            ),
-            consensus_latency: IotaHistogram::new_in_registry(
+            )
+            .unwrap(),
+            consensus_latency: register_histogram_with_registry!(
                 "validator_service_consensus_latency",
                 "Time spent between submitting a shared obj txn to consensus and getting result",
+                iota_metrics::SUBSECOND_LATENCY_SEC_BUCKETS.to_vec(),
                 registry,
-            ),
-            handle_transaction_latency: IotaHistogram::new_in_registry(
+            )
+            .unwrap(),
+            handle_transaction_latency: register_histogram_with_registry!(
                 "validator_service_handle_transaction_latency",
                 "Latency of handling a transaction",
+                iota_metrics::SUBSECOND_LATENCY_SEC_BUCKETS.to_vec(),
                 registry,
-            ),
-            handle_certificate_consensus_latency: IotaHistogram::new_in_registry(
+            )
+            .unwrap(),
+            handle_certificate_consensus_latency: register_histogram_with_registry!(
                 "validator_service_handle_certificate_consensus_latency",
                 "Latency of handling a consensus transaction certificate",
+                iota_metrics::COARSE_LATENCY_SEC_BUCKETS.to_vec(),
                 registry,
-            ),
-            submit_certificate_consensus_latency: IotaHistogram::new_in_registry(
+            )
+            .unwrap(),
+            submit_certificate_consensus_latency: register_histogram_with_registry!(
                 "validator_service_submit_certificate_consensus_latency",
                 "Latency of submit_certificate RPC handler",
+                iota_metrics::COARSE_LATENCY_SEC_BUCKETS.to_vec(),
                 registry,
-            ),
-            handle_certificate_non_consensus_latency: IotaHistogram::new_in_registry(
+            )
+            .unwrap(),
+            handle_certificate_non_consensus_latency: register_histogram_with_registry!(
                 "validator_service_handle_certificate_non_consensus_latency",
                 "Latency of handling a non-consensus transaction certificate",
+                iota_metrics::SUBSECOND_LATENCY_SEC_BUCKETS.to_vec(),
                 registry,
-            ),
-            handle_soft_bundle_certificates_consensus_latency: IotaHistogram::new_in_registry(
+            )
+            .unwrap(),
+            handle_soft_bundle_certificates_consensus_latency: register_histogram_with_registry!(
                 "validator_service_handle_soft_bundle_certificates_consensus_latency",
                 "Latency of handling a consensus soft bundle",
+                iota_metrics::COARSE_LATENCY_SEC_BUCKETS.to_vec(),
                 registry,
-            ),
+            )
+            .unwrap(),
+            handle_soft_bundle_certificates_count: register_histogram_with_registry!(
+                "validator_service_handle_soft_bundle_certificates_count",
+                "The number of certificates included in a soft bundle",
+                iota_metrics::COUNT_BUCKETS.to_vec(),
+                registry,
+            )
+            .unwrap(),
+            handle_soft_bundle_certificates_size_bytes: register_histogram_with_registry!(
+                "validator_service_handle_soft_bundle_certificates_size_bytes",
+                "The size of soft bundle in bytes",
+                iota_metrics::BYTES_BUCKETS.to_vec(),
+                registry,
+            )
+            .unwrap(),
             num_rejected_tx_in_epoch_boundary: register_int_counter_with_registry!(
                 "validator_service_num_rejected_tx_in_epoch_boundary",
                 "Number of rejected transaction during epoch transitioning",
@@ -266,16 +296,6 @@ impl ValidatorServiceMetrics {
                 registry,
             )
             .unwrap(),
-            handle_soft_bundle_certificates_count: IotaHistogram::new_in_registry(
-                "handle_soft_bundle_certificates_count",
-                "The number of certificates included in a soft bundle",
-                registry,
-            ),
-            handle_soft_bundle_certificates_size_bytes: IotaHistogram::new_in_registry(
-                "handle_soft_bundle_certificates_size_bytes",
-                "The size of soft bundle in bytes",
-                registry,
-            ),
             connection_ip_not_found: register_int_counter_with_registry!(
                 "validator_service_connection_ip_not_found",
                 "Number of times connection IP was not extractable from request",
@@ -860,11 +880,11 @@ impl ValidatorService {
 
         self.metrics
             .handle_soft_bundle_certificates_count
-            .observe(certificates.len() as u64);
+            .observe(certificates.len() as f64);
 
         self.metrics
             .handle_soft_bundle_certificates_size_bytes
-            .observe(total_size_bytes);
+            .observe(total_size_bytes as f64);
 
         // Now that individual certificates are valid, we check if the bundle is valid.
         self.soft_bundle_validity_check(&certificates, &epoch_store, total_size_bytes)
