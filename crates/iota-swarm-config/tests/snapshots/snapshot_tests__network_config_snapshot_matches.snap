@@ -75,6 +75,7 @@ validator_configs:
     indexer-max-subscriptions: ~
     transaction-kv-store-read-config:
       base-url: ""
+      cache-size: 100000
     jwk-fetch-interval-seconds: 3600
     zklogin-oauth-providers:
       Mainnet:
@@ -201,6 +202,7 @@ validator_configs:
     indexer-max-subscriptions: ~
     transaction-kv-store-read-config:
       base-url: ""
+      cache-size: 100000
     jwk-fetch-interval-seconds: 3600
     zklogin-oauth-providers:
       Mainnet:
@@ -327,6 +329,7 @@ validator_configs:
     indexer-max-subscriptions: ~
     transaction-kv-store-read-config:
       base-url: ""
+      cache-size: 100000
     jwk-fetch-interval-seconds: 3600
     zklogin-oauth-providers:
       Mainnet:
@@ -453,6 +456,7 @@ validator_configs:
     indexer-max-subscriptions: ~
     transaction-kv-store-read-config:
       base-url: ""
+      cache-size: 100000
     jwk-fetch-interval-seconds: 3600
     zklogin-oauth-providers:
       Mainnet:
@@ -579,6 +583,7 @@ validator_configs:
     indexer-max-subscriptions: ~
     transaction-kv-store-read-config:
       base-url: ""
+      cache-size: 100000
     jwk-fetch-interval-seconds: 3600
     zklogin-oauth-providers:
       Mainnet:
@@ -705,6 +710,7 @@ validator_configs:
     indexer-max-subscriptions: ~
     transaction-kv-store-read-config:
       base-url: ""
+      cache-size: 100000
     jwk-fetch-interval-seconds: 3600
     zklogin-oauth-providers:
       Mainnet:
@@ -831,6 +837,7 @@ validator_configs:
     indexer-max-subscriptions: ~
     transaction-kv-store-read-config:
       base-url: ""
+      cache-size: 100000
     jwk-fetch-interval-seconds: 3600
     zklogin-oauth-providers:
       Mainnet:
