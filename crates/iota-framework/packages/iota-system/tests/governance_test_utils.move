@@ -327,7 +327,6 @@ module iota_system::governance_test_utils {
         while (i < validator_addrs.length()) {
             let validator_addr = validator_addrs[i];
             let amount = stake_amounts[i];
-
             scenario.next_tx(validator_addr);
             let mut system_state = scenario.take_shared<IotaSystemState>();
             let stake_plus_rewards = stake_plus_current_rewards_for_validator(validator_addr, &mut system_state, scenario);
@@ -342,11 +341,10 @@ module iota_system::governance_test_utils {
         while (i < validator_addrs.length()) {
             let validator_addr = validator_addrs[i];
             let amount = stake_amounts[i];
-
             scenario.next_tx(validator_addr);
             let mut system_state = scenario.take_shared<IotaSystemState>();
             let validator_amount = system_state.validator_stake_amount(validator_addr);
-            assert!(validator_amount == amount, validator_amount);
+            assert_eq(validator_amount, amount);
             test_scenario::return_shared(system_state);
             i = i + 1;
         };
@@ -361,6 +359,20 @@ module iota_system::governance_test_utils {
             let mut system_state = scenario.take_shared<IotaSystemState>();
             let non_self_stake_amount = system_state.validator_stake_amount(validator_addr) - stake_plus_current_rewards_for_validator(validator_addr, &mut system_state, scenario);
             assert_eq(non_self_stake_amount, amount);
+            test_scenario::return_shared(system_state);
+            i = i + 1;
+        };
+    }
+
+    public fun assert_validator_candidate_total_stake_amounts(validator_addrs: vector<address>, stake_amounts: vector<u64>, scenario: &mut Scenario) {
+        let mut i = 0;
+        while (i < validator_addrs.length()) {
+            let validator_addr = validator_addrs[i];
+            let amount = stake_amounts[i];
+            scenario.next_tx(validator_addr);
+            let mut system_state = scenario.take_shared<IotaSystemState>();
+            let validator_amount = system_state.validators().get_candidate_validator_ref(validator_addr).total_stake_amount();
+            assert_eq(validator_amount, amount);
             test_scenario::return_shared(system_state);
             i = i + 1;
         };
