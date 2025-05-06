@@ -41,6 +41,7 @@ pub const MAX_PROTOCOL_VERSION: u64 = 8;
 //            Enable proper conversion of certain type argument errors in the
 //            execution layer.
 // Version 6: Bound size of values created in the adapter.
+// Version 7: Improve handling of stake withdrawal from candidate validators.
 // Version 8: Variants as type nodes.
 //            Enable smart ancestor selection for testnet.
 //            Enable probing for accepted rounds in round prober for testnet.
@@ -1949,6 +1950,8 @@ impl ProtocolConfig {
                 6 => {
                     cfg.max_ptb_value_size = Some(1024 * 1024);
                 }
+                // version 7 is a new framework version but with no config changes
+                7 => {}
                 8 => {
                     // TODO: add new consensus related config params to this
                     // version
