@@ -48,7 +48,7 @@ pub(crate) struct DagState {
 
     // Contains recent blocks within CACHED_ROUNDS from the last committed round per authority.
     // Note: all uncommitted blocks are kept in memory.
-    recent_blocks: BTreeMap<BlockRef, BlockInfo>,
+    recent_blocks: BTreeMap<BlockRef, VerifiedBlockHeader>,
 
     // Indexes recent block refs by their authorities.
     // Vec position corresponds to the authority index.
@@ -257,8 +257,7 @@ impl DagState {
     /// Updates internal metadata for a block.
     fn update_block_metadata(&mut self, block: &VerifiedBlockHeader) {
         let block_ref = block.reference();
-        self.recent_blocks
-            .insert(block_ref, BlockInfo::new(block.clone()));
+        self.recent_blocks.insert(block_ref, block.clone());
         self.recent_refs_by_authority[block_ref.author].insert(block_ref);
         self.threshold_clock.add_block(block_ref);
         self.highest_accepted_round = max(self.highest_accepted_round, block.round());
@@ -315,8 +314,8 @@ impl DagState {
                 }
                 continue;
             }
-            if let Some(block_info) = self.recent_blocks.get(block_ref) {
-                blocks[index] = Some(block_info.block.clone());
+            if let Some(block) = self.recent_blocks.get(block_ref) {
+                blocks[index] = Some(block.clone());
                 continue;
             }
             missing.push((index, block_ref));
@@ -348,31 +347,6 @@ impl DagState {
         blocks
     }
 
-    // Sets the block as committed in the cache. If the block is set as committed
-    // for first time, then true is returned, otherwise false is returned instead.
-    // Method will panic if the block is not found in the cache.
-    pub(crate) fn set_committed(&mut self, block_ref: &BlockRef) -> bool {
-        if let Some(block_info) = self.recent_blocks.get_mut(block_ref) {
-            if !block_info.committed {
-                block_info.committed = true;
-                return true;
-            }
-            false
-        } else {
-            panic!(
-                "Block {:?} not found in cache to set as committed.",
-                block_ref
-            );
-        }
-    }
-
-    pub(crate) fn is_committed(&self, block_ref: &BlockRef) -> bool {
-        self.recent_blocks
-            .get(block_ref)
-            .unwrap_or_else(|| panic!("Attempted to query for commit status for a block not in cached data {block_ref}"))
-            .committed
-    }
-
     /// Gets all uncommitted blocks in a slot.
     /// Uncommitted blocks must exist in memory, so only in-memory blocks are
     /// checked.
@@ -382,7 +356,7 @@ impl DagState {
         // to edge cases.
 
         let mut blocks = vec![];
-        for (_block_ref, block_info) in self.recent_blocks.range((
+        for (_block_ref, block) in self.recent_blocks.range((
             Included(BlockRef::new(
                 slot.round,
                 slot.authority,
@@ -394,7 +368,7 @@ impl DagState {
                 BlockHeaderDigest::MAX,
             )),
         )) {
-            blocks.push(block_info.block.clone())
+            blocks.push(block.clone())
         }
         blocks
     }
@@ -408,7 +382,7 @@ impl DagState {
         }
 
         let mut blocks = vec![];
-        for (_block_ref, block_info) in self.recent_blocks.range((
+        for (_block_ref, block) in self.recent_blocks.range((
             Included(BlockRef::new(
                 round,
                 AuthorityIndex::ZERO,
@@ -420,7 +394,7 @@ impl DagState {
                 BlockHeaderDigest::MIN,
             )),
         )) {
-            blocks.push(block_info.block.clone())
+            blocks.push(block.clone())
         }
         blocks
     }
@@ -480,7 +454,6 @@ impl DagState {
                 .recent_blocks
                 .get(last)
                 .expect("Block should be found in recent blocks")
-                .block
                 .clone();
         }
 
@@ -508,11 +481,11 @@ impl DagState {
             Included(BlockRef::new(start, authority, BlockHeaderDigest::MIN)),
             Unbounded,
         )) {
-            let block_info = self
+            let block = self
                 .recent_blocks
                 .get(block_ref)
                 .expect("Block should exist in recent blocks");
-            blocks.push(block_info.block.clone());
+            blocks.push(block.clone());
         }
         blocks
     }
@@ -547,9 +520,7 @@ impl DagState {
             ))
             .last()?;
 
-        self.recent_blocks
-            .get(block_ref)
-            .map(|block_info| block_info.block.clone())
+        self.recent_blocks.get(block_ref).cloned()
     }
 
     /// Returns the last block proposed per authority with `evicted round <
@@ -611,11 +582,11 @@ impl DagState {
             for block_ref in block_ref_iter {
                 if last_round == 0 {
                     last_round = block_ref.round;
-                    let block_info = self
+                    let block = self
                         .recent_blocks
                         .get(block_ref)
                         .expect("Block should exist in recent blocks");
-                    blocks[authority_index] = block_info.block.clone();
+                    blocks[authority_index] = block.clone();
                     continue;
                 }
                 if block_ref.round < last_round {
@@ -1026,22 +997,6 @@ impl DagState {
         self.last_commit = Some(commit);
     }
 }
-
-struct BlockInfo {
-    block: VerifiedBlockHeader,
-    // Whether the block has been committed
-    committed: bool,
-}
-
-impl BlockInfo {
-    fn new(block: VerifiedBlockHeader) -> Self {
-        Self {
-            block,
-            committed: false,
-        }
-    }
-}
-
 #[cfg(test)]
 mod test {
     use std::vec;
@@ -1672,44 +1627,6 @@ mod test {
         // Unscored subdags will be recovered based on the flushed commits and no commit
         // info
         assert_eq!(dag_state.scoring_subdags_count(), 5);
-    }
-
-    #[tokio::test]
-    async fn test_block_info_as_committed() {
-        let num_authorities: u32 = 4;
-        let (context, _) = Context::new_for_test(num_authorities as usize);
-        let context = Arc::new(context);
-
-        let store = Arc::new(MemStore::new());
-        let mut dag_state = DagState::new(context.clone(), store.clone());
-
-        // Accept a block
-        let block = VerifiedBlockHeader::new_for_test(
-            TestBlockHeader::new(1, 0)
-                .set_timestamp_ms(1000)
-                .set_ancestors(vec![])
-                .build(),
-        );
-
-        dag_state.accept_block(block.clone());
-
-        // Query is committed
-        assert!(!dag_state.is_committed(&block.reference()));
-
-        // Set block as committed for first time should return true
-        assert!(
-            dag_state.set_committed(&block.reference()),
-            "Block should be successfully set as committed for first time"
-        );
-
-        // Now it should appear as committed
-        assert!(dag_state.is_committed(&block.reference()));
-
-        // Trying to set the block as committed again, it should return false.
-        assert!(
-            !dag_state.set_committed(&block.reference()),
-            "Block should not be successfully set as committed"
-        );
     }
 
     #[tokio::test]
