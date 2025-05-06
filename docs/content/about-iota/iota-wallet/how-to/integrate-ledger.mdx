@@ -34,6 +34,12 @@ Ledger Live is preferred, but you need to install the app manually for deprecate
 
 ### Manually (for deprecated devices such as Ledger Nano S)
 
+#### Requirements
+
+- [Python](https://www.python.org/downloads/)
+
+#### Install
+
 :::warning
 
 Make sure you have enough space left for an additional app on your device.
@@ -42,14 +48,24 @@ Make sure you have enough space left for an additional app on your device.
 
 1. Go to the latest release on https://github.com/iotaledger/ledger-app-iota/releases/tag/ledger-app-iota-v0.9.2.
 2. Download the archive matching your device, e.g. `nanos.tar.gz` for the Ledger Nano S.
-3. Verify that the checksum (`shasum -a 256 nanos.tar.gz`) matches the one from the release.
+:::info Safari
+
+If you use Safari make sure to not directly click on the file you want to download. 
+Right click and choose `Download Linked File`. This makes sure Safari doesn't unpack the file to `nanos.tar` which is important for the next step.
+
+:::
+3. Verify that the checksum matches the one from the release:
+   - For Linux or MacOS, use `shasum -a 256 nanos.tar.gz`.
+   - For Windows, use `Get-Filehash -Algorithm SHA256 nanos.tar.gz`.
 4. Extract the archive `tar -xvzf nanos.tar.gz`.
 5. Move to the app folder `cd nanos`.
 6. Follow the steps on https://github.com/LedgerHQ/ledgerctl to install `ledgerctl`.
-7. Install the app on your device `ledgerctl install -f app_nanos.json`.
-8. Accept `Allow unsafe manager` on your device.
-9. Accept `Perform installation` on your device.
-10. Enter your pin on your device.
+7. If you don't already have your ledger device connected, connect and unlock it now.
+8. Install the app on your device `ledgerctl install -f app_nanos.json`.
+9. Accept `Allow unsafe manager` on your device.
+10. Follow the instructions on your device to uninstall the old app if needed.
+11. Accept `Perform installation` on your device.
+12. Enter your pin on your device.
 
 Launching the app will display "This app is not genuine" on your device. This is expected, as the app is not signed by Ledger.
 The displayed identifier should be `980ee07054776674583f423401e7fab5fed56557e6e24f219e43b546798db1f1`.
