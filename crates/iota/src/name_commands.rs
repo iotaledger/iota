@@ -14,10 +14,7 @@ use futures::{StreamExt, TryStreamExt};
 use iota_graphql_rpc_client::simple_client::{GraphqlQueryVariable, SimpleClient};
 use iota_json::IotaJsonValue;
 use iota_json_rpc_api::IndexerApiClient;
-use iota_json_rpc_types::{
-    IotaData, IotaObjectDataFilter, IotaObjectDataOptions, IotaObjectResponse,
-    IotaObjectResponseQuery,
-};
+use iota_json_rpc_types::{IotaData, IotaObjectDataOptions, IotaObjectResponse};
 use iota_names::{
     IotaNamesNft, IotaNamesRegistration, SubdomainRegistration, config::IotaNamesConfig,
     domain::Domain,
@@ -300,7 +297,7 @@ impl NameCommand {
                 )
             }
             Self::Burn { domain, opts } => {
-                let nft = get_owned_nft_by_name::<IotaNamesRegistration>(&domain, context).await?;
+                let nft = get_owned_nft_by_name(&domain, context).await?;
 
                 if !nft.has_expired() {
                     let expiration_datetime = DateTime::<Utc>::from(nft.expiration_time())
@@ -357,23 +354,13 @@ impl NameCommand {
                 NameCommandResult::UserData(res)
             }
             Self::List { address } => {
-                let client = context.get_client().await?;
-                let address = get_identity_address(address.map(KeyIdentity::Address), context)?;
-
-                let nfts = PagedFn::stream(async |cursor| {
-                    client
-                        .http()
-                        .iota_names_find_all_registration_nfts(
-                            address,
-                            cursor,
-                            None,
-                            Some(IotaObjectDataOptions::new().with_bcs()),
-                        )
-                        .await
-                })
-                .then(|res| async { deserialize_move_object_from_bcs(res?) })
-                .try_collect()
-                .await?;
+                let mut nfts = get_owned_nfts(address, context).await?;
+                nfts.extend(
+                    get_owned_subdomain_nfts(address, context)
+                        .await?
+                        .into_iter()
+                        .map(SubdomainRegistration::into_inner),
+                );
 
                 NameCommandResult::List(nfts)
             }
@@ -484,9 +471,7 @@ impl NameCommand {
                 let domain_name = domain.to_string();
                 let coin =
                     select_coin_for_payment(domain_name.as_str(), coin, price, context).await?;
-                let nft_id = get_owned_nft_by_name::<IotaNamesRegistration>(&domain, context)
-                    .await?
-                    .id();
+                let nft_id = get_owned_nft_by_name(&domain, context).await?.id();
                 let mut args = vec![
                     "--move-call iota::tx_context::sender".to_string(),
                     "--assign sender".to_string(),
@@ -532,7 +517,7 @@ impl NameCommand {
             }
             Self::SetReverseLookup { domain, opts } => {
                 // Check ownership of the name off-chain to avoid potentially wasting gas
-                get_owned_nft_by_name::<IotaNamesRegistration>(&domain, context).await?;
+                get_owned_nft_by_name(&domain, context).await?;
                 let client = context.get_client().await?;
                 let iota_names_config = get_iota_names_config(&client).await?;
 
@@ -558,9 +543,7 @@ impl NameCommand {
                 new_address,
                 opts,
             } => {
-                let nft_id = get_owned_nft_by_name::<IotaNamesRegistration>(&domain, context)
-                    .await?
-                    .id();
+                let nft_id = get_owned_nft_by_name(&domain, context).await?.id();
                 let client = context.get_client().await?;
                 let iota_names_config = get_iota_names_config(&client).await?;
 
@@ -591,7 +574,7 @@ impl NameCommand {
                 value,
                 opts,
             } => {
-                let nft = get_owned_nft_by_name::<IotaNamesRegistration>(&domain, context).await?;
+                let nft = get_owned_nft_by_name(&domain, context).await?;
                 let client = context.get_client().await?;
                 let iota_names_config = get_iota_names_config(&client).await?;
 
@@ -621,9 +604,7 @@ impl NameCommand {
                 address,
                 opts,
             } => {
-                let nft_id = get_owned_nft_by_name::<IotaNamesRegistration>(&domain, context)
-                    .await?
-                    .id();
+                let nft_id = get_owned_nft_by_name(&domain, context).await?.id();
                 let client = context.get_client().await?;
                 let iota_names_config = get_iota_names_config(&client).await?;
 
@@ -666,7 +647,7 @@ impl NameCommand {
                 )
             }
             Self::UnsetUserData { domain, key, opts } => {
-                let nft = get_owned_nft_by_name::<IotaNamesRegistration>(&domain, context).await?;
+                let nft = get_owned_nft_by_name(&domain, context).await?;
                 let client = context.get_client().await?;
                 let iota_names_config = get_iota_names_config(&client).await?;
 
@@ -901,7 +882,7 @@ impl SubdomainCommand {
                 expiration_timestamp,
                 opts,
             } => {
-                let nft = get_owned_nft_by_name::<SubdomainRegistration>(&domain, context).await?;
+                let nft = get_owned_subdomain_nft_by_name(&domain, context).await?;
                 anyhow::ensure!(
                     expiration_timestamp.as_system_time() > nft.expiration_time(),
                     "new expiration time is not after old expiration: {}",
@@ -1057,41 +1038,62 @@ impl std::fmt::Debug for NameCommandResult {
 
 impl PrintableResult for NameCommandResult {}
 
-async fn get_owned_nfts<T: DeserializeOwned + IotaNamesNft>(
+async fn get_owned_nfts(
     address: Option<IotaAddress>,
     context: &mut WalletContext,
-) -> anyhow::Result<Vec<T>> {
+) -> anyhow::Result<Vec<IotaNamesRegistration>> {
     let client = context.get_client().await?;
-    let iota_names_config = get_iota_names_config(&client).await?;
     let address = get_identity_address(address.map(KeyIdentity::Address), context)?;
-    let nft_type = T::type_(iota_names_config.package_address.into());
-    let responses = PagedFn::collect::<Vec<_>>(async |cursor| {
+    PagedFn::stream(async |cursor| {
         client
-            .read_api()
-            .get_owned_objects(
+            .http()
+            .iota_names_find_all_registration_nfts(
                 address,
-                Some(IotaObjectResponseQuery::new(
-                    Some(IotaObjectDataFilter::StructType(nft_type.clone())),
-                    Some(IotaObjectDataOptions::bcs_lossless()),
-                )),
                 cursor,
                 None,
+                Some(IotaObjectDataOptions::new().with_bcs()),
             )
             .await
     })
-    .await?;
+    .then(|res| async {
+        let data = res?.data.expect("missing object data");
+        data.bcs
+            .expect("missing bcs")
+            .try_as_move()
+            .expect("invalid move type")
+            .deserialize()
+    })
+    .try_collect()
+    .await
+}
 
-    responses
-        .into_iter()
-        .map(|res| {
-            let data = res.data.expect("missing object data");
-            data.bcs
-                .expect("missing bcs")
-                .try_as_move()
-                .expect("invalid move type")
-                .deserialize::<T>()
-        })
-        .collect::<Result<_, _>>()
+async fn get_owned_subdomain_nfts(
+    address: Option<IotaAddress>,
+    context: &mut WalletContext,
+) -> anyhow::Result<Vec<SubdomainRegistration>> {
+    let client = context.get_client().await?;
+    let address = get_identity_address(address.map(KeyIdentity::Address), context)?;
+    PagedFn::stream(async |cursor| {
+        client
+            .http()
+            .iota_names_find_all_registration_nfts(
+                address,
+                cursor,
+                None,
+                Some(IotaObjectDataOptions::new().with_bcs()),
+            )
+            .await
+    })
+    .then(|res| async {
+        let data = res?.data.expect("missing object data");
+        data.bcs
+            .expect("missing bcs")
+            .try_as_move()
+            .expect("invalid move type")
+            .deserialize()
+    })
+    .try_collect()
+    .await
 }
 
 #[derive(Copy, Clone)]
@@ -1127,21 +1129,35 @@ impl FromStr for Timestamp {
     }
 }
 
-async fn get_owned_nft_by_name<T: DeserializeOwned + IotaNamesNft>(
+async fn get_owned_nft_by_name(
     domain: &Domain,
     context: &mut WalletContext,
-) -> anyhow::Result<T> {
+) -> anyhow::Result<IotaNamesRegistration> {
     let domain = domain.to_string();
 
-    for nft in get_owned_nfts::<T>(None, context).await? {
+    for nft in get_owned_nfts(None, context).await? {
+        if nft.domain_name() == domain {
+            return Ok(nft);
+        }
+    }
+
+    Err(anyhow::anyhow!("no matching owned nft found for {domain}"))
+}
+
+async fn get_owned_subdomain_nft_by_name(
+    domain: &Domain,
+    context: &mut WalletContext,
+) -> anyhow::Result<SubdomainRegistration> {
+    let domain = domain.to_string();
+
+    for nft in get_owned_subdomain_nfts(None, context).await? {
         if nft.domain_name() == domain {
             return Ok(nft);
         }
     }
 
     Err(anyhow::anyhow!(
-        "no matching owned {} found for {domain}",
-        T::TYPE_NAME
+        "no matching owned subdomain nft found for {domain}"
     ))
 }
 
@@ -1152,7 +1168,7 @@ async fn get_proxy_nft_by_name(
     Ok(if domain.is_sld() {
         IotaNamesNftProxy::Domain(get_owned_nft_by_name(domain, context).await?)
     } else {
-        IotaNamesNftProxy::Subdomain(get_owned_nft_by_name(domain, context).await?)
+        IotaNamesNftProxy::Subdomain(get_owned_subdomain_nft_by_name(domain, context).await?)
     })
 }
 

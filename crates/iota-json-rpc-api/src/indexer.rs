@@ -149,4 +149,14 @@ pub trait IndexerApi {
         limit: Option<usize>,
         options: Option<IotaObjectDataOptions>,
     ) -> RpcResult<ObjectsPage>;
+
+    /// Find all subdomain NFTs for the given address.
+    #[method(name = "iotaNamesFindAllSubdomainNFTs")]
+    async fn iota_names_find_all_subdomain_nfts(
+        &self,
+        address: IotaAddress,
+        cursor: Option<ObjectID>,
+        limit: Option<usize>,
+        options: Option<IotaObjectDataOptions>,
+    ) -> RpcResult<ObjectsPage>;
 }

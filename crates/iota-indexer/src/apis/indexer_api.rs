@@ -13,8 +13,8 @@ use iota_json_rpc_types::{
     IotaTransactionBlockResponseQuery, ObjectsPage, Page, TransactionBlocksPage, TransactionFilter,
 };
 use iota_names::{
-    IotaNamesNft, IotaNamesRegistration, config::IotaNamesConfig, domain::Domain,
-    error::IotaNamesError, registry::NameRecord,
+    IotaNamesNft, IotaNamesRegistration, SubdomainRegistration, config::IotaNamesConfig,
+    domain::Domain, error::IotaNamesError, registry::NameRecord,
 };
 use iota_open_rpc::Module;
 use iota_types::{
@@ -453,6 +453,27 @@ impl IndexerApiServer for IndexerApi {
         let query = IotaObjectResponseQuery {
             filter: Some(IotaObjectDataFilter::StructType(
                 IotaNamesRegistration::type_(self.iota_names_config.package_address.into()),
+            )),
+            options,
+        };
+
+        let owned_objects = self
+            .get_owned_objects(address, Some(query), cursor, limit)
+            .await?;
+
+        Ok(owned_objects)
+    }
+
+    async fn iota_names_find_all_subdomain_nfts(
+        &self,
+        address: IotaAddress,
+        cursor: Option<ObjectID>,
+        limit: Option<usize>,
+        options: Option<IotaObjectDataOptions>,
+    ) -> RpcResult<ObjectsPage> {
+        let query = IotaObjectResponseQuery {
+            filter: Some(IotaObjectDataFilter::StructType(
+                SubdomainRegistration::type_(self.iota_names_config.package_address.into()),
             )),
             options,
         };

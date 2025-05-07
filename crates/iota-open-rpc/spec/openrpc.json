@@ -4636,6 +4636,51 @@
       }
     },
     {
+      "name": "iotax_iotaNamesFindAllSubdomainNFTs",
+      "tags": [
+        {
+          "name": "Extended API"
+        }
+      ],
+      "description": "Find all subdomain NFTs for the given address.",
+      "params": [
+        {
+          "name": "address",
+          "required": true,
+          "schema": {
+            "$ref": "#/components/schemas/IotaAddress"
+          }
+        },
+        {
+          "name": "cursor",
+          "schema": {
+            "$ref": "#/components/schemas/ObjectID"
+          }
+        },
+        {
+          "name": "limit",
+          "schema": {
+            "type": "integer",
+            "format": "uint",
+            "minimum": 0.0
+          }
+        },
+        {
+          "name": "options",
+          "schema": {
+            "$ref": "#/components/schemas/ObjectDataOptions"
+          }
+        }
+      ],
+      "result": {
+        "name": "ObjectsPage",
+        "required": true,
+        "schema": {
+          "$ref": "#/components/schemas/Page_for_IotaObjectResponse_and_ObjectID"
+        }
+      }
+    },
+    {
       "name": "iotax_iotaNamesLookup",
       "tags": [
         {
