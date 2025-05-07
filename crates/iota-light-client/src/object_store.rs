@@ -23,21 +23,14 @@ pub struct CheckpointStore {
 
 impl CheckpointStore {
     pub fn new(config: &Config) -> Result<Self> {
-        let url = config
-            .object_store_url
+        let checkpoint_store_config = config
+            .checkpoint_store_config
             .as_ref()
             .cloned()
             .ok_or_else(|| anyhow!("missing checkpoint store url"))?;
 
-        let object_store_config = ObjectStoreConfig {
-            object_store: Some(ObjectStoreType::S3),
-            aws_endpoint: Some(url),
-            aws_virtual_hosted_style_request: true,
-            no_sign_request: true,
-            ..Default::default()
-        };
         let config = ArchiveReaderConfig {
-            remote_store_config: object_store_config,
+            remote_store_config: checkpoint_store_config,
             download_concurrency: NonZeroUsize::new(5).unwrap(),
             use_for_pruning_watermark: false,
         };

@@ -106,7 +106,7 @@ pub async fn sync_checkpoint_list_to_latest(config: &Config) -> anyhow::Result<C
         );
     }
 
-    let checkpoints_from_object_store = if config.object_store_url.is_some() {
+    let checkpoints_from_object_store = if config.checkpoint_store_config.is_some() {
         // TODO uncomment it, blocked by https://github.com/iotaledger/iota/issues/4908
         warn!("Syncing from a checkpoint store is not supported yet.");
         CheckpointList::default()
@@ -334,7 +334,7 @@ pub async fn sync_and_check_checkpoints(config: &Config) -> anyhow::Result<()> {
         .committee()
         .context("Failed to load genesis file")?;
 
-    if let Some(_checkpoint_store_url) = &config.object_store_url {
+    if let Some(_checkpoint_store_url) = &config.checkpoint_store_config {
         // Download summaries from checkpoint object store
         // TODO implement it, blocked by https://github.com/iotaledger/iota/issues/4908
         warn!("Downloading checkpoint summaries from a checkpoint store is not supported yet.");

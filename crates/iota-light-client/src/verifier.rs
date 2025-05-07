@@ -113,7 +113,7 @@ pub async fn get_verified_effects_and_events(
         .checkpoint
         .ok_or_else(|| anyhow!("Transaction not found"))?;
 
-    let checkpoint = if config.object_store_url.is_some() {
+    let checkpoint = if config.checkpoint_store_config.is_some() {
         let checkpoint_store = CheckpointStore::new(config)?;
 
         // Download the full checkpoint for this sequence number

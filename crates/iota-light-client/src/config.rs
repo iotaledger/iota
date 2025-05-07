@@ -27,9 +27,12 @@ pub struct Config {
     /// Flag to enable automatic syncing before running one of the check
     /// commands.
     pub sync_before_check: bool,
-    /// A URL to an object store storing checkpoint summaries.
-    pub object_store_url: Option<String>,
-    /// A config to sync the light client from an archive store.
+    /// A config to sync the light client from a checkpoint store. If provided,
+    /// will also be used to check objects/transactions for inclusion.
+    pub checkpoint_store_config: Option<ObjectStoreConfig>,
+    /// A config to sync the light client from an archive store. Since the
+    /// archive does not store full checkpoints, it cannot be used to
+    /// check objects/transactions.
     pub archive_store_config: Option<ObjectStoreConfig>,
 }
 
@@ -41,7 +44,7 @@ impl Default for Config {
             checkpoints_dir: "checkpoints".into(),
             genesis_blob_download_url: None,
             sync_before_check: false,
-            object_store_url: None,
+            checkpoint_store_config: None,
             archive_store_config: None,
         }
     }
@@ -93,8 +96,10 @@ impl Config {
         if let Some(url) = &self.genesis_blob_download_url {
             Url::parse(url).context("Invalid genesis URL")?;
         }
-        if let Some(url) = &self.object_store_url {
-            Url::parse(url).context("Invalid checkpoint store URL")?;
+        if let Some(checkpoint_store_config) = &self.checkpoint_store_config {
+            if let Some(url) = &checkpoint_store_config.aws_endpoint {
+                Url::parse(url).context("Invalid checkpoint store URL")?;
+            }
         }
         if let Some(archive_store_config) = &self.archive_store_config {
             if let Some(url) = &archive_store_config.aws_endpoint {
