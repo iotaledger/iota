@@ -2060,6 +2060,7 @@ pub async fn build_http_server(
         let iota_names_config = match &config.iota_names_config {
             Some(config) => config.clone(),
             None => {
+                #[expect(clippy::manual_unwrap_or_default)]
                 if let Ok(config) = IotaNamesConfig::from_env() {
                     config
                 } else {
