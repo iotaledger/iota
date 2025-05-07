@@ -47,7 +47,7 @@ export function ExportAccountPage() {
                         />
                         <HideShowDisplayBox
                             value={exportMutation.data}
-                            copiedMessage="Mnemonic copied"
+                            copiedMessage="Private Key copied"
                         />
                     </div>
                 ) : (

@@ -45,7 +45,7 @@ When targeting specific events for [querying](#querying-events) or [subscribing]
 
 ## Emitting Events in Move
 
-To emit events from your Move modules, you need to use the [`iota::event`](../../references/framework/iota/event.mdx) module.
+To emit events from your Move modules, you need to use the [`iota::event`](../../references/framework/iota-framework/event.mdx) module.
 Emitting events allows external applications to subscribe and respond to specific on-chain activities.
 
 First, import the `event` module in your Move code:
@@ -54,7 +54,7 @@ First, import the `event` module in your Move code:
 use iota::event;
 ```
 
-Then, within your function, you can emit an event using the [`emit`](../../references/framework/iota/event.mdx#function-emit) function. For example:
+Then, within your function, you can emit an event using the [`emit`](../../references/framework/iota-framework/event.mdx#function-emit) function. For example:
 
 ```move file=<rootDir>/examples/trading/contracts/escrow/sources/lock.move#L42-L63
 ```
