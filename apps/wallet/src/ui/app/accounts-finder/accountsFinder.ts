@@ -32,6 +32,11 @@ export enum SearchAlgorithm {
     ITERATIVE_DEEPENING_BREADTH_FIRST,
 }
 
+export type OnDerivationPathChecked = (params: {
+    totalCheckedAddresses: number;
+    currentCheckingAddress: number;
+}) => void;
+
 export interface AccountFinderConfigParams {
     getPublicKey: (params: {
         accountIndex: number;
@@ -47,17 +52,7 @@ export interface AccountFinderConfigParams {
     changeIndexes?: number[];
     accountGapLimit?: number;
     addressGapLimit?: number;
-    onProgressUpdate?: (progress: AccountsFinderProgress) => void;
-}
-
-export interface AccountsFinderProgress {
-    currentAccountIndex: number;
-    currentAddressIndex: number;
-    searchType: 'breadth' | 'depth';
-    totalAccounts?: number;
-    totalAddresses?: number;
-    accountGapLimit?: number;
-    addressGapLimit?: number;
+    onDerivationPathChecked?: OnDerivationPathChecked;
 }
 
 interface GapConfiguration {
@@ -74,15 +69,15 @@ const GAP_CONFIGURATION: { [key in AllowedBip44CoinTypes]: GapConfigurationByCoi
     [AllowedBip44CoinTypes.IOTA]: {
         [AllowedAccountSourceTypes.LedgerDerived]: {
             accountGapLimit: 1,
-            addressGapLimit: 5,
+            addressGapLimit: 2,
         },
         [AllowedAccountSourceTypes.MnemonicDerived]: {
-            accountGapLimit: 3,
-            addressGapLimit: 10,
+            accountGapLimit: 1,
+            addressGapLimit: 2,
         },
         [AllowedAccountSourceTypes.SeedDerived]: {
-            accountGapLimit: 3,
-            addressGapLimit: 10,
+            accountGapLimit: 1,
+            addressGapLimit: 2,
         },
     },
 };
@@ -105,12 +100,9 @@ export class AccountsFinder {
     private client: IotaClient;
     private stardustIndexerClient: StardustIndexerClient | null;
     private accounts: AccountFromFinder[] = []; // Found accounts with balances.
-    private onProgressUpdate?: (progress: AccountsFinderProgress) => void;
-    private currentProgress: AccountsFinderProgress = {
-        currentAccountIndex: 0,
-        currentAddressIndex: 0,
-        searchType: 'breadth',
-    };
+    private totalCheckedAddresses: number = 0; // Total number of addresses checked.
+    private currentCheckingAddress: number = 1;
+    private onBipPathChecked: OnDerivationPathChecked | undefined;
 
     constructor(config: AccountFinderConfigParams) {
         this.getPublicKey = config.getPublicKey;
@@ -119,7 +111,6 @@ export class AccountsFinder {
         this.bip44CoinType = config.bip44CoinType;
         this.coinType = config.coinType;
         this.changeIndexes = config.changeIndexes || CHANGE_INDEXES[config.bip44CoinType];
-        this.onProgressUpdate = config.onProgressUpdate;
 
         this.algorithm = config.algorithm || SearchAlgorithm.ITERATIVE_DEEPENING_BREADTH_FIRST;
         this.accountGapLimit =
@@ -129,19 +120,22 @@ export class AccountsFinder {
         this.addressGapLimit =
             config.addressGapLimit ??
             GAP_CONFIGURATION[this.bip44CoinType][config.accountSourceType]?.addressGapLimit;
+
+        if (config.onDerivationPathChecked) {
+            this.onBipPathChecked = config.onDerivationPathChecked;
+        }
     }
 
     // This function calls each time when user press "Search" button
     async find() {
+        // this.currentCheckingAddress = 1;
         switch (this.algorithm) {
             case SearchAlgorithm.BREADTH:
                 return await this.runBreadthSearch();
             case SearchAlgorithm.DEPTH:
                 return await this.runDepthSearch();
             case SearchAlgorithm.ITERATIVE_DEEPENING_BREADTH_FIRST:
-                const breadthResults = await this.runBreadthSearch();
-                const depthResults = await this.runDepthSearch();
-                return [...breadthResults, ...depthResults];
+                return [...(await this.runBreadthSearch()), ...(await this.runDepthSearch())];
             default:
                 throw new Error(`Unsupported search algorithm: ${this.algorithm}`);
         }
@@ -159,9 +153,6 @@ export class AccountsFinder {
     }
 
     async runDepthSearch() {
-        this.currentProgress.searchType = 'depth';
-        this.updateProgress();
-
         const depthAccounts = this.accounts;
 
         // if we have no accounts yet, we populate with empty accounts
@@ -178,10 +169,6 @@ export class AccountsFinder {
 
         // depth search is done by searching for more addresses for each account in isolation
         for (const account of depthAccounts) {
-            this.currentProgress.currentAccountIndex = account.index;
-            this.currentProgress.currentAddressIndex = account.addresses.length;
-            this.updateProgress();
-
             // during depth search we search for 1 account at a time and start from the last address index
             const foundAccounts = await recoverAccounts({
                 accountStartIndex: account.index, // we search for the current account
@@ -190,11 +177,6 @@ export class AccountsFinder {
                 addressGapLimit: this.addressGapLimit, // we search for the full address gap limit
                 changeIndexes: this.changeIndexes,
                 findBalance: this.findBalance,
-                onAddressCheck: (accountIndex, addressIndex) => {
-                    this.currentProgress.currentAccountIndex = accountIndex;
-                    this.currentProgress.currentAddressIndex = addressIndex;
-                    this.updateProgress();
-                },
             });
 
             processedAccounts = [
@@ -207,16 +189,8 @@ export class AccountsFinder {
     }
 
     async runBreadthSearch() {
-        this.currentProgress.searchType = 'breadth';
-        this.updateProgress();
-
         // during breadth search we always start by searching for new account indexes
         const initialAccountIndex = this.accounts?.length ? this.accounts.length : 0; // next index or start from 0;
-
-        this.currentProgress.currentAccountIndex = initialAccountIndex;
-        this.currentProgress.currentAddressIndex = 0;
-        this.currentProgress.totalAccounts = initialAccountIndex + this.accountGapLimit;
-        this.updateProgress();
 
         const foundAccounts = await recoverAccounts({
             accountStartIndex: initialAccountIndex, // we start from the last existing account index
@@ -225,24 +199,9 @@ export class AccountsFinder {
             addressGapLimit: 0, // we only search for 1 address
             changeIndexes: this.changeIndexes,
             findBalance: this.findBalance,
-            onAddressCheck: (accountIndex, addressIndex) => {
-                this.currentProgress.currentAccountIndex = accountIndex;
-                this.currentProgress.currentAddressIndex = addressIndex;
-                this.updateProgress();
-            },
         });
 
         return await this.processAccounts({ foundAccounts });
-    }
-
-    private updateProgress() {
-        if (this.onProgressUpdate) {
-            this.onProgressUpdate({
-                ...this.currentProgress,
-                accountGapLimit: this.accountGapLimit,
-                addressGapLimit: this.addressGapLimit,
-            });
-        }
     }
 
     findBalance: FindBalance = async (params) => {
@@ -315,6 +274,15 @@ export class AccountsFinder {
             }
             hasStardustObjects = sharedStardustObjects.length > 0;
         }
+
+        console.log('finding balance', params);
+        this.totalCheckedAddresses += 1;
+        this.currentCheckingAddress += 1;
+
+        this.onBipPathChecked?.({
+            totalCheckedAddresses: this.totalCheckedAddresses,
+            currentCheckingAddress: this.currentCheckingAddress,
+        });
 
         return {
             publicKey: publicKeyB64,

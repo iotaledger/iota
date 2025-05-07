@@ -63,7 +63,8 @@ export function AccountsFinderView(): JSX.Element {
     const [isPasswordModalVisible, setPasswordModalVisible] = useState(false);
     const [searchPhase, setSearchPhase] = useState<SearchPhase>(SearchPhase.Ready);
     const [isConnectLedgerModalOpen, setConnectLedgerModalOpen] = useState(false);
-    const [searchIteration, setSearchIteration] = useState(1);
+    const [currentCheckingAddress, setCurrentCheckingAddress] = useState(1);
+    const [totalCheckedAddresses, setTotalCheckedAddresses] = useState(0);
     const ledgerIotaClient = useIotaLedgerClient();
     const unlockAccountSourceMutation = useUnlockMutation();
     const sourceStrategy: SourceStrategyToFind = useMemo(
@@ -79,36 +80,14 @@ export function AccountsFinderView(): JSX.Element {
                   },
         [password, accountSourceId, accountSourceType],
     );
-    const { find, progress, isSearching } = useAccountsFinder({
+    const { find } = useAccountsFinder({
         accountSourceType,
         sourceStrategy,
+        onDerivationPathChecked: ({ currentCheckingAddress, totalCheckedAddresses }) => {
+            setCurrentCheckingAddress(currentCheckingAddress);
+            setTotalCheckedAddresses(totalCheckedAddresses);
+        },
     });
-
-    console.log(isSearching);
-
-    // Calculate percentage based on progress information
-    const calculateProgressPercentage = () => {
-        if (progress.searchType === 'breadth' && progress.totalAccounts) {
-            // For breadth search, calculate based on account progress
-            const totalAccounts =
-                progress.totalAccounts -
-                (progress.currentAccountIndex -
-                    (progress.totalAccounts || 0) +
-                    (progress.accountGapLimit || 0));
-            return Math.min(100, Math.round((progress.currentAccountIndex / totalAccounts) * 100));
-        } else if (progress.searchType === 'depth') {
-            // For depth search, show progress based on address index if available
-            if (progress.addressGapLimit) {
-                return Math.min(
-                    100,
-                    Math.round((progress.currentAddressIndex / progress.addressGapLimit) * 100),
-                );
-            }
-            // Default to indeterminate progress
-            return null;
-        }
-        return null;
-    };
 
     function unlockLedger() {
         setConnectLedgerModalOpen(true);
@@ -122,8 +101,6 @@ export function AccountsFinderView(): JSX.Element {
         try {
             setSearchPhase(SearchPhase.Ongoing);
             await find();
-            // Increment search iteration when a search completes
-            setSearchIteration((prev) => prev + 1);
         } finally {
             setSearchPhase(SearchPhase.Idle);
         }
@@ -144,7 +121,7 @@ export function AccountsFinderView(): JSX.Element {
         }
         if (searchPhase === SearchPhase.Ongoing) {
             return {
-                text: '',
+                text: `Checking address: ${currentCheckingAddress}`,
                 icon: <LoadingIndicator />,
             };
         }
@@ -176,6 +153,15 @@ export function AccountsFinderView(): JSX.Element {
         return groupedAccounts;
     }
     const groupedAccounts = persistedAccounts && groupAccountsByAccountIndex(persistedAccounts);
+
+    const findingResultText = (() => {
+        let text = `Checked ${totalCheckedAddresses} addresses.`;
+
+        if (persistedAccounts?.length) {
+            text += ` Found ${persistedAccounts.length} balances.`;
+        }
+        return text;
+    })();
 
     return (
         <>
@@ -210,7 +196,7 @@ export function AccountsFinderView(): JSX.Element {
                         <>
                             {searchOptions.text === 'Keep searching' ? (
                                 <InfoBox
-                                    supportingText="Some funds or addresses may not appear immediately. Run multiple searches to ensure all assets are located."
+                                    supportingText={`${findingResultText} Some funds or addresses may not appear immediately. Run multiple searches to ensure all assets are located.`}
                                     icon={<Info />}
                                     type={InfoBoxType.Default}
                                     style={InfoBoxStyle.Elevated}
