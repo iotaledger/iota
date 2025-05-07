@@ -75,7 +75,7 @@ export function DelegationDetailCard({ validatorAddress, stakedId }: DelegationD
     const { data: metadata } = useCoinMetadata(IOTA_TYPE_ARG);
     const { isCommitteeMember } = useIsValidatorCommitteeMember();
     const { isActiveValidator } = useIsActiveValidator();
-    const { isValidatorExpectedToBeInTheCommittee } =
+    const { isValidatorExpectedToBeInTheCommittee, isValidatorExpectedToBeInTheCommitteeLoading } =
         useGetNextEpochCommitteeMember(validatorAddress);
     // set minimum stake amount to 1 IOTA
     const showRequestMoreIotaToken = useMemo(() => {
@@ -197,7 +197,8 @@ export function DelegationDetailCard({ validatorAddress, stakedId }: DelegationD
                         />
                     </div>
                 </Panel>
-                {!isValidatorExpectedToBeInTheCommittee ? (
+                {!isValidatorExpectedToBeInTheCommittee &&
+                !isValidatorExpectedToBeInTheCommitteeLoading ? (
                     <Panel hasBorder>
                         <div className="flex flex-col gap-y-sm p-md">
                             <KeyValueInfo
