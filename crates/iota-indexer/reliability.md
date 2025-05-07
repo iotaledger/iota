@@ -10,7 +10,7 @@ The following indexer metrics will be used for quantitative requirements.
 | `max_committed_checkpoint_sequence_number`               | The highest committed checkpoint by the indexer.                                                                    |
 | `checkpoint_db_commit_latency`                           | Total latency to commit a chunk of checkpoints (including all transactions, objects, events, etc.) to the database. |
 | `checkpoint_db_commit_latency_transactions_chunks`       | Latency to commit a single chunk of checkpoint transactions to the database.                                        |
-| `checkpoint_db_commit_latency_tx_insertion_order_chunks` | Latency to commit as single chunk of data representing the transaction insertion order to the database.             |
+| `checkpoint_db_commit_latency_tx_insertion_order_chunks` | Latency to commit a single chunk of data representing the transaction insertion order to the database.             |
 | `checkpoint_db_commit_latency_tx_indices_chunks`         | Latency to commit a single chunk of data representing the transaction indices to the database.                      |
 | `checkpoint_db_commit_latency_events_chunks`             | Latency to commit a single chunk of data representing the events to the database.                                   |
 | `checkpoint_db_commit_latency_event_indices_chunks`      | Latency to commit a single chunk of data representing the events indices to the database.                           |
