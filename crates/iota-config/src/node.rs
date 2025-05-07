@@ -14,6 +14,7 @@ use std::{
 use anyhow::Result;
 use consensus_config::Parameters as ConsensusParameters;
 use iota_keys::keypair_file::{read_authority_keypair_from_file, read_keypair_from_file};
+use iota_names::config::IotaNamesConfig;
 use iota_types::{
     base_types::IotaAddress,
     committee::EpochId,
@@ -209,7 +210,7 @@ pub struct NodeConfig {
     #[serde(default)]
     pub indexer_max_subscriptions: Option<usize>,
 
-    #[serde(default = "default_transaction_kv_store_config")]
+    #[serde(default)]
     pub transaction_kv_store_read_config: TransactionKeyValueStoreReadConfig,
 
     // TODO: write config seem to be unused.
@@ -248,6 +249,9 @@ pub struct NodeConfig {
 
     #[serde(default)]
     pub verifier_signing_config: VerifierSigningConfig,
+
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub iota_names_config: Option<IotaNamesConfig>,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize, Default)]
@@ -308,12 +312,6 @@ pub fn default_zklogin_oauth_providers() -> BTreeMap<Chain, BTreeSet<String>> {
     map.insert(Chain::Testnet, providers);
     map.insert(Chain::Unknown, experimental_providers);
     map
-}
-
-fn default_transaction_kv_store_config() -> TransactionKeyValueStoreReadConfig {
-    TransactionKeyValueStoreReadConfig {
-        base_url: "https://transactions.iota.cafe/".to_string(),
-    }
 }
 
 fn default_authority_store_pruning_config() -> AuthorityStorePruningConfig {

@@ -4,12 +4,13 @@
   "private": true,
   "scripts": {
     "docusaurus": "docusaurus",
-    "dev": "pnpm download-iota-references; pnpm download-external-references; pnpm generate-graphql-docs; docusaurus start",
-    "build": "pnpm download-iota-references; pnpm download-external-references; pnpm generate-graphql-docs; docusaurus build",
+    "dev": "pnpm download-rpc-specs; pnpm download-iota-references; pnpm download-external-references; pnpm generate-graphql-docs; pnpm gen-api; NODE_OPTIONS='--max-old-space-size=8192' docusaurus start",
+    "build": "pnpm download-rpc-specs; pnpm download-iota-references; pnpm download-external-references; pnpm generate-graphql-docs; pnpm gen-api; NODE_OPTIONS='--max-old-space-size=8192' docusaurus build",
     "generate-ts-docs": "docusaurus generate-typedoc;",
     "generate-graphql-docs": "docusaurus graphql-to-doc:devnet; docusaurus graphql-to-doc:testnet;",
     "download-iota-references": "git clean -Xdf ../content/references/; ./scripts/get-iota-references.sh;",
     "download-external-references": "git clean -Xdf ../content/references/iota-evm/; ./scripts/get-iota-evm-references.sh; git clean -Xdf ../content/references/iota-identity/; ./scripts/get-iota-identity-references.sh",
+    "download-rpc-specs": "node src/utils/getopenrpcspecs.js",
     "swizzle": "docusaurus swizzle",
     "deploy": "docusaurus deploy",
     "clear": "docusaurus clear",
@@ -19,7 +20,8 @@
     "typecheck": "tsc",
     "fire:deploy-dev": "firebase deploy --only hosting:dev",
     "ampli": "ampli",
-    "pull-amplitude": "ampli pull web"
+    "pull-amplitude": "ampli pull web",
+    "gen-api": "docusaurus gen-api-docs all"
   },
   "dependencies": {
     "@artsy/to-title-case": "^1.1.0",
@@ -42,6 +44,8 @@
     "autoprefixer": "^10.4.19",
     "axios": "^1.8.2",
     "clsx": "^2.1.1",
+    "docusaurus-plugin-openapi-docs": "^4.3.7",
+    "docusaurus-theme-openapi-docs": "^4.3.7",
     "dotenv": "^16.4.5",
     "gray-matter": "^4.0.3",
     "html-react-parser": "^5.1.18",

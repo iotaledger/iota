@@ -100,7 +100,7 @@ impl Handler<TransactionObjectChangesToCommit> for ObjectsSnapshotHandler {
         transformed_data: Vec<TransactionObjectChangesToCommit>,
     ) -> IndexerResult<()> {
         self.store
-            .backfill_objects_snapshot(transformed_data)
+            .persist_objects_snapshot(transformed_data)
             .await?;
         Ok(())
     }

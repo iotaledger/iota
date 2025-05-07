@@ -264,7 +264,6 @@ async fn sync_checkpoint_list_to_latest_using_archive_store(
     Ok(CheckpointList { checkpoints })
 }
 
-// TODO use it, blocked by https://github.com/iotaledger/iota/issues/4908
 /// Downloads the list of end-of-epoch checkpoints from the checkpoint store.
 ///
 /// Requires JSON RPC, GraphQL, and a checkpoint store endpoint.

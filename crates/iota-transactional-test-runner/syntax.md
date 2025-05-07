@@ -26,7 +26,6 @@
   - [`set-random-state`](#set-random-state)
   - [`view-checkpoint`](#view-checkpoint)
   - [`run-graphql`](#run-graphql)
-  - [`force-object-snapshot-catchup`](#force-object-snapshot-catchup)
   - [`bench`](#bench)
 - [How `run_test` Compares a Move File With the Corresponding `.exp` File](#how-run_test-compares-a-move-file-with-the-corresponding-exp-file)
   - [Execution Process in `handle_actual_output`](#execution-process-in-handle_actual_output)
@@ -290,16 +289,15 @@ You should use the command:
 
 ```
 --accounts <ACCOUNTS>: defines a set of named accounts that will be created for testing. Each account is assigned an IOTA address and an associated gas object.
---protocol-version <PROTOCOL_VERSION>: specifies the protocol version to use for execution If not set, the highest available version is used.                                    
---max-gas <MAX_GAS>: sets the maximum gas allowed per transaction. Only valid in non-simulator mode.                                   
+--protocol-version <PROTOCOL_VERSION>: specifies the protocol version to use for execution If not set, the highest available version is used.
+--max-gas <MAX_GAS>: sets the maximum gas allowed per transaction. Only valid in non-simulator mode.
 --shared-object-deletion <SHARED_OBJECT_DELETION>: enables or disables the deletion of shared objects during execution.
 --simulator: runs the test adapter in simulator mode, allowing manual control over checkpoint creation and epoch advancement.
 --custom-validator-account: creates a custom validator account. This is only allowed in simulator mode.
 --reference-gas-price <REFERENCE_GAS_PRICE>: Defines a reference gas price for transactions. Only valid in simulator mode.
 --default-gas-price <DEFAULT_GAS_PRICE>: sSets the default gas price for transactions. If not specified, the default is `1_000`.
---object-snapshot-min-checkpoint-lag <OBJECT_SNAPSHOT_MIN_CHECKPOINT_LAG>: defines the minimum checkpoint lag for object snapshots. This affects when state snapshots are taken during execution
---object-snapshot-max-checkpoint-lag <OBJECT_SNAPSHOT_MAX_CHECKPOINT_LAG>: defines the maximum checkpoint lag for object snapshots
---flavor <FLAVOR>: Specifies the Move compiler flavor (e.g., Iota). 
+--objects-snapshot-min-checkpoint-lag <OBJECT_SNAPSHOT_MIN_CHECKPOINT_LAG>: defines the minimum checkpoint lag for object snapshots. This affects when state snapshots are taken during execution
+--flavor <FLAVOR>: Specifies the Move compiler flavor (e.g., Iota).
 The --flavor option in the init command specifies the Move language flavor that will be used in the environment. This option determines the syntax and semantics applied to Move programs and packages in the test adapter(Core or Iota).
 --addresses <NAMED_ADDRESSES>: Maps custom named addresses to specific numerical addresses for the Move environment.
 ```
@@ -455,10 +453,10 @@ module test::transfer {
 #### Options
 
 ```
---sender <SENDER>: specifies the account that will be used to publish the package. If not provided, the default account is used.              
+--sender <SENDER>: specifies the account that will be used to publish the package. If not provided, the default account is used.
 --upgradeable: if specified, the package will be published as upgradeable, meaning it can be upgraded later with the `upgrade` command.
 --dependencies <DEPENDENCIES>: a list of package dependencies that this package relies on. These dependencies should already be published
---gas-price <GAS_PRICE>: specifies the gas price to use for the transaction. If not provided, the default gas price is used   
+--gas-price <GAS_PRICE>: specifies the gas price to use for the transaction. If not provided, the default gas price is used
 --gas-budget <GAS_BUDGET>: gas limit for execution
 --syntax <SYNTAX>: move syntax type (`source` or `ir`).
 ```
@@ -1351,51 +1349,6 @@ An example of a query that generates an object cursor at runtime:
 }
 ```
 
-### `force-object-snapshot-catchup`
-
-The `force-object-snapshot-catchup` subcommand (`ForceObjectSnapshotCatchup` in Rust) forces the system to catch up on object snapshots between a specified range of checkpoints. This is useful for ensuring that object state updates are fully synchronized across nodes, particularly in scenarios where snapshots may be lagging behind.
-
-#### Syntax
-
-```
-//# force-object-snapshot-catchup -start-cp <START_CP> --end-cp <END_CP>
-```
-
-#### Options
-
-```
---start-cp <START_CP>: the starting checkpoint sequence number from which to begin catching up object snapshots.
---end-cp <END_CP>: the ending checkpoint sequence number up to which object snapshots should be caught up.
-```
-
-#### Example
-
-```move
-//# init --accounts acc1 --simulator
-
-//# create-checkpoint
-
-//# force-object-snapshot-catchup --start-cp 0 --end-cp 1
-```
-
-`.exp` output:
-
-```
-processed 4 tasks
-
-init:
-acc1: object(0,0)
-
-task 1 'create-checkpoint'. lines 3-3:
-Checkpoint created: 1
-
-task 2 'force-object-snapshot-catchup'. lines 5-5:
-Objects snapshot updated to [0 to 1)
-```
-
-- Forces object snapshots to catch up from checkpoint 100 to checkpoint 110.
-- Ensures that any missed object state updates between these checkpoints are processed.
-
 ### `bench`
 
 The `bench` subcommand (`Bench` in Rust) is used to benchmark a specific transaction execution. This is particularly useful for measuring the performance of a Move function execution by running it under benchmarking conditions.
@@ -1480,7 +1433,7 @@ where
 {
     // Executes the .move file and captures output
     let output = handle_actual_output::<Adapter>(path, fully_compiled_program_opt).await?;
-    
+
     // Compares actual output with expected .exp file
     handle_expected_output(path, output.0)?;
 
@@ -1671,7 +1624,6 @@ pub enum IotaSubcommand<ExtraValueArgs, ExtraRunArgs> {
     AdvanceEpoch(AdvanceEpochCommand),
     AdvanceClock(AdvanceClockCommand),
     CreateCheckpoint(CreateCheckpointCommand),
-    ForceObjectSnapshotCatchup(ForceObjectSnapshotCatchup),
     SetAddress(SetAddressCommand),
     SetRandomState(SetRandomStateCommand),
     RunGraphql(RunGraphqlCommand),
@@ -1711,7 +1663,7 @@ async fn handle_subcommand(
     task: TaskInput<Self::Subcommand>,
 ) -> anyhow::Result<Option<String>> {
     self.next_task();
-    
+
     match command {
         // Other commands handling
         // ...

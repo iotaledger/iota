@@ -19,6 +19,7 @@
     "crates/iota-graphql-rpc/docs/examples.md",
     "**/pnpm-lock.yaml",
     "external-crates/move/crates/move-stdlib/**/docs/**/*.md",
+    "crates/iota/src/unit_tests/fixtures/*"
   ],
   "toml": {
     "lineWidth": 80

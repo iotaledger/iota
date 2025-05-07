@@ -289,6 +289,10 @@ iota-wallet:
   label: IOTA Wallet
   description: IOTA Wallet Browser Extension
 
+iota-wallet-dashboard:
+  label: IOTA Wallet Dashboard
+  description: IOTA Wallet Dashboard dApp
+
 node-operation:
   label: Node Operation
   description: Node Operation

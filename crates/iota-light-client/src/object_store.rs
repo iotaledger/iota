@@ -54,8 +54,14 @@ impl CheckpointStore {
     }
 
     pub async fn fetch_full_checkpoint(&self, seq: u64) -> Result<CheckpointData> {
+        use futures::StreamExt;
         self.historical_reader.sync_manifest_once().await?;
-        let checkpoint = self.historical_reader.get_checkpoint(seq).await?;
+        let checkpoint = self
+            .historical_reader
+            .iter_for_range(seq..seq + 1)
+            .await?
+            .next()
+            .ok_or_else(|| anyhow!("missing full checkpoint"))?;
 
         info!("Fetched full checkpoint '{seq}' from checkpoint store:",);
 

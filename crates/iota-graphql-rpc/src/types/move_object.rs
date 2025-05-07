@@ -3,6 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use async_graphql::{connection::Connection, *};
+use iota_names::config::IotaNamesConfig;
 use iota_types::{
     TypeTag,
     object::{Data, MoveObject as NativeMoveObject},
@@ -22,6 +23,10 @@ use crate::{
         display::DisplayEntry,
         dynamic_field::{DynamicField, DynamicFieldName},
         iota_address::IotaAddress,
+        iota_names_registration::{
+            DomainFormat, IotaNamesRegistration, IotaNamesRegistrationDowncastError,
+        },
+        move_type::MoveType,
         move_value::MoveValue,
         object::{self, Object, ObjectFilter, ObjectImpl, ObjectLookup, ObjectOwner, ObjectStatus},
         owner::OwnerImpl,
@@ -109,6 +114,7 @@ pub(crate) enum IMoveObject {
     Coin(Coin),
     CoinMetadata(CoinMetadata),
     StakedIota(StakedIota),
+    IotaNamesRegistration(IotaNamesRegistration),
 }
 
 /// The representation of an object as a Move Object, which exposes additional
@@ -188,6 +194,33 @@ impl MoveObject {
     ) -> Result<Connection<String, StakedIota>> {
         OwnerImpl::from(&self.super_)
             .staked_iotas(ctx, first, after, last, before)
+            .await
+    }
+
+    /// The domain explicitly configured as the default domain pointing to this
+    /// object.
+    pub(crate) async fn iota_names_default_name(
+        &self,
+        ctx: &Context<'_>,
+        format: Option<DomainFormat>,
+    ) -> Result<Option<String>> {
+        OwnerImpl::from(&self.super_)
+            .iota_names_default_name(ctx, format)
+            .await
+    }
+
+    /// The IotaNamesRegistration NFTs owned by this object. These grant the
+    /// owner the capability to manage the associated domain.
+    pub(crate) async fn iota_names_registrations(
+        &self,
+        ctx: &Context<'_>,
+        first: Option<u64>,
+        after: Option<object::Cursor>,
+        last: Option<u64>,
+        before: Option<object::Cursor>,
+    ) -> Result<Connection<String, IotaNamesRegistration>> {
+        OwnerImpl::from(&self.super_)
+            .iota_names_registrations(ctx, first, after, last, before)
             .await
     }
 
@@ -381,12 +414,36 @@ impl MoveObject {
             .extend(),
         }
     }
+
+    // Attempts to convert the Move object into a `IotaNamesRegistration` object.
+    async fn as_iota_names_registration(
+        &self,
+        ctx: &Context<'_>,
+    ) -> Result<Option<IotaNamesRegistration>> {
+        let cfg: &IotaNamesConfig = ctx.data_unchecked();
+        let tag = IotaNamesRegistration::type_(cfg.package_address.into());
+
+        match IotaNamesRegistration::try_from(self, &tag) {
+            Ok(registration) => Ok(Some(registration)),
+            Err(IotaNamesRegistrationDowncastError::NotAnIotaNamesRegistration) => Ok(None),
+            Err(IotaNamesRegistrationDowncastError::Bcs(e)) => Err(Error::Internal(format!(
+                "Failed to deserialize
+     IotaNamesRegistration: {e}",
+            )))
+            .extend(),
+        }
+    }
 }
 
 impl MoveObjectImpl<'_> {
     pub(crate) async fn contents(&self) -> Option<MoveValue> {
         let type_ = TypeTag::from(self.0.native.type_().clone());
         Some(MoveValue::new(type_, self.0.native.contents().into()))
+    }
+    pub(crate) async fn has_public_transfer(&self, ctx: &Context<'_>) -> Result<bool> {
+        let type_: MoveType = self.0.native.type_().clone().into();
+        let set = type_.abilities_impl(ctx.data_unchecked()).await.extend()?;
+        Ok(set.has_key() && set.has_store())
     }
 }
 

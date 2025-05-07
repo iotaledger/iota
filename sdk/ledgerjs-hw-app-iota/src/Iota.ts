@@ -112,9 +112,7 @@ export default class Iota {
         this.#log('Payload Txn', payload_txn);
         // TODO batch this since the payload length can be uint32le.max long
         const signature = await this.#sendChunks(cla, ins, p1, p2, [payload_txn, bip32KeyPayload]);
-        return {
-            signature,
-        };
+        return { signature };
     }
 
     /**

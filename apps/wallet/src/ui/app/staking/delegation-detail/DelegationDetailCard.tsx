@@ -17,6 +17,9 @@ import {
     Validator,
     getValidatorCommission,
     toast,
+    useIsValidatorCommitteeMember,
+    useIsActiveValidator,
+    useGetNextEpochCommitteeMember,
 } from '@iota/core';
 import { Network, type StakeObject } from '@iota/iota-sdk/client';
 import { NANOS_PER_IOTA, IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
@@ -35,6 +38,8 @@ import {
     InfoBoxType,
     LoadingIndicator,
     TooltipPosition,
+    Badge,
+    BadgeType,
 } from '@iota/apps-ui-kit';
 import { useNavigate } from 'react-router-dom';
 import { Warning } from '@iota/apps-ui-icons';
@@ -54,7 +59,6 @@ export function DelegationDetailCard({ validatorAddress, stakedId }: DelegationD
     } = useIotaClientQuery('getLatestIotaSystemState');
 
     const accountAddress = useActiveAddress();
-
     const {
         data: allDelegation,
         isPending,
@@ -69,6 +73,10 @@ export function DelegationDetailCard({ validatorAddress, stakedId }: DelegationD
     const network = useAppSelector(({ app }) => app.network);
     const { data: coinBalance } = useBalance(accountAddress!);
     const { data: metadata } = useCoinMetadata(IOTA_TYPE_ARG);
+    const { isCommitteeMember } = useIsValidatorCommitteeMember();
+    const { isActiveValidator } = useIsActiveValidator();
+    const { isValidatorExpectedToBeInTheCommittee } =
+        useGetNextEpochCommitteeMember(validatorAddress);
     // set minimum stake amount to 1 IOTA
     const showRequestMoreIotaToken = useMemo(() => {
         if (!coinBalance?.totalBalance || !metadata?.decimals || network === Network.Mainnet)
@@ -108,10 +116,9 @@ export function DelegationDetailCard({ validatorAddress, stakedId }: DelegationD
         staked: stakedId,
     }).toString()}`;
 
-    // check if the validator is in the committee members list
-    const hasInactiveValidatorDelegation = !system?.committeeMembers?.find(
-        ({ stakingPoolId }) => stakingPoolId === validatorData?.stakingPoolId,
-    );
+    const isValidatorCommitteeMember = isCommitteeMember(validatorAddress);
+    const isValidatorActive = isActiveValidator(validatorAddress);
+    const isActiveButNotInTheCommittee = isValidatorActive && !isValidatorCommitteeMember;
 
     if (isPending || loadingValidators) {
         return (
@@ -144,24 +151,25 @@ export function DelegationDetailCard({ validatorAddress, stakedId }: DelegationD
         <div className="flex h-full w-full flex-col justify-between">
             <div className="flex flex-col gap-y-md">
                 <Validator address={validatorAddress} type={CardType.Filled} />
-                {hasInactiveValidatorDelegation ? (
+                {isActiveButNotInTheCommittee ? (
                     <InfoBox
                         type={InfoBoxType.Warning}
-                        title="Earn with validators in the committee"
-                        supportingText="You are delegating to a validator that is not part of the committee. Stake to a member of the current committee to start earning rewards again."
+                        title="Validator is not earning rewards."
+                        supportingText="Validator is active but not in the current committee, so not earning rewards this epoch. It may earn in future epochs. Stake at your discretion."
+                        icon={<Warning />}
+                        style={InfoBoxStyle.Elevated}
+                    />
+                ) : !isValidatorActive ? (
+                    <InfoBox
+                        type={InfoBoxType.Error}
+                        title="Inactive Validator is not earning rewards"
+                        supportingText="This validator is inactive and will no longer earn rewards. Stake at your own risk."
                         icon={<Warning />}
                         style={InfoBoxStyle.Elevated}
                     />
                 ) : null}
                 <Panel hasBorder>
                     <div className="flex flex-col gap-y-sm p-md">
-                        <KeyValueInfo
-                            keyText="Member of Committee"
-                            tooltipPosition={TooltipPosition.Bottom}
-                            tooltipText="If the validator is part of the current committee."
-                            value={!hasInactiveValidatorDelegation ? 'Yes' : 'No'}
-                            fullwidth
-                        />
                         <KeyValueInfo
                             keyText="Your Stake"
                             value={totalStakeFormatted}
@@ -189,6 +197,19 @@ export function DelegationDetailCard({ validatorAddress, stakedId }: DelegationD
                         />
                     </div>
                 </Panel>
+                {!isValidatorExpectedToBeInTheCommittee ? (
+                    <Panel hasBorder>
+                        <div className="flex flex-col gap-y-sm p-md">
+                            <KeyValueInfo
+                                keyText="Rewards next Epoch"
+                                value={<Badge label="Not Earning" type={BadgeType.Warning} />}
+                                fullwidth
+                                tooltipPosition={TooltipPosition.Top}
+                                tooltipText="Currently, the validator does not meet the criteria required to generate rewards in the next epoch, but this may change."
+                            />
+                        </div>
+                    </Panel>
+                ) : null}
             </div>
             <div className="flex w-full gap-2.5">
                 {Boolean(totalStake) && delegationId && (
@@ -199,7 +220,7 @@ export function DelegationDetailCard({ validatorAddress, stakedId }: DelegationD
                         fullWidth
                     />
                 )}
-                {!hasInactiveValidatorDelegation ? (
+                {isValidatorActive ? (
                     <Button
                         type={ButtonType.Primary}
                         text="Stake"
