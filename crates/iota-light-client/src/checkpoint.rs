@@ -125,7 +125,6 @@ pub async fn sync_checkpoint_list_to_latest(config: &Config) -> anyhow::Result<C
 /// Merges two checkpoint lists, removing duplicates and ensuring the result is
 /// sorted
 fn merge_checkpoint_lists(list1: &CheckpointList, list2: &CheckpointList) -> CheckpointList {
-    // Combine both lists into a HashSet to remove duplicates
     let unique_checkpoints: HashSet<u64> = list1
         .checkpoints
         .iter()
@@ -238,22 +237,7 @@ pub async fn sync_and_verify_checkpoints(config: &Config) -> anyhow::Result<()> 
     }
 
     if !missing.is_empty() {
-        if let Some(_checkpoint_store_url) = &config.checkpoint_store_config {
-            info!("Downloading missing checkpoints from checkpoint store.");
-
-            let checkpoint_store = CheckpointStore::new(config)?;
-            for seq in missing {
-                info!("Downloading checkpoint: {seq}");
-
-                let summary = checkpoint_store
-                    .fetch_checkpoint_summary(seq)
-                    .await
-                    .context(format!(
-                        "Failed to download checkpoint summary '{seq}' from checkpoint store"
-                    ))?;
-                write_checkpoint_summary(config, &summary)?;
-            }
-        } else if let Some(archive_store_config) = &config.archive_store_config {
+        if let Some(archive_store_config) = &config.archive_store_config {
             info!("Downloading missing checkpoints from archive store.");
 
             // Download summaries from archive store
@@ -271,8 +255,23 @@ pub async fn sync_and_verify_checkpoints(config: &Config) -> anyhow::Result<()> 
             archive_reader
                 .read_summaries_for_list_no_verify(store.clone(), missing, counter)
                 .await?;
+        } else if let Some(_checkpoint_store_url) = &config.checkpoint_store_config {
+            info!("Downloading missing checkpoints from checkpoint store.");
+
+            let checkpoint_store = CheckpointStore::new(config)?;
+            for seq in missing {
+                info!("Downloading checkpoint: {seq}");
+
+                let summary = checkpoint_store
+                    .fetch_checkpoint_summary(seq)
+                    .await
+                    .context(format!(
+                        "Failed to download checkpoint summary '{seq}' from checkpoint store"
+                    ))?;
+                write_checkpoint_summary(config, &summary)?;
+            }
         } else {
-            info!("Downloading missing checkpoints from full node.");
+            info!("Downloading missing checkpoints from node.");
 
             // Download summaries from the full node
             let client = iota_rest_api::Client::new(&config.rpc_url);
