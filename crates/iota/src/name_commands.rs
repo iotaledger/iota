@@ -21,7 +21,7 @@ use iota_names::{
     registry::{RegistryEntry, ReverseRegistryEntry},
 };
 use iota_protocol_config::Chain;
-use iota_sdk::{IotaClient, wallet_context::WalletContext};
+use iota_sdk::{IotaClient, PagedFn, wallet_context::WalletContext};
 use iota_types::{
     IOTA_CLOCK_OBJECT_ID, IOTA_FRAMEWORK_PACKAGE_ID, TypeTag,
     balance::Balance,
@@ -110,6 +110,15 @@ pub enum NameCommand {
         /// The coin to use for payment. If not provided, selects the first coin
         /// with enough balance.
         coin: Option<ObjectID>,
+        /// The address or alias to which the domain will point. If the flag is
+        /// specified without a value, the current active address will be used.
+        #[arg(long, require_equals = true, default_missing_value = "", num_args = 0..=1)]
+        set_target_address: Option<String>,
+        /// Set the reverse lookup for the domain. This will fail if the
+        /// `set-target-address` flag is provided with an address other than the
+        /// sender or if no target address is set.
+        #[arg(long)]
+        set_reverse_lookup: bool,
         #[command(flatten)]
         opts: OptsWithGas,
     },
@@ -360,7 +369,13 @@ impl NameCommand {
                     target_address: entry.name_record.target_address,
                 }
             }
-            Self::Register { domain, coin, opts } => {
+            Self::Register {
+                domain,
+                coin,
+                set_target_address,
+                set_reverse_lookup,
+                opts,
+            } => {
                 anyhow::ensure!(
                     domain.num_labels() == 2,
                     "domain to register must consist of two labels"
@@ -384,17 +399,43 @@ impl NameCommand {
                     ),
                     "--assign payment_intent".to_string(),
                     format!(
-                        "--move-call {}::payments::handle_base_payment <0x0000000000000000000000000000000000000000000000000000000000000002::iota::IOTA> @{} payment_intent coins.0",
+                        "--move-call {}::payments::handle_base_payment <{IOTA_FRAMEWORK_PACKAGE_ID}::iota::IOTA> @{} payment_intent coins.0",
                         iota_names_config.payments_package_address, iota_names_config.object_id
                     ),
                     "--assign receipt".to_string(),
                     format!(
-                        "--move-call {}::payment::register receipt @{} @0x6",
+                        "--move-call {}::payment::register receipt @{} @{IOTA_CLOCK_OBJECT_ID}",
                         iota_names_config.package_address, iota_names_config.object_id
                     ),
                     "--assign nft".to_string(),
-                    "--transfer-objects [nft] sender".to_string(),
                 ];
+                if let Some(identity) = &set_target_address {
+                    let identity = (!identity.is_empty())
+                        .then(|| identity.parse::<KeyIdentity>())
+                        .transpose()?;
+                    let address = get_identity_address(identity, context)?;
+                    if set_reverse_lookup && address != context.active_address()? {
+                        anyhow::bail!(
+                            "cannot set reverse lookup if target address is not the sender"
+                        );
+                    }
+                    args.push(format!(
+                        "--move-call {}::controller::set_target_address @{} nft some(@{address}) @{IOTA_CLOCK_OBJECT_ID}",
+                        iota_names_config.package_address, iota_names_config.object_id,
+                    ));
+                }
+                if set_reverse_lookup {
+                    if set_target_address.is_none() {
+                        anyhow::bail!(
+                            "cannot set reverse lookup without first setting the target address"
+                        );
+                    }
+                    args.push(format!(
+                        "--move-call {}::controller::set_reverse_lookup @{} '{domain}'",
+                        iota_names_config.package_address, iota_names_config.object_id,
+                    ));
+                }
+                args.push("--transfer-objects [nft] sender".to_string());
                 args.extend(opts.into_args());
                 NameCommandResult::Client(
                     IotaClientCommands::PTB(PTB {
@@ -437,12 +478,12 @@ impl NameCommand {
                     ),
                     "--assign renewal_intent".to_string(),
                     format!(
-                        "--move-call {}::payments::handle_base_payment <0x0000000000000000000000000000000000000000000000000000000000000002::iota::IOTA> @{} renewal_intent coins.0",
+                        "--move-call {}::payments::handle_base_payment <{IOTA_FRAMEWORK_PACKAGE_ID}::iota::IOTA> @{} renewal_intent coins.0",
                         iota_names_config.payments_package_address, iota_names_config.object_id
                     ),
                     "--assign receipt".to_string(),
                     format!(
-                        "--move-call {}::payment::renew receipt @{} @{nft_id} @0x6",
+                        "--move-call {}::payment::renew receipt @{} @{nft_id} @{IOTA_CLOCK_OBJECT_ID}",
                         iota_names_config.package_address, iota_names_config.object_id,
                     ),
                 ];
@@ -1001,11 +1042,8 @@ async fn get_owned_nfts<T: DeserializeOwned + IotaNamesNft>(
     let iota_names_config = get_iota_names_config(&client).await?;
     let address = get_identity_address(address.map(KeyIdentity::Address), context)?;
     let nft_type = T::type_(iota_names_config.package_address.into());
-    let mut cursor = None;
-    let mut nfts = Vec::new();
-
-    loop {
-        let response = client
+    let responses = PagedFn::collect::<Vec<_>>(async |cursor| {
+        client
             .read_api()
             .get_owned_objects(
                 address,
@@ -1016,27 +1054,21 @@ async fn get_owned_nfts<T: DeserializeOwned + IotaNamesNft>(
                 cursor,
                 None,
             )
-            .await?;
+            .await
+    })
+    .await?;
 
-        for res in response.data {
+    responses
+        .into_iter()
+        .map(|res| {
             let data = res.data.expect("missing object data");
-            let nft = data
-                .bcs
+            data.bcs
                 .expect("missing bcs")
                 .try_as_move()
                 .expect("invalid move type")
-                .deserialize::<T>()?;
-            nfts.push(nft);
-        }
-
-        if response.has_next_page {
-            cursor = response.next_cursor;
-        } else {
-            break;
-        }
-    }
-
-    Ok(nfts)
+                .deserialize::<T>()
+        })
+        .collect::<Result<_, _>>()
 }
 
 #[derive(Copy, Clone)]
@@ -1219,7 +1251,7 @@ impl IotaNamesNftProxy {
                 fetch_package_id_by_module_and_name(
                     client,
                     &Identifier::from_str("subdomains")?,
-                    &Identifier::from_str("Subdomains")?,
+                    &Identifier::from_str("SubdomainsAuth")?,
                 )
                 .await?
             }
@@ -1411,7 +1443,7 @@ async fn get_auction_package_address(context: &mut WalletContext) -> anyhow::Res
     let auction_package_address = fetch_package_id_by_module_and_name(
         &client,
         &Identifier::from_str("auction")?,
-        &Identifier::from_str("App")?,
+        &Identifier::from_str("AuctionAuth")?,
     )
     .await?;
     Ok(auction_package_address)

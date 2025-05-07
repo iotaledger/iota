@@ -1,5 +1,11 @@
 # @iota/iota-sdk
 
+## 1.0.1
+
+### Patch Changes
+
+-   26cf13b: Include mainnet into default network envs
+
 ## 1.0.0
 
 ### Major Changes
