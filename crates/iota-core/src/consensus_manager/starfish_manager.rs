@@ -8,14 +8,13 @@ use async_trait::async_trait;
 use fastcrypto::ed25519;
 use iota_config::NodeConfig;
 use iota_metrics::{RegistryID, RegistryService, monitored_mpsc::unbounded_channel};
-use iota_protocol_config::ConsensusNetwork;
 use iota_types::{
     committee::EpochId,
     iota_system_state::epoch_start_iota_system_state::EpochStartSystemStateTrait,
 };
 use prometheus::Registry;
 use starfish_config::{Committee, NetworkKeyPair, Parameters, ProtocolKeyPair};
-use starfish_core::{CommitConsumer, CommitConsumerMonitor, CommitIndex, ConsensusAuthority};
+use starfish_core::{AuthorityNode, CommitConsumer, CommitConsumerMonitor, CommitIndex};
 use tokio::sync::Mutex;
 use tracing::info;
 
@@ -41,7 +40,7 @@ pub struct StarfishManager {
     running: Mutex<Running>,
     metrics: Arc<ConsensusManagerMetrics>,
     registry_service: RegistryService,
-    authority: ArcSwapOption<(ConsensusAuthority, RegistryID)>,
+    authority: ArcSwapOption<(AuthorityNode, RegistryID)>,
     boot_counter: Mutex<u64>,
     // Use a shared lazy starfish client so we can update the internal starfish
     // client that gets created for every new epoch.
@@ -83,21 +82,6 @@ impl StarfishManager {
         store_path.push(format!("{}", epoch));
         store_path
     }
-
-    fn pick_network(&self, epoch_store: &AuthorityPerEpochStore) -> ConsensusNetwork {
-        if let Ok(type_str) = std::env::var("CONSENSUS_NETWORK") {
-            match type_str.to_lowercase().as_str() {
-                "tonic" => return ConsensusNetwork::Tonic,
-                _ => {
-                    info!(
-                        "Invalid consensus network type {} in env var. Continue to use the value from protocol config.",
-                        type_str
-                    );
-                }
-            }
-        }
-        epoch_store.protocol_config().consensus_network()
-    }
 }
 
 #[async_trait]
@@ -115,7 +99,6 @@ impl ConsensusManagerTrait for StarfishManager {
         let committee: Committee = system_state.get_starfish_committee();
         let epoch = epoch_store.epoch();
         let protocol_config = epoch_store.protocol_config();
-        let network_type = self.pick_network(&epoch_store);
 
         let Some(_guard) = RunningLockGuard::acquire_start(
             &self.metrics,
@@ -182,8 +165,7 @@ impl ConsensusManagerTrait for StarfishManager {
             );
         }
 
-        let authority = ConsensusAuthority::start(
-            network_type,
+        let authority = AuthorityNode::start(
             own_index,
             committee.clone(),
             parameters.clone(),

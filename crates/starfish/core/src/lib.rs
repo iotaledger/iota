@@ -8,7 +8,6 @@ mod base_committer;
 mod block_header;
 mod block_manager;
 mod block_verifier;
-mod broadcaster;
 mod commit;
 mod commit_consumer;
 mod commit_observer;
@@ -55,7 +54,7 @@ mod test_dag_builder;
 mod test_dag_parser;
 
 /// Exported consensus API.
-pub use authority_node::ConsensusAuthority;
+pub use authority_node::AuthorityNode;
 pub use block_header::{BlockHeaderAPI, BlockRef, Round};
 /// Exported API for testing.
 pub use block_header::{TestBlockHeader, Transaction, VerifiedBlockHeader};

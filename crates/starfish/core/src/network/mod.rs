@@ -22,18 +22,17 @@
 //! network outside of this module, so they can be reused easily across network
 //! implementations.
 
-use std::{pin::Pin, sync::Arc, time::Duration};
+use std::{pin::Pin, time::Duration};
 
 use async_trait::async_trait;
 use bytes::Bytes;
 use futures::Stream;
-use starfish_config::{AuthorityIndex, NetworkKeyPair};
+use starfish_config::AuthorityIndex;
 
 use crate::{
     Round, VerifiedBlockHeader,
     block_header::BlockRef,
     commit::{CommitRange, TrustedCommit},
-    context::Context,
     error::ConsensusResult,
 };
 
@@ -69,6 +68,8 @@ pub(crate) trait NetworkClient: Send + Sync + Sized + 'static {
     const SUPPORT_STREAMING: bool;
 
     /// Sends a serialized SignedBlock to a peer.
+    // TODO: remove this method if after refactoring network code it's still not used.
+    #[cfg_attr(not(test), expect(unused))]
     async fn send_block(
         &self,
         peer: AuthorityIndex,
@@ -170,25 +171,4 @@ pub(crate) trait NetworkService: Send + Sync + 'static {
         &self,
         peer: AuthorityIndex,
     ) -> ConsensusResult<(Vec<Round>, Vec<Round>)>;
-}
-
-/// An `AuthorityNode` holds a `NetworkManager` until shutdown.
-/// Dropping `NetworkManager` will shutdown the network service.
-pub(crate) trait NetworkManager<S>: Send + Sync
-where
-    S: NetworkService,
-{
-    type Client: NetworkClient;
-
-    /// Creates a new network manager.
-    fn new(context: Arc<Context>, network_keypair: NetworkKeyPair) -> Self;
-
-    /// Returns the network client.
-    fn client(&self) -> Arc<Self::Client>;
-
-    /// Installs network service.
-    async fn install_service(&mut self, service: Arc<S>);
-
-    /// Stops the network service.
-    async fn stop(&mut self);
 }
