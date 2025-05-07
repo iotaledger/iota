@@ -121,7 +121,7 @@ export function AccountsFinderView(): JSX.Element {
         }
         if (searchPhase === SearchPhase.Ongoing) {
             return {
-                text: `Checking address: ${currentCheckingAddress}`,
+                text: `Scanned addresses: ${currentCheckingAddress}`,
                 icon: <LoadingIndicator />,
             };
         }
@@ -155,10 +155,10 @@ export function AccountsFinderView(): JSX.Element {
     const groupedAccounts = persistedAccounts && groupAccountsByAccountIndex(persistedAccounts);
 
     const findingResultText = (() => {
-        let text = `Checked ${totalCheckedAddresses} addresses.`;
+        let text = `Scanned ${totalCheckedAddresses} addresses.`;
 
         if (persistedAccounts?.length) {
-            text += ` Found ${persistedAccounts.length} balances.`;
+            text += ` Found assets in ${persistedAccounts.length} addresses.`;
         }
         return text;
     })();

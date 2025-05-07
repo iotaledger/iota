@@ -128,7 +128,6 @@ export class AccountsFinder {
 
     // This function calls each time when user press "Search" button
     async find() {
-        // this.currentCheckingAddress = 1;
         switch (this.algorithm) {
             case SearchAlgorithm.BREADTH:
                 return await this.runBreadthSearch();
@@ -275,7 +274,6 @@ export class AccountsFinder {
             hasStardustObjects = sharedStardustObjects.length > 0;
         }
 
-        console.log('finding balance', params);
         this.totalCheckedAddresses += 1;
         this.currentCheckingAddress += 1;
 

@@ -146,8 +146,6 @@ async function searchBalances({
             changeIndex,
         });
 
-        // console.log('1', accountIndex, addressIndex, changeIndex);
-
         if (hasBalance(foundBalance.balance)) {
             isBalanceExists = true;
         }
