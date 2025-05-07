@@ -53,7 +53,7 @@ use iota_types::{
         ConsensusTransactionKind, VersionedDkgConfirmation, check_total_jwk_size,
     },
     signature::GenericSignature,
-    storage::{BackingPackageStore, GetSharedLocks, InputKey, ObjectStore},
+    storage::{BackingPackageStore, InputKey, ObjectStore},
     transaction::{
         AuthenticatorStateUpdateV1, CertifiedTransaction, InputObjectKind, SenderSignedData,
         Transaction, TransactionDataAPI, TransactionKey, TransactionKind, VerifiedCertificate,
@@ -1316,31 +1316,31 @@ impl AuthorityPerEpochStore {
         key: &TransactionKey,
         objects: &[InputObjectKind],
     ) -> IotaResult<BTreeSet<InputKey>> {
-        let shared_locks =
+        let assigned_shared_versions =
             once_cell::unsync::OnceCell::<Option<HashMap<ObjectID, SequenceNumber>>>::new();
         objects
             .iter()
             .map(|kind| {
                 Ok(match kind {
                     InputObjectKind::SharedMoveObject { id, .. } => {
-                        let shared_locks = shared_locks
+                        let assigned_shared_versions = assigned_shared_versions
                             .get_or_init(|| {
-                                self.get_shared_locks(key)
-                                    .expect("reading shared locks should not fail")
-                                    .map(|locks| locks.into_iter().collect())
+                                self.get_assigned_shared_object_versions(key)
+                                    .expect("reading assigned shared versions should not fail")
+                                    .map(|versions| versions.into_iter().collect())
                             })
                             .as_ref()
                             // Shared version assignments could have been deleted if the tx just
                             // finished executing concurrently.
                             .ok_or(IotaError::GenericAuthority {
-                                error: "no shared locks".to_string(),
+                                error: "no assigned shared versions".to_string(),
                             })?;
-                        // If we found locks, but they are missing the assignment for this object,
-                        // it indicates a serious inconsistency!
-                        let Some(version) = shared_locks.get(id) else {
+                        // If we found assigned versions, but they are missing the assignment for
+                        // this object, it indicates a serious inconsistency!
+                        let Some(version) = assigned_shared_versions.get(id) else {
                             panic!(
-                                "Shared object locks should have been set. key: {key:?}, obj \
-                                id: {id:?}",
+                                "Shared object version should have been assigned. key: {key:?}, \
+                                obj id: {id:?}, assigned_shared_versions: {assigned_shared_versions:?}",
                             )
                         };
                         InputKey::VersionedObject {
@@ -1550,7 +1550,7 @@ impl AuthorityPerEpochStore {
     // computation of the transaction that created the shared object originally
     // - which transaction may not yet have been executed on this node).
     //
-    // Because all paths that assign shared locks for a shared object transaction
+    // Because all paths that assign shared versions for a shared object transaction
     // call this function, it is impossible for parent_sync to be updated before
     // this function completes successfully for each affected object id.
     pub(crate) async fn get_or_init_next_object_versions(
@@ -1623,6 +1623,13 @@ impl AuthorityPerEpochStore {
         })?;
 
         Ok(ret)
+    }
+
+    pub fn get_assigned_shared_object_versions(
+        &self,
+        key: &TransactionKey,
+    ) -> IotaResult<Option<Vec<(ObjectID, SequenceNumber)>>> {
+        Ok(self.tables()?.assigned_shared_object_versions.get(key)?)
     }
 
     async fn set_assigned_shared_object_versions_with_db_batch(
@@ -1824,13 +1831,13 @@ impl AuthorityPerEpochStore {
         }
     }
 
-    /// Lock a sequence number for the shared objects of the input transaction
+    /// Assign a sequence number for the shared objects of the input transaction
     /// based on the effects of that transaction.
     /// Used by full nodes who don't listen to consensus, and validators who
     /// catch up by state sync.
-    // TODO: We should be able to pass in a vector of certs/effects and lock them all at once.
+    // TODO: We should be able to pass in a vector of certs/effects and acquire them all at once.
     #[instrument(level = "trace", skip_all)]
-    pub async fn acquire_shared_locks_from_effects(
+    pub async fn acquire_shared_version_assignments_from_effects(
         &self,
         certificate: &VerifiedExecutableTransaction,
         effects: &TransactionEffects,
@@ -4219,15 +4226,6 @@ impl ConsensusCommitOutput {
         )?;
 
         Ok(())
-    }
-}
-
-impl GetSharedLocks for AuthorityPerEpochStore {
-    fn get_shared_locks(
-        &self,
-        key: &TransactionKey,
-    ) -> IotaResult<Option<Vec<(ObjectID, SequenceNumber)>>> {
-        Ok(self.tables()?.assigned_shared_object_versions.get(key)?)
     }
 }
 

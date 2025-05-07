@@ -1073,7 +1073,7 @@ impl AuthorityState {
 
         if transaction.contains_shared_object() {
             epoch_store
-                .acquire_shared_locks_from_effects(
+                .acquire_shared_version_assignments_from_effects(
                     transaction,
                     effects.data(),
                     self.get_object_cache_reader().as_ref(),
@@ -1221,7 +1221,7 @@ impl AuthorityState {
             .start_timer();
         let input_objects = &certificate.data().transaction_data().input_objects()?;
         self.input_loader.read_objects_for_execution(
-            epoch_store.as_ref(),
+            epoch_store,
             &certificate.key(),
             tx_lock,
             input_objects,
