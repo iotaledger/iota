@@ -120,7 +120,7 @@ export function AccountsFinderView(): JSX.Element {
             };
         }
         return {
-            text: 'Search again',
+            text: 'Keep searching',
             icon: <Search className="h-4 w-4" />,
         };
     })();
@@ -179,10 +179,9 @@ export function AccountsFinderView(): JSX.Element {
                         />
                     ) : (
                         <>
-                            {searchOptions.text === 'Search again' ? (
+                            {searchOptions.text === 'Keep searching' ? (
                                 <InfoBox
-                                    title="Unable to find all your funds?"
-                                    supportingText="You may need to search multiple times to find all your funds or addresses. Search again if something appears to be missing."
+                                    supportingText="Some funds or addresses may not appear immediately. Run multiple searches to ensure all assets are located."
                                     icon={<Info />}
                                     type={InfoBoxType.Default}
                                     style={InfoBoxStyle.Elevated}

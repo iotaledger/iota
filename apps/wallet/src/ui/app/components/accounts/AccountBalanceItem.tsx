@@ -15,9 +15,9 @@ import {
     useBalance,
     useFormatCoin,
 } from '@iota/core';
-import { TriangleDown } from '@iota/apps-ui-icons';
+import { Info, TriangleDown } from '@iota/apps-ui-icons';
 import clsx from 'clsx';
-import { Badge, BadgeType } from '@iota/apps-ui-kit';
+import { Badge, BadgeType, InfoBox, InfoBoxStyle, InfoBoxType } from '@iota/apps-ui-kit';
 import { formatAddress, IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 import {
     useGetOwnedObjectsMultipleAddresses,
@@ -172,6 +172,17 @@ export function AccountBalanceItem({
                 </div>
             )}
         >
+            {(hasMigrationObjects || hasVestingObjects) && (
+                <div className="mx-sm">
+                    <InfoBox
+                        supportingText="Missing funds maybe be due to unmigrated tokens or locked vested funds,
+                        check the Migration and Vesting tabs in the Dashboard"
+                        icon={<Info />}
+                        type={InfoBoxType.Default}
+                        style={InfoBoxStyle.Elevated}
+                    />
+                </div>
+            )}
             <div className="flex flex-col gap-y-sm p-sm pl-lg text-body-md text-neutral-10 dark:text-neutral-92">
                 {accounts.map(({ address, id }) => (
                     <AddressItem key={id} address={address} />
