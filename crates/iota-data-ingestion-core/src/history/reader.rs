@@ -248,28 +248,6 @@ impl HistoricalReader {
         Ok(())
     }
 
-    //// Get a single checkpoint by its checkpoint sequence number.
-    pub async fn get_checkpoint(&self, seq: CheckpointSequenceNumber) -> Result<CheckpointData> {
-        let file_path = self
-            .get_files_for_range(seq..(seq + 1))
-            .await?
-            .next()
-            .ok_or_else(|| {
-                IngestionError::HistoryRead(format!("file not found for sequence number: {seq}"))
-            })?
-            .file_path();
-
-        for chk in self.iter_for_file(file_path).await? {
-            if chk.checkpoint_summary.sequence_number() == &seq {
-                return Ok(chk);
-            }
-        }
-
-        Err(IngestionError::HistoryRead(format!(
-            "checkpoint not found: {seq}",
-        )))
-    }
-
     /// Resolve the files to fetch for the specified range.
     ///
     /// The method retrieves the manifest from the remote store and
