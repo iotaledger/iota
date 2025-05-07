@@ -224,10 +224,12 @@ impl SharedObjectCongestionTracker {
             assign_min_free_execution_slot,
         }
     }
-
-    pub fn initialize_for_shared_objects(&mut self, shared_input_objects: &[SharedInputObject]) {
-        // initialise the free execution slots for the objects that are not in the
-        // tracker.
+    // initialize the free execution slots for the objects that are not in the
+    // tracker.
+    pub fn initialize_object_execution_slots(
+        &mut self,
+        shared_input_objects: &[SharedInputObject],
+    ) {
         for obj in shared_input_objects {
             self.object_execution_slots
                 .entry(obj.id)
@@ -401,10 +403,29 @@ impl SharedObjectCongestionTracker {
             }
         }
 
-        // The transaction cannot be scheduled. We need to defer it and return the list
-        // of the IDs of all shared input objects to explain the congestion reason.
-        let congested_objects: Vec<ObjectID> =
-            shared_input_objects.iter().map(|obj| obj.id).collect();
+        // The transaction cannot be scheduled. We need to defer it and return a list
+        // of the IDs of shared input objects to explain the congestion reason.
+        let congested_objects: Vec<ObjectID> = if self.assign_min_free_execution_slot {
+            // if `assign_min_free_execution_slot` is true, we return all the shared input
+            // objects as no individual object can be identified as the cause of congestion.
+            shared_input_objects.iter().map(|obj| obj.id).collect()
+        } else {
+            // if `assign_min_free_execution_slot` is false, we return only shared objects
+            // that can be identified as the cause of congestion.
+            shared_input_objects
+                .iter()
+                .filter(|obj| {
+                    let (end_time, overflow) = self
+                        .object_execution_slots
+                        .get(&obj.id)
+                        .expect("object should have been inserted before.")
+                        .max_object_occupied_slot_end_time()
+                        .overflowing_add(tx_duration);
+                    return overflow || end_time > max_execution_duration_per_commit;
+                })
+                .map(|obj| obj.id)
+                .collect()
+        };
         assert!(!congested_objects.is_empty());
 
         let deferral_key =
@@ -637,7 +658,7 @@ pub mod shared_object_test_utils {
         shared_input_objects: &[SharedInputObject],
         tx_duration: ExecutionTime,
     ) -> Option<ExecutionTime> {
-        shared_object_congestion_tracker.initialize_for_shared_objects(shared_input_objects);
+        shared_object_congestion_tracker.initialize_object_execution_slots(shared_input_objects);
         shared_object_congestion_tracker.compute_tx_start_time(shared_input_objects, tx_duration)
     }
 
@@ -648,7 +669,7 @@ pub mod shared_object_test_utils {
         previously_deferred_tx_digests: &HashMap<TransactionDigest, DeferralKey>,
         commit_round: CommitRound,
     ) -> SequencingResult {
-        shared_object_congestion_tracker.initialize_for_shared_objects(
+        shared_object_congestion_tracker.initialize_object_execution_slots(
             &cert
                 .data()
                 .inner()
@@ -1355,41 +1376,17 @@ mod object_cost_tests {
             &HashMap::new(),
             0,
         ) {
-            assert_eq!(congested_objects.len(), 2);
+            // object 0 should be reported as congested in both cases.
             assert_eq!(congested_objects[0], object_id_0);
-            assert_eq!(congested_objects[1], object_id_1);
+            if assign_min_free_execution_slot {
+                assert_eq!(congested_objects.len(), 2);
+                assert_eq!(congested_objects[1], object_id_1);
+            } else {
+                assert_eq!(congested_objects.len(), 1);
+            }
         } else {
-            panic!("object 0 is congesting, should defer");
+            panic!("transaction is congesting, should defer");
         }
-        let cert_duration = shared_object_congestion_tracker.get_estimated_execution_duration(&tx);
-        assert!(
-            initialize_tracker_and_compute_tx_start_time(
-                &mut shared_object_congestion_tracker,
-                &tx.data()
-                    .inner()
-                    .intent_message()
-                    .value
-                    .shared_input_objects(),
-                cert_duration,
-            )
-            .is_none()
-        );
-
-        if let SequencingResult::Defer(_, congested_objects) = initialize_tracker_and_try_schedule(
-            &mut shared_object_congestion_tracker,
-            &tx,
-            max_execution_duration_per_commit,
-            &HashMap::new(),
-            0,
-        ) {
-            // both objects should be reported as congested.
-            assert_eq!(congested_objects.len(), 2);
-            assert_eq!(congested_objects[0], object_id_0);
-            assert_eq!(congested_objects[1], object_id_1);
-        } else {
-            panic!("objects 0 and 1 are congesting, should defer");
-        }
-
         let cert_duration = shared_object_congestion_tracker.get_estimated_execution_duration(&tx);
         assert!(
             initialize_tracker_and_compute_tx_start_time(
@@ -1432,11 +1429,17 @@ mod object_cost_tests {
             &HashMap::new(),
             0,
         ) {
-            // objects 1, 2 and 3 should be reported as congested.
-            assert_eq!(congested_objects.len(), 3);
-            assert_eq!(congested_objects[0], object_id_0);
-            assert_eq!(congested_objects[1], object_id_1);
-            assert_eq!(congested_objects[2], object_id_2);
+            // objects 2 should be reported as congested in both cases, but 0 and 1 should
+            // also be reported when `assign_min_free_execution_slot` is true.
+            if assign_min_free_execution_slot {
+                assert_eq!(congested_objects.len(), 3);
+                assert_eq!(congested_objects[0], object_id_0);
+                assert_eq!(congested_objects[1], object_id_1);
+                assert_eq!(congested_objects[2], object_id_2);
+            } else {
+                assert_eq!(congested_objects.len(), 1);
+                assert_eq!(congested_objects[0], object_id_2);
+            }
         } else {
             panic!("case 2: object 2 is congested, should defer");
         }

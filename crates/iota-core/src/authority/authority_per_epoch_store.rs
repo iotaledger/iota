@@ -1813,7 +1813,8 @@ impl AuthorityPerEpochStore {
             // Initialise the free execution slots for the objects that are not in the
             // tracker.
             let shared_input_objects: Vec<_> = cert.shared_input_objects().collect();
-            shared_object_congestion_tracker.initialize_for_shared_objects(&shared_input_objects);
+            shared_object_congestion_tracker
+                .initialize_object_execution_slots(&shared_input_objects);
             // Defer transaction if it uses shared objects that are congested.
             match shared_object_congestion_tracker.try_schedule(
                 cert,
