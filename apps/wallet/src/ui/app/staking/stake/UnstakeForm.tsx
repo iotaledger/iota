@@ -209,6 +209,16 @@ export function UnStakeForm({ stakedIotaId, validatorAddress, epoch, onSuccess }
                     />
                 </div>
             )}
+            {!isLoading && isError && (
+                <div className="pt-sm">
+                    <InfoBox
+                        supportingText="You do not have enough gas"
+                        icon={<Info />}
+                        type={InfoBoxType.Error}
+                        style={InfoBoxStyle.Elevated}
+                    />
+                </div>
+            )}
             <div className="pt-sm">
                 <Button
                     type={ButtonType.Primary}
@@ -217,7 +227,7 @@ export function UnStakeForm({ stakedIotaId, validatorAddress, epoch, onSuccess }
                     disabled={isError || isLoading}
                     text="Unstake"
                     icon={
-                        isLoading ? (
+                        isLoading && !isError ? (
                             <Loader className="animate-spin" data-testid="loading-indicator" />
                         ) : null
                     }

@@ -23,7 +23,7 @@ import {
     toast,
 } from '@iota/core';
 import { useCurrentAccount, useSignAndExecuteTransaction } from '@iota/dapp-kit';
-import { Warning } from '@iota/apps-ui-icons';
+import { Warning, Info } from '@iota/apps-ui-icons';
 import { StakeRewardsPanel, ValidatorStakingData } from '@/components';
 import { DialogLayout, DialogLayoutFooter, DialogLayoutBody } from '../../layout';
 
@@ -156,6 +156,16 @@ export function UnstakeView({
             </DialogLayoutBody>
 
             <DialogLayoutFooter>
+                {(!isUnstakeTxPending || isTransactionPending || !delegationId) && (
+                    <div className="pt-sm">
+                        <InfoBox
+                            supportingText="You do not have enough gas"
+                            icon={<Info />}
+                            type={InfoBoxType.Error}
+                            style={InfoBoxStyle.Elevated}
+                        />
+                    </div>
+                )}
                 <Button
                     type={ButtonType.Secondary}
                     fullWidth
@@ -163,7 +173,7 @@ export function UnstakeView({
                     disabled={isPreparingUnstake || isTransactionPending || !delegationId}
                     text="Unstake"
                     icon={
-                        isPreparingUnstake ? (
+                        isUnstakeTxPending || isTransactionPending || !delegationId ? (
                             <LoadingIndicator data-testid="loading-indicator" />
                         ) : null
                     }
