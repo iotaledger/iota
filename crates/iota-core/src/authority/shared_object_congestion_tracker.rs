@@ -421,7 +421,7 @@ impl SharedObjectCongestionTracker {
                         .expect("object should have been inserted before.")
                         .max_object_occupied_slot_end_time()
                         .overflowing_add(tx_duration);
-                    return overflow || end_time > max_execution_duration_per_commit;
+                    overflow || end_time > max_execution_duration_per_commit
                 })
                 .map(|obj| obj.id)
                 .collect()
