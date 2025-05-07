@@ -1472,7 +1472,7 @@ async fn get_auction_house(
 ) -> anyhow::Result<AuctionHouse> {
     let auction_package_address = get_auction_package_address(iota_client).await?;
     let auction_house_id = get_auction_house_id(auction_package_address, graphql_client).await?;
-    Ok(get_object_from_bcs::<AuctionHouse>(iota_client, auction_house_id).await?)
+    get_object_from_bcs::<AuctionHouse>(iota_client, auction_house_id).await
 }
 
 // Fetch the package ID of a package that got authorized for the IOTA-Names
@@ -1505,7 +1505,7 @@ async fn fetch_package_id_by_module_and_name(
 
 async fn get_auction_package_address(client: &IotaClient) -> anyhow::Result<ObjectID> {
     let auction_package_address = fetch_package_id_by_module_and_name(
-        &client,
+        client,
         &Identifier::from_str("auction")?,
         &Identifier::from_str("AuctionAuth")?,
     )
