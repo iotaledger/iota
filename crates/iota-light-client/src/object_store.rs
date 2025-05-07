@@ -13,7 +13,7 @@ use iota_data_ingestion_core::history::reader::HistoricalReader;
 use iota_types::{
     full_checkpoint_content::CheckpointData, messages_checkpoint::CertifiedCheckpointSummary,
 };
-use tracing::info;
+use tracing::debug;
 
 use crate::config::Config;
 
@@ -55,8 +55,7 @@ impl CheckpointStore {
             .await?
             .next()
             .ok_or_else(|| anyhow!("missing full checkpoint"))?;
-
-        info!("Fetched full checkpoint '{seq}' from checkpoint store:",);
+        debug!("Fetched checkpoint '{seq}' from checkpoint store",);
 
         Ok(checkpoint)
     }

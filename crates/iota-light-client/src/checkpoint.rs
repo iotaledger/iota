@@ -99,34 +99,11 @@ fn write_checkpoint_summary_general(
 /// Downloads the list of end of epoch checkpoints from the archive store or the
 /// GraphQL endpoint
 pub async fn sync_checkpoint_list_to_latest(config: &Config) -> anyhow::Result<CheckpointList> {
-    // Check if we have any source configured
-    if config.graphql_url.is_none() && config.archive_store_config.is_none() {
-        bail!(
-            "No checkpoint sources configured - both GraphQL URL and Archive Store config are missing"
-        );
-    }
-
-    let checkpoints_from_object_store = if config.checkpoint_store_config.is_some() {
-        // TODO uncomment it, blocked by https://github.com/iotaledger/iota/issues/4908
-        warn!("Syncing from a checkpoint store is not supported yet.");
-        CheckpointList::default()
-        // match sync_checkpoint_list_to_latest_using_full_node_and_object_store(config).await {
-        //     Ok(list) => list,
-        //     Err(e) => {
-        //         warn!("Failed to sync checkpoints from checkpoint object
-        // store: {e}");         CheckpointList::default()
-        //     }
-        // }
-    } else {
-        CheckpointList::default()
-    };
-
-    // Try getting checkpoints from archive store if configured
-    let checkpoints_from_archive_store = if config.archive_store_config.is_some() {
-        match sync_checkpoint_list_to_latest_using_archive_store(config).await {
+    let checkpoints_from_archive = if config.archive_store_config.is_some() {
+        match sync_checkpoint_list_to_latest_from_archive(config).await {
             Ok(list) => list,
             Err(e) => {
-                warn!("Failed to sync checkpoints from archive store: {e}");
+                warn!("Failed to sync checkpoint list from archive: {e}");
                 CheckpointList::default()
             }
         }
@@ -134,14 +111,8 @@ pub async fn sync_checkpoint_list_to_latest(config: &Config) -> anyhow::Result<C
         CheckpointList::default()
     };
 
-    let merged_checkpoints = merge_checkpoint_lists(
-        &checkpoints_from_object_store,
-        &checkpoints_from_archive_store,
-    );
-
-    // Try to sync from the full node if there are still no checkpoints
-    let checkpoints_list = if merged_checkpoints.is_empty() {
-        match sync_checkpoint_list_to_latest_using_full_node(config).await {
+    let checkpoints_from_graphql = if config.graphql_url.is_some() {
+        match sync_checkpoint_list_to_latest_from_graphql(config).await {
             Ok(list) => list,
             Err(e) => {
                 warn!("Failed to sync checkpoints from full node: {e}");
@@ -149,24 +120,25 @@ pub async fn sync_checkpoint_list_to_latest(config: &Config) -> anyhow::Result<C
             }
         }
     } else {
-        CheckpointList {
-            checkpoints: merged_checkpoints,
-        }
+        CheckpointList::default()
     };
 
-    if checkpoints_list.is_empty() {
-        bail!("Could not retrieve any checkpoints from configured sources");
+    let checkpoint_list =
+        merge_checkpoint_lists(&checkpoints_from_archive, &checkpoints_from_graphql);
+
+    if checkpoint_list.is_empty() {
+        bail!("Unable to sync from configured sources");
     }
 
     // Write the fetched checkpoint list to disk
-    write_checkpoint_list(config, &checkpoints_list)?;
+    write_checkpoint_list(config, &checkpoint_list)?;
 
-    Ok(checkpoints_list)
+    Ok(checkpoint_list)
 }
 
 /// Merges two checkpoint lists, removing duplicates and ensuring the result is
 /// sorted
-fn merge_checkpoint_lists(list1: &CheckpointList, list2: &CheckpointList) -> Vec<u64> {
+fn merge_checkpoint_lists(list1: &CheckpointList, list2: &CheckpointList) -> CheckpointList {
     // Combine both lists into a HashSet to remove duplicates
     let unique_checkpoints: HashSet<u64> = list1
         .checkpoints
@@ -179,15 +151,13 @@ fn merge_checkpoint_lists(list1: &CheckpointList, list2: &CheckpointList) -> Vec
     let mut sorted_checkpoints: Vec<_> = unique_checkpoints.into_iter().collect();
     sorted_checkpoints.sort();
 
-    sorted_checkpoints
+    CheckpointList {
+        checkpoints: sorted_checkpoints,
+    }
 }
 
-/// Syncs the list of end-of-epoch checkpoints from a full node.
-///
-/// Requires REST API, JSON RPC, and GraphQL endpoints, but is not
-/// dependent on remote object stores. Will fail, if the node
-/// already pruned a missing checkpoint.
-async fn sync_checkpoint_list_to_latest_using_full_node(
+/// Syncs the list of end-of-epoch checkpoints from GraphQL.
+async fn sync_checkpoint_list_to_latest_from_graphql(
     config: &Config,
 ) -> anyhow::Result<CheckpointList> {
     info!("Syncing checkpoint list from full node.");
@@ -196,19 +166,20 @@ async fn sync_checkpoint_list_to_latest_using_full_node(
     let mut checkpoints_list = match read_checkpoint_list(config) {
         Ok(list) => list,
         Err(_) => {
-            info!("No existing checkpoint file found. Creating a new list.");
+            info!("No existing checkpoint file found. Creating a new checkpoint list.");
             CheckpointList::default()
         }
     };
 
-    // Get the last synced checkpoint sequence number, or fetch the first
-    let last_seq = if let Some(last_seq) = checkpoints_list.checkpoints.last() {
-        *last_seq
+    // Get the last synced epoch, or fetch the first
+    let last_epoch = if let Some(last_seq) = checkpoints_list.checkpoints.last() {
+        checkpoints_list.len() as u64 - 1
     } else {
-        let last_seq = query_last_checkpoint_of_epoch(config, 0).await?;
-        checkpoints_list.checkpoints.push(last_seq);
-        info!("Synced epoch: 0, checkpoint: {last_seq}",);
-        last_seq
+        let first_epoch = 0u64;
+        let first_seq = query_last_checkpoint_of_epoch(config, first_epoch).await?;
+        checkpoints_list.checkpoints.push(first_seq);
+        info!("Synced epoch: {first_epoch}, checkpoint: {first_seq}",);
+        first_epoch
     };
 
     // Download the last synced checkpoint from the node
@@ -216,18 +187,15 @@ async fn sync_checkpoint_list_to_latest_using_full_node(
         .build(config.rpc_url.as_str())
         .await?;
     let read_api = client.read_api();
-    let last_chk = read_api
-        .get_checkpoint(CheckpointId::SequenceNumber(last_seq))
-        .await?;
 
     // Download the latest available checkpoint from the node
     let latest_seq = read_api.get_latest_checkpoint_sequence_number().await?;
-    let latest_chk = read_api
+    let latest_checkpoint = read_api
         .get_checkpoint(CheckpointId::SequenceNumber(latest_seq))
         .await?;
 
     // Sequentially record all the missing end of epoch checkpoints numbers
-    for target_epoch in (last_chk.epoch + 1)..latest_chk.epoch {
+    for target_epoch in (last_epoch + 1)..latest_checkpoint.epoch {
         let target_seq = query_last_checkpoint_of_epoch(config, target_epoch).await?;
         checkpoints_list.checkpoints.push(target_seq);
         info!("Synced epoch: {target_epoch}, checkpoint: {target_seq}");
@@ -237,9 +205,7 @@ async fn sync_checkpoint_list_to_latest_using_full_node(
 }
 
 /// Syncs the list of end-of-epoch checkpoints from an archive store.
-///
-/// Requires an archive store endpoint, but does not require any full node APIs.
-async fn sync_checkpoint_list_to_latest_using_archive_store(
+async fn sync_checkpoint_list_to_latest_from_archive(
     config: &Config,
 ) -> anyhow::Result<CheckpointList> {
     info!("Syncing checkpoint list from archive store.");
@@ -267,7 +233,7 @@ async fn sync_checkpoint_list_to_latest_using_archive_store(
 /// Downloads the list of end-of-epoch checkpoints from the checkpoint store.
 ///
 /// Requires JSON RPC, GraphQL, and a checkpoint store endpoint.
-async fn _sync_checkpoint_list_to_latest_using_checkpoints_store(
+async fn sync_checkpoint_list_to_latest_from_checkpoints_store(
     config: &Config,
 ) -> anyhow::Result<CheckpointList> {
     info!("Syncing checkpoint list from checkpoint store.");
@@ -276,7 +242,10 @@ async fn _sync_checkpoint_list_to_latest_using_checkpoints_store(
     let mut checkpoints_list = match read_checkpoint_list(config) {
         Ok(list) => list,
         Err(_) => {
-            info!("Could not read existing checkpoint list, starting with empty list.");
+            info!(
+                "Could not read existing checkpoint list, starting with
+empty list."
+            );
             CheckpointList::default()
         }
     };
@@ -285,9 +254,7 @@ async fn _sync_checkpoint_list_to_latest_using_checkpoints_store(
     let last_seq = if let Some(last_seq) = checkpoints_list.checkpoints.last() {
         *last_seq
     } else {
-        // TODO try to fetch the first checkpoint from the object store instead of
-        // the full node which might no longer have it
-        // blocked by https://github.com/iotaledger/iota/issues/4908
+        // TODO make independent of RPC
         let last_seq = query_last_checkpoint_of_epoch(config, 0).await?;
         checkpoints_list.checkpoints.push(last_seq);
         info!("Synced epoch: 0, checkpoint: {last_seq}",);
@@ -321,27 +288,42 @@ pub async fn sync_and_check_checkpoints(config: &Config) -> anyhow::Result<()> {
         .await
         .context("Failed to sync checkpoint list")?;
 
-    // Create a list of summaries that need to be downloaded
-    let mut missing = Vec::new();
-    for seq in checkpoints_list.checkpoints.iter().copied() {
-        if !config.checkpoint_summary_file_path(seq).exists() {
-            missing.push(seq);
-        }
-    }
-
     // Load the genesis committee
     let genesis_committee = Genesis::load(config.genesis_blob_file_path())?
         .committee()
         .context("Failed to load genesis file")?;
 
-    if let Some(_checkpoint_store_url) = &config.checkpoint_store_config {
-        // Download summaries from checkpoint object store
-        // TODO implement it, blocked by https://github.com/iotaledger/iota/issues/4908
-        warn!("Downloading checkpoint summaries from a checkpoint store is not supported yet.");
+    // Create a list of summaries that need to be downloaded
+    let mut missing = Vec::new();
+    for seq in checkpoints_list.checkpoints.iter().copied() {
+        if !config.checkpoint_summary_file_path(seq).exists() {
+            // TODO make sure the file can be loaded i.e. it is not corrupt due to partial
+            // download
+            missing.push(seq);
+        }
     }
 
     if !missing.is_empty() {
-        if let Some(archive_store_config) = &config.archive_store_config {
+        if let Some(_checkpoint_store_url) = &config.checkpoint_store_config {
+            info!("Downloading missing checkpoints from checkpoint store.");
+            let checkpoint_store = CheckpointStore::new(config)?;
+            for seq in missing {
+                info!("Downloading checkpoint: {seq}");
+                let summary = checkpoint_store
+                    .fetch_checkpoint_summary(seq)
+                    .await
+                    .context(format!(
+                        "Failed to download checkpoint summary '{seq}' from checkpoint store"
+                    ))?;
+                let path = config.checkpoint_summary_file_path(seq);
+                bcs::serialize_into(
+                    &mut std::fs::File::create(&path)
+                        .context(format!("error creating summary file '{}'", path.display()))?,
+                    &summary,
+                )
+                .expect("error serializing to bcs");
+            }
+        } else if let Some(archive_store_config) = &config.archive_store_config {
             info!("Downloading missing checkpoints from archive store.");
 
             // Download summaries from archive store

@@ -4,7 +4,7 @@
 
 use std::path::{Path, PathBuf};
 
-use anyhow::{Context, Result, anyhow};
+use anyhow::{Context, Result, anyhow, bail};
 use iota_config::object_storage_config::ObjectStoreConfig;
 use serde::{Deserialize, Serialize};
 use tokio::fs::{create_dir_all, read_to_string};
@@ -105,6 +105,9 @@ impl Config {
             if let Some(url) = &archive_store_config.aws_endpoint {
                 Url::parse(url).context("Invalid archive store URL")?;
             }
+        }
+        if self.graphql_url.is_none() && self.archive_store_config.is_none() {
+            bail!("Invalid config: either GraphQL URL or archive store config must be provided");
         }
         Ok(())
     }
