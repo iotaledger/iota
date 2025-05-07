@@ -10,6 +10,7 @@ use std::{
 use anyhow::anyhow;
 use chrono::{Utc, prelude::DateTime};
 use clap::Parser;
+use futures::{StreamExt, TryStreamExt};
 use iota_graphql_rpc_client::simple_client::{GraphqlQueryVariable, SimpleClient};
 use iota_json::IotaJsonValue;
 use iota_json_rpc_api::IndexerApiClient;
@@ -358,10 +359,9 @@ impl NameCommand {
             Self::List { address } => {
                 let client = context.get_client().await?;
                 let address = get_identity_address(address.map(KeyIdentity::Address), context)?;
-                let mut cursor = None;
-                let mut nfts = Vec::new();
-                loop {
-                    let res = client
+
+                let nfts = PagedFn::stream(async |cursor| {
+                    client
                         .http()
                         .iota_names_find_all_registration_nfts(
                             address,
@@ -369,16 +369,12 @@ impl NameCommand {
                             None,
                             Some(IotaObjectDataOptions::new().with_bcs()),
                         )
-                        .await?;
-                    for obj in res.data {
-                        nfts.push(deserialize_move_object_from_bcs(obj)?);
-                    }
-                    if res.has_next_page {
-                        cursor = res.next_cursor;
-                    } else {
-                        break;
-                    }
-                }
+                        .await
+                })
+                .then(|res| async { deserialize_move_object_from_bcs(res?) })
+                .try_collect()
+                .await?;
+
                 NameCommandResult::List(nfts)
             }
             Self::Lookup { domain } => {
