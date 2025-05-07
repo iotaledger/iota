@@ -7,6 +7,7 @@ use std::fmt;
 use iota_types::{
     Identifier, TypeTag,
     base_types::{ObjectID, RESOLVED_ASCII_STR, RESOLVED_STD_OPTION, RESOLVED_UTF8_STR},
+    id::RESOLVED_IOTA_ID,
 };
 use move_core_types::{
     parsing::{
@@ -206,6 +207,15 @@ impl Argument {
                 } =>
             {
                 MoveValue::Vector(s.bytes().map(MoveValue::U8).collect::<Vec<_>>())
+            }
+            (Argument::Address(a), TypeTag::Struct(stag))
+                if (
+                    &stag.address,
+                    stag.module.as_ident_str(),
+                    stag.name.as_ident_str(),
+                ) == RESOLVED_IOTA_ID =>
+            {
+                MoveValue::Address(a.into_inner())
             }
             (Argument::Option(sp!(loc, o)), TypeTag::Vector(ty)) => {
                 if let Some(v) = o {

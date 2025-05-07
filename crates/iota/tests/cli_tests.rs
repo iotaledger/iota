@@ -47,7 +47,9 @@ use iota_json_rpc_types::{
 use iota_keys::keystore::AccountKeystore;
 use iota_macros::sim_test;
 use iota_move_build::{BuildConfig, IotaPackageHooks};
-use iota_sdk::{IotaClient, iota_client_config::IotaClientConfig, wallet_context::WalletContext};
+use iota_sdk::{
+    IotaClient, PagedFn, iota_client_config::IotaClientConfig, wallet_context::WalletContext,
+};
 use iota_swarm_config::{
     genesis_config::{AccountConfig, DEFAULT_NUMBER_OF_AUTHORITIES, GenesisConfig},
     network_config::NetworkConfigLight,
@@ -3357,11 +3359,8 @@ async fn test_get_owned_objects_owned_by_address_and_check_pagination() -> Resul
     assert!(!object_responses.has_next_page);
 
     // Pagination check
-    let mut has_next = true;
-    let mut cursor = None;
-    let mut response_data: Vec<IotaObjectResponse> = Vec::new();
-    while has_next {
-        let object_responses = client
+    let response_data = PagedFn::collect::<Vec<_>>(async |cursor| {
+        client
             .read_api()
             .get_owned_objects(
                 address,
@@ -3377,16 +3376,9 @@ async fn test_get_owned_objects_owned_by_address_and_check_pagination() -> Resul
                 cursor,
                 Some(1),
             )
-            .await?;
-
-        response_data.push(object_responses.data.first().unwrap().clone());
-
-        if object_responses.has_next_page {
-            cursor = object_responses.next_cursor;
-        } else {
-            has_next = false;
-        }
-    }
+            .await
+    })
+    .await?;
 
     assert_eq!(&response_data, &object_responses.data);
 
