@@ -10,7 +10,7 @@ The following indexer metrics will be used for quantitative requirements.
 | `max_committed_checkpoint_sequence_number`               | The highest committed checkpoint by the indexer.                                                                    |
 | `checkpoint_db_commit_latency`                           | Total latency to commit a chunk of checkpoints (including all transactions, objects, events, etc.) to the database. |
 | `checkpoint_db_commit_latency_transactions_chunks`       | Latency to commit a single chunk of checkpoint transactions to the database.                                        |
-| `checkpoint_db_commit_latency_tx_insertion_order_chunks` | Latency to commit a single chunk of data representing the transaction insertion order to the database.             |
+| `checkpoint_db_commit_latency_tx_insertion_order_chunks` | Latency to commit a single chunk of data representing the transaction insertion order to the database.              |
 | `checkpoint_db_commit_latency_tx_indices_chunks`         | Latency to commit a single chunk of data representing the transaction indices to the database.                      |
 | `checkpoint_db_commit_latency_events_chunks`             | Latency to commit a single chunk of data representing the events to the database.                                   |
 | `checkpoint_db_commit_latency_event_indices_chunks`      | Latency to commit a single chunk of data representing the events indices to the database.                           |
@@ -24,13 +24,13 @@ The following indexer metrics will be used for quantitative requirements.
 
 > [!Note]
 >
-> - Large datasets (e.g., transactions, objects) are split into smaller **chunks** to avoid overwhelming the database with bulk writes.
+> - Large datasets (e.g., transactions, objects) are split into smaller **chunks** to avoid overwhelming the database with bulk writes. While most chunks contain 100 elements, object snapshot process uses a larger chunk size of 500 elements.
 > - Metrics ending with `_chunks` track latency **per individual chunk**, not the entire dataset of the checkpoint being committed.
 > - Example: `checkpoint_db_commit_latency_transactions_chunks` measures the time to commit **one transaction chunk**, not all transactions in a checkpoint.
 
 ### Quantitative Requirements:
 
-| **Requirement**                                                      | **Metrics**                                                                                                                                        | **Permissible Values**                                               |
+| **Requirement**                                                        | **Metrics**                                                                                                                                        | **Permissible Values**                                               |
 | ---------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------- |
 | **1. Checkpoint Sync Lag**                                             | Time in `min` where `lag > 0`. <br><br>`lag` is defined as `latest_fullnode_checkpoint_sequence_number - max_committed_checkpoint_sequence_number` | - **Genesis**: `≤ 35 min` <br><br>- **Post Genesis**: `≤ 5 min`      |
 | **2. Checkpoints batch commit latency**                                | `checkpoint_db_commit_latency`                                                                                                                     | - **Genesis**: `≤ 35 min` <br><br>- **Post Genesis**: `≤ 1 min`      |
