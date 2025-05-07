@@ -9,7 +9,7 @@ use iota_json::IotaJsonValue;
 use iota_json_rpc_types::{
     Balance, IotaTransactionBlockResponse, IotaTransactionBlockResponseOptions, ObjectChange,
 };
-use iota_sdk::GetAllPages;
+use iota_sdk::PagedFn;
 use iota_test_transaction_builder::make_staking_transaction;
 use iota_types::{
     base_types::{ObjectID, ObjectRef},
@@ -502,7 +502,7 @@ impl TestCaseImpl for CoinIndexTest {
         assert_eq!(managed_coins.len(), 40);
         assert!(managed_coins.iter().all(|c| c.balance == 5));
 
-        let total_coins = GetAllPages::get_all_pages_stream(async |cursor| {
+        let total_coins = PagedFn::stream(async |cursor| {
             client
                 .coin_read_api()
                 .get_all_coins(account, cursor, None)

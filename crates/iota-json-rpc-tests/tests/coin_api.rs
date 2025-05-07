@@ -17,7 +17,7 @@ use iota_json_rpc_types::{
 };
 use iota_macros::sim_test;
 use iota_move_build::BuildConfig;
-use iota_sdk::{GetAllPages, wallet_context::WalletContext};
+use iota_sdk::{PagedFn, wallet_context::WalletContext};
 use iota_swarm_config::genesis_config::{DEFAULT_GAS_AMOUNT, DEFAULT_NUMBER_OF_OBJECT_PER_ACCOUNT};
 use iota_types::{
     IOTA_FRAMEWORK_ADDRESS,
@@ -564,7 +564,7 @@ async fn get_all_coins_with_cursor_and_limit() {
         "Should not have next page when fetching all"
     );
 
-    let collected_coins = GetAllPages::get_all_pages(async |cursor| {
+    let collected_coins = PagedFn::collect::<Vec<_>>(async |cursor| {
         http_client.get_all_coins(address, cursor, Some(2)).await
     })
     .await

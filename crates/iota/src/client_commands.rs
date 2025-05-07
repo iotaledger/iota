@@ -40,9 +40,9 @@ use iota_package_management::{LockCommand, PublishedAtError};
 use iota_protocol_config::{Chain, ProtocolConfig, ProtocolVersion};
 use iota_replay::ReplayToolCommand;
 use iota_sdk::{
-    GetAllPages, IOTA_COIN_TYPE, IOTA_DEVNET_GAS_URL, IOTA_DEVNET_URL, IOTA_LOCAL_NETWORK_GAS_URL,
+    IOTA_COIN_TYPE, IOTA_DEVNET_GAS_URL, IOTA_DEVNET_URL, IOTA_LOCAL_NETWORK_GAS_URL,
     IOTA_LOCAL_NETWORK_URL, IOTA_LOCAL_NETWORK_URL_0, IOTA_TESTNET_GAS_URL, IOTA_TESTNET_URL,
-    IotaClient,
+    IotaClient, PagedFn,
     apis::ReadApi,
     iota_client_config::{IotaClientConfig, IotaEnv},
     wallet_context::WalletContext,
@@ -830,7 +830,7 @@ impl IotaClientCommands {
                 let client = context.get_client().await?;
 
                 let objects =
-                    GetAllPages::get_all_pages(async |cursor: Option<ObjectID>| match coin_type {
+                    PagedFn::collect::<Vec<_>>(async |cursor: Option<ObjectID>| match coin_type {
                         Some(ref coin_type) => {
                             client
                                 .coin_read_api()
@@ -1419,7 +1419,7 @@ impl IotaClientCommands {
             IotaClientCommands::Objects { address } => {
                 let address = get_identity_address(address, context)?;
                 let client = context.get_client().await?;
-                let objects = GetAllPages::get_all_pages(async |cursor: Option<ObjectID>| {
+                let objects = PagedFn::collect(async |cursor: Option<ObjectID>| {
                     client
                         .read_api()
                         .get_owned_objects(

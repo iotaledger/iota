@@ -37,7 +37,7 @@ use iota_json_rpc_types::{
     IotaTransactionBlockEffectsAPI, IotaTransactionBlockResponseOptions,
 };
 use iota_metrics::GaugeGuard;
-use iota_sdk::{GetAllPages, IotaClient, IotaClientBuilder};
+use iota_sdk::{PagedFn, IotaClient, IotaClientBuilder};
 use iota_types::{
     base_types::{
         AuthorityName, ConciseableName, IotaAddress, ObjectID, ObjectRef, SequenceNumber,
@@ -686,7 +686,7 @@ impl ValidatorProxy for FullNodeProxy {
         &self,
         account_address: IotaAddress,
     ) -> Result<Vec<(u64, Object)>, anyhow::Error> {
-        let mut stream = GetAllPages::get_all_pages_stream(async |cursor| {
+        let mut stream = PagedFn::stream(async |cursor| {
             self.iota_client
                 .read_api()
                 .get_owned_objects(

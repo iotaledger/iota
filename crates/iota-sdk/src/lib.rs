@@ -612,7 +612,7 @@ impl DataReader for ReadApi {
             ),
         });
 
-        let result = GetAllPages::get_all_pages_stream(async |cursor| {
+        let result = PagedFn::stream(async |cursor| {
             self.get_owned_objects(address, query.clone(), cursor, None)
                 .await
         })
@@ -639,24 +639,27 @@ impl DataReader for ReadApi {
 
 /// A helper trait for repeatedly calling an async function which returns pages
 /// of data.
-pub trait GetAllPages<O, C, F, E>: Sized + Fn(Option<C>) -> F
+pub trait PagedFn<O, C, F, E>: Sized + Fn(Option<C>) -> F
 where
     O: Send,
     C: Send,
     F: futures::Future<Output = Result<Page<O, C>, E>> + Send,
 {
     /// Get all items from the source and collect them into a vector.
-    fn get_all_pages(self) -> impl futures::Future<Output = Result<Vec<O>, E>> {
-        self.get_all_pages_stream().try_collect()
+    fn collect<T>(self) -> impl futures::Future<Output = Result<T, E>>
+    where
+        T: Default + Extend<O>,
+    {
+        self.stream().try_collect::<T>()
     }
 
     /// Get a stream which will return all items from the source.
-    fn get_all_pages_stream(self) -> GetAllPagesStream<O, C, F, E, Self> {
-        GetAllPagesStream::new(self)
+    fn stream(self) -> PagedStream<O, C, F, E, Self> {
+        PagedStream::new(self)
     }
 }
 
-impl<O, C, F, E, Fun> GetAllPages<O, C, F, E> for Fun
+impl<O, C, F, E, Fun> PagedFn<O, C, F, E> for Fun
 where
     Fun: Fn(Option<C>) -> F,
     O: Send,
@@ -667,7 +670,7 @@ where
 
 /// A stream which repeatedly calls an async function which returns a page of
 /// data.
-pub struct GetAllPagesStream<O, C, F, E, Fun> {
+pub struct PagedStream<O, C, F, E, Fun> {
     fun: Fun,
     fut: Pin<Box<F>>,
     next: VecDeque<O>,
@@ -675,7 +678,7 @@ pub struct GetAllPagesStream<O, C, F, E, Fun> {
     _data: PhantomData<(E, C)>,
 }
 
-impl<O, C, F, E, Fun> GetAllPagesStream<O, C, F, E, Fun>
+impl<O, C, F, E, Fun> PagedStream<O, C, F, E, Fun>
 where
     Fun: Fn(Option<C>) -> F,
 {
@@ -691,7 +694,7 @@ where
     }
 }
 
-impl<O, C, F, E, Fun> futures::Stream for GetAllPagesStream<O, C, F, E, Fun>
+impl<O, C, F, E, Fun> futures::Stream for PagedStream<O, C, F, E, Fun>
 where
     O: Send,
     C: Send,
@@ -761,8 +764,7 @@ mod test {
 
         let endpoint = Endpoint { data };
 
-        let mut stream =
-            GetAllPages::get_all_pages_stream(async |cursor| endpoint.get_page(cursor).await);
+        let mut stream = PagedFn::stream(async |cursor| endpoint.get_page(cursor).await);
 
         assert_eq!(
             stream
@@ -776,8 +778,7 @@ mod test {
         assert_eq!(stream.by_ref().try_next().await.unwrap(), Some(9999));
         assert!(stream.try_next().await.unwrap().is_none());
 
-        let mut bad_stream =
-            GetAllPages::get_all_pages_stream(async |_| endpoint.get_page(Some(99999)).await);
+        let mut bad_stream = PagedFn::stream(async |_| endpoint.get_page(Some(99999)).await);
 
         assert!(bad_stream.try_next().await.is_err());
     }

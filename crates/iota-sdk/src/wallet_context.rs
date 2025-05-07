@@ -25,7 +25,7 @@ use tokio::sync::RwLock;
 use tracing::warn;
 
 use crate::{
-    GetAllPages, IotaClient,
+    PagedFn, IotaClient,
     iota_client_config::{IotaClientConfig, IotaEnv},
 };
 
@@ -140,7 +140,7 @@ impl WalletContext {
     ) -> Result<Vec<(u64, IotaObjectData)>, anyhow::Error> {
         let client = self.get_client().await?;
 
-        let values_objects = GetAllPages::get_all_pages_stream(async |cursor| {
+        let values_objects = PagedFn::stream(async |cursor| {
             client
                 .read_api()
                 .get_owned_objects(

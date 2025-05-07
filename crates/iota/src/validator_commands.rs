@@ -36,7 +36,7 @@ use iota_keys::{
     },
     keystore::AccountKeystore,
 };
-use iota_sdk::{GetAllPages, IotaClient, wallet_context::WalletContext};
+use iota_sdk::{PagedFn, IotaClient, wallet_context::WalletContext};
 use iota_types::{
     IOTA_SYSTEM_PACKAGE_ID, TypeTag,
     base_types::{IotaAddress, ObjectID, ObjectRef},
@@ -1053,7 +1053,7 @@ pub async fn get_validator_summary(
     };
 
     // Check inactive
-    let mut stream = GetAllPages::get_all_pages_stream(async |cursor| {
+    let mut stream = PagedFn::stream(async |cursor| {
         client
             .read_api()
             .get_dynamic_fields(inactive_pools_id, cursor, None)

@@ -48,7 +48,7 @@ use iota_keys::keystore::AccountKeystore;
 use iota_macros::sim_test;
 use iota_move_build::{BuildConfig, IotaPackageHooks};
 use iota_sdk::{
-    GetAllPages, IotaClient, iota_client_config::IotaClientConfig, wallet_context::WalletContext,
+    PagedFn, IotaClient, iota_client_config::IotaClientConfig, wallet_context::WalletContext,
 };
 use iota_swarm_config::{
     genesis_config::{AccountConfig, DEFAULT_NUMBER_OF_AUTHORITIES, GenesisConfig},
@@ -3359,7 +3359,7 @@ async fn test_get_owned_objects_owned_by_address_and_check_pagination() -> Resul
     assert!(!object_responses.has_next_page);
 
     // Pagination check
-    let response_data = GetAllPages::get_all_pages(async |cursor| {
+    let response_data = PagedFn::collect::<Vec<_>>(async |cursor| {
         client
             .read_api()
             .get_owned_objects(
