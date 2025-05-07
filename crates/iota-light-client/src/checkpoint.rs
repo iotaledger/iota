@@ -54,6 +54,14 @@ pub fn read_checkpoint_list(config: &Config) -> Result<CheckpointList> {
     Ok(serde_yaml::from_reader(reader)?)
 }
 
+pub fn read_checkpoint_summary(config: &Config, seq: u64) -> Result<CertifiedCheckpointSummary> {
+    let checkpoint_path = config.checkpoint_summary_file_path(seq);
+    let mut reader = fs::File::open(checkpoint_path)?;
+    let mut buffer = Vec::new();
+    reader.read_to_end(&mut buffer)?;
+    Ok(bcs::from_bytes(&buffer).expect("Unable to parse checkpoint file"))
+}
+
 pub fn write_checkpoint_list(config: &Config, checkpoints_list: &CheckpointList) -> Result<()> {
     let checkpoints_path = config.checkpoints_list_file_path();
     let mut writer = fs::File::create(checkpoints_path)?;
@@ -63,36 +71,14 @@ pub fn write_checkpoint_list(config: &Config, checkpoints_list: &CheckpointList)
         .context("Unable to serialize checkpoint list")
 }
 
-pub fn read_checkpoint_summary(config: &Config, seq: u64) -> Result<CertifiedCheckpointSummary> {
-    read_checkpoint_summary_general(config, seq)
-}
-
-fn read_checkpoint_summary_general(
-    config: &Config,
-    seq: u64,
-) -> Result<CertifiedCheckpointSummary> {
-    let checkpoint_path = config.checkpoint_summary_file_path(seq);
-    let mut reader = fs::File::open(checkpoint_path)?;
-    let mut buffer = Vec::new();
-    reader.read_to_end(&mut buffer)?;
-    Ok(bcs::from_bytes(&buffer).expect("Unable to parse checkpoint file"))
-}
-
-pub fn write_checkpoint_summary(
-    config: &Config,
-    summary: &CertifiedCheckpointSummary,
-) -> Result<()> {
-    write_checkpoint_summary_general(config, summary)
-}
-
-fn write_checkpoint_summary_general(
-    config: &Config,
-    summary: &CertifiedCheckpointSummary,
-) -> Result<()> {
-    let checkpoint_path = config.checkpoint_summary_file_path(*summary.sequence_number());
-    let mut writer = fs::File::create(checkpoint_path)?;
-    let bytes = bcs::to_bytes(summary).expect("unable to serialize checkpoint summary");
-    writer.write_all(&bytes)?;
+fn write_checkpoint_summary(config: &Config, summary: &CertifiedCheckpointSummary) -> Result<()> {
+    let path = config.checkpoint_summary_file_path(*summary.sequence_number());
+    bcs::serialize_into(
+        &mut fs::File::create(&path)
+            .context(format!("error writing summary file '{}'", path.display()))?,
+        &summary,
+    )
+    .expect("error serializing to bcs");
     Ok(())
 }
 
@@ -172,7 +158,7 @@ async fn sync_checkpoint_list_to_latest_from_graphql(
     };
 
     // Get the last synced epoch, or fetch the first
-    let last_epoch = if let Some(last_seq) = checkpoints_list.checkpoints.last() {
+    let last_epoch = if !checkpoints_list.is_empty() {
         checkpoints_list.len() as u64 - 1
     } else {
         let first_epoch = 0u64;
@@ -230,60 +216,7 @@ async fn sync_checkpoint_list_to_latest_from_archive(
     Ok(CheckpointList { checkpoints })
 }
 
-/// Downloads the list of end-of-epoch checkpoints from the checkpoint store.
-///
-/// Requires JSON RPC, GraphQL, and a checkpoint store endpoint.
-async fn sync_checkpoint_list_to_latest_from_checkpoints_store(
-    config: &Config,
-) -> anyhow::Result<CheckpointList> {
-    info!("Syncing checkpoint list from checkpoint store.");
-
-    // Get the local checkpoint list, or create an empty one if it doesn't exist
-    let mut checkpoints_list = match read_checkpoint_list(config) {
-        Ok(list) => list,
-        Err(_) => {
-            info!(
-                "Could not read existing checkpoint list, starting with
-empty list."
-            );
-            CheckpointList::default()
-        }
-    };
-
-    // Get the last synced checkpoint sequence number, or fetch the first
-    let last_seq = if let Some(last_seq) = checkpoints_list.checkpoints.last() {
-        *last_seq
-    } else {
-        // TODO make independent of RPC
-        let last_seq = query_last_checkpoint_of_epoch(config, 0).await?;
-        checkpoints_list.checkpoints.push(last_seq);
-        info!("Synced epoch: 0, checkpoint: {last_seq}",);
-        last_seq
-    };
-
-    let checkpoint_store = CheckpointStore::new(config)?;
-    let last_sum = checkpoint_store.fetch_checkpoint_summary(last_seq).await?;
-    let client = IotaClientBuilder::default()
-        .build(config.rpc_url.as_str())
-        .await?;
-    let latest_seq = client
-        .read_api()
-        .get_latest_checkpoint_sequence_number()
-        .await?;
-    let latest_sum = checkpoint_store
-        .fetch_checkpoint_summary(latest_seq)
-        .await?;
-    // Sequentially record all the missing end of epoch checkpoints numbers
-    for target_epoch in (last_sum.epoch() + 1)..latest_sum.epoch() {
-        let target_seq = query_last_checkpoint_of_epoch(config, target_epoch).await?;
-        checkpoints_list.checkpoints.push(target_seq);
-        info!("Synced epoch: {target_epoch}, checkpoint: {target_seq}");
-    }
-
-    Ok(checkpoints_list)
-}
-
-pub async fn sync_and_check_checkpoints(config: &Config) -> anyhow::Result<()> {
+pub async fn sync_and_verify_checkpoints(config: &Config) -> anyhow::Result<()> {
     let checkpoints_list = sync_checkpoint_list_to_latest(config)
         .await
         .context("Failed to sync checkpoint list")?;
@@ -297,31 +230,28 @@ pub async fn sync_and_check_checkpoints(config: &Config) -> anyhow::Result<()> {
     let mut missing = Vec::new();
     for seq in checkpoints_list.checkpoints.iter().copied() {
         if !config.checkpoint_summary_file_path(seq).exists() {
-            // TODO make sure the file can be loaded i.e. it is not corrupt due to partial
-            // download
-            missing.push(seq);
+            // ensure the file is valid and can be parsed
+            if read_checkpoint_summary(config, seq).is_err() {
+                missing.push(seq);
+            }
         }
     }
 
     if !missing.is_empty() {
         if let Some(_checkpoint_store_url) = &config.checkpoint_store_config {
             info!("Downloading missing checkpoints from checkpoint store.");
+
             let checkpoint_store = CheckpointStore::new(config)?;
             for seq in missing {
                 info!("Downloading checkpoint: {seq}");
+
                 let summary = checkpoint_store
                     .fetch_checkpoint_summary(seq)
                     .await
                     .context(format!(
                         "Failed to download checkpoint summary '{seq}' from checkpoint store"
                     ))?;
-                let path = config.checkpoint_summary_file_path(seq);
-                bcs::serialize_into(
-                    &mut std::fs::File::create(&path)
-                        .context(format!("error creating summary file '{}'", path.display()))?,
-                    &summary,
-                )
-                .expect("error serializing to bcs");
+                write_checkpoint_summary(config, &summary)?;
             }
         } else if let Some(archive_store_config) = &config.archive_store_config {
             info!("Downloading missing checkpoints from archive store.");
@@ -355,13 +285,8 @@ pub async fn sync_and_check_checkpoints(config: &Config) -> anyhow::Result<()> {
                     .get_checkpoint_summary(seq)
                     .await
                     .context(format!("Failed to download checkpoint summary '{seq}'"))?;
-                let path = config.checkpoint_summary_file_path(seq);
-                bcs::serialize_into(
-                    &mut std::fs::File::create(&path)
-                        .context(format!("error creating summary file '{}'", path.display()))?,
-                    &summary,
-                )
-                .expect("error serializing to bcs");
+
+                write_checkpoint_summary(config, &summary)?;
             }
         }
     }

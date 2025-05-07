@@ -7,7 +7,7 @@ use std::{path::PathBuf, str::FromStr};
 use anyhow::Context;
 use clap::{Parser, Subcommand};
 use iota_light_client::{
-    checkpoint::sync_and_check_checkpoints,
+    checkpoint::sync_and_verify_checkpoints,
     config::Config,
     package_store::RemotePackageStore,
     verifier::{get_verified_effects_and_events, get_verified_object},
@@ -83,7 +83,7 @@ pub async fn main() -> anyhow::Result<()> {
     match args.command {
         LightClientCommand::CheckTransaction { transaction_digest } => {
             if config.sync_before_check {
-                sync_and_check_checkpoints(&config)
+                sync_and_verify_checkpoints(&config)
                     .await
                     .context("Failed to sync checkpoints")?;
             }
@@ -122,7 +122,7 @@ pub async fn main() -> anyhow::Result<()> {
         }
         LightClientCommand::CheckObject { object_id } => {
             if config.sync_before_check {
-                sync_and_check_checkpoints(&config)
+                sync_and_verify_checkpoints(&config)
                     .await
                     .context("Failed to sync checkpoints")?;
             }
@@ -149,7 +149,7 @@ pub async fn main() -> anyhow::Result<()> {
             }
         }
         LightClientCommand::Sync => {
-            sync_and_check_checkpoints(&config)
+            sync_and_verify_checkpoints(&config)
                 .await
                 .context("Failed to sync checkpoints")?;
         }

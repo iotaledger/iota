@@ -154,7 +154,11 @@ mod tests {
             checkpoints_dir: temp_dir.path().to_path_buf(),
             genesis_blob_download_url: None,
             sync_before_check: false,
-            object_store_url: Some("http://localhost:9001".to_string()),
+            checkpoint_store_config: Some(ObjectStoreConfig {
+                object_store: Some(ObjectStoreType::S3),
+                aws_endpoint: Some("http://localhost:9001".to_string()),
+                ..Default::default()
+            }),
             archive_store_config: Some(ObjectStoreConfig {
                 object_store: Some(ObjectStoreType::File),
                 directory: Some(temp_dir.path().to_path_buf()),

@@ -5,10 +5,7 @@
 use core::num::NonZeroUsize;
 
 use anyhow::{Result, anyhow};
-use iota_config::{
-    node::ArchiveReaderConfig,
-    object_storage_config::{ObjectStoreConfig, ObjectStoreType},
-};
+use iota_config::node::ArchiveReaderConfig;
 use iota_data_ingestion_core::history::reader::HistoricalReader;
 use iota_types::{
     full_checkpoint_content::CheckpointData, messages_checkpoint::CertifiedCheckpointSummary,
@@ -47,7 +44,6 @@ impl CheckpointStore {
     }
 
     pub async fn fetch_full_checkpoint(&self, seq: u64) -> Result<CheckpointData> {
-        use futures::StreamExt;
         self.historical_reader.sync_manifest_once().await?;
         let checkpoint = self
             .historical_reader
