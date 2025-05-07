@@ -59,7 +59,6 @@ impl IotaNamesConfig {
             std::env::var("IOTA_NAMES_PAYMENT_PACKAGE_ADDRESS")?.parse()?,
             std::env::var("IOTA_NAMES_REGISTRY_ID")?.parse()?,
             std::env::var("IOTA_NAMES_REVERSE_REGISTRY_ID")?.parse()?,
-            std::env::var("IOTA_NAMES_SUBDOMAIN_PROXY_PACKAGE_ID")?.parse()?,
         ))
     }
 
