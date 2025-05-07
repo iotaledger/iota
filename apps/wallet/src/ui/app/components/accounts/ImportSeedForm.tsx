@@ -54,7 +54,7 @@ export function ImportSeedForm({ onSubmit }: ImportSeedFormProps) {
                 />
                 <InfoBox
                     title="Non-Standard Restore Method"
-                    supportingText="This non-standard recovery method may not work with third-party wallets. After recovery, transfer funds to a wallet with a known mnemonic."
+                    supportingText="Only use this recovery method if you've lost your 24-word mnemonic. It's not an industry-standard approach and may not work with third-party wallets. This is intended specifically for users recovering a seed from the Firefly extractor."
                     icon={<Info />}
                     type={InfoBoxType.Default}
                     style={InfoBoxStyle.Elevated}
