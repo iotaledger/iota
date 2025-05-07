@@ -16,6 +16,7 @@ use fastcrypto::{
     encoding::{Base64, Encoding},
     traits::{KeyPair, ToFromBytes},
 };
+use futures::TryStreamExt;
 use iota_bridge::{
     iota_client::IotaClient as IotaBridgeClient,
     iota_transaction_builder::{
@@ -35,7 +36,7 @@ use iota_keys::{
     },
     keystore::AccountKeystore,
 };
-use iota_sdk::{IotaClient, wallet_context::WalletContext};
+use iota_sdk::{IotaClient, PagedFn, wallet_context::WalletContext};
 use iota_types::{
     IOTA_SYSTEM_PACKAGE_ID, TypeTag,
     base_types::{IotaAddress, ObjectID, ObjectRef},
@@ -1052,23 +1053,19 @@ pub async fn get_validator_summary(
     };
 
     // Check inactive
-    let mut cursor = None;
-    let mut has_next_page = true;
-    while has_next_page {
-        let page = client
+    let mut stream = PagedFn::stream(async |cursor| {
+        client
             .read_api()
             .get_dynamic_fields(inactive_pools_id, cursor, None)
-            .await?;
-        for dynamic_field_info in page.data {
-            let validator_summary =
-                get_validator_summary_from_validator_wrapper(client, dynamic_field_info.object_id)
-                    .await?;
-            if validator_summary.iota_address == validator_address {
-                return Ok(Some((ValidatorStatus::Inactive, validator_summary)));
-            }
+            .await
+    });
+    while let Some(dynamic_field_info) = stream.try_next().await? {
+        let validator_summary =
+            get_validator_summary_from_validator_wrapper(client, dynamic_field_info.object_id)
+                .await?;
+        if validator_summary.iota_address == validator_address {
+            return Ok(Some((ValidatorStatus::Inactive, validator_summary)));
         }
-        has_next_page = page.has_next_page;
-        cursor = page.next_cursor;
     }
 
     Ok(None)
