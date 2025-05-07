@@ -48,6 +48,8 @@ pub const MAX_PROTOCOL_VERSION: u64 = 7;
 //            Enable zstd compression for consensus tonic network in testnet.
 //            Enable consensus garbage collection for testnet
 //            Enable the new consensus commit rule for testnet.
+//            Enable min_free_execution_slot for the shared object congestion
+//            tracker in devnet.
 
 #[derive(Copy, Clone, Debug, Hash, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ProtocolVersion(u64);
@@ -262,6 +264,11 @@ struct FeatureFlags {
     // If true, enable zstd compression for consensus tonic network.
     #[serde(skip_serializing_if = "is_false")]
     consensus_zstd_compression: bool,
+
+    // Use the minimum free execution slot to schedule execution of a transaction in the shared
+    // object congestion tracker.
+    #[serde(skip_serializing_if = "is_false")]
+    congestion_control_min_free_execution_slot: bool,
 }
 
 fn is_true(b: &bool) -> bool {
@@ -1230,6 +1237,11 @@ impl ProtocolConfig {
     pub fn consensus_zstd_compression(&self) -> bool {
         self.feature_flags.consensus_zstd_compression
     }
+
+    pub fn congestion_control_min_free_execution_slot(&self) -> bool {
+        self.feature_flags
+            .congestion_control_min_free_execution_slot
+    }
 }
 
 #[cfg(not(msim))]
@@ -1961,6 +1973,11 @@ impl ProtocolConfig {
                         // blocks within a window of ~4 seconds
                         // to be included before be considered garbage collected.
                         cfg.consensus_gc_depth = Some(60);
+                    }
+                    // Enable min_free_execution_slot for the shared object congestion tracker in
+                    // devnet.
+                    if chain != Chain::Testnet && chain != Chain::Mainnet {
+                        cfg.feature_flags.congestion_control_min_free_execution_slot = true;
                     }
                 }
                 // Use this template when making changes:

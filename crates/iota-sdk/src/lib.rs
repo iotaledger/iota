@@ -85,21 +85,25 @@ pub mod json_rpc_error;
 pub mod wallet_context;
 
 use std::{
+    collections::VecDeque,
     fmt::{Debug, Formatter},
+    marker::PhantomData,
+    pin::Pin,
     sync::Arc,
+    task::Poll,
     time::Duration,
 };
 
 use async_trait::async_trait;
 use base64::Engine;
+use futures::{StreamExt, TryStreamExt};
 pub use iota_json as json;
 use iota_json_rpc_api::{
     CLIENT_SDK_TYPE_HEADER, CLIENT_SDK_VERSION_HEADER, CLIENT_TARGET_API_VERSION_HEADER,
 };
 pub use iota_json_rpc_types as rpc_types;
 use iota_json_rpc_types::{
-    IotaObjectDataFilter, IotaObjectDataOptions, IotaObjectResponse, IotaObjectResponseQuery,
-    ObjectsPage,
+    IotaObjectDataFilter, IotaObjectDataOptions, IotaObjectResponse, IotaObjectResponseQuery, Page,
 };
 use iota_transaction_builder::{DataReader, TransactionBuilder};
 pub use iota_types as types;
@@ -598,7 +602,6 @@ impl DataReader for ReadApi {
         address: IotaAddress,
         object_type: StructTag,
     ) -> Result<Vec<ObjectInfo>, anyhow::Error> {
-        let mut result = vec![];
         let query = Some(IotaObjectResponseQuery {
             filter: Some(IotaObjectDataFilter::StructType(object_type)),
             options: Some(
@@ -609,25 +612,14 @@ impl DataReader for ReadApi {
             ),
         });
 
-        let mut has_next = true;
-        let mut cursor = None;
+        let result = PagedFn::stream(async |cursor| {
+            self.get_owned_objects(address, query.clone(), cursor, None)
+                .await
+        })
+        .map(|v| v?.try_into())
+        .try_collect::<Vec<_>>()
+        .await?;
 
-        while has_next {
-            let ObjectsPage {
-                data,
-                next_cursor,
-                has_next_page,
-            } = self
-                .get_owned_objects(address, query.clone(), cursor, None)
-                .await?;
-            result.extend(
-                data.iter()
-                    .map(|r| r.clone().try_into())
-                    .collect::<Result<Vec<_>, _>>()?,
-            );
-            cursor = next_cursor;
-            has_next = has_next_page;
-        }
         Ok(result)
     }
 
@@ -642,5 +634,152 @@ impl DataReader for ReadApi {
     /// Return the reference gas price as a u64 or an error otherwise
     async fn get_reference_gas_price(&self) -> Result<u64, anyhow::Error> {
         Ok(self.get_reference_gas_price().await?)
+    }
+}
+
+/// A helper trait for repeatedly calling an async function which returns pages
+/// of data.
+pub trait PagedFn<O, C, F, E>: Sized + Fn(Option<C>) -> F
+where
+    O: Send,
+    C: Send,
+    F: futures::Future<Output = Result<Page<O, C>, E>> + Send,
+{
+    /// Get all items from the source and collect them into a vector.
+    fn collect<T>(self) -> impl futures::Future<Output = Result<T, E>>
+    where
+        T: Default + Extend<O>,
+    {
+        self.stream().try_collect::<T>()
+    }
+
+    /// Get a stream which will return all items from the source.
+    fn stream(self) -> PagedStream<O, C, F, E, Self> {
+        PagedStream::new(self)
+    }
+}
+
+impl<O, C, F, E, Fun> PagedFn<O, C, F, E> for Fun
+where
+    Fun: Fn(Option<C>) -> F,
+    O: Send,
+    C: Send,
+    F: futures::Future<Output = Result<Page<O, C>, E>> + Send,
+{
+}
+
+/// A stream which repeatedly calls an async function which returns a page of
+/// data.
+pub struct PagedStream<O, C, F, E, Fun> {
+    fun: Fun,
+    fut: Pin<Box<F>>,
+    next: VecDeque<O>,
+    has_next_page: bool,
+    _data: PhantomData<(E, C)>,
+}
+
+impl<O, C, F, E, Fun> PagedStream<O, C, F, E, Fun>
+where
+    Fun: Fn(Option<C>) -> F,
+{
+    pub fn new(fun: Fun) -> Self {
+        let fut = fun(None);
+        Self {
+            fun,
+            fut: Box::pin(fut),
+            next: Default::default(),
+            has_next_page: true,
+            _data: PhantomData,
+        }
+    }
+}
+
+impl<O, C, F, E, Fun> futures::Stream for PagedStream<O, C, F, E, Fun>
+where
+    O: Send,
+    C: Send,
+    F: futures::Future<Output = Result<Page<O, C>, E>> + Send,
+    Fun: Fn(Option<C>) -> F,
+{
+    type Item = Result<O, E>;
+
+    fn poll_next(
+        self: std::pin::Pin<&mut Self>,
+        cx: &mut std::task::Context<'_>,
+    ) -> Poll<Option<Self::Item>> {
+        let this = unsafe { self.get_unchecked_mut() };
+        if this.next.is_empty() && this.has_next_page {
+            match this.fut.as_mut().poll(cx) {
+                Poll::Ready(res) => match res {
+                    Ok(mut page) => {
+                        this.next.extend(page.data);
+                        this.has_next_page = page.has_next_page;
+                        if this.has_next_page {
+                            this.fut.set((this.fun)(page.next_cursor.take()));
+                        }
+                    }
+                    Err(e) => {
+                        this.has_next_page = false;
+                        return Poll::Ready(Some(Err(e)));
+                    }
+                },
+                Poll::Pending => return Poll::Pending,
+            }
+        }
+        Poll::Ready(this.next.pop_front().map(Ok))
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use iota_json_rpc_types::Page;
+
+    use super::*;
+
+    #[tokio::test]
+    async fn test_get_all_pages() {
+        let data = (0..10000).collect::<Vec<_>>();
+        struct Endpoint {
+            data: Vec<i32>,
+        }
+
+        impl Endpoint {
+            async fn get_page(&self, cursor: Option<usize>) -> anyhow::Result<Page<i32, usize>> {
+                const PAGE_SIZE: usize = 100;
+                anyhow::ensure!(cursor.is_none_or(|v| v < self.data.len()), "invalid cursor");
+                let index = cursor.unwrap_or_default();
+                let data = self.data[index..]
+                    .iter()
+                    .copied()
+                    .take(PAGE_SIZE)
+                    .collect::<Vec<_>>();
+                let has_next_page = self.data.len() > index + PAGE_SIZE;
+                Ok(Page {
+                    data,
+                    next_cursor: has_next_page.then_some(index + PAGE_SIZE),
+                    has_next_page,
+                })
+            }
+        }
+
+        let endpoint = Endpoint { data };
+
+        let mut stream = PagedFn::stream(async |cursor| endpoint.get_page(cursor).await);
+
+        assert_eq!(
+            stream
+                .by_ref()
+                .take(9999)
+                .try_collect::<Vec<_>>()
+                .await
+                .unwrap(),
+            endpoint.data[..9999]
+        );
+        assert_eq!(stream.by_ref().try_next().await.unwrap(), Some(9999));
+        assert!(stream.try_next().await.unwrap().is_none());
+
+        let mut bad_stream = PagedFn::stream(async |_| endpoint.get_page(Some(99999)).await);
+
+        assert!(bad_stream.try_next().await.is_err());
     }
 }
