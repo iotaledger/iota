@@ -574,7 +574,10 @@ pub struct Opts {
     /// --signed-tx-bytes <SIGNED_TX_BYTES>`.
     #[arg(long, required = false)]
     pub serialize_signed_transaction: bool,
-    /// Use a custom signer for the transaction.
+    /// Use a custom signer for the transaction. This option must be used with
+    /// --serialize-unsigned-transaction since the custom signer's private key
+    /// is not available in the keystore. The resulting unsigned transaction
+    /// can then be signed externally using the custom signer's private key.
     #[arg(long, required = false, value_parser)]
     pub custom_signer: Option<IotaAddress>,
 
@@ -2951,7 +2954,11 @@ pub(crate) async fn dry_run_or_execute_or_serialize(
 
     let client = context.get_client().await?;
 
-    let new_signer = custom_signer.unwrap_or(signer);
+    let new_signer = if let Some(custom) = custom_signer {
+        custom
+    } else {
+        signer
+    };
 
     if dev_inspect {
         return execute_dev_inspect(
