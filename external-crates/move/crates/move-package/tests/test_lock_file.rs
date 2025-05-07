@@ -232,7 +232,7 @@ fn test_update_managed_address() {
         "default",
         ManagedAddressUpdate::Published {
             original_id: "0x123".into(),
-            chain_id: "35834a8a".into(),
+            chain_id: "6364aad5".into(),
         },
     )
     .unwrap();
@@ -260,7 +260,7 @@ fn test_update_managed_address() {
             (
                 "default",
                 ManagedPackage {
-                    chain_id: "35834a8a",
+                    chain_id: "6364aad5",
                     original_published_id: "0x123",
                     latest_published_id: "0x456",
                     version: "2",
