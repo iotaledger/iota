@@ -30,7 +30,7 @@ The following indexer metrics will be used for quantitative requirements.
 
 ### Quantitative Requirements:
 
-| **Requirement****                                                      | **Metrics**                                                                                                                                        | **Permissible Values**                                               |
+| **Requirement**                                                      | **Metrics**                                                                                                                                        | **Permissible Values**                                               |
 | ---------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------- |
 | **1. Checkpoint Sync Lag**                                             | Time in `min` where `lag > 0`. <br><br>`lag` is defined as `latest_fullnode_checkpoint_sequence_number - max_committed_checkpoint_sequence_number` | - **Genesis**: `≤ 35 min` <br><br>- **Post Genesis**: `≤ 5 min`      |
 | **2. Checkpoints batch commit latency**                                | `checkpoint_db_commit_latency`                                                                                                                     | - **Genesis**: `≤ 35 min` <br><br>- **Post Genesis**: `≤ 1 min`      |
