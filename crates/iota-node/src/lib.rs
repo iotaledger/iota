@@ -2063,11 +2063,14 @@ pub async fn build_http_server(
                 if let Ok(config) = IotaNamesConfig::from_env() {
                     config
                 } else {
-                    let chain = state
-                        .get_chain_identifier()
-                        .ok_or(IotaError::Storage("chain identifier not found".to_string()))?
-                        .chain();
-                    IotaNamesConfig::from_chain(&chain)
+                    // TODO: Init from chain if config is not set once `IotaNamesConfig::from_chain`
+                    // is implemented
+                    // let chain = state
+                    //     .get_chain_identifier()
+                    //     .ok_or(IotaError::Storage("chain identifier not found".to_string()))?
+                    //     .chain();
+                    // IotaNamesConfig::from_chain(&chain)
+                    Default::default()
                 }
             }
         };
