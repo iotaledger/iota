@@ -38,7 +38,6 @@ macro_rules! as_ref_get_impl {
         #[async_trait]
         impl ObjectStoreGetExt for $type {
             async fn get_bytes(&self, src: &Path) -> Result<Bytes> {
-                println!("getting bytes");
                 self.get(src)
                     .await
                     .map_err(|e| anyhow!("Failed to get file {} with error: {:?}", src, e))?
