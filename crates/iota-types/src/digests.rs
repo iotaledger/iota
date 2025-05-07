@@ -430,6 +430,14 @@ impl AsRef<[u8; 32]> for CheckpointContentsDigest {
     }
 }
 
+impl TryFrom<Vec<u8>> for CheckpointContentsDigest {
+    type Error = IotaError;
+
+    fn try_from(bytes: Vec<u8>) -> Result<Self, IotaError> {
+        Digest::try_from(bytes).map(CheckpointContentsDigest)
+    }
+}
+
 impl From<CheckpointContentsDigest> for [u8; 32] {
     fn from(digest: CheckpointContentsDigest) -> Self {
         digest.into_inner()
@@ -539,6 +547,10 @@ impl TransactionDigest {
         Self(Digest::new(digest))
     }
 
+    pub const fn from_digest(digest: Digest) -> Self {
+        Self(digest)
+    }
+
     /// A digest we use to signify the parent transaction was the genesis,
     /// ie. for an object there is no parent digest.
     /// Note that this is not the same as the digest of the genesis transaction,
@@ -632,6 +644,14 @@ impl TryFrom<&[u8]> for TransactionDigest {
     }
 }
 
+impl TryFrom<Vec<u8>> for TransactionDigest {
+    type Error = crate::error::IotaError;
+
+    fn try_from(bytes: Vec<u8>) -> Result<Self, IotaError> {
+        Digest::try_from(bytes).map(TransactionDigest)
+    }
+}
+
 impl std::str::FromStr for TransactionDigest {
     type Err = anyhow::Error;
 
@@ -690,6 +710,14 @@ impl AsRef<[u8]> for TransactionEffectsDigest {
 impl AsRef<[u8; 32]> for TransactionEffectsDigest {
     fn as_ref(&self) -> &[u8; 32] {
         self.0.as_ref()
+    }
+}
+
+impl TryFrom<Vec<u8>> for TransactionEffectsDigest {
+    type Error = IotaError;
+
+    fn try_from(bytes: Vec<u8>) -> Result<Self, IotaError> {
+        Digest::try_from(bytes).map(TransactionEffectsDigest)
     }
 }
 
@@ -772,6 +800,14 @@ impl AsRef<[u8]> for TransactionEventsDigest {
 impl AsRef<[u8; 32]> for TransactionEventsDigest {
     fn as_ref(&self) -> &[u8; 32] {
         self.0.as_ref()
+    }
+}
+
+impl TryFrom<Vec<u8>> for TransactionEventsDigest {
+    type Error = IotaError;
+
+    fn try_from(bytes: Vec<u8>) -> Result<Self, IotaError> {
+        Digest::try_from(bytes).map(TransactionEventsDigest)
     }
 }
 

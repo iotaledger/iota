@@ -282,6 +282,42 @@ enum Value {
     TxToCheckpoint(CheckpointSequenceNumber),
 }
 
+pub fn path_elements_to_key(type_: ItemType, digest: &str) -> anyhow::Result<Key> {
+    let decoded_digest = base64_url::decode(digest)?;
+
+    match type_ {
+        ItemType::Transaction => Ok(Key::Transaction(TransactionDigest::try_from(
+            decoded_digest,
+        )?)),
+        ItemType::TransactionEffects => Ok(Key::TransactionEffects(TransactionDigest::try_from(
+            decoded_digest,
+        )?)),
+        ItemType::CheckpointContents => {
+            let tagged_key = bcs::from_bytes(&decoded_digest)?;
+            match tagged_key {
+                TaggedKey::CheckpointSequenceNumber(seq) => Ok(Key::CheckpointContents(seq)),
+            }
+        }
+        ItemType::CheckpointSummary => match CheckpointDigest::try_from(decoded_digest.clone()) {
+            Err(_) => {
+                let tagged_key = bcs::from_bytes(&decoded_digest)?;
+                match tagged_key {
+                    TaggedKey::CheckpointSequenceNumber(seq) => Ok(Key::CheckpointSummary(seq)),
+                }
+            }
+            Ok(cs_digest) => Ok(Key::CheckpointSummaryByDigest(cs_digest)),
+        },
+        ItemType::TransactionToCheckpoint => Ok(Key::TransactionToCheckpoint(
+            TransactionDigest::try_from(decoded_digest)?,
+        )),
+        ItemType::Object => {
+            let object_key: ObjectKey = bcs::from_bytes(&decoded_digest)?;
+            Ok(Key::ObjectKey(object_key.0, object_key.1))
+        }
+        _ => Err(anyhow::anyhow!("Invalid ItemType: {:?}", type_)),
+    }
+}
+
 impl HttpKVStore {
     pub fn new_kv(
         base_url: &str,

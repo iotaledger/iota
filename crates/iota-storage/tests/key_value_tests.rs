@@ -7,10 +7,12 @@ use std::{collections::HashMap, sync::Arc};
 use async_trait::async_trait;
 use futures::FutureExt;
 use iota_protocol_config::ProtocolConfig;
-use iota_storage::{key_value_store::*, key_value_store_metrics::KeyValueStoreMetrics};
+use iota_storage::{
+    http_key_value_store::*, key_value_store::*, key_value_store_metrics::KeyValueStoreMetrics,
+};
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
-    base_types::{ExecutionDigests, ObjectID, VersionNumber, random_object_ref},
+    base_types::{ExecutionDigests, ObjectID, SequenceNumber, VersionNumber, random_object_ref},
     committee::Committee,
     crypto::{AccountKeyPair, KeypairTraits, get_key_pair},
     digests::{CheckpointContentsDigest, CheckpointDigest, TransactionDigest},
@@ -370,7 +372,6 @@ mod simtests {
     };
     use iota_macros::sim_test;
     use iota_simulator::configs::constant_latency_ms;
-    use iota_storage::http_key_value_store::*;
     use iota_types::event::Event;
     use rustls::crypto::{CryptoProvider, ring};
     use tracing::info;
@@ -513,4 +514,58 @@ mod simtests {
             .unwrap();
         assert_eq!(result, vec![Some(ev)]);
     }
+}
+
+#[test]
+fn test_key_to_path_and_back() {
+    let tx = TransactionDigest::random();
+    let key = Key::Transaction(tx);
+    let path_elts = key.to_path_elements();
+    assert_eq!(
+        path_elements_to_key(path_elts.0, path_elts.1.as_str()).unwrap(),
+        key
+    );
+
+    let key = Key::TransactionEffects(TransactionDigest::random());
+    let path_elts = key.to_path_elements();
+    assert_eq!(
+        path_elements_to_key(path_elts.0, path_elts.1.as_str()).unwrap(),
+        key
+    );
+
+    let key = Key::CheckpointContents(42);
+    let path_elts = key.to_path_elements();
+    assert_eq!(
+        path_elements_to_key(path_elts.0, path_elts.1.as_str()).unwrap(),
+        key
+    );
+
+    let key = Key::CheckpointSummary(42);
+    let path_elts = key.to_path_elements();
+    assert_eq!(
+        path_elements_to_key(path_elts.0, path_elts.1.as_str()).unwrap(),
+        key
+    );
+
+    let ckpt_summary = CheckpointDigest::random();
+    let key = Key::CheckpointSummaryByDigest(ckpt_summary);
+    let path_elts = key.to_path_elements();
+    assert_eq!(
+        path_elements_to_key(path_elts.0, path_elts.1.as_str()).unwrap(),
+        key
+    );
+
+    let key = Key::TransactionToCheckpoint(tx);
+    let path_elts = key.to_path_elements();
+    assert_eq!(
+        path_elements_to_key(path_elts.0, path_elts.1.as_str()).unwrap(),
+        key
+    );
+
+    let key = Key::ObjectKey(ObjectID::random(), SequenceNumber::from_u64(42));
+    let path_elts = key.to_path_elements();
+    assert_eq!(
+        path_elements_to_key(path_elts.0, path_elts.1.as_str()).unwrap(),
+        key
+    );
 }
