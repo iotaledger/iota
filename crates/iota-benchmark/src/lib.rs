@@ -37,7 +37,7 @@ use iota_json_rpc_types::{
     IotaTransactionBlockEffectsAPI, IotaTransactionBlockResponseOptions,
 };
 use iota_metrics::GaugeGuard;
-use iota_sdk::{PagedFn, IotaClient, IotaClientBuilder};
+use iota_sdk::{IotaClient, IotaClientBuilder, PagedFn};
 use iota_types::{
     base_types::{
         AuthorityName, ConciseableName, IotaAddress, ObjectID, ObjectRef, SequenceNumber,

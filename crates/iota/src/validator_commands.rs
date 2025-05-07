@@ -36,7 +36,7 @@ use iota_keys::{
     },
     keystore::AccountKeystore,
 };
-use iota_sdk::{PagedFn, IotaClient, wallet_context::WalletContext};
+use iota_sdk::{IotaClient, PagedFn, wallet_context::WalletContext};
 use iota_types::{
     IOTA_SYSTEM_PACKAGE_ID, TypeTag,
     base_types::{IotaAddress, ObjectID, ObjectRef},

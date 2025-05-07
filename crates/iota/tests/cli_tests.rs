@@ -48,7 +48,7 @@ use iota_keys::keystore::AccountKeystore;
 use iota_macros::sim_test;
 use iota_move_build::{BuildConfig, IotaPackageHooks};
 use iota_sdk::{
-    PagedFn, IotaClient, iota_client_config::IotaClientConfig, wallet_context::WalletContext,
+    IotaClient, PagedFn, iota_client_config::IotaClientConfig, wallet_context::WalletContext,
 };
 use iota_swarm_config::{
     genesis_config::{AccountConfig, DEFAULT_NUMBER_OF_AUTHORITIES, GenesisConfig},

@@ -25,7 +25,7 @@ use tokio::sync::RwLock;
 use tracing::warn;
 
 use crate::{
-    PagedFn, IotaClient,
+    IotaClient, PagedFn,
     iota_client_config::{IotaClientConfig, IotaEnv},
 };
 
