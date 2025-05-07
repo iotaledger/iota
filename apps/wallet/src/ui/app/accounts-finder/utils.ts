@@ -15,6 +15,7 @@ export interface RecoverAccountsParams {
     addressGapLimit: number;
     changeIndexes: number[];
     findBalance: FindBalance;
+    onAddressCheck?: (accountIndex: number, addressIndex: number) => void;
 }
 
 export async function recoverAccounts(params: RecoverAccountsParams): Promise<AccountFromFinder[]> {
@@ -25,6 +26,7 @@ export async function recoverAccounts(params: RecoverAccountsParams): Promise<Ac
         addressGapLimit,
         changeIndexes,
         findBalance,
+        onAddressCheck,
     } = params;
 
     const accounts: AccountFromFinder[] = [];
@@ -37,6 +39,7 @@ export async function recoverAccounts(params: RecoverAccountsParams): Promise<Ac
             addressGapLimit,
             changeIndexes,
             findBalance,
+            onAddressCheck,
         });
         accounts.push(account);
         return accounts;
@@ -45,12 +48,17 @@ export async function recoverAccounts(params: RecoverAccountsParams): Promise<Ac
     // we search for accounts in the given range
     let targetAccountIndex = accountStartIndex + accountGapLimit;
     for (let accountIndex = accountStartIndex; accountIndex < targetAccountIndex; accountIndex++) {
+        if (onAddressCheck) {
+            onAddressCheck(accountIndex, addressStartIndex);
+        }
+
         const accountData = await recoverAccount({
             accountIndex,
             addressStartIndex,
             addressGapLimit,
             changeIndexes,
             findBalance,
+            onAddressCheck,
         });
 
         // if any of the addresses of the given account has a balance,
@@ -70,12 +78,20 @@ export async function recoverAccounts(params: RecoverAccountsParams): Promise<Ac
 async function recoverAccount(
     params: {
         accountIndex: number;
+        onAddressCheck?: (accountIndex: number, addressIndex: number) => void;
     } & Pick<
         RecoverAccountsParams,
         'addressStartIndex' | 'addressGapLimit' | 'changeIndexes' | 'findBalance'
     >,
 ) {
-    const { accountIndex, addressStartIndex, addressGapLimit, changeIndexes, findBalance } = params;
+    const {
+        accountIndex,
+        addressStartIndex,
+        addressGapLimit,
+        changeIndexes,
+        findBalance,
+        onAddressCheck,
+    } = params;
     const account: AccountFromFinder = {
         index: accountIndex,
         addresses: [],
@@ -86,6 +102,10 @@ async function recoverAccount(
 
     // Isolated search for no address rotation
     if (!addressGapLimit) {
+        if (onAddressCheck) {
+            onAddressCheck(accountIndex, addressStartIndex);
+        }
+
         const { addresses, isBalanceExists: isBalanceExists } = await searchBalances({
             accountIndex,
             addressIndex: addressStartIndex,
@@ -104,6 +124,10 @@ async function recoverAccount(
     // on each fixed account index, we search for addresses in the given range
     let targetAddressIndex = addressStartIndex + addressGapLimit;
     for (let addressIndex = addressStartIndex; addressIndex < targetAddressIndex; addressIndex++) {
+        if (onAddressCheck) {
+            onAddressCheck(accountIndex, addressIndex);
+        }
+
         const { addresses, isBalanceExists: isHasBalance } = await searchBalances({
             accountIndex,
             addressIndex,

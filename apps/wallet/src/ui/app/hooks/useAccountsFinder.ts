@@ -2,10 +2,14 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { useBackgroundClient } from './useBackgroundClient';
-import { AccountsFinder, type AllowedAccountSourceTypes } from '_src/ui/app/accounts-finder';
+import {
+    AccountsFinder,
+    type AllowedAccountSourceTypes,
+    type AccountsFinderProgress,
+} from '_src/ui/app/accounts-finder';
 import { useIotaClient } from '@iota/dapp-kit';
 import { useIotaLedgerClient } from '_components';
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import type {
     SourceStrategyToFind,
     SourceStrategyToPersist,
@@ -37,6 +41,12 @@ export function useAccountsFinder({
     const ledgerIotaClient = useIotaLedgerClient();
     const client = useIotaClient();
     const { stardustIndexerClient } = useStardustIndexerClientContext();
+    const [progress, setProgress] = useState<AccountsFinderProgress>({
+        currentAccountIndex: 0,
+        currentAddressIndex: 0,
+        searchType: 'breadth',
+    });
+    const [isSearching, setIsSearching] = useState(false);
 
     const accountFinder = useMemo(() => {
         return new AccountsFinder({
@@ -47,6 +57,9 @@ export function useAccountsFinder({
             coinType,
             accountGapLimit,
             addressGapLimit,
+            onProgressUpdate: (updatedProgress) => {
+                setProgress(updatedProgress);
+            },
             getPublicKey: async (bipPath) => {
                 if (sourceStrategy.type == 'ledger') {
                     // Retrieve the public key using the ledger client
@@ -80,40 +93,47 @@ export function useAccountsFinder({
     ]);
 
     async function find() {
-        const foundAddresses = await accountFinder.find();
+        try {
+            setIsSearching(true);
+            const foundAddresses = await accountFinder.find();
 
-        let sourceStrategyToPersist: SourceStrategyToPersist | undefined = undefined;
+            let sourceStrategyToPersist: SourceStrategyToPersist | undefined = undefined;
 
-        if (sourceStrategy.type == 'ledger') {
-            const addresses = await Promise.all(
-                foundAddresses.map(async (address) => {
-                    const derivationPath = makeDerivationPath(address.bipPath);
-                    const publicKey = new Ed25519PublicKey(address.publicKey);
-                    return {
-                        address: publicKey.toIotaAddress(),
-                        publicKey: publicKey.toBase64(),
-                        derivationPath,
-                    };
-                }),
-            );
+            if (sourceStrategy.type == 'ledger') {
+                const addresses = await Promise.all(
+                    foundAddresses.map(async (address) => {
+                        const derivationPath = makeDerivationPath(address.bipPath);
+                        const publicKey = new Ed25519PublicKey(address.publicKey);
+                        return {
+                            address: publicKey.toIotaAddress(),
+                            publicKey: publicKey.toBase64(),
+                            derivationPath,
+                        };
+                    }),
+                );
 
-            sourceStrategyToPersist = {
-                ...sourceStrategy,
-                addresses,
-            };
-        } else {
-            const bipPaths = foundAddresses.map((address) => address.bipPath);
-            sourceStrategyToPersist = {
-                ...sourceStrategy,
-                bipPaths,
-            };
+                sourceStrategyToPersist = {
+                    ...sourceStrategy,
+                    addresses,
+                };
+            } else {
+                const bipPaths = foundAddresses.map((address) => address.bipPath);
+                sourceStrategyToPersist = {
+                    ...sourceStrategy,
+                    bipPaths,
+                };
+            }
+
+            // Persist accounts
+            await backgroundClient.persistAccountsFinder(sourceStrategyToPersist);
+        } finally {
+            setIsSearching(false);
         }
-
-        // Persist accounts
-        await backgroundClient.persistAccountsFinder(sourceStrategyToPersist);
     }
 
     return {
         find,
+        progress,
+        isSearching,
     };
 }
