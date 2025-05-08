@@ -185,7 +185,7 @@ function ValidatorDetails(): JSX.Element {
         return <PageLayout content={<LoadingIndicator />} />;
     }
 
-    if (inactiveValidatorData) {
+    if (inactiveValidatorData && !validatorData) {
         return (
             <PageLayout
                 content={
