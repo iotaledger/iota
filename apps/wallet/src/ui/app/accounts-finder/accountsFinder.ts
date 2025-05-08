@@ -69,15 +69,15 @@ const GAP_CONFIGURATION: { [key in AllowedBip44CoinTypes]: GapConfigurationByCoi
     [AllowedBip44CoinTypes.IOTA]: {
         [AllowedAccountSourceTypes.LedgerDerived]: {
             accountGapLimit: 1,
-            addressGapLimit: 2,
+            addressGapLimit: 5,
         },
         [AllowedAccountSourceTypes.MnemonicDerived]: {
-            accountGapLimit: 1,
-            addressGapLimit: 2,
+            accountGapLimit: 3,
+            addressGapLimit: 10,
         },
         [AllowedAccountSourceTypes.SeedDerived]: {
-            accountGapLimit: 1,
-            addressGapLimit: 2,
+            accountGapLimit: 3,
+            addressGapLimit: 10,
         },
     },
 };
