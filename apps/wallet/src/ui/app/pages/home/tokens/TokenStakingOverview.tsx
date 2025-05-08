@@ -23,7 +23,13 @@ import {
 import { useNavigate } from 'react-router-dom';
 import { Stake } from '@iota/apps-ui-icons';
 
-export function TokenStakingOverview({ accountAddress }: { accountAddress: string }) {
+export function TokenStakingOverview({
+    accountAddress,
+    disabled,
+}: {
+    accountAddress: string;
+    disabled: boolean;
+}) {
     const navigate = useNavigate();
     const { data: delegatedStake, isPending } = useGetDelegatedStake({
         address: accountAddress,
@@ -49,7 +55,7 @@ export function TokenStakingOverview({ accountAddress }: { accountAddress: strin
     const isLoading = isPending || queryResultStake.isPending;
 
     return (
-        <Card type={CardType.Filled} onClick={handleOnClick} isDisabled={false}>
+        <Card type={CardType.Filled} onClick={handleOnClick} isDisabled={disabled}>
             <CardImage shape={ImageShape.SquareRounded}>
                 <Stake className="h-5 w-5 text-primary-20 dark:text-primary-90" />
             </CardImage>

@@ -17,6 +17,8 @@ import {
     getDelegationDataByStakeId,
     Validator,
     toast,
+    GAS_BUDGET_ERROR_MESSAGES,
+    NOT_ENOUGH_BALANCE_ID,
 } from '@iota/core';
 import { useMemo } from 'react';
 import { useActiveAccount, useSigner } from '_hooks';
@@ -79,6 +81,7 @@ export function UnStakeForm({ stakedIotaId, validatorAddress, epoch, onSuccess }
         data: unstakeData,
         isLoading: isUnstakeTokenTransactionLoading,
         isError,
+        error,
     } = useNewUnstakeTransaction(activeAddress, stakedIotaId);
     const transaction = unstakeData?.transaction;
 
@@ -154,6 +157,7 @@ export function UnStakeForm({ stakedIotaId, validatorAddress, epoch, onSuccess }
     const isLoading =
         isPending || isUnstakeTokenTransactionPending || isUnstakeTokenTransactionLoading;
 
+    const isNotEnoughGas = error && error.message.includes(NOT_ENOUGH_BALANCE_ID);
     return (
         <>
             <div className="flex flex-1 flex-col flex-nowrap gap-y-md overflow-auto">
@@ -209,10 +213,10 @@ export function UnStakeForm({ stakedIotaId, validatorAddress, epoch, onSuccess }
                     />
                 </div>
             )}
-            {!isLoading && isError && (
+            {isNotEnoughGas && (
                 <div className="pt-sm">
                     <InfoBox
-                        supportingText="You do not have enough gas"
+                        supportingText={GAS_BUDGET_ERROR_MESSAGES[NOT_ENOUGH_BALANCE_ID]}
                         icon={<Info />}
                         type={InfoBoxType.Error}
                         style={InfoBoxStyle.Elevated}
