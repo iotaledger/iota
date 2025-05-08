@@ -70,7 +70,7 @@ export function DisconnectApp({
     }
     return (
         <Overlay showModal setShowModal={setShowDisconnectApp} title="Active Connection">
-            <div className="flex max-w-full flex-1 flex-col flex-nowrap items-stretch gap-y-md">
+            <div className="flex h-full max-w-full flex-1 flex-col flex-nowrap items-stretch gap-y-md">
                 <DAppInfoCard name={name} iconUrl={icon} url={link} />
 
                 <SummaryPanel
@@ -81,11 +81,11 @@ export function DisconnectApp({
                         </div>
                     }
                 />
-
                 <SummaryPanel
                     title={'Connected Account' + (connectedAccounts.length > 1 ? 's' : '')}
+                    className="flex-1 overflow-y-auto"
                     body={
-                        <div className="max-h-[160px] overflow-y-auto px-md">
+                        <div className="px-md">
                             {connectedAccounts.length > 1 ? (
                                 <WalletListSelect
                                     visibleValues={connectedAccounts}
@@ -109,7 +109,7 @@ export function DisconnectApp({
                     }
                 />
 
-                <div className="sticky bottom-0 flex flex-1 items-end pt-xs">
+                <div className="sticky bottom-0 flex items-end pt-xs">
                     <Button
                         type={ButtonType.Secondary}
                         fullWidth

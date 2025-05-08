@@ -7,11 +7,14 @@ import { type ReactNode } from 'react';
 interface SummaryPanelProps {
     title: string;
     body: ReactNode;
+    className?: string;
 }
 
-export function SummaryPanel({ title, body }: SummaryPanelProps) {
+export function SummaryPanel({ title, body, className }: SummaryPanelProps) {
     return (
-        <div className="flex flex-col rounded-xl bg-neutral-96 pb-md dark:bg-neutral-12">
+        <div
+            className={`flex flex-col rounded-xl bg-neutral-96 pb-md dark:bg-neutral-12 ${className ?? ''}`}
+        >
             <div className="flex flex-col gap-y-xs">
                 <div className="py-2.5">
                     <Title size={TitleSize.Small} title={title} />
