@@ -21,7 +21,7 @@ use iota_names::{
     registry::{RegistryEntry, ReverseRegistryEntry},
 };
 use iota_protocol_config::Chain;
-use iota_sdk::{IotaClient, wallet_context::WalletContext};
+use iota_sdk::{IotaClient, PagedFn, wallet_context::WalletContext};
 use iota_types::{
     IOTA_CLOCK_OBJECT_ID, IOTA_FRAMEWORK_PACKAGE_ID, TypeTag,
     balance::Balance,
@@ -1042,11 +1042,8 @@ async fn get_owned_nfts<T: DeserializeOwned + IotaNamesNft>(
     let iota_names_config = get_iota_names_config(&client).await?;
     let address = get_identity_address(address.map(KeyIdentity::Address), context)?;
     let nft_type = T::type_(iota_names_config.package_address.into());
-    let mut cursor = None;
-    let mut nfts = Vec::new();
-
-    loop {
-        let response = client
+    let responses = PagedFn::collect::<Vec<_>>(async |cursor| {
+        client
             .read_api()
             .get_owned_objects(
                 address,
@@ -1057,27 +1054,21 @@ async fn get_owned_nfts<T: DeserializeOwned + IotaNamesNft>(
                 cursor,
                 None,
             )
-            .await?;
+            .await
+    })
+    .await?;
 
-        for res in response.data {
+    responses
+        .into_iter()
+        .map(|res| {
             let data = res.data.expect("missing object data");
-            let nft = data
-                .bcs
+            data.bcs
                 .expect("missing bcs")
                 .try_as_move()
                 .expect("invalid move type")
-                .deserialize::<T>()?;
-            nfts.push(nft);
-        }
-
-        if response.has_next_page {
-            cursor = response.next_cursor;
-        } else {
-            break;
-        }
-    }
-
-    Ok(nfts)
+                .deserialize::<T>()
+        })
+        .collect::<Result<_, _>>()
 }
 
 #[derive(Copy, Clone)]
@@ -1173,12 +1164,16 @@ async fn get_reverse_registry_entry(
 }
 
 async fn get_iota_names_config(client: &IotaClient) -> anyhow::Result<IotaNamesConfig> {
-    let chain_identifier = client.read_api().get_chain_identifier().await?;
-    let chain = ChainIdentifier::from_chain_short_id(&chain_identifier)
-        .map(|c| c.chain())
-        .unwrap_or(Chain::Unknown);
+    Ok(if let Ok(config) = IotaNamesConfig::from_env() {
+        config
+    } else {
+        let chain_identifier = client.read_api().get_chain_identifier().await?;
+        let chain = ChainIdentifier::from_chain_short_id(&chain_identifier)
+            .map(|c| c.chain())
+            .unwrap_or(Chain::Unknown);
 
-    Ok(IotaNamesConfig::from_chain(&chain))
+        IotaNamesConfig::from_chain(&chain)
+    })
 }
 
 async fn fetch_pricing_config(context: &mut WalletContext) -> anyhow::Result<PricingConfig> {
