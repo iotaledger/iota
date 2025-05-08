@@ -97,7 +97,7 @@ export function OnTheNetwork(): JSX.Element {
                         <LabelText
                             size={LabelTextSize.Large}
                             label="Total Supply"
-                            text={totalSupplyFormatted ?? '-'}
+                            text={totalSupplyFormatted ?? '--'}
                             supportingLabel={totalSupplyFormatted !== null ? 'IOTA' : undefined}
                         />
                     </div>
@@ -105,7 +105,7 @@ export function OnTheNetwork(): JSX.Element {
                         <LabelText
                             size={LabelTextSize.Large}
                             label="Circulating Supply"
-                            text={circulatingSupplyFormatted ?? '-'}
+                            text={circulatingSupplyFormatted ?? '--'}
                             supportingLabel={
                                 circulatingSupplyFormatted !== null ? 'IOTA' : undefined
                             }
