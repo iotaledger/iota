@@ -77,12 +77,11 @@ impl HistoricalReader {
 
         files.sort_by_key(|f| f.checkpoint_seq_range.start);
 
-        // TODO this is panicking for the devnet ingestion/historical/MANIFEST
-        // assert!(
-        //     files
-        //         .windows(2)
-        //         .all(|w| w[1].checkpoint_seq_range.start ==
-        // w[0].checkpoint_seq_range.end) );
+        assert!(
+            files
+                .windows(2)
+                .all(|w| w[1].checkpoint_seq_range.start == w[0].checkpoint_seq_range.end)
+        );
 
         assert_eq!(files.first().map(|f| f.checkpoint_seq_range.start), Some(0));
 
