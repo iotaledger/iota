@@ -2954,11 +2954,7 @@ pub(crate) async fn dry_run_or_execute_or_serialize(
 
     let client = context.get_client().await?;
 
-    let new_signer = if let Some(custom) = custom_signer {
-        custom
-    } else {
-        signer
-    };
+    let new_signer = custom_signer.unwrap_or(signer);
 
     if dev_inspect {
         return execute_dev_inspect(
