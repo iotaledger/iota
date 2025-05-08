@@ -1164,12 +1164,16 @@ async fn get_reverse_registry_entry(
 }
 
 async fn get_iota_names_config(client: &IotaClient) -> anyhow::Result<IotaNamesConfig> {
-    let chain_identifier = client.read_api().get_chain_identifier().await?;
-    let chain = ChainIdentifier::from_chain_short_id(&chain_identifier)
-        .map(|c| c.chain())
-        .unwrap_or(Chain::Unknown);
+    Ok(if let Ok(config) = IotaNamesConfig::from_env() {
+        config
+    } else {
+        let chain_identifier = client.read_api().get_chain_identifier().await?;
+        let chain = ChainIdentifier::from_chain_short_id(&chain_identifier)
+            .map(|c| c.chain())
+            .unwrap_or(Chain::Unknown);
 
-    Ok(IotaNamesConfig::from_chain(&chain))
+        IotaNamesConfig::from_chain(&chain)
+    })
 }
 
 async fn fetch_pricing_config(context: &mut WalletContext) -> anyhow::Result<PricingConfig> {
