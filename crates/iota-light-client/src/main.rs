@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{path::PathBuf, str::FromStr};
+use std::path::PathBuf;
 
 use anyhow::Context;
 use clap::{Parser, Subcommand};
@@ -47,13 +47,13 @@ pub enum LightClientCommand {
     CheckTransaction {
         /// Transaction digest
         #[arg(value_name = "BASE58")]
-        transaction_digest: String,
+        transaction_digest: TransactionDigest,
     },
     /// Check an object for inclusion
     CheckObject {
         /// Object ID
         #[arg(value_name = "HEX")]
-        object_id: String,
+        object_id: ObjectID,
     },
 }
 
@@ -88,11 +88,8 @@ pub async fn main() -> anyhow::Result<()> {
                     .context("Failed to sync checkpoints")?;
             }
 
-            let (effects, events) = get_verified_effects_and_events(
-                &config,
-                TransactionDigest::from_str(&transaction_digest)?,
-            )
-            .await?;
+            let (effects, events) =
+                get_verified_effects_and_events(&config, transaction_digest).await?;
 
             let exec_digests = effects.execution_digests();
             println!(
@@ -127,7 +124,6 @@ pub async fn main() -> anyhow::Result<()> {
                     .context("Failed to sync checkpoints")?;
             }
 
-            let object_id = ObjectID::from_str(&object_id)?;
             let object = get_verified_object(&config, object_id).await?;
             println!("Successfully verified object: {object_id}");
 
