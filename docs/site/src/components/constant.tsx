@@ -10,7 +10,7 @@ export const Networks: Record<string, NetworkProps> = {
       },
       graphql: 'https://graphql.mainnet.iota.cafe',
     },
-    explorer: 'https://explorer.evm.iota.org/',
+    explorer: 'https://explorer.iota.org/',
     evm: {
       chainId: '0x2276',
       chainName: 'IOTA EVM',

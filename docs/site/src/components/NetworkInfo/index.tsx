@@ -4,8 +4,21 @@ import { NetworkProps } from '../constant';
 import CodeBlock from '@theme/CodeBlock';
 import Admonition from '@theme/Admonition';
 
+// Create an explorer link with the networks as query and slook for an object if provided
+const buildHref = (explorer, hasQuery: boolean, objectId: string | undefined = null,) =>
+  hasQuery
+    ? objectId
+      ? `${(explorer as { url: string; query: string }).url}/object/${objectId}${(explorer as { url: string; query: string }).query}`
+      : `${(explorer as { url: string; query: string }).url}${(explorer as { url: string; query: string }).query}`
+    : objectId
+      ? `${explorer}/object/${objectId}`
+    : `${explorer}`;
+
 // L1 component
 function L1(props: NetworkProps) {
+  const hasQuery = typeof props.explorer !== 'string'
+  const href = buildHref(props.explorer, hasQuery);
+
   return (
     <table>
       <tbody>
@@ -19,7 +32,7 @@ function L1(props: NetworkProps) {
         </tr>
         <tr>
           <th>Explorer</th>
-          <td>{props.explorer}</td>
+          <td>{href}</td>
         </tr>
         <tr>
           <th>JSON RPC URL</th>
@@ -174,11 +187,6 @@ function Evm(props: NetworkProps) {
 function EvmCustom(props: NetworkProps) {
   const hasQuery = typeof props.explorer !== 'string'
 
-  const buildHref = (id: string | undefined) =>
-    hasQuery
-      ? `${(props.explorer as { url: string; query: string }).url}/object/${id}${(props.explorer as { url: string; query: string }).query}`
-      : `${props.explorer}/object/${id}`;
-
   return (
     <table>
       <tbody>
@@ -186,7 +194,7 @@ function EvmCustom(props: NetworkProps) {
           <th>Chain ID</th>
           <td>
             <a
-              href={buildHref(props.evmCustom?.chainId)}
+              href={buildHref(props.explorer, hasQuery, props.evmCustom?.chainId)}
               target='_blank'
               rel='noopener noreferrer'
             >
@@ -198,7 +206,7 @@ function EvmCustom(props: NetworkProps) {
           <th>Package ID</th>
           <td>
             <a
-            href={buildHref(props.evmCustom?.packageId)}
+            href={buildHref(props.explorer, hasQuery, props.evmCustom?.packageId)}
               target='_blank'
               rel='noopener noreferrer'
             >
