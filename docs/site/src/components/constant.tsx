@@ -31,14 +31,6 @@ export const Networks: Record<string, NetworkProps> = {
       aliasId:
         '0x971dc160d5ae8c457f7eddc15a39035b6190130b4dbb5663550795575ae19db5',
       ankrApiUrls: ['https://rpc.ankr.com/iota_evm'],
-      blastApiUrls: [
-        'https://iota-mainnet-evm.public.blastapi.io',
-        'wss://iota-mainnet-evm.public.blastapi.io',
-        {
-          'Archive RPC':
-            'https://iota-mainnet-evm.blastapi.io/e7596858-fc63-4a54-8727-b885a2af4ec8',
-        },
-      ],
       toolkit: {
         url: 'https://evm-toolkit.evm.iotaledger.net',
         hasFaucet: false,
@@ -79,14 +71,6 @@ export const Networks: Record<string, NetworkProps> = {
       aliasId:
         '0x8d018fdd082cd10b518b4935ed8672c8cb3d450c4abcd24fdc620d16babfbb61',
       ankrApiUrls: ['https://rpc.ankr.com/iota_evm_testnet'],
-      blastApiUrls: [
-        'https://iota-testnet-evm.public.blastapi.io',
-        'wss://iota-testnet-evm.public.blastapi.io',
-        {
-          'Archive RPC':
-            'https://iota-testnet-evm.blastapi.io/e7596858-fc63-4a54-8727-b885a2af4ec8',
-        },
-      ],
       toolkit: {
         url: 'https://evm-toolkit.evm.testnet.iotaledger.net',
         hasFaucet: false,
@@ -152,7 +136,6 @@ export interface NetworkProps {
   evmCustom?: {
     chainAddress: string;
     aliasId: string;
-    blastApiUrls?: Array<string | object>;
     ankrApiUrls?: Array<string | object>;
     toolkit?: Toolkit;
     api?: string;
