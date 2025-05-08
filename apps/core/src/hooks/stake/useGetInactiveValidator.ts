@@ -8,11 +8,11 @@ import { useIotaClient, useIotaClientQuery } from '@iota/dapp-kit';
 import { InactiveValidatorData } from '../../types';
 import { getInactiveValidatorsMetadata } from '../../utils';
 
-export function useGetInactiveValidator(validatorAddress: string): InactiveValidatorData | null {
+export function useGetInactiveValidator(validatorAddress: string) {
     const iotaClient = useIotaClient();
     const { data } = useIotaClientQuery('getLatestIotaSystemState');
     const inactivePoolsId = data?.inactivePoolsId;
-    const queryResult = useQuery({
+    return useQuery({
         queryKey: [inactivePoolsId, validatorAddress],
         async queryFn() {
             if (!inactivePoolsId || !validatorAddress) {
@@ -27,18 +27,10 @@ export function useGetInactiveValidator(validatorAddress: string): InactiveValid
                         await getInactiveValidatorsMetadata(iotaClient, validator.objectId),
                 ),
             );
-            return pendingInactiveValidatorsData;
+            return pendingInactiveValidatorsData.find(
+                (validator) => validator?.validatorAddress === validatorAddress,
+            ) as InactiveValidatorData;
         },
         enabled: !!inactivePoolsId && !!validatorAddress,
     });
-
-    if (queryResult.isLoading || queryResult.isError || !queryResult.data) {
-        return null;
-    }
-
-    const validatorData = queryResult.data.find(
-        (validator) => validator?.validatorAddress === validatorAddress,
-    );
-
-    return validatorData || null;
 }

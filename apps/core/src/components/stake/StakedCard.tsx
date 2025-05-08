@@ -58,7 +58,7 @@ export function StakedCard({
             null
         );
     }, [validatorAddress, data]);
-    const inactiveValidatorData = useGetInactiveValidator(validatorAddress);
+    const { data: inactiveValidatorData } = useGetInactiveValidator(validatorAddress);
     const validatorData = validatorMeta || inactiveValidatorData || null;
     return (
         <Card testId="staked-card" type={CardType.Default} isHoverable onClick={onClick}>

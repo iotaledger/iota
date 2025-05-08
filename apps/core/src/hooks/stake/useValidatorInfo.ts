@@ -15,18 +15,29 @@ export function useValidatorInfo({ validatorAddress }: { validatorAddress: strin
     const validatorSummary =
         system?.activeValidators.find((validator) => validator.iotaAddress === validatorAddress) ||
         null;
-    const inactiveValidatorData = useGetInactiveValidator(validatorAddress);
-    let inactiveValidatorSummary: InactiveValidatorData | null = null;
-    if (validatorSummary === null && inactiveValidatorData !== null) {
-        inactiveValidatorSummary = {
-            name: inactiveValidatorData?.name || '',
-            validatorAddress: inactiveValidatorData?.validatorAddress || '',
-            validatorStakingPoolId: inactiveValidatorData?.validatorStakingPoolId || '',
-            validatorPublicKey: inactiveValidatorData?.validatorPublicKey || '',
-            imageUrl: inactiveValidatorData?.imageUrl || '',
-            description: inactiveValidatorData?.description || '',
-            projectUrl: inactiveValidatorData?.projectUrl || '',
-        };
+
+    let inactiveValidatorSummary: InactiveValidatorData = {
+        name: '',
+        validatorAddress: '',
+        validatorStakingPoolId: '',
+        validatorPublicKey: '',
+        imageUrl: '',
+        description: '',
+        projectUrl: '',
+    };
+    if (validatorSummary === null) {
+        const { data: inactiveValidatorData } = useGetInactiveValidator(validatorAddress);
+        if (validatorSummary === null && inactiveValidatorData !== null) {
+            inactiveValidatorSummary = {
+                name: inactiveValidatorData?.name || '',
+                imageUrl: inactiveValidatorData?.imageUrl || '',
+                projectUrl: inactiveValidatorData?.projectUrl || '',
+                description: inactiveValidatorData?.description || '',
+                validatorAddress: inactiveValidatorData?.validatorAddress || '',
+                validatorPublicKey: inactiveValidatorData?.validatorPublicKey || '',
+                validatorStakingPoolId: inactiveValidatorData?.validatorStakingPoolId || '',
+            };
+        }
     }
 
     const currentEpoch = Number(system?.epoch || 0);

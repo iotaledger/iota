@@ -2,18 +2,15 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { useGetValidatorsApy, useGetValidatorsEvents } from '@iota/core';
+import { useGetInactiveValidator, useGetValidatorsApy, useGetValidatorsEvents } from '@iota/core';
 import { useParams } from 'react-router-dom';
 import { InactiveValidators, PageLayout, ValidatorMeta, ValidatorStats } from '~/components';
 import { VALIDATOR_LOW_STAKE_GRACE_PERIOD } from '~/lib/constants';
 import { getValidatorMoveEvent } from '~/lib/utils';
 import { InfoBox, InfoBoxStyle, InfoBoxType, LoadingIndicator } from '@iota/apps-ui-kit';
 import { Warning } from '@iota/apps-ui-icons';
-import { useQuery } from '@tanstack/react-query';
 import type { LatestIotaSystemStateSummary } from '@iota/iota-sdk/client';
-import { normalizeIotaAddress } from '@iota/iota-sdk/utils';
-import { useIotaClient, useIotaClientQuery } from '@iota/dapp-kit';
-import { getInactiveValidatorsMetadata } from '@iota/core/src/utils';
+import { useIotaClientQuery } from '@iota/dapp-kit';
 
 const getAtRiskRemainingEpochs = (
     data: LatestIotaSystemStateSummary | undefined,
@@ -30,32 +27,8 @@ function ValidatorDetails(): JSX.Element {
         'getLatestIotaSystemState',
     );
 
-    const iotaClient = useIotaClient();
-
-    const { data: inactiveValidatorData, isLoading: isInactiveValidatorLoading } = useQuery({
-        queryKey: [systemStateData?.inactivePoolsId, id],
-        async queryFn() {
-            if (!systemStateData?.inactivePoolsId || !id) {
-                throw Error('Missing params');
-            }
-            const inactiveValidators = await iotaClient.getDynamicFields({
-                parentId: normalizeIotaAddress(systemStateData?.inactivePoolsId),
-            });
-
-            const pendingInactiveValidatorsData = await Promise.all(
-                inactiveValidators.data.map(
-                    async (validator) =>
-                        await getInactiveValidatorsMetadata(iotaClient, validator.objectId),
-                ),
-            );
-
-            return pendingInactiveValidatorsData;
-        },
-        enabled: !!systemStateData?.inactivePoolsId && !!id,
-        select(validators) {
-            return validators.find((validator) => validator?.validatorAddress === id);
-        },
-    });
+    const { data: inactiveValidatorData, isLoading: isInactiveValidatorLoading } =
+        useGetInactiveValidator(id || '');
 
     const numberOfValidators = systemStateData?.activeValidators.length ?? null;
     const { data: rollingAverageApys, isLoading: isValidatorsApysLoading } = useGetValidatorsApy();
