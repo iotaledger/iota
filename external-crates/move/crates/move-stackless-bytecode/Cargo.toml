@@ -27,8 +27,8 @@ serde.workspace = true
 [dev-dependencies]
 anyhow.workspace = true
 datatest-stable.workspace = true
-move-prover-test-utils.workspace = true
 move-stdlib.workspace = true
+regex.workspace = true
 
 [[test]]
 name = "testsuite"
