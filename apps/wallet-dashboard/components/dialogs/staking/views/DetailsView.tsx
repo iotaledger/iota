@@ -53,8 +53,10 @@ export function DetailsView({
 }: StakeDialogProps): JSX.Element {
     const totalStake = BigInt(stakedDetails?.principal || 0n);
     const validatorAddress = stakedDetails?.validatorAddress;
-    const { isValidatorExpectedToBeInTheCommittee, isValidatorExpectedToBeInTheCommitteeLoading } =
-        useGetNextEpochCommitteeMember(validatorAddress);
+    const {
+        isValidatorExpectedToBeInTheCommittee,
+        isLoading: isValidatorExpectedToBeInTheCommitteeLoading,
+    } = useGetNextEpochCommitteeMember(validatorAddress);
 
     const {
         isAtRisk,
