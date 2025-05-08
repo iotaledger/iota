@@ -46,7 +46,7 @@ function ValidatorDetails(): JSX.Element {
         return rewards ? Number(rewards) : null;
     })();
 
-    const validatorData = systemStateData?.activeValidators.find(
+    const activeValidatorData = systemStateData?.activeValidators.find(
         ({ iotaAddress, stakingPoolId }) => iotaAddress === id || stakingPoolId === id,
     );
 
@@ -61,7 +61,7 @@ function ValidatorDetails(): JSX.Element {
         return <PageLayout content={<LoadingIndicator />} />;
     }
 
-    if (inactiveValidatorData) {
+    if (inactiveValidatorData && !activeValidatorData) {
         return (
             <PageLayout
                 content={
@@ -81,7 +81,7 @@ function ValidatorDetails(): JSX.Element {
         );
     }
 
-    if (!validatorData || !systemStateData || !validatorEvents || !id) {
+    if (!activeValidatorData || !systemStateData || !validatorEvents || !id) {
         return (
             <PageLayout
                 content={
@@ -112,9 +112,9 @@ function ValidatorDetails(): JSX.Element {
         <PageLayout
             content={
                 <div className="flex flex-col gap-2xl">
-                    <ValidatorMeta validatorData={validatorData} />
+                    <ValidatorMeta validatorData={activeValidatorData} />
                     <ValidatorStats
-                        validatorData={validatorData}
+                        validatorData={activeValidatorData}
                         epoch={systemStateData.epoch}
                         epochRewards={validatorRewards}
                         apy={isApyApproxZero ? '~0' : apy}
