@@ -220,6 +220,7 @@ impl NameCommand {
         context: &mut WalletContext,
     ) -> Result<NameCommandResult, anyhow::Error> {
         let iota_client = context.get_client().await?;
+
         Ok(match self {
             Self::Auction(AuctionCommand::Bid {
                 domain,
