@@ -142,30 +142,45 @@ class Permissions {
                 const existingWindowId = this.#_permissionWindows.get(existingPermission.id);
                 if (existingWindowId) {
                     try {
-                        const pUpdatedWindow = await Browser.windows.update(existingWindowId, {
-                            drawAttention: true,
-                            focused: true,
-                        });
+                        // First check if the window exists
+                        const windowExists = await this.windowExists(existingWindowId);
+                        if (windowExists) {
+                            const pUpdatedWindow = await Browser.windows.update(existingWindowId, {
+                                drawAttention: true,
+                                focused: true,
+                            });
 
-                        if (pUpdatedWindow.id) {
-                            this.#_permissionWindows.set(existingPermission.id, pUpdatedWindow.id);
+                            if (pUpdatedWindow.id) {
+                                this.#_permissionWindows.set(
+                                    existingPermission.id,
+                                    pUpdatedWindow.id,
+                                );
+                            }
+
+                            windowRemovedStream.subscribe(() => {
+                                this.handleWindowClosureAsRejection(
+                                    existingPermission.id,
+                                    requestMsgID,
+                                    connection,
+                                );
+                            });
+
+                            return null;
+                        } else {
+                            // Window doesn't exist, remove it from our map and continue with a new request
+                            this.#_permissionWindows.delete(existingPermission.id);
+                            // Fall through to create a new permission request below
                         }
-
-                        windowRemovedStream.subscribe(() => {
-                            this.handleWindowClosureAsRejection(
-                                existingPermission.id,
-                                requestMsgID,
-                                connection,
-                            );
-                        });
-
-                        return null;
                     } catch (e) {
-                        // ignore
+                        // Log error when updating permission window
+                        // eslint-disable-next-line no-console
+                        console.error('Error updating permission window', e);
+                        // Remove the stale window reference
+                        this.#_permissionWindows.delete(existingPermission.id);
+                        // Continue with process to create a new permission request
                     }
                 }
             }
-            throw new Error('Another permission request is pending.');
         }
         const alreadyAllowed = await this.hasPermissions(
             origin,
@@ -384,6 +399,15 @@ class Permissions {
 
     private isPendingPermissionRequest(permissionRequest: Permission) {
         return permissionRequest.responseDate === null;
+    }
+
+    private async windowExists(windowId: number): Promise<boolean> {
+        try {
+            const window = await Browser.windows.get(windowId);
+            return !!window;
+        } catch {
+            return false;
+        }
     }
 }
 
