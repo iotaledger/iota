@@ -50,7 +50,7 @@ export interface SearchProps {
     /**
      * Render suggestion.
      */
-    renderSuggestion: (suggestion: Suggestion, index: number) => React.ReactNode;
+    renderSuggestion?: (suggestion: Suggestion, index: number) => React.ReactNode;
 }
 
 export function Search({
@@ -152,6 +152,9 @@ export function Search({
                 }
             }
         }
+        if (onKeyDown) {
+            onKeyDown(event);
+        }
     };
 
     return (
@@ -178,7 +181,7 @@ export function Search({
                 />
                 <SearchIcon />
             </div>
-            {showSuggestions && (
+            {showSuggestions && renderSuggestion && (
                 <div
                     ref={suggestionsListRef}
                     className={cx(

@@ -46,6 +46,7 @@ export function StakedTimelockObject({
         stakeRequestEpoch: summary.stakeRequestEpoch,
         estimatedReward: summary.estimatedReward,
         inactiveValidator: false,
+        activeButNotInTheCommittee: false,
     });
 
     const [sumPrincipalFormatted, sumPrincipalSymbol] = useFormatCoin({

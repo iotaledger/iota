@@ -1,0 +1,83 @@
+---
+title: Troubleshooting
+description: Troubleshooting common issues with your IOTA validator node.
+teams:
+  - iotaledger/node
+---
+
+## Validator Recovery In Case Of Database Corruption:
+
+By following these steps, you can quickly recover your validator node, minimizing downtime and maintaining your participation in the consensus.
+
+### Stop the failed validator node
+
+<Tabs  groupId="validator-troubleshooting">
+  <TabItem label="Systemd" value="recover-systemd">
+      ```sh
+      sudo systemctl stop iota-node
+      ```
+  </TabItem>
+  <TabItem label="Docker" value="recover-docker">
+      ```sh
+      docker compose stop
+      ```
+  </TabItem>
+</Tabs>
+
+### Delete the database folders
+
+There are two database folders to delete, specified in your `validator.yaml` under the keys `db-path:` and `consensus-config -> db-path:`.
+
+If you used default values for these folders, run this command to delete both folders at once:
+
+<Tabs groupId="validator-troubleshooting">
+  <TabItem label="Systemd" value="recover-systemd">
+      ```sh
+      rm -rf /opt/iota/db/*
+      ```
+  </TabItem>
+  <TabItem label="Docker" value="recover-docker">
+      ```sh
+      rm -rf <path-to-docker-installation>/iotadb/*      
+      ```
+  </TabItem>
+</Tabs>
+
+If you customized them at setup, replace the previous paths with the ones you specified in `validator.yaml` under `db-path:` and `consensus-config -> db-path:`.
+
+### Restore from formal snapshot
+
+Follow the steps in this document:  
+https://docs.iota.org/operator/validator-node/configs/snapshots#restoring-from-formal-snapshots
+
+### Start the validator node
+
+<Tabs groupId="validator-troubleshooting">
+  <TabItem label="Systemd" value="recover-systemd">
+      ```sh
+      sudo systemctl start iota-node
+      ```
+  </TabItem>
+  <TabItem label="Docker" value="recover-docker">
+      ```sh
+      docker compose up -d
+      ```
+  </TabItem>
+</Tabs>
+
+### Let the validator sync all databases (including `consensus_db`) and monitor recovery progress:
+
+<Tabs groupId="validator-troubleshooting">
+  <TabItem label="Systemd" value="recover-systemd">
+      ```sh
+      sudo journalctl -fu iota-node
+      ```
+  </TabItem>
+  <TabItem label="Docker" value="recover-docker">
+      ```sh
+      docker compose logs -f
+      ```
+  </TabItem>
+</Tabs>
+
+See also https://docs.iota.org/operator/validator-node/monitoring.

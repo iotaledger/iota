@@ -1,5 +1,19 @@
 # @iota/apps-ui-kit
 
+## 0.5.0
+
+### Minor Changes
+
+-   a4b46bc: add more badge types
+
+### Patch Changes
+
+-   6d274df: make renderSuggestion prop optional in Search component
+-   976e7f8: Add heightFull configuration props to Table component
+-   bb45cb5: Add new type for CardImage component
+-   Updated dependencies [a4b46bc]
+    -   @iota/apps-ui-icons@0.3.0
+
 ## 0.4.0
 
 ### Minor Changes

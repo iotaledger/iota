@@ -14,6 +14,7 @@ use std::{
 use anyhow::Result;
 use consensus_config::Parameters as ConsensusParameters;
 use iota_keys::keypair_file::{read_authority_keypair_from_file, read_keypair_from_file};
+use iota_names::config::IotaNamesConfig;
 use iota_types::{
     base_types::IotaAddress,
     committee::EpochId,
@@ -248,6 +249,9 @@ pub struct NodeConfig {
 
     #[serde(default)]
     pub verifier_signing_config: VerifierSigningConfig,
+
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub iota_names_config: Option<IotaNamesConfig>,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize, Default)]

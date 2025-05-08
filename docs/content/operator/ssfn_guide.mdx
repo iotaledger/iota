@@ -31,7 +31,7 @@ SSFNs play a crucial role in a validator's infrastructure for several reasons:
 
 For optimal validator operation, we recommend:
 
-- Running at least 2 SSFNs per validator
+- Running at least 1 SSFN per validator
 - Deploying SSFNs on separate machines from the validator
 - Ensuring high-bandwidth, low-latency connections between SSFNs and their validator
 
@@ -59,42 +59,45 @@ First, generate a network key for your SSFN:
 
 ```bash
 iota keytool generate ed25519
-# Make note of the generated peerId
 ```
+
+Example output:
+```
+╭─────────────────────────┬──────────────────────────────────────────────────────────────────────────────╮
+│ alias                   │                                                                              │
+│ iotaAddress             │  0x41a6f4b3985d32260c3b616e61eab4ad3d3d30dff10d9f5c55094f7fbf6446d5          │
+│ publicBase64Key         │  WGf/j8NGru668qzxydByVAkosLdh7KbwJ/I7o8qwtfU=                                │
+│ publicBase64KeyWithFlag │  AFhn/4/DRq7uuvKs8cnQclQJKLC3Yeym8CfyO6PKsLX1                                │
+│ keyScheme               │  ed25519                                                                     │
+│ flag                    │  0                                                                           │
+│ mnemonic                │  chalk practice cloud wheat skull stay leader next lesson ceiling cake pink  │
+│ peerId                  │  5867ff8fc346aeeebaf2acf1c9d072540928b0b761eca6f027f23ba3cab0b5f5            │
+╰─────────────────────────┴──────────────────────────────────────────────────────────────────────────────╯
+```
+
+This will create a file like `0x41a6f4b3985d32260c3b616e61eab4ad3d3d30dff10d9f5c55094f7fbf6446d5.key`.
+You can rename the file to `network.key` and make a note of the `peerId` (`5867ff8fc346aeeebaf2acf1c9d072540928b0b761eca6f027f23ba3cab0b5f5`) in the output.
+
 
 ### 2. SSFN Configuration
 
 Create or modify your SSFN's configuration file with these specific settings:
 
-```yaml
-# Network Configuration
-network-key-pair:
-  path: /opt/iota/key-pairs/network.key
+<Tabs groupId="network">
+    <TabItem label="Mainnet" value="mainnet">
+        ```yaml file=<rootDir>/setups/validator/ssfn-mainnet.yaml
+        ```
+    </TabItem>
+    <TabItem label="Testnet" value="testnet">
+        ```yaml file=<rootDir>/setups/validator/ssfn-testnet.yaml
+        ```
+    </TabItem>
+</Tabs>
 
-# Peering Configuration
-p2p-config:
-  seed-peers:
-    - address: /dns/validator-hostname/udp/8084
-      peer-id: <validator-peer-id>  # Get this from your validator's network.key
-
-# Resource Optimization
-enable-index-processing: false
-
-# Pruning Configuration
-authority-store-pruning-config:
-  num-latest-epoch-dbs-to-retain: 3
-  epoch-db-pruning-period-secs: 3600
-  max-checkpoints-in-batch: 10
-  max-transactions-in-batch: 1000
-  num-epochs-to-retain: 0
-  num-epochs-to-retain-for-checkpoints: 2
-  periodic-compaction-threshold-days: 1
-
-# Metrics Configuration
-metrics:
-  push-interval-seconds: 60
-  push-url: https://metrics-proxy.mainnet.iota.cafe:8443/publish/metrics
-```
+:::info
+You can extract the peer-id from your validator `network.key` by running:
+`iota keytool show network.key` and copying the `peerId` from the output.
+:::
 
 ### 3. Metrics Whitelisting
 
