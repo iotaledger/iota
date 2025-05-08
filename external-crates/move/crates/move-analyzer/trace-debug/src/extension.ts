@@ -13,8 +13,7 @@ import {
     TextDocument,
     Position
 } from 'vscode';
-import { decompress } from '@mongodb-js/zstd';
-import { trace } from 'console';
+import { decompress } from 'fzstd';
 
 /**
  * Log level for the debug adapter.
@@ -656,7 +655,7 @@ async function pickTraceFileToDebug(
 async function decompressTraceFile(traceFilePath: string): Promise<string> {
     const buf = fs.readFileSync(traceFilePath);
     const decompressed = await decompress(buf);
-    return decompressed.toString('utf8').trimEnd();
+    return new TextDecoder().decode(decompressed).trimEnd();
 }
 
 /**
