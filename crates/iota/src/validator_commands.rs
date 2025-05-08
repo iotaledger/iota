@@ -152,7 +152,7 @@ pub enum IotaValidatorCommand {
         #[arg(name = "account-address", long)]
         account_address: IotaAddress,
         /// Authority public key encoded in hex.
-        #[arg(name = "protocol-public-key", long)]
+        #[arg(name = "authority-public-key", long)]
         authority_public_key: AuthorityPublicKeyBytes,
     },
     /// IOTA native bridge committee member registration.
