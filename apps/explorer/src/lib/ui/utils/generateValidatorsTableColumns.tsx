@@ -197,6 +197,19 @@ export function generateValidatorsTableColumns({
             },
         },
         {
+            header: 'Next Epoch Commission',
+            accessorKey: 'nextEpochCommissionRate',
+            enableSorting: true,
+            sortingFn: sortByNumber,
+            cell({ getValue }) {
+                return (
+                    <TableCellBase>
+                        <TableCellText>{`${Number(getValue()) / 100}%`}</TableCellText>
+                    </TableCellBase>
+                );
+            },
+        },
+        {
             header: 'Last Epoch Rewards',
             accessorKey: 'lastReward',
             id: 'lastReward',

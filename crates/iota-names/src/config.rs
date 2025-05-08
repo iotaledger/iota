@@ -52,6 +52,16 @@ impl IotaNamesConfig {
         }
     }
 
+    pub fn from_env() -> anyhow::Result<Self> {
+        Ok(Self::new(
+            std::env::var("IOTA_NAMES_PACKAGE_ADDRESS")?.parse()?,
+            std::env::var("IOTA_NAMES_OBJECT_ID")?.parse()?,
+            std::env::var("IOTA_NAMES_PAYMENTS_PACKAGE_ADDRESS")?.parse()?,
+            std::env::var("IOTA_NAMES_REGISTRY_ID")?.parse()?,
+            std::env::var("IOTA_NAMES_REVERSE_REGISTRY_ID")?.parse()?,
+        ))
+    }
+
     pub fn from_chain(chain: &Chain) -> Self {
         match chain {
             Chain::Mainnet => todo!("https://github.com/iotaledger/iota/issues/6532"),
