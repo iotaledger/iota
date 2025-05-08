@@ -1,11 +1,11 @@
-import ValidatorRequirementsTab from '../_snippets/operator/validator-requirements-tab.mdx'
-
 ---
 tags: [tokenomics]
 teams:
   - iotaledger/research
 description: Frequently asked question about IOTA Rebased, Move and the IOTA Rebased Proposal.
 ---
+import ValidatorRequirementsTab from '../_snippets/operator/validator-requirements-tab.mdx'
+
 # FAQs
 
 ## 1. How does the MoveVM improve security and developer experience?
@@ -99,14 +99,115 @@ For current token holders:
 - **Same Private Keys:** Users can access their tokens using their existing private keys in the new IOTA Wallet.
 - **[Staking Opportunities](./tokenomics/validators-staking.mdx):** Token holders can participate in staking or delegation to earn rewards.
 
-## 12. Will there be any migration steps for users?
+## 12. Firefly Isn't Working
 
-No manual migration is needed:
+**Firefly for IOTA is deprecated** and no longer supports the new IOTA Mainnet network.
 
-- **Seamless Transition:** The [migration process](../developer/stardust/stardust-migration.mdx) is designed to be automatic.
+You should switch to the [new IOTA Wallet](https://chrome.google.com/webstore/detail/iota-wallet/lfhohhmmcplfddhojblhpbblpbcoecha).
+
+- You can import your **mnemonic** or connect your **Ledger device**.
+- If the in-app updater is broken (on Windows), [download the latest version manually from Firefly](https://firefly.iota.org/).
+
+## 13. How to Migrate from Firefly/Bloom?
+
+Firefly IOTA is no longer compatible with the new IOTA Mainnet. Please migrate to the new [IOTA Wallet](https://chrome.google.com/webstore/detail/iota-wallet/lfhohhmmcplfddhojblhpbblpbcoecha).
+
+### Using a Mnemonic:
+1. Go to the new wallet.
+2. Create a new profile by importing your mnemonic.
+3. See: [Getting Started with the IOTA Wallet](../about-iota/iota-wallet/getting-started.mdx)
+
+### Using a Ledger Device:
+1. Ensure your IOTA Ledger App is up to date:
+   - **Latest version**: 0.9.3
+   - **Ledger Nano S** (deprecated): 0.9.2
+2. Install via Ledger Live.
+3. See: [Use IOTA Wallet with a Ledger Device](../about-iota/iota-wallet/how-to/integrate-ledger.mdx)
+
+If you're using a **Ledger Nano S**, follow this [specific guide](../about-iota/iota-wallet/how-to/integrate-ledger.mdx).
+
+:::info
+After importing your mnemonic or connecting your Ledger, run the **Balance Finder**. This tool will help locate all your addresses. You may need to press "search" multiple times, especially if your funds are widely distributed.
+
+:::
+
+:::tip
+
+Tip: It's easier to use the Balance Finder from the expanded wallet view.
+
+:::
+
+## 14. I Have Missing Balances. Where's My Money?
+
+1. Ensure you're using the **correct mnemonic, seed, or Ledger**.
+2. Use the **Balance Finder** to search for all your addresses:
+   - [How to use Balance Finder](../about-iota/iota-wallet/getting-started.mdx)
+
+3. After finding your addresses, go to the [IOTA Wallet Dashboard](../about-iota/iota-wallet-dashboard/getting-started.mdx) and check:
+   - **Migration Tab**: For unmigrated Stardust balances  
+     [Migrate Stardust Assets](../about-iota/iota-wallet-dashboard/how-to/migration.mdx)
+   - **Vesting Tab**: For airdropped or locked funds from the October 2024 upgrade  
+     [Manage Vesting and Time-Locked Assets](../about-iota/iota-wallet-dashboard/how-to/vesting.mdx)
+
+## 15. I'm Sure My Funds Are in a Specific Address But They’re Not Showing
+
+1. Connect that address to the [Wallet Dashboard](../about-iota/iota-wallet-dashboard/getting-started.mdx).
+2. Navigate to the **Migration** tab and copy your legacy address.
+3. Paste it into the [Archived Tangle Explorer](https://archive.explorer.iota.org) to check past balances.
+
+If you don’t see your funds there, they are likely in a **different address**. Run the **Balance Finder** again.
+
+## 16. I Can't Connect My New Accounts to the Wallet Dashboard
+
+This is a known issue. Please follow these steps:
+
+1. Go to `IOTA Wallet > Apps Tabs > Active Connections > Wallet Dashboard`.
+2. **Disconnect all** accounts.
+3. Reconnect them again from the Wallet Dashboard.
+
+## 17. I Lost My Mnemonic. Can I Still Migrate?
+
+Yes—if you still have your **Stronghold file** and its **password**, you can extract the seed:
+
+1. Use **Firefly v2.1.0+** to extract the seed.
+   - [Restore From Seed or Stronghold](../about-iota/iota-wallet/how-to/restore-account.mdx)
+2. Import the extracted mnemonic into the new wallet:
+   - [Getting Started with the IOTA Wallet](../about-iota/iota-wallet/getting-started.mdx)
+
+:::note
+Restoring from seed is not an industry standard and may only work with IOTA Foundation-supported wallets. Once restored, transfer your funds to a wallet with a **known mnemonic**.
+:::
+
+## 18. Importing a Stronghold Crashes Firefly
+
+If you still have a Firefly profile:
+- Follow this guide to export the seed:  
+  [Back up a Seed from a Firefly Profile](../about-iota/iota-wallet/how-to/restore-account.mdx)
+
+If you **don’t** have the profile:
+1. Download [Firefly Shimmer](https://firefly.iota.org/).
+2. Create a Shimmer profile using your **mnemonic**.
+3. Log out and export the seed:  
+   [Guide to Exporting Seed](../about-iota/iota-wallet/how-to/restore-account.mdx)
+
+## 19. What Does It Mean If My Account is Marked as "Legacy"?
+
+This means your addresses originate from the **"Chrysalis rotating address era"**. These addresses are considered outdated and may not be recognized by newer wallets.
+
+:::info
+**We recommend** moving your funds out of legacy addresses to ensure compatibility and accessibility.
+:::
+
+## 20. Will there be any migration steps for users?
+
+- **Seamless Transition:** The [migration process](../developer/stardust/stardust-migration.mdx) is designed to be automatic; However, more complex asset structures such as NFTs, Aliases or time-locked assets need to be migrated via the Start Migration button on the IOTA Wallet Dashboard.
 - **New Wallet Access:** Users will need to use the new [IOTA Wallet](./iota-wallet/getting-started.mdx) and can import their existing mnemonics or private keys.
 
-## 13. Will transaction fees impact the feeless nature of IOTA?
+:::tip Migrate Stardust Assets
+Here is a step by step process on how to [Migrate Stardust Assets](../about-iota/iota-wallet-dashboard/how-to/migration.mdx).
+:::
+
+## 21. Will transaction fees impact the feeless nature of IOTA?
 
 Yes, but:
 
@@ -114,7 +215,7 @@ Yes, but:
 - **Net Gain for Users:** Staking rewards can offset transaction fees, potentially resulting in more tokens than before.
 - **Sponsored Transactions:** Developers can sponsor fees, allowing users to transact without holding IOTA tokens.
 
-## 14. How will the governance vote work?
+## 22. How will the governance vote work?
 
 The governance vote allows IOTA token holders to decide on the proposed upgrade:
 
@@ -124,7 +225,7 @@ The governance vote allows IOTA token holders to decide on the proposed upgrade:
 - **Quorum Requirement:** A minimum of 5% of the circulating supply must participate for the vote to be valid.
 - **Outcome Determination:** The option with the majority of votes prevails.
 
-## 15. What happens if the proposal is accepted?
+## 23. What happens if the proposal is accepted?
 
 If accepted:
 
@@ -134,14 +235,14 @@ If accepted:
 - **Wallet Transition:** The IOTA Firefly wallet will be discontinued. Users can access their holdings with the new IOTA Wallet using the same private keys.
 - **Token Continuity:** No token migration is necessary; tokens will be available immediately after the launch.
 
-## 16. What happens if the proposal is rejected?
+## 24. What happens if the proposal is rejected?
 
 If rejected:
 
 - **Current Operations Continue:** The IOTA network will continue operating as it currently does.
 - **Future Decisions:** The IOTA Foundation will decide on future development paths and how to proceed with network improvements.
 
-## 17. What is the IOTA Rebased proposal?
+## 25. What is the IOTA Rebased proposal?
 
 The IOTA Rebased proposal is a significant upgrade to the IOTA protocol that aims to enhance the network's capabilities by:
 
@@ -150,7 +251,7 @@ The IOTA Rebased proposal is a significant upgrade to the IOTA protocol that aim
 - **Establishing Full Decentralization:** Adopting a delegated proof-of-stake (dPoS) system with validators and stakers to secure the network.
 - **Updating Tokenomics:** Introducing staking rewards, transaction fees, and a fee-burning mechanism to create a dynamic supply.
 
-## 18. What is the future roadmap for IOTA?
+## 26. What is the future roadmap for IOTA?
 
 The future roadmap includes:
 
@@ -159,7 +260,7 @@ The future roadmap includes:
 - **Tooling and Products:** Developing new wallets, SDKs, CLI tools, and identity solutions.
 - **Mainnet Launch Timeline:** A potential launch in early 2025 after thorough testing and audits.
 
-## 19. Why is IOTA making this change now?
+## 27. Why is IOTA making this change now?
 
 The change addresses:
 
@@ -167,7 +268,7 @@ The change addresses:
 - **Technological Evolution:** The new architecture allows for faster, more secure, and scalable solutions.
 - **Avoiding Delays:** Continuing with the current roadmap would require additional years of research and development with uncertain outcomes.
 
-## 20. Where can I find more information and stay updated?
+## 28. Where can I find more information and stay updated?
 
 Stay informed by:
 
