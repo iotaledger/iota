@@ -42,7 +42,7 @@ use iota_replay::ReplayToolCommand;
 use iota_sdk::{
     IOTA_COIN_TYPE, IOTA_DEVNET_GAS_URL, IOTA_DEVNET_URL, IOTA_LOCAL_NETWORK_GAS_URL,
     IOTA_LOCAL_NETWORK_URL, IOTA_LOCAL_NETWORK_URL_0, IOTA_TESTNET_GAS_URL, IOTA_TESTNET_URL,
-    IotaClient,
+    IotaClient, PagedFn,
     apis::ReadApi,
     iota_client_config::{IotaClientConfig, IotaEnv},
     wallet_context::WalletContext,
@@ -829,32 +829,22 @@ impl IotaClientCommands {
                 let address = get_identity_address(address, context)?;
                 let client = context.get_client().await?;
 
-                let mut objects: Vec<Coin> = Vec::new();
-                let mut cursor = None;
-                loop {
-                    let response = match coin_type {
+                let objects =
+                    PagedFn::collect::<Vec<_>>(async |cursor: Option<ObjectID>| match coin_type {
                         Some(ref coin_type) => {
                             client
                                 .coin_read_api()
                                 .get_coins(address, Some(coin_type.clone()), cursor, None)
-                                .await?
+                                .await
                         }
                         None => {
                             client
                                 .coin_read_api()
                                 .get_all_coins(address, cursor, None)
-                                .await?
+                                .await
                         }
-                    };
-
-                    objects.extend(response.data);
-
-                    if response.has_next_page {
-                        cursor = response.next_cursor;
-                    } else {
-                        break;
-                    }
-                }
+                    })
+                    .await?;
 
                 fn canonicalize_type(type_: &str) -> Result<String, anyhow::Error> {
                     Ok(TypeTag::from_str(type_)
@@ -1429,10 +1419,8 @@ impl IotaClientCommands {
             IotaClientCommands::Objects { address } => {
                 let address = get_identity_address(address, context)?;
                 let client = context.get_client().await?;
-                let mut objects: Vec<IotaObjectResponse> = Vec::new();
-                let mut cursor = None;
-                loop {
-                    let response = client
+                let objects = PagedFn::collect(async |cursor: Option<ObjectID>| {
+                    client
                         .read_api()
                         .get_owned_objects(
                             address,
@@ -1442,15 +1430,9 @@ impl IotaClientCommands {
                             cursor,
                             None,
                         )
-                        .await?;
-                    objects.extend(response.data);
-
-                    if response.has_next_page {
-                        cursor = response.next_cursor;
-                    } else {
-                        break;
-                    }
-                }
+                        .await
+                })
+                .await?;
                 IotaClientCommandResult::Objects(objects)
             }
             IotaClientCommands::NewAddress {
