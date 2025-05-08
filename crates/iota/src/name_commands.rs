@@ -800,6 +800,7 @@ pub enum SubdomainCommand {
 impl SubdomainCommand {
     pub async fn execute(self, context: &mut WalletContext) -> anyhow::Result<NameCommandResult> {
         let iota_client = context.get_client().await?;
+
         Ok(match self {
             Self::RegisterLeaf {
                 domain,
