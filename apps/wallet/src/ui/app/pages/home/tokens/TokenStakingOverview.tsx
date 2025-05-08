@@ -28,7 +28,7 @@ export function TokenStakingOverview({
     disabled,
 }: {
     accountAddress: string;
-    disabled: boolean;
+    disabled?: boolean;
 }) {
     const navigate = useNavigate();
     const { data: delegatedStake, isPending } = useGetDelegatedStake({

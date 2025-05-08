@@ -251,7 +251,6 @@ export function TokenDetails() {
                                     {accountHasIota || delegatedStake?.length ? (
                                         <TokenStakingOverview
                                             accountAddress={activeAccountAddress}
-                                            disabled={false}
                                         />
                                     ) : null}
                                     {hasSupplyIncreaseVestingObjects || needsMigration ? (

@@ -19,6 +19,7 @@ import {
     toast,
     GAS_BUDGET_ERROR_MESSAGES,
     NOT_ENOUGH_BALANCE_ID,
+    GAS_BALANCE_TOO_LOW_ID,
 } from '@iota/core';
 import { useMemo } from 'react';
 import { useActiveAccount, useSigner } from '_hooks';
@@ -157,7 +158,10 @@ export function UnStakeForm({ stakedIotaId, validatorAddress, epoch, onSuccess }
     const isLoading =
         isPending || isUnstakeTokenTransactionPending || isUnstakeTokenTransactionLoading;
 
-    const isNotEnoughGas = error && error.message.includes(NOT_ENOUGH_BALANCE_ID);
+    const isNotEnoughGas =
+        error &&
+        (error.message.includes(NOT_ENOUGH_BALANCE_ID) ||
+            error.message.includes(GAS_BALANCE_TOO_LOW_ID));
     return (
         <>
             <div className="flex flex-1 flex-col flex-nowrap gap-y-md overflow-auto">
@@ -216,7 +220,7 @@ export function UnStakeForm({ stakedIotaId, validatorAddress, epoch, onSuccess }
             {isNotEnoughGas && (
                 <div className="pt-sm">
                     <InfoBox
-                        supportingText={GAS_BUDGET_ERROR_MESSAGES[NOT_ENOUGH_BALANCE_ID]}
+                        supportingText={GAS_BUDGET_ERROR_MESSAGES[GAS_BALANCE_TOO_LOW_ID]}
                         icon={<Info />}
                         type={InfoBoxType.Error}
                         style={InfoBoxStyle.Elevated}

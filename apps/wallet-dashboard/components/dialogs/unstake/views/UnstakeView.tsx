@@ -23,6 +23,7 @@ import {
     toast,
     NOT_ENOUGH_BALANCE_ID,
     GAS_BUDGET_ERROR_MESSAGES,
+    GAS_BALANCE_TOO_LOW_ID,
 } from '@iota/core';
 import { useCurrentAccount, useSignAndExecuteTransaction } from '@iota/dapp-kit';
 import { Warning, Info } from '@iota/apps-ui-icons';
@@ -77,7 +78,10 @@ export function UnstakeView({
     } = delegatedStakeDataResult;
 
     const delegationId = extendedStake?.stakedIotaId;
-    const isNotEnoughGas = error && error.message.includes(NOT_ENOUGH_BALANCE_ID);
+    const isNotEnoughGas =
+        error &&
+        (error.message.includes(NOT_ENOUGH_BALANCE_ID) ||
+            error.message.includes(GAS_BALANCE_TOO_LOW_ID));
 
     async function handleUnstake(): Promise<void> {
         if (!unstakeData) return;
@@ -162,7 +166,7 @@ export function UnstakeView({
                 {isNotEnoughGas && (
                     <div className="pt-sm">
                         <InfoBox
-                            supportingText={GAS_BUDGET_ERROR_MESSAGES[NOT_ENOUGH_BALANCE_ID]}
+                            supportingText={GAS_BUDGET_ERROR_MESSAGES[GAS_BALANCE_TOO_LOW_ID]}
                             icon={<Info />}
                             type={InfoBoxType.Error}
                             style={InfoBoxStyle.Elevated}
