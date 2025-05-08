@@ -53,7 +53,7 @@ export function useAccountsFinder({
             coinType,
             accountGapLimit,
             addressGapLimit,
-            onDerivationPathChecked: onDerivationPathChecked,
+            onDerivationPathChecked,
             getPublicKey: async (bipPath) => {
                 if (sourceStrategy.type == 'ledger') {
                     // Retrieve the public key using the ledger client

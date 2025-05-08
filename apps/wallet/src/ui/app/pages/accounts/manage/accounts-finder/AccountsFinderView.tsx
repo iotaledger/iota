@@ -63,8 +63,7 @@ export function AccountsFinderView(): JSX.Element {
     const [isPasswordModalVisible, setPasswordModalVisible] = useState(false);
     const [searchPhase, setSearchPhase] = useState<SearchPhase>(SearchPhase.Ready);
     const [isConnectLedgerModalOpen, setConnectLedgerModalOpen] = useState(false);
-    const [currentCheckingAddress, setCurrentCheckingAddress] = useState(1);
-    const [totalCheckedAddresses, setTotalCheckedAddresses] = useState(0);
+    const [totalCheckedAddresses, setTotalCheckedAddresses] = useState(1);
     const ledgerIotaClient = useIotaLedgerClient();
     const unlockAccountSourceMutation = useUnlockMutation();
     const sourceStrategy: SourceStrategyToFind = useMemo(
@@ -83,8 +82,7 @@ export function AccountsFinderView(): JSX.Element {
     const { find } = useAccountsFinder({
         accountSourceType,
         sourceStrategy,
-        onDerivationPathChecked: ({ currentCheckingAddress, totalCheckedAddresses }) => {
-            setCurrentCheckingAddress(currentCheckingAddress);
+        onDerivationPathChecked: ({ totalCheckedAddresses }) => {
             setTotalCheckedAddresses(totalCheckedAddresses);
         },
     });
@@ -121,7 +119,7 @@ export function AccountsFinderView(): JSX.Element {
         }
         if (searchPhase === SearchPhase.Ongoing) {
             return {
-                text: `Scanned addresses: ${currentCheckingAddress}`,
+                text: `Scanned addresses: ${totalCheckedAddresses}`,
                 icon: <LoadingIndicator />,
             };
         }

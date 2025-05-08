@@ -32,10 +32,7 @@ export enum SearchAlgorithm {
     ITERATIVE_DEEPENING_BREADTH_FIRST,
 }
 
-export type OnDerivationPathChecked = (params: {
-    totalCheckedAddresses: number;
-    currentCheckingAddress: number;
-}) => void;
+export type OnDerivationPathChecked = (params: { totalCheckedAddresses: number }) => void;
 
 export interface AccountFinderConfigParams {
     getPublicKey: (params: {
@@ -100,8 +97,7 @@ export class AccountsFinder {
     private client: IotaClient;
     private stardustIndexerClient: StardustIndexerClient | null;
     private accounts: AccountFromFinder[] = []; // Found accounts with balances.
-    private totalCheckedAddresses: number = 0; // Total number of addresses checked.
-    private currentCheckingAddress: number = 1;
+    private totalCheckedAddresses: number = 1;
     private onBipPathChecked: OnDerivationPathChecked | undefined;
 
     constructor(config: AccountFinderConfigParams) {
@@ -275,11 +271,9 @@ export class AccountsFinder {
         }
 
         this.totalCheckedAddresses += 1;
-        this.currentCheckingAddress += 1;
 
         this.onBipPathChecked?.({
             totalCheckedAddresses: this.totalCheckedAddresses,
-            currentCheckingAddress: this.currentCheckingAddress,
         });
 
         return {
