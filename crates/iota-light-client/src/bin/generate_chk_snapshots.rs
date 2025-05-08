@@ -13,10 +13,8 @@ const FIXTURES_DIR: &str = "tests/fixtures";
 pub async fn main() {
     env_logger::init();
 
-    let config = Config {
-        checkpoints_dir: PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(FIXTURES_DIR),
-        ..Default::default()
-    };
+    let mut config = Config::get_mainnet_config();
+    config.checkpoints_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(FIXTURES_DIR);
 
     let checkpoint_list = sync_checkpoint_list_to_latest(&config)
         .await

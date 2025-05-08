@@ -32,7 +32,7 @@ bin_version::bin_version!();
     propagate_version = true,
 )]
 struct Args {
-    /// Sets a custom config file
+    /// Uses a specific config file, otherwise defaults to the mainnet config
     #[arg(short, long, value_name = "PATH")]
     config: Option<PathBuf>,
     #[command(subcommand)]
@@ -66,13 +66,14 @@ pub async fn main() -> anyhow::Result<()> {
 
     let args = Args::parse();
 
-    let path = args
-        .config
-        .context("Missing config file path. Please provide a config via --config option.")?;
-
-    let config = Config::load(&path)
-        .await
-        .context(format!("Failed to load config '{}'.", path.display()))?;
+    let config = if let Some(path) = args.config {
+        Config::load(&path).await.context(format!(
+            "Failed to load custom config '{}'.",
+            path.display()
+        ))?
+    } else {
+        Config::get_mainnet_config()
+    };
 
     config.setup().await?;
 
@@ -80,6 +81,7 @@ pub async fn main() -> anyhow::Result<()> {
     let resolver = Resolver::new(remote_package_store);
 
     debug!("IOTA Light Client CLI version: {VERSION}");
+
     match args.command {
         LightClientCommand::CheckTransaction { transaction_digest } => {
             if config.sync_before_check {

@@ -2,10 +2,11 @@
 // Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use core::str::FromStr;
 use std::path::{Path, PathBuf};
 
-use anyhow::{Context, Result, anyhow, bail};
-use iota_config::object_storage_config::ObjectStoreConfig;
+use anyhow::{Result, anyhow, bail};
+use iota_config::object_storage_config::{ObjectStoreConfig, ObjectStoreType};
 use serde::{Deserialize, Serialize};
 use tokio::fs::{create_dir_all, read_to_string};
 use url::Url;
@@ -17,13 +18,13 @@ const CHECKPOINTS_FILE_NAME: &str = "checkpoints.yaml";
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct Config {
     /// An RPC endpoint to a full node.
-    pub rpc_url: String,
+    pub rpc_url: Url,
     /// A GraphQL endpoint to a full node.
-    pub graphql_url: Option<String>,
+    pub graphql_url: Option<Url>,
     /// The directory containing synced checkpoints.
     pub checkpoints_dir: PathBuf,
     /// The URL to download the genesis.blob file from.
-    pub genesis_blob_download_url: Option<String>,
+    pub genesis_blob_download_url: Option<Url>,
     /// Flag to enable automatic syncing before running one of the check
     /// commands.
     pub sync_before_check: bool,
@@ -36,16 +37,46 @@ pub struct Config {
     pub archive_store_config: Option<ObjectStoreConfig>,
 }
 
-impl Default for Config {
-    fn default() -> Self {
+impl Config {
+    pub fn get_mainnet_config() -> Self {
+        Self::get_config_by_network("mainnet")
+    }
+
+    pub fn get_testnet_config() -> Self {
+        Self::get_config_by_network("testnet")
+    }
+
+    pub fn get_devnet_config() -> Self {
+        Self::get_config_by_network("devnet")
+    }
+
+    fn get_config_by_network(network: &str) -> Self {
         Self {
-            rpc_url: "http://localhost:9000".to_string(),
-            graphql_url: None,
-            checkpoints_dir: "checkpoints".into(),
-            genesis_blob_download_url: None,
+            rpc_url: Url::parse(&format!("https://api.{network}.iota.cafe")).unwrap(),
+            graphql_url: Some(Url::parse(&format!("https://graphql.{network}.iota.cafe")).unwrap()),
+            checkpoints_dir: PathBuf::from_str(&format!("checkpoints_{network}")).unwrap(),
+            genesis_blob_download_url: Some(
+                Url::parse(&format!("https://dbfiles.{network}.iota.cafe/genesis.blob")).unwrap(),
+            ),
             sync_before_check: false,
-            checkpoint_store_config: None,
-            archive_store_config: None,
+            checkpoint_store_config: Some(ObjectStoreConfig {
+                object_store: Some(ObjectStoreType::S3),
+                object_store_connection_limit: 20,
+                aws_endpoint: Some(format!("https://checkpoints.{network}.iota.cafe")),
+                aws_virtual_hosted_style_request: true,
+                aws_region: Some("weur".to_string()),
+                no_sign_request: true,
+                ..Default::default()
+            }),
+            archive_store_config: Some(ObjectStoreConfig {
+                object_store: Some(ObjectStoreType::S3),
+                object_store_connection_limit: 20,
+                aws_endpoint: Some(format!("https://archive.{network}.iota.cafe")),
+                aws_virtual_hosted_style_request: true,
+                aws_region: Some("weur".to_string()),
+                no_sign_request: true,
+                ..Default::default()
+            }),
         }
     }
 }
@@ -69,7 +100,6 @@ impl Config {
         // Download or copy the genesis blob if it doesn't exist yet
         if !self.genesis_blob_file_path().is_file() {
             if let Some(url) = &self.genesis_blob_download_url {
-                let url = Url::parse(url).expect("unvalidated url");
                 match url.scheme() {
                     "file" => {
                         let path = url
@@ -78,7 +108,7 @@ impl Config {
                         tokio::fs::copy(path, self.genesis_blob_file_path()).await?;
                     }
                     _ => {
-                        let contents = reqwest::get(url).await?.bytes().await?;
+                        let contents = reqwest::get(url.as_str()).await?.bytes().await?;
                         tokio::fs::write(self.genesis_blob_file_path(), contents).await?;
                     }
                 }
@@ -88,24 +118,6 @@ impl Config {
     }
 
     pub fn validate(&self) -> Result<()> {
-        Url::parse(&self.rpc_url).context("Invalid RPC URL")?;
-
-        if let Some(url) = &self.graphql_url {
-            Url::parse(url).context("Invalid GraphQL URL")?;
-        }
-        if let Some(url) = &self.genesis_blob_download_url {
-            Url::parse(url).context("Invalid genesis URL")?;
-        }
-        if let Some(checkpoint_store_config) = &self.checkpoint_store_config {
-            if let Some(url) = &checkpoint_store_config.aws_endpoint {
-                Url::parse(url).context("Invalid checkpoint store URL")?;
-            }
-        }
-        if let Some(archive_store_config) = &self.archive_store_config {
-            if let Some(url) = &archive_store_config.aws_endpoint {
-                Url::parse(url).context("Invalid archive store URL")?;
-            }
-        }
         if self.graphql_url.is_none() && self.archive_store_config.is_none() {
             bail!("Invalid config: either GraphQL URL or archive store config must be provided");
         }
@@ -149,8 +161,8 @@ mod tests {
         let temp_dir = TempDir::new().unwrap();
         std::fs::File::create(temp_dir.path().join("genesis.blob")).unwrap();
         let config = Config {
-            rpc_url: "http://localhost:9000".to_string(),
-            graphql_url: Some("http://localhost:9003".to_string()),
+            rpc_url: "http://localhost:9000".parse().unwrap(),
+            graphql_url: Some("http://localhost:9003".parse().unwrap()),
             checkpoints_dir: temp_dir.path().to_path_buf(),
             genesis_blob_download_url: None,
             sync_before_check: false,

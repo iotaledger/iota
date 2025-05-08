@@ -525,8 +525,13 @@ mod tests {
     fn create_test_config() -> (Config, TempDir) {
         let temp_dir = TempDir::new().unwrap();
         let config = Config {
+            rpc_url: "http://localhost:9000".parse().unwrap(),
+            graphql_url: None,
             checkpoints_dir: temp_dir.path().to_path_buf(),
-            ..Default::default()
+            sync_before_check: false,
+            genesis_blob_download_url: None,
+            checkpoint_store_config: None,
+            archive_store_config: None,
         };
         (config, temp_dir)
     }
