@@ -63,7 +63,7 @@ export function ConnectLedgerModal({ onClose, onConfirm, onError }: ConnectLedge
                         </span>
                         <InfoBox
                             title="Update your IOTA Ledger app"
-                            supportingText="Last version 0.9.3 (deprecated devices like Ledger Nano S is  0.9.2)"
+                            supportingText="Latest version 0.9.3 (deprecated devices like Ledger Nano S is  0.9.2)"
                             icon={<Info />}
                             type={InfoBoxType.Default}
                             style={InfoBoxStyle.Elevated}
