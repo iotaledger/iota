@@ -177,7 +177,7 @@ export function AccountBalanceItem({
                     <Info className="h-4 w-4 shrink-0" />
                     <small>
                         For an accurate portfolio view, ensure your total balance matches the total
-                        of your found IOTA, of your found IOTA, vested, and migration funds. Check
+                        of your found IOTA, vested, and migration funds. Check the Dashboard tabs
                         the Dashboard tabs for details
                     </small>
                 </div>
