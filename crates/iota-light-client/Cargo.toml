@@ -23,7 +23,6 @@ path = "src/bin/generate_checkpoint_snapshots.rs"
 anyhow.workspace = true
 async-trait.workspace = true
 bcs.workspace = true
-bin-version.workspace = true
 clap.workspace = true
 env_logger = "0.11.5"
 futures.workspace = true
@@ -36,12 +35,12 @@ roaring.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 serde_yaml.workspace = true
-telemetry-subscribers.workspace = true
 tokio = { workspace = true, features = ["full"] }
 tracing.workspace = true
 url.workspace = true
 
 # internal dependencies
+bin-version.workspace = true
 iota-archival.workspace = true
 iota-config.workspace = true
 iota-data-ingestion-core.workspace = true
@@ -52,6 +51,7 @@ iota-rest-api.workspace = true
 iota-sdk.workspace = true
 iota-types.workspace = true
 move-core-types.workspace = true
+telemetry-subscribers.workspace = true
 
 [dev-dependencies]
 tempfile.workspace = true
