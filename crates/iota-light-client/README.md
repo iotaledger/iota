@@ -23,16 +23,34 @@ The light client requires a config file and a directory to cache checkpoints, an
 The config file for the light client takes a URL for a full node, a directory to store checkpoint summaries (that must exist) and within the directory the name of the genesis blob for the IOTA network.
 
 ```
-rpc_url: "https://api.testnet.iota.cafe"
-graphql_url: "https://graphql.testnet.iota.cafe"
-checkpoints_dir: "checkpoints_testnet"
-# If not provided, make sure genesis.blob exists in checkpoints_dir
-genesis_blob_download_url: "https://dbfiles.testnet.iota.cafe/genesis.blob"
-sync_before_check: false
-object_store_url: "https://checkpoints.testnet.iota.cafe"
+# A full node JSON RPC endpoint to query the latest network state (mandatory)
+rpc_url: "https://api.mainnet.iota.cafe"
+
+# A full node GraphQL RPC endpoint to query end-of-epoch checkpoints (optional if archive store config is provided)
+graphql_url: "https://graphql.mainnet.iota.cafe"
+
+# Local directory to store checkpoint summaries and other synchronization data (mandatory) 
+checkpoints_dir: "checkpoints_mainnet"
+
+# A URL to download or copy the genesis blob file from (optional if genesis blob is already present in checkpoints_dir)
+genesis_blob_download_url: "https://dbfiles.mainnet.iota.cafe/genesis.blob"
+
+# A flag to set whether the light client should always sync before checking an object or a transaction for inclusion (mandatory)
+sync_before_check: true
+
+# A config for an object store that gets populated by a historical checkpoint writer (optional)
+checkpoint_store_config:
+  object-store: "S3"
+  aws-endpoint: "https://checkpoints.mainnet.iota.cafe"
+  aws-virtual-hosted-style-request: true
+  no-sign-request: true
+  aws-region: "weur"
+  object-store-connection-limit: 20
+
+# A config for an object store that gets populated by an archiver (optional)
 archive_store_config:
   object-store: "S3"
-  aws-endpoint: "https://archive.testnet.iota.cafe"
+  aws-endpoint: "https://archive.mainnet.iota.cafe"
   aws-virtual-hosted-style-request: true
   no-sign-request: true
   aws-region: "weur"

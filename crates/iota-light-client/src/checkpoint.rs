@@ -34,7 +34,6 @@ use crate::{
 #[derive(Debug, Clone, Default, Deserialize, Serialize, Getters)]
 #[getset(get = "pub")]
 pub struct CheckpointList {
-    // List of end of epoch checkpoints
     checkpoints: Vec<u64>,
 }
 
@@ -145,7 +144,7 @@ fn merge_checkpoint_lists(list1: &CheckpointList, list2: &CheckpointList) -> Che
 async fn sync_checkpoint_list_to_latest_from_graphql(
     config: &Config,
 ) -> anyhow::Result<CheckpointList> {
-    info!("Syncing checkpoint list from full node.");
+    info!("Syncing checkpoint list from GraphQL.");
 
     // Get the local checkpoint list, or create an empty one if it doesn't exist
     let mut checkpoints_list = match read_checkpoint_list(config) {
