@@ -50,18 +50,21 @@ export function StakedTimelockObject({
     const [sumPrincipalFormatted, sumPrincipalSymbol] = useFormatCoin({
         balance: summary.principal,
     });
+
+    const name = validatorMeta?.name || timelockedStakedObject.validatorAddress;
+
     return (
         <Card onClick={() => handleUnstake(timelockedStakedObject)}>
             <CardImage>
                 <ImageIcon
                     src={validatorMeta?.imageUrl || null}
-                    label={validatorMeta?.name || timelockedStakedObject.validatorAddress}
-                    fallback={validatorMeta?.name || timelockedStakedObject.validatorAddress}
+                    label={name}
+                    fallback={name}
                     size={ImageIconSize.Large}
                 />
             </CardImage>
             <CardBody
-                title={validatorMeta?.name || timelockedStakedObject.validatorAddress}
+                title={name}
                 subtitle={`${sumPrincipalFormatted} ${sumPrincipalSymbol}`}
                 isTextTruncated
             />
