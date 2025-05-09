@@ -81,33 +81,34 @@ export function DisconnectApp({
                         </div>
                     }
                 />
-                <SummaryPanel
-                    title={'Connected Account' + (connectedAccounts.length > 1 ? 's' : '')}
-                    className="flex-1 overflow-y-auto"
-                    body={
-                        <div className="overflow-y-auto px-md">
-                            {connectedAccounts.length > 1 ? (
-                                <WalletListSelect
-                                    visibleValues={connectedAccounts}
-                                    values={accountsToDisconnect}
-                                    onChange={setAccountsToDisconnect}
-                                    disabled={disconnectMutation.isPending}
-                                />
-                            ) : (
-                                <SummaryListItem
-                                    icon={
-                                        <CircleEmitter className="h-5 w-5 text-neutral-10 dark:text-neutral-92" />
-                                    }
-                                    text={
-                                        connectedAccounts[0]
-                                            ? formatAddress(connectedAccounts[0])
-                                            : ''
-                                    }
-                                />
-                            )}
-                        </div>
-                    }
-                />
+                <div className="flex flex-1 flex-col overflow-y-auto rounded-xl">
+                    <SummaryPanel
+                        title={'Connected Account' + (connectedAccounts.length > 1 ? 's' : '')}
+                        body={
+                            <div className="overflow-y-auto px-md">
+                                {connectedAccounts.length > 1 ? (
+                                    <WalletListSelect
+                                        visibleValues={connectedAccounts}
+                                        values={accountsToDisconnect}
+                                        onChange={setAccountsToDisconnect}
+                                        disabled={disconnectMutation.isPending}
+                                    />
+                                ) : (
+                                    <SummaryListItem
+                                        icon={
+                                            <CircleEmitter className="h-5 w-5 text-neutral-10 dark:text-neutral-92" />
+                                        }
+                                        text={
+                                            connectedAccounts[0]
+                                                ? formatAddress(connectedAccounts[0])
+                                                : ''
+                                        }
+                                    />
+                                )}
+                            </div>
+                        }
+                    />
+                </div>
 
                 <div className="sticky bottom-0 flex items-end pt-xs">
                     <Button
