@@ -173,14 +173,13 @@ export function AccountBalanceItem({
             )}
         >
             {(hasMigrationObjects || hasVestingObjects) && (
-                <div className="mx-sm">
-                    <InfoBox
-                        supportingText="Missing funds maybe be due to unmigrated tokens or locked vested funds,
-                        check the Migration and Vesting tabs in the Dashboard"
-                        icon={<Info />}
-                        type={InfoBoxType.Default}
-                        style={InfoBoxStyle.Elevated}
-                    />
+                <div className="mx-sm flex flex-row items-start gap-x-xs rounded-xl border border-shader-neutral-light-8 p-xs text-neutral-10 dark:border-shader-neutral-dark-8 dark:text-neutral-92">
+                    <Info className="h-4 w-4 shrink-0" />
+                    <small>
+                        For an accurate portfolio view, ensure your total balance matches the total
+                        of your found IOTA, of your found IOTA, vested, and migration funds. Check
+                        the Dashboard tabs for details
+                    </small>
                 </div>
             )}
             <div className="flex flex-col gap-y-sm p-sm pl-lg text-body-md text-neutral-10 dark:text-neutral-92">
