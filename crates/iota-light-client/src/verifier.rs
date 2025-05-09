@@ -273,9 +273,9 @@ pub async fn get_verified_checkpoint(
 
     anyhow::ensure!(
         full_check_point
-          .transactions
-          .iter()
-          .any(|t| *t.transaction.digest() == object.previous_transaction), 
+            .transactions
+            .iter()
+            .any(|t| *t.transaction.digest() == object.previous_transaction),
         "Transaction not found in checkpoint"
     );
     Ok(seq)
