@@ -41,11 +41,11 @@ exclude = [
   "external-crates/move/crates/move-model-2",
   "external-crates/move/crates/move-package",
   "external-crates/move/crates/move-proc-macros",
-  "external-crates/move/crates/move-prover-test-utils",
   "external-crates/move/crates/move-stackless-bytecode",
   "external-crates/move/crates/move-stdlib",
   "external-crates/move/crates/move-stdlib-natives",
   "external-crates/move/crates/move-symbol-pool",
+  "external-crates/move/crates/move-trace-format",
   "external-crates/move/crates/move-transactional-test-runner",
   "external-crates/move/crates/move-unit-test",
   "external-crates/move/crates/move-vm-config",
@@ -463,6 +463,7 @@ move-ir-types = { path = "external-crates/move/crates/move-ir-types" }
 move-package = { path = "external-crates/move/crates/move-package" }
 move-stackless-bytecode = { path = "external-crates/move/crates/move-stackless-bytecode" }
 move-symbol-pool = { path = "external-crates/move/crates/move-symbol-pool" }
+move-trace-format = { path = "external-crates/move/crates/move-trace-format" }
 move-transactional-test-runner = { path = "external-crates/move/crates/move-transactional-test-runner" }
 move-unit-test = { path = "external-crates/move/crates/move-unit-test" }
 move-vm-config = { path = "external-crates/move/crates/move-vm-config" }

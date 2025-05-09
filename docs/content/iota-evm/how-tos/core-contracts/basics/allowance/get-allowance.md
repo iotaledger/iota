@@ -1,5 +1,5 @@
 ---
-description: How to get the allowance of native assets and base token
+description: How to get the allowance of coins and other objects
 image: /img/logo/WASP_logo_dark.png
 tags:
   - allowance

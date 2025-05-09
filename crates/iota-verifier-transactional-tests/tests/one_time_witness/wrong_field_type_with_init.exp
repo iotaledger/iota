@@ -1,6 +1,0 @@
-processed 1 task
-
-task 0, lines 7-17:
-//# publish
-Error: Transaction Effects Status: IOTA Move Bytecode Verification Error. Please run the IOTA Move Verifier for more information.
-Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: IotaMoveVerificationError, source: Some("Expected last (and at most second) parameter for _::m::init to be &mut iota::tx_context::TxContext or &iota::tx_context::TxContext; optional first parameter must be of one-time witness type whose name is the same as the capitalized module name (_::m::M) and which has no fields or a single field of type bool"), command: Some(0) } }
