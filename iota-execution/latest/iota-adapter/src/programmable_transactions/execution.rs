@@ -82,6 +82,7 @@ mod checked {
         gas_charger::GasCharger,
         programmable_transactions::{
             context::*,
+            data_store::IotaDataStore,
             trace_utils::{
                 trace_move_call_end, trace_move_call_start, trace_ptb_summary, trace_split_coins,
                 trace_transfer,
@@ -90,13 +91,7 @@ mod checked {
         type_resolver::TypeTagResolver,
     };
 
-    /// Executes a `ProgrammableTransaction` in the specified `ExecutionMode`,
-    /// applying a series of commands to the execution context. The
-    /// function initializes the execution context, processes each command
-    /// in sequence, and handles errors by recording any loaded runtime objects
-    /// before exiting. After successful command execution, it applies the
-    /// resulting changes, saving the loaded runtime objects and wrapped
-    /// object containers for later use.
+
     pub fn execute<Mode: ExecutionMode>(
         protocol_config: &ProtocolConfig,
         metrics: Arc<LimitsMetrics>,
