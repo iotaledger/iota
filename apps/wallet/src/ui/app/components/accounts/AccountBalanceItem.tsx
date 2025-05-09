@@ -17,7 +17,7 @@ import {
 } from '@iota/core';
 import { Info, TriangleDown } from '@iota/apps-ui-icons';
 import clsx from 'clsx';
-import { Badge, BadgeType, InfoBox, InfoBoxStyle, InfoBoxType } from '@iota/apps-ui-kit';
+import { Badge, BadgeType } from '@iota/apps-ui-kit';
 import { formatAddress, IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 import {
     useGetOwnedObjectsMultipleAddresses,
