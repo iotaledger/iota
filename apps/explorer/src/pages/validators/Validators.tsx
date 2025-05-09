@@ -59,8 +59,6 @@ function ValidatorPageResult(): JSX.Element {
         data?.pendingActiveValidatorsId || '',
     );
 
-    console.log('pendingActiveValidatorsId', pendingActiveValidatorsId);
-
     const pendingValidatorsObjectIdsData = pendingActiveValidatorsId?.pages[0]?.data || [];
     const pendingValidatorsObjectIds = pendingValidatorsObjectIdsData.map((item) => item.objectId);
     const normalizedIds = pendingValidatorsObjectIds.map((id) => normalizeIotaAddress(id));
