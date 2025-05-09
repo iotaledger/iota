@@ -26,6 +26,7 @@ import {
     LockUnlocked,
     Logout,
     Expand,
+    Exclamation,
 } from '@iota/apps-ui-icons';
 import {
     ButtonType,
@@ -115,7 +116,7 @@ export function MenuList() {
         },
         {
             title: 'Get Support',
-            icon: <Info />,
+            icon: <Exclamation />,
             onClick: onSupportClick,
         },
 
