@@ -8,7 +8,6 @@
 use std::{
     collections::{BTreeMap, BTreeSet},
     fmt::{self, Write},
-    hash::{Hash, Hasher},
     path::{Path, PathBuf},
     sync::Arc,
     time::Duration,
@@ -25,12 +24,12 @@ use fastcrypto::{
 };
 use iota_core::authority::{AuthorityState, test_authority_builder::TestAuthorityBuilder};
 use iota_framework::DEFAULT_FRAMEWORK_PATH;
-use iota_graphql_rpc::{
-    config::ConnectionConfig,
-    test_infra::cluster::{ExecutorCluster, SnapshotLagConfig, serve_executor},
-};
+use iota_graphql_rpc::test_infra::cluster::SnapshotLagConfig;
 use iota_json_rpc_api::QUERY_MAX_RESULT_LIMIT;
-use iota_json_rpc_types::{DevInspectResults, IotaExecutionStatus, IotaTransactionBlockEffectsAPI};
+use iota_json_rpc_types::{
+    DevInspectResults, DryRunTransactionBlockResponse, IotaExecutionStatus,
+    IotaTransactionBlockEffects, IotaTransactionBlockEffectsAPI, IotaTransactionBlockEvents,
+};
 use iota_protocol_config::{Chain, ProtocolConfig};
 use iota_storage::{
     key_value_store::TransactionKeyValueStore, key_value_store_metrics::KeyValueStoreMetrics,
@@ -57,7 +56,7 @@ use iota_types::{
     move_package::MovePackage,
     object::{self, GAS_VALUE_FOR_TESTING, Object, bounded_visitor::BoundedVisitor},
     programmable_transaction_builder::ProgrammableTransactionBuilder,
-    storage::{ObjectStore, ReadStore},
+    storage::{ObjectStore, ReadStore, RestStateReader},
     transaction::{
         Argument, CallArg, Command, ProgrammableTransaction, Transaction, TransactionData,
         TransactionDataAPI, TransactionKind, VerifiedTransaction,
@@ -92,7 +91,7 @@ use rand::{Rng, SeedableRng, rngs::StdRng};
 use tempfile::{NamedTempFile, tempdir};
 
 use crate::{
-    TransactionalAdapter, ValidatorWithFullnode, args::*,
+    TransactionalAdapter, ValidatorWithFullnode, args::*, offchain_state::OffchainStateReader,
     programmable_transaction_test_parser::parser::ParsedCommand,
     simulator_persisted_store::PersistedStore,
 };
@@ -126,6 +125,34 @@ const GAS_FOR_TESTING: u64 = GAS_VALUE_FOR_TESTING;
 
 const DEFAULT_CHAIN_START_TIMESTAMP: u64 = 0;
 
+/// Extra args related to configuring the indexer and reader.
+// TODO: the configs are still tied to the indexer crate, eventually we'd like a
+// new command that is more agnostic
+pub struct OffChainConfig {
+    pub snapshot_config: SnapshotLagConfig,
+    pub epochs_to_keep: Option<u64>,
+    /// Dir for simulacrum to write checkpoint files to. To be passed to the
+    /// offchain indexer if it uses file-based ingestion.
+    pub data_ingestion_path: PathBuf,
+    /// URL for the IOTA REST API. To be passed to the offchain indexer if it
+    /// uses the REST API.
+    pub rest_api_url: Option<String>,
+}
+
+struct AdapterInitConfig {
+    additional_mapping: BTreeMap<String, NumericalAddress>,
+    account_names: BTreeSet<String>,
+    protocol_config: ProtocolConfig,
+    is_simulator: bool,
+    custom_validator_account: bool,
+    reference_gas_price: Option<u64>,
+    default_gas_price: Option<u64>,
+    flavor: Option<Flavor>,
+    /// Configuration for offchain state reader read from the file itself, and
+    /// can be passed to the specific indexing and reader flavor.
+    offchain_config: Option<OffChainConfig>,
+}
+
 pub struct IotaTestAdapter {
     pub(crate) compiled_state: CompiledState,
     /// For upgrades: maps an upgraded package name to the original package
@@ -135,11 +162,23 @@ pub struct IotaTestAdapter {
     default_account: TestAccount,
     default_syntax: SyntaxChoice,
     object_enumeration: BiBTreeMap<ObjectID, FakeID>,
+    /// Mapping from task ID to a transaction digest, for use in named variable
+    /// substitution.
+    digest_enumeration: BTreeMap<u64, TransactionDigest>,
     next_fake: (u64, u64),
     gas_price: u64,
     pub(crate) staged_modules: BTreeMap<Symbol, StagedPackage>,
     is_simulator: bool,
-    pub(crate) cluster: Option<ExecutorCluster>,
+    /// If `is_simulator` is true, the executor will be a `Simulacrum`, and this
+    /// will be a `RestStateReader` that can be used to spawn the equivalent
+    /// of a fullnode rest api. This can then be used to serve an indexer
+    /// that reads from said rest api service.
+    pub read_replica: Option<Arc<dyn RestStateReader + Send + Sync>>,
+    /// Configuration for offchain state reader read from the file itself, and
+    /// can be passed to the specific indexing and reader flavor.
+    pub offchain_config: Option<OffChainConfig>,
+    /// A trait encapsulating methods to interact with offchain state.
+    pub offchain_reader: Option<Box<dyn OffchainStateReader>>,
     pub(crate) executor: Box<dyn TransactionalAdapter>,
 }
 
@@ -148,6 +187,78 @@ pub(crate) struct StagedPackage {
     syntax: SyntaxChoice,
     modules: Vec<MaybeNamedCompiledModule>,
     pub(crate) digest: Vec<u8>,
+}
+
+impl AdapterInitConfig {
+    fn from_args(init_cmd: InitCommand, iota_args: IotaInitArgs) -> Self {
+        let InitCommand { named_addresses } = init_cmd;
+        let IotaInitArgs {
+            accounts,
+            protocol_version,
+            max_gas,
+            move_binary_format_version,
+            simulator,
+            custom_validator_account,
+            reference_gas_price,
+            default_gas_price,
+            objects_snapshot_min_checkpoint_lag,
+            flavor,
+            epochs_to_keep,
+            data_ingestion_path,
+            rest_api_url,
+        } = iota_args;
+
+        let map = verify_and_create_named_address_mapping(named_addresses).unwrap();
+        let accounts = accounts
+            .map(|v| v.into_iter().collect::<BTreeSet<_>>())
+            .unwrap_or_default();
+
+        let mut protocol_config = if let Some(protocol_version) = protocol_version {
+            ProtocolConfig::get_for_version(protocol_version.into(), Chain::Unknown)
+        } else {
+            ProtocolConfig::get_for_max_version_UNSAFE()
+        };
+        if let Some(version) = move_binary_format_version {
+            protocol_config.set_move_binary_format_version_for_testing(version);
+        }
+        if let Some(mx_tx_gas_override) = max_gas {
+            if simulator {
+                panic!("Cannot set max gas in simulator mode");
+            }
+            protocol_config.set_max_tx_gas_for_testing(mx_tx_gas_override)
+        }
+        if custom_validator_account && !simulator {
+            panic!("Can only set custom validator account in simulator mode");
+        }
+        if reference_gas_price.is_some() && !simulator {
+            panic!("Can only set reference gas price in simulator mode");
+        }
+
+        let offchain_config = if simulator {
+            let snapshot_config =
+                SnapshotLagConfig::new(objects_snapshot_min_checkpoint_lag, Some(1));
+            Some(OffChainConfig {
+                snapshot_config,
+                epochs_to_keep,
+                data_ingestion_path: data_ingestion_path.unwrap_or(tempdir().unwrap().into_path()),
+                rest_api_url,
+            })
+        } else {
+            None
+        };
+
+        Self {
+            additional_mapping: map,
+            account_names: accounts,
+            protocol_config,
+            is_simulator: simulator,
+            custom_validator_account,
+            reference_gas_price,
+            default_gas_price,
+            flavor,
+            offchain_config,
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -223,7 +334,7 @@ impl MoveTestAdapter<'_> for IotaTestAdapter {
                 Self::ExtraInitArgs,
             )>,
         >,
-        path: &Path,
+        _path: &Path,
     ) -> (Self, Option<String>) {
         let rng = StdRng::from_seed(RNG_SEED);
         assert!(
@@ -232,7 +343,7 @@ impl MoveTestAdapter<'_> for IotaTestAdapter {
         );
 
         // Unpack the init arguments
-        let (
+        let AdapterInitConfig {
             additional_mapping,
             account_names,
             protocol_config,
@@ -240,80 +351,11 @@ impl MoveTestAdapter<'_> for IotaTestAdapter {
             custom_validator_account,
             reference_gas_price,
             default_gas_price,
-            objects_snapshot_min_checkpoint_lag,
             flavor,
-            epochs_to_keep,
-        ) = match task_opt.map(|t| t.command) {
-            Some((
-                InitCommand { named_addresses },
-                IotaInitArgs {
-                    accounts,
-                    protocol_version,
-                    max_gas,
-                    move_binary_format_version,
-                    simulator,
-                    custom_validator_account,
-                    reference_gas_price,
-                    default_gas_price,
-                    objects_snapshot_min_checkpoint_lag,
-                    flavor,
-                    epochs_to_keep,
-                },
-            )) => {
-                let map = verify_and_create_named_address_mapping(named_addresses).unwrap();
-                let accounts = accounts
-                    .map(|v| v.into_iter().collect::<BTreeSet<_>>())
-                    .unwrap_or_default();
-
-                let mut protocol_config = if let Some(protocol_version) = protocol_version {
-                    ProtocolConfig::get_for_version(protocol_version.into(), Chain::Unknown)
-                } else {
-                    ProtocolConfig::get_for_max_version_UNSAFE()
-                };
-                if let Some(version) = move_binary_format_version {
-                    protocol_config.set_move_binary_format_version_for_testing(version);
-                }
-                if let Some(mx_tx_gas_override) = max_gas {
-                    if simulator {
-                        panic!("Cannot set max gas in simulator mode");
-                    }
-                    protocol_config.set_max_tx_gas_for_testing(mx_tx_gas_override)
-                }
-                if custom_validator_account && !simulator {
-                    panic!("Can only set custom validator account in simulator mode");
-                }
-                if reference_gas_price.is_some() && !simulator {
-                    panic!("Can only set reference gas price in simulator mode");
-                }
-
-                (
-                    map,
-                    accounts,
-                    protocol_config,
-                    simulator,
-                    custom_validator_account,
-                    reference_gas_price,
-                    default_gas_price,
-                    objects_snapshot_min_checkpoint_lag,
-                    flavor,
-                    epochs_to_keep,
-                )
-            }
-            None => {
-                let protocol_config = ProtocolConfig::get_for_max_version_UNSAFE();
-                (
-                    BTreeMap::new(),
-                    BTreeSet::new(),
-                    protocol_config,
-                    false,
-                    false,
-                    None,
-                    None,
-                    None,
-                    None,
-                    None,
-                )
-            }
+            offchain_config,
+        } = match task_opt.map(|t| t.command) {
+            Some((init_cmd, iota_args)) => AdapterInitConfig::from_args(init_cmd, iota_args),
+            None => AdapterInitConfig::default(),
         };
 
         let (
@@ -325,7 +367,7 @@ impl MoveTestAdapter<'_> for IotaTestAdapter {
                 objects,
                 account_objects,
             },
-            cluster,
+            read_replica,
         ) = if is_simulator {
             init_sim_executor(
                 rng,
@@ -334,9 +376,11 @@ impl MoveTestAdapter<'_> for IotaTestAdapter {
                 &protocol_config,
                 custom_validator_account,
                 reference_gas_price,
-                objects_snapshot_min_checkpoint_lag,
-                path.to_path_buf(),
-                epochs_to_keep,
+                offchain_config
+                    .as_ref()
+                    .unwrap()
+                    .data_ingestion_path
+                    .clone(),
             )
             .await
         } else {
@@ -348,8 +392,10 @@ impl MoveTestAdapter<'_> for IotaTestAdapter {
 
         let mut test_adapter = Self {
             is_simulator,
-            cluster,
+            offchain_reader: None,
             executor,
+            offchain_config,
+            read_replica,
             compiled_state: CompiledState::new(
                 named_address_mapping,
                 pre_compiled_deps,
@@ -365,6 +411,7 @@ impl MoveTestAdapter<'_> for IotaTestAdapter {
             default_account,
             default_syntax,
             object_enumeration: BiBTreeMap::new(),
+            digest_enumeration: BTreeMap::new(),
             next_fake: (0, 0),
             // TODO: make this configurable
             gas_price: default_gas_price.unwrap_or(DEFAULT_GAS_PRICE),
@@ -568,40 +615,41 @@ impl MoveTestAdapter<'_> for IotaTestAdapter {
             }) => {
                 let file = data.ok_or_else(|| anyhow::anyhow!("Missing GraphQL query"))?;
                 let contents = std::fs::read_to_string(file.path())?;
-                let cluster = self.cluster.as_ref().unwrap();
+                let offchain_reader = self
+                    .offchain_reader
+                    .as_ref()
+                    .ok_or_else(|| anyhow::anyhow!("Offchain reader not set"))?;
                 let highest_checkpoint = self.executor.get_latest_checkpoint_sequence_number()?;
-                cluster
+                offchain_reader
                     .wait_for_checkpoint_catchup(highest_checkpoint, Duration::from_secs(60))
                     .await;
 
-                cluster
-                    .wait_for_objects_snapshot_catchup(Duration::from_secs(60))
-                    .await;
+                // wait_for_objects_snapshot_catchup(graphql_client,
+                // Duration::from_secs(180)).await;
 
-                if let Some(wait_for_checkpoint_pruned) = wait_for_checkpoint_pruned {
-                    cluster
-                        .wait_for_checkpoint_pruned(
-                            wait_for_checkpoint_pruned,
-                            Duration::from_secs(60),
-                        )
+                if let Some(checkpoint_to_prune) = wait_for_checkpoint_pruned {
+                    offchain_reader
+                        .wait_for_pruned_checkpoint(checkpoint_to_prune, Duration::from_secs(60))
                         .await;
                 }
 
                 let interpolated =
                     self.interpolate_query(&contents, &cursors, highest_checkpoint)?;
-                let resp = cluster
-                    .graphql_client
-                    .execute_to_graphql(interpolated.trim().to_owned(), show_usage, vec![], vec![])
+                let resp = offchain_reader
+                    .execute_graphql(interpolated.trim().to_owned(), show_usage)
                     .await?;
 
                 let mut output = vec![];
                 if show_headers {
-                    output.push(format!("Headers: {:#?}", resp.http_headers_without_date()));
+                    output.push(format!("Headers: {:#?}", resp.http_headers.unwrap()));
                 }
                 if show_service_version {
-                    output.push(format!("Service version: {}", resp.graphql_version()?));
+                    output.push(format!(
+                        "Service version: {}",
+                        resp.service_version.unwrap()
+                    ));
                 }
-                output.push(format!("Response: {}", resp.response_body_json_pretty()));
+                output.push(format!("Response: {}", resp.response_body));
 
                 Ok(Some(output.join("\n")))
             }
@@ -734,10 +782,15 @@ impl MoveTestAdapter<'_> for IotaTestAdapter {
                 gas_price,
                 gas_payment,
                 dev_inspect,
+                dry_run,
                 inputs,
             }) => {
                 if dev_inspect && self.is_simulator() {
                     bail!("Dev inspect is not supported on simulator mode");
+                }
+
+                if dry_run && dev_inspect {
+                    bail!("Cannot set both dev-inspect and dry-run");
                 }
 
                 let inputs = self.compiled_state().resolve_args(inputs)?;
@@ -775,7 +828,7 @@ impl MoveTestAdapter<'_> for IotaTestAdapter {
                         )
                     })
                     .collect::<anyhow::Result<Vec<Command>>>()?;
-                let summary = if !dev_inspect {
+                let summary = if !dev_inspect && !dry_run {
                     let gas_budget = gas_budget.unwrap_or(DEFAULT_GAS_BUDGET);
                     let gas_price = gas_price.unwrap_or(self.gas_price);
                     let transaction = self.sign_sponsor_txn(
@@ -794,6 +847,22 @@ impl MoveTestAdapter<'_> for IotaTestAdapter {
                         },
                     );
                     self.execute_txn(transaction).await?
+                } else if dry_run {
+                    let gas_budget = gas_budget.unwrap_or(DEFAULT_GAS_BUDGET);
+                    let gas_price = gas_price.unwrap_or(self.gas_price);
+                    let sender = self.get_sender(sender);
+                    let sponsor = sponsor.map_or(sender, |a| self.get_sender(Some(a)));
+
+                    let payment = self.get_payment(sponsor, gas_payment);
+
+                    let transaction = TransactionData::new_programmable(
+                        sender.address,
+                        vec![payment],
+                        ProgrammableTransaction { inputs, commands },
+                        gas_budget,
+                        gas_price,
+                    );
+                    self.dry_run(transaction).await?
                 } else {
                     assert!(
                         gas_budget.is_none(),
@@ -1156,6 +1225,10 @@ fn merge_output(left: Option<String>, right: Option<String>) -> Option<String> {
 }
 
 impl IotaTestAdapter {
+    pub fn with_offchain_reader(&mut self, offchain_reader: Box<dyn OffchainStateReader>) {
+        self.offchain_reader = Some(offchain_reader);
+    }
+
     pub fn is_simulator(&self) -> bool {
         self.is_simulator
     }
@@ -1198,6 +1271,10 @@ impl IotaTestAdapter {
                 variables.insert(format!("obj_{x}_{y}"), oid.to_string());
                 variables.insert(format!("obj_{x}_{y}_opt"), oid.to_string());
             }
+        }
+
+        for (tid, digest) in &self.digest_enumeration {
+            variables.insert(format!("digest_{tid}"), digest.to_string());
         }
 
         for (idx, s) in cursors.iter().enumerate() {
@@ -1381,6 +1458,19 @@ impl IotaTestAdapter {
         })
     }
 
+    fn get_payment(&self, sponsor: &TestAccount, payment: Option<FakeID>) -> ObjectRef {
+        let payment = if let Some(payment) = payment {
+            self.fake_to_real_object_id(payment)
+                .expect("Could not find specified payment object")
+        } else {
+            sponsor.gas
+        };
+
+        self.get_object(&payment, None)
+            .unwrap()
+            .compute_object_reference()
+    }
+
     fn sign_sponsor_txn(
         &self,
         sender: Option<String>,
@@ -1398,17 +1488,7 @@ impl IotaTestAdapter {
         let sender = self.get_sender(sender);
         let sponsor = sponsor.map_or(sender, |a| self.get_sender(Some(a)));
 
-        let payment = if let Some(payment) = payment {
-            self.fake_to_real_object_id(payment)
-                .expect("Could not find specified payment object")
-        } else {
-            sponsor.gas
-        };
-
-        let payment_ref = self
-            .get_object(&payment, None)
-            .unwrap()
-            .compute_object_reference();
+        let payment_ref = self.get_payment(sponsor, payment);
 
         let data = txn_data(sender.address, sponsor.address, payment_ref);
         if sender.address == sponsor.address {
@@ -1476,6 +1556,19 @@ impl IotaTestAdapter {
             .contains_shared_object();
         let (effects, error_opt) = self.executor.execute_txn(transaction).await?;
         let digest = effects.transaction_digest();
+
+        // Try to assign `digest_$task` to this transaction's digest -- panic if a
+        // transaction has already been set. Currently each task executes at
+        // most one transaction, and everything is fine. This panic triggering
+        // will be an early warning that we need to do something
+        // more sophisticated.
+        let task = self.next_fake.0;
+        if let Some(prev) = self.digest_enumeration.insert(task, *digest) {
+            panic!(
+                "Task {task} executed two transactions (expected at most one): {prev}, {digest}"
+            );
+        }
+
         let mut created_ids: Vec<_> = effects
             .created()
             .iter()
@@ -1563,6 +1656,19 @@ impl IotaTestAdapter {
         }
     }
 
+    async fn dry_run(&mut self, transaction: TransactionData) -> anyhow::Result<TxnSummary> {
+        let digest = transaction.digest();
+        let results = self
+            .executor
+            .dry_run_transaction_block(transaction, digest)
+            .await?;
+        let DryRunTransactionBlockResponse {
+            effects, events, ..
+        } = results;
+
+        self.tx_summary_from_effects(effects, events)
+    }
+
     async fn dev_inspect(
         &mut self,
         sender: IotaAddress,
@@ -1576,6 +1682,19 @@ impl IotaTestAdapter {
         let DevInspectResults {
             effects, events, ..
         } = results;
+        self.tx_summary_from_effects(effects, events)
+    }
+
+    fn tx_summary_from_effects(
+        &mut self,
+        effects: IotaTransactionBlockEffects,
+        events: IotaTransactionBlockEvents,
+    ) -> anyhow::Result<TxnSummary> {
+        if let IotaExecutionStatus::Failure { error } = effects.status() {
+            return Err(anyhow::anyhow!(self.stabilize_str(format!(
+                "Transaction Effects Status: {error}\nExecution Error: {error}",
+            ))));
+        }
         let mut created_ids: Vec<_> = effects.created().iter().map(|o| o.object_id()).collect();
         let mut mutated_ids: Vec<_> = effects.mutated().iter().map(|o| o.object_id()).collect();
         let mut unwrapped_ids: Vec<_> = effects.unwrapped().iter().map(|o| o.object_id()).collect();
@@ -1613,30 +1732,24 @@ impl IotaTestAdapter {
         unwrapped_then_deleted_ids.sort_by_key(|id| self.real_to_fake_object_id(id));
         wrapped_ids.sort_by_key(|id| self.real_to_fake_object_id(id));
 
-        match effects.status() {
-            IotaExecutionStatus::Success => {
-                let events = events
-                    .data
-                    .into_iter()
-                    .map(|iota_event| iota_event.into())
-                    .collect();
-                Ok(TxnSummary {
-                    events,
-                    gas_summary: gas_summary.clone(),
-                    created: created_ids,
-                    mutated: mutated_ids,
-                    unwrapped: unwrapped_ids,
-                    deleted: deleted_ids,
-                    unwrapped_then_deleted: unwrapped_then_deleted_ids,
-                    wrapped: wrapped_ids,
-                    // TODO: Properly propagate unchanged shared objects in dev_inspect.
-                    unchanged_shared: vec![],
-                })
-            }
-            IotaExecutionStatus::Failure { error } => Err(anyhow::anyhow!(self.stabilize_str(
-                format!("Transaction Effects Status: {error}\nExecution Error: {error}",)
-            ))),
-        }
+        let events = events
+            .data
+            .into_iter()
+            .map(|iota_event| iota_event.into())
+            .collect();
+
+        Ok(TxnSummary {
+            events,
+            gas_summary: gas_summary.clone(),
+            created: created_ids,
+            mutated: mutated_ids,
+            unwrapped: unwrapped_ids,
+            deleted: deleted_ids,
+            unwrapped_then_deleted: unwrapped_then_deleted_ids,
+            wrapped: wrapped_ids,
+            // TODO: Properly propagate unchanged shared objects in dev_inspect.
+            unchanged_shared: vec![],
+        })
     }
 
     fn get_object(&self, id: &ObjectID, version: Option<SequenceNumber>) -> anyhow::Result<Object> {
@@ -1911,6 +2024,22 @@ impl fmt::Display for FakeID {
     }
 }
 
+impl Default for AdapterInitConfig {
+    fn default() -> Self {
+        Self {
+            additional_mapping: BTreeMap::new(),
+            account_names: BTreeSet::new(),
+            protocol_config: ProtocolConfig::get_for_max_version_UNSAFE(),
+            is_simulator: false,
+            custom_validator_account: false,
+            reference_gas_price: None,
+            default_gas_price: None,
+            flavor: None,
+            offchain_config: None,
+        }
+    }
+}
+
 static NAMED_ADDRESSES: Lazy<BTreeMap<String, NumericalAddress>> = Lazy::new(|| {
     let mut map = move_stdlib::move_stdlib_named_addresses();
     assert!(map.get("std").unwrap().into_inner() == MOVE_STDLIB_ADDRESS);
@@ -2047,7 +2176,7 @@ async fn init_val_fullnode_executor(
 ) -> (
     Box<dyn TransactionalAdapter>,
     AccountSetup,
-    Option<ExecutorCluster>,
+    Option<Arc<dyn RestStateReader + Send + Sync>>,
 ) {
     // Initial list of named addresses with specified values
     let mut named_address_mapping = NAMED_ADDRESSES.clone();
@@ -2113,13 +2242,11 @@ async fn init_sim_executor(
     protocol_config: &ProtocolConfig,
     custom_validator_account: bool,
     reference_gas_price: Option<u64>,
-    objects_snapshot_min_checkpoint_lag: Option<usize>,
-    test_file_path: PathBuf,
-    epochs_to_keep: Option<u64>,
+    data_ingestion_path: PathBuf,
 ) -> (
     Box<dyn TransactionalAdapter>,
     AccountSetup,
-    Option<ExecutorCluster>,
+    Option<Arc<dyn RestStateReader + Send + Sync>>,
 ) {
     // Initial list of named addresses with specified values
     let mut named_address_mapping = NAMED_ADDRESSES.clone();
@@ -2182,37 +2309,8 @@ async fn init_sim_executor(
             reference_gas_price,
             None,
         );
-    let data_ingestion_path = tempdir().unwrap().into_path();
+
     sim.set_data_ingestion_path(data_ingestion_path.clone());
-
-    // Hash the file path to create custom unique DB name
-    let mut hasher = std::collections::hash_map::DefaultHasher::new();
-    test_file_path.hash(&mut hasher);
-    let hash = hasher.finish();
-    let db_name = format!("iota_graphql_test_{}", hash);
-
-    // Use the hash as a seed to generate a random port number
-    let base_port = hash as u16 % 8192;
-
-    let graphql_port = 20000 + base_port;
-    let graphql_prom_port = graphql_port + 1;
-    let internal_data_port = graphql_prom_port + 1;
-    let cluster = serve_executor(
-        ConnectionConfig::ci_integration_test_cfg_with_db_name(
-            db_name,
-            graphql_port,
-            graphql_prom_port,
-        ),
-        internal_data_port,
-        Arc::new(read_replica),
-        Some(SnapshotLagConfig::new(
-            objects_snapshot_min_checkpoint_lag,
-            Some(1),
-        )),
-        epochs_to_keep,
-        data_ingestion_path,
-    )
-    .await;
 
     // Get the actual object values from the simulator
     for (name, (addr, kp)) in account_kps {
@@ -2271,7 +2369,7 @@ async fn init_sim_executor(
             account_objects,
             accounts,
         },
-        Some(cluster),
+        Some(Arc::new(read_replica)),
     )
 }
 

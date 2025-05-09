@@ -72,8 +72,6 @@ move-package:
   - "external-crates/move/crates/move-package/**"
 move-proc-macros:
   - "external-crates/move/crates/move-proc-macros/**"
-move-prover-test-utils:
-  - "external-crates/move/crates/move-prover-test-utils/**"
 move-stackless-bytecode:
   - "external-crates/move/crates/move-stackless-bytecode/**"
 move-stdlib:

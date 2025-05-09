@@ -1,0 +1,35 @@
+---
+source: external-crates/move/crates/move-transactional-test-runner/src/framework.rs
+---
+processed 4 tasks
+
+init:
+A: object(0,0)
+
+task 1, lines 9-25:
+//# publish
+created: object(1,0)
+mutated: object(0,1)
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 5380800,  storage_rebate: 0, non_refundable_storage_fee: 0
+
+task 2, lines 27-36:
+//# programmable --inputs 0
+// imm borrow and copy
+//> test::m1::copy_imm(Input(0), Input(0));
+//> test::m1::copy_imm(Input(0), Input(0));
+// can copy even after being mutably borrowed
+//> test::m1::copy_mut(Input(0), Input(0));
+//> test::m1::mut_copy(Input(0), Input(0));
+//> test::m1::copy_mut_copy(Input(0), Input(0), Input(0));
+// mix all and borrow multiple times
+//> test::m1::multiple_copy(Input(0), Input(0), Input(0), Input(0));
+mutated: object(0,1)
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 980400,  storage_rebate: 980400, non_refundable_storage_fee: 0
+
+task 3, lines 38-41:
+//# programmable
+//> 0: test::m1::r();
+// double borrow without copy
+//> test::m1::double_r(Result(0), Result(0))
+mutated: object(0,1)
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 980400,  storage_rebate: 980400, non_refundable_storage_fee: 0

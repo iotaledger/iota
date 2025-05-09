@@ -125,11 +125,15 @@ pub async fn serve_executor(
         .parse()
         .unwrap();
 
+    info!("Starting executor server on {}", executor_server_url);
+
     let executor_server_handle = tokio::spawn(async move {
         iota_rest_api::RestService::new_without_version(executor)
             .start_service(executor_server_url)
             .await;
     });
+
+    info!("spawned executor server");
 
     let (pg_store, pg_handle) = start_test_indexer_impl(
         db_url,

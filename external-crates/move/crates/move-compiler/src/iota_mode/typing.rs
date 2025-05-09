@@ -9,18 +9,18 @@ use move_symbol_pool::Symbol;
 
 use crate::{
     diag,
-    diagnostics::{Diagnostic, DiagnosticReporter, Diagnostics, warning_filters::WarningFilters},
+    diagnostics::{warning_filters::WarningFilters, Diagnostic, DiagnosticReporter, Diagnostics},
     editions::Flavor,
     expansion::ast::{AbilitySet, Fields, ModuleIdent, Mutability, Visibility},
-    iota_mode::*,
     naming::ast::{
-        self as N, BuiltinTypeName_, FunctionSignature, StructFields, Type, Type_, TypeName_, Var,
+        self as N, BuiltinTypeName_, FunctionSignature, StructFields, Type, TypeName_, Type_, Var,
     },
     parser::ast::{Ability_, DatatypeName, DocComment, FunctionName, TargetKind},
-    shared::{CompilationEnv, Identifier, program_info::TypingProgramInfo},
+    shared::{program_info::TypingProgramInfo, CompilationEnv, Identifier},
+    iota_mode::*,
     typing::{
         ast::{self as T, ModuleCall},
-        core::{Subst, ability_not_satisfied_tips, error_format, error_format_},
+        core::{ability_not_satisfied_tips, error_format, error_format_, Subst},
         visitor::{TypingVisitorConstructor, TypingVisitorContext},
     },
 };

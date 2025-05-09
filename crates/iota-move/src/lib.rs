@@ -5,7 +5,7 @@
 use std::path::Path;
 
 use clap::Parser;
-use iota_move_build::set_iota_flavor;
+use iota_move_build::{IotaPackageHooks, set_iota_flavor};
 use move_cli::base::test::UnitTestResult;
 use move_package::BuildConfig;
 
@@ -43,6 +43,7 @@ pub fn execute_move_command(
     if let Some(err_msg) = set_iota_flavor(&mut build_config) {
         anyhow::bail!(err_msg);
     }
+    move_package::package_hooks::register_package_hooks(Box::new(IotaPackageHooks));
     match command {
         Command::Build(c) => c.execute(package_path, build_config),
         Command::Coverage(c) => c.execute(package_path, build_config),
