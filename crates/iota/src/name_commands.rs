@@ -52,50 +52,6 @@ use crate::{
 /// The overbid must be at least of 1 IOTA, which is 10^9 NANOs
 const MIN_OVERBID: u64 = 1_000_000_000;
 
-/// Commands related to the auction system
-#[derive(Parser)]
-pub enum AuctionCommand {
-    /// Place a new bid
-    Bid {
-        /// The full name of the domain. Ex. my-domain.iota
-        domain: Domain,
-        /// The initial bid amount. Must be at least the minimum cost of the
-        /// domain. Defaults to the minimum.
-        #[arg(long)]
-        amount: Option<u64>,
-        /// The coin to use for payment. If not provided, selects the first coin
-        /// with enough balance.
-        #[arg(long)]
-        coin: Option<ObjectID>,
-        #[command(flatten)]
-        opts: OptsWithGas,
-    },
-    /// Claim the name if the auction winner is the sender
-    Claim {
-        /// The full name of the domain. Ex. my-domain.iota
-        domain: Domain,
-        #[command(flatten)]
-        opts: OptsWithGas,
-    },
-    /// Get metadata of an auction
-    Metadata { domain: Domain },
-    /// Start an auction, if it's not started yet, and make the first bid
-    Start {
-        /// The full name of the domain. Ex. my-domain.iota
-        domain: Domain,
-        /// The initial bid amount. Must be at least the minimum cost of the
-        /// domain. Defaults to the minimum.
-        #[arg(long)]
-        amount: Option<u64>,
-        /// The coin to use for payment. If not provided, selects the first coin
-        /// with enough balance.
-        #[arg(long)]
-        coin: Option<ObjectID>,
-        #[command(flatten)]
-        opts: OptsWithGas,
-    },
-}
-
 /// Tool to register and manage domains and subdomains
 #[derive(Parser)]
 pub enum NameCommand {
@@ -222,153 +178,7 @@ impl NameCommand {
         let iota_client = context.get_client().await?;
 
         Ok(match self {
-            Self::Auction(AuctionCommand::Bid {
-                domain,
-                amount,
-                coin,
-                opts,
-            }) => {
-                let graphql_client = SimpleClient::new(
-                    context
-                        .active_env()?
-                        .graphql()
-                        .as_ref()
-                        .ok_or_else(|| anyhow::anyhow!("missing graphql url in IotaEnv"))?,
-                );
-                let auction_package_address = get_auction_package_address(&iota_client).await?;
-                let auction_house_id =
-                    get_auction_house_id(auction_package_address, &graphql_client).await?;
-                let auction_house =
-                    get_object_from_bcs::<AuctionHouse>(&iota_client, auction_house_id).await?;
-
-                let auction = auction_house.get_auction(&domain, &iota_client).await?;
-                let min_price = auction.current_bid.value() + MIN_OVERBID;
-                let amount = amount.unwrap_or(min_price);
-                anyhow::ensure!(
-                    amount >= min_price,
-                    "bid amount must be at least {min_price} for this domain"
-                );
-                let coin =
-                    select_coin_for_payment(&domain.to_string(), coin, amount, context).await?;
-
-                let mut args = vec![
-                    format!("--split-coins @{coin} [{amount}]"),
-                    "--assign coins".to_string(),
-                    format!(
-                        "--move-call {auction_package_address}::auction::place_bid @{} '{}' coins.0 @{IOTA_CLOCK_OBJECT_ID}",
-                        auction_house_id,
-                        domain.to_string(),
-                    ),
-                ];
-                args.extend(opts.into_args());
-
-                NameCommandResult::Client(
-                    IotaClientCommands::PTB(PTB {
-                        args,
-                        display: Default::default(),
-                    })
-                    .execute(context)
-                    .await?,
-                )
-            }
-            Self::Auction(AuctionCommand::Claim { domain, opts }) => {
-                let graphql_client = SimpleClient::new(
-                    context
-                        .active_env()?
-                        .graphql()
-                        .as_ref()
-                        .ok_or_else(|| anyhow::anyhow!("missing graphql url in IotaEnv"))?,
-                );
-                let auction_package_address = get_auction_package_address(&iota_client).await?;
-                let auction_house_id =
-                    get_auction_house_id(auction_package_address, &graphql_client).await?;
-
-                let mut args = vec![
-                    "--move-call iota::tx_context::sender".to_string(),
-                    "--assign sender".to_string(),
-                    format!(
-                        "--move-call {auction_package_address}::auction::claim @{auction_house_id} '{domain}' @{IOTA_CLOCK_OBJECT_ID}",
-                    ),
-                    "--assign nft".to_string(),
-                    "--transfer-objects [nft] sender".to_string(),
-                ];
-                args.extend(opts.into_args());
-
-                NameCommandResult::Client(
-                    IotaClientCommands::PTB(PTB {
-                        args,
-                        display: Default::default(),
-                    })
-                    .execute(context)
-                    .await?,
-                )
-            }
-            Self::Auction(AuctionCommand::Metadata { domain }) => {
-                let graphql_client = SimpleClient::new(
-                    context
-                        .active_env()?
-                        .graphql()
-                        .as_ref()
-                        .ok_or_else(|| anyhow::anyhow!("missing graphql url in IotaEnv"))?,
-                );
-                NameCommandResult::AuctionMetadata(
-                    get_auction_house(&iota_client, &graphql_client)
-                        .await?
-                        .get_auction(&domain, &iota_client)
-                        .await?,
-                )
-            }
-            Self::Auction(AuctionCommand::Start {
-                domain,
-                amount,
-                coin,
-                opts,
-            }) => {
-                let graphql_client = SimpleClient::new(
-                    context
-                        .active_env()?
-                        .graphql()
-                        .as_ref()
-                        .ok_or_else(|| anyhow::anyhow!("missing graphql url in IotaEnv"))?,
-                );
-                let auction_package_address = get_auction_package_address(&iota_client).await?;
-                let auction_house_id =
-                    get_auction_house_id(auction_package_address, &graphql_client).await?;
-
-                let min_price = fetch_pricing_config(&iota_client)
-                    .await?
-                    .get_price(domain.label(1).unwrap())?;
-                let amount = amount.unwrap_or(min_price);
-                anyhow::ensure!(
-                    amount >= min_price,
-                    "bid amount must be at least {min_price} for this domain"
-                );
-                let coin =
-                    select_coin_for_payment(&domain.to_string(), coin, amount, context).await?;
-
-                let iota_names_config = get_iota_names_config(&iota_client).await?;
-
-                let mut args = vec![
-                    format!("--split-coins @{coin} [{amount}]"),
-                    "--assign coins".to_string(),
-                    format!(
-                        "--move-call {auction_package_address}::auction::start_auction_and_place_bid @{} @{} '{}' coins.0 @{IOTA_CLOCK_OBJECT_ID}",
-                        auction_house_id,
-                        iota_names_config.object_id,
-                        domain.to_string(),
-                    ),
-                ];
-                args.extend(opts.into_args());
-
-                NameCommandResult::Client(
-                    IotaClientCommands::PTB(PTB {
-                        args,
-                        display: Default::default(),
-                    })
-                    .execute(context)
-                    .await?,
-                )
-            }
+            Self::Auction(cmd) => cmd.execute(context).await?,
             Self::Burn { domain, opts } => {
                 let nft = get_owned_nft_by_name::<IotaNamesRegistration>(&domain, context).await?;
 
@@ -725,6 +535,185 @@ impl NameCommand {
                         gas_price: None,
                         opts,
                     }
+                    .execute(context)
+                    .await?,
+                )
+            }
+        })
+    }
+}
+
+/// Commands related to the auction system
+#[derive(Parser)]
+pub enum AuctionCommand {
+    /// Place a new bid
+    Bid {
+        /// The full name of the domain. Ex. my-domain.iota
+        domain: Domain,
+        /// The bid amount. Must be at least one IOTA more than the last highest
+        /// bid. Defaults to the minimum possible bid.
+        #[arg(long)]
+        amount: Option<u64>,
+        /// The coin to use for payment. If not provided, selects the first coin
+        /// with enough balance.
+        #[arg(long)]
+        coin: Option<ObjectID>,
+        #[command(flatten)]
+        opts: OptsWithGas,
+    },
+    /// Claim the name if the auction winner is the sender
+    Claim {
+        /// The full name of the domain. Ex. my-domain.iota
+        domain: Domain,
+        #[command(flatten)]
+        opts: OptsWithGas,
+    },
+    /// Get metadata of an auction
+    Metadata { domain: Domain },
+    /// Start an auction, if it's not started yet, and make the first bid
+    Start {
+        /// The full name of the domain. Ex. my-domain.iota
+        domain: Domain,
+        /// The initial bid amount. Must be at least the minimum cost of the
+        /// domain. Defaults to the minimum.
+        #[arg(long)]
+        amount: Option<u64>,
+        /// The coin to use for payment. If not provided, selects the first coin
+        /// with enough balance.
+        #[arg(long)]
+        coin: Option<ObjectID>,
+        #[command(flatten)]
+        opts: OptsWithGas,
+    },
+}
+
+impl AuctionCommand {
+    pub async fn execute(
+        self,
+        context: &mut WalletContext,
+    ) -> Result<NameCommandResult, anyhow::Error> {
+        let iota_client = context.get_client().await?;
+        let graphql_client = SimpleClient::new(
+            context
+                .active_env()?
+                .graphql()
+                .as_ref()
+                .ok_or_else(|| anyhow::anyhow!("missing graphql url in IotaEnv"))?,
+        );
+        Ok(match self {
+            Self::Bid {
+                domain,
+                amount,
+                coin,
+                opts,
+            } => {
+                let auction_package_address = get_auction_package_address(&iota_client).await?;
+                let auction_house_id =
+                    get_auction_house_id(auction_package_address, &graphql_client).await?;
+                let auction_house =
+                    get_object_from_bcs::<AuctionHouse>(&iota_client, auction_house_id).await?;
+
+                let auction = auction_house.get_auction(&domain, &iota_client).await?;
+                let min_price = auction.current_bid.value() + MIN_OVERBID;
+                let amount = amount.unwrap_or(min_price);
+                anyhow::ensure!(
+                    amount >= min_price,
+                    "bid amount must be at least {min_price} for this domain"
+                );
+                let coin =
+                    select_coin_for_payment(&domain.to_string(), coin, amount, context).await?;
+
+                let mut args = vec![
+                    format!("--split-coins @{coin} [{amount}]"),
+                    "--assign coins".to_string(),
+                    format!(
+                        "--move-call {auction_package_address}::auction::place_bid @{} '{}' coins.0 @{IOTA_CLOCK_OBJECT_ID}",
+                        auction_house_id,
+                        domain.to_string(),
+                    ),
+                ];
+                args.extend(opts.into_args());
+
+                NameCommandResult::Client(
+                    IotaClientCommands::PTB(PTB {
+                        args,
+                        display: Default::default(),
+                    })
+                    .execute(context)
+                    .await?,
+                )
+            }
+            Self::Claim { domain, opts } => {
+                let auction_package_address = get_auction_package_address(&iota_client).await?;
+                let auction_house_id =
+                    get_auction_house_id(auction_package_address, &graphql_client).await?;
+
+                let mut args = vec![
+                    "--move-call iota::tx_context::sender".to_string(),
+                    "--assign sender".to_string(),
+                    format!(
+                        "--move-call {auction_package_address}::auction::claim @{auction_house_id} '{domain}' @{IOTA_CLOCK_OBJECT_ID}",
+                    ),
+                    "--assign nft".to_string(),
+                    "--transfer-objects [nft] sender".to_string(),
+                ];
+                args.extend(opts.into_args());
+
+                NameCommandResult::Client(
+                    IotaClientCommands::PTB(PTB {
+                        args,
+                        display: Default::default(),
+                    })
+                    .execute(context)
+                    .await?,
+                )
+            }
+            Self::Metadata { domain } => NameCommandResult::AuctionMetadata(
+                get_auction_house(&iota_client, &graphql_client)
+                    .await?
+                    .get_auction(&domain, &iota_client)
+                    .await?,
+            ),
+            Self::Start {
+                domain,
+                amount,
+                coin,
+                opts,
+            } => {
+                let auction_package_address = get_auction_package_address(&iota_client).await?;
+                let auction_house_id =
+                    get_auction_house_id(auction_package_address, &graphql_client).await?;
+
+                let min_price = fetch_pricing_config(&iota_client)
+                    .await?
+                    .get_price(domain.label(1).unwrap())?;
+                let amount = amount.unwrap_or(min_price);
+                anyhow::ensure!(
+                    amount >= min_price,
+                    "bid amount must be at least {min_price} for this domain"
+                );
+                let coin =
+                    select_coin_for_payment(&domain.to_string(), coin, amount, context).await?;
+
+                let iota_names_config = get_iota_names_config(&iota_client).await?;
+
+                let mut args = vec![
+                    format!("--split-coins @{coin} [{amount}]"),
+                    "--assign coins".to_string(),
+                    format!(
+                        "--move-call {auction_package_address}::auction::start_auction_and_place_bid @{} @{} '{}' coins.0 @{IOTA_CLOCK_OBJECT_ID}",
+                        auction_house_id,
+                        iota_names_config.object_id,
+                        domain.to_string(),
+                    ),
+                ];
+                args.extend(opts.into_args());
+
+                NameCommandResult::Client(
+                    IotaClientCommands::PTB(PTB {
+                        args,
+                        display: Default::default(),
+                    })
                     .execute(context)
                     .await?,
                 )
