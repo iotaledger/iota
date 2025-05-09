@@ -178,7 +178,7 @@ export function AccountBalanceItem({
                     <small>
                         For an accurate portfolio view, ensure your total balance matches the total
                         of your found IOTA, vested, and migration funds. Check the Dashboard tabs
-                        the Dashboard tabs for details
+                        for details
                     </small>
                 </div>
             )}
