@@ -60,17 +60,15 @@ export function StakedCard({
         );
     }, [validatorAddress, data]);
 
+    const name = validatorMeta?.name || validatorAddress;
+
     return (
         <Card testId="staked-card" type={CardType.Default} isHoverable onClick={onClick}>
             <CardImage>
-                <ImageIcon
-                    src={validatorMeta?.imageUrl || null}
-                    label={validatorMeta?.name || ''}
-                    fallback={validatorMeta?.name || ''}
-                />
+                <ImageIcon src={validatorMeta?.imageUrl || null} label={name} fallback={name} />
             </CardImage>
             <CardBody
-                title={validatorMeta?.name || '--'}
+                title={name}
                 subtitle={`${principalStaked} ${symbol}`}
                 icon={
                     activeButNotInTheCommittee ? (
