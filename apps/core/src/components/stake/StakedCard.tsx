@@ -60,14 +60,11 @@ export function StakedCard({
     }, [validatorAddress, data]);
     const { data: inactiveValidatorData } = useGetInactiveValidator(validatorAddress);
     const validatorData = validatorMeta || inactiveValidatorData || null;
+    const name = validatorData?.name || validatorAddress;
     return (
         <Card testId="staked-card" type={CardType.Default} isHoverable onClick={onClick}>
             <CardImage>
-                <ImageIcon
-                    src={validatorData?.imageUrl || null}
-                    label={validatorData?.name || ''}
-                    fallback={validatorData?.name || ''}
-                />
+                <ImageIcon src={validatorMeta?.imageUrl || null} label={name} fallback={name} />
             </CardImage>
             <CardBody
                 title={validatorData?.name || '--'}

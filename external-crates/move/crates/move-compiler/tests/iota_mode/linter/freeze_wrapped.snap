@@ -1,0 +1,89 @@
+---
+source: crates/move-compiler/tests/move_check_testsuite.rs
+info:
+  flavor: iota
+  edition: legacy
+  lint: true
+---
+warning[Lint W99004]: attempting to freeze wrapped objects
+   ┌─ tests/iota_mode/linter/freeze_wrapped.move:44:40
+   │
+16 │         inner: Inner,
+   │                ----- The field of this type is a wrapped object
+   ·
+44 │         transfer::public_freeze_object(w);
+   │                                        ^ Freezing an object of type 'Wrapper' also freezes all objects wrapped in its field 'inner'.
+   │
+   = This warning can be suppressed with '#[allow(lint(freeze_wrapped))]' applied to the 'module' or module member ('const', 'fun', or 'struct')
+
+warning[Lint W99004]: attempting to freeze wrapped objects
+   ┌─ tests/iota_mode/linter/freeze_wrapped.move:48:40
+   │
+10 │     struct Inner has key, store {
+   │            ----- Indirectly wrapped object is of this type
+   ·
+25 │         s: S,
+   │            - The field of this type indirectly contains a wrapped object
+   ·
+48 │         transfer::public_freeze_object(w);
+   │                                        ^ Freezing an object of type 'IndirectWrapper' also freezes all objects wrapped in its field 's'.
+   │
+   = This warning can be suppressed with '#[allow(lint(freeze_wrapped))]' applied to the 'module' or module member ('const', 'fun', or 'struct')
+
+warning[Lint W99004]: attempting to freeze wrapped objects
+   ┌─ tests/iota_mode/linter/freeze_wrapped.move:53:40
+   │
+16 │         inner: Inner,
+   │                ----- The field of this type is a wrapped object
+   ·
+53 │         transfer::public_freeze_object(v);
+   │                                        ^ Freezing an object of type 'Wrapper' also freezes all objects wrapped in its field 'inner'.
+   │
+   = This warning can be suppressed with '#[allow(lint(freeze_wrapped))]' applied to the 'module' or module member ('const', 'fun', or 'struct')
+
+warning[Lint W99004]: attempting to freeze wrapped objects
+   ┌─ tests/iota_mode/linter/freeze_wrapped.move:57:40
+   │
+30 │         inner: T,
+   │                - The field of this type is a wrapped object
+   ·
+57 │         transfer::public_freeze_object(w);
+   │                                        ^ Freezing an object of type 'GenWrapper' also freezes all objects wrapped in its field 'inner'.
+   │
+   = This warning can be suppressed with '#[allow(lint(freeze_wrapped))]' applied to the 'module' or module member ('const', 'fun', or 'struct')
+
+warning[Lint W99004]: attempting to freeze wrapped objects
+   ┌─ tests/iota_mode/linter/freeze_wrapped.move:61:40
+   │
+33 │     struct S2<T: key + store> has store {
+   │               - Indirectly wrapped object is of this type
+   ·
+39 │         inner: S2<T>,
+   │                ----- The field of this type indirectly contains a wrapped object
+   ·
+61 │         transfer::public_freeze_object(w);
+   │                                        ^ Freezing an object of type 'IndirectGenWrapper' also freezes all objects wrapped in its field 'inner'.
+   │
+   = This warning can be suppressed with '#[allow(lint(freeze_wrapped))]' applied to the 'module' or module member ('const', 'fun', or 'struct')
+
+warning[Lint W99004]: attempting to freeze wrapped objects
+   ┌─ tests/iota_mode/linter/freeze_wrapped.move:65:40
+   │
+16 │         inner: Inner,
+   │                ----- The field of this type is a wrapped object
+   ·
+65 │         transfer::public_freeze_object({ transfer::public_freeze_object(w1) ; w2});
+   │                                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Freezing an object of type 'Wrapper' also freezes all objects wrapped in its field 'inner'.
+   │
+   = This warning can be suppressed with '#[allow(lint(freeze_wrapped))]' applied to the 'module' or module member ('const', 'fun', or 'struct')
+
+warning[Lint W99004]: attempting to freeze wrapped objects
+   ┌─ tests/iota_mode/linter/freeze_wrapped.move:65:73
+   │
+16 │         inner: Inner,
+   │                ----- The field of this type is a wrapped object
+   ·
+65 │         transfer::public_freeze_object({ transfer::public_freeze_object(w1) ; w2});
+   │                                                                         ^^ Freezing an object of type 'Wrapper' also freezes all objects wrapped in its field 'inner'.
+   │
+   = This warning can be suppressed with '#[allow(lint(freeze_wrapped))]' applied to the 'module' or module member ('const', 'fun', or 'struct')
