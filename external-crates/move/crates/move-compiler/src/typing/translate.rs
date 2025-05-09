@@ -3,27 +3,18 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{
-    collections::{BTreeMap, BTreeSet, VecDeque},
-    sync::Arc,
-};
-
-use move_ir_types::location::*;
-use move_proc_macros::growing_stack;
-use rayon::prelude::*;
-
 use crate::{
-    FullyCompiledProgram, diag,
-    diagnostics::{Diagnostic, codes::*},
+    diag,
+    diagnostics::{codes::*, Diagnostic},
     editions::{FeatureGate, Flavor},
     expansion::ast::{
-        AbilitySet, Attribute, Attribute_, AttributeValue_, DottedUsage, Fields, Friend,
+        AbilitySet, Attribute, AttributeValue_, Attribute_, DottedUsage, Fields, Friend,
         ModuleAccess_, ModuleIdent, ModuleIdent_, Mutability, Value_, Visibility,
     },
-    ice, ice_assert, iota_mode,
+    ice, ice_assert,
     naming::ast::{
         self as N, BlockLabel, DatatypeTypeParameter, IndexSyntaxMethods, TParam, TParamID, Type,
-        Type_, TypeName, TypeName_,
+        TypeName, TypeName_, Type_,
     },
     parser::ast::{
         Ability_, BinOp, BinOp_, ConstantName, DatatypeName, DocComment, Field, FunctionName,
@@ -38,16 +29,25 @@ use crate::{
         unique_map::UniqueMap,
         *,
     },
+    iota_mode,
     typing::{
         ast::{self as T},
         core::{
-            self, Context, PublicForTesting, ResolvedFunctionType, Subst,
-            public_testing_visibility, report_visibility_error,
+            self, public_testing_visibility, report_visibility_error, Context, PublicForTesting,
+            ResolvedFunctionType, Subst,
         },
         dependency_ordering, expand, infinite_instantiations, macro_expand, match_analysis,
         recursive_datatypes,
         syntax_methods::validate_syntax_methods,
     },
+    FullyCompiledProgram,
+};
+use move_ir_types::location::*;
+use move_proc_macros::growing_stack;
+use rayon::prelude::*;
+use std::{
+    collections::{BTreeMap, BTreeSet, VecDeque},
+    sync::Arc,
 };
 
 //**************************************************************************************************
