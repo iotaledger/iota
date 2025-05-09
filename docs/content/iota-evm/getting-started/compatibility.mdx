@@ -10,6 +10,7 @@ teams:
   - iotaledger/l2-smart-contract
 ---
 
+import Decimals from '../../_snippets/iota-evm/decimals.md';
 import QueryGasFees from '../../_snippets/iota-evm/query_gas_fees.md';
 
 # EVM Compatibility in IOTA Smart Contracts
@@ -39,7 +40,9 @@ not enforce an average _block time_. This means that block times are variable; a
 ### The Magic Contract
 
 A [dedicated Ethereum contract](../how-tos/core-contracts/introduction.md) exists to manage Layer 1 tokens and ISC
-functionalities, introducing commands like `isc.send(...)` for token transfers.
+functionalities, introducing commands like `isc.transferToL1(...)` for token transfers.
+
+<Decimals />
 
 ### Gas Fees
 

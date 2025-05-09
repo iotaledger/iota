@@ -11,7 +11,7 @@ teams:
 
 # Get Balance
 
-Once you have your L1 assets on L2, you might want to check their balance. This guide explains how to do so by calling the three functions `getL2BalanceBaseTokens`, `getL2BalanceNativeTokens`and `getL2NFTAmount` for the corresponding token types.
+Once you have your L1 assets on L2, you might want to check their balance. This guide explains how to do so by calling the three functions `getL2BalanceBaseTokens`, `getL2BalanceCoin` and `getL2ObjectsCount` for the corresponding token types.
 
 ## Example Code
 
@@ -27,17 +27,10 @@ ISCAgentID memory agentID = ISC.sandbox.getSenderAccount();
 uint64 baseBalance = ISC.accounts.getL2BalanceBaseTokens(agentID);
 ```
 
-3. To get the native token balance of a specific `NativeTokenID`, use `ISC.accounts.getL2BalanceNativeTokens` with the `id` and `agentID`.
+3. To get the number coins/Objects, use `ISC.accounts.getL2ObjectsCount` with the `agentID`.
 
 ```solidity
-NativeTokenID memory id = NativeTokenID({ data: nativeTokenID});
-uint256 nativeTokens = ISC.accounts.getL2BalanceNativeTokens(id, agentID);
-```
-
-4. To get the number of NFTs, use `ISC.accounts.getL2NFTAmount` with the `agentID`.
-
-```solidity
-uint256 nfts = ISC.accounts.getL2NFTAmount(agentID);
+uint256 object = ISC.accounts.getL2ObjectsCount(agentID);
 ```
 
 ### Full Example Code
@@ -53,21 +46,17 @@ contract GetBalance {
     event GotAgentID(bytes agentID);
     event GotBaseBalance(uint64 baseBalance);
     event GotNativeTokenBalance(uint256 nativeTokenBalance);
-    event GotNFTIDs(uint256 nftBalance);
+    event GotObjectIDs(uint256 objectBalance);
 
-    function getBalance(bytes memory nativeTokenID) public {
+    function getBalanceCoins() public {
         ISCAgentID memory agentID = ISC.sandbox.getSenderAccount();
-        emit GotAgentID(agentID.data);
-        
         uint64 baseBalance = ISC.accounts.getL2BalanceBaseTokens(agentID);
         emit GotBaseBalance(baseBalance);
-
-        NativeTokenID memory id = NativeTokenID({ data: nativeTokenID});
-        uint256 nativeTokens = ISC.accounts.getL2BalanceNativeTokens(id, agentID);
-        emit GotNativeTokenBalance(nativeTokens);
-
-        uint256 nfts = ISC.accounts.getL2NFTAmount(agentID);
-        emit GotNativeTokenBalance(nfts);
+    }
+    
+    function getAgentID() public {
+        ISCAgentID memory agentID = ISC.sandbox.getSenderAccount();
+        emit GotAgentID(agentID.data);
     }
 }
 ```
