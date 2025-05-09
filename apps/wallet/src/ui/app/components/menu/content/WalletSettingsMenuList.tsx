@@ -115,16 +115,15 @@ export function MenuList() {
             onClick: onAutoLockClick,
         },
         {
-            title: 'Get Support',
-            icon: <Exclamation />,
-            onClick: onSupportClick,
-        },
-
-        {
             title: 'Themes',
             icon: <DarkMode />,
             subtitle: themeSubtitle,
             onClick: onThemeClick,
+        },
+        {
+            title: 'Get Support',
+            icon: <Exclamation />,
+            onClick: onSupportClick,
         },
         {
             title: 'Expand View',
