@@ -65,8 +65,8 @@ export function StakedCard({
             <CardImage>
                 <ImageIcon
                     src={validatorMeta?.imageUrl || null}
-                    label={validatorMeta?.name || ''}
-                    fallback={validatorMeta?.name || ''}
+                    label={validatorMeta?.name || validatorAddress}
+                    fallback={validatorMeta?.name || validatorAddress}
                 />
             </CardImage>
             <CardBody

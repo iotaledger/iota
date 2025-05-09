@@ -55,8 +55,8 @@ export function StakedTimelockObject({
             <CardImage>
                 <ImageIcon
                     src={validatorMeta?.imageUrl || null}
-                    label={validatorMeta?.name || ''}
-                    fallback={validatorMeta?.name || ''}
+                    label={validatorMeta?.name || timelockedStakedObject.validatorAddress}
+                    fallback={validatorMeta?.name || timelockedStakedObject.validatorAddress}
                     size={ImageIconSize.Large}
                 />
             </CardImage>
