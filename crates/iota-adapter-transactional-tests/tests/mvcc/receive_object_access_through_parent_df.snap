@@ -1,0 +1,256 @@
+---
+source: external-crates/move/crates/move-transactional-test-runner/src/framework.rs
+---
+processed 14 tasks
+
+init:
+A: object(0,0)
+
+task 1, lines 7-77:
+//# publish
+created: object(1,0)
+mutated: object(0,1)
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 12517200,  storage_rebate: 0, non_refundable_storage_fee: 0
+
+task 2, line 79:
+//# run tto::M1::start --sender A
+created: object(2,0), object(2,1), object(2,2), object(2,3), object(2,4), object(2,5), object(2,6), object(2,7)
+mutated: object(0,0)
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 15230400,  storage_rebate: 0, non_refundable_storage_fee: 0
+
+task 3, line 81:
+//# view-object 2,0
+Owner: Object ID: ( _ )
+Version: 2
+Contents: iota::dynamic_field::Field<iota::dynamic_object_field::Wrapper<u64>, iota::object::ID> {
+    id: iota::object::UID {
+        id: iota::object::ID {
+            bytes: fake(2,0),
+        },
+    },
+    name: iota::dynamic_object_field::Wrapper<u64> {
+        name: 1u64,
+    },
+    value: iota::object::ID {
+        bytes: fake(2,5),
+    },
+}
+
+task 4, line 83:
+//# view-object 2,1
+Owner: Object ID: ( _ )
+Version: 2
+Contents: iota::dynamic_field::Field<u64, tto::M1::A> {
+    id: iota::object::UID {
+        id: iota::object::ID {
+            bytes: fake(2,1),
+        },
+    },
+    name: 0u64,
+    value: tto::M1::A {
+        id: iota::object::UID {
+            id: iota::object::ID {
+                bytes: _,
+            },
+        },
+        value: vector[
+            98u8,
+            95u8,
+            99u8,
+            104u8,
+            105u8,
+            108u8,
+            100u8,
+            95u8,
+            99u8,
+            104u8,
+            105u8,
+            108u8,
+            100u8,
+        ],
+    },
+}
+
+task 5, line 85:
+//# view-object 2,2
+Owner: Object ID: ( _ )
+Version: 2
+Contents: iota::dynamic_field::Field<u64, tto::M1::A> {
+    id: iota::object::UID {
+        id: iota::object::ID {
+            bytes: fake(2,2),
+        },
+    },
+    name: 0u64,
+    value: tto::M1::A {
+        id: iota::object::UID {
+            id: iota::object::ID {
+                bytes: _,
+            },
+        },
+        value: vector[
+            119u8,
+            114u8,
+            97u8,
+            112u8,
+            112u8,
+            101u8,
+            100u8,
+            95u8,
+            100u8,
+            111u8,
+            102u8,
+        ],
+    },
+}
+
+task 6, line 87:
+//# view-object 2,3
+Owner: Object ID: ( fake(2,4) )
+Version: 2
+Contents: iota::dynamic_field::Field<u64, tto::M1::A> {
+    id: iota::object::UID {
+        id: iota::object::ID {
+            bytes: fake(2,3),
+        },
+    },
+    name: 0u64,
+    value: tto::M1::A {
+        id: iota::object::UID {
+            id: iota::object::ID {
+                bytes: _,
+            },
+        },
+        value: vector[
+            98u8,
+            95u8,
+            99u8,
+            104u8,
+            105u8,
+            108u8,
+            100u8,
+        ],
+    },
+}
+
+task 7, line 89:
+//# view-object 2,4
+Owner: Account Address ( fake(2,6) )
+Version: 2
+Contents: tto::M1::A {
+    id: iota::object::UID {
+        id: iota::object::ID {
+            bytes: fake(2,4),
+        },
+    },
+    value: vector[
+        98u8,
+        95u8,
+        112u8,
+        97u8,
+        114u8,
+        101u8,
+        110u8,
+        116u8,
+    ],
+}
+
+task 8, line 91:
+//# view-object 2,5
+Owner: Object ID: ( fake(2,0) )
+Version: 2
+Contents: tto::M1::A {
+    id: iota::object::UID {
+        id: iota::object::ID {
+            bytes: fake(2,5),
+        },
+    },
+    value: vector[
+        98u8,
+        95u8,
+        99u8,
+        104u8,
+        105u8,
+        108u8,
+        100u8,
+        95u8,
+        99u8,
+        104u8,
+        105u8,
+        108u8,
+        100u8,
+        95u8,
+        100u8,
+        111u8,
+        102u8,
+    ],
+}
+
+task 9, line 93:
+//# view-object 2,6
+Owner: Account Address ( A )
+Version: 2
+Contents: tto::M1::A {
+    id: iota::object::UID {
+        id: iota::object::ID {
+            bytes: fake(2,6),
+        },
+    },
+    value: vector[
+        97u8,
+        95u8,
+        112u8,
+        97u8,
+        114u8,
+        101u8,
+        110u8,
+        116u8,
+    ],
+}
+
+task 10, lines 95-98:
+//# view-object 2,7
+Owner: Account Address ( fake(2,6) )
+Version: 2
+Contents: tto::M1::Wrapper<tto::M1::A> {
+    id: iota::object::UID {
+        id: iota::object::ID {
+            bytes: fake(2,7),
+        },
+    },
+    value: tto::M1::A {
+        id: iota::object::UID {
+            id: iota::object::ID {
+                bytes: _,
+            },
+        },
+        value: vector[
+            119u8,
+            114u8,
+            97u8,
+            112u8,
+            112u8,
+            101u8,
+            100u8,
+        ],
+    },
+}
+
+task 11, line 99:
+//# run tto::M1::receive_b_parent --args object(2,6) receiving(2,7) --sender A
+Error: Transaction Effects Status: Move Runtime Abort. Location: iota::transfer::receive_impl (function index 12) at offset 0, Abort Code: 2
+Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: MoveAbort(MoveLocation { module: ModuleId { address: iota, name: Identifier("transfer") }, function: 12, instruction: 0, function_name: Some("receive_impl") }, 2), source: Some(VMError { major_status: ABORTED, sub_status: Some(2), message: None, exec_state: None, location: Module(ModuleId { address: iota, name: Identifier("transfer") }), indices: [], offsets: [(FunctionDefinitionIndex(12), 0)] }), command: Some(0) } }
+
+task 12, line 101:
+//# run tto::M1::receive_b_parent --args object(2,6) receiving(2,4) --sender A
+created: object(12,0)
+mutated: object(0,0), object(2,6)
+wrapped: object(2,4)
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 4256000,  storage_rebate: 3534000, non_refundable_storage_fee: 0
+
+task 13, line 103:
+//# run tto::M1::receive_wrapped --args object(2,6) receiving(2,7) --sender A
+created: object(13,0)
+mutated: object(0,0), object(2,6)
+wrapped: object(2,7)
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 4833600,  storage_rebate: 4111600, non_refundable_storage_fee: 0

@@ -11,36 +11,36 @@
 //! with a store ability and passes it as an argument to a "private"
 //! transfer/share/freeze call.
 
-use std::collections::BTreeMap;
-
 use move_core_types::account_address::AccountAddress;
 use move_ir_types::location::*;
 
-use super::{
-    FREEZE_FUN, INVALID_LOC, LINT_WARNING_PREFIX, LinterDiagnosticCategory, LinterDiagnosticCode,
-    RECEIVE_FUN, SHARE_FUN, TRANSFER_FUN, TRANSFER_MOD_NAME,
-};
 use crate::{
     cfgir::{
-        CFGContext, MemberName,
         absint::JoinResult,
         cfg::ImmForwardCFG,
         visitor::{
-            LocalState, SimpleAbsInt, SimpleAbsIntConstructor, SimpleDomain,
-            SimpleExecutionContext, calls_special_function,
+            calls_special_function, LocalState, SimpleAbsInt, SimpleAbsIntConstructor,
+            SimpleDomain, SimpleExecutionContext,
         },
+        CFGContext, MemberName,
     },
     diag,
     diagnostics::{
+        codes::{custom, DiagnosticInfo, Severity},
         Diagnostic, Diagnostics,
-        codes::{DiagnosticInfo, Severity, custom},
     },
     hlir::ast::{
-        BaseType_, Label, ModuleCall, SingleType, SingleType_, Type, Type_, TypeName_, Var,
+        BaseType_, Label, ModuleCall, SingleType, SingleType_, Type, TypeName_, Type_, Var,
     },
-    iota_mode::IOTA_ADDR_VALUE,
     parser::ast::Ability_,
     shared::Identifier,
+    iota_mode::IOTA_ADDR_VALUE,
+};
+use std::collections::BTreeMap;
+
+use super::{
+    LinterDiagnosticCategory, LinterDiagnosticCode, FREEZE_FUN, INVALID_LOC, LINT_WARNING_PREFIX,
+    RECEIVE_FUN, SHARE_FUN, TRANSFER_FUN, TRANSFER_MOD_NAME,
 };
 
 const PRIVATE_OBJ_FUNCTIONS: &[(AccountAddress, &str, &str)] = &[
