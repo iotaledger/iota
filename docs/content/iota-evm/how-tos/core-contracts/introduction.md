@@ -38,7 +38,13 @@ import "@iota/iscmagic/ISC.sol";
 ```
 
 The Magic contract also provides proxy ERC20 contracts to manipulate ISC base
-tokens and native tokens on L2.
+tokens and coins on L2.
+
+:::info ERC20Coin
+
+ERC20 coin proxy contracts can currently only be registered by ChainAdmin. We are looking into changing that in a future update.
+
+:::
 
 :::info Reference Docs
 
@@ -50,7 +56,7 @@ If you need further info about magic contracts interfaces you can check out the 
 
 :::info Ease of use
 
-To make it easier for developers to use the core contracts, you should, in most cases, run the functions from the magic contract directly. For example, to get the native token balance, you could [call the `balanceNativeToken()`](call-view.md) directly with `callView`, or use [`getl2balancenativetokens`](basics/get-balance.md) of the magic contract, or (the suggested way) register your native token as [`ERC20`] and call the standard [`balanceof`] function. What you use also depends on what you optimize for. For example, to save gas, it could be interesting for you to call core contracts from your favorite web3 library directly and compute other things off-chain.
+To make it easier for developers to use the core contracts, you should, in most cases, run the functions from the magic contract directly. For example, to get the native token balance, you could [call the `balanceBaseToken()`](call-view.md) directly with `callView`, or use [`getL2BalanceBaseTokens`](basics/get-balance.md) of the magic contract, or (the suggested way) register your native token as [`ERC20`] and call the standard [`balanceof`] function. What you use also depends on what you optimize for. For example, to save gas, it could be interesting for you to call core contracts from your favorite web3 library directly and compute other things off-chain.
 
 :::
 
