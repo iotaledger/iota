@@ -28,7 +28,7 @@ use crate::{
     handlers::publish_metrics,
     histogram_relay::HistogramRelay,
     middleware::{expect_content_length, expect_iota_proxy_header, expect_valid_public_key},
-    peers::{IotaNodeProvider, IotaPeer},
+    peers::{AllowedPeer, IotaNodeProvider},
     var,
 };
 
@@ -214,7 +214,7 @@ fn load_private_key(filename: &str) -> rustls::pki_types::PrivateKeyDer<'static>
 /// metrics
 fn load_static_peers(
     static_peers: Option<StaticPeerValidationConfig>,
-) -> Result<Vec<IotaPeer>, Error> {
+) -> Result<Vec<AllowedPeer>, Error> {
     let Some(static_peers) = static_peers else {
         return Ok(vec![]);
     };
@@ -224,7 +224,7 @@ fn load_static_peers(
         .map(|spk| {
             let peer_id = hex::decode(spk.peer_id).unwrap();
             let public_key = Ed25519PublicKey::from_bytes(peer_id.as_ref()).unwrap();
-            let s = IotaPeer {
+            let s = AllowedPeer {
                 name: spk.name.clone(),
                 public_key,
             };
