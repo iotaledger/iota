@@ -1733,11 +1733,6 @@ impl IotaNode {
                     )
                 } else {
                     info!("This node is no longer a validator after reconfiguration");
-
-                    consensus_adapter.unregister_consensus_adapter_metrics(
-                        &self.registry_service.default_registry(),
-                    );
-                    debug!("Unregistered consensus adapter metrics");
                     None
                 }
             } else {
