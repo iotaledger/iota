@@ -3,10 +3,7 @@
 
 use std::{fs, path::PathBuf};
 
-use iota_light_client::{
-    checkpoint::{sync_checkpoint_list_to_latest, write_checkpoint_summary},
-    config::Config,
-};
+use iota_light_client::{checkpoint::sync_checkpoint_list_to_latest, config::Config};
 use iota_rest_api::Client;
 use tracing::info;
 
