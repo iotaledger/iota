@@ -600,6 +600,7 @@ impl AuctionCommand {
                 .as_ref()
                 .ok_or_else(|| anyhow::anyhow!("missing graphql url in IotaEnv"))?,
         );
+
         Ok(match self {
             Self::Bid {
                 domain,
