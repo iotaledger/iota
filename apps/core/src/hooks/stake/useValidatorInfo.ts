@@ -1,9 +1,8 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { useGetInactiveValidator, useGetValidatorsApy } from '..';
+import { useGetValidatorsApy } from '..';
 import { useIotaClientQuery } from '@iota/dapp-kit';
-import { InactiveValidatorData } from '../../types';
 
 export function useValidatorInfo({ validatorAddress }: { validatorAddress: string }) {
     const {
@@ -15,30 +14,6 @@ export function useValidatorInfo({ validatorAddress }: { validatorAddress: strin
     const validatorSummary =
         system?.activeValidators.find((validator) => validator.iotaAddress === validatorAddress) ||
         null;
-
-    let inactiveValidatorSummary: InactiveValidatorData = {
-        name: '',
-        validatorAddress: '',
-        validatorStakingPoolId: '',
-        validatorPublicKey: '',
-        imageUrl: '',
-        description: '',
-        projectUrl: '',
-    };
-    if (validatorSummary === null) {
-        const { data: inactiveValidatorData } = useGetInactiveValidator(validatorAddress);
-        if (validatorSummary === null && inactiveValidatorData !== null) {
-            inactiveValidatorSummary = {
-                name: inactiveValidatorData?.name || '',
-                imageUrl: inactiveValidatorData?.imageUrl || '',
-                projectUrl: inactiveValidatorData?.projectUrl || '',
-                description: inactiveValidatorData?.description || '',
-                validatorAddress: inactiveValidatorData?.validatorAddress || '',
-                validatorPublicKey: inactiveValidatorData?.validatorPublicKey || '',
-                validatorStakingPoolId: inactiveValidatorData?.validatorStakingPoolId || '',
-            };
-        }
-    }
 
     const currentEpoch = Number(system?.epoch || 0);
     const stakingPoolActivationEpoch = Number(validatorSummary?.stakingPoolActivationEpoch || 0);
@@ -62,7 +37,6 @@ export function useValidatorInfo({ validatorAddress }: { validatorAddress: strin
         errorValidators,
         currentEpoch,
         validatorSummary,
-        inactiveValidatorSummary,
         name: validatorSummary?.name || '',
         stakingPoolActivationEpoch,
         commission,

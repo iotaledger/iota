@@ -1,7 +1,13 @@
 // Copyright (c) Mysten Labs, Inc.
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
-import { ImageIcon, ImageIconSize, formatPercentageDisplay, useValidatorInfo } from '../';
+import {
+    ImageIcon,
+    ImageIconSize,
+    formatPercentageDisplay,
+    useGetInactiveValidator,
+    useValidatorInfo,
+} from '../';
 import {
     Card,
     CardBody,
@@ -41,7 +47,6 @@ export function Validator({
         apy,
         isApyApproxZero,
         validatorSummary,
-        inactiveValidatorSummary,
         system,
         isPendingValidators,
     } = useValidatorInfo({
@@ -69,6 +74,7 @@ export function Validator({
         ? `Staked ${Number(system?.epoch) - Number(activeEpoch)} epochs ago`
         : '';
 
+    const { data: inactiveValidatorSummary } = useGetInactiveValidator(address);
     const validatorDisplayName =
         validatorSummary?.name || inactiveValidatorSummary?.name || fallBackText;
 

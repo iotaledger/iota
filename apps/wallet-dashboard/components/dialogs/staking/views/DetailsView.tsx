@@ -12,6 +12,7 @@ import {
     useIsValidatorCommitteeMember,
     useIsActiveValidator,
     useGetNextEpochCommitteeMember,
+    useGetInactiveValidator,
 } from '@iota/core';
 import {
     Header,
@@ -61,7 +62,6 @@ export function DetailsView({
         isPendingValidators,
         errorValidators,
         validatorSummary,
-        inactiveValidatorSummary,
         apy,
         isApyApproxZero,
         newValidator,
@@ -76,6 +76,7 @@ export function DetailsView({
     const [iotaEarnedFormatted, iotaEarnedSymbol] = useFormatCoin({ balance: iotaEarned });
     const [totalStakeFormatted, totalStakeSymbol] = useFormatCoin({ balance: totalStake });
 
+    const { data: inactiveValidatorSummary } = useGetInactiveValidator(validatorAddress);
     const validatorName = inactiveValidatorSummary?.name || validatorSummary?.name;
     const validatorImageUrl = inactiveValidatorSummary?.imageUrl || validatorSummary?.imageUrl;
 
