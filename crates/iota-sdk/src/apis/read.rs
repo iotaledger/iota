@@ -13,10 +13,11 @@ use iota_json_rpc_api::{
 use iota_json_rpc_types::{
     Checkpoint, CheckpointId, CheckpointPage, DevInspectArgs, DevInspectResults,
     DryRunTransactionBlockResponse, DynamicFieldPage, IotaData, IotaGetPastObjectRequest,
-    IotaMoveNormalizedModule, IotaObjectDataOptions, IotaObjectResponse, IotaObjectResponseQuery,
-    IotaPastObjectResponse, IotaTransactionBlockEffects, IotaTransactionBlockResponse,
-    IotaTransactionBlockResponseOptions, IotaTransactionBlockResponseQuery, ObjectsPage,
-    ProtocolConfigResponse, TransactionBlocksPage, TransactionFilter,
+    IotaMoveNormalizedModule, IotaNameRecord, IotaObjectDataOptions, IotaObjectResponse,
+    IotaObjectResponseQuery, IotaPastObjectResponse, IotaTransactionBlockEffects,
+    IotaTransactionBlockResponse, IotaTransactionBlockResponseOptions,
+    IotaTransactionBlockResponseQuery, ObjectsPage, ProtocolConfigResponse, TransactionBlocksPage,
+    TransactionFilter,
 };
 use iota_types::{
     base_types::{IotaAddress, ObjectID, SequenceNumber, TransactionDigest},
@@ -702,6 +703,34 @@ impl ReadApi {
             .api
             .http
             .try_get_object_before_version(object_id, version)
+            .await?)
+    }
+
+    /// Return the resolved record for the given name.
+    pub async fn iota_names_lookup(&self, name: &str) -> IotaRpcResult<Option<IotaNameRecord>> {
+        Ok(self.api.http.iota_names_lookup(name).await?)
+    }
+
+    /// Return the resolved name for the given address.
+    pub async fn iota_names_reverse_lookup(
+        &self,
+        address: IotaAddress,
+    ) -> IotaRpcResult<Option<String>> {
+        Ok(self.api.http.iota_names_reverse_lookup(address).await?)
+    }
+
+    /// Find all registration NFTs for the given address.
+    pub async fn iota_names_find_all_registration_nfts(
+        &self,
+        address: IotaAddress,
+        cursor: Option<ObjectID>,
+        limit: Option<usize>,
+        options: Option<IotaObjectDataOptions>,
+    ) -> IotaRpcResult<ObjectsPage> {
+        Ok(self
+            .api
+            .http
+            .iota_names_find_all_registration_nfts(address, cursor, limit, options)
             .await?)
     }
 }
