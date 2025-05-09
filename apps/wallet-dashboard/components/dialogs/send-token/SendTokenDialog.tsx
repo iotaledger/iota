@@ -172,7 +172,15 @@ function SendTokenDialogBody({
 
 export function SendTokenDialog(props: SendCoinDialogProps) {
     return (
-        <Dialog open={props.open} onOpenChange={props.setOpen}>
+        <Dialog
+            open={props.open}
+            onOpenChange={(isOpen) => {
+                const isMouseOverToast = document.querySelector('.toaster-class:hover');
+                if (!isOpen && !isMouseOverToast) {
+                    props.setOpen(isOpen);
+                }
+            }}
+        >
             <DialogContent containerId="overlay-portal-container" position={DialogPosition.Right}>
                 <SendTokenDialogBody {...props} />
             </DialogContent>
