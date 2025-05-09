@@ -15,8 +15,8 @@ name = "iota-light-client"
 path = "src/main.rs"
 
 [[bin]]
-name = "generate-chk-snapshots"
-path = "src/bin/generate_chk_snapshots.rs"
+name = "generate-checkpoint-snapshots"
+path = "src/bin/generate_checkpoint_snapshots.rs"
 
 [dependencies]
 # external dependencies

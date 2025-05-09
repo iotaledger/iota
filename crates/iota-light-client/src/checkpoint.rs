@@ -70,7 +70,10 @@ pub fn write_checkpoint_list(config: &Config, checkpoints_list: &CheckpointList)
         .context("Unable to serialize checkpoint list")
 }
 
-fn write_checkpoint_summary(config: &Config, summary: &CertifiedCheckpointSummary) -> Result<()> {
+pub fn write_checkpoint_summary(
+    config: &Config,
+    summary: &CertifiedCheckpointSummary,
+) -> Result<()> {
     let path = config.checkpoint_summary_file_path(*summary.sequence_number());
     bcs::serialize_into(
         &mut fs::File::create(&path)

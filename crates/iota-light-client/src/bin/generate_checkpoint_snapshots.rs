@@ -3,7 +3,10 @@
 
 use std::{fs, path::PathBuf};
 
-use iota_light_client::{checkpoint::sync_checkpoint_list_to_latest, config::Config};
+use iota_light_client::{
+    checkpoint::{sync_checkpoint_list_to_latest, write_checkpoint_summary},
+    config::Config,
+};
 use iota_rest_api::Client;
 use tracing::info;
 
@@ -13,8 +16,16 @@ const FIXTURES_DIR: &str = "tests/fixtures";
 pub async fn main() {
     env_logger::init();
 
-    let mut config = Config::get_mainnet_config();
-    config.checkpoints_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(FIXTURES_DIR);
+    let config = Config {
+        rpc_url: "http://localhost:9000".parse().unwrap(),
+        graphql_url: Some("http://localhost:9125".parse().unwrap()),
+        checkpoints_dir: PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(FIXTURES_DIR),
+        genesis_blob_download_url: None,
+        sync_before_check: false,
+        checkpoint_store_config: None,
+        archive_store_config: None,
+    };
+    config.validate().expect("invalid config");
 
     let checkpoint_list = sync_checkpoint_list_to_latest(&config)
         .await
