@@ -11,7 +11,7 @@ import {
     TEXT_COLOR,
     FOCUS_CLASSES,
 } from './chip.classes';
-import { ButtonUnstyled } from '../../atoms/button';
+import { ButtonUnstyled } from '@/components/atoms/button';
 import { Close } from '@iota/apps-ui-icons';
 
 interface ChipProps {
