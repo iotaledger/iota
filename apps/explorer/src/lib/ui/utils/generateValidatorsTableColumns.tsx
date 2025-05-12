@@ -16,7 +16,7 @@ import clsx from 'clsx';
 import { ValidatorLink } from '~/components/ui';
 
 interface GenerateValidatorsTableColumnsArgs {
-    activeValidators?: IotaValidatorSummary[];
+    allValidators?: IotaValidatorSummary[];
     committeeMembers?: string[];
     atRiskValidators?: [string, string][];
     maxCommitteeSize?: number;
@@ -90,7 +90,7 @@ function ValidatorWithImage({
 }
 
 export function generateValidatorsTableColumns({
-    activeValidators = [],
+    allValidators = [],
     committeeMembers = [],
     atRiskValidators = [],
     maxCommitteeSize,
@@ -101,8 +101,8 @@ export function generateValidatorsTableColumns({
     highlightValidatorName,
     currentEpoch,
 }: GenerateValidatorsTableColumnsArgs): ColumnDef<IotaValidatorSummaryExtended>[] {
-    const sortedActiveValidators = activeValidators.toSorted(sortByStakingBalanceDesc);
-    const topValidators = sortedActiveValidators.slice(0, maxCommitteeSize);
+    const validatorsSortedByStake = allValidators.toSorted(sortByStakingBalanceDesc);
+    const topValidators = validatorsSortedByStake.slice(0, maxCommitteeSize);
 
     let columns: ColumnDef<IotaValidatorSummaryExtended>[] = [
         {
@@ -186,6 +186,19 @@ export function generateValidatorsTableColumns({
         {
             header: 'Commission',
             accessorKey: 'commissionRate',
+            enableSorting: true,
+            sortingFn: sortByNumber,
+            cell({ getValue }) {
+                return (
+                    <TableCellBase>
+                        <TableCellText>{`${Number(getValue()) / 100}%`}</TableCellText>
+                    </TableCellBase>
+                );
+            },
+        },
+        {
+            header: 'Next Epoch Commission',
+            accessorKey: 'nextEpochCommissionRate',
             enableSorting: true,
             sortingFn: sortByNumber,
             cell({ getValue }) {

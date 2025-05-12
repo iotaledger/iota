@@ -13,13 +13,16 @@ better_any = "0.1.1"
 clap.workspace = true
 colored.workspace = true
 const-str.workspace = true
+datatest-stable.workspace = true
 git-version.workspace = true
+insta-cmd = "0.6.0"
 once_cell.workspace = true
 prometheus.workspace = true
 serde_json.workspace = true
 serde_yaml.workspace = true
 tokio = { workspace = true, features = ["full"] }
 tracing.workspace = true
+walkdir = "2.5.0"
 
 # internal dependencies
 bin-version.workspace = true
@@ -44,6 +47,7 @@ jemalloc-ctl = "^0.5"
 [dev-dependencies]
 # external dependencies
 futures.workspace = true
+insta.workspace = true
 rand.workspace = true
 tempfile.workspace = true
 
@@ -54,3 +58,10 @@ move-package.workspace = true
 
 [package.metadata.cargo-udeps.ignore]
 normal = ["jemalloc-ctl"]
+
+[[test]]
+name = "cli_tests"
+harness = false
+
+[lints]
+workspace = true

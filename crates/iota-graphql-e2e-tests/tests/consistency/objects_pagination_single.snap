@@ -1,0 +1,358 @@
+---
+source: external-crates/move/crates/move-transactional-test-runner/src/framework.rs
+---
+processed 15 tasks
+
+init:
+A: object(0,0), B: object(0,1)
+
+task 1, lines 11-28:
+//# publish
+created: object(1,0)
+mutated: object(0,2)
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 5449200,  storage_rebate: 0, non_refundable_storage_fee: 0
+
+task 2, line 30:
+//# run Test::M1::create --args 0 @A
+created: object(2,0)
+mutated: object(0,2)
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2287600,  storage_rebate: 980400, non_refundable_storage_fee: 0
+
+task 3, line 32:
+//# run Test::M1::create --args 1 @A
+created: object(3,0)
+mutated: object(0,2)
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2287600,  storage_rebate: 980400, non_refundable_storage_fee: 0
+
+task 4, line 34:
+//# run Test::M1::update --sender A --args 100 object(2,0)
+mutated: object(0,0), object(2,0)
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2287600,  storage_rebate: 1307200, non_refundable_storage_fee: 0
+
+task 5, line 36:
+//# create-checkpoint
+Checkpoint created: 1
+
+task 6, lines 38-66:
+//# run-graphql --cursors @{obj_3_0}
+Response: {
+  "data": {
+    "after_obj_3_0": {
+      "objects": {
+        "nodes": [
+          {
+            "version": 4,
+            "contents": {
+              "type": {
+                "repr": "0x5f30b6b73c6e0005dda444933a57d8331d803bd611f0d01041ac14445b71e2e1::M1::Object"
+              },
+              "json": {
+                "id": "0x667fb8eaf3ea1f4f8ad4251212756853fe601bf49f89f92aecde723fcc81afec",
+                "value": "100"
+              }
+            }
+          }
+        ]
+      }
+    },
+    "before_obj_3_0": {
+      "objects": {
+        "nodes": []
+      }
+    }
+  }
+}
+
+task 7, line 68:
+//# run Test::M1::update --sender A --args 200 object(2,0)
+mutated: object(0,0), object(2,0)
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2287600,  storage_rebate: 2287600, non_refundable_storage_fee: 0
+
+task 8, line 70:
+//# create-checkpoint
+Checkpoint created: 2
+
+task 9, lines 72-101:
+//# run-graphql --cursors @{obj_3_0,1}
+Response: {
+  "data": {
+    "after_obj_3_0_chkpt_1": {
+      "objects": {
+        "nodes": [
+          {
+            "version": 4,
+            "contents": {
+              "type": {
+                "repr": "0x5f30b6b73c6e0005dda444933a57d8331d803bd611f0d01041ac14445b71e2e1::M1::Object"
+              },
+              "json": {
+                "id": "0x667fb8eaf3ea1f4f8ad4251212756853fe601bf49f89f92aecde723fcc81afec",
+                "value": "100"
+              }
+            }
+          }
+        ]
+      }
+    },
+    "before_obj_3_0_chkpt_1": {
+      "objects": {
+        "nodes": []
+      }
+    }
+  }
+}
+
+task 10, lines 103-178:
+//# run-graphql --cursors @{obj_3_0,2}
+Response: {
+  "data": {
+    "address": {
+      "objects": {
+        "nodes": [
+          {
+            "version": 4,
+            "contents": {
+              "type": {
+                "repr": "0x5f30b6b73c6e0005dda444933a57d8331d803bd611f0d01041ac14445b71e2e1::M1::Object"
+              },
+              "json": {
+                "id": "0x047766f0982270376375ca8985aad304cb0543f1ba0d8d9a6531db473b39e079",
+                "value": "1"
+              }
+            }
+          },
+          {
+            "version": 5,
+            "contents": {
+              "type": {
+                "repr": "0x5f30b6b73c6e0005dda444933a57d8331d803bd611f0d01041ac14445b71e2e1::M1::Object"
+              },
+              "json": {
+                "id": "0x667fb8eaf3ea1f4f8ad4251212756853fe601bf49f89f92aecde723fcc81afec",
+                "value": "200"
+              }
+            }
+          }
+        ]
+      }
+    },
+    "after_obj_3_0_chkpt_2": {
+      "consistent_with_above": {
+        "nodes": [
+          {
+            "version": 5,
+            "contents": {
+              "type": {
+                "repr": "0x5f30b6b73c6e0005dda444933a57d8331d803bd611f0d01041ac14445b71e2e1::M1::Object"
+              },
+              "json": {
+                "id": "0x667fb8eaf3ea1f4f8ad4251212756853fe601bf49f89f92aecde723fcc81afec",
+                "value": "200"
+              }
+            },
+            "owner": {
+              "owner": {
+                "objects": {
+                  "nodes": [
+                    {
+                      "version": 4,
+                      "contents": {
+                        "type": {
+                          "repr": "0x5f30b6b73c6e0005dda444933a57d8331d803bd611f0d01041ac14445b71e2e1::M1::Object"
+                        },
+                        "json": {
+                          "id": "0x047766f0982270376375ca8985aad304cb0543f1ba0d8d9a6531db473b39e079",
+                          "value": "1"
+                        }
+                      }
+                    },
+                    {
+                      "version": 5,
+                      "contents": {
+                        "type": {
+                          "repr": "0x5f30b6b73c6e0005dda444933a57d8331d803bd611f0d01041ac14445b71e2e1::M1::Object"
+                        },
+                        "json": {
+                          "id": "0x667fb8eaf3ea1f4f8ad4251212756853fe601bf49f89f92aecde723fcc81afec",
+                          "value": "200"
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        ]
+      }
+    },
+    "before_obj_3_0_chkpt_2": {
+      "consistent_with_above": {
+        "nodes": []
+      }
+    }
+  }
+}
+
+task 11, line 180:
+//# run Test::M1::update --sender A --args 300 object(3,0)
+mutated: object(0,0), object(3,0)
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2287600,  storage_rebate: 2287600, non_refundable_storage_fee: 0
+
+task 12, line 182:
+//# create-checkpoint
+Checkpoint created: 3
+
+task 13, lines 184-247:
+//# run-graphql --cursors @{obj_3_0,2}
+Response: {
+  "data": {
+    "after_obj_3_0_chkpt_2": {
+      "objects": {
+        "nodes": [
+          {
+            "version": 5,
+            "contents": {
+              "type": {
+                "repr": "0x5f30b6b73c6e0005dda444933a57d8331d803bd611f0d01041ac14445b71e2e1::M1::Object"
+              },
+              "json": {
+                "id": "0x667fb8eaf3ea1f4f8ad4251212756853fe601bf49f89f92aecde723fcc81afec",
+                "value": "200"
+              }
+            },
+            "this_should_differ": {
+              "owner": {
+                "objects": {
+                  "nodes": [
+                    {
+                      "version": 4,
+                      "contents": {
+                        "type": {
+                          "repr": "0x5f30b6b73c6e0005dda444933a57d8331d803bd611f0d01041ac14445b71e2e1::M1::Object"
+                        },
+                        "json": {
+                          "id": "0x047766f0982270376375ca8985aad304cb0543f1ba0d8d9a6531db473b39e079",
+                          "value": "1"
+                        }
+                      }
+                    },
+                    {
+                      "version": 5,
+                      "contents": {
+                        "type": {
+                          "repr": "0x5f30b6b73c6e0005dda444933a57d8331d803bd611f0d01041ac14445b71e2e1::M1::Object"
+                        },
+                        "json": {
+                          "id": "0x667fb8eaf3ea1f4f8ad4251212756853fe601bf49f89f92aecde723fcc81afec",
+                          "value": "200"
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        ]
+      }
+    },
+    "before_obj_3_0_chkpt_2": {
+      "objects": {
+        "nodes": []
+      }
+    }
+  }
+}
+
+task 14, lines 249-324:
+//# run-graphql --cursors @{obj_3_0,3}
+Response: {
+  "data": {
+    "address": {
+      "objects": {
+        "nodes": [
+          {
+            "version": 6,
+            "contents": {
+              "type": {
+                "repr": "0x5f30b6b73c6e0005dda444933a57d8331d803bd611f0d01041ac14445b71e2e1::M1::Object"
+              },
+              "json": {
+                "id": "0x047766f0982270376375ca8985aad304cb0543f1ba0d8d9a6531db473b39e079",
+                "value": "300"
+              }
+            }
+          },
+          {
+            "version": 5,
+            "contents": {
+              "type": {
+                "repr": "0x5f30b6b73c6e0005dda444933a57d8331d803bd611f0d01041ac14445b71e2e1::M1::Object"
+              },
+              "json": {
+                "id": "0x667fb8eaf3ea1f4f8ad4251212756853fe601bf49f89f92aecde723fcc81afec",
+                "value": "200"
+              }
+            }
+          }
+        ]
+      }
+    },
+    "after_obj_3_0_chkpt_3": {
+      "consistent_with_above": {
+        "nodes": [
+          {
+            "version": 5,
+            "contents": {
+              "type": {
+                "repr": "0x5f30b6b73c6e0005dda444933a57d8331d803bd611f0d01041ac14445b71e2e1::M1::Object"
+              },
+              "json": {
+                "id": "0x667fb8eaf3ea1f4f8ad4251212756853fe601bf49f89f92aecde723fcc81afec",
+                "value": "200"
+              }
+            },
+            "owner": {
+              "owner": {
+                "objects": {
+                  "nodes": [
+                    {
+                      "version": 6,
+                      "contents": {
+                        "type": {
+                          "repr": "0x5f30b6b73c6e0005dda444933a57d8331d803bd611f0d01041ac14445b71e2e1::M1::Object"
+                        },
+                        "json": {
+                          "id": "0x047766f0982270376375ca8985aad304cb0543f1ba0d8d9a6531db473b39e079",
+                          "value": "300"
+                        }
+                      }
+                    },
+                    {
+                      "version": 5,
+                      "contents": {
+                        "type": {
+                          "repr": "0x5f30b6b73c6e0005dda444933a57d8331d803bd611f0d01041ac14445b71e2e1::M1::Object"
+                        },
+                        "json": {
+                          "id": "0x667fb8eaf3ea1f4f8ad4251212756853fe601bf49f89f92aecde723fcc81afec",
+                          "value": "200"
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        ]
+      }
+    },
+    "before_obj_3_0_chkpt_3": {
+      "consistent_with_above": {
+        "nodes": []
+      }
+    }
+  }
+}
