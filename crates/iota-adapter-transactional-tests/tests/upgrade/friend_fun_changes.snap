@@ -1,0 +1,56 @@
+---
+source: external-crates/move/crates/move-transactional-test-runner/src/framework.rs
+---
+processed 8 tasks
+
+init:
+A: object(0,0)
+
+task 1, lines 7-21:
+//# publish --upgradeable --sender A
+created: object(1,0), object(1,1)
+mutated: object(0,0)
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 7653200,  storage_rebate: 0, non_refundable_storage_fee: 0
+
+task 2, lines 22-36:
+//# upgrade --package V0 --upgrade-capability 1,1 --sender A
+created: object(2,0)
+mutated: object(0,0), object(1,1)
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 7668400,  storage_rebate: 2606800, non_refundable_storage_fee: 0
+
+task 3, lines 37-61:
+//# upgrade --package V1 --upgrade-capability 1,1 --sender A
+created: object(3,0)
+mutated: object(0,0), object(1,1)
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 8892000,  storage_rebate: 2606800, non_refundable_storage_fee: 0
+
+task 4, lines 62-84:
+//# upgrade --package V2 --upgrade-capability 1,1 --sender A
+created: object(4,0)
+mutated: object(0,0), object(1,1)
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 9819200,  storage_rebate: 2606800, non_refundable_storage_fee: 0
+
+task 5, line 86:
+//# run V3::friend_module::call_friend
+mutated: object(0,1)
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 980400,  storage_rebate: 0, non_refundable_storage_fee: 0
+
+task 6, line 88:
+//# run V3::friend_module::call_public
+created: object(6,0)
+mutated: object(0,1)
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2416800,  storage_rebate: 980400, non_refundable_storage_fee: 0
+
+task 7, line 90:
+//# view-object 6,0
+Owner: Account Address ( A )
+Version: 3
+Contents: V0::base_module::Object {
+    id: iota::object::UID {
+        id: iota::object::ID {
+            bytes: fake(6,0),
+        },
+    },
+    field0: 10u64,
+    field1: 10u64,
+}

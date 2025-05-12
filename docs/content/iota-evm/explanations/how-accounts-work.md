@@ -20,7 +20,7 @@ that controls the source address.
 ## L1 Addresses
 
 In IOTA Smart Contracts, [each chain has a L1 address](states.md#digital-assets-on-the-chain) (also known as the _Chain
-ID_) which enables it to control L1 assets (base tokens, native tokens and NFTs).
+ID_) which enables it to control L1 assets (coins and other objects).
 The chain acts as a custodian of the L1 assets on behalf of different entities, thus providing a _L2 Ledger_.
 
 ## L2 Accounts
