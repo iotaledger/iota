@@ -56,7 +56,7 @@ function createInternalLink<T extends string>(
         return (
             <div className="flex flex-row items-center gap-x-xxs">
                 <Link
-                    className="dark:text-primary-80 text-primary-30"
+                    className="text-primary-30 dark:text-primary-80"
                     variant="mono"
                     to={`/${base}/${encodeURI(id)}${queryStringPrefix}`}
                     {...props}
@@ -65,7 +65,7 @@ function createInternalLink<T extends string>(
                 </Link>
                 {copyText && (
                     <ButtonUnstyled onClick={handleCopyClick}>
-                        <Copy className="dark:text-neutral-40 text-neutral-60" />
+                        <Copy className="text-neutral-60 dark:text-neutral-40" />
                     </ButtonUnstyled>
                 )}
             </div>

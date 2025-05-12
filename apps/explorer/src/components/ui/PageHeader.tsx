@@ -35,7 +35,6 @@ export function PageHeader({
     after,
     status,
 }: PageHeaderProps): JSX.Element {
-
     return (
         <Panel>
             <div className="flex w-full items-center p-md--rs">

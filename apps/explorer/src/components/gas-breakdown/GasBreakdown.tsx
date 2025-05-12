@@ -27,7 +27,7 @@ function GasAmount({ amount, burnedAmount }: GasProps): JSX.Element | null {
 
     return (
         <div className="flex flex-wrap items-center gap-xxs">
-            <span className="dark:text-neutral-60 text-label-lg text-neutral-40">
+            <span className="text-label-lg text-neutral-40 dark:text-neutral-60">
                 {formattedAmount} {symbol}
             </span>
             <span className="flex flex-wrap items-center text-body-md font-medium text-neutral-70">
@@ -35,7 +35,7 @@ function GasAmount({ amount, burnedAmount }: GasProps): JSX.Element | null {
             </span>
             {!!burnedAmount && (
                 <>
-                    <span className="dark:text-neutral-60 text-label-md text-neutral-40">
+                    <span className="text-label-md text-neutral-40 dark:text-neutral-60">
                         Burnt: {formattedBurnedAmount} {burnedSymbol}
                     </span>
                     <span className="flex flex-wrap items-center text-body-sm font-medium text-neutral-70">
@@ -66,13 +66,13 @@ function GasPaymentLinks({ objectIds }: { objectIds: string[] }): JSX.Element {
 function GasInfo({ label, info }: { label: string; info?: React.ReactNode }) {
     return (
         <div className="flex flex-col gap-2 md:flex-row md:gap-10">
-            <span className="dark:text-neutral-60 w-full flex-shrink-0 text-label-lg text-neutral-40 md:w-40">
+            <span className="w-full flex-shrink-0 text-label-lg text-neutral-40 md:w-40 dark:text-neutral-60">
                 {label}
             </span>
             {info ? (
                 info
             ) : (
-                <span className="dark:text-neutral-60 text-label-lg text-neutral-40 md:w-40">
+                <span className="text-label-lg text-neutral-40 md:w-40 dark:text-neutral-60">
                     --
                 </span>
             )}
@@ -158,8 +158,8 @@ export function GasBreakdown({ summary }: GasBreakdownProps): JSX.Element | null
                     <AccordionContent isExpanded>
                         <div className="flex flex-col gap-xs">
                             {isSponsored && owner && (
-                                <div className="dark:bg-neutral-12 flex items-center gap-md rounded-lg bg-neutral-92 p-xs">
-                                    <span className="dark:text-neutral-60 text-label-lg text-neutral-40">
+                                <div className="flex items-center gap-md rounded-lg bg-neutral-92 p-xs dark:bg-neutral-12">
+                                    <span className="text-label-lg text-neutral-40 dark:text-neutral-60">
                                         Paid by
                                     </span>
                                     <AddressLink label={undefined} address={owner} />

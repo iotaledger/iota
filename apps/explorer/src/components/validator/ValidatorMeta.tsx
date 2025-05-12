@@ -26,7 +26,6 @@ export function InactiveValidators({
 }: {
     validatorData: InactiveValidatorData;
 }): JSX.Element {
-
     return (
         <div className="flex flex-col gap-y-md">
             <Panel>
