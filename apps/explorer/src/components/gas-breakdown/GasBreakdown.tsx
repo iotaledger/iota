@@ -4,7 +4,6 @@
 
 import { Accordion, AccordionContent, Title, Divider } from '@iota/apps-ui-kit';
 import { CoinFormat, type TransactionSummaryType, useFormatCoin } from '@iota/core';
-import { Copy } from '@iota/apps-ui-icons';
 import { AddressLink, CollapsibleCard, ObjectLink } from '~/components/ui';
 import { Fragment } from 'react';
 import { onCopySuccess } from '~/lib/utils';
