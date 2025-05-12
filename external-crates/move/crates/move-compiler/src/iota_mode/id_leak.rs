@@ -2,46 +2,40 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::collections::BTreeMap;
-
-use move_core_types::account_address::AccountAddress;
-use move_ir_types::location::*;
-use move_symbol_pool::Symbol;
-
 use crate::{
     cfgir::{
-        CFGContext, MemberName,
         absint::JoinResult,
         cfg::ImmForwardCFG,
         visitor::{
-            LocalState, SimpleAbsInt, SimpleAbsIntConstructor, SimpleDomain,
-            SimpleExecutionContext, cfg_satisfies,
+            cfg_satisfies, LocalState, SimpleAbsInt, SimpleAbsIntConstructor, SimpleDomain,
+            SimpleExecutionContext,
         },
+        CFGContext, MemberName,
     },
     diag,
     diagnostics::{Diagnostic, Diagnostics},
     editions::Flavor,
     expansion::ast::ModuleIdent,
     hlir::ast::{self as H, Exp, Label, ModuleCall, SingleType, Type, Type_, Var},
+    parser::ast::{Ability_, TargetKind},
+    shared::{program_info::TypingProgramInfo, Identifier},
     iota_mode::{
         AUTHENTICATOR_STATE_CREATE, AUTHENTICATOR_STATE_MODULE_NAME, BRIDGE_ADDR_VALUE,
         BRIDGE_CREATE, BRIDGE_MODULE_NAME, CLOCK_MODULE_NAME, DENY_LIST_CREATE,
-        DENY_LIST_MODULE_NAME, ID_LEAK_DIAG, IOTA_ADDR_NAME, IOTA_ADDR_VALUE, IOTA_CLOCK_CREATE,
-        IOTA_SYSTEM_ADDR_VALUE, IOTA_SYSTEM_CREATE, IOTA_SYSTEM_MODULE_NAME, OBJECT_MODULE_NAME,
-        OBJECT_NEW, OBJECT_NEW_UID_FROM_HASH, RANDOMNESS_MODULE_NAME, RANDOMNESS_STATE_CREATE,
-        TEST_SCENARIO_MODULE_NAME, TS_NEW_OBJECT, UID_TYPE_NAME,
+        DENY_LIST_MODULE_NAME, ID_LEAK_DIAG, OBJECT_MODULE_NAME, OBJECT_NEW,
+        OBJECT_NEW_UID_FROM_HASH, RANDOMNESS_MODULE_NAME, RANDOMNESS_STATE_CREATE, IOTA_ADDR_NAME,
+        IOTA_ADDR_VALUE, IOTA_CLOCK_CREATE, IOTA_SYSTEM_ADDR_VALUE, IOTA_SYSTEM_CREATE,
+        IOTA_SYSTEM_MODULE_NAME, TEST_SCENARIO_MODULE_NAME, TS_NEW_OBJECT, UID_TYPE_NAME,
     },
-    parser::ast::{Ability_, TargetKind},
-    shared::{Identifier, program_info::TypingProgramInfo},
 };
+use move_core_types::account_address::AccountAddress;
+use move_ir_types::location::*;
+use move_symbol_pool::Symbol;
+use std::collections::BTreeMap;
 
 pub const FRESH_ID_FUNCTIONS: &[(AccountAddress, Symbol, Symbol)] = &[
     (IOTA_ADDR_VALUE, OBJECT_MODULE_NAME, OBJECT_NEW),
-    (
-        IOTA_ADDR_VALUE,
-        OBJECT_MODULE_NAME,
-        OBJECT_NEW_UID_FROM_HASH,
-    ),
+    (IOTA_ADDR_VALUE, OBJECT_MODULE_NAME, OBJECT_NEW_UID_FROM_HASH),
     (IOTA_ADDR_VALUE, TEST_SCENARIO_MODULE_NAME, TS_NEW_OBJECT),
 ];
 pub const FUNCTIONS_TO_SKIP: &[(AccountAddress, Symbol, Symbol)] = &[
