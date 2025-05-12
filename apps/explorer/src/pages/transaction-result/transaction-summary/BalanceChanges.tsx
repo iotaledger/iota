@@ -27,6 +27,7 @@ import { RecognizedBadge } from '@iota/apps-ui-icons';
 import { useMemo } from 'react';
 import { AddressLink, CollapsibleCard } from '~/components/ui';
 import { BREAK_POINT, useMediaQuery } from '~/hooks';
+import { onCopySuccess } from '~/lib/utils';
 
 interface BalanceChangesProps {
     changes: BalanceChangeSummary;
@@ -67,10 +68,14 @@ function BalanceChangeEntry({ change }: { change: BalanceChange }): JSX.Element 
             </Card>
             {recipient && (
                 <div className="flex flex-wrap items-center justify-between px-sm py-xs">
-                    <span className="w-full flex-shrink-0 text-label-lg text-neutral-40 md:w-40 dark:text-neutral-60">
+                    <span className="dark:text-neutral-60 w-full flex-shrink-0 text-label-lg text-neutral-40 md:w-40">
                         Recipient
                     </span>
-                    <AddressLink address={recipient} />
+                    <AddressLink
+                        address={recipient}
+                        copyText={recipient}
+                        onCopySuccess={onCopySuccess}
+                    />
                 </div>
             )}
         </div>
@@ -90,10 +95,15 @@ function BalanceChangeCard({ changes, owner }: { changes: BalanceChange[]; owner
             footer={
                 owner ? (
                     <div className="flex flex-wrap justify-between px-md--rs py-sm--rs">
-                        <span className="text-body-md text-neutral-40 dark:text-neutral-60">
+                        <span className="dark:text-neutral-60 text-body-md text-neutral-40">
                             Owner
                         </span>
-                        <AddressLink label={undefined} address={owner} />
+                        <AddressLink
+                            label={undefined}
+                            address={owner}
+                            copyText={owner}
+                            onCopySuccess={onCopySuccess}
+                        />
                     </div>
                 ) : null
             }

@@ -2,8 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { ReactNode } from 'react';
-import { Tooltip, TooltipPosition } from '../../atoms';
-import { Info } from '@iota/apps-ui-icons';
+import { ButtonUnstyled, Tooltip, TooltipPosition } from '../../atoms';
+import { Copy, Info } from '@iota/apps-ui-icons';
 import { DisplayStatsType, DisplayStatsSize } from './displayStats.enums';
 import cx from 'classnames';
 import {
@@ -48,6 +48,18 @@ interface DisplayStatsProps {
      * Add icon to the right of the label.
      */
     icon?: React.ReactNode;
+    /**
+     * Text that need to be copied (optional).
+     */
+    copyText?: string;
+    /**
+     * The onCopySuccess event of the KeyValue  (optional).
+     */
+    onCopySuccess?: (e: React.MouseEvent<HTMLButtonElement>, text: string) => void;
+    /**
+     * The onCopyError event of the KeyValue  (optional).
+     */
+    onCopyError?: (e: unknown, text: string) => void;
 }
 
 export function DisplayStats({
@@ -59,6 +71,9 @@ export function DisplayStats({
     type = DisplayStatsType.Default,
     size = DisplayStatsSize.Default,
     icon,
+    copyText,
+    onCopySuccess,
+    onCopyError,
 }: DisplayStatsProps): React.JSX.Element {
     const backgroundClass = BACKGROUND_CLASSES[type];
     const sizeClass = SIZE_CLASSES[size];
@@ -67,6 +82,21 @@ export function DisplayStats({
     const labelClass = LABEL_TEXT_CLASSES[size];
     const supportingLabelTextClass = SUPPORTING_LABEL_TEXT_CLASSES[size];
 
+    async function handleCopyClick(event: React.MouseEvent<HTMLButtonElement>) {
+        if (!navigator.clipboard) {
+            return;
+        }
+
+        if (copyText) {
+            try {
+                await navigator.clipboard.writeText(copyText);
+                onCopySuccess?.(event, copyText);
+            } catch (error) {
+                console.error('Failed to copy:', error);
+                onCopyError?.(error, copyText);
+            }
+        }
+    }
     return (
         <div
             className={cx(
@@ -97,6 +127,13 @@ export function DisplayStats({
                     <span className={cx('opacity-40', supportingLabelTextClass)}>
                         {supportingLabel}
                     </span>
+                )}
+                {copyText && (
+                    <div className="self-center">
+                        <ButtonUnstyled onClick={handleCopyClick}>
+                            <Copy className="text-neutral-60 dark:text-neutral-40" />
+                        </ButtonUnstyled>
+                    </div>
                 )}
             </div>
         </div>
