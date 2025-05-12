@@ -77,8 +77,10 @@ export function DetailsView({
     const [totalStakeFormatted, totalStakeSymbol] = useFormatCoin({ balance: totalStake });
 
     const { data: inactiveValidatorSummary } = useGetInactiveValidator(validatorAddress);
-    const validatorName = inactiveValidatorSummary?.name || validatorSummary?.name;
-    const validatorImageUrl = inactiveValidatorSummary?.imageUrl || validatorSummary?.imageUrl;
+    const validatorName =
+        inactiveValidatorSummary?.name || validatorSummary?.name || validatorAddress;
+    const validatorImageUrl =
+        inactiveValidatorSummary?.imageUrl || validatorSummary?.imageUrl || null;
 
     const subtitle = showActiveStatus ? (
         <div className="flex items-center gap-1">

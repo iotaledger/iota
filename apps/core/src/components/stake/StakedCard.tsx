@@ -64,10 +64,10 @@ export function StakedCard({
     return (
         <Card testId="staked-card" type={CardType.Default} isHoverable onClick={onClick}>
             <CardImage>
-                <ImageIcon src={validatorMeta?.imageUrl || null} label={name} fallback={name} />
+                <ImageIcon src={validatorData?.imageUrl || null} label={name} fallback={name} />
             </CardImage>
             <CardBody
-                title={validatorData?.name || '--'}
+                title={name}
                 subtitle={`${principalStaked} ${symbol}`}
                 icon={
                     activeButNotInTheCommittee ? (
