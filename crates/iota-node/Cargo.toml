@@ -28,7 +28,6 @@ humantime.workspace = true
 prometheus.workspace = true
 reqwest.workspace = true
 serde.workspace = true
-snap.workspace = true
 tap.workspace = true
 tokio = { workspace = true, features = ["full"] }
 tower.workspace = true
