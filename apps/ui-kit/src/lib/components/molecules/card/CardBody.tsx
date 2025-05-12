@@ -3,7 +3,7 @@
 import cx from 'classnames';
 import type { ReactNode } from 'react';
 import { Tooltip } from '../../atoms';
-import { type TooltipPosition } from '../../atoms';
+import type { TooltipPosition } from '../../atoms';
 
 export type CardBodyProps = {
     title: string;
