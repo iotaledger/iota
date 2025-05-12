@@ -17,6 +17,6 @@ impl Display for Pretty<'_, IotaExecutionStatus> {
             Failure { error } => format!("failed due to {error}"),
         };
 
-        write!(f, "{}", output)
+        write!(f, "{output}")
     }
 }

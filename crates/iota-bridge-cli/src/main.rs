@@ -78,7 +78,7 @@ async fn main() -> anyhow::Result<()> {
             dry_run,
         } => {
             let chain_id = BridgeChainId::try_from(chain_id).expect("Invalid chain id");
-            println!("Chain ID: {:?}", chain_id);
+            println!("Chain ID: {chain_id:?}");
             let config = BridgeCliConfig::load(config_path).expect("Couldn't load BridgeCliConfig");
             let config = LoadedBridgeCliConfig::load(config).await?;
             let iota_bridge_client = IotaClient::<IotaSdkClient>::new(&config.iota_rpc_url).await?;
@@ -104,12 +104,11 @@ async fn main() -> anyhow::Result<()> {
                 let iota_chain_id = BridgeChainId::try_from(bridge_summary.chain_id).unwrap();
                 assert_eq!(
                     iota_chain_id, chain_id,
-                    "Chain ID mismatch, expected: {:?}, got from url: {:?}",
-                    chain_id, iota_chain_id
+                    "Chain ID mismatch, expected: {chain_id:?}, got from url: {iota_chain_id:?}"
                 );
                 // Create BridgeAction
                 let iota_action = make_action(iota_chain_id, &cmd);
-                println!("Action to execute on IOTA: {:?}", iota_action);
+                println!("Action to execute on IOTA: {iota_action:?}");
                 let certified_action = agg
                     .request_committee_signatures(iota_action)
                     .await
@@ -159,7 +158,7 @@ async fn main() -> anyhow::Result<()> {
             let eth_signer_client = config.eth_signer();
             // Create BridgeAction
             let eth_action = make_action(chain_id, &cmd);
-            println!("Action to execute on Eth: {:?}", eth_action);
+            println!("Action to execute on Eth: {eth_action:?}");
             // Create Eth Signer Client
             // TODO if a validator is blocklisted on eth, ignore their signatures?
             let certified_action = agg
@@ -178,14 +177,14 @@ async fn main() -> anyhow::Result<()> {
             )
             .await
             .expect("Failed to build eth transaction");
-            println!("sending Eth tx: {:?}", tx);
+            println!("sending Eth tx: {tx:?}");
             match tx.send().await {
                 Ok(tx_hash) => {
-                    println!("Transaction sent with hash: {:?}", tx_hash);
+                    println!("Transaction sent with hash: {tx_hash:?}");
                 }
                 Err(err) => {
                     let revert = err.as_revert();
-                    println!("Transaction reverted: {:?}", revert);
+                    println!("Transaction reverted: {revert:?}");
                 }
             };
 
@@ -313,16 +312,14 @@ async fn main() -> anyhow::Result<()> {
                 } = member;
                 let Ok(pubkey) = BridgeAuthorityPublicKey::from_bytes(&bridge_pubkey_bytes) else {
                     output_wrapper.add_error(format!(
-                        "Invalid bridge pubkey for committee member {}: {:?}",
-                        iota_address, bridge_pubkey_bytes
+                        "Invalid bridge pubkey for committee member {iota_address}: {bridge_pubkey_bytes:?}"
                     ));
                     continue;
                 };
                 let eth_address = BridgeAuthorityPublicKeyBytes::from(&pubkey).to_eth_address();
                 let Ok(url) = from_utf8(&http_rest_url) else {
                     output_wrapper.add_error(format!(
-                        "Invalid bridge http url for committee member {}: {:?}",
-                        iota_address, http_rest_url
+                        "Invalid bridge http url for committee member {iota_address}: {http_rest_url:?}"
                     ));
                     continue;
                 };
@@ -396,16 +393,14 @@ async fn main() -> anyhow::Result<()> {
                 } = member;
                 let Ok(pubkey) = BridgeAuthorityPublicKey::from_bytes(&bridge_pubkey_bytes) else {
                     output_wrapper.add_error(format!(
-                        "Invalid bridge pubkey for bridge authority {}: {:?}",
-                        iota_address, bridge_pubkey_bytes
+                        "Invalid bridge pubkey for bridge authority {iota_address}: {bridge_pubkey_bytes:?}"
                     ));
                     continue;
                 };
                 let eth_address = BridgeAuthorityPublicKeyBytes::from(&pubkey).to_eth_address();
                 let Ok(url) = from_utf8(&http_rest_url) else {
                     output_wrapper.add_error(format!(
-                        "Invalid bridge http url for bridge authority: {}: {:?}",
-                        iota_address, http_rest_url
+                        "Invalid bridge http url for bridge authority: {iota_address}: {http_rest_url:?}"
                     ));
                     continue;
                 };

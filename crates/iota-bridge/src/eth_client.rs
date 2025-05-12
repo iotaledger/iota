@@ -154,8 +154,7 @@ where
         // Safeguard check that all events are emitted from requested contract address
         if logs.iter().any(|log| log.address != address) {
             return Err(BridgeError::Provider(format!(
-                "Provider returns logs from different contract address (expected: {:?}): {:?}",
-                address, logs
+                "Provider returns logs from different contract address (expected: {address:?}): {logs:?}"
             )));
         }
         if logs.is_empty() {
@@ -204,7 +203,7 @@ where
         logs.into_iter().map(
             |log| {
                 if log.address != address {
-                    return Err(BridgeError::Provider(format!("Provider returns logs from different contract address (expected: {:?}): {:?}", address, log)));
+                    return Err(BridgeError::Provider(format!("Provider returns logs from different contract address (expected: {address:?}): {log:?}")));
                 }
                 Ok(RawEthLog {
                 block_number: log.block_number.ok_or(BridgeError::Provider("Provider returns log without block_number".into()))?.as_u64(),
@@ -242,8 +241,7 @@ where
             .await
             .map_err(BridgeError::from)?
             .ok_or(BridgeError::Provider(format!(
-                "Provide cannot find eth transaction for log: {:?})",
-                log
+                "Provide cannot find eth transaction for log: {log:?})"
             )))?;
 
         let receipt_block_num = receipt.block_number.ok_or(BridgeError::Provider(
@@ -251,8 +249,7 @@ where
         ))?;
         if receipt_block_num.as_u64() != block_number {
             return Err(BridgeError::Provider(format!(
-                "Provider returns receipt with different block number from log. Receipt: {:?}, Log: {:?}",
-                receipt, log
+                "Provider returns receipt with different block number from log. Receipt: {receipt:?}, Log: {log:?}"
             )));
         }
 
@@ -264,16 +261,14 @@ where
                 // make sure the topics and data match
                 if receipt_log.topics != log.topics || receipt_log.data != log.data {
                     return Err(BridgeError::Provider(format!(
-                        "Provider returns receipt with different log from log. Receipt: {:?}, Log: {:?}",
-                        receipt, log
+                        "Provider returns receipt with different log from log. Receipt: {receipt:?}, Log: {log:?}"
                     )));
                 }
                 log_index_in_tx = Some(idx);
             }
         }
         let log_index_in_tx = log_index_in_tx.ok_or(BridgeError::Provider(format!(
-            "Couldn't find matching log: {:?} in transaction {}",
-            log, tx_hash
+            "Couldn't find matching log: {log:?} in transaction {tx_hash}"
         )))?;
 
         Ok(EthLog {

@@ -206,7 +206,7 @@ impl AliasOutput {
     /// Create an `AliasOutput` from BCS bytes.
     pub fn from_bcs_bytes(content: &[u8]) -> Result<Self, IotaError> {
         bcs::from_bytes(content).map_err(|err| IotaError::ObjectDeserialization {
-            error: format!("Unable to deserialize AliasOutput object: {:?}", err),
+            error: format!("Unable to deserialize AliasOutput object: {err:?}"),
         })
     }
 
@@ -230,7 +230,7 @@ impl TryFrom<&Object> for AliasOutput {
         }
 
         Err(IotaError::Type {
-            error: format!("Object type is not an AliasOutput: {:?}", object),
+            error: format!("Object type is not an AliasOutput: {object:?}"),
         })
     }
 }

@@ -62,13 +62,11 @@ pub fn generate_bridge_authority_key_and_write_to_file(
     let (_, kp): (_, BridgeAuthorityKeyPair) = get_key_pair();
     let eth_address = BridgeAuthorityPublicKeyBytes::from(&kp.public).to_eth_address();
     println!(
-        "Corresponding Ethereum address by this ecdsa key: {:?}",
-        eth_address
+        "Corresponding Ethereum address by this ecdsa key: {eth_address:?}"
     );
     let iota_address = IotaAddress::from(&kp.public);
     println!(
-        "Corresponding IOTA address by this ecdsa key: {:?}",
-        iota_address
+        "Corresponding IOTA address by this ecdsa key: {iota_address:?}"
     );
     let base64_encoded = kp.encode_base64();
     std::fs::write(path, base64_encoded)
@@ -85,8 +83,7 @@ pub fn generate_bridge_client_key_and_write_to_file(
         let (_, kp): (_, Secp256k1KeyPair) = get_key_pair();
         let eth_address = BridgeAuthorityPublicKeyBytes::from(&kp.public).to_eth_address();
         println!(
-            "Corresponding Ethereum address by this ecdsa key: {:?}",
-            eth_address
+            "Corresponding Ethereum address by this ecdsa key: {eth_address:?}"
         );
         IotaKeyPair::from(kp)
     } else {
@@ -94,7 +91,7 @@ pub fn generate_bridge_client_key_and_write_to_file(
         IotaKeyPair::from(kp)
     };
     let iota_address = IotaAddress::from(&kp.public());
-    println!("Corresponding IOTA address by this key: {:?}", iota_address);
+    println!("Corresponding IOTA address by this key: {iota_address:?}");
 
     let contents = kp.encode_base64();
     std::fs::write(path, contents)
@@ -156,7 +153,7 @@ pub fn examine_key(path: &PathBuf, is_validator_key: bool) -> Result<(), anyhow:
         IotaKeyPair::Secp256k1(kp) => {
             println!("Secp256k1 key:");
             let eth_address = BridgeAuthorityPublicKeyBytes::from(&kp.public).to_eth_address();
-            println!("Corresponding Ethereum address: {:x}", eth_address);
+            println!("Corresponding Ethereum address: {eth_address:x}");
             kp.public.as_bytes().to_vec()
         }
         IotaKeyPair::Ed25519(kp) => {
@@ -168,7 +165,7 @@ pub fn examine_key(path: &PathBuf, is_validator_key: bool) -> Result<(), anyhow:
             kp.public().as_bytes().to_vec()
         }
     };
-    println!("Corresponding IOTA address: {:?}", iota_address);
+    println!("Corresponding IOTA address: {iota_address:?}");
     println!("Corresponding PublicKey: {:?}", Hex::encode(pubkey));
     Ok(())
 }

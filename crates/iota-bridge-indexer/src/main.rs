@@ -59,7 +59,7 @@ async fn main() -> Result<()> {
     let registry_service = start_prometheus_server(
         format!("{}:{}", config.metric_url, config.metric_port,)
             .parse()
-            .unwrap_or_else(|err| panic!("Failed to parse metric address: {}", err)),
+            .unwrap_or_else(|err| panic!("Failed to parse metric address: {err}")),
     );
     let registry = registry_service.default_registry();
 

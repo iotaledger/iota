@@ -112,7 +112,7 @@ impl BridgeClient {
                     path
                 } else {
                     let call_data = Hex::encode(a.call_data.clone());
-                    format!("{}/{}", path, call_data)
+                    format!("{path}/{call_data}")
                 }
             }
             BridgeAction::AddTokensOnIotaAction(a) => {
@@ -154,7 +154,7 @@ impl BridgeClient {
                 let token_addresses = a
                     .token_addresses
                     .iter()
-                    .map(|name| format!("{:?}", name))
+                    .map(|name| format!("{name:?}"))
                     .collect::<Vec<_>>()
                     .join(",");
                 let token_iota_decimals = a
@@ -462,8 +462,7 @@ mod tests {
         assert_eq!(
             BridgeClient::bridge_action_to_path(&action),
             format!(
-                "sign/bridge_tx/iota/eth/{}/{}",
-                iota_tx_digest, iota_tx_event_index
+                "sign/bridge_tx/iota/eth/{iota_tx_digest}/{iota_tx_event_index}"
             )
         );
 

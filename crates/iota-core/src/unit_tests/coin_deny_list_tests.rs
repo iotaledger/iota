@@ -197,7 +197,7 @@ async fn test_regulated_coin_v1_types() {
     if effects.status().is_err() {
         panic!("Failed to enable global pause: {:?}", effects.status());
     }
-    println!("Effects: {:?}", effects);
+    println!("Effects: {effects:?}");
     assert!(check_global_pause(
         &coin_deny_config,
         &env.authority.get_object_store(),

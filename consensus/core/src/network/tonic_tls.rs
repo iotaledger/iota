@@ -29,7 +29,7 @@ pub(crate) fn create_rustls_server_config(
     let tls_private_key = self_signed_cert.rustls_private_key();
     let mut tls_config = verifier
         .rustls_server_config(vec![tls_cert], tls_private_key)
-        .unwrap_or_else(|e| panic!("Failed to create TLS server config: {:?}", e));
+        .unwrap_or_else(|e| panic!("Failed to create TLS server config: {e:?}"));
     tls_config.alpn_protocols = vec![b"h2".to_vec()];
     tls_config
 }
@@ -54,7 +54,7 @@ pub(crate) fn create_rustls_client_config(
     let mut tls_config =
         iota_tls::ServerCertVerifier::new(target_public_key, certificate_server_name(context))
             .rustls_client_config(vec![tls_cert], tls_private_key)
-            .unwrap_or_else(|e| panic!("Failed to create TLS client config: {:?}", e));
+            .unwrap_or_else(|e| panic!("Failed to create TLS client config: {e:?}"));
     // ServerCertVerifier sets alpn for completeness, but alpn cannot be predefined
     // when using HttpsConnector from hyper-rustls, as in TonicManager.
     tls_config.alpn_protocols = vec![];

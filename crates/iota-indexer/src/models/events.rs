@@ -158,8 +158,7 @@ impl StoredEvent {
         let sender = match sender {
             Some(ref s) => IotaAddress::from_bytes(s).map_err(|_e| {
                 IndexerError::PersistentStorageDataCorruption(format!(
-                    "Failed to parse event sender address: {:?}",
-                    sender
+                    "Failed to parse event sender address: {sender:?}"
                 ))
             })?,
             None => {

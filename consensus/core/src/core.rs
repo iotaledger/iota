@@ -2439,7 +2439,7 @@ mod test {
                             .try_propose(true)
                             .unwrap()
                             .unwrap_or_else(|| {
-                                panic!("Block should have been proposed for round {}", round)
+                                panic!("Block should have been proposed for round {round}")
                             });
                     }
                 }
@@ -2544,7 +2544,7 @@ mod test {
                             .try_propose(true)
                             .unwrap()
                             .unwrap_or_else(|| {
-                                panic!("Block should have been proposed for round {}", round)
+                                panic!("Block should have been proposed for round {round}")
                             });
                     }
                 }
@@ -2579,7 +2579,7 @@ mod test {
                             .try_propose(true)
                             .unwrap()
                             .unwrap_or_else(|| {
-                                panic!("Block should have been proposed for round {}", round)
+                                panic!("Block should have been proposed for round {round}")
                             });
                     }
                 }
@@ -3425,7 +3425,7 @@ mod test {
                 expected_commit_index: 5,
                 commit_index: 6,
             } => (),
-            _ => panic!("Unexpected error: {:?}", err),
+            _ => panic!("Unexpected error: {err:?}"),
         }
     }
 

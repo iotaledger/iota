@@ -76,8 +76,7 @@ async fn run_metadata_rotation(metadata_rotation: MetadataRotation) -> anyhow::R
     let account_key = read_keypair_from_file(&account_key_path)?;
     let config: NodeConfig = PersistedConfig::read(&iota_node_config_path).map_err(|err| {
         err.context(format!(
-            "Cannot open IOTA Node Config file at {:?}",
-            iota_node_config_path
+            "Cannot open IOTA Node Config file at {iota_node_config_path:?}"
         ))
     })?;
 

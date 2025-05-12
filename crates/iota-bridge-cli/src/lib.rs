@@ -453,9 +453,9 @@ impl LoadedBridgeCliConfig {
         let eth_address = eth_signer.address();
         let eth_chain_id = provider.get_chainid().await?;
         let iota_address = IotaAddress::from(&iota_key.public());
-        println!("Using IOTA address: {:?}", iota_address);
-        println!("Using Eth address: {:?}", eth_address);
-        println!("Using Eth chain: {:?}", eth_chain_id);
+        println!("Using IOTA address: {iota_address:?}");
+        println!("Using Eth address: {eth_address:?}");
+        println!("Using Eth chain: {eth_chain_id:?}");
 
         Ok(Self {
             iota_rpc_url: cli_config.iota_rpc_url,

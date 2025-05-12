@@ -556,15 +556,13 @@ impl IotaCommand {
                 let network_config: NetworkConfig = PersistedConfig::read(&network_config_path)
                     .map_err(|err| {
                         err.context(format!(
-                            "Cannot open IOTA network config file at {:?}",
-                            network_config_path
+                            "Cannot open IOTA network config file at {network_config_path:?}"
                         ))
                     })?;
                 let bridge_committee_config: BridgeCommitteeConfig =
                     PersistedConfig::read(&bridge_committee_config_path).map_err(|err| {
                         err.context(format!(
-                            "Cannot open Bridge Committee config file at {:?}",
-                            bridge_committee_config_path
+                            "Cannot open Bridge Committee config file at {bridge_committee_config_path:?}"
                         ))
                     })?;
 
@@ -573,7 +571,7 @@ impl IotaCommand {
                 let mut context = WalletContext::new(&config_path, None, None)?;
                 let rgp = context.get_reference_gas_price().await?;
                 let rpc_url = context.active_env()?.rpc();
-                println!("rpc_url: {}", rpc_url);
+                println!("rpc_url: {rpc_url}");
                 let iota_bridge_client = IotaBridgeClient::new(rpc_url).await?;
                 let bridge_arg = iota_bridge_client
                     .get_mutable_bridge_object_arg_must_succeed()
@@ -774,8 +772,7 @@ async fn start(
             ..
         } = PersistedConfig::read(&network_config_path).map_err(|err| {
             err.context(format!(
-                "Cannot open IOTA network config file at {:?}",
-                network_config_path
+                "Cannot open IOTA network config file at {network_config_path:?}"
             ))
         })?;
         let genesis_path = config_path.join(IOTA_GENESIS_FILENAME);
@@ -822,7 +819,7 @@ async fn start(
     info!("Cluster started");
 
     // the indexer requires a fullnode url with protocol specified
-    let fullnode_url = format!("http://{}", fullnode_url);
+    let fullnode_url = format!("http://{fullnode_url}");
     info!("Fullnode URL: {}", fullnode_url);
     #[cfg(feature = "indexer")]
     let pg_address = format!("postgres://{pg_user}:{pg_password}@{pg_host}:{pg_port}/{pg_db_name}");
@@ -998,7 +995,7 @@ async fn genesis(
     // up (if --force/-f option was specified or report an
     // error
     let dir = iota_config_dir.read_dir().map_err(|err| {
-        anyhow!(err).context(format!("Cannot open IOTA config dir {:?}", iota_config_dir))
+        anyhow!(err).context(format!("Cannot open IOTA config dir {iota_config_dir:?}"))
     })?;
     let files = dir.collect::<Result<Vec<_>, _>>()?;
 
@@ -1259,13 +1256,11 @@ fn prompt_for_environment(
     } else {
         if accept_defaults {
             print!(
-                "Creating config file [{:?}] with default (Testnet) Full node server and ed25519 key scheme.",
-                wallet_conf_path
+                "Creating config file [{wallet_conf_path:?}] with default (Testnet) Full node server and ed25519 key scheme."
             );
         } else {
             print!(
-                "Config file [{:?}] doesn't exist, do you want to connect to an IOTA Full node server [y/N]?",
-                wallet_conf_path
+                "Config file [{wallet_conf_path:?}] doesn't exist, do you want to connect to an IOTA Full node server [y/N]?"
             );
         }
         if accept_defaults || matches!(read_line(), Ok(line) if line.trim().to_lowercase() == "y") {

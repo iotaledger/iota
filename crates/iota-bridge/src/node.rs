@@ -448,7 +448,7 @@ mod tests {
         .await
         .unwrap();
 
-        let server_url = format!("http://127.0.0.1:{}", server_listen_port);
+        let server_url = format!("http://127.0.0.1:{server_listen_port}");
         // Now we expect to see the server to be up and running.
         let res = wait_for_server_to_be_up(server_url, 5).await;
         res.unwrap();
@@ -512,7 +512,7 @@ mod tests {
         .await
         .unwrap();
 
-        let server_url = format!("http://127.0.0.1:{}", server_listen_port);
+        let server_url = format!("http://127.0.0.1:{server_listen_port}");
         // Now we expect to see the server to be up and running.
         // client components are spawned earlier than server, so as long as the server
         // is up, we know the client components are already running.
@@ -587,7 +587,7 @@ mod tests {
         .await
         .unwrap();
 
-        let server_url = format!("http://127.0.0.1:{}", server_listen_port);
+        let server_url = format!("http://127.0.0.1:{server_listen_port}");
         // Now we expect to see the server to be up and running.
         // client components are spawned earlier than server, so as long as the server
         // is up, we know the client components are already running.

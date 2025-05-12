@@ -68,7 +68,7 @@ pub fn get_test_authority_and_key(
     let authority = BridgeAuthority {
         pubkey: pubkey.clone(),
         voting_power,
-        base_url: format!("http://127.0.0.1:{}", port),
+        base_url: format!("http://127.0.0.1:{port}"),
         is_blocklisted: false,
     };
 
@@ -393,8 +393,7 @@ pub async fn approve_action_with_validator_secrets(
         }
     }
     panic!(
-        "Didn't find the created object owned by {}",
-        expected_token_receiver
+        "Didn't find the created object owned by {expected_token_receiver}"
     );
 }
 

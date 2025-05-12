@@ -383,8 +383,7 @@ impl CheckpointHandler {
             let actual_tx_digest = tx.transaction.digest();
             if tx_digest != *actual_tx_digest {
                 return Err(IndexerError::FullNodeReading(format!(
-                    "Transactions has different ordering from CheckpointContents, for checkpoint {}, Mismatch found at {} v.s. {}",
-                    checkpoint_seq, tx_digest, actual_tx_digest,
+                    "Transactions has different ordering from CheckpointContents, for checkpoint {checkpoint_seq}, Mismatch found at {tx_digest} v.s. {actual_tx_digest}",
                 )));
             }
 

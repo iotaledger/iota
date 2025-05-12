@@ -77,7 +77,7 @@ fn test_signatures_serde() {
     let s = Signature::new_secure(&IntentMessage::new(Intent::iota_transaction(), foo), &sec1);
 
     let serialized = bcs::to_bytes(&s).unwrap();
-    println!("{:?}", serialized);
+    println!("{serialized:?}");
     let deserialized: Signature = bcs::from_bytes(&serialized).unwrap();
     assert_eq!(deserialized.as_ref(), s.as_ref());
 }
@@ -121,7 +121,7 @@ fn test_object_id_conversions() {}
 #[test]
 fn test_object_id_display() {
     let id = ObjectID::from_str(SAMPLE_ADDRESS).unwrap();
-    assert_eq!(format!("{:?}", id), SAMPLE_ADDRESS);
+    assert_eq!(format!("{id:?}"), SAMPLE_ADDRESS);
 }
 
 #[test]
@@ -187,7 +187,7 @@ fn test_object_id_deserialize_from_json_value() {
 
 #[test]
 fn test_object_id_serde_json() {
-    let json_hex = format!("\"{}\"", SAMPLE_ADDRESS);
+    let json_hex = format!("\"{SAMPLE_ADDRESS}\"");
 
     let obj_id = ObjectID::from_hex_literal(SAMPLE_ADDRESS).unwrap();
 
@@ -214,7 +214,7 @@ fn test_object_id_serde_with_expected_value() {
     let json_serialized = serde_json::to_string(&object_id).unwrap();
     let bcs_serialized = bcs::to_bytes(&object_id).unwrap();
 
-    let expected_json_address = format!("\"{}\"", SAMPLE_ADDRESS);
+    let expected_json_address = format!("\"{SAMPLE_ADDRESS}\"");
     assert_eq!(expected_json_address, json_serialized);
     assert_eq!(object_id_vec, bcs_serialized);
 }
@@ -227,9 +227,9 @@ fn test_object_id_zero_padding() {
     let obj_id_1 = ObjectID::from_str(hex).unwrap();
     let obj_id_2 = ObjectID::from_str(long_hex).unwrap();
     let obj_id_3 = ObjectID::from_str(long_hex_alt).unwrap();
-    let obj_id_4: ObjectID = serde_json::from_str(&format!("\"{}\"", hex)).unwrap();
-    let obj_id_5: ObjectID = serde_json::from_str(&format!("\"{}\"", long_hex)).unwrap();
-    let obj_id_6: ObjectID = serde_json::from_str(&format!("\"{}\"", long_hex_alt)).unwrap();
+    let obj_id_4: ObjectID = serde_json::from_str(&format!("\"{hex}\"")).unwrap();
+    let obj_id_5: ObjectID = serde_json::from_str(&format!("\"{long_hex}\"")).unwrap();
+    let obj_id_6: ObjectID = serde_json::from_str(&format!("\"{long_hex_alt}\"")).unwrap();
     assert_eq!(IOTA_FRAMEWORK_ADDRESS, obj_id_1.0);
     assert_eq!(IOTA_FRAMEWORK_ADDRESS, obj_id_2.0);
     assert_eq!(IOTA_FRAMEWORK_ADDRESS, obj_id_3.0);
@@ -241,7 +241,7 @@ fn test_object_id_zero_padding() {
 #[test]
 fn test_address_display() {
     let id = IotaAddress::from_str(SAMPLE_ADDRESS).unwrap();
-    assert_eq!(format!("{:?}", id), SAMPLE_ADDRESS);
+    assert_eq!(format!("{id:?}"), SAMPLE_ADDRESS);
 }
 
 #[test]
@@ -271,7 +271,7 @@ fn test_address_serde_with_expected_value() {
     let json_serialized = serde_json::to_string(&address).unwrap();
     let bcs_serialized = bcs::to_bytes(&address).unwrap();
 
-    assert_eq!(format!("\"{}\"", SAMPLE_ADDRESS), json_serialized);
+    assert_eq!(format!("\"{SAMPLE_ADDRESS}\""), json_serialized);
     assert_eq!(SAMPLE_ADDRESS_VEC.to_vec(), bcs_serialized);
 }
 

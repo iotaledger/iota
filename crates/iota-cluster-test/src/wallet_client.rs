@@ -61,6 +61,6 @@ impl WalletClient {
             .config()
             .keystore()
             .sign_secure(&self.address, txn_data, Intent::iota_transaction())
-            .unwrap_or_else(|e| panic!("Failed to sign transaction for {}. {}", desc, e))
+            .unwrap_or_else(|e| panic!("Failed to sign transaction for {desc}. {e}"))
     }
 }

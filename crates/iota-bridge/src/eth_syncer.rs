@@ -414,10 +414,10 @@ mod tests {
         assert_eq!(*finalized_block_rx.borrow(), 400);
         let mut logs_set = HashSet::new();
         logs_rx.recv().await.unwrap().2.into_iter().for_each(|log| {
-            logs_set.insert(format!("{:?}", log));
+            logs_set.insert(format!("{log:?}"));
         });
         logs_rx.recv().await.unwrap().2.into_iter().for_each(|log| {
-            logs_set.insert(format!("{:?}", log));
+            logs_set.insert(format!("{log:?}"));
         });
         assert_eq!(
             logs_set,

@@ -213,7 +213,7 @@ mod tests {
     ) {
         match timeout(interval * 2, events_rx.recv()).await {
             Err(_e) => (),
-            other => panic!("Should have timed out, but got: {:?}", other),
+            other => panic!("Should have timed out, but got: {other:?}"),
         };
     }
 

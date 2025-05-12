@@ -169,8 +169,7 @@ impl IotaClientInner for IotaMockClient {
                     .cloned()
                     .unwrap_or_else(|| {
                         panic!(
-                            "No preset events found for package: {:?}, module: {:?}, cursor: {:?}",
-                            package, module, cursor
+                            "No preset events found for package: {package:?}, module: {module:?}, cursor: {cursor:?}"
                         )
                     }))
             }
@@ -186,7 +185,7 @@ impl IotaClientInner for IotaMockClient {
 
         match events
             .get(&tx_digest)
-            .unwrap_or_else(|| panic!("No preset events found for tx_digest: {:?}", tx_digest))
+            .unwrap_or_else(|| panic!("No preset events found for tx_digest: {tx_digest:?}"))
         {
             Ok(events) => Ok(events.clone()),
             // iota_sdk::error::Error is not Clone
@@ -274,7 +273,7 @@ impl IotaClientInner for IotaMockClient {
                 .lock()
                 .unwrap()
                 .clone()
-                .unwrap_or_else(|| panic!("No preset transaction response found for tx: {:?}", tx)),
+                .unwrap_or_else(|| panic!("No preset transaction response found for tx: {tx:?}")),
         }
     }
 
@@ -289,8 +288,7 @@ impl IotaClientInner for IotaMockClient {
             .cloned()
             .unwrap_or_else(|| {
                 panic!(
-                    "No preset gas object info found for gas_object_id: {:?}",
-                    gas_object_id
+                    "No preset gas object info found for gas_object_id: {gas_object_id:?}"
                 )
             })
     }

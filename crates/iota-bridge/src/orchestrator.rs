@@ -134,8 +134,7 @@ where
                         }
                         Err(e) => {
                             panic!(
-                                "IOTA Event could not be deserialized to IotaBridgeEvent: {:?}",
-                                e
+                                "IOTA Event could not be deserialized to IotaBridgeEvent: {e:?}"
                             );
                         }
                     }

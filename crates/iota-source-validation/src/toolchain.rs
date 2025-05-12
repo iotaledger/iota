@@ -236,7 +236,7 @@ fn download_and_compile(
             Err(e) => return Err(e.into()),
         }.into_reader();
 
-        let dest_tarball = dest_version.join(format!("{}.tgz", compiler_version));
+        let dest_tarball = dest_version.join(format!("{compiler_version}.tgz"));
         debug!("tarball destination: {} ", dest_tarball.display());
         if let Some(parent) = dest_tarball.parent() {
             std::fs::create_dir_all(parent)

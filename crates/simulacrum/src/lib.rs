@@ -713,12 +713,12 @@ mod tests {
 
         let clock = chain.store().get_clock();
         let start_time_ms = clock.timestamp_ms();
-        println!("clock: {:#?}", clock);
+        println!("clock: {clock:#?}");
         for _ in 0..steps {
             chain.advance_clock(Duration::from_millis(1));
             chain.create_checkpoint();
             let clock = chain.store().get_clock();
-            println!("clock: {:#?}", clock);
+            println!("clock: {clock:#?}");
         }
         let end_time_ms = chain.store().get_clock().timestamp_ms();
         assert_eq!(end_time_ms - start_time_ms, steps);

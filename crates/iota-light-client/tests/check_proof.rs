@@ -23,7 +23,7 @@ use iota_types::{
 };
 
 async fn read_full_checkpoint(checkpoint_path: &PathBuf) -> anyhow::Result<CheckpointData> {
-    println!("Reading checkpoint from {:?}", checkpoint_path);
+    println!("Reading checkpoint from {checkpoint_path:?}");
     let mut reader = fs::File::open(checkpoint_path.clone())?;
     let mut buffer = Vec::new();
     reader.read_to_end(&mut buffer)?;
@@ -60,7 +60,7 @@ async fn read_test_data() -> (Committee, CheckpointData) {
 
 async fn read_data(committee_seq: u64, seq: u64) -> (Committee, CheckpointData) {
     let mut checkpoint_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-    checkpoint_path.push(format!("example_config/{}.chk", committee_seq));
+    checkpoint_path.push(format!("example_config/{committee_seq}.chk"));
 
     let committee_checkpoint = read_full_checkpoint(&checkpoint_path).await.unwrap();
 
@@ -86,7 +86,7 @@ async fn read_data(committee_seq: u64, seq: u64) -> (Committee, CheckpointData) 
     );
 
     let mut d = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-    d.push(format!("example_config/{}.chk", seq));
+    d.push(format!("example_config/{seq}.chk"));
 
     let full_checkpoint = read_full_checkpoint(&d).await.unwrap();
 

@@ -308,7 +308,7 @@ where
                 store
                     .remove_pending_actions(&[action.digest()])
                     .unwrap_or_else(|e| {
-                        panic!("Write to DB should not fail: {:?}", e);
+                        panic!("Write to DB should not fail: {e:?}");
                     });
                 true
             }
@@ -367,7 +367,7 @@ where
                     .send(CertifiedBridgeActionExecutionWrapper(certificate, 0))
                     .await
                     .unwrap_or_else(|e| {
-                        panic!("Sending to execution queue should not fail: {:?}", e);
+                        panic!("Sending to execution queue should not fail: {e:?}");
                     });
             }
             Err(e) => {
@@ -387,7 +387,7 @@ where
                     .send(BridgeActionExecutionWrapper(action, attempt_times + 1))
                     .await
                     .unwrap_or_else(|e| {
-                        panic!("Sending to signing queue should not fail: {:?}", e);
+                        panic!("Sending to signing queue should not fail: {e:?}");
                     });
             }
         }
@@ -564,7 +564,7 @@ where
                         ))
                         .await
                         .unwrap_or_else(|e| {
-                            panic!("Sending to execution queue should not fail: {:?}", e);
+                            panic!("Sending to execution queue should not fail: {e:?}");
                         });
                     info!("Re-enqueued certificate for execution");
                 }.instrument(tracing::debug_span!("reenqueue_execution_task", action_key=?action_key)));
@@ -596,14 +596,13 @@ where
                         || e.type_ == *TokenTransferClaimed.get().unwrap()
                         || e.type_ == *TokenTransferApproved.get().unwrap()
                         || e.type_ == *TokenTransferAlreadyApproved.get().unwrap()),
-                    "Expected TokenTransferAlreadyClaimed, TokenTransferClaimed, TokenTransferApproved or TokenTransferAlreadyApproved event but got: {:?}",
-                    events,
+                    "Expected TokenTransferAlreadyClaimed, TokenTransferClaimed, TokenTransferApproved or TokenTransferAlreadyApproved event but got: {events:?}",
                 );
                 info!(?tx_digest, "IOTA transaction executed successfully");
                 store
                     .remove_pending_actions(&[action.digest()])
                     .unwrap_or_else(|e| {
-                        panic!("Write to DB should not fail: {:?}", e);
+                        panic!("Write to DB should not fail: {e:?}");
                     })
             }
             IotaExecutionStatus::Failure { error } => {
@@ -638,9 +637,7 @@ where
         assert_eq!(
             owner,
             Owner::AddressOwner(iota_address),
-            "Gas object {:?} is no longer owned by address {}",
-            gas_object_id,
-            iota_address
+            "Gas object {gas_object_id:?} is no longer owned by address {iota_address}"
         );
         (gas_coin, gas_obj_ref)
     }

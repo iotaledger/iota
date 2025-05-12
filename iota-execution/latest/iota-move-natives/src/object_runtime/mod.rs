@@ -195,7 +195,7 @@ impl<'a> ObjectRuntime<'a> {
             self.metrics.excessive_new_move_object_ids
         ) {
             return Err(PartialVMError::new(StatusCode::MEMORY_LIMIT_EXCEEDED)
-                .with_message(format!("Creating more than {} IDs is not allowed", lim))
+                .with_message(format!("Creating more than {lim} IDs is not allowed"))
                 .with_sub_status(
                     VMMemoryLimitExceededSubStatusCode::NEW_ID_COUNT_LIMIT_EXCEEDED as u64,
                 ));
@@ -226,7 +226,7 @@ impl<'a> ObjectRuntime<'a> {
             self.metrics.excessive_deleted_move_object_ids
         ) {
             return Err(PartialVMError::new(StatusCode::MEMORY_LIMIT_EXCEEDED)
-                .with_message(format!("Deleting more than {} IDs is not allowed", lim))
+                .with_message(format!("Deleting more than {lim} IDs is not allowed"))
                 .with_sub_status(
                     VMMemoryLimitExceededSubStatusCode::DELETED_ID_COUNT_LIMIT_EXCEEDED as u64,
                 ));
@@ -293,7 +293,7 @@ impl<'a> ObjectRuntime<'a> {
             self.metrics.excessive_transferred_move_object_ids
         ) {
             return Err(PartialVMError::new(StatusCode::MEMORY_LIMIT_EXCEEDED)
-                .with_message(format!("Transferring more than {} IDs is not allowed", lim))
+                .with_message(format!("Transferring more than {lim} IDs is not allowed"))
                 .with_sub_status(
                     VMMemoryLimitExceededSubStatusCode::TRANSFER_ID_COUNT_LIMIT_EXCEEDED as u64,
                 ));
@@ -512,8 +512,7 @@ impl<'a> ObjectRuntime<'a> {
 pub fn max_event_error(max_events: u64) -> PartialVMError {
     PartialVMError::new(StatusCode::MEMORY_LIMIT_EXCEEDED)
         .with_message(format!(
-            "Emitting more than {} events is not allowed",
-            max_events
+            "Emitting more than {max_events} events is not allowed"
         ))
         .with_sub_status(VMMemoryLimitExceededSubStatusCode::EVENT_COUNT_LIMIT_EXCEEDED as u64)
 }

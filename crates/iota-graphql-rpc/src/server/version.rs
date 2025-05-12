@@ -195,7 +195,7 @@ mod tests {
             return plain_request();
         }
         Request::builder()
-            .uri(format!("/graphql/{}", version))
+            .uri(format!("/graphql/{version}"))
             .body(Body::empty())
             .unwrap()
     }

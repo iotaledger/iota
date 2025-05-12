@@ -256,7 +256,7 @@ pub async fn run(cmd: Ceremony) -> Result<()> {
             println!("{:-<width$} {:-<66}", "", "", width = max_width);
 
             for (name, address) in validators {
-                println!("{name:<width$} {address}", width = max_width);
+                println!("{name:<max_width$} {address}");
             }
         }
 

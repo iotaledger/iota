@@ -112,7 +112,7 @@ pub struct FullNodeHandle {
 
 impl FullNodeHandle {
     pub async fn new(iota_node: IotaNodeHandle, json_rpc_address: SocketAddr) -> Self {
-        let rpc_url = format!("http://{}", json_rpc_address);
+        let rpc_url = format!("http://{json_rpc_address}");
         let rpc_client = HttpClientBuilder::default().build(&rpc_url).unwrap();
 
         let iota_client = IotaClientBuilder::default().build(&rpc_url).await.unwrap();
@@ -575,7 +575,7 @@ impl TestCluster {
         let bridge_ports = self.bridge_server_ports.as_ref().unwrap();
         let mut tasks = vec![];
         for port in bridge_ports.iter() {
-            let server_url = format!("http://127.0.0.1:{}", port);
+            let server_url = format!("http://127.0.0.1:{port}");
             tasks.push(wait_for_server_to_be_up(server_url, timeout_sec));
         }
         join_all(tasks)
@@ -620,7 +620,7 @@ impl TestCluster {
                         match &tx.data().intent_message().value.kind() {
                             TransactionKind::EndOfEpochTransaction(_) => (),
                             TransactionKind::AuthenticatorStateUpdateV1(_) => break,
-                            _ => panic!("{:?}", tx),
+                            _ => panic!("{tx:?}"),
                         }
                     }
                 }),
@@ -1436,7 +1436,7 @@ impl TestClusterBuilder {
                 .unwrap();
 
             let server_port = get_available_port("127.0.0.1");
-            let server_url = format!("http://127.0.0.1:{}", server_port);
+            let server_url = format!("http://127.0.0.1:{server_port}");
             server_ports.push(server_port);
             let data = build_committee_register_transaction(
                 validator_address,

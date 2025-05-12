@@ -71,7 +71,7 @@ impl std::str::FromStr for BridgeAuthorityPublicKeyBytes {
     type Err = FastCryptoError;
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let bytes = Hex::decode(s).map_err(|e| {
-            FastCryptoError::GeneralError(format!("Failed to decode hex string: {}", e))
+            FastCryptoError::GeneralError(format!("Failed to decode hex string: {e}"))
         })?;
         Self::from_bytes(&bytes)
     }
@@ -82,7 +82,7 @@ pub struct ConciseBridgeAuthorityPublicKeyBytesRef<'a>(&'a BridgeAuthorityPublic
 impl Debug for ConciseBridgeAuthorityPublicKeyBytesRef<'_> {
     fn fmt(&self, f: &mut Formatter<'_>) -> Result<(), std::fmt::Error> {
         let s = Hex::encode(self.0.0.0.get(0..4).ok_or(std::fmt::Error)?);
-        write!(f, "k#{}..", s)
+        write!(f, "k#{s}..")
     }
 }
 

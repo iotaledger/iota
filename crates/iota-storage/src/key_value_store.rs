@@ -313,7 +313,7 @@ impl TransactionKeyValueStore {
             .next()
             .flatten()
             .ok_or(IotaError::UserInput {
-                error: UserInputError::VerifiedCheckpointDigestNotFound(format!("{:?}", digest)),
+                error: UserInputError::VerifiedCheckpointDigestNotFound(format!("{digest:?}")),
             })
     }
 

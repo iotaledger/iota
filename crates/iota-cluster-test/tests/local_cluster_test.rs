@@ -29,9 +29,9 @@ async fn test_iota_cluster() {
     let opts = ClusterTestOpt {
         env: Env::NewLocal,
         faucet_address: None,
-        fullnode_address: Some(format!("127.0.0.1:{}", fullnode_rpc_port)),
+        fullnode_address: Some(format!("127.0.0.1:{fullnode_rpc_port}")),
         epoch_duration_ms: Some(60000),
-        indexer_address: Some(format!("127.0.0.1:{}", indexer_rpc_port)),
+        indexer_address: Some(format!("127.0.0.1:{indexer_rpc_port}")),
         pg_address: Some(pg_address),
         config_dir: None,
         graphql_address: Some(graphql_address),

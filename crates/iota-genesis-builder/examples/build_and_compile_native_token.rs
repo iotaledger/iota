@@ -30,7 +30,7 @@ fn main() -> anyhow::Result<()> {
         ),
     );
 
-    println!("DOGE token: {:?}", native_token_a);
+    println!("DOGE token: {native_token_a:?}");
 
     let compiled_package_a = package_builder::build_and_compile(native_token_a)?;
     println!(
@@ -55,7 +55,7 @@ fn main() -> anyhow::Result<()> {
         ),
     );
 
-    println!("SMR token: {:?}", native_token_b);
+    println!("SMR token: {native_token_b:?}");
 
     let compiled_package_b = package_builder::build_and_compile(native_token_b)?;
     println!(

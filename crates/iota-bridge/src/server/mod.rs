@@ -133,7 +133,7 @@ impl axum::response::IntoResponse for BridgeError {
     fn into_response(self) -> axum::response::Response {
         (
             StatusCode::INTERNAL_SERVER_ERROR,
-            format!("Something went wrong: {:?}", self),
+            format!("Something went wrong: {self:?}"),
         )
             .into_response()
     }
@@ -207,12 +207,11 @@ async fn handle_update_committee_blocklist_action(
 ) -> Result<Json<SignedBridgeAction>, BridgeError> {
     let future = async {
         let chain_id = BridgeChainId::try_from(chain_id).map_err(|err| {
-            BridgeError::InvalidBridgeClientRequest(format!("Invalid chain id: {:?}", err))
+            BridgeError::InvalidBridgeClientRequest(format!("Invalid chain id: {err:?}"))
         })?;
         let blocklist_type = BlocklistType::try_from(blocklist_type).map_err(|err| {
             BridgeError::InvalidBridgeClientRequest(format!(
-                "Invalid blocklist action type: {:?}",
-                err
+                "Invalid blocklist action type: {err:?}"
             ))
         })?;
         let members_to_update = keys
@@ -223,7 +222,7 @@ async fn handle_update_committee_blocklist_action(
                     .map_err(|e| anyhow::anyhow!("{:?}", e))
             })
             .collect::<Result<Vec<_>, _>>()
-            .map_err(|e| BridgeError::InvalidBridgeClientRequest(format!("{:?}", e)))?;
+            .map_err(|e| BridgeError::InvalidBridgeClientRequest(format!("{e:?}")))?;
         let action = BridgeAction::BlocklistCommitteeAction(BlocklistCommitteeAction {
             chain_id,
             nonce,
@@ -253,12 +252,11 @@ async fn handle_emergency_action(
 ) -> Result<Json<SignedBridgeAction>, BridgeError> {
     let future = async {
         let chain_id = BridgeChainId::try_from(chain_id).map_err(|err| {
-            BridgeError::InvalidBridgeClientRequest(format!("Invalid chain id: {:?}", err))
+            BridgeError::InvalidBridgeClientRequest(format!("Invalid chain id: {err:?}"))
         })?;
         let action_type = EmergencyActionType::try_from(action_type).map_err(|err| {
             BridgeError::InvalidBridgeClientRequest(format!(
-                "Invalid emergency action type: {:?}",
-                err
+                "Invalid emergency action type: {err:?}"
             ))
         })?;
         let action = BridgeAction::EmergencyAction(EmergencyAction {
@@ -283,10 +281,10 @@ async fn handle_limit_update_action(
 ) -> Result<Json<SignedBridgeAction>, BridgeError> {
     let future = async {
         let chain_id = BridgeChainId::try_from(chain_id).map_err(|err| {
-            BridgeError::InvalidBridgeClientRequest(format!("Invalid chain id: {:?}", err))
+            BridgeError::InvalidBridgeClientRequest(format!("Invalid chain id: {err:?}"))
         })?;
         let sending_chain_id = BridgeChainId::try_from(sending_chain_id).map_err(|err| {
-            BridgeError::InvalidBridgeClientRequest(format!("Invalid chain id: {:?}", err))
+            BridgeError::InvalidBridgeClientRequest(format!("Invalid chain id: {err:?}"))
         })?;
         let action = BridgeAction::LimitUpdateAction(LimitUpdateAction {
             chain_id,
@@ -311,7 +309,7 @@ async fn handle_asset_price_update_action(
 ) -> Result<Json<SignedBridgeAction>, BridgeError> {
     let future = async {
         let chain_id = BridgeChainId::try_from(chain_id).map_err(|err| {
-            BridgeError::InvalidBridgeClientRequest(format!("Invalid chain id: {:?}", err))
+            BridgeError::InvalidBridgeClientRequest(format!("Invalid chain id: {err:?}"))
         })?;
         let action = BridgeAction::AssetPriceUpdateAction(AssetPriceUpdateAction {
             chain_id,
@@ -342,10 +340,10 @@ async fn handle_evm_contract_upgrade_with_calldata(
 ) -> Result<Json<SignedBridgeAction>, BridgeError> {
     let future = async {
         let chain_id = BridgeChainId::try_from(chain_id).map_err(|err| {
-            BridgeError::InvalidBridgeClientRequest(format!("Invalid chain id: {:?}", err))
+            BridgeError::InvalidBridgeClientRequest(format!("Invalid chain id: {err:?}"))
         })?;
         let call_data = Hex::decode(&calldata).map_err(|e| {
-            BridgeError::InvalidBridgeClientRequest(format!("Invalid call data: {:?}", e))
+            BridgeError::InvalidBridgeClientRequest(format!("Invalid call data: {e:?}"))
         })?;
         let action = BridgeAction::EvmContractUpgradeAction(EvmContractUpgradeAction {
             chain_id,
@@ -385,7 +383,7 @@ async fn handle_evm_contract_upgrade(
 ) -> Result<Json<SignedBridgeAction>, BridgeError> {
     let future = async {
         let chain_id = BridgeChainId::try_from(chain_id).map_err(|err| {
-            BridgeError::InvalidBridgeClientRequest(format!("Invalid chain id: {:?}", err))
+            BridgeError::InvalidBridgeClientRequest(format!("Invalid chain id: {err:?}"))
         })?;
         let action = BridgeAction::EvmContractUpgradeAction(EvmContractUpgradeAction {
             chain_id,
@@ -419,7 +417,7 @@ async fn handle_add_tokens_on_iota(
 ) -> Result<Json<SignedBridgeAction>, BridgeError> {
     let future = async {
         let chain_id = BridgeChainId::try_from(chain_id).map_err(|err| {
-            BridgeError::InvalidBridgeClientRequest(format!("Invalid chain id: {:?}", err))
+            BridgeError::InvalidBridgeClientRequest(format!("Invalid chain id: {err:?}"))
         })?;
 
         if !chain_id.is_iota_chain() {
@@ -433,8 +431,7 @@ async fn handle_add_tokens_on_iota(
             0 => false,
             _ => {
                 return Err(BridgeError::InvalidBridgeClientRequest(format!(
-                    "Invalid native flag: {}",
-                    native
+                    "Invalid native flag: {native}"
                 )));
             }
         };
@@ -442,7 +439,7 @@ async fn handle_add_tokens_on_iota(
             .split(',')
             .map(|s| {
                 s.parse::<u8>().map_err(|err| {
-                    BridgeError::InvalidBridgeClientRequest(format!("Invalid token id: {:?}", err))
+                    BridgeError::InvalidBridgeClientRequest(format!("Invalid token id: {err:?}"))
                 })
             })
             .collect::<Result<Vec<_>, _>>()?;
@@ -451,8 +448,7 @@ async fn handle_add_tokens_on_iota(
             .map(|s| {
                 TypeTag::from_str(s).map_err(|err| {
                     BridgeError::InvalidBridgeClientRequest(format!(
-                        "Invalid token type name: {:?}",
-                        err
+                        "Invalid token type name: {err:?}"
                     ))
                 })
             })
@@ -462,8 +458,7 @@ async fn handle_add_tokens_on_iota(
             .map(|s| {
                 s.parse::<u64>().map_err(|err| {
                     BridgeError::InvalidBridgeClientRequest(format!(
-                        "Invalid token price: {:?}",
-                        err
+                        "Invalid token price: {err:?}"
                     ))
                 })
             })
@@ -501,7 +496,7 @@ async fn handle_add_tokens_on_evm(
 ) -> Result<Json<SignedBridgeAction>, BridgeError> {
     let future = async {
         let chain_id = BridgeChainId::try_from(chain_id).map_err(|err| {
-            BridgeError::InvalidBridgeClientRequest(format!("Invalid chain id: {:?}", err))
+            BridgeError::InvalidBridgeClientRequest(format!("Invalid chain id: {err:?}"))
         })?;
         if chain_id.is_iota_chain() {
             return Err(BridgeError::InvalidBridgeClientRequest(
@@ -514,8 +509,7 @@ async fn handle_add_tokens_on_evm(
             0 => false,
             _ => {
                 return Err(BridgeError::InvalidBridgeClientRequest(format!(
-                    "Invalid native flag: {}",
-                    native
+                    "Invalid native flag: {native}"
                 )));
             }
         };
@@ -523,7 +517,7 @@ async fn handle_add_tokens_on_evm(
             .split(',')
             .map(|s| {
                 s.parse::<u8>().map_err(|err| {
-                    BridgeError::InvalidBridgeClientRequest(format!("Invalid token id: {:?}", err))
+                    BridgeError::InvalidBridgeClientRequest(format!("Invalid token id: {err:?}"))
                 })
             })
             .collect::<Result<Vec<_>, _>>()?;
@@ -532,8 +526,7 @@ async fn handle_add_tokens_on_evm(
             .map(|s| {
                 EthAddress::from_str(s).map_err(|err| {
                     BridgeError::InvalidBridgeClientRequest(format!(
-                        "Invalid token address: {:?}",
-                        err
+                        "Invalid token address: {err:?}"
                     ))
                 })
             })
@@ -543,8 +536,7 @@ async fn handle_add_tokens_on_evm(
             .map(|s| {
                 s.parse::<u8>().map_err(|err| {
                     BridgeError::InvalidBridgeClientRequest(format!(
-                        "Invalid token iota decimals: {:?}",
-                        err
+                        "Invalid token iota decimals: {err:?}"
                     ))
                 })
             })
@@ -554,8 +546,7 @@ async fn handle_add_tokens_on_evm(
             .map(|s| {
                 s.parse::<u64>().map_err(|err| {
                     BridgeError::InvalidBridgeClientRequest(format!(
-                        "Invalid token price: {:?}",
-                        err
+                        "Invalid token price: {err:?}"
                     ))
                 })
             })

@@ -593,25 +593,21 @@ where
     } = resp;
     let Some(results) = results else {
         return Err(BridgeError::Generic(format!(
-            "No results returned for '{}', effects: {:?}",
-            function_name, effects
+            "No results returned for '{function_name}', effects: {effects:?}"
         )));
     };
     let return_values = &results
         .first()
         .ok_or(BridgeError::Generic(format!(
-            "No return values for '{}', results: {:?}",
-            function_name, results
+            "No return values for '{function_name}', results: {results:?}"
         )))?
         .return_values;
     let (value_bytes, _type_tag) = return_values.first().ok_or(BridgeError::Generic(format!(
-        "No first return value for '{}', results: {:?}",
-        function_name, results
+        "No first return value for '{function_name}', results: {results:?}"
     )))?;
     bcs::from_bytes::<T>(value_bytes).map_err(|e| {
         BridgeError::Generic(format!(
-            "Failed to parse return value for '{}', error: {:?}, results: {:?}",
-            function_name, e, results
+            "Failed to parse return value for '{function_name}', error: {e:?}, results: {results:?}"
         ))
     })
 }

@@ -262,7 +262,7 @@ impl TryFrom<MoveBlocklistValidatorEvent> for BlocklistValidatorEvent {
     fn try_from(event: MoveBlocklistValidatorEvent) -> BridgeResult<Self> {
         let public_keys = event.public_keys.into_iter().map(|bytes|
             BridgeAuthorityPublicKey::from_bytes(&bytes).map_err(|e|
-                BridgeError::Generic(format!("Failed to convert MoveBlocklistValidatorEvent to BlocklistValidatorEvent. Failed to convert public key to BridgeAuthorityPublicKey: {:?}", e))
+                BridgeError::Generic(format!("Failed to convert MoveBlocklistValidatorEvent to BlocklistValidatorEvent. Failed to convert public key to BridgeAuthorityPublicKey: {e:?}"))
             )
         ).collect::<BridgeResult<Vec<_>>>()?;
         Ok(Self {
@@ -284,10 +284,10 @@ impl TryFrom<MoveCommitteeMemberUrlUpdateEvent> for CommitteeMemberUrlUpdateEven
 
     fn try_from(event: MoveCommitteeMemberUrlUpdateEvent) -> BridgeResult<Self> {
         let member = BridgeAuthorityPublicKey::from_bytes(&event.member).map_err(|e|
-            BridgeError::Generic(format!("Failed to convert MoveBlocklistValidatorEvent to BlocklistValidatorEvent. Failed to convert public key to BridgeAuthorityPublicKey: {:?}", e))
+            BridgeError::Generic(format!("Failed to convert MoveBlocklistValidatorEvent to BlocklistValidatorEvent. Failed to convert public key to BridgeAuthorityPublicKey: {e:?}"))
         )?;
         let new_url = String::from_utf8(event.new_url).map_err(|e|
-            BridgeError::Generic(format!("Failed to convert MoveBlocklistValidatorEvent to BlocklistValidatorEvent. Failed to convert new_url to String: {:?}", e))
+            BridgeError::Generic(format!("Failed to convert MoveBlocklistValidatorEvent to BlocklistValidatorEvent. Failed to convert new_url to String: {e:?}"))
         )?;
         Ok(Self { member, new_url })
     }
@@ -299,8 +299,7 @@ impl TryFrom<MoveTokenDepositedEvent> for EmittedIotaToEthTokenBridgeV1 {
     fn try_from(event: MoveTokenDepositedEvent) -> BridgeResult<Self> {
         if event.amount_iota_adjusted == 0 {
             return Err(BridgeError::ZeroValueBridgeTransfer(format!(
-                "Failed to convert MoveTokenDepositedEvent to EmittedIotaToEthTokenBridgeV1. Manual intervention is required. 0 value transfer should not be allowed in Move: {:?}",
-                event,
+                "Failed to convert MoveTokenDepositedEvent to EmittedIotaToEthTokenBridgeV1. Manual intervention is required. 0 value transfer should not be allowed in Move: {event:?}",
             )));
         }
 
@@ -331,7 +330,7 @@ impl TryFrom<MoveTokenDepositedEvent> for EmittedIotaToEthTokenBridgeV1 {
         }
 
         let iota_address = IotaAddress::from_bytes(event.sender_address)
-            .map_err(|e| BridgeError::Generic(format!("Failed to convert MoveTokenDepositedEvent to EmittedIotaToEthTokenBridgeV1. Failed to convert sender_address to IotaAddress: {:?}", e)))?;
+            .map_err(|e| BridgeError::Generic(format!("Failed to convert MoveTokenDepositedEvent to EmittedIotaToEthTokenBridgeV1. Failed to convert sender_address to IotaAddress: {e:?}")))?;
         let eth_address = EthAddress::from_str(&Hex::encode(&event.target_address))?;
 
         Ok(Self {
@@ -537,7 +536,7 @@ pub mod tests {
                 IotaBridgeEvent::CommitteeUpdateEvent(_event) => mask |= 0x2,
                 IotaBridgeEvent::TokenRegistrationEvent(_event) => mask |= 0x4,
                 IotaBridgeEvent::NewTokenEvent(_event) => mask |= 0x8,
-                _ => panic!("Got unexpected event: {:?}", event),
+                _ => panic!("Got unexpected event: {event:?}"),
             }
         }
         // assert all the above events are emitted
@@ -589,7 +588,7 @@ pub mod tests {
         };
         match EmittedIotaToEthTokenBridgeV1::try_from(emitted_event).unwrap_err() {
             BridgeError::ZeroValueBridgeTransfer(_) => (),
-            other => panic!("Expected Generic error, got: {:?}", other),
+            other => panic!("Expected Generic error, got: {other:?}"),
         }
     }
 }

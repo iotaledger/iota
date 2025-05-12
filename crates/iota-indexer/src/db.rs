@@ -146,8 +146,7 @@ pub fn new_connection_pool_with_config(
 pub fn get_pool_connection(pool: &ConnectionPool) -> Result<PoolConnection, IndexerError> {
     pool.get().map_err(|e| {
         IndexerError::PgPoolConnection(format!(
-            "Failed to get connection from PG connection pool with error: {:?}",
-            e
+            "Failed to get connection from PG connection pool with error: {e:?}"
         ))
     })
 }
@@ -251,8 +250,7 @@ pub mod setup_postgres {
     ) -> Result<(), IndexerError> {
         let db_url_secret = indexer_config.get_db_url().map_err(|e| {
             IndexerError::PgPoolConnection(format!(
-                "Failed parsing database url with error {:?}",
-                e
+                "Failed parsing database url with error {e:?}"
             ))
         })?;
         let db_url = db_url_secret.expose_secret();
@@ -274,8 +272,7 @@ pub mod setup_postgres {
         if indexer_config.reset_db {
             reset_database(&mut conn).map_err(|e| {
                 let db_err_msg = format!(
-                    "Failed resetting database with url: {:?} and error: {:?}",
-                    db_url, e
+                    "Failed resetting database with url: {db_url:?} and error: {e:?}"
                 );
                 error!("{}", db_err_msg);
                 IndexerError::PostgresReset(db_err_msg)

@@ -414,7 +414,7 @@ impl CheckpointStore {
                 .get_checkpoint_contents(&verified_checkpoint.content_digest)
                 .map(|opt_contents| {
                     opt_contents
-                        .map(|contents| format!("{:?}", contents))
+                        .map(|contents| format!("{contents:?}"))
                         .unwrap_or_else(|| {
                             format!(
                                 "Verified checkpoint contents not found, digest: {:?}",
@@ -434,7 +434,7 @@ impl CheckpointStore {
                 .get_checkpoint_contents(&local_checkpoint.content_digest)
                 .map(|opt_contents| {
                     opt_contents
-                        .map(|contents| format!("{:?}", contents))
+                        .map(|contents| format!("{contents:?}"))
                         .unwrap_or_else(|| {
                             format!(
                                 "Local checkpoint contents not found, digest: {:?}",
@@ -761,7 +761,7 @@ impl CheckpointStore {
                 .get_locally_computed_checkpoint(seq)
                 .expect("get_locally_computed_checkpoint should not fail")
             else {
-                panic!("locally computed checkpoint {:?} not found", seq);
+                panic!("locally computed checkpoint {seq:?} not found");
             };
 
             let Some(contents) = self
@@ -783,7 +783,7 @@ impl CheckpointStore {
                 .expect("multi_get_transaction_blocks should not fail");
             for (tx, digest) in txns.iter().zip(tx_digests.iter()) {
                 if tx.is_none() {
-                    panic!("transaction {:?} not found", digest);
+                    panic!("transaction {digest:?} not found");
                 }
             }
 
@@ -1335,7 +1335,7 @@ impl CheckpointBuilder {
                 .zip(transactions_and_sizes.into_iter())
             {
                 let (transaction, size) = transaction_and_size
-                    .unwrap_or_else(|| panic!("Could not find executed transaction {:?}", effects));
+                    .unwrap_or_else(|| panic!("Could not find executed transaction {effects:?}"));
                 match transaction.inner().transaction_data().kind() {
                     TransactionKind::ConsensusCommitPrologueV1(_)
                     | TransactionKind::AuthenticatorStateUpdateV1(_) => {
@@ -1648,8 +1648,7 @@ impl CheckpointBuilder {
                 .map(|(opt, digest)| match opt {
                     Some(x) => x,
                     None => panic!(
-                        "Can not find effect for transaction {:?}, however transaction that depend on it was already executed",
-                        digest
+                        "Can not find effect for transaction {digest:?}, however transaction that depend on it was already executed"
                     ),
                 })
                 .collect::<Vec<_>>();
@@ -1966,7 +1965,7 @@ impl CheckpointSignatureAggregator {
                 .into_iter()
                 .sorted_by_key(|(_, (_, stake))| -(*stake as i64))
                 .map(|(digest, (_authorities, total_stake))| {
-                    format!("{:?} (total stake: {})", digest, total_stake)
+                    format!("{digest:?} (total stake: {total_stake})")
                 })
                 .collect::<Vec<String>>();
             error!(
@@ -2164,7 +2163,7 @@ async fn diagnose_split_brain(
         .into_path()
         .join(Path::new("checkpoint_fork_dump.txt"));
     let mut file = File::create(path).unwrap();
-    write!(file, "{}", fork_logs_text).unwrap();
+    write!(file, "{fork_logs_text}").unwrap();
     debug!("{}", fork_logs_text);
 
     fail_point!("split_brain_reached");

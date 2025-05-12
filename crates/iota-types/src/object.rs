@@ -529,10 +529,10 @@ impl Display for Owner {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::AddressOwner(address) => {
-                write!(f, "Account Address ( {} )", address)
+                write!(f, "Account Address ( {address} )")
             }
             Self::ObjectOwner(address) => {
-                write!(f, "Object ID: ( {} )", address)
+                write!(f, "Object ID: ( {address} )")
             }
             Self::Immutable => {
                 write!(f, "Immutable")
@@ -1106,13 +1106,13 @@ impl Display for ObjectRead {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::Deleted(oref) => {
-                write!(f, "ObjectRead::Deleted ({:?})", oref)
+                write!(f, "ObjectRead::Deleted ({oref:?})")
             }
             Self::NotExists(id) => {
-                write!(f, "ObjectRead::NotExists ({:?})", id)
+                write!(f, "ObjectRead::NotExists ({id:?})")
             }
             Self::Exists(oref, _, _) => {
-                write!(f, "ObjectRead::Exists ({:?})", oref)
+                write!(f, "ObjectRead::Exists ({oref:?})")
             }
         }
     }
@@ -1168,19 +1168,18 @@ impl Display for PastObjectRead {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::ObjectDeleted(oref) => {
-                write!(f, "PastObjectRead::ObjectDeleted ({:?})", oref)
+                write!(f, "PastObjectRead::ObjectDeleted ({oref:?})")
             }
             Self::ObjectNotExists(id) => {
-                write!(f, "PastObjectRead::ObjectNotExists ({:?})", id)
+                write!(f, "PastObjectRead::ObjectNotExists ({id:?})")
             }
             Self::VersionFound(oref, _, _) => {
-                write!(f, "PastObjectRead::VersionFound ({:?})", oref)
+                write!(f, "PastObjectRead::VersionFound ({oref:?})")
             }
             Self::VersionNotFound(object_id, version) => {
                 write!(
                     f,
-                    "PastObjectRead::VersionNotFound ({:?}, asked sequence number {:?})",
-                    object_id, version
+                    "PastObjectRead::VersionNotFound ({object_id:?}, asked sequence number {version:?})"
                 )
             }
             Self::VersionTooHigh {
@@ -1190,8 +1189,7 @@ impl Display for PastObjectRead {
             } => {
                 write!(
                     f,
-                    "PastObjectRead::VersionTooHigh ({:?}, asked sequence number {:?}, latest sequence number {:?})",
-                    object_id, asked_version, latest_version
+                    "PastObjectRead::VersionTooHigh ({object_id:?}, asked sequence number {asked_version:?}, latest sequence number {latest_version:?})"
                 )
             }
         }

@@ -202,15 +202,13 @@ pub fn get_bridge(object_store: &dyn ObjectStore) -> Result<Bridge, IotaError> {
             let result: BridgeInnerV1 = get_dynamic_field_from_store(object_store, id, &version)
                 .map_err(|err| {
                     IotaError::IotaBridgeRead(format!(
-                        "Failed to load bridge inner object with ID {:?} and version {:?}: {:?}",
-                        id, version, err
+                        "Failed to load bridge inner object with ID {id:?} and version {version:?}: {err:?}"
                     ))
                 })?;
             Ok(Bridge::V1(result))
         }
         _ => Err(IotaError::IotaBridgeRead(format!(
-            "Unsupported IotaBridge version: {}",
-            version
+            "Unsupported IotaBridge version: {version}"
         ))),
     }
 }

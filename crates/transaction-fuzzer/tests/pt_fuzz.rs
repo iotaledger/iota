@@ -103,8 +103,7 @@ pub fn run_pt_success(
                 command: _,
             }
         ),
-        "{:?}",
-        status
+        "{status:?}"
     );
     let new_cap = effects
         .mutated()

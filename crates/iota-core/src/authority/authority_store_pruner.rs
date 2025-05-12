@@ -899,7 +899,7 @@ mod tests {
             // Adding a tombstone for deleted object.
             if num_object_versions_to_retain == 0 {
                 let tombstone_key = ObjectKey(id, SequenceNumber::from(num_versions_per_object));
-                println!("Adding tombstone object {:?}", tombstone_key);
+                println!("Adding tombstone object {tombstone_key:?}");
                 batch.insert_batch(
                     &db.objects,
                     [(tombstone_key, StoreObjectWrapper::V1(StoreObject::Deleted))],

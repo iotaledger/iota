@@ -188,7 +188,7 @@ async fn get_coins() -> Result<(), anyhow::Error> {
             Some(3),
         )
         .await?;
-    assert_eq!(2, result.data.len(), "{:?}", result);
+    assert_eq!(2, result.data.len(), "{result:?}");
     assert!(!result.has_next_page);
 
     let result: CoinPage = http_client
@@ -199,7 +199,7 @@ async fn get_coins() -> Result<(), anyhow::Error> {
             None,
         )
         .await?;
-    assert_eq!(0, result.data.len(), "{:?}", result);
+    assert_eq!(0, result.data.len(), "{result:?}");
     assert!(!result.has_next_page);
 
     Ok(())

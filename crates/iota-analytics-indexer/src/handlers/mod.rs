@@ -250,7 +250,7 @@ fn parse_struct_field(
                 if let Some(MoveValue::Vector(vec_values)) = values.get("vec").cloned() {
                     if let Some(first_value) = vec_values.first() {
                         parse_struct_field(
-                            &format!("{}[0]", path),
+                            &format!("{path}[0]"),
                             first_value.clone(),
                             curr_struct,
                             all_structs,
@@ -265,7 +265,7 @@ fn parse_struct_field(
         MoveValue::Variant(v) => {
             for (k, field) in v.fields.iter() {
                 parse_struct_field(
-                    &format!("{}.{}", path, k),
+                    &format!("{path}.{k}"),
                     field.clone(),
                     curr_struct,
                     all_structs,

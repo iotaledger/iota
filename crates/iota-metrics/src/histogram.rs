@@ -141,8 +141,8 @@ impl HistogramVec {
         registry: &Registry,
         percentiles: Vec<usize>,
     ) -> Self {
-        let sum_name = format!("{}_sum", name);
-        let count_name = format!("{}_count", name);
+        let sum_name = format!("{name}_sum");
+        let count_name = format!("{name}_count");
         let sum =
             register_int_counter_vec_with_registry!(sum_name, desc, labels, registry).unwrap();
         let count =
@@ -198,24 +198,24 @@ impl HistogramVec {
     // HistogramVec and remove them from the registry. Counters can be safely
     // unregistered even if they are still in use.
     pub fn unregister(name: &str, desc: &str, labels: &[&str], registry: &Registry) {
-        let sum_name = format!("{}_sum", name);
-        let count_name = format!("{}_count", name);
+        let sum_name = format!("{name}_sum");
+        let count_name = format!("{name}_count");
 
         let sum = IntCounterVec::new(opts!(sum_name, desc), labels).unwrap();
         registry
             .unregister(Box::new(sum))
-            .unwrap_or_else(|_| panic!("{}_sum counter is in prometheus registry", name));
+            .unwrap_or_else(|_| panic!("{name}_sum counter is in prometheus registry"));
 
         let count = IntCounterVec::new(opts!(count_name, desc), labels).unwrap();
         registry
             .unregister(Box::new(count))
-            .unwrap_or_else(|_| panic!("{}_count counter is in prometheus registry", name));
+            .unwrap_or_else(|_| panic!("{name}_count counter is in prometheus registry"));
 
         let labels: Vec<_> = labels.iter().cloned().chain(["pct"]).collect();
         let gauge = IntGaugeVec::new(opts!(name, desc), &labels).unwrap();
         registry
             .unregister(Box::new(gauge))
-            .unwrap_or_else(|_| panic!("{} gauge is in prometheus registry", name));
+            .unwrap_or_else(|_| panic!("{name} gauge is in prometheus registry"));
     }
 }
 

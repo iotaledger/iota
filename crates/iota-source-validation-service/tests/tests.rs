@@ -472,7 +472,7 @@ paths = [
                 ),
             ],
         }"#]];
-    expect.assert_eq(&format!("{:#?}", config));
+    expect.assert_eq(&format!("{config:#?}"));
     Ok(())
 }
 
@@ -531,6 +531,6 @@ fn test_clone_command() -> anyhow::Result<()> {
     repo_url: "https://github.com/user/repo",
 }"#
     ];
-    expect.assert_eq(&format!("{:#?}", command));
+    expect.assert_eq(&format!("{command:#?}"));
     Ok(())
 }

@@ -172,7 +172,7 @@ pub fn read_checkpoint_general(
         checkpoint_path.push(path);
     }
     // TODO why yaml? rename to .sum
-    checkpoint_path.push(format!("{}.yaml", checkpoint_number));
+    checkpoint_path.push(format!("{checkpoint_number}.yaml"));
     let mut reader = fs::File::open(checkpoint_path.clone())?;
     let metadata = fs::metadata(&checkpoint_path)?;
     let mut buffer = vec![0; metadata.len() as usize];
@@ -248,7 +248,7 @@ pub async fn download_checkpoint_summary_from_object_store(
 
     let url = Url::parse(&config.object_store_url)?;
     let (dyn_store, _store_path) = parse_url(&url).unwrap();
-    let path = Path::from(format!("{}.chk", checkpoint_number));
+    let path = Path::from(format!("{checkpoint_number}.chk"));
     let response = dyn_store.get(&path).await?;
     let bytes = response.bytes().await?;
     let (_, blob) = bcs::from_bytes::<(u8, CheckpointData)>(&bytes)?;
@@ -305,8 +305,7 @@ pub async fn sync_checkpoint_list_to_latest(config: &Config) -> anyhow::Result<(
         last_epoch = target_epoch;
 
         println!(
-            "Last Epoch: {} Last Checkpoint: {}",
-            target_epoch, target_last_checkpoint_number
+            "Last Epoch: {target_epoch} Last Checkpoint: {target_last_checkpoint_number}"
         );
     }
 
@@ -337,7 +336,7 @@ pub async fn check_and_sync_checkpoints(config: &Config) -> anyhow::Result<()> {
         // check if there is a file with this name ckp_id.yaml in the
         // checkpoint_summary_dir
         let mut checkpoint_path = config.checkpoint_summary_dir.clone();
-        checkpoint_path.push(format!("{}.yaml", ckp_id));
+        checkpoint_path.push(format!("{ckp_id}.yaml"));
 
         // If file exists read the file otherwise download it from the server
         let summary = if checkpoint_path.exists() {
@@ -411,7 +410,7 @@ pub async fn get_full_checkpoint_from_object_store(
     let url = Url::parse(&config.object_store_url)
         .map_err(|_| anyhow!("Cannot parse object store URL"))?;
     let (dyn_store, _store_path) = parse_url(&url).unwrap();
-    let path = Path::from(format!("{}.chk", checkpoint_number));
+    let path = Path::from(format!("{checkpoint_number}.chk"));
     info!("Request full checkpoint: {}", path);
     let response = dyn_store
         .get(&path)

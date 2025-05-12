@@ -450,7 +450,7 @@ pub struct DeployedSolContracts {
 
 impl DeployedSolContracts {
     pub fn eth_address_to_hex(addr: EthAddress) -> String {
-        format!("{:x}", addr)
+        format!("{addr:x}")
     }
 
     pub fn iota_bridge_address_hex(&self) -> String {
@@ -580,8 +580,8 @@ pub(crate) async fn deploy_sol_contract(
             status.code()
         );
     }
-    println!("Stdout: {}", s);
-    println!("Stdout: {}", e);
+    println!("Stdout: {s}");
+    println!("Stdout: {e}");
 
     let mut deployed_contracts = BTreeMap::new();
     // Process the stdout to parse contract addresses

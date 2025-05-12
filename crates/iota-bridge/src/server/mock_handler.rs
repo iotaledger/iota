@@ -101,8 +101,7 @@ impl BridgeRequestHandlerTrait for BridgeRequestMockHandler {
         if !preset.contains_key(&(tx_digest, event_idx)) {
             // Ok to panic in test
             panic!(
-                "No preset handle_iota_tx_digest result for tx_digest: {}, event_idx: {}",
-                tx_digest, event_idx
+                "No preset handle_iota_tx_digest result for tx_digest: {tx_digest}, event_idx: {event_idx}"
             );
         }
         let mut requested = self.iota_token_events_requested.lock().unwrap();

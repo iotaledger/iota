@@ -363,8 +363,7 @@ impl IndexStore {
                 let object = input_coins.get(obj_id).or(written_coins.get(obj_id))?;
                 let coin_type_tag = object.coin_type_maybe().unwrap_or_else(|| {
                     panic!(
-                        "object_id: {:?} is not a coin type, input_coins: {:?}, written_coins: {:?}, tx_digest: {:?}",
-                        obj_id, input_coins, written_coins, digest
+                        "object_id: {obj_id:?} is not a coin type, input_coins: {input_coins:?}, written_coins: {written_coins:?}, tx_digest: {digest:?}"
                     )
                 });
                 let map = balance_changes.entry(*owner).or_default();
@@ -401,14 +400,12 @@ impl IndexStore {
             let obj = written_coins.get(obj_id)?;
             let coin_type_tag = obj.coin_type_maybe().unwrap_or_else(|| {
                 panic!(
-                    "object_id: {:?} in written_coins is not a coin type, written_coins: {:?}, tx_digest: {:?}",
-                    obj_id, written_coins, digest
+                    "object_id: {obj_id:?} in written_coins is not a coin type, written_coins: {written_coins:?}, tx_digest: {digest:?}"
                 )
             });
             let coin = obj.as_coin_maybe().unwrap_or_else(|| {
                 panic!(
-                    "object_id: {:?} in written_coins cannot be deserialized as a Coin, written_coins: {:?}, tx_digest: {:?}",
-                    obj_id, written_coins, digest
+                    "object_id: {obj_id:?} in written_coins cannot be deserialized as a Coin, written_coins: {written_coins:?}, tx_digest: {digest:?}"
                 )
             });
             let map = balance_changes.entry(*owner).or_default();
@@ -697,7 +694,7 @@ impl IndexStore {
             // NOTE: filter via checkpoint sequence number is implemented in
             // `get_transactions` of authority.rs.
             Some(_) => Err(IotaError::UserInput {
-                error: UserInputError::Unsupported(format!("{:?}", filter)),
+                error: UserInputError::Unsupported(format!("{filter:?}")),
             }),
             None => {
                 let iter = self.tables.transaction_order.unbounded_iter();
@@ -1355,7 +1352,7 @@ impl IndexStore {
             })
             .await
             .unwrap()
-            .map_err(|e| IotaError::Execution(format!("Failed to read balance frm DB: {:?}", e)));
+            .map_err(|e| IotaError::Execution(format!("Failed to read balance frm DB: {e:?}")));
         }
 
         self.metrics.balance_lookup_from_total.inc();
@@ -1392,7 +1389,7 @@ impl IndexStore {
                 .await
                 .unwrap()
                 .map_err(|e| {
-                    IotaError::Execution(format!("Failed to read balance frm DB: {:?}", e))
+                    IotaError::Execution(format!("Failed to read balance frm DB: {e:?}"))
                 })
             })
             .await
@@ -1418,7 +1415,7 @@ impl IndexStore {
             .await
             .unwrap()
             .map_err(|e| {
-                IotaError::Execution(format!("Failed to read all balance from DB: {:?}", e))
+                IotaError::Execution(format!("Failed to read all balance from DB: {e:?}"))
             });
         }
 
@@ -1434,7 +1431,7 @@ impl IndexStore {
                 .await
                 .unwrap()
                 .map_err(|e| {
-                    IotaError::Execution(format!("Failed to read all balance from DB: {:?}", e))
+                    IotaError::Execution(format!("Failed to read all balance from DB: {e:?}"))
                 })
             })
             .await
@@ -1486,7 +1483,7 @@ impl IndexStore {
                 coin_object_count += 1;
             }
             let coin_type = TypeTag::Struct(Box::new(parse_iota_struct_tag(&coin_type).map_err(
-                |e| IotaError::Execution(format!("Failed to parse event sender address: {:?}", e)),
+                |e| IotaError::Execution(format!("Failed to parse event sender address: {e:?}")),
             )?));
             balances.insert(
                 coin_type,

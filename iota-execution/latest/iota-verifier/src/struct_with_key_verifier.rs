@@ -36,16 +36,14 @@ fn verify_key_structs(module: &CompiledModule) -> Result<(), ExecutionError> {
             Some(field) => field,
             None => {
                 return Err(verification_failure(format!(
-                    "First field of struct {} must be 'id', no field found",
-                    name
+                    "First field of struct {name} must be 'id', no field found"
                 )));
             }
         };
         let first_field_name = module.identifier_at(first_field.name).as_str();
         if first_field_name != "id" {
             return Err(verification_failure(format!(
-                "First field of struct {} must be 'id', {} found",
-                name, first_field_name
+                "First field of struct {name} must be 'id', {first_field_name} found"
             )));
         }
         // Check that the "id" field must have a struct type.
@@ -54,9 +52,8 @@ fn verify_key_structs(module: &CompiledModule) -> Result<(), ExecutionError> {
             SignatureToken::Datatype(struct_type) => struct_type,
             _ => {
                 return Err(verification_failure(format!(
-                    "First field of struct {} must be of type {}::object::UID, \
-                    {:?} type found",
-                    name, IOTA_FRAMEWORK_ADDRESS, uid_field_type
+                    "First field of struct {name} must be of type {IOTA_FRAMEWORK_ADDRESS}::object::UID, \
+                    {uid_field_type:?} type found"
                 )));
             }
         };
@@ -72,13 +69,8 @@ fn verify_key_structs(module: &CompiledModule) -> Result<(), ExecutionError> {
                 && uid_type_module_address == &IOTA_FRAMEWORK_ADDRESS
                 && uid_type_module_name == OBJECT_MODULE_NAME,
             verification_failure(format!(
-                "First field of struct {} must be of type {}::object::UID, \
-                {}::{}::{} type found",
-                name,
-                IOTA_FRAMEWORK_ADDRESS,
-                uid_type_module_address,
-                uid_type_module_name,
-                uid_type_struct_name
+                "First field of struct {name} must be of type {IOTA_FRAMEWORK_ADDRESS}::object::UID, \
+                {uid_type_module_address}::{uid_type_module_name}::{uid_type_struct_name} type found"
             ))
         );
     }

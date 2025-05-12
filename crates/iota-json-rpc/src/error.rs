@@ -196,8 +196,7 @@ impl From<Error> for RpcError {
                         retried_tx_success,
                     } => {
                         let error_message = format!(
-                            "Failed to sign transaction by a quorum of validators because of locked objects. Retried a conflicting transaction {:?}, success: {:?}",
-                            retried_tx, retried_tx_success
+                            "Failed to sign transaction by a quorum of validators because of locked objects. Retried a conflicting transaction {retried_tx:?}, success: {retried_tx_success:?}"
                         );
 
                         let new_map = conflicting_txes
@@ -254,8 +253,7 @@ impl From<Error> for RpcError {
 
                         let error_list = new_errors.join(", ");
                         let error_msg = format!(
-                            "Transaction execution failed due to issues with transaction inputs, please review the errors and try again: {}.",
-                            error_list
+                            "Transaction execution failed due to issues with transaction inputs, please review the errors and try again: {error_list}."
                         );
 
                         let error_object = ErrorObject::owned::<()>(

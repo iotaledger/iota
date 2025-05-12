@@ -873,7 +873,7 @@ async fn handle_execution_effects(
                 }
                 periods += 1;
             }
-            Ok(Err(err)) => panic!("Failed to notify_read_executed_effects: {:?}", err),
+            Ok(Err(err)) => panic!("Failed to notify_read_executed_effects: {err:?}"),
             Ok(Ok(effects)) => {
                 for (tx_digest, expected_digest, actual_effects) in
                     izip!(&all_tx_digests, &execution_digests, &effects)
@@ -1228,8 +1228,7 @@ async fn execute_transactions(
             .map(|(fx, fx_digest)| {
                 if fx.is_none() {
                     panic!(
-                        "Transaction effects for effects digest {:?} do not exist in effects table",
-                        fx_digest
+                        "Transaction effects for effects digest {fx_digest:?} do not exist in effects table"
                     );
                 }
                 let fx = fx.unwrap();

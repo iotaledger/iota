@@ -490,12 +490,11 @@ async fn test_tto_invalid_receiving_arguments() {
                 builder.finish()
             })
             .await else {
-                panic!("failed on iteration {}", i);
+                panic!("failed on iteration {i}");
             };
             assert!(
                 expect(error),
-                "failed to match expected error on iteration {}",
-                i
+                "failed to match expected error on iteration {i}"
             );
         }
     }

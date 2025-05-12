@@ -107,8 +107,7 @@ impl EthBridgeEvent {
                             Ok(bridge_event) => {
                                 if bridge_event.iota_adjusted_amount == 0 {
                                     return Err(BridgeError::ZeroValueBridgeTransfer(format!(
-                                        "Manual intervention is required: {}",
-                                        eth_tx_hash
+                                        "Manual intervention is required: {eth_tx_hash}"
                                     )));
                                 }
                                 bridge_event
@@ -119,8 +118,7 @@ impl EthBridgeEvent {
                             // TODO: add metrics and alert
                             Err(e) => {
                                 return Err(BridgeError::Generic(format!(
-                                    "Manual intervention is required. Failed to convert TokensDepositedFilter log to EthToIotaTokenBridgeV1. This indicates incorrect parameters or a bug in the code: {:?}. Err: {:?}",
-                                    event, e
+                                    "Manual intervention is required. Failed to convert TokensDepositedFilter log to EthToIotaTokenBridgeV1. This indicates incorrect parameters or a bug in the code: {event:?}. Err: {e:?}"
                                 )));
                             }
                         };
@@ -558,7 +556,7 @@ mod tests {
         ));
         match e.try_into_bridge_action(TxHash::random(), 0).unwrap_err() {
             BridgeError::ZeroValueBridgeTransfer(_) => {}
-            e => panic!("Unexpected error: {:?}", e),
+            e => panic!("Unexpected error: {e:?}"),
         }
     }
 }

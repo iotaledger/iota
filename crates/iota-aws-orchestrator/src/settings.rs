@@ -208,10 +208,10 @@ impl Settings {
 fn resolve_env(s: &str) -> String {
     let mut s = s.to_string();
     for (name, value) in env::vars() {
-        s = s.replace(&format!("${{{}}}", name), &value);
+        s = s.replace(&format!("${{{name}}}"), &value);
     }
     if s.contains("${") {
-        eprintln!("settings.json:\n{}\n", s);
+        eprintln!("settings.json:\n{s}\n");
         panic!("Unresolved env variables in the settings.json");
     }
     s

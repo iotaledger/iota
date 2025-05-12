@@ -114,31 +114,30 @@ impl ObjectChecker {
                 }),
             ) => {
                 if !self.is_deleted {
-                    panic!("Gas object {} was deleted", object_id);
+                    panic!("Gas object {object_id} was deleted");
                 }
                 Ok(CheckerResultObject::new(None, None))
             }
             (Some(object), _) => {
                 if self.is_deleted {
-                    panic!("Expect Gas object {} deleted, but it is not", object_id);
+                    panic!("Expect Gas object {object_id} deleted, but it is not");
                 }
                 if let Some(owner) = self.owner {
                     let object_owner = object
                         .owner
-                        .unwrap_or_else(|| panic!("Object {} does not have owner", object_id));
+                        .unwrap_or_else(|| panic!("Object {object_id} does not have owner"));
                     assert_eq!(
                         object_owner, owner,
-                        "Gas coin {} does not belong to {}, but {}",
-                        object_id, owner, object_owner
+                        "Gas coin {object_id} does not belong to {owner}, but {object_owner}"
                     );
                 }
                 if self.is_iota_coin == Some(true) {
                     let move_obj = object
                         .bcs
                         .as_ref()
-                        .unwrap_or_else(|| panic!("Object {} does not have bcs data", object_id))
+                        .unwrap_or_else(|| panic!("Object {object_id} does not have bcs data"))
                         .try_as_move()
-                        .unwrap_or_else(|| panic!("Object {} is not a move object", object_id));
+                        .unwrap_or_else(|| panic!("Object {object_id} is not a move object"));
 
                     let gas_coin = move_obj.deserialize()?;
                     return Ok(CheckerResultObject::new(Some(gas_coin), Some(object)));

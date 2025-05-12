@@ -20,14 +20,14 @@ async fn main() -> Result<(), anyhow::Error> {
     let stakes = client.governance_api().get_stakes(active_address).await?;
 
     println!(" *** Stakes ***");
-    println!("{:?}", stakes);
+    println!("{stakes:?}");
     println!(" *** Stakes ***\n");
 
     // Committee Info
     let committee = client.governance_api().get_committee_info(None).await?; // None defaults to the latest epoch
 
     println!(" *** Committee Info ***");
-    println!("{:?}", committee);
+    println!("{committee:?}");
     println!(" *** Committee Info ***\n");
 
     // Latest IOTA System State
@@ -37,7 +37,7 @@ async fn main() -> Result<(), anyhow::Error> {
         .await?;
 
     println!(" *** IOTA System State ***");
-    println!("{:?}", iota_system_state);
+    println!("{iota_system_state:?}");
     println!(" *** IOTA System State ***\n");
 
     // List all active validators because we listed committee info above.
@@ -57,7 +57,7 @@ async fn main() -> Result<(), anyhow::Error> {
     let reference_gas_price = client.governance_api().get_reference_gas_price().await?;
 
     println!(" *** Reference Gas Price ***");
-    println!("{:?}", reference_gas_price);
+    println!("{reference_gas_price:?}");
     println!(" *** Reference Gas Price ***\n");
 
     Ok(())

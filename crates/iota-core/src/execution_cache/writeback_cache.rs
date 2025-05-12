@@ -654,7 +654,7 @@ impl WritebackCache {
                         "object_by_id cache is incoherent for {:?}",
                         object_id
                     );
-                    panic!("object_by_id cache is incoherent for {:?}", object_id);
+                    panic!("object_by_id cache is incoherent for {object_id:?}");
                 }
             }
         }
@@ -1206,8 +1206,7 @@ impl ObjectCacheRead for WritebackCache {
                     assert_eq!(
                         store_package.digest(),
                         p.object().digest(),
-                        "Package object cache is inconsistent for package {:?}",
-                        package_id
+                        "Package object cache is inconsistent for package {package_id:?}"
                     );
                 }
             }

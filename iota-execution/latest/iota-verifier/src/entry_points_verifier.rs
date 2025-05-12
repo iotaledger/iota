@@ -208,7 +208,7 @@ fn verify_return_type(
     }
     let abilities = view
         .abilities(return_ty, type_parameters)
-        .map_err(|e| format!("Unexpected CompiledModule error: {}", e))?;
+        .map_err(|e| format!("Unexpected CompiledModule error: {e}"))?;
     if abilities.has_drop() {
         Ok(())
     } else {

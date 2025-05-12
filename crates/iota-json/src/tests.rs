@@ -333,7 +333,7 @@ fn test_basic_args_linter_pure_args_good() {
         ),
         // U128 value encoded as hex str
         (
-            Value::from(format!("0x{:02x}", u128_val)),
+            Value::from(format!("0x{u128_val:02x}")),
             MoveTypeLayout::U128,
             bcs::to_bytes(&u128_val).unwrap(),
         ),
@@ -696,7 +696,7 @@ fn test_convert_struct() {
     let value = json!({"id":"0xf1416fe18c7baa1673187375777a7606708481311cb3548509ec91a5871c6b9a", "balance": "1000000"});
     let iota_json = IotaJsonValue::new(value).unwrap();
 
-    println!("JS: {:#?}", iota_json);
+    println!("JS: {iota_json:#?}");
 
     let bcs = iota_json.to_bcs_bytes(&layout).unwrap();
 

@@ -180,13 +180,13 @@ fn positional_formatting() {
     };
 
     let ff = FormattedField::new(&field, &[]);
-    assert_eq!(format!("{}", ff), "'bool' at position 999");
+    assert_eq!(format!("{ff}"), "'bool' at position 999");
 }
 
 fn get_packages(name: &str) -> (Vec<CompiledModule>, CompiledPackage, PathBuf) {
     let mut path: PathBuf = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     path.push("src/unit_tests/fixtures/upgrade_errors/");
-    path.push(format!("{}_v1", name));
+    path.push(format!("{name}_v1"));
 
     let mods_v1 = BuildConfig::new_for_testing()
         .build(&path)
@@ -195,7 +195,7 @@ fn get_packages(name: &str) -> (Vec<CompiledModule>, CompiledPackage, PathBuf) {
 
     let mut path: PathBuf = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     path.push("src/unit_tests/fixtures/upgrade_errors/");
-    path.push(format!("{}_v2", name));
+    path.push(format!("{name}_v2"));
 
     let pkg_v2 = BuildConfig::new_for_testing().build(&path).unwrap();
 

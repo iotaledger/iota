@@ -133,8 +133,7 @@ pub(crate) fn store_checkpoint_locally(
 
     std::fs::create_dir_all(&path).map_err(|err| {
         IotaError::FileIO(format!(
-            "failed to save full checkpoint content locally {:?}",
-            err
+            "failed to save full checkpoint content locally {err:?}"
         ))
     })?;
 

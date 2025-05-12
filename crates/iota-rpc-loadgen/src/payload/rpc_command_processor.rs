@@ -368,7 +368,7 @@ fn write_data_to_file<T: Serialize>(data: &T, file_path: &str) -> Result<(), any
     path_buf.pop();
     fs::create_dir_all(&path_buf).map_err(|e| anyhow!("Error creating directory: {}", e))?;
 
-    let file_name = format!("{}.json", file_path);
+    let file_name = format!("{file_path}.json");
     let file = File::create(file_name).map_err(|e| anyhow!("Error creating file: {}", e))?;
     serde_json::to_writer(file, data).map_err(|e| anyhow!("Error writing to file: {}", e))?;
 

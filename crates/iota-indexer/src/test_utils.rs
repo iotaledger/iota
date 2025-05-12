@@ -219,12 +219,12 @@ pub fn create_pg_store(db_url: Secret<String>, reset_database: bool) -> PgIndexe
 
         // Delete the old db if it exists
         default_conn
-            .batch_execute(&format!("DROP DATABASE IF EXISTS {}", db_name))
+            .batch_execute(&format!("DROP DATABASE IF EXISTS {db_name}"))
             .unwrap();
 
         // Create the new db
         default_conn
-            .batch_execute(&format!("CREATE DATABASE {}", db_name))
+            .batch_execute(&format!("CREATE DATABASE {db_name}"))
             .unwrap();
         parsed_url = replace_db_name(parsed_url.expose_secret(), db_name)
             .0
@@ -259,7 +259,7 @@ pub async fn force_delete_database(db_url: String) {
     blocking_pool
         .get()
         .unwrap()
-        .batch_execute(&format!("DROP DATABASE IF EXISTS {} WITH (FORCE)", db_name))
+        .batch_execute(&format!("DROP DATABASE IF EXISTS {db_name} WITH (FORCE)"))
         .unwrap();
 }
 

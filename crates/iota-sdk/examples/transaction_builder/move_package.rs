@@ -47,7 +47,7 @@ async fn main() -> Result<(), anyhow::Error> {
     println!("Object changes:");
     let object_changes = transaction_response.object_changes.unwrap();
     for object_change in &object_changes {
-        println!("{:?}", object_change);
+        println!("{object_change:?}");
     }
 
     // Wait some time for the indexer to process the tx
@@ -104,7 +104,7 @@ async fn main() -> Result<(), anyhow::Error> {
     println!("Transaction sent {}", transaction_response.digest);
     println!("Object changes:");
     for object_change in transaction_response.object_changes.unwrap() {
-        println!("{:?}", object_change);
+        println!("{object_change:?}");
     }
 
     Ok(())

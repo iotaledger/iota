@@ -213,7 +213,7 @@ mod checked {
                     .move_gas_status_mut()
                     .set_profiler(GasProfiler::init(
                         &vm.config().profiler_config,
-                        format!("{}", tx_digest),
+                        format!("{tx_digest}"),
                         remaining_gas,
                     ));
             }
@@ -790,9 +790,8 @@ mod checked {
                             ExecutionErrorKind::SharedObjectOperationNotAllowed,
                             Some(
                                 format!(
-                                    "Shared object operation on {} not allowed: \
-                                     cannot be frozen, transferred, or wrapped",
-                                    id
+                                    "Shared object operation on {id} not allowed: \
+                                     cannot be frozen, transferred, or wrapped"
                                 )
                                 .into(),
                             ),
@@ -805,8 +804,8 @@ mod checked {
                         return Err(ExecutionError::new(
                             ExecutionErrorKind::SharedObjectOperationNotAllowed,
                             Some(
-                                format!("Shared object operation on {} not allowed: \
-                                         shared objects used by value must be re-shared if not deleted", id).into(),
+                                format!("Shared object operation on {id} not allowed: \
+                                         shared objects used by value must be re-shared if not deleted").into(),
                             ),
                         ));
                     }
@@ -1503,10 +1502,10 @@ mod checked {
             match self.linkage_view.get_module(module_id) {
                 Ok(Some(bytes)) => Ok(bytes),
                 Ok(None) => Err(PartialVMError::new(StatusCode::LINKER_ERROR)
-                    .with_message(format!("Cannot find {:?} in data cache", module_id))
+                    .with_message(format!("Cannot find {module_id:?} in data cache"))
                     .finish(Location::Undefined)),
                 Err(err) => {
-                    let msg = format!("Unexpected storage error: {:?}", err);
+                    let msg = format!("Unexpected storage error: {err:?}");
                     Err(
                         PartialVMError::new(StatusCode::UNKNOWN_INVARIANT_VIOLATION_ERROR)
                             .with_message(msg)

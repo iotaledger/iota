@@ -17,10 +17,10 @@ pub fn check_enum_compat_order<T: EnumOrderMap>(snapshot_file: PathBuf) {
             let mut file = std::fs::File::create(snapshot_file).unwrap();
             let content: String = serde_yaml::to_string(&new_map).unwrap();
 
-            write!(file, "{}", content).unwrap();
+            write!(file, "{content}").unwrap();
             return;
         }
-        panic!("Error reading file: {:?}: err {:?}", snapshot_file, err);
+        panic!("Error reading file: {snapshot_file:?}: err {err:?}");
     }
 
     let existing_map: std::collections::BTreeMap<u64, String> =
@@ -31,8 +31,7 @@ pub fn check_enum_compat_order<T: EnumOrderMap>(snapshot_file: PathBuf) {
         match new_map.get(&pos) {
             None => {
                 panic!(
-                    "Enum variant {} has been removed. Not allowed: enum must be backward compatible.",
-                    val
+                    "Enum variant {val} has been removed. Not allowed: enum must be backward compatible."
                 );
             }
             Some(new_val) if new_val == &val => continue,
@@ -48,5 +47,5 @@ pub fn check_enum_compat_order<T: EnumOrderMap>(snapshot_file: PathBuf) {
     let mut file = std::fs::File::create(snapshot_file).unwrap();
     let content: String = serde_yaml::to_string(&new_map).unwrap();
 
-    write!(file, "{}", content).unwrap();
+    write!(file, "{content}").unwrap();
 }

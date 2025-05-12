@@ -389,7 +389,7 @@ impl RpcModuleDocBuilder {
         } else {
             Some(doc.trim().to_string())
         };
-        let name = format!("{}_{}", namespace, name);
+        let name = format!("{namespace}_{name}");
         self.methods.insert(
             name.clone(),
             Method {

@@ -201,8 +201,7 @@ impl SharedObjVerManager {
             SequenceNumber::lamport_increment(input_object_keys.iter().map(|obj| obj.1));
         assert!(
             next_version.is_valid(),
-            "Assigned version must be valid. Got {:?}",
-            next_version
+            "Assigned version must be valid. Got {next_version:?}"
         );
 
         if !txn_cancelled {

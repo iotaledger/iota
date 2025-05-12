@@ -121,7 +121,7 @@ impl Store for MemStore {
             if let Some(block) = block {
                 blocks.push(block);
             } else {
-                panic!("Block {:?} not found!", r);
+                panic!("Block {r:?} not found!");
             }
         }
         Ok(blocks)
@@ -165,7 +165,7 @@ impl Store for MemStore {
         let mut blocks = vec![];
         for (r, block) in refs.into_iter().zip(results.into_iter()) {
             blocks.push(
-                block.unwrap_or_else(|| panic!("Storage inconsistency: block {:?} not found!", r)),
+                block.unwrap_or_else(|| panic!("Storage inconsistency: block {r:?} not found!")),
             );
         }
         Ok(blocks)

@@ -58,7 +58,7 @@ async fn try_direct_commit() {
             if let LeaderStatus::Commit(ref committed_block) = leader_status {
                 assert_eq!(committed_block.author(), leader.authority)
             } else {
-                panic!("Expected a committed leader at round {}", round)
+                panic!("Expected a committed leader at round {round}")
             };
         } else {
             // The base committer should mark the potential leader in r6 as undecided

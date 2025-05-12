@@ -84,7 +84,7 @@ pub enum Error {
 
 impl ErrorExtensions for Error {
     fn extend(&self) -> async_graphql::Error {
-        async_graphql::Error::new(format!("{}", self)).extend_with(|_err, e| match self {
+        async_graphql::Error::new(format!("{self}")).extend_with(|_err, e| match self {
             Error::CursorNoFirstLast
             | Error::PageTooLarge(_, _)
             | Error::ProtocolVersionUnsupported(_, _)

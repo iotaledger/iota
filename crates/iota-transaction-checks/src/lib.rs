@@ -165,8 +165,7 @@ mod checked {
         kind.validity_check(config)?;
         if kind.is_system_tx() {
             return Err(UserInputError::Unsupported(format!(
-                "Transaction kind {} is not supported in dev-inspect",
-                kind
+                "Transaction kind {kind} is not supported in dev-inspect"
             ))
             .into());
         }
@@ -483,8 +482,7 @@ mod checked {
                             owner == &actual_owner,
                             UserInputError::IncorrectUserSignature {
                                 error: format!(
-                                    "Object {:?} is owned by account address {:?}, but given owner/signer address is {:?}",
-                                    object_id, actual_owner, owner
+                                    "Object {object_id:?} is owned by account address {actual_owner:?}, but given owner/signer address is {owner:?}"
                                 ),
                             }
                         );

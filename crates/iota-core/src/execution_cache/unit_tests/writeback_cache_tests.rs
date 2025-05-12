@@ -123,7 +123,7 @@ impl Scenario {
         };
 
         for i in 0..num_steps {
-            println!("running with cache eviction after step {}", i);
+            println!("running with cache eviction after step {i}");
             let count = Arc::new(AtomicU32::new(0));
             let action = Box::new(|s: &mut Scenario| {
                 println!("evict_caches()");
@@ -1044,7 +1044,7 @@ async fn test_concurrent_readers() {
             for (_, _, parent_ref, child_id) in txns {
                 barrier.wait().await;
 
-                println!("parent: {:?}", parent_ref);
+                println!("parent: {parent_ref:?}");
                 loop {
                     let parent = cache
                         .get_object_by_key(&parent_ref.0, parent_ref.1)

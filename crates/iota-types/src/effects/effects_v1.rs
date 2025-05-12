@@ -565,7 +565,7 @@ impl TransactionEffectsV1 {
                     assert_ne!(old_digest, new_digest);
                 }
                 _ => {
-                    panic!("Impossible object change: {:?}, {:?}", id, change);
+                    panic!("Impossible object change: {id:?}, {change:?}");
                 }
             }
         }
@@ -576,9 +576,7 @@ impl TransactionEffectsV1 {
         for (id, _) in &self.unchanged_shared_objects {
             assert!(
                 unique_ids.insert(*id),
-                "Duplicate object id: {:?}\n{:#?}",
-                id,
-                self
+                "Duplicate object id: {id:?}\n{self:#?}"
             );
         }
     }

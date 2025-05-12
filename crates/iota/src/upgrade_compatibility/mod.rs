@@ -1335,13 +1335,13 @@ fn function_signature_mismatch_diag(
                             format_list(
                                 new_type_param
                                     .into_iter()
-                                    .map(|t| format!("'{:?}'", t).to_lowercase()),
+                                    .map(|t| format!("'{t:?}'").to_lowercase()),
                                 Some(("constraint", "constraints"))
                             ),
                             format_list(
                                 old_type_param
                                     .into_iter()
-                                    .map(|t| format!("'{:?}'", t).to_lowercase()),
+                                    .map(|t| format!("'{t:?}'").to_lowercase()),
                                 None
                             ),
                         ),
@@ -1496,11 +1496,11 @@ fn ability_mismatch_label(
 
     let missing_abilities_list: Vec<String> = missing_abilities
         .into_iter()
-        .map(|a| format!("'{:?}'", a).to_lowercase())
+        .map(|a| format!("'{a:?}'").to_lowercase())
         .collect();
     let extra_abilities_list: Vec<String> = extra_abilities
         .into_iter()
-        .map(|a| format!("'{:?}'", a).to_lowercase())
+        .map(|a| format!("'{a:?}'").to_lowercase())
         .collect();
 
     match (
@@ -1554,7 +1554,7 @@ fn struct_ability_mismatch_diag(
         let old_abilities: Vec<String> = old_struct
             .abilities
             .into_iter()
-            .map(|a| format!("'{:?}'", a).to_lowercase())
+            .map(|a| format!("'{a:?}'").to_lowercase())
             .collect();
 
         diags.add(Diagnostic::new(
@@ -1585,7 +1585,7 @@ fn struct_ability_mismatch_diag(
                         old_struct
                             .abilities
                             .into_iter()
-                            .map(|a| format!("'{:?}'", a).to_lowercase()),
+                            .map(|a| format!("'{a:?}'").to_lowercase()),
                         None
                     ),
                 ),
@@ -1802,7 +1802,7 @@ fn enum_ability_mismatch_diag(
         let old_abilities: Vec<String> = old_enum
             .abilities
             .into_iter()
-            .map(|a| format!("'{:?}'", a).to_lowercase())
+            .map(|a| format!("'{a:?}'").to_lowercase())
             .collect();
 
         let reason = if public_visibility_related_error {
@@ -1836,7 +1836,7 @@ fn enum_ability_mismatch_diag(
                         old_enum
                             .abilities
                             .into_iter()
-                            .map(|a| format!("'{:?}'", a).to_lowercase()),
+                            .map(|a| format!("'{a:?}'").to_lowercase()),
                         None
                     ),
                 ),
@@ -2253,7 +2253,7 @@ fn function_new_diag(
         Declarations::NewDeclaration,
         (
             def_loc,
-            format!("New unexpected function '{}'.", function_name),
+            format!("New unexpected function '{function_name}'."),
         ),
         Vec::<(Loc, String)>::new(),
         vec![
@@ -2493,8 +2493,7 @@ fn file_format_version_downgrade_diag(
         (
             def_loc,
             format!(
-                "Downgrading from file format version {} to {} is not supported.",
-                old_version, new_version
+                "Downgrading from file format version {old_version} to {new_version} is not supported."
             ),
         ),
         Vec::<(Loc, String)>::new(),

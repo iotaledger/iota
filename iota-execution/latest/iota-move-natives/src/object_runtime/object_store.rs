@@ -259,8 +259,7 @@ impl Inner<'_> {
             ) {
                 return Err(PartialVMError::new(StatusCode::MEMORY_LIMIT_EXCEEDED)
                     .with_message(format!(
-                        "Object runtime cached objects limit ({} entries) reached",
-                        lim
+                        "Object runtime cached objects limit ({lim} entries) reached"
                     ))
                     .with_sub_status(
                         VMMemoryLimitExceededSubStatusCode::OBJECT_RUNTIME_CACHE_LIMIT_EXCEEDED
@@ -513,8 +512,7 @@ impl<'a> ChildObjectStore<'a> {
                 ) {
                     return Err(PartialVMError::new(StatusCode::MEMORY_LIMIT_EXCEEDED)
                         .with_message(format!(
-                            "Object runtime store limit ({} entries) reached",
-                            lim
+                            "Object runtime store limit ({lim} entries) reached"
                         ))
                         .with_sub_status(
                             VMMemoryLimitExceededSubStatusCode::OBJECT_RUNTIME_STORE_LIMIT_EXCEEDED
@@ -561,8 +559,7 @@ impl<'a> ChildObjectStore<'a> {
         ) {
             return Err(PartialVMError::new(StatusCode::MEMORY_LIMIT_EXCEEDED)
                 .with_message(format!(
-                    "Object runtime store limit ({} entries) reached",
-                    lim
+                    "Object runtime store limit ({lim} entries) reached"
                 ))
                 .with_sub_status(
                     VMMemoryLimitExceededSubStatusCode::OBJECT_RUNTIME_STORE_LIMIT_EXCEEDED as u64,

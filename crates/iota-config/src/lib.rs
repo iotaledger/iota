@@ -76,17 +76,17 @@ pub fn genesis_blob_exists(config_dir: Option<PathBuf>) -> bool {
 }
 
 pub fn validator_config_file(address: Multiaddr, i: usize) -> String {
-    multiaddr_to_filename(address).unwrap_or(format!("validator-config-{}.yaml", i))
+    multiaddr_to_filename(address).unwrap_or(format!("validator-config-{i}.yaml"))
 }
 
 pub fn ssfn_config_file(address: Multiaddr, i: usize) -> String {
-    multiaddr_to_filename(address).unwrap_or(format!("ssfn-config-{}.yaml", i))
+    multiaddr_to_filename(address).unwrap_or(format!("ssfn-config-{i}.yaml"))
 }
 
 fn multiaddr_to_filename(address: Multiaddr) -> Option<String> {
     if let Some(hostname) = address.hostname() {
         if let Some(port) = address.port() {
-            return Some(format!("{}-{}.yaml", hostname, port));
+            return Some(format!("{hostname}-{port}.yaml"));
         }
     }
     None

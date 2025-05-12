@@ -46,7 +46,7 @@ pub enum StoreName {
 }
 impl std::fmt::Display for StoreName {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        write!(f, "{:?}", self)
+        write!(f, "{self:?}")
     }
 }
 
@@ -163,7 +163,7 @@ pub fn print_table_metadata(
         table.add_row(row);
     }
 
-    eprintln!("{}", table);
+    eprintln!("{table}");
     Ok(())
 }
 
@@ -346,7 +346,7 @@ mod test {
 
         let mut missing_tables = vec![];
         for t in tables {
-            println!("{}", t);
+            println!("{t}");
             if dump_table(
                 StoreName::Validator,
                 Some(0),

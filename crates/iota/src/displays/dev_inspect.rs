@@ -13,7 +13,7 @@ impl Display for Pretty<'_, DevInspectResults> {
         let Pretty(response) = self;
 
         if let Some(error) = &response.error {
-            writeln!(f, "Dev inspect failed: {}", error)?;
+            writeln!(f, "Dev inspect failed: {error}")?;
             return Ok(());
         }
 

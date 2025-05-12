@@ -72,8 +72,7 @@ impl TryFrom<IotaExecutionResult> for DryRunEffect {
             .collect::<Result<Vec<_>, anyhow::Error>>()
             .map_err(|e| {
                 Error::Internal(format!(
-                    "Failed to parse results returned from dev inspect: {:?}",
-                    e
+                    "Failed to parse results returned from dev inspect: {e:?}"
                 ))
             })?;
         let return_values = result
@@ -88,8 +87,7 @@ impl TryFrom<IotaExecutionResult> for DryRunEffect {
             .collect::<Result<Vec<_>, anyhow::Error>>()
             .map_err(|e| {
                 Error::Internal(format!(
-                    "Failed to parse results returned from dev inspect: {:?}",
-                    e
+                    "Failed to parse results returned from dev inspect: {e:?}"
                 ))
             })?;
         Ok(Self {

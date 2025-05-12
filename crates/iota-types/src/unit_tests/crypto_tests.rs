@@ -40,7 +40,7 @@ fn serde_round_trip_authority_quorum_sign_info() {
         signers_map: RoaringBitmap::new(),
     };
     let ser = serde_json::to_string(&info).unwrap();
-    println!("{}", ser);
+    println!("{ser}");
     let schema = schemars::schema_for!(AuthorityQuorumSignInfo<true>);
     println!("{}", serde_json::to_string_pretty(&schema).unwrap());
 
@@ -88,7 +88,7 @@ fn test_proof_of_possession() {
     let mut msg = vec![];
     msg.extend_from_slice(kp.public().as_bytes());
     msg.extend_from_slice(address.as_ref());
-    println!("Address: {:?}", address);
+    println!("Address: {address:?}");
     println!("Pubkey: {:?}", Hex::encode(kp.public().as_bytes()));
     println!("Proof of possession: {:?}", Hex::encode(&pop));
     assert!(verify_proof_of_possession(&pop, kp.public(), address).is_ok());

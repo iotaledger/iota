@@ -90,7 +90,7 @@ pub fn is_keyword(s: &str) -> bool {
 pub fn all_keywords() -> String {
     KEYWORDS[..KEYWORDS.len() - 1]
         .iter()
-        .map(|x| format!("'{}'", x))
+        .map(|x| format!("'{x}'"))
         .collect::<Vec<_>>()
         .join(", ")
         + &format!(", or '{}'", KEYWORDS[KEYWORDS.len() - 1])
@@ -345,9 +345,9 @@ impl fmt::Display for Argument {
             Argument::Gas => write!(f, "gas"),
             Argument::Identifier(i) => write!(f, "{i}"),
             Argument::VariableAccess(sp!(_, head), accesses) => {
-                write!(f, "{}", head)?;
+                write!(f, "{head}")?;
                 for sp!(_, access) in accesses {
-                    write!(f, ".{}", access)?;
+                    write!(f, ".{access}")?;
                 }
                 Ok(())
             }
@@ -378,7 +378,7 @@ fn delimited_list<T: fmt::Display>(
 ) -> std::fmt::Result {
     let mut prefix = "";
     for item in items {
-        write!(f, "{}{}", prefix, item)?;
+        write!(f, "{prefix}{item}")?;
         prefix = sep;
     }
     Ok(())
