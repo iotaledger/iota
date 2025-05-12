@@ -26,6 +26,7 @@ import {
     LockUnlocked,
     Logout,
     Expand,
+    Exclamation,
 } from '@iota/apps-ui-icons';
 import {
     ButtonType,
@@ -38,7 +39,7 @@ import {
     ImageType,
 } from '@iota/apps-ui-kit';
 import { ampli } from '_src/shared/analytics/ampli';
-import { useTheme, getCustomNetwork, FAQ_LINK, ToS_LINK } from '@iota/core';
+import { useTheme, getCustomNetwork, FAQ_LINK, ToS_LINK, DISCORD_SUPPORT_LINK } from '@iota/core';
 
 export function MenuList() {
     const { themePreference } = useTheme();
@@ -90,6 +91,10 @@ export function MenuList() {
         navigate(themeUrl);
     }
 
+    function onSupportClick() {
+        window.open(DISCORD_SUPPORT_LINK, '_blank', 'noopener noreferrer');
+    }
+
     function onFAQClick() {
         window.open(FAQ_LINK, '_blank', 'noopener noreferrer');
     }
@@ -110,15 +115,15 @@ export function MenuList() {
             onClick: onAutoLockClick,
         },
         {
-            title: 'FAQ',
-            icon: <Info />,
-            onClick: onFAQClick,
-        },
-        {
             title: 'Themes',
             icon: <DarkMode />,
             subtitle: themeSubtitle,
             onClick: onThemeClick,
+        },
+        {
+            title: 'Get Support',
+            icon: <Exclamation />,
+            onClick: onSupportClick,
         },
         {
             title: 'Expand View',
@@ -126,6 +131,11 @@ export function MenuList() {
             onClick: () =>
                 window.open(window.location.href.split('?')[0], '_blank', 'noopener noreferrer'),
             hidden: !isAppPopup,
+        },
+        {
+            title: 'FAQ',
+            icon: <Info />,
+            onClick: onFAQClick,
         },
         {
             title: 'Reset',
