@@ -58,9 +58,8 @@ pub enum NameCommand {
     /// Auction related operations, like bidding and claiming
     #[command(subcommand)]
     Auction(AuctionCommand),
-    Availability {
-        domain: Domain,
-    },
+    /// Check the availability of a domain and return its price if available
+    Availability { domain: Domain },
     /// Burn an expired IOTA-Names NFT
     Burn {
         /// The full name of the domain. Ex. my-domain.iota
@@ -77,13 +76,9 @@ pub enum NameCommand {
         key: Option<String>,
     },
     /// List the domains owned by the given address, or the active address
-    List {
-        address: Option<IotaAddress>,
-    },
+    List { address: Option<IotaAddress> },
     /// Lookup the address of a domain
-    Lookup {
-        domain: Domain,
-    },
+    Lookup { domain: Domain },
     /// Register a domain
     Register {
         /// The full name of the domain. Ex. my-domain.iota
