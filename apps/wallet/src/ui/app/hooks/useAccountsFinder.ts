@@ -2,7 +2,11 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { useBackgroundClient } from './useBackgroundClient';
-import { AccountsFinder, type AllowedAccountSourceTypes } from '_src/ui/app/accounts-finder';
+import {
+    AccountsFinder,
+    type OnDerivationPathChecked,
+    type AllowedAccountSourceTypes,
+} from '_src/ui/app/accounts-finder';
 import { useIotaClient } from '@iota/dapp-kit';
 import { useIotaLedgerClient } from '_components';
 import { useMemo } from 'react';
@@ -23,6 +27,7 @@ export interface UseAccountFinderOptions {
     accountGapLimit?: number;
     addressGapLimit?: number;
     sourceStrategy: SourceStrategyToFind;
+    onDerivationPathChecked?: OnDerivationPathChecked;
 }
 
 export function useAccountsFinder({
@@ -32,6 +37,7 @@ export function useAccountsFinder({
     accountGapLimit,
     sourceStrategy,
     accountSourceType,
+    onDerivationPathChecked,
 }: UseAccountFinderOptions) {
     const backgroundClient = useBackgroundClient();
     const ledgerIotaClient = useIotaLedgerClient();
@@ -47,6 +53,7 @@ export function useAccountsFinder({
             coinType,
             accountGapLimit,
             addressGapLimit,
+            onDerivationPathChecked,
             getPublicKey: async (bipPath) => {
                 if (sourceStrategy.type == 'ledger') {
                     // Retrieve the public key using the ledger client
