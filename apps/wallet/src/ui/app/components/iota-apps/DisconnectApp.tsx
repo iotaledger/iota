@@ -70,7 +70,7 @@ export function DisconnectApp({
     }
     return (
         <Overlay showModal setShowModal={setShowDisconnectApp} title="Active Connection">
-            <div className="flex max-w-full flex-1 flex-col flex-nowrap items-stretch gap-y-md">
+            <div className="flex h-full max-w-full flex-1 flex-col flex-nowrap items-stretch gap-y-md">
                 <DAppInfoCard name={name} iconUrl={icon} url={link} />
 
                 <SummaryPanel
@@ -81,35 +81,36 @@ export function DisconnectApp({
                         </div>
                     }
                 />
+                <div className="flex flex-1 flex-col overflow-y-auto rounded-xl">
+                    <SummaryPanel
+                        title={'Connected Account' + (connectedAccounts.length > 1 ? 's' : '')}
+                        body={
+                            <div className="overflow-y-auto px-md">
+                                {connectedAccounts.length > 1 ? (
+                                    <WalletListSelect
+                                        visibleValues={connectedAccounts}
+                                        values={accountsToDisconnect}
+                                        onChange={setAccountsToDisconnect}
+                                        disabled={disconnectMutation.isPending}
+                                    />
+                                ) : (
+                                    <SummaryListItem
+                                        icon={
+                                            <CircleEmitter className="h-5 w-5 text-neutral-10 dark:text-neutral-92" />
+                                        }
+                                        text={
+                                            connectedAccounts[0]
+                                                ? formatAddress(connectedAccounts[0])
+                                                : ''
+                                        }
+                                    />
+                                )}
+                            </div>
+                        }
+                    />
+                </div>
 
-                <SummaryPanel
-                    title={'Connected Account' + (connectedAccounts.length > 1 ? 's' : '')}
-                    body={
-                        <div className="px-md">
-                            {connectedAccounts.length > 1 ? (
-                                <WalletListSelect
-                                    visibleValues={connectedAccounts}
-                                    values={accountsToDisconnect}
-                                    onChange={setAccountsToDisconnect}
-                                    disabled={disconnectMutation.isPending}
-                                />
-                            ) : (
-                                <SummaryListItem
-                                    icon={
-                                        <CircleEmitter className="h-5 w-5 text-neutral-10 dark:text-neutral-92" />
-                                    }
-                                    text={
-                                        connectedAccounts[0]
-                                            ? formatAddress(connectedAccounts[0])
-                                            : ''
-                                    }
-                                />
-                            )}
-                        </div>
-                    }
-                />
-
-                <div className="sticky bottom-0 flex flex-1 items-end pt-xs">
+                <div className="sticky bottom-0 flex items-end pt-xs">
                     <Button
                         type={ButtonType.Secondary}
                         fullWidth
