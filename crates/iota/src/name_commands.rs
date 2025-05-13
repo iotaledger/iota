@@ -206,7 +206,10 @@ impl NameCommand {
                     )
                 };
 
-                NameCommandResult::Availability((domain_str, price))
+                NameCommandResult::Availability {
+                    domain: domain_str,
+                    price,
+                }
             }
             Self::Burn { domain, opts } => {
                 let nft = get_owned_nft_by_name::<IotaNamesRegistration>(&domain, context).await?;
@@ -1000,7 +1003,10 @@ impl SubdomainCommand {
 pub enum NameCommandResult {
     Auction(IotaClientCommandResult),
     AuctionMetadata(Auction),
-    Availability((String, Option<u64>)),
+    Availability {
+        domain: String,
+        price: Option<u64>,
+    },
     Client(IotaClientCommandResult),
     Lookup {
         domain: Domain,
@@ -1041,7 +1047,7 @@ impl std::fmt::Display for NameCommandResult {
                     auction.current_bid.id.id.bytes
                 )
             }
-            Self::Availability((domain, price)) => match price {
+            Self::Availability { domain, price } => match price {
                 Some(price) => {
                     write!(f, "\"{domain}\" is available for {price} NANOs")
                 }
