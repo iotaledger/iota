@@ -189,8 +189,6 @@ impl NameCommand {
             Self::Availability { domain } => {
                 let domain_str = domain.to_string();
 
-                // TODO what should we do for subdomains?
-
                 let price = if iota_client
                     .read_api()
                     .iota_names_lookup(&domain_str)
@@ -199,11 +197,15 @@ impl NameCommand {
                 {
                     None
                 } else {
-                    Some(
-                        fetch_pricing_config(&iota_client)
-                            .await?
-                            .get_price(domain.label(1).unwrap())?,
-                    )
+                    if domain.is_subdomain() {
+                        Some(0)
+                    } else {
+                        Some(
+                            fetch_pricing_config(&iota_client)
+                                .await?
+                                .get_price(domain.label(1).unwrap())?,
+                        )
+                    }
                 };
 
                 NameCommandResult::Availability {
