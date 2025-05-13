@@ -2959,7 +2959,7 @@ pub(crate) async fn dry_run_or_execute_or_serialize(
     if dev_inspect {
         return execute_dev_inspect(
             context,
-            signer,
+            new_signer,
             tx_kind,
             gas_budget,
             gas_price,
