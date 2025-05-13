@@ -1,0 +1,116 @@
+---
+source: external-crates/move/crates/move-transactional-test-runner/src/framework.rs
+---
+processed 14 tasks
+
+init:
+A: object(0,0)
+
+task 1, lines 7-31:
+//# publish
+created: object(1,0)
+mutated: object(0,1)
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 5624000,  storage_rebate: 0, non_refundable_storage_fee: 0
+
+task 2, lines 33-35:
+//# programmable --sender A --inputs @A
+//> 0: P0::m::foo();
+//> TransferObjects([Result(0)], Input(0))
+created: object(2,0)
+mutated: object(0,0)
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2196400,  storage_rebate: 0, non_refundable_storage_fee: 0
+
+task 3, lines 37-39:
+//# programmable --sender A --inputs @A object(2,0)
+//> 0: P0::m::from_foo(Input(1));
+//> TransferObjects([Result(0)], Input(0))
+created: object(3,0)
+mutated: object(0,0)
+wrapped: object(2,0)
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2439600,  storage_rebate: 2196400, non_refundable_storage_fee: 0
+
+task 4, lines 41-43:
+//# programmable --sender A --inputs @A object(3,0)
+//> 0: P0::m::into_foo(Input(1));
+//> TransferObjects([Result(0)], Input(0))
+mutated: object(0,0)
+unwrapped: object(2,0)
+deleted: object(3,0)
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2196400,  storage_rebate: 2439600, non_refundable_storage_fee: 0
+
+task 5, line 45:
+//# create-checkpoint
+Checkpoint created: 1
+
+task 6, lines 47-55:
+//# run-graphql
+Response: {
+  "data": {
+    "object1": {
+      "digest": "kfqgxZwi4o2rX6KEbFLC9v2vzyt3oBAjTVGrZ4C4h9v"
+    },
+    "object2": {
+      "digest": null
+    }
+  }
+}
+
+task 7, lines 57-59:
+//# programmable --sender A --inputs @A
+//> 0: P0::m::foo();
+//> TransferObjects([Result(0)], Input(0))
+created: object(7,0)
+mutated: object(0,0)
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2196400,  storage_rebate: 980400, non_refundable_storage_fee: 0
+
+task 8, lines 61-63:
+//# programmable --sender A --inputs @A object(7,0)
+//> 0: P0::m::from_foo(Input(1));
+//> TransferObjects([Result(0)], Input(0))
+created: object(8,0)
+mutated: object(0,0)
+wrapped: object(7,0)
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2439600,  storage_rebate: 2196400, non_refundable_storage_fee: 0
+
+task 9, line 65:
+//# create-checkpoint
+Checkpoint created: 2
+
+task 10, lines 67-75:
+//# run-graphql
+Response: {
+  "data": {
+    "object1": {
+      "digest": null
+    },
+    "object2": {
+      "digest": "d27G5A3VoWJfmErshZcy4evrzjBzjAT8cwYzpztVhLw"
+    }
+  }
+}
+
+task 11, lines 77-79:
+//# programmable --sender A --inputs @A object(8,0)
+//> 0: P0::m::into_foo(Input(1));
+//> TransferObjects([Result(0)], Input(0))
+mutated: object(0,0)
+unwrapped: object(7,0)
+deleted: object(8,0)
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2196400,  storage_rebate: 2439600, non_refundable_storage_fee: 0
+
+task 12, line 81:
+//# create-checkpoint
+Checkpoint created: 3
+
+task 13, lines 83-91:
+//# run-graphql
+Response: {
+  "data": {
+    "object1": {
+      "digest": "5JRDDVvrZJ1xrPmSA9ML1KgxCsgRJUSt87gDoob2V7aU"
+    },
+    "object2": {
+      "digest": null
+    }
+  }
+}

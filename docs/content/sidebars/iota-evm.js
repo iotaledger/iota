@@ -50,9 +50,9 @@ const iotaEvm = [
                         href: 'https://explorer.evm.iota.org',
                     },
                     {
-                        label: 'Toolkit',
+                        label: 'IOTA EVM Bridge',
                         type: 'link',
-                        href: 'https://evm-toolkit.evm.iotaledger.net',
+                        href: 'https://evm-bridge.iota.org',
                     },
                 ],
             },
@@ -72,9 +72,9 @@ const iotaEvm = [
                         href: 'https://explorer.evm.testnet.iota.org',
                     },
                     {
-                        label: 'Toolkit & Faucet',
+                        label: 'IOTA EVM Bridge & Faucet',
                         type: 'link',
-                        href: 'https://evm-toolkit.evm.testnet.iotaledger.net',
+                        href: 'https://testnet.evm-bridge.iota.org',
                     },
                 ],
             },
@@ -132,25 +132,14 @@ const iotaEvm = [
             },
             {
                 type: 'doc',
-                label: 'Send ERC20 Tokens Across Chains',
-                id: 'iota-evm/how-tos/send-ERC20-across-chains',
-            },
-            {
-                type: 'doc',
                 label: 'Create NFTs - ERC721',
                 id: 'iota-evm/how-tos/ERC721',
-            },
-            {
-                type: 'doc',
-                label: 'Send NFTs Across Chains',
-                id: 'iota-evm/how-tos/send-NFTs-across-chains',
             },
             {
                 type: 'doc',
                 label: 'Test Smart Contracts',
                 id: 'iota-evm/how-tos/test-smart-contracts',
             },
-            /* Readd once available
             {
                 type: 'category',
                 label: 'Interact with the Core Contracts',
@@ -199,83 +188,17 @@ const iotaEvm = [
                     },
                     {
                         type: 'category',
-                        label: 'Token',
+                        label: 'Objects',
                         items: [
                             {
                                 label: 'Introduction',
                                 type: 'doc',
-                                id: 'iota-evm/how-tos/core-contracts/token/introduction',
+                                id: 'iota-evm/how-tos/core-contracts/objects/introduction',
                             },
                             {
                                 type: 'doc',
-                                label: 'Create a Native Token',
-                                id: 'iota-evm/how-tos/core-contracts/token/create-native-token',
-                            },
-                            {
-                                type: 'doc',
-                                label: 'Mint Native Tokens',
-                                id: 'iota-evm/how-tos/core-contracts/token/mint-token',
-                            },
-                            {
-                                type: 'doc',
-                                label: 'Custom ERC20 Functions',
-                                id: 'iota-evm/how-tos/core-contracts/token/erc20-native-token',
-                            },
-                            {
-                                type: 'doc',
-                                label: 'Create a Foundry',
-                                id: 'iota-evm/how-tos/core-contracts/token/create-foundry',
-                            },
-                            {
-                                type: 'doc',
-                                label: 'Register Token as ERC20',
-                                id: 'iota-evm/how-tos/core-contracts/token/register-token',
-                            },
-                            {
-                                type: 'doc',
-                                label: 'Send Token Across Chains',
-                                id: 'iota-evm/how-tos/core-contracts/token/send-token-across-chains',
-                            },
-                        ],
-                    },
-                    {
-                        type: 'category',
-                        label: 'NFT',
-                        items: [
-                            {
-                                label: 'Introduction',
-                                type: 'doc',
-                                id: 'iota-evm/how-tos/core-contracts/nft/introduction',
-                            },
-                            {
-                                type: 'doc',
-                                label: 'Mint an NFT',
-                                id: 'iota-evm/how-tos/core-contracts/nft/mint-nft',
-                            },
-                            {
-                                type: 'doc',
-                                label: 'Use as ERC721',
-                                id: 'iota-evm/how-tos/core-contracts/nft/use-as-erc721',
-                            },
-                            {
-                                type: 'doc',
-                                label: 'Get NFT Metadata',
-                                id: 'iota-evm/how-tos/core-contracts/nft/get-nft-metadata',
-                            },
-                            {
-                                type: 'doc',
-                                label: 'Get NFTs Owned by an Account',
-                                id: 'iota-evm/how-tos/core-contracts/nft/get-L2-nfts',
-                            },
-                            {
-                                type: 'doc',
-                                label: 'Get NFTs in Collection',
-                                id: 'iota-evm/how-tos/core-contracts/nft/get-nft-in-collection',
-                            },
-                            {
-                                type: 'doc',
-                                label: 'Get On-Chain NFT Data',
-                                id: 'iota-evm/how-tos/core-contracts/nft/get-nft-data',
+                                label: 'Get Objects Owned by an Account',
+                                id: 'iota-evm/how-tos/core-contracts/objects/get-L2-objects',
                             },
                         ],
                     },
@@ -290,7 +213,7 @@ const iotaEvm = [
                         id: 'iota-evm/how-tos/core-contracts/call-view',
                     },
                 ],
-            },*/
+            },
         ],
     },
     {
@@ -379,6 +302,11 @@ const iotaEvm = [
                 type: 'doc',
                 label: 'How Accounts Work',
                 id: 'iota-evm/explanations/how-accounts-work',
+            },
+            {
+                type: 'doc',
+                label: 'Move Packages',
+                id: 'iota-evm/explanations/move-anchor',
             },
             {
                 type: 'link',
@@ -485,7 +413,6 @@ const iotaEvm = [
         label: 'References',
         items: [
             'iota-evm/references/json-rpc-spec',
-            /* Re-add once available
             {
                 type: 'category',
                 label: 'Magic Contract',
@@ -517,11 +444,6 @@ const iotaEvm = [
                     },
                     {
                         type: 'doc',
-                        label: 'blob',
-                        id: 'iota-evm/references/core-contracts/blob',
-                    },
-                    {
-                        type: 'doc',
                         label: 'blocklog',
                         id: 'iota-evm/references/core-contracts/blocklog',
                     },
@@ -540,18 +462,23 @@ const iotaEvm = [
                         label: 'EVM',
                         id: 'iota-evm/references/core-contracts/evm',
                     },
+                    {
+                        type: 'doc',
+                        label: 'Types',
+                        id: 'iota-evm/references/core-contracts/types',
+                    },
                 ],
-            },*/
-            // {
-            //     type: 'category',
-            //     label: 'ISC Utilities',
-            //     items: [
-            //         {
-            //             type: 'autogenerated',
-            //             dirName: 'iota-evm/references/iscutils',
-            //         },
-            //     ],
-            // },
+            },
+            {
+                type: 'category',
+                label: 'ISC Utilities',
+                items: [
+                    {
+                        type: 'autogenerated',
+                        dirName: 'iota-evm/references/iscutils',
+                    },
+                ],
+            },
             {
                 type: 'category',
                 label: 'WASP API',
