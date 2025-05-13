@@ -58,6 +58,9 @@ pub enum NameCommand {
     /// Auction related operations, like bidding and claiming
     #[command(subcommand)]
     Auction(AuctionCommand),
+    /// Check the availability of a domain and return its price if available.
+    /// Subdomains are always free to register by the parent domain owner.
+    Availability { domain: Domain },
     /// Burn an expired IOTA-Names NFT
     Burn {
         /// The full name of the domain. Ex. my-domain.iota
@@ -179,6 +182,31 @@ impl NameCommand {
 
         Ok(match self {
             Self::Auction(cmd) => cmd.execute(context).await?,
+            Self::Availability { domain } => {
+                let domain_str = domain.to_string();
+
+                let price = if iota_client
+                    .read_api()
+                    .iota_names_lookup(&domain_str)
+                    .await?
+                    .is_some()
+                {
+                    None
+                } else {
+                    Some(if domain.is_subdomain() {
+                        0
+                    } else {
+                        fetch_pricing_config(&iota_client)
+                            .await?
+                            .get_price(domain.label(1).unwrap())?
+                    })
+                };
+
+                NameCommandResult::Availability {
+                    domain: domain_str,
+                    price,
+                }
+            }
             Self::Burn { domain, opts } => {
                 let nft = get_owned_nft_by_name::<IotaNamesRegistration>(&domain, context).await?;
 
@@ -971,6 +999,10 @@ impl SubdomainCommand {
 pub enum NameCommandResult {
     Auction(IotaClientCommandResult),
     AuctionMetadata(Auction),
+    Availability {
+        domain: String,
+        price: Option<u64>,
+    },
     Client(IotaClientCommandResult),
     Lookup {
         domain: Domain,
@@ -1011,6 +1043,14 @@ impl std::fmt::Display for NameCommandResult {
                     auction.current_bid.id.id.bytes
                 )
             }
+            Self::Availability { domain, price } => match price {
+                Some(price) => {
+                    write!(f, "\"{domain}\" is available for {price} NANOs")
+                }
+                None => {
+                    write!(f, "\"{domain}\" is not available")
+                }
+            },
             Self::Client(client_result) => client_result.fmt(f),
             Self::Lookup {
                 domain,

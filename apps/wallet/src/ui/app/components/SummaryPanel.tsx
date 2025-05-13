@@ -11,8 +11,10 @@ interface SummaryPanelProps {
 
 export function SummaryPanel({ title, body }: SummaryPanelProps) {
     return (
-        <div className="flex flex-col rounded-xl bg-neutral-96 pb-md dark:bg-neutral-12">
-            <div className="flex flex-col gap-y-xs">
+        <div
+            className={`flex flex-col overflow-y-auto rounded-xl bg-neutral-96 pb-md dark:bg-neutral-12`}
+        >
+            <div className="flex flex-col gap-y-xs overflow-y-auto">
                 <div className="py-2.5">
                     <Title size={TitleSize.Small} title={title} />
                 </div>
