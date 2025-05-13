@@ -207,7 +207,7 @@ public fun id_address<T: key>(obj: &T): address {
 }
 
 /// Get the `UID` for `obj`.
-/// Safe because Iota has an extra bytecode verifier pass that forces every struct with
+/// Safe because IOTA has an extra bytecode verifier pass that forces every struct with
 /// the `key` ability to have a distinguished `UID` field.
 /// Cannot be made public as the access to `UID` for a given object must be privileged, and
 /// restrictable in the object's module.
