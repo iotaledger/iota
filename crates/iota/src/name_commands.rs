@@ -58,7 +58,8 @@ pub enum NameCommand {
     /// Auction related operations, like bidding and claiming
     #[command(subcommand)]
     Auction(AuctionCommand),
-    /// Check the availability of a domain and return its price if available
+    /// Check the availability of a domain and return its price if available.
+    /// Subdomains are always free to register by the parent domain owner.
     Availability { domain: Domain },
     /// Burn an expired IOTA-Names NFT
     Burn {
