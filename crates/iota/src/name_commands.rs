@@ -196,14 +196,14 @@ impl NameCommand {
                     .is_some()
                 {
                     None
-                } else if domain.is_subdomain() {
-                    Some(0)
                 } else {
-                    Some(
+                    Some(if domain.is_subdomain() {
+                        0
+                    } else {
                         fetch_pricing_config(&iota_client)
                             .await?
-                            .get_price(domain.label(1).unwrap())?,
-                    )
+                            .get_price(domain.label(1).unwrap())?
+                    })
                 };
 
                 NameCommandResult::Availability {
