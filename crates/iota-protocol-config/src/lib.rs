@@ -2318,6 +2318,17 @@ mod test {
     }
 
     #[test]
+    #[should_panic(expected = "unsupported version")]
+    fn max_version_test() {
+        // When this does not panic, version higher than MAX_PROTOCOL_VERSION exists.
+        // To fix, bump MAX_PROTOCOL_VERSION or disable this check for the version.
+        let _ = ProtocolConfig::get_for_version_impl(
+            ProtocolVersion::new(MAX_PROTOCOL_VERSION + 1),
+            Chain::Unknown,
+        );
+    }
+
+    #[test]
     fn lookup_by_string_test() {
         let prot: ProtocolConfig =
             ProtocolConfig::get_for_version(ProtocolVersion::new(1), Chain::Mainnet);
