@@ -177,7 +177,7 @@ impl PTB {
                 serialize_unsigned_transaction: program_metadata.serialize_unsigned_set,
                 serialize_signed_transaction: program_metadata.serialize_signed_set,
                 display: self.display,
-                custom_signer: None,
+                custom_signer: program_metadata.custom_signer.map(|x| x.value),
             },
         };
 

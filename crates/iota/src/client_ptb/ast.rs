@@ -6,7 +6,7 @@ use std::fmt;
 
 use iota_types::{
     Identifier, TypeTag,
-    base_types::{ObjectID, RESOLVED_ASCII_STR, RESOLVED_STD_OPTION, RESOLVED_UTF8_STR},
+    base_types::{ObjectID, RESOLVED_ASCII_STR, RESOLVED_STD_OPTION, RESOLVED_UTF8_STR, IotaAddress},
 };
 use move_core_types::{
     parsing::{
@@ -120,6 +120,7 @@ pub struct ProgramMetadata {
     pub dry_run_set: bool,
     pub dev_inspect_set: bool,
     pub gas_budget: Option<Spanned<u64>>,
+    pub custom_signer: Option<Spanned<IotaAddress>>,
 }
 
 /// A parsed module access consisting of the address, module name, and function

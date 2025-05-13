@@ -4,7 +4,7 @@
 
 use std::iter::Peekable;
 
-use iota_types::{Identifier, base_types::ObjectID};
+use iota_types::{Identifier, base_types::{ObjectID, IotaAddress}};
 use move_core_types::parsing::{
     address::{NumericalAddress, ParsedAddress},
     parser::{parse_u8, parse_u16, parse_u32, parse_u64, parse_u128, parse_u256},
@@ -45,6 +45,7 @@ struct ProgramParsingState {
     dev_inspect_set: bool,
     gas_object_id: Option<Spanned<ObjectID>>,
     gas_budget: Option<Spanned<u64>>,
+    custom_signer: Option<Spanned<IotaAddress>>,
 }
 
 impl<'a, I: Iterator<Item = &'a str>> ProgramParser<'a, I> {
@@ -69,6 +70,7 @@ impl<'a, I: Iterator<Item = &'a str>> ProgramParser<'a, I> {
                 dev_inspect_set: false,
                 gas_object_id: None,
                 gas_budget: None,
+                custom_signer: None,
             },
         })
     }
@@ -112,7 +114,11 @@ impl<'a, I: Iterator<Item = &'a str>> ProgramParser<'a, I> {
             match lexeme {
                 L(T::Command, A::SERIALIZE_UNSIGNED) => flag!(serialize_unsigned_set),
                 L(T::Command, A::SERIALIZE_SIGNED) => flag!(serialize_signed_set),
-                L(T::Command, A::CUSTOM_SIGNER) => flag!(custom_signer_set),
+                L(T::Command, A::CUSTOM_SIGNER) => {
+                    flag!(custom_signer_set);
+                    let custom_signer = try_!(self.parse_custom_signer());
+                    self.state.custom_signer = Some(custom_signer);
+                }
                 L(T::Command, A::SUMMARY) => flag!(summary_set),
                 L(T::Command, A::JSON) => flag!(json_set),
                 L(T::Command, A::DRY_RUN) => flag!(dry_run_set),
@@ -217,6 +223,7 @@ impl<'a, I: Iterator<Item = &'a str>> ProgramParser<'a, I> {
                     dry_run_set: self.state.dry_run_set,
                     dev_inspect_set: self.state.dev_inspect_set,
                     gas_budget: self.state.gas_budget,
+                    custom_signer: self.state.custom_signer,
                 },
             ))
         } else {
@@ -382,6 +389,15 @@ impl<'a, I: Iterator<Item = &'a str>> ProgramParser<'a, I> {
         Ok(self
             .parse_address_literal()?
             .map(|a| ObjectID::from(a.into_inner())))
+    }
+
+
+    /// Parse a custom signer.
+    /// The expected format is: `--custom-signer <address>`
+    fn parse_custom_signer(&mut self) -> PTBResult<Spanned<IotaAddress>> {
+        Ok(self
+            .parse_address_literal()?
+            .map(|a| IotaAddress::from(a.into_inner())))
     }
 }
 
