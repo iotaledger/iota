@@ -16,7 +16,7 @@ import clsx from 'clsx';
 import { ValidatorLink } from '~/components/ui';
 
 interface GenerateValidatorsTableColumnsArgs {
-    activeValidators?: IotaValidatorSummary[];
+    allValidators?: IotaValidatorSummary[];
     committeeMembers?: string[];
     atRiskValidators?: [string, string][];
     maxCommitteeSize?: number;
@@ -90,7 +90,7 @@ function ValidatorWithImage({
 }
 
 export function generateValidatorsTableColumns({
-    activeValidators = [],
+    allValidators = [],
     committeeMembers = [],
     atRiskValidators = [],
     maxCommitteeSize,
@@ -101,8 +101,8 @@ export function generateValidatorsTableColumns({
     highlightValidatorName,
     currentEpoch,
 }: GenerateValidatorsTableColumnsArgs): ColumnDef<IotaValidatorSummaryExtended>[] {
-    const sortedActiveValidators = activeValidators.toSorted(sortByStakingBalanceDesc);
-    const topValidators = sortedActiveValidators.slice(0, maxCommitteeSize);
+    const validatorsSortedByStake = allValidators.toSorted(sortByStakingBalanceDesc);
+    const topValidators = validatorsSortedByStake.slice(0, maxCommitteeSize);
 
     let columns: ColumnDef<IotaValidatorSummaryExtended>[] = [
         {

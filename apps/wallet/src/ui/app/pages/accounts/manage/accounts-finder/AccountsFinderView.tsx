@@ -1,8 +1,15 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { Search } from '@iota/apps-ui-icons';
-import { Button, ButtonType, LoadingIndicator } from '@iota/apps-ui-kit';
+import { Info, Search } from '@iota/apps-ui-icons';
+import {
+    Button,
+    ButtonType,
+    InfoBox,
+    InfoBoxStyle,
+    InfoBoxType,
+    LoadingIndicator,
+} from '@iota/apps-ui-kit';
 import {
     AccountBalanceItem,
     VerifyPasswordModal,
@@ -56,6 +63,7 @@ export function AccountsFinderView(): JSX.Element {
     const [isPasswordModalVisible, setPasswordModalVisible] = useState(false);
     const [searchPhase, setSearchPhase] = useState<SearchPhase>(SearchPhase.Ready);
     const [isConnectLedgerModalOpen, setConnectLedgerModalOpen] = useState(false);
+    const [totalCheckedAddresses, setTotalCheckedAddresses] = useState(1);
     const ledgerIotaClient = useIotaLedgerClient();
     const unlockAccountSourceMutation = useUnlockMutation();
     const sourceStrategy: SourceStrategyToFind = useMemo(
@@ -74,6 +82,9 @@ export function AccountsFinderView(): JSX.Element {
     const { find } = useAccountsFinder({
         accountSourceType,
         sourceStrategy,
+        onDerivationPathChecked: ({ totalCheckedAddresses }) => {
+            setTotalCheckedAddresses(totalCheckedAddresses);
+        },
     });
 
     function unlockLedger() {
@@ -108,12 +119,12 @@ export function AccountsFinderView(): JSX.Element {
         }
         if (searchPhase === SearchPhase.Ongoing) {
             return {
-                text: '',
+                text: `Scanned addresses: ${totalCheckedAddresses}`,
                 icon: <LoadingIndicator />,
             };
         }
         return {
-            text: 'Search again',
+            text: 'Keep searching',
             icon: <Search className="h-4 w-4" />,
         };
     })();
@@ -140,6 +151,15 @@ export function AccountsFinderView(): JSX.Element {
         return groupedAccounts;
     }
     const groupedAccounts = persistedAccounts && groupAccountsByAccountIndex(persistedAccounts);
+
+    const findingResultText = (() => {
+        let text = `Scanned ${totalCheckedAddresses} addresses.`;
+
+        if (persistedAccounts?.length) {
+            text += ` Found assets in ${persistedAccounts.length} addresses.`;
+        }
+        return text;
+    })();
 
     return (
         <>
@@ -172,6 +192,14 @@ export function AccountsFinderView(): JSX.Element {
                         />
                     ) : (
                         <>
+                            {searchOptions.text === 'Keep searching' ? (
+                                <InfoBox
+                                    supportingText={`${findingResultText} Some funds or addresses may not appear immediately. Run multiple searches to ensure all assets are located.`}
+                                    icon={<Info />}
+                                    type={InfoBoxType.Default}
+                                    style={InfoBoxStyle.Elevated}
+                                />
+                            ) : null}
                             <Button
                                 type={ButtonType.Secondary}
                                 text={searchOptions.text}
