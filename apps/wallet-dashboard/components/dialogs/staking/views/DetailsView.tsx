@@ -115,13 +115,13 @@ export function DetailsView({
                     <Card type={CardType.Filled}>
                         <CardImage>
                             <ImageIcon
-                                src={validatorImageUrl ?? null}
-                                label={validatorName ?? ''}
-                                fallback={validatorName ?? ''}
+                                src={validatorImageUrl}
+                                label={validatorName}
+                                fallback={validatorName}
                                 size={ImageIconSize.Large}
                             />
                         </CardImage>
-                        <CardBody title={validatorName ?? ''} subtitle={subtitle} isTextTruncated />
+                        <CardBody title={validatorName} subtitle={subtitle} isTextTruncated />
                     </Card>
                     {isActiveButNotInTheCommittee ? (
                         <InfoBox
