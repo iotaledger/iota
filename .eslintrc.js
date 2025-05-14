@@ -94,6 +94,14 @@ module.exports = {
             },
         },
         {
+            files: ['apps/ui-kit/**/*'],
+            rules: {
+                '@typescript-eslint/consistent-type-imports': ['error'],
+                'import/consistent-type-specifier-style': ['error', 'prefer-top-level'],
+                '@typescript-eslint/no-explicit-any': 'off',
+            },
+        },
+        {
             files: ['sdk/graphql-transport/**/*'],
             rules: {
                 '@typescript-eslint/no-non-null-asserted-optional-chain': 'off',

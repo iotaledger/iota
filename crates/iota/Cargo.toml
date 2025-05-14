@@ -138,5 +138,10 @@ harness = false
 [features]
 gen-completions = ["dep:clap_complete"]
 indexer = ["dep:diesel", "dep:iota-indexer", "dep:iota-graphql-rpc"]
-iota-names = ["dep:chrono", "dep:iota-graphql-rpc-client", "dep:iota-names"]
+iota-names = [
+  "dep:chrono",
+  "dep:iota-graphql-rpc-client",
+  "dep:iota-names",
+  "iota-sdk/iota-names",
+]
 tracing = ["iota-types/tracing", "iota-execution/tracing"]

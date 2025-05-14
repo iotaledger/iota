@@ -5,7 +5,8 @@ import type { Meta, StoryObj } from '@storybook/react';
 
 import { Input, InputType } from '@/lib/components/molecules/input';
 import { PlaceholderReplace } from '@iota/apps-ui-icons';
-import { ComponentProps, useCallback, useEffect, useState } from 'react';
+import type { ComponentProps } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { ButtonPill } from '@/lib/components/atoms/button';
 
 type CustomStoryProps = {

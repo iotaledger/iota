@@ -3,7 +3,8 @@
 
 import cx from 'classnames';
 import { ButtonUnstyled } from '../../atoms/button';
-import { Badge, BadgeType } from '../../atoms';
+import type { BadgeType } from '../../atoms';
+import { Badge } from '../../atoms';
 import {
     LockLocked,
     LockUnlocked,
