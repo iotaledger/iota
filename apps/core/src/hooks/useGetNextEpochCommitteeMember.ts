@@ -7,9 +7,14 @@ import { useMaxCommitteeSize } from './useMaxCommitteeSize';
 
 export function useGetNextEpochCommitteeMember(validatorAddress: string): {
     isValidatorExpectedToBeInTheCommittee: boolean;
+    isLoading: boolean;
 } {
-    const { data: systemState } = useIotaClientQuery('getLatestIotaSystemState');
-    const { data: maxCommitteeSize } = useMaxCommitteeSize();
+    const { data: systemState, isLoading: isSystemStateLoading } = useIotaClientQuery(
+        'getLatestIotaSystemState',
+    );
+    const { data: maxCommitteeSize, isLoading: isMaxCommitteeSizeLoading } = useMaxCommitteeSize();
+
+    const isLoading = isSystemStateLoading || isMaxCommitteeSizeLoading;
 
     const isValidatorExpectedToBeInTheCommittee = useMemo(() => {
         if (!systemState || !maxCommitteeSize) return false;
@@ -23,5 +28,5 @@ export function useGetNextEpochCommitteeMember(validatorAddress: string): {
             .some((v) => v.iotaAddress === validatorAddress);
     }, [systemState, maxCommitteeSize, validatorAddress]);
 
-    return { isValidatorExpectedToBeInTheCommittee };
+    return { isValidatorExpectedToBeInTheCommittee, isLoading };
 }

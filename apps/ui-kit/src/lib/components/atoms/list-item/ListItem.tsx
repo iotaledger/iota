@@ -1,7 +1,7 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { PropsWithChildren } from 'react';
+import type { PropsWithChildren } from 'react';
 import cx from 'classnames';
 import { ArrowRight } from '@iota/apps-ui-icons';
 import { Button, ButtonSize, ButtonType } from '@/components';
