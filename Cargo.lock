@@ -6046,31 +6046,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "iota-bridge-cli"
-version = "1.1.0-alpha"
-dependencies = [
- "anyhow",
- "clap",
- "ethers",
- "fastcrypto",
- "futures",
- "iota-config",
- "iota-json-rpc-types",
- "iota-keys",
- "iota-sdk 1.1.0-alpha",
- "iota-types",
- "move-core-types",
- "reqwest 0.12.7",
- "serde",
- "serde_json",
- "serde_with",
- "shared-crypto",
- "telemetry-subscribers",
- "tokio",
- "tracing",
-]
-
-[[package]]
 name = "iota-bridge-indexer"
 version = "1.1.0-alpha"
 dependencies = [

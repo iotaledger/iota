@@ -14,8 +14,6 @@ iota-aws-orchestrator:
   - "crates/iota-aws-orchestrator/**"
 iota-benchmark:
   - "crates/iota-benchmark/**"
-iota-bridge-cli:
-  - "crates/iota-bridge-cli/**"
 iota-bridge-indexer:
   - "crates/iota-bridge-indexer/**"
 iota-cluster-test:
