@@ -92,9 +92,9 @@ Wrote patchfile out to: ./migration.patch
 
 Recorded edition in 'Move.toml'
 External Command `diff -r -s sources migration_sources`:
-Files sources/mod0.move and migration_sources/mod0.move are identical
 Files sources/mod_intermodule_errors.move and migration_sources/mod_intermodule_errors.move are identical
-Files sources/mod_let.move and migration_sources/mod_let.move are identical
 Files sources/mod_let_errors.move and migration_sources/mod_let_errors.move are identical
+Files sources/mod_let.move and migration_sources/mod_let.move are identical
+Files sources/mod0.move and migration_sources/mod0.move are identical
 External Command `diff -s Move.toml Move.toml.expected`:
 Files Move.toml and Move.toml.expected are identical

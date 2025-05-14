@@ -12,6 +12,8 @@ workspace = true
 
 [dev-dependencies]
 # external dependencies
+anyhow.workspace = true
+async-trait.workspace = true
 datatest-stable.workspace = true
 tokio.workspace = true
 

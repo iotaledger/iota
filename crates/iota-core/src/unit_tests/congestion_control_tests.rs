@@ -30,7 +30,7 @@ use crate::{
             execute_programmable_transaction, send_and_confirm_transaction_,
         },
         move_integration_tests::build_and_publish_test_package,
-        shared_object_congestion_tracker::SharedObjectCongestionTracker,
+        shared_object_congestion_tracker::shared_object_test_utils::new_congestion_tracker_with_initial_value_for_test,
         test_authority_builder::TestAuthorityBuilder,
     },
     move_call,
@@ -62,10 +62,9 @@ impl TestSetup {
 
         // Set shared object congestion control such that it only allows 1 transaction
         // to go through.
-        let max_accumulated_txn_cost_per_object_in_commit =
-            TEST_ONLY_GAS_PRICE * TEST_ONLY_GAS_UNIT;
+        let max_execution_duration_per_commit = TEST_ONLY_GAS_PRICE * TEST_ONLY_GAS_UNIT;
         protocol_config.set_max_accumulated_txn_cost_per_object_in_mysticeti_commit_for_testing(
-            max_accumulated_txn_cost_per_object_in_commit,
+            max_execution_duration_per_commit,
         );
 
         // Set max deferral rounds to 0 to testr cancellation. All deferred transactions
@@ -311,12 +310,13 @@ async fn test_congestion_control_execution_cancellation() {
     // Initialize shared object queue so that any transaction touches
     // shared_object_1 should result in congestion and cancellation.
     register_fail_point_arg("initial_congestion_tracker", move || {
-        Some(
-            SharedObjectCongestionTracker::new_with_initial_value_for_test(
-                &[(shared_object_1.0, 10)],
-                PerObjectCongestionControlMode::TotalGasBudget,
-            ),
-        )
+        Some(new_congestion_tracker_with_initial_value_for_test(
+            &[(shared_object_1.0, 10)],
+            PerObjectCongestionControlMode::TotalGasBudget,
+            test_setup
+                .protocol_config
+                .congestion_control_min_free_execution_slot(),
+        ))
     });
 
     // Runs a transaction that touches shared_object_1, shared_object_2 and a owned
@@ -344,7 +344,7 @@ async fn test_congestion_control_execution_cancellation() {
         effects.status(),
         &ExecutionStatus::Failure {
             error: ExecutionFailureStatus::ExecutionCancelledDueToSharedObjectCongestion {
-                congested_objects: CongestedObjects(vec![shared_object_1.0]),
+                congested_objects: CongestedObjects(vec![shared_object_1.0, shared_object_2.0]),
             },
             command: None
         }
@@ -355,7 +355,7 @@ async fn test_congestion_control_execution_cancellation() {
         effects.input_shared_objects(),
         vec![
             InputSharedObject::Cancelled(shared_object_1.0, SequenceNumber::CONGESTED),
-            InputSharedObject::Cancelled(shared_object_2.0, SequenceNumber::CANCELLED_READ)
+            InputSharedObject::Cancelled(shared_object_2.0, SequenceNumber::CONGESTED)
         ]
     );
 
@@ -379,7 +379,7 @@ async fn test_congestion_control_execution_cancellation() {
     assert_eq!(
         execution_error.unwrap().to_execution_status().0,
         ExecutionFailureStatus::ExecutionCancelledDueToSharedObjectCongestion {
-            congested_objects: CongestedObjects(vec![shared_object_1.0]),
+            congested_objects: CongestedObjects(vec![shared_object_1.0, shared_object_2.0]),
         }
     );
     assert_eq!(&effects, effects_2.data())

@@ -15,6 +15,7 @@ import {
     useLocalStorage,
     Toaster,
     ClipboardPasteSafetyWrapper,
+    IotaGraphQLClientProvider,
 } from '@iota/core';
 import { growthbook } from '@/lib/utils';
 import { ThemeProvider } from '@iota/core';
@@ -42,27 +43,29 @@ export function AppProviders({ children }: React.PropsWithChildren) {
                     onNetworkChange={handleNetworkChange}
                 >
                     <StardustIndexerClientProvider>
-                        <KioskClientProvider>
-                            <WalletProvider
-                                autoConnect={true}
-                                theme={[
-                                    {
-                                        variables: lightTheme,
-                                    },
-                                    {
-                                        selector: '.dark',
-                                        variables: darkTheme,
-                                    },
-                                ]}
-                            >
-                                <ClipboardPasteSafetyWrapper>
-                                    <ThemeProvider appId="iota-dashboard">
-                                        {children}
-                                        <Toaster containerClassName="!right-8" />
-                                    </ThemeProvider>
-                                </ClipboardPasteSafetyWrapper>
-                            </WalletProvider>
-                        </KioskClientProvider>
+                        <IotaGraphQLClientProvider>
+                            <KioskClientProvider>
+                                <WalletProvider
+                                    autoConnect={true}
+                                    theme={[
+                                        {
+                                            variables: lightTheme,
+                                        },
+                                        {
+                                            selector: '.dark',
+                                            variables: darkTheme,
+                                        },
+                                    ]}
+                                >
+                                    <ClipboardPasteSafetyWrapper>
+                                        <ThemeProvider appId="iota-dashboard">
+                                            {children}
+                                            <Toaster containerClassName="!right-8" />
+                                        </ThemeProvider>
+                                    </ClipboardPasteSafetyWrapper>
+                                </WalletProvider>
+                            </KioskClientProvider>
+                        </IotaGraphQLClientProvider>
                     </StardustIndexerClientProvider>
                 </IotaClientProvider>
                 <ReactQueryDevtools initialIsOpen={false} />

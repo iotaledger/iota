@@ -1,0 +1,56 @@
+---
+source: external-crates/move/crates/move-transactional-test-runner/src/framework.rs
+---
+processed 6 tasks
+
+init:
+A: object(0,0)
+
+task 1, lines 12-61:
+//# publish --sender A
+created: object(1,0), object(1,1), object(1,2), object(1,3), object(1,4), object(1,5), object(1,6), object(1,7), object(1,8), object(1,9), object(1,10)
+mutated: object(0,0)
+unchanged_shared: 0x0000000000000000000000000000000000000000000000000000000000000403
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 34177200,  storage_rebate: 0, non_refundable_storage_fee: 0
+
+task 2, lines 62-64:
+//# view-object 1,0
+Owner: Account Address ( A )
+Version: 2
+Contents: iota::coin::Coin<test::regulated_coin1::REGULATED_COIN1> {
+    id: iota::object::UID {
+        id: iota::object::ID {
+            bytes: fake(1,0),
+        },
+    },
+    balance: iota::balance::Balance<test::regulated_coin1::REGULATED_COIN1> {
+        value: 10000u64,
+    },
+}
+
+task 3, lines 65-67:
+//# view-object 1,1
+Owner: Account Address ( A )
+Version: 2
+Contents: iota::coin::Coin<test::regulated_coin2::REGULATED_COIN2> {
+    id: iota::object::UID {
+        id: iota::object::ID {
+            bytes: fake(1,1),
+        },
+    },
+    balance: iota::balance::Balance<test::regulated_coin2::REGULATED_COIN2> {
+        value: 10000u64,
+    },
+}
+
+task 4, line 68:
+//# run iota::coin::deny_list_v1_add --args object(0x403) object(1,5) @A --type-args test::regulated_coin2::REGULATED_COIN2 --sender A
+events: Event { package_id: iota, transaction_module: Identifier("coin"), sender: A, type_: StructTag { address: iota, module: Identifier("deny_list"), name: Identifier("PerTypeConfigCreated"), type_params: [] }, contents: [0, 0, 0, 0, 0, 0, 0, 0, 98, 52, 98, 102, 54, 53, 50, 102, 50, 57, 101, 97, 99, 101, 100, 101, 55, 51, 102, 49, 49, 54, 50, 55, 101, 51, 53, 49, 51, 48, 53, 51, 57, 54, 102, 56, 100, 100, 48, 100, 52, 98, 48, 51, 98, 56, 49, 100, 99, 57, 57, 54, 52, 54, 51, 50, 101, 99, 50, 56, 56, 51, 48, 57, 54, 58, 58, 114, 101, 103, 117, 108, 97, 116, 101, 100, 95, 99, 111, 105, 110, 50, 58, 58, 82, 69, 71, 85, 76, 65, 84, 69, 68, 95, 67, 79, 73, 78, 50, 227, 141, 101, 138, 169, 244, 7, 146, 12, 116, 123, 110, 203, 78, 202, 249, 84, 223, 143, 1, 197, 97, 211, 82, 105, 65, 237, 171, 221, 101, 250, 91] }
+created: object(4,0), object(4,1), object(4,2)
+mutated: 0x0000000000000000000000000000000000000000000000000000000000000403, object(0,0), object(1,5)
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 12175200,  storage_rebate: 2774000, non_refundable_storage_fee: 0
+
+task 5, lines 70-71:
+//# programmable --sender A --inputs object(1,0) object(1,1) @A
+//> TransferObjects([Input(0), Input(1)], Input(2))
+Error: Error checking transaction input objects: AddressDeniedForCoin { address: @A, coin_type: "object(1,10)::regulated_coin2::REGULATED_COIN2" }
