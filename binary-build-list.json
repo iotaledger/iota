@@ -5,7 +5,6 @@
         "iota-tool",
         "iota-faucet",
         "iota-data-ingestion",
-        "iota-bridge",
         "iota-bridge-cli",
         "iota-graphql-rpc",
         "iota-indexer",

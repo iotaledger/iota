@@ -24,7 +24,6 @@ tokio = { workspace = true, features = ["full"] }
 tracing.workspace = true
 
 # internal dependencies
-iota-bridge.workspace = true
 iota-config.workspace = true
 iota-data-ingestion-core.workspace = true
 iota-indexer-builder.workspace = true

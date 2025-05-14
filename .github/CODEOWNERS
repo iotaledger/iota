@@ -154,7 +154,6 @@ vercel.json @iotaledger/tooling
 
 # TODO
 # Bridge related stuff will be skipped for now
-# /crates/iota-bridge/
 # /crates/iota-bridge-cli/
 # /crates/iota-bridge-indexer/
 # /bridge/
