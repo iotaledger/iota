@@ -27,17 +27,10 @@ export function useGetInactiveValidator(validatorAddress: string) {
                         await getInactiveValidatorsMetadata(iotaClient, validator.objectId),
                 ),
             );
-            if (pendingInactiveValidatorsData.length === 0) {
-                return null;
-            } else {
-                const findValidator = pendingInactiveValidatorsData.find(
-                    (validator) => validator?.validatorAddress === validatorAddress,
-                ) as InactiveValidatorData;
-                if (!findValidator) {
-                    return null;
-                }
-                return findValidator;
-            }
+            const validator = pendingInactiveValidatorsData.find(
+                (validator) => validator?.validatorAddress === validatorAddress,
+            ) as InactiveValidatorData;
+            return validator ?? null;
         },
         enabled: !!inactivePoolsId && !!validatorAddress,
     });

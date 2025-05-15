@@ -94,7 +94,7 @@ export function Validator({
         <Card type={type || isSelected ? CardType.Filled : CardType.Default} onClick={onClick}>
             <CardImage>
                 <ImageIcon
-                    src={validatorDisplayLogo ?? null}
+                    src={validatorDisplayLogo}
                     label={validatorDisplayName}
                     fallback={validatorDisplayName}
                     size={ImageIconSize.Large}

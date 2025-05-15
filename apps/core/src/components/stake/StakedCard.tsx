@@ -64,7 +64,7 @@ export function StakedCard({
     return (
         <Card testId="staked-card" type={CardType.Default} isHoverable onClick={onClick}>
             <CardImage>
-                <ImageIcon src={validatorData?.imageUrl || null} label={name} fallback={name} />
+                <ImageIcon src={validatorData?.imageUrl} label={name} fallback={name} />
             </CardImage>
             <CardBody
                 title={name}
