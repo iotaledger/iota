@@ -14,6 +14,8 @@ use iota_types::{
     move_package::{MovePackage, TypeOrigin, UpgradeInfo},
     storage::{BackingPackageStore, PackageObject, get_module},
 };
+
+use crate::data_store::PackageStore;
 use move_core_types::{
     account_address::AccountAddress,
     identifier::{IdentStr, Identifier},
