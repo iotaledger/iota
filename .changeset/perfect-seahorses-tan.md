@@ -1,5 +1,5 @@
 ---
-'@iota/apps-ui-kit': major
+'@iota/apps-ui-kit': minor
 ---
 
 Fix dialog to prevent closing popup when closing a toast
