@@ -334,9 +334,9 @@ impl<'a> BytecodeGenerator<'a> {
         None
     }
 
-    /// Given an `AbstractState`, `state`, and a the number of locals the
-    /// function has, this function returns a list of instructions whose
-    /// preconditions are satisfied for the state.
+    /// Given an `AbstractState`, `state`, and the number of locals the function has,
+    /// this function returns a list of instructions whose preconditions are satisfied for
+    /// the state.
     fn candidate_instructions(
         &mut self,
         fn_context: &FunctionGenerationContext,

@@ -52,7 +52,7 @@ A PTB consists of two main components:
   - [`MakeMoveVec`](#makemovevec): Create a vector of Move values, primarily used as arguments for `MoveCall`.
   - [`MoveCall`](#movecall): Invoke an `entry` or `public` Move function in a published package.
   - [`Publish`](#publish): Create a new package and call the `init` function of each module.
-  - [`Upgrade`](#upgrade): Upgrade an existing package, gated by [`iota::package::UpgradeCap`](../../../../references/framework/iota/package.mdx#struct-upgradecap).
+  - [`Upgrade`](#upgrade): Upgrade an existing package, gated by [`iota::package::UpgradeCap`](../../../../references/framework/iota-framework/package.mdx#resource-upgradecap).
 
 ### Inputs and Results
 
@@ -68,7 +68,7 @@ Inputs are categorized as objects or pure values:
   - **Shared Objects**: Use `ObjectArg::SharedObject { id: ObjectID, initial_shared_version: SequenceNumber, mutable: bool }`. A shared objects version and digest are determined by the network's consensus protocol. The `mutable` flag indicates whether the object is to be used mutably in this transaction
   - **Objects Owned by Other Objects**: Use `ObjectArg::Receiving(ObjectID, SequenceNumber, ObjectDigest)`.
 
-- **Pure Inputs**: Provide [BCS](../../../../references/framework/iota/bcs.mdx) bytes deserialized into Move values. Only certain types are allowed, such as primitive types, strings, object IDs, vectors, and options. The following types are allowed to be used with pure values:
+- **Pure Inputs**: Provide [BCS](../../../../references/framework/iota-framework/bcs.mdx) bytes deserialized into Move values. Only certain types are allowed, such as primitive types, strings, object IDs, vectors, and options. The following types are allowed to be used with pure values:
   - All primitive types:
     - `u8`
     - `u16`
@@ -88,9 +88,9 @@ Inputs are categorized as objects or pure values:
 Each command may produce a (possibly empty) array of results. The number and types of results depend on the command:
 
 - `MoveCall`: Returns results based on the Move function called.
-- `SplitCoins`: Produces coins from a single [coin](../../../../references/framework/iota/coin.mdx).
-- `Publish`: Returns the [upgrade capability](../../../../references/framework/iota/package.mdx#struct-upgradecap) for the new package.
-- `Upgrade`: Returns the [upgrade receipt](../../../../references/framework/iota/package.mdx#struct-upgradereceipt) for the upgraded package.
+- `SplitCoins`: Produces coins from a single [coin](../../../../references/framework/iota-framework/coin.mdx).
+- `Publish`: Returns the [upgrade capability](../../../../references/framework/iota-framework/package.mdx#resource-upgradecap) for the new package.
+- `Upgrade`: Returns the [upgrade receipt](../../../../references/framework/iota-framework/package.mdx#struct-upgradereceipt) for the upgraded package.
 - `TransferObjects` and `MergeCoins`: Do not produce results.
 
 ### Using Arguments in Commands
@@ -98,7 +98,7 @@ Each command may produce a (possibly empty) array of results. The number and typ
 Commands accept `Argument`s to specify inputs or results:
 
 - `Input(u16)`: Refers to an input by its index in the input list,  where the `u16` is the index of the input in the input vector.
-  - `GasCoin`: Represents the [IOTA coin](../../../../references/framework/iota/coin.mdx) used for gas payment. It cannot be taken by-value except with `TransferObjects`. To get an owned version, use `SplitCoins` to create a new coin.
+  - `GasCoin`: Represents the [IOTA coin](../../../../references/framework/iota-framework/coin.mdx) used for gas payment. It cannot be taken by-value except with `TransferObjects`. To get an owned version, use `SplitCoins` to create a new coin.
 
     This limitation ensures that any remaining gas is returned to the gas coin at the end of execution.
     If the gas coin were wrapped or deleted, there would be no place to return the excess gas.
@@ -158,7 +158,7 @@ When borrowing arguments:
 
 #### Special Considerations
 
-- **Object Inputs**: For `ObjectArg::Receiving` inputs, the object type `T` is wrapped as [`iota::transfer::Receiving<T>`](../../../../references/framework/iota/transfer.mdx#struct-receiving). You need to call [`iota::transfer::receive`](../../../../references/framework/iota/transfer.mdx#function-receive) to prove ownership.
+- **Object Inputs**: For `ObjectArg::Receiving` inputs, the object type `T` is wrapped as [`iota::transfer::Receiving<T>`](../../../../references/framework/iota-framework/transfer.mdx#struct-receiving). You need to call [`iota::transfer::receive`](../../../../references/framework/iota-framework/transfer.mdx#function-receive) to prove ownership.
 - **Gas Coin**: You can only use the gas coin by-value with the [`TransferObjects`](#transferobjects) command. This ensures that any remaining gas can be returned to it.
   - **Shared Objects**: Shared objects have restrictions to ensure they remain shared or are deleted by the end of the transaction. They cannot be unshared or wrapped.
    A shared object:
@@ -172,7 +172,7 @@ When borrowing arguments:
 Pure values are not type-checked until used.
 They can be used with multiple types as long as the bytes are valid for each type.
 Once you mutably borrow a pure value, its type becomes fixed for subsequent uses.
-For example, you can use a [string](../../../../references/framework/std/string.mdx) as an ASCII string `std::ascii::String` and as a UTF8 string `std::string::String`.
+For example, you can use a [string](../../../../references/framework/move-stdlib/string.mdx) as an ASCII string `std::ascii::String` and as a UTF8 string `std::string::String`.
 However, after you mutably borrow the pure value, the type becomes fixed, and all future usages must be with that type.
 
 #### Command Execution Details
@@ -193,7 +193,7 @@ Let's look at how specific commands are executed.
 
 - **Syntax**: `SplitCoins(CoinArg, AmountArgs)`
 - **Usage**:
-  - `CoinArg`: The coin to split (mutable reference). Must be a coin of type [`iota::coin::Coin`](../../../../references/framework/iota/coin.mdx).
+  - `CoinArg`: The coin to split (mutable reference). Must be a coin of type [`iota::coin::Coin`](../../../../references/framework/iota-framework/coin.mdx).
   - `AmountArgs`: Amounts to split off (by-value). Must be `u64` values, which could come from a `Pure` input or a result.
 - **Notes**:
   - Produces a list of new coins.
@@ -203,7 +203,7 @@ Let's look at how specific commands are executed.
 
 - **Syntax**: `MergeCoins(CoinArg, ToMergeArgs)`
 - **Usage**:
-  - `CoinArg`: The target coin (mutable reference). Must be a coin of type [`iota::coin::Coin`](../../../../references/framework/iota/coin.mdx).
+  - `CoinArg`: The target coin (mutable reference). Must be a coin of type [`iota::coin::Coin`](../../../../references/framework/iota-framework/coin.mdx).
   - `ToMergeArgs`: Coins to merge into the target (by-value).
 - **Notes**:
   - Coin types must match.
@@ -239,7 +239,7 @@ Let's look at how specific commands are executed.
   - `TransitiveDependencies`: Package IDs to link against.
 - **Notes**:
   - Calls the `init` function of each module.
-  - Produces an [`iota::package::UpgradeCap`](../../../../references/framework/iota/package.mdx#struct-upgradecap).
+  - Produces an [`iota::package::UpgradeCap`](../../../../references/framework/iota-framework/package.mdx#resource-upgradecap).
 
 ##### `Upgrade`
 
@@ -247,10 +247,10 @@ Let's look at how specific commands are executed.
 - **Usage**:
   - Similar to `Publish`, but upgrades an existing package.
   - `Package`: Object ID of the package to upgrade.
-  - `UpgradeTicket`: Obtained from [`iota::package::UpgradeCap`](../../../../references/framework/iota/package.mdx#struct-upgradecap).
+  - `UpgradeTicket`: Obtained from [`iota::package::UpgradeCap`](../../../../references/framework/iota-framework/package.mdx#resource-upgradecap).
 - **Notes**:
   - Does not call the `init` function of each module.
-  - Produces an [`iota::package::UpgradeReceipt`](../../../../references/framework/iota/package.mdx#struct-upgradereceipt).
+  - Produces an [`iota::package::UpgradeReceipt`](../../../../references/framework/iota-framework/package.mdx#struct-upgradereceipt).
    
 ### 3. Applying Effects
 

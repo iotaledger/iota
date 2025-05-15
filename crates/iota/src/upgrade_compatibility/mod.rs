@@ -1045,11 +1045,11 @@ fn missing_module_diag(
 
     diags.add(Diagnostic::new(
         Declarations::ModuleMissing,
-        (loc, format!("Package is missing module '{module_name}'",)),
+        (loc, format!("Package is missing module '{module_name}'")),
         Vec::<(Loc, String)>::new(),
         vec![
             "Modules which are part package cannot be removed during an upgrade.".to_string(),
-            format!("add missing module '{module_name}' back to the package."),
+            format!("Add missing module '{module_name}' back to the package."),
         ],
     ));
 
@@ -1066,6 +1066,14 @@ fn missing_definition_diag(
 ) -> Result<Diagnostics, Error> {
     let mut diags = Diagnostics::new();
 
+    // capitalize the first letter
+    let capital_declaration_kind = {
+        let mut chars = declaration_kind.chars();
+        match chars.next() {
+            None => String::new(),
+            Some(c) => c.to_uppercase().collect::<String>() + chars.as_str(),
+        }
+    };
     let module_name = compiled_unit_with_source.unit.name.as_str();
     let loc = compiled_unit_with_source
         .unit
@@ -1077,11 +1085,11 @@ fn missing_definition_diag(
             Declarations::PublicMissing,
             vec![
                 format!(
-                    "{declaration_kind}s are part of a module's public interface \
+                    "{capital_declaration_kind}s are part of a module's public interface \
                      and cannot be removed or changed during a 'compatible' upgrade.",
                 ),
                 format!(
-                    "add missing {declaration_kind} '{identifier_name}' \
+                    "Add missing {declaration_kind} '{identifier_name}' \
                      back to the module '{module_name}'.",
                 ),
             ],
@@ -1091,11 +1099,11 @@ fn missing_definition_diag(
             Declarations::Missing,
             vec![
                 format!(
-                    "{declaration_kind}s cannot be removed or changed during an 'additive' or \
+                    "{capital_declaration_kind}s cannot be removed or changed during an 'additive' or \
                     'dependency only' upgrade.",
                 ),
                 format!(
-                    "add missing {declaration_kind} '{identifier_name}' \
+                    "Add missing {declaration_kind} '{identifier_name}' \
                      back to the module '{module_name}'.",
                 ),
             ],
@@ -1106,11 +1114,7 @@ fn missing_definition_diag(
         code,
         (
             loc,
-            format!(
-                "{declaration_kind} '{identifier_name}' is missing",
-                declaration_kind = declaration_kind,
-                identifier_name = identifier_name,
-            ),
+            format!("{declaration_kind} '{identifier_name}' is missing"),
         ),
         std::iter::empty::<(Loc, String)>(),
         [reason_notes].concat(),
@@ -1144,7 +1148,7 @@ fn function_lost_public(
         Declarations::PublicMissing,
         (
             def_loc,
-            format!("Function '{function_name}' has lost its public visibility",),
+            format!("Function '{function_name}' has lost its public visibility"),
         ),
         Vec::<(Loc, String)>::new(),
         vec![
@@ -2064,7 +2068,7 @@ fn enum_variant_missing_diag(
         Enums::VariantMismatch,
         (
             enum_sourcemap.definition_location,
-            format!("Missing variant '{variant_name}'.",),
+            format!("Missing variant '{variant_name}'."),
         ),
         Vec::<(Loc, String)>::new(),
         vec![
@@ -2109,7 +2113,7 @@ fn struct_new_diag(
         Vec::<(Loc, String)>::new(),
         vec![
             "Structs cannot be added during a 'dependency only' upgrade.".to_string(),
-            format!("Remove the struct '{struct_name}' from its module.",),
+            format!("Remove the struct '{struct_name}' from its module."),
         ],
     ));
 
@@ -2180,7 +2184,7 @@ fn enum_new_diag(
         Vec::<(Loc, String)>::new(),
         vec![
             "Enums cannot be added during a 'dependency only' upgrade.".to_string(),
-            format!("Remove the enum '{enum_name}' from its module.",),
+            format!("Remove the enum '{enum_name}' from its module."),
         ],
     ));
 

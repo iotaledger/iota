@@ -28,9 +28,21 @@ export class FeaturesController {
                 [Feature.WalletSentryTracing]: {
                     defaultValue: 0.0025,
                 },
-                // Note: we'll add wallet dapps when evm will be ready
                 [Feature.WalletDapps]: {
-                    defaultValue: [],
+                    defaultValue: [
+                        {
+                            name: 'Wallet Dashboard',
+                            link: 'https://wallet-dashboard.iota.org/',
+                            icon: 'https://iota.org/logo.png',
+                            tags: ['Wallet', 'Dashboard'],
+                        },
+                        {
+                            name: 'EVM Bridge',
+                            link: 'https://evm-bridge.iota.org/',
+                            icon: 'https://iota.org/logo.png',
+                            tags: ['EVM', 'Bridge'],
+                        },
+                    ],
                 },
                 [Feature.WalletBalanceRefetchInterval]: {
                     defaultValue: 1000,
@@ -108,7 +120,20 @@ export class FeaturesController {
                 },
                 // Note: we'll add wallet dapps when evm will be ready
                 [Feature.WalletDapps]: {
-                    defaultValue: [],
+                    defaultValue: [
+                        {
+                            name: 'Wallet Dashboard',
+                            link: 'https://wallet-dashboard.iota.org/',
+                            icon: 'https://iota.org/logo.png',
+                            tags: ['Wallet', 'Dashboard'],
+                        },
+                        {
+                            name: 'EVM Bridge',
+                            link: 'https://evm-bridge.iota.org/',
+                            icon: 'https://iota.org/logo.png',
+                            tags: ['EVM', 'Bridge'],
+                        },
+                    ],
                 },
                 [Feature.WalletBalanceRefetchInterval]: {
                     defaultValue: 1000,

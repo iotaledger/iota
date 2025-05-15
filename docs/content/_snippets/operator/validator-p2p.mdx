@@ -9,5 +9,9 @@ p2p-config:
 
 :::note
 Replace `<YOUR-DOMAIN>` with the hostname you used while generating the validator info.
-This address must be accessible from the internet.
+This address must be accessible from the internet. 
+:::
+
+:::note
+For better flexibility and faster disaster recovery, we suggest using a hostname with a very low TTL. This allows you to quickly relocate your validator to a new server if hardware fails. Direct IP addressing significantly complicates server migration.
 :::

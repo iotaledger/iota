@@ -1,0 +1,98 @@
+---
+source: external-crates/move/crates/move-transactional-test-runner/src/framework.rs
+---
+processed 9 tasks
+
+init:
+A: object(0,0)
+
+task 1, lines 7-20:
+//# publish
+created: object(1,0)
+mutated: object(0,1)
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 5168000,  storage_rebate: 0, non_refundable_storage_fee: 0
+
+task 2, line 22:
+//# create-checkpoint
+Checkpoint created: 1
+
+task 3, line 24:
+//# run Test::M1::create --args 0 @A --sender A
+created: object(3,0)
+mutated: object(0,0)
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2287600,  storage_rebate: 0, non_refundable_storage_fee: 0
+
+task 4, line 26:
+//# create-checkpoint
+Checkpoint created: 2
+
+task 5, lines 28-46:
+//# run-graphql
+Response: {
+  "data": {
+    "transactionBlocks": {
+      "pageInfo": {
+        "hasNextPage": false,
+        "hasPreviousPage": false,
+        "endCursor": null,
+        "startCursor": null
+      },
+      "nodes": []
+    }
+  }
+}
+
+task 6, lines 48-66:
+//# run-graphql
+Response: {
+  "data": {
+    "transactionBlocks": {
+      "pageInfo": {
+        "hasNextPage": false,
+        "hasPreviousPage": false,
+        "endCursor": null,
+        "startCursor": null
+      },
+      "nodes": []
+    }
+  }
+}
+
+task 7, lines 68-86:
+//# run-graphql
+Response: {
+  "data": null,
+  "errors": [
+    {
+      "message": "A scan limit must be specified for the given filter combination",
+      "locations": [
+        {
+          "line": 2,
+          "column": 3
+        }
+      ],
+      "path": [
+        "transactionBlocks"
+      ],
+      "extensions": {
+        "code": "BAD_USER_INPUT"
+      }
+    }
+  ]
+}
+
+task 8, lines 88-106:
+//# run-graphql
+Response: {
+  "data": {
+    "transactionBlocks": {
+      "pageInfo": {
+        "hasNextPage": false,
+        "hasPreviousPage": false,
+        "endCursor": "eyJjIjoyLCJ0IjoyLCJpIjp0cnVlfQ",
+        "startCursor": "eyJjIjoyLCJ0IjowLCJpIjp0cnVlfQ"
+      },
+      "nodes": []
+    }
+  }
+}

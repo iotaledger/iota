@@ -2,20 +2,26 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use std::collections::HashMap;
+
 use async_trait::async_trait;
 use iota_json_rpc::IotaRpcModule;
 use iota_json_rpc_api::{IndexerApiServer, cap_page_limit, error_object_from_rpc, internal_error};
 use iota_json_rpc_types::{
-    DynamicFieldPage, EventFilter, EventPage, IotaObjectData, IotaObjectDataOptions,
-    IotaObjectResponse, IotaObjectResponseQuery, IotaTransactionBlockResponseQuery, ObjectsPage,
-    Page, TransactionBlocksPage, TransactionFilter,
+    DynamicFieldPage, EventFilter, EventPage, IotaNameRecord, IotaObjectData, IotaObjectDataFilter,
+    IotaObjectDataOptions, IotaObjectResponse, IotaObjectResponseQuery,
+    IotaTransactionBlockResponseQuery, ObjectsPage, Page, TransactionBlocksPage, TransactionFilter,
+};
+use iota_names::{
+    IotaNamesNft, IotaNamesRegistration, config::IotaNamesConfig, domain::Domain,
+    error::IotaNamesError, registry::NameRecord,
 };
 use iota_open_rpc::Module;
 use iota_types::{
     TypeTag,
     base_types::{IotaAddress, ObjectID},
     digests::TransactionDigest,
-    dynamic_field::DynamicFieldName,
+    dynamic_field::{DynamicFieldName, Field},
     error::IotaObjectResponseError,
     event::EventID,
     object::ObjectRead,
@@ -26,15 +32,19 @@ use jsonrpsee::{
 };
 use tap::TapFallible;
 
-use crate::indexer_reader::IndexerReader;
+use crate::{errors::IndexerError, indexer_reader::IndexerReader};
 
 pub(crate) struct IndexerApi {
     inner: IndexerReader,
+    iota_names_config: IotaNamesConfig,
 }
 
 impl IndexerApi {
-    pub fn new(inner: IndexerReader) -> Self {
-        Self { inner }
+    pub fn new(inner: IndexerReader, iota_names_config: IotaNamesConfig) -> Self {
+        Self {
+            inner,
+            iota_names_config,
+        }
     }
 
     async fn get_owned_objects_internal(
@@ -328,6 +338,130 @@ impl IndexerApiServer for IndexerApi {
         _filter: TransactionFilter,
     ) -> SubscriptionResult {
         Err("empty subscription".into())
+    }
+
+    async fn iota_names_lookup(&self, name: &str) -> RpcResult<Option<IotaNameRecord>> {
+        let domain: Domain = name.parse().map_err(IndexerError::IotaNames)?;
+
+        // Construct the record id to lookup.
+        let record_id = self.iota_names_config.record_field_id(&domain);
+
+        // Gather the requests to fetch in the multi_get_objs.
+        let mut requests = vec![record_id];
+
+        // We only want to fetch both the child and the parent if the domain is a
+        // subdomain.
+        let parent_record_id = domain.parent().map(|parent_domain| {
+            let parent_record_id = self.iota_names_config.record_field_id(&parent_domain);
+            requests.push(parent_record_id);
+            parent_record_id
+        });
+
+        // Fetch both parent (if subdomain) and child records in a single get query.
+        // We do this as we do not know if the subdomain is a node or leaf record.
+        let mut domain_object_map = self
+            .inner
+            .multi_get_objects_in_blocking_task(requests)
+            .await?
+            .into_iter()
+            .map(iota_types::object::Object::try_from)
+            .try_fold(HashMap::new(), |mut map, res| {
+                let obj = res?;
+                map.insert(obj.id(), obj.try_into()?);
+                Ok::<HashMap<ObjectID, NameRecord>, IndexerError>(map)
+            })?;
+
+        // Extract the name record for the provided domain
+        let Some(name_record) = domain_object_map.remove(&record_id) else {
+            return Ok(None);
+        };
+
+        // get latest timestamp to check expiration.
+        let current_timestamp = self
+            .inner
+            .get_latest_checkpoint_timestamp_ms_in_blocking_task()
+            .await?;
+
+        // If the provided domain is a `node` record, we can check for expiration
+        if !name_record.is_leaf_record() {
+            return if !name_record.is_node_expired(current_timestamp) {
+                Ok(Some(name_record.into()))
+            } else {
+                Err(IndexerError::IotaNames(IotaNamesError::NameExpired).into())
+            };
+        } else {
+            // Handle the `leaf` record case which requires to check the parent for
+            // expiration.
+            let parent_record_id = parent_record_id.expect("leaf record should have a parent");
+            // If the parent record is not found for the existing leaf, we consider it
+            // expired.
+            let parent_record = domain_object_map
+                .remove(&parent_record_id)
+                .ok_or_else(|| IndexerError::IotaNames(IotaNamesError::NameExpired))?;
+
+            if parent_record.is_valid_leaf_parent(&name_record)
+                && !parent_record.is_node_expired(current_timestamp)
+            {
+                return Ok(Some(name_record.into()));
+            } else {
+                return Err(IndexerError::IotaNames(IotaNamesError::NameExpired).into());
+            }
+        }
+    }
+
+    async fn iota_names_reverse_lookup(&self, address: IotaAddress) -> RpcResult<Option<String>> {
+        let reverse_record_id = self.iota_names_config.reverse_record_field_id(&address);
+
+        let Some(field_reverse_record_object) = self
+            .inner
+            .get_object_in_blocking_task(reverse_record_id)
+            .await?
+        else {
+            return Ok(None);
+        };
+
+        let domain = field_reverse_record_object
+            .to_rust::<Field<IotaAddress, Domain>>()
+            .ok_or_else(|| {
+                IndexerError::PersistentStorageDataCorruption(format!(
+                    "Malformed Object {reverse_record_id}"
+                ))
+            })?
+            .value;
+
+        let domain_name = domain.to_string();
+
+        // Tries to resolve the name, to verify it is not expired.
+        let resolved_record = self.iota_names_lookup(&domain_name).await?;
+
+        // If we do not have a resolved address, we do not include the domain in the
+        // result.
+        if resolved_record.is_none() {
+            return Ok(None);
+        }
+
+        Ok(Some(domain_name))
+    }
+
+    async fn iota_names_find_all_registration_nfts(
+        &self,
+        address: IotaAddress,
+        cursor: Option<ObjectID>,
+        limit: Option<usize>,
+        options: Option<IotaObjectDataOptions>,
+    ) -> RpcResult<ObjectsPage> {
+        let query = IotaObjectResponseQuery {
+            filter: Some(IotaObjectDataFilter::StructType(
+                IotaNamesRegistration::type_(self.iota_names_config.package_address.into()),
+            )),
+            options,
+        };
+
+        let owned_objects = self
+            .get_owned_objects(address, Some(query), cursor, limit)
+            .await?;
+
+        Ok(owned_objects)
     }
 }
 

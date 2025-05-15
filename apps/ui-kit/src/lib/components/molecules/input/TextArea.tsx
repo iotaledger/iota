@@ -2,7 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { forwardRef, useEffect, useState } from 'react';
-import { InputWrapper, InputWrapperProps } from './InputWrapper';
+import type { InputWrapperProps } from './InputWrapper';
+import { InputWrapper } from './InputWrapper';
 import {
     BORDER_CLASSES,
     INPUT_CLASSES,

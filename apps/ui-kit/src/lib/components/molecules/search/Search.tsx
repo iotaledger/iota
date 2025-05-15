@@ -44,17 +44,13 @@ export interface SearchProps {
      */
     isLoading: boolean;
     /**
-     * Callback when a key is pressed.
-     */
-    onKeyDown?: (event: React.KeyboardEvent<HTMLInputElement>) => void;
-    /**
      * The type of the search bar. Can be 'outlined' or 'filled'.
      */
     type?: SearchBarType;
     /**
      * Render suggestion.
      */
-    renderSuggestion: (suggestion: Suggestion, index: number) => React.ReactNode;
+    renderSuggestion?: (suggestion: Suggestion, index: number) => React.ReactNode;
 }
 
 export function Search({
@@ -64,7 +60,6 @@ export function Search({
     onSuggestionClick,
     placeholder,
     isLoading = false,
-    onKeyDown,
     type = SearchBarType.Outlined,
     renderSuggestion,
 }: SearchProps): React.JSX.Element {
@@ -183,7 +178,7 @@ export function Search({
                 />
                 <SearchIcon />
             </div>
-            {showSuggestions && (
+            {showSuggestions && renderSuggestion && (
                 <div
                     ref={suggestionsListRef}
                     className={cx(
