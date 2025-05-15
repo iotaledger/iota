@@ -14,13 +14,14 @@ use iota_test_transaction_builder::{create_nft, delete_nft, publish_nfts_package
 use iota_types::{
     base_types::{ObjectID, SequenceNumber},
     crypto::{AccountKeyPair, get_key_pair},
-    digests::{ObjectDigest, TransactionDigest},
+    digests::{ChainIdentifier, ObjectDigest, TransactionDigest},
     error::IotaObjectResponseError,
 };
 
 use crate::common::{
     ApiTestSetup, execute_tx_and_wait_for_indexer, indexer_wait_for_checkpoint,
-    indexer_wait_for_object, indexer_wait_for_transaction, rpc_call_error_msg_matches,
+    indexer_wait_for_checkpoint_pruned, indexer_wait_for_object, indexer_wait_for_transaction,
+    rpc_call_error_msg_matches, start_test_cluster_with_read_write_indexer,
 };
 
 fn is_ascending(vec: &[u64]) -> bool {
@@ -1681,5 +1682,55 @@ fn try_get_object_before_version() {
             }
             _ => panic!("Expected VersionFound response, got: {:?}", result),
         }
+    });
+}
+
+#[test]
+fn get_chain_identifier_with_pruning_enabled() {
+    let ApiTestSetup { runtime, .. } = ApiTestSetup::get_or_init();
+
+    runtime.block_on(async move {
+        let (cluster, store, client) = &start_test_cluster_with_read_write_indexer(
+            Some("test_get_chain_identifier_with_pruning_enabled"),
+            None,
+            Some(1),
+        )
+        .await;
+
+        indexer_wait_for_checkpoint(store, 1).await;
+
+        let chain_identifier = ChainIdentifier::from(
+            client
+                .get_checkpoint(CheckpointId::SequenceNumber(0))
+                .await
+                .unwrap()
+                .digest,
+        );
+
+        let indexer_chain_identifier = client.get_chain_identifier().await.unwrap();
+
+        assert_eq!(
+            chain_identifier.to_string(),
+            indexer_chain_identifier.to_string()
+        );
+
+        cluster.force_new_epoch().await;
+
+        // Prune the genesis checkpoint
+        indexer_wait_for_checkpoint_pruned(store, 0).await;
+
+        let indexer_chain_identifier = client.get_chain_identifier().await.unwrap();
+
+        assert_eq!(
+            chain_identifier.to_string(),
+            indexer_chain_identifier.to_string()
+        );
+
+        assert!(
+            client
+                .get_checkpoint(CheckpointId::SequenceNumber(0))
+                .await
+                .is_err()
+        )
     });
 }
