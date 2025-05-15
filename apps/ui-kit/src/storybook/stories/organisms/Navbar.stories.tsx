@@ -3,7 +3,8 @@
 
 import type { Meta, StoryObj } from '@storybook/react';
 import { Activity, Apps, Assets, Home } from '@iota/apps-ui-icons';
-import { Navbar, NavbarSlideout, NavbarItemWithId, NavbarProps } from '@/components';
+import type { NavbarItemWithId, NavbarProps } from '@/components';
+import { Navbar, NavbarSlideout } from '@/components';
 import { useState } from 'react';
 
 const NAVBAR_ITEMS: NavbarItemWithId[] = [
