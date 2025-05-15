@@ -10,6 +10,8 @@ use futures_core::Stream;
 use iota_json_rpc_api::{
     GovernanceReadApiClient, IndexerApiClient, MoveUtilsClient, ReadApiClient, WriteApiClient,
 };
+#[cfg(feature = "iota-names")]
+use iota_json_rpc_types::IotaNameRecord;
 use iota_json_rpc_types::{
     Checkpoint, CheckpointId, CheckpointPage, DevInspectArgs, DevInspectResults,
     DryRunTransactionBlockResponse, DynamicFieldPage, IotaData, IotaGetPastObjectRequest,
@@ -702,6 +704,37 @@ impl ReadApi {
             .api
             .http
             .try_get_object_before_version(object_id, version)
+            .await?)
+    }
+
+    #[cfg(feature = "iota-names")]
+    /// Return the resolved record for the given name.
+    pub async fn iota_names_lookup(&self, name: &str) -> IotaRpcResult<Option<IotaNameRecord>> {
+        Ok(self.api.http.iota_names_lookup(name).await?)
+    }
+
+    #[cfg(feature = "iota-names")]
+    /// Return the resolved name for the given address.
+    pub async fn iota_names_reverse_lookup(
+        &self,
+        address: IotaAddress,
+    ) -> IotaRpcResult<Option<String>> {
+        Ok(self.api.http.iota_names_reverse_lookup(address).await?)
+    }
+
+    #[cfg(feature = "iota-names")]
+    /// Find all registration NFTs for the given address.
+    pub async fn iota_names_find_all_registration_nfts(
+        &self,
+        address: IotaAddress,
+        cursor: Option<ObjectID>,
+        limit: Option<usize>,
+        options: Option<IotaObjectDataOptions>,
+    ) -> IotaRpcResult<ObjectsPage> {
+        Ok(self
+            .api
+            .http
+            .iota_names_find_all_registration_nfts(address, cursor, limit, options)
             .await?)
     }
 }

@@ -53,8 +53,10 @@ export function DetailsView({
 }: StakeDialogProps): JSX.Element {
     const totalStake = BigInt(stakedDetails?.principal || 0n);
     const validatorAddress = stakedDetails?.validatorAddress;
-    const { isValidatorExpectedToBeInTheCommittee } =
-        useGetNextEpochCommitteeMember(validatorAddress);
+    const {
+        isValidatorExpectedToBeInTheCommittee,
+        isLoading: isValidatorExpectedToBeInTheCommitteeLoading,
+    } = useGetNextEpochCommitteeMember(validatorAddress);
 
     const {
         isAtRisk,
@@ -163,7 +165,8 @@ export function DetailsView({
                             />
                         </div>
                     </Panel>
-                    {!isValidatorExpectedToBeInTheCommittee ? (
+                    {!isValidatorExpectedToBeInTheCommittee &&
+                    !isValidatorExpectedToBeInTheCommitteeLoading ? (
                         <Panel hasBorder>
                             <div className="flex flex-col gap-y-sm p-md">
                                 <KeyValueInfo
