@@ -51,7 +51,7 @@ export default function Home() {
       }}
     >
       {" "}
-      <div className="bg-iota-black overflow-hidden">
+      <div className="dark:bg-iota-black overflow-hidden">
         <div className={styles.backgroundImage}>
           <div className="w-full mt-24 mb-12 mx-auto">
             <div className={styles.heroText}>
@@ -185,8 +185,8 @@ export default function Home() {
         </div>
 
         <div className={styles.sectionHeader}>
-          <h2 className="h1 text-white font-twkeverett">Why IOTA?</h2>
-          <h3 className="h3 text-gray text-center">
+          <h2 className="h1 font-twkeverett">Why IOTA?</h2>
+          <h3 className="h3 text-center">
             IOTA is the first internet-scale programmable blockchain platform
           </h3>
         </div>

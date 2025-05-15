@@ -235,7 +235,6 @@
 
 .TwoColItem span {
   flex: 4;
-  color: var(--iota-white);
   font-family: var(--headerFont);
   font-size: 2rem;
   font-weight: 400;
