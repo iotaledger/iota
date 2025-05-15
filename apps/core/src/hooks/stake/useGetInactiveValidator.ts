@@ -30,9 +30,13 @@ export function useGetInactiveValidator(validatorAddress: string) {
             if (pendingInactiveValidatorsData.length === 0) {
                 return null;
             } else {
-                return pendingInactiveValidatorsData.find(
+                const findValidator = pendingInactiveValidatorsData.find(
                     (validator) => validator?.validatorAddress === validatorAddress,
                 ) as InactiveValidatorData;
+                if (!findValidator) {
+                    return null;
+                }
+                return findValidator;
             }
         },
         enabled: !!inactivePoolsId && !!validatorAddress,
