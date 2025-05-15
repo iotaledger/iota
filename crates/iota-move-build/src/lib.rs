@@ -14,7 +14,7 @@ use std::{
 use fastcrypto::encoding::Base64;
 use iota_package_management::{PublishedAtError, resolve_published_id};
 use iota_types::{
-    BRIDGE_ADDRESS, IOTA_FRAMEWORK_ADDRESS, IOTA_SYSTEM_ADDRESS, MOVE_STDLIB_ADDRESS,
+    IOTA_FRAMEWORK_ADDRESS, IOTA_SYSTEM_ADDRESS, MOVE_STDLIB_ADDRESS,
     STARDUST_ADDRESS,
     base_types::ObjectID,
     error::{IotaError, IotaResult},
@@ -428,12 +428,6 @@ impl CompiledPackage {
             .iter()
             .map(|b| Base64::from_bytes(b))
             .collect()
-    }
-
-    /// Get bytecode modules from Bridge that are used by this package
-    pub fn get_bridge_modules(&self) -> impl Iterator<Item = &CompiledModule> {
-        self.get_modules_and_deps()
-            .filter(|m| *m.self_id().address() == BRIDGE_ADDRESS)
     }
 
     /// Get bytecode modules from the IOTA System that are used by this package

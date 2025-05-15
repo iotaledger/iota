@@ -27,7 +27,6 @@ use iota_storage::{
 };
 use iota_types::{
     base_types::{IotaAddress, MoveObjectType, ObjectID, ObjectInfo, ObjectRef, SequenceNumber},
-    bridge::Bridge,
     committee::{Committee, EpochId},
     digests::{ChainIdentifier, TransactionDigest},
     dynamic_field::DynamicFieldInfo,
@@ -169,9 +168,6 @@ pub trait StateRead: Send + Sync {
 
     fn get_system_state(&self) -> StateReadResult<IotaSystemState>;
     fn get_or_latest_committee(&self, epoch: Option<BigInt<u64>>) -> StateReadResult<Committee>;
-
-    // bridge_api
-    fn get_bridge(&self) -> StateReadResult<Bridge>;
 
     // coin_api
     fn find_publish_txn_digest(&self, package_id: ObjectID) -> StateReadResult<TransactionDigest>;
@@ -425,12 +421,6 @@ impl StateRead for AuthorityState {
         Ok(self
             .committee_store()
             .get_or_latest_committee(epoch.map(|e| *e))?)
-    }
-
-    fn get_bridge(&self) -> StateReadResult<Bridge> {
-        self.get_cache_reader()
-            .get_bridge_object_unsafe()
-            .map_err(|err| err.into())
     }
 
     fn find_publish_txn_digest(&self, package_id: ObjectID) -> StateReadResult<TransactionDigest> {

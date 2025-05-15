@@ -401,16 +401,6 @@ impl EndOfEpochTransactionKind {
                     checkpoint_viewed_at,
                 })
             }
-            N::BridgeStateCreate(chain_id) => K::BridgeStateCreate(BridgeStateCreateTransaction {
-                native: chain_id,
-                checkpoint_viewed_at,
-            }),
-            N::BridgeCommitteeInit(bridge_shared_version) => {
-                K::BridgeCommitteeInit(BridgeCommitteeInitTransaction {
-                    native: bridge_shared_version,
-                    checkpoint_viewed_at,
-                })
-            }
         }
     }
 }

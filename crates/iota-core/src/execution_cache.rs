@@ -9,7 +9,6 @@ use iota_common::fatal;
 use iota_config::ExecutionCacheConfig;
 use iota_types::{
     base_types::{EpochId, ObjectID, ObjectRef, SequenceNumber, VerifiedExecutionData},
-    bridge::Bridge,
     digests::{TransactionDigest, TransactionEffectsDigest, TransactionEventsDigest},
     effects::{TransactionEffects, TransactionEvents},
     error::{IotaError, IotaResult, UserInputError},
@@ -396,8 +395,6 @@ pub trait ObjectCacheRead: Send + Sync {
     fn check_owned_objects_are_live(&self, owned_object_refs: &[ObjectRef]) -> IotaResult;
 
     fn get_iota_system_state_object_unsafe(&self) -> IotaResult<IotaSystemState>;
-
-    fn get_bridge_object_unsafe(&self) -> IotaResult<Bridge>;
 
     // Marker methods
 

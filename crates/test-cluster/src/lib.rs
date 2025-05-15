@@ -24,7 +24,7 @@ use iota_core::{
 };
 use iota_genesis_builder::SnapshotSource;
 use iota_json_rpc_api::{
-    BridgeReadApiClient, IndexerApiClient, TransactionBuilderClient, WriteApiClient,
+    IndexerApiClient, TransactionBuilderClient, WriteApiClient,
     error_object_from_rpc,
 };
 use iota_json_rpc_types::{
@@ -53,12 +53,7 @@ use iota_swarm_config::{
 };
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
-    IOTA_BRIDGE_OBJECT_ID,
     base_types::{AuthorityName, ConciseableName, IotaAddress, ObjectID, ObjectRef},
-    bridge::{
-        BridgeSummary, BridgeTrait, TOKEN_ID_BTC, TOKEN_ID_ETH, TOKEN_ID_USDC, TOKEN_ID_USDT,
-        get_bridge, get_bridge_obj_initial_shared_version,
-    },
     committee::{Committee, CommitteeTrait, EpochId},
     crypto::{AccountKeyPair, IotaKeyPair, KeypairTraits, ToFromBytes, get_key_pair},
     effects::{TransactionEffects, TransactionEvents},

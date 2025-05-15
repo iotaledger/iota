@@ -30,13 +30,12 @@ use iota_genesis_common::{execute_genesis_transaction, get_genesis_protocol_conf
 use iota_protocol_config::{Chain, ProtocolConfig, ProtocolVersion};
 use iota_sdk::Url;
 use iota_types::{
-    BRIDGE_ADDRESS, IOTA_BRIDGE_OBJECT_ID, IOTA_FRAMEWORK_PACKAGE_ID, IOTA_SYSTEM_ADDRESS,
+    IOTA_FRAMEWORK_PACKAGE_ID, IOTA_SYSTEM_ADDRESS,
     balance::{BALANCE_MODULE_NAME, Balance},
     base_types::{
         ExecutionDigests, IotaAddress, ObjectID, ObjectRef, SequenceNumber, TransactionDigest,
         TxContext,
     },
-    bridge::{BRIDGE_CREATE_FUNCTION_NAME, BRIDGE_MODULE_NAME, BridgeChainId},
     committee::Committee,
     crypto::{
         AuthorityKeyPair, AuthorityPublicKeyBytes, AuthoritySignInfo, AuthoritySignInfoTrait,
@@ -1534,24 +1533,6 @@ pub fn generate_genesis_system_object(
             vec![],
             vec![],
         )?;
-
-        if protocol_config.enable_bridge() {
-            let bridge_uid = builder
-                .input(CallArg::Pure(
-                    UID::new(IOTA_BRIDGE_OBJECT_ID).to_bcs_bytes(),
-                ))
-                .unwrap();
-            // TODO(bridge): this needs to be passed in as a parameter for next testnet
-            // regenesis Hardcoding chain id to IotaCustom
-            let bridge_chain_id = builder.pure(BridgeChainId::IotaCustom).unwrap();
-            builder.programmable_move_call(
-                BRIDGE_ADDRESS.into(),
-                BRIDGE_MODULE_NAME.to_owned(),
-                BRIDGE_CREATE_FUNCTION_NAME.to_owned(),
-                vec![],
-                vec![bridge_uid, bridge_chain_id],
-            );
-        }
 
         // Step 4: Create the IOTA Coin Treasury Cap.
         let iota_treasury_cap = builder.programmable_move_call(
