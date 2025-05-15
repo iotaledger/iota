@@ -77,14 +77,8 @@ const aboutIota = [
             },
             {
                 type: 'link',
-                label: 'Cosmostation Wallet Extension',
-                href: 'https://www.cosmostation.io/products/cosmostation_extension',
-                description: 'Cosmostation provides a browser extension and mobile app for IOTA.',
-            },
-            {
-                type: 'link',
-                label: 'Cosmostation Mobile Wallet',
-                href: 'https://www.cosmostation.io/products/cosmostation_mobile',
+                label: 'Cosmostation Wallet',
+                href: 'https://www.cosmostation.io/',
                 description: 'Cosmostation provides a browser extension and mobile app for IOTA.',
             }
         ],
