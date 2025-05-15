@@ -11,7 +11,7 @@ use std::{
 
 use iota_framework::{SystemPackage, SystemPackageMetadata};
 use iota_types::{
-    BRIDGE_PACKAGE_ID, IOTA_FRAMEWORK_PACKAGE_ID, IOTA_SYSTEM_PACKAGE_ID, MOVE_STDLIB_PACKAGE_ID,
+    IOTA_FRAMEWORK_PACKAGE_ID, IOTA_SYSTEM_PACKAGE_ID, MOVE_STDLIB_PACKAGE_ID,
     STARDUST_PACKAGE_ID, base_types::ObjectID,
 };
 use serde::{Deserialize, Serialize};
@@ -73,7 +73,6 @@ const SYSTEM_PACKAGE_PUBLISH_ORDER: &[ObjectID] = &[
     MOVE_STDLIB_PACKAGE_ID,
     IOTA_FRAMEWORK_PACKAGE_ID,
     IOTA_SYSTEM_PACKAGE_ID,
-    BRIDGE_PACKAGE_ID,
     STARDUST_PACKAGE_ID,
 ];
 
