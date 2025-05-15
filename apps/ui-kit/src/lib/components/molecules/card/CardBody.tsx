@@ -1,9 +1,9 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 import cx from 'classnames';
-
-import { ReactNode } from 'react';
-import { Tooltip, TooltipPosition } from '../../atoms';
+import type { ReactNode } from 'react';
+import { Tooltip } from '../../atoms';
+import type { TooltipPosition } from '../../atoms';
 
 export type CardBodyProps = {
     title: string;

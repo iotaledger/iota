@@ -1,7 +1,7 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { PropsWithChildren } from 'react';
+import type { PropsWithChildren } from 'react';
 import cx from 'classnames';
 import { TooltipPosition } from './tooltip.enums';
 import { TOOLTIP_POSITION } from './tooltip.classes';
