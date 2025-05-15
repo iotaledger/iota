@@ -180,7 +180,7 @@
     ]
   },
   "7": {
-    "git_revision": "a9d93ac5f371",
+    "git_revision": "161fa52114d4-dirty",
     "packages": [
       {
         "name": "MoveStdlib",
@@ -196,11 +196,6 @@
         "name": "IotaSystem",
         "path": "crates/iota-framework/packages/iota-system",
         "id": "0x0000000000000000000000000000000000000000000000000000000000000003"
-      },
-      {
-        "name": "Bridge",
-        "path": "crates/iota-framework/packages/bridge",
-        "id": "0x000000000000000000000000000000000000000000000000000000000000000b"
       },
       {
         "name": "Stardust",
