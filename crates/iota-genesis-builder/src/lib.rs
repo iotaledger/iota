@@ -557,11 +557,6 @@ impl Builder {
         }
         assert!(unsigned_genesis.has_randomness_state_object());
 
-        assert_eq!(
-            protocol_config.enable_bridge(),
-            unsigned_genesis.has_bridge_object()
-        );
-
         assert!(unsigned_genesis.has_coin_deny_list_object());
 
         assert_eq!(
