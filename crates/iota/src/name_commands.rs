@@ -968,7 +968,7 @@ impl SubdomainCommand {
                 let subdomains_package = fetch_package_id_by_module_and_name(
                     &iota_client,
                     &Identifier::from_str("subdomains")?,
-                    &Identifier::from_str("Subdomains")?,
+                    &Identifier::from_str("SubdomainsAuth")?,
                 )
                 .await?;
 
