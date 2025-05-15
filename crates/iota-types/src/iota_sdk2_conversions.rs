@@ -631,17 +631,7 @@ impl From<crate::transaction::EndOfEpochTransactionKind> for EndOfEpochTransacti
                 authenticator_obj_initial_shared_version: authenticator_state_expire
                     .authenticator_obj_initial_shared_version
                     .value(),
-            }),
-            crate::transaction::EndOfEpochTransactionKind::BridgeStateCreate(chain_identifier) => {
-                EndOfEpochTransactionKind::BridgeStateCreate {
-                    chain_id: CheckpointDigest::new(chain_identifier.digest().into()),
-                }
-            }
-            crate::transaction::EndOfEpochTransactionKind::BridgeCommitteeInit(sequence_number) => {
-                EndOfEpochTransactionKind::BridgeCommitteeInit {
-                    bridge_object_version: sequence_number.value(),
-                }
-            }
+            })
         }
     }
 }
@@ -704,11 +694,13 @@ impl From<EndOfEpochTransactionKind> for crate::transaction::EndOfEpochTransacti
                 })
             }
             EndOfEpochTransactionKind::BridgeStateCreate { chain_id } => {
-                Self::BridgeStateCreate(crate::digests::ChainIdentifier(chain_id.into()))
+                todo!("Remove EndOfEpochTransactionKind::BridgeStateCreate from external rust SDK")
             }
             EndOfEpochTransactionKind::BridgeCommitteeInit {
                 bridge_object_version,
-            } => Self::BridgeCommitteeInit(bridge_object_version.into()),
+            } => {
+                todo!("Remove EndOfEpochTransactionKind::BridgeCommitteeInit from external rust SDK")
+            },
         }
     }
 }
