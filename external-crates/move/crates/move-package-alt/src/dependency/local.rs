@@ -14,6 +14,8 @@ use std::{
 use crate::errors::PackageResult;
 use serde::{Deserialize, Serialize};
 
+// TODO: PinnedLocalDependencies should be different from UnpinnedLocalDependency - the former also
+// needs an absolute filesystem path (which doesn't get serialized to the lockfile)
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 pub struct LocalDependency {
     /// The path on the filesystem, relative to the location of the containing file (which is

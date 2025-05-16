@@ -5,7 +5,8 @@
 
 use std::{
     collections::BTreeMap,
-    fmt::{Debug, Display, Formatter},
+    fmt::{self, Debug, Display, Formatter},
+    path::Path,
 };
 
 use derive_where::derive_where;
@@ -21,9 +22,12 @@ use crate::{
 // TODO: add 2025 edition
 const ALLOWED_EDITIONS: &[&str] = &["2024", "2024.beta", "legacy"];
 
-// Note: [Manifest] objects are immutable and should not implement
-// [serde::Serialize]; any tool writing these files should use [toml_edit] to
-// set / preserve the formatting, since these are user-editable files
+// TODO: replace this with something more strongly typed
+type Digest = String;
+
+// Note: [Manifest] objects are immutable and should not implement [serde::Serialize]; any tool
+// writing these files should use [toml_edit] to set / preserve the formatting, since these are
+// user-editable files
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 #[serde(deny_unknown_fields)]
@@ -130,5 +134,32 @@ impl<F: MoveFlavor> Manifest<F> {
         )?;
 
         Ok(())
+    }
+
+    /// Return the dependency set of this manifest, including replacements.
+    pub fn dependencies(&self) -> DependencySet<ManifestDependencyInfo<F>> {
+        let mut deps = DependencySet::new();
+
+        for (name, dep) in &self.dependencies {
+            deps.insert(None, name.clone(), dep.dependency_info.clone());
+        }
+
+        for (env, replacements) in &self.dep_replacements {
+            for (name, dep) in replacements {
+                if let Some(dep) = &dep.dependency {
+                    deps.insert(Some(env.clone()), name.clone(), dep.dependency_info.clone());
+                }
+            }
+        }
+        deps
+    }
+
+    pub fn environments(&self) -> &BTreeMap<EnvironmentName, F::EnvironmentID> {
+        &self.environments
+    }
+
+    /// Compute a digest of this file
+    pub fn digest(&self) -> Digest {
+        todo!()
     }
 }
