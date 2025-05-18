@@ -40,8 +40,7 @@ pub struct PTB {
     pub args: Vec<String>,
     /// Select which fields of the response to display.
     /// If not provided, all fields are displayed.
-    /// The fields are: input, effects, events, object_changes,
-    /// balance_changes.
+    /// The fields are: input, effects, events, object_changes, balance_changes.
     #[arg(long, required = false, num_args = 0.., value_parser = parse_display_option, default_value = "input,effects,events,object_changes,balance_changes")]
     pub display: HashSet<DisplayOption>,
 }

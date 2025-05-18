@@ -19,6 +19,7 @@ move-binary-format.workspace = true
 # iota-verifier-$CUT = { path = "$CUT/iota-verifier" }
 move-bytecode-verifier-latest = { path = "../external-crates/move/crates/move-bytecode-verifier", package = "move-bytecode-verifier" }
 move-bytecode-verifier-meter.workspace = true
+move-trace-format.workspace = true
 move-vm-config.workspace = true
 # move-bytecode-verifier-$CUT = { path = "../external-crates/move/move-execution/$CUT/crates/move-bytecode-verifier" }
 move-vm-runtime-latest = { path = "../external-crates/move/crates/move-vm-runtime", package = "move-vm-runtime" }

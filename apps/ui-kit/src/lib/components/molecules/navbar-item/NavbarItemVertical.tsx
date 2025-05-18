@@ -10,7 +10,7 @@ import {
     UNSELECTED_TEXT,
 } from './navbarItem.classes';
 import { Badge, BadgeType } from '../../atoms';
-import { NavbarItemProps } from './NavbarItem';
+import type { NavbarItemProps } from './NavbarItem';
 
 export function NavbarItemVertical({
     icon,

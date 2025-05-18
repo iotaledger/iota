@@ -25,25 +25,11 @@ The `governance` contract provides the following functionalities:
 
 ---
 
-## Fee Policy
-
-The Fee Policy looks like the following:
-
-```go
-{
-  GasPerToken Ratio32 // how many gas units are paid for each token
-  EVMGasRatio Ratio32 // the ratio at which EVM gas is converted to ISC gas
-  ValidatorFeeShare uint8 // percentage of the fees that are credited to the validators (0 - 100)
-}
-```
-
----
-
 ## Entry Points
 
-### `rotateStateController(S StateControllerAddress)`
+### `rotateStateController`
 
-Called when the committee is about to be rotated to the new address `S`.
+Called when the committee is about to be rotated to the new address `newStateControllerAddr`.
 
 If it succeeds, the next state transition will become a governance transition, thus updating the state controller in the
 chain's Alias Output. If it fails, nothing happens.
@@ -52,137 +38,198 @@ It can only be invoked by the chain owner.
 
 #### Parameters
 
-- `S` ([`iotago::Address`](https://github.com/iotaledger/iota.go/blob/develop/address.go)): The address of the next
-  state controller. Must be an
-  [allowed](#addallowedstatecontrolleraddresss-statecontrolleraddress) state controller address.
+| Name                   | Type     | Optional | Description                                                                                                                |
+| ---------------------- | -------- | -------- | -------------------------------------------------------------------------------------------------------------------------- |
+| newStateControllerAddr | [u8; 32] | No       | The address of the next state controller. Must be an [allowed](#addallowedstatecontrolleraddress) state controller address |
 
-### `addAllowedStateControllerAddress(S StateControllerAddress)`
+#### Returns
 
-Adds the address `S` to the list of identities that constitute the state controller.
+_None_
 
-It can only be invoked by the chain owner.
+### `addAllowedStateControllerAddress`
 
-#### Parameters
-
-- `S` ([`iotago::Address`](https://github.com/iotaledger/iota.go/blob/develop/address.go)): The address to add to the
-  set of allowed state controllers.
-
-### `removeAllowedStateControllerAddress(S StateControllerAddress)`
-
-Removes the address `S` from the list of identities that constitute the state controller.
+Adds the address `stateControllerAddress` to the list of identities that constitute the state controller.
 
 It can only be invoked by the chain owner.
 
 #### Parameters
 
-- `S` ([`iotago::Address`](https://github.com/iotaledger/iota.go/blob/develop/address.go)): The address to remove from
-  the set of allowed state controllers.
+| Name                   | Type     | Optional | Description                                                |
+| ---------------------- | -------- | -------- | ---------------------------------------------------------- |
+| stateControllerAddress | [u8; 32] | No       | The address to add to the set of allowed state controllers |
 
-### `delegateChainOwnership(o AgentID)`
+#### Returns
 
-Sets the Agent ID `o` as the new owner for the chain. This change will only be effective
-once [`claimChainOwnership`](#claimchainownership) is called by `o`.
+_None_
+
+### `removeAllowedStateControllerAddress`
+
+Removes the address `stateControllerAddress` from the list of identities that constitute the state controller.
 
 It can only be invoked by the chain owner.
 
 #### Parameters
 
-- `o` (`AgentID`): The Agent ID of the next chain owner.
+| Name                   | Type     | Optional | Description                                                     |
+| ---------------------- | -------- | -------- | --------------------------------------------------------------- |
+| stateControllerAddress | [u8; 32] | No       | The address to remove from the set of allowed state controllers |
 
-### `claimChainOwnership()`
+#### Returns
+
+_None_
+
+### `delegateChainOwnership`
+
+Sets the Agent ID `ownerAgentID` as the new owner for the chain. This change will only be effective
+once [`claimChainOwnership`](#claimchainownership) is called by `ownerAgentID`.
+
+It can only be invoked by the chain owner.
+
+#### Parameters
+
+| Name         | Type     | Optional | Description                          |
+| ------------ | -------- | -------- | ------------------------------------ |
+| ownerAgentID | [u8; 32] | No       | The Agent ID of the next chain owner |
+
+#### Returns
+
+_None_
+
+### `claimChainOwnership`
 
 Claims the ownership of the chain if the caller matches the identity set
-in [`delegateChainOwnership`](#delegatechainownershipo-agentid).
-
-### `setFeePolicy(g FeePolicy)`
-
-Sets the fee policy for the chain.
+in [`delegateChainOwnership`](#delegatechainownership).
 
 #### Parameters
 
-- `g`: ([`FeePolicy`](#feepolicy)).
+_None_
 
-It can only be invoked by the chain owner.
+#### Returns
 
-### `setGasLimits(l GasLimits)`
+_None_
 
-Sets the gas limits for the chain.
+### `setFeePolicy`
 
-#### Parameters
-
-- `l`: ([`GasLimits`](#gaslimits)).
-
-It can only be invoked by the chain owner.
-
-### `setEVMGasRatio(e Ratio32)`
-
-Sets the EVM gas ratio for the chain.
+Sets the fee policy for the chain. It can only be invoked by the chain owner.
 
 #### Parameters
 
-- `e` ([`Ratio32`](#ratio32)): The EVM gas ratio.
+| Name      | Type                              | Optional | Description    |
+| --------- | --------------------------------- | -------- | -------------- |
+| feePolicy | [FeePolicy](./types.md#feepolicy) | No       | The fee policy |
 
-It can only be invoked by the chain owner.
+#### Returns
 
-### `addCandidateNode(ip PubKey, ic Certificate, ia API, i ForCommittee)`
+_None_
 
-Adds a node to the list of candidates.
+### `setGasLimits`
 
-#### Parameters
-
-- `ip` (`[]byte`): The public key of the node to be added.
-- `ic` (`[]byte`): The certificate is a signed binary containing both the node public key and their L1 address.
-- `ia` (`string`): The API base URL for the node.
-- `i` (optional `bool` - default: `false`): Whether the candidate node is being added to be part of the committee or
-  just an access node.
-
-It can only be invoked by the access node owner (verified via the Certificate field).
-
-### `revokeAccessNode(ip PubKey, ic Certificate, ia API, i ForCommittee)`
-
-Removes a node from the list of candidates.
+Sets the gas limits for the chain. It can only be invoked by the chain owner.
 
 #### Parameters
 
-- `ip` (`[]byte`): The public key of the node to be removed.
-- `ic` (`[]byte`): The certificate of the node to be removed.
+| Name      | Type                        | Optional | Description    |
+| --------- | --------------------------- | -------- | -------------- |
+| gasLimits | [Limits](./types.md#limits) | No       | The gas limits |
 
-It can only be invoked by the access node owner (verified via the Certificate field).
+#### Returns
 
-### `changeAccessNodes(n actions)`
+_None_
 
-Iterates through the given map of actions and applies them.
+### `setEVMGasRatio`
+
+Sets the EVM gas ratio for the chain. It can only be invoked by the chain owner.
 
 #### Parameters
 
-- `n` ([`Map`](https://github.com/iotaledger/wasp/blob/develop/packages/kv/collections/map.go) of `public key` => `byte`):
-  The list of actions to perform. Each byte value can be one of the following:
-  - `0`: Remove the access node from the access nodes list.
-  - `1`: Accept a candidate node and add it to the list of access nodes.
-  - `2`: Drop an access node from the access node and candidate lists.
+| Name        | Type                          | Optional | Description       |
+| ----------- | ----------------------------- | -------- | ----------------- |
+| evmGasRatio | [Ratio32](./types.md#ratio32) | No       | The EVM gas ratio |
 
-It can only be invoked by the chain owner.
+#### Returns
 
-### `startMaintenance()`
+_None_
+
+### `addCandidateNode`
+
+Adds a node to the list of candidates. It can only be invoked by the access node owner (verified via the Certificate field).
+
+#### Parameters
+
+| Name                | Type     | Optional | Description                                                                                 |
+| ------------------- | -------- | -------- | ------------------------------------------------------------------------------------------- |
+| nodePublicKey       | [u8; 32] | No       | The public key of the node to be added                                                      |
+| nodeCertificate     | [u8]     | No       | The certificate is a signed binary containing both the node public key and their L1 address |
+| nodeAccessAPI       | string   | No       | The API base URL for the node                                                               |
+| isCommittee         | bool     | No       | Whether the candidate node is being added to be part of the committee or                    |
+| just an access node |          |          |                                                                                             |
+
+#### Returns
+
+_None_
+
+### `revokeAccessNode`
+
+Removes a node from the list of candidates. It can only be invoked by the access node owner (verified via the Certificate field).
+
+#### Parameters
+
+| Name          | Type     | Optional | Description                               |
+| ------------- | -------- | -------- | ----------------------------------------- |
+| nodePublicKey | [u8; 32] | No       | The public key of the node to be removed  |
+| certificate   | [u8]     | No       | The certificate of the node to be removed |
+
+#### Returns
+
+_None_
+
+### `changeAccessNodes`
+
+Iterates through the given map of actions and applies them. It can only be invoked by the chain owner.
+
+#### Parameters
+
+| Name                                                                         | Type                        | Optional | Description                                                                                                         |
+| ---------------------------------------------------------------------------- | --------------------------- | -------- | ------------------------------------------------------------------------------------------------------------------- |
+| accessNodes                                                                  | []lo.Tuple2[[u8; 32], byte] | No       | [`Map`](https://github.com/iotaledger/wasp/blob/develop/packages/kv/collections/map.go) of `public key` => `byte`): |
+| The list of actions to perform. Each byte value can be one of the following: |                             |          |                                                                                                                     |
+
+- `0`: Remove the access node from the access nodes list.
+- `1`: Accept a candidate node and add it to the list of access nodes.
+- `2`: Drop an access node from the access node and candidate lists. |
+
+#### Returns
+
+_None_
+
+### `startMaintenance`
 
 Starts the chain maintenance mode, meaning no further requests will be processed except
 calls to the governance contract.
 
 It can only be invoked by the chain owner.
 
-### `stopMaintenance()`
+#### Parameters
+
+_None_
+
+#### Returns
+
+_None_
+
+### `stopMaintenance`
 
 Stops the maintenance mode.
 
 It can only be invoked by the chain owner.
 
-### `setCustomMetadata(x bytes)`
-
-Changes optional extra metadata that is appended to the L1 AliasOutput.
-
 #### Parameters
 
-- `x` (`bytes`): the optional metadata
+_None_
+
+#### Returns
+
+_None_
 
 ### `setPayoutAgentID`
 
@@ -190,156 +237,157 @@ Changes optional extra metadata that is appended to the L1 AliasOutput.
 
 #### Parameters
 
-- `s` (`AgentID`): the payout AgentID
+| Name          | Type     | Optional | Description        |
+| ------------- | -------- | -------- | ------------------ |
+| payoutAgentID | [u8; 32] | No       | The payout AgentID |
 
-### `setMinCommonAccountBalance`
+#### Returns
 
-`setMinCommonAccountBalance` sets the minimum balanced to be held in the common account.
-
-#### Parameters
-
-- `ms` (`AgentID`): the minimum common account balance
+_None_
 
 ---
 
 ## Views
 
-### `getAllowedStateControllerAddresses()`
+### `getAllowedStateControllerAddresses`
 
 Returns the list of allowed state controllers.
 
+#### Parameters
+
+_None_
+
 #### Returns
 
-- `a` ([`Array`](https://github.com/iotaledger/wasp/blob/develop/packages/kv/collections/array.go)
-  of [`iotago::Address`](https://github.com/iotaledger/iota.go/blob/develop/address.go)): The list of allowed state
-  controllers.
+| Name                     | Type       | Description                           |
+| ------------------------ | ---------- | ------------------------------------- |
+| stateControllerAddresses | [[u8; 32]] | The list of allowed state controllers |
 
-### `getChainOwner()`
+### `getChainOwner`
 
 Returns the AgentID of the chain owner.
 
+#### Parameters
+
+_None_
+
 #### Returns
 
-- `o` (`AgentID`): The chain owner.
+| Name              | Type     | Description              |
+| ----------------- | -------- | ------------------------ |
+| chainOwnerAgentID | [u8; 32] | The chain owner agent ID |
 
-### `getChainInfo()`
+### `getChainInfo`
 
 Returns information about the chain.
 
+#### Parameters
+
+_None_
+
 #### Returns
 
-- `c` (`ChainID`): The chain ID
-- `o` (`AgentID`): The chain owner
-- `g` ([`FeePolicy`](#feepolicy)): The gas fee policy
-- `l` ([`GasLimits`](#gaslimits)): The gas limits
-- `x` (`bytes`): The custom metadata
+| Name      | Type                              | Description    |
+| --------- | --------------------------------- | -------------- |
+| chainInfo | [ChainInfo](./types.md#chaininfo) | The chain info |
 
-### `getFeePolicy()`
+### `getFeePolicy`
 
 Returns the gas fee policy.
 
-#### Returns
+#### Parameters
 
-- `g` ([`FeePolicy`](#feepolicy)): The gas fee policy.
-
-### `getEVMGasRatio`
-
-Returns the ISC : EVM gas ratio.
+_None_
 
 #### Returns
 
-- `e` ([`Ratio32`](#ratio32)): The ISC : EVM gas ratio.
+| Name      | Type                              | Description        |
+| --------- | --------------------------------- | ------------------ |
+| feePolicy | [FeePolicy](./types.md#feepolicy) | The gas fee policy |
 
-### `getGasLimits()`
+### `getGasLimits`
 
 Returns the gas limits.
 
+#### Parameters
+
+_None_
+
 #### Returns
 
-- `l` ([`GasLimits`](#gaslimits)): The gas limits.
+| Name      | Type                        | Description    |
+| --------- | --------------------------- | -------------- |
+| gasLimits | [Limits](./types.md#limits) | The gas limits |
 
-### `getChainNodes()`
+### `getEVMGasRatio`
+
+Returns the EVM gas ratio.
+
+#### Parameters
+
+_None_
+
+#### Returns
+
+| Name        | Type                          | Description       |
+| ----------- | ----------------------------- | ----------------- |
+| evmGasRatio | [Ratio32](./types.md#ratio32) | The EVM gas ratio |
+
+### `getChainNodes`
 
 Returns the current access nodes and candidates.
 
+#### Parameters
+
+_None_
+
 #### Returns
 
-- `ac` ([`Map`](https://github.com/iotaledger/wasp/blob/develop/packages/kv/collections/map.go)
-  of public key => `0x01`): The access nodes.
-- `an` ([`Map`](https://github.com/iotaledger/wasp/blob/develop/packages/kv/collections/map.go)
-  of public key => [`AccessNodeInfo`](#accessnodeinfo)): The candidate nodes.
+| Name                                                                              | Type                                        | Description                                                                             |
+| --------------------------------------------------------------------------------- | ------------------------------------------- | --------------------------------------------------------------------------------------- |
+| accessNodes                                                                       | [[u8; 32]]                                  | The access node keys                                                                    |
+| candidates                                                                        | [AccessNodeInfo](./types.md#accessnodeinfo) | [`Map`](https://github.com/iotaledger/wasp/blob/develop/packages/kv/collections/map.go) |
+| of public key => [AccessNodeInfo](./types.md#accessnodeinfo): The candidates info |                                             |                                                                                         |
 
-### `getMaintenanceStatus()`
+### `getMaintenanceStatus`
 
 Returns whether the chain is undergoing maintenance.
 
-#### Returns
+#### Parameters
 
-- `m` (`bool`): `true` if the chain is in maintenance mode
-
-### `getCustomMetadata()`
-
-Returns the extra metadata that is added to the chain AliasOutput.
+_None_
 
 #### Returns
 
-- `x` (`bytes`): the optional metadata
+| Name          | Type | Description           |
+| ------------- | ---- | --------------------- |
+| isMaintenance | bool | Is maintenance active |
 
 ### `getPayoutAgentID`
 
-`getPayoutAgentID` gets the payout AgentID.
+Returns the payout AgentID.
 
-Returns the payout AgentID of the chain.
+#### Parameters
 
-#### Returns
-
-- `s` (`AgentID`): the payout AgentID.
-
-### `getMinCommonAccountBalance`
-
-`getMinCommonAccountBalance` returns the minimum balanced to be held in the common account.
+_None_
 
 #### Returns
 
-- `ms` (`uint64`): the minimum storage deposit.
+| Name          | Type     | Description         |
+| ------------- | -------- | ------------------- |
+| payoutAgentID | [u8; 32] | The payout agent ID |
 
-## Schemas
+### `getMetadata`
 
-### `Ratio32`
+Returns the metadata.
 
-A ratio between two values `x` and `y`, expressed as two `int32` numbers `a:b`, where `y = x * b/a`.
+#### Parameters
 
-`Ratio32` is encoded as the concatenation of the two `uint32` values `a` & `b`.
+_None_
 
-### `FeePolicy`
+#### Returns
 
-`FeePolicy` is encoded as the concatenation of:
-
-- The [`TokenID`](accounts.md#tokenid) of the token used to charge for gas. (`iotago.NativeTokenID`)
-  - If this value is `nil`, the gas fee token is the base token.
-- Gas per token ([`Ratio32`](#ratio32)): expressed as an `a:b` (`gas/token`) ratio, meaning how many gas units each token pays for.
-- Validator fee share. Must be between 0 and 100, meaning the percentage of the gas fees distributed to the
-  validators. (`uint8`)
-- The ISC:EVM gas ratio ([`Ratio32`](#ratio32)): such that `ISC gas = EVM gas * a/b`.
-
-### `GasLimits`
-
-`GasLimits` is encoded as the concatenation of:
-
-- The maximum gas per block (`uint64`). A request that exceeds this limit is
-  skipped and processed in the next block.
-- The minimum gas per request (`uint64`). If a request consumes less than this
-  value, it is charged for this instead.
-- The maximum gas per request (`uint64`). If a request exceeds this limit, it
-  is rejected as failed.
-- The maximum gas per external view call (`uint64). This is the gas budget
-  assigned to external view calls.
-
-### `AccessNodeInfo`
-
-`AccessNodeInfo` is encoded as the concatenation of:
-
-- The validator address. (`[]byte` prefixed by `uint16` size)
-- The certificate. (`[]byte` prefixed by `uint16` size)
-- Whether the access node is part of the committee of validators. (`bool`)
-- The API base URL. (`string` prefixed by `uint16` size)
+| Name      | Type                                                  | Description    |
+| --------- | ----------------------------------------------------- | -------------- |
+| publicURL | string                                                | The public URL |
+| metadata  | [PublicChainMetadata](./types.md#publicchainmetadata) | The metadata   |

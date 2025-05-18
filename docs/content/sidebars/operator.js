@@ -55,6 +55,7 @@ const operator = [
             'operator/validator-node/validator-tokenomics',
             'operator/validator-node/cli-validator-command',
             'operator/validator-node/monitoring',
+            'operator/validator-node/troubleshooting',
             'operator/ssfn_guide',
             'operator/activate_DoS_protection_for_validators',
         ],
