@@ -81,7 +81,6 @@ shared-crypto.workspace = true
 typed-store-error.workspace = true
 
 [dev-dependencies]
-# external dependencies
 async-trait.workspace = true
 bincode.workspace = true
 coset.workspace = true
