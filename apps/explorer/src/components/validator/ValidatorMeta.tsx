@@ -81,6 +81,7 @@ export function InactiveValidators({
                         keyText="Public Key"
                         value={validatorPublicKey}
                         copyText={validatorPublicKey}
+                        onCopySuccess={onCopySuccess}
                     />
                 </div>
             </Panel>
