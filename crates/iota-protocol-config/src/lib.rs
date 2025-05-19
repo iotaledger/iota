@@ -16,7 +16,7 @@ use tracing::{info, warn};
 
 /// The minimum and maximum protocol versions supported by this build.
 const MIN_PROTOCOL_VERSION: u64 = 1;
-pub const MAX_PROTOCOL_VERSION: u64 = 6;
+pub const MAX_PROTOCOL_VERSION: u64 = 7;
 
 // Record history of protocol version allocations here:
 //
@@ -38,6 +38,7 @@ pub const MAX_PROTOCOL_VERSION: u64 = 6;
 //            Enable proper conversion of certain type argument errors in the
 //            execution layer.
 // Version 6: Bound size of values created in the adapter.
+// Version 7: Improve handling of stake withdrawal from candidate validators.
 
 #[derive(Copy, Clone, Debug, Hash, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ProtocolVersion(u64);
@@ -1840,6 +1841,8 @@ impl ProtocolConfig {
                 6 => {
                     cfg.max_ptb_value_size = Some(1024 * 1024);
                 }
+                // version 7 is a new framework version but with no config changes
+                7 => {}
                 // Use this template when making changes:
                 //
                 //     // modify an existing constant.
