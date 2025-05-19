@@ -459,20 +459,18 @@ impl NameCommand {
                 {
                     anyhow::bail!("target address is already set to the given value");
                 }
-                let nft_id = get_owned_nft_by_name::<IotaNamesRegistration>(&domain, context)
-                    .await?
-                    .id();
+                let nft = get_proxy_nft_by_name(&domain, context).await?;
                 let iota_names_config = get_iota_names_config(&iota_client).await?;
 
                 NameCommandResult::Client(
                     IotaClientCommands::Call {
                         package: iota_names_config.package_address.into(),
-                        module: "controller".to_owned(),
+                        module: nft.module_name().to_owned(),
                         function: "set_target_address".to_owned(),
                         type_args: Default::default(),
                         args: vec![
                             IotaJsonValue::from_object_id(iota_names_config.object_id),
-                            IotaJsonValue::from_object_id(nft_id),
+                            IotaJsonValue::from_object_id(nft.id()),
                             IotaJsonValue::new(serde_json::to_value(new_address)?)?,
                             IotaJsonValue::from_object_id(IOTA_CLOCK_OBJECT_ID),
                         ],
@@ -566,20 +564,18 @@ impl NameCommand {
                     anyhow::bail!("target address is already unset");
                 }
 
-                let nft_id = get_owned_nft_by_name::<IotaNamesRegistration>(&domain, context)
-                    .await?
-                    .id();
+                let nft = get_proxy_nft_by_name(&domain, context).await?;
                 let iota_names_config = get_iota_names_config(&iota_client).await?;
 
                 NameCommandResult::Client(
                     IotaClientCommands::Call {
                         package: iota_names_config.package_address.into(),
-                        module: "controller".to_owned(),
+                        module: nft.module_name().to_owned(),
                         function: "set_target_address".to_owned(),
                         type_args: Default::default(),
                         args: vec![
                             IotaJsonValue::from_object_id(iota_names_config.object_id),
-                            IotaJsonValue::from_object_id(nft_id),
+                            IotaJsonValue::from_object_id(nft.id()),
                             IotaJsonValue::new(serde_json::to_value(Vec::<IotaAddress>::new())?)?,
                             IotaJsonValue::from_object_id(IOTA_CLOCK_OBJECT_ID),
                         ],
