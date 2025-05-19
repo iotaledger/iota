@@ -88,7 +88,7 @@ impl<'a, S> Api<'a, S> {
             let handler = endpoint.handler();
             assert_eq!(handler.method(), endpoint.method());
 
-            router = router.route(&endpoint.path(), handler.handler);
+            router = router.route(endpoint.path(), handler.handler);
         }
 
         router
