@@ -90,4 +90,3 @@ dev-tools/iota-data-ingestion/*/output/
 
 # generated-documentation
 docs/generated-docs/**
-apps/core/src/constants/clock.constants.ts
