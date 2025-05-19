@@ -42,8 +42,7 @@ use crate::{
         IotaSignatureInner, RandomnessRound, Signature, Signer, ToFromBytes, default_hash,
     },
     digests::{
-        CertificateDigest, ChainIdentifier, ConsensusCommitDigest, SenderSignedDataDigest,
-        ZKLoginInputsDigest,
+        CertificateDigest, ConsensusCommitDigest, SenderSignedDataDigest, ZKLoginInputsDigest,
     },
     event::Event,
     execution::SharedInput,

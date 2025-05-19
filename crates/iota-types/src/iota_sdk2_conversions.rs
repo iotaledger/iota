@@ -693,11 +693,11 @@ impl From<EndOfEpochTransactionKind> for crate::transaction::EndOfEpochTransacti
                         .into(),
                 })
             }
-            EndOfEpochTransactionKind::BridgeStateCreate { chain_id } => {
+            EndOfEpochTransactionKind::BridgeStateCreate { chain_id: _ } => {
                 todo!("Remove EndOfEpochTransactionKind::BridgeStateCreate from external rust SDK")
             }
             EndOfEpochTransactionKind::BridgeCommitteeInit {
-                bridge_object_version,
+                bridge_object_version: _,
             } => {
                 todo!(
                     "Remove EndOfEpochTransactionKind::BridgeCommitteeInit from external rust SDK"
