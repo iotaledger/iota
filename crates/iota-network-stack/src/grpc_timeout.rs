@@ -15,7 +15,7 @@ use std::{
 use http::{HeaderMap, HeaderValue, Request, Response};
 use pin_project_lite::pin_project;
 use tokio::time::Sleep;
-use tonic::{Body, Status};
+use tonic::{Status, body::Body};
 use tower::Service;
 
 const GRPC_TIMEOUT_HEADER: &str = "grpc-timeout";
