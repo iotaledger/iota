@@ -50,15 +50,6 @@ pub struct PTBPreview {
     pub program_metadata: ProgramMetadata,
 }
 
-impl serde::Serialize for PTBPreview {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: serde::Serializer,
-    {
-        self.to_string().serialize(serializer)
-    }
-}
-
 #[derive(Serialize)]
 pub struct Summary {
     pub digest: TransactionDigest,
@@ -66,7 +57,6 @@ pub struct Summary {
     pub gas_cost: GasCostSummary,
 }
 
-#[derive(Serialize)]
 pub enum PTBCommandResult {
     Preview(PTBPreview),
     Summary(Summary),
