@@ -464,7 +464,7 @@ impl NameCommand {
 
                 NameCommandResult::Client(
                     IotaClientCommands::Call {
-                        package: iota_names_config.package_address.into(),
+                        package: nft.package_id(&iota_client).await?,
                         module: nft.module_name().to_owned(),
                         function: "set_target_address".to_owned(),
                         type_args: Default::default(),
@@ -569,7 +569,7 @@ impl NameCommand {
 
                 NameCommandResult::Client(
                     IotaClientCommands::Call {
-                        package: iota_names_config.package_address.into(),
+                        package: nft.package_id(&iota_client).await?,
                         module: nft.module_name().to_owned(),
                         function: "set_target_address".to_owned(),
                         type_args: Default::default(),
@@ -875,7 +875,7 @@ impl SubdomainCommand {
 
                 let parent = get_proxy_nft_by_name(&parent, context).await?;
                 anyhow::ensure!(!parent.has_expired(), "parent NFT has expired");
-                let package_id = parent.package_id(&iota_client).await?;
+                let package_id = parent.subdomain_package_id(&iota_client).await?;
                 let module_name = parent.module_name();
 
                 let target_address = if let Some(target_address) = target_address {
@@ -921,7 +921,7 @@ impl SubdomainCommand {
 
                 let parent = get_proxy_nft_by_name(&parent, context).await?;
                 anyhow::ensure!(!parent.has_expired(), "parent NFT has expired");
-                let package_id = parent.package_id(&iota_client).await?;
+                let package_id = parent.subdomain_package_id(&iota_client).await?;
                 let module_name = parent.module_name();
 
                 let expiration_timestamp =
@@ -971,7 +971,7 @@ impl SubdomainCommand {
                 let iota_names_config = get_iota_names_config(&iota_client).await?;
 
                 let parent = get_proxy_nft_by_name(&parent, context).await?;
-                let package_id = parent.package_id(&iota_client).await?;
+                let package_id = parent.subdomain_package_id(&iota_client).await?;
                 let module_name = parent.module_name();
 
                 NameCommandResult::Client(
@@ -1377,6 +1377,23 @@ impl IotaNamesNftProxy {
     }
 
     async fn package_id(&self, client: &IotaClient) -> anyhow::Result<ObjectID> {
+        Ok(match self {
+            IotaNamesNftProxy::Domain(_) => {
+                let names_config = get_iota_names_config(client).await?;
+                names_config.package_address.into()
+            }
+            IotaNamesNftProxy::Subdomain(_) => {
+                fetch_package_id_by_module_and_name(
+                    client,
+                    &Identifier::from_str("subdomain_proxy")?,
+                    &Identifier::from_str("SubdomainProxyAuth")?,
+                )
+                .await?
+            }
+        })
+    }
+
+    async fn subdomain_package_id(&self, client: &IotaClient) -> anyhow::Result<ObjectID> {
         Ok(match self {
             IotaNamesNftProxy::Domain(_) => {
                 fetch_package_id_by_module_and_name(
