@@ -284,7 +284,7 @@ While events provide high-level data on interactions, such as user actions, cont
 The following example filters events emitted by a known Move module.
 
 ```ts
-import { IotaClient } from '@iota/iota-sdk';
+import { IotaClient } from '@iota/iota-sdk/client';
 
 const client = new IotaClient({
   url: 'https://api.testnet.iota.cafe',
@@ -293,18 +293,17 @@ const client = new IotaClient({
 async function queryEvents() {
   try {
     const events = await client.queryEvents({
-      filter: {
+      query: {
         MoveModule: {
           package: '0x0000000000000000000000000000000000000000000000000000000000000002',
           module: 'display',
-          type: '0x0000000000000000000000000000000000000000000000000000000000000002::display::Display<0xba688c32e58b4b40f1efc7a6be9e95e004015e991ac6bb65bc6efc865df4286b::testnet_nft::TestnetNFT>',
         },
       },
       limit: 5,
       includeMetadata: false,
     });
 
-    console.log('Queried Events:\n', JSON.stringify(events, null, 2));
+    console.log('Events:', JSON.stringify(events, null, 2));
   } catch (error) {
     console.error('Error querying events:', error);
   }
@@ -329,7 +328,7 @@ While events provide high-level data on interactions, sometimes it’s necessary
  Here's a TypeScript example:
 
 ```ts
-import { IotaClient } from '@iota/iota-sdk';
+import { IotaClient } from '@iota/iota-sdk/client';
 
 const client = new IotaClient({
   url: 'https://api.testnet.iota.cafe',
@@ -338,13 +337,13 @@ const client = new IotaClient({
 async function queryTransactionBlocks() {
   try {
     const blocks = await client.queryTransactionBlocks({
-      filter: {
+      query: {
         Sender: '0x008e9c621f4fdb210b873aab59a1e5bf32ddb1d33ee85eb069b348c234465106',
       },
       limit: 3,
       includeMetadata: false,
     });
-
+    
     console.log('Transaction Blocks:\n', JSON.stringify(blocks, null, 2));
   } catch (error) {
     console.error('Error querying transaction blocks:', error);
