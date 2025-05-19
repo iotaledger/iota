@@ -85,7 +85,7 @@ impl BuildConfig {
     pub fn new_for_testing() -> Self {
         move_package::package_hooks::register_package_hooks(Box::new(IotaPackageHooks));
         let mut build_config: Self = Default::default();
-        let install_dir = tempfile::tempdir().unwrap().into_path();
+        let install_dir = tempfile::tempdir().unwrap().keep();
         let lock_file = install_dir.join("Move.lock");
         build_config.config.install_dir = Some(install_dir);
         build_config.config.lock_file = Some(lock_file);
