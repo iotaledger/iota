@@ -715,14 +715,22 @@ impl AuctionCommand {
                 ];
                 args.extend(opts.into_args());
 
-                NameCommandResult::CommandResult(
-                    IotaClientCommands::PTB(PTB {
-                        args,
-                        display: Default::default(),
-                    })
-                    .execute(context)
-                    .await?,
-                )
+                let res = IotaClientCommands::PTB(PTB {
+                    args,
+                    display: Default::default(),
+                })
+                .execute(context)
+                .await?;
+
+                handle_transaction_result(res, async |_| {
+                    Ok(NameCommandResult::AuctionBid(
+                        get_auction_house(&iota_client, &graphql_client)
+                            .await?
+                            .get_auction(&domain, &iota_client)
+                            .await?,
+                    ))
+                })
+                .await?
             }
             Self::Claim { domain, opts } => {
                 let auction_package_address = get_auction_package_address(&iota_client).await?;
@@ -740,14 +748,21 @@ impl AuctionCommand {
                 ];
                 args.extend(opts.into_args());
 
-                NameCommandResult::CommandResult(
-                    IotaClientCommands::PTB(PTB {
-                        args,
-                        display: Default::default(),
+                let res = IotaClientCommands::PTB(PTB {
+                    args,
+                    display: Default::default(),
+                })
+                .execute(context)
+                .await?;
+
+                handle_transaction_result(res, async |_| {
+                    Ok(NameCommandResult::AuctionClaim {
+                        record: get_registry_entry(&domain, &iota_client).await?.name_record,
+                        nft: get_owned_nft_by_name::<IotaNamesRegistration>(&domain, context)
+                            .await?,
                     })
-                    .execute(context)
-                    .await?,
-                )
+                })
+                .await?
             }
             Self::Metadata { domain } => NameCommandResult::AuctionMetadata(
                 get_auction_house(&iota_client, &graphql_client)
@@ -790,14 +805,22 @@ impl AuctionCommand {
                 ];
                 args.extend(opts.into_args());
 
-                NameCommandResult::CommandResult(
-                    IotaClientCommands::PTB(PTB {
-                        args,
-                        display: Default::default(),
-                    })
-                    .execute(context)
-                    .await?,
-                )
+                let res = IotaClientCommands::PTB(PTB {
+                    args,
+                    display: Default::default(),
+                })
+                .execute(context)
+                .await?;
+
+                handle_transaction_result(res, async |_| {
+                    Ok(NameCommandResult::AuctionBid(
+                        get_auction_house(&iota_client, &graphql_client)
+                            .await?
+                            .get_auction(&domain, &iota_client)
+                            .await?,
+                    ))
+                })
+                .await?
             }
         })
     }
@@ -1049,7 +1072,13 @@ impl SubdomainCommand {
 #[derive(Serialize)]
 #[serde(untagged)]
 pub enum NameCommandResult {
+    AuctionBid(Auction),
+    AuctionClaim {
+        record: NameRecord,
+        nft: IotaNamesRegistration,
+    },
     AuctionMetadata(Auction),
+    AuctionStart(Auction),
     Availability {
         domain: String,
         price: Option<u64>,
@@ -1101,28 +1130,20 @@ pub enum NameCommandResult {
 impl std::fmt::Display for NameCommandResult {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::AuctionMetadata(auction) => {
-                let start_datetime = DateTime::<Utc>::from(
-                    UNIX_EPOCH + Duration::from_millis(auction.start_timestamp_ms),
-                )
-                .format("%Y-%m-%d %H:%M:%S.%f UTC")
-                .to_string();
-                let end_datetime = DateTime::<Utc>::from(
-                    UNIX_EPOCH + Duration::from_millis(auction.end_timestamp_ms),
-                )
-                .format("%Y-%m-%d %H:%M:%S.%f UTC")
-                .to_string();
-
-                write!(
-                    f,
-                    "start:\t{start_datetime}\n\
-                    end:\t{end_datetime}\n\
-                    winner:\t{}\n\
-                    bid:\t{} ({})",
-                    auction.winner,
-                    auction.current_bid.balance.value(),
-                    auction.current_bid.id.id.bytes
-                )
+            Self::AuctionBid(auction) => {
+                write!(f, "Successfully placed bid for {}", auction.domain)?;
+                format_auction(f, auction)
+            }
+            Self::AuctionClaim { record, nft } => {
+                write!(f, "Successfully claimed {}", nft.domain_name())?;
+                format_name_record(f, record)?;
+                writeln!(f, "Created NFT:")?;
+                format_nft(f, nft)
+            }
+            Self::AuctionMetadata(auction) => format_auction(f, auction),
+            Self::AuctionStart(auction) => {
+                write!(f, "Successfully started auction for {}", auction.domain)?;
+                format_auction(f, auction)
             }
             Self::Availability { domain, price } => match price {
                 Some(price) => {
@@ -1230,6 +1251,28 @@ impl std::fmt::Display for NameCommandResult {
             }
         }
     }
+}
+
+fn format_auction(f: &mut std::fmt::Formatter, auction: &Auction) -> std::fmt::Result {
+    let start_datetime =
+        DateTime::<Utc>::from(UNIX_EPOCH + Duration::from_millis(auction.start_timestamp_ms))
+            .format("%Y-%m-%d %H:%M:%S.%f UTC")
+            .to_string();
+    let end_datetime =
+        DateTime::<Utc>::from(UNIX_EPOCH + Duration::from_millis(auction.end_timestamp_ms))
+            .format("%Y-%m-%d %H:%M:%S.%f UTC")
+            .to_string();
+
+    write!(
+        f,
+        "start:\t{start_datetime}\n\
+                    end:\t{end_datetime}\n\
+                    winner:\t{}\n\
+                    bid:\t{} ({})",
+        auction.winner,
+        auction.current_bid.balance.value(),
+        auction.current_bid.id.id.bytes
+    )
 }
 
 fn format_registry_entry(f: &mut std::fmt::Formatter, entry: &RegistryEntry) -> std::fmt::Result {
