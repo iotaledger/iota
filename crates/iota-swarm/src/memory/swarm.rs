@@ -66,6 +66,7 @@ pub struct SwarmBuilder<R = OsRng> {
     max_submit_position: Option<usize>,
     submit_delay_step_override_millis: Option<u64>,
     state_accumulator_config: StateAccumulatorV1EnabledConfig,
+    disable_fullnode_pruning: bool,
 }
 
 impl SwarmBuilder {
@@ -94,6 +95,7 @@ impl SwarmBuilder {
             max_submit_position: None,
             submit_delay_step_override_millis: None,
             state_accumulator_config: StateAccumulatorV1EnabledConfig::Global(true),
+            disable_fullnode_pruning: false,
         }
     }
 }
@@ -124,6 +126,7 @@ impl<R> SwarmBuilder<R> {
             max_submit_position: self.max_submit_position,
             submit_delay_step_override_millis: self.submit_delay_step_override_millis,
             state_accumulator_config: self.state_accumulator_config,
+            disable_fullnode_pruning: self.disable_fullnode_pruning,
         }
     }
 
@@ -296,6 +299,11 @@ impl<R> SwarmBuilder<R> {
         self
     }
 
+    pub fn with_disable_fullnode_pruning(mut self) -> Self {
+        self.disable_fullnode_pruning = true;
+        self
+    }
+
     pub fn with_submit_delay_step_override_millis(
         mut self,
         submit_delay_step_override_millis: u64,
@@ -391,7 +399,8 @@ impl<R: rand::RngCore + rand::CryptoRng> SwarmBuilder<R> {
             .with_run_with_range(self.fullnode_run_with_range)
             .with_policy_config(self.fullnode_policy_config)
             .with_data_ingestion_dir(ingest_data)
-            .with_fw_config(self.fullnode_fw_config);
+            .with_fw_config(self.fullnode_fw_config)
+            .with_disable_pruning(self.disable_fullnode_pruning);
 
         if let Some(spvc) = &self.fullnode_supported_protocol_versions_config {
             let supported_versions = match spvc {
