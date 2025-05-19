@@ -5,14 +5,12 @@ import type { IotaClient } from '@iota/iota-sdk/client';
 import { normalizeIotaAddress, toB64 } from '@iota/iota-sdk/utils';
 import { InactiveValidatorData, ValidatorSchema, DynamicFieldObjectSchema } from '../../types';
 
-// Function to get inactive validator data
-// It fetches the validator object and its dynamic fields to extract metadata
 export async function getInactiveValidatorsMetadata(
     client: IotaClient,
-    objectId: string,
+    validatorObjectId: string,
 ): Promise<InactiveValidatorData | null> {
     const validatorObject = await client.getObject({
-        id: normalizeIotaAddress(objectId),
+        id: normalizeIotaAddress(validatorObjectId),
         options: {
             showContent: true,
         },
@@ -38,17 +36,15 @@ export async function getInactiveValidatorsMetadata(
     if (!metadata.data || !validator.data) {
         return null;
     }
+
+    const validatorMetadata = metadata.data.fields.value.fields.metadata.fields;
     return {
-        imageUrl: metadata.data.fields.value.fields.metadata.fields.image_url,
-        description: metadata.data.fields.value.fields.metadata.fields.description,
-        name: metadata.data.fields.value.fields.metadata.fields.name,
-        projectUrl: metadata.data.fields.value.fields.metadata.fields.project_url,
-        validatorAddress: metadata.data.fields.value.fields.metadata.fields.iota_address,
-        validatorPublicKey: toB64(
-            Uint8Array.from(
-                metadata.data.fields.value.fields.metadata.fields.protocol_pubkey_bytes,
-            ),
-        ),
+        imageUrl: validatorMetadata.image_url,
+        description: validatorMetadata.description,
+        name: validatorMetadata.name,
+        projectUrl: validatorMetadata.project_url,
+        validatorAddress: validatorMetadata.iota_address,
+        validatorPublicKey: toB64(Uint8Array.from(validatorMetadata.protocol_pubkey_bytes)),
         validatorStakingPoolId: validator.data.fields.name,
     };
 }

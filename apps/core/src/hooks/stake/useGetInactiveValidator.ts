@@ -4,8 +4,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { normalizeIotaAddress } from '@iota/iota-sdk/utils';
 import { useIotaClient, useIotaClientQuery } from '@iota/dapp-kit';
-
-import { InactiveValidatorData } from '../../types';
 import { getInactiveValidatorsMetadata } from '../../utils';
 
 export function useGetInactiveValidator(validatorAddress: string) {
@@ -29,7 +27,7 @@ export function useGetInactiveValidator(validatorAddress: string) {
             );
             const validator = pendingInactiveValidatorsData.find(
                 (validator) => validator?.validatorAddress === validatorAddress,
-            ) as InactiveValidatorData;
+            );
             return validator ?? null;
         },
         enabled: !!inactivePoolsId && !!validatorAddress,
