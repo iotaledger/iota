@@ -29,7 +29,7 @@ use iota_types::{
     base_types::{IotaAddress, ObjectID},
     coin::Coin,
     collection_types::{Entry, LinkedTable, LinkedTableNode, VecMap},
-    digests::ChainIdentifier,
+    digests::{ChainIdentifier, TransactionDigest},
 };
 use move_core_types::{
     annotated_value::{MoveFieldLayout, MoveStructLayout, MoveTypeLayout},
@@ -244,8 +244,11 @@ impl NameCommand {
                 .execute(context)
                 .await?;
 
-                handle_transaction_result(res, async |_| {
-                    Ok(NameCommandResult::Burn { burned: nft })
+                handle_transaction_result(res, async |res| {
+                    Ok(NameCommandResult::Burn {
+                        burned: nft,
+                        digest: res.digest,
+                    })
                 })
                 .await?
             }
@@ -353,11 +356,12 @@ impl NameCommand {
                 .execute(context)
                 .await?;
 
-                handle_transaction_result(res, async |_| {
+                handle_transaction_result(res, async |res| {
                     Ok(NameCommandResult::Register {
                         record: get_registry_entry(&domain, &iota_client).await?.name_record,
                         nft: get_owned_nft_by_name::<IotaNamesRegistration>(&domain, context)
                             .await?,
+                        digest: res.digest,
                     })
                 })
                 .await?
@@ -411,11 +415,12 @@ impl NameCommand {
                 .execute(context)
                 .await?;
 
-                handle_transaction_result(res, async |_| {
+                handle_transaction_result(res, async |res| {
                     Ok(NameCommandResult::Renew {
                         record: get_registry_entry(&domain, &iota_client).await?.name_record,
                         nft: get_owned_nft_by_name::<IotaNamesRegistration>(&domain, context)
                             .await?,
+                        digest: res.digest,
                     })
                 })
                 .await?
@@ -460,7 +465,10 @@ impl NameCommand {
                             IotaClientCommandResult::TransactionBlock(res),
                         ));
                     };
-                    Ok(NameCommandResult::SetReverseLookup { entry })
+                    Ok(NameCommandResult::SetReverseLookup {
+                        entry,
+                        digest: res.digest,
+                    })
                 })
                 .await?
             }
@@ -493,9 +501,12 @@ impl NameCommand {
                 .execute(context)
                 .await?;
 
-                handle_transaction_result(res, async |_| {
+                handle_transaction_result(res, async |res| {
                     let entry = get_registry_entry(&domain, &iota_client).await?;
-                    Ok(NameCommandResult::SetTargetAddress { entry })
+                    Ok(NameCommandResult::SetTargetAddress {
+                        entry,
+                        digest: res.digest,
+                    })
                 })
                 .await?
             }
@@ -526,11 +537,12 @@ impl NameCommand {
                 .execute(context)
                 .await?;
 
-                handle_transaction_result(res, async |_| {
+                handle_transaction_result(res, async |res| {
                     Ok(NameCommandResult::SetUserData {
                         key,
                         value,
                         record: get_registry_entry(&domain, &iota_client).await?.name_record,
+                        digest: res.digest,
                     })
                 })
                 .await?
@@ -564,10 +576,11 @@ impl NameCommand {
                 .execute(context)
                 .await?;
 
-                handle_transaction_result(res, async |_| {
+                handle_transaction_result(res, async |res| {
                     Ok(NameCommandResult::Transfer {
                         domain,
                         to: address,
+                        digest: res.digest,
                     })
                 })
                 .await?
@@ -588,8 +601,11 @@ impl NameCommand {
                 .execute(context)
                 .await?;
 
-                handle_transaction_result(res, async |_| {
-                    Ok(NameCommandResult::UnsetReverseLookup { address })
+                handle_transaction_result(res, async |res| {
+                    Ok(NameCommandResult::UnsetReverseLookup {
+                        address,
+                        digest: res.digest,
+                    })
                 })
                 .await?
             }
@@ -614,10 +630,11 @@ impl NameCommand {
                 .execute(context)
                 .await?;
 
-                handle_transaction_result(res, async |_| {
+                handle_transaction_result(res, async |res| {
                     Ok(NameCommandResult::UnsetUserData {
                         key,
                         record: get_registry_entry(&domain, &iota_client).await?.name_record,
+                        digest: res.digest,
                     })
                 })
                 .await?
@@ -725,13 +742,14 @@ impl AuctionCommand {
                 .execute(context)
                 .await?;
 
-                handle_transaction_result(res, async |_| {
-                    Ok(NameCommandResult::AuctionBid(
-                        get_auction_house(&iota_client, &graphql_client)
+                handle_transaction_result(res, async |res| {
+                    Ok(NameCommandResult::AuctionBid {
+                        auction: get_auction_house(&iota_client, &graphql_client)
                             .await?
                             .get_auction(&domain, &iota_client)
                             .await?,
-                    ))
+                        digest: res.digest,
+                    })
                 })
                 .await?
             }
@@ -758,11 +776,12 @@ impl AuctionCommand {
                 .execute(context)
                 .await?;
 
-                handle_transaction_result(res, async |_| {
+                handle_transaction_result(res, async |res| {
                     Ok(NameCommandResult::AuctionClaim {
                         record: get_registry_entry(&domain, &iota_client).await?.name_record,
                         nft: get_owned_nft_by_name::<IotaNamesRegistration>(&domain, context)
                             .await?,
+                        digest: res.digest,
                     })
                 })
                 .await?
@@ -815,13 +834,14 @@ impl AuctionCommand {
                 .execute(context)
                 .await?;
 
-                handle_transaction_result(res, async |_| {
-                    Ok(NameCommandResult::AuctionStart(
-                        get_auction_house(&iota_client, &graphql_client)
+                handle_transaction_result(res, async |res| {
+                    Ok(NameCommandResult::AuctionStart {
+                        auction: get_auction_house(&iota_client, &graphql_client)
                             .await?
                             .get_auction(&domain, &iota_client)
                             .await?,
-                    ))
+                        digest: res.digest,
+                    })
                 })
                 .await?
             }
@@ -940,9 +960,10 @@ impl SubdomainCommand {
                 .execute(context)
                 .await?;
 
-                handle_transaction_result(res, async |_| {
+                handle_transaction_result(res, async |res| {
                     Ok(NameCommandResult::RegisterLeafSubdomain {
                         record: get_registry_entry(&domain, &iota_client).await?.name_record,
+                        digest: res.digest,
                     })
                 })
                 .await?
@@ -998,11 +1019,12 @@ impl SubdomainCommand {
                 .execute(context)
                 .await?;
 
-                handle_transaction_result(res, async |_| {
+                handle_transaction_result(res, async |res| {
                     Ok(NameCommandResult::RegisterNodeSubdomain {
                         record: get_registry_entry(&domain, &iota_client).await?.name_record,
                         nft: get_owned_nft_by_name::<SubdomainRegistration>(&domain, context)
                             .await?,
+                        digest: res.digest,
                     })
                 })
                 .await?
@@ -1041,9 +1063,10 @@ impl SubdomainCommand {
                 .execute(context)
                 .await?;
 
-                handle_transaction_result(res, async |_| {
+                handle_transaction_result(res, async |res| {
                     Ok(NameCommandResult::UpdateMetadata {
                         record: get_registry_entry(&domain, &iota_client).await?.name_record,
+                        digest: res.digest,
                     })
                 })
                 .await?
@@ -1083,10 +1106,11 @@ impl SubdomainCommand {
                 .execute(context)
                 .await?;
 
-                handle_transaction_result(res, async |_| {
+                handle_transaction_result(res, async |res| {
                     Ok(NameCommandResult::ExtendExpiration {
                         nft: get_owned_nft_by_name::<SubdomainRegistration>(&domain, context)
                             .await?,
+                        digest: res.digest,
                     })
                 })
                 .await?
@@ -1098,23 +1122,32 @@ impl SubdomainCommand {
 #[derive(Serialize)]
 #[serde(untagged)]
 pub enum NameCommandResult {
-    AuctionBid(Auction),
+    AuctionBid {
+        auction: Auction,
+        digest: TransactionDigest,
+    },
     AuctionClaim {
         record: NameRecord,
         nft: IotaNamesRegistration,
+        digest: TransactionDigest,
     },
     AuctionMetadata(Auction),
-    AuctionStart(Auction),
+    AuctionStart {
+        auction: Auction,
+        digest: TransactionDigest,
+    },
     Availability {
         domain: String,
         price: Option<u64>,
     },
     Burn {
         burned: IotaNamesRegistration,
+        digest: TransactionDigest,
     },
     CommandResult(IotaClientCommandResult),
     ExtendExpiration {
         nft: SubdomainRegistration,
+        digest: TransactionDigest,
     },
     List(Vec<IotaNamesRegistration>),
     Lookup {
@@ -1124,17 +1157,21 @@ pub enum NameCommandResult {
     Register {
         record: NameRecord,
         nft: IotaNamesRegistration,
+        digest: TransactionDigest,
     },
     RegisterLeafSubdomain {
         record: NameRecord,
+        digest: TransactionDigest,
     },
     RegisterNodeSubdomain {
         record: NameRecord,
         nft: SubdomainRegistration,
+        digest: TransactionDigest,
     },
     Renew {
         record: NameRecord,
         nft: IotaNamesRegistration,
+        digest: TransactionDigest,
     },
     ReverseLookup {
         address: IotaAddress,
@@ -1142,49 +1179,69 @@ pub enum NameCommandResult {
     },
     SetReverseLookup {
         entry: ReverseRegistryEntry,
+        digest: TransactionDigest,
     },
     SetTargetAddress {
         entry: RegistryEntry,
+        digest: TransactionDigest,
     },
     SetUserData {
         key: String,
         value: String,
         record: NameRecord,
+        digest: TransactionDigest,
     },
     Transfer {
         domain: Domain,
         to: IotaAddress,
+        digest: TransactionDigest,
     },
     UnsetReverseLookup {
         address: IotaAddress,
+        digest: TransactionDigest,
     },
     UnsetUserData {
         key: String,
         record: NameRecord,
+        digest: TransactionDigest,
     },
     UserData(VecMap<String, String>),
     UpdateMetadata {
         record: NameRecord,
+        digest: TransactionDigest,
     },
 }
 
 impl std::fmt::Display for NameCommandResult {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::AuctionBid(auction) => {
+            Self::AuctionBid {
+                auction,
+                digest: transaction,
+            } => {
                 writeln!(f, "Successfully placed bid for {}", auction.domain)?;
-                format_auction(f, auction)
+                format_auction(f, auction)?;
+                write!(f, "\nTransaction digest: {transaction}")
             }
-            Self::AuctionClaim { record, nft } => {
+            Self::AuctionClaim {
+                record,
+                nft,
+                digest: transaction,
+            } => {
                 writeln!(f, "Successfully claimed {}", nft.domain_name())?;
                 format_name_record(f, record)?;
                 writeln!(f, "\nCreated NFT:")?;
-                format_nft(f, nft)
+                format_nft(f, nft)?;
+                write!(f, "\nTransaction digest: {transaction}")
             }
             Self::AuctionMetadata(auction) => format_auction(f, auction),
-            Self::AuctionStart(auction) => {
+            Self::AuctionStart {
+                auction,
+                digest: transaction,
+            } => {
                 writeln!(f, "Successfully started auction for {}", auction.domain)?;
-                format_auction(f, auction)
+                format_auction(f, auction)?;
+                write!(f, "\nTransaction digest: {transaction}")
             }
             Self::Availability { domain, price } => match price {
                 Some(price) => {
@@ -1194,14 +1251,22 @@ impl std::fmt::Display for NameCommandResult {
                     write!(f, "\"{domain}\" is not available")
                 }
             },
-            Self::Burn { burned } => {
+            Self::Burn {
+                burned,
+                digest: transaction,
+            } => {
                 writeln!(f, "Burned NFT:")?;
-                format_nft(f, burned)
+                format_nft(f, burned)?;
+                write!(f, "\nTransaction digest: {transaction}")
             }
             Self::CommandResult(res) => res.fmt(f),
-            Self::ExtendExpiration { nft } => {
+            Self::ExtendExpiration {
+                nft,
+                digest: transaction,
+            } => {
                 writeln!(f, "Successfully extended expiration")?;
-                format_subdomain_nft(f, nft)
+                format_subdomain_nft(f, nft)?;
+                write!(f, "\nTransaction digest: {transaction}")
             }
             Self::List(nfts) => {
                 let mut table_builder = TableBuilder::default();
@@ -1239,27 +1304,46 @@ impl std::fmt::Display for NameCommandResult {
                     write!(f, "no target address found for '{domain}'")
                 }
             }
-            Self::Register { record, nft } => {
+            Self::Register {
+                record,
+                nft,
+                digest: transaction,
+            } => {
                 writeln!(f, "Registered Record:")?;
                 format_name_record(f, record)?;
                 writeln!(f, "\nCreated NFT:")?;
-                format_nft(f, nft)
+                format_nft(f, nft)?;
+                write!(f, "\nTransaction digest: {transaction}")
             }
-            Self::RegisterLeafSubdomain { record } => {
+            Self::RegisterLeafSubdomain {
+                record,
+                digest: transaction,
+            } => {
                 writeln!(f, "Registered Record:")?;
-                format_name_record(f, record)
+                format_name_record(f, record)?;
+                write!(f, "\nTransaction digest: {transaction}")
             }
-            Self::RegisterNodeSubdomain { record, nft } => {
+            Self::RegisterNodeSubdomain {
+                record,
+                nft,
+                digest: transaction,
+            } => {
                 writeln!(f, "Registered Record:")?;
                 format_name_record(f, record)?;
                 writeln!(f, "\nCreated NFT:")?;
-                format_subdomain_nft(f, nft)
+                format_subdomain_nft(f, nft)?;
+                write!(f, "\nTransaction digest: {transaction}")
             }
-            Self::Renew { record, nft } => {
+            Self::Renew {
+                record,
+                nft,
+                digest: transaction,
+            } => {
                 writeln!(f, "Renewed Record:")?;
                 format_name_record(f, record)?;
                 writeln!(f, "\nUpdated NFT:")?;
-                format_nft(f, nft)
+                format_nft(f, nft)?;
+                write!(f, "\nTransaction digest: {transaction}")
             }
             Self::ReverseLookup { address, domain } => {
                 if let Some(domain) = domain {
@@ -1268,20 +1352,39 @@ impl std::fmt::Display for NameCommandResult {
                     write!(f, "no reverse lookup set for address '{address}'")
                 }
             }
-            Self::SetReverseLookup { entry } => {
+            Self::SetReverseLookup {
+                entry,
+                digest: transaction,
+            } => {
                 writeln!(f, "Successfully set reverse lookup for {}", entry.address)?;
-                format_reverse_registry_entry(f, entry)
+                format_reverse_registry_entry(f, entry)?;
+                write!(f, "\nTransaction digest: {transaction}")
             }
-            Self::SetTargetAddress { entry } => {
+            Self::SetTargetAddress {
+                entry,
+                digest: transaction,
+            } => {
                 writeln!(f, "Successfully set target address for {}", entry.domain)?;
-                format_registry_entry(f, entry)
+                format_registry_entry(f, entry)?;
+                write!(f, "\nTransaction digest: {transaction}")
             }
-            Self::SetUserData { key, value, record } => {
+            Self::SetUserData {
+                key,
+                value,
+                record,
+                digest: transaction,
+            } => {
                 writeln!(f, "Successfully set user data {key} to {value}")?;
-                format_name_record(f, record)
+                format_name_record(f, record)?;
+                write!(f, "\nTransaction digest: {transaction}")
             }
-            Self::Transfer { domain, to } => {
-                write!(f, "Successfully transferred {domain} to {to}")
+            Self::Transfer {
+                domain,
+                to,
+                digest: transaction,
+            } => {
+                writeln!(f, "Successfully transferred {domain} to {to}")?;
+                write!(f, "Transaction digest: {transaction}")
             }
             Self::UserData(entries) => {
                 let mut table_builder = TableBuilder::default();
@@ -1300,16 +1403,29 @@ impl std::fmt::Display for NameCommandResult {
                 );
                 write!(f, "{table}")
             }
-            Self::UnsetReverseLookup { address } => {
-                write!(f, "Successfully unset reverse lookup for {address}")
+            Self::UnsetReverseLookup {
+                address,
+                digest: transaction,
+            } => {
+                writeln!(f, "Successfully unset reverse lookup for {address}")?;
+                write!(f, "Transaction digest: {transaction}")
             }
-            Self::UnsetUserData { key, record } => {
+            Self::UnsetUserData {
+                key,
+                record,
+                digest: transaction,
+            } => {
                 writeln!(f, "Successfully unset key {key}")?;
-                format_name_record(f, record)
+                format_name_record(f, record)?;
+                write!(f, "\nTransaction digest: {transaction}")
             }
-            Self::UpdateMetadata { record } => {
+            Self::UpdateMetadata {
+                record,
+                digest: transaction,
+            } => {
                 writeln!(f, "Successfully updated metadata")?;
-                format_name_record(f, record)
+                format_name_record(f, record)?;
+                write!(f, "\nTransaction digest: {transaction}")
             }
         }
     }
