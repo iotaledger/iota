@@ -14,8 +14,7 @@ use tokio_rustls::TlsAcceptor;
 use tower::{Service, ServiceBuilder, ServiceExt};
 use tracing::trace;
 
-pub use self::body::BoxBody;
-use self::connection_info::ActiveConnections;
+use self::{body::BoxBody, connection_info::ActiveConnections};
 
 pub mod body;
 mod config;

@@ -7447,7 +7447,6 @@ dependencies = [
  "futures",
  "http 1.1.0",
  "http-body 1.0.1",
- "iota-http",
  "multiaddr",
  "pin-project-lite",
  "serde",
