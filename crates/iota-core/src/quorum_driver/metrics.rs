@@ -69,7 +69,8 @@ impl QuorumDriverMetrics {
                 "Total attempt times of ok response",
                 iota_metrics::COUNT_BUCKETS.to_vec(),
                 registry,
-            ).unwrap(),
+            )
+            .unwrap(),
             current_requests_in_flight: register_int_gauge_with_registry!(
                 "current_requests_in_flight",
                 "Current number of requests being processed in QuorumDriver",
@@ -87,7 +88,8 @@ impl QuorumDriverMetrics {
                 "Histogram of transaction retry count",
                 iota_metrics::COUNT_BUCKETS.to_vec(),
                 registry,
-            ).unwrap(),
+            )
+            .unwrap(),
             current_transactions_in_retry: register_int_gauge_with_registry!(
                 "current_transactions_in_retry",
                 "Current number of transactions in retry loop in QuorumDriver",
