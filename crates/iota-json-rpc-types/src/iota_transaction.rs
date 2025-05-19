@@ -2113,7 +2113,7 @@ impl From<InputObjectKind> for IotaInputObjectKind {
 
 #[derive(Debug, Serialize, Deserialize, JsonSchema, Clone)]
 #[serde(rename = "TypeTag", rename_all = "camelCase")]
-pub struct IotaTypeTag(String);
+pub struct IotaTypeTag(pub String);
 
 impl IotaTypeTag {
     pub fn new(tag: String) -> Self {
@@ -2121,10 +2121,10 @@ impl IotaTypeTag {
     }
 }
 
-impl TryInto<TypeTag> for IotaTypeTag {
+impl TryFrom<IotaTypeTag> for TypeTag {
     type Error = anyhow::Error;
-    fn try_into(self) -> Result<TypeTag, Self::Error> {
-        parse_iota_type_tag(&self.0)
+    fn try_from(tag: IotaTypeTag) -> Result<Self, Self::Error> {
+        parse_iota_type_tag(&tag.0)
     }
 }
 
