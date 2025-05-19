@@ -39,6 +39,7 @@ use move_core_types::{
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use serde_json::Value as JsonValue;
 use tabled::{
+    Table,
     builder::Builder as TableBuilder,
     settings::{Style as TableStyle, style::HorizontalLine},
 };
@@ -515,8 +516,8 @@ impl NameCommand {
                     args: vec![
                         IotaJsonValue::from_object_id(iota_names_config.object_id),
                         IotaJsonValue::from_object_id(nft.id()),
-                        IotaJsonValue::new(serde_json::Value::String(key))?,
-                        IotaJsonValue::new(serde_json::Value::String(value))?,
+                        IotaJsonValue::new(serde_json::Value::String(key.clone()))?,
+                        IotaJsonValue::new(serde_json::Value::String(value.clone()))?,
                         IotaJsonValue::from_object_id(IOTA_CLOCK_OBJECT_ID),
                     ],
                     gas_price: None,
@@ -527,6 +528,8 @@ impl NameCommand {
 
                 handle_transaction_result(res, async |_| {
                     Ok(NameCommandResult::SetUserData {
+                        key,
+                        value,
                         record: get_registry_entry(&domain, &iota_client).await?.name_record,
                     })
                 })
@@ -813,7 +816,7 @@ impl AuctionCommand {
                 .await?;
 
                 handle_transaction_result(res, async |_| {
-                    Ok(NameCommandResult::AuctionBid(
+                    Ok(NameCommandResult::AuctionStart(
                         get_auction_house(&iota_client, &graphql_client)
                             .await?
                             .get_auction(&domain, &iota_client)
@@ -1144,6 +1147,8 @@ pub enum NameCommandResult {
         entry: RegistryEntry,
     },
     SetUserData {
+        key: String,
+        value: String,
         record: NameRecord,
     },
     Transfer {
@@ -1167,18 +1172,18 @@ impl std::fmt::Display for NameCommandResult {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::AuctionBid(auction) => {
-                write!(f, "Successfully placed bid for {}", auction.domain)?;
+                writeln!(f, "Successfully placed bid for {}", auction.domain)?;
                 format_auction(f, auction)
             }
             Self::AuctionClaim { record, nft } => {
-                write!(f, "Successfully claimed {}", nft.domain_name())?;
+                writeln!(f, "Successfully claimed {}", nft.domain_name())?;
                 format_name_record(f, record)?;
-                writeln!(f, "Created NFT:")?;
+                writeln!(f, "\nCreated NFT:")?;
                 format_nft(f, nft)
             }
             Self::AuctionMetadata(auction) => format_auction(f, auction),
             Self::AuctionStart(auction) => {
-                write!(f, "Successfully started auction for {}", auction.domain)?;
+                writeln!(f, "Successfully started auction for {}", auction.domain)?;
                 format_auction(f, auction)
             }
             Self::Availability { domain, price } => match price {
@@ -1237,7 +1242,7 @@ impl std::fmt::Display for NameCommandResult {
             Self::Register { record, nft } => {
                 writeln!(f, "Registered Record:")?;
                 format_name_record(f, record)?;
-                writeln!(f, "Created NFT:")?;
+                writeln!(f, "\nCreated NFT:")?;
                 format_nft(f, nft)
             }
             Self::RegisterLeafSubdomain { record } => {
@@ -1247,13 +1252,13 @@ impl std::fmt::Display for NameCommandResult {
             Self::RegisterNodeSubdomain { record, nft } => {
                 writeln!(f, "Registered Record:")?;
                 format_name_record(f, record)?;
-                writeln!(f, "Created NFT:")?;
+                writeln!(f, "\nCreated NFT:")?;
                 format_subdomain_nft(f, nft)
             }
             Self::Renew { record, nft } => {
                 writeln!(f, "Renewed Record:")?;
                 format_name_record(f, record)?;
-                writeln!(f, "Updated NFT:")?;
+                writeln!(f, "\nUpdated NFT:")?;
                 format_nft(f, nft)
             }
             Self::ReverseLookup { address, domain } => {
@@ -1271,7 +1276,10 @@ impl std::fmt::Display for NameCommandResult {
                 write!(f, "Successfully set target address for {}", entry.domain)?;
                 format_registry_entry(f, entry)
             }
-            Self::SetUserData { record } => format_name_record(f, record),
+            Self::SetUserData { key, value, record } => {
+                write!(f, "Successfully set user data {key} to {value}")?;
+                format_name_record(f, record)
+            }
             Self::Transfer { domain, to } => {
                 write!(f, "Successfully transferred {domain} to {to}")
             }
@@ -1317,23 +1325,30 @@ fn format_auction(f: &mut std::fmt::Formatter, auction: &Auction) -> std::fmt::R
             .format("%Y-%m-%d %H:%M:%S.%f UTC")
             .to_string();
 
-    write!(
-        f,
-        "start:\t{start_datetime}\n\
-                    end:\t{end_datetime}\n\
-                    winner:\t{}\n\
-                    bid:\t{} ({})",
-        auction.winner,
-        auction.current_bid.balance.value(),
-        auction.current_bid.id.id.bytes
-    )
+    let data = [
+        ("Start", start_datetime.to_string()),
+        ("End", end_datetime.to_string()),
+        (
+            "Current Bid",
+            auction.current_bid.balance.value().to_string(),
+        ),
+        ("Latest Bidder", auction.current_bid.id.id.bytes.to_string()),
+    ];
+    let mut table_builder = Table::builder(data);
+    table_builder.set_header(["field", "value"]);
+    let mut table = table_builder.build();
+    table.with(tabled::settings::Style::rounded());
+    write!(f, "{table}")
 }
 
 fn format_registry_entry(f: &mut std::fmt::Formatter, entry: &RegistryEntry) -> std::fmt::Result {
-    let mut table_builder = TableBuilder::default();
+    let data = [
+        ("ID", entry.id.to_string()),
+        ("Domain", entry.domain.to_string()),
+    ];
+    let mut table_builder = Table::builder(data);
+    table_builder.set_header(["field", "value"]);
 
-    table_builder.push_record(["ID", entry.id.to_string().as_str()]);
-    table_builder.push_record(["Domain", entry.domain.to_string().as_str()]);
     build_name_record_table(&mut table_builder, &entry.name_record);
 
     let mut table = table_builder.build();
@@ -1350,13 +1365,15 @@ fn format_reverse_registry_entry(
     f: &mut std::fmt::Formatter,
     entry: &ReverseRegistryEntry,
 ) -> std::fmt::Result {
-    let mut table_builder = TableBuilder::default();
-
-    table_builder.push_record(["ID", entry.id.to_string().as_str()]);
-    table_builder.push_record(["Address", entry.address.to_string().as_str()]);
-    table_builder.push_record(["Domain", entry.domain.to_string().as_str()]);
-
+    let data = [
+        ("ID", entry.id.to_string()),
+        ("Address", entry.address.to_string()),
+        ("Domain", entry.domain.to_string()),
+    ];
+    let mut table_builder = Table::builder(data);
+    table_builder.set_header(["field", "value"]);
     let mut table = table_builder.build();
+
     table.with(
         tabled::settings::Style::rounded().horizontals([HorizontalLine::new(
             1,
@@ -1370,6 +1387,7 @@ fn format_name_record(f: &mut std::fmt::Formatter, record: &NameRecord) -> std::
     let mut table_builder = TableBuilder::default();
 
     build_name_record_table(&mut table_builder, record);
+    table_builder.set_header(["field", "value"]);
 
     let mut table = table_builder.build();
     table.with(
@@ -1388,7 +1406,7 @@ fn build_name_record_table(table_builder: &mut TableBuilder, record: &NameRecord
         record
             .target_address
             .map(|address| address.to_string())
-            .unwrap_or_default()
+            .unwrap_or_else(|| "<n/a>".to_owned())
             .as_str(),
     ]);
 
@@ -1407,20 +1425,21 @@ fn build_name_record_table(table_builder: &mut TableBuilder, record: &NameRecord
 }
 
 fn format_nft(f: &mut std::fmt::Formatter, nft: &IotaNamesRegistration) -> std::fmt::Result {
-    let mut table_builder = TableBuilder::default();
-
-    table_builder.push_record(["ID", nft.id().to_string().as_str()]);
-    table_builder.push_record(["Domain", nft.domain_name()]);
-
     let expiration_datetime = DateTime::<Utc>::from(nft.expiration_time())
         .format("%Y-%m-%d %H:%M:%S.%f UTC")
         .to_string();
 
-    table_builder.push_record([
-        "Expiration".to_string(),
-        format!("{} ({expiration_datetime})", nft.expiration_timestamp_ms()),
-    ]);
+    let data = [
+        ("ID", nft.id().to_string()),
+        ("Domain", nft.domain_name().to_owned()),
+        (
+            "Expiration",
+            format!("{} ({expiration_datetime})", nft.expiration_timestamp_ms()),
+        ),
+    ];
 
+    let mut table_builder = Table::builder(data);
+    table_builder.set_header(["field", "value"]);
     let mut table = table_builder.build();
     table.with(
         tabled::settings::Style::rounded().horizontals([HorizontalLine::new(
@@ -1435,20 +1454,21 @@ fn format_subdomain_nft(
     f: &mut std::fmt::Formatter,
     nft: &SubdomainRegistration,
 ) -> std::fmt::Result {
-    let mut table_builder = TableBuilder::default();
-
-    table_builder.push_record(["ID", nft.id().to_string().as_str()]);
-    table_builder.push_record(["Domain", nft.domain_name()]);
-
     let expiration_datetime = DateTime::<Utc>::from(nft.expiration_time())
         .format("%Y-%m-%d %H:%M:%S.%f UTC")
         .to_string();
 
-    table_builder.push_record([
-        "Expiration".to_string(),
-        format!("{} ({expiration_datetime})", nft.expiration_timestamp_ms()),
-    ]);
+    let data = [
+        ("ID", nft.id().to_string()),
+        ("Domain", nft.domain_name().to_owned()),
+        (
+            "Expiration",
+            format!("{} ({expiration_datetime})", nft.expiration_timestamp_ms()),
+        ),
+    ];
 
+    let mut table_builder = Table::builder(data);
+    table_builder.set_header(["field", "value"]);
     let mut table = table_builder.build();
     table.with(
         tabled::settings::Style::rounded().horizontals([HorizontalLine::new(
