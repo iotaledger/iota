@@ -47,6 +47,7 @@ impl From<ProtocolConfigValue> for IotaProtocolConfigValue {
             ProtocolConfigValue::u16(y) => IotaProtocolConfigValue::U16(y),
             ProtocolConfigValue::u32(y) => IotaProtocolConfigValue::U32(y),
             ProtocolConfigValue::u64(x) => IotaProtocolConfigValue::U64(x),
+            ProtocolConfigValue::bool(z) => IotaProtocolConfigValue::Bool(z),
         }
     }
 }
