@@ -61,7 +61,7 @@ pub enum PTBCommandResult {
     Preview(PTBPreview),
     Summary(Summary),
     CommandResult(IotaClientCommandResult),
-    DevInspect(DevInspectResults),
+    DevInspect(Box<DevInspectResults>),
     Json(serde_json::Value),
     Help { long: bool },
 }
@@ -78,7 +78,9 @@ impl std::fmt::Display for PTBCommandResult {
             Self::Preview(ptbpreview) => ptbpreview.to_string(),
             Self::CommandResult(res) => res.to_string(),
             Self::Summary(summary) => Pretty(summary).to_string(),
-            Self::DevInspect(dev_inspect_results) => Pretty(dev_inspect_results).to_string(),
+            Self::DevInspect(dev_inspect_results) => {
+                Pretty(dev_inspect_results.as_ref()).to_string()
+            }
             Self::Json(value) => {
                 serde_json::to_string_pretty(&value).map_err(|_| std::fmt::Error)?
             }
@@ -223,7 +225,7 @@ impl PTB {
                 }
                 IotaClientCommandResult::TransactionBlock(response) => response,
                 IotaClientCommandResult::DevInspect(response) => {
-                    return Ok(PTBCommandResult::DevInspect(response));
+                    return Ok(PTBCommandResult::DevInspect(Box::new(response)));
                 }
                 _ => anyhow::bail!("Internal error, unexpected response from PTB execution."),
             };
