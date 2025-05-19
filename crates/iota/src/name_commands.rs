@@ -1269,15 +1269,15 @@ impl std::fmt::Display for NameCommandResult {
                 }
             }
             Self::SetReverseLookup { entry } => {
-                write!(f, "Successfully set reverse lookup for {}", entry.address)?;
+                writeln!(f, "Successfully set reverse lookup for {}", entry.address)?;
                 format_reverse_registry_entry(f, entry)
             }
             Self::SetTargetAddress { entry } => {
-                write!(f, "Successfully set target address for {}", entry.domain)?;
+                writeln!(f, "Successfully set target address for {}", entry.domain)?;
                 format_registry_entry(f, entry)
             }
             Self::SetUserData { key, value, record } => {
-                write!(f, "Successfully set user data {key} to {value}")?;
+                writeln!(f, "Successfully set user data {key} to {value}")?;
                 format_name_record(f, record)
             }
             Self::Transfer { domain, to } => {
@@ -1304,11 +1304,11 @@ impl std::fmt::Display for NameCommandResult {
                 write!(f, "Successfully unset reverse lookup for {address}")
             }
             Self::UnsetUserData { key, record } => {
-                write!(f, "Successfully unset key {key}")?;
+                writeln!(f, "Successfully unset key {key}")?;
                 format_name_record(f, record)
             }
             Self::UpdateMetadata { record } => {
-                write!(f, "Successfully updated metadata")?;
+                writeln!(f, "Successfully updated metadata")?;
                 format_name_record(f, record)
             }
         }
