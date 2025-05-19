@@ -57,9 +57,8 @@ pub const EVM_CONTRACT_UPGRADE_PATH_WITH_CALLDATA: &str =
     "/sign/upgrade_evm_contract/{chain_id}/{nonce}/{proxy_address}/{new_impl_address}/{calldata}";
 pub const EVM_CONTRACT_UPGRADE_PATH: &str =
     "/sign/upgrade_evm_contract/{chain_id}/{nonce}/{proxy_address}/{new_impl_address}";
-pub const ADD_TOKENS_ON_IOTA_PATH: &str =
-    "/sign/add_tokens_on_iota/{chain_id}/{nonce}/{native}/{token_ids}/{token_type_names}/{token_prices}";
-pub const ADD_TOKENS_ON_EVM_PATH: &str ="/sign/add_tokens_on_evm/{chain_id}/{nonce}/{native}/{token_ids}/{token_addresses}/{token_iota_decimals}/{token_prices}";
+pub const ADD_TOKENS_ON_IOTA_PATH: &str = "/sign/add_tokens_on_iota/{chain_id}/{nonce}/{native}/{token_ids}/{token_type_names}/{token_prices}";
+pub const ADD_TOKENS_ON_EVM_PATH: &str = "/sign/add_tokens_on_evm/{chain_id}/{nonce}/{native}/{token_ids}/{token_addresses}/{token_iota_decimals}/{token_prices}";
 
 /// BridgeNode's public metadata that is acceesible via the `/ping` endpoint.
 // Be careful with what to put here, as it is public.
