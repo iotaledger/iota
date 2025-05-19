@@ -40,7 +40,7 @@ tokio-rustls.workspace = true
 tokio-stream.workspace = true
 tokio-util.workspace = true
 tonic.workspace = true
-tonic-rustls = "0.1.0"
+tonic-rustls = { git = "https://github.com/bmwill/tonic-rustls", rev = "77c3334b8aa00a982fb432d77c768c41aab1b05e" }
 tower.workspace = true
 tower-http.workspace = true
 tracing.workspace = true
