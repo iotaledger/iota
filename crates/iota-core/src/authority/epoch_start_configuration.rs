@@ -93,7 +93,7 @@ impl fmt::Display for EpochFlag {
 #[derive(Serialize, Deserialize, Debug, Eq, PartialEq)]
 #[enum_dispatch(EpochStartConfigTrait)]
 pub enum EpochStartConfiguration {
-    V1(EpochStartConfigurationV1)
+    V1(EpochStartConfigurationV1),
 }
 
 impl EpochStartConfiguration {

@@ -631,7 +631,7 @@ impl From<crate::transaction::EndOfEpochTransactionKind> for EndOfEpochTransacti
                 authenticator_obj_initial_shared_version: authenticator_state_expire
                     .authenticator_obj_initial_shared_version
                     .value(),
-            })
+            }),
         }
     }
 }
@@ -699,8 +699,10 @@ impl From<EndOfEpochTransactionKind> for crate::transaction::EndOfEpochTransacti
             EndOfEpochTransactionKind::BridgeCommitteeInit {
                 bridge_object_version,
             } => {
-                todo!("Remove EndOfEpochTransactionKind::BridgeCommitteeInit from external rust SDK")
-            },
+                todo!(
+                    "Remove EndOfEpochTransactionKind::BridgeCommitteeInit from external rust SDK"
+                )
+            }
         }
     }
 }

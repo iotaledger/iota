@@ -14,8 +14,7 @@ use std::{
 use fastcrypto::encoding::Base64;
 use iota_package_management::{PublishedAtError, resolve_published_id};
 use iota_types::{
-    IOTA_FRAMEWORK_ADDRESS, IOTA_SYSTEM_ADDRESS, MOVE_STDLIB_ADDRESS,
-    STARDUST_ADDRESS,
+    IOTA_FRAMEWORK_ADDRESS, IOTA_SYSTEM_ADDRESS, MOVE_STDLIB_ADDRESS, STARDUST_ADDRESS,
     base_types::ObjectID,
     error::{IotaError, IotaResult},
     is_system_package,

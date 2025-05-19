@@ -73,9 +73,9 @@ use iota_core::{
     validator_tx_finalizer::ValidatorTxFinalizer,
 };
 use iota_json_rpc::{
-    JsonRpcServerBuilder, coin_api::CoinReadApi,
-    governance_api::GovernanceReadApi, indexer_api::IndexerApi, move_utils::MoveUtils,
-    read_api::ReadApi, transaction_builder_api::TransactionBuilderApi,
+    JsonRpcServerBuilder, coin_api::CoinReadApi, governance_api::GovernanceReadApi,
+    indexer_api::IndexerApi, move_utils::MoveUtils, read_api::ReadApi,
+    transaction_builder_api::TransactionBuilderApi,
     transaction_execution_api::TransactionExecutionApi,
 };
 use iota_json_rpc_api::JsonRpcMetrics;

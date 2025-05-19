@@ -24,8 +24,7 @@ use iota_core::{
 };
 use iota_genesis_builder::SnapshotSource;
 use iota_json_rpc_api::{
-    IndexerApiClient, TransactionBuilderClient, WriteApiClient,
-    error_object_from_rpc,
+    IndexerApiClient, TransactionBuilderClient, WriteApiClient, error_object_from_rpc,
 };
 use iota_json_rpc_types::{
     IotaExecutionStatus, IotaObjectDataOptions, IotaObjectResponse, IotaObjectResponseQuery,

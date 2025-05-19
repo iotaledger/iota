@@ -66,9 +66,9 @@ mod sim_only_tests {
     use iota_macros::*;
     use iota_move_build::{BuildConfig, CompiledPackage};
     use iota_types::{
-        IOTA_AUTHENTICATOR_STATE_OBJECT_ID, IOTA_CLOCK_OBJECT_ID,
-        IOTA_FRAMEWORK_PACKAGE_ID, IOTA_RANDOMNESS_STATE_OBJECT_ID, IOTA_SYSTEM_PACKAGE_ID,
-        IOTA_SYSTEM_STATE_OBJECT_ID, MOVE_STDLIB_PACKAGE_ID,
+        IOTA_AUTHENTICATOR_STATE_OBJECT_ID, IOTA_CLOCK_OBJECT_ID, IOTA_FRAMEWORK_PACKAGE_ID,
+        IOTA_RANDOMNESS_STATE_OBJECT_ID, IOTA_SYSTEM_PACKAGE_ID, IOTA_SYSTEM_STATE_OBJECT_ID,
+        MOVE_STDLIB_PACKAGE_ID,
         base_types::{ConciseableName, IotaAddress, ObjectID, ObjectRef, SequenceNumber},
         digests::TransactionDigest,
         effects::{TransactionEffects, TransactionEffectsAPI},
@@ -827,7 +827,6 @@ mod sim_only_tests {
 
     #[sim_test]
     async fn iota_system_mock_smoke_test() {
-
         let test_cluster = TestClusterBuilder::new()
             .with_epoch_duration_ms(20000)
             .with_supported_protocol_versions(SupportedProtocolVersions::new_for_testing(
