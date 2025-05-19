@@ -1801,10 +1801,7 @@ where
     Ok(
         if let IotaClientCommandResult::TransactionBlock(res) = res {
             if !res.errors.is_empty() {
-                for err in res.errors {
-                    println!("{err}");
-                }
-                bail!("transaction failed");
+                bail!("transaction failed: {}", res.errors.join("; "));
             }
             fun(res).await?
         } else {
