@@ -679,7 +679,11 @@ fun test_add_preactive_remove_preactive_check_total_stake_amount_same_epoch() {
     // Transition validator from Active -> Active
     advance_epoch(scenario);
 
-    // assert_validator_total_stake_amounts(vector[NEW_VALIDATOR_ADDR], vector[0 * NANOS_PER_IOTA], scenario);
+    assert_validator_total_stake_amounts(
+        vector[NEW_VALIDATOR_ADDR],
+        vector[0 * NANOS_PER_IOTA],
+        scenario,
+    );
 
     scenario_val.end();
 }
