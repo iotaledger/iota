@@ -98,8 +98,6 @@ impl TonicClient {
 // otherwise.
 #[async_trait]
 impl NetworkClient for TonicClient {
-    const SUPPORT_STREAMING: bool = true;
-
     async fn send_block(
         &self,
         peer: AuthorityIndex,

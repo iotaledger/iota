@@ -14,7 +14,7 @@ use iota_types::{
 };
 use prometheus::Registry;
 use starfish_config::{Committee, NetworkKeyPair, Parameters, ProtocolKeyPair};
-use starfish_core::{AuthorityNode, CommitConsumer, CommitConsumerMonitor, CommitIndex};
+use starfish_core::{CommitConsumer, CommitConsumerMonitor, CommitIndex, ConsensusAuthority};
 use tokio::sync::Mutex;
 use tracing::info;
 
@@ -40,7 +40,7 @@ pub struct StarfishManager {
     running: Mutex<Running>,
     metrics: Arc<ConsensusManagerMetrics>,
     registry_service: RegistryService,
-    authority: ArcSwapOption<(AuthorityNode, RegistryID)>,
+    authority: ArcSwapOption<(ConsensusAuthority, RegistryID)>,
     boot_counter: Mutex<u64>,
     // Use a shared lazy starfish client so we can update the internal starfish
     // client that gets created for every new epoch.
@@ -165,7 +165,7 @@ impl ConsensusManagerTrait for StarfishManager {
             );
         }
 
-        let authority = AuthorityNode::start(
+        let authority = ConsensusAuthority::start(
             own_index,
             committee.clone(),
             parameters.clone(),

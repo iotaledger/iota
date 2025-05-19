@@ -26,17 +26,14 @@ use crate::{
     leader_schedule::LeaderSchedule,
     leader_timeout::{LeaderTimeoutTask, LeaderTimeoutTaskHandle},
     metrics::initialise_metrics,
-    network::{
-        NetworkClient,
-        tonic_network::{TonicClient, TonicManager},
-    },
+    network::tonic_network::{TonicClient, TonicManager},
     storage::rocksdb_store::RocksDBStore,
     subscriber::Subscriber,
     synchronizer::{Synchronizer, SynchronizerHandle},
     transaction::{TransactionClient, TransactionConsumer, TransactionVerifier},
 };
 
-pub struct AuthorityNode {
+pub struct ConsensusAuthority {
     context: Arc<Context>,
     start_time: Instant,
     transaction_client: Arc<TransactionClient>,
@@ -52,7 +49,7 @@ pub struct AuthorityNode {
     sync_last_known_own_block: bool,
 }
 
-impl AuthorityNode {
+impl ConsensusAuthority {
     /// This function initializes and starts the consensus authority node
     /// It ensures that the authority node is fully initialized and
     /// ready to participate in the consensus process.
@@ -157,7 +154,7 @@ impl AuthorityNode {
             // For streaming RPC, Core will be notified when consumer is available.
             // For non-streaming RPC, there is no way to know so default to true.
             // When there is only one (this) authority, assume subscriber exists.
-            !TonicClient::SUPPORT_STREAMING || context.committee.size() == 1,
+            context.committee.size() == 1,
             commit_observer,
             core_signals,
             protocol_keypair,
@@ -333,7 +330,7 @@ mod tests {
         let (sender, _receiver) = unbounded_channel("consensus_output");
         let commit_consumer = CommitConsumer::new(sender, 0);
 
-        let authority = AuthorityNode::start(
+        let authority = ConsensusAuthority::start(
             own_index,
             committee,
             parameters,
@@ -429,7 +426,7 @@ mod tests {
             .collect::<Vec<_>>();
 
         let mut output_receivers = Vec::with_capacity(committee.size());
-        let mut authorities: Vec<AuthorityNode> = Vec::with_capacity(committee.size());
+        let mut authorities: Vec<ConsensusAuthority> = Vec::with_capacity(committee.size());
         let mut boot_counters = vec![0; num_authorities];
 
         for (index, _authority_info) in committee.authorities() {
@@ -610,7 +607,7 @@ mod tests {
         keypairs: Vec<(NetworkKeyPair, ProtocolKeyPair)>,
         boot_counter: u64,
         protocol_config: ProtocolConfig,
-    ) -> (AuthorityNode, UnboundedReceiver<CommittedSubDag>) {
+    ) -> (ConsensusAuthority, UnboundedReceiver<CommittedSubDag>) {
         let registry = Registry::new();
 
         // Cache less blocks to exercise commit sync.
@@ -630,7 +627,7 @@ mod tests {
         let (sender, receiver) = unbounded_channel("consensus_output");
         let commit_consumer = CommitConsumer::new(sender, 0);
 
-        let authority = AuthorityNode::start(
+        let authority = ConsensusAuthority::start(
             index,
             committee,
             parameters,

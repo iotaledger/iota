@@ -54,7 +54,7 @@ mod test_dag_builder;
 mod test_dag_parser;
 
 /// Exported consensus API.
-pub use authority_node::AuthorityNode;
+pub use authority_node::ConsensusAuthority;
 pub use block_header::{BlockHeaderAPI, BlockRef, Round};
 /// Exported API for testing.
 pub use block_header::{TestBlockHeader, Transaction, VerifiedBlockHeader};

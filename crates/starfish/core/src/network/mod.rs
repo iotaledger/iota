@@ -64,9 +64,6 @@ pub(crate) type BlockStream = Pin<Box<dyn Stream<Item = Bytes> + Send>>;
 ///   incoming requests.
 #[async_trait]
 pub(crate) trait NetworkClient: Send + Sync + Sized + 'static {
-    // Whether the network client streams blocks to subscribed peers.
-    const SUPPORT_STREAMING: bool;
-
     /// Sends a serialized SignedBlock to a peer.
     // TODO: remove this method if after refactoring network code it's still not used.
     #[cfg_attr(not(test), expect(unused))]
