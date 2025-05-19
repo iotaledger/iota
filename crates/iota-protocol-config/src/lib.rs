@@ -58,7 +58,7 @@ pub const MAX_PROTOCOL_VERSION: u64 = 9;
 //            Enable consensus garbage collection for mainnet
 //            Enable the new consensus commit rule for mainnet.
 //            Increase the committee size to 80.
-//            Enable passkey auth in multisig for testnet.
+//            Enable passkey auth in multisig for devnet.
 
 #[derive(Copy, Clone, Debug, Hash, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ProtocolVersion(u64);
@@ -1989,8 +1989,6 @@ impl ProtocolConfig {
                         // blocks within a window of ~4 seconds
                         // to be included before be considered garbage collected.
                         cfg.consensus_gc_depth = Some(60);
-                        // Enable passkey in multisig.
-                        cfg.feature_flags.accept_passkey_in_multisig = true;
                     }
                     // Enable min_free_execution_slot for the shared object congestion tracker in
                     // devnet.
@@ -2018,6 +2016,11 @@ impl ProtocolConfig {
                     cfg.consensus_gc_depth = Some(60);
 
                     cfg.max_committee_members_count = Some(80);
+                    
+                    // Enable passkey in multisig in devnet.
+                    if chain != Chain::Testnet && chain != Chain::Mainnet {
+                        cfg.feature_flags.accept_passkey_in_multisig = true;
+                    }
                 }
                 // Use this template when making changes:
                 //
