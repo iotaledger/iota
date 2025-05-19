@@ -129,7 +129,8 @@ pub enum NameCommand {
     SetTargetAddress {
         /// The full name of the domain. Ex. my-domain.iota
         domain: Domain,
-        /// The address to which the domain will point
+        /// The address to which the domain will point. Defaults to the current
+        /// active address.
         new_address: Option<IotaAddress>,
         #[command(flatten)]
         opts: OptsWithGas,
@@ -159,6 +160,13 @@ pub enum NameCommand {
     },
     /// Unset reverse lookup
     UnsetReverseLookup {
+        #[command(flatten)]
+        opts: OptsWithGas,
+    },
+    /// Unset the target address for a domain
+    UnsetTargetAddress {
+        /// The full name of the domain. Ex. my-domain.iota
+        domain: Domain,
         #[command(flatten)]
         opts: OptsWithGas,
     },
@@ -441,6 +449,16 @@ impl NameCommand {
                 new_address,
                 opts,
             } => {
+                let entry = get_registry_entry(&domain, &iota_client).await?;
+                let new_address =
+                    get_identity_address(new_address.map(KeyIdentity::Address), context)?;
+                if entry
+                    .name_record
+                    .target_address
+                    .is_some_and(|a| a == new_address)
+                {
+                    anyhow::bail!("target address is already set to the given value");
+                }
                 let nft_id = get_owned_nft_by_name::<IotaNamesRegistration>(&domain, context)
                     .await?
                     .id();
@@ -455,9 +473,7 @@ impl NameCommand {
                         args: vec![
                             IotaJsonValue::from_object_id(iota_names_config.object_id),
                             IotaJsonValue::from_object_id(nft_id),
-                            IotaJsonValue::new(serde_json::to_value(
-                                new_address.into_iter().collect::<Vec<_>>(),
-                            )?)?,
+                            IotaJsonValue::new(serde_json::to_value(new_address)?)?,
                             IotaJsonValue::from_object_id(IOTA_CLOCK_OBJECT_ID),
                         ],
                         gas_price: None,
@@ -537,6 +553,36 @@ impl NameCommand {
                         function: "unset_reverse_lookup".to_owned(),
                         type_args: Default::default(),
                         args: vec![IotaJsonValue::from_object_id(iota_names_config.object_id)],
+                        gas_price: None,
+                        opts,
+                    }
+                    .execute(context)
+                    .await?,
+                )
+            }
+            Self::UnsetTargetAddress { domain, opts } => {
+                let entry = get_registry_entry(&domain, &iota_client).await?;
+                if entry.name_record.target_address.is_none() {
+                    anyhow::bail!("target address is already unset");
+                }
+
+                let nft_id = get_owned_nft_by_name::<IotaNamesRegistration>(&domain, context)
+                    .await?
+                    .id();
+                let iota_names_config = get_iota_names_config(&iota_client).await?;
+
+                NameCommandResult::Client(
+                    IotaClientCommands::Call {
+                        package: iota_names_config.package_address.into(),
+                        module: "controller".to_owned(),
+                        function: "set_target_address".to_owned(),
+                        type_args: Default::default(),
+                        args: vec![
+                            IotaJsonValue::from_object_id(iota_names_config.object_id),
+                            IotaJsonValue::from_object_id(nft_id),
+                            IotaJsonValue::new(serde_json::to_value(Vec::<IotaAddress>::new())?)?,
+                            IotaJsonValue::from_object_id(IOTA_CLOCK_OBJECT_ID),
+                        ],
                         gas_price: None,
                         opts,
                     }
