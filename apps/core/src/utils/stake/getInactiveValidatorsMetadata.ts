@@ -33,7 +33,7 @@ export async function getInactiveValidatorsMetadata(
         },
     });
     const metadata = DynamicFieldObjectSchema.safeParse(dfObject.data?.content);
-    if (!metadata.data || !validator.data) {
+    if (!metadata.data) {
         return null;
     }
 
@@ -45,6 +45,6 @@ export async function getInactiveValidatorsMetadata(
         projectUrl: validatorMetadata.project_url,
         validatorAddress: validatorMetadata.iota_address,
         validatorPublicKey: toB64(Uint8Array.from(validatorMetadata.protocol_pubkey_bytes)),
-        validatorStakingPoolId: validator.data.fields.name,
+        validatorStakingPoolId: validator.data?.fields.name ?? '',
     };
 }
