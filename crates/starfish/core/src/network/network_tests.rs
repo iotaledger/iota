@@ -8,37 +8,14 @@ use bytes::Bytes;
 use futures::StreamExt as _;
 use parking_lot::Mutex;
 use rstest::rstest;
-use starfish_config::NetworkKeyPair;
 use tokio::time::sleep;
 
-use super::{
-    NetworkClient, NetworkManager, test_network::TestService, tonic_network::TonicManager,
-};
+use super::{NetworkClient, test_network::TestService, tonic_network::TonicManager};
 use crate::{
     Round,
     block_header::{TestBlockHeader, VerifiedBlockHeader},
     context::Context,
 };
-
-trait ManagerBuilder {
-    fn build(
-        &self,
-        context: Arc<Context>,
-        network_keypair: NetworkKeyPair,
-    ) -> impl NetworkManager<Mutex<TestService>>;
-}
-
-struct TonicManagerBuilder {}
-
-impl ManagerBuilder for TonicManagerBuilder {
-    fn build(
-        &self,
-        context: Arc<Context>,
-        network_keypair: NetworkKeyPair,
-    ) -> impl NetworkManager<Mutex<TestService>> {
-        TonicManager::new(context, network_keypair)
-    }
-}
 
 fn block_for_round(round: Round) -> Bytes {
     Bytes::from(vec![round as u8; 16])
@@ -61,9 +38,7 @@ fn service_with_own_blocks() -> Arc<Mutex<TestService>> {
 // std::thread::sleep() instead of tokio::time::sleep().
 #[rstest]
 #[tokio::test]
-async fn send_and_receive_blocks_with_auth(
-    #[values(TonicManagerBuilder {})] manager_builder: impl ManagerBuilder,
-) {
+async fn send_and_receive_blocks_with_auth() {
     let (context, keys) = Context::new_for_test(4);
 
     let context_0 = Arc::new(
@@ -71,7 +46,7 @@ async fn send_and_receive_blocks_with_auth(
             .clone()
             .with_authority_index(context.committee.to_authority_index(0).unwrap()),
     );
-    let mut manager_0 = manager_builder.build(context_0.clone(), keys[0].0.clone());
+    let mut manager_0 = TonicManager::new(context_0.clone(), keys[0].0.clone());
     let client_0 = manager_0.client();
     let service_0 = service_with_own_blocks();
     manager_0.install_service(service_0.clone()).await;
@@ -81,7 +56,7 @@ async fn send_and_receive_blocks_with_auth(
             .clone()
             .with_authority_index(context.committee.to_authority_index(1).unwrap()),
     );
-    let mut manager_1 = manager_builder.build(context_1.clone(), keys[1].0.clone());
+    let mut manager_1 = TonicManager::new(context_1.clone(), keys[1].0.clone());
     let client_1 = manager_1.client();
     let service_1 = service_with_own_blocks();
     manager_1.install_service(service_1.clone()).await;
@@ -130,7 +105,7 @@ async fn send_and_receive_blocks_with_auth(
             .clone()
             .with_authority_index(context_4.committee.to_authority_index(4).unwrap()),
     );
-    let mut manager_4 = manager_builder.build(context_4.clone(), keys_4[4].0.clone());
+    let mut manager_4 = TonicManager::new(context_4.clone(), keys_4[4].0.clone());
     let client_4 = manager_4.client();
     let service_4 = service_with_own_blocks();
     manager_4.install_service(service_4.clone()).await;
@@ -163,10 +138,7 @@ async fn send_and_receive_blocks_with_auth(
 
 #[rstest]
 #[tokio::test]
-async fn subscribe_and_receive_blocks(
-    // Only network supporting streaming can be tested.
-    #[values(TonicManagerBuilder {})] manager_builder: impl ManagerBuilder,
-) {
+async fn subscribe_and_receive_blocks() {
     let (context, keys) = Context::new_for_test(4);
 
     let context_0 = Arc::new(
@@ -174,7 +146,7 @@ async fn subscribe_and_receive_blocks(
             .clone()
             .with_authority_index(context.committee.to_authority_index(0).unwrap()),
     );
-    let mut manager_0 = manager_builder.build(context_0.clone(), keys[0].0.clone());
+    let mut manager_0 = TonicManager::new(context_0.clone(), keys[0].0.clone());
     let client_0 = manager_0.client();
     let service_0 = service_with_own_blocks();
     manager_0.install_service(service_0.clone()).await;
@@ -184,7 +156,7 @@ async fn subscribe_and_receive_blocks(
             .clone()
             .with_authority_index(context.committee.to_authority_index(1).unwrap()),
     );
-    let mut manager_1 = manager_builder.build(context_1.clone(), keys[1].0.clone());
+    let mut manager_1 = TonicManager::new(context_1.clone(), keys[1].0.clone());
     let client_1 = manager_1.client();
     let service_1 = service_with_own_blocks();
     manager_1.install_service(service_1.clone()).await;

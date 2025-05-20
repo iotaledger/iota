@@ -254,8 +254,6 @@ mod test {
 
     #[async_trait]
     impl NetworkClient for SubscriberTestClient {
-        const SUPPORT_STREAMING: bool = true;
-
         async fn send_block(
             &self,
             _peer: AuthorityIndex,

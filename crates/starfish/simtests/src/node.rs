@@ -275,7 +275,6 @@ pub(crate) async fn make_authority(
     let commit_consumer_monitor = commit_consumer.monitor();
 
     let authority = ConsensusAuthority::start(
-        network_type,
         authority_index,
         committee,
         parameters,
