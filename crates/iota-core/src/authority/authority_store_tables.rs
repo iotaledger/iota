@@ -182,6 +182,10 @@ impl AuthorityPerpetualTables {
                 indirect_move_objects_table_config(db_options.clone()),
             ),
             (
+                "live_owned_object_markers".to_string(),
+                live_owned_object_markers_table_config(db_options.clone()),
+            ),
+            (
                 "transactions".to_string(),
                 transactions_table_config(db_options.clone()),
             ),
