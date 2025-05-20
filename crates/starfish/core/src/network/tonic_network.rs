@@ -27,7 +27,7 @@ use tower_http::trace::{DefaultMakeSpan, DefaultOnFailure, TraceLayer};
 use tracing::{debug, error, info, trace, warn};
 
 use super::{
-    BlockStream, NetworkClient, NetworkManager, NetworkService,
+    BlockStream, NetworkClient, NetworkService,
     metrics_layer::{MetricsCallbackMaker, MetricsResponseCallback, SizedRequest, SizedResponse},
     tonic_gen::{
         consensus_service_client::ConsensusServiceClient,
@@ -98,8 +98,6 @@ impl TonicClient {
 // otherwise.
 #[async_trait]
 impl NetworkClient for TonicClient {
-    const SUPPORT_STREAMING: bool = true;
-
     async fn send_block(
         &self,
         peer: AuthorityIndex,
@@ -630,36 +628,33 @@ impl<S: NetworkService> ConsensusService for TonicServiceProxy<S> {
 /// 4. Create `TonicService` for consensus service handler.
 /// 5. Install `TonicService` to `TonicManager` with
 ///    `TonicManager::install_service()`.
-pub(crate) struct TonicManager {
+pub(crate) struct TonicManager<S>
+where
+    S: NetworkService,
+{
     context: Arc<Context>,
     network_keypair: NetworkKeyPair,
     client: Arc<TonicClient>,
     server: Option<ServerHandle>,
+    _marker: std::marker::PhantomData<S>,
 }
 
-impl TonicManager {
+impl<S: NetworkService> TonicManager<S> {
     pub(crate) fn new(context: Arc<Context>, network_keypair: NetworkKeyPair) -> Self {
         Self {
             context: context.clone(),
             network_keypair: network_keypair.clone(),
             client: Arc::new(TonicClient::new(context, network_keypair)),
             server: None,
+            _marker: std::marker::PhantomData,
         }
     }
-}
 
-impl<S: NetworkService> NetworkManager<S> for TonicManager {
-    type Client = TonicClient;
-
-    fn new(context: Arc<Context>, network_keypair: NetworkKeyPair) -> Self {
-        TonicManager::new(context, network_keypair)
-    }
-
-    fn client(&self) -> Arc<Self::Client> {
+    pub fn client(&self) -> Arc<TonicClient> {
         self.client.clone()
     }
 
-    async fn install_service(&mut self, service: Arc<S>) {
+    pub async fn install_service(&mut self, service: Arc<S>) {
         self.context
             .metrics
             .network_metrics
@@ -798,7 +793,7 @@ impl<S: NetworkService> NetworkManager<S> for TonicManager {
         self.server = Some(server);
     }
 
-    async fn stop(&mut self) {
+    pub async fn stop(&mut self) {
         if let Some(server) = self.server.take() {
             server.shutdown().await;
         }
@@ -814,7 +809,7 @@ impl<S: NetworkService> NetworkManager<S> for TonicManager {
 
 // Ensure that if there is an active network running that it is shutdown when
 // the TonicManager is dropped.
-impl Drop for TonicManager {
+impl<S: NetworkService> Drop for TonicManager<S> {
     fn drop(&mut self) {
         if let Some(server) = self.server.as_ref() {
             server.trigger_shutdown();

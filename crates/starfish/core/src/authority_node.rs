@@ -4,7 +4,7 @@
 
 use std::{sync::Arc, time::Instant};
 
-use iota_protocol_config::{ConsensusNetwork, ProtocolConfig};
+use iota_protocol_config::ProtocolConfig;
 use itertools::Itertools;
 use parking_lot::RwLock;
 use prometheus::Registry;
@@ -16,7 +16,6 @@ use crate::{
     authority_service::AuthorityService,
     block_manager::BlockManager,
     block_verifier::SignedBlockVerifier,
-    broadcaster::Broadcaster,
     commit_observer::CommitObserver,
     commit_syncer::{CommitSyncer, CommitSyncerHandle},
     commit_vote_monitor::CommitVoteMonitor,
@@ -27,98 +26,14 @@ use crate::{
     leader_schedule::LeaderSchedule,
     leader_timeout::{LeaderTimeoutTask, LeaderTimeoutTaskHandle},
     metrics::initialise_metrics,
-    network::{NetworkClient as _, NetworkManager, tonic_network::TonicManager},
+    network::tonic_network::{TonicClient, TonicManager},
     storage::rocksdb_store::RocksDBStore,
     subscriber::Subscriber,
     synchronizer::{Synchronizer, SynchronizerHandle},
     transaction::{TransactionClient, TransactionConsumer, TransactionVerifier},
 };
 
-/// ConsensusAuthority is used by IOTA to manage the lifetime of AuthorityNode.
-/// It hides the details of the implementation from the caller,
-/// MysticetiManager.
-pub enum ConsensusAuthority {
-    #[expect(private_interfaces)]
-    WithTonic(AuthorityNode<TonicManager>),
-}
-
-impl ConsensusAuthority {
-    /// Starts the `ConsensusAuthority` for the specified network type.
-    pub async fn start(
-        network_type: ConsensusNetwork,
-        own_index: AuthorityIndex,
-        committee: Committee,
-        parameters: Parameters,
-        protocol_config: ProtocolConfig,
-        protocol_keypair: ProtocolKeyPair,
-        network_keypair: NetworkKeyPair,
-        transaction_verifier: Arc<dyn TransactionVerifier>,
-        commit_consumer: CommitConsumer,
-        registry: Registry,
-        // A counter that keeps track of how many times the authority node has been booted while
-        // the binary or the component that is calling the `ConsensusAuthority` has been
-        // running. It's mostly useful to make decisions on whether amnesia recovery should
-        // run or not. When `boot_counter` is 0, then `ConsensusAuthority` will initiate
-        // the process of amnesia recovery if that's enabled in the parameters.
-        boot_counter: u64,
-    ) -> Self {
-        match network_type {
-            ConsensusNetwork::Tonic => {
-                let authority = AuthorityNode::start(
-                    own_index,
-                    committee,
-                    parameters,
-                    protocol_config,
-                    protocol_keypair,
-                    network_keypair,
-                    transaction_verifier,
-                    commit_consumer,
-                    registry,
-                    boot_counter,
-                )
-                .await;
-                Self::WithTonic(authority)
-            }
-        }
-    }
-
-    pub async fn stop(self) {
-        match self {
-            Self::WithTonic(authority) => authority.stop().await,
-        }
-    }
-
-    pub fn transaction_client(&self) -> Arc<TransactionClient> {
-        match self {
-            Self::WithTonic(authority) => authority.transaction_client(),
-        }
-    }
-
-    pub async fn replay_complete(&self) {
-        match self {
-            Self::WithTonic(authority) => authority.replay_complete().await,
-        }
-    }
-
-    #[cfg(test)]
-    fn context(&self) -> &Arc<Context> {
-        match self {
-            Self::WithTonic(authority) => &authority.context,
-        }
-    }
-
-    #[cfg(test)]
-    fn sync_last_known_own_block_enabled(&self) -> bool {
-        match self {
-            Self::WithTonic(authority) => authority.sync_last_known_own_block,
-        }
-    }
-}
-
-pub(crate) struct AuthorityNode<N>
-where
-    N: NetworkManager<AuthorityService<ChannelCoreThreadDispatcher>>,
-{
+pub struct ConsensusAuthority {
     context: Arc<Context>,
     start_time: Instant,
     transaction_client: Arc<TransactionClient>,
@@ -128,23 +43,17 @@ where
     commit_syncer_handle: CommitSyncerHandle,
     leader_timeout_handle: LeaderTimeoutTaskHandle,
     core_thread_handle: CoreThreadHandle,
-    // Only one of broadcaster and subscriber gets created, depending on
-    // if streaming is supported.
-    broadcaster: Option<Broadcaster>,
-    subscriber: Option<Subscriber<N::Client, AuthorityService<ChannelCoreThreadDispatcher>>>,
-    network_manager: N,
+    subscriber: Subscriber<TonicClient, AuthorityService<ChannelCoreThreadDispatcher>>,
+    network_manager: TonicManager<AuthorityService<ChannelCoreThreadDispatcher>>,
     #[cfg(test)]
     sync_last_known_own_block: bool,
 }
 
-impl<N> AuthorityNode<N>
-where
-    N: NetworkManager<AuthorityService<ChannelCoreThreadDispatcher>>,
-{
+impl ConsensusAuthority {
     /// This function initializes and starts the consensus authority node
     /// It ensures that the authority node is fully initialized and
     /// ready to participate in the consensus process.
-    pub(crate) async fn start(
+    pub async fn start(
         own_index: AuthorityIndex,
         committee: Committee,
         parameters: Parameters,
@@ -192,20 +101,12 @@ where
 
         let (core_signals, signals_receivers) = CoreSignals::new(context.clone());
 
-        let mut network_manager = N::new(context.clone(), network_keypair);
-        let network_client = network_manager.client();
-
-        // REQUIRED: Broadcaster must be created before Core, to start listening on the
-        // broadcast channel in order to not miss blocks and cause test failures.
-        let broadcaster = if N::Client::SUPPORT_STREAMING {
-            None
-        } else {
-            Some(Broadcaster::new(
+        let mut network_manager =
+            TonicManager::<AuthorityService<ChannelCoreThreadDispatcher>>::new(
                 context.clone(),
-                network_client.clone(),
-                &signals_receivers,
-            ))
-        };
+                network_keypair,
+            );
+        let network_client = network_manager.client();
 
         let store_path = context.parameters.db_path.as_path().to_str().unwrap();
         let store = Arc::new(RocksDBStore::new(store_path));
@@ -253,7 +154,7 @@ where
             // For streaming RPC, Core will be notified when consumer is available.
             // For non-streaming RPC, there is no way to know so default to true.
             // When there is only one (this) authority, assume subscriber exists.
-            !N::Client::SUPPORT_STREAMING || context.committee.size() == 1,
+            context.committee.size() == 1,
             commit_observer,
             core_signals,
             protocol_keypair,
@@ -301,22 +202,17 @@ where
             store,
         ));
 
-        let subscriber = if N::Client::SUPPORT_STREAMING {
-            let s = Subscriber::new(
-                context.clone(),
-                network_client,
-                network_service.clone(),
-                dag_state,
-            );
-            for (peer, _) in context.committee.authorities() {
-                if peer != context.own_index {
-                    s.subscribe(peer);
-                }
+        let subscriber = Subscriber::new(
+            context.clone(),
+            network_client,
+            network_service.clone(),
+            dag_state,
+        );
+        for (peer, _) in context.committee.authorities() {
+            if peer != context.own_index {
+                subscriber.subscribe(peer);
             }
-            Some(s)
-        } else {
-            None
-        };
+        }
 
         network_manager.install_service(network_service).await;
 
@@ -334,7 +230,6 @@ where
             commit_syncer_handle,
             leader_timeout_handle,
             core_thread_handle,
-            broadcaster,
             subscriber,
             network_manager,
             #[cfg(test)]
@@ -342,7 +237,7 @@ where
         }
     }
 
-    pub(crate) async fn stop(mut self) {
+    pub async fn stop(mut self) {
         info!(
             "Stopping authority. Total run time: {:?}",
             self.start_time.elapsed()
@@ -361,15 +256,10 @@ where
         self.commit_syncer_handle.stop().await;
         self.leader_timeout_handle.stop().await;
         // Shutdown Core to stop block productions and broadcast.
-        // When using streaming, all subscribers to broadcasted blocks stop after this.
+        // When using streaming, all subscribers to broadcast blocks stop after this.
         self.core_thread_handle.stop().await;
-        if let Some(mut broadcaster) = self.broadcaster.take() {
-            broadcaster.stop();
-        }
-        // Stop outgoing long lived streams before stopping network server.
-        if let Some(subscriber) = self.subscriber.take() {
-            subscriber.stop();
-        }
+        // Stop outgoing long-lived streams before stopping network server.
+        self.subscriber.stop();
         self.network_manager.stop().await;
 
         self.context
@@ -379,12 +269,22 @@ where
             .observe(self.start_time.elapsed().as_secs_f64());
     }
 
-    pub(crate) fn transaction_client(&self) -> Arc<TransactionClient> {
+    pub fn transaction_client(&self) -> Arc<TransactionClient> {
         self.transaction_client.clone()
     }
 
-    pub(crate) async fn replay_complete(&self) {
+    pub async fn replay_complete(&self) {
         self.commit_consumer_monitor.replay_complete().await;
+    }
+
+    #[cfg(test)]
+    fn context(&self) -> &Arc<Context> {
+        &self.context
+    }
+
+    #[cfg(test)]
+    fn sync_last_known_own_block_enabled(&self) -> bool {
+        self.sync_last_known_own_block
     }
 }
 
@@ -412,9 +312,7 @@ mod tests {
 
     #[rstest]
     #[tokio::test]
-    async fn test_authority_start_and_stop(
-        #[values(ConsensusNetwork::Tonic)] network_type: ConsensusNetwork,
-    ) {
+    async fn test_authority_start_and_stop() {
         let (committee, keypairs) = local_committee_and_keys(0, vec![1]);
         let registry = Registry::new();
 
@@ -433,7 +331,6 @@ mod tests {
         let commit_consumer = CommitConsumer::new(sender, 0);
 
         let authority = ConsensusAuthority::start(
-            network_type,
             own_index,
             committee,
             parameters,
@@ -457,9 +354,7 @@ mod tests {
     // TODO: add transactions to control how the consensus works
     #[rstest]
     #[tokio::test(flavor = "current_thread")]
-    async fn test_authority_committee(
-        #[values(ConsensusNetwork::Tonic)] network_type: ConsensusNetwork,
-    ) {
+    async fn test_authority_committee() {
         let db_registry = Registry::new();
         DBMetrics::init(&db_registry);
 
@@ -481,7 +376,6 @@ mod tests {
                 &temp_dirs[index.value()],
                 committee.clone(),
                 keypairs.clone(),
-                network_type,
                 boot_counters[index],
                 protocol_config.clone(),
             )
@@ -502,7 +396,6 @@ mod tests {
             &temp_dirs[index.value()],
             committee.clone(),
             keypairs.clone(),
-            network_type,
             boot_counters[index],
             protocol_config.clone(),
         )
@@ -521,10 +414,7 @@ mod tests {
     // TODO: add transactions to control how the consensus works
     #[rstest]
     #[tokio::test(flavor = "current_thread")]
-    async fn test_small_committee(
-        #[values(ConsensusNetwork::Tonic)] network_type: ConsensusNetwork,
-        #[values(1, 2, 3)] num_authorities: usize,
-    ) {
+    async fn test_small_committee(#[values(1, 2, 3)] num_authorities: usize) {
         let db_registry = Registry::new();
         DBMetrics::init(&db_registry);
 
@@ -545,7 +435,6 @@ mod tests {
                 &temp_dirs[index.value()],
                 committee.clone(),
                 keypairs.clone(),
-                network_type,
                 boot_counters[index],
                 protocol_config.clone(),
             )
@@ -566,7 +455,6 @@ mod tests {
             &temp_dirs[index.value()],
             committee.clone(),
             keypairs.clone(),
-            network_type,
             boot_counters[index],
             protocol_config.clone(),
         )
@@ -584,9 +472,7 @@ mod tests {
 
     #[rstest]
     #[tokio::test(flavor = "current_thread")]
-    async fn test_amnesia_recovery_success(
-        #[values(ConsensusNetwork::Tonic)] network_type: ConsensusNetwork,
-    ) {
+    async fn test_amnesia_recovery_success() {
         telemetry_subscribers::init_for_testing();
         let db_registry = Registry::new();
         DBMetrics::init(&db_registry);
@@ -607,7 +493,6 @@ mod tests {
                 &dir,
                 committee.clone(),
                 keypairs.clone(),
-                network_type,
                 boot_counters[index],
                 protocol_config.clone(),
             )
@@ -665,7 +550,6 @@ mod tests {
             &dir,
             committee.clone(),
             keypairs.clone(),
-            network_type,
             boot_counters[index_1],
             protocol_config.clone(),
         )
@@ -687,7 +571,6 @@ mod tests {
             &temp_dirs[&index_2],
             committee.clone(),
             keypairs,
-            network_type,
             boot_counters[index_2],
             protocol_config.clone(),
         )
@@ -722,7 +605,6 @@ mod tests {
         db_dir: &TempDir,
         committee: Committee,
         keypairs: Vec<(NetworkKeyPair, ProtocolKeyPair)>,
-        network_type: ConsensusNetwork,
         boot_counter: u64,
         protocol_config: ProtocolConfig,
     ) -> (ConsensusAuthority, UnboundedReceiver<CommittedSubDag>) {
@@ -746,7 +628,6 @@ mod tests {
         let commit_consumer = CommitConsumer::new(sender, 0);
 
         let authority = ConsensusAuthority::start(
-            network_type,
             index,
             committee,
             parameters,
