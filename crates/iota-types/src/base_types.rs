@@ -38,6 +38,7 @@ use crate::{
     IOTA_CLOCK_OBJECT_ID, IOTA_FRAMEWORK_ADDRESS, IOTA_SYSTEM_ADDRESS, MOVE_STDLIB_ADDRESS,
     balance::Balance,
     coin::{COIN_MODULE_NAME, COIN_STRUCT_NAME, Coin, CoinMetadata, TreasuryCap},
+    coin_manager::CoinManager,
     crypto::{
         AuthorityPublicKeyBytes, DefaultHash, IotaPublicKey, IotaSignature, PublicKey,
         SignatureScheme,
@@ -314,6 +315,15 @@ impl MoveObjectType {
                 false
             }
             MoveObjectType_::Other(s) => CoinMetadata::is_coin_metadata(s),
+        }
+    }
+
+    pub fn is_coin_manager(&self) -> bool {
+        match &self.0 {
+            MoveObjectType_::GasCoin | MoveObjectType_::StakedIota | MoveObjectType_::Coin(_) => {
+                false
+            }
+            MoveObjectType_::Other(s) => CoinManager::is_coin_manager(s),
         }
     }
 
