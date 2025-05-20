@@ -1,0 +1,198 @@
+---
+source: external-crates/move/crates/move-transactional-test-runner/src/framework.rs
+---
+processed 9 tasks
+
+init:
+A: object(0,0)
+
+task 1, lines 20-59:
+//# publish
+created: object(1,0)
+mutated: object(0,1)
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 7592400,  storage_rebate: 0, non_refundable_storage_fee: 0
+
+task 2, lines 61-63:
+//# programmable --sender A --inputs @A
+//> 0: Test::M1::child(Input(0));
+//> 1: Test::M1::parent(Input(0));
+created: object(2,0), object(2,1)
+mutated: object(0,0)
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 3587200,  storage_rebate: 0, non_refundable_storage_fee: 0
+
+task 3, line 65:
+//# run Test::M1::add_child --sender A --args object(2,1) object(2,0) 42
+created: object(3,0)
+mutated: object(0,0), object(2,0), object(2,1)
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 6034400,  storage_rebate: 3587200, non_refundable_storage_fee: 0
+
+task 4, line 67:
+//# create-checkpoint
+Checkpoint created: 1
+
+task 5, lines 69-131:
+//# run-graphql
+Response: {
+  "data": {
+    "latest": {
+      "version": 3,
+      "dynamicFields": {
+        "edges": [
+          {
+            "cursor": "IMpvIL9ggW4aSwO6KfzZSHN5JlxYk5eaN0MF7y0VOZufAQAAAAAAAAA=",
+            "node": {
+              "name": {
+                "bcs": "KgAAAAAAAAA="
+              },
+              "value": {
+                "contents": {
+                  "json": {
+                    "id": "0x747e5767c395f60e632ded8e4c18f0d96a1bb599d2659a305926da3ad907965f",
+                    "count": "0"
+                  }
+                }
+              }
+            }
+          }
+        ]
+      },
+      "dynamicObjectField": {
+        "name": {
+          "bcs": "KgAAAAAAAAA="
+        },
+        "value": {
+          "contents": {
+            "json": {
+              "id": "0x747e5767c395f60e632ded8e4c18f0d96a1bb599d2659a305926da3ad907965f",
+              "count": "0"
+            }
+          }
+        }
+      }
+    },
+    "owner_view": {
+      "dynamicFields": {
+        "edges": [
+          {
+            "cursor": "IMpvIL9ggW4aSwO6KfzZSHN5JlxYk5eaN0MF7y0VOZufAQAAAAAAAAA=",
+            "node": {
+              "name": {
+                "bcs": "KgAAAAAAAAA="
+              },
+              "value": {
+                "contents": {
+                  "json": {
+                    "id": "0x747e5767c395f60e632ded8e4c18f0d96a1bb599d2659a305926da3ad907965f",
+                    "count": "0"
+                  }
+                }
+              }
+            }
+          }
+        ]
+      },
+      "dynamicObjectField": {
+        "name": {
+          "bcs": "KgAAAAAAAAA="
+        },
+        "value": {
+          "contents": {
+            "json": {
+              "id": "0x747e5767c395f60e632ded8e4c18f0d96a1bb599d2659a305926da3ad907965f",
+              "count": "0"
+            }
+          }
+        }
+      }
+    },
+    "dof_added": {
+      "version": 3,
+      "dynamicFields": {
+        "edges": [
+          {
+            "cursor": "IMpvIL9ggW4aSwO6KfzZSHN5JlxYk5eaN0MF7y0VOZufAQAAAAAAAAA=",
+            "node": {
+              "name": {
+                "bcs": "KgAAAAAAAAA="
+              },
+              "value": {
+                "contents": {
+                  "json": {
+                    "id": "0x747e5767c395f60e632ded8e4c18f0d96a1bb599d2659a305926da3ad907965f",
+                    "count": "0"
+                  }
+                }
+              }
+            }
+          }
+        ]
+      },
+      "dynamicObjectField": {
+        "name": {
+          "bcs": "KgAAAAAAAAA="
+        },
+        "value": {
+          "contents": {
+            "json": {
+              "id": "0x747e5767c395f60e632ded8e4c18f0d96a1bb599d2659a305926da3ad907965f",
+              "count": "0"
+            }
+          }
+        }
+      }
+    },
+    "before_dof_added": {
+      "version": 2,
+      "dynamicFields": {
+        "edges": []
+      },
+      "dynamicObjectField": null
+    }
+  }
+}
+
+task 6, line 133:
+//# run Test::M1::reclaim_and_transfer_child --sender A --args object(2,1) 42 @A
+mutated: object(0,0), object(2,0), object(2,1)
+deleted: object(3,0)
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 3587200,  storage_rebate: 6034400, non_refundable_storage_fee: 0
+
+task 7, line 135:
+//# create-checkpoint
+Checkpoint created: 2
+
+task 8, lines 137-187:
+//# run-graphql
+Response: {
+  "data": {
+    "latest": {
+      "version": 4,
+      "dynamicFields": {
+        "edges": []
+      },
+      "dynamicObjectField": null
+    },
+    "owner_view": {
+      "dynamicFields": {
+        "edges": []
+      },
+      "dynamicObjectField": null
+    },
+    "before_reclaim_and_transfer_dof": {
+      "version": 3,
+      "dynamicObjectField": {
+        "name": {
+          "bcs": "KgAAAAAAAAA="
+        },
+        "value": {
+          "contents": {
+            "json": {
+              "id": "0x747e5767c395f60e632ded8e4c18f0d96a1bb599d2659a305926da3ad907965f",
+              "count": "0"
+            }
+          }
+        }
+      }
+    }
+  }
+}

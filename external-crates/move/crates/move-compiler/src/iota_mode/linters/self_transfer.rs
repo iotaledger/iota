@@ -5,33 +5,33 @@
 //! This analysis flags transfers of an object to tx_context::sender(). Such
 //! objects should be returned from the function instead
 
-use std::collections::BTreeMap;
-
 use move_core_types::account_address::AccountAddress;
 use move_ir_types::location::*;
 
-use super::{
-    INVALID_LOC, LINT_WARNING_PREFIX, LinterDiagnosticCategory, LinterDiagnosticCode,
-    PUBLIC_TRANSFER_FUN, TRANSFER_FUN, TRANSFER_MOD_NAME, type_abilities,
-};
 use crate::{
     cfgir::{
-        CFGContext, MemberName,
         absint::JoinResult,
         cfg::ImmForwardCFG,
         visitor::{
-            LocalState, SimpleAbsInt, SimpleAbsIntConstructor, SimpleDomain,
-            SimpleExecutionContext, calls_special_function,
+            calls_special_function, LocalState, SimpleAbsInt, SimpleAbsIntConstructor,
+            SimpleDomain, SimpleExecutionContext,
         },
+        CFGContext, MemberName,
     },
     diag,
     diagnostics::{
+        codes::{custom, DiagnosticInfo, Severity},
         Diagnostic, Diagnostics,
-        codes::{DiagnosticInfo, Severity, custom},
     },
     hlir::ast::{Label, ModuleCall, Type, Type_, Var},
-    iota_mode::{IOTA_ADDR_VALUE, TX_CONTEXT_MODULE_NAME},
     parser::ast::Ability_,
+    iota_mode::{IOTA_ADDR_VALUE, TX_CONTEXT_MODULE_NAME},
+};
+use std::collections::BTreeMap;
+
+use super::{
+    type_abilities, LinterDiagnosticCategory, LinterDiagnosticCode, INVALID_LOC,
+    LINT_WARNING_PREFIX, PUBLIC_TRANSFER_FUN, TRANSFER_FUN, TRANSFER_MOD_NAME,
 };
 
 const TRANSFER_FUNCTIONS: &[(AccountAddress, &str, &str)] = &[

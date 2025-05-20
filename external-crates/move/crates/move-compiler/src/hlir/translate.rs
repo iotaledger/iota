@@ -3,20 +3,9 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{
-    collections::{BTreeMap, BTreeSet, VecDeque},
-    convert::TryInto,
-    sync::Arc,
-};
-
-use move_ir_types::location::*;
-use move_proc_macros::growing_stack;
-use move_symbol_pool::Symbol;
-use once_cell::sync::Lazy;
-
 use crate::{
-    FullyCompiledProgram, debug_display, debug_display_verbose, diag,
-    diagnostics::{Diagnostic, DiagnosticReporter, Diagnostics, warning_filters::WarningFilters},
+    debug_display, debug_display_verbose, diag,
+    diagnostics::{warning_filters::WarningFilters, Diagnostic, DiagnosticReporter, Diagnostics},
     editions::{FeatureGate, Flavor},
     expansion::ast::{self as E, Fields, ModuleIdent, Mutability},
     hlir::{
@@ -25,20 +14,31 @@ use crate::{
         match_compilation,
     },
     ice,
-    iota_mode::ID_FIELD_NAME,
     naming::ast as N,
     parser::ast::{
         Ability_, BinOp, BinOp_, ConstantName, DatatypeName, Field, FunctionName, TargetKind,
         VariantName,
     },
     shared::{
-        matching::{MATCH_TEMP_PREFIX, MatchContext, new_match_var_name},
+        matching::{new_match_var_name, MatchContext, MATCH_TEMP_PREFIX},
         program_info::TypingProgramInfo,
         string_utils::debug_print,
         unique_map::UniqueMap,
         *,
     },
+    iota_mode::ID_FIELD_NAME,
     typing::ast as T,
+    FullyCompiledProgram,
+};
+
+use move_ir_types::location::*;
+use move_proc_macros::growing_stack;
+use move_symbol_pool::Symbol;
+use once_cell::sync::Lazy;
+use std::{
+    collections::{BTreeMap, BTreeSet, VecDeque},
+    convert::TryInto,
+    sync::Arc,
 };
 
 //**************************************************************************************************
