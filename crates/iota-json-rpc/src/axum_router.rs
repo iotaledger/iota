@@ -14,7 +14,7 @@ use axum::{
 };
 use hyper::{HeaderMap, header::HeaderValue};
 use iota_core::traffic_controller::{
-    TrafficController, metrics::TrafficControllerMetrics, policies::TrafficTally,
+    TrafficController, metrics::TrafficControllerMetrics, parse_ip, policies::TrafficTally,
 };
 use iota_json_rpc_api::{
     CLIENT_TARGET_API_VERSION_HEADER, TRANSACTION_EXECUTION_CLIENT_ERROR_CODE,
@@ -71,7 +71,7 @@ impl<L> JsonRpcService<L> {
             extensions,
             id_provider: Arc::new(RandomIntegerIdProvider),
             traffic_controller: policy_config.clone().map(|policy| {
-                Arc::new(TrafficController::spawn(
+                Arc::new(TrafficController::init(
                     policy,
                     traffic_controller_metrics,
                     remote_fw_config,
@@ -193,17 +193,7 @@ async fn process_raw_request<L: Logger>(
                         );
                         return None;
                     };
-                    client_ip.parse::<IpAddr>().ok().or_else(|| {
-                        client_ip.parse::<SocketAddr>().ok().map(|socket_addr| socket_addr.ip()).or_else(|| {
-                                error!(
-                                    "Failed to parse x-forwarded-for header value of {:?} to ip address or socket. \
-                                    Please ensure that your proxy is configured to resolve client domains to an \
-                                    IP address before writing header",
-                                    client_ip,
-                                );
-                                None
-                            })
-                        })
+                    parse_ip(client_ip)
                 }
                 Err(e) => {
                     error!("Invalid UTF-8 in x-forwarded-for header: {:?}", e);
