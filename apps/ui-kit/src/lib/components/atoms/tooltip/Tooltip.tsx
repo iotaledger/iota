@@ -10,7 +10,6 @@ interface TooltipProps {
     text: string;
     position?: TooltipPosition;
     maxWidth?: string;
-    usePeers?: boolean;
 }
 
 export function Tooltip({
@@ -18,36 +17,16 @@ export function Tooltip({
     position = TooltipPosition.Top,
     maxWidth = 'max-w-[200px]',
     children,
-    usePeers = false,
 }: PropsWithChildren<TooltipProps>): React.JSX.Element {
     const tooltipPositionClass = TOOLTIP_POSITION[position];
-    const commonClasses =
-        'absolute z-[999] hidden w-max rounded bg-neutral-80 p-xs text-neutral-10 opacity-0 transition-opacity duration-300 dark:bg-neutral-30 dark:text-neutral-92';
-
-    return usePeers ? (
-        <div className="relative inline-block">
-            <span className="peer inline-block">{children}</span>
-            <div
-                className={cx(
-                    'peer-hover:block peer-hover:opacity-100 peer-focus:opacity-100 ',
-                    tooltipPositionClass,
-                    maxWidth,
-                    commonClasses,
-                )}
-                role="tooltip"
-            >
-                <p className="w-full break-words">{text}</p>
-            </div>
-        </div>
-    ) : (
-        <div className="group relative inline-block">
+    return (
+        <div className="group/tooltip relative inline-block">
             {children}
             <div
                 className={cx(
-                    'group-hover:block group-hover:opacity-100 group-focus:opacity-100 ',
+                    'absolute z-[999] hidden w-max rounded bg-neutral-80 p-xs text-neutral-10 opacity-0 transition-opacity duration-300 group-hover/tooltip:block group-hover/tooltip:opacity-100 group-focus/tooltip:opacity-100 dark:bg-neutral-30 dark:text-neutral-92',
                     tooltipPositionClass,
                     maxWidth,
-                    commonClasses,
                 )}
                 role="tooltip"
             >

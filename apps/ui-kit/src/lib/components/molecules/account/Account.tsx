@@ -134,11 +134,7 @@ export function Account({
                         </span>
                         {badgeText && badgeType ? (
                             badgeTooltipText ? (
-                                <Tooltip
-                                    text={badgeTooltipText}
-                                    position={badgeTooltipPosition}
-                                    usePeers
-                                >
+                                <Tooltip text={badgeTooltipText} position={badgeTooltipPosition}>
                                     <Badge type={badgeType} label={badgeText} />
                                 </Tooltip>
                             ) : (
