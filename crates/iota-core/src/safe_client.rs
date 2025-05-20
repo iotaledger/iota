@@ -253,7 +253,7 @@ impl<C: Clone> SafeClient<C> {
                 ))
             }
             TransactionStatus::Executed(cert_opt, effects, events) => {
-                let signed_effects = self.check_signed_effects_plain(digest, effects, None)?;
+                let signed_effects = self.check_signed_effects_plain(digest, *effects, None)?;
                 match cert_opt {
                     Some(cert) => {
                         let committee = self.get_committee(&cert.epoch)?;

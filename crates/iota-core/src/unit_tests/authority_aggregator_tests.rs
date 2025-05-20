@@ -964,7 +964,7 @@ async fn test_handle_transaction_response() {
     let resp = HandleTransactionResponse {
         status: TransactionStatus::Executed(
             Some(cert_epoch_0.auth_sig().clone()),
-            sign_tx_effects(effects, 0, *name_0, key_0),
+            Box::new(sign_tx_effects(effects, 0, *name_0, key_0)),
             TransactionEvents { data: vec![] },
         ),
     };
@@ -1105,12 +1105,12 @@ async fn test_handle_transaction_response() {
     let resp = HandleTransactionResponse {
         status: TransactionStatus::Executed(
             None,
-            SignedTransactionEffects::new(
+            Box::new(SignedTransactionEffects::new(
                 1,
                 effects.clone(),
                 &authority_keys[1].1,
                 authority_keys[1].0,
-            ),
+            )),
             TransactionEvents { data: vec![] },
         ),
     };
@@ -1131,12 +1131,12 @@ async fn test_handle_transaction_response() {
     let resp = HandleTransactionResponse {
         status: TransactionStatus::Executed(
             None,
-            SignedTransactionEffects::new(
+            Box::new(SignedTransactionEffects::new(
                 1,
                 effects.clone(),
                 &authority_keys[2].1,
                 authority_keys[2].0,
-            ),
+            )),
             TransactionEvents { data: vec![] },
         ),
     };
@@ -1192,12 +1192,12 @@ async fn test_handle_transaction_response() {
     let resp = HandleTransactionResponse {
         status: TransactionStatus::Executed(
             None,
-            SignedTransactionEffects::new(
+            Box::new(SignedTransactionEffects::new(
                 1,
                 effects.clone(),
                 &authority_keys[1].1,
                 authority_keys[1].0,
-            ),
+            )),
             TransactionEvents { data: vec![] },
         ),
     };
@@ -1218,12 +1218,12 @@ async fn test_handle_transaction_response() {
     let resp = HandleTransactionResponse {
         status: TransactionStatus::Executed(
             None,
-            SignedTransactionEffects::new(
+            Box::new(SignedTransactionEffects::new(
                 1,
                 effects.clone(),
                 &authority_keys[2].1,
                 authority_keys[2].0,
-            ),
+            )),
             TransactionEvents { data: vec![] },
         ),
     };
@@ -1809,7 +1809,7 @@ async fn test_handle_conflicting_transaction_response() {
     let resp = HandleTransactionResponse {
         status: TransactionStatus::Executed(
             Some(cert_epoch_0.auth_sig().clone()),
-            sign_tx_effects(effects.clone(), 0, *name_0, key_0),
+            Box::new(sign_tx_effects(effects.clone(), 0, *name_0, key_0)),
             TransactionEvents { data: vec![] },
         ),
     };
@@ -2443,7 +2443,10 @@ async fn process_with_cert(
         let resp = HandleTransactionResponse {
             status: TransactionStatus::Executed(
                 None,
-                SignedTransactionEffects::new_from_data_and_sig(effects.clone(), auth_signature),
+                Box::new(SignedTransactionEffects::new_from_data_and_sig(
+                    effects.clone(),
+                    auth_signature,
+                )),
                 TransactionEvents { data: vec![] },
             ),
         };
@@ -2521,7 +2524,12 @@ fn set_tx_info_response_with_cert_and_effects<'a>(
         let resp = HandleTransactionResponse {
             status: TransactionStatus::Executed(
                 cert.map(|c| c.auth_sig().clone()),
-                SignedTransactionEffects::new(epoch, effects.clone(), key, *name),
+                Box::new(SignedTransactionEffects::new(
+                    epoch,
+                    effects.clone(),
+                    key,
+                    *name,
+                )),
                 TransactionEvents { data: vec![] },
             ),
         };

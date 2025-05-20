@@ -22,6 +22,7 @@ governor.workspace = true
 prometheus.workspace = true
 rand.workspace = true
 serde.workspace = true
+shared-crypto.workspace = true
 tap.workspace = true
 tokio = { workspace = true, features = ["full"] }
 tonic.workspace = true
@@ -33,6 +34,7 @@ iota-archival.workspace = true
 iota-config.workspace = true
 iota-macros.workspace = true
 iota-metrics.workspace = true
+iota-common.workspace = true
 iota-network-stack.workspace = true
 iota-storage.workspace = true
 iota-types.workspace = true

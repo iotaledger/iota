@@ -209,16 +209,19 @@ async fn three_nodes_can_connect_via_discovery() -> Result<()> {
 #[tokio::test(flavor = "current_thread", start_paused = true)]
 async fn peers_are_added_from_reconfig_channel() -> Result<()> {
     let (tx_1, rx_1) = create_test_channel();
-    let config = P2pConfig::default();
+    let config = P2pConfig::default().set_discovery_config(DiscoveryConfig {
+        enable_node_info_signatures: Some(true),
+        ..DiscoveryConfig::default()
+    });
     let (builder, server) = Builder::new(rx_1).config(config.clone()).build();
-    let network_1 = build_network(|router| router.add_rpc_service(server));
-    let (event_loop_1, _handle_1) = builder.build(network_1.clone());
+    let (network_1, key_1) = build_network_and_key(|router| router.add_rpc_service(server));
+    let (event_loop_1, _handle_1) = builder.build(network_1.clone(), key_1);
 
     let (builder, server) = Builder::new(create_test_channel().1)
         .config(config.clone())
         .build();
-    let network_2 = build_network(|router| router.add_rpc_service(server));
-    let (event_loop_2, _handle_2) = builder.build(network_2.clone());
+    let (network_2, key_2) = build_network_and_key(|router| router.add_rpc_service(server));
+    let (event_loop_2, _handle_2) = builder.build(network_2.clone(), key_2);
 
     let (mut subscriber_1, _) = network_1.subscribe()?;
     let (mut subscriber_2, _) = network_2.subscribe()?;
@@ -790,8 +793,8 @@ async fn test_handle_trusted_peer_change_event() -> Result<()> {
     // Setup test network and discovery event loop
     let (tx, mut rx) = create_test_channel();
     let (builder, server) = Builder::new(rx.clone()).config(config).build();
-    let network = build_network(|router| router.add_rpc_service(server));
-    let (event_loop, _handle) = builder.build(network.clone());
+    let (network, key) = build_network_and_key(|router| router.add_rpc_service(server));
+    let (event_loop, _handle) = builder.build(network.clone(), key);
     let mut peer0 = peers[0].clone();
     peer0.peer_id = network.peer_id();
     peer0.address = vec![

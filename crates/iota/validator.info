@@ -1,10 +1,10 @@
 ---
 info:
   name: validator0
-  account-address: "0x37d6c0c89fe00bd0e72eb2a077ce46dac6677f2d8f96c394845a70b25aa7a2cb"
-  authority-key: lN1pGKXKe6IG+N4LhaKorACY01hZlqN43iyNppwanT6LJSg9ohdwvkxBarX3U2GeEZnrZS+iAoKvZbLsv5yz/q1bxr84NS7RRN0yuuVl4+xGk1At+Ea3uqIPsbfbOM1y
-  protocol-key: QEPaLfj0e0xhYg0/Dq5svNPQ9ukRN0tdoGTePpM77eQ=
-  network-key: XCGCYVrpu1yZ2qZKSJi7N/td9LZNZlWlwiHqW8S/uK8=
+  account-address: "0x2eba2b72a328972297ec2b9e550f7017089e1d70f62a2adb1459edf3fe0838d3"
+  authority-key: sLM6VccsR5RkkhE/BwAdNPTRjrFiDq4pvLtrDpXDSK660eOmPSm/qCChP2r+5oIlE0YAi22ElBOmKTsl869OrJK+CoWp/REehe3mL8D4ZfPFb7Qk63PEhndfeDbxo13R
+  protocol-key: yWI+lP6ow9gbVY5VykQkyh8VhWB18Fy+oifU/TBjg8Q=
+  network-key: oqt/uF2JR/AXGts0wmPhZgmJUxkogYod1Khijw+UOc8=
   gas-price: 1000
   commission-rate: 200
   network-address: /dns/127.0.0.1/tcp/8080/http
@@ -13,4 +13,4 @@ info:
   description: description
   image-url: "https://iota.org/logo.png"
   project-url: "https://www.iota.org"
-proof_of_possession: sIiA376HmI9pDvgaEthFeXpQxC829hPXUkjm2aibcjkZ+XZTSmm4uuHoIFQeR9r4
+proof_of_possession: l7ftAeH7vD+43aqqx0xa2i9568IYBzAyeASJkmKLoXi07+s2p0rM/hfRUthr2e2u
