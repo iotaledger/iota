@@ -5,9 +5,9 @@ import { Badge, BadgeType, KeyValueInfo, Panel } from '@iota/apps-ui-kit';
 import { type IotaValidatorSummary } from '@iota/iota-sdk/client';
 import { ArrowTopRight } from '@iota/apps-ui-icons';
 import { AddressLink } from '~/components/ui';
-import { ImageIcon, ImageIconSize, toast } from '@iota/core';
+import { ImageIcon, ImageIconSize } from '@iota/core';
 import type { InactiveValidatorData } from '@iota/core/src/types';
-
+import { onCopySuccess } from '~/lib/utils';
 
 type ValidatorMetaProps = {
     validatorData: IotaValidatorSummary;
