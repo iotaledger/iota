@@ -111,7 +111,6 @@ pub(crate) struct NodeMetrics {
     pub(crate) block_proposal_leader_wait_count: IntCounterVec,
     pub(crate) block_timestamp_drift_wait_ms: IntCounterVec,
     pub(crate) blocks_per_commit_count: Histogram,
-    pub(crate) broadcaster_rtt_estimate_ms: IntGaugeVec,
     pub(crate) core_add_blocks_batch_size: Histogram,
     pub(crate) core_lock_dequeued: IntCounter,
     pub(crate) core_lock_enqueued: IntCounter,
@@ -261,12 +260,6 @@ impl NodeMetrics {
                 "blocks_per_commit_count",
                 "The number of blocks per commit.",
                 NUM_BUCKETS.to_vec(),
-                registry,
-            ).unwrap(),
-            broadcaster_rtt_estimate_ms: register_int_gauge_vec_with_registry!(
-                "broadcaster_rtt_estimate_ms",
-                "Estimated RTT latency per peer authority, for block sending in Broadcaster",
-                &["peer"],
                 registry,
             ).unwrap(),
             core_add_blocks_batch_size: register_histogram_with_registry!(
