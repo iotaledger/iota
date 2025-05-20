@@ -2,8 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import cx from 'classnames';
-import { Badge, Tooltip, TooltipPosition, ButtonUnstyled } from '../../atoms';
-import type { BadgeType } from '../../atoms';
+import type { BadgeType } from '@/components/atoms';
+import { Badge, Tooltip, TooltipPosition, ButtonUnstyled } from '@/components/atoms';
 import {
     LockLocked,
     LockUnlocked,

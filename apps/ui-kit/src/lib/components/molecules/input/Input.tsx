@@ -13,9 +13,9 @@ import {
     INPUT_PLACEHOLDER_CLASSES,
 } from './input.classes';
 import { InputType } from './input.enums';
-import { SecondaryText } from '../../atoms/secondary-text';
+import { SecondaryText } from '@/components/atoms/secondary-text';
 import { Close, VisibilityOff, VisibilityOn } from '@iota/apps-ui-icons';
-import { ButtonUnstyled } from '../../atoms/button';
+import { ButtonUnstyled } from '@/components/atoms/button';
 import type { InputPropsByType, NumericFormatInputProps } from './input.types';
 import { NumericFormat } from 'react-number-format';
 
