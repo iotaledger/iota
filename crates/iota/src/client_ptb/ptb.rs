@@ -112,6 +112,7 @@ impl PTB {
 
         let source_string = to_source_string(self.args.clone());
 
+        // Tokenize once to detect help flags
         let tokens = self.args.iter().map(|s| s.as_str());
         for sp!(_, lexeme) in Lexer::new(tokens.clone()).into_iter().flatten() {
             match lexeme {
@@ -216,30 +217,30 @@ impl PTB {
         )
         .await?;
 
-        if program_metadata.json_set || program_metadata.summary_set {
-            let transaction_response = match res {
-                IotaClientCommandResult::DryRun(_)
-                | IotaClientCommandResult::SerializedUnsignedTransaction(_)
-                | IotaClientCommandResult::SerializedSignedTransaction(_) => {
-                    return Ok(PTBCommandResult::CommandResult(res));
-                }
-                IotaClientCommandResult::TransactionBlock(response) => response,
-                IotaClientCommandResult::DevInspect(response) => {
-                    return Ok(PTBCommandResult::DevInspect(Box::new(response)));
-                }
-                _ => anyhow::bail!("Internal error, unexpected response from PTB execution."),
-            };
-
-            if let Some(effects) = transaction_response.effects.as_ref() {
-                if effects.status().is_err() {
-                    return Err(anyhow!(
-                        "PTB execution {}. Transaction digest is: {}",
-                        Pretty(effects.status()),
-                        effects.transaction_digest()
-                    ));
-                }
+        let transaction_response = match res {
+            IotaClientCommandResult::DryRun(_)
+            | IotaClientCommandResult::SerializedUnsignedTransaction(_)
+            | IotaClientCommandResult::SerializedSignedTransaction(_) => {
+                return Ok(PTBCommandResult::CommandResult(res));
             }
+            IotaClientCommandResult::TransactionBlock(response) => response,
+            IotaClientCommandResult::DevInspect(response) => {
+                return Ok(PTBCommandResult::DevInspect(Box::new(response)));
+            }
+            _ => anyhow::bail!("Internal error, unexpected response from PTB execution."),
+        };
 
+        if let Some(effects) = transaction_response.effects.as_ref() {
+            if effects.status().is_err() {
+                return Err(anyhow!(
+                    "PTB execution {}. Transaction digest is: {}",
+                    Pretty(effects.status()),
+                    effects.transaction_digest()
+                ));
+            }
+        }
+
+        if program_metadata.json_set || program_metadata.summary_set {
             let summary = {
                 let effects = transaction_response.effects.as_ref().ok_or_else(|| {
                     anyhow!("Internal error: no transaction effects after PTB was executed.")
@@ -267,7 +268,9 @@ impl PTB {
                 Ok(PTBCommandResult::Summary(summary))
             }
         } else {
-            Ok(PTBCommandResult::CommandResult(res))
+            Ok(PTBCommandResult::CommandResult(
+                IotaClientCommandResult::TransactionBlock(transaction_response),
+            ))
         }
     }
 
