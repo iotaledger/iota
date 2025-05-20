@@ -3,4 +3,4 @@
 '@iota/dapp-kit': minor
 ---
 
-Add option to multiple accounts in dapp-kit
+Add option to connect and disconnect multiple accounts in dapp-kit
