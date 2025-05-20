@@ -11,11 +11,9 @@ use iota_json_rpc_api::{
 };
 use iota_names::error::IotaNamesError;
 use iota_types::{
-    committee::{QUORUM_THRESHOLD, TOTAL_VOTING_POWER},
     error::{IotaError, IotaObjectResponseError, UserInputError},
     quorum_driver_types::QuorumDriverError,
 };
-use itertools::Itertools;
 use jsonrpsee::{
     core::{ClientError as RpcError, RegisterMethodError},
     types::{
@@ -159,71 +157,23 @@ impl From<Error> for RpcError {
                 }
             },
             Error::QuorumDriver(err) => {
+                let error_msg = err.to_error_message();
+
                 match err {
-                    QuorumDriverError::InvalidUserSignature(err) => {
+                    QuorumDriverError::InvalidUserSignature { .. }
+                    | QuorumDriverError::TxAlreadyFinalizedWithDifferentUserSignatures
+                    | QuorumDriverError::NonRecoverableTransactionError { .. } => {
                         let error_object = ErrorObject::owned::<()>(
                             TRANSACTION_EXECUTION_CLIENT_ERROR_CODE,
-                            format!("Invalid user signature: {err}"),
+                            error_msg,
                             None,
                         );
-                        RpcError::Call(error_object)
-                    }
-                    QuorumDriverError::TxAlreadyFinalizedWithDifferentUserSignatures => {
-                        let error_object = ErrorObject::owned::<()>(
-                            TRANSACTION_EXECUTION_CLIENT_ERROR_CODE,
-                            "The transaction is already finalized but with different user signatures",
-                            None,
-                        );
-                        RpcError::Call(error_object)
-                    }
-                    QuorumDriverError::TimeoutBeforeFinality
-                    | QuorumDriverError::FailedWithTransientErrorAfterMaximumAttempts { .. } => {
-                        let error_object =
-                            ErrorObject::owned::<()>(TRANSIENT_ERROR_CODE, err.to_string(), None);
                         RpcError::Call(error_object)
                     }
                     QuorumDriverError::ObjectsDoubleUsed {
                         conflicting_txes,
-                        retried_tx_status,
+                        retried_tx_status: _,
                     } => {
-                        let weights: Vec<u64> =
-                            conflicting_txes.values().map(|(_, stake)| *stake).collect();
-                        let remaining: u64 = TOTAL_VOTING_POWER - weights.iter().sum::<u64>();
-
-                        // better version of above
-                        let reason = if weights.iter().all(|w| remaining + w < QUORUM_THRESHOLD) {
-                            "equivocated until the next epoch"
-                        } else {
-                            "reserved for another transaction"
-                        };
-
-                        let retried_info = match retried_tx_status {
-                            Some((digest, success)) => {
-                                format!(
-                                    "Retried transaction {} ({}) because it was able to gather the necessary votes.",
-                                    digest,
-                                    if success { "succeeded" } else { "failed" }
-                                )
-                            }
-                            None => "".to_string(),
-                        };
-
-                        let error_message = format!(
-                            "Failed to sign transaction by a quorum of validators because one or more of its objects is {}. {} Other transactions locking these objects:\n{}",
-                            reason,
-                            retried_info,
-                            conflicting_txes
-                                .iter()
-                                .sorted_by(|(_, (_, a)), (_, (_, b))| b.cmp(a))
-                                .map(|(digest, (_, stake))| format!(
-                                    "- {} (stake {}.{})",
-                                    digest,
-                                    stake / 100,
-                                    stake % 100,
-                                ))
-                                .join("\n"),
-                        );
-
                         let new_map = conflicting_txes
                             .into_iter()
                             .map(|(digest, (pairs, _))| {
@@ -236,75 +186,22 @@ impl From<Error> for RpcError {
 
                         let error_object = ErrorObject::owned(
                             TRANSACTION_EXECUTION_CLIENT_ERROR_CODE,
-                            error_message,
+                            error_msg,
                             Some(new_map),
                         );
                         RpcError::Call(error_object)
                     }
-                    QuorumDriverError::NonRecoverableTransactionError { errors } => {
-                        let new_errors: Vec<String> = errors
-                            .into_iter()
-                            // sort by total stake, descending, so users see the most prominent one
-                            // first
-                            .sorted_by(|(_, a, _), (_, b, _)| b.cmp(a))
-                            .filter_map(|(err, _, _)| {
-                                match &err {
-                                    // Special handling of UserInputError:
-                                    // ObjectNotFound and DependentPackageNotFound are considered
-                                    // retryable errors but they have different treatment
-                                    // in AuthorityAggregator.
-                                    // The optimal fix would be to examine if the total stake
-                                    // of ObjectNotFound/DependentPackageNotFound exceeds the
-                                    // quorum threshold, but it takes a Committee here.
-                                    // So, we take an easier route and consider them non-retryable
-                                    // at all. Combining this with the sorting above, clients will
-                                    // see the dominant error first.
-                                    IotaError::UserInput { error } => Some(error.to_string()),
-                                    _ => {
-                                        if err.is_retryable().0 {
-                                            None
-                                        } else {
-                                            Some(err.to_string())
-                                        }
-                                    }
-                                }
-                            })
-                            .collect();
-
-                        assert!(
-                            !new_errors.is_empty(),
-                            "NonRecoverableTransactionError should have at least one non-retryable error"
-                        );
-
-                        let mut error_list = vec![];
-                        for err in new_errors.iter() {
-                            error_list.push(format!("- {}", err));
-                        }
-
-                        let error_msg = format!(
-                            "Transaction execution failed due to issues with transaction inputs, please review the errors and try again:\n{}",
-                            error_list.join("\n")
-                        );
-
-                        let error_object = ErrorObject::owned::<()>(
-                            TRANSACTION_EXECUTION_CLIENT_ERROR_CODE,
-                            error_msg,
-                            None,
-                        );
+                    QuorumDriverError::TimeoutBeforeFinality
+                    | QuorumDriverError::FailedWithTransientErrorAfterMaximumAttempts { .. }
+                    | QuorumDriverError::SystemOverload { .. }
+                    | QuorumDriverError::SystemOverloadRetryAfter { .. } => {
+                        let error_object =
+                            ErrorObject::owned::<()>(TRANSIENT_ERROR_CODE, error_msg, None);
                         RpcError::Call(error_object)
                     }
                     QuorumDriverError::QuorumDriverInternal(_) => {
-                        let error_object = ErrorObject::owned::<()>(
-                            INTERNAL_ERROR_CODE,
-                            "Internal error occurred while executing transaction.",
-                            None,
-                        );
-                        RpcError::Call(error_object)
-                    }
-                    QuorumDriverError::SystemOverload { .. }
-                    | QuorumDriverError::SystemOverloadRetryAfter { .. } => {
                         let error_object =
-                            ErrorObject::owned::<()>(TRANSIENT_ERROR_CODE, err.to_string(), None);
+                            ErrorObject::owned::<()>(INTERNAL_ERROR_CODE, error_msg, None);
                         RpcError::Call(error_object)
                     }
                 }
