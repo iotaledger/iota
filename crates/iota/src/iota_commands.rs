@@ -206,6 +206,10 @@ pub enum IotaCommand {
         /// Defaults to `200000000000`(200 IOTA).
         #[arg(long)]
         faucet_amount: Option<u64>,
+        /// Set the amount of coin objects the faucet will send for each
+        /// request. Defaults to 5.
+        #[arg(long)]
+        faucet_coin_count: Option<usize>,
         #[cfg(feature = "indexer")]
         #[command(flatten)]
         indexer_feature_args: IndexerFeatureArgs,
@@ -392,6 +396,7 @@ impl IotaCommand {
                 force_regenesis,
                 with_faucet,
                 faucet_amount,
+                faucet_coin_count,
                 #[cfg(feature = "indexer")]
                 indexer_feature_args,
                 fullnode_rpc_port,
@@ -408,6 +413,7 @@ impl IotaCommand {
                     config_dir.clone(),
                     with_faucet,
                     faucet_amount,
+                    faucet_coin_count,
                     #[cfg(feature = "indexer")]
                     indexer_feature_args,
                     force_regenesis,
@@ -640,6 +646,7 @@ async fn start(
     config_dir: Option<PathBuf>,
     with_faucet: Option<String>,
     faucet_amount: Option<u64>,
+    faucet_coin_count: Option<usize>,
     #[cfg(feature = "indexer")] indexer_feature_args: IndexerFeatureArgs,
     force_regenesis: bool,
     epoch_duration_ms: Option<u64>,
@@ -911,7 +918,7 @@ async fn start(
         let config = FaucetConfig {
             host_ip,
             port: faucet_address.port(),
-            num_coins: DEFAULT_FAUCET_NUM_COINS,
+            num_coins: faucet_coin_count.unwrap_or(DEFAULT_FAUCET_NUM_COINS),
             amount: faucet_amount.unwrap_or(DEFAULT_FAUCET_NANOS_AMOUNT),
             ..Default::default()
         };
