@@ -75,7 +75,7 @@ impl PTBCommandResult {
 impl std::fmt::Display for PTBCommandResult {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::Preview(ptbpreview) => ptbpreview.to_string(),
+            Self::Preview(ptb_preview) => ptb_preview.to_string(),
             Self::CommandResult(res) => res.to_string(),
             Self::Summary(summary) => Pretty(summary).to_string(),
             Self::DevInspect(dev_inspect_results) => {

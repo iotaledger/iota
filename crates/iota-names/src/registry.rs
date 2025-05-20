@@ -75,12 +75,6 @@ pub struct NameRecord {
     pub data: VecMap<String, String>,
 }
 
-impl NameRecord {
-    pub fn expiration_time(&self) -> SystemTime {
-        UNIX_EPOCH + Duration::from_millis(self.expiration_timestamp_ms)
-    }
-}
-
 impl TryFrom<Object> for NameRecord {
     type Error = IotaNamesError;
 
@@ -121,6 +115,11 @@ impl NameRecord {
     /// Expects the latest checkpoint's timestamp.
     pub fn is_node_expired(&self, checkpoint_timestamp_ms: u64) -> bool {
         self.expiration_timestamp_ms < checkpoint_timestamp_ms
+    }
+
+    /// Gets the expiration time as a [`SystemTime`].
+    pub fn expiration_time(&self) -> SystemTime {
+        UNIX_EPOCH + Duration::from_millis(self.expiration_timestamp_ms)
     }
 }
 
