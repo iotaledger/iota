@@ -212,6 +212,10 @@ impl ValidatorConfigBuilder {
             transaction_kv_store_read_config: Default::default(),
             transaction_kv_store_write_config: None,
             enable_rest_api: true,
+            rest: Some(iota_rest_api::Config {
+                enable_unstable_apis: Some(true),
+                ..Default::default()
+            }),
             jwk_fetch_interval_seconds: self
                 .jwk_fetch_interval
                 .map(|i| i.as_secs())
@@ -520,6 +524,10 @@ impl FullnodeConfigBuilder {
             transaction_kv_store_read_config: Default::default(),
             transaction_kv_store_write_config: Default::default(),
             enable_rest_api: true,
+            rest: Some(iota_rest_api::Config {
+                enable_unstable_apis: Some(true),
+                ..Default::default()
+            }),
             // note: not used by fullnodes.
             jwk_fetch_interval_seconds: 3600,
             zklogin_oauth_providers: default_zklogin_oauth_providers(),

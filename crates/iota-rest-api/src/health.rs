@@ -9,6 +9,7 @@ use axum::{
     http::StatusCode,
     response::IntoResponse,
 };
+use documented::Documented;
 use iota_types::storage::ReadStore;
 use tap::Pipe;
 
@@ -18,6 +19,13 @@ use crate::{
     reader::StateReader,
 };
 
+/// Perform a service health check
+///
+/// By default the health check only verifies that the latest checkpoint can be
+/// fetched from the node's store before returning a 200. Optionally the
+/// `threshold_seconds` parameter can be provided to test for how up to date the
+/// node needs to be to be considered healthy.
+#[derive(Documented)]
 pub struct HealthCheck;
 
 impl ApiEndpoint<RestService> for HealthCheck {
@@ -26,7 +34,11 @@ impl ApiEndpoint<RestService> for HealthCheck {
     }
 
     fn path(&self) -> &'static str {
-        "/health"
+        "/-/health"
+    }
+
+    fn stable(&self) -> bool {
+        true
     }
 
     fn operation(
@@ -35,9 +47,11 @@ impl ApiEndpoint<RestService> for HealthCheck {
     ) -> openapiv3::v3_1::Operation {
         OperationBuilder::new()
             .tag("General")
-            .operation_id("HealthCheck")
+            .operation_id("Health Check")
+            .description(Self::DOCS)
             .query_parameters::<Threshold>(generator)
             .response(200, ResponseBuilder::new().text_content().build())
+            .response(500, ResponseBuilder::new().build())
             .build()
     }
 
@@ -48,6 +62,12 @@ impl ApiEndpoint<RestService> for HealthCheck {
 
 #[derive(Debug, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
 pub struct Threshold {
+    /// The threshold, or delta, between the server's system time and the
+    /// timestamp in the most recently executed checkpoint for which the
+    /// server is considered to be healthy.
+    ///
+    /// If not provided, the server will be considered healthy if it can simply
+    /// fetch the latest checkpoint from its store.
     pub threshold_seconds: Option<u32>,
 }
 

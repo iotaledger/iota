@@ -62,7 +62,7 @@ pub mod governance;
 pub mod id;
 pub mod in_memory_storage;
 pub mod inner_temporary_store;
-pub mod iota_sdk2_conversions;
+pub mod iota_sdk_types_conversions;
 pub mod iota_serde;
 pub mod iota_system_state;
 pub mod layout_resolver;
