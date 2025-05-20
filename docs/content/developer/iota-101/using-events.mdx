@@ -300,9 +300,7 @@ async function queryEvents() {
         },
       },
       limit: 5,
-      includeMetadata: false,
     });
-
     console.log('Events:', JSON.stringify(events, null, 2));
   } catch (error) {
     console.error('Error querying events:', error);
@@ -337,11 +335,10 @@ const client = new IotaClient({
 async function queryTransactionBlocks() {
   try {
     const blocks = await client.queryTransactionBlocks({
-      query: {
-        Sender: '0x008e9c621f4fdb210b873aab59a1e5bf32ddb1d33ee85eb069b348c234465106',
+      filter: {
+        FromAddress: '0x008e9c621f4fdb210b873aab59a1e5bf32ddb1d33ee85eb069b348c234465106',
       },
       limit: 3,
-      includeMetadata: false,
     });
     
     console.log('Transaction Blocks:\n', JSON.stringify(blocks, null, 2));
