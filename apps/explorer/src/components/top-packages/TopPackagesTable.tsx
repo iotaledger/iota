@@ -7,6 +7,7 @@ import { type MoveCallMetric } from '@iota/iota-sdk/client';
 import { type ColumnDef } from '@tanstack/react-table';
 
 import { ObjectLink, PlaceholderTable, TableCard } from '~/components/ui';
+import { onCopySuccess } from '~/lib/utils';
 
 interface TopPackagesTableProps {
     data: MoveCallMetric[];
@@ -47,7 +48,7 @@ const tableColumns: ColumnDef<MoveCallMetric>[] = [
             const item = metric[0].package;
             return (
                 <TableCellBase>
-                    <ObjectLink objectId={item}>
+                    <ObjectLink objectId={item} copyText={item} onCopySuccess={onCopySuccess}>
                         <TableCellText>{item}</TableCellText>
                     </ObjectLink>
                 </TableCellBase>
