@@ -8,7 +8,7 @@ use iota_metrics::RegistryService;
 use prometheus::Encoder;
 use tracing::{debug, error, info};
 
-const DEFAULT_METRICS_PUSH_TIMEOUT: Duration = Duration::from_secs(30);
+const METRICS_PUSH_TIMEOUT: Duration = Duration::from_secs(45);
 
 pub struct MetricsPushClient {
     certificate: std::sync::Arc<iota_tls::SelfSignedCertificate>,
@@ -80,7 +80,7 @@ pub async fn push_metrics(
         .header(reqwest::header::CONTENT_ENCODING, "snappy")
         .header(reqwest::header::CONTENT_TYPE, prometheus::PROTOBUF_FORMAT)
         .body(compressed)
-        .timeout(DEFAULT_METRICS_PUSH_TIMEOUT)
+        .timeout(METRICS_PUSH_TIMEOUT)
         .send()
         .await?;
 
