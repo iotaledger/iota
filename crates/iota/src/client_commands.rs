@@ -366,7 +366,8 @@ pub enum IotaClientCommands {
         /// ID of the coin object to split
         #[arg(long)]
         coin_id: ObjectID,
-        /// Specific amounts to split out from the coin
+        /// Specific amounts to split out from the coin, separated by space,
+        /// e.g. `--amounts 1 2 1000000000` (1 NANO, 2 NANOS, 1 IOTA)
         #[arg(long, num_args(1..))]
         amounts: Option<Vec<u64>>,
         /// Count of equal-size coins to split into
