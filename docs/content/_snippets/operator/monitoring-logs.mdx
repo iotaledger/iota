@@ -31,15 +31,35 @@ It is possible to change the logging configuration while a node is running using
 
 #### Verify Configured Logging Values
 
-To view the currently configured logging values:
-```sh
-curl -w "\n" localhost:1337/logging
-```
+<Tabs groupId="node-logs">
+  <TabItem label="Systemd" value="logs-systemd">
+    To view the currently configured logging values:
+    ```sh
+    curl -w "\n" localhost:1337/logging
+    ```
 
-To change the currently configured logging values:
-```sh
-curl localhost:1337/logging -d "info"
-```
+    To change the currently configured logging values:
+    ```sh
+    curl localhost:1337/logging -d "info"
+    ```
+  </TabItem>
+
+  <TabItem label="Docker Compose" value="logs-docker">
+    Note that the admin port (`1337`) is only exposed to `localhost` by default, so the commands must be executed inside the container.
+
+    To view the currently configured logging values:
+    ```sh
+    docker exec <FULLNODE_CONTAINER_NAME> curl -w "\n" localhost:1337/logging
+    ```
+
+    To change the currently configured logging values:
+    ```sh
+    docker exec <FULLNODE_CONTAINER_NAME> curl localhost:1337/logging -d "info"
+    ```
+
+    Replace `<FULLNODE_CONTAINER_NAME>` with your actual container name, such as `iota-fullnode-docker-setup-fullnode-1`.
+  </TabItem>
+</Tabs>
 
 #### Viewing Logs
 

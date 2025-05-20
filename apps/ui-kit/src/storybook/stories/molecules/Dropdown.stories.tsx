@@ -3,7 +3,7 @@
 
 import type { Meta, StoryObj } from '@storybook/react';
 import { Dropdown, ListItem } from '@/components';
-import { ComponentProps } from 'react';
+import type { ComponentProps } from 'react';
 
 const meta = {
     component: Dropdown,
