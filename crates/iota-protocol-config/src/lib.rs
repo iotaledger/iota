@@ -1032,6 +1032,12 @@ pub struct ProtocolConfig {
     /// Bundle.
     max_soft_bundle_size: Option<u64>,
 
+    /// Deprecated because of bridge removal.
+    /// Whether to try to form bridge committee
+    // Note: this is not a feature flag because we want to distinguish between
+    // `None` and `Some(false)`, as committee was already finalized on Testnet.
+    bridge_should_try_to_finalize_committee: Option<bool>,
+
     /// The max accumulated txn execution cost per object in a mysticeti commit.
     /// Transactions in a commit will be deferred once their touch shared
     /// objects hit this limit.
@@ -1771,6 +1777,8 @@ impl ProtocolConfig {
 
             max_soft_bundle_size: Some(5),
 
+            bridge_should_try_to_finalize_committee: None,
+
             max_accumulated_txn_cost_per_object_in_mysticeti_commit: Some(10),
 
             max_committee_members_count: None,
@@ -1803,6 +1811,9 @@ impl ProtocolConfig {
 
         cfg.feature_flags.per_object_congestion_control_mode =
             PerObjectCongestionControlMode::TotalTxCount;
+
+        // Do not allow bridge committee to finalize on mainnet.
+        cfg.bridge_should_try_to_finalize_committee = Some(chain != Chain::Mainnet);
 
         // Devnet
         if chain != Chain::Mainnet && chain != Chain::Testnet {
