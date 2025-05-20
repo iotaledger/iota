@@ -10,7 +10,7 @@ use iota_types::messages_checkpoint::{
     CertifiedCheckpointSummary, CheckpointContents, CheckpointSummary,
 };
 use prometheus::Registry;
-use tokio::{sync::mpsc, time::sleep};
+use tokio::{sync::mpsc, task::yield_now, time::sleep};
 
 use crate::{
     authority::{AuthorityState, test_authority_builder::TestAuthorityBuilder},
@@ -132,5 +132,8 @@ async fn test_starfish_manager() {
 
         // THEN
         assert!(!manager.is_running().await);
+
+        // Yield to ensure that RocksDB releases the lock before the next iteration.
+        yield_now().await;
     }
 }

@@ -1229,8 +1229,6 @@ mod tests {
 
     #[async_trait]
     impl NetworkClient for MockNetworkClient {
-        const SUPPORT_STREAMING: bool = false;
-
         async fn send_block(
             &self,
             _peer: AuthorityIndex,

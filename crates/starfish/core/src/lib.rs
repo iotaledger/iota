@@ -8,7 +8,6 @@ mod base_committer;
 mod block_header;
 mod block_manager;
 mod block_verifier;
-mod broadcaster;
 mod commit;
 mod commit_consumer;
 mod commit_observer;
