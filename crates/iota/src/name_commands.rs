@@ -876,7 +876,7 @@ impl SubdomainCommand {
                 let parent = get_proxy_nft_by_name(&parent, context).await?;
                 anyhow::ensure!(!parent.has_expired(), "parent NFT has expired");
                 let package_id = parent.subdomain_package_id(&iota_client).await?;
-                let module_name = parent.module_name();
+                let module_name = parent.subdomain_module_name();
 
                 let target_address = if let Some(target_address) = target_address {
                     target_address
@@ -922,7 +922,7 @@ impl SubdomainCommand {
                 let parent = get_proxy_nft_by_name(&parent, context).await?;
                 anyhow::ensure!(!parent.has_expired(), "parent NFT has expired");
                 let package_id = parent.subdomain_package_id(&iota_client).await?;
-                let module_name = parent.module_name();
+                let module_name = parent.subdomain_module_name();
 
                 let expiration_timestamp =
                     expiration_timestamp.unwrap_or(Timestamp(parent.expiration_timestamp_ms()));
@@ -972,7 +972,7 @@ impl SubdomainCommand {
 
                 let parent = get_proxy_nft_by_name(&parent, context).await?;
                 let package_id = parent.subdomain_package_id(&iota_client).await?;
-                let module_name = parent.module_name();
+                let module_name = parent.subdomain_module_name();
 
                 NameCommandResult::Client(
                     IotaClientCommands::Call {
@@ -1415,6 +1415,13 @@ impl IotaNamesNftProxy {
     }
 
     fn module_name(&self) -> &'static str {
+        match self {
+            IotaNamesNftProxy::Domain(_) => "controller",
+            IotaNamesNftProxy::Subdomain(_) => "subdomain_proxy",
+        }
+    }
+
+    fn subdomain_module_name(&self) -> &'static str {
         match self {
             IotaNamesNftProxy::Domain(_) => "subdomains",
             IotaNamesNftProxy::Subdomain(_) => "subdomain_proxy",
