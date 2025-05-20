@@ -48,7 +48,7 @@
         "tags": [
           "General"
         ],
-        "description": "[![stable](https://img.shields.io/badge/api-stable-53b576?style=for-the-badge)](#)\n\nPerform a service health check\n\nBy default the health check only verifies that the latest checkpoint can be fetched from the\nnode's store before returning a 200. Optionally the `threshold_seconds` parameter can be\nprovided to test for how up to date the node needs to be to be considered healthy.",
+        "description": "[![stable](https://img.shields.io/badge/api-stable-53b576?style=for-the-badge)](#)\n\nPerform a service health check\n\nBy default the health check only verifies that the latest checkpoint can be\nfetched from the node's store before returning a 200. Optionally the\n`threshold_seconds` parameter can be provided to test for how up to date the\nnode needs to be to be considered healthy.",
         "operationId": "Health Check",
         "parameters": [
           {
@@ -82,7 +82,7 @@
         "tags": [
           "Checkpoint"
         ],
-        "description": "[![stable](https://img.shields.io/badge/api-stable-53b576?style=for-the-badge)](#)\n\nList Checkpoints\n\nRequest a page of checkpoints, and optionally their contents, ordered by\n`CheckpointSequenceNumber`.\n\nIf the requested page is below the Node's `lowest_available_checkpoint`, a 410 will be\nreturned.",
+        "description": "[![stable](https://img.shields.io/badge/api-stable-53b576?style=for-the-badge)](#)\n\nList Checkpoints\n\nRequest a page of checkpoints, and optionally their contents, ordered by\n`CheckpointSequenceNumber`.\n\nIf the requested page is below the Node's `lowest_available_checkpoint`, a\n410 will be returned.",
         "operationId": "List Checkpoints",
         "parameters": [
           {
@@ -172,7 +172,7 @@
         "tags": [
           "Checkpoint"
         ],
-        "description": "[![stable](https://img.shields.io/badge/api-stable-53b576?style=for-the-badge)](#)\n\nFetch a Checkpoint\n\nFetch a checkpoint either by `CheckpointSequenceNumber` (checkpoint height) or by\n`CheckpointDigest` and optionally request its contents.\n\nIf the checkpoint has been pruned and is not available, a 410 will be returned.",
+        "description": "[![stable](https://img.shields.io/badge/api-stable-53b576?style=for-the-badge)](#)\n\nFetch a Checkpoint\n\nFetch a checkpoint either by `CheckpointSequenceNumber` (checkpoint height)\nor by `CheckpointDigest` and optionally request its contents.\n\nIf the checkpoint has been pruned and is not available, a 410 will be\nreturned.",
         "operationId": "Get Checkpoint",
         "parameters": [
           {
@@ -430,7 +430,7 @@
         "tags": [
           "Checkpoint"
         ],
-        "description": "[![unstable](https://img.shields.io/badge/api-unstable-red?style=for-the-badge)](#) _Api subject to change; use at your own risk_\n\nFetch a Full Checkpoint\n\nRequest a checkpoint and all data associated with it including:\n- CheckpointSummary\n- Validator Signature\n- CheckpointContents\n- Transactions, Effects, Events, as well as all input and output objects\n\nIf the requested checkpoint is below the Node's `lowest_available_checkpoint_objects`, a 410\nwill be returned.",
+        "description": "[![unstable](https://img.shields.io/badge/api-unstable-red?style=for-the-badge)](#) _Api subject to change; use at your own risk_\n\nFetch a Full Checkpoint\n\nRequest a checkpoint and all data associated with it including:\n- CheckpointSummary\n- Validator Signature\n- CheckpointContents\n- Transactions, Effects, Events, as well as all input and output objects\n\nIf the requested checkpoint is below the Node's\n`lowest_available_checkpoint_objects`, a 410 will be returned.",
         "operationId": "Get Full Checkpoint",
         "parameters": [
           {
@@ -467,7 +467,7 @@
         "tags": [
           "Checkpoint"
         ],
-        "description": "[![unstable](https://img.shields.io/badge/api-unstable-red?style=for-the-badge)](#) _Api subject to change; use at your own risk_\n\nList Full Checkpoints\n\nRequest a page of checkpoints and all data associated with them including:\n- CheckpointSummary\n- Validator Signature\n- CheckpointContents\n- Transactions, Effects, Events, as well as all input and output objects\n\nIf the requested page is below the Node's `lowest_available_checkpoint_objects`, a 410 will be\nreturned.",
+        "description": "[![unstable](https://img.shields.io/badge/api-unstable-red?style=for-the-badge)](#) _Api subject to change; use at your own risk_\n\nList Full Checkpoints\n\nRequest a page of checkpoints and all data associated with them including:\n- CheckpointSummary\n- Validator Signature\n- CheckpointContents\n- Transactions, Effects, Events, as well as all input and output objects\n\nIf the requested page is below the Node's\n`lowest_available_checkpoint_objects`, a 410 will be returned.",
         "operationId": "List Full Checkpoints",
         "parameters": [
           {
@@ -924,6 +924,7 @@
         "tags": [
           "Epochs"
         ],
+        "description": "[![unstable](https://img.shields.io/badge/api-unstable-red?style=for-the-badge)](#) _Api subject to change; use at your own risk_\n\n",
         "operationId": "GetEpochLastCheckpoint",
         "parameters": [
           {
@@ -961,7 +962,7 @@
         "tags": [
           "OpenAPI"
         ],
-        "description": "[![stable](https://img.shields.io/badge/api-stable-53b576?style=for-the-badge)](#)\n\nProvides a web UI for exploring the OpenAPI v3.1.0 definition for this service",
+        "description": "[![stable](https://img.shields.io/badge/api-stable-53b576?style=for-the-badge)](#)\n\nProvides a web UI for exploring the OpenAPI v3.1.0 definition for this\nservice",
         "operationId": "OpenAPI Explorer",
         "responses": {
           "200": {
@@ -4102,6 +4103,21 @@
         "description": "Base64 encoded data",
         "type": "string",
         "format": "base64"
+      },
+      "SignedCheckpointSummary": {
+        "type": "object",
+        "required": [
+          "checkpoint",
+          "signature"
+        ],
+        "properties": {
+          "checkpoint": {
+            "$ref": "#/components/schemas/CheckpointSummary"
+          },
+          "signature": {
+            "$ref": "#/components/schemas/ValidatorAggregatedSignature"
+          }
+        }
       },
       "SignedTransaction": {
         "type": "object",
