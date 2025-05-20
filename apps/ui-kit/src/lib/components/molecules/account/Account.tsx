@@ -2,9 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import cx from 'classnames';
-
 import type { BadgeType } from '@/components/atoms';
-import { Badge, ButtonUnstyled } from '@/components/atoms';
+import { Badge, Tooltip, TooltipPosition, ButtonUnstyled } from '@/components/atoms';
 import {
     LockLocked,
     LockUnlocked,
@@ -83,6 +82,14 @@ interface AccountProps {
      * The text of the badge.
      */
     badgeText?: string;
+    /**
+     * The tooltip text of the badge.
+     */
+    badgeTooltipText?: string;
+    /**
+     * The tooltip position of the badge.
+     */
+    badgeTooltipPosition?: TooltipPosition;
 }
 
 export function Account({
@@ -103,6 +110,8 @@ export function Account({
     isSelected,
     isActive,
     showSelected,
+    badgeTooltipText,
+    badgeTooltipPosition = TooltipPosition.Bottom,
 }: AccountProps): React.JSX.Element {
     const Avatar = avatarContent;
 
@@ -123,7 +132,15 @@ export function Account({
                         <span className="font-inter text-title-md text-neutral-10 dark:text-neutral-92">
                             {title}
                         </span>
-                        {badgeType && badgeText && <Badge type={badgeType} label={badgeText} />}
+                        {badgeText && badgeType ? (
+                            badgeTooltipText ? (
+                                <Tooltip text={badgeTooltipText} position={badgeTooltipPosition}>
+                                    <Badge type={badgeType} label={badgeText} />
+                                </Tooltip>
+                            ) : (
+                                <Badge type={badgeType} label={badgeText} />
+                            )
+                        ) : null}
                     </div>
                     <Address
                         text={subtitle}
