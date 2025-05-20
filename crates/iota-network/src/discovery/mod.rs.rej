@@ -1,0 +1,91 @@
+--- crates/iota-network/src/discovery/mod.rs
++++ crates/iota-network/src/discovery/mod.rs
+@@ -499,25 +570,57 @@ async fn query_connected_peers_for_their_known_peers(
+         .flat_map(|id| network.peer(id))
+         .choose_multiple(&mut rand::thread_rng(), config.peers_to_query());
+ 
++    let enable_node_info_signatures = config.enable_node_info_signatures();
+     let found_peers = peers_to_query
+         .into_iter()
+         .map(DiscoveryClient::new)
+         .map(|mut client| async move {
+             let request = Request::new(()).with_timeout(TIMEOUT);
+-            client
+-                .get_known_peers(request)
+-                .await
+-                .ok()
+-                .map(Response::into_inner)
+-                .map(
+-                    |GetKnownPeersResponse {
+-                         own_info,
+-                         mut known_peers,
+-                     }| {
+-                        known_peers.push(own_info);
+-                        known_peers
+-                    },
+-                )
++            if enable_node_info_signatures {
++                client
++                    .get_known_peers_v2(request)
++                    .await
++                    .ok()
++                    .map(Response::into_inner)
++                    .map(
++                        |GetKnownPeersResponseV2 {
++                             own_info,
++                             mut known_peers,
++                         }| {
++                            if !own_info.addresses.is_empty() {
++                                known_peers.push(own_info)
++                            }
++                            known_peers
++                        },
++                    )
++            } else {
++                client
++                    .get_known_peers(request)
++                    .await
++                    .ok()
++                    .map(Response::into_inner)
++                    .map(
++                        |GetKnownPeersResponse {
++                             own_info,
++                             mut known_peers,
++                         }| {
++                            if !own_info.addresses.is_empty() {
++                                known_peers.push(own_info)
++                            }
++                            known_peers
++                                .into_iter()
++                                .map(|info| {
++                                    // SignedNodeInfo with fake default signatures will only work if
++                                    // signature verification is disabled.
++                                    SignedNodeInfo::new_from_data_and_sig(
++                                        info,
++                                        Ed25519Signature::default(),
++                                    )
++                                })
++                                .collect()
++                        },
++                    )
++            }
+         })
+         .pipe(futures::stream::iter)
+         .buffer_unordered(config.peers_to_query())
+@@ -526,13 +629,14 @@ async fn query_connected_peers_for_their_known_peers(
+         .collect::<Vec<_>>()
+         .await;
+ 
+-    update_known_peers(state, metrics, found_peers, allowlisted_peers);
++    update_known_peers(config, state, metrics, found_peers, allowlisted_peers);
+ }
+ 
+ fn update_known_peers(
++    config: Arc<DiscoveryConfig>,
+     state: Arc<RwLock<State>>,
+     metrics: Metrics,
+-    found_peers: Vec<NodeInfo>,
++    found_peers: Vec<SignedNodeInfo>,
+     allowlisted_peers: Arc<HashMap<PeerId, Option<Multiaddr>>>,
+ ) {
+     use std::collections::hash_map::Entry;
