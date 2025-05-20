@@ -15,7 +15,6 @@ export function useNewUnstakeTransaction(senderAddress: string, unstakeIotaId: s
         queryFn: async () => {
             const transaction = createUnstakeTransaction(unstakeIotaId);
             transaction.setSender(senderAddress);
-            await transaction.build({ client });
             const txBytes = await transaction.build({ client });
             const txDryRun = await client.dryRunTransactionBlock({
                 transactionBlock: txBytes,
