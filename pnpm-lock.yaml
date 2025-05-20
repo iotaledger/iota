@@ -235,7 +235,7 @@ importers:
         specifier: ^1.4.0
         version: 1.5.0
       '@sentry/react':
-        specifier: ^7.59.2
+        specifier: ^7.120.3
         version: 7.120.3(react@18.3.1)
       '@tanstack/react-query':
         specifier: ^5.50.1
@@ -350,7 +350,7 @@ importers:
         specifier: workspace:*
         version: link:../../sdk/typescript
       '@sentry/react':
-        specifier: ^7.59.2
+        specifier: ^7.120.3
         version: 7.120.3(react@18.3.1)
       '@tanstack/react-query':
         specifier: ^5.50.1
@@ -700,7 +700,7 @@ importers:
         specifier: ^1.3.0
         version: 1.4.0
       '@sentry/browser':
-        specifier: ^7.120.2
+        specifier: ^7.120.3
         version: 7.120.3
       '@tanstack/react-query':
         specifier: ^5.50.1
@@ -803,7 +803,7 @@ importers:
         specifier: ^1.46.1
         version: 1.47.2
       '@sentry/react':
-        specifier: ^7.59.2
+        specifier: ^7.120.3
         version: 7.120.3(react@18.3.1)
       '@sentry/webpack-plugin':
         specifier: ^1.21.0
