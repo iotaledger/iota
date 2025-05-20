@@ -6,6 +6,7 @@ use std::{
     time::{Duration, SystemTime, UNIX_EPOCH},
 };
 
+use anyhow::{bail, ensure};
 use chrono::{Utc, prelude::DateTime};
 use clap::Parser;
 use iota_graphql_rpc_client::simple_client::{GraphqlQueryVariable, SimpleClient};
@@ -263,7 +264,7 @@ impl NameCommand {
                         .into_iter()
                         .find(|entry| entry.key == key)
                     else {
-                        anyhow::bail!("no value found for key `{key}`");
+                        bail!("no value found for key `{key}`");
                     };
                     NameCommandResult::UserData(VecMap {
                         contents: vec![value],
@@ -293,7 +294,7 @@ impl NameCommand {
                 set_reverse_lookup,
                 opts,
             } => {
-                anyhow::ensure!(
+                ensure!(
                     domain.num_labels() == 2,
                     "domain to register must consist of two labels"
                 );
@@ -331,9 +332,7 @@ impl NameCommand {
                         .transpose()?;
                     let address = get_identity_address(identity, context)?;
                     if set_reverse_lookup && address != context.active_address()? {
-                        anyhow::bail!(
-                            "cannot set reverse lookup if target address is not the sender"
-                        );
+                        bail!("cannot set reverse lookup if target address is not the sender");
                     }
                     args.push(format!(
                         "--move-call {}::controller::set_target_address @{} nft some(@{address}) @{IOTA_CLOCK_OBJECT_ID}",
@@ -342,9 +341,7 @@ impl NameCommand {
                 }
                 if set_reverse_lookup {
                     if set_target_address.is_none() {
-                        anyhow::bail!(
-                            "cannot set reverse lookup without first setting the target address"
-                        );
+                        bail!("cannot set reverse lookup without first setting the target address");
                     }
                     args.push(format!(
                         "--move-call {}::controller::set_reverse_lookup @{} '{domain}'",
@@ -457,7 +454,7 @@ impl NameCommand {
                     .target_address
                     .is_some_and(|a| a == new_address)
                 {
-                    anyhow::bail!("target address is already set to the given value");
+                    bail!("target address is already set to the given value");
                 }
                 let nft = get_proxy_nft_by_name(&domain, context).await?;
                 let iota_names_config = get_iota_names_config(&iota_client).await?;
@@ -561,7 +558,7 @@ impl NameCommand {
             Self::UnsetTargetAddress { domain, opts } => {
                 let entry = get_registry_entry(&domain, &iota_client).await?;
                 if entry.name_record.target_address.is_none() {
-                    anyhow::bail!("target address is already unset");
+                    bail!("target address is already unset");
                 }
 
                 let nft = get_proxy_nft_by_name(&domain, context).await?;
@@ -687,7 +684,7 @@ impl AuctionCommand {
                 let auction = auction_house.get_auction(&domain, &iota_client).await?;
                 let min_price = auction.current_bid.value() + MIN_OVERBID;
                 let amount = amount.unwrap_or(min_price);
-                anyhow::ensure!(
+                ensure!(
                     amount >= min_price,
                     "bid amount must be at least {min_price} for this domain"
                 );
@@ -759,7 +756,7 @@ impl AuctionCommand {
                     .await?
                     .get_price(domain.label(1).unwrap())?;
                 let amount = amount.unwrap_or(min_price);
-                anyhow::ensure!(
+                ensure!(
                     amount >= min_price,
                     "bid amount must be at least {min_price} for this domain"
                 );
@@ -868,13 +865,13 @@ impl SubdomainCommand {
                 opts,
             } => {
                 let Some(parent) = domain.parent() else {
-                    anyhow::bail!("invalid subdomain: {domain}");
+                    bail!("invalid subdomain: {domain}");
                 };
 
                 let iota_names_config = get_iota_names_config(&iota_client).await?;
 
                 let parent = get_proxy_nft_by_name(&parent, context).await?;
-                anyhow::ensure!(!parent.has_expired(), "parent NFT has expired");
+                ensure!(!parent.has_expired(), "parent NFT has expired");
                 let package_id = parent.subdomain_package_id(&iota_client).await?;
                 let module_name = parent.subdomain_module_name();
 
@@ -914,19 +911,19 @@ impl SubdomainCommand {
                 opts,
             } => {
                 let Some(parent) = domain.parent() else {
-                    anyhow::bail!("invalid subdomain: {domain}");
+                    bail!("invalid subdomain: {domain}");
                 };
 
                 let iota_names_config = get_iota_names_config(&iota_client).await?;
 
                 let parent = get_proxy_nft_by_name(&parent, context).await?;
-                anyhow::ensure!(!parent.has_expired(), "parent NFT has expired");
+                ensure!(!parent.has_expired(), "parent NFT has expired");
                 let package_id = parent.subdomain_package_id(&iota_client).await?;
                 let module_name = parent.subdomain_module_name();
 
                 let expiration_timestamp =
                     expiration_timestamp.unwrap_or(Timestamp(parent.expiration_timestamp_ms()));
-                anyhow::ensure!(
+                ensure!(
                     expiration_timestamp
                         .as_system_time()
                         .duration_since(SystemTime::now())
@@ -966,7 +963,7 @@ impl SubdomainCommand {
                 opts,
             } => {
                 let Some(parent) = domain.parent() else {
-                    anyhow::bail!("invalid subdomain: {domain}");
+                    bail!("invalid subdomain: {domain}");
                 };
                 let iota_names_config = get_iota_names_config(&iota_client).await?;
 
@@ -1001,7 +998,7 @@ impl SubdomainCommand {
                 opts,
             } => {
                 let nft = get_owned_nft_by_name::<SubdomainRegistration>(&domain, context).await?;
-                anyhow::ensure!(
+                ensure!(
                     expiration_timestamp.as_system_time() > nft.expiration_time(),
                     "new expiration time is not after old expiration: {}",
                     chrono::DateTime::<chrono::Utc>::from(nft.expiration_time())
@@ -1477,7 +1474,7 @@ impl PricingConfig {
                 return Ok(*value);
             }
         }
-        anyhow::bail!("no pricing config for label length")
+        bail!("no pricing config for label length")
     }
 }
 
@@ -1506,9 +1503,9 @@ async fn select_coin_for_payment(
                 _ => unreachable!(),
             }
             if balance > price {
-                anyhow::bail!("merge coins first to register/renew the domain '{domain_name}'");
+                bail!("merge coins first to register/renew the domain '{domain_name}'");
             } else {
-                anyhow::bail!(
+                bail!(
                     "insufficient balance {balance}/{price} to register/renew the domain '{domain_name}'"
                 );
             }
@@ -1632,7 +1629,7 @@ async fn get_auction_house_id(
     let response = client
         .execute_to_graphql(query.to_string(), true, vec![variable], vec![])
         .await?;
-    anyhow::ensure!(response.errors().is_empty(), "{:?}", response.errors());
+    ensure!(response.errors().is_empty(), "{:?}", response.errors());
 
     let response_body = response.response_body_json();
     let object_id_str = response_body["data"]["objects"]["edges"][0]["node"]["address"]
@@ -1650,7 +1647,7 @@ async fn get_object_from_bcs<T: DeserializeOwned>(
         .read_api()
         .get_object_with_options(object_id, IotaObjectDataOptions::new().with_bcs())
         .await?;
-    anyhow::ensure!(
+    ensure!(
         object_response.error.is_none(),
         "{:?}",
         object_response.error
