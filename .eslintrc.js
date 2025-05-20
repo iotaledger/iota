@@ -99,6 +99,7 @@ module.exports = {
                 '@typescript-eslint/consistent-type-imports': ['error'],
                 'import/consistent-type-specifier-style': ['error', 'prefer-top-level'],
                 '@typescript-eslint/no-explicit-any': 'off',
+                'import/no-cycle': ['error'],
             },
         },
         {

@@ -10,6 +10,7 @@ import {
 import { flattenIotaArguments } from './utils';
 import { ErrorBoundary } from '~/components';
 import { ObjectLink } from '~/components/ui';
+import { onCopySuccess } from '~/lib/utils';
 
 interface TransactionProps<T> {
     type: string;
@@ -41,7 +42,13 @@ function MoveCall({ data }: TransactionProps<MoveCallIotaTransaction>): JSX.Elem
 
     return (
         <span className="text-body-md text-neutral-40 dark:text-neutral-60">
-            package: <ObjectLink objectId={movePackage} />, module:{' '}
+            package:{' '}
+            <ObjectLink
+                objectId={movePackage}
+                copyText={movePackage}
+                onCopySuccess={onCopySuccess}
+            />
+            , module:{' '}
             <ObjectLink objectId={`${movePackage}?module=${module}`} label={`'${module}'`} />,
             function: <span className="break-all text-primary-30 dark:text-primary-80">{func}</span>
             {args && (

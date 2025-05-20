@@ -57,17 +57,17 @@ export function Home(): JSX.Element {
                         </div>
                     </div>
                     <div>
-                        <div className="m-b-12" style={{ gridArea: 'activity' }}>
+                        <div style={{ gridArea: 'activity' }}>
                             <ErrorBoundary>
                                 <Activity initialLimit={TRANSACTIONS_LIMIT} disablePagination />
                             </ErrorBoundary>
                         </div>
                         <div className="home-page-grid-container-bottom">
-                            <div className="m-b-12" style={{ gridArea: 'packages' }}>
+                            <div style={{ gridArea: 'packages' }}>
                                 <TopPackagesCard />
                             </div>
                             <div
-                                className="m-b-12"
+                                className="inline-grid"
                                 data-testid="validators-table"
                                 style={{ gridArea: 'validators' }}
                             >
