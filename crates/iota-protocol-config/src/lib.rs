@@ -19,7 +19,7 @@ use tracing::{info, warn};
 
 /// The minimum and maximum protocol versions supported by this build.
 const MIN_PROTOCOL_VERSION: u64 = 1;
-pub const MAX_PROTOCOL_VERSION: u64 = 8;
+pub const MAX_PROTOCOL_VERSION: u64 = 9;
 
 // Record history of protocol version allocations here:
 //
@@ -51,6 +51,7 @@ pub const MAX_PROTOCOL_VERSION: u64 = 8;
 //            Enable the new consensus commit rule for testnet.
 //            Enable min_free_execution_slot for the shared object congestion
 //            tracker in devnet.
+// Version 9: Remove the iota-bridge from the framework.
 
 #[derive(Copy, Clone, Debug, Hash, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ProtocolVersion(u64);
@@ -1967,6 +1968,10 @@ impl ProtocolConfig {
                     if chain != Chain::Testnet && chain != Chain::Mainnet {
                         cfg.feature_flags.congestion_control_min_free_execution_slot = true;
                     }
+                }
+                9 => {
+                    // this flag is now deprecated because of the bridge removal.
+                    cfg.bridge_should_try_to_finalize_committee = None;
                 }
                 // Use this template when making changes:
                 //
