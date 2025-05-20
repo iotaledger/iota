@@ -2113,11 +2113,17 @@ impl From<InputObjectKind> for IotaInputObjectKind {
 
 #[derive(Debug, Serialize, Deserialize, JsonSchema, Clone)]
 #[serde(rename = "TypeTag", rename_all = "camelCase")]
-pub struct IotaTypeTag(pub String);
+pub struct IotaTypeTag(String);
 
 impl IotaTypeTag {
     pub fn new(tag: String) -> Self {
         Self(tag)
+    }
+}
+
+impl AsRef<str> for IotaTypeTag {
+    fn as_ref(&self) -> &str {
+        &self.0
     }
 }
 

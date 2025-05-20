@@ -4717,7 +4717,7 @@ async fn test_ptb_dev_inspect() -> Result<(), anyhow::Error> {
     };
     assert!(res.results.expect("missing results").iter().any(|res| {
         res.return_values.iter().any(|(bytes, tag)| {
-            tag.0 == "0x1::string::String" && bytes == &[5, 72, 101, 108, 108, 111]
+            tag.as_ref() == "0x1::string::String" && bytes == &[5, 72, 101, 108, 108, 111]
         })
     }));
     Ok(())
