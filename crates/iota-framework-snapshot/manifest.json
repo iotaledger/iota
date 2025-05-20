@@ -231,7 +231,7 @@
         "name": "Bridge",
         "path": "crates/iota-framework/packages/bridge",
         "id": "0x000000000000000000000000000000000000000000000000000000000000000b"
-      }
+      },
       {
         "name": "Stardust",
         "path": "crates/iota-framework/packages/stardust",

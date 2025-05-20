@@ -5,7 +5,7 @@ import type { PropsWithChildren } from 'react';
 import { BACKGROUND_COLORS, OUTLINED_BORDER } from './segmentedButton.classes';
 import cx from 'classnames';
 import { SegmentedButtonType } from './segmentedButton.enums';
-import { ButtonSegmentType } from '../../atoms';
+import { ButtonSegmentType } from '@/components/atoms';
 
 interface SegmentedButtonProps {
     /**
