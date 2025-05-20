@@ -95,6 +95,7 @@ impl AliasExt for Alias {
                 version,
                 bcs::to_bytes(&self)?,
                 protocol_config,
+                true,
             )?
         };
 
@@ -159,6 +160,7 @@ impl AliasOutputExt for AliasOutput {
                 version,
                 bcs::to_bytes(&self)?,
                 protocol_config,
+                true,
             )?
         };
 

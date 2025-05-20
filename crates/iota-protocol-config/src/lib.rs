@@ -462,6 +462,10 @@ struct FeatureFlags {
     // If true, enable `TxContext` Move API to go native.
     #[serde(skip_serializing_if = "is_false")]
     move_native_tx_context: bool,
+
+    // If true, system objects are allowed to exceed the normal max object size.
+    #[serde(skip_serializing_if = "is_false")]
+    allow_unbounded_system_objects: bool,
 }
 
 fn is_true(b: &bool) -> bool {
@@ -1645,6 +1649,10 @@ impl ProtocolConfig {
     pub fn move_native_tx_context(&self) -> bool {
         self.feature_flags.move_native_tx_context
     }
+
+    pub fn allow_unbounded_system_objects(&self) -> bool {
+        self.feature_flags.allow_unbounded_system_objects
+    }
 }
 
 #[cfg(not(msim))]
@@ -2667,6 +2675,8 @@ impl ProtocolConfig {
                 23 => {
                     // Enable Move native context (TxContext via native functions) in all networks.
                     cfg.feature_flags.move_native_tx_context = true;
+                    // Allow system objects to exceed normal max object size.
+                    cfg.feature_flags.allow_unbounded_system_objects = true;
                     cfg.tx_context_fresh_id_cost_base = Some(52);
                     cfg.tx_context_sender_cost_base = Some(30);
                     cfg.tx_context_digest_cost_base = Some(30);

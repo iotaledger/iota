@@ -10,6 +10,7 @@ use std::{
     sync::Arc,
 };
 
+use iota_common::debug_fatal;
 use iota_protocol_config::ProtocolConfig;
 use move_binary_format::CompiledModule;
 use move_bytecode_utils::{layout::TypeLayoutBuilder, module_cache::GetModule};
@@ -72,13 +73,14 @@ impl MoveObject {
         version: SequenceNumber,
         contents: Vec<u8>,
         protocol_config: &ProtocolConfig,
+        system_mutation: bool,
     ) -> Result<Self, ExecutionError> {
-        Self::new_from_execution_with_limit(
-            type_,
-            version,
-            contents,
-            protocol_config.max_move_object_size(),
-        )
+        let bound = if system_mutation && protocol_config.allow_unbounded_system_objects() {
+            u64::MAX
+        } else {
+            protocol_config.max_move_object_size()
+        };
+        Self::new_from_execution_with_limit(type_, version, contents, bound)
     }
 
     /// Creates a new Move object of type `type_` with BCS encoded bytes in
@@ -213,26 +215,19 @@ impl MoveObject {
     }
 
     /// Update the contents of this object but does not increment its version
-    pub fn update_contents(
+    /// This should only be used for safe mode epoch advancement.
+    pub(crate) fn update_contents_advance_epoch_safe_mode(
         &mut self,
         new_contents: Vec<u8>,
         protocol_config: &ProtocolConfig,
-    ) -> Result<(), ExecutionError> {
-        self.update_contents_with_limit(new_contents, protocol_config.max_move_object_size())
-    }
-
-    fn update_contents_with_limit(
-        &mut self,
-        new_contents: Vec<u8>,
-        max_move_object_size: u64,
-    ) -> Result<(), ExecutionError> {
-        if new_contents.len() as u64 > max_move_object_size {
-            return Err(ExecutionError::from_kind(
-                ExecutionErrorKind::MoveObjectTooBig {
-                    object_size: new_contents.len() as u64,
-                    max_object_size: max_move_object_size,
-                },
-            ));
+    ) {
+        if new_contents.len() as u64 > protocol_config.max_move_object_size() {
+            debug_fatal!(
+                "Safe mode object update (ID = {}) of size {} exceeds normal max size {}",
+                self.id(),
+                new_contents.len(),
+                protocol_config.max_move_object_size()
+            );
         }
 
         #[cfg(debug_assertions)]
@@ -242,8 +237,6 @@ impl MoveObject {
         // Update should not modify ID
         #[cfg(debug_assertions)]
         debug_assert_eq!(self.id(), old_id);
-
-        Ok(())
     }
 
     /// Sets the version of this object to a new value which is assumed to be

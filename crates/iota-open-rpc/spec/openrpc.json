@@ -1301,6 +1301,7 @@
                 "accept_zklogin_in_multisig": false,
                 "additional_multisig_checks": false,
                 "adjust_rewards_by_score": false,
+                "allow_unbounded_system_objects": false,
                 "calculate_validator_scores": false,
                 "congestion_control_gas_price_feedback_mechanism": false,
                 "congestion_control_min_free_execution_slot": false,

@@ -508,6 +508,7 @@ async fn test_timelocked_staking() -> Result<(), anyhow::Error> {
             )
             .to_bcs_bytes(),
             &ProtocolConfig::get_for_min_version(),
+            false,
         )
         .unwrap()
     };
@@ -660,6 +661,7 @@ async fn test_timelocked_unstaking() -> Result<(), anyhow::Error> {
             )
             .to_bcs_bytes(),
             &ProtocolConfig::get_for_min_version(),
+            false,
         )
         .unwrap()
     };

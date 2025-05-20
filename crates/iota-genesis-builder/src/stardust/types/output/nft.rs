@@ -262,6 +262,7 @@ impl NftExt for Nft {
                 version,
                 bcs::to_bytes(&self)?,
                 protocol_config,
+                true,
             )?
         };
 
@@ -340,6 +341,7 @@ impl NftOutputExt for NftOutput {
                 version,
                 bcs::to_bytes(&self)?,
                 protocol_config,
+                true,
             )?
         };
 

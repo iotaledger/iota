@@ -122,6 +122,7 @@ pub fn to_genesis_object(
             version,
             timelock.to_bcs_bytes(),
             protocol_config,
+            true,
         )
         .map_err(|source| VestedRewardError::ObjectCreation {
             owner,

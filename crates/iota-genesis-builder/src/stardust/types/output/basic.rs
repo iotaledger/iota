@@ -48,6 +48,7 @@ pub fn create_coin(
             version,
             bcs::to_bytes(&coin)?,
             protocol_config,
+            true,
         )?
     };
     // Resolve ownership
@@ -158,6 +159,7 @@ impl BasicOutputExt for BasicOutput {
                 version,
                 bcs::to_bytes(self)?,
                 protocol_config,
+                true,
             )?
         };
         // Resolve ownership

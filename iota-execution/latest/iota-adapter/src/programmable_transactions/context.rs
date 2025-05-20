@@ -898,6 +898,7 @@ mod checked {
                         id,
                         type_,
                         bytes,
+                        Mode::packages_are_predefined(),
                     )?
                 };
                 let object = Object::new_move(move_object, recipient, tx_digest);
@@ -924,6 +925,7 @@ mod checked {
                         id,
                         ty,
                         bytes,
+                        Mode::packages_are_predefined(),
                     )?
                 };
                 let object = Object::new_move(move_object, recipient, tx_digest);
@@ -1638,6 +1640,7 @@ mod checked {
         id: ObjectID,
         type_: Type,
         contents: Vec<u8>,
+        system_mutation: bool,
     ) -> Result<MoveObject, ExecutionError> {
         debug_assert_eq!(
             id,
@@ -1661,6 +1664,7 @@ mod checked {
             old_obj_ver.unwrap_or_default(),
             contents,
             protocol_config,
+            system_mutation,
         )
     }
 
