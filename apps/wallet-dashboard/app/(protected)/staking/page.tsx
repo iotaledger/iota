@@ -259,29 +259,27 @@ function StakingDashboardPage(): React.JSX.Element {
                         )}
                     </Panel>
                 ) : (
-                    <div className="flex h-[270px] p-lg">
+                    <div className="flex h-[270px] py-lg">
                         <StartStaking />
                     </div>
                 )}
                 {hasAvailableVestedStaking && supplyIncreaseVestingEnabled && (
-                    <div className="px-lg">
-                        <Panel bgColor="bg-secondary-90 dark:bg-secondary-10">
-                            <div className="py-sm">
-                                <Title
-                                    title="Available Vested Staking"
-                                    subtitle="In progress vested staking"
-                                    trailingElement={
-                                        <Button
-                                            onClick={() => router.push('/vesting')}
-                                            size={ButtonSize.Small}
-                                            type={ButtonType.Outlined}
-                                            text="View"
-                                        />
-                                    }
-                                />
-                            </div>
-                        </Panel>
-                    </div>
+                    <Panel bgColor="bg-secondary-90 dark:bg-secondary-10">
+                        <div className="py-sm">
+                            <Title
+                                title="Available Vested Staking"
+                                subtitle="In progress vested staking"
+                                trailingElement={
+                                    <Button
+                                        onClick={() => router.push('/vesting')}
+                                        size={ButtonSize.Small}
+                                        type={ButtonType.Outlined}
+                                        text="View"
+                                    />
+                                }
+                            />
+                        </div>
+                    </Panel>
                 )}
             </div>
         </div>
