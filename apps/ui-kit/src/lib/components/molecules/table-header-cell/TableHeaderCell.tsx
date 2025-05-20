@@ -3,7 +3,7 @@
 
 import { SortByDown, SortByUp } from '@iota/apps-ui-icons';
 import cx from 'classnames';
-import { Checkbox } from '@/lib';
+import { Checkbox } from '@/components/atoms/checkbox';
 import { TableHeaderCellSortOrder } from './tableHeaderCell.enums';
 
 export interface TableHeaderCellProps {

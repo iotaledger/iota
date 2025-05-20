@@ -4,7 +4,7 @@
 import type { PropsWithChildren } from 'react';
 import cx from 'classnames';
 import { ArrowRight } from '@iota/apps-ui-icons';
-import { Button, ButtonSize, ButtonType } from '@/components';
+import { Button, ButtonSize, ButtonType } from '../button';
 
 export interface ListItemProps {
     /**

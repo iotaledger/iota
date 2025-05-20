@@ -2,8 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import type { ReactNode } from 'react';
-import type { TooltipPosition } from '../../atoms';
-import { Tooltip } from '../../atoms';
+import type { TooltipPosition } from '@/components/atoms';
+import { Tooltip } from '@/components/atoms';
 import { Info } from '@iota/apps-ui-icons';
 import { DisplayStatsType, DisplayStatsSize } from './displayStats.enums';
 import cx from 'classnames';
