@@ -40,6 +40,7 @@ export const menuItem = style({
     display: 'flex',
     alignItems: 'center',
     borderRadius: themeVars.radii.large,
+    cursor: 'pointer',
     selectors: {
         '&[data-highlighted]': {
             backgroundColor: themeVars.backgroundColors.primaryButton,
