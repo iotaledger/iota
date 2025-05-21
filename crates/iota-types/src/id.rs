@@ -2,6 +2,8 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use std::fmt;
+
 use move_core_types::{
     account_address::AccountAddress,
     annotated_value::{MoveFieldLayout, MoveStructLayout, MoveTypeLayout},
@@ -69,6 +71,12 @@ impl UID {
     }
 }
 
+impl fmt::Display for UID {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
+        self.id.fmt(f)
+    }
+}
+
 impl ID {
     pub fn new(object_id: ObjectID) -> Self {
         Self { bytes: object_id }
@@ -91,6 +99,12 @@ impl ID {
                 MoveTypeLayout::Address,
             )],
         }
+    }
+}
+
+impl fmt::Display for ID {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
+        self.bytes.fmt(f)
     }
 }
 
