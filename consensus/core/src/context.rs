@@ -14,8 +14,10 @@ use tokio::time::Instant;
 
 #[cfg(test)]
 use crate::metrics::test_metrics;
-use crate::{block::BlockTimestampMs, metrics::Metrics};
-
+use crate::{
+    block::BlockTimestampMs,
+    metrics::{HistoricalValidatorScore, Metrics, ValidatorScoreMetrics},
+};
 /// Context contains per-epoch configuration and metrics shared by all
 /// components of this authority.
 #[derive(Clone)]
@@ -32,6 +34,10 @@ pub(crate) struct Context {
     pub metrics: Arc<Metrics>,
     /// Access to local clock
     pub clock: Arc<Clock>,
+    /// Metrics used for scoring witch live on this authority
+    pub scoring_metrics: ValidatorScoreMetrics,
+    /// Historical values of scores, as calculated by this authority
+    pub historical_scores: HistoricalValidatorScore,
 }
 
 impl Context {
@@ -42,6 +48,8 @@ impl Context {
         protocol_config: ProtocolConfig,
         metrics: Arc<Metrics>,
         clock: Arc<Clock>,
+        scoring_metrics: ValidatorScoreMetrics,
+        historical_scores: HistoricalValidatorScore,
     ) -> Self {
         Self {
             own_index,
@@ -50,6 +58,8 @@ impl Context {
             protocol_config,
             metrics,
             clock,
+            scoring_metrics,
+            historical_scores,
         }
     }
 
@@ -63,7 +73,8 @@ impl Context {
         let metrics = test_metrics();
         let temp_dir = TempDir::new().unwrap();
         let clock = Arc::new(Clock::new());
-
+        let scoring_metrics = ValidatorScoreMetrics::new();
+        let historical_scores = HistoricalValidatorScore::new();
         let context = Context::new(
             AuthorityIndex::new_for_test(0),
             committee,
@@ -74,6 +85,8 @@ impl Context {
             ProtocolConfig::get_for_max_version_UNSAFE(),
             metrics,
             clock,
+            scoring_metrics,
+            historical_scores,
         );
         (context, keypairs)
     }

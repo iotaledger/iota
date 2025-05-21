@@ -2,8 +2,15 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::sync::Arc;
+use std::{
+    collections::BTreeMap,
+    sync::{
+        Arc,
+        atomic::{AtomicU64, Ordering},
+    },
+};
 
+use consensus_config::{AuthorityIndex, ProtocolPublicKey};
 use prometheus::{
     Histogram, HistogramVec, IntCounter, IntCounterVec, IntGauge, IntGaugeVec, Registry,
     exponential_buckets, register_histogram_vec_with_registry, register_histogram_with_registry,
@@ -780,5 +787,126 @@ impl NodeMetrics {
                 registry,
             ).unwrap(),
         }
+    }
+}
+
+// It consists of the historical reputation score (as calculated locally)
+// of every other authority in the network, active or inactive,
+// provided that the authority was active at some time in the past.
+// Note that these values might difer from thes ones actually
+// used in the rewards calculation, as the rewards are calculated based on
+// the values provided by _all_ authorities active in the epoch. It
+// maps each authority address to a vector of historical reputation
+// scores, one for each epoch since the validator became active for the
+// first time, in increasing epoch order. In case the validator became
+// unactive, the value None is stored. Updated once per epoch, close to its
+// end.
+// TO DO: check the timing for the update, since the score calculation cannot be
+// triggered by advance epoch (this number should be part of the state somehow
+// already when the epoch advances). Actually, the update can be triggered by
+// the epoch change, but the value calculation no.
+// TO DO: check if ProtocolPublicKey is the best key type to use here.
+// ALSO TO DO: check if this is the best crate to store this.
+#[derive(Clone)]
+pub(crate) struct HistoricalValidatorScore(BTreeMap<ProtocolPublicKey, Vec<Option<u64>>>);
+
+impl HistoricalValidatorScore {
+    pub(crate) fn new() -> Self {
+        HistoricalValidatorScore(BTreeMap::new())
+    }
+
+    pub(crate) fn get(&self, key: &ProtocolPublicKey) -> Option<&Vec<Option<u64>>> {
+        self.0.get(key)
+    }
+
+    pub(crate) fn update(&mut self, values: Vec<(ProtocolPublicKey, u64)>) {
+        for (key, value) in values.iter() {
+            if let Some(v) = self.0.get_mut(&key) {
+                v.push(Some(*value));
+            } else {
+                self.0.insert(key.clone(), vec![Some(*value)]);
+            }
+        }
+        let updated_keys: Vec<ProtocolPublicKey> = values.iter().map(|(x, _)| x.clone()).collect();
+
+        for (key, value) in self.0.iter_mut() {
+            if !updated_keys.contains(key) {
+                value.push(None);
+            }
+        }
+    }
+}
+
+// Metrics stored related to the current epoch used to calculate the validator
+// score.
+#[derive(Clone)]
+pub(crate) struct ValidatorScoreMetrics {
+    // Each entry in the vector corresponds to a counter relative to an active validator, indexed
+    // by AuthorityIndex. For each of those validators, we count the number of semantically
+    // invalid blocks signed by the validator that were already verified in the epoch.
+    pub(crate) semantically_invalid_blocks: Arc<Vec<AtomicU64>>,
+    // Each entry in the vector corresponds to a counter relative to an active validator, indexed
+    // by AuthorityIndex. For each of those validators, we count the number of syntactically
+    // invalid blocks sent by the validator that were already handled in the epoch.
+    // TO DO: we have to decide what we are going to do with this number to properly decide what we
+    // should count. The issues are:
+    // 1) the malformed blocks count is something that nodes will naturally disagree on. It only
+    //    depends on the malicious sender, since those are not propagated. This can open an attack
+    //    vector in case the calculated score "punishes" deviations from the average, since a
+    //    malicous actor can just target a node and spam it with malformed blocks, which would
+    //    decrease the honest node score.
+    // 2) a validator can filter out a malformed block from both handle_send_block and
+    //    process_fetched_blocks. Since we don't we keep track of them, we might double count
+    //    blocks that came from different sources. In principle, this should not be a problem,
+    //    since this could be punishing only the malicious sender, but now we have a second attack
+    //    vector, analogous to the one above.
+    // A possible solution is not using this counter in a way that it can punish the honest node,
+    // but now a malicous actor can just lie about this counter without any consequence. This is
+    // not a problem if we assume an honest majority, but just be aware that the incentive
+    // compatibily in this particular case is not the best.
+    // TO DO: discuss what to do with syntactically invalid commits. Do we count then separately?
+    // TO DO: discuss if commits/blocks referencing a syntactically invalid block should be
+    // considered syntactically invalid, semantically invalid, or something else.
+    pub(crate) syntactically_invalid_blocks: Arc<Vec<AtomicU64>>,
+}
+
+// TO DO: check if we need Default for something else, otherwise just merge
+// default to ValidatorScoreMetrics.new
+impl Default for ValidatorScoreMetrics {
+    fn default() -> Self {
+        let mut semantically_invalid_blocks_inner = vec![];
+        semantically_invalid_blocks_inner.resize_with(50, || AtomicU64::new(0));
+        let mut syntactically_invalid_blocks_inner = vec![];
+        syntactically_invalid_blocks_inner.resize_with(50, || AtomicU64::new(0));
+        Self {
+            semantically_invalid_blocks: Arc::new(semantically_invalid_blocks_inner),
+            syntactically_invalid_blocks: Arc::new(syntactically_invalid_blocks_inner),
+        }
+    }
+}
+
+impl ValidatorScoreMetrics {
+    pub(crate) fn new() -> Self {
+        Default::default()
+    }
+
+    // TO DO: in this and in the following function, the increase cannot be
+    // different than 1, probably. Check this and simplify in this case
+    pub(crate) fn update_semantically_invalid_blocks(
+        &mut self,
+        validator: AuthorityIndex,
+        increase: u64,
+    ) {
+        let _ = self.semantically_invalid_blocks[validator.value()]
+            .fetch_add(increase, Ordering::Relaxed);
+    }
+
+    pub(crate) fn update_syntactically_invalid_blocks(
+        &mut self,
+        validator: AuthorityIndex,
+        increase: u64,
+    ) {
+        let _ = self.syntactically_invalid_blocks[validator.value()]
+            .fetch_add(increase, Ordering::Relaxed);
     }
 }

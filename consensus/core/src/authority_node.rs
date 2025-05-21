@@ -26,7 +26,7 @@ use crate::{
     dag_state::DagState,
     leader_schedule::LeaderSchedule,
     leader_timeout::{LeaderTimeoutTask, LeaderTimeoutTaskHandle},
-    metrics::initialise_metrics,
+    metrics::{HistoricalValidatorScore, ValidatorScoreMetrics, initialise_metrics},
     network::{NetworkClient as _, NetworkManager, tonic_network::TonicManager},
     round_prober::{RoundProber, RoundProberHandle},
     storage::rocksdb_store::RocksDBStore,
@@ -179,6 +179,10 @@ where
         );
         info!("Consensus parameters: {:?}", parameters);
         info!("Consensus committee: {:?}", committee);
+        // TO DO: check if I need to worry about "amnesia recovery". Maybe I don't need
+        // to pass anything about the ValidatorScoreMetrics and HistoricalValidatorScore
+        // here. In this case I can always initialize those things zeroed in
+        // Context::new.
         let context = Arc::new(Context::new(
             own_index,
             committee,
@@ -186,6 +190,8 @@ where
             protocol_config,
             initialise_metrics(registry),
             Arc::new(Clock::new()),
+            ValidatorScoreMetrics::new(),
+            HistoricalValidatorScore::new(),
         ));
         let start_time = Instant::now();
 
