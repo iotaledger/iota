@@ -888,8 +888,7 @@
       "post": {
         "tags": [
           "Transactions"
-        ],
-        "description": "[![unstable](https://img.shields.io/badge/api-unstable-red?style=for-the-badge)](#) _Api subject to change; use at your own risk_\n\n",
+        ],        
         "operationId": "SimulateTransaction",
         "parameters": [
           {
@@ -951,7 +950,6 @@
         "tags": [
           "Transactions"
         ],
-        "description": "[![unstable](https://img.shields.io/badge/api-unstable-red?style=for-the-badge)](#) _Api subject to change; use at your own risk_\n\n",
         "operationId": "ResolveTransaction",
         "parameters": [
           {
