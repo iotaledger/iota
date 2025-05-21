@@ -3,29 +3,26 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use std::{
-    collections::{BTreeMap, HashMap},
+    collections::HashMap,
     net::SocketAddr,
     num::NonZeroUsize,
-    path::{Path, PathBuf},
+    path::PathBuf,
     sync::{Arc, Mutex},
     time::Duration,
 };
 
-use futures::{Future, StreamExt, future::join_all};
+use futures::{StreamExt, future::join_all};
 use iota_config::{
     Config, IOTA_CLIENT_CONFIG, IOTA_KEYSTORE_FILENAME, IOTA_NETWORK_CONFIG, NodeConfig,
     PersistedConfig,
     genesis::Genesis,
-    local_ip_utils::get_available_port,
     node::{AuthorityOverloadConfig, DBCheckpointConfig, RunWithRange},
 };
 use iota_core::{
     authority_aggregator::AuthorityAggregator, authority_client::NetworkAuthorityClient,
 };
 use iota_genesis_builder::SnapshotSource;
-use iota_json_rpc_api::{
-    IndexerApiClient, TransactionBuilderClient, WriteApiClient, error_object_from_rpc,
-};
+use iota_json_rpc_api::{IndexerApiClient, TransactionBuilderClient, WriteApiClient};
 use iota_json_rpc_types::{
     IotaExecutionStatus, IotaObjectDataOptions, IotaObjectResponse, IotaObjectResponseQuery,
     IotaTransactionBlockEffectsAPI, IotaTransactionBlockResponse,
@@ -54,7 +51,7 @@ use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
     base_types::{AuthorityName, ConciseableName, IotaAddress, ObjectID, ObjectRef},
     committee::{Committee, CommitteeTrait, EpochId},
-    crypto::{AccountKeyPair, IotaKeyPair, KeypairTraits, ToFromBytes, get_key_pair},
+    crypto::{AccountKeyPair, IotaKeyPair, KeypairTraits, get_key_pair},
     effects::{TransactionEffects, TransactionEvents},
     error::IotaResult,
     governance::MIN_VALIDATOR_JOINING_STAKE_NANOS,
@@ -69,15 +66,11 @@ use iota_types::{
     supported_protocol_versions::SupportedProtocolVersions,
     traffic_control::{PolicyConfig, RemoteFirewallConfig},
     transaction::{
-        CertifiedTransaction, ObjectArg, Transaction, TransactionData, TransactionDataAPI,
-        TransactionKind,
+        CertifiedTransaction, Transaction, TransactionData, TransactionDataAPI, TransactionKind,
     },
     utils::to_sender_signed_transaction,
 };
-use jsonrpsee::{
-    core::RpcResult,
-    http_client::{HttpClient, HttpClientBuilder},
-};
+use jsonrpsee::http_client::{HttpClient, HttpClientBuilder};
 use rand::{distributions::*, rngs::OsRng, seq::SliceRandom};
 use tokio::{
     task::JoinHandle,

@@ -48,7 +48,6 @@ use iota_types::{
     event::Event,
     gas_coin::{GAS, GasCoin, STARDUST_TOTAL_SUPPLY_NANOS},
     governance::StakedIota,
-    id::UID,
     in_memory_storage::InMemoryStorage,
     inner_temporary_store::InnerTemporaryStore,
     iota_system_state::{IotaSystemState, IotaSystemStateTrait, get_iota_system_state},

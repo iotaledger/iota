@@ -28,10 +28,7 @@ use iota_graphql_rpc::{
 };
 #[cfg(feature = "indexer")]
 use iota_indexer::test_utils::{IndexerTypeConfig, start_test_indexer};
-use iota_keys::{
-    keypair_file::read_key,
-    keystore::{AccountKeystore, FileBasedKeystore, Keystore},
-};
+use iota_keys::keystore::{AccountKeystore, FileBasedKeystore, Keystore};
 use iota_move::{self, execute_move_command};
 use iota_move_build::IotaPackageHooks;
 use iota_sdk::{
@@ -47,7 +44,7 @@ use iota_swarm_config::{
 };
 use iota_types::{
     base_types::IotaAddress,
-    crypto::{IotaKeyPair, SignatureScheme, ToFromBytes},
+    crypto::{IotaKeyPair, SignatureScheme},
 };
 use move_analyzer::analyzer;
 use move_package::BuildConfig;

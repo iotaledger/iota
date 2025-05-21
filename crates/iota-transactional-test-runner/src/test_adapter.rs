@@ -240,7 +240,7 @@ impl AdapterInitConfig {
             Some(OffChainConfig {
                 snapshot_config,
                 epochs_to_keep,
-                data_ingestion_path: data_ingestion_path.unwrap_or(tempdir().unwrap().keep()),
+                data_ingestion_path: data_ingestion_path.unwrap_or(tempdir().unwrap().into_path()),
                 rest_api_url,
             })
         } else {

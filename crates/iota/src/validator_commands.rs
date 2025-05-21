@@ -25,8 +25,8 @@ use iota_json_rpc_types::{
 use iota_keys::{
     key_derive::generate_new_key,
     keypair_file::{
-        read_authority_keypair_from_file, read_key, read_keypair_from_file,
-        read_network_keypair_from_file, write_authority_keypair_to_file, write_keypair_to_file,
+        read_authority_keypair_from_file, read_keypair_from_file, read_network_keypair_from_file,
+        write_authority_keypair_to_file, write_keypair_to_file,
     },
     keystore::AccountKeystore,
 };
@@ -59,7 +59,6 @@ use tabled::{
         object::{Column, Columns},
     },
 };
-use url::{ParseError, Url};
 
 use crate::{PrintableResult, fire_drill::get_gas_obj_ref};
 
@@ -460,27 +459,6 @@ impl IotaValidatorCommand {
             }
         });
         ret
-    }
-}
-
-fn check_address(
-    active_address: IotaAddress,
-    validator_address: Option<IotaAddress>,
-    print_unsigned_transaction_only: bool,
-) -> Result<IotaAddress, anyhow::Error> {
-    if !print_unsigned_transaction_only {
-        if let Some(validator_address) = validator_address {
-            if validator_address != active_address {
-                bail!(
-                    "`--validator-address` must be the same as the current active address: {}",
-                    active_address
-                );
-            }
-        }
-        Ok(active_address)
-    } else {
-        validator_address
-            .ok_or_else(|| anyhow!("--validator-address must be provided when `print_unsigned_transaction_only` is true"))
     }
 }
 
