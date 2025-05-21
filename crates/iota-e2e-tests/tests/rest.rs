@@ -86,10 +86,12 @@ async fn resolve_transaction_simple_transfer() {
                     value: bcs::to_bytes(&recipient).unwrap(),
                 },
             ],
-            commands: vec![Command::TransferObjects(iota_sdk::types::TransferObjects {
-                objects: vec![Argument::Input(0)],
-                address: Argument::Input(1),
-            })],
+            commands: vec![Command::TransferObjects(
+                iota_sdk2::types::TransferObjects {
+                    objects: vec![Argument::Input(0)],
+                    address: Argument::Input(1),
+                },
+            )],
         },
         sender: sender.into(),
         gas_payment: None,
@@ -184,14 +186,14 @@ async fn resolve_transaction_transfer_with_sponsor() {
     let transaction_data = resolved.transaction.clone().try_into().unwrap();
     let sender_sig = test_cluster
         .wallet
-        .config
-        .keystore
+        .config()
+        .keystore()
         .sign_secure(&sender, &transaction_data, Intent::iota_transaction())
         .unwrap();
     let sponsor_sig = test_cluster
         .wallet
-        .config
-        .keystore
+        .config()
+        .keystore()
         .sign_secure(&sponsor, &transaction_data, Intent::iota_transaction())
         .unwrap();
 
