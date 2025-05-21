@@ -1508,18 +1508,24 @@ fn format_auction(f: &mut std::fmt::Formatter, auction: &Auction) -> std::fmt::R
             .format("%Y-%m-%d %H:%M:%S.%f UTC")
             .to_string();
     let end_datetime =
-        DateTime::<Utc>::from(UNIX_EPOCH + Duration::from_millis(auction.end_timestamp_ms))
-            .format("%Y-%m-%d %H:%M:%S.%f UTC")
-            .to_string();
+        DateTime::<Utc>::from(UNIX_EPOCH + Duration::from_millis(auction.end_timestamp_ms));
+
+    let expired = end_datetime < chrono::Utc::now();
 
     let data = [
-        ("Start", start_datetime.to_string()),
-        ("End", end_datetime.to_string()),
+        ("Start", start_datetime),
+        (
+            "End",
+            end_datetime.format("%Y-%m-%d %H:%M:%S.%f UTC").to_string(),
+        ),
         (
             "Current Bid",
             auction.current_bid.balance.value().to_string(),
         ),
-        ("Latest Bidder", auction.winner.to_string()),
+        (
+            if expired { "Winner" } else { "Latest Bidder" },
+            auction.winner.to_string(),
+        ),
     ];
     let mut table_builder = Table::builder(data);
     table_builder.set_header(["field", "value"]);
