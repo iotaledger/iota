@@ -9,38 +9,45 @@ use clap::*;
 use fastcrypto_zkp::{bn254::zk_login::OIDCProvider, zk_login_utils::Bn254FrElement};
 use iota_types::{
     base_types::{
-        self, MoveObjectType, MoveObjectType_, ObjectDigest, ObjectID, TransactionDigest,
-        TransactionEffectsDigest,
+        self, IotaAddress, MoveObjectType, MoveObjectType_, ObjectDigest, ObjectID,
+        TransactionDigest, TransactionEffectsDigest,
     },
     crypto::{
-        AccountKeyPair, AuthorityKeyPair, AuthorityPublicKeyBytes, AuthoritySignature, IotaKeyPair,
+        AccountKeyPair, AggregateAuthoritySignature, AuthorityKeyPair, AuthorityPublicKeyBytes,
+        AuthorityQuorumSignInfo, AuthoritySignature, AuthorityStrongQuorumSignInfo, IotaKeyPair,
         KeypairTraits, PublicKey, Signature, Signer, ZkLoginPublicIdentifier, get_key_pair,
         get_key_pair_from_rng,
     },
-    effects::{IDOperation, ObjectIn, ObjectOut, TransactionEffects, UnchangedSharedKind},
+    effects::{
+        IDOperation, ObjectIn, ObjectOut, TransactionEffects, TransactionEvents,
+        UnchangedSharedKind,
+    },
+    event::Event,
     execution_status::{
         CommandArgumentError, ExecutionFailureStatus, ExecutionStatus, PackageUpgradeError,
         TypeArgumentError,
     },
+    full_checkpoint_content::{CheckpointData, CheckpointTransaction},
     messages_checkpoint::{
-        CheckpointContents, CheckpointContentsDigest, CheckpointDigest, CheckpointSummary,
-        FullCheckpointContents,
+        CertifiedCheckpointSummary, CheckpointContents, CheckpointContentsDigest, CheckpointDigest,
+        CheckpointSummary, FullCheckpointContents,
     },
     messages_grpc::ObjectInfoRequestKind,
     move_package::TypeOrigin,
     multisig::{MultiSig, MultiSigPublicKey},
-    object::{Data, Owner},
+    object::{Data, Object, Owner},
     signature::GenericSignature,
     storage::DeleteKind,
     transaction::{
-        Argument, CallArg, Command, EndOfEpochTransactionKind, ObjectArg, TransactionExpiration,
-        TransactionKind,
+        Argument, CallArg, Command, EndOfEpochTransactionKind, ObjectArg, SenderSignedData,
+        TransactionData, TransactionExpiration, TransactionKind,
     },
     utils::DEFAULT_ADDRESS_SEED,
 };
 use move_core_types::language_storage::{StructTag, TypeTag};
 use pretty_assertions::assert_str_eq;
 use rand::{SeedableRng, rngs::StdRng};
+use roaring::RoaringBitmap;
 use serde_reflection::{Registry, Result, Samples, Tracer, TracerConfig};
 use shared_crypto::intent::{Intent, IntentMessage, PersonalMessage};
 use typed_store::TypedStoreError;
@@ -187,6 +194,47 @@ fn get_registry() -> Result<Registry> {
     tracer.trace_type::<FullCheckpointContents>(&samples)?;
     tracer.trace_type::<CheckpointContents>(&samples)?;
     tracer.trace_type::<CheckpointSummary>(&samples)?;
+
+    let sender_data = SenderSignedData::new(
+        TransactionData::new_with_gas_coins(
+            TransactionKind::EndOfEpochTransaction(Vec::new()),
+            IotaAddress::ZERO,
+            Vec::new(),
+            0,
+            0,
+        ),
+        Vec::new(),
+    );
+    tracer.trace_value(&mut samples, &sender_data).unwrap();
+
+    let quorum_sig: AuthorityStrongQuorumSignInfo = AuthorityQuorumSignInfo {
+        epoch: 0,
+        signature: AggregateAuthoritySignature::default(),
+        signers_map: RoaringBitmap::default(),
+    };
+    tracer.trace_value(&mut samples, &quorum_sig).unwrap();
+
+    tracer
+        .trace_type::<CertifiedCheckpointSummary>(&samples)
+        .unwrap();
+
+    let event = Event {
+        package_id: ObjectID::random(),
+        transaction_module: Identifier::new("foo").unwrap(),
+        sender: IotaAddress::ZERO,
+        type_: struct_tag.clone(),
+        contents: vec![0],
+    };
+    tracer.trace_value(&mut samples, &event).unwrap();
+
+    tracer.trace_type::<Object>(&samples).unwrap();
+
+    tracer.trace_type::<TransactionEvents>(&samples).unwrap();
+    tracer
+        .trace_type::<CheckpointTransaction>(&samples)
+        .unwrap();
+
+    tracer.trace_type::<CheckpointData>(&samples).unwrap();
 
     tracer.registry()
 }
