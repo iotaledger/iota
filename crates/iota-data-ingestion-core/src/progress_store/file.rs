@@ -119,7 +119,7 @@ impl FileProgressStore {
         tokio::fs::rename(&tmp_path, &self.path).await?;
 
         // Re-open the file handle for further reads
-        self.file = Self::open_or_create_file(&self.path).await?;
+        self.file = File::open(&self.path).await?;
 
         Ok(())
     }
