@@ -225,6 +225,7 @@ impl ValidatorConfigBuilder {
             execution_cache: ExecutionCacheConfig::default(),
             enable_validator_tx_finalizer: true,
             verifier_signing_config: VerifierSigningConfig::default(),
+            enable_db_write_stall: None,
             iota_names_config: None,
         }
     }
@@ -519,6 +520,7 @@ impl FullnodeConfigBuilder {
             // This is a validator specific feature.
             enable_validator_tx_finalizer: false,
             verifier_signing_config: VerifierSigningConfig::default(),
+            enable_db_write_stall: None,
             iota_names_config: None,
         }
     }
