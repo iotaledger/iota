@@ -210,6 +210,22 @@ export function generateValidatorsTableColumns({
             },
         },
         {
+            header: 'Next Epoch Stake',
+            accessorKey: 'nextEpochStake',
+            id: 'nextEpochStake',
+            enableSorting: true,
+            sortingFn: (rowA, rowB, columnId) =>
+                BigInt(rowA.getValue(columnId)) - BigInt(rowB.getValue(columnId)) > 0 ? 1 : -1,
+            cell({ getValue }) {
+                const nextEpochStake = getValue<string>();
+                return (
+                    <TableCellBase>
+                        <StakeColumn stake={nextEpochStake} />
+                    </TableCellBase>
+                );
+            },
+        },
+        {
             header: 'Last Epoch Rewards',
             accessorKey: 'lastReward',
             id: 'lastReward',
