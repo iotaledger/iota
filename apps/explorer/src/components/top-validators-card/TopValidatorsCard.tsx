@@ -35,7 +35,7 @@ export function TopValidatorsCard({ limit, showIcon }: TopValidatorsCardProps): 
         return data.committeeMembers.sort(
             (a, b) => Number(b.stakingPoolIotaBalance) - Number(a.stakingPoolIotaBalance),
         );
-    }, [data]);
+    }, [data?.committeeMembers]);
 
     const topCommitteeMembers = sortedCommitteeMembers.slice(0, limit || NUMBER_OF_VALIDATORS);
 
