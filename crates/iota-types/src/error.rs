@@ -540,9 +540,6 @@ pub enum IotaError {
     #[error("Authority Error: {error:?}")]
     GenericAuthority { error: String },
 
-    #[error("Generic Bridge Error: {error:?}")]
-    GenericBridge { error: String },
-
     #[error("Failed to dispatch subscription: {error:?}")]
     FailedToDispatchSubscription { error: String },
 

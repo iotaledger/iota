@@ -7,8 +7,7 @@ use async_graphql::{
     *,
 };
 use iota_types::{
-    base_types::SequenceNumber,
-    digests::{ChainIdentifier as IotaChainIdentifier, TransactionDigest},
+    digests::TransactionDigest,
     object::Object as NativeObject,
     transaction::{
         AuthenticatorStateExpire as NativeAuthenticatorStateExpireTransaction,
@@ -47,8 +46,6 @@ pub(crate) enum EndOfEpochTransactionKind {
     ChangeEpochV2(ChangeEpochTransactionV2),
     AuthenticatorStateCreate(AuthenticatorStateCreateTransaction),
     AuthenticatorStateExpire(AuthenticatorStateExpireTransaction),
-    BridgeStateCreate(BridgeStateCreateTransaction),
-    BridgeCommitteeInit(BridgeCommitteeInitTransaction),
 }
 
 // System transaction for advancing the epoch.
@@ -80,20 +77,6 @@ pub(crate) struct AuthenticatorStateCreateTransaction {
 #[derive(Clone, PartialEq, Eq)]
 pub(crate) struct AuthenticatorStateExpireTransaction {
     pub native: NativeAuthenticatorStateExpireTransaction,
-    /// The checkpoint sequence number this was viewed at.
-    pub checkpoint_viewed_at: u64,
-}
-
-#[derive(Clone, PartialEq, Eq)]
-pub(crate) struct BridgeStateCreateTransaction {
-    pub native: IotaChainIdentifier,
-    /// The checkpoint sequence number this was viewed at.
-    pub checkpoint_viewed_at: u64,
-}
-
-#[derive(Clone, PartialEq, Eq)]
-pub(crate) struct BridgeCommitteeInitTransaction {
-    pub native: SequenceNumber,
     /// The checkpoint sequence number this was viewed at.
     pub checkpoint_viewed_at: u64,
 }
@@ -361,20 +344,6 @@ impl AuthenticatorStateExpireTransaction {
             .authenticator_obj_initial_shared_version
             .value()
             .into()
-    }
-}
-
-#[Object]
-impl BridgeStateCreateTransaction {
-    async fn chain_id(&self) -> String {
-        self.native.to_string()
-    }
-}
-
-#[Object]
-impl BridgeCommitteeInitTransaction {
-    async fn bridge_obj_initial_shared_version(&self) -> UInt53 {
-        self.native.value().into()
     }
 }
 
