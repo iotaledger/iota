@@ -27,14 +27,9 @@ iota move new my_coin
 2. In `my_coin.move`, paste this simple move `Coin` module:
 
 ```move
-/// Module: check_package
-
-module my_coin::my_coin;
+module my_coin::my_coin{
 
 use iota::coin::{Self, TreasuryCap};
-use iota::transfer;
-use iota::tx_context;
-use std::option;
 
 /// The type identifier of the coin. The coin will have a type
 /// tag of kind: `Coin<package_object::my_coin::MYCOIN>`
@@ -55,6 +50,7 @@ fun init(witness: MYCOIN, ctx: &mut TxContext) {
     );
     transfer::public_freeze_object(metadata);
     transfer::public_transfer(treasury, tx_context::sender(ctx));
+}
 }
 
 /// Mints new coins to the specified recipient.
