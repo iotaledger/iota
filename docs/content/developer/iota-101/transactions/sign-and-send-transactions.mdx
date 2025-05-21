@@ -19,7 +19,7 @@ In Move-based blockchains, transactions are the primary means to interact with t
 Transactions in Move represent function calls or operations that affect the state of the blockchain. They are executed based on provided inputs, which can be:
 
 - **Object References**: These refer to [owned objects](../objects/object-ownership/address-owned.mdx), [immutable objects](../objects/object-ownership/immutable.mdx), or [shared objects](../objects/object-ownership/shared.mdx) within the blockchain state.
-- **Encoded Values**: For example, a [vector](../../../references/framework/std/vector.mdx) of bytes used as arguments in a Move function call.
+- **Encoded Values**: For example, a [vector](../../../references/framework/move-stdlib/vector.mdx) of bytes used as arguments in a Move function call.
 
 After constructing a transaction—typically using [Programmable Transaction Blocks](ptb/building-programmable-transaction-blocks-ts-sdk.mdx) (PTBs)—you need to sign it and submit it to the network.
 
