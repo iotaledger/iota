@@ -1,6 +1,6 @@
 {
   "1": {
-    "git_revision": "22a1e212cbb9",
+    "git_revision": "8b277f00e5fe",
     "packages": [
       {
         "name": "MoveStdlib",
@@ -30,7 +30,7 @@
     ]
   },
   "2": {
-    "git_revision": "f20be52f200b",
+    "git_revision": "e629a393b16b",
     "packages": [
       {
         "name": "MoveStdlib",
@@ -60,7 +60,7 @@
     ]
   },
   "3": {
-    "git_revision": "378e09e7aa88",
+    "git_revision": "14735223a456",
     "packages": [
       {
         "name": "MoveStdlib",
@@ -90,7 +90,7 @@
     ]
   },
   "4": {
-    "git_revision": "49d5d7d99313",
+    "git_revision": "c786df5c74f1",
     "packages": [
       {
         "name": "MoveStdlib",
@@ -150,7 +150,7 @@
     ]
   },
   "6": {
-    "git_revision": "60480c0a5906",
+    "git_revision": "78d84db40c67",
     "packages": [
       {
         "name": "MoveStdlib",
