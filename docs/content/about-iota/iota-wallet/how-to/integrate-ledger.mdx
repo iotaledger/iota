@@ -70,6 +70,8 @@ Right click and choose `Download Linked File`. This makes sure Safari doesn't un
 6. Follow the steps on https://github.com/LedgerHQ/ledgerctl to install `ledgerctl`.
 7. If you don't already have your ledger device connected, connect and unlock it now.
 8. Install the app on your device `ledgerctl install -f app_nanos.json`.
+   If you get this error message: `ledgerwallet.client.CommException: Exception : Invalid status 5103 (Unknown reason)`, then it means that you do not have enough space left for the app.
+   Delete an existing app on your device and try the install command again. You can delete an app in Ledger Live or with `ledgerctl` by running `ledgerctl list` and then `ledgerctl delete <app_name>`.
 9. Accept `Allow unsafe manager` on your device.
 10. Follow the instructions on your device to uninstall the old app if needed.
 11. Accept `Perform installation` on your device.
