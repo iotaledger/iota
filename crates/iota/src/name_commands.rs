@@ -1373,7 +1373,7 @@ impl std::fmt::Display for NameCommandResult {
                 nft,
                 digest: transaction,
             } => {
-                writeln!(f, "Registered Record:")?;
+                writeln!(f, "Registered record:")?;
                 format_name_record(f, record)?;
                 writeln!(f, "\nCreated NFT:")?;
                 format_nft(f, nft)?;
@@ -1383,7 +1383,7 @@ impl std::fmt::Display for NameCommandResult {
                 record,
                 digest: transaction,
             } => {
-                writeln!(f, "Registered Record:")?;
+                writeln!(f, "Registered record:")?;
                 format_name_record(f, record)?;
                 write!(f, "\nTransaction digest: {transaction}")
             }
@@ -1392,7 +1392,7 @@ impl std::fmt::Display for NameCommandResult {
                 nft,
                 digest: transaction,
             } => {
-                writeln!(f, "Registered Record:")?;
+                writeln!(f, "Registered record:")?;
                 format_name_record(f, record)?;
                 writeln!(f, "\nCreated NFT:")?;
                 format_subdomain_nft(f, nft)?;
@@ -1403,7 +1403,7 @@ impl std::fmt::Display for NameCommandResult {
                 nft,
                 digest: transaction,
             } => {
-                writeln!(f, "Renewed Record:")?;
+                writeln!(f, "Renewed record:")?;
                 format_name_record(f, record)?;
                 writeln!(f, "\nUpdated NFT:")?;
                 format_nft(f, nft)?;
@@ -1438,7 +1438,7 @@ impl std::fmt::Display for NameCommandResult {
                 record,
                 digest: transaction,
             } => {
-                writeln!(f, "Successfully set user data {key} to {value}")?;
+                writeln!(f, "Successfully set user data \"{key}\" to \"{value}\"")?;
                 format_name_record(f, record)?;
                 write!(f, "\nTransaction digest: {transaction}")
             }
@@ -1479,7 +1479,7 @@ impl std::fmt::Display for NameCommandResult {
                 record,
                 digest: transaction,
             } => {
-                writeln!(f, "Successfully unset key {key}")?;
+                writeln!(f, "Successfully unset key \"{key}\"")?;
                 format_name_record(f, record)?;
                 write!(f, "\nTransaction digest: {transaction}")
             }
@@ -1586,7 +1586,7 @@ fn build_name_record_table(table_builder: &mut TableBuilder, record: &NameRecord
         record
             .target_address
             .map(|address| address.to_string())
-            .unwrap_or_else(|| "<n/a>".to_owned())
+            .unwrap_or_else(|| "none".to_owned())
             .as_str(),
     ]);
 
