@@ -40,7 +40,7 @@ enum Command {
 }
 
 impl Command {
-    async fn execute(self) -> anyhow::Result<(), anyhow::Error> {
+    async fn execute(self) -> anyhow::Result<()> {
         match self {
             Command::Fetch {
                 base_url,
