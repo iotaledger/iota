@@ -148,8 +148,6 @@ members = [
   "crates/iota-transactional-test-runner",
   "crates/iota-types",
   "crates/iota-upgrade-compatibility-transactional-tests",
-  "crates/iota-util-mem",
-  "crates/iota-util-mem-derive",
   "crates/iota-verifier-transactional-tests",
   "crates/prometheus-closure-metric",
   "crates/shared-crypto",
@@ -444,8 +442,6 @@ iota-transaction-checks = { path = "crates/iota-transaction-checks" }
 iota-transactional-test-runner = { path = "crates/iota-transactional-test-runner" }
 iota-types = { path = "crates/iota-types" }
 iota-upgrade-compatibility-transactional-tests = { path = "crates/iota-upgrade-compatibility-transactional-tests" }
-iota-util-mem = { path = "crates/iota-util-mem" }
-iota-util-mem-derive = { path = "crates/iota-util-mem-derive" }
 iota-verifier-transactional-tests = { path = "crates/iota-verifier-transactional-tests" }
 move-abstract-interpreter = { path = "external-crates/move/crates/move-abstract-interpreter" }
 move-abstract-stack = { path = "external-crates/move/crates/move-abstract-stack" }

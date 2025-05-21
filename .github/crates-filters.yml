@@ -166,10 +166,6 @@ iota-types:
   - "crates/iota-types/**"
 iota-upgrade-compatibility-transactional-tests:
   - "crates/iota-upgrade-compatibility-transactional-tests/**"
-iota-util-mem:
-  - "crates/iota-util-mem/**"
-iota-util-mem-derive:
-  - "crates/iota-util-mem-derive/**"
 iota-verifier-transactional-tests:
   - "crates/iota-verifier-transactional-tests/**"
 prometheus-closure-metric:
