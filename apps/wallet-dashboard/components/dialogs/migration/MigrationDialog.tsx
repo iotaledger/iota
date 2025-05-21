@@ -58,9 +58,14 @@ export function MigrationDialog({
             setBasicOutputs(basicOutputObjects.slice(0, -reductionSize.current));
             setNftOutputs(nftOutputObjects.slice(0, -reductionSize.current));
             setIsPartialMigration(true);
+        } else {
+            toast.error(
+                error?.message || 'An error occurred while creating the migration transaction',
+            );
+            console.error('Error creating migration transaction', error);
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [isMigrationError]);
+    }, [isMigrationError, error]);
 
     async function handleMigrate(): Promise<void> {
         if (!migrateData) return;
