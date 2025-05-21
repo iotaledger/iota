@@ -29,7 +29,8 @@ use iota_types::{
         FinalizedEffects, IsTransactionExecutedLocally, QuorumDriverEffectsQueueResult,
         QuorumDriverError, QuorumDriverResponse, QuorumDriverResult,
     },
-    transaction::VerifiedTransaction,
+    transaction::{TransactionData, VerifiedTransaction},
+    transaction_executor::SimulateTransactionResult,
 };
 use prometheus::{
     Histogram, Registry,
@@ -745,5 +746,12 @@ where
         client_addr: Option<std::net::SocketAddr>,
     ) -> Result<ExecuteTransactionResponseV1, QuorumDriverError> {
         self.execute_transaction_v1(request, client_addr).await
+    }
+
+    fn simulate_transaction(
+        &self,
+        transaction: TransactionData,
+    ) -> Result<SimulateTransactionResult, IotaError> {
+        self.validator_state.simulate_transaction(transaction)
     }
 }
