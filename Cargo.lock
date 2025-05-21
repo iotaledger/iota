@@ -7875,7 +7875,6 @@ dependencies = [
  "num-bigint 0.4.6",
  "num-rational",
  "num-traits",
- "num_enum",
  "once_cell",
  "p256",
  "packable",
