@@ -7,6 +7,7 @@ concurrency: ${{ github.workflow }}-${{ github.ref }}
 
 env:
   IOTA_NETWORKS: ${{ secrets.CHANGESETS_IOTA_NETWORKS }}
+  DEFAULT_NETWORK: ${{ secrets.CHANGESETS_DEFAULT_NETWORK }}
 
 jobs:
   publish:
