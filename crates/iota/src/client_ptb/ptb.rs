@@ -75,30 +75,21 @@ impl PTBCommandResult {
 impl std::fmt::Display for PTBCommandResult {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::Preview(ptb_preview) => ptb_preview.to_string(),
-            Self::CommandResult(res) => res.to_string(),
-            Self::Summary(summary) => Pretty(summary).to_string(),
-            Self::DevInspect(dev_inspect_results) => {
-                Pretty(dev_inspect_results.as_ref()).to_string()
-            }
-            Self::Json(value) => {
-                serde_json::to_string_pretty(&value).map_err(|_| std::fmt::Error)?
-            }
+            Self::Preview(ptb_preview) => ptb_preview.fmt(f),
+            Self::CommandResult(res) => res.fmt(f),
+            Self::Summary(summary) => Pretty(summary).fmt(f),
+            Self::DevInspect(dev_inspect_results) => Pretty(dev_inspect_results.as_ref()).fmt(f),
+            Self::Json(value) => serde_json::to_string_pretty(&value)
+                .map_err(|_| std::fmt::Error)?
+                .fmt(f),
             Self::Help { long } => {
-                let mut buf = Vec::new();
                 if *long {
-                    ptb_description()
-                        .write_long_help(&mut buf)
-                        .map_err(|_| std::fmt::Error)?;
+                    ptb_description().render_long_help().ansi().fmt(f)
                 } else {
-                    ptb_description()
-                        .write_help(&mut buf)
-                        .map_err(|_| std::fmt::Error)?;
+                    ptb_description().render_help().ansi().fmt(f)
                 }
-                String::from_utf8(buf).expect("failed to write help")
             }
         }
-        .fmt(f)
     }
 }
 
