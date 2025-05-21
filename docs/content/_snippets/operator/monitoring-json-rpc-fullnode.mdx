@@ -1,0 +1,17 @@
+## JSON-RPC Endpoint
+
+### Test JSON RPC Interface
+After the full node starts, you can test the [JSON-RPC interfaces](https://docs.iota.org/iota-api-ref).
+
+### View Activity on Your Local Full Node with IOTA Explorer
+
+The IOTA Explorer supports connecting to any network as long as it has `https` enabled. To view activity on your local full node:
+- open the URL: [https://explorer.rebased.iota.org/](https://explorer.rebased.iota.org/)
+- then select `Custom RPC URL` from the network dropdown in the top right.
+
+### Fetch latest checkpoint using JSON-RPC
+```shell
+curl --json '{"jsonrpc":"2.0","id":1,"method":"iota_getLatestCheckpointSequenceNumber","params":[]}' localhost:9000 -s | jq .result
+```
+
+To ensure node health, you can check that this value matches the latest checkpoint known by the rest of the network by using the value found on https://explorer.rebased.iota.org/

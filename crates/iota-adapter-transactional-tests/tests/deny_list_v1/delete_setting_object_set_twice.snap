@@ -1,0 +1,287 @@
+---
+source: external-crates/move/crates/move-transactional-test-runner/src/framework.rs
+---
+processed 23 tasks
+
+init:
+A: object(0,0), B: object(0,1)
+
+task 1, lines 10-54:
+//# publish --sender A
+created: object(1,0), object(1,1), object(1,2), object(1,3), object(1,4), object(1,5)
+mutated: object(0,0)
+unchanged_shared: 0x0000000000000000000000000000000000000000000000000000000000000403
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 20383200,  storage_rebate: 0, non_refundable_storage_fee: 0
+
+task 2, lines 55-57:
+//# run iota::coin::deny_list_v1_add --args object(0x403) object(1,2) @B --type-args test::regulated_coin::REGULATED_COIN --sender A
+events: Event { package_id: iota, transaction_module: Identifier("coin"), sender: A, type_: StructTag { address: iota, module: Identifier("deny_list"), name: Identifier("PerTypeConfigCreated"), type_params: [] }, contents: [0, 0, 0, 0, 0, 0, 0, 0, 96, 55, 52, 52, 102, 98, 48, 99, 57, 97, 49, 99, 54, 48, 56, 53, 53, 55, 51, 57, 102, 97, 53, 98, 98, 100, 101, 48, 101, 56, 98, 53, 100, 51, 52, 102, 55, 57, 53, 101, 54, 53, 54, 48, 53, 48, 50, 97, 98, 100, 52, 98, 97, 99, 53, 55, 52, 48, 56, 54, 53, 49, 98, 55, 50, 58, 58, 114, 101, 103, 117, 108, 97, 116, 101, 100, 95, 99, 111, 105, 110, 58, 58, 82, 69, 71, 85, 76, 65, 84, 69, 68, 95, 67, 79, 73, 78, 28, 36, 198, 89, 67, 105, 91, 135, 11, 174, 69, 30, 242, 96, 46, 239, 110, 118, 143, 61, 86, 105, 235, 26, 171, 124, 69, 187, 171, 122, 32, 57] }
+created: object(2,0), object(2,1), object(2,2)
+mutated: 0x0000000000000000000000000000000000000000000000000000000000000403, object(0,0), object(1,2)
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 12144800,  storage_rebate: 2758800, non_refundable_storage_fee: 0
+
+task 3, lines 58-60:
+//# run iota::coin::deny_list_v1_enable_global_pause --args object(0x403) object(1,2) --type-args test::regulated_coin::REGULATED_COIN --sender A
+created: object(3,0)
+mutated: 0x0000000000000000000000000000000000000000000000000000000000000403, object(0,0), object(1,2)
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 6627200,  storage_rebate: 4377600, non_refundable_storage_fee: 0
+
+task 4, line 61:
+//# view-object 2,1
+Owner: Object ID: ( fake(2,0) )
+Version: 3
+Contents: iota::dynamic_field::Field<iota::deny_list::AddressKey, iota::config::Setting<bool>> {
+    id: iota::object::UID {
+        id: iota::object::ID {
+            bytes: fake(2,1),
+        },
+    },
+    name: iota::deny_list::AddressKey {
+        pos0: B,
+    },
+    value: iota::config::Setting<bool> {
+        data: std::option::Option<iota::config::SettingData<bool>> {
+            vec: vector[
+                iota::config::SettingData<bool> {
+                    newer_value_epoch: 0u64,
+                    newer_value: std::option::Option<bool> {
+                        vec: vector[
+                            true,
+                        ],
+                    },
+                    older_value_opt: std::option::Option<bool> {
+                        vec: vector[],
+                    },
+                },
+            ],
+        },
+    },
+}
+
+task 5, line 63:
+//# view-object 3,0
+Owner: Object ID: ( fake(2,0) )
+Version: 4
+Contents: iota::dynamic_field::Field<iota::deny_list::GlobalPauseKey, iota::config::Setting<bool>> {
+    id: iota::object::UID {
+        id: iota::object::ID {
+            bytes: fake(3,0),
+        },
+    },
+    name: iota::deny_list::GlobalPauseKey {
+        dummy_field: false,
+    },
+    value: iota::config::Setting<bool> {
+        data: std::option::Option<iota::config::SettingData<bool>> {
+            vec: vector[
+                iota::config::SettingData<bool> {
+                    newer_value_epoch: 0u64,
+                    newer_value: std::option::Option<bool> {
+                        vec: vector[
+                            true,
+                        ],
+                    },
+                    older_value_opt: std::option::Option<bool> {
+                        vec: vector[],
+                    },
+                },
+            ],
+        },
+    },
+}
+
+task 6, lines 65-67:
+//# advance-epoch
+Epoch advanced: 1
+
+task 7, lines 68-70:
+//# run iota::coin::deny_list_v1_add --args object(0x403) object(1,2) @B --type-args test::regulated_coin::REGULATED_COIN --sender A
+mutated: 0x0000000000000000000000000000000000000000000000000000000000000403, object(0,0), object(1,2), object(2,1)
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 6840000,  storage_rebate: 6832400, non_refundable_storage_fee: 0
+
+task 8, lines 71-73:
+//# run iota::coin::deny_list_v1_enable_global_pause --args object(0x403) object(1,2) --type-args test::regulated_coin::REGULATED_COIN --sender A
+mutated: 0x0000000000000000000000000000000000000000000000000000000000000403, object(0,0), object(1,2), object(3,0)
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 6634800,  storage_rebate: 6627200, non_refundable_storage_fee: 0
+
+task 9, line 74:
+//# view-object 2,1
+Owner: Object ID: ( fake(2,0) )
+Version: 5
+Contents: iota::dynamic_field::Field<iota::deny_list::AddressKey, iota::config::Setting<bool>> {
+    id: iota::object::UID {
+        id: iota::object::ID {
+            bytes: fake(2,1),
+        },
+    },
+    name: iota::deny_list::AddressKey {
+        pos0: B,
+    },
+    value: iota::config::Setting<bool> {
+        data: std::option::Option<iota::config::SettingData<bool>> {
+            vec: vector[
+                iota::config::SettingData<bool> {
+                    newer_value_epoch: 1u64,
+                    newer_value: std::option::Option<bool> {
+                        vec: vector[
+                            true,
+                        ],
+                    },
+                    older_value_opt: std::option::Option<bool> {
+                        vec: vector[
+                            true,
+                        ],
+                    },
+                },
+            ],
+        },
+    },
+}
+
+task 10, line 76:
+//# view-object 3,0
+Owner: Object ID: ( fake(2,0) )
+Version: 6
+Contents: iota::dynamic_field::Field<iota::deny_list::GlobalPauseKey, iota::config::Setting<bool>> {
+    id: iota::object::UID {
+        id: iota::object::ID {
+            bytes: fake(3,0),
+        },
+    },
+    name: iota::deny_list::GlobalPauseKey {
+        dummy_field: false,
+    },
+    value: iota::config::Setting<bool> {
+        data: std::option::Option<iota::config::SettingData<bool>> {
+            vec: vector[
+                iota::config::SettingData<bool> {
+                    newer_value_epoch: 1u64,
+                    newer_value: std::option::Option<bool> {
+                        vec: vector[
+                            true,
+                        ],
+                    },
+                    older_value_opt: std::option::Option<bool> {
+                        vec: vector[
+                            true,
+                        ],
+                    },
+                },
+            ],
+        },
+    },
+}
+
+task 11, lines 78-80:
+//# advance-epoch
+Epoch advanced: 2
+
+task 12, lines 81-83:
+//# run iota::coin::deny_list_v1_remove --args object(0x403) object(1,2) @B --type-args test::regulated_coin::REGULATED_COIN --sender A
+mutated: 0x0000000000000000000000000000000000000000000000000000000000000403, object(0,0), object(1,2), object(2,1)
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 6832400,  storage_rebate: 6840000, non_refundable_storage_fee: 0
+
+task 13, lines 84-86:
+//# run iota::coin::deny_list_v1_disable_global_pause --args object(0x403) object(1,2) --type-args test::regulated_coin::REGULATED_COIN --sender A
+mutated: 0x0000000000000000000000000000000000000000000000000000000000000403, object(0,0), object(1,2), object(3,0)
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 6627200,  storage_rebate: 6634800, non_refundable_storage_fee: 0
+
+task 14, line 87:
+//# view-object 2,1
+Owner: Object ID: ( fake(2,0) )
+Version: 7
+Contents: iota::dynamic_field::Field<iota::deny_list::AddressKey, iota::config::Setting<bool>> {
+    id: iota::object::UID {
+        id: iota::object::ID {
+            bytes: fake(2,1),
+        },
+    },
+    name: iota::deny_list::AddressKey {
+        pos0: B,
+    },
+    value: iota::config::Setting<bool> {
+        data: std::option::Option<iota::config::SettingData<bool>> {
+            vec: vector[
+                iota::config::SettingData<bool> {
+                    newer_value_epoch: 2u64,
+                    newer_value: std::option::Option<bool> {
+                        vec: vector[],
+                    },
+                    older_value_opt: std::option::Option<bool> {
+                        vec: vector[
+                            true,
+                        ],
+                    },
+                },
+            ],
+        },
+    },
+}
+
+task 15, line 89:
+//# view-object 3,0
+Owner: Object ID: ( fake(2,0) )
+Version: 8
+Contents: iota::dynamic_field::Field<iota::deny_list::GlobalPauseKey, iota::config::Setting<bool>> {
+    id: iota::object::UID {
+        id: iota::object::ID {
+            bytes: fake(3,0),
+        },
+    },
+    name: iota::deny_list::GlobalPauseKey {
+        dummy_field: false,
+    },
+    value: iota::config::Setting<bool> {
+        data: std::option::Option<iota::config::SettingData<bool>> {
+            vec: vector[
+                iota::config::SettingData<bool> {
+                    newer_value_epoch: 2u64,
+                    newer_value: std::option::Option<bool> {
+                        vec: vector[],
+                    },
+                    older_value_opt: std::option::Option<bool> {
+                        vec: vector[
+                            true,
+                        ],
+                    },
+                },
+            ],
+        },
+    },
+}
+
+task 16, lines 91-93:
+//# advance-epoch
+Epoch advanced: 3
+
+task 17, lines 94-96:
+//# run iota::coin::deny_list_v1_remove --args object(0x403) object(1,2) @B --type-args test::regulated_coin::REGULATED_COIN --sender A
+mutated: 0x0000000000000000000000000000000000000000000000000000000000000403, object(0,0), object(1,2)
+deleted: object(2,1)
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 4377600,  storage_rebate: 6832400, non_refundable_storage_fee: 0
+
+task 18, lines 97-99:
+//# run iota::coin::deny_list_v1_disable_global_pause --args object(0x403) object(1,2) --type-args test::regulated_coin::REGULATED_COIN --sender A
+mutated: 0x0000000000000000000000000000000000000000000000000000000000000403, object(0,0), object(1,2)
+deleted: object(3,0)
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 4377600,  storage_rebate: 6627200, non_refundable_storage_fee: 0
+
+task 19, line 100:
+//# view-object 2,1
+No object at id 2,1
+
+task 20, lines 102-104:
+//# view-object 3,0
+No object at id 3,0
+
+task 21, lines 105-107:
+//# run test::regulated_coin::assert_address_deny_status --args immshared(0x403) @B false --sender A
+mutated: object(0,0)
+unchanged_shared: 0x0000000000000000000000000000000000000000000000000000000000000403
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 980400,  storage_rebate: 980400, non_refundable_storage_fee: 0
+
+task 22, line 108:
+//# run test::regulated_coin::assert_global_pause_status --args immshared(0x403) false --sender A
+mutated: object(0,0)
+unchanged_shared: 0x0000000000000000000000000000000000000000000000000000000000000403
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 980400,  storage_rebate: 980400, non_refundable_storage_fee: 0

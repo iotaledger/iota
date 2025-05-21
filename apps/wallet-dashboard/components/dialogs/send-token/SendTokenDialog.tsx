@@ -10,7 +10,6 @@ import {
     toast,
     useCoinMetadata,
     createValidationSchemaSendTokenForm,
-    IOTA_COIN_METADATA,
     sumCoinBalances,
 } from '@iota/core';
 import { Dialog, DialogContent, DialogPosition } from '@iota/apps-ui-kit';
@@ -53,13 +52,13 @@ function SendTokenDialogBody({
 
     const coinBalance = sumCoinBalances(coins);
     const iotaBalance = sumCoinBalances(iotaCoins);
-    const selectedCoinMetadata = useCoinMetadata(coin.coinType);
-    const iotaCoinMetadata = useCoinMetadata(IOTA_TYPE_ARG);
+    const selectedCoinMetadata = useCoinMetadata(selectedCoin.coinType);
     const coinDecimals = selectedCoinMetadata.data?.decimals ?? 0;
+    const coinSymbol = selectedCoinMetadata.data?.symbol ?? '';
 
     const validationSchemaStepOne = createValidationSchemaSendTokenForm(
         coinBalance,
-        iotaCoinMetadata.data?.symbol ?? IOTA_COIN_METADATA.symbol,
+        coinSymbol,
         coinDecimals,
     );
 

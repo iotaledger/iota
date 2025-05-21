@@ -778,6 +778,7 @@ impl LocalExec {
                 transaction_kind.clone(),
                 tx_info.sender,
                 *tx_digest,
+                &mut None,
             )
         } else {
             unreachable!("Transaction was valid so gas status must be valid");
@@ -942,6 +943,7 @@ impl LocalExec {
             kind,
             signer,
             *executable.digest(),
+            &mut None,
         );
 
         let effects =

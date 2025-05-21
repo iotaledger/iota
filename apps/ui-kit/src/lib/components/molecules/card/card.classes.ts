@@ -15,6 +15,7 @@ export const IMAGE_VARIANT_CLASSES: { [key in ImageShape]: string } = {
 export const IMAGE_BG_CLASSES: { [key in ImageType]: string } = {
     [ImageType.Placeholder]: '',
     [ImageType.BgSolid]: 'bg-neutral-96 dark:bg-neutral-10',
+    [ImageType.BgWhite]: 'bg-white dark:bg-neutral-6',
     [ImageType.BgTransparent]: '',
 };
 

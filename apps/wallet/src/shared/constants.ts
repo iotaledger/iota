@@ -4,4 +4,4 @@
 
 export const DEFAULT_APP_NAME = 'IOTA Wallet';
 
-export const WALLET_DASHBOARD_URL = 'https://wallet-dashboard-iota1.vercel.app';
+export const WALLET_DASHBOARD_URL = 'https://wallet-dashboard.iota.org';

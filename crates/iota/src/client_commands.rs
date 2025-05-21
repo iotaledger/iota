@@ -42,7 +42,7 @@ use iota_replay::ReplayToolCommand;
 use iota_sdk::{
     IOTA_COIN_TYPE, IOTA_DEVNET_GAS_URL, IOTA_DEVNET_URL, IOTA_LOCAL_NETWORK_GAS_URL,
     IOTA_LOCAL_NETWORK_URL, IOTA_LOCAL_NETWORK_URL_0, IOTA_TESTNET_GAS_URL, IOTA_TESTNET_URL,
-    IotaClient,
+    IotaClient, PagedFn,
     apis::ReadApi,
     iota_client_config::{IotaClientConfig, IotaEnv},
     wallet_context::WalletContext,
@@ -88,9 +88,10 @@ use tabled::{
         style::HorizontalLine,
     },
 };
-use tracing::{debug, info};
+use tracing::debug;
 
 use crate::{
+    PrintableResult,
     clever_error_rendering::render_clever_error_opt,
     client_ptb::ptb::PTB,
     displays::Pretty,
@@ -365,7 +366,8 @@ pub enum IotaClientCommands {
         /// ID of the coin object to split
         #[arg(long)]
         coin_id: ObjectID,
-        /// Specific amounts to split out from the coin
+        /// Specific amounts to split out from the coin, separated by space,
+        /// e.g. `--amounts 1 2 1000000000` (1 NANO, 2 NANOS, 1 IOTA)
         #[arg(long, num_args(1..))]
         amounts: Option<Vec<u64>>,
         /// Count of equal-size coins to split into
@@ -545,7 +547,7 @@ pub enum IotaClientCommands {
 }
 
 /// Global options for most transaction execution related commands
-#[derive(Args, Debug)]
+#[derive(Args, Debug, Clone)]
 pub struct Opts {
     /// An optional gas budget for this transaction (in NANOS). If gas budget is
     /// not provided, the tool will first perform a dry run to estimate the
@@ -584,7 +586,7 @@ pub struct Opts {
 }
 
 /// Global options with gas
-#[derive(Args, Debug)]
+#[derive(Args, Debug, Clone)]
 pub struct OptsWithGas {
     /// ID of the gas object for gas payment.
     /// If not provided, a gas object with at least gas_budget value will be
@@ -669,6 +671,32 @@ impl OptsWithGas {
             gas,
             rest: Opts::for_testing_display_options(gas_budget, display),
         }
+    }
+
+    // `--emit` is not supported with a PTB call (https://github.com/iotaledger/iota/issues/5722)
+    /// Output the options as a vec of strings that can be provided as args to
+    /// the PTB CLI.
+    pub fn into_args(self) -> Vec<String> {
+        let mut args = Vec::default();
+        if let Some(gas) = self.gas {
+            args.push(format!("--gas {gas}"));
+        }
+        if let Some(gas_budget) = self.rest.gas_budget {
+            args.push(format!("--gas-budget {gas_budget}"));
+        }
+        if self.rest.dry_run {
+            args.push("--dry-run".to_string());
+        }
+        if self.rest.dev_inspect {
+            args.push("--dev-inspect".to_string());
+        }
+        if self.rest.serialize_signed_transaction {
+            args.push("--serialize_signed_transaction".to_string());
+        }
+        if self.rest.serialize_unsigned_transaction {
+            args.push("--serialize_unsigned_transaction".to_string());
+        }
+        args
     }
 }
 
@@ -802,32 +830,22 @@ impl IotaClientCommands {
                 let address = get_identity_address(address, context)?;
                 let client = context.get_client().await?;
 
-                let mut objects: Vec<Coin> = Vec::new();
-                let mut cursor = None;
-                loop {
-                    let response = match coin_type {
+                let objects =
+                    PagedFn::collect::<Vec<_>>(async |cursor: Option<ObjectID>| match coin_type {
                         Some(ref coin_type) => {
                             client
                                 .coin_read_api()
                                 .get_coins(address, Some(coin_type.clone()), cursor, None)
-                                .await?
+                                .await
                         }
                         None => {
                             client
                                 .coin_read_api()
                                 .get_all_coins(address, cursor, None)
-                                .await?
+                                .await
                         }
-                    };
-
-                    objects.extend(response.data);
-
-                    if response.has_next_page {
-                        cursor = response.next_cursor;
-                    } else {
-                        break;
-                    }
-                }
+                    })
+                    .await?;
 
                 fn canonicalize_type(type_: &str) -> Result<String, anyhow::Error> {
                     Ok(TypeTag::from_str(type_)
@@ -1402,10 +1420,8 @@ impl IotaClientCommands {
             IotaClientCommands::Objects { address } => {
                 let address = get_identity_address(address, context)?;
                 let client = context.get_client().await?;
-                let mut objects: Vec<IotaObjectResponse> = Vec::new();
-                let mut cursor = None;
-                loop {
-                    let response = client
+                let objects = PagedFn::collect(async |cursor: Option<ObjectID>| {
+                    client
                         .read_api()
                         .get_owned_objects(
                             address,
@@ -1415,15 +1431,9 @@ impl IotaClientCommands {
                             cursor,
                             None,
                         )
-                        .await?;
-                    objects.extend(response.data);
-
-                    if response.has_next_page {
-                        cursor = response.next_cursor;
-                    } else {
-                        break;
-                    }
-                }
+                        .await
+                })
+                .await?;
                 IotaClientCommandResult::Objects(objects)
             }
             IotaClientCommands::NewAddress {
@@ -2015,6 +2025,16 @@ pub(crate) async fn compile_package(
         eprintln!("{}", "Skipping dependency verification".bold().yellow());
     }
 
+    if compiled_package
+        .get_package_bytes(with_unpublished_dependencies)
+        .is_empty()
+    {
+        return Err(IotaError::ModulePublishFailure {
+            error: "No modules found in the package".to_string(),
+        }
+        .into());
+    }
+
     compiled_package
         .package
         .compiled_package_info
@@ -2379,7 +2399,7 @@ fn convert_number_to_string(value: Value) -> Value {
 
 impl Debug for IotaClientCommandResult {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let s = unwrap_err_to_string(|| match self {
+        let s = crate::unwrap_err_to_string(|| match self {
             IotaClientCommandResult::Gas(gas_coins) => {
                 let gas_coins = gas_coins
                     .iter()
@@ -2397,14 +2417,7 @@ impl Debug for IotaClientCommandResult {
             }
             _ => Ok(serde_json::to_string_pretty(self)?),
         });
-        write!(f, "{}", s)
-    }
-}
-
-fn unwrap_err_to_string<T: Display, F: FnOnce() -> Result<T, anyhow::Error>>(func: F) -> String {
-    match func() {
-        Ok(s) => format!("{s}"),
-        Err(err) => format!("{err}").red().to_string(),
+        write!(f, "{s}")
     }
 }
 
@@ -2415,21 +2428,6 @@ impl IotaClientCommandResult {
             Object(o) | RawObject(o) => Some(vec![o.clone()]),
             Objects(o) => Some(o.clone()),
             _ => None,
-        }
-    }
-
-    pub fn print(&self, pretty: bool) {
-        let line = if pretty {
-            format!("{self}")
-        } else {
-            format!("{:?}", self)
-        };
-        // Log line by line
-        for line in line.lines() {
-            // Logs write to a file on the side.  Print to stdout and also log to file, for
-            // tests to pass.
-            println!("{line}");
-            info!("{line}")
         }
     }
 
@@ -2480,6 +2478,8 @@ impl IotaClientCommandResult {
         self
     }
 }
+
+impl PrintableResult for IotaClientCommandResult {}
 
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -2680,7 +2680,7 @@ pub async fn request_tokens_from_faucet(
         .await?;
 
     match resp.status() {
-        StatusCode::ACCEPTED | StatusCode::CREATED => {
+        StatusCode::ACCEPTED | StatusCode::CREATED | StatusCode::OK => {
             let faucet_resp: FaucetResponse = resp.json().await?;
 
             if let Some(err) = faucet_resp.error {

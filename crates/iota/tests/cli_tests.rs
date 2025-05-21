@@ -24,6 +24,7 @@ use expect_test::expect;
 #[cfg(feature = "indexer")]
 use iota::iota_commands::IndexerFeatureArgs;
 use iota::{
+    PrintableResult,
     client_commands::{
         DisplayOption, IotaClientCommandResult, IotaClientCommands, Opts, OptsWithGas,
         SwitchResponse, estimate_gas_budget,
@@ -46,7 +47,9 @@ use iota_json_rpc_types::{
 use iota_keys::keystore::AccountKeystore;
 use iota_macros::sim_test;
 use iota_move_build::{BuildConfig, IotaPackageHooks};
-use iota_sdk::{IotaClient, iota_client_config::IotaClientConfig, wallet_context::WalletContext};
+use iota_sdk::{
+    IotaClient, PagedFn, iota_client_config::IotaClientConfig, wallet_context::WalletContext,
+};
 use iota_swarm_config::{
     genesis_config::{AccountConfig, DEFAULT_NUMBER_OF_AUTHORITIES, GenesisConfig},
     network_config::NetworkConfigLight,
@@ -159,6 +162,7 @@ async fn test_start() -> Result<(), anyhow::Error> {
             force_regenesis: false,
             with_faucet: None,
             faucet_amount: None,
+            faucet_coin_count: None,
             fullnode_rpc_port: 9000,
             committee_size: None,
             epoch_duration_ms: None,
@@ -1809,6 +1813,61 @@ async fn test_package_publish_test_flag() -> Result<(), anyhow::Error> {
 }
 
 #[sim_test]
+async fn test_package_publish_empty() -> Result<(), anyhow::Error> {
+    let mut test_cluster = TestClusterBuilder::new().build().await;
+    let rgp = test_cluster.get_reference_gas_price().await;
+    let address = test_cluster.get_address_0();
+    let context = &mut test_cluster.wallet;
+
+    let client = context.get_client().await?;
+    let object_refs = client
+        .read_api()
+        .get_owned_objects(
+            address,
+            Some(IotaObjectResponseQuery::new_with_options(
+                IotaObjectDataOptions::new()
+                    .with_type()
+                    .with_owner()
+                    .with_previous_transaction(),
+            )),
+            None,
+            None,
+        )
+        .await?
+        .data;
+
+    // Check log output contains all object ids.
+    let gas_obj_id = object_refs.first().unwrap().object().unwrap().object_id;
+
+    // Provide path to well formed package sources
+    let mut package_path = PathBuf::from(TEST_DATA_DIR);
+    package_path.push("empty");
+    let build_config = BuildConfig::new_for_testing().config;
+    let result = IotaClientCommands::Publish {
+        package_path,
+        build_config,
+        opts: OptsWithGas::for_testing(Some(gas_obj_id), rgp * TEST_ONLY_GAS_UNIT_FOR_PUBLISH),
+        skip_dependency_verification: false,
+        verify_deps: true,
+        with_unpublished_dependencies: false,
+    }
+    .execute(context)
+    .await;
+
+    // should return error
+    let expect = expect![[r#"
+        Err(
+            ModulePublishFailure {
+                error: "No modules found in the package",
+            },
+        )
+    "#]];
+
+    expect.assert_debug_eq(&result);
+    Ok(())
+}
+
+#[sim_test]
 async fn test_package_upgrade_command() -> Result<(), anyhow::Error> {
     move_package::package_hooks::register_package_hooks(Box::new(IotaPackageHooks));
     let mut test_cluster = TestClusterBuilder::new()
@@ -3357,11 +3416,8 @@ async fn test_get_owned_objects_owned_by_address_and_check_pagination() -> Resul
     assert!(!object_responses.has_next_page);
 
     // Pagination check
-    let mut has_next = true;
-    let mut cursor = None;
-    let mut response_data: Vec<IotaObjectResponse> = Vec::new();
-    while has_next {
-        let object_responses = client
+    let response_data = PagedFn::collect::<Vec<_>>(async |cursor| {
+        client
             .read_api()
             .get_owned_objects(
                 address,
@@ -3377,16 +3433,9 @@ async fn test_get_owned_objects_owned_by_address_and_check_pagination() -> Resul
                 cursor,
                 Some(1),
             )
-            .await?;
-
-        response_data.push(object_responses.data.first().unwrap().clone());
-
-        if object_responses.has_next_page {
-            cursor = object_responses.next_cursor;
-        } else {
-            has_next = false;
-        }
-    }
+            .await
+    })
+    .await?;
 
     assert_eq!(&response_data, &object_responses.data);
 
