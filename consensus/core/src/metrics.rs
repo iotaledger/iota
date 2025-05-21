@@ -893,7 +893,7 @@ impl ValidatorScoreMetrics {
     // TO DO: in this and in the following function, the increase cannot be
     // different than 1, probably. Check this and simplify in this case
     pub(crate) fn update_semantically_invalid_blocks(
-        &mut self,
+        &self,
         validator: AuthorityIndex,
         increase: u64,
     ) {
@@ -902,11 +902,14 @@ impl ValidatorScoreMetrics {
     }
 
     pub(crate) fn update_syntactically_invalid_blocks(
-        &mut self,
+        &self,
         validator: AuthorityIndex,
         increase: u64,
     ) {
         let _ = self.syntactically_invalid_blocks[validator.value()]
             .fetch_add(increase, Ordering::Relaxed);
+    }
+    pub(crate) fn get_syntactically_invalid_blocks(&self, validator: AuthorityIndex) -> u64 {
+        self.syntactically_invalid_blocks[validator.value()].load(Ordering::Relaxed)
     }
 }

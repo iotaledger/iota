@@ -29,7 +29,6 @@ use crate::{
     storage::Store,
     synchronizer::SynchronizerHandle,
 };
-
 pub(crate) const COMMIT_LAG_MULTIPLIER: u32 = 5;
 
 /// Authority's network service implementation, agnostic to the actual
@@ -87,8 +86,15 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
         let peer_hostname = &self.context.committee.authority(peer).hostname;
 
         // TODO: dedup block verifications, here and with fetched blocks.
-        let signed_block: SignedBlock =
-            bcs::from_bytes(&serialized_block.block).map_err(ConsensusError::MalformedBlock)?;
+
+        let signed_block: SignedBlock = match bcs::from_bytes(&serialized_block.block) {
+            Ok(block) => block,
+            error => {
+                let scoring_metrics = &self.context.scoring_metrics;
+                scoring_metrics.update_syntactically_invalid_blocks(peer, 1);
+                error.map_err(ConsensusError::MalformedBlock)?
+            }
+        };
 
         // Reject blocks not produced by the peer.
         if peer != signed_block.author() {
@@ -988,5 +994,55 @@ mod tests {
 
             assert_eq!(verified_block.round(), 10);
         }
+    }
+
+    #[tokio::test(flavor = "current_thread", start_paused = true)]
+    async fn test_handle_send_block_with_malformed_blocks() {
+        let (context, _keys) = Context::new_for_test(4);
+        let context = Arc::new(context);
+        let block_verifier = Arc::new(crate::block_verifier::NoopBlockVerifier {});
+        let commit_vote_monitor = Arc::new(CommitVoteMonitor::new(context.clone()));
+        let core_dispatcher = Arc::new(FakeCoreThreadDispatcher::new());
+        let (_tx_block_broadcast, rx_block_broadcast) = broadcast::channel(100);
+        let network_client = Arc::new(FakeNetworkClient::default());
+        let store = Arc::new(MemStore::new());
+        let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store.clone())));
+        let synchronizer = Synchronizer::start(
+            network_client,
+            context.clone(),
+            core_dispatcher.clone(),
+            commit_vote_monitor.clone(),
+            block_verifier.clone(),
+            dag_state.clone(),
+            false,
+        );
+        let authority_service = Arc::new(AuthorityService::new(
+            context.clone(),
+            block_verifier,
+            commit_vote_monitor,
+            synchronizer,
+            core_dispatcher.clone(),
+            rx_block_broadcast,
+            dag_state,
+            store,
+        ));
+
+        let service = authority_service.clone();
+        let serialized = ExtendedSerializedBlock {
+            block: Bytes::new(),
+            excluded_ancestors: vec![],
+        };
+        let peer = context.committee.to_authority_index(0).unwrap();
+        let join_handle = tokio::spawn(async move {
+            service.handle_send_block(peer, serialized).await.unwrap();
+        });
+        let result = join_handle.await;
+
+        let blocks = core_dispatcher.get_blocks();
+        let malformed_blocks_counter = &context
+            .scoring_metrics
+            .get_syntactically_invalid_blocks(AuthorityIndex::new_for_test(0));
+        assert_eq!(blocks.len(), 0);
+        assert_eq!(malformed_blocks_counter - 1u64, 0);
     }
 }
