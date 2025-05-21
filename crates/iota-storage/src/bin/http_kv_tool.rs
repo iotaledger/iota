@@ -142,7 +142,8 @@ impl Command {
             }
             Command::DecodeKey { url } => {
                 // url may look like
-                // https://transactions.iota.io/mainnet/jlkqmZbVuunngIyy2vjBOJSETrM56EH_kIc5wuLvDydN_x0GAAAAAA/ob
+                // https://{TRANSACTION_KV_STORE_BASE_URL}/jlkqmZbVuunngIyy2vjBOJSETrM56EH_kIc5wuLvDydN_x0GAAAAAA/ob
+
                 // extract the digest and type
                 let parts: Vec<_> = url.split('/').collect();
 
