@@ -1712,7 +1712,6 @@ impl IotaClientCommands {
                 res => {
                     let s = res.to_styled_str();
                     println!("{}", s.ansi());
-                    println!("{s}");
                     IotaClientCommandResult::NoOutput
                 }
             },
