@@ -26,6 +26,7 @@ pub mod mock_consensus;
 pub mod module_cache_metrics;
 pub mod mysticeti_adapter;
 pub mod overload_monitor;
+mod par_index_live_object_set;
 pub(crate) mod post_consensus_tx_reorder;
 pub mod quorum_driver;
 pub mod rest_index;
