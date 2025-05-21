@@ -8,7 +8,7 @@ use async_trait::async_trait;
 use iota_types::messages_checkpoint::CheckpointSequenceNumber;
 use serde_json::{Number, Value};
 use tokio::{
-    fs::{File, OpenOptions},
+    fs::File,
     io::{AsyncReadExt, AsyncSeekExt, AsyncWriteExt},
 };
 
@@ -53,7 +53,7 @@ impl FileProgressStore {
 
     /// Open or create the file at the specified path.
     async fn open_or_create_file(path: &PathBuf) -> IngestionResult<File> {
-        Ok(OpenOptions::new()
+        Ok(File::options()
             .read(true)
             .write(true)
             .create(true)
@@ -101,7 +101,7 @@ impl FileProgressStore {
         let tmp_path = self.path.with_extension("tmp");
 
         {
-            let mut tmp_file = OpenOptions::new()
+            let mut tmp_file = File::options()
                 .write(true)
                 .create(true)
                 .truncate(true)
