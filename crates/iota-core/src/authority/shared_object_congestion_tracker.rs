@@ -1701,12 +1701,12 @@ mod object_cost_tests {
     fn test_congested_objects_version_assignments() {
         use std::collections::BTreeMap;
 
+        use iota_types::base_types::SequenceNumber;
+
         use crate::authority::{
             authority_per_epoch_store::CancelConsensusCertificateReason,
             shared_object_version_manager::SharedObjVerManager,
         };
-
-        use iota_types::base_types::SequenceNumber;
 
         let mut shared_object_congestion_tracker =
             SharedObjectCongestionTracker::new(PerObjectCongestionControlMode::TotalTxCount, false);
