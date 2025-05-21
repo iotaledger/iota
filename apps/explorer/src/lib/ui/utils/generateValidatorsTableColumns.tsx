@@ -27,6 +27,7 @@ interface GenerateValidatorsTableColumnsArgs {
     includeColumns?: string[];
     highlightValidatorName?: boolean;
     currentEpoch?: string;
+    enableSorting?: boolean;
 }
 
 function ValidatorWithImage({
@@ -100,6 +101,7 @@ export function generateValidatorsTableColumns({
     includeColumns,
     highlightValidatorName,
     currentEpoch,
+    enableSorting = true,
 }: GenerateValidatorsTableColumnsArgs): ColumnDef<IotaValidatorSummaryExtended>[] {
     const validatorsSortedByStake = allValidators.toSorted(sortByStakingBalanceDesc);
     const topValidators = validatorsSortedByStake.slice(0, maxCommitteeSize);
@@ -109,7 +111,7 @@ export function generateValidatorsTableColumns({
             header: 'Name',
             id: 'name',
             accessorKey: 'name',
-            enableSorting: true,
+            enableSorting: enableSorting,
             sortingFn: (row1, row2, columnId) => {
                 const value1 = row1.getValue<string>(columnId);
                 const value2 = row2.getValue<string>(columnId);
@@ -143,7 +145,7 @@ export function generateValidatorsTableColumns({
         {
             header: 'Stake',
             accessorKey: 'stakingPoolIotaBalance',
-            enableSorting: true,
+            enableSorting: enableSorting,
             sortingFn: (rowA, rowB, columnId) =>
                 BigInt(rowA.getValue(columnId)) - BigInt(rowB.getValue(columnId)) > 0 ? 1 : -1,
             cell({ getValue }) {
@@ -158,7 +160,7 @@ export function generateValidatorsTableColumns({
         {
             header: 'APY',
             accessorKey: 'iotaAddress',
-            enableSorting: true,
+            enableSorting: enableSorting,
             sortingFn: (rowA, rowB, columnId) => {
                 const apyA = rollingAverageApys?.[rowA.getValue<string>(columnId)]?.apy ?? null;
                 const apyB = rollingAverageApys?.[rowB.getValue<string>(columnId)]?.apy ?? null;
@@ -186,7 +188,7 @@ export function generateValidatorsTableColumns({
         {
             header: 'Commission',
             accessorKey: 'commissionRate',
-            enableSorting: true,
+            enableSorting: enableSorting,
             sortingFn: sortByNumber,
             cell({ getValue }) {
                 return (
@@ -199,7 +201,7 @@ export function generateValidatorsTableColumns({
         {
             header: 'Next Epoch Commission',
             accessorKey: 'nextEpochCommissionRate',
-            enableSorting: true,
+            enableSorting: enableSorting,
             sortingFn: sortByNumber,
             cell({ getValue }) {
                 return (
@@ -213,7 +215,7 @@ export function generateValidatorsTableColumns({
             header: 'Next Epoch Stake',
             accessorKey: 'nextEpochStake',
             id: 'nextEpochStake',
-            enableSorting: true,
+            enableSorting: enableSorting,
             sortingFn: (rowA, rowB, columnId) =>
                 BigInt(rowA.getValue(columnId)) - BigInt(rowB.getValue(columnId)) > 0 ? 1 : -1,
             cell({ getValue }) {
@@ -229,7 +231,7 @@ export function generateValidatorsTableColumns({
             header: 'Last Epoch Rewards',
             accessorKey: 'lastReward',
             id: 'lastReward',
-            enableSorting: true,
+            enableSorting: enableSorting,
             sortingFn: (rowA, rowB) => {
                 const lastRewardA = getLastReward(validatorEvents, rowA, currentEpoch);
                 const lastRewardB = getLastReward(validatorEvents, rowB, currentEpoch);
@@ -254,7 +256,7 @@ export function generateValidatorsTableColumns({
         {
             header: 'Voting Power',
             accessorKey: 'votingPower',
-            enableSorting: true,
+            enableSorting: enableSorting,
             sortingFn: sortByNumber,
             cell({ getValue }) {
                 const votingPower = getValue<string>();
@@ -271,7 +273,7 @@ export function generateValidatorsTableColumns({
             header: 'Status',
             accessorKey: 'status',
             id: 'status',
-            enableSorting: true,
+            enableSorting: enableSorting,
             sortingFn: (rowA, rowB) => {
                 const { label: labelA } = determineRisk(committeeMembers, atRiskValidators, rowA);
                 const { label: labelB } = determineRisk(committeeMembers, atRiskValidators, rowB);
@@ -312,7 +314,7 @@ export function generateValidatorsTableColumns({
             header: 'Current Epoch Rewards',
             accessorKey: 'isEarningCurrent',
             id: 'isEarningCurrent',
-            enableSorting: true,
+            enableSorting: enableSorting,
             cell({ row }) {
                 const isCommitteeMember = committeeMembers.find(
                     (committeeMemberAddress) => committeeMemberAddress === row.original.iotaAddress,
@@ -332,7 +334,7 @@ export function generateValidatorsTableColumns({
             header: 'Next Epoch Rewards',
             accessorKey: 'isEarningNext',
             id: 'isEarningNext',
-            enableSorting: true,
+            enableSorting: enableSorting,
             cell({ row }) {
                 const { atRisk } = determineRisk(committeeMembers, atRiskValidators, row);
 
