@@ -690,10 +690,10 @@ impl OptsWithGas {
             args.push("--dev-inspect".to_string());
         }
         if self.rest.serialize_signed_transaction {
-            args.push("--serialize_signed_transaction".to_string());
+            args.push("--serialize-signed-transaction".to_string());
         }
         if self.rest.serialize_unsigned_transaction {
-            args.push("--serialize_unsigned_transaction".to_string());
+            args.push("--serialize-unsigned-transaction".to_string());
         }
         args
     }

@@ -67,6 +67,9 @@ pub enum NameCommand {
     Burn {
         /// The full name of the domain. Ex. my-domain.iota
         domain: Domain,
+        // Whether to print detailed output.
+        #[arg(long)]
+        verbose: bool,
         #[command(flatten)]
         opts: OptsWithGas,
     },
@@ -98,6 +101,9 @@ pub enum NameCommand {
         /// sender or if no target address is set.
         #[arg(long)]
         set_reverse_lookup: bool,
+        // Whether to print detailed output.
+        #[arg(long)]
+        verbose: bool,
         #[command(flatten)]
         opts: OptsWithGas,
     },
@@ -111,6 +117,9 @@ pub enum NameCommand {
         /// The coin to use for payment. If not provided, selects the first coin
         /// with enough balance.
         coin: Option<ObjectID>,
+        // Whether to print detailed output.
+        #[arg(long)]
+        verbose: bool,
         #[command(flatten)]
         opts: OptsWithGas,
     },
@@ -124,6 +133,9 @@ pub enum NameCommand {
     SetReverseLookup {
         /// Domain for which to set the reverse lookup
         domain: Domain,
+        // Whether to print detailed output.
+        #[arg(long)]
+        verbose: bool,
         #[command(flatten)]
         opts: OptsWithGas,
     },
@@ -133,6 +145,9 @@ pub enum NameCommand {
         domain: Domain,
         /// The address to which the domain will point
         new_address: Option<IotaAddress>,
+        // Whether to print detailed output.
+        #[arg(long)]
+        verbose: bool,
         #[command(flatten)]
         opts: OptsWithGas,
     },
@@ -144,6 +159,9 @@ pub enum NameCommand {
         key: String,
         /// The value in the table
         value: String,
+        // Whether to print detailed output.
+        #[arg(long)]
+        verbose: bool,
         #[command(flatten)]
         opts: OptsWithGas,
     },
@@ -156,11 +174,17 @@ pub enum NameCommand {
         domain: Domain,
         /// The address to which the domain will be transferred
         address: IotaAddress,
+        // Whether to print detailed output.
+        #[arg(long)]
+        verbose: bool,
         #[command(flatten)]
         opts: OptsWithGas,
     },
     /// Unset reverse lookup
     UnsetReverseLookup {
+        // Whether to print detailed output.
+        #[arg(long)]
+        verbose: bool,
         #[command(flatten)]
         opts: OptsWithGas,
     },
@@ -170,6 +194,9 @@ pub enum NameCommand {
         domain: Domain,
         /// The key representing the data in the table
         key: String,
+        // Whether to print detailed output.
+        #[arg(long)]
+        verbose: bool,
         #[command(flatten)]
         opts: OptsWithGas,
     },
@@ -209,7 +236,11 @@ impl NameCommand {
                     price,
                 }
             }
-            Self::Burn { domain, opts } => {
+            Self::Burn {
+                domain,
+                verbose,
+                opts,
+            } => {
                 let nft = get_owned_nft_by_name::<IotaNamesRegistration>(&domain, context).await?;
 
                 if !nft.has_expired() {
@@ -244,7 +275,7 @@ impl NameCommand {
                 .execute(context)
                 .await?;
 
-                handle_transaction_result(res, async |res| {
+                handle_transaction_result(res, verbose, async |res| {
                     Ok(NameCommandResult::Burn {
                         burned: nft,
                         digest: res.digest,
@@ -291,7 +322,8 @@ impl NameCommand {
                 coin,
                 set_target_address,
                 set_reverse_lookup,
-                opts,
+                verbose,
+                mut opts,
             } => {
                 anyhow::ensure!(
                     domain.num_labels() == 2,
@@ -348,15 +380,13 @@ impl NameCommand {
                     ));
                 }
                 args.push("--transfer-objects [nft] sender".to_string());
+                let display = std::mem::take(&mut opts.rest.display);
                 args.extend(opts.into_args());
-                let res = IotaClientCommands::PTB(PTB {
-                    args,
-                    display: Default::default(),
-                })
-                .execute(context)
-                .await?;
+                let res = IotaClientCommands::PTB(PTB { args, display })
+                    .execute(context)
+                    .await?;
 
-                handle_transaction_result(res, async |res| {
+                handle_transaction_result(res, verbose, async |res| {
                     Ok(NameCommandResult::Register {
                         record: get_registry_entry(&domain, &iota_client).await?.name_record,
                         nft: get_owned_nft_by_name::<IotaNamesRegistration>(&domain, context)
@@ -370,7 +400,8 @@ impl NameCommand {
                 domain,
                 years,
                 coin,
-                opts,
+                verbose,
+                mut opts,
             } => {
                 let iota_names_config = get_iota_names_config(&iota_client).await?;
 
@@ -406,16 +437,14 @@ impl NameCommand {
                         iota_names_config.package_address, iota_names_config.object_id,
                     ),
                 ];
+                let display = std::mem::take(&mut opts.rest.display);
                 args.extend(opts.into_args());
 
-                let res = IotaClientCommands::PTB(PTB {
-                    args,
-                    display: Default::default(),
-                })
-                .execute(context)
-                .await?;
+                let res = IotaClientCommands::PTB(PTB { args, display })
+                    .execute(context)
+                    .await?;
 
-                handle_transaction_result(res, async |res| {
+                handle_transaction_result(res, verbose, async |res| {
                     Ok(NameCommandResult::Renew {
                         record: get_registry_entry(&domain, &iota_client).await?.name_record,
                         nft: get_owned_nft_by_name::<IotaNamesRegistration>(&domain, context)
@@ -434,7 +463,11 @@ impl NameCommand {
                     domain: entry.map(|e| e.domain),
                 }
             }
-            Self::SetReverseLookup { domain, opts } => {
+            Self::SetReverseLookup {
+                domain,
+                verbose,
+                opts,
+            } => {
                 // Check ownership of the name off-chain to avoid potentially wasting gas
                 get_owned_nft_by_name::<IotaNamesRegistration>(&domain, context).await?;
                 let iota_names_config = get_iota_names_config(&iota_client).await?;
@@ -454,7 +487,7 @@ impl NameCommand {
                 .execute(context)
                 .await?;
 
-                handle_transaction_result(res, async |res| {
+                handle_transaction_result(res, verbose, async |res| {
                     let Some(entry) = get_reverse_registry_entry(
                         get_identity_address(None, context)?,
                         &iota_client,
@@ -475,6 +508,7 @@ impl NameCommand {
             Self::SetTargetAddress {
                 domain,
                 new_address,
+                verbose,
                 opts,
             } => {
                 let nft_id = get_owned_nft_by_name::<IotaNamesRegistration>(&domain, context)
@@ -501,7 +535,7 @@ impl NameCommand {
                 .execute(context)
                 .await?;
 
-                handle_transaction_result(res, async |res| {
+                handle_transaction_result(res, verbose, async |res| {
                     let entry = get_registry_entry(&domain, &iota_client).await?;
                     Ok(NameCommandResult::SetTargetAddress {
                         entry,
@@ -514,6 +548,7 @@ impl NameCommand {
                 domain,
                 key,
                 value,
+                verbose,
                 opts,
             } => {
                 let nft = get_owned_nft_by_name::<IotaNamesRegistration>(&domain, context).await?;
@@ -537,7 +572,7 @@ impl NameCommand {
                 .execute(context)
                 .await?;
 
-                handle_transaction_result(res, async |res| {
+                handle_transaction_result(res, verbose, async |res| {
                     Ok(NameCommandResult::SetUserData {
                         key,
                         value,
@@ -551,6 +586,7 @@ impl NameCommand {
             Self::Transfer {
                 domain,
                 address,
+                verbose,
                 opts,
             } => {
                 let nft_id = get_owned_nft_by_name::<IotaNamesRegistration>(&domain, context)
@@ -576,7 +612,7 @@ impl NameCommand {
                 .execute(context)
                 .await?;
 
-                handle_transaction_result(res, async |res| {
+                handle_transaction_result(res, verbose, async |res| {
                     Ok(NameCommandResult::Transfer {
                         domain,
                         to: address,
@@ -585,7 +621,7 @@ impl NameCommand {
                 })
                 .await?
             }
-            Self::UnsetReverseLookup { opts } => {
+            Self::UnsetReverseLookup { verbose, opts } => {
                 let iota_names_config = get_iota_names_config(&iota_client).await?;
                 let address = get_identity_address(None, context)?;
 
@@ -601,7 +637,7 @@ impl NameCommand {
                 .execute(context)
                 .await?;
 
-                handle_transaction_result(res, async |res| {
+                handle_transaction_result(res, verbose, async |res| {
                     Ok(NameCommandResult::UnsetReverseLookup {
                         address,
                         digest: res.digest,
@@ -609,7 +645,12 @@ impl NameCommand {
                 })
                 .await?
             }
-            Self::UnsetUserData { domain, key, opts } => {
+            Self::UnsetUserData {
+                domain,
+                key,
+                verbose,
+                opts,
+            } => {
                 let nft = get_owned_nft_by_name::<IotaNamesRegistration>(&domain, context).await?;
                 let iota_names_config = get_iota_names_config(&iota_client).await?;
 
@@ -630,7 +671,7 @@ impl NameCommand {
                 .execute(context)
                 .await?;
 
-                handle_transaction_result(res, async |res| {
+                handle_transaction_result(res, verbose, async |res| {
                     Ok(NameCommandResult::UnsetUserData {
                         key,
                         record: get_registry_entry(&domain, &iota_client).await?.name_record,
@@ -658,6 +699,9 @@ pub enum AuctionCommand {
         /// with enough balance.
         #[arg(long)]
         coin: Option<ObjectID>,
+        // Whether to print detailed output.
+        #[arg(long)]
+        verbose: bool,
         #[command(flatten)]
         opts: OptsWithGas,
     },
@@ -665,6 +709,9 @@ pub enum AuctionCommand {
     Claim {
         /// The full name of the domain. Ex. my-domain.iota
         domain: Domain,
+        // Whether to print detailed output.
+        #[arg(long)]
+        verbose: bool,
         #[command(flatten)]
         opts: OptsWithGas,
     },
@@ -682,6 +729,9 @@ pub enum AuctionCommand {
         /// with enough balance.
         #[arg(long)]
         coin: Option<ObjectID>,
+        // Whether to print detailed output.
+        #[arg(long)]
+        verbose: bool,
         #[command(flatten)]
         opts: OptsWithGas,
     },
@@ -706,7 +756,8 @@ impl AuctionCommand {
                 domain,
                 amount,
                 coin,
-                opts,
+                verbose,
+                mut opts,
             } => {
                 let auction_package_address = get_auction_package_address(&iota_client).await?;
                 let auction_house_id =
@@ -733,16 +784,14 @@ impl AuctionCommand {
                         domain.to_string(),
                     ),
                 ];
+                let display = std::mem::take(&mut opts.rest.display);
                 args.extend(opts.into_args());
 
-                let res = IotaClientCommands::PTB(PTB {
-                    args,
-                    display: Default::default(),
-                })
-                .execute(context)
-                .await?;
+                let res = IotaClientCommands::PTB(PTB { args, display })
+                    .execute(context)
+                    .await?;
 
-                handle_transaction_result(res, async |res| {
+                handle_transaction_result(res, verbose, async |res| {
                     Ok(NameCommandResult::AuctionBid {
                         auction: get_auction_house(&iota_client, &graphql_client)
                             .await?
@@ -753,7 +802,11 @@ impl AuctionCommand {
                 })
                 .await?
             }
-            Self::Claim { domain, opts } => {
+            Self::Claim {
+                domain,
+                verbose,
+                mut opts,
+            } => {
                 let auction_package_address = get_auction_package_address(&iota_client).await?;
                 let auction_house_id =
                     get_auction_house_id(auction_package_address, &graphql_client).await?;
@@ -767,16 +820,14 @@ impl AuctionCommand {
                     "--assign nft".to_string(),
                     "--transfer-objects [nft] sender".to_string(),
                 ];
+                let display = std::mem::take(&mut opts.rest.display);
                 args.extend(opts.into_args());
 
-                let res = IotaClientCommands::PTB(PTB {
-                    args,
-                    display: Default::default(),
-                })
-                .execute(context)
-                .await?;
+                let res = IotaClientCommands::PTB(PTB { args, display })
+                    .execute(context)
+                    .await?;
 
-                handle_transaction_result(res, async |res| {
+                handle_transaction_result(res, verbose, async |res| {
                     Ok(NameCommandResult::AuctionClaim {
                         record: get_registry_entry(&domain, &iota_client).await?.name_record,
                         nft: get_owned_nft_by_name::<IotaNamesRegistration>(&domain, context)
@@ -796,7 +847,8 @@ impl AuctionCommand {
                 domain,
                 amount,
                 coin,
-                opts,
+                verbose,
+                mut opts,
             } => {
                 let auction_package_address = get_auction_package_address(&iota_client).await?;
                 let auction_house_id =
@@ -825,16 +877,14 @@ impl AuctionCommand {
                         domain.to_string(),
                     ),
                 ];
+                let display = std::mem::take(&mut opts.rest.display);
                 args.extend(opts.into_args());
 
-                let res = IotaClientCommands::PTB(PTB {
-                    args,
-                    display: Default::default(),
-                })
-                .execute(context)
-                .await?;
+                let res = IotaClientCommands::PTB(PTB { args, display })
+                    .execute(context)
+                    .await?;
 
-                handle_transaction_result(res, async |res| {
+                handle_transaction_result(res, verbose, async |res| {
                     Ok(NameCommandResult::AuctionStart {
                         auction: get_auction_house(&iota_client, &graphql_client)
                             .await?
@@ -860,6 +910,9 @@ pub enum SubdomainCommand {
         /// The address to which the subdomain will point. Defaults to the
         /// active address.
         target_address: Option<IotaAddress>,
+        // Whether to print detailed output.
+        #[arg(long)]
+        verbose: bool,
         #[command(flatten)]
         opts: OptsWithGas,
     },
@@ -881,6 +934,9 @@ pub enum SubdomainCommand {
         /// Whether to allow expiration time extension.
         #[arg(long, short = 't')]
         allow_time_extension: bool,
+        // Whether to print detailed output.
+        #[arg(long)]
+        verbose: bool,
         #[command(flatten)]
         opts: OptsWithGas,
     },
@@ -894,6 +950,9 @@ pub enum SubdomainCommand {
         /// Whether to allow expiration time extension.
         #[arg(long, short = 't')]
         allow_time_extension: std::primitive::bool, // https://github.com/clap-rs/clap/issues/4626
+        // Whether to print detailed output.
+        #[arg(long)]
+        verbose: bool,
         #[command(flatten)]
         opts: OptsWithGas,
     },
@@ -908,6 +967,9 @@ pub enum SubdomainCommand {
         ///  - unix timestamp (Ex. 1424297769000)
         #[arg(verbatim_doc_comment)]
         expiration_timestamp: Timestamp,
+        // Whether to print detailed output.
+        #[arg(long)]
+        verbose: bool,
         #[command(flatten)]
         opts: OptsWithGas,
     },
@@ -921,6 +983,7 @@ impl SubdomainCommand {
             Self::RegisterLeaf {
                 domain,
                 target_address,
+                verbose,
                 opts,
             } => {
                 let Some(parent) = domain.parent() else {
@@ -960,7 +1023,7 @@ impl SubdomainCommand {
                 .execute(context)
                 .await?;
 
-                handle_transaction_result(res, async |res| {
+                handle_transaction_result(res, verbose, async |res| {
                     Ok(NameCommandResult::RegisterLeafSubdomain {
                         record: get_registry_entry(&domain, &iota_client).await?.name_record,
                         digest: res.digest,
@@ -973,7 +1036,8 @@ impl SubdomainCommand {
                 expiration_timestamp,
                 allow_creation,
                 allow_time_extension,
-                opts,
+                verbose,
+                mut opts,
             } => {
                 let Some(parent) = domain.parent() else {
                     bail!("invalid subdomain: {domain}");
@@ -1011,15 +1075,13 @@ impl SubdomainCommand {
                     "--assign nft".to_owned(),
                     "--transfer-objects [nft] sender".to_owned(),
                 ];
+                let display = std::mem::take(&mut opts.rest.display);
                 args.extend(opts.into_args());
-                let res = IotaClientCommands::PTB(PTB {
-                    args,
-                    display: Default::default(),
-                })
-                .execute(context)
-                .await?;
+                let res = IotaClientCommands::PTB(PTB { args, display })
+                    .execute(context)
+                    .await?;
 
-                handle_transaction_result(res, async |res| {
+                handle_transaction_result(res, verbose, async |res| {
                     Ok(NameCommandResult::RegisterNodeSubdomain {
                         record: get_registry_entry(&domain, &iota_client).await?.name_record,
                         nft: get_owned_nft_by_name::<SubdomainRegistration>(&domain, context)
@@ -1033,6 +1095,7 @@ impl SubdomainCommand {
                 domain,
                 allow_creation,
                 allow_time_extension,
+                verbose,
                 opts,
             } => {
                 let Some(parent) = domain.parent() else {
@@ -1063,7 +1126,7 @@ impl SubdomainCommand {
                 .execute(context)
                 .await?;
 
-                handle_transaction_result(res, async |res| {
+                handle_transaction_result(res, verbose, async |res| {
                     Ok(NameCommandResult::UpdateMetadata {
                         record: get_registry_entry(&domain, &iota_client).await?.name_record,
                         digest: res.digest,
@@ -1074,6 +1137,7 @@ impl SubdomainCommand {
             Self::ExtendExpiration {
                 domain,
                 expiration_timestamp,
+                verbose,
                 opts,
             } => {
                 let nft = get_owned_nft_by_name::<SubdomainRegistration>(&domain, context).await?;
@@ -1106,7 +1170,7 @@ impl SubdomainCommand {
                 .execute(context)
                 .await?;
 
-                handle_transaction_result(res, async |res| {
+                handle_transaction_result(res, verbose, async |res| {
                     Ok(NameCommandResult::ExtendExpiration {
                         nft: get_owned_nft_by_name::<SubdomainRegistration>(&domain, context)
                             .await?,
@@ -1792,12 +1856,16 @@ async fn fetch_renewal_config(context: &mut WalletContext) -> anyhow::Result<Ren
 
 async fn handle_transaction_result<Fun, F>(
     res: IotaClientCommandResult,
+    verbose: bool,
     fun: Fun,
 ) -> anyhow::Result<NameCommandResult>
 where
     Fun: FnOnce(IotaTransactionBlockResponse) -> F,
     F: futures::Future<Output = anyhow::Result<NameCommandResult>>,
 {
+    if verbose {
+        println!("{res}");
+    }
     Ok(
         if let IotaClientCommandResult::TransactionBlock(res) = res {
             if !res.errors.is_empty() {
