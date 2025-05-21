@@ -69,3 +69,7 @@ export function getDefaultNetwork(): Network {
 export function getFullnodeUrl(network: NetworkId): string {
     return getNetwork(network).url;
 }
+
+export function getGraphQLUrl(network: NetworkId): string | undefined {
+    return getNetwork(network).graphql;
+}
