@@ -37,7 +37,7 @@ export function TopValidatorsCard({ limit, showIcon }: TopValidatorsCardProps): 
         );
     }, [data]);
 
-    const topCommitteeMembers = sortedCommitteeMembers.slice(0, limit);
+    const topCommitteeMembers = sortedCommitteeMembers.slice(0, limit || NUMBER_OF_VALIDATORS);
 
     const tableColumns = generateValidatorsTableColumns({
         limit,
