@@ -74,7 +74,7 @@ const identity = [
                     {
                         type: 'link',
                         label: 'Rust',
-                        href: 'https://iotaledger.github.io/identity.rs/identity_iota/index.html',
+                        href: 'https://iotaledger.github.io/identity/identity_iota/index.html',
                     },
                     {
                         type: 'link',
