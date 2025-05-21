@@ -1172,6 +1172,7 @@ impl SubdomainCommand {
 
                 handle_transaction_result(res, verbose, async |res| {
                     Ok(NameCommandResult::ExtendExpiration {
+                        record: get_registry_entry(&domain, &iota_client).await?.name_record,
                         nft: get_owned_nft_by_name::<SubdomainRegistration>(&domain, context)
                             .await?,
                         digest: res.digest,
@@ -1210,6 +1211,7 @@ pub enum NameCommandResult {
     },
     CommandResult(IotaClientCommandResult),
     ExtendExpiration {
+        record: NameRecord,
         nft: SubdomainRegistration,
         digest: TransactionDigest,
     },
@@ -1285,7 +1287,9 @@ impl std::fmt::Display for NameCommandResult {
             } => {
                 writeln!(f, "Successfully placed bid for {}", auction.domain)?;
                 format_auction(f, auction)?;
-                write!(f, "\nTransaction digest: {transaction}")
+                writeln!(f, "\nNFT:")?;
+                format_nft(f, &auction.nft)?;
+                write!(f, "Transaction digest: {transaction}")
             }
             Self::AuctionClaim {
                 record,
@@ -1325,10 +1329,13 @@ impl std::fmt::Display for NameCommandResult {
             }
             Self::CommandResult(res) => res.fmt(f),
             Self::ExtendExpiration {
+                record,
                 nft,
                 digest: transaction,
             } => {
                 writeln!(f, "Successfully extended expiration")?;
+                format_name_record(f, record)?;
+                writeln!(f, "\nNFT:")?;
                 format_subdomain_nft(f, nft)?;
                 write!(f, "\nTransaction digest: {transaction}")
             }
@@ -1512,7 +1519,7 @@ fn format_auction(f: &mut std::fmt::Formatter, auction: &Auction) -> std::fmt::R
             "Current Bid",
             auction.current_bid.balance.value().to_string(),
         ),
-        ("Latest Bidder", auction.current_bid.id.id.bytes.to_string()),
+        ("Latest Bidder", auction.winner.to_string()),
     ];
     let mut table_builder = Table::builder(data);
     table_builder.set_header(["field", "value"]);
@@ -1864,7 +1871,7 @@ where
     F: futures::Future<Output = anyhow::Result<NameCommandResult>>,
 {
     if verbose {
-        println!("{res}");
+        println!("{res}\n");
     }
     Ok(
         if let IotaClientCommandResult::TransactionBlock(res) = res {
