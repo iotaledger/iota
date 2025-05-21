@@ -26,15 +26,29 @@ export function TransactionsList({ heightClassName }: TransactionsListProps): JS
     };
 
     return (
-        <VirtualList
-            items={allTransactions || []}
-            getItemKey={(tx) => tx?.digest}
-            estimateSize={() => 60}
-            render={virtualItem}
-            fetchNextPage={fetchNextPage}
-            hasNextPage={hasNextPage}
-            isFetchingNextPage={isFetchingNextPage}
-            heightClassName={heightClassName}
-        />
+        <div>
+            {allTransactions?.length == 0 ? (
+                <div className="flex flex-col gap-md">
+                    <div className="flex flex-col flex-nowrap items-center justify-center px-sm text-center">
+                        <span className="text-body-sm text-neutral-40 dark:text-neutral-60">
+                            {
+                                'You can view your IOTA network transactions here once they are available.'
+                            }
+                        </span>
+                    </div>
+                </div>
+            ) : (
+                <VirtualList
+                    items={allTransactions || []}
+                    getItemKey={(tx) => tx?.digest}
+                    estimateSize={() => 60}
+                    render={virtualItem}
+                    fetchNextPage={fetchNextPage}
+                    hasNextPage={hasNextPage}
+                    isFetchingNextPage={isFetchingNextPage}
+                    heightClassName={heightClassName}
+                />
+            )}
+        </div>
     );
 }

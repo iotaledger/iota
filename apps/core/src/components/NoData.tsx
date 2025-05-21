@@ -1,9 +1,11 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { Theme, useTheme } from '@iota/core';
-import NoDataImage from '_assets/images/no_data.svg';
-import NoDataDarkImage from '_assets/images/no_data_darkmode.svg';
+import { Theme } from '../enums';
+import { useTheme } from '../hooks';
+import NoDataImage from '../assets/images/no_data.svg';
+import NoDataDarkImage from '../assets/images/no_data_darkmode.svg';
+
 interface NoDataProps {
     message: string;
 }

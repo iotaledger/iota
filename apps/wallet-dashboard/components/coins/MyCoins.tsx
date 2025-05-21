@@ -12,6 +12,7 @@ import {
     SegmentedButtonType,
     Title,
 } from '@iota/apps-ui-kit';
+import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 import { RecognizedBadge } from '@iota/apps-ui-icons';
 import { SendTokenDialog } from '@/components';
 
@@ -47,6 +48,8 @@ export function MyCoins(): React.JSX.Element {
     const { data: coinBalances } = useGetAllBalances(activeAccountAddress);
     const { recognized, unrecognized } = useSortedCoinsByCategories(coinBalances ?? []);
 
+    const accountHasIota = coinBalances?.some(({ coinType }) => coinType === IOTA_TYPE_ARG);
+
     function openSendTokenDialog(coin: CoinBalance): void {
         if (coinBalances) {
             setIsSendTokenDialogOpen(true);
@@ -68,49 +71,66 @@ export function MyCoins(): React.JSX.Element {
         <Panel>
             <div className="flex h-full w-full flex-col">
                 <Title title="My Coins" />
-                <div className="px-sm py-sm md:px-xxs lg:px-sm">
-                    <div className="inline-flex w-full justify-start md:justify-center lg:justify-start">
-                        <SegmentedButton type={SegmentedButtonType.Filled}>
-                            {TOKEN_CATEGORIES.map(({ label, value }) => {
-                                const recognizedButEmpty =
-                                    value === TokenCategory.Recognized ? !recognized.length : false;
-                                const notRecognizedButEmpty =
-                                    value === TokenCategory.Unrecognized
-                                        ? !unrecognized?.length
-                                        : false;
-
-                                return (
-                                    <ButtonSegment
-                                        key={value}
-                                        onClick={() => setSelectedTokenCategory(value)}
-                                        label={label}
-                                        selected={selectedTokenCategory === value}
-                                        disabled={recognizedButEmpty || notRecognizedButEmpty}
-                                    />
-                                );
-                            })}
-                        </SegmentedButton>
+                {!accountHasIota ? (
+                    <div className="flex flex-col gap-md">
+                        <div className="flex flex-col flex-nowrap items-center justify-center px-sm text-center">
+                            <span className="text-body-sm text-neutral-40 dark:text-neutral-60">
+                                {'Start by buying IOTA'}
+                            </span>
+                        </div>
                     </div>
-                </div>
-                <div className="max-h-[400px] flex-1 overflow-y-auto px-sm pb-md pt-sm sm:max-h-none">
-                    <VirtualList
-                        items={
-                            selectedTokenCategory === TokenCategory.Recognized
-                                ? recognized
-                                : selectedTokenCategory === TokenCategory.Unrecognized
-                                  ? unrecognized
-                                  : [...recognized!, ...unrecognized!]
-                        }
-                        estimateSize={() => 60}
-                        render={(coin: CoinBalance) => {
-                            const isRecognized = recognized?.find(
-                                (c) => c.coinType === coin.coinType,
-                            );
-                            return virtualItem(!!isRecognized, coin);
-                        }}
-                        heightClassName="h-full"
-                    />
-                </div>
+                ) : null}
+                {accountHasIota ? (
+                    <>
+                        <div className="px-sm py-sm md:px-xxs lg:px-sm">
+                            <div className="inline-flex w-full justify-start md:justify-center lg:justify-start">
+                                <SegmentedButton type={SegmentedButtonType.Filled}>
+                                    {TOKEN_CATEGORIES.map(({ label, value }) => {
+                                        const recognizedButEmpty =
+                                            value === TokenCategory.Recognized
+                                                ? !recognized.length
+                                                : false;
+                                        const notRecognizedButEmpty =
+                                            value === TokenCategory.Unrecognized
+                                                ? !unrecognized?.length
+                                                : false;
+
+                                        return (
+                                            <ButtonSegment
+                                                key={value}
+                                                onClick={() => setSelectedTokenCategory(value)}
+                                                label={label}
+                                                selected={selectedTokenCategory === value}
+                                                disabled={
+                                                    recognizedButEmpty || notRecognizedButEmpty
+                                                }
+                                            />
+                                        );
+                                    })}
+                                </SegmentedButton>
+                            </div>
+                        </div>
+                        <div className="max-h-[400px] flex-1 overflow-y-auto px-sm pb-md pt-sm sm:max-h-none">
+                            <VirtualList
+                                items={
+                                    selectedTokenCategory === TokenCategory.Recognized
+                                        ? recognized
+                                        : selectedTokenCategory === TokenCategory.Unrecognized
+                                          ? unrecognized
+                                          : [...recognized!, ...unrecognized!]
+                                }
+                                estimateSize={() => 60}
+                                render={(coin: CoinBalance) => {
+                                    const isRecognized = recognized?.find(
+                                        (c) => c.coinType === coin.coinType,
+                                    );
+                                    return virtualItem(!!isRecognized, coin);
+                                }}
+                                heightClassName="h-full"
+                            />
+                        </div>
+                    </>
+                ) : null}
             </div>
             {selectedCoin && activeAccountAddress && (
                 <SendTokenDialog

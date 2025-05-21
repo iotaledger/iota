@@ -12,12 +12,12 @@ import {
     SegmentedButtonType,
 } from '@iota/apps-ui-kit';
 import { useActiveAddress } from '_hooks';
-import { Loading, NoData, PageTemplate } from '_components';
+import { Loading, PageTemplate } from '_components';
 import { HiddenAssets } from './HiddenAssets';
 import { NonVisualAssets } from './NonVisualAssets';
 import { VisualAssets } from './VisualAssets';
 import { Warning } from '@iota/apps-ui-icons';
-import { useHiddenAssets, usePageAssets, AssetCategory } from '@iota/core';
+import { useHiddenAssets, usePageAssets, AssetCategory, NoData } from '@iota/core';
 
 const ASSET_CATEGORIES = [
     {

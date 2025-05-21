@@ -89,6 +89,16 @@ export default function AssetsDashboardPage(): React.JSX.Element {
                 ) : (
                     <>
                         {isAssetsLoaded &&
+                        Boolean(!ownedAssets?.visual.length || !ownedAssets?.other.length) ? (
+                            <div className="flex flex-col gap-md">
+                                <div className="flex flex-row items-center justify-center gap-xs py-xs">
+                                    <span className="text-body-sm text-neutral-40 dark:text-neutral-60">
+                                        {'No assets found yet.'}
+                                    </span>
+                                </div>
+                            </div>
+                        ) : null}
+                        {isAssetsLoaded &&
                         Boolean(ownedAssets?.visual.length || ownedAssets?.other.length) ? (
                             <div className="flex flex-row items-center justify-start gap-xs py-xs">
                                 {ASSET_CATEGORIES.map(({ value, label }) => (
