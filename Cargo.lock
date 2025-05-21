@@ -6123,6 +6123,7 @@ dependencies = [
  "move-package",
  "serde",
  "serde_json",
+ "tempfile",
  "tokio",
 ]
 
