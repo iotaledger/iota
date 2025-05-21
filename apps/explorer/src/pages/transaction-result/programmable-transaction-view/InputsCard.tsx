@@ -8,6 +8,7 @@ import { isValidIotaAddress, toHEX } from '@iota/iota-sdk/utils';
 import { ProgrammableTxnBlockCard, AddressLink, ObjectLink, CollapsibleCard } from '~/components';
 import { useBreakpoint } from '~/hooks';
 import { EVM_ADDRESS_LENGTH } from '~/lib/constants/evm.constants';
+import { onCopySuccess } from '~/lib/utils';
 
 const REGEX_NUMBER = /^\d+$/;
 
@@ -39,14 +40,26 @@ export function InputsCard({ inputs }: InputsCardProps): JSX.Element | null {
                     if (key === 'mutable') {
                         renderValue = String(value);
                     } else if (key === 'objectId') {
-                        renderValue = <ObjectLink objectId={stringValue} />;
+                        renderValue = (
+                            <ObjectLink
+                                objectId={stringValue}
+                                copyText={stringValue}
+                                onCopySuccess={onCopySuccess}
+                            />
+                        );
                     } else if (
                         'valueType' in input &&
                         'value' in input &&
                         input.valueType === 'address' &&
                         key === 'value'
                     ) {
-                        renderValue = <AddressLink address={stringValue} />;
+                        renderValue = (
+                            <AddressLink
+                                address={stringValue}
+                                copyText={stringValue}
+                                onCopySuccess={onCopySuccess}
+                            />
+                        );
                     } else if (REGEX_NUMBER.test(stringValue)) {
                         const bigNumber = BigInt(stringValue);
                         renderValue = bigNumber.toLocaleString();
