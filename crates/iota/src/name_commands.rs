@@ -32,6 +32,7 @@ use iota_types::{
     digests::ChainIdentifier,
 };
 use move_core_types::{
+    account_address::AccountAddress,
     annotated_value::{MoveFieldLayout, MoveStructLayout, MoveTypeLayout},
     identifier::Identifier,
     language_storage::StructTag,
@@ -513,9 +514,7 @@ impl NameCommand {
                 address,
                 opts,
             } => {
-                let nft_id = get_owned_nft_by_name::<IotaNamesRegistration>(&domain, context)
-                    .await?
-                    .id();
+                let nft = get_proxy_nft_by_name(&domain, context).await?;
                 let iota_names_config = get_iota_names_config(&iota_client).await?;
 
                 NameCommandResult::Client(
@@ -523,12 +522,9 @@ impl NameCommand {
                         package: IOTA_FRAMEWORK_PACKAGE_ID,
                         module: "transfer".to_owned(),
                         function: "public_transfer".to_owned(),
-                        type_args: vec![TypeTag::from_str(&format!(
-                            "{}::iota_names_registration::IotaNamesRegistration",
-                            iota_names_config.package_address
-                        ))?],
+                        type_args: vec![nft.type_(iota_names_config.package_address.into()).into()],
                         args: vec![
-                            IotaJsonValue::from_object_id(nft_id),
+                            IotaJsonValue::from_object_id(nft.id()),
                             IotaJsonValue::new(serde_json::to_value(address)?)?,
                         ],
                         gas_price: None,
@@ -1371,6 +1367,13 @@ impl IotaNamesNftProxy {
         fn expiration_timestamp_ms(&self) -> u64;
         fn has_expired(&self) -> bool;
         fn id(&self) -> ObjectID;
+    }
+
+    fn type_(&self, package_id: AccountAddress) -> StructTag {
+        match self {
+            IotaNamesNftProxy::Domain(_) => IotaNamesRegistration::type_(package_id),
+            IotaNamesNftProxy::Subdomain(_) => SubdomainRegistration::type_(package_id),
+        }
     }
 
     async fn package_id(&self, client: &IotaClient) -> anyhow::Result<ObjectID> {
