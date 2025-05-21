@@ -4,7 +4,7 @@
 import { useIotaClient } from '@iota/dapp-kit';
 import { IotaClient } from '@iota/iota-sdk/client';
 import { useQuery } from '@tanstack/react-query';
-import { CLOCK_PACKAGE_ID } from '../constants/clock.constants';
+import { CLOCK_OBJECT_ID } from '../constants/clock.constants';
 
 type ClockFields = {
     id: {
@@ -30,7 +30,7 @@ export function useGetClockTimestamp() {
 
 export async function getClockTimestamp(client: IotaClient): Promise<number> {
     const clockRes = await client.getObject({
-        id: CLOCK_PACKAGE_ID,
+        id: CLOCK_OBJECT_ID,
         options: { showContent: true },
     });
 
