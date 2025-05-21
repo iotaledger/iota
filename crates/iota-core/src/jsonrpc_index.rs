@@ -16,6 +16,7 @@ use std::{
 };
 
 use iota_json_rpc_types::{IotaObjectDataFilter, TransactionFilter};
+use iota_storage::{mutex_table::MutexTable, sharded_lru::ShardedLruCache};
 use iota_types::{
     base_types::{
         IotaAddress, ObjectDigest, ObjectID, ObjectInfo, ObjectRef, SequenceNumber,
@@ -43,8 +44,6 @@ use typed_store::{
     rocks::{DBBatch, DBMap, DBOptions, MetricConf, default_db_options, read_size_from_env},
     traits::{Map, TableSummary, TypedStoreDebug},
 };
-
-use crate::{mutex_table::MutexTable, sharded_lru::ShardedLruCache};
 
 type OwnerIndexKey = (IotaAddress, ObjectID);
 type CoinIndexKey = (IotaAddress, String, ObjectID);
@@ -1604,7 +1603,7 @@ mod tests {
     use move_core_types::account_address::AccountAddress;
     use prometheus::Registry;
 
-    use crate::{IndexStore, indexes::ObjectIndexChanges};
+    use super::{IndexStore, ObjectIndexChanges};
 
     #[tokio::test]
     async fn test_index_cache() -> anyhow::Result<()> {

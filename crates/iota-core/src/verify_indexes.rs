@@ -5,12 +5,15 @@
 use std::{collections::BTreeMap, sync::Arc};
 
 use anyhow::{Result, anyhow, bail};
-use iota_storage::{IndexStore, indexes::CoinInfo};
 use iota_types::{base_types::ObjectInfo, object::Owner};
 use tracing::info;
 use typed_store::traits::Map;
 
-use crate::{authority::authority_store_tables::LiveObject, state_accumulator::AccumulatorStore};
+use crate::{
+    authority::authority_store_tables::LiveObject,
+    jsonrpc_index::{CoinInfo, IndexStore},
+    state_accumulator::AccumulatorStore,
+};
 
 /// This is a very expensive function that verifies some of the secondary
 /// indexes. This is done by iterating through the live object set and

@@ -45,8 +45,6 @@ use iota_metrics::{
     TX_TYPE_SHARED_OBJ_TX, TX_TYPE_SINGLE_WRITER_TX, monitored_scope, spawn_monitored_task,
 };
 use iota_storage::{
-    IndexStore,
-    indexes::{CoinInfo, ObjectIndexChanges},
     key_value_store::{
         KVStoreTransactionData, TransactionKeyValueStore, TransactionKeyValueStoreTrait,
     },
@@ -154,6 +152,7 @@ use crate::{
         TransactionCacheRead,
     },
     execution_driver::execution_process,
+    jsonrpc_index::{CoinInfo, IndexStore, ObjectIndexChanges},
     metrics::{LatencyObserver, RateTracker},
     module_cache_metrics::ResolverMetrics,
     overload_monitor::{AuthorityOverloadInfo, overload_monitor_accept_tx},

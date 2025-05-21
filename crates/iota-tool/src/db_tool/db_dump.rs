@@ -25,9 +25,10 @@ use iota_core::{
     },
     checkpoints::CheckpointStore,
     epoch::committee_store::CommitteeStoreTables,
+    jsonrpc_index::IndexStoreTables,
     rest_index::RestIndexStore,
 };
-use iota_storage::{IndexStoreTables, mutex_table::RwLockTable};
+use iota_storage::mutex_table::RwLockTable;
 use iota_types::base_types::{EpochId, ObjectID};
 use prometheus::Registry;
 use strum_macros::EnumString;

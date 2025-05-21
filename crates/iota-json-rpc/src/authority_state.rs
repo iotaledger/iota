@@ -13,17 +13,15 @@ use async_trait::async_trait;
 use iota_core::{
     authority::{AuthorityState, authority_per_epoch_store::AuthorityPerEpochStore},
     execution_cache::ObjectCacheRead,
+    jsonrpc_index::TotalBalance,
     subscription_handler::SubscriptionHandler,
 };
 use iota_json_rpc_types::{
     Coin as IotaCoin, DevInspectResults, DryRunTransactionBlockResponse, EventFilter, IotaEvent,
     IotaObjectDataFilter, TransactionFilter,
 };
-use iota_storage::{
-    indexes::TotalBalance,
-    key_value_store::{
-        KVStoreTransactionData, TransactionKeyValueStore, TransactionKeyValueStoreTrait,
-    },
+use iota_storage::key_value_store::{
+    KVStoreTransactionData, TransactionKeyValueStore, TransactionKeyValueStoreTrait,
 };
 use iota_types::{
     base_types::{IotaAddress, MoveObjectType, ObjectID, ObjectInfo, ObjectRef, SequenceNumber},
