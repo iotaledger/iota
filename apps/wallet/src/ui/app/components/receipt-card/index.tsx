@@ -47,7 +47,7 @@ export function ReceiptCard({ txn, activeAddress }: ReceiptCardProps) {
                         <ViewTxnOnExplorerButton digest={digest} />
                     </ExplorerLink>
                 </div>
-                <div>
+                <div className="self-center">
                     <OutlinedCopyButton
                         textToCopy={digest ?? ''}
                         onCopySuccess={() => toast.success('Transaction ID copied to clipboard')}

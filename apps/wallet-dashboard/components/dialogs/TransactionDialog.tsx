@@ -58,7 +58,7 @@ export function TransactionDialogView({
                             <ViewTxnOnExplorerButton digest={txDigest ?? ''} />
                         </ExplorerLink>
                     </div>
-                    <div>
+                    <div className="self-center">
                         <OutlinedCopyButton
                             textToCopy={txDigest ?? ''}
                             onCopySuccess={() =>

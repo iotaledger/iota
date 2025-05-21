@@ -53,7 +53,7 @@ export function TransactionDetailsLayout({ transaction, onClose }: TransactionDi
                             <ViewTxnOnExplorerButton digest={transaction.raw.digest} />
                         </ExplorerLink>
                     </div>
-                    <div>
+                    <div className="self-center">
                         <OutlinedCopyButton
                             textToCopy={transaction.raw.digest ?? ''}
                             onCopySuccess={() =>

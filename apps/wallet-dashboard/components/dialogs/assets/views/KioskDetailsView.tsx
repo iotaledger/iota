@@ -73,7 +73,7 @@ export function KioskDetailsView({ onClose, asset, onItemClick }: DetailsViewPro
                             <ViewTxnOnExplorerButton digest={objectId} />
                         </ExplorerLink>
                     </div>
-                    <div>
+                    <div className="self-center">
                         <OutlinedCopyButton
                             textToCopy={objectId ?? ''}
                             onCopySuccess={() => toast.success('Kiosk ID copied to clipboard')}
