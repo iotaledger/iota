@@ -390,7 +390,7 @@ export type IotaEventFilter =
           Or: [IotaEventFilter, IotaEventFilter];
       };
 /**
- * Unique ID of a IOTA Event, the ID is a combination of transaction digest and event seq number.
+ * Unique ID of an IOTA Event, the ID is a combination of transaction digest and event seq number.
  */
 export interface EventId {
     eventSeq: string;
