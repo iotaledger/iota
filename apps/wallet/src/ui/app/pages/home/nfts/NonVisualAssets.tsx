@@ -43,7 +43,7 @@ export function NonVisualAssets({ items }: NonVisualAssetsProps) {
                     })}
                 </div>
             ) : (
-                <NoData message="No non-visual assets found." />
+                <NoData message="No non-visual assets found." displayImage={false} />
             )}
         </div>
     );

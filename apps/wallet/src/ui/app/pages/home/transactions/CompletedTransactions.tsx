@@ -37,7 +37,10 @@ export function CompletedTransactions() {
                     </ErrorBoundary>
                 ))
             ) : (
-                <NoData message="You can view your IOTA network transactions here once they are available." />
+                <NoData
+                    message="You can view your IOTA network transactions here once they are available."
+                    displayImage
+                />
             )}
         </Loading>
     );

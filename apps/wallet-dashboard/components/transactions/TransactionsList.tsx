@@ -3,7 +3,7 @@
 
 import { useCurrentAccount } from '@iota/dapp-kit';
 import { TransactionTile } from '@/components';
-import { VirtualList, useQueryTransactionsByAddress } from '@iota/core';
+import { NoData, VirtualList, useQueryTransactionsByAddress } from '@iota/core';
 import { getExtendedTransaction } from '@/lib/utils/transaction';
 import { IotaTransactionBlockResponse } from '@iota/iota-sdk/client';
 
@@ -28,15 +28,10 @@ export function TransactionsList({ heightClassName }: TransactionsListProps): JS
     return (
         <div>
             {allTransactions?.length == 0 ? (
-                <div className="flex flex-col gap-md">
-                    <div className="flex flex-col flex-nowrap items-center justify-center px-sm text-center">
-                        <span className="text-body-sm text-neutral-40 dark:text-neutral-60">
-                            {
-                                'You can view your IOTA network transactions here once they are available.'
-                            }
-                        </span>
-                    </div>
-                </div>
+                <NoData
+                    message="You can view your IOTA network transactions here once they are available."
+                    displayImage={false}
+                />
             ) : (
                 <VirtualList
                     items={allTransactions || []}

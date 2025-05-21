@@ -4,7 +4,13 @@
 import { useState } from 'react';
 import { useCurrentAccount } from '@iota/dapp-kit';
 import { CoinBalance } from '@iota/iota-sdk/client';
-import { useSortedCoinsByCategories, CoinItem, useGetAllBalances, VirtualList } from '@iota/core';
+import {
+    useSortedCoinsByCategories,
+    CoinItem,
+    useGetAllBalances,
+    VirtualList,
+    NoData,
+} from '@iota/core';
 import {
     ButtonSegment,
     Panel,
@@ -71,15 +77,13 @@ export function MyCoins(): React.JSX.Element {
         <Panel>
             <div className="flex h-full w-full flex-col">
                 <Title title="My Coins" />
-                {!accountHasIota ? (
-                    <div className="flex flex-col gap-md">
-                        <div className="flex flex-col flex-nowrap items-center justify-center px-sm text-center">
-                            <span className="text-body-sm text-neutral-40 dark:text-neutral-60">
-                                {'Start by buying IOTA'}
-                            </span>
+                <div>
+                    {!accountHasIota ? (
+                        <div>
+                            <NoData message="Start by buying IOTA" displayImage={false} />
                         </div>
-                    </div>
-                ) : null}
+                    ) : null}
+                </div>
                 {accountHasIota ? (
                     <>
                         <div className="px-sm py-sm md:px-xxs lg:px-sm">

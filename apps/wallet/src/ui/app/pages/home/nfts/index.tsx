@@ -96,7 +96,7 @@ export function NftsPage() {
                                 ) : selectedAssetCategory === AssetCategory.Hidden ? (
                                     <HiddenAssets items={filteredHiddenAssets} />
                                 ) : (
-                                    <NoData message="No assets found yet." />
+                                    <NoData message="No assets found yet." displayImage />
                                 )}
                                 <div ref={observerElem}>
                                     {isSpinnerVisible ? (

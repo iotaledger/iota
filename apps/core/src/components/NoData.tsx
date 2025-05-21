@@ -8,14 +8,14 @@ import NoDataDarkImage from '../assets/images/no_data_darkmode.svg';
 
 interface NoDataProps {
     message: string;
+    displayImage: boolean;
 }
 
-export function NoData({ message }: NoDataProps) {
+export function NoData({ message, displayImage }: NoDataProps) {
     const { theme } = useTheme();
-
     return (
         <div className="flex h-full flex-col items-center justify-center gap-md text-center">
-            {theme === Theme.Dark ? <NoDataDarkImage /> : <NoDataImage />}
+            {displayImage && (theme === Theme.Dark ? <NoDataDarkImage /> : <NoDataImage />)}
             <span className="text-label-lg text-neutral-60">{message}</span>
         </div>
     );
