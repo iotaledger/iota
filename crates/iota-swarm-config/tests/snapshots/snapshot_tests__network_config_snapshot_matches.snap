@@ -121,7 +121,7 @@ validator_configs:
       safe-transaction-ready-rate: 100
       check-system-overload-at-signing: true
       max-transaction-manager-queue-length: 100000
-      max-transaction-manager-per-object-queue-length: 100
+      max-transaction-manager-per-object-queue-length: 20
     execution-cache: passthrough-cache
     enable-validator-tx-finalizer: true
     verifier-signing-config:
@@ -248,7 +248,7 @@ validator_configs:
       safe-transaction-ready-rate: 100
       check-system-overload-at-signing: true
       max-transaction-manager-queue-length: 100000
-      max-transaction-manager-per-object-queue-length: 100
+      max-transaction-manager-per-object-queue-length: 20
     execution-cache: passthrough-cache
     enable-validator-tx-finalizer: true
     verifier-signing-config:
@@ -375,7 +375,7 @@ validator_configs:
       safe-transaction-ready-rate: 100
       check-system-overload-at-signing: true
       max-transaction-manager-queue-length: 100000
-      max-transaction-manager-per-object-queue-length: 100
+      max-transaction-manager-per-object-queue-length: 20
     execution-cache: passthrough-cache
     enable-validator-tx-finalizer: true
     verifier-signing-config:
@@ -502,7 +502,7 @@ validator_configs:
       safe-transaction-ready-rate: 100
       check-system-overload-at-signing: true
       max-transaction-manager-queue-length: 100000
-      max-transaction-manager-per-object-queue-length: 100
+      max-transaction-manager-per-object-queue-length: 20
     execution-cache: passthrough-cache
     enable-validator-tx-finalizer: true
     verifier-signing-config:
@@ -629,7 +629,7 @@ validator_configs:
       safe-transaction-ready-rate: 100
       check-system-overload-at-signing: true
       max-transaction-manager-queue-length: 100000
-      max-transaction-manager-per-object-queue-length: 100
+      max-transaction-manager-per-object-queue-length: 20
     execution-cache: passthrough-cache
     enable-validator-tx-finalizer: true
     verifier-signing-config:
@@ -756,7 +756,7 @@ validator_configs:
       safe-transaction-ready-rate: 100
       check-system-overload-at-signing: true
       max-transaction-manager-queue-length: 100000
-      max-transaction-manager-per-object-queue-length: 100
+      max-transaction-manager-per-object-queue-length: 20
     execution-cache: passthrough-cache
     enable-validator-tx-finalizer: true
     verifier-signing-config:
@@ -883,7 +883,7 @@ validator_configs:
       safe-transaction-ready-rate: 100
       check-system-overload-at-signing: true
       max-transaction-manager-queue-length: 100000
-      max-transaction-manager-per-object-queue-length: 100
+      max-transaction-manager-per-object-queue-length: 20
     execution-cache: passthrough-cache
     enable-validator-tx-finalizer: true
     verifier-signing-config:
