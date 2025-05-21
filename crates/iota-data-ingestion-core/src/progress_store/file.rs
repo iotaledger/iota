@@ -108,6 +108,7 @@ impl FileProgressStore {
                 .open(&tmp_path)
                 .await?;
             tmp_file.write_all(data.as_ref()).await?;
+            tmp_file.sync_data().await?;
 
             // only for testing add a small delay, useful for simulate crashes
             if cfg!(test) {
