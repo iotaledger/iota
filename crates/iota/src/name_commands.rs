@@ -1286,6 +1286,7 @@ impl std::fmt::Display for NameCommandResult {
                 digest: transaction,
             } => {
                 writeln!(f, "Successfully placed bid for {}", auction.domain)?;
+                writeln!(f, "Auction Status: {}", auction.status())?;
                 format_auction(f, auction)?;
                 writeln!(f, "\nNFT:")?;
                 format_nft(f, &auction.nft)?;
@@ -1302,12 +1303,16 @@ impl std::fmt::Display for NameCommandResult {
                 format_nft(f, nft)?;
                 write!(f, "\nTransaction digest: {transaction}")
             }
-            Self::AuctionMetadata(auction) => format_auction(f, auction),
+            Self::AuctionMetadata(auction) => {
+                writeln!(f, "Auction Status: {}", auction.status())?;
+                format_auction(f, auction)
+            }
             Self::AuctionStart {
                 auction,
                 digest: transaction,
             } => {
                 writeln!(f, "Successfully started auction for {}", auction.domain)?;
+                writeln!(f, "Auction Status: {}", auction.status())?;
                 format_auction(f, auction)?;
                 write!(f, "\nTransaction digest: {transaction}")
             }
@@ -1503,29 +1508,21 @@ impl std::fmt::Display for NameCommandResult {
 }
 
 fn format_auction(f: &mut std::fmt::Formatter, auction: &Auction) -> std::fmt::Result {
-    let start_datetime =
-        DateTime::<Utc>::from(UNIX_EPOCH + Duration::from_millis(auction.start_timestamp_ms))
-            .format("%Y-%m-%d %H:%M:%S.%f UTC")
-            .to_string();
-    let end_datetime =
-        DateTime::<Utc>::from(UNIX_EPOCH + Duration::from_millis(auction.end_timestamp_ms));
-
-    let expired = end_datetime < chrono::Utc::now();
+    let start_datetime = DateTime::<Utc>::from(auction.start_timestamp())
+        .format("%Y-%m-%d %H:%M:%S.%f UTC")
+        .to_string();
+    let end_datetime = DateTime::<Utc>::from(auction.end_timestamp())
+        .format("%Y-%m-%d %H:%M:%S.%f UTC")
+        .to_string();
 
     let data = [
         ("Start", start_datetime),
-        (
-            "End",
-            end_datetime.format("%Y-%m-%d %H:%M:%S.%f UTC").to_string(),
-        ),
+        ("End", end_datetime),
         (
             "Current Bid",
             auction.current_bid.balance.value().to_string(),
         ),
-        (
-            if expired { "Winner" } else { "Latest Bidder" },
-            auction.winner.to_string(),
-        ),
+        ("Current Bidder", auction.current_bidder.to_string()),
     ];
     let mut table_builder = Table::builder(data);
     table_builder.set_header(["field", "value"]);
@@ -2035,9 +2032,31 @@ pub struct Auction {
     pub domain: Domain,
     pub start_timestamp_ms: u64,
     pub end_timestamp_ms: u64,
-    pub winner: IotaAddress,
+    pub current_bidder: IotaAddress,
     pub current_bid: Coin,
     pub nft: IotaNamesRegistration,
+}
+
+impl Auction {
+    fn start_timestamp(&self) -> SystemTime {
+        UNIX_EPOCH + Duration::from_millis(self.start_timestamp_ms)
+    }
+
+    fn end_timestamp(&self) -> SystemTime {
+        UNIX_EPOCH + Duration::from_millis(self.end_timestamp_ms)
+    }
+
+    fn is_active(&self) -> bool {
+        SystemTime::now() <= self.end_timestamp()
+    }
+
+    fn status(&self) -> &str {
+        if self.is_active() {
+            "Active"
+        } else {
+            "Finished"
+        }
+    }
 }
 
 #[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
