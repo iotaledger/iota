@@ -1,7 +1,10 @@
 // Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::marker::PhantomData;
+use std::{
+    marker::PhantomData,
+    time::{Duration, SystemTime, UNIX_EPOCH},
+};
 
 use iota_types::{
     base_types::{IotaAddress, ObjectID},
@@ -39,14 +42,14 @@ pub struct Registry {
     reverse_registry: Table<IotaAddress, Domain>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct RegistryEntry {
     pub id: ObjectID,
     pub domain: Domain,
     pub name_record: NameRecord,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct ReverseRegistryEntry {
     pub id: ObjectID,
     pub address: IotaAddress,
@@ -112,6 +115,11 @@ impl NameRecord {
     /// Expects the latest checkpoint's timestamp.
     pub fn is_node_expired(&self, checkpoint_timestamp_ms: u64) -> bool {
         self.expiration_timestamp_ms < checkpoint_timestamp_ms
+    }
+
+    /// Gets the expiration time as a [`SystemTime`].
+    pub fn expiration_time(&self) -> SystemTime {
+        UNIX_EPOCH + Duration::from_millis(self.expiration_timestamp_ms)
     }
 }
 

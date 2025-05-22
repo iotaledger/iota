@@ -93,7 +93,7 @@ use tracing::debug;
 use crate::{
     PrintableResult,
     clever_error_rendering::render_clever_error_opt,
-    client_ptb::ptb::PTB,
+    client_ptb::ptb::{PTB, PTBCommandResult},
     displays::Pretty,
     key_identity::{KeyIdentity, get_identity_address},
     keytool::Key,
@@ -691,10 +691,10 @@ impl OptsWithGas {
             args.push("--dev-inspect".to_string());
         }
         if self.rest.serialize_signed_transaction {
-            args.push("--serialize_signed_transaction".to_string());
+            args.push("--serialize-signed-transaction".to_string());
         }
         if self.rest.serialize_unsigned_transaction {
-            args.push("--serialize_unsigned_transaction".to_string());
+            args.push("--serialize-unsigned-transaction".to_string());
         }
         args
     }
@@ -1706,10 +1706,16 @@ impl IotaClientCommands {
 
                 IotaClientCommandResult::VerifySource
             }
-            IotaClientCommands::PTB(ptb) => {
-                ptb.execute(context).await?;
-                IotaClientCommandResult::NoOutput
-            }
+            IotaClientCommands::PTB(ptb) => match ptb.execute(context).await? {
+                PTBCommandResult::CommandResult(iota_client_command_result) => {
+                    iota_client_command_result
+                }
+                res => {
+                    let s = res.to_styled_str();
+                    println!("{}", s.ansi());
+                    IotaClientCommandResult::NoOutput
+                }
+            },
         };
         Ok(ret.prerender_clever_errors(context).await)
     }

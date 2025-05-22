@@ -6,7 +6,7 @@ use std::collections::HashSet;
 
 use anyhow::{Error, anyhow, ensure};
 use clap::{Args, ValueHint, arg, builder::StyledStr};
-use iota_json_rpc_types::{IotaExecutionStatus, IotaTransactionBlockEffectsAPI};
+use iota_json_rpc_types::{DevInspectResults, IotaExecutionStatus, IotaTransactionBlockEffectsAPI};
 use iota_keys::keystore::AccountKeystore;
 use iota_sdk::{IotaClient, wallet_context::WalletContext};
 use iota_types::{
@@ -45,9 +45,9 @@ pub struct PTB {
     pub display: HashSet<DisplayOption>,
 }
 
-pub struct PTBPreview<'a> {
-    pub program: &'a Program,
-    pub program_metadata: &'a ProgramMetadata,
+pub struct PTBPreview {
+    pub program: Program,
+    pub program_metadata: ProgramMetadata,
 }
 
 #[derive(Serialize)]
@@ -57,24 +57,50 @@ pub struct Summary {
     pub gas_cost: GasCostSummary,
 }
 
+pub enum PTBCommandResult {
+    Preview(PTBPreview),
+    Summary(Summary),
+    CommandResult(IotaClientCommandResult),
+    DevInspect(Box<DevInspectResults>),
+    Json(serde_json::Value),
+    Help { long: bool },
+}
+
+impl PTBCommandResult {
+    pub fn to_styled_str(self) -> StyledStr {
+        StyledStr::from(self.to_string())
+    }
+}
+
+impl std::fmt::Display for PTBCommandResult {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Preview(ptb_preview) => ptb_preview.fmt(f),
+            Self::CommandResult(res) => res.fmt(f),
+            Self::Summary(summary) => Pretty(summary).fmt(f),
+            Self::DevInspect(dev_inspect_results) => Pretty(dev_inspect_results.as_ref()).fmt(f),
+            Self::Json(value) => serde_json::to_string_pretty(&value)
+                .map_err(|_| std::fmt::Error)?
+                .fmt(f),
+            Self::Help { long } => {
+                if *long {
+                    ptb_description().render_long_help().ansi().fmt(f)
+                } else {
+                    ptb_description().render_help().ansi().fmt(f)
+                }
+            }
+        }
+    }
+}
+
 impl PTB {
     /// Parses and executes the PTB with the sender as the current active
     /// address.
-    pub async fn execute(self, context: &mut WalletContext) -> Result<String, Error> {
-        let res = self.execute_to_styled_str(context).await?;
-        println!("{}", res.ansi());
-        Ok(res.to_string())
-    }
-
-    /// Parses and executes the PTB with the sender as the current active
-    /// address and returns a [`StyledStr`].
-    pub(crate) async fn execute_to_styled_str(
-        self,
-        context: &mut WalletContext,
-    ) -> Result<StyledStr, Error> {
+    pub async fn execute(self, context: &mut WalletContext) -> Result<PTBCommandResult, Error> {
         if self.args.is_empty() {
-            return Ok(ptb_description().render_help());
+            return Ok(PTBCommandResult::Help { long: false });
         }
+
         let source_string = to_source_string(self.args.clone());
 
         // Tokenize once to detect help flags
@@ -82,10 +108,10 @@ impl PTB {
         for sp!(_, lexeme) in Lexer::new(tokens.clone()).into_iter().flatten() {
             match lexeme {
                 Lexeme(Token::Command, "help") => {
-                    return Ok(ptb_description().render_long_help());
+                    return Ok(PTBCommandResult::Help { long: true });
                 }
                 Lexeme(Token::Flag, "h") => {
-                    return Ok(ptb_description().render_help());
+                    return Ok(PTBCommandResult::Help { long: false });
                 }
                 lexeme if lexeme.is_terminal() => break,
                 _ => continue,
@@ -115,12 +141,10 @@ impl PTB {
         );
 
         if program_metadata.preview_set {
-            let ptb_preview = PTBPreview {
-                program: &program,
-                program_metadata: &program_metadata,
-            }
-            .to_string();
-            return Ok(StyledStr::from(ptb_preview));
+            return Ok(PTBCommandResult::Preview(PTBPreview {
+                program,
+                program_metadata,
+            }));
         }
 
         let client = context.get_client().await?;
@@ -179,21 +203,20 @@ impl PTB {
             },
         };
 
-        let transaction_response = dry_run_or_execute_or_serialize(
+        let res = dry_run_or_execute_or_serialize(
             sender, tx_kind, context, None, None, opts.gas, opts.rest,
         )
         .await?;
 
-        let transaction_response = match transaction_response {
+        let transaction_response = match res {
             IotaClientCommandResult::DryRun(_)
             | IotaClientCommandResult::SerializedUnsignedTransaction(_)
             | IotaClientCommandResult::SerializedSignedTransaction(_) => {
-                return Ok(StyledStr::from(transaction_response.to_string()));
+                return Ok(PTBCommandResult::CommandResult(res));
             }
             IotaClientCommandResult::TransactionBlock(response) => response,
             IotaClientCommandResult::DevInspect(response) => {
-                let pretty_string = Pretty(&response).to_string();
-                return Ok(StyledStr::from(pretty_string));
+                return Ok(PTBCommandResult::DevInspect(Box::new(response)));
             }
             _ => anyhow::bail!("Internal error, unexpected response from PTB execution."),
         };
@@ -208,32 +231,38 @@ impl PTB {
             }
         }
 
-        let summary = {
-            let effects = transaction_response.effects.as_ref().ok_or_else(|| {
-                anyhow!("Internal error: no transaction effects after PTB was executed.")
-            })?;
-            Summary {
-                digest: transaction_response.digest,
-                status: effects.status().clone(),
-                gas_cost: effects.gas_cost_summary().clone(),
-            }
-        };
+        if program_metadata.json_set || program_metadata.summary_set {
+            let summary = {
+                let effects = transaction_response.effects.as_ref().ok_or_else(|| {
+                    anyhow!("Internal error: no transaction effects after PTB was executed.")
+                })?;
+                Summary {
+                    digest: transaction_response.digest,
+                    status: effects.status().clone(),
+                    gas_cost: effects.gas_cost_summary().clone(),
+                }
+            };
 
-        let result_string = if program_metadata.json_set {
-            if program_metadata.summary_set {
-                serde_json::to_string_pretty(&serde_json::json!(summary))
-                    .map_err(|_| anyhow!("Cannot serialize PTB result to json"))?
+            if program_metadata.json_set {
+                if program_metadata.summary_set {
+                    Ok(PTBCommandResult::Json(
+                        serde_json::to_value(&summary)
+                            .map_err(|_| anyhow!("Cannot serialize PTB result to json"))?,
+                    ))
+                } else {
+                    Ok(PTBCommandResult::Json(
+                        serde_json::to_value(&transaction_response)
+                            .map_err(|_| anyhow!("Cannot serialize PTB result to json"))?,
+                    ))
+                }
             } else {
-                serde_json::to_string_pretty(&serde_json::json!(transaction_response))
-                    .map_err(|_| anyhow!("Cannot serialize PTB result to json"))?
+                Ok(PTBCommandResult::Summary(summary))
             }
-        } else if program_metadata.summary_set {
-            Pretty(&summary).to_string()
         } else {
-            transaction_response.to_string()
-        };
-
-        Ok(StyledStr::from(result_string))
+            Ok(PTBCommandResult::CommandResult(
+                IotaClientCommandResult::TransactionBlock(transaction_response),
+            ))
+        }
     }
 
     /// Exposed for testing
