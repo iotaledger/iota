@@ -13,7 +13,7 @@ export function getTransactionAmountForTimelocked(
 
     if (isTimelockedStaking) {
         const { totalStakedAmount } = getStakeDetailsFromEvents(events);
-        return totalStakedAmount;
+        return -BigInt(totalStakedAmount);
     } else if (isTimelockedUnstaking) {
         const { totalUnstakeAmount } = getUnstakeDetailsFromEvents(events);
         return totalUnstakeAmount;

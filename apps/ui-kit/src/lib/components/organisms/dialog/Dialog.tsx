@@ -9,7 +9,26 @@ import { Close } from '@iota/apps-ui-icons';
 import { useEffect, useState } from 'react';
 import { DialogPosition } from './dialog.enums';
 
-const Dialog = RadixDialog.Root;
+const Dialog = ({
+    open,
+    onOpenChange,
+    children,
+    ...props
+}: React.ComponentPropsWithoutRef<typeof RadixDialog.Root>) => {
+    const handleOpenChange = (isOpen: boolean) => {
+        const isMouseOverToast = document.querySelector('.toast-layer:hover');
+        if (!isOpen && isMouseOverToast) {
+            return;
+        }
+        onOpenChange?.(isOpen);
+    };
+
+    return (
+        <RadixDialog.Root open={open} onOpenChange={handleOpenChange} {...props}>
+            {children}
+        </RadixDialog.Root>
+    );
+};
 const DialogTrigger = RadixDialog.Trigger;
 const DialogClose = RadixDialog.Close;
 

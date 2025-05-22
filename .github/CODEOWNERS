@@ -80,8 +80,6 @@
 /crates/iota-transactional-test-runner/ @iotaledger/vm-language
 /crates/iota-types/ @iotaledger/core-protocol @iotaledger/sc-platform
 /crates/iota-upgrade-compatibility-transactional-tests/ @iotaledger/vm-language
-/crates/iota-util-mem/ @iotaledger/core-protocol @iotaledger/sc-platform
-/crates/iota-util-mem-derive/ @iotaledger/core-protocol @iotaledger/sc-platform
 /crates/iota-verifier-transactional-tests/ @iotaledger/vm-language
 /crates/prometheus-closure-metric/ @iotaledger/node
 /crates/shared-crypto/ @iotaledger/core-protocol

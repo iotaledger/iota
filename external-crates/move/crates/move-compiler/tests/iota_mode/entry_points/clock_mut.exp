@@ -1,9 +1,0 @@
-error[Iota E02002]: invalid 'entry' function signature
-  ┌─ tests/iota_mode/entry_points/clock_mut.move:4:35
-  │
-4 │     public entry fun no_clock_mut(_: &mut iota::clock::Clock) {
-  │            -----                  ^  ----------------------- iota::clock::Clock must be passed by immutable reference, e.g. '&iota::clock::Clock'
-  │            │                      │   
-  │            │                      Invalid 'entry' parameter type for parameter '_'
-  │            'no_clock_mut' was declared 'entry' here
-

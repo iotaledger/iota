@@ -1,18 +1,12 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { PropsWithChildren, ReactNode } from 'react';
+import type { PropsWithChildren, ReactNode } from 'react';
 import cx from 'classnames';
 import { TableProvider, useTableContext } from './TableContext';
-import {
-    Button,
-    ButtonProps,
-    ButtonSize,
-    ButtonType,
-    Checkbox,
-    TableCellBase,
-    TableHeaderCell,
-} from '@/lib';
+import type { ButtonProps } from '@/components/atoms';
+import { Button, ButtonSize, ButtonType, Checkbox } from '@/components/atoms';
+import { TableCellBase, TableHeaderCell } from '@/components/molecules';
 import { ArrowLeft, DoubleArrowLeft, ArrowRight, DoubleArrowRight } from '@iota/apps-ui-icons';
 
 export interface TablePaginationOptions {

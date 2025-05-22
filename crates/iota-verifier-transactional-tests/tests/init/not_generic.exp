@@ -1,6 +1,0 @@
-processed 1 task
-
-task 0, lines 5-12:
-//# publish
-Error: Transaction Effects Status: IOTA Move Bytecode Verification Error. Please run the IOTA Move Verifier for more information.
-Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: IotaMoveVerificationError, source: Some("_::m. 'init' function cannot have type parameters"), command: Some(0) } }

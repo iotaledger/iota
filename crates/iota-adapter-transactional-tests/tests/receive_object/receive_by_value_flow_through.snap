@@ -1,0 +1,50 @@
+---
+source: external-crates/move/crates/move-transactional-test-runner/src/framework.rs
+---
+processed 7 tasks
+
+task 1, lines 7-29:
+//# publish
+created: object(1,0)
+mutated: object(0,0)
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 6429600,  storage_rebate: 0, non_refundable_storage_fee: 0
+
+task 2, line 31:
+//# run tto::M1::start
+created: object(2,0), object(2,1)
+mutated: object(0,0)
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 3397200,  storage_rebate: 980400, non_refundable_storage_fee: 0
+
+task 3, line 33:
+//# view-object 2,0
+Owner: Account Address ( _ )
+Version: 3
+Contents: tto::M1::A {
+    id: iota::object::UID {
+        id: iota::object::ID {
+            bytes: fake(2,0),
+        },
+    },
+}
+
+task 4, lines 35-37:
+//# view-object 2,1
+Owner: Account Address ( fake(2,0) )
+Version: 3
+Contents: tto::M1::B {
+    id: iota::object::UID {
+        id: iota::object::ID {
+            bytes: fake(2,1),
+        },
+    },
+}
+
+task 5, lines 38-40:
+//# run tto::M1::flow --args object(2,0) receiving(2,1)
+mutated: object(0,0), object(2,0)
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2188800,  storage_rebate: 2188800, non_refundable_storage_fee: 0
+
+task 6, line 41:
+//# run tto::M1::drop --args object(2,0) receiving(2,1)
+mutated: object(0,0), object(2,0)
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2188800,  storage_rebate: 2188800, non_refundable_storage_fee: 0

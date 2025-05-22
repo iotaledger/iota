@@ -19,7 +19,7 @@ use tracing::{info, warn};
 
 /// The minimum and maximum protocol versions supported by this build.
 const MIN_PROTOCOL_VERSION: u64 = 1;
-pub const MAX_PROTOCOL_VERSION: u64 = 7;
+pub const MAX_PROTOCOL_VERSION: u64 = 8;
 
 // Record history of protocol version allocations here:
 //
@@ -41,13 +41,16 @@ pub const MAX_PROTOCOL_VERSION: u64 = 7;
 //            Enable proper conversion of certain type argument errors in the
 //            execution layer.
 // Version 6: Bound size of values created in the adapter.
-// Version 7: Variants as type nodes.
+// Version 7: Improve handling of stake withdrawal from candidate validators.
+// Version 8: Variants as type nodes.
 //            Enable smart ancestor selection for testnet.
 //            Enable probing for accepted rounds in round prober for testnet.
 //            Switch to distributed vote scoring in consensus in testnet.
 //            Enable zstd compression for consensus tonic network in testnet.
 //            Enable consensus garbage collection for testnet
 //            Enable the new consensus commit rule for testnet.
+//            Enable min_free_execution_slot for the shared object congestion
+//            tracker in devnet.
 
 #[derive(Copy, Clone, Debug, Hash, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ProtocolVersion(u64);
@@ -262,6 +265,11 @@ struct FeatureFlags {
     // If true, enable zstd compression for consensus tonic network.
     #[serde(skip_serializing_if = "is_false")]
     consensus_zstd_compression: bool,
+
+    // Use the minimum free execution slot to schedule execution of a transaction in the shared
+    // object congestion tracker.
+    #[serde(skip_serializing_if = "is_false")]
+    congestion_control_min_free_execution_slot: bool,
 }
 
 fn is_true(b: &bool) -> bool {
@@ -1230,6 +1238,11 @@ impl ProtocolConfig {
     pub fn consensus_zstd_compression(&self) -> bool {
         self.feature_flags.consensus_zstd_compression
     }
+
+    pub fn congestion_control_min_free_execution_slot(&self) -> bool {
+        self.feature_flags
+            .congestion_control_min_free_execution_slot
+    }
 }
 
 #[cfg(not(msim))]
@@ -1937,7 +1950,9 @@ impl ProtocolConfig {
                 6 => {
                     cfg.max_ptb_value_size = Some(1024 * 1024);
                 }
-                7 => {
+                // version 7 is a new framework version but with no config changes
+                7 => {}
+                8 => {
                     // TODO: add new consensus related config params to this
                     // version
 
@@ -1961,6 +1976,11 @@ impl ProtocolConfig {
                         // blocks within a window of ~4 seconds
                         // to be included before be considered garbage collected.
                         cfg.consensus_gc_depth = Some(60);
+                    }
+                    // Enable min_free_execution_slot for the shared object congestion tracker in
+                    // devnet.
+                    if chain != Chain::Testnet && chain != Chain::Mainnet {
+                        cfg.feature_flags.congestion_control_min_free_execution_slot = true;
                     }
                 }
                 // Use this template when making changes:

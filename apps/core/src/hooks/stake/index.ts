@@ -8,3 +8,4 @@ export * from './useValidatorInfo';
 export * from './useStakeTxnInfo';
 export * from './useNewStakeTransaction';
 export * from './useNewUnstakeTransaction';
+export * from './useGetInactiveValidator';
