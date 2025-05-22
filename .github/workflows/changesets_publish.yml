@@ -5,6 +5,10 @@ on:
 
 concurrency: ${{ github.workflow }}-${{ github.ref }}
 
+env:
+  IOTA_NETWORKS: ${{ secrets.CHANGESETS_IOTA_NETWORKS }}
+  DEFAULT_NETWORK: ${{ secrets.CHANGESETS_DEFAULT_NETWORK }}
+
 jobs:
   publish:
     runs-on: self-hosted-x64
@@ -23,5 +27,7 @@ jobs:
         run: pnpm install --frozen-lockfile
       - name: NPM login
         run: npm set "//registry.npmjs.org/:_authToken=${{ secrets.NPM_TOKEN }}"
+      - name: Build packages
+        run: pnpm turbo run build --filter=./sdk/*
       - name: Publish packages
         run: pnpm changeset-publish --no-git-tag
