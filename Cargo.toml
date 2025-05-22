@@ -197,7 +197,7 @@ strip = 'none'
 opt-level = 2
 
 [profile.simulator]
-debug = true
+debug = 0
 debug-assertions = true
 inherits = "test"
 # opt-level 1 gives >5x speedup for simulator tests without slowing down build times very much.

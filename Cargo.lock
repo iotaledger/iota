@@ -6936,6 +6936,7 @@ dependencies = [
  "downcast",
  "fastcrypto",
  "futures",
+ "hex",
  "iota-config",
  "iota-data-ingestion-core",
  "iota-json",
