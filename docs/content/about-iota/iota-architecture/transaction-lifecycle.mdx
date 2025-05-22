@@ -54,7 +54,7 @@ All certificates, regardless of whether they involve **owned** or **shared objec
 After the transaction has been executed, clients can gather responses from a supermajority of validators again. These responses are then assembled into an effect _certificate_. This certificate serves as proof that the transaction has been fully executed, providing evidence of settlement finality and a guarantee that the transaction will be recorded in a checkpoint.
 
 ### 7. Checkpoints and Reconfiguration
-IOTA periodically creates checkpoints during consensus commits. These checkpoints record the finalized transaction state, providing a stable point of reference. They are also used to drive the validator reconfiguration protocol, supporting epoch transitions and validator set changes.
+IOTA periodically creates checkpoints during consensus commits. These checkpoints record the finalized transaction state, providing a stable point of reference. They are also used to drive the validator reconfiguration protocol, supporting epoch transitions and validator set changes. 
 
 ## Epoch Transitions and Their Impact
 The IOTA network undergoes [epoch](./epochs.mdx) transitions, which can affect how transactions are handled. Near epoch boundaries, transactions might occasionally need to be resubmitted. Generally, full nodes handle resubmission, though some client applications may automate this process. As a best practice, it's advisable to avoid submitting time-sensitive transactions immediately before epoch transitions.
