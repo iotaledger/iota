@@ -23,8 +23,18 @@ import {
 import { AccountType, type SerializedUIAccount } from '_src/background/accounts/account';
 import { type SourceStrategyToFind } from '_src/shared/messaging/messages/payloads/accounts-finder';
 import { AllowedAccountSourceTypes } from '_src/ui/app/accounts-finder';
-import { getKey, getLedgerConnectionErrorMessage } from '_src/ui/app/helpers';
-import { useAccountSources, useAccounts, useUnlockMutation, useAccountsFinder } from '_hooks';
+import {
+    getKey,
+    getLedgerConnectionErrorMessage,
+    openTabWithSearchParam,
+} from '_src/ui/app/helpers';
+import {
+    useAccountSources,
+    useAccounts,
+    useUnlockMutation,
+    useAccountsFinder,
+    useAppSelector,
+} from '_hooks';
 import { useMemo, useState } from 'react';
 import { toast } from '@iota/core';
 import { useNavigate, useParams } from 'react-router-dom';
@@ -32,6 +42,7 @@ import { parseDerivationPath } from '_src/background/account-sources/bip44Path';
 import { isMnemonicSerializedUiAccount } from '_src/background/accounts/mnemonicAccount';
 import { isSeedSerializedUiAccount } from '_src/background/accounts/seedAccount';
 import { isLedgerAccountSerializedUI } from '_src/background/accounts/ledgerAccount';
+import { AppType } from '_src/ui/app/redux/slices/app/appType';
 
 function getAccountSourceType(
     accountSource?: AccountSourceSerializedUI,
@@ -66,6 +77,7 @@ export function AccountsFinderView(): JSX.Element {
     const [totalCheckedAddresses, setTotalCheckedAddresses] = useState(1);
     const ledgerIotaClient = useIotaLedgerClient();
     const unlockAccountSourceMutation = useUnlockMutation();
+    const isPopup = useAppSelector((state) => state.app.appType === AppType.Popup);
     const sourceStrategy: SourceStrategyToFind = useMemo(
         () =>
             accountSourceType == AllowedAccountSourceTypes.LedgerDerived
@@ -87,8 +99,13 @@ export function AccountsFinderView(): JSX.Element {
         },
     });
 
-    function unlockLedger() {
-        setConnectLedgerModalOpen(true);
+    async function unlockLedger() {
+        if (isPopup) {
+            await openTabWithSearchParam('showLedger', 'true');
+            window.close();
+        } else {
+            setConnectLedgerModalOpen(true);
+        }
     }
 
     function verifyPassword() {
