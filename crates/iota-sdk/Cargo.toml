@@ -51,6 +51,9 @@ tempfile.workspace = true
 # internal dependencies
 iota-move-build.workspace = true
 
+[features]
+iota-names = []
+
 [[example]]
 name = "coin_read_api"
 path = "examples/coin_read_api.rs"

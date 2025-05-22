@@ -32,6 +32,8 @@ export enum SearchAlgorithm {
     ITERATIVE_DEEPENING_BREADTH_FIRST,
 }
 
+export type OnDerivationPathChecked = (params: { totalCheckedAddresses: number }) => void;
+
 export interface AccountFinderConfigParams {
     getPublicKey: (params: {
         accountIndex: number;
@@ -47,6 +49,7 @@ export interface AccountFinderConfigParams {
     changeIndexes?: number[];
     accountGapLimit?: number;
     addressGapLimit?: number;
+    onDerivationPathChecked?: OnDerivationPathChecked;
 }
 
 interface GapConfiguration {
@@ -94,6 +97,8 @@ export class AccountsFinder {
     private client: IotaClient;
     private stardustIndexerClient: StardustIndexerClient | null;
     private accounts: AccountFromFinder[] = []; // Found accounts with balances.
+    private totalCheckedAddresses: number = 1;
+    private onBipPathChecked: OnDerivationPathChecked | undefined;
 
     constructor(config: AccountFinderConfigParams) {
         this.getPublicKey = config.getPublicKey;
@@ -111,6 +116,10 @@ export class AccountsFinder {
         this.addressGapLimit =
             config.addressGapLimit ??
             GAP_CONFIGURATION[this.bip44CoinType][config.accountSourceType]?.addressGapLimit;
+
+        if (config.onDerivationPathChecked) {
+            this.onBipPathChecked = config.onDerivationPathChecked;
+        }
     }
 
     // This function calls each time when user press "Search" button
@@ -260,6 +269,12 @@ export class AccountsFinder {
             }
             hasStardustObjects = sharedStardustObjects.length > 0;
         }
+
+        this.totalCheckedAddresses += 1;
+
+        this.onBipPathChecked?.({
+            totalCheckedAddresses: this.totalCheckedAddresses,
+        });
 
         return {
             publicKey: publicKeyB64,

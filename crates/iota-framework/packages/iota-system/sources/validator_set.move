@@ -159,6 +159,7 @@ const EValidatorAlreadyRemoved: u64 = 11;
 const ENotAPendingValidator: u64 = 12;
 const EValidatorSetEmpty: u64 = 13;
 const ENotACommitteeValidator: u64 = 14;
+const EInvalidStakeAmount: u64 = 15;
 
 const EInvalidCap: u64 = 101;
 
@@ -342,6 +343,7 @@ public(package) fun request_add_validator(
         EDuplicateValidator,
     );
     assert!(validator.is_preactive(), EValidatorNotCandidate);
+    assert!(validator.total_stake_amount() == validator.next_epoch_stake(), EInvalidStakeAmount);
     assert!(validator.total_stake_amount() >= min_joining_stake_amount, EMinJoiningStakeNotReached);
 
     self.pending_active_validators.push_back(validator);

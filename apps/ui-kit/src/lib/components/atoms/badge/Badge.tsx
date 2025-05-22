@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import cx from 'classnames';
-import { BadgeType } from './badge.enums';
+import type { BadgeType } from './badge.enums';
 import { BACKGROUND_COLORS, BADGE_TEXT_CLASS, BORDER_COLORS, TEXT_COLORS } from './badge.classes';
 
 interface BadgeProps {
