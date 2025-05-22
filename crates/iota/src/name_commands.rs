@@ -1286,7 +1286,7 @@ impl std::fmt::Display for NameCommandResult {
                 digest: transaction,
             } => {
                 writeln!(f, "Successfully placed bid for {}", auction.domain)?;
-                writeln!(f, "Auction Status: {}", auction.status())?;
+                writeln!(f, "Auction status: {}", auction.status())?;
                 format_auction(f, auction)?;
                 writeln!(f, "\nNFT:")?;
                 format_nft(f, &auction.nft)?;
@@ -1304,7 +1304,7 @@ impl std::fmt::Display for NameCommandResult {
                 write!(f, "\nTransaction digest: {transaction}")
             }
             Self::AuctionMetadata(auction) => {
-                writeln!(f, "Auction Status: {}", auction.status())?;
+                writeln!(f, "Auction status: {}", auction.status())?;
                 format_auction(f, auction)
             }
             Self::AuctionStart {
@@ -1312,7 +1312,7 @@ impl std::fmt::Display for NameCommandResult {
                 digest: transaction,
             } => {
                 writeln!(f, "Successfully started auction for {}", auction.domain)?;
-                writeln!(f, "Auction Status: {}", auction.status())?;
+                writeln!(f, "Auction status: {}", auction.status())?;
                 format_auction(f, auction)?;
                 write!(f, "\nTransaction digest: {transaction}")
             }
