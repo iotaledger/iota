@@ -7,7 +7,7 @@ use std::{
     time::{Duration, SystemTime, UNIX_EPOCH},
 };
 
-use anyhow::{anyhow, bail};
+use anyhow::{anyhow, bail, ensure};
 use chrono::{Utc, prelude::DateTime};
 use clap::Parser;
 use futures::{StreamExt, TryStreamExt};
@@ -294,12 +294,8 @@ impl NameCommand {
                     .data;
 
                 if let Some(key) = key {
-                    if let Some((key, value)) = res.remove_entry(&key) {
-                        res = BTreeMap::new();
-                        res.insert(key, value);
-                    } else {
-                        bail!("no value found for key `{key}`");
-                    }
+                    res.retain(|k, _| key.eq(k));
+                    ensure!(!res.is_empty(), "no value found for key `{key}`");
                 }
                 NameCommandResult::UserData(res)
             }
