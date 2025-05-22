@@ -15234,8 +15234,9 @@ dependencies = [
 
 [[package]]
 name = "tonic-rustls"
-version = "0.1.0"
-source = "git+https://github.com/bmwill/tonic-rustls?rev=77c3334b8aa00a982fb432d77c768c41aab1b05e#77c3334b8aa00a982fb432d77c768c41aab1b05e"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "733d45643fe455d5e4cc3a469537063248dddc166c7acfb406bd0c9054c2fd10"
 dependencies = [
  "async-stream",
  "bytes",
