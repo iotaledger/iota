@@ -216,13 +216,13 @@ anemo-build = { git = "https://github.com/mystenlabs/anemo.git", rev = "c4e7e4cb
 anemo-tower = { git = "https://github.com/mystenlabs/anemo.git", rev = "c4e7e4cb4b624d7738c2016d7b7885c6774ff9c2" }
 anyhow = "1.0.71"
 arc-swap = { version = "1.5.1", features = ["serde"] }
-async-graphql = "=7.0.11"
+async-graphql = { git = "https://github.com/async-graphql/async-graphql", rev = "3001a02f6df29e259900cd85230547c2923dfcf3" }
 async-recursion = "1.0.4"
 async-trait = "0.1.61"
 aws-config = "1.5.6"
 aws-sdk-dynamodb = "1.42"
-axum = { version = "0.7", default-features = false, features = ["tokio", "http1", "http2", "json", "matched-path", "original-uri", "form", "query", "ws"] }
-axum-extra = { version = "0.9", features = ["typed-header"] }
+axum = { version = "0.8", default-features = false, features = ["tokio", "http1", "http2", "json", "matched-path", "original-uri", "form", "query", "ws", "macros"] }
+axum-extra = { version = "0.10", features = ["typed-header"] }
 axum-server = { git = "https://github.com/bmwill/axum-server.git", rev = "f44323e271afdd1365fd0c8b0a4c0bbdf4956cb7", version = "0.6", default-features = false, features = ["tls-rustls"] }
 backoff = { version = "0.4.0", features = ["futures", "futures-core", "pin-project-lite", "tokio", "tokio_1"] }
 base64 = "0.21.2"
@@ -346,9 +346,9 @@ tokio-rustls = { version = "0.26", default-features = false, features = ["tls12"
 tokio-stream = { version = "0.1.14", features = ["sync", "net"] }
 tokio-util = "0.7.10"
 toml = { version = "0.7.4", features = ["preserve_order"] }
-tonic = { version = "0.12", features = ["zstd", "transport"] }
-tonic-build = { version = "0.12", features = ["prost", "transport"] }
-tonic-health = "0.12"
+tonic = { version = "0.13", features = ["zstd", "transport"] }
+tonic-build = { version = "0.13", features = ["prost", "transport"] }
+tonic-health = "0.13"
 tower = { version = "0.4.12", features = ["full", "util", "timeout", "load-shed", "limit"] }
 tower-http = { version = "0.5", features = ["cors", "full", "trace", "set-header", "propagate-header"] }
 tracing = "0.1.37"
