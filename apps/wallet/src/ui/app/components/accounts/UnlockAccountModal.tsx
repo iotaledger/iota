@@ -22,7 +22,7 @@ export function UnlockAccountModal({ onClose, onSuccess, account, open }: Unlock
             {...{
                 open,
                 onClose,
-                title: 'Unlock wallet',
+                title: 'Unlock Account',
                 confirmText: 'Unlock',
                 cancelText: 'Back',
                 showForgotPassword: true,
