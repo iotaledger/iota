@@ -26,7 +26,7 @@ export function ConnectedAppsCard() {
                             ))}
                         </div>
                     ) : (
-                        <NoData message="No connected apps found." displayImage={false} />
+                        <NoData message="No connected apps found." />
                     )}
                 </div>
             </Loading>

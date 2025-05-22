@@ -111,7 +111,7 @@ export function AppsPlayGround() {
                         ))}
                     </div>
                 ) : (
-                    <NoData message="No apps found." displayImage={false} />
+                    <NoData message="No apps found." />
                 )}
             </div>
         </PageTemplate>

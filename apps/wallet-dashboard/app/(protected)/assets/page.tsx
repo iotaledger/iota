@@ -90,7 +90,9 @@ export default function AssetsDashboardPage(): React.JSX.Element {
                     <>
                         {isAssetsLoaded &&
                         Boolean(!ownedAssets?.visual.length || !ownedAssets?.other.length) ? (
-                            <NoData message="No assets found yet." displayImage={false} />
+                            <div className="py-2xl">
+                                <NoData message="No assets found yet." displayImage />
+                            </div>
                         ) : null}
                         {isAssetsLoaded &&
                         Boolean(ownedAssets?.visual.length || ownedAssets?.other.length) ? (

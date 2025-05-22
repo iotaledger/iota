@@ -75,12 +75,12 @@ export function MyCoins(): React.JSX.Element {
     };
     return (
         <Panel>
-            <div className="flex h-full w-full flex-col">
+            <div className="h-full max-h-[400px] flex-1 overflow-y-auto px-sm pb-md  pt-sm sm:max-h-none">
                 <Title title="My Coins" />
                 <div>
                     {!accountHasIota ? (
-                        <div>
-                            <NoData message="Start by buying IOTA" displayImage={false} />
+                        <div className="py-2xl">
+                            <NoData message="Start by buying IOTA" />
                         </div>
                     ) : null}
                 </div>

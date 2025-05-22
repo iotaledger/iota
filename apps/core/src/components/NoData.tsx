@@ -1,4 +1,4 @@
-// Copyright (c) 2024 IOTA Stiftung
+// Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 import { Theme } from '../enums';
@@ -8,7 +8,7 @@ import NoDataDarkImage from '../assets/images/no_data_darkmode.svg';
 
 interface NoDataProps {
     message: string;
-    displayImage: boolean;
+    displayImage?: boolean;
 }
 
 export function NoData({ message, displayImage }: NoDataProps) {

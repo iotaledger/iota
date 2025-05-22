@@ -9,9 +9,13 @@ import { IotaTransactionBlockResponse } from '@iota/iota-sdk/client';
 
 interface TransactionsListProps {
     heightClassName?: string;
+    displayImage?: boolean;
 }
 
-export function TransactionsList({ heightClassName }: TransactionsListProps): JSX.Element {
+export function TransactionsList({
+    heightClassName,
+    displayImage,
+}: TransactionsListProps): JSX.Element {
     const currentAccount = useCurrentAccount();
     const { allTransactions, fetchNextPage, hasNextPage, isFetchingNextPage, error } =
         useQueryTransactionsByAddress(currentAccount?.address);
@@ -28,10 +32,12 @@ export function TransactionsList({ heightClassName }: TransactionsListProps): JS
     return (
         <div>
             {allTransactions?.length == 0 ? (
-                <NoData
-                    message="You can view your IOTA network transactions here once they are available."
-                    displayImage={false}
-                />
+                <div className="py-2xl">
+                    <NoData
+                        message="You can view your IOTA network transactions here once they are available."
+                        displayImage={displayImage}
+                    />
+                </div>
             ) : (
                 <VirtualList
                     items={allTransactions || []}
