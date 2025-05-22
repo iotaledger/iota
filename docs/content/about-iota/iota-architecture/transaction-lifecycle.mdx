@@ -17,89 +17,46 @@ import ThemedImage from '@theme/ThemedImage';
     }}
 />
 
-1.  **Create and Sign a Transaction**: A user creates a transaction using a wallet application. This transaction can affect objects owned by the user, as well as [shared objects](../../developer/iota-101/objects/object-ownership/shared.mdx). The wallet application then signs the transaction with the user's private key.
-
-2.  **Submit to Validators**: The client application communicates with a full node, which then distributes the transaction to all validators following the IOTA protocol. The validators verify the transaction. If valid, the validators sign it and return the signed transaction to the full node.
-
-3.  **Form a Transaction Certificate**: After collecting responses from a supermajority of validators, the client forms a transaction _certificate_. Unlike consensus-based blockchains, IOTA validators are not burdened by needing to propagate signatures or aggregate _certificates_; this is the responsibility of the client or gateway.
-
-4.  **Send the Certificate**: The client sends the assembled _certificate_ back to all validators. The validators verify its validity and acknowledge receipt. If the transaction involves only owned objects, IOTA can process and execute it immediately without waiting for consensus (**fast path consensus**). All _certificates_ are forwarded to the IOTA DAG-based consensus protocol.
-
-5.  **Consensus and Execution**: The IOTA DAG-based consensus protocol eventually produces a total order of _certificates_. Validators verify and execute _certificates_ that involve shared objects.
-
-6.  **Form an Effect Certificate**: Clients can gather responses from a supermajority of validators, assemble them into an effect _certificate_, and use it as proof that the transaction is settled.
-
-7.  **Checkpoints and Reconfiguration**: IOTA forms checkpoints for every consensus commit, which are also used to drive the reconfiguration protocol.
-
 ## Understanding the Transaction Lifecycle in IOTA
 
-### 1. Create and Sign a Transaction
+The IOTA transaction lifecycle outlines the journey of a transaction from its creation by a user to its final settlement and recording on the ledger. This process involves client applications, full nodes, and validators, ensuring secure and consistent state transitions across the network.
 
-A user (or smart contract) initiates a transaction through a wallet or application. The transaction includes:
+### 1. Create and Sign a Transaction
+A user or smart contract initiates a transaction through a wallet or application. This transaction can affect objects owned exclusively by the user (owned objects) or objects that multiple users can interact with ([shared objects](../../developer/iota-101/objects/object-ownership/shared.mdx)). The transaction typically includes:
 
 - Sender and recipient addresses
+
 - Value or assets to transfer
+
 - Timestamp and nonce
+
 - Digital signature (using the user's private key)
 
-This transaction may affect **owned** or **shared** objects.
+The wallet application signs the transaction with the user's private key, ensuring its authenticity and integrity.
 
 ### 2. Submit to Validators
+Once created and signed, the transaction is submitted to a full node. The full node performs an initial validation of the transaction structure and checks for sufficient account balance. It then distributes the transaction to validators in the network.
 
-Once created, the transaction is submitted to a full node. The full node:
-
-- Validates the transaction structure
-- Checks for sufficient account balance
-- Distributes the transaction to validators in the network
-
-Validators independently verify the transaction. If valid, they sign and return it to the node.
+Validators independently verify the transaction's validity. If deemed valid, they sign it and return the signed transaction to the full node.
 
 ### 3. Form a Transaction Certificate
-
-The client collects signed responses from a supermajority of validators and uses them to assemble a **transaction certificate**. 
-
-This step ensures that the transaction has been pre-approved by enough validators to proceed confidently.
+After collecting signed responses from a supermajority of validators, the client assembles these responses into a transaction _certificate_. This step is crucial as it ensures that the transaction has been pre-approved by a sufficient number of validators before proceeding to consensus. Unlike traditional consensus-based blockchains, the client or gateway is responsible for propagating signatures and aggregating certificates, reducing the burden on validators.
 
 ### 4. Send the Certificate
+The client sends the assembled _certificate_ back to all validators. Upon receipt, validators verify the certificate's integrity and acknowledge its receipt. They then forward the _certificate_ to the IOTA DAG-based consensus protocol.
 
-The client sends the assembled certificate back to all validators. They:
-
-- Verify its integrity
-- Acknowledge its receipt
-- Forward the certificate to the DAG-based consensus protocol
-
-If the transaction involves only owned objects, it can be **executed immediately** using fast-path consensus.
+If the transaction involves only owned objects, IOTA can process and execute it immediately without waiting for global consensus, leveraging fast path consensus.
 
 ### 5. Consensus and Execution
-
-Validators participate in the **DAG-based consensus protocol**, which:
-
-- Orders all transaction certificates
-- Executes transactions that affect shared objects
-- Ensures deterministic and consistent state transitions across all nodes
+All certificates, regardless of whether they involve **owned** or **shared objects**, are forwarded to the IOTA DAG-based consensus protocol. This protocol eventually produces a total order of certificates. Validators then verify and execute transactions that involve shared objects, ensuring deterministic and consistent state transitions across all nodes.
 
 ### 6. Form an Effect Certificate
-
-After execution, the client may collect validator responses again to form an **effect certificate**. This serves as:
-
-- A proof that the transaction has been fully executed
-- Evidence of **settlement finality**
-- A guarantee that the transaction will be recorded in a checkpoint
+After the transaction has been executed, clients can gather responses from a supermajority of validators again. These responses are then assembled into an effect _certificate_. This certificate serves as proof that the transaction has been fully executed, providing evidence of settlement finality and a guarantee that the transaction will be recorded in a checkpoint.
 
 ### 7. Checkpoints and Reconfiguration
-
-IOTA periodically creates **checkpoints** during consensus commits. These checkpoints:
-
-- Record finalized transaction state
-- Drive validator reconfiguration
-- Support epoch transitions and validator set changes
+IOTA periodically creates checkpoints during consensus commits. These checkpoints record the finalized transaction state, providing a stable point of reference. They are also used to drive the validator reconfiguration protocol, supporting epoch transitions and validator set changes.
 
 ## Epoch Transitions and Their Impact
-
-The IOTA network undergoes [epoch](./epochs.mdx) transitions, which can affect how transactions are handled.
-
-- **Near epoch boundaries**, transactions might need to be resubmitted.
-- **Who handles resubmission?** Generally, full nodes do. Some client apps may automate this.
-- **Best practices**: Avoid time-sensitive transactions right before epoch transitions.
+The IOTA network undergoes [epoch](./epochs.mdx) transitions, which can affect how transactions are handled. Near epoch boundaries, transactions might occasionally need to be resubmitted. Generally, full nodes handle resubmission, though some client applications may automate this process. As a best practice, it's advisable to avoid submitting time-sensitive transactions immediately before epoch transitions.
 
 <Quiz questions={questions} />
