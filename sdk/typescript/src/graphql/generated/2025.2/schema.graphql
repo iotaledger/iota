@@ -90,6 +90,16 @@ type Address implements IOwner {
 	"""
 	stakedIotas(first: Int, after: String, last: Int, before: String): StakedIotaConnection!
 	"""
+	The domain explicitly configured as the default domain pointing to this
+	address.
+	"""
+	iotaNamesDefaultName(format: DomainFormat): String
+	"""
+	The IotaNamesRegistration NFTs owned by this address. These grant the
+	owner the capability to manage the associated domain.
+	"""
+	iotaNamesRegistrations(first: Int, after: String, last: Int, before: String): IotaNamesRegistrationConnection!
+	"""
 	Similar behavior to the `transactionBlocks` in Query but supporting the
 	additional `AddressTransactionBlockRelationship` filter, which
 	defaults to `SIGN`.
@@ -584,6 +594,16 @@ type Coin implements IMoveObject & IObject & IOwner {
 	The `0x3::staking_pool::StakedIota` objects owned by this object.
 	"""
 	stakedIotas(first: Int, after: String, last: Int, before: String): StakedIotaConnection!
+	"""
+	The domain explicitly configured as the default domain pointing to this
+	object.
+	"""
+	iotaNamesDefaultName(format: DomainFormat): String
+	"""
+	The IotaNamesRegistration NFTs owned by this object. These grant the
+	owner the capability to manage the associated domain.
+	"""
+	iotaNamesRegistrations(first: Int, after: String, last: Int, before: String): IotaNamesRegistrationConnection!
 	version: UInt53!
 	"""
 	The current status of the object as read from the off-chain store. The
@@ -751,6 +771,16 @@ type CoinMetadata implements IMoveObject & IObject & IOwner {
 	The `0x3::staking_pool::StakedIota` objects owned by this object.
 	"""
 	stakedIotas(first: Int, after: String, last: Int, before: String): StakedIotaConnection!
+	"""
+	The domain explicitly configured as the default domain pointing to this
+	object.
+	"""
+	iotaNamesDefaultName(format: DomainFormat): String
+	"""
+	The IotaNamesRegistration NFTs owned by this object. These grant the
+	owner the capability to manage the associated domain.
+	"""
+	iotaNamesRegistrations(first: Int, after: String, last: Int, before: String): IotaNamesRegistrationConnection!
 	version: UInt53!
 	"""
 	The current status of the object as read from the off-chain store. The
@@ -953,6 +983,11 @@ type DisplayEntry {
 	An error string describing why the template could not be rendered.
 	"""
 	error: String
+}
+
+enum DomainFormat {
+	AT
+	DOT
 }
 
 type DryRunEffect {
@@ -1634,6 +1669,14 @@ interface IOwner {
 	The `0x3::staking_pool::StakedIota` objects owned by this object or address.
 	"""
 	stakedIotas(first: Int, after: String, last: Int, before: String): StakedIotaConnection!
+	"""
+	The domain explicitly configured as the default domain pointing to this object or address.
+	"""
+	iotaNamesDefaultName(format: DomainFormat): String
+	"""
+	The IotaNamesRegistration NFTs owned by this object or address. These grant the owner the capability to manage the associated domain.
+	"""
+	iotaNamesRegistrations(first: Int, after: String, last: Int, before: String): IotaNamesRegistrationConnection!
 }
 
 """
@@ -1660,6 +1703,187 @@ type Input {
 String containing 32B hex-encoded address, with a leading "0x". Leading zeroes can be omitted on input but will always appear in outputs (IotaAddress in output is guaranteed to be 66 characters long).
 """
 scalar IotaAddress
+
+type IotaNamesRegistration implements IMoveObject & IOwner {
+	address: IotaAddress!
+	"""
+	Objects owned by this object, optionally `filter`-ed.
+	"""
+	objects(first: Int, after: String, last: Int, before: String, filter: ObjectFilter): MoveObjectConnection!
+	"""
+	Total balance of all coins with marker type owned by this object. If
+	type is not supplied, it defaults to `0x2::iota::IOTA`.
+	"""
+	balance(type: String): Balance
+	"""
+	The balances of all coin types owned by this object.
+	"""
+	balances(first: Int, after: String, last: Int, before: String): BalanceConnection!
+	"""
+	The coin objects for this object.
+	
+	`type` is a filter on the coin's type parameter, defaulting to
+	`0x2::iota::IOTA`.
+	"""
+	coins(first: Int, after: String, last: Int, before: String, type: String): CoinConnection!
+	"""
+	The `0x3::staking_pool::StakedIota` objects owned by this object.
+	"""
+	stakedIotas(first: Int, after: String, last: Int, before: String): StakedIotaConnection!
+	"""
+	The domain explicitly configured as the default domain pointing to this
+	object.
+	"""
+	iotaNamesDefaultName(format: DomainFormat): String
+	"""
+	The IotaNamesRegistration NFTs owned by this object. These grant the
+	owner the capability to manage the associated domain.
+	"""
+	iotaNamesRegistrations(first: Int, after: String, last: Int, before: String): IotaNamesRegistrationConnection!
+	version: UInt53!
+	"""
+	The current status of the object as read from the off-chain store. The
+	possible states are: NOT_INDEXED, the object is loaded from
+	serialized data, such as the contents of a genesis or system package
+	upgrade transaction. LIVE, the version returned is the most recent for
+	the object, and it is not deleted or wrapped at that version.
+	HISTORICAL, the object was referenced at a specific version or
+	checkpoint, so is fetched from historical tables and may not be the
+	latest version of the object. WRAPPED_OR_DELETED, the object is deleted
+	or wrapped and only partial information can be loaded."
+	"""
+	status: ObjectKind!
+	"""
+	32-byte hash that identifies the object's contents, encoded as a Base58
+	string.
+	"""
+	digest: String
+	"""
+	The owner type of this object: Immutable, Shared, Parent, Address
+	"""
+	owner: ObjectOwner
+	"""
+	The transaction block that created this version of the object.
+	"""
+	previousTransactionBlock: TransactionBlock
+	"""
+	The amount of IOTA we would rebate if this object gets deleted or
+	mutated. This number is recalculated based on the present storage
+	gas price.
+	"""
+	storageRebate: BigInt
+	"""
+	The transaction blocks that sent objects to this object.
+	
+	`scanLimit` restricts the number of candidate transactions scanned when
+	gathering a page of results. It is required for queries that apply
+	more than two complex filters (on function, kind, sender, recipient,
+	input object, changed object, or ids), and can be at most
+	`serviceConfig.maxScanLimit`.
+	
+	When the scan limit is reached the page will be returned even if it has
+	fewer than `first` results when paginating forward (`last` when
+	paginating backwards). If there are more transactions to scan,
+	`pageInfo.hasNextPage` (or `pageInfo.hasPreviousPage`) will be set to
+	`true`, and `PageInfo.endCursor` (or `PageInfo.startCursor`) will be set
+	to the last transaction that was scanned as opposed to the last (or
+	first) transaction in the page.
+	
+	Requesting the next (or previous) page after this cursor will resume the
+	search, scanning the next `scanLimit` many transactions in the
+	direction of pagination, and so on until all transactions in the
+	scanning range have been visited.
+	
+	By default, the scanning range includes all transactions known to
+	GraphQL, but it can be restricted by the `after` and `before`
+	cursors, and the `beforeCheckpoint`, `afterCheckpoint` and
+	`atCheckpoint` filters.
+	"""
+	receivedTransactionBlocks(first: Int, after: String, last: Int, before: String, filter: TransactionBlockFilter, scanLimit: Int): TransactionBlockConnection!
+	"""
+	The Base64-encoded BCS serialization of the object's content.
+	"""
+	bcs: Base64
+	"""
+	Displays the contents of the Move object in a JSON string and through
+	GraphQL types. Also provides the flat representation of the type
+	signature, and the BCS of the corresponding data.
+	"""
+	contents: MoveValue
+	"""
+	Determines whether a transaction can transfer this object, using the
+	TransferObjects transaction command or
+	`iota::transfer::public_transfer`, both of which require the object to
+	have the `key` and `store` abilities.
+	"""
+	hasPublicTransfer: Boolean!
+	"""
+	The set of named templates defined on-chain for the type of this object,
+	to be handled off-chain. The server substitutes data from the object
+	into these templates to generate a display string per template.
+	"""
+	display: [DisplayEntry!]
+	"""
+	Access a dynamic field on an object using its name. Names are arbitrary
+	Move values whose type have `copy`, `drop`, and `store`, and are
+	specified using their type, and their BCS contents, Base64 encoded.
+	
+	Dynamic fields on wrapped objects can be accessed by using the same API
+	under the Owner type.
+	"""
+	dynamicField(name: DynamicFieldName!): DynamicField
+	"""
+	Access a dynamic object field on an object using its name. Names are
+	arbitrary Move values whose type have `copy`, `drop`, and `store`,
+	and are specified using their type, and their BCS contents, Base64
+	encoded. The value of a dynamic object field can also be accessed
+	off-chain directly via its address (e.g. using `Query.object`).
+	
+	Dynamic fields on wrapped objects can be accessed by using the same API
+	under the Owner type.
+	"""
+	dynamicObjectField(name: DynamicFieldName!): DynamicField
+	"""
+	The dynamic fields and dynamic object fields on an object.
+	
+	Dynamic fields on wrapped objects can be accessed by using the same API
+	under the Owner type.
+	"""
+	dynamicFields(first: Int, after: String, last: Int, before: String): DynamicFieldConnection!
+	"""
+	Domain name of the IotaNamesRegistration object
+	"""
+	domain: String!
+}
+
+type IotaNamesRegistrationConnection {
+	"""
+	Information to aid in pagination.
+	"""
+	pageInfo: PageInfo!
+	"""
+	A list of edges.
+	"""
+	edges: [IotaNamesRegistrationEdge!]!
+	"""
+	A list of nodes.
+	"""
+	nodes: [IotaNamesRegistration!]!
+}
+
+"""
+An edge in a connection.
+"""
+type IotaNamesRegistrationEdge {
+	"""
+	The item at the end of the edge
+	"""
+	node: IotaNamesRegistration!
+	"""
+	A cursor for use in pagination
+	"""
+	cursor: String!
+}
 
 """
 Arbitrary JSON data.
@@ -2110,6 +2334,16 @@ type MoveObject implements IMoveObject & IObject & IOwner {
 	The `0x3::staking_pool::StakedIota` objects owned by this object.
 	"""
 	stakedIotas(first: Int, after: String, last: Int, before: String): StakedIotaConnection!
+	"""
+	The domain explicitly configured as the default domain pointing to this
+	object.
+	"""
+	iotaNamesDefaultName(format: DomainFormat): String
+	"""
+	The IotaNamesRegistration NFTs owned by this object. These grant the
+	owner the capability to manage the associated domain.
+	"""
+	iotaNamesRegistrations(first: Int, after: String, last: Int, before: String): IotaNamesRegistrationConnection!
 	version: UInt53!
 	"""
 	The current status of the object as read from the off-chain store. The
@@ -2226,6 +2460,7 @@ type MoveObject implements IMoveObject & IObject & IOwner {
 	Attempts to convert the Move object into a `0x2::coin::CoinMetadata`.
 	"""
 	asCoinMetadata: CoinMetadata
+	asIotaNamesRegistration: IotaNamesRegistration
 }
 
 type MoveObjectConnection {
@@ -2303,6 +2538,19 @@ type MovePackage implements IObject & IOwner {
 	are immutable and cannot be owned by an address.
 	"""
 	stakedIotas(first: Int, after: String, last: Int, before: String): StakedIotaConnection!
+	"""
+	The domain explicitly configured as the default domain pointing to this
+	object.
+	"""
+	iotaNamesDefaultName(format: DomainFormat): String
+	"""
+	The IotaNamesRegistration NFTs owned by this package. These grant the
+	owner the capability to manage the associated domain.
+	
+	Note that objects owned by a package are inaccessible, because packages
+	are immutable and cannot be owned by an address.
+	"""
+	iotaNamesRegistrations(first: Int, after: String, last: Int, before: String): IotaNamesRegistrationConnection!
 	version: UInt53!
 	"""
 	The current status of the object as read from the off-chain store. The
@@ -2721,6 +2969,16 @@ type Object implements IObject & IOwner {
 	The `0x3::staking_pool::StakedIota` objects owned by this object.
 	"""
 	stakedIotas(first: Int, after: String, last: Int, before: String): StakedIotaConnection!
+	"""
+	The domain explicitly configured as the default domain pointing to this
+	address.
+	"""
+	iotaNamesDefaultName(format: DomainFormat): String
+	"""
+	The IotaNamesRegistration NFTs owned by this address. These grant the
+	owner the capability to manage the associated domain.
+	"""
+	iotaNamesRegistrations(first: Int, after: String, last: Int, before: String): IotaNamesRegistrationConnection!
 	version: UInt53!
 	"""
 	The current status of the object as read from the off-chain store. The
@@ -3089,6 +3347,16 @@ type Owner implements IOwner {
 	address.
 	"""
 	stakedIotas(first: Int, after: String, last: Int, before: String): StakedIotaConnection!
+	"""
+	The domain explicitly configured as the default domain pointing to this
+	object or address.
+	"""
+	iotaNamesDefaultName(format: DomainFormat): String
+	"""
+	The IotaNamesRegistration NFTs owned by this object or address. These
+	grant the owner the capability to manage the associated domain.
+	"""
+	iotaNamesRegistrations(first: Int, after: String, last: Int, before: String): IotaNamesRegistrationConnection!
 	asAddress: Address
 	asObject: Object
 	"""
@@ -3460,6 +3728,11 @@ type Query {
 	"""
 	protocolConfig(protocolVersion: UInt53): ProtocolConfigs!
 	"""
+	Resolves an IOTA-Names `domain` name to an address, if it has been
+	bound.
+	"""
+	resolveIotaNamesAddress(domain: String!): Address
+	"""
 	The coin metadata associated with the given coin type.
 	"""
 	coinMetadata(coinType: String!): CoinMetadata
@@ -3816,6 +4089,16 @@ type StakedIota implements IMoveObject & IObject & IOwner {
 	The `0x3::staking_pool::StakedIota` objects owned by this object.
 	"""
 	stakedIotas(first: Int, after: String, last: Int, before: String): StakedIotaConnection!
+	"""
+	The domain explicitly configured as the default domain pointing to this
+	object.
+	"""
+	iotaNamesDefaultName(format: DomainFormat): String
+	"""
+	The IotaNamesRegistration NFTs owned by this object. These grant the
+	owner the capability to manage the associated domain.
+	"""
+	iotaNamesRegistrations(first: Int, after: String, last: Int, before: String): IotaNamesRegistrationConnection!
 	version: UInt53!
 	"""
 	The current status of the object as read from the off-chain store. The
