@@ -59,4 +59,10 @@ IOTA periodically creates checkpoints during consensus commits. These checkpoint
 ## Epoch Transitions and Their Impact
 The IOTA network undergoes [epoch](./epochs.mdx) transitions, which can affect how transactions are handled. Near epoch boundaries, transactions might occasionally need to be resubmitted. Generally, full nodes handle resubmission, though some client applications may automate this process. As a best practice, it's advisable to avoid submitting time-sensitive transactions immediately before epoch transitions.
 
+## Verifying Finality
+
+If your wallet app crashes during a transaction, it stores the signed transaction locally. Upon restarting, it will verify if the transaction was finalized. If finalized, no further steps are required. If not, the app will need to resubmit the transaction.
+
+The wallet app can query the full node with the getTransactionBlock method to check if the transaction is finalized. If the response contains transaction details, it is finalized. If the response is None, the transaction may need to be resubmitted. This ensures that the coffee shop's full node will eventually recognize the transaction once it's included in a checkpoint and update the coffee shop's balance.
+
 <Quiz questions={questions} />
