@@ -9,7 +9,6 @@ publish = false
 [dependencies]
 # external dependencies
 anyhow.workspace = true
-arrow = "55.1"
 arrow-array = "55.1"
 async-trait.workspace = true
 axum.workspace = true
@@ -28,7 +27,7 @@ parquet = "55.1"
 prometheus.workspace = true
 serde.workspace = true
 serde_json.workspace = true
-snowflake-api = "0.11"
+snowflake-api = "0.12"
 strum.workspace = true
 tap = "1.0"
 tempfile.workspace = true
