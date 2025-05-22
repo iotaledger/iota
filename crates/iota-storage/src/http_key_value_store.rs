@@ -193,7 +193,7 @@ impl Key {
     /// for a given `Key` variant.
     ///
     /// This is used to construct the REST API route,
-    /// typically in the format `/:item_type/:digest`.
+    /// typically in the format `/{item_type}/{digest}`.
     ///
     /// # Example
     /// ```rust
