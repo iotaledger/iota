@@ -5,7 +5,8 @@ import cx from 'classnames';
 import { LabelTextSize } from './labelText.enums';
 import { LABEL_TEXT_SIZE, SUPPORTING_TEXT_SIZE, TEXT_SIZE } from './labelText.classes';
 import { Info } from '@iota/apps-ui-icons';
-import { TooltipPosition, Tooltip } from '../tooltip';
+import type { TooltipPosition } from '../tooltip';
+import { Tooltip } from '../tooltip';
 
 interface LabelTextProps {
     /**

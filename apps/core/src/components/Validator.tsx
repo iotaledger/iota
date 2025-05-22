@@ -1,7 +1,13 @@
 // Copyright (c) Mysten Labs, Inc.
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
-import { ImageIcon, ImageIconSize, formatPercentageDisplay, useValidatorInfo } from '../';
+import {
+    ImageIcon,
+    ImageIconSize,
+    formatPercentageDisplay,
+    useGetInactiveValidator,
+    useValidatorInfo,
+} from '../';
 import {
     Card,
     CardBody,
@@ -36,7 +42,6 @@ export function Validator({
     activeEpoch,
 }: ValidatorProps) {
     const {
-        name: validatorName,
         newValidator,
         isAtRisk,
         apy,
@@ -69,7 +74,12 @@ export function Validator({
         ? `Staked ${Number(system?.epoch) - Number(activeEpoch)} epochs ago`
         : '';
 
-    const validatorDisplayName = validatorName || fallBackText;
+    const { data: inactiveValidatorSummary } = useGetInactiveValidator(address);
+    const validatorDisplayName =
+        validatorSummary?.name || inactiveValidatorSummary?.name || fallBackText;
+
+    const validatorDisplayLogo =
+        validatorSummary?.imageUrl || inactiveValidatorSummary?.imageUrl || null;
 
     const subtitle = showActiveStatus ? (
         <div className="flex items-center gap-1">
@@ -84,7 +94,7 @@ export function Validator({
         <Card type={type || isSelected ? CardType.Filled : CardType.Default} onClick={onClick}>
             <CardImage>
                 <ImageIcon
-                    src={validatorSummary?.imageUrl ?? null}
+                    src={validatorDisplayLogo}
                     label={validatorDisplayName}
                     fallback={validatorDisplayName}
                     size={ImageIconSize.Large}

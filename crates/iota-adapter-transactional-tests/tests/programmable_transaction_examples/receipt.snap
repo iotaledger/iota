@@ -1,0 +1,31 @@
+---
+source: external-crates/move/crates/move-transactional-test-runner/src/framework.rs
+---
+processed 4 tasks
+
+task 1, lines 7-24:
+//# publish
+created: object(1,0)
+mutated: object(0,0)
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 6216800,  storage_rebate: 0, non_refundable_storage_fee: 0
+
+task 2, lines 26-30:
+//# programmable
+//> 0: test::m1::prologue();
+//> test::m1::execute(Result(0));
+//> test::m1::epilogue(Result(0));
+created: object(2,0)
+mutated: object(0,0)
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2234400,  storage_rebate: 980400, non_refundable_storage_fee: 0
+
+task 3, line 32:
+//# view-object 2,0
+Owner: Account Address ( _ )
+Version: 3
+Contents: test::m1::Witness {
+    id: iota::object::UID {
+        id: iota::object::ID {
+            bytes: fake(2,0),
+        },
+    },
+}

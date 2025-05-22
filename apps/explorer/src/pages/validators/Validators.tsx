@@ -58,6 +58,7 @@ function ValidatorPageResult(): JSX.Element {
     const { data: pendingActiveValidatorsId } = useGetDynamicFields(
         data?.pendingActiveValidatorsId || '',
     );
+
     const pendingValidatorsObjectIdsData = pendingActiveValidatorsId?.pages[0]?.data || [];
     const pendingValidatorsObjectIds = pendingValidatorsObjectIdsData.map((item) => item.objectId);
     const normalizedIds = pendingValidatorsObjectIds.map((id) => normalizeIotaAddress(id));
@@ -67,7 +68,7 @@ function ValidatorPageResult(): JSX.Element {
         showContent: true,
     });
 
-    const sanitizePendingValidatorsData = sanitizePendingValidators(pendingValidatorsData);
+    const sanitizedPendingValidatorsData = sanitizePendingValidators(pendingValidatorsData);
 
     const { data: validatorsApy } = useGetValidatorsApy();
     const { data: totalSupplyData } = useIotaClientQuery('getTotalSupply', {
@@ -128,9 +129,9 @@ function ValidatorPageResult(): JSX.Element {
         return formatPercentageDisplay(ratio);
     })();
 
-    const tableData = data
+    const activeAndPendingValidators = data
         ? Number(data.pendingActiveValidatorsSize) > 0
-            ? activeValidators?.concat(sanitizePendingValidatorsData)
+            ? activeValidators?.concat(sanitizedPendingValidatorsData)
             : activeValidators
         : [];
 
@@ -141,6 +142,8 @@ function ValidatorPageResult(): JSX.Element {
             'Stake',
             'APY',
             'Commission',
+            'Next Epoch Commission',
+            'Next Epoch Stake',
             'Last Epoch Rewards',
             'Voting Power',
             'Status',
@@ -149,7 +152,7 @@ function ValidatorPageResult(): JSX.Element {
         ];
 
         return generateValidatorsTableColumns({
-            activeValidators: data.activeValidators,
+            allValidators: activeAndPendingValidators,
             committeeMembers: data.committeeMembers.map((validator) => validator.iotaAddress),
             atRiskValidators: data.atRiskValidators,
             maxCommitteeSize,
@@ -159,7 +162,7 @@ function ValidatorPageResult(): JSX.Element {
             includeColumns,
             currentEpoch: data.epoch,
         });
-    }, [data, validatorEvents, validatorsApy]);
+    }, [data, activeAndPendingValidators, validatorEvents, validatorsApy, maxCommitteeSize]);
 
     const [formattedTotalStakedAmount, totalStakedSymbol] = useFormatCoin({ balance: totalStaked });
     const [formattedlastEpochRewardOnAllValidatorsAmount, lastEpochRewardOnAllValidatorsSymbol] =
@@ -259,6 +262,7 @@ function ValidatorPageResult(): JSX.Element {
                                                 'APY',
                                                 'Commission',
                                                 'Last Epoch Rewards',
+                                                'Next Epoch Stake',
                                                 'Voting Power',
                                                 'Status',
                                                 'Current Epoch Rewards',
@@ -268,14 +272,14 @@ function ValidatorPageResult(): JSX.Element {
                                     )}
                                     {isSuccess &&
                                         isMaxCommitteeSizeSuccess &&
-                                        tableData &&
+                                        activeAndPendingValidators &&
                                         tableColumns && (
                                             <TableCard
                                                 sortTable
                                                 defaultSorting={[
                                                     { id: 'stakingPoolIotaBalance', desc: true },
                                                 ]}
-                                                data={tableData}
+                                                data={activeAndPendingValidators}
                                                 columns={tableColumns}
                                                 areHeadersCentered={false}
                                             />

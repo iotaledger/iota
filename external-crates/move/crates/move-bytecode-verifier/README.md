@@ -41,7 +41,7 @@ Both `MoveTo` and `Unpack` are internal to the module in which the resource is d
 
 References are first-class in the bytecode language. Fresh references become available to a function in several ways:
 
-- Inputting parameters.
+- Inputing parameters.
 - Taking the address of the value in a local variable.
 - Taking the address of the globally published value in an address.
 - Taking the address of a field from a reference to the containing struct.
