@@ -28,7 +28,7 @@ type TopValidatorsCardProps = {
 export function TopValidatorsCard({ limit, showIcon }: TopValidatorsCardProps): JSX.Element {
     const { data, isPending, isSuccess, isError } = useIotaClientQuery('getLatestIotaSystemState');
 
-    const topCommitteeMembers = data?.committeeMembers || [];
+    const committeeMembers = data?.committeeMembers || [];
 
     const tableColumns = generateValidatorsTableColumns({
         showValidatorIcon: showIcon,
@@ -76,7 +76,7 @@ export function TopValidatorsCard({ limit, showIcon }: TopValidatorsCardProps): 
                                 sortTable
                                 allowManualTableSort={false}
                                 defaultSorting={[{ id: 'stakingPoolIotaBalance', desc: true }]}
-                                data={topCommitteeMembers}
+                                data={committeeMembers}
                                 columns={tableColumns}
                                 limit={NUMBER_OF_VALIDATORS}
                             />
