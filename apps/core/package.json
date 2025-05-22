@@ -33,7 +33,7 @@
         "@iota/iota-sdk": "workspace:*",
         "@iota/kiosk": "workspace:*",
         "@noble/hashes": "^1.4.0",
-        "@sentry/react": "^7.59.2",
+        "@sentry/react": "^7.120.3",
         "@tanstack/react-query": "^5.50.1",
         "@tanstack/react-virtual": "^3.5.0",
         "bech32": "^2.0.0",
