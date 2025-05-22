@@ -30,7 +30,7 @@
         "@iota/core": "workspace:*",
         "@iota/dapp-kit": "workspace:*",
         "@iota/iota-sdk": "workspace:*",
-        "@sentry/react": "^7.59.2",
+        "@sentry/react": "^7.120.3",
         "@tanstack/react-query": "^5.50.1",
         "@tanstack/react-query-devtools": "^5.58.0",
         "@tanstack/react-table": "^8.9.3",
@@ -72,7 +72,6 @@
         "@types/react": "^18.3.3",
         "@types/react-dom": "^18.3.0",
         "@vitejs/plugin-react": "^4.3.1",
-        "@vitest/ui": "^0.33.0",
         "autoprefixer": "^10.4.19",
         "happy-dom": "^15.11.7",
         "onchange": "^7.1.0",
@@ -82,7 +81,7 @@
         "tsconfig-paths": "^4.2.0",
         "typescript": "^5.5.3",
         "vite": "^5.4.12",
-        "vite-plugin-svgr": "^3.2.0",
+        "vite-plugin-svgr": "^4.3.0",
         "vitest": "^2.1.9"
     },
     "browserslist": {
