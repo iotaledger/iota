@@ -53,7 +53,6 @@ where
     }
 }
 
-#[axum::async_trait]
 impl<T, S> axum::extract::FromRequest<S> for Bcs<T>
 where
     T: serde::de::DeserializeOwned,

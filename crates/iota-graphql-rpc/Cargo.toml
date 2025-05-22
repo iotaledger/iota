@@ -10,8 +10,8 @@ publish = false
 # external dependencies
 anyhow.workspace = true
 async-graphql = { workspace = true, features = ["dataloader", "apollo_tracing", "tracing", "opentelemetry"] }
-async-graphql-axum = "=7.0.11"
-async-graphql-value = "=7.0.11"
+async-graphql-axum = { git = "https://github.com/async-graphql/async-graphql", rev = "3001a02f6df29e259900cd85230547c2923dfcf3" }
+async-graphql-value = { git = "https://github.com/async-graphql/async-graphql", rev = "3001a02f6df29e259900cd85230547c2923dfcf3" }
 async-trait.workspace = true
 axum.workspace = true
 axum-extra.workspace = true

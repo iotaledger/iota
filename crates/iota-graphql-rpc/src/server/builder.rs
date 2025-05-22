@@ -272,12 +272,12 @@ impl ServerBuilder {
         if self.router.is_none() {
             let router: Router = Router::new()
                 .route("/", post(graphql_handler))
-                .route("/:version", post(graphql_handler))
+                .route("/{version}", post(graphql_handler))
                 .route("/graphql", post(graphql_handler))
-                .route("/graphql/:version", post(graphql_handler))
+                .route("/graphql/{version}", post(graphql_handler))
                 .route("/health", get(health_check))
                 .route("/graphql/health", get(health_check))
-                .route("/graphql/:version/health", get(health_check))
+                .route("/graphql/{version}/health", get(health_check))
                 .with_state(self.state.clone())
                 .route_layer(CallbackLayer::new(MetricsMakeCallbackHandler {
                     metrics: self.state.metrics.clone(),
@@ -294,8 +294,8 @@ impl ServerBuilder {
 
     pub fn layer<L>(mut self, layer: L) -> Self
     where
-        L: Layer<Route> + Clone + Send + 'static,
-        L::Service: Service<Request<Body>> + Clone + Send + 'static,
+        L: Layer<Route> + Clone + Send + Sync + 'static,
+        L::Service: Service<Request<Body>> + Clone + Send + Sync + 'static,
         <L::Service as Service<Request<Body>>>::Response: IntoResponse + 'static,
         <L::Service as Service<Request<Body>>>::Error: Into<Infallible> + 'static,
         <L::Service as Service<Request<Body>>>::Future: Send + 'static,
