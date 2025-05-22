@@ -17,7 +17,6 @@ import {
 import { ErrorBoundary } from '../error-boundary/ErrorBoundary';
 import { Warning } from '@iota/apps-ui-icons';
 import { useIotaClientQuery } from '@iota/dapp-kit';
-import { useMemo } from 'react';
 
 const NUMBER_OF_VALIDATORS = 10;
 
@@ -29,18 +28,9 @@ type TopValidatorsCardProps = {
 export function TopValidatorsCard({ limit, showIcon }: TopValidatorsCardProps): JSX.Element {
     const { data, isPending, isSuccess, isError } = useIotaClientQuery('getLatestIotaSystemState');
 
-    const sortedCommitteeMembers = useMemo(() => {
-        if (!data?.committeeMembers) return [];
-
-        return data.committeeMembers.sort(
-            (a, b) => Number(b.stakingPoolIotaBalance) - Number(a.stakingPoolIotaBalance),
-        );
-    }, [data?.committeeMembers]);
-
-    const topCommitteeMembers = sortedCommitteeMembers.slice(0, limit || NUMBER_OF_VALIDATORS);
+    const topCommitteeMembers = data?.committeeMembers || [];
 
     const tableColumns = generateValidatorsTableColumns({
-        limit,
         enableSorting: false,
         showValidatorIcon: showIcon,
         includeColumns: ['Name', 'Address', 'Stake'],
@@ -83,7 +73,13 @@ export function TopValidatorsCard({ limit, showIcon }: TopValidatorsCardProps): 
 
                     {isSuccess && (
                         <ErrorBoundary>
-                            <TableCard data={topCommitteeMembers} columns={tableColumns} />
+                            <TableCard
+                                sortTable
+                                defaultSorting={[{ id: 'stakingPoolIotaBalance', desc: true }]}
+                                data={topCommitteeMembers}
+                                columns={tableColumns}
+                                limit={NUMBER_OF_VALIDATORS}
+                            />
                         </ErrorBoundary>
                     )}
                 </div>

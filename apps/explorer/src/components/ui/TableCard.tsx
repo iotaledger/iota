@@ -37,6 +37,7 @@ export interface TableCardProps<DataType extends RowData> {
     viewAll?: string;
     pageSizeSelector?: ReactNode;
     heightFull?: boolean;
+    limit?: number;
 }
 
 export function TableCard<DataType extends object>({
@@ -51,6 +52,7 @@ export function TableCard<DataType extends object>({
     viewAll,
     pageSizeSelector,
     heightFull,
+    limit,
 }: TableCardProps<DataType>): JSX.Element {
     const [sorting, setSorting] = useState<SortingState>(defaultSorting || []);
 
@@ -134,15 +136,18 @@ export function TableCard<DataType extends object>({
                     ))}
                 </TableHeader>
                 <TableBody>
-                    {table.getRowModel().rows.map((row) => (
-                        <TableRow key={row.id}>
-                            {row.getVisibleCells().map((cell) => (
-                                <Fragment key={cell.id}>
-                                    {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                                </Fragment>
-                            ))}
-                        </TableRow>
-                    ))}
+                    {table
+                        .getRowModel()
+                        .rows.slice(0, limit)
+                        .map((row) => (
+                            <TableRow key={row.id}>
+                                {row.getVisibleCells().map((cell) => (
+                                    <Fragment key={cell.id}>
+                                        {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                                    </Fragment>
+                                ))}
+                            </TableRow>
+                        ))}
                 </TableBody>
             </Table>
         </div>
