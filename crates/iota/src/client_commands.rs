@@ -93,7 +93,7 @@ use tracing::debug;
 use crate::{
     PrintableResult,
     clever_error_rendering::render_clever_error_opt,
-    client_ptb::ptb::PTB,
+    client_ptb::ptb::{PTB, PTBCommandResult},
     displays::Pretty,
     key_identity::{KeyIdentity, get_identity_address},
     keytool::Key,
@@ -366,7 +366,8 @@ pub enum IotaClientCommands {
         /// ID of the coin object to split
         #[arg(long)]
         coin_id: ObjectID,
-        /// Specific amounts to split out from the coin
+        /// Specific amounts to split out from the coin, separated by space,
+        /// e.g. `--amounts 1 2 1000000000` (1 NANO, 2 NANOS, 1 IOTA)
         #[arg(long, num_args(1..))]
         amounts: Option<Vec<u64>>,
         /// Count of equal-size coins to split into
@@ -690,10 +691,10 @@ impl OptsWithGas {
             args.push("--dev-inspect".to_string());
         }
         if self.rest.serialize_signed_transaction {
-            args.push("--serialize_signed_transaction".to_string());
+            args.push("--serialize-signed-transaction".to_string());
         }
         if self.rest.serialize_unsigned_transaction {
-            args.push("--serialize_unsigned_transaction".to_string());
+            args.push("--serialize-unsigned-transaction".to_string());
         }
         args
     }
@@ -1705,10 +1706,16 @@ impl IotaClientCommands {
 
                 IotaClientCommandResult::VerifySource
             }
-            IotaClientCommands::PTB(ptb) => {
-                ptb.execute(context).await?;
-                IotaClientCommandResult::NoOutput
-            }
+            IotaClientCommands::PTB(ptb) => match ptb.execute(context).await? {
+                PTBCommandResult::CommandResult(iota_client_command_result) => {
+                    iota_client_command_result
+                }
+                res => {
+                    let s = res.to_styled_str();
+                    println!("{}", s.ansi());
+                    IotaClientCommandResult::NoOutput
+                }
+            },
         };
         Ok(ret.prerender_clever_errors(context).await)
     }
