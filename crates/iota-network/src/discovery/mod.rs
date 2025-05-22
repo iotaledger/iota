@@ -638,7 +638,6 @@ async fn query_connected_peers_for_their_known_peers(
         .collect::<Vec<_>>()
         .await;
 
-    // update_known_peers(state, metrics, found_peers, allowlisted_peers);
     update_known_peers(config, state, metrics, found_peers, allowlisted_peers);
 }
 
