@@ -9,8 +9,8 @@ publish = false
 [dependencies]
 # external dependencies
 anyhow.workspace = true
-arrow = "53.1"
-arrow-array = "53.1"
+arrow = "55.1"
+arrow-array = "55.1"
 async-trait.workspace = true
 axum.workspace = true
 bcs.workspace = true
@@ -24,11 +24,11 @@ fastcrypto = { workspace = true, features = ["copy_key"] }
 gcp-bigquery-client = "=0.18.0"
 num_enum.workspace = true
 object_store.workspace = true
-parquet = "53.1"
+parquet = "55.1"
 prometheus.workspace = true
 serde.workspace = true
 serde_json.workspace = true
-snowflake-api = "0.10"
+snowflake-api = "0.11"
 strum.workspace = true
 tap = "1.0"
 tempfile.workspace = true
