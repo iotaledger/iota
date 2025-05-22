@@ -708,7 +708,6 @@ async fn test_reconfig_with_same_validator() {
     // create test cluster with 4 default validators
     let mut test_cluster = TestClusterBuilder::new()
         .with_num_validators(4)
-        // .with_validator_candidates(std::iter::once(node_address))
         .set_genesis_config(genesis_config)
         .build()
         .await;
@@ -753,7 +752,7 @@ async fn test_reconfig_with_same_validator() {
         // sync nodes
         test_cluster.wait_for_epoch_all_nodes(epoch).await;
 
-        // the running node acknowledges being or not a committee member
+        // the running node acknowledges being or not being a committee member
         node_handle.as_ref().unwrap().with(|node| {
             assert_eq!(
                 is_in_committee,
