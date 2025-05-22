@@ -17,7 +17,10 @@ use serde::{Deserialize, Serialize};
 use starfish_config::{AuthorityIndex, DIGEST_LENGTH, DefaultHashFunction};
 
 use crate::{
-    block_header::{BlockHeaderAPI, BlockRef, BlockTimestampMs, Round, Slot, VerifiedBlockHeader},
+    block_header::{
+        BlockHeaderAPI, BlockRef, BlockTimestampMs, Round, Slot, VerifiedBlockHeader,
+        VerifiedTransactions,
+    },
     leader_scoring::ReputationScores,
     storage::Store,
 };
@@ -63,6 +66,8 @@ impl Commit {
         timestamp_ms: BlockTimestampMs,
         leader: BlockRef,
         blocks: Vec<BlockRef>,
+        transaction_acknowledgments: Vec<Vec<BlockRef>>,
+        committed_transactions: Vec<BlockRef>,
     ) -> Self {
         Commit::V1(CommitV1 {
             index,
@@ -70,6 +75,8 @@ impl Commit {
             timestamp_ms,
             leader,
             blocks,
+            transaction_acknowledgments,
+            committed_transactions,
         })
     }
 
@@ -88,6 +95,8 @@ pub(crate) trait CommitAPI {
     fn timestamp_ms(&self) -> BlockTimestampMs;
     fn leader(&self) -> BlockRef;
     fn blocks(&self) -> &[BlockRef];
+    fn transaction_acknowledgments(&self) -> Vec<Vec<BlockRef>>;
+    fn committed_transactions(&self) -> &[BlockRef];
 }
 
 /// Specifies one consensus commit.
@@ -109,6 +118,13 @@ pub(crate) struct CommitV1 {
     leader: BlockRef,
     /// Refs to committed blocks, in the commit order.
     blocks: Vec<BlockRef>,
+    // TODO: do we need this here? This can be recovered from storage by traversing this commit's
+    //  block headers. Putting it here for simplicity during recovery.
+    /// Refs to transactions in blocks acknowledged by blocks in this commit
+    transaction_acknowledgments: Vec<Vec<BlockRef>>,
+    /// Refs to transactions in blocks for which quorum of acknowledgments has
+    /// been collected in this and past commits.
+    committed_transactions: Vec<BlockRef>,
 }
 
 impl CommitAPI for CommitV1 {
@@ -134,6 +150,14 @@ impl CommitAPI for CommitV1 {
 
     fn blocks(&self) -> &[BlockRef] {
         &self.blocks
+    }
+
+    fn transaction_acknowledgments(&self) -> Vec<Vec<BlockRef>> {
+        self.transaction_acknowledgments.clone()
+    }
+
+    fn committed_transactions(&self) -> &[BlockRef] {
+        &self.committed_transactions
     }
 }
 
@@ -169,7 +193,16 @@ impl TrustedCommit {
         leader: BlockRef,
         blocks: Vec<BlockRef>,
     ) -> Self {
-        let commit = Commit::new(index, previous_digest, timestamp_ms, leader, blocks);
+        // TODO: fill in vector of acknowledgments
+        let commit = Commit::new(
+            index,
+            previous_digest,
+            timestamp_ms,
+            leader,
+            blocks,
+            vec![],
+            vec![],
+        );
         let serialized = commit.serialize().unwrap();
         Self::new_trusted(commit, serialized)
     }
@@ -341,6 +374,8 @@ pub struct CommittedSubDag {
     pub leader: BlockRef,
     /// All the committed blocks that are part of this sub-dag
     pub blocks: Vec<VerifiedBlockHeader>,
+    /// All the committed blocks that are part of this sub-dag
+    pub transactions: Vec<VerifiedTransactions>,
     /// The timestamp of the commit, obtained from the timestamp of the leader
     /// block.
     pub timestamp_ms: BlockTimestampMs,
@@ -366,6 +401,7 @@ impl CommittedSubDag {
         Self {
             leader,
             blocks,
+            transactions: vec![],
             timestamp_ms,
             commit_ref,
             reputation_scores_desc,

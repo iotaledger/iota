@@ -2,8 +2,12 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{collections::HashSet, sync::Arc};
+use std::{
+    collections::{HashMap, HashSet},
+    sync::Arc,
+};
 
+use itertools::Itertools;
 use parking_lot::RwLock;
 use starfish_config::AuthorityIndex;
 
@@ -13,6 +17,7 @@ use crate::{
     context::Context,
     dag_state::DagState,
     leader_schedule::LeaderSchedule,
+    stake_aggregator::{QuorumThreshold, StakeAggregator},
 };
 
 /// The `StorageAPI` trait provides an interface for the block store and has
@@ -31,12 +36,14 @@ impl BlockStoreAPI
 }
 
 /// Expand a committed sequence of leader into a sequence of sub-dags.
-#[derive(Clone)]
 pub(crate) struct Linearizer {
     /// In memory block store representing the dag state
     context: Arc<Context>,
     dag_state: Arc<RwLock<DagState>>,
     leader_schedule: Arc<LeaderSchedule>,
+
+    // TODO: prune this map - at twice eviction age?
+    transactions_ack_tracker: HashMap<BlockRef, StakeAggregator<QuorumThreshold>>,
 }
 
 impl Linearizer {
@@ -49,6 +56,7 @@ impl Linearizer {
             dag_state,
             leader_schedule,
             context,
+            transactions_ack_tracker: HashMap::new(),
         }
     }
 
@@ -81,6 +89,7 @@ impl Linearizer {
 
         drop(dag_state);
 
+        let transaction_acks_per_authority = self.collect_acks_per_authority(&to_commit);
         // Create the Commit.
         let commit = Commit::new(
             last_commit_index + 1,
@@ -90,6 +99,15 @@ impl Linearizer {
             to_commit
                 .iter()
                 .map(|block| block.reference())
+                .collect::<Vec<_>>(),
+            transaction_acks_per_authority,
+            to_commit
+                .iter()
+                .map(|block| {
+                    self.add_committed_data_acks(block.author(), block.acknowledgments().to_vec())
+                })
+                .flatten()
+                .unique()
                 .collect::<Vec<_>>(),
         );
         let serialized = commit
@@ -107,6 +125,35 @@ impl Linearizer {
         );
 
         (sub_dag, commit)
+    }
+
+    fn collect_acks_per_authority(
+        &mut self,
+        blocks_to_commit: &Vec<VerifiedBlockHeader>,
+    ) -> Vec<Vec<BlockRef>> {
+        let committee_size = self.context.committee.size();
+        let mut result = Vec::with_capacity(committee_size);
+
+        let transaction_acks_per_author = blocks_to_commit
+            .iter()
+            .map(|block| (block.author(), block.acknowledgments().to_vec()))
+            .fold(HashMap::new(), |mut acc, (auth, vec)| {
+                acc.entry(auth).or_insert_with(HashSet::new).extend(vec);
+                acc
+            })
+            .into_iter()
+            .map(|(auth, set)| (auth, set.into_iter().collect()))
+            .collect::<Vec<(AuthorityIndex, Vec<BlockRef>)>>();
+
+        for authority_index in 0..committee_size {
+            let v = transaction_acks_per_author
+                .iter()
+                .find(|(auth, _)| auth.value() == authority_index)
+                .map(|(_, v)| v.clone())
+                .unwrap_or_default();
+            result.push(v);
+        }
+        result
     }
 
     pub(crate) fn linearize_sub_dag(
@@ -185,8 +232,10 @@ impl Linearizer {
                 vec![]
             };
 
-            // Collect the sub-dag generated using each of these leaders and the
-            // corresponding commit.
+            // TODO: don't create subdags here - it should only be created for solid commits
+            // in the data manager/commit solidifier Collect the sub-dag
+            // generated using each of these leaders and the corresponding
+            // commit.
             let (sub_dag, commit) =
                 self.collect_sub_dag_and_commit(leader_block, reputation_scores_desc);
 
@@ -207,11 +256,49 @@ impl Linearizer {
 
         committed_sub_dags
     }
+
+    pub(crate) fn add_committed_data_acks(
+        &mut self,
+        authority: AuthorityIndex,
+        acknowledgments: Vec<BlockRef>,
+    ) -> Vec<BlockRef> {
+        let mut acknowledged_data = Vec::new();
+        for block_ref in acknowledgments {
+            let votes_collector = self
+                .transactions_ack_tracker
+                .entry(block_ref)
+                .or_insert_with(StakeAggregator::<QuorumThreshold>::new);
+
+            // TODO: check that the acknowlement is not too far in the past?
+            if !votes_collector.reached_threshold(&self.context.committee)
+                && votes_collector.add(authority, &self.context.committee)
+            {
+                acknowledged_data.push(block_ref);
+            }
+        }
+        acknowledged_data
+    }
+
+    pub(crate) fn recover_transaction_ack_tracker(
+        &mut self,
+        transactions_acknowledgments: Vec<Vec<BlockRef>>,
+    ) {
+        for (authority_idx, transaction_acks) in
+            transactions_acknowledgments.into_iter().enumerate()
+        {
+            self.add_committed_data_acks(
+                self.context
+                    .committee
+                    .to_authority_index(authority_idx)
+                    .expect("authority_idx should be valid"),
+                transaction_acks,
+            );
+        }
+    }
 }
 
 #[cfg(test)]
 mod tests {
-
     use super::*;
     use crate::{
         CommitIndex,

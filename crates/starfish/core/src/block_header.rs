@@ -630,6 +630,7 @@ impl fmt::Debug for VerifiedBlockHeader {
 }
 
 /// VerifiedTransactions are transactions that correspond to an existing block
+#[derive(Clone)]
 pub struct VerifiedTransactions {
     #[expect(dead_code)]
     transactions: Vec<Transaction>,
@@ -638,22 +639,37 @@ pub struct VerifiedTransactions {
     #[expect(dead_code)]
     block_ref: BlockRef,
 
+    /// Commitment of transactions in the block
+    transactions_commitment: TransactionsCommitment,
+
     /// The serialized bytes of the transactions.
     #[expect(dead_code)]
     serialized: Bytes,
+}
+
+impl PartialEq for VerifiedTransactions {
+    fn eq(&self, other: &Self) -> bool {
+        self.transactions_commitment() == other.transactions_commitment()
+    }
 }
 
 impl VerifiedTransactions {
     pub(crate) fn new(
         transactions: Vec<Transaction>,
         block_ref: BlockRef,
+        transactions_commitment: TransactionsCommitment,
         serialized: Bytes,
     ) -> Self {
         Self {
             transactions,
             block_ref,
+            transactions_commitment,
             serialized,
         }
+    }
+
+    pub fn transactions_commitment(&self) -> TransactionsCommitment {
+        self.transactions_commitment
     }
 }
 

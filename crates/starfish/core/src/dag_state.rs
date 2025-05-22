@@ -4,7 +4,7 @@
 
 use std::{
     cmp::max,
-    collections::{BTreeMap, BTreeSet, VecDeque},
+    collections::{BTreeMap, BTreeSet, HashMap, VecDeque},
     ops::Bound::{Excluded, Included, Unbounded},
     panic,
     sync::Arc,
@@ -28,6 +28,7 @@ use crate::{
     },
     context::Context,
     leader_scoring::{ReputationScores, ScoringSubdag},
+    stake_aggregator::{QuorumThreshold, StakeAggregator},
     storage::{Store, WriteBatch},
     threshold_clock::ThresholdClock,
 };
@@ -83,8 +84,10 @@ pub(crate) struct DagState {
     // TODO: limit to 1st commit per round with multi-leader.
     pending_commit_votes: VecDeque<CommitVote>,
 
-    // Acknowledgments pending to be included in new blocks. These represent votes indicating
-    // availability of transaction data from the corresponding blocks
+    // TODO: during startup recover pending acknowledgements based on own blocks that are loaded to
+    //  memory upon startup Acknowledgments pending to be included in new blocks. These
+    //  represent votes indicating availability of transaction data from the corresponding
+    //  blocks
     pending_acknowledgments: Vec<BlockRef>,
 
     // Data to be flushed to storage.

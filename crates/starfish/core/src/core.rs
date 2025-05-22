@@ -4,6 +4,7 @@
 
 use std::{collections::BTreeSet, iter, sync::Arc, time::Duration, vec};
 
+use futures::channel;
 use iota_macros::fail_point;
 #[cfg(test)]
 use iota_metrics::monitored_mpsc::{UnboundedReceiver, unbounded_channel};
@@ -591,6 +592,7 @@ impl Core {
         let _verified_transactions = VerifiedTransactions::new(
             transactions,
             verified_block_header.reference(),
+            transactions_commitment,
             serialized_transactions,
         );
 

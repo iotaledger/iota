@@ -292,7 +292,7 @@ impl ConsensusAuthority {
 mod tests {
     #![allow(non_snake_case)]
 
-    use std::{collections::BTreeMap, sync::Arc, time::Duration};
+    use std::{sync::Arc, time::Duration};
 
     use iota_metrics::monitored_mpsc::{UnboundedReceiver, unbounded_channel};
     use iota_protocol_config::ProtocolConfig;

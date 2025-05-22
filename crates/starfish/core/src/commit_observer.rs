@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{sync::Arc, time::Duration};
+use std::{ops::Deref, sync::Arc, time::Duration};
 
 use iota_metrics::monitored_mpsc::UnboundedSender;
 use parking_lot::RwLock;
@@ -15,6 +15,7 @@ use crate::{
     commit::{CommitAPI, CommitIndex, load_committed_subdag_from_store},
     context::Context,
     dag_state::DagState,
+    data_manager::DataManager,
     error::{ConsensusError, ConsensusResult},
     leader_schedule::LeaderSchedule,
     linearizer::Linearizer,
@@ -40,6 +41,8 @@ pub(crate) struct CommitObserver {
     context: Arc<Context>,
     /// Component to deterministically collect subdags for committed leaders.
     commit_interpreter: Linearizer,
+    /// Component to deterministically collect subdags for committed leaders.
+    commit_solidifier: DataManager,
     /// An unbounded channel to send committed sub-dags to the consumer of
     /// consensus output.
     sender: UnboundedSender<CommittedSubDag>,
@@ -47,6 +50,11 @@ pub(crate) struct CommitObserver {
     store: Arc<dyn Store>,
     leader_schedule: Arc<LeaderSchedule>,
 }
+
+// TODO: move those to protocol config
+// TODO: set sensible values
+const MAX_TRANSACTIONS_ACK_CHECK: u32 = 10;
+const MAX_LINEARIZER_DEPTH: u32 = 10;
 
 impl CommitObserver {
     pub(crate) fn new(
@@ -62,6 +70,7 @@ impl CommitObserver {
                 dag_state.clone(),
                 leader_schedule.clone(),
             ),
+            commit_solidifier: DataManager::new(context.clone(), dag_state.clone()),
             context,
             sender: commit_consumer.sender,
             store,
@@ -85,10 +94,16 @@ impl CommitObserver {
             .start_timer();
 
         let committed_sub_dags = self.commit_interpreter.handle_commit(committed_leaders);
+
+        // First add the commits to the commit solidifier to make sure that the data is
+        // available. This function returns not only the just-created commits but also
+        // any pending ones that became solid since the last commit.
+        // let solid_commits = self.commit_solidifier.try_commit(committed_sub_dags);
+
         let mut sent_sub_dags = Vec::with_capacity(committed_sub_dags.len());
-        for committed_sub_dag in committed_sub_dags.into_iter() {
+        for solid_sub_dag in committed_sub_dags.into_iter() {
             // Failures in sender.send() are assumed to be permanent
-            if let Err(err) = self.sender.send(committed_sub_dag.clone()) {
+            if let Err(err) = self.sender.send(solid_sub_dag.clone()) {
                 tracing::error!(
                     "Failed to send committed sub-dag, probably due to shutdown: {err:?}"
                 );
@@ -96,10 +111,10 @@ impl CommitObserver {
             }
             tracing::debug!(
                 "Sending to execution commit {} leader {}",
-                committed_sub_dag.commit_ref,
-                committed_sub_dag.leader
+                solid_sub_dag.commit_ref,
+                solid_sub_dag.leader
             );
-            sent_sub_dags.push(committed_sub_dag);
+            sent_sub_dags.push(solid_sub_dag);
         }
 
         self.report_metrics(&sent_sub_dags);
@@ -115,43 +130,48 @@ impl CommitObserver {
             .read_last_commit()
             .expect("Reading the last commit should not fail");
 
+        // Value used to recover transactions_ack_tracker in the linearizer.
+        let mut recovery_lower_bound = last_processed_commit_index + 1;
         if let Some(last_commit) = &last_commit {
             let last_commit_index = last_commit.index();
 
+            recovery_lower_bound = recovery_lower_bound
+                .min(last_commit_index - MAX_TRANSACTIONS_ACK_CHECK - MAX_LINEARIZER_DEPTH);
             assert!(last_commit_index >= last_processed_commit_index);
             if last_commit_index == last_processed_commit_index {
                 debug!(
-                    "Nothing to recover for commit observer as commit index {last_commit_index} = {last_processed_commit_index} last processed index"
+                    "Nothing to recover for commit observer as commit index {last_commit_index} = \
+                    {last_processed_commit_index} last processed index"
                 );
-                return;
             }
         };
 
         // We should not send the last processed commit again, so
         // last_processed_commit_index+1
-        let unsent_commits = self
+        let recovery_commits = self
             .store
-            .scan_commits(((last_processed_commit_index + 1)..=CommitIndex::MAX).into())
+            .scan_commits((recovery_lower_bound..=CommitIndex::MAX).into())
             .expect("Scanning commits should not fail");
 
         info!(
-            "Recovering commit observer after index {last_processed_commit_index} with last commit {} and {} unsent commits",
+            "Recovering commit observer after last processed index {last_processed_commit_index} and \
+            recovery lower bound {recovery_lower_bound} with last commit {} and {} recovery commits",
             last_commit.map(|c| c.index()).unwrap_or_default(),
-            unsent_commits.len()
+            recovery_commits.len()
         );
 
         // Resend all the committed subdags to the consensus output channel
         // for all the commits above the last processed index.
-        let mut last_sent_commit_index = last_processed_commit_index;
-        let num_unsent_commits = unsent_commits.len();
-        for (index, commit) in unsent_commits.into_iter().enumerate() {
+        let mut last_recovered_commit_index = last_processed_commit_index;
+        let num_recovery_commits = recovery_commits.len();
+        for (index, commit) in recovery_commits.into_iter().enumerate() {
             // Commit index must be continuous.
-            assert_eq!(commit.index(), last_sent_commit_index + 1);
+            assert_eq!(commit.index(), last_recovered_commit_index + 1);
 
             // On recovery leader schedule will be updated with the current scores
             // and the scores will be passed along with the last commit sent to
             // iota so that the current scores are available for submission.
-            let reputation_scores = if index == num_unsent_commits - 1 {
+            let reputation_scores = if index == num_recovery_commits - 1 {
                 self.leader_schedule
                     .leader_swap_table
                     .read()
@@ -162,16 +182,31 @@ impl CommitObserver {
             };
 
             info!("Sending commit {} during recovery", commit.index());
-            let committed_sub_dag =
-                load_committed_subdag_from_store(self.store.as_ref(), commit, reputation_scores);
-            self.sender.send(committed_sub_dag).unwrap_or_else(|e| {
-                panic!(
-                    "Failed to send commit during recovery, probably due to shutdown: {:?}",
-                    e
-                )
-            });
 
-            last_sent_commit_index += 1;
+            // let committed_sub_dag =
+            //     load_committed_subdag_from_store(self.store.as_ref(), commit,
+            // reputation_scores);
+
+            // Recover transaction acknowledments for uncommitted transactions.
+            self.commit_interpreter
+                .recover_transaction_ack_tracker(commit.transaction_acknowledgments());
+
+            // Put all the committed subdags into the commit solidifier to make sure that
+            // they are submitted to IOTA when they become solid.
+            let solid_sub_dag = self.commit_solidifier.try_commit_one(&commit);
+            // Only submit unprocessed commits to IOTA
+            if commit.index() > last_processed_commit_index {
+                if let Some(solid_sub_dag) = solid_sub_dag {
+                    self.sender.send(solid_sub_dag).unwrap_or_else(|e| {
+                        panic!(
+                            "Failed to send commit during recovery, probably due to shutdown: {:?}",
+                            e
+                        )
+                    });
+                }
+            }
+
+            last_recovered_commit_index += 1;
         }
 
         info!(
