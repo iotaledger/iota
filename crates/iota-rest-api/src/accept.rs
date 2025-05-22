@@ -33,7 +33,6 @@ fn parse_accept(headers: &HeaderMap) -> Vec<Mime> {
     items.into_iter().map(|(mime, _)| mime).collect()
 }
 
-#[axum::async_trait]
 impl<S> axum::extract::FromRequestParts<S> for Accept
 where
     S: Send + Sync,
@@ -54,7 +53,6 @@ pub enum AcceptFormat {
     Bcs,
 }
 
-#[axum::async_trait]
 impl<S> axum::extract::FromRequestParts<S> for AcceptFormat
 where
     S: Send + Sync,
