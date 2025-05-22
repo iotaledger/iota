@@ -7385,6 +7385,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "iota-names-indexer"
+version = "1.2.0-alpha"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "iota-data-ingestion-core",
+ "iota-names",
+ "iota-types",
+ "tokio",
+]
+
+[[package]]
 name = "iota-network"
 version = "1.2.0-alpha"
 dependencies = [
