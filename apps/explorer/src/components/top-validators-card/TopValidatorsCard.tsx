@@ -31,7 +31,6 @@ export function TopValidatorsCard({ limit, showIcon }: TopValidatorsCardProps): 
     const topCommitteeMembers = data?.committeeMembers || [];
 
     const tableColumns = generateValidatorsTableColumns({
-        enableSorting: false,
         showValidatorIcon: showIcon,
         includeColumns: ['Name', 'Address', 'Stake'],
     });
@@ -75,6 +74,7 @@ export function TopValidatorsCard({ limit, showIcon }: TopValidatorsCardProps): 
                         <ErrorBoundary>
                             <TableCard
                                 sortTable
+                                allowManualTableSort={false}
                                 defaultSorting={[{ id: 'stakingPoolIotaBalance', desc: true }]}
                                 data={topCommitteeMembers}
                                 columns={tableColumns}

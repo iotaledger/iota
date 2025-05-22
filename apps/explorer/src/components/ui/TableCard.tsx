@@ -38,6 +38,7 @@ export interface TableCardProps<DataType extends RowData> {
     pageSizeSelector?: ReactNode;
     heightFull?: boolean;
     limit?: number;
+    allowManualTableSort?: boolean;
 }
 
 export function TableCard<DataType extends object>({
@@ -53,6 +54,7 @@ export function TableCard<DataType extends object>({
     pageSizeSelector,
     heightFull,
     limit,
+    allowManualTableSort = true,
 }: TableCardProps<DataType>): JSX.Element {
     const [sorting, setSorting] = useState<SortingState>(defaultSorting || []);
 
@@ -113,7 +115,7 @@ export function TableCard<DataType extends object>({
                                     key={id}
                                     columnKey={id}
                                     label={column.columnDef.header?.toString()}
-                                    hasSort={column.columnDef.enableSorting}
+                                    hasSort={allowManualTableSort && column.columnDef.enableSorting}
                                     sortOrder={getColumnSortOrder(
                                         id,
                                         column.columnDef.enableSorting,
