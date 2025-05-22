@@ -1077,7 +1077,7 @@ async fn execute_transfer_with_price(
             .map(|(cert, effects)| {
                 TransactionStatus::Executed(
                     Some(cert.into_sig()),
-                    Box::new(effects),
+                    effects,
                     TransactionEvents::default(),
                 )
             })

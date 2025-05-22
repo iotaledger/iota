@@ -109,7 +109,7 @@ pub enum TransactionStatus {
     /// in previous epochs, we won't keep around the certificate signatures.
     Executed(
         Option<AuthorityStrongQuorumSignInfo>,
-        Box<SignedTransactionEffects>,
+        SignedTransactionEffects,
         TransactionEvents,
     ),
 }
@@ -124,7 +124,7 @@ impl TransactionStatus {
 
     pub fn into_effects_for_testing(self) -> SignedTransactionEffects {
         match self {
-            Self::Executed(_, e, _) => *e,
+            Self::Executed(_, e, _) => e,
             _ => unreachable!("Incorrect response type"),
         }
     }
