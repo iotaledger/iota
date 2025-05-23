@@ -13,29 +13,31 @@ use std::{
 
 use crate::errors::PackageResult;
 use serde::{Deserialize, Serialize};
-use serde_spanned::Spanned;
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 pub struct LocalDependency {
-    /// The path on the filesystem, relative to the location of the containing
-    /// file (which is stored in the `Located` wrapper)
-    local: PathBuf,
+    /// The path on the filesystem, relative to the location of the containing file (which is
+    /// stored in the `Located` wrapper)
+    pub(crate) local: PathBuf,
 }
 
 impl LocalDependency {
-    /// Returns the path to the local dependency
+    /// The path on the filesystem, relative to the location of the containing file
     pub fn path(&self) -> PackageResult<PathBuf> {
-        let path = fs::canonicalize(&self.local)?;
-        Ok(path)
+        // TODO incorrect, we need a base path
+        self.local.canonicalize().map_err(|e| {
+            crate::errors::PackageError::Generic(format!(
+                "Failed to canonicalize path {}: {}",
+                self.local.display(),
+                e
+            ))
+        })
     }
-}
 
-// TODO: dead code
-impl TryFrom<(&Path, toml_edit::Value)> for LocalDependency {
-    type Error = anyhow::Error; // TODO
-
-    fn try_from(value: (&Path, toml_edit::Value)) -> Result<Self, Self::Error> {
-        // TODO: just deserialize
-        todo!()
+    /// The path on the filesystem, relative to the location of the containing file
+    pub fn root_dependency() -> Self {
+        Self {
+            local: PathBuf::from("."),
+        }
     }
 }

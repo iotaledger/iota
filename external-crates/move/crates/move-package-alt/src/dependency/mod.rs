@@ -30,6 +30,7 @@ use crate::{
 
 use external::ExternalDependency;
 use git::GitDependency;
+pub use git::{PinnedGitDependency, UnpinnedGitDependency, fetch_dep};
 use local::LocalDependency;
 
 // TODO (potential refactor): consider using objects for manifest dependencies (i.e. `Box<dyn UnpinnedDependency>`).
