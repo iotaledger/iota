@@ -24,38 +24,45 @@ First, we will create a simple coin to be migrated [`CoinManager`](../../../refe
 iota move new my_coin
 ```
 
-
 2. In `my_coin.move`, paste this simple move `Coin` module:
+
 ```move
-module my_coin::my_coin {
-    use iota::coin::{Self, TreasuryCap};
+module my_coin::my_coin{
 
-    /// The type identifier of coin. The coin will have a type
-    /// tag of kind: `Coin<package_object::mycoin::MYCOIN>`
-    /// Make sure that the name of the type matches the module's name.
-    public struct MYCOIN has drop {}
+use iota::coin::{Self, TreasuryCap};
 
-    /// Module initializer is called once on module publish. A treasury
-    /// cap is sent to the publisher, who then controls minting and burning
-    fun init(witness: MYCOIN, ctx: &mut TxContext) {
-        let (treasury, metadata) = coin::create_currency(witness, 6, b"MYCOIN", b"", b"", option::none(), ctx);
- transfer::public_freeze_object(metadata);
- transfer::public_transfer(treasury, tx_context::sender(ctx))
- }
+/// The type identifier of the coin. The coin will have a type
+/// tag of kind: `Coin<package_object::my_coin::MYCOIN>`
+/// Make sure that the name of the type matches the module's name.
+public struct MYCOIN has drop {}
 
-
-    public fun mint(
- treasury_cap: &mut TreasuryCap<MYCOIN>, 
- amount: u64, 
- recipient: address, 
- ctx: &mut TxContext,
- ) {
-        let coin = coin::mint(treasury_cap, amount, ctx);
- transfer::public_transfer(coin, recipient)
- } 
-
+/// Module initializer is called once on module publish. A treasury
+/// cap is sent to the publisher, who then controls minting and burning.
+fun init(witness: MYCOIN, ctx: &mut TxContext) {
+    let (treasury, metadata) = coin::create_currency(
+        witness,
+        6,
+        b"MYCOIN",
+        b"",
+        b"",
+        option::none(),
+        ctx,
+    );
+    transfer::public_freeze_object(metadata);
+    transfer::public_transfer(treasury, tx_context::sender(ctx));
+}
 }
 
+/// Mints new coins to the specified recipient.
+public fun mint(
+    treasury_cap: &mut TreasuryCap<MYCOIN>,
+    amount: u64,
+    recipient: address,
+    ctx: &mut TxContext,
+) {
+    let coin = coin::mint(treasury_cap, amount, ctx);
+    transfer::public_transfer(coin, recipient);
+}
 ```
 
 3. Deploy the `my_coin` package by running the following command:
@@ -125,53 +132,53 @@ iota move new my_coin_manager_manager
 
 2. In the created `my_coin_manager.move`, paste the following module:
 
-
 ```move
-module my_coin::exclusive_coin {
-    use iota::coin_manager;
-    use iota::event;
-    use iota::coin::{CoinMetadata, TreasuryCap};
+module my_coin::exclusive_coin;
 
-    /// Phantom parameter T can only be initialized in the `create_guardian`
-    /// function. But the types passed here must have `drop`.
-    public struct Guardian<phantom T: drop> has key, store {
- id: UID
- }
+use iota::coin::{CoinMetadata, TreasuryCap};
+use iota::coin_manager;
+use iota::event;
 
-    /// This type is the witness resource and is intended to be used only once.
-    public struct EXCLUSIVE_COIN has drop {}
+/// Phantom parameter T can only be initialized in the `create_guardian`
+/// function. But the types passed here must have `drop`.
+public struct Guardian<phantom T: drop> has key, store {
+    id: UID,
+}
 
-    /// The first argument of this function is an actual instance of the
-    /// type T with `drop` ability. It is dropped as soon as received.
-    public fun create_guardian<T: drop>(
- _witness: T, ctx: &mut TxContext
- ): Guardian<T> {
-        Guardian { id: object::new(ctx) }
- }
+/// This type is the witness resource and is intended to be used only once.
+public struct EXCLUSIVE_COIN has drop {}
 
-    /// Module initializer is the best way to ensure that the
-    /// code is called only once. With `Witness` pattern it is
-    /// often the best practice.
-    fun init(witness: EXCLUSIVE_COIN, ctx: &mut TxContext) {
- transfer::transfer(
-            create_guardian(witness, ctx),
- tx_context::sender(ctx)
- )
- }
+/// The first argument of this function is an actual instance of the
+/// type T with `drop` ability. It is dropped as soon as received.
+public fun create_guardian<T: drop>(_witness: T, ctx: &mut TxContext): Guardian<T> {
+    Guardian { id: object::new(ctx) }
+}
 
-    public fun  migrate_to_manager<T, S: drop> (otw:Guardian<S> ,cap: TreasuryCap<T>, meta: &CoinMetadata<T>, ctx: &mut TxContext) {
+/// Module initializer is the best way to ensure that the
+/// code is called only once. With `Witness` pattern it is
+/// often the best practice.
+fun init(witness: EXCLUSIVE_COIN, ctx: &mut TxContext) {
+    transfer::transfer(
+        create_guardian(witness, ctx),
+        tx_context::sender(ctx),
+    )
+}
 
- transfer::public_freeze_object(otw);
+public fun migrate_to_manager<T, S: drop>(
+    otw: Guardian<S>,
+    cap: TreasuryCap<T>,
+    meta: &CoinMetadata<T>,
+    ctx: &mut TxContext,
+) {
+    transfer::public_freeze_object(otw);
 
-        let (cm_treasury_cap, manager) = coin_manager::new_with_immutable_metadata(cap, meta, ctx);
+    let (cm_treasury_cap, manager) = coin_manager::new_with_immutable_metadata(cap, meta, ctx);
 
-        // Transfer the `CoinManagerTreasuryCap` to the creator of the `Coin`.
- transfer::public_transfer(cm_treasury_cap, ctx.sender());
+    // Transfer the `CoinManagerTreasuryCap` to the creator of the `Coin`.
+    transfer::public_transfer(cm_treasury_cap, ctx.sender());
 
-        // Publicly share the `CoinManager` object for convenient usage by anyone interested.
- transfer::public_share_object(manager);
- }
-
+    // Publicly share the `CoinManager` object for convenient usage by anyone interested.
+    transfer::public_share_object(manager);
 }
 ```
 Let's go quickly over it before publishing:
@@ -181,28 +188,28 @@ What you want to achieve is creating a single instance of `CoinManager`. The mos
 If you were creating a `CoinManager` from scratch, that would be relatively simple, as the init function would look like this:
 
 ```move
-
 fun init(witness: EXCLUSIVE_COIN, ctx: &mut TxContext) {
     // Create a `Coin` type and have it managed.
- let (cm_treasury_cap, cm_meta_cap, manager) = coin_manager::create(
- witness,
- 0, 
- b"EXCL",
- b"Exclusive Coin",
- b"There are only 100, never any more.",
- option::none(),
- ctx
- );
+    let (cm_treasury_cap, cm_meta_cap, manager) = coin_manager::create(
+        witness,
+        0,
+        b"EXCL",
+        b"Exclusive Coin",
+        b"There are only 100, never any more.",
+        option::none(),
+        ctx,
+    );
 
     // Transfer the `CoinManagerTreasuryCap` to the creator of the `Coin`.
- transfer::public_transfer(cm_treasury_cap, ctx.sender());
-    
+    transfer::public_transfer(cm_treasury_cap, ctx.sender());
+
     // Transfer the `CoinManagerMetadataCap` to the creator of the `Coin`.
- transfer::public_transfer(cm_meta_cap, ctx.sender());
+    transfer::public_transfer(cm_meta_cap, ctx.sender());
 
     // Publicly share the `CoinManager` object for convenient usage by anyone interested.
- transfer::public_share_object(manager);
+    transfer::public_share_object(manager);
 }
+
 ```
 
 However, since you are migrating from a `Coin`, you will use another constructor for `CoinManager`: [`CoinManager::new_with_immutable_metadata(cap,meta,ctx)`](../../../references/framework/iota-framework/coin_manager.mdx#function-new_with_immutable_metadata) if the metadata is already frozen, and [`CoinManager::new(cap,meta,ctx)`](../../../references/framework/iota-framework/coin_manager.mdx#function-new) if the metadata is mutable.
