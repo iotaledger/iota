@@ -1740,7 +1740,7 @@ async fn failed_stored_tx_into_transaction_block() {
         "object_changes",
         "balance_changes",
     ] {
-        json.entry(key).and_modify(|v| convert_hex_in_json(v));
+        json.entry(key).and_modify(convert_hex_in_json);
     }
 
     let failed_tx: StoredTransaction = serde_json::from_value(failed_tx).unwrap();
