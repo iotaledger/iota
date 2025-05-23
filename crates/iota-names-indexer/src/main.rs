@@ -4,6 +4,7 @@
 use std::{
     net::{IpAddr, Ipv4Addr, SocketAddr},
     path::PathBuf,
+    str::FromStr,
     sync::{Arc, OnceLock},
 };
 
@@ -24,6 +25,11 @@ use iota_types::{
 use prometheus::{IntGauge, Registry, register_int_gauge_with_registry};
 use tokio_util::sync::CancellationToken;
 
+// struct IotaNamesRegistryEvent {
+//     key: String,
+//     value: NameRecord,
+// }
+
 struct IotaNamesWorker;
 
 #[async_trait]
@@ -35,22 +41,13 @@ impl Worker for IotaNamesWorker {
         &self,
         checkpoint: Arc<CheckpointData>, // TODO change to &?
     ) -> Result<Self::Message, Self::Error> {
-        // let latest = METRICS
-        //     .get()
-        //     .expect("metrics global should be initialized")
-        //     .last_checkpoint_received;
-
-        METRICS
-            .get()
-            .expect("metrics global should be initialized")
-            .last_checkpoint_received
-            .add(1);
-        // .set(latest. + 1);
-        // .set(checkpoint.checkpoint_summary.sequence_number as i64);
-
+        println!(
+            "Processing checkpoint: {}",
+            checkpoint.checkpoint_summary.sequence_number
+        );
         let config = IotaNamesConfig::from_env().unwrap_or_default();
 
-        let mut num_registrations = 0;
+        // let mut num_registrations = 0;
         for transaction in &checkpoint.transactions {
             let TransactionEffects::V1(effects) = &transaction.effects;
 
@@ -60,59 +57,73 @@ impl Worker for IotaNamesWorker {
 
             if let Some(events) = &transaction.events {
                 for event in events.data.iter() {
-                    if event.package_id == ObjectID::from(config.package_address) {
+                    println!("Event: {event:#?}");
+                    if event.type_.address == config.package_address.into() {
                         println!(
                             "Event for tx {} in checkpoint {}: {event:#?}",
                             transaction.transaction.digest(),
                             checkpoint.checkpoint_summary.sequence_number
                         );
-                    }
-                }
-            }
-            let TransactionData::V1(data) = &transaction.transaction.intent_message().value;
-            let module = Identifier::new("payment")?; // TODO: Make const
-            let function = Identifier::new("register")?;
-
-            match &data.kind {
-                TransactionKind::ProgrammableTransaction(txn) => {
-                    // println!("{txn:?}");
-                    if txn.commands.iter().any(|cmd| {
-                        if let Command::MoveCall(call) = cmd {
-                            println!("{:?}", call.package);
-                            call.package == ObjectID::from(config.package_address)
-                                && call.module == module
-                                && call.function == function
-                        } else {
-                            false
+                        if event.type_.name == Identifier::new("IotaNamesRegistryEvent")? {
+                            // TODO: init from prometheus storage to not always start from 0
+                            METRICS
+                                .get()
+                                .expect("metrics global should be initialized")
+                                .total_name_records
+                                .add(1);
+                            // TODO: deserialize to get the name lengths
+                            // let register_event =
+                            //     bcs::from_bytes::<IotaNamesRegistryEvent>(&
+                            // event_bcs_bytes)?;
+                            // println!("Register event: {register_event:#?}");
                         }
-                    }) {
-                        num_registrations += 1;
                     }
                 }
-                _ => (),
             }
+            // let TransactionData::V1(data) =
+            // &transaction.transaction.intent_message().value;
+            // let module = Identifier::new("payment")?; // TODO: Make const
+            // let function = Identifier::new("register")?;
+
+            // match &data.kind {
+            //     TransactionKind::ProgrammableTransaction(txn) => {
+            //         // println!("{txn:?}");
+            //         if txn.commands.iter().any(|cmd| {
+            //             if let Command::MoveCall(call) = cmd {
+            //                 call.package ==
+            // ObjectID::from(config.package_address)
+            // && call.module == module                     &&
+            // call.function == function             } else {
+            //                 false
+            //             }
+            //         }) {
+            //             num_registrations += 1;
+            //         }
+            //     }
+            //     _ => (),
+            // }
         }
-        if num_registrations != 0 {
-            println!(
-                "Registered {num_registrations} names in checkpoint {}",
-                checkpoint.checkpoint_summary.sequence_number
-            );
-        }
+        // if num_registrations != 0 {
+        //     println!(
+        //         "Registered {num_registrations} names in checkpoint {}",
+        //         checkpoint.checkpoint_summary.sequence_number
+        //     );
+        // }
 
         Ok(())
     }
 }
 
 struct IotaNamesMetrics {
-    pub last_checkpoint_received: IntGauge,
+    pub total_name_records: IntGauge,
 }
 
 impl IotaNamesMetrics {
     pub fn new(registry: &Registry) -> Self {
         Self {
-            last_checkpoint_received: register_int_gauge_with_registry!(
-                "last_checkpoint_received",
-                "The last checkpoint received from the remote store",
+            total_name_records: register_int_gauge_with_registry!(
+                "total_name_records",
+                "The total number of name records in the registry",
                 registry,
             )
             .unwrap(),
