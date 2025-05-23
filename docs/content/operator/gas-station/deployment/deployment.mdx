@@ -58,7 +58,16 @@ cd gas-station/docker
 ../utils/./gas-station-tool.sh generate-sample-config --config-path config.yaml --docker-compose
 ```
 
-   **Note:** If the generated private key pair doesn’t meet your requirements, replace it with your own keys.
+:::info Network
+
+You can use the `-n`/`--network` flag to specify the network. Possible options are: `local`, `devnet`, `testnet`, `mainnet`. `testnet` is default.
+
+:::
+:::info Private Keys
+
+If the generated private key pair doesn’t meet your requirements, replace it with your own keys.
+
+:::
 
 3. **Set Up Authentication:** Define a bearer token for the Gas Station API using the `GAS_STATION_AUTH` environment variable.
 
