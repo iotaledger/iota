@@ -166,9 +166,9 @@ mod tests {
 
         Router::new()
             .route("/", get(|| async { "Hello, Versioning!" }))
-            .route("/:version", get(|| async { "Hello, Versioning!" }))
+            .route("/{version}", get(|| async { "Hello, Versioning!" }))
             .route("/graphql", get(|| async { "Hello, Versioning!" }))
-            .route("/graphql/:version", get(|| async { "Hello, Versioning!" }))
+            .route("/graphql/{version}", get(|| async { "Hello, Versioning!" }))
             .layer(middleware::from_fn_with_state(
                 state.version,
                 check_version_middleware,
