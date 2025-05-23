@@ -50,7 +50,9 @@ export function ReceiptCard({ txn, activeAddress }: ReceiptCardProps) {
                 <div className="self-center">
                     <OutlinedCopyButton
                         textToCopy={digest ?? ''}
-                        onCopySuccess={() => toast.success('Transaction ID copied to clipboard')}
+                        onCopySuccess={() =>
+                            toast.success('Transaction digest copied to clipboard')
+                        }
                     />
                 </div>
             </div>

@@ -57,7 +57,7 @@ export function TransactionDetailsLayout({ transaction, onClose }: TransactionDi
                         <OutlinedCopyButton
                             textToCopy={transaction.raw.digest ?? ''}
                             onCopySuccess={() =>
-                                toast.success('Transaction ID copied to clipboard')
+                                toast.success('Transaction digest copied to clipboard')
                             }
                         />
                     </div>

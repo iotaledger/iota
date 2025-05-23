@@ -62,7 +62,7 @@ export function TransactionDialogView({
                         <OutlinedCopyButton
                             textToCopy={txDigest ?? ''}
                             onCopySuccess={() =>
-                                toast.success('Transaction ID copied to clipboard')
+                                toast.success('Transaction digest copied to clipboard')
                             }
                         />
                     </div>
