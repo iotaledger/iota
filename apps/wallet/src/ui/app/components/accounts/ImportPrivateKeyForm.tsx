@@ -35,7 +35,7 @@ const HEXADECIMAL_KEY_MESSAGE =
 
 export function ImportPrivateKeyForm({ onSubmit }: ImportPrivateKeyFormProps) {
     const form = useZodForm({
-        mode: 'onTouched',
+        mode: 'onChange',
         schema: formSchema,
     });
     const {

@@ -1,7 +1,0 @@
-full_node_url: "https://api.testnet.iota.cafe"
-# Provide an existing directory that contains the genesis file of the testnet
-# You can download it from `https://dbfiles.testnet.iota.cafe/genesis.blob`
-checkpoint_summary_dir: "checkpoints_dir"
-genesis_filename: "genesis.blob"
-object_store_url: ~
-graphql_url: "https://graphql.testnet.iota.cafe"
