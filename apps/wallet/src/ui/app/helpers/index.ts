@@ -8,4 +8,3 @@ export * from './accounts';
 export * from './errorMessages';
 export * from './sentry';
 export * from './queryClient';
-export * from './openTabWithSearchParam';

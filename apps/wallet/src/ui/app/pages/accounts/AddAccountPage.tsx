@@ -25,7 +25,19 @@ import { getLedgerConnectionErrorMessage } from '../../helpers/errorMessages';
 import { useAppSelector, useCreateAccountsMutation } from '_hooks';
 import { AppType } from '../../redux/slices/app/appType';
 import { Create, ImportPass, Key, Seed, Ledger } from '@iota/apps-ui-icons';
-import { openTabWithSearchParam } from '../../helpers';
+import Browser from 'webextension-polyfill';
+
+async function openTabWithSearchParam(searchParam: string, searchParamValue: string) {
+    const currentURL = new URL(window.location.href);
+    const [currentHash, currentHashSearch] = currentURL.hash.split('?');
+    const urlSearchParams = new URLSearchParams(currentHashSearch);
+    urlSearchParams.set(searchParam, searchParamValue);
+    currentURL.hash = `${currentHash}?${urlSearchParams.toString()}`;
+    currentURL.searchParams.delete('type');
+    await Browser.tabs.create({
+        url: currentURL.href,
+    });
+}
 
 export function AddAccountPage() {
     const [searchParams] = useSearchParams();
@@ -162,6 +174,7 @@ export function AddAccountPage() {
                         ampli.connectedHardwareWallet({ hardwareWalletType: 'Ledger' });
                         navigate('/accounts/import-ledger-accounts');
                     }}
+                    requestLedgerPermissionsFirst
                 />
             )}
         </PageTemplate>
