@@ -78,7 +78,7 @@ export function TopValidatorsCard({ limit, showIcon }: TopValidatorsCardProps): 
                                 defaultSorting={[{ id: 'stakingPoolIotaBalance', desc: true }]}
                                 data={committeeMembers}
                                 columns={tableColumns}
-                                limit={NUMBER_OF_VALIDATORS}
+                                rowLimit={NUMBER_OF_VALIDATORS}
                             />
                         </ErrorBoundary>
                     )}

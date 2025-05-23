@@ -37,7 +37,7 @@ export interface TableCardProps<DataType extends RowData> {
     viewAll?: string;
     pageSizeSelector?: ReactNode;
     heightFull?: boolean;
-    limit?: number;
+    rowLimit?: number;
     allowManualTableSort?: boolean;
 }
 
@@ -53,7 +53,7 @@ export function TableCard<DataType extends object>({
     viewAll,
     pageSizeSelector,
     heightFull,
-    limit,
+    rowLimit,
     allowManualTableSort = true,
 }: TableCardProps<DataType>): JSX.Element {
     const [sorting, setSorting] = useState<SortingState>(defaultSorting || []);
@@ -140,7 +140,7 @@ export function TableCard<DataType extends object>({
                 <TableBody>
                     {table
                         .getRowModel()
-                        .rows.slice(0, limit)
+                        .rows.slice(0, rowLimit)
                         .map((row) => (
                             <TableRow key={row.id}>
                                 {row.getVisibleCells().map((cell) => (
