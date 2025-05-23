@@ -4,7 +4,7 @@
 use std::{
     net::{IpAddr, Ipv4Addr, SocketAddr},
     path::PathBuf,
-    sync::Arc,
+    sync::{Arc, OnceLock},
 };
 
 use anyhow::Result;
@@ -21,6 +21,7 @@ use iota_types::{
     full_checkpoint_content::CheckpointData,
     transaction::{Command, TransactionData, TransactionKind},
 };
+use prometheus::{IntGauge, Registry, register_int_gauge_with_registry};
 use tokio_util::sync::CancellationToken;
 
 struct IotaNamesWorker;
@@ -34,6 +35,12 @@ impl Worker for IotaNamesWorker {
         &self,
         checkpoint: Arc<CheckpointData>, // TODO change to &?
     ) -> Result<Self::Message, Self::Error> {
+        METRICS
+            .get()
+            .expect("metrics global should be initialized")
+            .last_checkpoint_received
+            .set(checkpoint.checkpoint_summary.sequence_number as i64);
+
         let config = IotaNamesConfig::from_env().unwrap_or_default();
 
         let mut num_registrations = 0;
@@ -89,12 +96,31 @@ impl Worker for IotaNamesWorker {
     }
 }
 
+struct IotaNamesMetrics {
+    pub last_checkpoint_received: IntGauge,
+}
+
+impl IotaNamesMetrics {
+    pub fn new(registry: &Registry) -> Self {
+        Self {
+            last_checkpoint_received: register_int_gauge_with_registry!(
+                "last_checkpoint_received",
+                "The last checkpoint received from the remote store",
+                registry,
+            )
+            .unwrap(),
+        }
+    }
+}
+
+pub(crate) static METRICS: OnceLock<Arc<IotaNamesMetrics>> = OnceLock::new();
+
 #[tokio::main]
 async fn main() -> Result<()> {
     let cancel_token = CancellationToken::new();
     let addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(0, 0, 0, 0)), 9184);
     let registry = iota_metrics::start_prometheus_server(addr).default_registry();
-    iota_metrics::init_metrics(&registry);
+    METRICS.get_or_init(|| Arc::new(IotaNamesMetrics::new(&registry)));
 
     let backfill_progress_file_path = "./backfill_progress".to_string();
     let progress_store = FileProgressStore::new(PathBuf::from(backfill_progress_file_path)).await?;
