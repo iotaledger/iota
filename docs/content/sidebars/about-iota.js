@@ -64,6 +64,13 @@ const aboutIota = [
                             'about-iota/iota-wallet/how-to/get-test-tokens',
                             'about-iota/iota-wallet/how-to/integrate-ledger',
                             'about-iota/iota-wallet/how-to/restore-account',
+                            {
+                                type: 'category',
+                                label: 'Migration',
+                                items: [
+                                    'about-iota/iota-wallet/how-to/migration/intro',
+                                ],
+                            },
                         ],
                     },
                     'about-iota/iota-wallet/FAQ',
