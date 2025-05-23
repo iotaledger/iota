@@ -6,7 +6,7 @@ import { type IotaValidatorSummary } from '@iota/iota-sdk/client';
 import { ArrowTopRight } from '@iota/apps-ui-icons';
 import { AddressLink } from '~/components/ui';
 import { ImageIcon, ImageIconSize } from '@iota/core';
-import type { InactiveValidatorData } from '~/pages/validator/ValidatorDetails';
+import type { InactiveValidatorData } from '@iota/core/src/types';
 import { onCopySuccess } from '~/lib/utils';
 
 type ValidatorMetaProps = {
@@ -15,8 +15,8 @@ type ValidatorMetaProps = {
 
 export function InactiveValidators({
     validatorData: {
-        logo,
-        validatorName,
+        imageUrl,
+        name,
         description,
         projectUrl,
         validatorPublicKey,
@@ -33,9 +33,9 @@ export function InactiveValidators({
                     <div className="flex flex-row gap-lg">
                         <div className="flex h-[120px] w-[120px]">
                             <ImageIcon
-                                src={logo}
-                                label={validatorName}
-                                fallback={validatorName}
+                                src={imageUrl}
+                                label={name}
+                                fallback={name}
                                 size={ImageIconSize.Full}
                             />
                         </div>
@@ -44,7 +44,7 @@ export function InactiveValidators({
                                 <Badge type={BadgeType.Neutral} label="Validator" />
                             </div>
                             <div className="flex flex-row items-center gap-x-xs text-neutral-10 dark:text-neutral-92">
-                                <span className="text-headline-md">{validatorName}</span>
+                                <span className="text-headline-md">{name}</span>
                                 {projectUrl && (
                                     <a href={projectUrl} target="_blank" rel="noreferrer noopener">
                                         <ArrowTopRight />
