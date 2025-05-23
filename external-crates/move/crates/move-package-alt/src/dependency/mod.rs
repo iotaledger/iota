@@ -11,7 +11,13 @@ mod local;
 
 pub use dependency_set::DependencySet;
 
-use std::{collections::BTreeMap, fmt::Debug, path::PathBuf};
+use std::{
+    collections::BTreeMap,
+    fmt::{self, Debug},
+    marker::PhantomData,
+    path::{Path, PathBuf},
+    process::{Command, Stdio},
+};
 
 use derive_where::derive_where;
 use serde::{Deserialize, Serialize};
@@ -19,7 +25,7 @@ use serde::{Deserialize, Serialize};
 use crate::{
     errors::PackageResult,
     flavor::MoveFlavor,
-    package::{EnvironmentName, PackageName},
+    package::{EnvironmentName, PackageName, PackagePath},
 };
 
 use external::ExternalDependency;
@@ -81,6 +87,24 @@ pub enum PinnedDependencyInfo<F: MoveFlavor + ?Sized> {
     Git(GitDependency<Pinned>),
     Local(LocalDependency),
     FlavorSpecific(F::FlavorDependency<Pinned>),
+}
+
+impl<F: MoveFlavor> PinnedDependencyInfo<F> {
+    /// Return a dependency representing the root package
+    pub fn root_dependency() -> Self {
+        Self::Local(LocalDependency { local: PathBuf::from(".") })
+    }
+
+    pub async fn fetch(&self) -> PackagePath {
+        // TODO: take this from [Package]
+        todo!()
+    }
+
+    /// Return the absolute path to the directory that this package would be fetched into, without
+    /// actually fetching it
+    pub fn unfetched_path(&self) -> PathBuf {
+        todo!()
+    }
 }
 
 /// Split up deps into kinds. The union of the output sets is the same as [deps]
