@@ -265,6 +265,98 @@ There are two methods from which to choose when you need to monitor on-chain eve
 
 Using a custom indexer provides a near-real time monitoring of events, so is most useful when your project requires immediate reaction to the firing of events. Polling the network is most useful when the events you're monitoring don't fire often or the need to act on those events are not immediate. The following section provides a polling example.
 
+## Usage Examples with TypeScript SDK
+
+The IOTA TypeScript SDK enables querying on-chain activity, such as emitted events and transaction blocks. Below are detailed usage examples for both `queryEvents` and `queryTransactionBlocks`.
+
+The IOTA TypeScript SDK enables developers to interact with the IOTA Layer 1 blockchain in a structured and type-safe way. This includes retrieving smart contract events, querying transaction history, and subscribing to real-time on-chain activity. Below are **detailed usage examples** of two commonly used methods in the SDK:
+
+- **`queryEvents`**: To fetch emitted on-chain events (e.g., from NFTs or smart contracts).
+- **`queryTransactionBlocks`**: To fetch raw transaction blocks based on filters such as sender, block type, or time range.
+
+### Querying Events with `queryEvents`
+
+The `queryEvents` method allows you to retrieve specific events based on filters such as emitting package, module, or sender. 
+
+While events provide high-level data on interactions, such as user actions, contract calls, or state changes, the `queryEvents` method allows you to retrieve these events from the blockchain. You can filter these events by various criteria, such as the emitting package, module, or sender address. This is particularly useful for tracking smart contract execution, monitoring state changes, or auditing blockchain interactions.
+
+
+The following example filters events emitted by a known Move module.
+
+```ts
+import { IotaClient } from '@iota/iota-sdk/client';
+
+const client = new IotaClient({
+  url: 'https://api.testnet.iota.cafe',
+});
+
+async function queryEvents() {
+  try {
+    const events = await client.queryEvents({
+      query: {
+        MoveModule: {
+          package: '0x0000000000000000000000000000000000000000000000000000000000000002',
+          module: 'kiosk',
+        },
+      },
+      limit: 5,
+    });
+    console.log('Events:', JSON.stringify(events, null, 2));
+  } catch (error) {
+    console.error('Error querying events:', error);
+  }
+}
+
+queryEvents();
+```
+
+**What this does:**
+- Connects to the IOTA Testnet fullnode.
+- Uses a `MoveModule` filter to query a specific event type.
+- Limits the result to the 5 most recent events.
+- Skips metadata to keep the response concise.
+
+
+### Querying Transaction Blocks with `queryTransactionBlocks`
+
+The `queryTransactionBlocks` method retrieves transaction blocks based on filters such as sender or time range.
+
+While events provide high-level data on interactions, sometimes it’s necessary to inspect the raw transaction blocks to understand the full lifecycle of an action—such as a payment, asset transfer, or contract interaction. The `queryTransactionBlocks` method allows you to retrieve these blocks, filtered by sender, transaction ID, or other criteria.
+
+ Here's a TypeScript example:
+
+```ts
+import { IotaClient } from '@iota/iota-sdk/client';
+
+const client = new IotaClient({
+  url: 'https://api.testnet.iota.cafe',
+});
+
+async function queryTransactionBlocks() {
+  try {
+    const blocks = await client.queryTransactionBlocks({
+      filter: {
+        FromAddress: '0x2da66b11dbdd5ef21fb0e9d3c30cce27f92a67c0d012ee79fa5c13b614bdd5ab',
+      },
+      limit: 3,
+    });
+    
+    console.log('Transaction Blocks:\n', JSON.stringify(blocks, null, 2));
+  } catch (error) {
+    console.error('Error querying transaction blocks:', error);
+  }
+}
+
+queryTransactionBlocks();
+```
+
+**What this does:**
+- Retrieves the 3 latest transaction blocks for a specific sender address.
+- Omits metadata from the response.
+- Provides an easy way to track activity from known accounts or smart contracts.
+
+
+
 
 ## Filtering Events
 
