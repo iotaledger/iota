@@ -18,7 +18,6 @@ import {
     SegmentedButtonType,
     Title,
 } from '@iota/apps-ui-kit';
-import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 import { RecognizedBadge } from '@iota/apps-ui-icons';
 import { SendTokenDialog } from '@/components';
 
@@ -54,8 +53,6 @@ export function MyCoins(): React.JSX.Element {
     const { data: coinBalances } = useGetAllBalances(activeAccountAddress);
     const { recognized, unrecognized } = useSortedCoinsByCategories(coinBalances ?? []);
 
-    const accountHasIota = coinBalances?.some(({ coinType }) => coinType === IOTA_TYPE_ARG);
-
     function openSendTokenDialog(coin: CoinBalance): void {
         if (coinBalances) {
             setIsSendTokenDialogOpen(true);
@@ -77,14 +74,12 @@ export function MyCoins(): React.JSX.Element {
         <Panel>
             <div className="flex h-full w-full flex-col">
                 <Title title="My Coins" />
-                <div>
-                    {!accountHasIota ? (
-                        <div className="py-2xl">
-                            <NoData message="Start by buying IOTA" />
-                        </div>
-                    ) : null}
-                </div>
-                {accountHasIota ? (
+                {!coinBalances?.length ? (
+                    <div className="py-2xl">
+                        <NoData message="Start by buying IOTA" />
+                    </div>
+                ) : null}
+                {coinBalances?.length ? (
                     <>
                         <div className="px-sm py-sm md:px-xxs lg:px-sm">
                             <div className="inline-flex w-full justify-start md:justify-center lg:justify-start">
