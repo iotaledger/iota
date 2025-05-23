@@ -11,8 +11,11 @@ publish = false
 anyhow.workspace = true
 async-trait.workspace = true
 tokio.workspace = true
+tokio-util.workspace = true
+prometheus.workspace = true
 
 # internal dependencies
 iota-data-ingestion-core.workspace = true
 iota-names.workspace = true
 iota-types.workspace = true
+iota-metrics.workspace = true

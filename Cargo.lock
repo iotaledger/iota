@@ -7391,9 +7391,12 @@ dependencies = [
  "anyhow",
  "async-trait",
  "iota-data-ingestion-core",
+ "iota-metrics",
  "iota-names",
  "iota-types",
+ "prometheus",
  "tokio",
+ "tokio-util 0.7.12",
 ]
 
 [[package]]
