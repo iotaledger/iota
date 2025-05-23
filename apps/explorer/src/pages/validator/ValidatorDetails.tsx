@@ -2,18 +2,15 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { useGetValidatorsApy, useGetValidatorsEvents } from '@iota/core';
+import { useGetInactiveValidator, useGetValidatorsApy, useGetValidatorsEvents } from '@iota/core';
 import { useParams } from 'react-router-dom';
 import { InactiveValidators, PageLayout, ValidatorMeta, ValidatorStats } from '~/components';
 import { VALIDATOR_LOW_STAKE_GRACE_PERIOD } from '~/lib/constants';
 import { getValidatorMoveEvent } from '~/lib/utils';
 import { InfoBox, InfoBoxStyle, InfoBoxType, LoadingIndicator } from '@iota/apps-ui-kit';
 import { Warning } from '@iota/apps-ui-icons';
-import { useQuery } from '@tanstack/react-query';
-import type { IotaClient, LatestIotaSystemStateSummary } from '@iota/iota-sdk/client';
-import { normalizeIotaAddress, toB64 } from '@iota/iota-sdk/utils';
-import { useIotaClient, useIotaClientQuery } from '@iota/dapp-kit';
-import { z } from 'zod';
+import type { LatestIotaSystemStateSummary } from '@iota/iota-sdk/client';
+import { useIotaClientQuery } from '@iota/dapp-kit';
 
 const getAtRiskRemainingEpochs = (
     data: LatestIotaSystemStateSummary | undefined,
@@ -24,135 +21,14 @@ const getAtRiskRemainingEpochs = (
     return atRisk ? VALIDATOR_LOW_STAKE_GRACE_PERIOD - Number(atRisk[1]) : null;
 };
 
-// Schema for validator object
-export const ValidatorSchema = z.object({
-    fields: z.object({
-        name: z.string(),
-        value: z.object({
-            fields: z.object({
-                inner: z.object({
-                    fields: z.object({
-                        id: z.object({
-                            id: z.string(),
-                        }),
-                    }),
-                }),
-            }),
-        }),
-    }),
-});
-
-// Schema for dynamic field object
-export const DynamicFieldObjectSchema = z.object({
-    fields: z.object({
-        value: z.object({
-            fields: z.object({
-                metadata: z.object({
-                    fields: z.object({
-                        image_url: z.string(),
-                        name: z.string(),
-                        description: z.string(),
-                        project_url: z.string(),
-                        protocol_pubkey_bytes: z.array(z.number()),
-                        iota_address: z.string(),
-                    }),
-                }),
-            }),
-        }),
-    }),
-});
-
-export type InactiveValidatorData = {
-    logo: string;
-    validatorName: string;
-    description: string;
-    projectUrl: string;
-    validatorPublicKey: string;
-    validatorAddress: string;
-    validatorStakingPoolId: string;
-};
-
-// Function to get inactive validator data
-// It fetches the validator object and its dynamic fields to extract metadata
-const getInactiveValidatorsData = async (
-    client: IotaClient,
-    objectId: string,
-): Promise<InactiveValidatorData | null> => {
-    const validatorObject = await client.getObject({
-        id: normalizeIotaAddress(objectId),
-        options: {
-            showContent: true,
-        },
-    });
-
-    const validator = ValidatorSchema.safeParse(validatorObject.data?.content);
-    const validatorFieldId = validator.data?.fields.value.fields.inner.fields.id.id;
-    if (!validatorFieldId) {
-        return null;
-    }
-    const dynamicFields = await client.getDynamicFields({
-        parentId: normalizeIotaAddress(validatorFieldId),
-        cursor: null,
-        limit: 10,
-    });
-    const dfObjectId = dynamicFields.data?.[0]?.objectId;
-    const dfObject = await client.getObject({
-        id: normalizeIotaAddress(dfObjectId),
-        options: {
-            showContent: true,
-        },
-    });
-    const metadata = DynamicFieldObjectSchema.safeParse(dfObject.data?.content);
-    if (!metadata.data || !validator.data) {
-        return null;
-    }
-    return {
-        logo: metadata.data.fields.value.fields.metadata.fields.image_url,
-        description: metadata.data.fields.value.fields.metadata.fields.description,
-        validatorName: metadata.data.fields.value.fields.metadata.fields.name,
-        projectUrl: metadata.data.fields.value.fields.metadata.fields.project_url,
-        validatorAddress: metadata.data.fields.value.fields.metadata.fields.iota_address,
-        validatorPublicKey: toB64(
-            Uint8Array.from(
-                metadata.data.fields.value.fields.metadata.fields.protocol_pubkey_bytes,
-            ),
-        ),
-        validatorStakingPoolId: validator.data.fields.name,
-    };
-};
-
 function ValidatorDetails(): JSX.Element {
     const { id } = useParams();
     const { data: systemStateData, isLoading: isLoadingSystemState } = useIotaClientQuery(
         'getLatestIotaSystemState',
     );
 
-    const iotaClient = useIotaClient();
-
-    const { data: inactiveValidatorData, isLoading: isInactiveValidatorLoading } = useQuery({
-        queryKey: [systemStateData?.inactivePoolsId, id],
-        async queryFn() {
-            if (!systemStateData?.inactivePoolsId || !id) {
-                throw Error('Missing params');
-            }
-            const inactiveValidators = await iotaClient.getDynamicFields({
-                parentId: normalizeIotaAddress(systemStateData?.inactivePoolsId),
-            });
-
-            const pendingInactiveValidatorsData = await Promise.all(
-                inactiveValidators.data.map(
-                    async (validator) =>
-                        await getInactiveValidatorsData(iotaClient, validator.objectId),
-                ),
-            );
-
-            return pendingInactiveValidatorsData;
-        },
-        enabled: !!systemStateData?.inactivePoolsId && !!id,
-        select(validators) {
-            return validators.find((validator) => validator?.validatorAddress === id);
-        },
-    });
+    const { data: inactiveValidatorData, isLoading: isInactiveValidatorLoading } =
+        useGetInactiveValidator(id || '');
 
     const numberOfValidators = systemStateData?.activeValidators.length ?? null;
     const { data: rollingAverageApys, isLoading: isValidatorsApysLoading } = useGetValidatorsApy();

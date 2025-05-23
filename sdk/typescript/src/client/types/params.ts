@@ -351,6 +351,23 @@ export interface GetTotalSupplyParams {
 export interface GetTotalTransactionsParams {}
 /** Return the validator APY */
 export interface GetValidatorsApyParams {}
+/** Find all registration NFTs for the given address. */
+export interface IotaNamesFindAllRegistrationNFTsParams {
+    address: string;
+    cursor?: string | null | undefined;
+    limit?: number | null | undefined;
+    options?: RpcTypes.IotaObjectDataOptions | null | undefined;
+}
+/** Return the resolved record for the given name. */
+export interface IotaNamesLookupParams {
+    /** The name to resolve */
+    name: string;
+}
+/** Return the resolved name for the given address. */
+export interface IotaNamesReverseLookupParams {
+    /** The address to resolve. */
+    address: string;
+}
 /** Return list of events for a specified query criteria. */
 export interface QueryEventsParams {
     /**

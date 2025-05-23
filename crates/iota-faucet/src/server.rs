@@ -57,7 +57,7 @@ pub async fn start_faucet(
         .route("/", get(health))
         .route("/gas", post(request_gas))
         .route("/v1/gas", post(batch_request_gas))
-        .route("/v1/status/:task_id", get(request_status))
+        .route("/v1/status/{task_id}", get(request_status))
         .layer(
             ServiceBuilder::new()
                 .layer(HandleErrorLayer::new(handle_error))
