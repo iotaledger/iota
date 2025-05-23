@@ -26,7 +26,6 @@ interface GenerateValidatorsTableColumnsArgs {
     includeColumns?: string[];
     highlightValidatorName?: boolean;
     currentEpoch?: string;
-    enableSorting?: boolean;
 }
 
 function ValidatorWithImage({
