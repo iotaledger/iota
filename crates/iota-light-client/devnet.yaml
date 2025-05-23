@@ -1,0 +1,19 @@
+rpc_url: "https://api.devnet.iota.cafe"
+graphql_url: "https://graphql.devnet.iota.cafe"
+checkpoints_dir: "checkpoints_devnet"
+genesis_blob_download_url: "https://dbfiles.devnet.iota.cafe/genesis.blob"
+sync_before_check: true
+checkpoint_store_config:
+  object-store: "S3"
+  aws-endpoint: "https://checkpoints.devnet.iota.cafe"
+  aws-virtual-hosted-style-request: true
+  no-sign-request: true
+  aws-region: "weur"
+  object-store-connection-limit: 20
+archive_store_config:
+  object-store: "S3"
+  aws-endpoint: "https://archive.devnet.iota.cafe"
+  aws-virtual-hosted-style-request: true
+  no-sign-request: true
+  aws-region: "weur"
+  object-store-connection-limit: 20

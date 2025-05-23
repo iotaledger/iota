@@ -5,13 +5,18 @@ authors = ["IOTA Foundation <info@iota.org>"]
 edition = "2021"
 license = "Apache-2.0"
 publish = false
+description = "A light client for the IOTA blockchain"
 
 [lib]
 path = "src/lib.rs"
 
 [[bin]]
 name = "iota-light-client"
-path = "src/bin/light_client.rs"
+path = "src/main.rs"
+
+[[bin]]
+name = "generate-checkpoint-snapshots"
+path = "src/bin/generate_checkpoint_snapshots.rs"
 
 [dependencies]
 # external dependencies
@@ -20,20 +25,33 @@ async-trait.workspace = true
 bcs.workspace = true
 clap.workspace = true
 env_logger = "0.11.5"
+futures.workspace = true
+getset.workspace = true
 log = "0.4.22"
 object_store.workspace = true
+prometheus.workspace = true
 reqwest.workspace = true
+roaring.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 serde_yaml.workspace = true
 tokio = { workspace = true, features = ["full"] }
+tracing.workspace = true
 url.workspace = true
 
 # internal dependencies
+bin-version.workspace = true
+iota-archival.workspace = true
 iota-config.workspace = true
+iota-data-ingestion-core.workspace = true
+iota-graphql-rpc-client.workspace = true
 iota-json-rpc-types.workspace = true
 iota-package-resolver.workspace = true
 iota-rest-api.workspace = true
 iota-sdk.workspace = true
 iota-types.workspace = true
 move-core-types.workspace = true
+telemetry-subscribers.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true
