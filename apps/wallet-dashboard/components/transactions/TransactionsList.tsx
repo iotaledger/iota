@@ -29,27 +29,25 @@ export function TransactionsList({
         return <TransactionTile transaction={transaction} />;
     };
 
+    if (!allTransactions || allTransactions.length === 0) {
+        return (
+            <NoData
+                message="You can view your IOTA network transactions here once they are available."
+                displayImage={displayImage}
+            />
+        );
+    }
+
     return (
-        <div>
-            {allTransactions?.length == 0 ? (
-                <div className="py-2xl">
-                    <NoData
-                        message="You can view your IOTA network transactions here once they are available."
-                        displayImage={displayImage}
-                    />
-                </div>
-            ) : (
-                <VirtualList
-                    items={allTransactions || []}
-                    getItemKey={(tx) => tx?.digest}
-                    estimateSize={() => 60}
-                    render={virtualItem}
-                    fetchNextPage={fetchNextPage}
-                    hasNextPage={hasNextPage}
-                    isFetchingNextPage={isFetchingNextPage}
-                    heightClassName={heightClassName}
-                />
-            )}
-        </div>
+        <VirtualList
+            items={allTransactions}
+            getItemKey={(tx) => tx?.digest}
+            estimateSize={() => 60}
+            render={virtualItem}
+            fetchNextPage={fetchNextPage}
+            hasNextPage={hasNextPage}
+            isFetchingNextPage={isFetchingNextPage}
+            heightClassName={heightClassName}
+        />
     );
 }

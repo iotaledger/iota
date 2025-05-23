@@ -9,7 +9,10 @@ export function TransactionsOverview() {
     return (
         <Panel>
             <Title title="Activity" />
-            <div className="flex h-full w-full flex-col" data-testid="home-page-activity-section">
+            <div
+                className="h-full max-h-[400px] flex-1 overflow-y-auto px-sm pb-md  pt-sm sm:max-h-none"
+                data-testid="home-page-activity-section"
+            >
                 <TransactionsList heightClassName="h-full" />
             </div>
         </Panel>
