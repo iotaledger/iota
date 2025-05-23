@@ -14,7 +14,7 @@ import {
 import { useMemo } from 'react';
 import { ImageIcon } from '../icon';
 import { ExtendedDelegatedStake } from '../../utils';
-import { useFormatCoin, useStakeRewardStatus } from '../../hooks';
+import { useFormatCoin, useStakeRewardStatus, useGetInactiveValidator } from '../../hooks';
 import { RewardsOff, Warning } from '@iota/apps-ui-icons';
 import { useIotaClientQuery } from '@iota/dapp-kit';
 
@@ -36,6 +36,7 @@ export function StakedCard({
     onClick,
 }: StakedCardProps) {
     const { principal, stakeRequestEpoch, estimatedReward, validatorAddress } = extendedStake;
+    const { data } = useIotaClientQuery('getLatestIotaSystemState');
 
     const { title, subtitle } = useStakeRewardStatus({
         stakeRequestEpoch,
@@ -49,8 +50,6 @@ export function StakedCard({
         balance: principal,
     });
 
-    const { data } = useIotaClientQuery('getLatestIotaSystemState');
-
     const validatorMeta = useMemo(() => {
         if (!data) return null;
 
@@ -59,13 +58,13 @@ export function StakedCard({
             null
         );
     }, [validatorAddress, data]);
-
-    const name = validatorMeta?.name || validatorAddress;
-
+    const { data: inactiveValidatorData } = useGetInactiveValidator(validatorAddress);
+    const validatorData = validatorMeta || inactiveValidatorData || null;
+    const name = validatorData?.name || validatorAddress;
     return (
         <Card testId="staked-card" type={CardType.Default} isHoverable onClick={onClick}>
             <CardImage>
-                <ImageIcon src={validatorMeta?.imageUrl || null} label={name} fallback={name} />
+                <ImageIcon src={validatorData?.imageUrl} label={name} fallback={name} />
             </CardImage>
             <CardBody
                 title={name}

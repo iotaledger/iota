@@ -39,6 +39,7 @@ import {
     LoadingIndicator,
 } from '@iota/apps-ui-kit';
 import { TriangleDown } from '@iota/apps-ui-icons';
+import { onCopySuccess } from '~/lib/utils';
 
 interface ItemProps {
     label: string;
@@ -65,6 +66,8 @@ function Item({ label, packageId, moduleName, typeName }: ItemProps): JSX.Elemen
                         <ObjectLink
                             objectId={packageId || ''}
                             label={formatAddress(packageId || '')}
+                            copyText={packageId || ''}
+                            onCopySuccess={onCopySuccess}
                         />
                     }
                 />
@@ -276,9 +279,20 @@ function ObjectChangeEntriesCardFooter({
         <div className="flex flex-wrap justify-between px-md--rs py-sm--rs">
             <span className="text-body-md text-neutral-40 dark:text-neutral-60">Owner</span>
             {ownerType === 'AddressOwner' && (
-                <AddressLink label={undefined} address={ownerAddress} />
+                <AddressLink
+                    label={undefined}
+                    address={ownerAddress}
+                    copyText={ownerAddress}
+                    onCopySuccess={onCopySuccess}
+                />
             )}
-            {ownerType === 'ObjectOwner' && <ObjectLink objectId={ownerAddress} />}
+            {ownerType === 'ObjectOwner' && (
+                <ObjectLink
+                    objectId={ownerAddress}
+                    copyText={ownerAddress}
+                    onCopySuccess={onCopySuccess}
+                />
+            )}
             {ownerType === 'Shared' && <ObjectLink objectId={ownerAddress} label="Shared" />}
         </div>
     );

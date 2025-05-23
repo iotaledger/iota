@@ -2,6 +2,8 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+import { Copy } from '@iota/apps-ui-icons';
+import { ButtonUnstyled } from '@iota/apps-ui-kit';
 import { formatAddress, formatDigest, formatType } from '@iota/iota-sdk/utils';
 import { type ReactNode } from 'react';
 
@@ -11,6 +13,9 @@ interface BaseInternalLinkProps extends LinkProps {
     noTruncate?: boolean;
     label?: string | ReactNode;
     queryStrings?: Record<string, string>;
+    copyText?: string;
+    onCopySuccess?: (e: React.MouseEvent<HTMLButtonElement>, text: string) => void;
+    onCopyError?: (e: unknown, text: string) => void;
 }
 
 function createInternalLink<T extends string>(
@@ -23,21 +28,47 @@ function createInternalLink<T extends string>(
         noTruncate,
         label,
         queryStrings = {},
+        copyText,
+        onCopySuccess,
+        onCopyError,
         ...props
     }: BaseInternalLinkProps & Record<T, string>) => {
         const truncatedAddress = noTruncate ? id : formatter(id);
         const queryString = new URLSearchParams(queryStrings).toString();
         const queryStringPrefix = queryString ? `?${queryString}` : '';
 
+        async function handleCopyClick(event: React.MouseEvent<HTMLButtonElement>) {
+            event.stopPropagation();
+            if (!navigator.clipboard) {
+                return;
+            }
+            if (copyText) {
+                try {
+                    await navigator.clipboard.writeText(copyText);
+                    onCopySuccess?.(event, copyText);
+                } catch (error) {
+                    console.error('Failed to copy:', error);
+                    onCopyError?.(error, copyText);
+                }
+            }
+        }
+
         return (
-            <Link
-                className="text-primary-30 dark:text-primary-80"
-                variant="mono"
-                to={`/${base}/${encodeURI(id)}${queryStringPrefix}`}
-                {...props}
-            >
-                {label || truncatedAddress}
-            </Link>
+            <div className="flex flex-row items-center gap-x-xxs">
+                <Link
+                    className="text-primary-30 dark:text-primary-80"
+                    variant="mono"
+                    to={`/${base}/${encodeURI(id)}${queryStringPrefix}`}
+                    {...props}
+                >
+                    {label || truncatedAddress}
+                </Link>
+                {copyText && (
+                    <ButtonUnstyled onClick={handleCopyClick}>
+                        <Copy className="text-neutral-60 dark:text-neutral-40" />
+                    </ButtonUnstyled>
+                )}
+            </div>
         );
     };
 }

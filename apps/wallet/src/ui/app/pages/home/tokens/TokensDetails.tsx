@@ -250,7 +250,6 @@ export function TokenDetails() {
                                 <div className="flex w-full flex-col items-center gap-xs">
                                     {accountHasIota || delegatedStake?.length ? (
                                         <TokenStakingOverview
-                                            disabled={!tokenBalance}
                                             accountAddress={activeAccountAddress}
                                         />
                                     ) : null}
