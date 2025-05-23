@@ -35,11 +35,18 @@ impl Worker for IotaNamesWorker {
         &self,
         checkpoint: Arc<CheckpointData>, // TODO change to &?
     ) -> Result<Self::Message, Self::Error> {
+        // let latest = METRICS
+        //     .get()
+        //     .expect("metrics global should be initialized")
+        //     .last_checkpoint_received;
+
         METRICS
             .get()
             .expect("metrics global should be initialized")
             .last_checkpoint_received
-            .set(checkpoint.checkpoint_summary.sequence_number as i64);
+            .add(1);
+        // .set(latest. + 1);
+        // .set(checkpoint.checkpoint_summary.sequence_number as i64);
 
         let config = IotaNamesConfig::from_env().unwrap_or_default();
 
@@ -147,6 +154,8 @@ async fn main() -> Result<()> {
         )
         .await
         .unwrap();
+
+    // To get the metrics open: http://localhost:9184/metrics
 
     Ok(())
 }
