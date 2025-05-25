@@ -189,9 +189,12 @@ fn query_events_supported_events() {
 
 #[tokio::test]
 async fn query_validator_epoch_info_event() {
-    let (cluster, store, client) =
-        &start_test_cluster_with_read_write_indexer(Some("query_validator_epoch_info_event"), None)
-            .await;
+    let (cluster, store, client) = &start_test_cluster_with_read_write_indexer(
+        Some("query_validator_epoch_info_event"),
+        None,
+        None,
+    )
+    .await;
     indexer_wait_for_checkpoint(store, 1).await;
 
     cluster.force_new_epoch().await;
