@@ -10,6 +10,8 @@ import {
     TransactionReceipt,
     useRecognizedPackages,
     ExtendedTransaction,
+    OutlinedCopyButton,
+    toast,
 } from '@iota/core';
 import { useCurrentAccount } from '@iota/dapp-kit';
 import { DialogLayoutBody, DialogLayoutFooter } from '../layout';
@@ -42,12 +44,24 @@ export function TransactionDetailsLayout({ transaction, onClose }: TransactionDi
                 />
             </DialogLayoutBody>
             <DialogLayoutFooter>
-                <ExplorerLink
-                    type={ExplorerLinkType.Transaction}
-                    transactionID={transaction.raw.digest}
-                >
-                    <ViewTxnOnExplorerButton digest={transaction.raw.digest} />
-                </ExplorerLink>
+                <div className="flex w-full flex-row gap-x-xs">
+                    <div className="flex w-full [&_a]:w-full">
+                        <ExplorerLink
+                            type={ExplorerLinkType.Transaction}
+                            transactionID={transaction.raw.digest}
+                        >
+                            <ViewTxnOnExplorerButton digest={transaction.raw.digest} />
+                        </ExplorerLink>
+                    </div>
+                    <div className="self-center">
+                        <OutlinedCopyButton
+                            textToCopy={transaction.raw.digest ?? ''}
+                            onCopySuccess={() =>
+                                toast.success('Transaction digest copied to clipboard')
+                            }
+                        />
+                    </div>
+                </div>
             </DialogLayoutFooter>
         </>
     );
