@@ -2,9 +2,7 @@
 
 Indexer to collect metrics about IOTA-Names.
 
-
 ## Testing
-
 
 ### Run a local network
 
@@ -45,7 +43,6 @@ docker run \
 ```bash
 sudo /bin/systemctl start grafana-server
 ```
-
 
 Set env variables:
 
