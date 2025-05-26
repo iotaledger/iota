@@ -246,7 +246,7 @@ impl SharedObjectCongestionTracker {
     ///
     /// Before calling this function, the caller should ensure that the tracker
     /// is initialized for all objects in the transaction by first calling
-    /// `initialize_for_shared_objects`.
+    /// `initialize_object_execution_slots`.
     pub fn compute_tx_start_time(
         &self,
         shared_input_objects: &[SharedInputObject],
@@ -398,10 +398,6 @@ impl SharedObjectCongestionTracker {
             // `compute_tx_start_time` returns None if the transaction cannot be scheduled,
             // so no need to check for overflow when adding `tx_duration` here.
             if start_time + tx_duration <= max_execution_duration_per_commit {
-                // Update object_lowest_executed_gas_price for input objects as
-                // this certificate is scheduled
-                self.update_object_lowest_executed_gas_price(cert);
-
                 // schedule this transaction and return the start time.
                 return SequencingResult::Schedule(start_time);
             }
@@ -481,52 +477,6 @@ impl SharedObjectCongestionTracker {
             .map(|slots| slots.max_object_occupied_slot_end_time())
             .max()
             .unwrap_or(0)
-    }
-
-    /// Update `object_lowest_executed_gas_price` for input shared objects
-    /// of a given certificate. Note that this must be called only for
-    /// non-deferred certificates.
-    fn update_object_lowest_executed_gas_price(&mut self, cert: &VerifiedExecutableTransaction) {
-        let cert_gas_price = cert.transaction_data().gas_price();
-
-        for obj in cert.shared_input_objects().filter(|obj| obj.mutable) {
-            self.object_lowest_executed_gas_price
-                .entry(obj.id)
-                .and_modify(|lowest_gas_price| {
-                    if cert_gas_price < *lowest_gas_price {
-                        // A non-deferred certificate with a lower gas price appeared,
-                        // so we update the lowest executed gas price for this object
-                        *lowest_gas_price = cert_gas_price;
-                    }
-                })
-                .or_insert(cert_gas_price);
-        }
-    }
-
-    /// Computes suggested gas price for a cancelled certificate
-    pub(crate) fn compute_suggested_gas_price(&self, cert: &VerifiedExecutableTransaction) -> u64 {
-        let gas_price = cert
-            .shared_input_objects()
-            .filter(|obj| obj.mutable)
-            .map(|obj| {
-                self.object_lowest_executed_gas_price
-                    .get(&obj.id)
-                    .cloned()
-                    // u64::MAX is assigned for objects that appear in cancelled transactions,
-                    // but they were not "seen"" by `update_object_lowest_executed_gas_price`.
-                    .unwrap_or(u64::MAX)
-            })
-            .min()
-            .expect("there must be at least one mutable shared object responsible for congestion");
-        assert_ne!(
-            gas_price,
-            u64::MAX,
-            "at least one congested shared object must have been seen in transactions before"
-        );
-
-        // TODO: check if suggested gas price is not larger than maximum defined in
-        // protocol config
-        gas_price + 1
     }
 }
 
@@ -1465,7 +1415,11 @@ mod object_cost_tests {
             panic!("transaction is not congesting, should not defer");
         }
 
-        let tx = build_transaction(&[(object_id_0, true), (object_id_1, true)], 1);
+        let tx = build_transaction(
+            &[(object_id_0, true), (object_id_1, true)],
+            1,
+            TEST_ONLY_GAS_PRICE,
+        );
         if let SequencingResult::Defer(_, congested_objects) = initialize_tracker_and_try_schedule(
             &mut shared_object_congestion_tracker,
             &tx,
@@ -1600,103 +1554,6 @@ mod object_cost_tests {
         );
     }
 
-    #[rstest]
-    fn test_compute_suggested_gas_price(
-        #[values(true, false)] assign_min_free_execution_slot: bool,
-    ) {
-        let mut shared_object_congestion_tracker = SharedObjectCongestionTracker::new(
-            PerObjectCongestionControlMode::TotalTxCount,
-            assign_min_free_execution_slot,
-        );
-
-        let object_1 = ObjectID::random();
-        let object_2 = ObjectID::random();
-        let object_3 = ObjectID::random();
-        let object_4 = ObjectID::random();
-        let objects = [object_1, object_2, object_3, object_4];
-
-        let max_execution_duration_per_commit = 2;
-
-        let gas_price_of_tx_1 = 1_003;
-        let gas_price_of_tx_2 = 1_002;
-        let gas_price_of_tx_3 = 1_001;
-
-        let tx_1 = build_transaction(&[(object_1, true), (object_2, true)], 1, gas_price_of_tx_1);
-        let tx_2 = build_transaction(&[(object_2, true), (object_3, true)], 1, gas_price_of_tx_2);
-        let tx_3 = build_transaction(&[(object_3, true), (object_4, true)], 1, gas_price_of_tx_3);
-
-        let shared_input_objects: Vec<_> = tx_1.shared_input_objects().collect();
-        shared_object_congestion_tracker.initialize_for_shared_objects(&shared_input_objects);
-        let sequencing_result = shared_object_congestion_tracker.try_schedule(
-            &tx_1,
-            max_execution_duration_per_commit,
-            &HashMap::new(),
-            0,
-        );
-        if let SequencingResult::Schedule(start_time) = sequencing_result {
-            shared_object_congestion_tracker.bump_object_execution_slots(&tx_1, start_time);
-        } else {
-            panic!("tx 1 must be scheduled");
-        }
-        assert_eq!(
-            shared_object_congestion_tracker.compute_suggested_gas_price(&tx_1),
-            gas_price_of_tx_1 + 1
-        );
-
-        let shared_input_objects: Vec<_> = tx_2.shared_input_objects().collect();
-        shared_object_congestion_tracker.initialize_for_shared_objects(&shared_input_objects);
-        let sequencing_result = shared_object_congestion_tracker.try_schedule(
-            &tx_2,
-            max_execution_duration_per_commit,
-            &HashMap::new(),
-            0,
-        );
-        if let SequencingResult::Schedule(start_time) = sequencing_result {
-            shared_object_congestion_tracker.bump_object_execution_slots(&tx_2, start_time);
-        } else {
-            panic!("tx 2 must be scheduled");
-        }
-        assert_eq!(
-            shared_object_congestion_tracker.compute_suggested_gas_price(&tx_2),
-            gas_price_of_tx_2 + 1
-        );
-
-        let shared_input_objects: Vec<_> = tx_3.shared_input_objects().collect();
-        shared_object_congestion_tracker.initialize_for_shared_objects(&shared_input_objects);
-        let sequencing_result = shared_object_congestion_tracker.try_schedule(
-            &tx_3,
-            max_execution_duration_per_commit,
-            &HashMap::new(),
-            0,
-        );
-        if let SequencingResult::Schedule(start_time) = sequencing_result {
-            shared_object_congestion_tracker.bump_object_execution_slots(&tx_3, start_time);
-        } else if assign_min_free_execution_slot {
-            panic!("tx 3 must be scheduled");
-        }
-        assert_eq!(
-            shared_object_congestion_tracker.compute_suggested_gas_price(&tx_3),
-            if assign_min_free_execution_slot {
-                gas_price_of_tx_3
-            } else {
-                gas_price_of_tx_2
-            } + 1
-        );
-
-        for (i, obj) in objects.iter().enumerate() {
-            println!(
-                "Object {}:\n\tlowest executed gas price: {:?}\n\texecution slots: {:?}\n",
-                i + 1,
-                shared_object_congestion_tracker
-                    .object_lowest_executed_gas_price
-                    .get(obj),
-                shared_object_congestion_tracker
-                    .object_execution_slots
-                    .get(obj)
-            );
-        }
-    }
-
     #[test]
     fn test_congested_objects_version_assignments() {
         use std::collections::BTreeMap;
@@ -1720,7 +1577,7 @@ mod object_cost_tests {
         let tx_2 = build_transaction(&[(obj_1, true), (obj_2, false)], 1, 1_000);
 
         let shared_input_objects: Vec<_> = tx_1.shared_input_objects().collect();
-        shared_object_congestion_tracker.initialize_for_shared_objects(&shared_input_objects);
+        shared_object_congestion_tracker.initialize_object_execution_slots(&shared_input_objects);
         let sequencing_result = shared_object_congestion_tracker.try_schedule(
             &tx_1,
             max_execution_duration_per_commit,
@@ -1743,7 +1600,7 @@ mod object_cost_tests {
         assert_eq!(assigned_versions, vec![(obj_1, 1.into())]);
 
         let shared_input_objects: Vec<_> = tx_2.shared_input_objects().collect();
-        shared_object_congestion_tracker.initialize_for_shared_objects(&shared_input_objects);
+        shared_object_congestion_tracker.initialize_object_execution_slots(&shared_input_objects);
         let sequencing_result = shared_object_congestion_tracker.try_schedule(
             &tx_2,
             max_execution_duration_per_commit,
