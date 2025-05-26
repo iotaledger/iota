@@ -20,15 +20,14 @@ use self::{
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    let cancel_token = CancellationToken::new();
     let registry = start_prometheus_server();
 
     METRICS.get_or_init(|| Arc::new(IotaNamesMetrics::new(&registry)));
-
-    let backfill_progress_file_path = "./backfill_progress".to_string();
-    let progress_store = FileProgressStore::new(PathBuf::from(backfill_progress_file_path)).await?;
-
     let metrics = DataIngestionMetrics::new(&registry);
+
+    let progress_store = FileProgressStore::new("./progress_store").await?;
+
+    let cancel_token = CancellationToken::new();
     let mut executor = IndexerExecutor::new(progress_store, 1, metrics, cancel_token);
 
     let worker = IotaNamesWorker::new(IotaNamesConfig::from_env().unwrap_or_default());
