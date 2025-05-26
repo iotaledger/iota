@@ -9,10 +9,12 @@ use iota_data_ingestion_core::Worker;
 use iota_names::config::IotaNamesConfig;
 use iota_types::{
     Identifier,
+    base_types::ObjectID,
     effects::{TransactionEffects, TransactionEffectsAPI},
     event::Event,
     execution_status::ExecutionStatus,
     full_checkpoint_content::CheckpointData,
+    transaction::{Command, ProgrammableTransaction, TransactionData, TransactionKind},
 };
 
 use crate::metrics::METRICS;
@@ -46,6 +48,23 @@ impl IotaNamesWorker {
 
         Ok(())
     }
+
+    fn process_ptb(&self, ptb: &ProgrammableTransaction) -> Result<(), anyhow::Error> {
+        let module = Identifier::new("payment")?; // TODO: Make const
+        let function = Identifier::new("register")?;
+
+        if ptb.commands.iter().any(|cmd| {
+            if let Command::MoveCall(call) = cmd {
+                call.package == ObjectID::from(self.config.package_address)
+                    && call.module == module
+                    && call.function == function
+            } else {
+                false
+            }
+        }) {}
+
+        Ok(())
+    }
 }
 
 #[async_trait]
@@ -62,7 +81,6 @@ impl Worker for IotaNamesWorker {
             checkpoint.checkpoint_summary.sequence_number
         );
 
-        // let mut num_registrations = 0;
         for transaction in &checkpoint.transactions {
             let TransactionEffects::V1(effects) = &transaction.effects;
 
@@ -75,35 +93,13 @@ impl Worker for IotaNamesWorker {
                     self.process_event(event)?;
                 }
             }
-            // let TransactionData::V1(data) =
-            // &transaction.transaction.intent_message().value;
-            // let module = Identifier::new("payment")?; // TODO: Make const
-            // let function = Identifier::new("register")?;
 
-            // match &data.kind {
-            //     TransactionKind::ProgrammableTransaction(txn) => {
-            //         // println!("{txn:?}");
-            //         if txn.commands.iter().any(|cmd| {
-            //             if let Command::MoveCall(call) = cmd {
-            //                 call.package ==
-            // ObjectID::from(config.package_address)
-            // && call.module == module                     &&
-            // call.function == function             } else {
-            //                 false
-            //             }
-            //         }) {
-            //             num_registrations += 1;
-            //         }
-            //     }
-            //     _ => (),
-            // }
+            let TransactionData::V1(data) = &transaction.transaction.intent_message().value;
+
+            if let TransactionKind::ProgrammableTransaction(ptb) = &data.kind {
+                self.process_ptb(ptb)?;
+            }
         }
-        // if num_registrations != 0 {
-        //     println!(
-        //         "Registered {num_registrations} names in checkpoint {}",
-        //         checkpoint.checkpoint_summary.sequence_number
-        //     );
-        // }
 
         Ok(())
     }
