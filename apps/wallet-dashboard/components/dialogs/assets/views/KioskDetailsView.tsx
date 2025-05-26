@@ -5,7 +5,7 @@ import {
     useGetKioskContents,
     getKioskIdFromOwnerCap,
     useNftDetails,
-    NftImage,
+    NftMediaDisplay,
     ExplorerLinkType,
     ViewTxnOnExplorerButton,
 } from '@iota/core';
@@ -81,5 +81,5 @@ interface KioskItemProps {
 function KioskItem({ object, address }: KioskItemProps) {
     const { nftName, nftImageUrl } = useNftDetails(object.objectId, address);
 
-    return <NftImage title={nftName} src={nftImageUrl} isHoverable />;
+    return <NftMediaDisplay title={nftName} imageSrc={nftImageUrl} isHoverable />;
 }

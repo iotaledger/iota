@@ -10,7 +10,6 @@ import {
     getKioskIdFromOwnerCap,
     isKioskOwnerToken,
     useGetNFTDisplay,
-    useGetObject,
     useKioskClient,
     useHiddenAssets,
     toast,
@@ -26,7 +25,6 @@ import {
     ImageType,
 } from '@iota/apps-ui-kit';
 import { formatAddress } from '@iota/iota-sdk/utils';
-import { useResolveVideo } from '_hooks';
 import { VisibilityOff } from '@iota/apps-ui-icons';
 
 export interface HiddenAssetProps {
@@ -44,12 +42,11 @@ export function HiddenAsset(item: HiddenAssetProps) {
     const kioskClient = useKioskClient();
     const navigate = useNavigate();
     const { objectId, type } = item.data!;
-    const { data: objectData } = useGetObject(objectId);
     const { data: nftMeta } = useGetNFTDisplay(objectId);
 
     const nftName = nftMeta?.name || formatAddress(objectId);
     const nftImageUrl = nftMeta?.imageUrl || '';
-    const video = useResolveVideo(objectData);
+    const nftVideoUrl = nftMeta?.videoUrl;
 
     function handleHiddenAssetClick() {
         navigate(
@@ -87,10 +84,10 @@ export function HiddenAsset(item: HiddenAssetProps) {
         <ErrorBoundary>
             <Card type={CardType.Default} onClick={handleHiddenAssetClick}>
                 <CardImage type={ImageType.BgTransparent} shape={ImageShape.SquareRounded}>
-                    {video ? (
+                    {nftVideoUrl ? (
                         <video
                             className="h-full w-full object-cover"
-                            src={video}
+                            src={nftVideoUrl}
                             controls
                             autoPlay
                             muted

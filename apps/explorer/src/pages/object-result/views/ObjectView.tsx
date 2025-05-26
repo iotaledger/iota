@@ -17,7 +17,6 @@ import { useQuery } from '@tanstack/react-query';
 import clsx from 'clsx';
 import { type PropsWithChildren, type ReactNode, useState } from 'react';
 import { AddressLink, Link, ObjectLink, ObjectVideoImage, TransactionLink } from '~/components/ui';
-import { useResolveVideo } from '~/hooks/useResolveVideo';
 import {
     extractName,
     genFileTypeMsg,
@@ -236,9 +235,9 @@ interface ObjectViewProps {
 }
 
 export function ObjectView({ data }: ObjectViewProps): JSX.Element {
-    const video = useResolveVideo(data);
     const display = data.data?.display?.data;
     const imgUrl = parseImageURL(display);
+    const videoUrl = display?.video_url;
 
     const { data: imageData } = useQuery({
         queryKey: ['image-file-type', imgUrl],
@@ -253,24 +252,26 @@ export function ObjectView({ data }: ObjectViewProps): JSX.Element {
     const lastTransactionBlockDigest = data.data?.previousTransaction;
 
     const heroImageTitle = name || display?.description || trimStdLibPrefix(objectType);
-    const heroImageSubtitle = video ? 'Video' : (imageData ?? '');
+    const heroImageSubtitle = videoUrl ? 'Video' : (imageData ?? '');
     const heroImageProps = {
         title: heroImageTitle,
         subtitle: heroImageSubtitle,
         src: imgUrl,
-        video: video,
+        video: videoUrl,
     };
+
+    const noMedia = !!imgUrl && imgUrl !== '' && !!videoUrl && videoUrl !== '';
 
     return (
         <div className="flex flex-col gap-md">
             <div
                 className={clsx(
                     'address-grid-container-top',
-                    !imgUrl && 'no-image',
+                    noMedia && 'no-image',
                     (!name || !display) && 'no-description',
                 )}
             >
-                {imgUrl !== '' && (
+                {!noMedia && (
                     <div style={{ gridArea: 'heroImage' }}>
                         <HeroVideoImage {...heroImageProps} />
                     </div>

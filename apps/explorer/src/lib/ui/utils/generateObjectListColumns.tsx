@@ -7,11 +7,9 @@ import type { ColumnDef } from '@tanstack/react-table';
 import type { IotaObjectResponse } from '@iota/iota-sdk/client';
 import { formatAddress, formatType } from '@iota/iota-sdk/utils';
 import { ObjectLink, ObjectVideoImage } from '~/components';
-import { useResolveVideo } from '~/hooks';
 import { parseObjectType, trimStdLibPrefix } from '~/lib';
 
 function Asset({ object }: { object: IotaObjectResponse }) {
-    const video = useResolveVideo(object);
     const displayMeta = object.data?.display?.data;
     const name = displayMeta?.name ?? displayMeta?.description ?? '';
     const type = trimStdLibPrefix(parseObjectType(object));
@@ -23,7 +21,7 @@ function Asset({ object }: { object: IotaObjectResponse }) {
                 title={name}
                 subtitle={type}
                 src={displayMeta?.image_url || ''}
-                video={video}
+                video={displayMeta?.video_url}
                 variant="xxs"
             />
             <div className="whitespace-nowrap text-label-lg">{name ? name : '--'}</div>
