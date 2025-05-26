@@ -1,7 +1,10 @@
 // Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::sync::{Arc, OnceLock};
+use std::{
+    net::{IpAddr, Ipv4Addr, SocketAddr},
+    sync::{Arc, OnceLock},
+};
 
 use prometheus::{IntGauge, Registry, register_int_gauge_with_registry};
 
@@ -23,3 +26,9 @@ impl IotaNamesMetrics {
 }
 
 pub(crate) static METRICS: OnceLock<Arc<IotaNamesMetrics>> = OnceLock::new();
+
+pub(crate) fn start_prometheus_server() -> Registry {
+    let addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 9184);
+
+    iota_metrics::start_prometheus_server(addr).default_registry()
+}

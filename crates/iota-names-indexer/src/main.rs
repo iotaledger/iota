@@ -4,11 +4,7 @@
 mod metrics;
 mod worker;
 
-use std::{
-    net::{IpAddr, Ipv4Addr, SocketAddr},
-    path::PathBuf,
-    sync::Arc,
-};
+use std::{path::PathBuf, sync::Arc};
 
 use anyhow::Result;
 use iota_data_ingestion_core::{
@@ -18,20 +14,15 @@ use iota_names::config::IotaNamesConfig;
 use tokio_util::sync::CancellationToken;
 
 use self::{
-    metrics::{IotaNamesMetrics, METRICS},
+    metrics::{IotaNamesMetrics, METRICS, start_prometheus_server},
     worker::IotaNamesWorker,
 };
-
-// struct IotaNamesRegistryEvent {
-//     key: String,
-//     value: NameRecord,
-// }
 
 #[tokio::main]
 async fn main() -> Result<()> {
     let cancel_token = CancellationToken::new();
-    let addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 9184);
-    let registry = iota_metrics::start_prometheus_server(addr).default_registry();
+    let registry = start_prometheus_server();
+
     METRICS.get_or_init(|| Arc::new(IotaNamesMetrics::new(&registry)));
 
     let backfill_progress_file_path = "./backfill_progress".to_string();
