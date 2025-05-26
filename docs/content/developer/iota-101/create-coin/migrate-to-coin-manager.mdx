@@ -24,34 +24,34 @@ First, we will create a simple coin to be migrated [`CoinManager`](../../../refe
 iota move new my_coin
 ```
 
-
 2. In `my_coin.move`, paste this simple move `Coin` module:
+
 ```move
 module my_coin::my_coin {
     use iota::coin::{Self, TreasuryCap};
 
     /// The type identifier of coin. The coin will have a type
-    /// tag of kind: `Coin<package_object::mycoin::MYCOIN>`
+    /// tag of kind: `Coin<package_object::my_coin::MY_COIN>`
     /// Make sure that the name of the type matches the module's name.
     public struct MY_COIN has drop {}
 
     /// Module initializer is called once on module publish. A treasury
     /// cap is sent to the publisher, who then controls minting and burning
     fun init(witness: MY_COIN, ctx: &mut TxContext) {
-         let (treasury, metadata) = coin::create_currency(witness, 6, b"MYCOIN", b"", b"", option::none(), ctx);
-         transfer::public_freeze_object(metadata);
-         transfer::public_transfer(treasury, tx_context::sender(ctx))
+        let (treasury, metadata) = coin::create_currency(witness, 6, b"MYCOIN", b"", b"", option::none(), ctx);
+       transfer::public_freeze_object(metadata);
+       transfer::public_transfer(treasury, tx_context::sender(ctx))
        }
 
 
     public fun mint(
-         treasury_cap: &mut TreasuryCap<MY_COIN>, 
-         amount: u64, 
-         recipient: address, 
-         ctx: &mut TxContext,
-      ) {
-         let coin = coin::mint(treasury_cap, amount, ctx);
-         transfer::public_transfer(coin, recipient)
+       treasury_cap: &mut TreasuryCap<MY_COIN>, 
+       amount: u64, 
+       recipient: address, 
+       ctx: &mut TxContext,
+       ) {
+        let coin = coin::mint(treasury_cap, amount, ctx);
+        transfer::public_transfer(coin, recipient)
        } 
 
 }
@@ -139,8 +139,8 @@ module my_coin_manager::my_coin_manager{
     /// Phantom parameter T can only be initialized in the `create_guardian`
     /// function. But the types passed here must have `drop`.
     public struct Guardian<phantom T: drop> has key, store {
-    id: UID
- }
+      id: UID
+   }
 
     /// This type is the witness resource and is intended to be used only once.
     public struct MY_COIN_MANAGER has drop {}
@@ -149,30 +149,32 @@ module my_coin_manager::my_coin_manager{
     /// type T with `drop` ability. It is dropped as soon as received.
     public fun create_guardian<T: drop>(
    _witness: T, ctx: &mut TxContext
- ): Guardian<T> {
-    Guardian { id: object::new(ctx) }
- }
+   ): Guardian<T> {
+      Guardian { id: object::new(ctx) }
+   }
 
     /// Module initializer is the best way to ensure that the
     /// code is called only once. With `Witness` pattern it is
     /// often the best practice.
     fun init(witness: MY_COIN_MANAGER, ctx: &mut TxContext) {
-      transfer::transfer(
-         create_guardian(witness, ctx),
-         tx_context::sender(ctx)
- )
+   transfer::transfer(
+            create_guardian(witness, ctx),
+   tx_context::sender(ctx)
+   )
  }
 
  #[allow(lint(self_transfer, share_owned))]
-    public fun  migrate_to_manager<T, S: drop> (otw:Guardian<S> ,cap: TreasuryCap<T>, meta: &CoinMetadata<T>, ctx: &mut TxContext) {
-      transfer::public_freeze_object(otw);
-      let (cm_treasury_cap, manager) = coin_manager::new_with_immutable_metadata(cap, meta, ctx);
+    public fun migrate_to_manager<T, S: drop> (otw:Guardian<S> ,cap: TreasuryCap<T>, meta: &CoinMetadata<T>, ctx: &mut TxContext) {
 
-      // Transfer the `CoinManagerTreasuryCap` to the creator of the `Coin`.
-      transfer::public_transfer(cm_treasury_cap, ctx.sender());
+ transfer::public_freeze_object(otw);
 
-      // Publicly share the `CoinManager` object for convenient usage by anyone interested.
-      transfer::public_share_object(manager);
+        let (cm_treasury_cap, manager) = coin_manager::new_with_immutable_metadata(cap, meta, ctx);
+
+        // Transfer the `CoinManagerTreasuryCap` to the creator of the `Coin`.
+ transfer::public_transfer(cm_treasury_cap, ctx.sender());
+
+        // Publicly share the `CoinManager` object for convenient usage by anyone interested.
+ transfer::public_share_object(manager);
  }
 
 }
@@ -187,24 +189,24 @@ If you were creating a `CoinManager` from scratch, that would be relatively simp
 
 fun init(witness: MY_COIN_MANAGER, ctx: &mut TxContext) {
     // Create a `Coin` type and have it managed.
- let (cm_treasury_cap, cm_meta_cap, manager) = coin_manager::create(
- witness,
- 0, 
- b"EXCL",
- b"Exclusive Coin",
- b"There are only 100, never any more.",
- option::none(),
- ctx
- );
+    let (cm_treasury_cap, cm_meta_cap, manager) = coin_manager::create(
+        witness,
+        0,
+        b"MYCOIN",
+        b"My Coin",
+        b"There are only 100, never any more.",
+        option::none(),
+        ctx,
+    );
 
     // Transfer the `CoinTreasuryCap` to the creator of the `Coin`.
- transfer::public_transfer(coin_treasury_cap, ctx.sender());
+    transfer::public_transfer(coin_treasury_cap, ctx.sender());
     
     // Transfer the `CoinMetadataCap` to the creator of the `Coin`.
- transfer::public_transfer(coin_meta_cap, ctx.sender());
+    transfer::public_transfer(coin_meta_cap, ctx.sender());
 
     // Publicly share the `CoinManager` object for convenient usage by anyone interested.
- transfer::public_share_object(manager);
+    transfer::public_share_object(manager);
 }
 ```
 
@@ -275,7 +277,18 @@ If you check the console, you will see the created objects:
 When publishing this module, you will get the `Guardian` object's ID. You should then pass this object to the `migrate_to_manager` function alongside the `Coin`'s `TreasuryCap` and `CoinMetadata` objects.
 
 ```bash
-iota client call --package <COIN-MANAGER-PACKAGE-ID> --module my_coin_manager --function migrate_to_manager --gas-budget 100000000 --type-args <MYCOIN-PACKAGE-ID>::my_coin::MY_COIN <COIN-MANAGER-PACKAGE-ID>::my_coin_manager::my_coin_manager --args <Guardian-OBJECT-ID> <TreasuryCap-OBJECT-ID> <CoinMetadata-OBJECT-ID>
+iota client call \
+  --package <COIN-MANAGER-PACKAGE-ID> \
+  --module my_coin_manager \
+  --function migrate_to_manager \
+  --gas-budget 100000000 \
+  --type-args \
+    <MYCOIN-PACKAGE-ID>::my_coin::MY_COIN \
+    <COIN-MANAGER-PACKAGE-ID>::my_coin_manager::MY_COIN_MANAGER \
+  --args \
+    <Guardian-OBJECT-ID> \
+    <TreasuryCap-OBJECT-ID> \
+    <CoinMetadata-OBJECT-ID>
 ```
 
 The first time you run the command, the output should look similar to the following:
