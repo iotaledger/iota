@@ -96,6 +96,8 @@ iota-move-lsp:
   - "crates/iota-move-lsp/**"
 iota-names:
   - "crates/iota-names/**"
+iota-names-indexer:
+  - "crates/iota-names-indexer/**"
 iota-network:
   - "crates/iota-network/**"
 iota-network-stack:
