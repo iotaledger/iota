@@ -14,6 +14,7 @@ use anyhow::Result;
 use iota_data_ingestion_core::{
     DataIngestionMetrics, FileProgressStore, IndexerExecutor, ReaderOptions, WorkerPool,
 };
+use iota_names::config::IotaNamesConfig;
 use tokio_util::sync::CancellationToken;
 
 use self::{
@@ -39,8 +40,9 @@ async fn main() -> Result<()> {
     let metrics = DataIngestionMetrics::new(&registry);
     let mut executor = IndexerExecutor::new(progress_store, 1, metrics, cancel_token);
 
+    let worker = IotaNamesWorker::new(IotaNamesConfig::from_env().unwrap_or_default());
     let worker_pool = WorkerPool::new(
-        IotaNamesWorker,
+        worker,
         "iota_names_reader".to_string(),
         1,
         Default::default(),

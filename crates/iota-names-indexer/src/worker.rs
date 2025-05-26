@@ -16,7 +16,15 @@ use iota_types::{
 
 use crate::metrics::METRICS;
 
-pub(crate) struct IotaNamesWorker;
+pub(crate) struct IotaNamesWorker {
+    config: IotaNamesConfig,
+}
+
+impl IotaNamesWorker {
+    pub(crate) fn new(config: IotaNamesConfig) -> Self {
+        Self { config }
+    }
+}
 
 #[async_trait]
 impl Worker for IotaNamesWorker {
@@ -31,7 +39,6 @@ impl Worker for IotaNamesWorker {
             "Processing checkpoint: {}",
             checkpoint.checkpoint_summary.sequence_number
         );
-        let config = IotaNamesConfig::from_env().unwrap_or_default();
 
         // let mut num_registrations = 0;
         for transaction in &checkpoint.transactions {
@@ -44,7 +51,7 @@ impl Worker for IotaNamesWorker {
             if let Some(events) = &transaction.events {
                 for event in events.data.iter() {
                     println!("Event: {event:#?}");
-                    if event.type_.address == config.package_address.into() {
+                    if event.type_.address == self.config.package_address.into() {
                         println!(
                             "Event for tx {} in checkpoint {}: {event:#?}",
                             transaction.transaction.digest(),
