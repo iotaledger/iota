@@ -56,8 +56,7 @@ impl ReadApi {
     }
 
     async fn get_chain_identifier(&self) -> RpcResult<ChainIdentifier> {
-        let genesis_checkpoint = self.get_checkpoint(CheckpointId::SequenceNumber(0)).await?;
-        Ok(ChainIdentifier::from(genesis_checkpoint.digest))
+        Ok(self.inner.get_chain_identifier_in_blocking_task().await?)
     }
 
     async fn object_read_to_object_response(

@@ -453,6 +453,7 @@ fn request_add_stake() {
             let (cluster, store, client) = &start_test_cluster_with_read_write_indexer(
                 Some("transaction_builder_request_add_stake"),
                 None,
+                None,
             )
             .await;
             let (address, keypair): (_, AccountKeyPair) = get_key_pair();
@@ -563,6 +564,7 @@ fn request_withdraw_stake_from_active() {
         .block_on(async move {
             let (cluster, store, client) = &start_test_cluster_with_read_write_indexer(
                 Some("transaction_builder_request_withdraw_stake_from_active"),
+                None,
                 None,
             )
             .await;
@@ -844,6 +846,7 @@ async fn create_cluster_with_timelocked_iota(
                 )
                 .with_objects([timelock_iota.into()])
         })),
+        None,
     )
     .await;
 
