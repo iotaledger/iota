@@ -7,6 +7,7 @@ export const Networks: Record<string, NetworkProps> = {
         core: 'https://api.mainnet.iota.cafe',
         websocket: 'wss://api.mainnet.iota.cafe',
         indexer: 'https://indexer.mainnet.iota.cafe',
+        monochain: 'https://rpc.mainnet.iota.monochain.p2p.org',
       },
       graphql: 'https://graphql.mainnet.iota.cafe',
     },
@@ -157,6 +158,7 @@ export interface Rpc {
     core: string;
     indexer: string;
     websocket: string;
+    monochain: string;
   };
   graphql: string;
 }
