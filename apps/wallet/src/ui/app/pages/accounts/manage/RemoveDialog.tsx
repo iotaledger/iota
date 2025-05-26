@@ -1,7 +1,7 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { useAccounts, useBackgroundClient } from '_hooks';
+import { useAccounts, useBackgroundClient, useUnlockMutation } from '_hooks';
 import { useMutation } from '@tanstack/react-query';
 import {
     Button,
@@ -16,6 +16,8 @@ import {
 } from '@iota/apps-ui-kit';
 import { toast } from '@iota/core';
 import { Warning } from '@iota/apps-ui-icons';
+import { VerifyPasswordModal } from '_src/ui/app/components';
+import { useState } from 'react';
 
 interface RemoveDialogProps {
     accountID: string;
@@ -33,10 +35,13 @@ export function RemoveDialog({ isOpen, setOpen, accountID }: RemoveDialogProps) 
             setOpen(false);
         },
     });
+    const [isPasswordModalVisible, setPasswordModalVisible] = useState(true);
 
     const totalAccounts = allAccounts?.data?.length || 0;
+    const unlockAccountSourceMutation = useUnlockMutation();
 
     function handleCancel() {
+        setPasswordModalVisible(true);
         setOpen(false);
     }
 
@@ -64,20 +69,37 @@ export function RemoveDialog({ isOpen, setOpen, accountID }: RemoveDialogProps) 
                                 style={InfoBoxStyle.Elevated}
                             />
                         ) : null}
-                        <div className="flex gap-xs">
-                            <Button
-                                fullWidth
-                                type={ButtonType.Secondary}
-                                text="Cancel"
-                                onClick={handleCancel}
+                        {isPasswordModalVisible ? (
+                            <VerifyPasswordModal
+                                open
+                                onVerify={async (password) => {
+                                    await unlockAccountSourceMutation.mutateAsync({
+                                        id: accountID,
+                                        password,
+                                    });
+                                    setPasswordModalVisible(false);
+                                }}
+                                onClose={() => {
+                                    setPasswordModalVisible(true);
+                                    setOpen(false);
+                                }}
                             />
-                            <Button
-                                fullWidth
-                                type={ButtonType.Destructive}
-                                text="Remove"
-                                onClick={handleRemove}
-                            />
-                        </div>
+                        ) : (
+                            <div className="flex gap-xs">
+                                <Button
+                                    fullWidth
+                                    type={ButtonType.Secondary}
+                                    text="Cancel"
+                                    onClick={handleCancel}
+                                />
+                                <Button
+                                    fullWidth
+                                    type={ButtonType.Destructive}
+                                    text="Remove"
+                                    onClick={handleRemove}
+                                />
+                            </div>
+                        )}
                     </div>
                 </DialogBody>
             </DialogContent>
