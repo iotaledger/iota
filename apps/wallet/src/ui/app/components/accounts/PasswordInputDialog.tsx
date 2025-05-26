@@ -80,6 +80,21 @@ export function PasswordModalDialog({
             reset();
         } catch (e) {
             setError('password', { message: (e as Error).message }, { shouldFocus: true });
+            if (e instanceof Error) {
+                if (
+                    !e.message.includes('Incorrect password') &&
+                    !e.message.includes('Too many failed attempts. Please try again in 1 second')
+                ) {
+                    await handleOnSubmit({ password });
+                } else if (
+                    !e.message.includes('Incorrect password') &&
+                    e.message.includes('Too many failed attempts. Please try again in 1 second')
+                ) {
+                    // If the error is "Too many failed attempts", we wait for 1 second before resetting the form
+                    await new Promise((res) => setTimeout(res, 1000));
+                    reset();
+                }
+            }
         }
     }
 
@@ -125,7 +140,11 @@ export function PasswordModalDialog({
                                     <Button
                                         htmlType={ButtonHtmlType.Submit}
                                         type={ButtonType.Primary}
-                                        disabled={isSubmitting || !isValid}
+                                        disabled={
+                                            isSubmitting ||
+                                            !isValid ||
+                                            !!form.formState.errors.password?.message
+                                        }
                                         text={confirmText}
                                         fullWidth
                                     />
