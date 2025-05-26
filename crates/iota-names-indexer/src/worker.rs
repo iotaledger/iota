@@ -29,7 +29,6 @@ impl IotaNamesWorker {
     }
 
     fn process_event(&self, event: &Event) -> Result<(), anyhow::Error> {
-        println!("Event: {event:#?}");
         if event.type_.address == self.config.package_address.into() {
             if event.type_.name == Identifier::new("IotaNamesRegistryEvent")? {
                 // TODO: init from prometheus storage to not always start from 0

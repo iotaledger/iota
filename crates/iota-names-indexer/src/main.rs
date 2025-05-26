@@ -37,9 +37,8 @@ async fn main() -> Result<()> {
         1,
         Default::default(),
     );
-    // register the worker pool to the executor.
+
     executor.register(worker_pool).await.unwrap();
-    // run the ingestion pipeline.
     executor
         .run(
             PathBuf::from("./chk".to_string()), /* path to a local directory where checkpoints
