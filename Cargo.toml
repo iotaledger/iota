@@ -113,6 +113,7 @@ members = [
   "crates/iota-move-build",
   "crates/iota-move-lsp",
   "crates/iota-names",
+  "crates/iota-names-indexer",
   "crates/iota-network",
   "crates/iota-network-stack",
   "crates/iota-node",
@@ -408,6 +409,7 @@ iota-move = { path = "crates/iota-move" }
 iota-move-build = { path = "crates/iota-move-build" }
 iota-move-lsp = { path = "crates/iota-move-lsp" }
 iota-names = { path = "crates/iota-names" }
+iota-names-indexer = { path = "crates/iota-names-indexer" }
 iota-network = { path = "crates/iota-network" }
 iota-network-stack = { path = "crates/iota-network-stack" }
 iota-node = { path = "crates/iota-node" }
