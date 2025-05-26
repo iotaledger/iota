@@ -40,6 +40,7 @@ const DEFAULT_DB: &str = "iota_indexer";
 const DEFAULT_INDEXER_IP: &str = "127.0.0.1";
 const DEFAULT_INDEXER_PORT: u16 = 9005;
 const DEFAULT_SERVER_PORT: u16 = 3000;
+pub const FIXTURES_DIR: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/data");
 
 static GLOBAL_API_TEST_SETUP: OnceLock<ApiTestSetup> = OnceLock::new();
 
@@ -151,7 +152,7 @@ pub async fn start_test_cluster_with_read_write_indexer(
     (cluster, pg_store, rpc_client)
 }
 
-fn get_indexer_db_url(database_name: Option<&str>) -> String {
+pub fn get_indexer_db_url(database_name: Option<&str>) -> String {
     database_name.map_or_else(
         || format!("{POSTGRES_URL}/{DEFAULT_DB}"),
         |db_name| format!("{POSTGRES_URL}/{db_name}"),

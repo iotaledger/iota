@@ -1,14 +1,20 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::str::FromStr;
+use std::{fs::File, path::Path, str::FromStr, sync::Arc};
 
+use hex::FromHex;
+use iota_indexer::{
+    models::transactions::StoredTransaction, store::package_resolver::IndexerStorePackageResolver,
+    test_utils::TestDatabase,
+};
 use iota_json_rpc_api::{IndexerApiClient, ReadApiClient, TransactionBuilderClient};
 use iota_json_rpc_types::{
     CheckpointId, IotaGetPastObjectRequest, IotaObjectDataOptions, IotaObjectRef,
     IotaObjectResponse, IotaObjectResponseQuery, IotaPastObjectResponse,
     IotaTransactionBlockResponse, IotaTransactionBlockResponseOptions,
 };
+use iota_package_resolver::Resolver;
 use iota_protocol_config::ProtocolVersion;
 use iota_test_transaction_builder::{create_nft, delete_nft, publish_nfts_package};
 use iota_types::{
@@ -17,12 +23,36 @@ use iota_types::{
     digests::{ChainIdentifier, ObjectDigest, TransactionDigest},
     error::IotaObjectResponseError,
 };
+use serde_json::Value;
 
 use crate::common::{
-    ApiTestSetup, execute_tx_and_wait_for_indexer, indexer_wait_for_checkpoint,
-    indexer_wait_for_checkpoint_pruned, indexer_wait_for_object, indexer_wait_for_transaction,
-    rpc_call_error_msg_matches, start_test_cluster_with_read_write_indexer,
+    ApiTestSetup, FIXTURES_DIR, execute_tx_and_wait_for_indexer, get_indexer_db_url,
+    indexer_wait_for_checkpoint, indexer_wait_for_checkpoint_pruned, indexer_wait_for_object,
+    indexer_wait_for_transaction, rpc_call_error_msg_matches,
+    start_test_cluster_with_read_write_indexer,
 };
+
+/// Utility function to convert hex strings in JSON values to byte arrays.
+fn convert_hex_in_json(value: &mut Value) {
+    match value {
+        Value::String(s) => {
+            if let Ok(bytes) = Vec::from_hex(s.strip_prefix("\\\\x").unwrap_or(s)) {
+                *value = Value::Array(bytes.into_iter().map(Into::into).collect());
+            }
+        }
+        Value::Array(arr) => {
+            for v in arr.iter_mut() {
+                convert_hex_in_json(v);
+            }
+        }
+        Value::Object(obj) => {
+            for (_key, val) in obj.iter_mut() {
+                convert_hex_in_json(val);
+            }
+        }
+        _ => {}
+    }
+}
 
 fn is_ascending(vec: &[u64]) -> bool {
     vec.windows(2).all(|window| window[0] <= window[1])
@@ -1683,6 +1713,50 @@ fn try_get_object_before_version() {
             _ => panic!("Expected VersionFound response, got: {:?}", result),
         }
     });
+}
+
+#[tokio::test]
+async fn failed_stored_tx_into_transaction_block() {
+    let db_url = get_indexer_db_url(Some("test_failed_stored_tx_into_transaction_block"));
+    let mut test_db = TestDatabase::new(db_url.into());
+    test_db.recreate();
+    test_db.reset_db();
+    let pool = test_db.to_connection_pool();
+
+    let mut failed_tx: serde_json::Value = serde_json::from_reader(
+        File::open(
+            Path::new(FIXTURES_DIR).join("failed_transaction_unpublished_function_call.json"),
+        )
+        .unwrap(),
+    )
+    .unwrap();
+
+    let json = failed_tx.as_object_mut().unwrap();
+
+    // Convert hex strings to Vec<u8>
+    for key in [
+        "raw_transaction",
+        "raw_effects",
+        "transaction_digest",
+        "object_changes",
+        "balance_changes",
+    ] {
+        json.entry(key).and_modify(convert_hex_in_json);
+    }
+
+    let failed_tx: StoredTransaction = serde_json::from_value(failed_tx).unwrap();
+
+    let package_resolver = Arc::new(Resolver::new(IndexerStorePackageResolver::new(pool)));
+    assert!(
+        failed_tx
+            .try_into_iota_transaction_block_response(
+                IotaTransactionBlockResponseOptions::full_content(),
+                package_resolver
+            )
+            .await
+            .is_ok()
+    );
+    test_db.drop_if_exists();
 }
 
 #[test]
