@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { Search } from '@iota/apps-ui-icons';
-import { Button, ButtonType } from '@iota/apps-ui-kit';
+import { Button, ButtonType, LoadingIndicator } from '@iota/apps-ui-kit';
 import {
     AccountBalanceItem,
     VerifyPasswordModal,
@@ -110,6 +110,12 @@ export function AccountsFinderView(): JSX.Element {
                 icon: <Search className="h-4 w-4" />,
             };
         }
+        if (searchPhase === SearchPhase.Ongoing) {
+            return {
+                text: 'Searching',
+                icon: <LoadingIndicator />,
+            };
+        }
         return {
             text: 'Keep searching',
             icon: <Search className="h-4 w-4" />,
@@ -140,7 +146,7 @@ export function AccountsFinderView(): JSX.Element {
     const groupedAccounts = persistedAccounts && groupAccountsByAccountIndex(persistedAccounts);
 
     const findingResultText = (() => {
-        const text = `Scanned ${totalCheckedAddresses} addresses.`;
+        const text = `Scanned ${totalCheckedAddresses} addresses`;
         return text;
     })();
 
@@ -160,7 +166,9 @@ export function AccountsFinderView(): JSX.Element {
                 </div>
                 <div className="flex flex-col gap-xs pt-sm">
                     {searchOptions.text === 'Keep searching' && (
-                        <span className="text-center">{findingResultText}</span>
+                        <span className="text-center text-neutral-40 dark:text-neutral-60">
+                            {findingResultText}
+                        </span>
                     )}
                     <div className="flex flex-row gap-xs">
                         {isLedgerLocked ? (
@@ -182,7 +190,6 @@ export function AccountsFinderView(): JSX.Element {
                                 <Button
                                     text="Finish"
                                     type={ButtonType.Secondary}
-                                    disabled={isSearchOngoing}
                                     fullWidth
                                     onClick={() => navigate('/tokens')}
                                 />
