@@ -26,6 +26,7 @@ iota move new my_coin
 
 2. In `my_coin.move`, paste this simple move `Coin` module:
 
+
 ```move
 module my_coin::my_coin {
     use iota::coin::{Self, TreasuryCap};
@@ -130,7 +131,6 @@ iota move new my_coin_manager
 
 2. In the created `my_coin_manager.move`, paste the following module:
 
-
 ```move
 module my_coin_manager::my_coin_manager{
     use iota::coin_manager;
@@ -168,15 +168,13 @@ module my_coin_manager::my_coin_manager{
 
  transfer::public_freeze_object(otw);
 
-        let (cm_treasury_cap, manager) = coin_manager::new_with_immutable_metadata(cap, meta, ctx);
+    let (cm_treasury_cap, manager) = coin_manager::new_with_immutable_metadata(cap, meta, ctx);
 
-        // Transfer the `CoinManagerTreasuryCap` to the creator of the `Coin`.
- transfer::public_transfer(cm_treasury_cap, ctx.sender());
+    // Transfer the `CoinManagerTreasuryCap` to the creator of the `Coin`.
+    transfer::public_transfer(cm_treasury_cap, ctx.sender());
 
-        // Publicly share the `CoinManager` object for convenient usage by anyone interested.
- transfer::public_share_object(manager);
- }
-
+    // Publicly share the `CoinManager` object for convenient usage by anyone interested.
+    transfer::public_share_object(manager);
 }
 ```
 Let's go quickly over it before publishing:
@@ -207,7 +205,9 @@ fun init(witness: MY_COIN_MANAGER, ctx: &mut TxContext) {
 
     // Publicly share the `CoinManager` object for convenient usage by anyone interested.
     transfer::public_share_object(manager);
+    transfer::public_share_object(manager);
 }
+
 ```
 
 However, since you are migrating from a `Coin`, you will use another constructor for `CoinManager`: [`CoinManager::new_with_immutable_metadata(cap,meta,ctx)`](../../../references/framework/iota-framework/coin_manager.mdx#function-new_with_immutable_metadata) if the metadata is already frozen, and [`CoinManager::new(cap,meta,ctx)`](../../../references/framework/iota-framework/coin_manager.mdx#function-new) if the metadata is mutable.
