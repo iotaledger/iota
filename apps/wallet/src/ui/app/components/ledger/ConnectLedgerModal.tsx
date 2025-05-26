@@ -13,16 +13,22 @@ interface ConnectLedgerModalProps {
     onClose: () => void;
     onConfirm: () => void;
     onError: (error: unknown) => void;
+    requestLedgerPermissionsFirst?: boolean;
 }
 
-export function ConnectLedgerModal({ onClose, onConfirm, onError }: ConnectLedgerModalProps) {
+export function ConnectLedgerModal({
+    onClose,
+    onConfirm,
+    onError,
+    requestLedgerPermissionsFirst = false,
+}: ConnectLedgerModalProps) {
     const [, setConnectingToLedger] = useState(false);
     const { connectToLedger } = useIotaLedgerClient();
 
     const onContinueClick = async () => {
         try {
             setConnectingToLedger(true);
-            await connectToLedger(true);
+            await connectToLedger(requestLedgerPermissionsFirst);
             onConfirm();
         } catch (error) {
             onError(error);
