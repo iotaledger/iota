@@ -654,6 +654,27 @@ export interface IotaMoveStructTypeParameter {
     isPhantom: boolean;
 }
 export type IotaMoveVisibility = 'Private' | 'Public' | 'Friend';
+/** A single record in the registry. */
+export interface IotaNameRecord {
+    /** Additional data which may be stored in a record */
+    data: /** Additional data which may be stored in a record */
+    {
+        [key: string]: string;
+    };
+    /** Timestamp in milliseconds when the record expires. */
+    expirationTimestampMs: string;
+    /**
+     * The ID of the registration NFT assigned to this record.
+     *
+     * The owner of the corresponding NFT has the rights to be able to change and adjust the
+     * `target_address` of this domain.
+     *
+     * It is possible that the ID changes if the record expires and is purchased by someone else.
+     */
+    nftId: string;
+    /** The target address that this domain points to */
+    targetAddress?: string | null;
+}
 export type IotaObjectDataFilter =
     | {
           MatchAll: IotaObjectDataFilter[];

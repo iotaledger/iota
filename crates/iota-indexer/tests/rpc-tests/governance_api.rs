@@ -32,7 +32,7 @@ fn test_staking() {
 
     runtime.block_on(async move {
         let (cluster, store, client) =
-            &start_test_cluster_with_read_write_indexer(Some("test_staking"), None).await;
+            &start_test_cluster_with_read_write_indexer(Some("test_staking"), None, None).await;
 
         indexer_wait_for_checkpoint(store, 1).await;
 
@@ -109,7 +109,7 @@ fn test_unstaking() {
 
     runtime.block_on(async move {
         let (cluster, store, client) =
-            &start_test_cluster_with_read_write_indexer(Some("test_unstaking"), None).await;
+            &start_test_cluster_with_read_write_indexer(Some("test_unstaking"), None, None).await;
 
         indexer_wait_for_checkpoint(store, 1).await;
 
@@ -212,9 +212,12 @@ fn test_timelocked_staking() {
     let ApiTestSetup { runtime, .. } = ApiTestSetup::get_or_init();
 
     runtime.block_on(async move {
-        let (cluster, store, client) =
-            &start_test_cluster_with_read_write_indexer(Some("test_timelocked_staking"), None)
-                .await;
+        let (cluster, store, client) = &start_test_cluster_with_read_write_indexer(
+            Some("test_timelocked_staking"),
+            None,
+            None,
+        )
+        .await;
 
         indexer_wait_for_checkpoint(store, 1).await;
 
@@ -321,9 +324,12 @@ fn test_timelocked_unstaking() {
     let ApiTestSetup { runtime, .. } = ApiTestSetup::get_or_init();
 
     runtime.block_on(async move {
-        let (cluster, store, client) =
-            &start_test_cluster_with_read_write_indexer(Some("test_timelocked_unstaking"), None)
-                .await;
+        let (cluster, store, client) = &start_test_cluster_with_read_write_indexer(
+            Some("test_timelocked_unstaking"),
+            None,
+            None,
+        )
+        .await;
 
         indexer_wait_for_checkpoint(store, 1).await;
 

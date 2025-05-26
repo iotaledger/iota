@@ -8,7 +8,7 @@ use async_trait::async_trait;
 use iota_types::messages_checkpoint::CheckpointSequenceNumber;
 use serde_json::{Number, Value};
 use tokio::{
-    fs::{File, OpenOptions},
+    fs::File,
     io::{AsyncReadExt, AsyncSeekExt, AsyncWriteExt},
 };
 
@@ -35,6 +35,8 @@ use crate::{IngestionError, IngestionResult, progress_store::ProgressStore};
 /// }
 /// ```
 pub struct FileProgressStore {
+    /// The path to the progress file.
+    path: PathBuf,
     /// The [`File`] handle used to interact with the progress file.
     file: File,
 }
@@ -43,14 +45,15 @@ impl FileProgressStore {
     /// Creates a new `FileProgressStore` by opening or creating the file at the
     /// specified path.
     pub async fn new(path: impl Into<PathBuf>) -> IngestionResult<Self> {
-        Self::open_or_create_file(path.into())
+        let path = path.into();
+        Self::open_or_create_file(&path)
             .await
-            .map(|file| Self { file })
+            .map(|file| Self { file, path })
     }
 
     /// Open or create the file at the specified path.
-    async fn open_or_create_file(path: PathBuf) -> IngestionResult<File> {
-        Ok(OpenOptions::new()
+    async fn open_or_create_file(path: &PathBuf) -> IngestionResult<File> {
+        Ok(File::options()
             .read(true)
             .write(true)
             .create(true)
@@ -95,11 +98,31 @@ impl FileProgressStore {
 
     /// Writes the given data to the file, overwriting any existing content.
     async fn write_to_file(&mut self, data: impl AsRef<[u8]>) -> IngestionResult<()> {
-        // before writing seek to the start of the file
-        self.file.seek(SeekFrom::Start(0)).await?;
-        // clear the file content
-        self.file.set_len(0).await?;
-        Ok(self.file.write_all(data.as_ref()).await?)
+        let tmp_path = self.path.with_extension("tmp");
+
+        {
+            let mut tmp_file = File::options()
+                .write(true)
+                .create(true)
+                .truncate(true)
+                .open(&tmp_path)
+                .await?;
+            tmp_file.write_all(data.as_ref()).await?;
+            tmp_file.sync_data().await?;
+
+            // only for testing add a small delay, useful for simulate crashes
+            if cfg!(test) {
+                tokio::time::sleep(std::time::Duration::from_nanos(10)).await;
+            }
+        }
+
+        // Atomically replace the original file
+        tokio::fs::rename(&tmp_path, &self.path).await?;
+
+        // Re-open the file handle for further reads
+        self.file = File::open(&self.path).await?;
+
+        Ok(())
     }
 }
 

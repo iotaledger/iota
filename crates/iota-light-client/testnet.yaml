@@ -1,0 +1,19 @@
+rpc_url: "https://api.testnet.iota.cafe"
+graphql_url: "https://graphql.testnet.iota.cafe"
+checkpoints_dir: "checkpoints_testnet"
+genesis_blob_download_url: "https://dbfiles.testnet.iota.cafe/genesis.blob"
+sync_before_check: true
+checkpoint_store_config:
+  object-store: "S3"
+  aws-endpoint: "https://checkpoints.testnet.iota.cafe"
+  aws-virtual-hosted-style-request: true
+  no-sign-request: true
+  aws-region: "weur"
+  object-store-connection-limit: 20
+archive_store_config:
+  object-store: "S3"
+  aws-endpoint: "https://archive.testnet.iota.cafe"
+  aws-virtual-hosted-style-request: true
+  no-sign-request: true
+  aws-region: "weur"
+  object-store-connection-limit: 20

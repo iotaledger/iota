@@ -17,7 +17,7 @@ use crate::{
     sp,
 };
 
-impl Display for PTBPreview<'_> {
+impl Display for PTBPreview {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         let mut builder = TableBuilder::default();
         let columns = vec!["command", "values"];
