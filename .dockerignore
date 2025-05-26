@@ -2,6 +2,7 @@
 *.swp
 **/.terraform/
 target/
+external-crates/move/target/
 **/*Dockerfile
 *.md
 build/
@@ -9,3 +10,6 @@ storage/
 docker/
 dev-tools/
 setups/
+.pnpm-store/
+.turbo/
+node_modules/
