@@ -164,14 +164,17 @@ export async function fetchKioskExtension(
     kioskId: string,
     extensionType: string,
 ): Promise<KioskExtension | null> {
-    const extension = await client.getDynamicFieldObject({
-        parentId: kioskId,
+    const extension = await client.getDynamicFieldObjectV2({
+        parentObjectId: kioskId,
         name: {
             type: `0x2::kiosk_extension::ExtensionKey<${extensionType}>`,
             value: {
                 dummy_field: false,
             },
         },
+        options: {
+            showContent: true
+        }
     });
 
     if (!extension.data) return null;

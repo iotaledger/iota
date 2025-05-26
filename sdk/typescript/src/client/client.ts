@@ -743,7 +743,7 @@ export class IotaClient {
     ): Promise<IotaObjectResponse> {
         return await this.transport.request({
             method: 'iotax_getDynamicFieldObjectV2',
-            params: [input.parentObjectId, input.name],
+            params: [input.parentObjectId, input.name, input.options],
         });
     }
 

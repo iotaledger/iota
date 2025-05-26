@@ -19,14 +19,14 @@ export function UnderlyingObjectCard({
     name,
     dynamicFieldType,
 }: UnderlyingObjectCardProps): JSX.Element | null {
-    const { data, isPending, isError, isFetched } = useIotaClientQuery('getDynamicFieldObject', {
-        parentId,
+    const { data, isPending, isError, isFetched } = useIotaClientQuery('getDynamicFieldObjectV2', {
+        parentObjectId: parentId,
         name,
+        options: {
+            showContent: true,
+        }
     });
-    const objectType =
-        data?.data?.type ??
-        (data?.data?.content?.dataType === 'package' ? 'package' : data?.data?.content?.type) ??
-        null;
+    const objectType = (data?.data?.content?.dataType === 'package' ? 'package' : data?.data?.content?.type) ?? null;
     // Get the packageId, moduleName, functionName from the objectType
     const [packageId, moduleName, functionName] = objectType?.split('<')[0]?.split('::') || [];
 
