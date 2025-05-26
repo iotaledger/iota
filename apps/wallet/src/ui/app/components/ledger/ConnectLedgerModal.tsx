@@ -51,18 +51,18 @@ export function ConnectLedgerModal({ onClose, onConfirm, onError }: ConnectLedge
                             Connect your ledger to your computer, unlock it, and launch the IOTA
                             app. Click Continue when done.
                         </span>
-                        <div className="flex w-full flex-col items-start gap-y-xs rounded-lg bg-primary-90 px-md py-sm dark:bg-primary-10">
+                        <div className="flex w-full flex-col gap-y-xs rounded-lg bg-primary-90 px-md py-sm text-center dark:bg-primary-10">
                             <span className="text-title-sm text-neutral-10 dark:text-neutral-92">
-                                Ensure you're using the latest version of the IOTA app
+                                Ensure you're using a compatible version of the Ledger IOTA app
                             </span>
-                            <div className="flex w-full flex-row justify-between text-body-sm text-primary-30 dark:text-primary-80">
+                            <div className="flex w-full flex-wrap justify-center gap-xs text-body-sm text-primary-30 dark:text-primary-80">
                                 <Link
                                     to="https://docs.iota.org/about-iota/iota-wallet/how-to/integrate-ledger#install-the-iota-app-on-your-ledger-device"
                                     target="_blank"
                                     rel="noreferrer"
                                     className="flex items-center gap-x-xxs underline"
                                 >
-                                    <span>Latest version</span>
+                                    <span className="shrink-0">Recommended v0.9.3+</span>
                                     <ArrowTopRight />
                                 </Link>
                                 <Link
@@ -71,7 +71,7 @@ export function ConnectLedgerModal({ onClose, onConfirm, onError }: ConnectLedge
                                     rel="noreferrer"
                                     className="flex items-center gap-x-xxs underline"
                                 >
-                                    <span>Latest Ledger Nano S</span>
+                                    <span className="shrink-0">Older Devices v0.9.2+</span>
                                     <ArrowTopRight />
                                 </Link>
                             </div>
