@@ -72,7 +72,7 @@ pub async fn main() -> anyhow::Result<()> {
             path.display()
         ))?
     } else {
-        Config::get_mainnet_config()
+        Config::mainnet()
     };
 
     config.setup().await?;
