@@ -10,6 +10,7 @@ use iota_names::config::IotaNamesConfig;
 use iota_types::{
     Identifier,
     effects::{TransactionEffects, TransactionEffectsAPI},
+    event::Event,
     execution_status::ExecutionStatus,
     full_checkpoint_content::CheckpointData,
 };
@@ -23,6 +24,27 @@ pub(crate) struct IotaNamesWorker {
 impl IotaNamesWorker {
     pub(crate) fn new(config: IotaNamesConfig) -> Self {
         Self { config }
+    }
+
+    fn process_event(&self, event: &Event) -> Result<(), anyhow::Error> {
+        println!("Event: {event:#?}");
+        if event.type_.address == self.config.package_address.into() {
+            if event.type_.name == Identifier::new("IotaNamesRegistryEvent")? {
+                // TODO: init from prometheus storage to not always start from 0
+                METRICS
+                    .get()
+                    .expect("metrics global should be initialized")
+                    .total_name_records
+                    .add(1);
+                // TODO: deserialize to get the name lengths
+                // let register_event =
+                //     bcs::from_bytes::<IotaNamesRegistryEvent>(&
+                // event_bcs_bytes)?;
+                // println!("Register event: {register_event:#?}");
+            }
+        }
+
+        Ok(())
     }
 }
 
@@ -50,27 +72,7 @@ impl Worker for IotaNamesWorker {
 
             if let Some(events) = &transaction.events {
                 for event in events.data.iter() {
-                    println!("Event: {event:#?}");
-                    if event.type_.address == self.config.package_address.into() {
-                        println!(
-                            "Event for tx {} in checkpoint {}: {event:#?}",
-                            transaction.transaction.digest(),
-                            checkpoint.checkpoint_summary.sequence_number
-                        );
-                        if event.type_.name == Identifier::new("IotaNamesRegistryEvent")? {
-                            // TODO: init from prometheus storage to not always start from 0
-                            METRICS
-                                .get()
-                                .expect("metrics global should be initialized")
-                                .total_name_records
-                                .add(1);
-                            // TODO: deserialize to get the name lengths
-                            // let register_event =
-                            //     bcs::from_bytes::<IotaNamesRegistryEvent>(&
-                            // event_bcs_bytes)?;
-                            // println!("Register event: {register_event:#?}");
-                        }
-                    }
+                    self.process_event(event)?;
                 }
             }
             // let TransactionData::V1(data) =
