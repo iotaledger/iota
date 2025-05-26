@@ -57,7 +57,7 @@ export function ConnectLedgerModal({ onClose, onConfirm, onError }: ConnectLedge
                             </span>
                             <div className="flex w-full flex-wrap justify-center gap-xs text-body-sm text-primary-30 dark:text-primary-80">
                                 <Link
-                                    to="https://docs.iota.org/about-iota/iota-wallet/how-to/integrate-ledger#install-the-iota-app-on-your-ledger-device"
+                                    to="https://docs.iota.org/about-iota/iota-wallet/how-to/integrate-ledger"
                                     target="_blank"
                                     rel="noreferrer"
                                     className="flex items-center gap-x-xxs underline"
