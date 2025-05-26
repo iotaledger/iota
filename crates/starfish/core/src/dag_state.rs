@@ -4,7 +4,7 @@
 
 use std::{
     cmp::max,
-    collections::{BTreeMap, BTreeSet, VecDeque},
+    collections::{BTreeMap, BTreeSet, HashSet, VecDeque},
     ops::Bound::{Excluded, Included, Unbounded},
     panic,
     sync::Arc,
@@ -103,6 +103,20 @@ pub(crate) struct DagState {
     // availability of transaction data from the corresponding blocks
     pending_acknowledgments: BTreeSet<BlockRef>,
 
+    // Keeps track of the most recent BlockHeaderDAG cordial knowledge (who knows which blocks)
+    // for each authority. This is a helper structure that is used primarily for traversing the
+    // recent DAG. This struct is evicted after flushing the dag state to storage and is not
+    // persisted.
+    // To access the cordial knowledge of a given block_ref, one shall retrieve it from
+    // `recent_dag_cordial_knowledge[block_ref.author][(block_ref.round, block_ref.digest)]`.
+    // The value is a tuple of (parents, who knows the block header).
+    recent_dag_cordial_knowledge:
+        Vec<BTreeMap<(Round, BlockHeaderDigest), (Vec<BlockRef>, HashSet<AuthorityIndex>)>>,
+    // Keeps tracks of block headers that are not known by the authority.
+    // Is used to ensure that we send block headers that are really needed
+    // to the authority, and not the ones that they already know.
+    block_headers_not_known_by_authority: Vec<BTreeSet<BlockRef>>,
+
     // Data to be flushed to storage.
     blocks_to_write: Vec<VerifiedBlock>,
     block_headers_to_write: Vec<VerifiedBlockHeader>,
@@ -195,6 +209,8 @@ impl DagState {
             commits_to_write: vec![],
             commit_info_to_write: vec![],
             pending_acknowledgments: BTreeSet::new(),
+            recent_dag_cordial_knowledge: vec![BTreeMap::new(); num_authorities],
+            block_headers_not_known_by_authority: vec![BTreeSet::new(); num_authorities],
             scoring_subdag,
             store: store.clone(),
             cached_rounds,
@@ -326,6 +342,85 @@ impl DagState {
             .highest_accepted_authority_round
             .with_label_values(&[hostname])
             .set(highest_accepted_round_for_author as i64);
+        self.update_cordial_knowledge(block_header);
+    }
+
+    // Function updates who knows which BlockHeaders what after receiving a new
+    // block header, which is accepted. In particular, it traverses the DAG from
+    // the block header and updates the knowledge of the given authority.
+    fn update_cordial_knowledge(&mut self, block_header: &VerifiedBlockHeader) {
+        let block_reference = block_header.reference();
+        let block_author = block_reference.author;
+        let round_digest = (block_reference.round, block_reference.digest);
+
+        // Collect parents of the block header, which are not genesis
+        let parents = block_header
+            .ancestors()
+            .iter()
+            .filter(|parent| parent.round > GENESIS_ROUND)
+            .cloned()
+            .collect::<Vec<_>>();
+
+        // If the block header is in the recent_dag_cordial_knowledge, then
+        // don't update if it is already there
+        if self.recent_dag_cordial_knowledge[block_author.value()].contains_key(&round_digest) {
+            return;
+        }
+
+        // update information about block_reference
+        self.recent_dag_cordial_knowledge[block_author.value()].insert(
+            round_digest,
+            (
+                parents,
+                vec![block_reference.author, self.context.own_index]
+                    .into_iter()
+                    .collect::<HashSet<_>>(),
+            ),
+        );
+
+        // Assume that only this authority and the author know the block header
+        for authority_index in 0..self.block_headers_not_known_by_authority.len() {
+            if authority_index == self.context.own_index.value()
+                || authority_index == block_reference.author.value()
+            {
+                continue;
+            }
+            self.block_headers_not_known_by_authority[authority_index].insert(block_reference);
+        }
+
+        // traverse the DAG from block_reference and update the blocks known by the
+        // author of this block
+        let mut buffer = vec![block_reference];
+
+        while let Some(traversed_block_reference) = buffer.pop() {
+            let traversed_block_author = traversed_block_reference.author;
+            let traversed_block_round_digest = (
+                traversed_block_reference.round,
+                traversed_block_reference.digest,
+            );
+            let (parents, _) = self.recent_dag_cordial_knowledge[traversed_block_author.value()]
+                .get(&traversed_block_round_digest)
+                .expect("We should expect having an element with given BlockRef")
+                .clone();
+            for parent in parents {
+                let traversed_parent_author = parent.author;
+                let traversed_parent_round_digest = (parent.round, parent.digest);
+
+                if self.recent_dag_cordial_knowledge[traversed_parent_author.value()]
+                    .contains_key(&traversed_parent_round_digest)
+                {
+                    let (_, who_knows_given_parent) = self.recent_dag_cordial_knowledge
+                        [traversed_parent_author.value()]
+                    .get_mut(&traversed_parent_round_digest)
+                    .expect("We should have this value as it is checked");
+                    if who_knows_given_parent.insert(block_author) {
+                        self.block_headers_not_known_by_authority[block_author.value()]
+                            .remove(&parent);
+                        buffer.push(parent);
+                    }
+                }
+            }
+        }
     }
 
     /// Accepts a block header into DagState and keeps it in memory.
@@ -944,6 +1039,56 @@ impl DagState {
             .push((last_commit.reference(), commit_info));
     }
 
+    /// Returns the set of block headers up to a given round that are not known
+    /// by the given authority
+    #[expect(unused)]
+    pub(crate) fn get_past_block_headers_not_known_by_authority(
+        &self,
+        authority_index: AuthorityIndex,
+        round: Round,
+    ) -> Vec<BlockRef> {
+        let set = &self.block_headers_not_known_by_authority[authority_index.value()];
+
+        // Construct an upper bound (exclusive)
+        let upper_bound = BlockRef::new(round, AuthorityIndex::MAX, BlockHeaderDigest::MAX);
+
+        // Take all BlockRefs strictly less than the upper bound
+        set.range(..upper_bound).cloned().collect()
+    }
+
+    /// Updates the set of known block headers for a given authority assuming it
+    /// knows everything below certain round. Make use of BTree nature of
+    /// structure to efficiently prune the sets
+    pub(crate) fn update_known_block_headers_for_authority_by_round(
+        &mut self,
+        authority_index: usize,
+        target_round: Round,
+    ) {
+        // Construct an exclusive upper bound
+        let upper_bound = BlockRef::new(target_round, AuthorityIndex::MAX, BlockHeaderDigest::MAX);
+
+        // Split off entries greater than or equal to upper_bound
+        let old_set = &mut self.block_headers_not_known_by_authority[authority_index];
+        let new_set = old_set.split_off(&upper_bound);
+
+        // Replace with pruned set
+        *old_set = new_set;
+
+        let map = self
+            .recent_dag_cordial_knowledge
+            .get_mut(authority_index)
+            .expect("We expect authority index should be valid");
+
+        // Split off all entries with Round > target_round
+        let new_map = map.split_off(&(target_round + 1, BlockHeaderDigest::MIN));
+
+        // Replace the old map with the new one
+        *self
+            .recent_dag_cordial_knowledge
+            .get_mut(authority_index)
+            .expect("We expect authority index should be valid") = new_map;
+    }
+
     pub(crate) fn take_commit_votes(&mut self, limit: usize) -> Vec<CommitVote> {
         let mut votes = Vec::new();
         while !self.pending_commit_votes.is_empty() && votes.len() < limit {
@@ -964,6 +1109,29 @@ impl DagState {
 
         // Remove entries with round < min_round
         self.pending_acknowledgments = self.pending_acknowledgments.split_off(&lower_bound);
+    }
+
+    /// Evicts old cordial knowledge and pending acknowledgments. It is aligned
+    /// with the eviction method, thereby should be called every time the
+    /// eviction happens.
+    pub(crate) fn evict_cordial_knowledge(&mut self) {
+        // === 1. Evict from recent_dag_cordial_knowledge ===
+        for (authority_index, map) in self.recent_dag_cordial_knowledge.iter_mut().enumerate() {
+            let evict_round = self.evicted_rounds[authority_index];
+
+            // Only keep entries with round > evict_round
+            let keep_from = (evict_round + 1, BlockHeaderDigest::MIN);
+            *map = map.split_off(&keep_from);
+        }
+
+        // === 2. Evict from block_headers_not_known_by_authority ===
+        for authority_index in 0..self.context.committee.size() {
+            let evict_round = self.evicted_rounds[authority_index];
+            self.update_known_block_headers_for_authority_by_round(
+                authority_index,
+                evict_round + 1,
+            );
+        }
     }
 
     /// Adds a block reference to pending acknowledgments.
@@ -1125,6 +1293,9 @@ impl DagState {
 
         // Clean up old acknowledgments.
         self.evict_pending_acknowledgments();
+
+        // Clean up old cordial knowledge.
+        self.evict_cordial_knowledge();
 
         let metrics = &self.context.metrics.node_metrics;
         // TODO: create similar metric for headers?
