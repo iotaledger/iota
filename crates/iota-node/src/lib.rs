@@ -1486,7 +1486,9 @@ impl IotaNode {
             .bind(config.network_address())
             .await
             .map_err(|err| anyhow!(err.to_string()))?;
-        let cancel_handle = server.take_cancel_handle().unwrap();
+        let cancel_handle = server
+            .take_cancel_handle()
+            .expect("GRPC server should still have a cancel handle");
         let local_addr = server.local_addr();
         info!("Listening to traffic on {local_addr}");
         let grpc_server = spawn_monitored_task!(server.serve().map_err(Into::into));
