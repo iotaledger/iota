@@ -20,45 +20,77 @@ The light client requires a config file and a directory to cache checkpoints, an
 
 ## Setup
 
-The config file for the light client takes a URL for a full node, a directory (that must exist) and within the directory to name of the genesis blob for the IOTA network.
+The config file for the light client takes a URL for a full node, a directory to store checkpoint summaries (that must exist) and within the directory the name of the genesis blob for the IOTA network.
 
 ```
-full_node_url: "https://api.testnet.iota.cafe:443"
-checkpoint_summary_dir: "checkpoints_dir"
-genesis_filename: "genesis.blob"
-```
+# A full node JSON RPC endpoint to query the latest network state (mandatory)
+rpc_url: "https://api.mainnet.iota.cafe"
 
-The genesis blob for the IOTA mainnet can be found here: https://github.com/iotaledger/iota-genesis/blob/main/mainnet/genesis.blob
+# A full node GraphQL RPC endpoint to query end-of-epoch checkpoints (optional if archive store config is provided)
+graphql_url: "https://graphql.mainnet.iota.cafe"
+
+# Local directory to store checkpoint summaries and other synchronization data (mandatory) 
+checkpoints_dir: "checkpoints_mainnet"
+
+# A URL to download or copy the genesis blob file from (optional if genesis blob is already present in checkpoints_dir)
+genesis_blob_download_url: "https://dbfiles.mainnet.iota.cafe/genesis.blob"
+
+# A flag to set whether the light client should always sync before checking an object or a transaction for inclusion (mandatory)
+sync_before_check: true
+
+# A config for an object store that gets populated by a historical checkpoint writer (optional)
+checkpoint_store_config:
+  object-store: "S3"
+  aws-endpoint: "https://checkpoints.mainnet.iota.cafe"
+  aws-virtual-hosted-style-request: true
+  no-sign-request: true
+  aws-region: "weur"
+  object-store-connection-limit: 20
+
+# A config for an object store that gets populated by an archiver (optional)
+archive_store_config:
+  object-store: "S3"
+  aws-endpoint: "https://archive.mainnet.iota.cafe"
+  aws-virtual-hosted-style-request: true
+  no-sign-request: true
+  aws-region: "weur"
+  object-store-connection-limit: 20
+```
 
 ## Sync
 
 Every day there is a need to download new checkpoints through sync by doing:
 
 ```
-$ iota-light-client --config light_client.yaml sync
+$ iota-light-client --config testnet.yaml sync
 ```
 
-Where `light_client.yaml` is the config file above.
+Where `testnet.yaml` is the config file above.
 
 This command will download all end-of-epoch checkpoints, and check them for validity. They will be cached within the checkpoint summary directory for use by future invocations.
 
+Internally, sync works in two steps. It first downloads the end-of-epoch checkpoint numbers into the `checkpoints.yaml` file (which needs to be present in the checkpoint summaries directory). Next, it downloads the corresponding checkpoint summaries.
+
 ## Check Transaction
 
-To check a transaction was executed, as well as the events it emitted do:
+To check whether a transaction was executed in the testnet and its effects and events exist, run:
 
 ```
-$ iota-light-client --config light_client.yaml transaction -t 8RiKBwuAbtu8zNCtz8SrcfHyEUzto6zi6cMVA9t4WhWk
+$ iota-light-client --config testnet.yaml check-transaction <transaction-digest>
 ```
 
-Where the base58 encoding of the transaction ID is specified. If the transaction has been executed the transaction ID the effects digest are displayed and all the events are printed in JSON. If not an error is printed.
+where `transaction-digest` is a base58 encoded string. If the transaction has been executed in the past, its digest, the effects, and all events are displayed. Events are printed in JSON. Otherwise an error is shown.
+
+If you set `sync_before_check: true` in the config, the light client will first sync itself to the latest network state before checking the transaction.
 
 ## Check Object
 
-To check an object provide its ID in the following way:
+To check whether an object exists in the testnet, run:
 
 ```
-$ iota-light-client --config light_client.yaml object -o 0xc646887891adfc0540ec271fd0203603fb4c841a119ec1e00c469441
-abfc7078
+$ iota-light-client --config testnet.yaml check-object <object-id>
 ```
 
-The object ID is represented in Hex as displayed in explorers. If the object exists in the latest state it is printed out in JSON, otherwise an error is printed.
+where `object-id` is a hex encoded string with a 0x prefix. If the object exists, it is printed in JSON. Otherwise an error is shown.
+
+If you set `sync_before_check: true` in the config, the light client will first sync itself to the latest network state before checking the object.
