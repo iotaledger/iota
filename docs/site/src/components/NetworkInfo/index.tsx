@@ -38,6 +38,7 @@ function L1(props: NetworkProps) {
           <th>JSON RPC URL</th>
             <td>
               <CodeBlock>{props.rpc.json.core}</CodeBlock>
+              <CodeBlock>{props.rpc.json.monochain}</CodeBlock>
               <tr>
                 <th>Websocket</th>
                 <td>
