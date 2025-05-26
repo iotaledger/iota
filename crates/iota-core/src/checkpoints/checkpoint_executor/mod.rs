@@ -335,7 +335,7 @@ impl CheckpointExecutor {
                             sequence_number = ?checkpoint.sequence_number,
                             "Received checkpoint summary from state sync"
                         );
-                        checkpoint.report_checkpoint_age(&self.metrics.checkpoint_contents_age, &self.metrics.checkpoint_contents_age_ms);
+                        checkpoint.report_checkpoint_age(&self.metrics.checkpoint_contents_age);
                     },
                     Err(RecvError::Lagged(num_skipped)) => {
                         debug!(
@@ -419,10 +419,7 @@ impl CheckpointExecutor {
         self.metrics
             .last_executed_checkpoint_timestamp_ms
             .set(checkpoint.timestamp_ms as i64);
-        checkpoint.report_checkpoint_age(
-            &self.metrics.last_executed_checkpoint_age,
-            &self.metrics.last_executed_checkpoint_age_ms,
-        );
+        checkpoint.report_checkpoint_age(&self.metrics.last_executed_checkpoint_age);
     }
 
     /// Post processing and plumbing after we executed a checkpoint. This

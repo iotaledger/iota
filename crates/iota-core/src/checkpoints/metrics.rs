@@ -4,7 +4,6 @@
 
 use std::sync::Arc;
 
-use iota_metrics::histogram::Histogram as IotaHistogram;
 use prometheus::{
     Histogram, IntCounter, IntCounterVec, IntGauge, IntGaugeVec, Registry,
     register_histogram_with_registry, register_int_counter_vec_with_registry,
@@ -25,16 +24,10 @@ pub struct CheckpointMetrics {
     pub last_ignored_checkpoint_signature_received: IntGauge,
     pub highest_accumulated_epoch: IntGauge,
     pub checkpoint_creation_latency: Histogram,
-    // TODO: delete once users are migrated to non-Iota histogram.
-    pub checkpoint_creation_latency_ms: IotaHistogram,
     pub remote_checkpoint_forks: IntCounter,
     pub split_brain_checkpoint_forks: IntCounter,
     pub last_created_checkpoint_age: Histogram,
-    // TODO: delete once users are migrated to non-Iota histogram.
-    pub last_created_checkpoint_age_ms: IotaHistogram,
     pub last_certified_checkpoint_age: Histogram,
-    // TODO: delete once users are migrated to non-Iota histogram.
-    pub last_certified_checkpoint_age_ms: IotaHistogram,
 }
 
 impl CheckpointMetrics {
@@ -58,22 +51,12 @@ impl CheckpointMetrics {
                 iota_metrics::LATENCY_SEC_BUCKETS.to_vec(),
                 registry
             ).unwrap(),
-            last_created_checkpoint_age_ms: IotaHistogram::new_in_registry(
-                "last_created_checkpoint_age_ms",
-                "Age of the last created checkpoint",
-                registry,
-            ),
             last_certified_checkpoint_age: register_histogram_with_registry!(
                 "last_certified_checkpoint_age",
                 "Age of the last certified checkpoint",
                 iota_metrics::LATENCY_SEC_BUCKETS.to_vec(),
                 registry
             ).unwrap(),
-            last_certified_checkpoint_age_ms: IotaHistogram::new_in_registry(
-                "last_certified_checkpoint_age_ms",
-                "Age of the last certified checkpoint",
-                registry,
-            ),
             checkpoint_errors: register_int_counter_with_registry!(
                 "checkpoint_errors",
                 "Checkpoints errors count",
@@ -136,11 +119,6 @@ impl CheckpointMetrics {
                 iota_metrics::LATENCY_SEC_BUCKETS.to_vec(),
                 registry,
             ).unwrap(),
-            checkpoint_creation_latency_ms: IotaHistogram::new_in_registry(
-                "checkpoint_creation_latency_ms",
-                "Latency from consensus commit timestamp to local checkpoint creation in milliseconds",
-                registry,
-            ),
             remote_checkpoint_forks: register_int_counter_with_registry!(
                 "remote_checkpoint_forks",
                 "Number of remote checkpoints that forked from local checkpoints",

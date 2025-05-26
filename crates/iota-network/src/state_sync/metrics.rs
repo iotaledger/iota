@@ -4,7 +4,6 @@
 
 use std::sync::Arc;
 
-use iota_metrics::histogram::Histogram as IotaHistogram;
 use iota_types::messages_checkpoint::CheckpointSequenceNumber;
 use prometheus::{
     Histogram, IntGauge, Registry, register_histogram_with_registry,
@@ -50,12 +49,9 @@ impl Metrics {
         }
     }
 
-    pub fn checkpoint_summary_age_metrics(&self) -> Option<(&Histogram, &IotaHistogram)> {
+    pub fn checkpoint_summary_age_metrics(&self) -> Option<&Histogram> {
         if let Some(inner) = &self.0 {
-            return Some((
-                &inner.checkpoint_summary_age,
-                &inner.checkpoint_summary_age_ms,
-            ));
+            return Some(&inner.checkpoint_summary_age);
         }
         None
     }
@@ -66,8 +62,6 @@ struct Inner {
     highest_verified_checkpoint: IntGauge,
     highest_synced_checkpoint: IntGauge,
     checkpoint_summary_age: Histogram,
-    // TODO: delete once users are migrated to non-Iota histogram.
-    checkpoint_summary_age_ms: IotaHistogram,
 }
 
 impl Inner {
@@ -101,11 +95,6 @@ impl Inner {
                 registry,
             )
             .unwrap(),
-            checkpoint_summary_age_ms: IotaHistogram::new_in_registry(
-                "checkpoint_summary_age_ms",
-                "Age of checkpoints summaries when they arrive and are verified.",
-                registry,
-            ),
         }
         .pipe(Arc::new)
     }

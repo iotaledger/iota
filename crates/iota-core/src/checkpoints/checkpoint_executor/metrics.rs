@@ -4,7 +4,6 @@
 
 use std::sync::Arc;
 
-use iota_metrics::histogram::Histogram as IotaHistogram;
 use prometheus::{
     Histogram, IntCounter, IntGauge, Registry, register_histogram_with_registry,
     register_int_counter_with_registry, register_int_gauge_with_registry,
@@ -21,11 +20,7 @@ pub struct CheckpointExecutorMetrics {
     pub checkpoint_prepare_latency: Histogram,
     pub checkpoint_transaction_count: Histogram,
     pub checkpoint_contents_age: Histogram,
-    // TODO: delete once users are migrated to non-Iota histogram.
-    pub checkpoint_contents_age_ms: IotaHistogram,
     pub last_executed_checkpoint_age: Histogram,
-    // TODO: delete once users are migrated to non-Iota histogram.
-    pub last_executed_checkpoint_age_ms: IotaHistogram,
 }
 
 impl CheckpointExecutorMetrics {
@@ -95,11 +90,6 @@ impl CheckpointExecutorMetrics {
                 registry,
             )
             .unwrap(),
-            checkpoint_contents_age_ms: IotaHistogram::new_in_registry(
-                "checkpoint_contents_age_ms",
-                "Age of checkpoints when they arrive for execution",
-                registry,
-            ),
             last_executed_checkpoint_age: register_histogram_with_registry!(
                 "last_executed_checkpoint_age",
                 "Age of the last executed checkpoint",
@@ -107,11 +97,6 @@ impl CheckpointExecutorMetrics {
                 registry
             )
             .unwrap(),
-            last_executed_checkpoint_age_ms: IotaHistogram::new_in_registry(
-                "last_executed_checkpoint_age_ms",
-                "Age of the last executed checkpoint",
-                registry,
-            ),
         };
         Arc::new(this)
     }

@@ -88,13 +88,6 @@ impl<T: SubmitToConsensus + ReconfigurationInitiator> CheckpointOutput
                 .unwrap_or_default()
                 .as_secs_f64(),
         );
-        self.metrics.checkpoint_creation_latency_ms.observe(
-            summary
-                .timestamp()
-                .elapsed()
-                .unwrap_or_default()
-                .as_millis() as u64,
-        );
 
         let highest_verified_checkpoint = checkpoint_store
             .get_highest_verified_checkpoint()?
