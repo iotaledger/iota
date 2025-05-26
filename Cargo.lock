@@ -828,8 +828,9 @@ dependencies = [
 
 [[package]]
 name = "async-graphql"
-version = "7.0.16"
-source = "git+https://github.com/async-graphql/async-graphql?rev=3001a02f6df29e259900cd85230547c2923dfcf3#3001a02f6df29e259900cd85230547c2923dfcf3"
+version = "7.0.17"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "036618f842229ba0b89652ffe425f96c7c16a49f7e3cb23b56fca7f61fd74980"
 dependencies = [
  "async-graphql-derive",
  "async-graphql-parser",
@@ -866,8 +867,9 @@ dependencies = [
 
 [[package]]
 name = "async-graphql-axum"
-version = "7.0.16"
-source = "git+https://github.com/async-graphql/async-graphql?rev=3001a02f6df29e259900cd85230547c2923dfcf3#3001a02f6df29e259900cd85230547c2923dfcf3"
+version = "7.0.17"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8725874ecfbf399e071150b8619c4071d7b2b7a2f117e173dddef53c6bdb6bb1"
 dependencies = [
  "async-graphql",
  "axum 0.8.4",
@@ -882,8 +884,9 @@ dependencies = [
 
 [[package]]
 name = "async-graphql-derive"
-version = "7.0.16"
-source = "git+https://github.com/async-graphql/async-graphql?rev=3001a02f6df29e259900cd85230547c2923dfcf3#3001a02f6df29e259900cd85230547c2923dfcf3"
+version = "7.0.17"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "fd45deb3dbe5da5cdb8d6a670a7736d735ba65b455328440f236dfb113727a3d"
 dependencies = [
  "Inflector",
  "async-graphql-parser",
@@ -898,8 +901,9 @@ dependencies = [
 
 [[package]]
 name = "async-graphql-parser"
-version = "7.0.16"
-source = "git+https://github.com/async-graphql/async-graphql?rev=3001a02f6df29e259900cd85230547c2923dfcf3#3001a02f6df29e259900cd85230547c2923dfcf3"
+version = "7.0.17"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "60b7607e59424a35dadbc085b0d513aa54ec28160ee640cf79ec3b634eba66d3"
 dependencies = [
  "async-graphql-value",
  "pest",
@@ -909,8 +913,9 @@ dependencies = [
 
 [[package]]
 name = "async-graphql-value"
-version = "7.0.16"
-source = "git+https://github.com/async-graphql/async-graphql?rev=3001a02f6df29e259900cd85230547c2923dfcf3#3001a02f6df29e259900cd85230547c2923dfcf3"
+version = "7.0.17"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "34ecdaff7c9cffa3614a9f9999bf9ee4c3078fe3ce4d6a6e161736b56febf2de"
 dependencies = [
  "bytes",
  "indexmap 2.5.0",
