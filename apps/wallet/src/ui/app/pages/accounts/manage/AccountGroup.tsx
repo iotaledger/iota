@@ -129,7 +129,6 @@ export function AccountGroup({
     return (
         <div className="relative overflow-visible">
             <Collapsible
-                defaultOpen
                 isOpen={isCollapsibleGroupOpen}
                 onOpenChange={setIsCollapsibleGroupOpen}
                 hideArrow
