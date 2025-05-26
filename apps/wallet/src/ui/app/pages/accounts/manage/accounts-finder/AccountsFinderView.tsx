@@ -1,15 +1,8 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { Info, Search } from '@iota/apps-ui-icons';
-import {
-    Button,
-    ButtonType,
-    InfoBox,
-    InfoBoxStyle,
-    InfoBoxType,
-    LoadingIndicator,
-} from '@iota/apps-ui-kit';
+import { Search } from '@iota/apps-ui-icons';
+import { Button, ButtonType } from '@iota/apps-ui-kit';
 import {
     AccountBalanceItem,
     VerifyPasswordModal,
@@ -117,12 +110,6 @@ export function AccountsFinderView(): JSX.Element {
                 icon: <Search className="h-4 w-4" />,
             };
         }
-        if (searchPhase === SearchPhase.Ongoing) {
-            return {
-                text: `Scanned addresses: ${totalCheckedAddresses}`,
-                icon: <LoadingIndicator />,
-            };
-        }
         return {
             text: 'Keep searching',
             icon: <Search className="h-4 w-4" />,
@@ -153,11 +140,7 @@ export function AccountsFinderView(): JSX.Element {
     const groupedAccounts = persistedAccounts && groupAccountsByAccountIndex(persistedAccounts);
 
     const findingResultText = (() => {
-        let text = `Scanned ${totalCheckedAddresses} addresses.`;
-
-        if (persistedAccounts?.length) {
-            text += ` Found assets in ${persistedAccounts.length} addresses.`;
-        }
+        const text = `Scanned ${totalCheckedAddresses} addresses.`;
         return text;
     })();
 
@@ -176,50 +159,44 @@ export function AccountsFinderView(): JSX.Element {
                     })}
                 </div>
                 <div className="flex flex-col gap-xs pt-sm">
-                    {isLedgerLocked ? (
-                        <Button
-                            type={ButtonType.Secondary}
-                            text="Unlock Ledger"
-                            onClick={unlockLedger}
-                            fullWidth
-                        />
-                    ) : isLocked ? (
-                        <Button
-                            type={ButtonType.Secondary}
-                            text="Verify password"
-                            onClick={verifyPassword}
-                            fullWidth
-                        />
-                    ) : (
-                        <>
-                            {searchOptions.text === 'Keep searching' ? (
-                                <InfoBox
-                                    supportingText={`${findingResultText} Some funds or addresses may not appear immediately. Run multiple searches to ensure all assets are located.`}
-                                    icon={<Info />}
-                                    type={InfoBoxType.Default}
-                                    style={InfoBoxStyle.Elevated}
-                                />
-                            ) : null}
+                    {searchOptions.text === 'Keep searching' && (
+                        <span className="text-center">{findingResultText}</span>
+                    )}
+                    <div className="flex flex-row gap-xs">
+                        {isLedgerLocked ? (
                             <Button
                                 type={ButtonType.Secondary}
-                                text={searchOptions.text}
-                                icon={searchOptions.icon}
-                                iconAfterText
-                                onClick={runAccountsFinder}
-                                disabled={isSearchOngoing}
+                                text="Unlock Ledger"
+                                onClick={unlockLedger}
                                 fullWidth
                             />
-
-                            <div className="flex flex-row gap-xs">
+                        ) : isLocked ? (
+                            <Button
+                                type={ButtonType.Secondary}
+                                text="Verify password"
+                                onClick={verifyPassword}
+                                fullWidth
+                            />
+                        ) : (
+                            <>
                                 <Button
                                     text="Finish"
+                                    type={ButtonType.Secondary}
                                     disabled={isSearchOngoing}
                                     fullWidth
                                     onClick={() => navigate('/tokens')}
                                 />
-                            </div>
-                        </>
-                    )}
+                                <Button
+                                    text={searchOptions.text}
+                                    icon={searchOptions.icon}
+                                    iconAfterText
+                                    onClick={runAccountsFinder}
+                                    disabled={isSearchOngoing}
+                                    fullWidth
+                                />
+                            </>
+                        )}
+                    </div>
                 </div>
             </div>
             {isPasswordModalVisible ? (

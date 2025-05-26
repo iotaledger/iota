@@ -15,7 +15,7 @@ import {
     useBalance,
     useFormatCoin,
 } from '@iota/core';
-import { Info, TriangleDown } from '@iota/apps-ui-icons';
+import { TriangleDown } from '@iota/apps-ui-icons';
 import clsx from 'clsx';
 import { Badge, BadgeType } from '@iota/apps-ui-kit';
 import { formatAddress, IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
@@ -172,16 +172,6 @@ export function AccountBalanceItem({
                 </div>
             )}
         >
-            {(hasMigrationObjects || hasVestingObjects) && (
-                <div className="mx-sm flex flex-row items-start gap-x-xs rounded-xl border border-shader-neutral-light-8 p-xs text-neutral-10 dark:border-shader-neutral-dark-8 dark:text-neutral-92">
-                    <Info className="h-4 w-4 shrink-0" />
-                    <small>
-                        For an accurate portfolio view, ensure your total balance matches the total
-                        of your found IOTA, vested, and migration funds. Check the Dashboard tabs
-                        for details
-                    </small>
-                </div>
-            )}
             <div className="flex flex-col gap-y-sm p-sm pl-lg text-body-md text-neutral-10 dark:text-neutral-92">
                 {accounts.map(({ address, id }) => (
                     <AddressItem key={id} address={address} />
