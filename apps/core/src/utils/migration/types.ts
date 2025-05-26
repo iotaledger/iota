@@ -2,10 +2,17 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { z } from 'zod';
-import { STARDUST_EXPIRATION_UNLOCK_CONDITION_TYPE, STARDUST_PACKAGE_ID } from '../../constants';
+import {
+    STARDUST_EXPIRATION_UNLOCK_CONDITION_TYPE,
+    STARDUST_STORAGE_DEPOSIT_RETURN_UC_TYPE,
+    STARDUST_TIMELOCK_TYPE,
+} from '../../constants';
+import { normalizeStructTag } from '@iota/iota-sdk/utils';
 
 const ExpirationUnlockConditionSchema = z.object({
-    type: z.literal(STARDUST_EXPIRATION_UNLOCK_CONDITION_TYPE),
+    type: z
+        .string()
+        .refine((val) => normalizeStructTag(val) === STARDUST_EXPIRATION_UNLOCK_CONDITION_TYPE),
     fields: z.object({
         owner: z.string(),
         return_address: z.string(),
@@ -14,9 +21,9 @@ const ExpirationUnlockConditionSchema = z.object({
 });
 
 const StorageDepositReturnUnlockConditionSchema = z.object({
-    type: z.literal(
-        `${STARDUST_PACKAGE_ID}::storage_deposit_return_unlock_condition::StorageDepositReturnUnlockCondition`,
-    ),
+    type: z
+        .string()
+        .refine((val) => normalizeStructTag(val) === STARDUST_STORAGE_DEPOSIT_RETURN_UC_TYPE),
     fields: z.object({
         return_address: z.string(),
         return_amount: z.string(),
@@ -24,7 +31,7 @@ const StorageDepositReturnUnlockConditionSchema = z.object({
 });
 
 const TimelockUnlockConditionSchema = z.object({
-    type: z.literal(`${STARDUST_PACKAGE_ID}::timelock_unlock_condition::TimelockUnlockCondition`),
+    type: z.string().refine((val) => normalizeStructTag(val) === STARDUST_TIMELOCK_TYPE),
     fields: z.object({
         unix_time: z.number(),
     }),
