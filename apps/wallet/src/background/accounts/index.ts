@@ -312,8 +312,9 @@ export async function accountsHandleUIMessage(msg: Message, uiConnection: UiConn
 
             if (remainingTime > 0) {
                 // The wallet is still locked after the maximum number of failed attempts
+                const remainingSeconds = Math.ceil(remainingTime / MILLISECONDS_PER_SECOND);
                 throw new Error(
-                    `Too many failed attempts. Please try again in ${Math.ceil(remainingTime / MILLISECONDS_PER_SECOND)} seconds.`,
+                    `Too many failed attempts. Please try again in ${remainingSeconds} ${remainingSeconds === 1 ? 'second' : 'seconds'}.`,
                 );
             } else {
                 await clearStateAfterManyFailedAttempts();
