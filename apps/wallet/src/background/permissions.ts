@@ -12,7 +12,7 @@ import Browser from 'webextension-polyfill';
 
 import type { ContentScriptConnection } from './connections/contentScriptConnection';
 import Tabs from './tabs';
-import { Window } from './window';
+import { Window, windowRemovedStream } from './window';
 
 const PERMISSIONS_STORAGE_KEY = 'permissions';
 const PERMISSION_UI_URL = `${Browser.runtime.getURL('ui.html')}#/dapp/connect/`;
@@ -144,6 +144,13 @@ class Permissions {
                     const highlightedWindowId = await this.highlightWindow(windowId);
                     if (highlightedWindowId) {
                         this.#_permissionWindows.set(existingPermission.id, highlightedWindowId);
+                        windowRemovedStream.subscribe(() => {
+                            this.handleWindowClosureAsRejection(
+                                existingPermission.id,
+                                requestMsgID,
+                                connection,
+                            );
+                        });
                         return null;
                     }
                 } catch (e) {
