@@ -140,7 +140,7 @@ export function AccountGroup({
                             <TriangleDown
                                 className={clsx(
                                     'h-5 w-5 text-neutral-10 dark:text-neutral-40',
-                                    isCollapsibleGroupOpen
+                                    isOpen
                                         ? 'rotate-0 transition-transform ease-linear'
                                         : '-rotate-90 transition-transform ease-linear',
                                 )}
