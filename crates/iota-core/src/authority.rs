@@ -161,7 +161,6 @@ use crate::{
     stake_aggregator::StakeAggregator,
     state_accumulator::{AccumulatorStore, StateAccumulator},
     subscription_handler::SubscriptionHandler,
-    suggested_gas_price_calculator::SuggestedGasPriceCalculator,
     transaction_input_loader::TransactionInputLoader,
     transaction_manager::TransactionManager,
     transaction_outputs::TransactionOutputs,
@@ -816,9 +815,6 @@ pub struct AuthorityState {
     pub overload_info: AuthorityOverloadInfo,
 
     pub validator_tx_finalizer: Option<Arc<ValidatorTxFinalizer<NetworkAuthorityClient>>>,
-
-    /// Manages suggested gas price calculations for shared-object transactions.
-    pub(crate) suggested_gas_price_calculator: Arc<SuggestedGasPriceCalculator>,
 }
 
 /// The authority state encapsulates all state, drives execution, and ensures
@@ -2736,7 +2732,6 @@ impl AuthorityState {
             config,
             overload_info: AuthorityOverloadInfo::default(),
             validator_tx_finalizer,
-            suggested_gas_price_calculator: Arc::new(SuggestedGasPriceCalculator::new()),
         });
 
         // Start a task to execute ready certificates.
