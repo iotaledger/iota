@@ -125,11 +125,7 @@ export function PasswordModalDialog({
                                     <Button
                                         htmlType={ButtonHtmlType.Submit}
                                         type={ButtonType.Primary}
-                                        disabled={
-                                            isSubmitting ||
-                                            !isValid ||
-                                            !!form.formState.errors.password?.message
-                                        }
+                                        disabled={isSubmitting || !isValid}
                                         text={confirmText}
                                         fullWidth
                                     />
