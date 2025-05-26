@@ -9,12 +9,11 @@ use iota_data_ingestion_core::Worker;
 use iota_names::config::IotaNamesConfig;
 use iota_types::{
     Identifier,
-    base_types::ObjectID,
     effects::{TransactionEffects, TransactionEffectsAPI},
     event::Event,
     execution_status::ExecutionStatus,
     full_checkpoint_content::CheckpointData,
-    transaction::{Command, ProgrammableTransaction, TransactionData, TransactionKind},
+    transaction::{ProgrammableTransaction, TransactionData, TransactionKind},
 };
 
 use crate::metrics::METRICS;
@@ -30,6 +29,8 @@ impl IotaNamesWorker {
 
     fn process_event(&self, event: &Event) -> Result<(), anyhow::Error> {
         if event.type_.address == self.config.package_address.into() {
+            // TODO temporarily allowed until there are more even types
+            #[allow(clippy::collapsible_if)]
             if event.type_.name == Identifier::new("IotaNamesRegistryEvent")? {
                 // TODO: init from prometheus storage to not always start from 0
                 METRICS
@@ -48,19 +49,19 @@ impl IotaNamesWorker {
         Ok(())
     }
 
-    fn process_ptb(&self, ptb: &ProgrammableTransaction) -> Result<(), anyhow::Error> {
-        let module = Identifier::new("payment")?; // TODO: Make const
-        let function = Identifier::new("register")?;
+    fn process_ptb(&self, _ptb: &ProgrammableTransaction) -> Result<(), anyhow::Error> {
+        let _module = Identifier::new("payment")?; // TODO: Make const
+        let _function = Identifier::new("register")?;
 
-        if ptb.commands.iter().any(|cmd| {
-            if let Command::MoveCall(call) = cmd {
-                call.package == ObjectID::from(self.config.package_address)
-                    && call.module == module
-                    && call.function == function
-            } else {
-                false
-            }
-        }) {}
+        // if ptb.commands.iter().any(|cmd| {
+        //     if let Command::MoveCall(call) = cmd {
+        //         call.package == ObjectID::from(self.config.package_address)
+        //             && call.module == module
+        //             && call.function == function
+        //     } else {
+        //         false
+        //     }
+        // }) {}
 
         Ok(())
     }
