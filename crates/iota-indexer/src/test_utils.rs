@@ -14,7 +14,7 @@ use tracing::info;
 
 use crate::{
     IndexerConfig, IndexerMetrics,
-    db::{ConnectionPoolConfig, new_connection_pool_with_config},
+    db::{ConnectionPool, ConnectionPoolConfig, PoolConnection, new_connection_pool_with_config},
     errors::IndexerError,
     handlers::objects_snapshot_handler::SnapshotLagConfig,
     indexer::Indexer,
@@ -191,14 +191,71 @@ pub async fn start_test_indexer_impl(
     (store, handle)
 }
 
+/// Manage a test database for integration tests.
+pub struct TestDatabase {
+    pub url: Secret<String>,
+    db_name: String,
+    connection: PoolConnection,
+    pool_config: ConnectionPoolConfig,
+}
+
+impl TestDatabase {
+    pub fn new(db_url: Secret<String>) -> Self {
+        let pool_config = ConnectionPoolConfig::default();
+        let db_name = db_url
+            .expose_secret()
+            .split('/')
+            .next_back()
+            .unwrap()
+            .into();
+        let (default_url, _) = replace_db_name(db_url.expose_secret(), "postgres");
+        let blocking_pool =
+            new_connection_pool_with_config(&default_url, Some(5), pool_config).unwrap();
+        let connection = blocking_pool.get().unwrap();
+        Self {
+            url: db_url,
+            db_name,
+            connection,
+            pool_config,
+        }
+    }
+
+    /// Drop the database in the server if it exists.
+    pub fn drop_if_exists(&mut self) {
+        self.connection
+            .batch_execute(&format!("DROP DATABASE IF EXISTS {}", self.db_name))
+            .unwrap();
+    }
+
+    /// Create the database in the server.
+    pub fn create(&mut self) {
+        self.connection
+            .batch_execute(&format!("CREATE DATABASE {}", self.db_name))
+            .unwrap();
+    }
+
+    /// Drop and recreate the database in the server.
+    pub fn recreate(&mut self) {
+        self.drop_if_exists();
+        self.create();
+    }
+
+    /// Create a new connection pool to the database.
+    pub fn to_connection_pool(&self) -> ConnectionPool {
+        new_connection_pool_with_config(self.url.expose_secret(), Some(5), self.pool_config)
+            .unwrap()
+    }
+
+    pub fn reset_db(&mut self) {
+        crate::db::reset_database(&mut self.to_connection_pool().get().unwrap()).unwrap();
+    }
+}
+
 pub fn create_pg_store(db_url: Secret<String>, reset_database: bool) -> PgIndexerStore {
     // Reduce the connection pool size to 10 for testing
     // to prevent maxing out
     info!("Setting DB_POOL_SIZE to 10");
     std::env::set_var("DB_POOL_SIZE", "10");
-
-    // Set connection timeout for tests to 1 second
-    let pool_config = ConnectionPoolConfig::default();
 
     let registry = prometheus::Registry::default();
 
@@ -206,34 +263,12 @@ pub fn create_pg_store(db_url: Secret<String>, reset_database: bool) -> PgIndexe
 
     let indexer_metrics = IndexerMetrics::new(&registry);
 
-    let mut parsed_url = db_url.clone();
+    let mut test_db = TestDatabase::new(db_url);
     if reset_database {
-        let db_name = parsed_url.expose_secret().split('/').next_back().unwrap();
-        // Switch to default to create a new database
-        let (default_db_url, _) = replace_db_name(parsed_url.expose_secret(), "postgres");
-
-        // Open in default mode
-        let blocking_pool =
-            new_connection_pool_with_config(&default_db_url, Some(5), pool_config).unwrap();
-        let mut default_conn = blocking_pool.get().unwrap();
-
-        // Delete the old db if it exists
-        default_conn
-            .batch_execute(&format!("DROP DATABASE IF EXISTS {}", db_name))
-            .unwrap();
-
-        // Create the new db
-        default_conn
-            .batch_execute(&format!("CREATE DATABASE {}", db_name))
-            .unwrap();
-        parsed_url = replace_db_name(parsed_url.expose_secret(), db_name)
-            .0
-            .into();
+        test_db.recreate();
     }
 
-    let blocking_pool =
-        new_connection_pool_with_config(parsed_url.expose_secret(), Some(5), pool_config).unwrap();
-    PgIndexerStore::new(blocking_pool.clone(), indexer_metrics.clone())
+    PgIndexerStore::new(test_db.to_connection_pool(), indexer_metrics.clone())
 }
 
 fn replace_db_name(db_url: &str, new_db_name: &str) -> (String, String) {
