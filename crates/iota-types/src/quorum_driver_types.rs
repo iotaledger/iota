@@ -41,14 +41,10 @@ pub enum QuorumDriverError {
     #[error("Invalid user signature: {0}.")]
     InvalidUserSignature(IotaError),
     #[error(
-        "Failed to sign transaction by a quorum of validators because of locked objects: {:?}, retried a conflicting transaction {:?}, success: {:?}",
-        conflicting_txes,
-        .retried_tx_status.map(|(tx, success)| tx),
-        .retried_tx_status.map(|(tx, success)| success),
+        "Failed to sign transaction by a quorum of validators because of locked objects: {conflicting_txes:?}"
     )]
     ObjectsDoubleUsed {
         conflicting_txes: BTreeMap<TransactionDigest, (Vec<(AuthorityName, ObjectRef)>, StakeUnit)>,
-        retried_tx_status: Option<(TransactionDigest, bool)>,
     },
     #[error("Transaction timed out before reaching finality")]
     TimeoutBeforeFinality,
@@ -91,10 +87,7 @@ impl QuorumDriverError {
             | QuorumDriverError::FailedWithTransientErrorAfterMaximumAttempts { .. }
             | QuorumDriverError::SystemOverload { .. }
             | QuorumDriverError::SystemOverloadRetryAfter { .. } => self.to_string(),
-            QuorumDriverError::ObjectsDoubleUsed {
-                conflicting_txes,
-                retried_tx_status,
-            } => {
+            QuorumDriverError::ObjectsDoubleUsed { conflicting_txes } => {
                 let weights: Vec<u64> =
                     conflicting_txes.values().map(|(_, stake)| *stake).collect();
                 let remaining: u64 = TOTAL_VOTING_POWER - weights.iter().sum::<u64>();
@@ -106,21 +99,9 @@ impl QuorumDriverError {
                     "reserved for another transaction"
                 };
 
-                let retried_info = match retried_tx_status {
-                    Some((digest, success)) => {
-                        format!(
-                            "Retried transaction {} ({}) because it was able to gather the necessary votes.",
-                            digest,
-                            if *success { "succeeded" } else { "failed" }
-                        )
-                    }
-                    None => "".to_string(),
-                };
-
                 format!(
-                    "Failed to sign transaction by a quorum of validators because one or more of its objects is {}. {} Other transactions locking these objects:\n{}",
+                    "Failed to sign transaction by a quorum of validators because one or more of its objects is {}. Other transactions locking these objects:\n{}",
                     reason,
-                    retried_info,
                     conflicting_txes
                         .iter()
                         .sorted_by(|(_, (_, a)), (_, (_, b))| b.cmp(a))

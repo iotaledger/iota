@@ -239,18 +239,6 @@ pub enum AggregatorProcessTransactionError {
     },
 
     #[error(
-        "Validators returned conflicting transactions but it is potentially recoverable. Locked objects: {:?}. Validator errors: {:?}",
-        conflicting_tx_digests,
-        errors
-    )]
-    RetryableConflictingTransaction {
-        conflicting_tx_digest_to_retry: Option<TransactionDigest>,
-        errors: GroupedErrors,
-        conflicting_tx_digests:
-            BTreeMap<TransactionDigest, (Vec<(AuthorityName, ObjectRef)>, StakeUnit)>,
-    },
-
-    #[error(
         "{} of the validators by stake are overloaded with transactions pending execution. Validator errors: {:?}",
         overloaded_stake,
         errors
@@ -368,40 +356,18 @@ struct ProcessTransactionState {
     overloaded_stake: StakeUnit,
     // Validators that are overloaded and request client to retry.
     retryable_overload_info: RetryableOverloadInfo,
-    // If there are conflicting transactions, we note them down and may attempt to retry
+    // If there are conflicting transactions, we note them down to report to user.
     conflicting_tx_digests:
         BTreeMap<TransactionDigest, (Vec<(AuthorityName, ObjectRef)>, StakeUnit)>,
     // As long as none of the exit criteria are met we consider the state retryable
     // 1) >= 2f+1 signatures
     // 2) >= f+1 non-retryable errors
     // 3) >= 2f+1 object not found errors
-    // Note: For conflicting transactions we collect as many responses as possible
-    // before we know for sure no tx can reach quorum. Namely, stake of the most
-    // promising tx + retryable stake < 2f+1.
     retryable: bool,
     tx_finalized_with_different_user_sig: bool,
-
-    conflicting_tx_total_stake: StakeUnit,
-    most_staked_conflicting_tx_stake: StakeUnit,
 }
 
 impl ProcessTransactionState {
-    /// Returns the conflicting transaction digest and its validators with the
-    /// most stake.
-    #[expect(clippy::type_complexity)]
-    pub fn conflicting_tx_digest_with_most_stake(
-        &self,
-    ) -> Option<(
-        TransactionDigest,
-        &Vec<(AuthorityName, ObjectRef)>,
-        StakeUnit,
-    )> {
-        self.conflicting_tx_digests
-            .iter()
-            .max_by_key(|(_, (_, stake))| *stake)
-            .map(|(digest, (validators, stake))| (*digest, validators, *stake))
-    }
-
     /// Records the conflicting transaction, returns `true` if there is any, and
     /// returns `false` otherwise.
     pub fn record_conflicting_transaction_if_any(
@@ -409,7 +375,7 @@ impl ProcessTransactionState {
         validator_name: AuthorityName,
         weight: StakeUnit,
         err: &IotaError,
-    ) -> bool {
+    ) {
         if let IotaError::ObjectLockConflict {
             obj_ref,
             pending_transaction: transaction,
@@ -421,13 +387,7 @@ impl ProcessTransactionState {
                 .or_insert((Vec::new(), 0));
             lock_records.push((validator_name, *obj_ref));
             *total_stake += weight;
-            self.conflicting_tx_total_stake += weight;
-            if *total_stake > self.most_staked_conflicting_tx_stake {
-                self.most_staked_conflicting_tx_stake = *total_stake;
-            }
-            return true;
         }
-        false
     }
 
     /// Checks if the error indicates that the transaction is already finalized.
@@ -1091,9 +1051,7 @@ where
             retryable_overload_info: Default::default(),
             retryable: true,
             conflicting_tx_digests: Default::default(),
-            conflicting_tx_total_stake: 0,
             tx_finalized_with_different_user_sig: false,
-            most_staked_conflicting_tx_stake: 0,
         };
 
         let transaction_ref = &transaction;
@@ -1135,6 +1093,8 @@ where
                                     .with_label_values(&[display_name.as_str(), err.as_ref()])
                                     .inc();
                                 Self::record_rpc_error_maybe(self.metrics.clone(), &display_name, &err);
+                                // Record conflicting transactions if any to report to user.
+                                state.record_conflicting_transaction_if_any(name, weight, &err);
                                 let (retryable, categorized) = err.is_retryable();
                                 if !categorized {
                                     // TODO: Should minimize possible uncategorized errors here
@@ -1167,9 +1127,7 @@ where
                                     // code path to handle both overload scenarios.
                                     state.retryable_overload_info.add_stake_retryable_overload(weight, Duration::from_secs(err.retry_after_secs()));
                                 }
-                                else if !retryable && !state.record_conflicting_transaction_if_any(name, weight, &err) {
-                                    // We don't count conflicting transactions as non-retryable errors here
-                                    // because its handling is a bit different.
+                                else if !retryable {
                                     state.non_retryable_stake += weight;
                                 }
                                 state.errors.push((err, vec![name], weight));
@@ -1179,12 +1137,10 @@ where
 
                         let retryable_stake = self.get_retryable_stake(&state);
                         let good_stake = std::cmp::max(state.tx_signatures.total_votes(), state.effects_map.total_votes());
-                        let stake_of_most_promising_tx = std::cmp::max(good_stake, state.most_staked_conflicting_tx_stake);
-                        if stake_of_most_promising_tx + retryable_stake < quorum_threshold {
+                        if good_stake + retryable_stake < quorum_threshold {
                             debug!(
                                 tx_digest = ?tx_digest,
                                 good_stake,
-                                most_staked_conflicting_tx_stake =? state.most_staked_conflicting_tx_stake,
                                 retryable_stake,
                                 "No chance for any tx to get quorum, exiting. Conflicting_txes: {:?}",
                                 state.conflicting_tx_digests
@@ -1217,7 +1173,7 @@ where
             Err(state) => {
                 self.record_process_transaction_metrics(tx_digest, &state);
                 let state = self.record_non_quorum_effects_maybe(tx_digest, state);
-                Err(self.handle_process_transaction_error(tx_digest, state))
+                Err(self.handle_process_transaction_error(state))
             }
         }
     }
@@ -1235,7 +1191,6 @@ where
     /// Handles the transaction processing error.
     fn handle_process_transaction_error(
         &self,
-        original_tx_digest: &TransactionDigest,
         state: ProcessTransactionState,
     ) -> AggregatorProcessTransactionError {
         let quorum_threshold = self.committee.quorum_threshold();
@@ -1248,49 +1203,6 @@ where
             };
         }
 
-        // Handle possible conflicts first as `FatalConflictingTransaction` is
-        // more meaningful than `FatalTransaction`.
-        if let Some((most_staked_conflicting_tx, validators, most_staked_conflicting_tx_stake)) =
-            state.conflicting_tx_digest_with_most_stake()
-        {
-            let good_stake = state.tx_signatures.total_votes();
-            let retryable_stake = self.get_retryable_stake(&state);
-
-            if good_stake + retryable_stake >= quorum_threshold {
-                return AggregatorProcessTransactionError::RetryableConflictingTransaction {
-                    errors: group_errors(state.errors),
-                    conflicting_tx_digest_to_retry: None,
-                    conflicting_tx_digests: state.conflicting_tx_digests,
-                };
-            }
-
-            if most_staked_conflicting_tx_stake + retryable_stake >= quorum_threshold {
-                return AggregatorProcessTransactionError::RetryableConflictingTransaction {
-                    errors: group_errors(state.errors),
-                    conflicting_tx_digest_to_retry: Some(most_staked_conflicting_tx),
-                    conflicting_tx_digests: state.conflicting_tx_digests,
-                };
-            }
-
-            warn!(
-                ?state.conflicting_tx_digests,
-                ?most_staked_conflicting_tx,
-                ?original_tx_digest,
-                original_tx_stake = good_stake,
-                most_staked_conflicting_tx_stake = most_staked_conflicting_tx_stake,
-                "Client double spend attempt detected: {:?}",
-                validators
-            );
-            self.metrics
-                .total_client_double_spend_attempts_detected
-                .inc();
-
-            return AggregatorProcessTransactionError::FatalConflictingTransaction {
-                errors: group_errors(state.errors),
-                conflicting_tx_digests: state.conflicting_tx_digests,
-            };
-        }
-
         if !state.retryable {
             if state.tx_finalized_with_different_user_sig
                 || state.check_if_error_indicates_tx_finalized_with_different_user_sig(
@@ -1299,6 +1211,25 @@ where
             {
                 return AggregatorProcessTransactionError::TxAlreadyFinalizedWithDifferentUserSignatures;
             }
+
+            // Handle conflicts first as `FatalConflictingTransaction` which is
+            // more meaningful than `FatalTransaction`
+            if !state.conflicting_tx_digests.is_empty() {
+                let good_stake = state.tx_signatures.total_votes();
+                warn!(
+                    ?state.conflicting_tx_digests,
+                    original_tx_stake = good_stake,
+                    "Client double spend attempt detected!",
+                );
+                self.metrics
+                    .total_client_double_spend_attempts_detected
+                    .inc();
+                return AggregatorProcessTransactionError::FatalConflictingTransaction {
+                    errors: group_errors(state.errors),
+                    conflicting_tx_digests: state.conflicting_tx_digests,
+                };
+            }
+
             return AggregatorProcessTransactionError::FatalTransaction {
                 errors: group_errors(state.errors),
             };
@@ -1324,8 +1255,7 @@ where
             };
         }
 
-        // No conflicting transaction, the system is not overloaded and transaction
-        // state is still retryable.
+        // The system is not overloaded and transaction state is still retryable.
         AggregatorProcessTransactionError::RetryableTransaction {
             errors: group_errors(state.errors),
         }
@@ -1537,7 +1467,6 @@ where
     /// Gets the retryable stake for the transaction.
     fn get_retryable_stake(&self, state: &ProcessTransactionState) -> StakeUnit {
         self.committee.total_votes()
-            - state.conflicting_tx_total_stake
             - state.non_retryable_stake
             - state.effects_map.total_votes()
             - state.tx_signatures.total_votes()

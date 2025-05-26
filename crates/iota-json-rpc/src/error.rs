@@ -170,10 +170,7 @@ impl From<Error> for RpcError {
                         );
                         RpcError::Call(error_object)
                     }
-                    QuorumDriverError::ObjectsDoubleUsed {
-                        conflicting_txes,
-                        retried_tx_status: _,
-                    } => {
+                    QuorumDriverError::ObjectsDoubleUsed { conflicting_txes } => {
                         let new_map = conflicting_txes
                             .into_iter()
                             .map(|(digest, (pairs, _))| {
@@ -371,18 +368,17 @@ mod tests {
             let authority_name = AuthorityPublicKeyBytes([1; AuthorityPublicKey::LENGTH]);
             conflicting_txes.insert(tx_digest, (vec![(authority_name, object_ref)], stake_unit));
 
-            let quorum_driver_error = QuorumDriverError::ObjectsDoubleUsed {
-                conflicting_txes,
-                retried_tx_status: Some((TransactionDigest::from([1; 32]), true)),
-            };
+            let quorum_driver_error = QuorumDriverError::ObjectsDoubleUsed { conflicting_txes };
 
             let error_object: ErrorObjectOwned = Error::QuorumDriver(quorum_driver_error).into();
 
             let expected_code = expect!["-32002"];
             expected_code.assert_eq(&error_object.code().to_string());
-            let expected_message = expect![
-                "Failed to sign transaction by a quorum of validators because one or more of its objects is reserved for another transaction. Retried transaction 4vJ9JU1bJJE96FWSJKvHsmmFADCg4gpZQff4P3bkLKi (succeeded) because it was able to gather the necessary votes. Other transactions locking these objects:\n- 4vJ9JU1bJJE96FWSJKvHsmmFADCg4gpZQff4P3bkLKi (stake 80.0)\n- 8qbHbw2BbbTHBW1sbeqakYXVKRQM8Ne7pLK7m6CVfeR (stake 5.0)"
-            ];
+            println!("error_object.message() {}", error_object.message());
+            let expected_message = expect![[r#"
+                Failed to sign transaction by a quorum of validators because one or more of its objects is reserved for another transaction. Other transactions locking these objects:
+                - 4vJ9JU1bJJE96FWSJKvHsmmFADCg4gpZQff4P3bkLKi (stake 80.0)
+                - 8qbHbw2BbbTHBW1sbeqakYXVKRQM8Ne7pLK7m6CVfeR (stake 5.0)"#]];
             expected_message.assert_eq(error_object.message());
             let expected_data = expect![[
                 r#"{"4vJ9JU1bJJE96FWSJKvHsmmFADCg4gpZQff4P3bkLKi":[["0x0000000000000000000000000000000000000000000000000000000000000000",0,"11111111111111111111111111111111"]],"8qbHbw2BbbTHBW1sbeqakYXVKRQM8Ne7pLK7m6CVfeR":[["0x0000000000000000000000000000000000000000000000000000000000000000",0,"11111111111111111111111111111111"]]}"#
@@ -413,20 +409,17 @@ mod tests {
             let authority_name = AuthorityPublicKeyBytes([1; AuthorityPublicKey::LENGTH]);
             conflicting_txes.insert(tx_digest, (vec![(authority_name, object_ref)], stake_unit));
 
-            let quorum_driver_error = QuorumDriverError::ObjectsDoubleUsed {
-                conflicting_txes,
-                // below threshold
-                retried_tx_status: None,
-            };
+            let quorum_driver_error = QuorumDriverError::ObjectsDoubleUsed { conflicting_txes };
 
             let rpc_error: RpcError = Error::QuorumDriver(quorum_driver_error).into();
 
             let error_object = error_object_from_rpc(rpc_error);
             let expected_code = expect!["-32002"];
             expected_code.assert_eq(&error_object.code().to_string());
-            let expected_message = expect![
-                "Failed to sign transaction by a quorum of validators because one or more of its objects is equivocated until the next epoch.  Other transactions locking these objects:\n- 8qbHbw2BbbTHBW1sbeqakYXVKRQM8Ne7pLK7m6CVfeR (stake 50.0)\n- 4vJ9JU1bJJE96FWSJKvHsmmFADCg4gpZQff4P3bkLKi (stake 40.0)"
-            ];
+            let expected_message = expect![[r#"
+                Failed to sign transaction by a quorum of validators because one or more of its objects is equivocated until the next epoch. Other transactions locking these objects:
+                - 8qbHbw2BbbTHBW1sbeqakYXVKRQM8Ne7pLK7m6CVfeR (stake 50.0)
+                - 4vJ9JU1bJJE96FWSJKvHsmmFADCg4gpZQff4P3bkLKi (stake 40.0)"#]];
             expected_message.assert_eq(error_object.message());
             let expected_data = expect![[
                 r#"{"4vJ9JU1bJJE96FWSJKvHsmmFADCg4gpZQff4P3bkLKi":[["0x0000000000000000000000000000000000000000000000000000000000000000",0,"11111111111111111111111111111111"]],"8qbHbw2BbbTHBW1sbeqakYXVKRQM8Ne7pLK7m6CVfeR":[["0x0000000000000000000000000000000000000000000000000000000000000000",0,"11111111111111111111111111111111"]]}"#
