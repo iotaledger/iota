@@ -20,6 +20,8 @@ services:
         condition: on-failure
         delay: 5s
         max_attempts: 3
+    networks:
+      - indexer-metrics-net
 
   prometheus:
     image: prom/prometheus:latest
@@ -31,11 +33,13 @@ services:
       - prometheus_data:/prometheus
       - ./assets/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
       - /etc/localtime:/etc/localtime:ro
+    networks:
+      - indexer-metrics-net
 
   grafana:
     image: grafana/grafana:latest
     container_name: grafana
-    # restart: unless-stopped
+    restart: unless-stopped
     ports:
       - 3000:3000
     environment:
@@ -45,7 +49,13 @@ services:
       - grafana_data:/var/lib/grafana
       - ./assets/grafana/datasources.yaml:/etc/grafana/provisioning/datasources/datasources.yaml
       - ./assets/grafana/dashboards:/etc/grafana/provisioning/dashboards
+    networks:
+      - indexer-metrics-net
 
 volumes:
   prometheus_data:
   grafana_data:
+
+networks:
+  indexer-metrics-net:
+    driver: bridge
