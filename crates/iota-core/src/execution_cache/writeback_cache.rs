@@ -1174,7 +1174,6 @@ impl WritebackCache {
     fn bulk_insert_genesis_objects_impl(&self, objects: &[Object]) -> IotaResult {
         self.store.bulk_insert_genesis_objects(objects)?;
         for obj in objects {
-            dbg!("invalidagted!", obj.id());
             self.cached.object_cache.invalidate(&obj.id());
             self.cached.object_by_id_cache.invalidate(&obj.id());
         }
