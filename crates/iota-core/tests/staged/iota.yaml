@@ -384,16 +384,6 @@ Event:
   STRUCT:
     - package_id:
         TYPENAME: ObjectID
-    - transaction_module: STR
-    - sender:
-        TYPENAME: IotaAddress
-    - type_:
-        TYPENAME: StructTag
-    - contents: BYTES
-Event:
-  STRUCT:
-    - package_id:
-        TYPENAME: ObjectID
     - transaction_module:
         TYPENAME: Identifier
     - sender:
