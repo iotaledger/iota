@@ -145,10 +145,7 @@ export function AccountsFinderView(): JSX.Element {
     }
     const groupedAccounts = persistedAccounts && groupAccountsByAccountIndex(persistedAccounts);
 
-    const findingResultText = (() => {
-        const text = `Scanned ${totalCheckedAddresses} addresses`;
-        return text;
-    })();
+    const findingResultText = `Scanned ${totalCheckedAddresses} addresses`;
 
     return (
         <>
