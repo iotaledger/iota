@@ -6,7 +6,6 @@ use iota_stardust_sdk::types::block::output::{FoundryOutput, OutputId};
 
 use crate::{
     base_types::{ObjectID, SequenceNumber, TxContext},
-    id::UID,
     object::Object,
     stardust::{address::stardust_to_iota_address, coin_type::CoinType},
 };
