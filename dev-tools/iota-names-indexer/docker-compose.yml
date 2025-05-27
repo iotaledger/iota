@@ -1,0 +1,65 @@
+services:
+  iota-names-indexer:
+    container_name: iota-names-indexer
+    depends_on:
+      prometheus:
+        condition: service_started
+    build:
+      context: ../..
+      dockerfile: docker/iota-names-indexer/Dockerfile
+      args:
+        - GIT_REVISION
+        - BUILD_DATE
+        - PROFILE=dev
+    image: iota-names-indexer:dev
+    ports:
+      - "9184:9184/tcp" # Metrics
+    tty: true
+    deploy:
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 3
+    networks:
+      - indexer-metrics-net
+    environment:
+      - RUST_LOG=info,iota_data_ingestion_core=off
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: prometheus
+    restart: unless-stopped
+    ports:
+      - 9090:9090
+    volumes:
+      - prometheus_data:/prometheus
+      - ./assets/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - /etc/localtime:/etc/localtime:ro
+    networks:
+      - indexer-metrics-net
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: grafana
+    restart: unless-stopped
+    ports:
+      - 3000:3000
+    environment:
+      - GF_SECURITY_ADMIN_USER=${GF_SECURITY_ADMIN_USER:-admin}
+      - GF_SECURITY_ADMIN_PASSWORD=${GF_SECURITY_ADMIN_PASSWORD:-admin}
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./assets/grafana/datasources.yaml:/etc/grafana/provisioning/datasources/datasources.yaml
+      - ./assets/grafana/dashboards:/etc/grafana/provisioning/dashboards
+    networks:
+      - indexer-metrics-net
+
+volumes:
+  prometheus_data:
+  grafana_data:
+
+networks:
+  indexer-metrics-net:
+    driver: bridge

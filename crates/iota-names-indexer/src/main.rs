@@ -12,6 +12,7 @@ use iota_data_ingestion_core::{
 };
 use iota_names::config::IotaNamesConfig;
 use tokio_util::sync::CancellationToken;
+use tracing::info;
 
 use self::{
     metrics::{IotaNamesMetrics, METRICS, start_prometheus_server},
@@ -20,6 +21,11 @@ use self::{
 
 #[tokio::main]
 async fn main() -> Result<()> {
+    let _guard = telemetry_subscribers::TelemetryConfig::new()
+        .with_env()
+        .init();
+    info!("Starting IOTA Names Indexer...");
+
     let registry = start_prometheus_server();
 
     METRICS.get_or_init(|| Arc::new(IotaNamesMetrics::new(&registry)));
@@ -43,14 +49,12 @@ async fn main() -> Result<()> {
         .run(
             PathBuf::from("./chk".to_string()), /* path to a local directory where checkpoints
                                                  * are stored. */
-            Some("http://localhost:9000/api/v1".to_string()),
+            Some("http://host.docker.internal:9000/api/v1".to_string()),
             vec![],                   // optional remote store access options.
             ReaderOptions::default(), // remote_read_batch_size.
         )
         .await
         .unwrap();
-
-    // To get the metrics open: http://localhost:9184/metrics
 
     Ok(())
 }

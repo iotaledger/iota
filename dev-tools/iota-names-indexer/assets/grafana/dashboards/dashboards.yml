@@ -1,0 +1,11 @@
+apiVersion: 1
+
+providers:
+  - name: "iota-names-indexer-dashboard"
+    orgId: 1
+    folder: ""
+    type: file
+    options:
+      path: /etc/grafana/provisioning/dashboards
+      updateIntervalSeconds: 30
+      allowUiUpdates: true
