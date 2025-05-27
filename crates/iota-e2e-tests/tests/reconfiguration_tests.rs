@@ -685,6 +685,7 @@ async fn test_reconfig_with_same_validator() {
     let node_ip = iota_config::local_ip_utils::get_new_ip();
     let build_node_config = || {
         ValidatorGenesisConfigBuilder::new()
+            // the node_ip should always be the same value, otherwise the test will fail
             .with_ip(node_ip.clone())
             .build(&mut StdRng::seed_from_u64(0))
     };
