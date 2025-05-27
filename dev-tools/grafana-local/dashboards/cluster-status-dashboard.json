@@ -2436,7 +2436,7 @@
           },
           "disableTextWrap": false,
           "editorMode": "builder",
-          "expr": "last_created_checkpoint_age_ms{host=~\"$validator\", pct=\"50\"}",
+          "expr": "last_created_checkpoint_age_bucket{host=~\"$validator\", le=\"60.0\"}",
           "fullMetaSearch": false,
           "includeNullMetadata": true,
           "instant": false,
@@ -2452,7 +2452,7 @@
           },
           "disableTextWrap": false,
           "editorMode": "builder",
-          "expr": "last_executed_checkpoint_age_ms{host=~\"$validator\", pct=\"50\"}",
+          "expr": "last_executed_checkpoint_age_bucket{host=~\"$validator\", le=\"60.0\"}",
           "fullMetaSearch": false,
           "hide": false,
           "includeNullMetadata": true,
@@ -2469,7 +2469,7 @@
           },
           "disableTextWrap": false,
           "editorMode": "builder",
-          "expr": "last_certified_checkpoint_age_ms{host=~\"$validator\", pct=\"50\"}",
+          "expr": "last_certified_checkpoint_age_bucket{host=~\"$validator\", le=\"60.0\"}",
           "fullMetaSearch": false,
           "hide": false,
           "includeNullMetadata": true,
@@ -2480,7 +2480,7 @@
           "useBackend": false
         }
       ],
-      "title": "Checkpoint Age (50%ile)",
+      "title": "Checkpoint Age (60%ile)",
       "type": "timeseries"
     },
     {
@@ -2761,7 +2761,7 @@
           },
           "disableTextWrap": false,
           "editorMode": "builder",
-          "expr": "last_created_checkpoint_age_ms{pct=\"95\", host=~\"$validator\"}",
+          "expr": "last_created_checkpoint_age_bucket{host=~\"$validator\", le=\"90.0\"}",
           "fullMetaSearch": false,
           "includeNullMetadata": true,
           "instant": false,
@@ -2778,7 +2778,7 @@
           },
           "disableTextWrap": false,
           "editorMode": "builder",
-          "expr": "last_executed_checkpoint_age_ms{host=~\"$validator\", pct=\"95\"}",
+          "expr": "last_executed_checkpoint_age_bucket{host=~\"$validator\", le=\"90.0\"}",
           "fullMetaSearch": false,
           "hide": false,
           "includeNullMetadata": true,
@@ -2796,7 +2796,7 @@
           },
           "disableTextWrap": false,
           "editorMode": "builder",
-          "expr": "last_certified_checkpoint_age_ms{host=~\"$validator\", pct=\"95\"}",
+          "expr": "last_certified_checkpoint_age_bucket{host=~\"$validator\", le=\"90.0\"}",
           "fullMetaSearch": false,
           "hide": false,
           "includeNullMetadata": true,
@@ -2808,7 +2808,7 @@
           "useBackend": false
         }
       ],
-      "title": "Checkpoint Age (95%ile)",
+      "title": "Checkpoint Age (90%ile)",
       "type": "timeseries"
     },
     {
