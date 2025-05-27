@@ -5983,7 +5983,6 @@ dependencies = [
  "futures",
  "indexmap 2.5.0",
  "insta",
- "iota",
  "iota-config",
  "iota-core",
  "iota-framework",
