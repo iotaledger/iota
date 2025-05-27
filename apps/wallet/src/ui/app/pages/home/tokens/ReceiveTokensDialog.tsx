@@ -39,7 +39,7 @@ export function ReceiveTokensDialog({ address, open, setOpen }: ReceiveTokensDia
         try {
             let ledgerClient = iotaLedgerClient;
             if (!ledgerClient) {
-                ledgerClient = await connectToLedger(true);
+                ledgerClient = await connectToLedger();
             }
 
             toast('Please, confirm the address on your Ledger device.');

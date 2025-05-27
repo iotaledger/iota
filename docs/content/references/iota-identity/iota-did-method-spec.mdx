@@ -69,16 +69,17 @@ The tag starts with "0x" followed by a lowercase hex-encoded `Object ID`.
 
 The iota-network is an identifier of the network where the DID is stored. This network must be an IOTA Ledger, but can either be a public or private network, permissionless or permissioned.
 
-When no IOTA network is specified, it is assumed that the DID is located on IOTA main network, having id **PUT IOTA CHAIN ID HERE**. This means that the following DIDs will resolve to the same DID Document:
+When no IOTA network is specified, it is assumed that the DID is located on IOTA main network, having id `6364aad5`. This means that the following DIDs will resolve to the same DID Document:
 
 ```
-did:iota:IOTA CHAIN ID:0xe4edef97da1257e83cbeb49159cfdd2da6ac971ac447f233f8439cf29376ebfe
+did:iota:iota:0xe4edef97da1257e83cbeb49159cfdd2da6ac971ac447f233f8439cf29376ebfe
+did:iota:6364aad5:0xe4edef97da1257e83cbeb49159cfdd2da6ac971ac447f233f8439cf29376ebfe
 did:iota:0xe4edef97da1257e83cbeb49159cfdd2da6ac971ac447f233f8439cf29376ebfe
 ```
 
 ### IOTA-Tag
 
-An IOTA-tag is a lowercase hex-encoded `Object ID`. The `Object ID` itself is a unique identifier for _Move_ objects and is derived from the digest of the trasanction that created the object it identifies.
+An IOTA-tag is a lowercase hex-encoded `Object ID`. The `Object ID` itself is a unique identifier for _Move_ objects and is derived from the digest of the transaction that created the object it identifies.
 This tag identifies the `Identity` where the DID Document is stored, and it will not be known before the generation of the DID since it will be assigned when the `Identity` object is created.
 
 ### Anatomy of the encoded DID Document
@@ -133,7 +134,7 @@ Example State Metadata Document:
 
 ## Multiple _controllers_ and _voting power_
 
-An `Identity` may be owned by more than one controller and each controller may have a different **voting power** - i.e. a quantificable level of control over a given `Identity` represented with an unsigned integer.
+An `Identity` may be owned by more than one controller and each controller may have a different **voting power** - i.e. a quantifiable level of control over a given `Identity` represented with an unsigned integer.
 Whenever control over an `Identity` is shared among multiple controllers an access control (AC) policy - in the form of an unsigned positive integer **threshold** - must be defined. Any operation a controller performs that might modify the interested `Identity` isn't carried out right away. Instead, a **proposal** to perform such an operation is created, and controllers are required to approve it, before it may be executed. The number of approvals needed in order to execute the proposal depends on the threshold and controllers' voting power.
 
 ## CRUD Operations
@@ -166,8 +167,9 @@ The following steps can be used to read the latest DID Document associated with 
 3. Query the Object corresponding to the `Object ID` using a node running the indexer, asserting that the network the node is connected to matches the previously extracted network ID.
 4. Assert that the `Object ID` of the returned Object matches the `Object ID` extracted from the DID. Return an error otherwise.
 5. Parse the retrieved object into an `Identity` object. 
-6. Decode the DID Document from its byte packed encoding stored in the `Identity` Object.
-7. Replace the placeholder `did:0:0` with the DID given as input.
+6. Assert that `Identity`'s `deleted_did` flag is not set. Return an error otherwise.
+7. Decode the DID Document from its byte packed encoding stored in the `Identity` Object.
+8. Replace the placeholder `did:0:0` with the DID given as input.
 
 ### Update
 
@@ -187,11 +189,15 @@ Temporarily deactivating a DID can be done by deleting the contents of the encod
 
 Another option is to [update](#update) the DID Document and set the `deactivated` property in its `metadata` to true. In both cases, the deactivated DID Document will be marked as `deactivated` when resolved.
 
-#### Destroy
+#### Delete
 
-To permanently destroy a DID Document controllers need to go through a process similar to that of [updating](#update) the document. First, a proposal for destroying the corresponding `Identity` is created, which can be executed after the AC policy has been met.
+To permanently delete a DID Document controllers need to go through a process similar to that of [updating](#update) the document. First, a proposal for deleting the corresponding `Identity` is created, which can be executed after the AC policy has been met.
+
+Executing the proposal wipes the identity's DID Document bytes and sets the `deleted_did` flag.
 
 Note that this operation irreversibly and irrecoverably deletes the DID. This is because the `Object ID` from which an IOTA DID is derived (see [IOTA-Tag](#iota-tag)) is generated from the hash of the input transaction that created it, which cannot generally be replicated.
+
+Deleting an Identity's DID does not delete the Identity itself.
 
 ## IOTA Identity standards
 
@@ -221,7 +227,7 @@ All private keys or seeds used for the `did:iota` method should be equally well 
 
 IOTA networks are immutable. This means that once something is included, it can never be completely removed. For example, destroying an `Identity` will remove it from the ledger state, but it can still be stored in permanodes or by any party that records historical ledger states.
 
-That directly conflicts with certain privacy laws such as GDPR, which have a 'right-to-be-forgotten' for Personal Identifiable Information (PII). As such, users should NEVER upload any PII, including inside DID Documents. While verifiable credentials can be made public, this should only be utilized by Identity for Organisations and Identity for Things.
+That directly conflicts with certain privacy laws such as GDPR, which have a 'right-to-be-forgotten' for Personal Identifiable Information (PII). As such, users should NEVER upload any PII, including inside DID Documents. While verifiable credentials can be made public, this should only be utilized by Identity for Organizations and Identity for Things.
 
 ### Correlation Risks
 

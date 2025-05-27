@@ -21,6 +21,7 @@ use move_core_types::{
     annotated_value::{MoveDatatypeLayout, MoveTypeLayout},
     language_storage::TypeTag,
 };
+use serde::Deserialize;
 
 use crate::{
     errors::IndexerError,
@@ -44,6 +45,7 @@ pub struct TxInsertionOrder {
 
 #[derive(Clone, Debug, Queryable, Insertable, QueryableByName, Selectable)]
 #[diesel(table_name = transactions)]
+#[cfg_attr(feature = "shared_test_runtime", derive(Deserialize))]
 pub struct StoredTransaction {
     /// The index of the transaction in the global ordering that starts
     /// from genesis.

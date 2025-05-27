@@ -22,7 +22,7 @@ Stake withdrawals are processed immediately with the exchange rate prevailing at
 IOTA withdrawn at E' = ( IOTA deposited at E ) * ( Exchange Rate at E'-1 / Exchange Rate at E )
 ### Find the Exchange Rate
 
-Each epoch change emits a `0x2::validator_set::ValidatorEpochInfo` event per validator with the exchange rate information. You can use the Events API to query events.
+Each epoch change emits a `0x3::validator_set::ValidatorEpochInfoEventV1` event per validator with the exchange rate information. You can use the Events API to query events.
 
 ## Staking Rewards
 
