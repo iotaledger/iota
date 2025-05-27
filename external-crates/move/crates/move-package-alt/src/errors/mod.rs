@@ -29,6 +29,8 @@ use codespan_reporting::diagnostic::Diagnostic;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
+use crate::git::errors::GitError;
+
 /// Result type for package operations
 pub type PackageResult<T> = Result<T, PackageError>;
 

@@ -23,7 +23,7 @@ use derive_where::derive_where;
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    errors::PackageResult,
+    errors::{PackageError, PackageResult, ResolverError},
     flavor::MoveFlavor,
     package::{EnvironmentName, PackageName, PackagePath},
 };
