@@ -3,12 +3,13 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { Play } from '@iota/apps-ui-icons';
+import { NftVideo } from '@iota/core';
 import { cva, type VariantProps } from 'class-variance-authority';
 import clsx from 'clsx';
 
 import { Image, ObjectModal, type ImageProps } from '~/components/ui';
 
-const imageStyles = cva(['z-0 flex-shrink-0 relative'], {
+const imageStyles = cva(['flex-shrink-0'], {
     variants: {
         variant: {
             xxs: 'h-8 w-8',
@@ -88,20 +89,35 @@ export function ObjectVideoImage({
                 video={video}
                 alt={title}
             />
-            <div className={imageStyles({ variant, disablePreview })}>
-                <Image
-                    aspect={aspect}
-                    rounded={rounded}
-                    onClick={openPreview}
-                    alt={title}
-                    src={src}
-                    fadeIn={fadeIn}
-                    fit={imgFit}
-                />
-                {video && (
-                    <div className="pointer-events-none absolute bottom-2 right-2 z-10 flex items-center justify-center rounded-full opacity-80">
-                        <Play className={clsx(variant === 'large' ? 'h-8 w-8' : 'h-5 w-5')} />
-                    </div>
+            <div
+                className={clsx(imageStyles({ variant, disablePreview }), video && 'group/video')}
+                onClick={openPreview}
+            >
+                {video ? (
+                    <>
+                        <div className="pointer-events-none flex h-full w-full items-center justify-center">
+                            <NftVideo src={video} preload="auto" />
+                        </div>
+
+                        <div className="absolute bottom-2 right-2 z-10 flex items-center justify-center rounded-full opacity-80">
+                            <Play
+                                className={clsx(
+                                    variant === 'large' ? 'h-8 w-8' : 'h-5 w-5',
+                                    'text-neutral-10 dark:text-neutral-92',
+                                    'opacity-80 transition-opacity group-hover/video:opacity-100',
+                                )}
+                            />
+                        </div>
+                    </>
+                ) : (
+                    <Image
+                        aspect={aspect}
+                        rounded={rounded}
+                        alt={title}
+                        src={src}
+                        fadeIn={fadeIn}
+                        fit={imgFit}
+                    />
                 )}
             </div>
         </>

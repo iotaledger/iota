@@ -5,7 +5,7 @@
 import { Modal, type ModalProps } from './Modal';
 import { Image } from '../image/Image';
 import { Close } from '@iota/apps-ui-icons';
-import { NftVideo } from '@iota/core';
+import { VIDEO_AUTOPLAY_FLAGS, NftVideo } from '@iota/core';
 
 export interface ObjectModalProps extends Omit<ModalProps, 'children'> {
     title: string;
@@ -29,9 +29,9 @@ export function ObjectModal({
 }: ObjectModalProps): JSX.Element {
     return (
         <Modal open={open} onClose={onClose}>
-            <div className="flex flex-col gap-5">
+            <div className="flex h-full w-full flex-col gap-5">
                 {video ? (
-                    <NftVideo src={video} />
+                    <NftVideo src={video} {...VIDEO_AUTOPLAY_FLAGS} />
                 ) : (
                     // Moderation is disabled inside the modal so if a user clicks to open an unblurred image the experience is consistent
                     <Image alt={alt} src={src} rounded="none" moderate={moderate} />

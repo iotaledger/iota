@@ -4,6 +4,7 @@
 
 import { VisualAssetCard, VisualAssetType } from '@iota/apps-ui-kit';
 import { NftVideo } from './NftVideo';
+import { VIDEO_AUTOPLAY_FLAGS } from '../../constants';
 
 export interface NftMediaDisplayProps {
     imageSrc?: string | null;
@@ -26,7 +27,15 @@ export function NftMediaDisplay({
     const imgSrc = imageSrc ? imageSrc.replace(/^ipfs:\/\//, 'https://ipfs.io/ipfs/') : '';
 
     const mediaProps: React.ComponentProps<typeof VisualAssetCard> = videoSrc
-        ? { renderAsset: <NftVideo src={videoSrc} /> }
+        ? {
+              renderAsset: (
+                  <NftVideo
+                      src={videoSrc}
+                      {...VIDEO_AUTOPLAY_FLAGS}
+                      className="w-full h-full object-cover"
+                  />
+              ),
+          }
         : { assetSrc: imgSrc, assetType: VisualAssetType.Image, altText: title || 'NFT' };
 
     return (
