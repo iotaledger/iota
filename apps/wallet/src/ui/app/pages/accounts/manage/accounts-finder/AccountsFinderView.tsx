@@ -165,7 +165,7 @@ export function AccountsFinderView(): JSX.Element {
                     })}
                 </div>
                 <div className="flex flex-col gap-xs pt-sm">
-                    {searchOptions.text === 'Keep searching' && (
+                    {(searchOptions.text === 'Keep searching' || isSearchOngoing) && (
                         <span className="text-center text-neutral-40 dark:text-neutral-60">
                             {findingResultText}
                         </span>
