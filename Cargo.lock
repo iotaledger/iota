@@ -7412,8 +7412,10 @@ dependencies = [
  "iota-names",
  "iota-types",
  "prometheus",
+ "telemetry-subscribers",
  "tokio",
  "tokio-util 0.7.12",
+ "tracing",
 ]
 
 [[package]]
