@@ -105,25 +105,25 @@ export function PasswordModalDialog({
             if (e instanceof Error) {
                 const verifyError = AccountTooManyAttemptsError.fromError(e);
                 if (verifyError) {
-                    let secondsPassed = Math.ceil(
+                    let remainingTime = Math.ceil(
                         verifyError.remainingTime / MILLISECONDS_PER_SECOND,
                     );
 
                     function updateCountdown() {
-                        const message = `Too many failed attempts. Please try again in ${secondsPassed} ${secondsPassed === 1 ? 'second' : 'seconds'}.`;
+                        const message = `Too many failed attempts. Please try again in ${remainingTime} ${remainingTime === 1 ? 'second' : 'seconds'}.`;
                         setCountdownError({
                             interval,
                             message,
                         });
 
                         // Clear the interval and error when its done
-                        if (secondsPassed === 0) {
+                        if (remainingTime === 0) {
                             clearInterval(interval);
                             setCountdownError(null);
                             return;
                         }
 
-                        secondsPassed -= 1;
+                        remainingTime -= 1;
                     }
 
                     let interval = setInterval(updateCountdown, MILLISECONDS_PER_SECOND);
