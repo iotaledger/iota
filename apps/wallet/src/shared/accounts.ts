@@ -30,3 +30,25 @@ export interface AccountFromFinder {
      */
     addresses: Array<Array<AddressFromFinder>>;
 }
+
+export class AccountTooManyAttemptsError extends Error {
+    constructor(public remainingTime: number) {
+        super(
+            JSON.stringify({
+                remainingTime,
+            }),
+        );
+    }
+
+    static fromError(error: Error) {
+        try {
+            const message = JSON.parse(error.message);
+            if ('remainingTime' in message) {
+                return new AccountTooManyAttemptsError(Number(message.remainingTime));
+            }
+            return null;
+        } catch {
+            return null;
+        }
+    }
+}

@@ -2,8 +2,8 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { useZodForm } from '@iota/core';
-import { useState } from 'react';
+import { MILLISECONDS_PER_SECOND, useZodForm } from '@iota/core';
+import { useEffect, useState } from 'react';
 import { v4 as uuidV4 } from 'uuid';
 import { z } from 'zod';
 import { useAccountSources, useBackgroundClient } from '_hooks';
@@ -21,6 +21,7 @@ import {
     InputType,
 } from '@iota/apps-ui-kit';
 import { Link } from 'react-router-dom';
+import { AccountTooManyAttemptsError } from '_src/shared/accounts';
 
 const formSchema = z.object({
     password: z.string().nonempty('Required'),
@@ -56,6 +57,28 @@ export function PasswordModalDialog({
         shouldUnregister: true,
     });
 
+    const [countdownError, setCountdownError] = useState<{
+        interval: NodeJS.Timeout;
+        message: string;
+    } | null>(null);
+
+    // Clear the interval and error if the dialog closed but not unmounted
+    useEffect(() => {
+        if (!open && countdownError?.interval) {
+            clearInterval(countdownError.interval);
+            setCountdownError(null);
+        }
+    }, [open]);
+
+    // Clear the interval if the dialog unmounted
+    useEffect(() => {
+        return () => {
+            if (countdownError?.interval) {
+                clearInterval(countdownError.interval);
+            }
+        };
+    }, [countdownError?.interval]);
+
     const {
         register,
         setError,
@@ -79,24 +102,41 @@ export function PasswordModalDialog({
             await onSubmit(password);
             reset();
         } catch (e) {
-            setError('password', { message: (e as Error).message }, { shouldFocus: true });
             if (e instanceof Error) {
-                if (
-                    !e.message.includes('Incorrect password') &&
-                    !e.message.includes('Too many failed attempts. Please try again in 1 second')
-                ) {
-                    await handleOnSubmit({ password });
-                } else if (
-                    !e.message.includes('Incorrect password') &&
-                    e.message.includes('Too many failed attempts. Please try again in 1 second')
-                ) {
-                    // If the error is "Too many failed attempts", we wait for 1 second before resetting the form
-                    await new Promise((res) => setTimeout(res, 1000));
-                    reset();
+                const verifyError = AccountTooManyAttemptsError.fromError(e);
+                if (verifyError) {
+                    let secondsPassed = Math.ceil(
+                        verifyError.remainingTime / MILLISECONDS_PER_SECOND,
+                    );
+
+                    function updateCountdown() {
+                        const message = `Too many failed attempts. Please try again in ${secondsPassed} ${secondsPassed === 1 ? 'second' : 'seconds'}.`;
+                        setCountdownError({
+                            interval,
+                            message,
+                        });
+
+                        // Clear the interval and error when its done
+                        if (secondsPassed === 0) {
+                            clearInterval(interval);
+                            setCountdownError(null);
+                            return;
+                        }
+
+                        secondsPassed -= 1;
+                    }
+
+                    let interval = setInterval(updateCountdown, MILLISECONDS_PER_SECOND);
+                    updateCountdown();
+                } else {
+                    setError('password', { message: e.message }, { shouldFocus: true });
                 }
             }
         }
     }
+
+    const isConfirmDisabled = !!countdownError;
+    isSubmitting || !isValid || !!form.formState.errors.password?.message;
 
     return (
         <Dialog open={open}>
@@ -111,7 +151,10 @@ export function PasswordModalDialog({
                                     type={InputType.Password}
                                     isVisibilityToggleEnabled
                                     placeholder="Password"
-                                    errorMessage={form.formState.errors.password?.message}
+                                    errorMessage={
+                                        countdownError?.message ||
+                                        form.formState.errors.password?.message
+                                    }
                                     {...register('password')}
                                     name="password"
                                 />
@@ -140,11 +183,7 @@ export function PasswordModalDialog({
                                     <Button
                                         htmlType={ButtonHtmlType.Submit}
                                         type={ButtonType.Primary}
-                                        disabled={
-                                            isSubmitting ||
-                                            !isValid ||
-                                            !!form.formState.errors.password?.message
-                                        }
+                                        disabled={isConfirmDisabled}
                                         text={confirmText}
                                         fullWidth
                                     />

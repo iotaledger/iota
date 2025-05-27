@@ -30,6 +30,7 @@ import { LedgerAccount } from './ledgerAccount';
 import { MnemonicAccount } from './mnemonicAccount';
 import { SeedAccount } from './seedAccount';
 import { MILLISECONDS_PER_SECOND, SECONDS_PER_MINUTE } from '@iota/core';
+import { AccountTooManyAttemptsError } from '_src/shared/accounts';
 
 function toAccount(account: SerializedAccount) {
     if (MnemonicAccount.isOfType(account)) {
@@ -312,10 +313,7 @@ export async function accountsHandleUIMessage(msg: Message, uiConnection: UiConn
 
             if (remainingTime > 0) {
                 // The wallet is still locked after the maximum number of failed attempts
-                const remainingSeconds = Math.ceil(remainingTime / MILLISECONDS_PER_SECOND);
-                throw new Error(
-                    `Too many failed attempts. Please try again in ${remainingSeconds} ${remainingSeconds === 1 ? 'second' : 'seconds'}.`,
-                );
+                throw new AccountTooManyAttemptsError(remainingTime);
             } else {
                 await clearStateAfterManyFailedAttempts();
             }
@@ -352,10 +350,7 @@ export async function accountsHandleUIMessage(msg: Message, uiConnection: UiConn
                     lockTimeMs: Date.now(),
                     isLockedOut: true,
                 });
-                const remainingSeconds = WALLET_LOCK_DURATION_IN_MS / MILLISECONDS_PER_SECOND;
-                throw new Error(
-                    `Too many failed attempts. Please try again in ${remainingSeconds} ${remainingSeconds === 1 ? 'second' : 'seconds'}.`,
-                );
+                throw new AccountTooManyAttemptsError(WALLET_LOCK_DURATION_IN_MS);
             } else {
                 // Update the failed attempts count and the time of the last failed attempt
                 await updateLockedState({ failedAttempts, lastFailedAttemptTime: currentTime });
