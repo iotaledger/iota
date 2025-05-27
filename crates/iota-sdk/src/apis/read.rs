@@ -250,7 +250,11 @@ impl ReadApi {
     /// ```rust,no_run
     /// use std::str::FromStr;
     ///
-    /// use iota_sdk::{types::base_types::{IotaAddress, ObjectID}IotaClientBuilder, rpc_types::{IotaGetPastObjectRequest, IotaObjectDataOptions}};
+    /// use iota_sdk::{
+    ///     IotaClientBuilder,
+    ///     rpc_types::{IotaGetPastObjectRequest, IotaObjectDataOptions},
+    ///     types::base_types::{IotaAddress, ObjectID},
+    /// };
     ///
     /// #[tokio::main]
     /// async fn main() -> Result<(), anyhow::Error> {
