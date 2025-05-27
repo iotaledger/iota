@@ -335,11 +335,11 @@ impl NameCommand {
                 let price = fetch_pricing_config(&iota_client).await?.get_price(label)?;
                 let domain_name = domain.to_string();
                 let coin =
-                    select_coin_for_payment(domain_name.as_str(), coin, price, context).await?;
+                    select_coin_arg_for_payment(domain_name.as_str(), coin, price, context).await?;
                 let mut args = vec![
                     "--move-call iota::tx_context::sender".to_string(),
                     "--assign sender".to_string(),
-                    format!("--split-coins @{coin} [{price}]"),
+                    format!("--split-coins {coin} [{price}]"),
                     "--assign coins".to_string(),
                     format!(
                         "--move-call {}::payment::init_registration @{} '{domain_name}'",
@@ -413,14 +413,14 @@ impl NameCommand {
                     * years as u64;
                 let domain_name = domain.to_string();
                 let coin =
-                    select_coin_for_payment(domain_name.as_str(), coin, price, context).await?;
+                    select_coin_arg_for_payment(domain_name.as_str(), coin, price, context).await?;
                 let nft_id = get_owned_nft_by_name::<IotaNamesRegistration>(&domain, context)
                     .await?
                     .id();
                 let mut args = vec![
                     "--move-call iota::tx_context::sender".to_string(),
                     "--assign sender".to_string(),
-                    format!("--split-coins @{coin} [{price}]"),
+                    format!("--split-coins {coin} [{price}]"),
                     "--assign coins".to_string(),
                     format!(
                         "--move-call {}::payment::init_renewal @{} @{nft_id} {years}",
@@ -773,10 +773,10 @@ impl AuctionCommand {
                     "bid amount must be at least {min_price} for this domain"
                 );
                 let coin =
-                    select_coin_for_payment(&domain.to_string(), coin, amount, context).await?;
+                    select_coin_arg_for_payment(&domain.to_string(), coin, amount, context).await?;
 
                 let mut args = vec![
-                    format!("--split-coins @{coin} [{amount}]"),
+                    format!("--split-coins {coin} [{amount}]"),
                     "--assign coins".to_string(),
                     format!(
                         "--move-call {auction_package_address}::auction::place_bid @{} '{}' coins.0 @{IOTA_CLOCK_OBJECT_ID}",
@@ -863,12 +863,12 @@ impl AuctionCommand {
                     "bid amount must be at least {min_price} for this domain"
                 );
                 let coin =
-                    select_coin_for_payment(&domain.to_string(), coin, amount, context).await?;
+                    select_coin_arg_for_payment(&domain.to_string(), coin, amount, context).await?;
 
                 let iota_names_config = get_iota_names_config(&iota_client).await?;
 
                 let mut args = vec![
-                    format!("--split-coins @{coin} [{amount}]"),
+                    format!("--split-coins {coin} [{amount}]"),
                     "--assign coins".to_string(),
                     format!(
                         "--move-call {auction_package_address}::auction::start_auction_and_place_bid @{} @{} '{}' coins.0 @{IOTA_CLOCK_OBJECT_ID}",
@@ -1834,7 +1834,9 @@ async fn fetch_pricing_config(client: &IotaClient) -> anyhow::Result<PricingConf
         &IotaJsonValue::new(serde_json::json!({ "dummy_field": false }))?.to_bcs_bytes(&layout)?,
     )?;
 
-    let entry = get_object_from_bcs::<PricingConfigEntry>(client, object_id).await?;
+    let entry = get_object_from_bcs::<PricingConfigEntry>(client, object_id)
+        .await
+        .map_err(|e| anyhow::anyhow!("couldn't fetch pricing config: {e}"))?;
 
     Ok(entry.pricing_config)
 }
@@ -1992,29 +1994,30 @@ impl PricingConfig {
     }
 }
 
-async fn select_coin_for_payment(
+// Returns "@<coin id>" or "gas" to be used as coin payment argument in a PTB
+async fn select_coin_arg_for_payment(
     domain_name: &str,
     coin: Option<ObjectID>,
     price: u64,
     context: &mut WalletContext,
-) -> anyhow::Result<ObjectID> {
+) -> anyhow::Result<String> {
     Ok(match coin {
-        Some(coin) => coin,
+        Some(coin) => format!("@{coin}"),
         None => {
             let gas_result = IotaClientCommands::Gas { address: None }
                 .execute(context)
                 .await?;
             let mut balance = 0;
-            match gas_result {
-                IotaClientCommandResult::Gas(coins) => {
-                    for coin in coins {
-                        if coin.value() >= price {
-                            return Ok(*coin.id());
-                        }
-                        balance += coin.value();
-                    }
+            if let IotaClientCommandResult::Gas(coins) = gas_result {
+                if coins.len() == 1 {
+                    return Ok("gas".to_string());
                 }
-                _ => unreachable!(),
+                for coin in coins {
+                    if coin.value() >= price {
+                        return Ok(format!("@{}", coin.id()));
+                    }
+                    balance += coin.value();
+                }
             }
             if balance > price {
                 bail!("merge coins first to register/renew the domain '{domain_name}'");
