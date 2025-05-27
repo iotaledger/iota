@@ -210,6 +210,7 @@ impl DagBuilder {
                     .iter()
                     .map(|block| block.reference())
                     .collect::<Vec<_>>(),
+                vec![],
             );
 
             last_commit_ref = commit.reference();
@@ -217,6 +218,7 @@ impl DagBuilder {
             let sub_dag = CommittedSubDag::new(
                 leader_block_ref,
                 to_commit,
+                vec![],
                 last_timestamp_ms,
                 commit.reference(),
                 vec![],

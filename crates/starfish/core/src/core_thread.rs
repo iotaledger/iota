@@ -69,12 +69,14 @@ pub trait CoreThreadDispatcher: Sync + Send + 'static {
 
     // The following method will be called from data synchronizer to trigger output
     // of commits that became solid in the DataManager
+    #[expect(unused)]
     async fn add_data(
         &self,
         data: Vec<VerifiedTransactions>,
     ) -> Result<BTreeSet<BlockRef>, CoreError>;
 
     // The following method will be used by the data synchronizer to get
+    #[expect(unused)]
     async fn get_missing_data(&self) -> Result<BTreeSet<BlockRef>, CoreError>;
 
     async fn add_certified_commits(
@@ -280,7 +282,7 @@ impl CoreThreadDispatcher for ChannelCoreThreadDispatcher {
 
     async fn add_data(
         &self,
-        data: Vec<VerifiedTransactions>,
+        _data: Vec<VerifiedTransactions>,
     ) -> Result<BTreeSet<BlockRef>, CoreError> {
         todo!()
     }
@@ -396,7 +398,7 @@ pub(crate) mod tests {
 
         async fn add_data(
             &self,
-            data: Vec<VerifiedTransactions>,
+            _data: Vec<VerifiedTransactions>,
         ) -> Result<BTreeSet<BlockRef>, CoreError> {
             todo!()
         }

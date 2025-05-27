@@ -691,7 +691,7 @@ mod tests {
 
         async fn add_data(
             &self,
-            data: Vec<VerifiedTransactions>,
+            _data: Vec<VerifiedTransactions>,
         ) -> Result<BTreeSet<BlockRef>, CoreError> {
             todo!()
         }

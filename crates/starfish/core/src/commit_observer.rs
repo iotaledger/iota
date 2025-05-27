@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{ops::Deref, sync::Arc, time::Duration};
+use std::{sync::Arc, time::Duration};
 
 use iota_metrics::monitored_mpsc::UnboundedSender;
 use parking_lot::RwLock;
@@ -10,9 +10,9 @@ use tokio::time::Instant;
 use tracing::{debug, info};
 
 use crate::{
-    CommitConsumer, CommittedSubDag,
+    BlockRef, CommitConsumer, CommittedSubDag,
     block_header::{BlockHeaderAPI, VerifiedBlockHeader},
-    commit::{CommitAPI, CommitIndex, load_committed_subdag_from_store},
+    commit::{CommitAPI, CommitIndex, PendingSubDag, load_pending_subdag_from_store},
     context::Context,
     dag_state::DagState,
     data_manager::DataManager,
@@ -84,7 +84,7 @@ impl CommitObserver {
     pub(crate) fn handle_commit(
         &mut self,
         committed_leaders: Vec<VerifiedBlockHeader>,
-    ) -> ConsensusResult<Vec<CommittedSubDag>> {
+    ) -> ConsensusResult<(Vec<PendingSubDag>, Vec<BlockRef>)> {
         let _s = self
             .context
             .metrics
@@ -93,15 +93,18 @@ impl CommitObserver {
             .with_label_values(&["CommitObserver::handle_commit"])
             .start_timer();
 
-        let committed_sub_dags = self.commit_interpreter.handle_commit(committed_leaders);
+        let pending_sub_dags = self.commit_interpreter.handle_commit(committed_leaders);
 
-        // First add the commits to the commit solidifier to make sure that the data is
+        // First, add the commits to the commit solidifier to make sure that the data is
         // available. This function returns not only the just-created commits but also
-        // any pending ones that became solid since the last commit.
-        // let solid_commits = self.commit_solidifier.try_commit(committed_sub_dags);
+        // any pending ones that'd become solid since the last commit.
+        let (solid_sub_dags, missing_transactions) =
+            self.commit_solidifier.try_commit(&pending_sub_dags);
 
-        let mut sent_sub_dags = Vec::with_capacity(committed_sub_dags.len());
-        for solid_sub_dag in committed_sub_dags.into_iter() {
+        tracing::trace!("Missing committed data {missing_transactions:#?}");
+
+        let mut sent_sub_dags = Vec::with_capacity(solid_sub_dags.len());
+        for solid_sub_dag in solid_sub_dags.into_iter() {
             // Failures in sender.send() are assumed to be permanent
             if let Err(err) = self.sender.send(solid_sub_dag.clone()) {
                 tracing::error!(
@@ -117,9 +120,9 @@ impl CommitObserver {
             sent_sub_dags.push(solid_sub_dag);
         }
 
-        self.report_metrics(&sent_sub_dags);
+        self.report_metrics(&pending_sub_dags);
         tracing::trace!("Committed & sent {sent_sub_dags:#?}");
-        Ok(sent_sub_dags)
+        Ok((pending_sub_dags, missing_transactions))
     }
 
     fn recover_and_send_commits(&mut self, last_processed_commit_index: CommitIndex) {
@@ -181,22 +184,25 @@ impl CommitObserver {
                 vec![]
             };
 
-            info!("Sending commit {} during recovery", commit.index());
+            info!("Processing commit {} during recovery", commit.index());
 
-            // let committed_sub_dag =
-            //     load_committed_subdag_from_store(self.store.as_ref(), commit,
-            // reputation_scores);
+            let pending_sub_dag =
+                load_pending_subdag_from_store(self.store.as_ref(), commit, reputation_scores);
 
-            // Recover transaction acknowledments for uncommitted transactions.
+            // Recover transaction acknowledments tracker state.
             self.commit_interpreter
-                .recover_transaction_ack_tracker(commit.transaction_acknowledgments());
+                .recover_transaction_ack_tracker(pending_sub_dag.transaction_acknowledgments());
 
             // Put all the committed subdags into the commit solidifier to make sure that
             // they are submitted to IOTA when they become solid.
-            let solid_sub_dag = self.commit_solidifier.try_commit_one(&commit);
+            let solid_sub_dag = self.commit_solidifier.try_commit_one(&pending_sub_dag);
             // Only submit unprocessed commits to IOTA
-            if commit.index() > last_processed_commit_index {
-                if let Some(solid_sub_dag) = solid_sub_dag {
+            if let Some(solid_sub_dag) = solid_sub_dag {
+                if solid_sub_dag.commit_ref.index > last_processed_commit_index {
+                    info!(
+                        "Sending solid commit {} during recovery",
+                        solid_sub_dag.commit_ref.index
+                    );
                     self.sender.send(solid_sub_dag).unwrap_or_else(|e| {
                         panic!(
                             "Failed to send commit during recovery, probably due to shutdown: {:?}",
@@ -215,7 +221,7 @@ impl CommitObserver {
         );
     }
 
-    fn report_metrics(&self, committed: &[CommittedSubDag]) {
+    fn report_metrics(&self, committed: &[PendingSubDag]) {
         let metrics = &self.context.metrics.node_metrics;
         let utc_now = self.context.clock.timestamp_utc_ms();
 
@@ -306,7 +312,8 @@ mod tests {
             .map(Option::unwrap)
             .collect::<Vec<_>>();
 
-        let commits = observer.handle_commit(leaders.clone()).unwrap();
+        let (commits, _missing_transactions_refs) =
+            observer.handle_commit(leaders.clone()).unwrap();
 
         // Check commits are returned by CommitObserver::handle_commit is accurate
         let mut expected_stored_refs: Vec<BlockRef> = vec![];
@@ -340,7 +347,7 @@ mod tests {
         // Check commits sent over consensus output channel is accurate
         let mut processed_subdag_index = 0;
         while let Ok(subdag) = receiver.try_recv() {
-            assert_eq!(subdag, commits[processed_subdag_index]);
+            assert_eq!(subdag.base, commits[processed_subdag_index].base);
             assert_eq!(subdag.reputation_scores_desc, vec![]);
             processed_subdag_index = subdag.commit_ref.index as usize;
             if processed_subdag_index == leaders.len() {
@@ -408,7 +415,7 @@ mod tests {
         // Commit first batch of leaders (2) and "receive" the subdags as the
         // consumer of the consensus output channel.
         let expected_last_processed_index: usize = 2;
-        let mut commits = observer
+        let (mut created_commits, _missing_transactions_refs) = observer
             .handle_commit(
                 leaders
                     .clone()
@@ -421,8 +428,8 @@ mod tests {
         // Check commits sent over consensus output channel is accurate
         let mut processed_subdag_index = 0;
         while let Ok(subdag) = receiver.try_recv() {
-            tracing::info!("Processed {subdag}");
-            assert_eq!(subdag, commits[processed_subdag_index]);
+            tracing::info!("Processed subdag with index {}", subdag.commit_ref.index);
+            assert_eq!(subdag.base, created_commits[processed_subdag_index].base);
             assert_eq!(subdag.reputation_scores_desc, vec![]);
             processed_subdag_index = subdag.commit_ref.index as usize;
             if processed_subdag_index == expected_last_processed_index {
@@ -443,7 +450,7 @@ mod tests {
         // Handle next batch of leaders (1), these will be sent by consensus but not
         // "processed" by consensus output channel. Simulating something happened on
         // the consumer side where the commits were not persisted.
-        commits.append(
+        created_commits.append(
             &mut observer
                 .handle_commit(
                     leaders
@@ -452,13 +459,14 @@ mod tests {
                         .skip(expected_last_processed_index)
                         .collect::<Vec<_>>(),
                 )
-                .unwrap(),
+                .unwrap()
+                .0,
         );
 
         let expected_last_sent_index = num_rounds as usize;
         while let Ok(subdag) = receiver.try_recv() {
             tracing::info!("{subdag} was sent but not processed by consumer");
-            assert_eq!(subdag, commits[processed_subdag_index]);
+            assert_eq!(subdag.base, created_commits[processed_subdag_index].base);
             assert_eq!(subdag.reputation_scores_desc, vec![]);
             processed_subdag_index = subdag.commit_ref.index as usize;
             if processed_subdag_index == expected_last_sent_index {
@@ -490,7 +498,7 @@ mod tests {
         processed_subdag_index = expected_last_processed_index;
         while let Ok(subdag) = receiver.try_recv() {
             tracing::info!("Processed {subdag} on resubmission");
-            assert_eq!(subdag, commits[processed_subdag_index]);
+            assert_eq!(subdag.base, created_commits[processed_subdag_index].base);
             assert_eq!(subdag.reputation_scores_desc, vec![]);
             processed_subdag_index = subdag.commit_ref.index as usize;
             if processed_subdag_index == expected_last_sent_index {
@@ -545,13 +553,14 @@ mod tests {
         // Commit all of the leaders and "receive" the subdags as the consumer of
         // the consensus output channel.
         let expected_last_processed_index: usize = 10;
-        let commits = observer.handle_commit(leaders.clone()).unwrap();
+        let (created_commits, _missing_transactions_refs) =
+            observer.handle_commit(leaders.clone()).unwrap();
 
         // Check commits sent over consensus output channel is accurate
         let mut processed_subdag_index = 0;
         while let Ok(subdag) = receiver.try_recv() {
-            tracing::info!("Processed {subdag}");
-            assert_eq!(subdag, commits[processed_subdag_index]);
+            tracing::info!("Processed subdag with index {}", subdag.commit_ref.index);
+            assert_eq!(subdag.base, created_commits[processed_subdag_index].base);
             assert_eq!(subdag.reputation_scores_desc, vec![]);
             processed_subdag_index = subdag.commit_ref.index as usize;
             if processed_subdag_index == expected_last_processed_index {

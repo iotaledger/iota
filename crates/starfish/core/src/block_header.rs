@@ -636,7 +636,6 @@ pub struct VerifiedTransactions {
     transactions: Vec<Transaction>,
 
     /// The block reference of the block that contains the transactions.
-    #[expect(dead_code)]
     block_ref: BlockRef,
 
     /// Commitment of transactions in the block
@@ -670,6 +669,10 @@ impl VerifiedTransactions {
 
     pub fn transactions_commitment(&self) -> TransactionsCommitment {
         self.transactions_commitment
+    }
+
+    pub fn block_ref(&self) -> BlockRef {
+        self.block_ref
     }
 }
 
@@ -736,6 +739,11 @@ impl TestBlockHeader {
 
     pub fn set_commit_votes(mut self, commit_votes: Vec<CommitVote>) -> Self {
         self.block_header.commit_votes = commit_votes;
+        self
+    }
+
+    pub fn set_acknowledgments(mut self, acknowledgments: Vec<BlockRef>) -> Self {
+        self.block_header.acknowledgments = acknowledgments;
         self
     }
 

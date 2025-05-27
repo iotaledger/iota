@@ -4,7 +4,6 @@
 
 use std::{collections::BTreeSet, iter, sync::Arc, time::Duration, vec};
 
-use futures::channel;
 use iota_macros::fail_point;
 #[cfg(test)]
 use iota_metrics::monitored_mpsc::{UnboundedReceiver, unbounded_channel};
@@ -26,14 +25,14 @@ use crate::{
     storage::mem_store::MemStore,
 };
 use crate::{
-    Transaction,
+    CommittedSubDag, Transaction,
     block_header::{
         BlockHeader, BlockHeaderAPI, BlockHeaderV1, BlockRef, BlockTimestampMs, GENESIS_ROUND,
         Round, SignedBlockHeader, Slot, TransactionsCommitment, VerifiedBlockHeader,
         VerifiedTransactions,
     },
     block_manager::BlockManager,
-    commit::{CertifiedCommits, CommittedSubDag},
+    commit::{CertifiedCommits, PendingSubDag},
     commit_observer::CommitObserver,
     context::Context,
     dag_state::DagState,
@@ -617,7 +616,7 @@ impl Core {
     /// Runs commit rule to attempt to commit additional blocks from the DAG. If
     /// any `certified_commits` are provided, then it will attempt to commit
     /// those first before trying to commit any further leaders.
-    fn try_commit(&mut self) -> ConsensusResult<Vec<CommittedSubDag>> {
+    fn try_commit(&mut self) -> ConsensusResult<Vec<PendingSubDag>> {
         let _s = self
             .context
             .metrics
@@ -706,9 +705,13 @@ impl Core {
             );
 
             // TODO: refcount subdags
-            let subdags = self.commit_observer.handle_commit(sequenced_leaders)?;
+            let (subdags, _missing_transactions_refs) =
+                self.commit_observer.handle_commit(sequenced_leaders)?;
 
-            self.dag_state.write().add_scoring_subdags(subdags.clone());
+            // Both pending and solid sub DAGs should be added to scoring subdags.
+            self.dag_state
+                .write()
+                .add_scoring_subdags(subdags.iter().map(|s| s.base.clone()).collect());
 
             committed_sub_dags.extend(subdags);
 

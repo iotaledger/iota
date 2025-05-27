@@ -5,7 +5,9 @@ use std::sync::Arc;
 
 use parking_lot::RwLock;
 
-use crate::{CommittedSubDag, commit::Commit, context::Context, dag_state::DagState};
+use crate::{
+    BlockRef, CommittedSubDag, commit::PendingSubDag, context::Context, dag_state::DagState,
+};
 
 /// Block manager suspends incoming blocks until they are connected to the
 /// existing graph, returning newly connected blocks.
@@ -23,12 +25,14 @@ impl DataManager {
     }
 
     /// Commit the sub-dag to the global state
-
-    pub(crate) fn try_commit(&self, p0: Vec<Commit>) -> Vec<CommittedSubDag> {
+    pub(crate) fn try_commit(
+        &self,
+        _p0: &[PendingSubDag],
+    ) -> (Vec<CommittedSubDag>, Vec<BlockRef>) {
         todo!()
     }
 
-    pub(crate) fn try_commit_one(&self, p0: &Commit) -> Option<CommittedSubDag> {
+    pub(crate) fn try_commit_one(&self, _p0: &PendingSubDag) -> Option<CommittedSubDag> {
         todo!()
     }
 }
