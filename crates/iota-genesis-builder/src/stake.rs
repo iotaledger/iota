@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 //! Logic and types to account for stake delegation during genesis.
+use anyhow::bail;
 use iota_config::genesis::{
     Delegations, TokenAllocation, TokenDistributionSchedule, TokenDistributionScheduleBuilder,
     ValidatorAllocation,
@@ -122,7 +123,7 @@ impl GenesisStake {
                 migration_objects.get_sorted_timelocks_and_expiration_by_owner(delegator);
             let gas_coins_pool = migration_objects.get_gas_coins_by_owner(delegator);
             if timelocks_pool.is_none() && gas_coins_pool.is_none() {
-                anyhow::bail!("no timelocks or gas-coin objects found for delegator {delegator:?}");
+                bail!("no timelocks or gas-coin objects found for delegator {delegator:?}");
             }
             stake.delegate_genesis_stake(
                 &validators_allocations,
@@ -259,10 +260,7 @@ impl GenesisStake {
                 }
             } else {
                 // It means the delegator finished all the timelock or gas funds
-                return Err(anyhow::anyhow!(
-                    "Not enough funds for delegator {:?}",
-                    delegator
-                ));
+                bail!("Not enough funds for delegator {:?}", delegator);
             }
         }
 

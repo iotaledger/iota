@@ -10,7 +10,7 @@ use std::{
     str::FromStr,
 };
 
-use anyhow::anyhow;
+use anyhow::{anyhow, bail};
 use fastcrypto::{
     encoding::{Encoding, Hex, decode_bytes_hex},
     hash::HashFunction,
@@ -1328,7 +1328,7 @@ impl ObjectID {
         }
 
         if carry > 0 {
-            return Err(anyhow!("Increment will cause overflow"));
+            bail!("Increment will cause overflow");
         }
         ObjectID::try_from(curr_vec).map_err(|w| w.into())
     }
@@ -1340,7 +1340,7 @@ impl ObjectID {
         let mx = [0xFF; Self::LENGTH];
 
         if prev_val == mx {
-            return Err(anyhow!("Increment will cause overflow"));
+            bail!("Increment will cause overflow");
         }
 
         // This logic increments the integer representation of an ObjectID u8 array

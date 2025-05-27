@@ -31,7 +31,7 @@ async fn main() -> Result<(), anyhow::Error> {
     let IotaTransactionBlockEffects::V1(effects) = dry_run_tx_resp.effects;
     // Error if the dry run failed to save gas
     if let IotaExecutionStatus::Failure { error } = effects.status {
-        return Err(anyhow::anyhow!(error));
+        bail::anyhow!(error));
     }
 
     let tx_data = client

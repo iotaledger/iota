@@ -557,7 +557,7 @@ pub async fn initiate_bridge_iota_to_eth(
     {
         Ok(resp) => {
             if !resp.status_ok().unwrap() {
-                return Err(anyhow!("IOTA TX error"));
+                bail!("IOTA TX error"));
             } else {
                 resp
             }
@@ -643,7 +643,7 @@ async fn wait_for_transfer_action_status(
             return Ok(());
         }
         if now.elapsed().as_secs() > 60 {
-            return Err(anyhow!(
+            bail!(
                 "Timeout waiting for token transfer action to be {:?}. chain_id: {chain_id:?}, nonce: {nonce}. Time elapsed: {:?}",
                 status,
                 now.elapsed(),

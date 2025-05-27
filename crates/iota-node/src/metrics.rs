@@ -4,6 +4,7 @@
 
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
+use anyhow::bail;
 use axum::http::header;
 use iota_metrics::RegistryService;
 use iota_network::tonic::Code;
@@ -122,11 +123,7 @@ pub fn start_metrics_push_task(config: &iota_config::NodeConfig, registry: Regis
                 Ok(body) => body,
                 Err(error) => format!("couldn't decode response body; {error}"),
             };
-            return Err(anyhow::anyhow!(
-                "metrics push failed: [{}]:{}",
-                status,
-                body
-            ));
+            bail!("metrics push failed: [{}]:{}", status, body);
         }
 
         tracing::debug!("successfully pushed metrics to {url}");

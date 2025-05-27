@@ -68,6 +68,7 @@ use std::{
 };
 
 use anemo::{PeerId, Request, Response, Result, types::PeerEvent};
+use anyhow::{anyhow, bail};
 use futures::{FutureExt, StreamExt, stream::FuturesOrdered};
 use iota_config::p2p::StateSyncConfig;
 use iota_types::{
@@ -1030,11 +1031,11 @@ where
         .get_highest_verified_checkpoint()
         .expect("store operation should not fail");
     if current.sequence_number() >= checkpoint.sequence_number() {
-        return Err(anyhow::anyhow!(
+        bail!(
             "target checkpoint {} is older than highest verified checkpoint {}",
             checkpoint.sequence_number(),
             current.sequence_number(),
-        ));
+        );
     }
 
     let peer_balancer = PeerBalancer::new(
@@ -1121,9 +1122,8 @@ where
 
         // Verify the checkpoint
         let checkpoint = 'cp: {
-            let checkpoint = maybe_checkpoint.ok_or_else(|| {
-                anyhow::anyhow!("no peers were able to help sync checkpoint {next}")
-            })?;
+            let checkpoint = maybe_checkpoint
+                .ok_or_else(|| anyhow!("no peers were able to help sync checkpoint {next}"))?;
             // Skip verification for manually pinned checkpoints.
             if pinned_checkpoints
                 .binary_search_by_key(checkpoint.sequence_number(), |(seq_num, _digest)| *seq_num)
@@ -1144,9 +1144,7 @@ where
                         peer_heights.mark_peer_as_not_on_same_chain(peer_id);
                     }
 
-                    return Err(anyhow::anyhow!(
-                        "unable to verify checkpoint {checkpoint:?}"
-                    ));
+                    bail!("unable to verify checkpoint {checkpoint:?}");
                 }
             }
         };

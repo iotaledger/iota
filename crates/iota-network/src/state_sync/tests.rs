@@ -445,7 +445,7 @@ async fn test_state_sync_using_archive() -> anyhow::Result<()> {
             }
         }
         if total_time.elapsed() > Duration::from_secs(120) {
-            return Err(anyhow!("Test timed out"));
+            bail!("Test timed out"));
         }
         tokio::time::sleep(Duration::from_secs(1)).await;
     }

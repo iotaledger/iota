@@ -117,7 +117,7 @@ impl<T: Send + Sync> IndexerProgressStore for InMemoryPersistent<T> {
             },
         );
         if existing.is_some() {
-            return Err(anyhow!("Task {task_name} already exists"));
+            bail!("Task {task_name} already exists"));
         }
         Ok(())
     }
