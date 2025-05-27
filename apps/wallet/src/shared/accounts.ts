@@ -32,12 +32,15 @@ export interface AccountFromFinder {
 }
 
 export class AccountTooManyAttemptsError extends Error {
-    constructor(public remainingTime: number) {
+    public remainingTime: number;
+
+    constructor(remainingTime: number) {
         super(
             JSON.stringify({
                 remainingTime,
             }),
         );
+        this.remainingTime = remainingTime;
     }
 
     static fromError(error: Error) {

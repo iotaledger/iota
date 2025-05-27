@@ -95,6 +95,26 @@ export function PasswordModalDialog({
         ) || false;
 
     async function handleOnSubmit({ password }: { password: string }) {
+        let remainingTime: number;
+        let interval: NodeJS.Timeout;
+
+        function updateCountdown() {
+            const message = `Too many failed attempts. Please try again in ${remainingTime} ${remainingTime === 1 ? 'second' : 'seconds'}.`;
+            setCountdownError({
+                interval,
+                message,
+            });
+
+            // Clear the interval and error when its done
+            if (remainingTime === 0) {
+                clearInterval(interval);
+                setCountdownError(null);
+                return;
+            }
+
+            remainingTime -= 1;
+        }
+
         try {
             if (verify) {
                 await backgroundService.verifyPassword({ password });
@@ -105,28 +125,8 @@ export function PasswordModalDialog({
             if (e instanceof Error) {
                 const verifyError = AccountTooManyAttemptsError.fromError(e);
                 if (verifyError) {
-                    let remainingTime = Math.ceil(
-                        verifyError.remainingTime / MILLISECONDS_PER_SECOND,
-                    );
-
-                    function updateCountdown() {
-                        const message = `Too many failed attempts. Please try again in ${remainingTime} ${remainingTime === 1 ? 'second' : 'seconds'}.`;
-                        setCountdownError({
-                            interval,
-                            message,
-                        });
-
-                        // Clear the interval and error when its done
-                        if (remainingTime === 0) {
-                            clearInterval(interval);
-                            setCountdownError(null);
-                            return;
-                        }
-
-                        remainingTime -= 1;
-                    }
-
-                    let interval = setInterval(updateCountdown, MILLISECONDS_PER_SECOND);
+                    remainingTime = Math.ceil(verifyError.remainingTime / MILLISECONDS_PER_SECOND);
+                    interval = setInterval(updateCountdown, MILLISECONDS_PER_SECOND);
                     updateCountdown();
                 } else {
                     setError('password', { message: e.message }, { shouldFocus: true });
