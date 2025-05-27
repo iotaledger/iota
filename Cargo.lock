@@ -8440,7 +8440,6 @@ dependencies = [
  "indexmap 2.5.0",
  "iota-enum-compat-util",
  "iota-macros",
- "iota-metrics",
  "iota-network-stack",
  "iota-protocol-config",
  "iota-rust-sdk",

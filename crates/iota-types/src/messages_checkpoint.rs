@@ -10,7 +10,6 @@ use std::{
 
 use anyhow::Result;
 use fastcrypto::hash::MultisetHash;
-use iota_metrics::histogram::Histogram as IotaHistogram;
 use iota_protocol_config::ProtocolConfig;
 use once_cell::sync::OnceCell;
 use prometheus::Histogram;
@@ -258,12 +257,11 @@ impl CheckpointSummary {
             .map(|e| e.next_epoch_committee.as_slice())
     }
 
-    pub fn report_checkpoint_age(&self, metrics: &Histogram, metrics_deprecated: &IotaHistogram) {
+    pub fn report_checkpoint_age(&self, metrics: &Histogram) {
         SystemTime::now()
             .duration_since(self.timestamp())
             .map(|latency| {
                 metrics.observe(latency.as_secs_f64());
-                metrics_deprecated.report(latency.as_millis() as u64);
             })
             .tap_err(|err| {
                 warn!(

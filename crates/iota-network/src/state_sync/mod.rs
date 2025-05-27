@@ -1152,13 +1152,8 @@ where
         };
 
         debug!(checkpoint_seq = ?checkpoint.sequence_number(), "verified checkpoint summary");
-        if let Some((checkpoint_summary_age_metric, checkpoint_summary_age_metric_deprecated)) =
-            metrics.checkpoint_summary_age_metrics()
-        {
-            checkpoint.report_checkpoint_age(
-                checkpoint_summary_age_metric,
-                checkpoint_summary_age_metric_deprecated,
-            );
+        if let Some(checkpoint_summary_age_metric) = metrics.checkpoint_summary_age_metrics() {
+            checkpoint.report_checkpoint_age(checkpoint_summary_age_metric);
         }
 
         current = checkpoint.clone();
