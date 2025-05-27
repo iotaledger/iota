@@ -637,6 +637,8 @@ fn format_block_digests(blocks: &[BlockRef]) -> String {
             result.push_str(", ");
         }
         result.push_str(&block.digest.to_string());
+        result.push_str("@");
+        result.push_str(&block.round.to_string());
     }
     result
 }
@@ -843,7 +845,8 @@ mod tests {
     };
 
     #[tokio::test]
-    async fn test_new_subdag_from_commit() {
+    #[ignore = "Finish implementing this test when Transaction storage is ready"]
+    async fn test_new_committed_subdag_from_commit() {
         let store = Arc::new(MemStore::new());
         let context = Arc::new(Context::new_for_test(4).0);
 
@@ -909,9 +912,6 @@ mod tests {
             first_round_references.clone(),
         );
 
-        // The test skips transaction availability checks as it assumes that all
-        // transactions are available. It's supposed to check the
-        // CommittedSubDag creation logic.
         let subdag = load_pending_subdag_from_store(store.as_ref(), commit.clone(), vec![]);
         assert_eq!(subdag.leader, leader_ref);
         assert_eq!(subdag.timestamp_ms, leader_block.timestamp_ms());
@@ -920,7 +920,89 @@ mod tests {
             (num_authorities * WAVE_LENGTH) as usize + 1
         );
         assert_eq!(subdag.commit_ref, commit.reference());
+        assert_eq!(subdag.committed_transaction_refs, first_round_references);
         assert_eq!(subdag.reputation_scores_desc, vec![]);
+    }
+
+    #[tokio::test]
+    async fn test_new_pending_subdag_from_commit() {
+        let store = Arc::new(MemStore::new());
+        let context = Arc::new(Context::new_for_test(4).0);
+
+        // Populate fully connected test blocks for round 0 ~ 3, authorities 0 ~ 3.
+        let first_wave_rounds: u32 = WAVE_LENGTH;
+        let num_authorities: u32 = 4;
+
+        let mut blocks = Vec::new();
+        let (first_round_references, first_round_headers): (Vec<_>, Vec<_>) = context
+            .committee
+            .authorities()
+            .map(|index| {
+                let author_idx = index.0.value() as u32;
+                let block = TestBlockHeader::new(0, author_idx).build();
+                VerifiedBlockHeader::new_for_test(block)
+            })
+            .map(|block| (block.reference(), block))
+            .unzip();
+        store
+            .write(WriteBatch::default().blocks(first_round_headers))
+            .unwrap();
+        blocks.append(&mut first_round_references.clone());
+
+        let mut ancestors = first_round_references.clone();
+        let mut leader = None;
+        for round in 1..=first_wave_rounds {
+            let mut new_ancestors = vec![];
+            for author in 0..num_authorities {
+                let base_ts = round as BlockTimestampMs * 1000;
+                let block = VerifiedBlockHeader::new_for_test(
+                    TestBlockHeader::new(round, author)
+                        .set_timestamp_ms(base_ts + (author + round) as u64)
+                        .set_ancestors(ancestors.clone())
+                        .set_acknowledgments(ancestors.clone())
+                        .build(),
+                );
+                store
+                    .write(WriteBatch::default().blocks(vec![block.clone()]))
+                    .unwrap();
+                new_ancestors.push(block.reference());
+                blocks.push(block.reference());
+
+                // only write one block for the final round, which is the leader
+                // of the committed subdag.
+                if round == first_wave_rounds {
+                    leader = Some(block.clone());
+                    break;
+                }
+            }
+            ancestors = new_ancestors;
+        }
+
+        let leader_block = leader.unwrap();
+        let leader_ref = leader_block.reference();
+        let commit_index = 1;
+        let commit = TrustedCommit::new_for_test(
+            commit_index,
+            CommitDigest::MIN,
+            leader_block.timestamp_ms(),
+            leader_ref,
+            blocks.clone(),
+            first_round_references.clone(),
+        );
+
+        let pending_subdag = load_pending_subdag_from_store(store.as_ref(), commit.clone(), vec![]);
+        assert_eq!(pending_subdag.leader, leader_ref);
+        assert_eq!(pending_subdag.timestamp_ms, leader_block.timestamp_ms());
+        assert_eq!(
+            pending_subdag.blocks.len(),
+            (num_authorities * WAVE_LENGTH) as usize + 1
+        );
+        assert_eq!(pending_subdag.commit_ref, commit.reference());
+        assert_eq!(
+            pending_subdag.committed_transaction_refs,
+            first_round_references
+        );
+        assert_eq!(pending_subdag.reputation_scores_desc, vec![]);
     }
 
     #[tokio::test]

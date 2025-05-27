@@ -784,7 +784,7 @@ mod tests {
             CommittedSubDag::new(
                 leader_ref,
                 blocks,
-                vec![],
+                vec![], // Committed transactions are not important for this test.
                 context.clock.timestamp_utc_ms(),
                 last_commit.reference(),
                 vec![],

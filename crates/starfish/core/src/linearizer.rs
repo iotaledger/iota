@@ -308,16 +308,30 @@ mod tests {
             assert_eq!(subdag.leader, leaders[idx].reference());
             assert_eq!(subdag.timestamp_ms, leaders[idx].timestamp_ms());
             if idx == 0 {
-                // First subdag includes the leader block only
+                // First subdag includes the leader block only and no committed data
                 assert_eq!(subdag.blocks.len(), 1);
+                assert_eq!(subdag.committed_transaction_refs.len(), 0);
+            } else if idx == 1 {
+                // Genesis blocks are included in the first commit
+                assert_eq!(subdag.blocks.len(), num_authorities);
+                // Transactions from genesis are not committed
+                assert_eq!(subdag.committed_transaction_refs.len(), 0);
             } else {
                 // Every subdag after will be missing the leader block from the previous
                 // committed subdag
                 assert_eq!(subdag.blocks.len(), num_authorities);
+                // Every subdag after the first one will have all the committed transactions
+                // from 2 rounds before the leader round
+                assert_eq!(subdag.committed_transaction_refs.len(), num_authorities);
             }
             for block in subdag.blocks.iter() {
                 assert!(block.round() <= leaders[idx].round());
             }
+
+            for committed_transactions_ref in subdag.committed_transaction_refs.iter() {
+                assert!(committed_transactions_ref.round == leaders[idx].round() - 2);
+            }
+
             assert_eq!(subdag.commit_ref.index, idx as CommitIndex + 1);
         }
     }
@@ -509,8 +523,7 @@ mod tests {
         telemetry_subscribers::init_for_testing();
 
         let num_authorities = 4;
-        let (mut context, _keys) = Context::new_for_test(num_authorities);
-        context.protocol_config.set_gc_depth_for_testing(0);
+        let (context, _keys) = Context::new_for_test(num_authorities);
 
         let context = Arc::new(context);
         let dag_state = Arc::new(RwLock::new(DagState::new(
@@ -571,8 +584,12 @@ mod tests {
             if idx == 0 {
                 // First subdag includes the leader block only
                 assert_eq!(subdag.blocks.len(), 1);
+                // First subdag does not commit any transactions
+                assert_eq!(subdag.committed_transaction_refs.len(), 0);
             } else if idx == 1 {
                 assert_eq!(subdag.blocks.len(), 3);
+                // The second subdag does not commit any transactions either yet
+                assert_eq!(subdag.committed_transaction_refs.len(), 0);
             } else if idx == 2 {
                 // We commit:
                 // * 1 block on round 4, the leader block
@@ -581,6 +598,12 @@ mod tests {
                 // * 2 blocks on round 2, again as no commit happened on round 3, we commit the
                 //   "sub dag" of leader of round 3, which will be another 2 blocks
                 assert_eq!(subdag.blocks.len(), 6);
+
+                // We commit transactions from:
+                // * 3 blocks on round 1, as no commit happened on round 3 since the leader was
+                //   missing
+                // * 3 blocks on round 2, commited without delay
+                assert_eq!(subdag.committed_transaction_refs.len(), 6);
             } else {
                 // we expect to see all blocks of round >= 1
                 assert_eq!(subdag.blocks.len(), 6);
@@ -588,9 +611,17 @@ mod tests {
                     subdag.blocks.iter().all(|block| block.round() >= 1),
                     "Found blocks that are of round < 1."
                 );
+
+                // The following subdag commits all data from round 3 (leader block was missing,
+                // so only 3 block refs)
+                assert_eq!(subdag.committed_transaction_refs.len(), 3);
             }
             for block in subdag.blocks.iter() {
                 assert!(block.round() <= leaders[idx].round());
+            }
+
+            for commited_transactions_ref in subdag.committed_transaction_refs.iter() {
+                assert!(commited_transactions_ref.round <= leaders[idx].round());
             }
             assert_eq!(subdag.commit_ref.index, idx as CommitIndex + 1);
         }

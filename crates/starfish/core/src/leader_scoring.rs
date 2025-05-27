@@ -99,7 +99,7 @@ impl ScoringSubdag {
         }
     }
 
-    pub(crate) fn add_subdags(&mut self, committed_subdags: Vec<CommittedSubDag>) {
+    pub(crate) fn add_subdags(&mut self, committed_subdags: Vec<SubDagBase>) {
         let _s = self
             .context
             .metrics
