@@ -81,6 +81,7 @@ use typed_store::{
 use super::{
     authority_store_tables::ENV_VAR_LOCKS_BLOCK_CACHE_SIZE,
     epoch_start_configuration::EpochStartConfigTrait,
+    shared_object_congestion_info::PerCommitCongestionInfo,
     shared_object_congestion_tracker::{
         ExecutionTime, SequencingResult, SharedObjectCongestionTracker,
     },
@@ -90,6 +91,7 @@ use crate::{
     authority::{
         AuthorityMetrics, ResolverWrapper,
         epoch_start_configuration::EpochStartConfiguration,
+        shared_object_congestion_info::SharedObjectTransactionResult,
         shared_object_version_manager::{
             AssignedTxAndVersions, ConsensusSharedObjVerAssignment, SharedObjVerManager,
         },
@@ -156,7 +158,7 @@ type JwkAggregator = GenericMultiStakeAggregator<(JwkId, JWK), true>;
 /// Represents a scheduling result: a transaction can be either scheduled
 /// for execution, or deferred for some reason. Scheduling result is
 /// returned by the `try_schedule` method of `AuthorityPerEpochStore`.
-enum SchedulingResult {
+pub(crate) enum SchedulingResult {
     /// Scheduling result indicating that a transaction is scheduled to be
     /// executed at start time
     Schedule(/* start_time */ ExecutionTime),
@@ -3121,6 +3123,8 @@ impl AuthorityPerEpochStore {
             }
         );
 
+        let mut shared_object_congestion_info = PerCommitCongestionInfo::new();
+
         let mut randomness_state_updated = false;
         for tx in transactions {
             let key = tx.0.transaction.key();
@@ -3142,6 +3146,7 @@ impl AuthorityPerEpochStore {
                     dkg_failed,
                     randomness_round.is_some(),
                     congestion_tracker,
+                    &mut shared_object_congestion_info,
                     authority_metrics,
                 )
                 .await?
@@ -3398,6 +3403,7 @@ impl AuthorityPerEpochStore {
         dkg_failed: bool,
         generating_randomness: bool,
         shared_object_congestion_tracker: &mut SharedObjectCongestionTracker,
+        shared_object_congestion_info: &mut PerCommitCongestionInfo,
         authority_metrics: &Arc<AuthorityMetrics>,
     ) -> IotaResult<ConsensusCertificateResult> {
         let _scope = monitored_scope("HandleConsensusTransaction");
@@ -3471,6 +3477,8 @@ impl AuthorityPerEpochStore {
                     previously_deferred_tx_digests,
                     shared_object_congestion_tracker,
                 );
+                let estimated_execution_duration =
+                    shared_object_congestion_tracker.get_estimated_execution_duration(&certificate);
 
                 match scheduling_result {
                     SchedulingResult::Defer(deferral_key, deferral_reason) => {
@@ -3486,6 +3494,13 @@ impl AuthorityPerEpochStore {
                                 ConsensusCertificateResult::Deferred(deferral_key)
                             }
                             DeferralReason::SharedObjectCongestion(congested_objects) => {
+                                // Update shared object congestion info for a single certificate
+                                shared_object_congestion_info.process_consensus_certificate(
+                                    &certificate,
+                                    estimated_execution_duration,
+                                    SharedObjectTransactionResult::Defer,
+                                );
+
                                 authority_metrics
                                     .consensus_handler_congested_transactions
                                     .inc();
@@ -3515,6 +3530,13 @@ impl AuthorityPerEpochStore {
                         return Ok(deferral_result);
                     }
                     SchedulingResult::Schedule(start_time) => {
+                        // Update shared object congestion info for a single certificate
+                        shared_object_congestion_info.process_consensus_certificate(
+                            &certificate,
+                            estimated_execution_duration,
+                            SharedObjectTransactionResult::Schedule,
+                        );
+
                         if dkg_failed && certificate.transaction_data().uses_randomness() {
                             debug!(
                                 "Canceling randomness-using certificate for transaction {:?} because DKG failed",
