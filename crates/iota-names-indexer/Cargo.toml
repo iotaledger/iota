@@ -18,7 +18,7 @@ prometheus.workspace = true
 tokio.workspace = true
 tokio-util.workspace = true
 tracing.workspace = true
-tracing-subscriber = { version = "0.3", default-features = false, features = [ "std", "fmt", "ansi", "smallvec", "tracing-log", "local-time", "env-filter" ] }
+tracing-subscriber = { version = "0.3", default-features = false, features = ["std", "fmt", "ansi", "smallvec", "tracing-log", "local-time", "env-filter"] }
 
 # internal dependencies
 bin-version.workspace = true
