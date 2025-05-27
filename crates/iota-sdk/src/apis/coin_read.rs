@@ -40,8 +40,7 @@ impl CoinReadApi {
     /// ```rust,no_run
     /// use std::str::FromStr;
     ///
-    /// use iota_sdk::IotaClientBuilder;
-    /// use iota_types::base_types::IotaAddress;
+    /// use iota_sdk::{IotaClientBuilder, types::base_types::IotaAddress};
     ///
     /// #[tokio::main]
     /// async fn main() -> Result<(), anyhow::Error> {
@@ -77,8 +76,7 @@ impl CoinReadApi {
     /// ```rust,no_run
     /// use std::str::FromStr;
     ///
-    /// use iota_sdk::IotaClientBuilder;
-    /// use iota_types::base_types::IotaAddress;
+    /// use iota_sdk::{IotaClientBuilder, types::base_types::IotaAddress};
     ///
     /// #[tokio::main]
     /// async fn main() -> Result<(), anyhow::Error> {
@@ -114,8 +112,7 @@ impl CoinReadApi {
     /// ```rust,no_run
     /// use std::str::FromStr;
     ///
-    /// use iota_sdk::IotaClientBuilder;
-    /// use iota_types::base_types::IotaAddress;
+    /// use iota_sdk::{IotaClientBuilder, types::base_types::IotaAddress};
     ///
     /// #[tokio::main]
     /// async fn main() -> Result<(), anyhow::Error> {
@@ -178,8 +175,7 @@ impl CoinReadApi {
     /// ```rust,no_run
     /// use std::str::FromStr;
     ///
-    /// use iota_sdk::IotaClientBuilder;
-    /// use iota_types::base_types::IotaAddress;
+    /// use iota_sdk::{IotaClientBuilder, types::base_types::IotaAddress};
     ///
     /// #[tokio::main]
     /// async fn main() -> Result<(), anyhow::Error> {
@@ -227,8 +223,7 @@ impl CoinReadApi {
     /// ```rust,no_run
     /// use std::str::FromStr;
     ///
-    /// use iota_sdk::IotaClientBuilder;
-    /// use iota_types::base_types::IotaAddress;
+    /// use iota_sdk::{IotaClientBuilder, types::base_types::IotaAddress};
     ///
     /// #[tokio::main]
     /// async fn main() -> Result<(), anyhow::Error> {
@@ -254,8 +249,7 @@ impl CoinReadApi {
     /// ```rust,no_run
     /// use std::str::FromStr;
     ///
-    /// use iota_sdk::IotaClientBuilder;
-    /// use iota_types::base_types::IotaAddress;
+    /// use iota_sdk::{IotaClientBuilder, types::base_types::IotaAddress};
     ///
     /// #[tokio::main]
     /// async fn main() -> Result<(), anyhow::Error> {
@@ -276,6 +270,7 @@ impl CoinReadApi {
     ///
     /// ```rust,no_run
     /// use iota_sdk::IotaClientBuilder;
+    ///
     /// #[tokio::main]
     /// async fn main() -> Result<(), anyhow::Error> {
     ///     let iota = IotaClientBuilder::default().build_testnet().await?;
