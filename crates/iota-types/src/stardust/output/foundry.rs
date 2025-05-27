@@ -20,7 +20,7 @@ pub fn create_foundry_amount_coin(
     coin_type: &CoinType,
 ) -> anyhow::Result<Object> {
     crate::stardust::output::create_coin(
-        UID::new(ObjectID::new(output_id.hash())),
+        ObjectID::new(output_id.hash()),
         stardust_to_iota_address(*foundry.alias_address())?,
         foundry.amount(),
         tx_context,
