@@ -259,6 +259,11 @@ impl TestTransactionBuilder {
         self
     }
 
+    pub fn split_coin(mut self, coin: ObjectRef, amounts: Vec<u64>) -> Self {
+        self.test_data = TestTransactionData::SplitCoin(SplitCoinData { coin, amounts });
+        self
+    }
+
     pub fn publish(mut self, path: PathBuf) -> Self {
         assert!(matches!(self.test_data, TestTransactionData::Empty));
         self.test_data = TestTransactionData::Publish(PublishData::Source(path, false));
@@ -323,6 +328,15 @@ impl TestTransactionBuilder {
                 data.recipient,
                 self.sender,
                 data.amount,
+                self.gas_object,
+                self.gas_budget
+                    .unwrap_or(self.gas_price * TEST_ONLY_GAS_UNIT_FOR_TRANSFER),
+                self.gas_price,
+            ),
+            TestTransactionData::SplitCoin(data) => TransactionData::new_split_coin(
+                self.sender,
+                data.coin,
+                data.amounts,
                 self.gas_object,
                 self.gas_budget
                     .unwrap_or(self.gas_price * TEST_ONLY_GAS_UNIT_FOR_TRANSFER),
@@ -404,6 +418,7 @@ enum TestTransactionData {
     Move(MoveData),
     Transfer(TransferData),
     TransferIota(TransferIotaData),
+    SplitCoin(SplitCoinData),
     Publish(PublishData),
     Programmable(ProgrammableTransaction),
     Empty,
@@ -435,6 +450,11 @@ struct TransferData {
 struct TransferIotaData {
     amount: Option<u64>,
     recipient: IotaAddress,
+}
+
+struct SplitCoinData {
+    coin: ObjectRef,
+    amounts: Vec<u64>,
 }
 
 /// A helper function to make Transactions with controlled accounts in
