@@ -23,9 +23,12 @@ services:
     networks:
       - indexer-metrics-net
     environment:
-      - RUST_LOG=info,iota_data_ingestion_core=off
+      - RUST_LOG=info,iota_names_indexer=debug,iota_data_ingestion_core=off
     extra_hosts:
       - "host.docker.internal:host-gateway"
+    command:
+      - "start"
+      - "--node-url=http://host.docker.internal:9000"
 
   prometheus:
     image: prom/prometheus:latest

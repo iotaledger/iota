@@ -5,17 +5,23 @@ authors = ["IOTA Foundation <info@iota.org>"]
 edition = "2021"
 license = "Apache-2.0"
 publish = false
+description = "IOTA-Names Indexer"
 
 [dependencies]
 # external dependencies
 anyhow.workspace = true
 async-trait.workspace = true
+axum.workspace = true
+clap.workspace = true
+dotenvy = "0.15"
 prometheus.workspace = true
 tokio.workspace = true
 tokio-util.workspace = true
 tracing.workspace = true
+tracing-subscriber = { version = "0.3", default-features = false, features = [ "std", "fmt", "ansi", "smallvec", "tracing-log", "local-time", "env-filter" ] }
 
 # internal dependencies
+bin-version.workspace = true
 iota-data-ingestion-core.workspace = true
 iota-metrics.workspace = true
 iota-names.workspace = true

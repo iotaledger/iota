@@ -4,57 +4,162 @@
 mod metrics;
 mod worker;
 
-use std::{path::PathBuf, sync::Arc};
+use std::sync::Arc;
 
 use anyhow::Result;
-use iota_data_ingestion_core::{
-    DataIngestionMetrics, FileProgressStore, IndexerExecutor, ReaderOptions, WorkerPool,
-};
+use clap::Parser;
 use iota_names::config::IotaNamesConfig;
+use tokio::task::JoinSet;
 use tokio_util::sync::CancellationToken;
-use tracing::info;
-
-use self::{
-    metrics::{IotaNamesMetrics, METRICS, start_prometheus_server},
-    worker::IotaNamesWorker,
+use tracing::{error, info};
+use tracing_subscriber::{
+    EnvFilter, fmt::format::FmtSpan, layer::SubscriberExt, util::SubscriberInitExt,
 };
+
+use self::{metrics::IotaNamesMetrics, worker::IotaNamesWorker};
+use crate::metrics::PrometheusServer;
+
+// Define the `GIT_REVISION` and `VERSION` consts
+bin_version::bin_version!();
+
+#[derive(Parser)]
+#[command(
+    name = env!("CARGO_BIN_NAME"),
+    about = env!("CARGO_PKG_DESCRIPTION"),
+    author,
+    version = VERSION,
+    propagate_version = true,
+)]
+enum CLI {
+    Start {
+        /// The URL of an IOTA node to get data from.
+        #[arg(long, default_value = "http://localhost:9000")]
+        node_url: String,
+    },
+}
+
+impl CLI {
+    async fn execute(self) -> Result<()> {
+        match self {
+            CLI::Start { node_url } => {
+                info!("Starting IOTA Names Indexer");
+
+                let prometheus = PrometheusServer::new();
+                let registry = prometheus.registry();
+
+                let cancel_token = CancellationToken::new();
+
+                let mut tasks: JoinSet<Result<()>> = JoinSet::new();
+
+                // Spawn the prometheus API
+                let handle = cancel_token.clone();
+                tasks.spawn(async move {
+                    prometheus.start(handle).await?;
+                    Ok(())
+                });
+
+                // Spawn the metrics worker
+                let handle = cancel_token.clone();
+                tasks.spawn(async move {
+                    let worker = IotaNamesWorker::new(
+                        IotaNamesConfig::from_env().unwrap_or_default(),
+                        Arc::new(IotaNamesMetrics::new(&registry)),
+                    );
+
+                    tokio::select! {
+                        res = worker.run(&node_url, &registry, handle.clone()) => {res?;},
+                        _ = handle.cancelled() => {},
+                    }
+                    Ok(())
+                });
+
+                let mut exit_code = Ok(());
+
+                tokio::select! {
+                    res = interrupt_or_terminate() => {
+                        if let Err(err) = res {
+                            tracing::error!("subscribing to OS interrupt signals failed with error: {err}; shutting down");
+                            exit_code = Err(err);
+                        } else {
+                            tracing::info!("received ctrl-c or terminate; shutting down");
+                        }
+                    },
+                    res = tasks.join_next() => {
+                        if let Some(Ok(Err(err))) = res {
+                            tracing::error!("a worker failed with error: {err}");
+                            exit_code = Err(err);
+                        }
+                    },
+                }
+
+                cancel_token.cancel();
+
+                // Allow the user to abort if the tasks aren't shutting down quickly.
+                tokio::select! {
+                    res = interrupt_or_terminate() => {
+                        if let Err(err) = res {
+                            tracing::error!("subscribing to OS interrupt signals failed with error: {err}; aborting");
+                            exit_code = Err(err);
+                        } else {
+                            tracing::info!("received second ctrl-c or terminate; aborting");
+                        }
+                        tasks.shutdown().await;
+                        tracing::info!("runtime aborted");
+                    },
+                    _ = async { while tasks.join_next().await.is_some() {} } => {
+                        tracing::info!("runtime stopped");
+                    },
+                }
+
+                exit_code
+            }
+        }
+    }
+}
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    let _guard = telemetry_subscribers::TelemetryConfig::new()
-        .with_env()
-        .init();
-    info!("Starting IOTA Names Indexer...");
+    dotenvy::dotenv().ok();
 
-    let registry = start_prometheus_server();
+    set_up_logging()?;
 
-    METRICS.get_or_init(|| Arc::new(IotaNamesMetrics::new(&registry)));
-    let metrics = DataIngestionMetrics::new(&registry);
+    CLI::parse().execute().await?;
+    Ok(())
+}
 
-    let progress_store = FileProgressStore::new("./progress_store").await?;
+fn set_up_logging() -> Result<()> {
+    std::panic::set_hook(Box::new(|p| {
+        error!("{}", p);
+    }));
 
-    let cancel_token = CancellationToken::new();
-    let mut executor = IndexerExecutor::new(progress_store, 1, metrics, cancel_token);
+    let registry = tracing_subscriber::registry();
 
-    let worker = IotaNamesWorker::new(IotaNamesConfig::from_env().unwrap_or_default());
-    let worker_pool = WorkerPool::new(
-        worker,
-        "iota_names_reader".to_string(),
-        1,
-        Default::default(),
-    );
+    let registry = {
+        registry
+            .with(EnvFilter::from_default_env())
+            .with(tracing_subscriber::fmt::layer().with_span_events(FmtSpan::CLOSE))
+    };
 
-    executor.register(worker_pool).await.unwrap();
-    executor
-        .run(
-            PathBuf::from("./chk".to_string()), /* path to a local directory where checkpoints
-                                                 * are stored. */
-            Some("http://host.docker.internal:9000/api/v1".to_string()),
-            vec![],                   // optional remote store access options.
-            ReaderOptions::default(), // remote_read_batch_size.
-        )
-        .await
-        .unwrap();
+    registry.init();
+    Ok(())
+}
+
+pub async fn interrupt_or_terminate() -> Result<()> {
+    #[cfg(unix)]
+    {
+        use anyhow::anyhow;
+        use tokio::signal::unix::{SignalKind, signal};
+        let mut terminate = signal(SignalKind::terminate())
+            .map_err(|e| anyhow!("cannot listen to `SIGTERM`: {e}"))?;
+        let mut interrupt = signal(SignalKind::interrupt())
+            .map_err(|e| anyhow!("cannot listen to `SIGINT`: {e}"))?;
+        tokio::select! {
+            _ = terminate.recv() => {}
+            _ = interrupt.recv() => {}
+        }
+    }
+    #[cfg(not(unix))]
+    tokio::signal::ctrl_c().await?;
 
     Ok(())
 }

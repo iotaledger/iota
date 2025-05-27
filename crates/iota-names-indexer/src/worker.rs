@@ -1,11 +1,13 @@
 // Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::sync::Arc;
+use std::{path::PathBuf, sync::Arc};
 
 use anyhow::Result;
 use async_trait::async_trait;
-use iota_data_ingestion_core::Worker;
+use iota_data_ingestion_core::{
+    DataIngestionMetrics, FileProgressStore, IndexerExecutor, ReaderOptions, Worker, WorkerPool,
+};
 use iota_names::config::IotaNamesConfig;
 use iota_types::{
     Identifier,
@@ -15,30 +17,62 @@ use iota_types::{
     full_checkpoint_content::CheckpointData,
     transaction::{ProgrammableTransaction, TransactionData, TransactionKind},
 };
-use tracing::debug;
+use prometheus::Registry;
+use tokio_util::sync::CancellationToken;
+use tracing::{debug, info};
 
-use crate::metrics::METRICS;
+use crate::IotaNamesMetrics;
 
 pub(crate) struct IotaNamesWorker {
     config: IotaNamesConfig,
+    metrics: Arc<IotaNamesMetrics>,
 }
 
 impl IotaNamesWorker {
-    pub(crate) fn new(config: IotaNamesConfig) -> Self {
-        Self { config }
+    pub(crate) fn new(config: IotaNamesConfig, metrics: Arc<IotaNamesMetrics>) -> Self {
+        Self { config, metrics }
     }
 
-    fn process_event(&self, event: &Event) -> Result<(), anyhow::Error> {
+    pub(crate) async fn run(
+        self,
+        node_url: &str,
+        registry: &Registry,
+        token: CancellationToken,
+    ) -> anyhow::Result<()> {
+        let progress_store = FileProgressStore::new("./progress_store").await?;
+
+        let mut executor = IndexerExecutor::new(
+            progress_store,
+            1,
+            DataIngestionMetrics::new(registry),
+            token,
+        );
+        let worker_pool =
+            WorkerPool::new(self, "iota_names_reader".to_string(), 1, Default::default());
+        executor.register(worker_pool).await.unwrap();
+
+        info!("Connecting to node at {}", node_url);
+        executor
+            .run(
+                PathBuf::from("./chk".to_string()), /* path to a local directory
+                                                     * where
+                                                     * checkpoints
+                                                     * are stored. */
+                Some(format!("{node_url}/api/v1")),
+                vec![],                   // optional remote store access options.
+                ReaderOptions::default(), // remote_read_batch_size.
+            )
+            .await?;
+        Ok(())
+    }
+
+    fn process_event(&self, event: &Event) -> anyhow::Result<()> {
         if event.type_.address == self.config.package_address.into() {
             // TODO temporarily allowed until there are more even types
             #[allow(clippy::collapsible_if)]
             if event.type_.name == Identifier::new("IotaNamesRegistryEvent")? {
                 // TODO: init from prometheus storage to not always start from 0
-                METRICS
-                    .get()
-                    .expect("metrics global should be initialized")
-                    .total_name_records
-                    .add(1);
+                self.metrics.total_name_records.add(1);
                 // TODO: deserialize to get the name lengths
                 // let register_event =
                 //     bcs::from_bytes::<IotaNamesRegistryEvent>(&
@@ -50,7 +84,7 @@ impl IotaNamesWorker {
         Ok(())
     }
 
-    fn process_ptb(&self, _ptb: &ProgrammableTransaction) -> Result<(), anyhow::Error> {
+    fn process_ptb(&self, _ptb: &ProgrammableTransaction) -> anyhow::Result<()> {
         let _module = Identifier::new("payment")?; // TODO: Make const
         let _function = Identifier::new("register")?;
 
