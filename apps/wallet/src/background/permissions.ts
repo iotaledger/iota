@@ -137,20 +137,13 @@ class Permissions {
             origin,
             existingPermission,
         );
-        if (hasPendingRequest) {
-            if (existingPermission) {
-                const existingWindowId = this.#_permissionWindows.get(existingPermission.id);
-                if (existingWindowId) {
-                    try {
-                        const pUpdatedWindow = await Browser.windows.update(existingWindowId, {
-                            drawAttention: true,
-                            focused: true,
-                        });
-
-                        if (pUpdatedWindow.id) {
-                            this.#_permissionWindows.set(existingPermission.id, pUpdatedWindow.id);
-                        }
-
+        if (hasPendingRequest && existingPermission) {
+            const windowId = this.#_permissionWindows.get(existingPermission.id);
+            if (windowId) {
+                try {
+                    const highlightedWindowId = await this.highlightWindow(windowId);
+                    if (highlightedWindowId) {
+                        this.#_permissionWindows.set(existingPermission.id, highlightedWindowId);
                         windowRemovedStream.subscribe(() => {
                             this.handleWindowClosureAsRejection(
                                 existingPermission.id,
@@ -158,14 +151,12 @@ class Permissions {
                                 connection,
                             );
                         });
-
                         return null;
-                    } catch (e) {
-                        // ignore
                     }
+                } catch (e) {
+                    this.#_permissionWindows.delete(existingPermission.id);
                 }
             }
-            throw new Error('Another permission request is pending.');
         }
         const alreadyAllowed = await this.hasPermissions(
             origin,
@@ -384,6 +375,24 @@ class Permissions {
 
     private isPendingPermissionRequest(permissionRequest: Permission) {
         return permissionRequest.responseDate === null;
+    }
+
+    private async highlightWindow(windowId: number): Promise<number | null> {
+        try {
+            const window = await Browser.windows.get(windowId);
+
+            if (!window?.id) {
+                return null;
+            }
+
+            const pUpdatedWindow = await Browser.windows.update(window.id, {
+                drawAttention: true,
+                focused: true,
+            });
+            return pUpdatedWindow.id || null;
+        } catch {
+            return null;
+        }
     }
 }
 
