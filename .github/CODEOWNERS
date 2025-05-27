@@ -136,7 +136,7 @@ vercel.json @iotaledger/tooling
 
 # Scripts
 /scripts/cargo_sort/ @muXxer
-/scripts/ci_tests/ @nmrshll
+/scripts/ci_tests/ @iotaledger/node
 /scripts/codesearch/ @muXxer
 /scripts/generate_files/ @muXxer
 /scripts/tooling/ @iotaledger/tooling

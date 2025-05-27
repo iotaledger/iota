@@ -15,7 +15,7 @@ tags:
 There are two approaches to delete an IOTA Identity, with different implications:
 
 -   [Deactivate](#deactivate)
--   [Destroy](#destroy)
+-   [Delete](#delete)
 
 ## Deactivate
 
@@ -43,32 +43,32 @@ The following example demonstrates deactivating and reactivating an IOTA DID Doc
 <TabItem value="rust" label="Rust">
 
 ```rust reference
-https://github.com/iotaledger/identity.rs/blob/v1.6.0-alpha/examples/0_basic/3_deactivate_did.rs
+https://github.com/iotaledger/identity.rs/blob/v1.6.0-beta/examples/0_basic/3_deactivate_did.rs
 ```
 
 </TabItem>
 <TabItem value="typescript-node" label="Typescript (Node.js)">
 
 ```ts reference
-https://github.com/iotaledger/identity.rs/blob/wasm-v1.6.0-alpha/bindings/wasm/identity_wasm/examples/src/0_basic/3_deactivate_did.ts
+https://github.com/iotaledger/identity.rs/blob/v1.6.0-beta/bindings/wasm/identity_wasm/examples/src/0_basic/3_deactivate_did.ts
 ```
 
 </TabItem>
 </Tabs>
 
-## Destroy
+## Delete
 
-Alternatively, you can [destroy](../../../references/iota-identity/iota-did-method-spec.mdx#destroy) an IOTA Identity permanently.
+Alternatively, you can [delete](../../../references/iota-identity/iota-did-method-spec.mdx#delete) an IOTA DID permanently.
 
 :::warning Irreversible
 
-Destroying an IOTA Identity is permanent and irreversible.
+Deleting an IOTA DID is permanent and irreversible.
 
 :::
 
-This may be achieved by a DID controller by executing the `Identity::execute_delete` API.
+This may be achieved by a DID controller by executing a DID Update Proposal which sets the DID Document to the value a `None` value.
 
-Any coins and tokens owned by the destroyed `Identity` are reclaimed and must be sent to another address.
+Deleting a DID Document doesn't delete the Identity that encapsulates the document.
 
 :::warning
 
@@ -82,20 +82,20 @@ Even with a previous version available, a destroyed DID can never be restored.
 {/*
 ### Example
 
-The following example demonstrates how a controller destroys an IOTA Identity.
+The following example demonstrates how a controller destroys an IOTA DID.
 
 <Tabs groupId="language" queryString>
 <TabItem value="rust" label="Rust">
 
 ```rust reference
-https://github.com/iotaledger/identity.rs/blob/v1.6.0-alpha/examples/0_basic/4_delete_did.rs
+https://github.com/iotaledger/identity.rs/blob/v1.6.0-beta/examples/0_basic/4_delete_did.rs
 ```
 
 </TabItem>
 <TabItem value="typescript-node" label="Typescript (Node.js)">
 
 ```ts reference
-https://github.com/iotaledger/identity.rs/blob/wasm-v1.6.0-alpha/bindings/wasm/identity_wasm/examples/src/0_basic/4_delete_did.ts
+https://github.com/iotaledger/identity.rs/blob/v1.6.0-beta/bindings/wasm/identity_wasm/examples/src/0_basic/4_delete_did.ts
 ```
 
 </TabItem>

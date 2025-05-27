@@ -336,13 +336,13 @@ impl ArchiveReader {
     pub async fn read_summaries_for_list_no_verify<S>(
         &self,
         store: S,
-        skiplist: Vec<CheckpointSequenceNumber>,
+        checkpoints: Vec<CheckpointSequenceNumber>,
         checkpoint_counter: Arc<AtomicU64>,
     ) -> Result<()>
     where
         S: WriteStore + Clone,
     {
-        let summary_files = self.get_summary_files_for_list(skiplist.clone()).await?;
+        let summary_files = self.get_summary_files_for_list(checkpoints.clone()).await?;
         let remote_object_store = self.remote_object_store.clone();
         let stream = futures::stream::iter(summary_files.iter())
             .map(|summary_metadata| {
@@ -365,7 +365,7 @@ impl ArchiveReader {
                     )
                     .and_then(|summary_iter| {
                         summary_iter
-                            .filter(|s| skiplist.contains(&s.sequence_number))
+                            .filter(|s| checkpoints.contains(&s.sequence_number))
                             .try_for_each(|summary| {
                                 Self::insert_certified_checkpoint(&store, summary)?;
                                 checkpoint_counter.fetch_add(1, Ordering::Relaxed);
