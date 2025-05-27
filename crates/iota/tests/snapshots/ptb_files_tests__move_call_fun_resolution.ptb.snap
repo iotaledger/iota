@@ -27,9 +27,9 @@ expression: "results.join(\"\\n\")"
    ·                  ╰── Unbound named address: 'zero_x_zero'
  2 │ --assign a none
    ╰────
-  help: This is most likely because the named address 'zero_x_zero' is not in
-        scope. You can either bind a variable to the address that you want to
-        use or use the address in the command.
+  help: This is most likely because the named address 'zero_x_zero' is not
+        in scope. You can either bind a variable to the address that you
+        want to use or use the address in the command.
 
   × Error when processing PTB
    ╭─[4:13]
