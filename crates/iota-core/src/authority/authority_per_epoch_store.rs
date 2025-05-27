@@ -81,7 +81,6 @@ use typed_store::{
 use super::{
     authority_store_tables::ENV_VAR_LOCKS_BLOCK_CACHE_SIZE,
     epoch_start_configuration::EpochStartConfigTrait,
-    shared_object_congestion_info::PerCommitCongestionInfo,
     shared_object_congestion_tracker::{
         ExecutionTime, SequencingResult, SharedObjectCongestionTracker,
     },
@@ -91,7 +90,7 @@ use crate::{
     authority::{
         AuthorityMetrics, ResolverWrapper,
         epoch_start_configuration::EpochStartConfiguration,
-        shared_object_congestion_info::SharedObjectTransactionResult,
+        shared_object_congestion_info::{MultiCommitCongestionInfo, SharedObjectTransactionResult},
         shared_object_version_manager::{
             AssignedTxAndVersions, ConsensusSharedObjVerAssignment, SharedObjVerManager,
         },
@@ -441,6 +440,8 @@ pub struct AuthorityPerEpochStore {
     /// State machine managing randomness DKG and generation.
     randomness_manager: OnceCell<tokio::sync::Mutex<RandomnessManager>>,
     randomness_reporter: OnceCell<RandomnessReporter>,
+
+    congestion_info: Mutex<MultiCommitCongestionInfo>,
 }
 
 /// AuthorityEpochTables contains tables that contain data that is only valid
@@ -946,6 +947,7 @@ impl AuthorityPerEpochStore {
             jwk_aggregator,
             randomness_manager: OnceCell::new(),
             randomness_reporter: OnceCell::new(),
+            congestion_info: Mutex::new(MultiCommitCongestionInfo::new()),
         });
 
         s.update_buffer_stake_metric();
@@ -3123,7 +3125,7 @@ impl AuthorityPerEpochStore {
             }
         );
 
-        let mut shared_object_congestion_info = PerCommitCongestionInfo::new();
+        self.insert_new_per_commit_congestion_info(consensus_commit_info.round);
 
         let mut randomness_state_updated = false;
         for tx in transactions {
@@ -3146,7 +3148,6 @@ impl AuthorityPerEpochStore {
                     dkg_failed,
                     randomness_round.is_some(),
                     congestion_tracker,
-                    &mut shared_object_congestion_info,
                     authority_metrics,
                 )
                 .await?
@@ -3403,7 +3404,6 @@ impl AuthorityPerEpochStore {
         dkg_failed: bool,
         generating_randomness: bool,
         shared_object_congestion_tracker: &mut SharedObjectCongestionTracker,
-        shared_object_congestion_info: &mut PerCommitCongestionInfo,
         authority_metrics: &Arc<AuthorityMetrics>,
     ) -> IotaResult<ConsensusCertificateResult> {
         let _scope = monitored_scope("HandleConsensusTransaction");
@@ -3495,7 +3495,8 @@ impl AuthorityPerEpochStore {
                             }
                             DeferralReason::SharedObjectCongestion(congested_objects) => {
                                 // Update shared object congestion info for a single certificate
-                                shared_object_congestion_info.process_consensus_certificate(
+                                self.update_per_commit_congestion_info_for_consensus_certificate(
+                                    commit_round,
                                     &certificate,
                                     estimated_execution_duration,
                                     SharedObjectTransactionResult::Defer,
@@ -3531,7 +3532,8 @@ impl AuthorityPerEpochStore {
                     }
                     SchedulingResult::Schedule(start_time) => {
                         // Update shared object congestion info for a single certificate
-                        shared_object_congestion_info.process_consensus_certificate(
+                        self.update_per_commit_congestion_info_for_consensus_certificate(
+                            commit_round,
                             &certificate,
                             estimated_execution_duration,
                             SharedObjectTransactionResult::Schedule,
@@ -4024,6 +4026,27 @@ impl AuthorityPerEpochStore {
                 ),
             }
         }
+    }
+
+    fn insert_new_per_commit_congestion_info(&self, commit_round: CommitRound) {
+        let mut congestion_info = self.congestion_info.lock();
+        (*congestion_info).insert_new_per_commit_congestion_info(commit_round);
+    }
+
+    fn update_per_commit_congestion_info_for_consensus_certificate(
+        &self,
+        commit_round: CommitRound,
+        certificate: &VerifiedExecutableTransaction,
+        estimated_execution_duration: ExecutionTime,
+        scheduling_result: SharedObjectTransactionResult,
+    ) {
+        let mut congestion_info = self.congestion_info.lock();
+        (*congestion_info).update_per_commit_congestion_info_for_consensus_certificate(
+            commit_round,
+            certificate,
+            estimated_execution_duration,
+            scheduling_result,
+        );
     }
 }
 
