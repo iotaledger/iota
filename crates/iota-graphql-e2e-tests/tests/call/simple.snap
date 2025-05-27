@@ -115,7 +115,7 @@ Response: {
 task 15, lines 64-69:
 //# run-graphql --show-usage --show-headers --show-service-version
 Headers: {
-    "content-type": "application/json",
+    "content-type": "application/graphql-response+json",
     "x-iota-rpc-version": "1.2.0-testing-no-sha",
     "vary": "origin, access-control-request-method, access-control-request-headers",
     "access-control-allow-origin": "*",
