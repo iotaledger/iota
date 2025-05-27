@@ -682,8 +682,12 @@ async fn test_reconfig_with_same_validator() {
 
     // ValidatorGenesisConfig doesn't impl Clone
     // generate the same config with the same rng seed
-    let build_node_config =
-        || ValidatorGenesisConfigBuilder::new().build(&mut StdRng::seed_from_u64(0));
+    let node_ip = iota_config::local_ip_utils::get_new_ip();
+    let build_node_config = || {
+        ValidatorGenesisConfigBuilder::new()
+            .with_ip(node_ip.clone())
+            .build(&mut StdRng::seed_from_u64(0))
+    };
 
     // the node that will re-join committee
     let node_config = build_node_config();
