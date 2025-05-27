@@ -7,6 +7,7 @@ use std::{
 };
 
 use prometheus::{IntGauge, Registry, register_int_gauge_with_registry};
+use tracing::info;
 
 pub(crate) struct IotaNamesMetrics {
     pub total_name_records: IntGauge,
@@ -29,6 +30,7 @@ pub(crate) static METRICS: OnceLock<Arc<IotaNamesMetrics>> = OnceLock::new();
 
 pub(crate) fn start_prometheus_server() -> Registry {
     let addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(0, 0, 0, 0)), 9184);
+    info!("Starting prometheus metrics at http://0.0.0.0:9184/metrics");
 
     iota_metrics::start_prometheus_server(addr).default_registry()
 }

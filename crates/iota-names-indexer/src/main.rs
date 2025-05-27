@@ -27,7 +27,6 @@ async fn main() -> Result<()> {
     info!("Starting IOTA Names Indexer...");
 
     let registry = start_prometheus_server();
-    info!("Started prometheus metrics at http://0.0.0.0:9184/metrics");
 
     METRICS.get_or_init(|| Arc::new(IotaNamesMetrics::new(&registry)));
     let metrics = DataIngestionMetrics::new(&registry);
