@@ -36,7 +36,6 @@ pub mod state_accumulator;
 pub mod storage;
 pub mod streamer;
 pub mod subscription_handler;
-pub mod suggested_gas_price_calculator;
 #[cfg(any(test, feature = "test-utils"))]
 pub mod test_utils;
 pub mod traffic_controller;
