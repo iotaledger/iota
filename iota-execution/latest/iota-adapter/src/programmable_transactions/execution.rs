@@ -25,7 +25,7 @@ mod checked {
         error::{ExecutionError, ExecutionErrorKind, command_argument_error},
         execution_config_utils::to_binary_config,
         execution_status::{CommandArgumentError, PackageUpgradeError},
-        id::{RESOLVED_IOTA_ID, UID},
+        id::RESOLVED_IOTA_ID,
         metrics::LimitsMetrics,
         move_package::{
             MovePackage, UpgradeCap, UpgradePolicy, UpgradeReceipt, UpgradeTicket,
