@@ -342,6 +342,10 @@ public(package) fun request_withdraw_stake(
     let principal_amount = staked_iota.staked_iota_amount();
     let stake_activation_epoch = staked_iota.stake_activation_epoch();
     let withdrawn_stake = self.staking_pool.request_withdraw_stake(staked_iota, ctx);
+    // Process withdraw right away if staking pool is preactive or inactive
+    if (self.staking_pool.is_preactive() || self.staking_pool.is_inactive()) {
+        self.staking_pool.process_pending_stake_withdraw();
+    };
     let withdraw_amount = withdrawn_stake.value();
     let reward_amount = withdraw_amount - principal_amount;
     self.next_epoch_stake = self.next_epoch_stake - withdraw_amount;
@@ -492,6 +496,10 @@ public fun stake_amount(self: &ValidatorV1): u64 {
 /// Return the total amount staked with this validator
 public fun total_stake(self: &ValidatorV1): u64 {
     stake_amount(self)
+}
+
+public(package) fun next_epoch_stake(self: &ValidatorV1): u64 {
+    self.next_epoch_stake
 }
 
 /// Return the voting power of this validator.

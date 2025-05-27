@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { useAppSelector, useConnectedApps } from '_hooks';
-import { Feature } from '@iota/core';
+import { Feature, NoData } from '@iota/core';
 import { prepareLinkToCompare } from '_src/shared/utils';
 import { useFeature } from '@growthbook/growthbook-react';
 import { useMemo } from 'react';
@@ -24,7 +24,6 @@ import {
 } from '@iota/apps-ui-kit';
 import { Vest, ArrowRight } from '@iota/apps-ui-icons';
 import { PageTemplate } from '../PageTemplate';
-import { NoData } from '../NoData';
 
 export function AppsPlayGround() {
     const { connectedApps } = useConnectedApps();

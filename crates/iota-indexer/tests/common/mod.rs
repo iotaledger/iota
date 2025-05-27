@@ -40,6 +40,7 @@ const DEFAULT_DB: &str = "iota_indexer";
 const DEFAULT_INDEXER_IP: &str = "127.0.0.1";
 const DEFAULT_INDEXER_PORT: u16 = 9005;
 const DEFAULT_SERVER_PORT: u16 = 3000;
+pub const FIXTURES_DIR: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/data");
 
 static GLOBAL_API_TEST_SETUP: OnceLock<ApiTestSetup> = OnceLock::new();
 
@@ -56,9 +57,12 @@ impl ApiTestSetup {
         GLOBAL_API_TEST_SETUP.get_or_init(|| {
             let runtime = tokio::runtime::Runtime::new().unwrap();
 
-            let (cluster, store, client) = runtime.block_on(
-                start_test_cluster_with_read_write_indexer(Some("shared_test_indexer_db"), None),
-            );
+            let (cluster, store, client) =
+                runtime.block_on(start_test_cluster_with_read_write_indexer(
+                    Some("shared_test_indexer_db"),
+                    None,
+                    None,
+                ));
 
             Self {
                 runtime,
@@ -110,10 +114,11 @@ impl SimulacrumTestSetup {
 }
 
 /// Start a [`TestCluster`][`test_cluster::TestCluster`] with a `Read` &
-/// `Write` indexer
+/// `Write` indexer. Set `epochs_to_keep` (> 0) to enable indexer pruning.
 pub async fn start_test_cluster_with_read_write_indexer(
     database_name: Option<&str>,
     builder_modifier: Option<Box<dyn FnOnce(TestClusterBuilder) -> TestClusterBuilder>>,
+    epochs_to_keep: Option<u64>,
 ) -> (TestCluster, PgIndexerStore, HttpClient) {
     let temp = tempdir().unwrap().into_path();
     let mut builder = TestClusterBuilder::new();
@@ -131,7 +136,7 @@ pub async fn start_test_cluster_with_read_write_indexer(
         true,
         None,
         cluster.rpc_url().to_string(),
-        IndexerTypeConfig::writer_mode(None, None),
+        IndexerTypeConfig::writer_mode(None, epochs_to_keep),
         None,
     )
     .await;
@@ -147,7 +152,7 @@ pub async fn start_test_cluster_with_read_write_indexer(
     (cluster, pg_store, rpc_client)
 }
 
-fn get_indexer_db_url(database_name: Option<&str>) -> String {
+pub fn get_indexer_db_url(database_name: Option<&str>) -> String {
     database_name.map_or_else(
         || format!("{POSTGRES_URL}/{DEFAULT_DB}"),
         |db_name| format!("{POSTGRES_URL}/{db_name}"),
@@ -214,6 +219,29 @@ pub async fn indexer_wait_for_object(
     })
     .await
     .expect("Timeout waiting for indexer to catchup to given object's sequence number");
+}
+
+/// Wait for the indexer to prune the given checkpoint number
+pub async fn indexer_wait_for_checkpoint_pruned(
+    pg_store: &PgIndexerStore,
+    checkpoint_sequence_number: u64,
+) {
+    tokio::time::timeout(Duration::from_secs(30), async {
+        loop {
+            let (min, _max) = pg_store
+                .get_available_checkpoint_range()
+                .await
+                .expect("Failed to get available checkpoint range");
+
+            if min > checkpoint_sequence_number {
+                break;
+            }
+
+            tokio::time::sleep(Duration::from_millis(100)).await;
+        }
+    })
+    .await
+    .expect("Timeout waiting for indexer to prune checkpoint");
 }
 
 pub async fn indexer_wait_for_transaction(

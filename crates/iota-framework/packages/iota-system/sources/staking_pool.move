@@ -134,10 +134,19 @@ public(package) fun request_withdraw_stake(
     // stake is inactive
     if (staked_iota.stake_activation_epoch > ctx.epoch()) {
         let principal = unwrap_staked_iota(staked_iota);
+        let withdraw_amount = principal.value();
 
-        // Stake for preactive validators is always processed immediately and not added to the pending stake.
-        if (!pool.is_preactive()) {
-            pool.pending_stake = pool.pending_stake - principal.value();
+        if (pool.is_preactive()) {
+            // Stake for preactive validators is always processed immediately and not added to the pending stake.
+            // The exchange rate of a preactive pool is always 1:1, so we can subtract the withdraw_amount
+            // from both iota_balance and pool_token_balance.
+            pool.iota_balance = pool.iota_balance - withdraw_amount;
+            pool.pool_token_balance = pool.pool_token_balance - withdraw_amount;
+            check_balance_invariants(pool, ctx.epoch());
+        } else {
+            // The stake for active validators is only updated at epoch boundaries,
+            // so we can remove it from the pending_stake here.
+            pool.pending_stake = pool.pending_stake - withdraw_amount;
         };
 
         return principal
@@ -161,9 +170,6 @@ public(package) fun request_withdraw_stake(
         pool.pending_total_iota_withdraw + total_iota_withdraw_amount;
     pool.pending_pool_token_withdraw =
         pool.pending_pool_token_withdraw + pool_token_withdraw_amount;
-
-    // If the pool is inactive, we immediately process the withdrawal.
-    if (is_inactive(pool)) process_pending_stake_withdraw(pool);
 
     // TODO: implement withdraw bonding period here.
     principal_withdraw.join(rewards_withdraw);
@@ -235,8 +241,8 @@ public(package) fun process_pending_stakes_and_withdraws(
 }
 
 /// Called at epoch boundaries to process pending stake withdraws requested during the epoch.
-/// Also called immediately upon withdrawal if the pool is inactive.
-fun process_pending_stake_withdraw(pool: &mut StakingPoolV1) {
+/// Also called immediately upon withdrawal if the pool is inactive or if the pool is preactive.
+public(package) fun process_pending_stake_withdraw(pool: &mut StakingPoolV1) {
     pool.iota_balance = pool.iota_balance - pool.pending_total_iota_withdraw;
     pool.pool_token_balance = pool.pool_token_balance - pool.pending_pool_token_withdraw;
     pool.pending_total_iota_withdraw = 0;
