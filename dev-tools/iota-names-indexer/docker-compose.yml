@@ -22,6 +22,10 @@ services:
         max_attempts: 3
     networks:
       - indexer-metrics-net
+    environment:
+      - RUST_LOG=info,iota_data_ingestion_core=off
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
 
   prometheus:
     image: prom/prometheus:latest

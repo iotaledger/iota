@@ -15,6 +15,7 @@ use iota_types::{
     full_checkpoint_content::CheckpointData,
     transaction::{ProgrammableTransaction, TransactionData, TransactionKind},
 };
+use tracing::debug;
 
 use crate::metrics::METRICS;
 
@@ -76,7 +77,7 @@ impl Worker for IotaNamesWorker {
         &self,
         checkpoint: Arc<CheckpointData>, // TODO change to &?
     ) -> Result<Self::Message, Self::Error> {
-        println!(
+        debug!(
             "Processing checkpoint: {}",
             checkpoint.checkpoint_summary.sequence_number
         );
