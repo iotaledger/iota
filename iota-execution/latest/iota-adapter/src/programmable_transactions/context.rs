@@ -19,6 +19,7 @@ mod checked {
         programmable_transactions::{data_store::IotaDataStore, linkage_view::LinkageView},
         type_resolver::TypeTagResolver,
     };
+    use indexmap::IndexSet;
     use move_binary_format::{
         CompiledModule,
         errors::{Location, PartialVMError, VMError, VMResult},
@@ -988,12 +989,8 @@ mod checked {
 
             Ok(ExecutionResults::V1(ExecutionResultsV1 {
                 written_objects,
-                modified_objects: loaded_runtime_objects
-                    .into_iter()
-                    .filter_map(|(id, loaded)| loaded.is_modified.then_some(id))
-                    .collect(),
-                created_object_ids: created_object_ids.into_iter().collect(),
-                deleted_object_ids: deleted_object_ids.into_iter().collect(),
+                created_object_ids,
+                deleted_object_ids,
                 user_events,
             }))
         }
@@ -1685,7 +1682,7 @@ mod checked {
         )
     }
 
-    enum EitherError {
+    pub enum EitherError {
         CommandArgument(CommandArgumentError),
         Execution(ExecutionError),
     }
@@ -1703,7 +1700,7 @@ mod checked {
     }
 
     impl EitherError {
-        fn into_execution_error(self, command_index: usize) -> ExecutionError {
+        pub fn into_execution_error(self, command_index: usize) -> ExecutionError {
             match self {
                 EitherError::CommandArgument(e) => command_argument_error(e, command_index),
                 EitherError::Execution(e) => e,

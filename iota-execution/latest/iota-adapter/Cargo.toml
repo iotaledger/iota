@@ -37,6 +37,7 @@ move-vm-config.workspace = true
 move-vm-profiler = { path = "../../../external-crates/move/crates/move-vm-profiler" }
 move-vm-runtime = { path = "../../../external-crates/move/crates/move-vm-runtime" }
 move-vm-types = { path = "../../../external-crates/move/crates/move-vm-types" }
+move-regex-borrow-graph = { path = "../../../external-crates/move/crates/move-regex-borrow-graph" }
 
 [features]
 tracing = [

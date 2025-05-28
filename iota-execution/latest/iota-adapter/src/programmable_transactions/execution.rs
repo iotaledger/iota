@@ -1355,7 +1355,7 @@ mod checked {
                 check_non_entry_signature::<Mode>(context, module_id, function, &signature)?
             }
         };
-        check_private_generics(context, module_id, function, type_arguments)?;
+        check_private_generics(module_id, function)?;
         Ok(LoadedFunctionInfo {
             kind: function_kind,
             signature,
@@ -1457,11 +1457,9 @@ mod checked {
     /// directly invoked. This function checks if the module and function
     /// being called belong to restricted areas, such as the `iota::event`
     /// or `iota::transfer` modules.
-    fn check_private_generics(
-        _context: &mut ExecutionContext,
+    pub fn check_private_generics(
         module_id: &ModuleId,
         function: &IdentStr,
-        _type_arguments: &[Type],
     ) -> Result<(), ExecutionError> {
         let module_ident = (module_id.address(), module_id.name());
         if module_ident == (&IOTA_FRAMEWORK_ADDRESS, EVENT_MODULE) {
