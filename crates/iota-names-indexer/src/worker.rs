@@ -1,21 +1,27 @@
 // Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{path::PathBuf, sync::Arc};
+use std::{path::PathBuf, str::FromStr, sync::Arc};
 
 use anyhow::Result;
 use async_trait::async_trait;
 use iota_data_ingestion_core::{
     DataIngestionMetrics, FileProgressStore, IndexerExecutor, ReaderOptions, Worker, WorkerPool,
 };
+use iota_json::IotaJsonValue;
 use iota_names::config::IotaNamesConfig;
 use iota_types::{
-    Identifier,
+    Identifier, TypeTag,
+    balance::Balance,
     effects::{TransactionEffects, TransactionEffectsAPI},
     event::Event,
     execution_status::ExecutionStatus,
     full_checkpoint_content::CheckpointData,
     transaction::{ProgrammableTransaction, TransactionData, TransactionKind},
+};
+use move_core_types::{
+    annotated_value::{MoveFieldLayout, MoveStructLayout, MoveTypeLayout},
+    language_storage::StructTag,
 };
 use prometheus::Registry;
 use tokio_util::sync::CancellationToken;
@@ -119,6 +125,32 @@ impl Worker for IotaNamesWorker {
             "Processing checkpoint: {}",
             checkpoint.checkpoint_summary.sequence_number
         );
+
+        let config_type = StructTag::from_str(&format!(
+            "{}::iota_names::BalanceKey<iota::iota::IOTA>",
+            self.config.package_address,
+        ))?;
+        let layout = MoveTypeLayout::Struct(Box::new(MoveStructLayout {
+            type_: config_type.clone(),
+            fields: vec![MoveFieldLayout::new(
+                Identifier::from_str("dummy_field")?,
+                MoveTypeLayout::Bool,
+            )],
+        }));
+        let balance_object_id = iota_types::dynamic_field::derive_dynamic_field_id(
+            self.config.object_id,
+            &TypeTag::Struct(Box::new(config_type)),
+            &IotaJsonValue::new(serde_json::json!({ "dummy_field": false }))?
+                .to_bcs_bytes(&layout)?,
+        )?;
+
+        for object in checkpoint.latest_live_output_objects() {
+            if object.id() == balance_object_id {
+                let balance: Balance = object.to_rust().expect("invalid balance object");
+                self.metrics.iota_names_balance.set(balance.value() as _);
+                break;
+            }
+        }
 
         for transaction in &checkpoint.transactions {
             let TransactionEffects::V1(effects) = &transaction.effects;

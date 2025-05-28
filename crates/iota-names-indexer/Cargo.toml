@@ -15,6 +15,7 @@ axum.workspace = true
 clap.workspace = true
 dotenvy = "0.15"
 prometheus.workspace = true
+serde_json.workspace = true
 tokio.workspace = true
 tokio-util.workspace = true
 tracing.workspace = true
@@ -23,6 +24,8 @@ tracing-subscriber = { version = "0.3", default-features = false, features = ["s
 # internal dependencies
 bin-version.workspace = true
 iota-data-ingestion-core.workspace = true
+iota-json.workspace = true
 iota-metrics.workspace = true
 iota-names.workspace = true
 iota-types.workspace = true
+move-core-types.workspace = true
