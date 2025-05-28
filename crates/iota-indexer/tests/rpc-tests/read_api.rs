@@ -1811,7 +1811,7 @@ fn get_chain_identifier_with_pruning_enabled() {
 }
 
 #[test]
-fn get_trasaction_for_deleted_object() {
+fn get_transaction_for_deleted_object() {
     let ApiTestSetup {
         runtime,
         store,
