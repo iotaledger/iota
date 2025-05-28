@@ -40,6 +40,7 @@ use passkey_types::{
 use shared_crypto::intent::{Intent, IntentMessage};
 use test_cluster::{TestCluster, TestClusterBuilder};
 use url::Url;
+
 async fn do_upgraded_multisig_test() -> IotaResult {
     let test_cluster = TestClusterBuilder::new().build().await;
     let tx = make_upgraded_multisig_tx();

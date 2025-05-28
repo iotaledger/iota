@@ -178,10 +178,6 @@ struct FeatureFlags {
     #[serde(skip_serializing_if = "is_false")]
     accept_zklogin_in_multisig: bool,
 
-    // If true, multisig containing passkey sig is accepted.
-    #[serde(skip_serializing_if = "is_false")]
-    accept_passkey_in_multisig: bool,
-
     // If true, use the hardened OTW check
     // This flag is used to provide the correct MoveVM configuration for clients.
     #[serde(skip_serializing_if = "is_true")]
@@ -282,6 +278,10 @@ struct FeatureFlags {
     // object congestion tracker.
     #[serde(skip_serializing_if = "is_false")]
     congestion_control_min_free_execution_slot: bool,
+
+    // If true, multisig containing passkey sig is accepted.
+    #[serde(skip_serializing_if = "is_false")]
+    accept_passkey_in_multisig: bool,
 }
 
 fn is_true(b: &bool) -> bool {
@@ -1129,10 +1129,6 @@ impl ProtocolConfig {
         self.feature_flags.accept_zklogin_in_multisig
     }
 
-    pub fn accept_passkey_in_multisig(&self) -> bool {
-        self.feature_flags.accept_passkey_in_multisig
-    }
-
     pub fn zklogin_max_epoch_upper_bound_delta(&self) -> Option<u64> {
         self.feature_flags.zklogin_max_epoch_upper_bound_delta
     }
@@ -1258,6 +1254,10 @@ impl ProtocolConfig {
     pub fn congestion_control_min_free_execution_slot(&self) -> bool {
         self.feature_flags
             .congestion_control_min_free_execution_slot
+    }
+
+    pub fn accept_passkey_in_multisig(&self) -> bool {
+        self.feature_flags.accept_passkey_in_multisig
     }
 }
 
