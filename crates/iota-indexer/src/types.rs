@@ -535,7 +535,13 @@ pub struct TxIndex {
     pub transaction_digest: TransactionDigest,
     pub checkpoint_sequence_number: u64,
     pub input_objects: Vec<ObjectID>,
+    /// Objects that were mutated, created and unwrapped objects. In other
+    /// words, all objects that still exist in the object state after this
+    /// transaction.
     pub changed_objects: Vec<ObjectID>,
+    /// Objects that were either wrapped immediately after being created,
+    /// deleted, or deleted immediately after being unwrapped.
+    pub wrapped_or_deleted_objects: Vec<ObjectID>,
     pub payers: Vec<IotaAddress>,
     pub sender: IotaAddress,
     pub recipients: Vec<IotaAddress>,

@@ -2366,6 +2366,10 @@ pub enum TransactionFilter {
     /// Query by changed object, including created, mutated and unwrapped
     /// objects.
     ChangedObject(ObjectID),
+    /// Query wrapped or deleted objects. Includes objects that were either
+    /// wrapped immediately after being created, deleted, or deleted immediately
+    /// after being unwrapped.
+    WrappedOrDeletedObject(ObjectID),
     /// Query by sender address.
     FromAddress(IotaAddress),
     /// Query by recipient address.
@@ -2395,6 +2399,13 @@ impl Filter<EffectsWithInput> for TransactionFilter {
                 .mutated()
                 .iter()
                 .any(|oref: &OwnedObjectRef| &oref.reference.object_id == o),
+            TransactionFilter::WrappedOrDeletedObject(o) => item
+                .effects
+                .wrapped()
+                .iter()
+                .chain(item.effects.deleted())
+                .chain(item.effects.unwrapped_then_deleted())
+                .any(|oref: &IotaObjectRef| &oref.object_id == o),
             TransactionFilter::FromAddress(a) => &item.input.sender() == a,
             TransactionFilter::ToAddress(a) => {
                 let mutated: &[OwnedObjectRef] = item.effects.mutated();

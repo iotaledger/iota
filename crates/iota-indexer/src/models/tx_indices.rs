@@ -10,6 +10,7 @@ use crate::{
         optimistic_tx_changed_objects, optimistic_tx_input_objects, optimistic_tx_kinds,
         optimistic_tx_recipients, optimistic_tx_senders, tx_calls_fun, tx_calls_mod, tx_calls_pkg,
         tx_changed_objects, tx_digests, tx_input_objects, tx_kinds, tx_recipients, tx_senders,
+        tx_wrapped_or_deleted_objects,
     },
     types::TxIndex,
 };
@@ -52,6 +53,14 @@ pub struct StoredTxInputObject {
 #[derive(Queryable, Insertable, Selectable, Debug, Clone, Default)]
 #[diesel(table_name = tx_changed_objects)]
 pub struct StoredTxChangedObject {
+    pub tx_sequence_number: i64,
+    pub object_id: Vec<u8>,
+    pub sender: Vec<u8>,
+}
+
+#[derive(Queryable, Insertable, Selectable, Debug, Clone, Default)]
+#[diesel(table_name = tx_wrapped_or_deleted_objects)]
+pub struct StoredTxWrappedOrDeletedObject {
     pub tx_sequence_number: i64,
     pub object_id: Vec<u8>,
     pub sender: Vec<u8>,
@@ -107,6 +116,7 @@ impl TxIndex {
         Vec<StoredTxRecipients>,
         Vec<StoredTxInputObject>,
         Vec<StoredTxChangedObject>,
+        Vec<StoredTxWrappedOrDeletedObject>,
         Vec<StoredTxPkg>,
         Vec<StoredTxMod>,
         Vec<StoredTxFun>,
@@ -140,6 +150,15 @@ impl TxIndex {
             .changed_objects
             .iter()
             .map(|o| StoredTxChangedObject {
+                tx_sequence_number,
+                object_id: bcs::to_bytes(&o).unwrap(),
+                sender: self.sender.to_vec(),
+            })
+            .collect();
+        let tx_wrapped_or_deleted_objects = self
+            .wrapped_or_deleted_objects
+            .iter()
+            .map(|o| StoredTxWrappedOrDeletedObject {
                 tx_sequence_number,
                 object_id: bcs::to_bytes(&o).unwrap(),
                 sender: self.sender.to_vec(),
@@ -205,6 +224,7 @@ impl TxIndex {
             tx_recipients,
             tx_input_objects,
             tx_changed_objects,
+            tx_wrapped_or_deleted_objects,
             tx_pkgs,
             tx_mods,
             tx_calls,

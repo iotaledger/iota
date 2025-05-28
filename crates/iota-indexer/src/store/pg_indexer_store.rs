@@ -62,7 +62,7 @@ use crate::{
         optimistic_tx_recipients, optimistic_tx_senders, packages, protocol_configs,
         pruner_cp_watermark, transactions, tx_calls_fun, tx_calls_mod, tx_calls_pkg,
         tx_changed_objects, tx_digests, tx_input_objects, tx_insertion_order, tx_kinds,
-        tx_recipients, tx_senders,
+        tx_recipients, tx_senders, tx_wrapped_or_deleted_objects,
     },
     transactional_blocking_with_retry,
     types::{
@@ -911,53 +911,67 @@ impl PgIndexerStore {
             .checkpoint_db_commit_latency_tx_indices_chunks
             .start_timer();
         let len = indices.len();
-        let (senders, recipients, input_objects, changed_objects, pkgs, mods, funs, digests, kinds) =
-            indices.into_iter().map(|i| i.split()).fold(
+        let (
+            senders,
+            recipients,
+            input_objects,
+            changed_objects,
+            wrapped_or_deleted_objects,
+            pkgs,
+            mods,
+            funs,
+            digests,
+            kinds,
+        ) = indices.into_iter().map(|i| i.split()).fold(
+            (
+                Vec::new(),
+                Vec::new(),
+                Vec::new(),
+                Vec::new(),
+                Vec::new(),
+                Vec::new(),
+                Vec::new(),
+                Vec::new(),
+                Vec::new(),
+                Vec::new(),
+            ),
+            |(
+                mut tx_senders,
+                mut tx_recipients,
+                mut tx_input_objects,
+                mut tx_changed_objects,
+                mut tx_wrapped_or_deleted_objects,
+                mut tx_pkgs,
+                mut tx_mods,
+                mut tx_funs,
+                mut tx_digests,
+                mut tx_kinds,
+            ),
+             index| {
+                tx_senders.extend(index.0);
+                tx_recipients.extend(index.1);
+                tx_input_objects.extend(index.2);
+                tx_changed_objects.extend(index.3);
+                tx_wrapped_or_deleted_objects.extend(index.4);
+                tx_pkgs.extend(index.5);
+                tx_mods.extend(index.6);
+                tx_funs.extend(index.7);
+                tx_digests.extend(index.8);
+                tx_kinds.extend(index.9);
                 (
-                    Vec::new(),
-                    Vec::new(),
-                    Vec::new(),
-                    Vec::new(),
-                    Vec::new(),
-                    Vec::new(),
-                    Vec::new(),
-                    Vec::new(),
-                    Vec::new(),
-                ),
-                |(
-                    mut tx_senders,
-                    mut tx_recipients,
-                    mut tx_input_objects,
-                    mut tx_changed_objects,
-                    mut tx_pkgs,
-                    mut tx_mods,
-                    mut tx_funs,
-                    mut tx_digests,
-                    mut tx_kinds,
-                ),
-                 index| {
-                    tx_senders.extend(index.0);
-                    tx_recipients.extend(index.1);
-                    tx_input_objects.extend(index.2);
-                    tx_changed_objects.extend(index.3);
-                    tx_pkgs.extend(index.4);
-                    tx_mods.extend(index.5);
-                    tx_funs.extend(index.6);
-                    tx_digests.extend(index.7);
-                    tx_kinds.extend(index.8);
-                    (
-                        tx_senders,
-                        tx_recipients,
-                        tx_input_objects,
-                        tx_changed_objects,
-                        tx_pkgs,
-                        tx_mods,
-                        tx_funs,
-                        tx_digests,
-                        tx_kinds,
-                    )
-                },
-            );
+                    tx_senders,
+                    tx_recipients,
+                    tx_input_objects,
+                    tx_changed_objects,
+                    tx_wrapped_or_deleted_objects,
+                    tx_pkgs,
+                    tx_mods,
+                    tx_funs,
+                    tx_digests,
+                    tx_kinds,
+                )
+            },
+        );
 
         let mut futures = vec![];
         futures.push(self.spawn_blocking_task(move |this| {
@@ -1041,6 +1055,36 @@ impl PgIndexerStore {
             })
             .tap_err(|e| {
                 tracing::error!("Failed to persist tx_changed_objects with error: {}", e);
+            })
+        }));
+
+        futures.push(self.spawn_blocking_task(move |this| {
+            let now = Instant::now();
+            let wrapped_or_deleted_objects_len = wrapped_or_deleted_objects.len();
+            transactional_blocking_with_retry!(
+                &this.blocking_cp,
+                |conn| {
+                    for chunk in wrapped_or_deleted_objects.chunks(PG_COMMIT_CHUNK_SIZE_INTRA_DB_TX)
+                    {
+                        insert_or_ignore_into!(tx_wrapped_or_deleted_objects::table, chunk, conn);
+                    }
+                    Ok::<(), IndexerError>(())
+                },
+                PG_DB_COMMIT_SLEEP_DURATION
+            )
+            .tap_ok(|_| {
+                let elapsed = now.elapsed().as_secs_f64();
+                info!(
+                    elapsed,
+                    "Persisted {} rows to tx_wrapped_or_deleted_objects table",
+                    wrapped_or_deleted_objects_len,
+                );
+            })
+            .tap_err(|e| {
+                tracing::error!(
+                    "Failed to persist tx_wrapped_or_deleted_objects with error: {}",
+                    e
+                );
             })
         }));
 

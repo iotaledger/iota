@@ -511,6 +511,13 @@ impl CheckpointHandler {
             .map(|(object_ref, _owner, _write_kind)| object_ref.0)
             .collect::<Vec<_>>();
 
+        // Wrapped or deleted Objects
+        let wrapped_or_deleted_objects = fx
+            .all_tombstones()
+            .into_iter()
+            .map(|(object_id, _sequence_number)| object_id)
+            .collect::<Vec<_>>();
+
         // Payers
         let payers = vec![tx.gas_owner()];
 
@@ -541,6 +548,7 @@ impl CheckpointHandler {
             checkpoint_sequence_number: checkpoint_seq,
             input_objects,
             changed_objects,
+            wrapped_or_deleted_objects,
             sender,
             payers,
             recipients,
