@@ -5808,7 +5808,6 @@ dependencies = [
  "colored",
  "csv",
  "datatest-stable",
- "diesel",
  "expect-test",
  "fastcrypto",
  "fastcrypto-zkp",
