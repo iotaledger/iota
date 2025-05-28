@@ -284,6 +284,7 @@ impl<C: NetworkClient> CommitSyncer<C> {
             .inc_by(total_blocks_fetched as u64);
         metrics
             .commit_sync_total_fetched_blocks_size
+            .with_label_values(&[&hostname.as_str()])
             .inc_by(total_blocks_size_bytes);
 
         let (commit_start, commit_end) = (
