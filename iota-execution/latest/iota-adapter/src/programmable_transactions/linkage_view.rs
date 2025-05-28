@@ -31,11 +31,10 @@ pub struct LinkageView<'state> {
     /// store.
     resolver: Box<dyn IotaResolver + 'state>,
     /// Information used to change module and type identities during linkage.
-    linkage_info: Option<LinkageInfo>,
-    /// Cache containing the type origin information from every package that has
-    /// been set as the link context, and every other type that has been
-    /// requested by the loader in this session. It's okay to retain entries
-    /// in this cache between different link contexts because a type's
+    linkage_info: RefCell<Option<LinkageInfo>>,
+    /// Cache containing the type origin information from every package that has been set as the
+    /// link context, and every other type that has been requested by the loader in this session.
+    /// It's okay to retain entries in this cache between different link contexts because a type's
     /// Runtime ID and Defining ID are invariant between across link contexts.
     ///
     /// Cache is keyed first by the Runtime ID of the type's module, and then
@@ -65,57 +64,66 @@ impl<'state> LinkageView<'state> {
     pub fn new(resolver: Box<dyn IotaResolver + 'state>) -> Self {
         Self {
             resolver,
-            linkage_info: None,
+            linkage_info: RefCell::new(None),
             type_origin_cache: RefCell::new(HashMap::new()),
             past_contexts: RefCell::new(HashSet::new()),
         }
     }
 
-    /// Reset the `LinkageInfo`.
-    pub fn reset_linkage(&mut self) {
-        self.linkage_info = None;
+    pub fn reset_linkage(&self) -> Result<(), ExecutionError> {
+        let Ok(mut linkage_info) = self.linkage_info.try_borrow_mut() else {
+            invariant_violation!("Unable to to reset linkage")
+        };
+        *linkage_info = None;
+        Ok(())
     }
 
-    /// Indicates whether this `LinkageView` has had its context set to match
-    /// the linkage in `context`.
-    pub fn has_linkage(&self, context: ObjectID) -> bool {
-        self.linkage_info
+    /// Indicates whether this `LinkageView` has had its context set to match the linkage in
+    /// `context`.
+    pub fn has_linkage(&self, context: ObjectID) -> Result<bool, ExecutionError> {
+        let Ok(linkage_info) = self.linkage_info.try_borrow() else {
+            invariant_violation!("Unable to borrow linkage info")
+        };
+        Ok(linkage_info
             .as_ref()
-            .is_some_and(|l| l.storage_id == *context)
+            .is_some_and(|l| l.storage_id == *context))
     }
 
-    /// Reset the linkage, but save the context that existed before, if there
-    /// was one.
-    pub fn steal_linkage(&mut self) -> Option<SavedLinkage> {
+    /// Reset the linkage, but save the context that existed before, if there was one.
+    pub fn steal_linkage(&self) -> Option<SavedLinkage> {
         Some(SavedLinkage(self.linkage_info.take()?))
     }
 
-    /// Restore a previously saved linkage context.  Fails if there is already a
-    /// context set.
-    pub fn restore_linkage(&mut self, saved: Option<SavedLinkage>) -> Result<(), ExecutionError> {
+    /// Restore a previously saved linkage context.  Fails if there is already a context set.
+    pub fn restore_linkage(&self, saved: Option<SavedLinkage>) -> Result<(), ExecutionError> {
         let Some(SavedLinkage(saved)) = saved else {
             return Ok(());
         };
 
-        if let Some(existing) = &self.linkage_info {
+        let Ok(mut linkage_info) = self.linkage_info.try_borrow_mut() else {
+            invariant_violation!("Unable to to borrow linkage while restoring")
+        };
+        if let Some(existing) = &*linkage_info {
             invariant_violation!(
                 "Attempt to overwrite linkage by restoring: {saved:#?} \
                  Existing linkage: {existing:#?}",
             )
         }
 
-        // No need to populate type origin cache, because a saved context must have been
-        // set as a linkage before, and the cache would have been populated at
-        // that time.
-        self.linkage_info = Some(saved);
+        // No need to populate type origin cache, because a saved context must have been set as a
+        // linkage before, and the cache would have been populated at that time.
+        *linkage_info = Some(saved);
         Ok(())
     }
 
-    /// Set the linkage context to the information based on the linkage and type
-    /// origin tables from the `context` package.  Returns the original
-    /// package ID (aka the runtime ID) of the context package on success.
-    pub fn set_linkage(&mut self, context: &MovePackage) -> Result<AccountAddress, ExecutionError> {
-        if let Some(existing) = &self.linkage_info {
+    /// Set the linkage context to the information based on the linkage and type origin tables from
+    /// the `context` package.  Returns the original package ID (aka the runtime ID) of the context
+    /// package on success.
+    pub fn set_linkage(&self, context: &MovePackage) -> Result<AccountAddress, ExecutionError> {
+        let Ok(mut linkage_info) = self.linkage_info.try_borrow_mut() else {
+            invariant_violation!("Unable to to borrow linkage to set")
+        };
+        if let Some(existing) = &*linkage_info {
             invariant_violation!(
                 "Attempt to overwrite linkage info with context from {}. \
                     Existing linkage: {existing:#?}",
@@ -126,7 +134,7 @@ impl<'state> LinkageView<'state> {
         let linkage = LinkageInfo::from(context);
         let storage_id = context.id();
         let runtime_id = linkage.runtime_id;
-        self.linkage_info = Some(linkage);
+        *linkage_info = Some(linkage);
 
         if !self.past_contexts.borrow_mut().insert(storage_id) {
             return Ok(runtime_id);
@@ -156,10 +164,11 @@ impl<'state> LinkageView<'state> {
         Ok(runtime_id)
     }
 
-    /// Retrieves the original package ID (as an `AccountAddress`) from the
-    /// linkage information, if available.
-    pub fn original_package_id(&self) -> Option<AccountAddress> {
-        Some(self.linkage_info.as_ref()?.runtime_id)
+    pub fn original_package_id(&self) -> Result<Option<AccountAddress>, ExecutionError> {
+        let Ok(linkage_info) = self.linkage_info.try_borrow() else {
+            invariant_violation!("Unable to borrow linkage info")
+        };
+        Ok(linkage_info.as_ref().map(|info| info.runtime_id))
     }
 
     /// Retrieves the cached type origin for the given `ModuleId` and struct
@@ -210,16 +219,21 @@ impl<'state> LinkageView<'state> {
         Ok(())
     }
 
-    /// Retrieves the current link context's storage ID as an `AccountAddress`.
-    pub(crate) fn link_context(&self) -> AccountAddress {
-        self.linkage_info
+    pub(crate) fn link_context(&self) -> Result<AccountAddress, ExecutionError> {
+        let Ok(linkage_info) = self.linkage_info.try_borrow() else {
+            invariant_violation!("Unable to borrow linkage info")
+        };
+        Ok(linkage_info
             .as_ref()
-            .map_or(AccountAddress::ZERO, |l| l.storage_id)
+            .map_or(AccountAddress::ZERO, |l| l.storage_id))
     }
 
     /// Relocates a given `ModuleId` based on the current linkage context.
     pub(crate) fn relocate(&self, module_id: &ModuleId) -> Result<ModuleId, IotaError> {
-        let Some(linkage) = &self.linkage_info else {
+        let Ok(linkage_info) = self.linkage_info.try_borrow() else {
+            invariant_violation!("Unable to borrow linkage info")
+        };
+        let Some(linkage) = &*linkage_info else {
             invariant_violation!("No linkage context set while relocating {module_id}.")
         };
 
@@ -259,7 +273,10 @@ impl<'state> LinkageView<'state> {
         runtime_id: &ModuleId,
         struct_: &IdentStr,
     ) -> Result<ModuleId, IotaError> {
-        if self.linkage_info.is_none() {
+        let Ok(linkage_info) = self.linkage_info.try_borrow() else {
+            invariant_violation!("Unable to borrow linkage info")
+        };
+        if linkage_info.is_none() {
             invariant_violation!(
                 "No linkage context set for defining module query on {runtime_id}::{struct_}."
             )
@@ -307,7 +324,8 @@ impl LinkageResolver for LinkageView<'_> {
     type Error = IotaError;
 
     fn link_context(&self) -> AccountAddress {
-        LinkageView::link_context(self)
+        // TODO should we propagate the error
+        LinkageView::link_context(self).unwrap()
     }
 
     fn relocate(&self, module_id: &ModuleId) -> Result<ModuleId, Self::Error> {
