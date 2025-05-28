@@ -637,7 +637,7 @@ fn format_block_digests(blocks: &[BlockRef]) -> String {
             result.push_str(", ");
         }
         result.push_str(&block.digest.to_string());
-        result.push_str("@");
+        result.push('@');
         result.push_str(&block.round.to_string());
     }
     result

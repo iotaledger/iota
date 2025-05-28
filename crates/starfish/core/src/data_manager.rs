@@ -15,13 +15,15 @@ use crate::{
 /// without valid causal history we need to make sure that BlockManager takes
 /// care of that and avoid OOM (Out Of Memory) situations.
 pub(crate) struct DataManager {
-    context: Arc<Context>,
-    dag_state: Arc<RwLock<DagState>>,
+    // context: Arc<Context>,
+    // dag_state: Arc<RwLock<DagState>>,
 }
 
 impl DataManager {
-    pub(crate) fn new(context: Arc<Context>, dag_state: Arc<RwLock<DagState>>) -> Self {
-        Self { context, dag_state }
+    pub(crate) fn new(_context: Arc<Context>, _dag_state: Arc<RwLock<DagState>>) -> Self {
+        Self {
+            // context, dag_state
+        }
     }
 
     /// Commit the sub-dag to the global state

@@ -265,7 +265,7 @@ mod tests {
     use super::*;
     use crate::{
         CommitIndex,
-        commit::{CommitAPI as _, CommitDigest, WAVE_LENGTH},
+        commit::{CommitDigest, WAVE_LENGTH},
         context::Context,
         leader_schedule::{LeaderSchedule, LeaderSwapTable},
         storage::mem_store::MemStore,

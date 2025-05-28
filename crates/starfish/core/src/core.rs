@@ -24,6 +24,8 @@ use crate::{
     CommitConsumer, TransactionClient, block_verifier::NoopBlockVerifier,
     storage::mem_store::MemStore,
 };
+// TODO: remove this once CommittedSubDag is properly used again
+#[allow(unused_imports)]
 use crate::{
     CommittedSubDag, Transaction,
     block_header::{
