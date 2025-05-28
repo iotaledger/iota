@@ -30,7 +30,7 @@ bin_version::bin_version!();
     version = VERSION,
     propagate_version = true,
 )]
-enum CLI {
+enum Command {
     Start {
         /// The URL of an IOTA node to get data from.
         #[arg(long, default_value = "http://localhost:9000")]
@@ -40,10 +40,10 @@ enum CLI {
     },
 }
 
-impl CLI {
+impl Command {
     async fn execute(self) -> Result<()> {
         match self {
-            CLI::Start {
+            Command::Start {
                 node_url,
                 num_workers,
             } => {
@@ -128,7 +128,7 @@ async fn main() -> Result<()> {
 
     set_up_logging()?;
 
-    CLI::parse().execute().await?;
+    Command::parse().execute().await?;
     Ok(())
 }
 
