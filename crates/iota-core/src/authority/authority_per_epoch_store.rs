@@ -947,7 +947,7 @@ impl AuthorityPerEpochStore {
             jwk_aggregator,
             randomness_manager: OnceCell::new(),
             randomness_reporter: OnceCell::new(),
-            congestion_info: Mutex::new(MultiCommitCongestionInfo::new()),
+            congestion_info: Mutex::new(MultiCommitCongestionInfo::default()),
         });
 
         s.update_buffer_stake_metric();
@@ -3125,7 +3125,7 @@ impl AuthorityPerEpochStore {
             }
         );
 
-        self.insert_new_per_commit_congestion_info(consensus_commit_info.round);
+        self.add_new_per_commit_congestion_info(consensus_commit_info.round);
 
         let mut randomness_state_updated = false;
         for tx in transactions {
@@ -3496,7 +3496,6 @@ impl AuthorityPerEpochStore {
                             DeferralReason::SharedObjectCongestion(congested_objects) => {
                                 // Update shared object congestion info for a single certificate
                                 self.update_per_commit_congestion_info_for_consensus_certificate(
-                                    commit_round,
                                     &certificate,
                                     estimated_execution_duration,
                                     SharedObjectTransactionResult::Defer,
@@ -3533,7 +3532,6 @@ impl AuthorityPerEpochStore {
                     SchedulingResult::Schedule(start_time) => {
                         // Update shared object congestion info for a single certificate
                         self.update_per_commit_congestion_info_for_consensus_certificate(
-                            commit_round,
                             &certificate,
                             estimated_execution_duration,
                             SharedObjectTransactionResult::Schedule,
@@ -4028,21 +4026,23 @@ impl AuthorityPerEpochStore {
         }
     }
 
-    fn insert_new_per_commit_congestion_info(&self, commit_round: CommitRound) {
+    /// Add new empty per-commit congestion data for `commit_round` to
+    /// multi-commit congestion info.
+    fn add_new_per_commit_congestion_info(&self, commit_round: CommitRound) {
         let mut congestion_info = self.congestion_info.lock();
-        (*congestion_info).insert_new_per_commit_congestion_info(commit_round);
+        (*congestion_info).add_new_per_commit_congestion_info(commit_round);
     }
 
+    /// Update per-commit congestion info for a single consensus certificate
+    /// in the current consensus commit round.
     fn update_per_commit_congestion_info_for_consensus_certificate(
         &self,
-        commit_round: CommitRound,
         certificate: &VerifiedExecutableTransaction,
         estimated_execution_duration: ExecutionTime,
         scheduling_result: SharedObjectTransactionResult,
     ) {
         let mut congestion_info = self.congestion_info.lock();
         (*congestion_info).update_per_commit_congestion_info_for_consensus_certificate(
-            commit_round,
             certificate,
             estimated_execution_duration,
             scheduling_result,
