@@ -140,15 +140,10 @@ fn set_up_logging() -> Result<()> {
         error!("{}", p);
     }));
 
-    let registry = tracing_subscriber::registry();
-
-    let registry = {
-        registry
-            .with(EnvFilter::from_default_env())
-            .with(tracing_subscriber::fmt::layer().with_span_events(FmtSpan::CLOSE))
-    };
-
-    registry.init();
+    tracing_subscriber::registry()
+        .with(EnvFilter::from_default_env())
+        .with(tracing_subscriber::fmt::layer().with_span_events(FmtSpan::CLOSE))
+        .init();
     Ok(())
 }
 
