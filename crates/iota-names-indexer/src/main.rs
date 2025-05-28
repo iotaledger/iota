@@ -16,8 +16,10 @@ use tracing_subscriber::{
     EnvFilter, fmt::format::FmtSpan, layer::SubscriberExt, util::SubscriberInitExt,
 };
 
-use self::{metrics::IotaNamesMetrics, worker::IotaNamesWorker};
-use crate::{metrics::PrometheusServer, worker::run_iota_names_reader};
+use self::{
+    metrics::{IotaNamesMetrics, PrometheusServer},
+    worker::{IotaNamesWorker, run_iota_names_reader},
+};
 
 // Define the `GIT_REVISION` and `VERSION` consts
 bin_version::bin_version!();
@@ -35,6 +37,7 @@ enum Command {
         /// The URL of an IOTA node to get data from.
         #[arg(long, default_value = "http://localhost:9000")]
         node_url: String,
+        /// The number of workers to spawn in parallel.
         #[arg(long, default_value_t = 1)]
         num_workers: usize,
     },
