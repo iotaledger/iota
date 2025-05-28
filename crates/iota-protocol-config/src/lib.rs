@@ -2016,7 +2016,7 @@ impl ProtocolConfig {
                     cfg.consensus_gc_depth = Some(60);
 
                     cfg.max_committee_members_count = Some(80);
-                    
+
                     // Enable passkey in multisig in devnet.
                     if chain != Chain::Testnet && chain != Chain::Mainnet {
                         cfg.feature_flags.accept_passkey_in_multisig = true;
