@@ -2384,9 +2384,6 @@ impl IndexerStore for PgIndexerStore {
             all_flags.extend(feature_flags);
         }
 
-        // Now insert all of them into the db.
-        // TODO: right now the size of these updates is manageable but later we may
-        // consider batching.
         transactional_blocking_with_retry!(
             &self.blocking_cp,
             |conn| {
