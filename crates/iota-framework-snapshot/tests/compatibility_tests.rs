@@ -124,21 +124,8 @@ mod compatibility_tests {
     }
 
     fn checkout_revision(repo_path: &Path, rev: &str) {
-        let full_rev_cmd = std::process::Command::new("git")
-            .args(["rev-parse", rev])
-            .current_dir(repo_path)
-            .output()
-            .expect("Failed to execute git rev-parse");
-
-        assert!(full_rev_cmd.status.success(), "Git rev-parse failed");
-
-        let full_rev = String::from_utf8(full_rev_cmd.stdout)
-            .expect("Failed to convert git rev-parse output to string")
-            .trim()
-            .to_string();
-
         let fetch_status = std::process::Command::new("git")
-            .args(["fetch", "origin", &full_rev])
+            .args(["fetch", "origin", &rev])
             .current_dir(repo_path)
             .status()
             .expect("Failed to execute git fetch");
@@ -146,7 +133,7 @@ mod compatibility_tests {
         assert!(fetch_status.success(), "Git fetch failed");
 
         let checkout_status = std::process::Command::new("git")
-            .args(["checkout", &full_rev])
+            .args(["checkout", &rev])
             .current_dir(repo_path)
             .status()
             .expect("Failed to execute git checkout");
