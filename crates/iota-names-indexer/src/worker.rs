@@ -46,7 +46,7 @@ pub(crate) async fn run_iota_names_reader(
     );
     executor.register(worker_pool).await?;
 
-    info!("Connecting to node at {}", node_url);
+    info!("Connecting to node at {node_url}");
     executor
         .run(
             PathBuf::from("./chk".to_string()), /* path to a local directory
