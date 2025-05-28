@@ -2390,7 +2390,9 @@ impl IndexerStore for PgIndexerStore {
         transactional_blocking_with_retry!(
             &self.blocking_cp,
             |conn| {
-                insert_or_ignore_into!(protocol_configs::table, all_configs.clone(), conn);
+                for config_chunk in all_configs.chunks(PG_COMMIT_CHUNK_SIZE_INTRA_DB_TX) {
+                    insert_or_ignore_into!(protocol_configs::table, config_chunk, conn);
+                }
                 insert_or_ignore_into!(feature_flags::table, all_flags.clone(), conn);
                 Ok::<(), IndexerError>(())
             },
