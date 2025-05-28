@@ -50,7 +50,7 @@ pub(crate) async fn run_iota_names_reader(
     executor
         .run(
             // path to a local directory where checkpoints are stored.
-            PathBuf::from("./chk".to_string()),
+            PathBuf::from("./chk"),
             Some(format!("{node_url}/api/v1")),
             // optional remote store access options.
             vec![],
