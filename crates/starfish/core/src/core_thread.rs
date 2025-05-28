@@ -67,15 +67,17 @@ pub trait CoreThreadDispatcher: Sync + Send + 'static {
         blocks: Vec<VerifiedBlockHeader>,
     ) -> Result<BTreeSet<BlockRef>, CoreError>;
 
-    // The following method will be called from data synchronizer to trigger output
-    // of commits that became solid in the DataManager
+    // TODO: The following method will be called from transaction synchronizer to
+    //  trigger output  of commits that became solid in the DataManager
     #[expect(unused)]
     async fn add_data(
         &self,
         data: Vec<VerifiedTransactions>,
     ) -> Result<BTreeSet<BlockRef>, CoreError>;
 
-    // The following method will be used by the data synchronizer to get
+    // TODO: The following method will be used by the transaction synchronizer to
+    //  get references to missing transactions that has already been committed and
+    //  needs to be fetched before the commit is successfully output.
     #[expect(unused)]
     async fn get_missing_data(&self) -> Result<BTreeSet<BlockRef>, CoreError>;
 

@@ -602,7 +602,7 @@ mod tests {
                 // We commit transactions from:
                 // * 3 blocks on round 1, as no commit happened on round 3 since the leader was
                 //   missing
-                // * 3 blocks on round 2, commited without delay
+                // * 3 blocks on round 2, committed without delay
                 assert_eq!(subdag.committed_transaction_refs.len(), 6);
             } else {
                 // we expect to see all blocks of round >= 1
@@ -620,8 +620,8 @@ mod tests {
                 assert!(block.round() <= leaders[idx].round());
             }
 
-            for commited_transactions_ref in subdag.committed_transaction_refs.iter() {
-                assert!(commited_transactions_ref.round <= leaders[idx].round());
+            for committed_transactions_ref in subdag.committed_transaction_refs.iter() {
+                assert!(committed_transactions_ref.round <= leaders[idx].round());
             }
             assert_eq!(subdag.commit_ref.index, idx as CommitIndex + 1);
         }

@@ -81,6 +81,15 @@ impl CommitObserver {
         observer
     }
 
+    /// Handles the creation of commits from a set of passed leaders.
+    ///
+    /// # Returns
+    /// A tuple containing:
+    /// - A vector of sub-dags, which include block references to committed
+    ///   transactions (but not the transactions themselves) created by the
+    ///   committed leaders.
+    /// - A vector of block references to transactions that were missing during
+    ///   the commit.
     pub(crate) fn handle_commit(
         &mut self,
         committed_leaders: Vec<VerifiedBlockHeader>,
