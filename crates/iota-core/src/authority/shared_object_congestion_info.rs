@@ -14,28 +14,39 @@ use super::shared_object_congestion_tracker::ExecutionTime;
 /// for the new consensus commit round will be added.
 // TODO: This should be a protocol config parameter, as the calculations of
 // suggested gas price will be different if this limit is changed.
+// Or this limit should be set to how many times tx can be deferred.
 // NOTE: 1_500 corresponds to around 1 minute of data, considering that there
 // are ~25 commit rounds per second. If we want to evict data from the buffer
 // based on time, we might want to use `moka::sync::Cache` instead of `VecDeque`
 // as a ring buffer.
 const MULTI_COMMIT_CONGESTION_INFO_MAX_NUM_COMMITS: u32 = 1_500;
 
-/// Scheduling result of a shared-object transaction.
-pub(crate) enum SharedObjectTransactionResult {
-    Schedule,
-    Defer,
+/// Holds shared object congestion data for a single scheduled transaction.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct ScheduledTransactionCongestionInfo {
+    /// Gas price of a scheduled shared-object transaction.
+    pub(crate) gas_price: u64,
+
+    /// Estimated execution duration of a scheduled shared-object transaction.
+    pub(crate) estimated_execution_duration: ExecutionTime,
+}
+
+impl ScheduledTransactionCongestionInfo {
+    /// Create a new scheduled transaction data.
+    pub fn new(gas_price: u64, estimated_execution_duration: ExecutionTime) -> Self {
+        Self {
+            gas_price,
+            estimated_execution_duration,
+        }
+    }
 }
 
 /// Holds shared object congestion data for a single shared object.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct PerObjectCongestionInfo {
-    /// List of gas prices of SCHEDULED transactions operating on a shared
-    /// object.
-    pub(crate) scheduled_txs_gas_prices: Vec<u64>,
-
-    /// List of estimated execution durations of transactions operating on a
+    /// List of congestion data for scheduled transactions operating on this
     /// shared object.
-    pub(crate) txs_estimated_exec_durations: Vec<ExecutionTime>,
+    pub(crate) scheduled_transactions_data: Vec<ScheduledTransactionCongestionInfo>,
 }
 
 impl PerObjectCongestionInfo {
@@ -43,8 +54,7 @@ impl PerObjectCongestionInfo {
     /// object congestion data.
     pub fn new() -> Self {
         Self {
-            scheduled_txs_gas_prices: Vec::new(),
-            txs_estimated_exec_durations: Vec::new(),
+            scheduled_transactions_data: Vec::new(),
         }
     }
 }
@@ -76,49 +86,31 @@ impl PerCommitCongestionInfo {
         }
     }
 
-    /// Update shared object congestion info for a single consensus certificate.
-    pub fn update_for_consensus_certificate(
+    /// Update shared object congestion info for a single scheduled consensus
+    /// certificate.
+    pub fn update_for_scheduled_consensus_certificate(
         &mut self,
         certificate: &VerifiedExecutableTransaction,
         estimated_execution_duration: ExecutionTime,
-        scheduling_result: SharedObjectTransactionResult,
     ) {
         // Only process certificates with shared objects
         if certificate.contains_shared_object() {
-            match scheduling_result {
-                SharedObjectTransactionResult::Schedule => {
-                    let gas_price = certificate.transaction_data().gas_price();
+            let scheduled_transaction_congestion_info = ScheduledTransactionCongestionInfo::new(
+                certificate.transaction_data().gas_price(),
+                estimated_execution_duration,
+            );
 
-                    for object in certificate.shared_input_objects() {
-                        self.objects_data
-                            .entry(object.id)
-                            .and_modify(|object_data| {
-                                object_data.scheduled_txs_gas_prices.push(gas_price);
-                                object_data
-                                    .txs_estimated_exec_durations
-                                    .push(estimated_execution_duration);
-                            })
-                            .or_insert(PerObjectCongestionInfo {
-                                scheduled_txs_gas_prices: vec![gas_price],
-                                txs_estimated_exec_durations: vec![estimated_execution_duration],
-                            });
-                    }
-                }
-                SharedObjectTransactionResult::Defer => {
-                    for object in certificate.shared_input_objects() {
-                        self.objects_data
-                            .entry(object.id)
-                            .and_modify(|object_data| {
-                                object_data
-                                    .txs_estimated_exec_durations
-                                    .push(estimated_execution_duration)
-                            })
-                            .or_insert(PerObjectCongestionInfo {
-                                scheduled_txs_gas_prices: vec![],
-                                txs_estimated_exec_durations: vec![estimated_execution_duration],
-                            });
-                    }
-                }
+            for object in certificate.shared_input_objects() {
+                self.objects_data
+                    .entry(object.id)
+                    .and_modify(|object_data| {
+                        object_data
+                            .scheduled_transactions_data
+                            .push(scheduled_transaction_congestion_info);
+                    })
+                    .or_insert(PerObjectCongestionInfo {
+                        scheduled_transactions_data: vec![scheduled_transaction_congestion_info],
+                    });
             }
         }
     }
@@ -164,11 +156,10 @@ impl MultiCommitCongestionInfo {
 
     /// Update per-commit congestion info for a single consensus certificate
     /// in the current consensus commit round.
-    pub fn update_per_commit_congestion_info_for_consensus_certificate(
+    pub fn update_per_commit_congestion_info_for_scheduled_consensus_certificate(
         &mut self,
         certificate: &VerifiedExecutableTransaction,
         estimated_execution_duration: ExecutionTime,
-        scheduling_result: SharedObjectTransactionResult,
     ) {
         self.commits_data
             .iter_mut()
@@ -177,11 +168,7 @@ impl MultiCommitCongestionInfo {
                 "per-commit congestion info for the current consensus commit round must have \
                     been added earlier",
             )
-            .update_for_consensus_certificate(
-                certificate,
-                estimated_execution_duration,
-                scheduling_result,
-            );
+            .update_for_scheduled_consensus_certificate(certificate, estimated_execution_duration);
     }
 }
 
@@ -201,7 +188,7 @@ mod tests {
     };
     use parking_lot::Mutex;
 
-    use super::{MultiCommitCongestionInfo, SharedObjectTransactionResult};
+    use super::{MultiCommitCongestionInfo, ScheduledTransactionCongestionInfo};
     use crate::authority::{
         shared_object_congestion_info::{PerCommitCongestionInfo, PerObjectCongestionInfo},
         shared_object_congestion_tracker::{
@@ -232,18 +219,17 @@ mod tests {
 
         /// Update per-commit congestion info for a single consensus certificate
         /// in the current consensus commit round.
-        fn update_per_commit_congestion_info_for_consensus_certificate(
+        fn update_per_commit_congestion_info_for_scheduled_consensus_certificate(
             &self,
             certificate: &VerifiedExecutableTransaction,
             estimated_execution_duration: ExecutionTime,
-            scheduling_result: SharedObjectTransactionResult,
         ) {
             let mut congestion_info = self.congestion_info.lock();
-            (*congestion_info).update_per_commit_congestion_info_for_consensus_certificate(
-                certificate,
-                estimated_execution_duration,
-                scheduling_result,
-            );
+            (*congestion_info)
+                .update_per_commit_congestion_info_for_scheduled_consensus_certificate(
+                    certificate,
+                    estimated_execution_duration,
+                );
         }
     }
 
@@ -270,29 +256,19 @@ mod tests {
         let object_1 = ObjectID::random();
         let object_2 = ObjectID::random();
 
-        // Create a certificate (scheduled)
+        // Create a certificate
         let objects_1 = vec![(object_1, true), (object_2, false)];
         let gas_price_1 = 10;
         let gas_budget_1 = 100;
         let certificate_1 = build_transaction(&objects_1, gas_budget_1, gas_price_1);
         // and process this certificate to update the multi-commit congestion info
-        dummy_epoch_store.update_per_commit_congestion_info_for_consensus_certificate(
+        dummy_epoch_store.update_per_commit_congestion_info_for_scheduled_consensus_certificate(
             &certificate_1,
             gas_budget_1,
-            SharedObjectTransactionResult::Schedule,
         );
 
-        // Create another certificate (deferred)
-        let objects_2 = vec![(object_1, true)];
-        let gas_price_2 = 5;
-        let gas_budget_2 = 50;
-        let certificate_2 = build_transaction(&objects_2, gas_budget_2, gas_price_2);
-        // and process this certificate to update the multi-commit congestion info
-        dummy_epoch_store.update_per_commit_congestion_info_for_consensus_certificate(
-            &certificate_2,
-            gas_budget_2,
-            SharedObjectTransactionResult::Defer,
-        );
+        let scheduled_transaction_congestion_info_1 =
+            ScheduledTransactionCongestionInfo::new(gas_price_1, gas_budget_1);
 
         // Expected congestion info for commit 1 looks as follows:
         let per_commit_congestion_info_1 = PerCommitCongestionInfo {
@@ -301,16 +277,13 @@ mod tests {
                 (
                     object_1,
                     PerObjectCongestionInfo {
-                        // NOTE: we do not store gas prices of deferred transactions
-                        scheduled_txs_gas_prices: vec![gas_price_1],
-                        txs_estimated_exec_durations: vec![gas_budget_1, gas_budget_2],
+                        scheduled_transactions_data: vec![scheduled_transaction_congestion_info_1],
                     },
                 ),
                 (
                     object_2,
                     PerObjectCongestionInfo {
-                        scheduled_txs_gas_prices: vec![gas_price_1],
-                        txs_estimated_exec_durations: vec![gas_budget_1],
+                        scheduled_transactions_data: vec![scheduled_transaction_congestion_info_1],
                     },
                 ),
             ]),
@@ -348,41 +321,32 @@ mod tests {
             );
         }
 
-        // Create a certificate (scheduled)
+        // Create a certificate
         let objects_1 = vec![(object_1, true), (object_2, false)];
         let gas_price_1 = 10;
         let gas_budget_1 = 100;
         let certificate_1 = build_transaction(&objects_1, gas_budget_1, gas_price_1);
         // and process this certificate to update the multi-commit congestion info
-        dummy_epoch_store.update_per_commit_congestion_info_for_consensus_certificate(
+        dummy_epoch_store.update_per_commit_congestion_info_for_scheduled_consensus_certificate(
             &certificate_1,
             gas_budget_1,
-            SharedObjectTransactionResult::Schedule,
         );
 
-        // Create another certificate (deferred)
-        let objects_2 = vec![(object_1, true)];
-        let gas_price_2 = 5;
-        let gas_budget_2 = 50;
+        // Create another certificate
+        let objects_2 = vec![(object_2, false)];
+        let gas_price_2 = 1;
+        let gas_budget_2 = 10;
         let certificate_2 = build_transaction(&objects_2, gas_budget_2, gas_price_2);
         // and process this certificate to update the multi-commit congestion info
-        dummy_epoch_store.update_per_commit_congestion_info_for_consensus_certificate(
+        dummy_epoch_store.update_per_commit_congestion_info_for_scheduled_consensus_certificate(
             &certificate_2,
             gas_budget_2,
-            SharedObjectTransactionResult::Defer,
         );
 
-        // Create another certificate (scheduled)
-        let objects_3 = vec![(object_2, false)];
-        let gas_price_3 = 1;
-        let gas_budget_3 = 10;
-        let certificate_3 = build_transaction(&objects_3, gas_budget_3, gas_price_3);
-        // and process this certificate to update the multi-commit congestion info
-        dummy_epoch_store.update_per_commit_congestion_info_for_consensus_certificate(
-            &certificate_3,
-            gas_budget_3,
-            SharedObjectTransactionResult::Schedule,
-        );
+        let scheduled_transaction_congestion_info_1 =
+            ScheduledTransactionCongestionInfo::new(gas_price_1, gas_budget_1);
+        let scheduled_transaction_congestion_info_2 =
+            ScheduledTransactionCongestionInfo::new(gas_price_2, gas_budget_2);
 
         // Expected congestion info for commit 1 looks as follows:
         let per_commit_congestion_info_2 = PerCommitCongestionInfo {
@@ -391,16 +355,16 @@ mod tests {
                 (
                     object_1,
                     PerObjectCongestionInfo {
-                        // NOTE: we do not store gas prices of deferred transactions
-                        scheduled_txs_gas_prices: vec![gas_price_1],
-                        txs_estimated_exec_durations: vec![gas_budget_1, gas_budget_2],
+                        scheduled_transactions_data: vec![scheduled_transaction_congestion_info_1],
                     },
                 ),
                 (
                     object_2,
                     PerObjectCongestionInfo {
-                        scheduled_txs_gas_prices: vec![gas_price_1, gas_price_3],
-                        txs_estimated_exec_durations: vec![gas_budget_1, gas_budget_3],
+                        scheduled_transactions_data: vec![
+                            scheduled_transaction_congestion_info_1,
+                            scheduled_transaction_congestion_info_2,
+                        ],
                     },
                 ),
             ]),

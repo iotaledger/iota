@@ -91,7 +91,7 @@ use crate::{
     authority::{
         AuthorityMetrics, ResolverWrapper,
         epoch_start_configuration::EpochStartConfiguration,
-        shared_object_congestion_info::{MultiCommitCongestionInfo, SharedObjectTransactionResult},
+        shared_object_congestion_info::MultiCommitCongestionInfo,
         shared_object_version_manager::{
             AssignedTxAndVersions, ConsensusSharedObjVerAssignment, SharedObjVerManager,
         },
@@ -3496,13 +3496,6 @@ impl AuthorityPerEpochStore {
                                 ConsensusCertificateResult::Deferred(deferral_key)
                             }
                             DeferralReason::SharedObjectCongestion(congested_objects) => {
-                                // Update shared object congestion info for a single certificate
-                                self.update_per_commit_congestion_info_for_consensus_certificate(
-                                    &certificate,
-                                    estimated_execution_duration,
-                                    SharedObjectTransactionResult::Defer,
-                                );
-
                                 authority_metrics
                                     .consensus_handler_congested_transactions
                                     .inc();
@@ -3538,11 +3531,10 @@ impl AuthorityPerEpochStore {
                         return Ok(deferral_result);
                     }
                     SchedulingResult::Schedule(start_time) => {
-                        // Update shared object congestion info for a single certificate
-                        self.update_per_commit_congestion_info_for_consensus_certificate(
+                        // Update shared object congestion info for a single scheduled certificate
+                        self.update_per_commit_congestion_info_for_scheduled_consensus_certificate(
                             &certificate,
                             estimated_execution_duration,
-                            SharedObjectTransactionResult::Schedule,
                         );
 
                         if dkg_failed && certificate.transaction_data().uses_randomness() {
@@ -4043,17 +4035,15 @@ impl AuthorityPerEpochStore {
 
     /// Update per-commit congestion info for a single consensus certificate
     /// in the current consensus commit round.
-    fn update_per_commit_congestion_info_for_consensus_certificate(
+    fn update_per_commit_congestion_info_for_scheduled_consensus_certificate(
         &self,
         certificate: &VerifiedExecutableTransaction,
         estimated_execution_duration: ExecutionTime,
-        scheduling_result: SharedObjectTransactionResult,
     ) {
         let mut congestion_info = self.congestion_info.lock();
-        (*congestion_info).update_per_commit_congestion_info_for_consensus_certificate(
+        (*congestion_info).update_per_commit_congestion_info_for_scheduled_consensus_certificate(
             certificate,
             estimated_execution_duration,
-            scheduling_result,
         );
     }
 
