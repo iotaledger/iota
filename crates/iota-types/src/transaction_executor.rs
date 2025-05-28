@@ -30,6 +30,7 @@ pub trait TransactionExecutor: Send + Sync {
         transaction: TransactionData,
     ) -> Result<SimulateTransactionResult, IotaError>;
 }
+
 pub struct SimulateTransactionResult {
     pub effects: TransactionEffects,
     pub events: Option<TransactionEvents>,
