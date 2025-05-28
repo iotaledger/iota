@@ -173,7 +173,7 @@ impl BasicOutput {
         coin_type: &CoinType,
     ) -> Result<Object> {
         create_coin(
-            self.id,
+            *self.id.object_id(),
             owner,
             self.balance.value(),
             tx_context,
@@ -199,7 +199,7 @@ impl BasicOutput {
 }
 
 pub(crate) fn create_coin(
-    object_id: UID,
+    object_id: ObjectID,
     owner: IotaAddress,
     amount: u64,
     tx_context: &TxContext,
