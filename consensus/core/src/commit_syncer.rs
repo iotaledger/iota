@@ -94,7 +94,7 @@ pub(crate) struct CommitSyncer<C: NetworkClient> {
     // States only used by the scheduler.
 
     // Inflight requests to fetch commits from different authorities.
-    inflight_fetches: JoinSet<(u32, CertifiedCommits)>,
+    inflight_fetches: JoinSet<(AuthorityIndex, u32, CertifiedCommits)>,
     // Additional ranges of commits to fetch.
     pending_fetches: BTreeSet<CommitRange>,
     // Fetched commits and blocks by commit range.
@@ -171,8 +171,8 @@ impl<C: NetworkClient> CommitSyncer<C> {
                         self.inflight_fetches.shutdown().await;
                         return;
                     }
-                    let (target_end, commits) = result.unwrap();
-                    self.handle_fetch_result(target_end, commits).await;
+                    let (authority, target_end, commits) = result.unwrap();
+                    self.handle_fetch_result(authority, target_end, commits).await;
                 }
                 _ = &mut rx_shutdown => {
                     // Shutdown requested.
@@ -248,6 +248,7 @@ impl<C: NetworkClient> CommitSyncer<C> {
 
     async fn handle_fetch_result(
         &mut self,
+        authority_index: AuthorityIndex,
         target_end: CommitIndex,
         certified_commits: CertifiedCommits,
     ) {
@@ -432,7 +433,7 @@ impl<C: NetworkClient> CommitSyncer<C> {
     async fn fetch_loop(
         inner: Arc<Inner<C>>,
         commit_range: CommitRange,
-    ) -> (CommitIndex, CertifiedCommits) {
+    ) -> (AuthorityIndex, CommitIndex, CertifiedCommits) {
         // Individual request base timeout.
         const TIMEOUT: Duration = Duration::from_secs(10);
         // Max per-request timeout will be base timeout times a multiplier.
@@ -492,7 +493,7 @@ impl<C: NetworkClient> CommitSyncer<C> {
                 {
                     Ok(Ok(commits)) => {
                         info!("Finished fetching commits in {commit_range:?}",);
-                        return (commit_range.end(), commits);
+                        return (authority, commit_range.end(), commits);
                     }
                     Ok(Err(e)) => {
                         let hostname = inner
