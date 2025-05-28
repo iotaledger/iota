@@ -52,6 +52,25 @@ export function RemoveDialog({ isOpen, setOpen, accountID }: RemoveDialogProps) 
         });
     }
 
+    if (isPasswordModalVisible) {
+        return (
+            <VerifyPasswordModal
+                open={isOpen}
+                onVerify={async (password) => {
+                    await unlockAccountSourceMutation.mutateAsync({
+                        id: accountID,
+                        password,
+                    });
+                    setPasswordModalVisible(false);
+                }}
+                onClose={() => {
+                    setPasswordModalVisible(true);
+                    setOpen(false);
+                }}
+            />
+        );
+    }
+
     return (
         <Dialog open={isOpen} onOpenChange={setOpen}>
             <DialogContent containerId="overlay-portal-container">
@@ -69,37 +88,20 @@ export function RemoveDialog({ isOpen, setOpen, accountID }: RemoveDialogProps) 
                                 style={InfoBoxStyle.Elevated}
                             />
                         ) : null}
-                        {isPasswordModalVisible ? (
-                            <VerifyPasswordModal
-                                open
-                                onVerify={async (password) => {
-                                    await unlockAccountSourceMutation.mutateAsync({
-                                        id: accountID,
-                                        password,
-                                    });
-                                    setPasswordModalVisible(false);
-                                }}
-                                onClose={() => {
-                                    setPasswordModalVisible(true);
-                                    setOpen(false);
-                                }}
+                        <div className="flex gap-xs">
+                            <Button
+                                fullWidth
+                                type={ButtonType.Secondary}
+                                text="Cancel"
+                                onClick={handleCancel}
                             />
-                        ) : (
-                            <div className="flex gap-xs">
-                                <Button
-                                    fullWidth
-                                    type={ButtonType.Secondary}
-                                    text="Cancel"
-                                    onClick={handleCancel}
-                                />
-                                <Button
-                                    fullWidth
-                                    type={ButtonType.Destructive}
-                                    text="Remove"
-                                    onClick={handleRemove}
-                                />
-                            </div>
-                        )}
+                            <Button
+                                fullWidth
+                                type={ButtonType.Destructive}
+                                text="Remove"
+                                onClick={handleRemove}
+                            />
+                        </div>
                     </div>
                 </DialogBody>
             </DialogContent>
