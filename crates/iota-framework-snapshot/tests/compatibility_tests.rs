@@ -125,7 +125,7 @@ mod compatibility_tests {
 
     fn checkout_revision(repo_path: &Path, rev: &str) {
         let fetch_status = std::process::Command::new("git")
-            .args(["fetch", "origin", &rev])
+            .args(["fetch", "origin", rev])
             .current_dir(repo_path)
             .status()
             .expect("Failed to execute git fetch");
@@ -133,7 +133,7 @@ mod compatibility_tests {
         assert!(fetch_status.success(), "Git fetch failed");
 
         let checkout_status = std::process::Command::new("git")
-            .args(["checkout", &rev])
+            .args(["checkout", rev])
             .current_dir(repo_path)
             .status()
             .expect("Failed to execute git checkout");
