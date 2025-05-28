@@ -9,7 +9,7 @@ use iota_framework_snapshot::{SnapshotPackage, update_bytecode_snapshot_manifest
 use iota_protocol_config::ProtocolVersion;
 
 // Define the `GIT_REVISION` const
-bin_version::git_revision!();
+bin_version::git_revision_long!();
 
 fn main() {
     // Always generate snapshot for the latest version.

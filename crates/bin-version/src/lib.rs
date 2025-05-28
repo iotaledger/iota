@@ -40,7 +40,8 @@ macro_rules! bin_version {
     };
 }
 
-/// Defines constant that holds the git revision at build time.
+/// Defines constant that holds the git revision at build time using an
+/// abbreviated sha of 12 characters.
 ///
 ///   `GIT_REVISION`: The git revision as specified by the `GIT_REVISION` env
 /// variable provided at compile time, or the current git revision as discovered
@@ -50,6 +51,43 @@ macro_rules! bin_version {
 /// this will fail to compile.
 #[macro_export]
 macro_rules! git_revision {
+    () => {
+        const _ASSERT_IS_BINARY: () = {
+            env!(
+                "CARGO_BIN_NAME",
+                "`bin_version!()` must be used from a binary"
+            );
+        };
+
+        const GIT_REVISION: &str = {
+            if let Some(revision) = option_env!("GIT_REVISION") {
+                revision
+            } else {
+                let version = $crate::_hidden::git_version!(
+                    args = ["--always", "--abbrev=12", "--dirty", "--exclude", "*"],
+                    fallback = ""
+                );
+
+                if version.is_empty() {
+                    panic!("unable to query git revision");
+                }
+                version
+            }
+        };
+    };
+}
+
+/// Defines constant that holds the git revision at build time using the full
+/// sha characters.
+///
+///   `GIT_REVISION`: The git revision as specified by the `GIT_REVISION` env
+/// variable provided at compile time, or the current git revision as discovered
+/// by running `git describe`.
+///
+/// Note: This macro must only be used from a binary, if used inside a library
+/// this will fail to compile.
+#[macro_export]
+macro_rules! git_revision_long {
     () => {
         const _ASSERT_IS_BINARY: () = {
             env!(
