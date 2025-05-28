@@ -86,7 +86,7 @@ impl Command {
                             tracing::error!("subscribing to OS interrupt signals failed with error: {err}; shutting down");
                             exit_code = Err(err);
                         } else {
-                            tracing::info!("received ctrl-c or terminate; shutting down");
+                            tracing::info!("received interrupt; shutting down");
                         }
                     },
                     res = tasks.join_next() => {
@@ -106,7 +106,7 @@ impl Command {
                             tracing::error!("subscribing to OS interrupt signals failed with error: {err}; aborting");
                             exit_code = Err(err);
                         } else {
-                            tracing::info!("received second ctrl-c or terminate; aborting");
+                            tracing::info!("received second interrupt; aborting");
                         }
                         tasks.shutdown().await;
                         tracing::info!("runtime aborted");
