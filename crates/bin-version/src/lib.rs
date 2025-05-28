@@ -63,7 +63,7 @@ macro_rules! git_revision {
                 revision
             } else {
                 let version = $crate::_hidden::git_version!(
-                    args = ["--always", "--abbrev=12", "--dirty", "--exclude", "*"],
+                    args = ["--always", "--abbrev=40", "--dirty", "--exclude", "*"],
                     fallback = ""
                 );
 
