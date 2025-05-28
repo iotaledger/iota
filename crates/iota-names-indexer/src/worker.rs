@@ -49,13 +49,12 @@ pub(crate) async fn run_iota_names_reader(
     info!("Connecting to node at {node_url}");
     executor
         .run(
-            PathBuf::from("./chk".to_string()), /* path to a local directory
-                                                 * where
-                                                 * checkpoints
-                                                 * are stored. */
+            // path to a local directory where checkpoints are stored.
+            PathBuf::from("./chk".to_string()),
             Some(format!("{node_url}/api/v1")),
-            vec![],                   // optional remote store access options.
-            ReaderOptions::default(), // remote_read_batch_size.
+            // optional remote store access options.
+            vec![],
+            ReaderOptions::default(),
         )
         .await?;
     Ok(())
