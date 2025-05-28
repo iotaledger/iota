@@ -6219,7 +6219,6 @@ dependencies = [
  "async-trait",
  "clap",
  "derive_more 1.0.0",
- "diesel",
  "fastcrypto",
  "futures",
  "iota-config",
