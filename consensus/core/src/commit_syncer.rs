@@ -543,11 +543,18 @@ impl<C: NetworkClient> CommitSyncer<C> {
         commit_range: CommitRange,
         timeout: Duration,
     ) -> ConsensusResult<CertifiedCommits> {
+        let hostname = inner
+            .context
+            .committee
+            .authority(target_authority)
+            .hostname
+            .clone();
         let _timer = inner
             .context
             .metrics
             .node_metrics
             .commit_sync_fetch_once_latency
+            .with_label_values(&[hostname.as_str()])
             .start_timer();
 
         // 1. Fetch commits in the commit range from the target authority.
