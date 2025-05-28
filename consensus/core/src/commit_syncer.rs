@@ -280,6 +280,7 @@ impl<C: NetworkClient> CommitSyncer<C> {
             .inc_by(certified_commits.commits().len() as u64);
         metrics
             .commit_sync_fetched_blocks
+            .with_label_values(&[&hostname.as_str()])
             .inc_by(total_blocks_fetched as u64);
         metrics
             .commit_sync_total_fetched_blocks_size
