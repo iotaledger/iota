@@ -84,6 +84,7 @@ use super::{
     shared_object_congestion_tracker::{
         ExecutionTime, SequencingResult, SharedObjectCongestionTracker,
     },
+    suggested_gas_price_calculator::SuggestedGasPriceCalculator,
     transaction_deferral::{DeferralKey, DeferralReason, transaction_deferral_within_limit},
 };
 use crate::{
@@ -441,6 +442,7 @@ pub struct AuthorityPerEpochStore {
     randomness_manager: OnceCell<tokio::sync::Mutex<RandomnessManager>>,
     randomness_reporter: OnceCell<RandomnessReporter>,
 
+    /// Shared object congestion info from multiple consensus commit rounds.
     congestion_info: Mutex<MultiCommitCongestionInfo>,
 }
 
@@ -3518,10 +3520,16 @@ impl AuthorityPerEpochStore {
                                         deferral_key,
                                         congested_objects
                                     );
+
+                                    // Calculate suggested gas price for the cancelled certificate
+                                    let _suggested_gas_price =
+                                        self.calculate_suggested_gas_price(&certificate);
+
                                     ConsensusCertificateResult::Cancelled((
                                         certificate,
                                         CancelConsensusCertificateReason::CongestionOnObjects(
                                             congested_objects,
+                                            // TODO: _suggested_gas_price
                                         ),
                                     ))
                                 }
@@ -4047,6 +4055,18 @@ impl AuthorityPerEpochStore {
             estimated_execution_duration,
             scheduling_result,
         );
+    }
+
+    /// Calculate a suggested gas price using multi-commit congestion data
+    /// for a given certificate.
+    fn calculate_suggested_gas_price(&self, certificate: &VerifiedExecutableTransaction) -> u64 {
+        let multi_commit_congestion_info = self.congestion_info.lock();
+
+        SuggestedGasPriceCalculator::calculate(
+            &multi_commit_congestion_info,
+            certificate,
+            self.reference_gas_price(),
+        )
     }
 }
 

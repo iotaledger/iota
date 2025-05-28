@@ -31,11 +31,11 @@ pub(crate) enum SharedObjectTransactionResult {
 pub(crate) struct PerObjectCongestionInfo {
     /// List of gas prices of SCHEDULED transactions operating on a shared
     /// object.
-    scheduled_txs_gas_prices: Vec<u64>,
+    pub(crate) scheduled_txs_gas_prices: Vec<u64>,
 
     /// List of estimated execution durations of transactions operating on a
     /// shared object.
-    txs_estimated_exec_durations: Vec<ExecutionTime>,
+    pub(crate) txs_estimated_exec_durations: Vec<ExecutionTime>,
 }
 
 impl PerObjectCongestionInfo {
@@ -59,11 +59,11 @@ impl Default for PerObjectCongestionInfo {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct PerCommitCongestionInfo {
     /// Consensus commit round number
-    commit_round: CommitRound,
+    pub(crate) commit_round: CommitRound,
 
     /// Shared object congestion data for multiple shared objects appearing
     /// in a single consensus commit round.
-    objects_data: HashMap<ObjectID, PerObjectCongestionInfo>,
+    pub(crate) objects_data: HashMap<ObjectID, PerObjectCongestionInfo>,
 }
 
 impl PerCommitCongestionInfo {
@@ -132,7 +132,7 @@ impl PerCommitCongestionInfo {
 #[derive(Debug, PartialEq, Eq)]
 pub(crate) struct MultiCommitCongestionInfo {
     /// Shared object congestion data from multiple consensus commit rounds.
-    commits_data: VecDeque<PerCommitCongestionInfo>,
+    pub(crate) commits_data: VecDeque<PerCommitCongestionInfo>,
 }
 
 impl MultiCommitCongestionInfo {
