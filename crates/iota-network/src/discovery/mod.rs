@@ -12,10 +12,18 @@ use anemo::{
     Network, Peer, PeerId, Request, Response,
     types::{PeerEvent, PeerInfo},
 };
+use fastcrypto::ed25519::{Ed25519PublicKey, Ed25519Signature};
 use futures::StreamExt;
+use iota_common::debug_fatal;
 use iota_config::p2p::{AccessType, DiscoveryConfig, P2pConfig, SeedPeer};
-use iota_types::multiaddr::Multiaddr;
+use iota_types::{
+    crypto::{NetworkKeyPair, Signer, ToFromBytes, VerifyingKey},
+    digests::Digest,
+    message_envelope::{Envelope, Message, VerifiedEnvelope},
+    multiaddr::Multiaddr,
+};
 use serde::{Deserialize, Serialize};
+use shared_crypto::intent::IntentScope;
 use tap::{Pipe, TapFallible};
 use tokio::{
     sync::{broadcast::error::RecvError, oneshot, watch},
@@ -44,16 +52,16 @@ pub use generated::{
     discovery_client::DiscoveryClient,
     discovery_server::{Discovery, DiscoveryServer},
 };
-pub use server::GetKnownPeersResponse;
+pub use server::{GetKnownPeersResponse, GetKnownPeersResponseV2};
 
 use self::metrics::Metrics;
 
 /// The internal discovery state shared between the main event loop and the
 /// request handler
 struct State {
-    our_info: Option<NodeInfo>,
+    our_info: Option<SignedNodeInfo>,
     connected_peers: HashMap<PeerId, ()>,
-    known_peers: HashMap<PeerId, NodeInfo>,
+    known_peers: HashMap<PeerId, VerifiedSignedNodeInfo>,
 }
 
 /// The information necessary to dial another peer.
@@ -74,6 +82,36 @@ pub struct NodeInfo {
     pub access_type: AccessType,
 }
 
+impl NodeInfo {
+    fn sign(self, keypair: &NetworkKeyPair) -> SignedNodeInfo {
+        let msg = bcs::to_bytes(&self).expect("BCS serialization should not fail");
+        let sig = keypair.sign(&msg);
+        SignedNodeInfo::new_from_data_and_sig(self, sig)
+    }
+}
+
+pub type SignedNodeInfo = Envelope<NodeInfo, Ed25519Signature>;
+
+pub type VerifiedSignedNodeInfo = VerifiedEnvelope<NodeInfo, Ed25519Signature>;
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+pub struct NodeInfoDigest(Digest);
+
+impl NodeInfoDigest {
+    pub const fn new(digest: [u8; 32]) -> Self {
+        Self(Digest::new(digest))
+    }
+}
+
+impl Message for NodeInfo {
+    type DigestType = NodeInfoDigest;
+    const SCOPE: IntentScope = IntentScope::DiscoveryPeers;
+
+    fn digest(&self) -> Self::DigestType {
+        unreachable!("NodeInfoDigest is not used today")
+    }
+}
+
 #[derive(Clone, Debug, Default)]
 /// Contains a new list of available trusted peers.
 pub struct TrustedPeerChangeEvent {
@@ -86,6 +124,7 @@ struct DiscoveryEventLoop {
     discovery_config: Arc<DiscoveryConfig>,
     allowlisted_peers: Arc<HashMap<PeerId, Option<Multiaddr>>>,
     network: Network,
+    keypair: NetworkKeyPair,
     tasks: JoinSet<()>,
     pending_dials: HashMap<PeerId, AbortHandle>,
     dial_seed_peers_task: Option<AbortHandle>,
@@ -167,7 +206,8 @@ impl DiscoveryEventLoop {
             addresses: address,
             timestamp_ms: now_unix(),
             access_type: self.discovery_config.access_type(),
-        };
+        }
+        .sign(&self.keypair);
 
         self.state.write().unwrap().our_info = Some(our_info);
     }
@@ -211,8 +251,11 @@ impl DiscoveryEventLoop {
     }
 
     fn update_our_info_timestamp(&mut self, now_unix: u64) {
-        if let Some(our_info) = &mut self.state.write().unwrap().our_info {
-            our_info.timestamp_ms = now_unix;
+        let state = &mut self.state.write().unwrap();
+        if let Some(our_info) = &state.our_info {
+            let mut data = our_info.data().clone();
+            data.timestamp_ms = now_unix;
+            state.our_info = Some(data.sign(&self.keypair));
         }
     }
 
@@ -293,6 +336,7 @@ impl DiscoveryEventLoop {
                     // Queries the new node for any peers.
                     self.tasks.spawn(query_peer_for_their_known_peers(
                         peer,
+                        self.discovery_config.clone(),
                         self.state.clone(),
                         self.metrics.clone(),
                         self.allowlisted_peers.clone(),
@@ -385,7 +429,7 @@ impl DiscoveryEventLoop {
         ) {
             let abort_handle = self.tasks.spawn(try_to_connect_to_peer(
                 self.network.clone(),
-                info.to_owned(),
+                info.data().to_owned(),
             ));
             self.pending_dials.insert(*peer_id, abort_handle);
         }
@@ -462,6 +506,7 @@ async fn try_to_connect_to_seed_peers(
 
 async fn query_peer_for_their_known_peers(
     peer: Peer,
+    config: Arc<DiscoveryConfig>,
     state: Arc<RwLock<State>>,
     metrics: Metrics,
     allowlisted_peers: Arc<HashMap<PeerId, Option<Multiaddr>>>,
@@ -469,24 +514,50 @@ async fn query_peer_for_their_known_peers(
     let mut client = DiscoveryClient::new(peer);
 
     let request = Request::new(()).with_timeout(TIMEOUT);
-    if let Some(found_peers) = client
-        .get_known_peers(request)
-        .await
-        .ok()
-        .map(Response::into_inner)
-        .map(
-            |GetKnownPeersResponse {
-                 own_info,
-                 mut known_peers,
-             }| {
-                if !own_info.addresses.is_empty() {
-                    known_peers.push(own_info)
-                }
-                known_peers
-            },
-        )
-    {
-        update_known_peers(state, metrics, found_peers, allowlisted_peers);
+    let found_peers = if config.enable_node_info_signatures() {
+        client
+            .get_known_peers_v2(request)
+            .await
+            .ok()
+            .map(Response::into_inner)
+            .map(
+                |GetKnownPeersResponseV2 {
+                     own_info,
+                     mut known_peers,
+                 }| {
+                    if !own_info.addresses.is_empty() {
+                        known_peers.push(own_info)
+                    }
+                    known_peers
+                },
+            )
+    } else {
+        client
+            .get_known_peers(request)
+            .await
+            .ok()
+            .map(Response::into_inner)
+            .map(
+                |GetKnownPeersResponse {
+                     own_info,
+                     mut known_peers,
+                 }| {
+                    if !own_info.addresses.is_empty() {
+                        known_peers.push(own_info)
+                    }
+                    known_peers
+                        .into_iter()
+                        .map(|info| {
+                            // SignedNodeInfo with fake default signatures will only work if
+                            // signature verification is disabled.
+                            SignedNodeInfo::new_from_data_and_sig(info, Ed25519Signature::default())
+                        })
+                        .collect()
+                },
+            )
+    };
+    if let Some(found_peers) = found_peers {
+        update_known_peers(config, state, metrics, found_peers, allowlisted_peers);
     }
 }
 
@@ -508,25 +579,57 @@ async fn query_connected_peers_for_their_known_peers(
         .choose_multiple(&mut rand::thread_rng(), config.peers_to_query());
 
     // Queries the selected neighbors for their known peers in parallel.
+    let enable_node_info_signatures = config.enable_node_info_signatures();
     let found_peers = peers_to_query
         .into_iter()
         .map(DiscoveryClient::new)
         .map(|mut client| async move {
             let request = Request::new(()).with_timeout(TIMEOUT);
-            client
-                .get_known_peers(request)
-                .await
-                .ok()
-                .map(Response::into_inner)
-                .map(
-                    |GetKnownPeersResponse {
-                         own_info,
-                         mut known_peers,
-                     }| {
-                        known_peers.push(own_info);
-                        known_peers
-                    },
-                )
+            if enable_node_info_signatures {
+                client
+                    .get_known_peers_v2(request)
+                    .await
+                    .ok()
+                    .map(Response::into_inner)
+                    .map(
+                        |GetKnownPeersResponseV2 {
+                             own_info,
+                             mut known_peers,
+                         }| {
+                            if !own_info.addresses.is_empty() {
+                                known_peers.push(own_info)
+                            }
+                            known_peers
+                        },
+                    )
+            } else {
+                client
+                    .get_known_peers(request)
+                    .await
+                    .ok()
+                    .map(Response::into_inner)
+                    .map(
+                        |GetKnownPeersResponse {
+                             own_info,
+                             mut known_peers,
+                         }| {
+                            if !own_info.addresses.is_empty() {
+                                known_peers.push(own_info)
+                            }
+                            known_peers
+                                .into_iter()
+                                .map(|info| {
+                                    // SignedNodeInfo with fake default signatures will only work if
+                                    // signature verification is disabled.
+                                    SignedNodeInfo::new_from_data_and_sig(
+                                        info,
+                                        Ed25519Signature::default(),
+                                    )
+                                })
+                                .collect()
+                        },
+                    )
+            }
         })
         .pipe(futures::stream::iter)
         .buffer_unordered(config.peers_to_query())
@@ -535,7 +638,7 @@ async fn query_connected_peers_for_their_known_peers(
         .collect::<Vec<_>>()
         .await;
 
-    update_known_peers(state, metrics, found_peers, allowlisted_peers);
+    update_known_peers(config, state, metrics, found_peers, allowlisted_peers);
 }
 
 /// Updates the known peers list with the found peers. The found peer is ignored
@@ -543,9 +646,10 @@ async fn query_connected_peers_for_their_known_peers(
 /// If a peer is already known, the NodeInfo is updated, otherwise the peer is
 /// inserted.
 fn update_known_peers(
+    config: Arc<DiscoveryConfig>,
     state: Arc<RwLock<State>>,
     metrics: Metrics,
-    found_peers: Vec<NodeInfo>,
+    found_peers: Vec<SignedNodeInfo>,
     allowlisted_peers: Arc<HashMap<PeerId, Option<Multiaddr>>>,
 ) {
     use std::collections::hash_map::Entry;
@@ -554,39 +658,60 @@ fn update_known_peers(
     let our_peer_id = state.read().unwrap().our_info.clone().unwrap().peer_id;
     let known_peers = &mut state.write().unwrap().known_peers;
     // only take the first MAX_PEERS_TO_SEND peers
-    for peer in found_peers.into_iter().take(MAX_PEERS_TO_SEND) {
+    for peer_info in found_peers.into_iter().take(MAX_PEERS_TO_SEND) {
         // Skip peers whose timestamp is too far in the future from our clock
         // or that are too old
-        if peer.timestamp_ms > now_unix.saturating_add(30 * 1_000) // 30 seconds
-            || now_unix.saturating_sub(peer.timestamp_ms) > ONE_DAY_MILLISECONDS
+        if peer_info.timestamp_ms > now_unix.saturating_add(30 * 1_000) // 30 seconds
+            || now_unix.saturating_sub(peer_info.timestamp_ms) > ONE_DAY_MILLISECONDS
         {
             continue;
         }
 
-        if peer.peer_id == our_peer_id {
+        if peer_info.peer_id == our_peer_id {
             continue;
         }
 
         // If Peer is Private, and not in our allowlist, skip it.
-        if peer.access_type == AccessType::Private && !allowlisted_peers.contains_key(&peer.peer_id)
+        if peer_info.access_type == AccessType::Private
+            && !allowlisted_peers.contains_key(&peer_info.peer_id)
         {
             continue;
         }
 
         // Skip entries that have too many addresses as a means to cap the size of a
         // node's info
-        if peer.addresses.len() > MAX_ADDRESSES_PER_PEER {
+        if peer_info.addresses.len() > MAX_ADDRESSES_PER_PEER {
             continue;
         }
 
         // verify that all addresses provided are valid anemo addresses
-        if !peer
+        if !peer_info
             .addresses
             .iter()
             .all(|addr| addr.len() < MAX_ADDRESS_LENGTH && addr.to_anemo_address().is_ok())
         {
             continue;
         }
+        if config.enable_node_info_signatures() {
+            let Ok(public_key) = Ed25519PublicKey::from_bytes(&peer_info.peer_id.0) else {
+                debug_fatal!(
+                    // This should never happen.
+                    "Failed to convert anemo PeerId {:?} to Ed25519PublicKey",
+                    peer_info.peer_id
+                );
+                continue;
+            };
+            let msg = bcs::to_bytes(peer_info.data()).expect("BCS serialization should not fail");
+            if let Err(e) = public_key.verify(&msg, peer_info.auth_sig()) {
+                info!(
+                    "Discovery failed to verify signature for NodeInfo for peer {:?}: {e:?}",
+                    peer_info.peer_id
+                );
+                // TODO: consider denylisting the source of bad NodeInfo from future requests.
+                continue;
+            }
+        }
+        let peer = VerifiedSignedNodeInfo::new_from_verified(peer_info);
 
         match known_peers.entry(peer.peer_id) {
             // Updates the NodeInfo of the peer if it exists.
