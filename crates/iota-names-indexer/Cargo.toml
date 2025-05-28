@@ -26,4 +26,3 @@ iota-data-ingestion-core.workspace = true
 iota-metrics.workspace = true
 iota-names.workspace = true
 iota-types.workspace = true
-telemetry-subscribers.workspace = true
