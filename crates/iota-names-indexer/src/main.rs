@@ -75,7 +75,7 @@ impl Command {
                     );
 
                     tokio::select! {
-                        res = run_iota_names_reader(worker, &node_url, &registry, handle.clone(), num_workers) => {res?;},
+                        res = run_iota_names_reader(worker, &node_url, &registry, handle.clone(), num_workers) => res?,
                         _ = handle.cancelled() => {},
                     }
                     Ok(())
