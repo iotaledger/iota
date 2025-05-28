@@ -17,7 +17,7 @@ use tracing_subscriber::{
 };
 
 use self::{metrics::IotaNamesMetrics, worker::IotaNamesWorker};
-use crate::metrics::PrometheusServer;
+use crate::{metrics::PrometheusServer, worker::run_iota_names_reader};
 
 // Define the `GIT_REVISION` and `VERSION` consts
 bin_version::bin_version!();
@@ -35,13 +35,18 @@ enum CLI {
         /// The URL of an IOTA node to get data from.
         #[arg(long, default_value = "http://localhost:9000")]
         node_url: String,
+        #[arg(long, default_value_t = 1)]
+        num_workers: usize,
     },
 }
 
 impl CLI {
     async fn execute(self) -> Result<()> {
         match self {
-            CLI::Start { node_url } => {
+            CLI::Start {
+                node_url,
+                num_workers,
+            } => {
                 info!("Starting IOTA Names Indexer");
 
                 let prometheus = PrometheusServer::new();
@@ -67,7 +72,7 @@ impl CLI {
                     );
 
                     tokio::select! {
-                        res = worker.run(&node_url, &registry, handle.clone()) => {res?;},
+                        res = run_iota_names_reader(worker, &node_url, &registry, handle.clone(), num_workers) => {res?;},
                         _ = handle.cancelled() => {},
                     }
                     Ok(())

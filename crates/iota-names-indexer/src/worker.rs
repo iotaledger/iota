@@ -23,6 +23,44 @@ use tracing::{debug, info};
 
 use crate::IotaNamesMetrics;
 
+pub(crate) async fn run_iota_names_reader(
+    worker: IotaNamesWorker,
+    node_url: &str,
+    registry: &Registry,
+    token: CancellationToken,
+    concurrency: usize,
+) -> anyhow::Result<()> {
+    let progress_store = FileProgressStore::new("./progress_store").await?;
+
+    let mut executor = IndexerExecutor::new(
+        progress_store,
+        1,
+        DataIngestionMetrics::new(registry),
+        token,
+    );
+    let worker_pool = WorkerPool::new(
+        worker,
+        "iota_names_reader".to_string(),
+        concurrency,
+        Default::default(),
+    );
+    executor.register(worker_pool).await?;
+
+    info!("Connecting to node at {}", node_url);
+    executor
+        .run(
+            PathBuf::from("./chk".to_string()), /* path to a local directory
+                                                 * where
+                                                 * checkpoints
+                                                 * are stored. */
+            Some(format!("{node_url}/api/v1")),
+            vec![],                   // optional remote store access options.
+            ReaderOptions::default(), // remote_read_batch_size.
+        )
+        .await?;
+    Ok(())
+}
+
 pub(crate) struct IotaNamesWorker {
     config: IotaNamesConfig,
     metrics: Arc<IotaNamesMetrics>,
@@ -31,39 +69,6 @@ pub(crate) struct IotaNamesWorker {
 impl IotaNamesWorker {
     pub(crate) fn new(config: IotaNamesConfig, metrics: Arc<IotaNamesMetrics>) -> Self {
         Self { config, metrics }
-    }
-
-    pub(crate) async fn run(
-        self,
-        node_url: &str,
-        registry: &Registry,
-        token: CancellationToken,
-    ) -> anyhow::Result<()> {
-        let progress_store = FileProgressStore::new("./progress_store").await?;
-
-        let mut executor = IndexerExecutor::new(
-            progress_store,
-            1,
-            DataIngestionMetrics::new(registry),
-            token,
-        );
-        let worker_pool =
-            WorkerPool::new(self, "iota_names_reader".to_string(), 1, Default::default());
-        executor.register(worker_pool).await.unwrap();
-
-        info!("Connecting to node at {}", node_url);
-        executor
-            .run(
-                PathBuf::from("./chk".to_string()), /* path to a local directory
-                                                     * where
-                                                     * checkpoints
-                                                     * are stored. */
-                Some(format!("{node_url}/api/v1")),
-                vec![],                   // optional remote store access options.
-                ReaderOptions::default(), // remote_read_batch_size.
-            )
-            .await?;
-        Ok(())
     }
 
     fn process_event(&self, event: &Event) -> anyhow::Result<()> {
