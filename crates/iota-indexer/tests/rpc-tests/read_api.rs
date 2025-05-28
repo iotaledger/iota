@@ -13,6 +13,7 @@ use iota_json_rpc_types::{
     CheckpointId, IotaGetPastObjectRequest, IotaObjectDataOptions, IotaObjectRef,
     IotaObjectResponse, IotaObjectResponseQuery, IotaPastObjectResponse,
     IotaTransactionBlockResponse, IotaTransactionBlockResponseOptions,
+    IotaTransactionBlockResponseQuery, TransactionFilter,
 };
 use iota_package_resolver::Resolver;
 use iota_protocol_config::ProtocolVersion;
@@ -1806,5 +1807,73 @@ fn get_chain_identifier_with_pruning_enabled() {
                 .await
                 .is_err()
         )
+    });
+}
+
+#[test]
+fn get_trasaction_for_deleted_object() {
+    let ApiTestSetup {
+        runtime,
+        store,
+        client,
+        cluster,
+    } = ApiTestSetup::get_or_init();
+
+    runtime.block_on(async move {
+        indexer_wait_for_checkpoint(store, 1).await;
+
+        // Publish NFT package and create an NFT
+        let context = &cluster.wallet;
+        let (package_id, _, _) = publish_nfts_package(context).await;
+
+        let (sender, nft_object_id, tx_digest) = create_nft(context, package_id).await;
+
+        indexer_wait_for_transaction(tx_digest, store, client).await;
+
+        // Transfer the NFT to the sender's address to make the InputObject filter
+        // return a transfer and delete transaction.
+        cluster
+            .transfer_object(
+                sender,
+                sender,
+                nft_object_id,
+                context
+                    .get_one_gas_object_owned_by_address(sender)
+                    .await
+                    .unwrap()
+                    .unwrap()
+                    .0,
+                None,
+            )
+            .await
+            .unwrap();
+
+        // Retrieve the latest object reference (which includes version) for deletion.
+        let nft_object_ref = cluster.get_latest_object_ref(&nft_object_id).await;
+
+        // Delete the NFT
+        let delete_tx = delete_nft(context, sender, package_id, nft_object_ref).await;
+        indexer_wait_for_transaction(delete_tx.digest, store, client).await;
+
+        let res = client
+            .query_transaction_blocks(
+                IotaTransactionBlockResponseQuery {
+                    filter: Some(TransactionFilter::WrappedOrDeletedObject(nft_object_id)),
+                    options: Some(IotaTransactionBlockResponseOptions::full_content()),
+                },
+                None,
+                None,
+                None,
+            )
+            .await
+            .expect("RPC call should succeed");
+
+        // Check if delete_tx.digest is in the result
+        assert_eq!(res.data.len(), 1, "Expected 1 transactions");
+        assert_eq!(
+            res.data.first().unwrap().digest,
+            delete_tx.digest,
+            "Expected delete transaction to be found"
+        );
     });
 }
