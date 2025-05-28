@@ -57,6 +57,7 @@ pub const MAX_PROTOCOL_VERSION: u64 = 9;
 //            Enable zstd compression for consensus tonic network in mainnet.
 //            Enable consensus garbage collection for mainnet
 //            Enable the new consensus commit rule for mainnet.
+//            Increase the committee size to 80.
 
 #[derive(Copy, Clone, Debug, Hash, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ProtocolVersion(u64);
@@ -2004,6 +2005,8 @@ impl ProtocolConfig {
                     // blocks within a window of ~4 seconds
                     // to be included before be considered garbage collected.
                     cfg.consensus_gc_depth = Some(60);
+
+                    cfg.max_committee_members_count = Some(80);
                 }
                 // Use this template when making changes:
                 //
