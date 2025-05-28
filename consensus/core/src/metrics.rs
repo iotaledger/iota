@@ -177,7 +177,7 @@ pub(crate) struct NodeMetrics {
     pub(crate) commit_sync_inflight_fetches: IntGauge,
     pub(crate) commit_sync_pending_fetches: IntGauge,
     pub(crate) commit_sync_fetch_commits_handler_uncertified_skipped: IntCounter,
-    pub(crate) commit_sync_fetched_commits: IntCounter,
+    pub(crate) commit_sync_fetched_commits: IntCounterVec,
     pub(crate) commit_sync_fetched_blocks: IntCounter,
     pub(crate) commit_sync_total_fetched_blocks_size: IntCounter,
     pub(crate) commit_sync_quorum_index: IntGauge,
@@ -651,9 +651,10 @@ impl NodeMetrics {
                 "The number of pending fetches in commit syncer",
                 registry,
             ).unwrap(),
-            commit_sync_fetched_commits: register_int_counter_with_registry!(
+            commit_sync_fetched_commits: register_int_counter_vec_with_registry!(
                 "commit_sync_fetched_commits",
-                "The number of commits fetched via commit syncer",
+                "The number of commits fetched via commit syncer, labeled by authority.",
+                &["authority"],
                 registry,
             ).unwrap(),
             commit_sync_fetched_blocks: register_int_counter_with_registry!(

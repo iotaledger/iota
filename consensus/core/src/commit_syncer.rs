@@ -267,10 +267,16 @@ impl<C: NetworkClient> CommitSyncer<C> {
                             .sum::<usize>() as u64,
                 )
             });
-
+        let hostname = &self
+            .inner
+            .context
+            .committee
+            .authority(authority_index)
+            .hostname;
         let metrics = &self.inner.context.metrics.node_metrics;
         metrics
             .commit_sync_fetched_commits
+            .with_label_values(&[&hostname.as_str()])
             .inc_by(certified_commits.commits().len() as u64);
         metrics
             .commit_sync_fetched_blocks
