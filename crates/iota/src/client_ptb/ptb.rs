@@ -57,6 +57,7 @@ pub struct Summary {
     pub gas_cost: GasCostSummary,
 }
 
+#[expect(clippy::large_enum_variant)]
 pub enum PTBCommandResult {
     Preview(PTBPreview),
     Summary(Summary),

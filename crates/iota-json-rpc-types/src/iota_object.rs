@@ -1000,6 +1000,7 @@ impl IotaRawMovePackage {
     }
 }
 
+#[expect(clippy::large_enum_variant)]
 #[derive(Serialize, Deserialize, Debug, JsonSchema, Clone, PartialEq, Eq)]
 #[serde(tag = "status", content = "details", rename = "ObjectRead")]
 pub enum IotaPastObjectResponse {

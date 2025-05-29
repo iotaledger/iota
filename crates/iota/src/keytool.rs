@@ -65,6 +65,7 @@ use crate::{
     },
 };
 
+#[expect(clippy::large_enum_variant)]
 #[derive(Subcommand)]
 pub enum KeyToolCommand {
     /// Convert private key in Hex or Base64 to new format (Bech32

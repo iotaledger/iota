@@ -985,6 +985,7 @@ impl Genesis {
     }
 }
 
+#[expect(clippy::large_enum_variant)]
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize, Eq)]
 #[serde(untagged)]
 enum GenesisLocation {

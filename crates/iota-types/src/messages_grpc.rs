@@ -98,6 +98,7 @@ pub struct TransactionInfoRequest {
     pub transaction_digest: TransactionDigest,
 }
 
+#[expect(clippy::large_enum_variant)]
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub enum TransactionStatus {
     /// Signature over the transaction.

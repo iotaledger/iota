@@ -91,6 +91,7 @@ pub(crate) trait DataFetcher {
     ) -> Result<Object, ReplayEngineError>;
 }
 
+#[expect(clippy::large_enum_variant)]
 #[derive(Clone)]
 pub enum Fetchers {
     Remote(RemoteFetcher),

@@ -264,6 +264,7 @@ impl From<anyhow::Error> for ReplayEngineError {
 }
 
 /// TODO: Limited set but will add more
+#[expect(clippy::large_enum_variant)]
 #[derive(Debug)]
 pub enum ExecutionStoreEvent {
     BackingPackageGetPackageObject {

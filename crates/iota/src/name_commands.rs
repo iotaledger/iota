@@ -1184,6 +1184,7 @@ impl SubdomainCommand {
     }
 }
 
+#[expect(clippy::large_enum_variant)]
 #[derive(Serialize)]
 #[serde(untagged)]
 pub enum NameCommandResult {

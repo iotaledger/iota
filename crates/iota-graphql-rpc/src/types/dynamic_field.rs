@@ -37,6 +37,7 @@ pub(crate) struct DynamicField {
     pub super_: MoveObject,
 }
 
+#[expect(clippy::large_enum_variant)]
 #[derive(Union)]
 pub(crate) enum DynamicFieldValue {
     MoveObject(MoveObject), // DynamicObject

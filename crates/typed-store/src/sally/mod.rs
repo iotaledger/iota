@@ -534,6 +534,7 @@ impl<V: DeserializeOwned> Iterator for SallyValues<'_, V> {
 }
 
 /// Options to configure a sally db instance at the global level
+#[expect(clippy::large_enum_variant)]
 pub enum SallyDBOptions {
     // Options when sally db instance is backed by a single rocksdb instance
     RocksDB(

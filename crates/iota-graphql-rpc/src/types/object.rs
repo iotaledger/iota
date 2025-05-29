@@ -162,6 +162,7 @@ pub(crate) struct ObjectKey {
 }
 
 /// The object's owner type: Immutable, Shared, Parent, or Address.
+#[expect(clippy::large_enum_variant)]
 #[derive(Union, Clone)]
 pub(crate) enum ObjectOwner {
     Immutable(Immutable),
