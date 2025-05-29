@@ -2617,6 +2617,39 @@ async fn test_new_address_command_by_flag() -> Result<(), anyhow::Error> {
 }
 
 #[sim_test]
+async fn test_remove_address_command() -> Result<(), anyhow::Error> {
+    let mut cluster = TestClusterBuilder::new().build().await;
+    let context = cluster.wallet_mut();
+
+    let addr = context
+        .config()
+        .keystore()
+        .addresses()
+        .get(1)
+        .cloned()
+        .unwrap();
+
+    IotaClientCommands::RemoveAddress {
+        alias_or_address: addr.to_string(),
+    }
+    .execute(context)
+    .await?;
+
+    assert_eq!(
+        context
+            .config()
+            .keystore()
+            .addresses()
+            .iter()
+            .filter(|k| *k == &addr)
+            .count(),
+        0
+    );
+
+    Ok(())
+}
+
+#[sim_test]
 async fn test_active_address_command() -> Result<(), anyhow::Error> {
     let mut cluster = TestClusterBuilder::new().build().await;
     let context = cluster.wallet_mut();
