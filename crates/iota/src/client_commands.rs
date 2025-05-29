@@ -751,7 +751,11 @@ impl IotaClientCommands {
             IotaClientCommands::RemoveAddress { address } => {
                 let address = get_identity_address(Some(address), context)?;
 
-                context.config_mut().keystore_mut().remove_key(&address)?;
+                if context.config().keystore().get_key(&address).is_ok() {
+                    context.config_mut().keystore_mut().remove_key(&address)?;
+                } else {
+                    bail!("Address \"{address}\" does not exist in keystore");
+                }
 
                 IotaClientCommandResult::RemoveAddress(address)
             }
