@@ -773,10 +773,9 @@ where
 
             type RequestResult<S> = Result<Result<S, IotaError>, tokio::time::error::Elapsed>;
 
-            #[expect(clippy::large_enum_variant)]
             enum Event<S> {
                 StartNext,
-                Request(AuthorityName, RequestResult<S>),
+                Request(AuthorityName, Box<RequestResult<S>>),
             }
 
             let mut futures = FuturesUnordered::<BoxFuture<'a, Event<S>>>::new();
@@ -786,7 +785,7 @@ where
                 Box::pin(monitored_future!(async move {
                     trace!(name=?name.concise(), now = ?tokio::time::Instant::now() - start, "new request");
                     let map = map_each_authority(name, client);
-                    Event::Request(name, timeout(timeout_each_authority, map).await)
+                    Event::Request(name, Box::new(timeout(timeout_each_authority, map).await))
                 }))
             };
 
@@ -838,7 +837,7 @@ where
                         futures.push(schedule_next());
                     }
                     Event::Request(name, res) => {
-                        match res {
+                        match *res {
                             // timeout
                             Err(_) => {
                                 debug!(name=?name.concise(), "authority request timed out");

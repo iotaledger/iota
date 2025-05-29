@@ -13,16 +13,15 @@ use crate::{
 };
 
 /// Test fixture for store tests. Wraps around various store implementations.
-#[expect(clippy::large_enum_variant)]
 enum TestStore {
-    RocksDB((RocksDBStore, TempDir)),
+    RocksDB(Box<(RocksDBStore, TempDir)>),
     Mem(MemStore),
 }
 
 impl TestStore {
     fn store(&self) -> &dyn Store {
         match self {
-            TestStore::RocksDB((store, _)) => store,
+            TestStore::RocksDB(db) => &db.0,
             TestStore::Mem(store) => store,
         }
     }
@@ -30,10 +29,10 @@ impl TestStore {
 
 fn new_rocksdb_teststore() -> TestStore {
     let temp_dir = TempDir::new().unwrap();
-    TestStore::RocksDB((
+    TestStore::RocksDB(Box::new((
         RocksDBStore::new(temp_dir.path().to_str().unwrap()),
         temp_dir,
-    ))
+    )))
 }
 
 fn new_mem_teststore() -> TestStore {
