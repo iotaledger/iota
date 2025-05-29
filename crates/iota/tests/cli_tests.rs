@@ -2621,7 +2621,7 @@ async fn test_remove_address_command() -> Result<(), anyhow::Error> {
     let mut cluster = TestClusterBuilder::new().build().await;
     let context = cluster.wallet_mut();
 
-    let addr = context
+    let address = context
         .config()
         .keystore()
         .addresses()
@@ -2630,7 +2630,7 @@ async fn test_remove_address_command() -> Result<(), anyhow::Error> {
         .unwrap();
 
     IotaClientCommands::RemoveAddress {
-        alias_or_address: addr.to_string(),
+        address: address.into(),
     }
     .execute(context)
     .await?;
@@ -2641,7 +2641,7 @@ async fn test_remove_address_command() -> Result<(), anyhow::Error> {
             .keystore()
             .addresses()
             .iter()
-            .filter(|k| *k == &addr)
+            .filter(|k| *k == &address)
             .count(),
         0
     );

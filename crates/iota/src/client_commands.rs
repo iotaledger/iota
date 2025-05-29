@@ -497,7 +497,7 @@ pub enum IotaClientCommands {
         profile_output: Option<PathBuf>,
     },
     /// Remove an existing address by its alias or hexadecimal string.
-    RemoveAddress { alias_or_address: String },
+    RemoveAddress { address: KeyIdentity },
     /// Replay a given transaction to view transaction effects. Set environment
     /// variable MOVE_VM_STEP=1 to debug.
     ReplayTransaction {
@@ -748,20 +748,12 @@ impl IotaClientCommands {
                 // this will be displayed via trace info, so no output is needed here
                 IotaClientCommandResult::NoOutput
             }
-            IotaClientCommands::RemoveAddress { alias_or_address } => {
-                let address: IotaAddress = match context
-                    .config()
-                    .keystore()
-                    .get_address_by_alias(alias_or_address.clone())
-                {
-                    Ok(addr) => *addr,
-                    Err(_) => IotaAddress::from_str(&alias_or_address)
-                        .map_err(|e| anyhow!("Invalid address or alias: {}", e))?,
-                };
+            IotaClientCommands::RemoveAddress { address } => {
+                let address = get_identity_address(Some(address), context)?;
 
                 context.config_mut().keystore_mut().remove_key(&address)?;
 
-                IotaClientCommandResult::RemoveAddress(RemoveAddressOutput { alias_or_address })
+                IotaClientCommandResult::RemoveAddress(RemoveAddressOutput { address })
             }
             IotaClientCommands::ReplayTransaction {
                 tx_digest,
@@ -2228,7 +2220,7 @@ impl Display for IotaClientCommandResult {
             }
             IotaClientCommandResult::RemoveAddress(remove_address) => {
                 let mut builder = TableBuilder::default();
-                builder.push_record(vec![remove_address.alias_or_address.as_str()]);
+                builder.push_record(vec![remove_address.address.to_string()]);
 
                 let mut table = builder.build();
                 table.with(TableStyle::rounded());
@@ -2623,7 +2615,7 @@ impl ObjectsOutput {
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct RemoveAddressOutput {
-    pub alias_or_address: String,
+    pub address: IotaAddress,
 }
 
 #[derive(Serialize)]
