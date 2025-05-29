@@ -39,6 +39,7 @@ function HeroVideoImage({ title, subtitle, src }: HeroVideoImageProps): JSX.Elem
                 open={open}
                 setOpen={setOpen}
                 rounded="xl"
+                disableVideoControls
             />
             <Link
                 href={src}
@@ -226,8 +227,7 @@ interface ObjectViewProps {
 
 export function ObjectView({ data }: ObjectViewProps): JSX.Element {
     const display = data.data?.display?.data;
-    const src = display?.image_url ?? '';
-    const { data: nftMediaInfo } = useResolveNFTMedia(src);
+    const { data: nftMediaInfo } = useResolveNFTMedia(display?.image_url);
 
     const name = extractName(display);
     const objectType = parseObjectType(data);
@@ -241,7 +241,7 @@ export function ObjectView({ data }: ObjectViewProps): JSX.Element {
     const heroImageProps = {
         title: heroImageTitle,
         subtitle: heroImageSubtitle,
-        src,
+        src: nftMediaInfo?.src ?? '',
     };
 
     return (
@@ -249,11 +249,11 @@ export function ObjectView({ data }: ObjectViewProps): JSX.Element {
             <div
                 className={clsx(
                     'address-grid-container-top',
-                    !src && 'no-image',
+                    !nftMediaInfo?.src && 'no-image',
                     (!name || !display) && 'no-description',
                 )}
             >
-                {src && (
+                {nftMediaInfo?.src && (
                     <div style={{ gridArea: 'heroImage' }}>
                         <HeroVideoImage {...heroImageProps} />
                     </div>

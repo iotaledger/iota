@@ -43,6 +43,7 @@ interface ObjectVideoImageProps extends ImageStylesProps {
     fadeIn?: boolean;
     imgFit?: ImageProps['fit'];
     aspect?: ImageProps['aspect'];
+    disableVideoControls?: boolean;
 }
 
 export function ObjectVideoImage({
@@ -57,12 +58,13 @@ export function ObjectVideoImage({
     imgFit,
     aspect,
     rounded = 'md',
+    disableVideoControls,
 }: ObjectVideoImageProps): JSX.Element {
     const { data: resolvedNFTInfo, isLoading } = useResolveNFTMedia(src);
     const videoRef = useRef<HTMLVideoElement | null>(null);
 
     const close = () => {
-        if (disablePreview) {
+        if (disablePreview || isLoading) {
             return;
         }
 
@@ -73,7 +75,7 @@ export function ObjectVideoImage({
         videoRef.current?.play();
     };
     const openPreview = () => {
-        if (disablePreview) {
+        if (disablePreview || isLoading) {
             return;
         }
 
@@ -93,7 +95,7 @@ export function ObjectVideoImage({
                 onClose={close}
                 title={title}
                 subtitle={subtitle}
-                src={src}
+                src={resolvedNFTInfo?.src || ''}
                 alt={title}
             />
             <div
@@ -109,9 +111,10 @@ export function ObjectVideoImage({
                     ) : (
                         <div className="pointer-events-none flex h-full w-full items-center justify-center">
                             <NFTVideoAsset
-                                src={src}
+                                src={resolvedNFTInfo.src}
                                 isAutoPlayEnabled={resolvedNFTInfo.isAutoPlayEnabled}
                                 ref={videoRef}
+                                disableControls={disableVideoControls}
                             />
                         </div>
                     )

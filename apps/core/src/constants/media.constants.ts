@@ -12,7 +12,21 @@ export const VIDEO_AUTOPLAY_FLAGS: Partial<
     controls: true,
     controlsList: 'nodownload',
     disablePictureInPicture: true,
-    preload: 'metadata',
+    preload: 'auto',
+    loop: true,
+    width: '100%',
+    height: 'auto',
+};
+
+export const VIDEO_AUTOPLAY_FLAGS_NO_CONTROLS: Partial<
+    Omit<React.ComponentProps<typeof NFTVideoAsset>, 'src'>
+> = {
+    autoPlay: true,
+    muted: true,
+    playsInline: true,
+    controls: false,
+    disablePictureInPicture: true,
+    preload: 'auto',
     loop: true,
     width: '100%',
     height: 'auto',

@@ -3,5 +3,4 @@
 
 export * from './objectViewMode.enums';
 export * from './objectFilterValue.enums';
-export * from './imageVisibility.enums';
 export * from './splitPaneKey.enums';

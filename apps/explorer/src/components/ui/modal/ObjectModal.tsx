@@ -13,7 +13,6 @@ export interface ObjectModalProps extends Omit<ModalProps, 'children'> {
     subtitle: string;
     alt: string;
     src: string;
-    moderate?: boolean;
 }
 
 export function ObjectModal({
@@ -23,28 +22,21 @@ export function ObjectModal({
     title,
     subtitle,
     src,
-    // NOTE: Leave false only if ObjectModal is paired with an Image component
-    moderate = false,
 }: ObjectModalProps): JSX.Element {
     const { data: resolvedNFTInfo, isLoading } = useResolveNFTMedia(src);
 
     return (
         <Modal open={open} onClose={onClose}>
             <div className="flex h-full w-full flex-col gap-5">
-                {resolvedNFTInfo?.assetType === VisualAssetType.Video ? (
-                    <>
-                        {isLoading ? (
-                            <LoadingIndicator />
-                        ) : (
-                            <NFTVideoAsset
-                                src={src}
-                                isAutoPlayEnabled={resolvedNFTInfo.isAutoPlayEnabled}
-                            />
-                        )}
-                    </>
+                {isLoading ? (
+                    <LoadingIndicator />
+                ) : resolvedNFTInfo?.assetType === VisualAssetType.Video ? (
+                    <NFTVideoAsset
+                        src={resolvedNFTInfo.src}
+                        isAutoPlayEnabled={resolvedNFTInfo.isAutoPlayEnabled}
+                    />
                 ) : (
-                    // Moderation is disabled inside the modal so if a user clicks to open an unblurred image the experience is consistent
-                    <Image alt={alt} src={src} rounded="none" moderate={moderate} />
+                    <Image alt={alt} src={resolvedNFTInfo?.src ?? ''} rounded="none" />
                 )}
                 <div className="flex flex-col gap-3">
                     <span className="text-headline-md text-neutral-100">{title}</span>

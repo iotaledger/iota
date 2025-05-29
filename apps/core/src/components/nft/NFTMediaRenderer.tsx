@@ -9,19 +9,23 @@ import { useResolveNFTMedia } from '../../hooks';
 interface NFTMediaRendererProps {
     src: string;
     alt?: string;
-    width?: string | number;
-    height?: string | number;
+    disableVideoControls?: boolean;
 }
 
-export function NFTMediaRenderer({ src, alt = 'NFT' }: NFTMediaRendererProps) {
+export function NFTMediaRenderer({
+    src,
+    alt = 'NFT',
+    disableVideoControls,
+}: NFTMediaRendererProps) {
     const { data: resolvedNFTInfo, isLoading } = useResolveNFTMedia(src);
 
     return resolvedNFTInfo?.assetType === VisualAssetType.Video ? (
         !isLoading ? (
             <NFTVideoAsset
-                src={src}
+                src={resolvedNFTInfo.src}
                 isAutoPlayEnabled={resolvedNFTInfo.isAutoPlayEnabled}
                 className="w-full h-full object-cover"
+                disableControls={disableVideoControls}
             />
         ) : (
             <Loader className="w-full h-full flex items-center justify-center" />

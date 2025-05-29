@@ -1,24 +1,37 @@
 // Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
-
 import { VisualAssetType } from '@iota/apps-ui-kit';
 import { useQuery, UseQueryResult } from '@tanstack/react-query';
 import { capitalize, shouldNFTVideoAutoplay, transformURL } from '../utils';
 
-const ALLOWED_VIDEO_EXTENSIONS = ['mp4'];
+const WHITELISTED_VIDEO_FORMATS = ['mp4'];
+
+const WHITELISTED_IMAGE_MIMETYPES = [
+    'image/jpeg',
+    'image/png',
+    'image/gif',
+    'image/bmp',
+    'image/webp',
+    'image/x-icon',
+    'image/tiff',
+];
 
 type UseResolveNFTMediaReturnType =
     | {
           assetType: VisualAssetType.Image;
           fileTypeLabel: string;
+          src: string;
       }
     | {
           assetType: VisualAssetType.Video;
           isAutoPlayEnabled: boolean;
           fileTypeLabel: string;
+          src: string;
       };
 
-export function useResolveNFTMedia(src: string): UseQueryResult<UseResolveNFTMediaReturnType> {
+export function useResolveNFTMedia(
+    src: string | undefined,
+): UseQueryResult<UseResolveNFTMediaReturnType> {
     return useQuery({
         queryKey: ['nft-media-info', src],
         queryFn: async ({ signal }) => {
@@ -26,51 +39,61 @@ export function useResolveNFTMedia(src: string): UseQueryResult<UseResolveNFTMed
                 return {
                     assetType: VisualAssetType.Image,
                     fileTypeLabel: '0 Image Files',
+                    src: '',
                 };
             }
 
             let assetType: VisualAssetType = VisualAssetType.Image;
             let isAutoPlayEnabled = false;
+            let mimeType: string | null = null;
             let mimeTypeSuffix: string | undefined;
+            let finalSrc = '';
+            const srcExtension = src.split('.').pop()?.toLowerCase();
 
             try {
                 const res = await fetch(transformURL(src), { signal });
-                const contentType = res.headers.get('Content-Type');
+                mimeType = res.headers.get('Content-Type');
                 const contentLength = res.headers.get('Content-Length');
+                mimeTypeSuffix = mimeType?.split('/').pop()?.toLowerCase();
 
-                mimeTypeSuffix = contentType?.split('/').pop()?.toLowerCase();
-
-                if (contentType?.startsWith('video/')) {
-                    assetType = VisualAssetType.Video;
-                    isAutoPlayEnabled = contentLength
-                        ? shouldNFTVideoAutoplay(contentLength)
-                        : false;
-                } else if (contentType?.startsWith('image/')) {
-                    assetType = VisualAssetType.Image;
+                if (mimeType?.startsWith('video/')) {
+                    if (srcExtension && WHITELISTED_VIDEO_FORMATS.includes(srcExtension)) {
+                        assetType = VisualAssetType.Video;
+                        isAutoPlayEnabled = contentLength
+                            ? shouldNFTVideoAutoplay(contentLength)
+                            : false;
+                        finalSrc = src;
+                    }
+                } else if (mimeType?.startsWith('image/')) {
+                    if (WHITELISTED_IMAGE_MIMETYPES.includes(mimeType)) {
+                        assetType = VisualAssetType.Image;
+                        finalSrc = src;
+                    }
                 }
             } catch (_) {
                 // fallback to extension
-                const ext = src.split('.').pop()?.toLowerCase();
-                mimeTypeSuffix = ext;
-
-                if (ALLOWED_VIDEO_EXTENSIONS.includes(ext || '')) {
+                if (srcExtension && WHITELISTED_VIDEO_FORMATS.includes(srcExtension)) {
                     assetType = VisualAssetType.Video;
+                    finalSrc = src;
                 } else {
                     assetType = VisualAssetType.Image;
+                    finalSrc = ''; // treat as unverified image without Content-Type
                 }
+                mimeTypeSuffix = srcExtension;
             }
 
             const mediaType = mimeTypeSuffix ? capitalize(mimeTypeSuffix) : assetType;
             const fileTypeLabel = `1 ${mediaType} File`;
 
             if (assetType === VisualAssetType.Image) {
-                return { assetType, fileTypeLabel };
+                return { assetType, fileTypeLabel, src: finalSrc };
             }
 
             return {
                 assetType,
                 isAutoPlayEnabled,
                 fileTypeLabel,
+                src: finalSrc,
             };
         },
         enabled: !!src,

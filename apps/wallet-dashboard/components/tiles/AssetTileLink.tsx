@@ -29,7 +29,12 @@ export function AssetTileLink({ asset, type, onClick }: AssetTileLinkProps): Rea
             {type === AssetCategory.Visual && isTokenOwnedByKiosk ? (
                 <KioskTile object={asset} address={account?.address} onClick={handleClick} />
             ) : type === AssetCategory.Visual ? (
-                <VisualAssetTile asset={asset} icon={<VisibilityOff />} onClick={handleClick} />
+                <VisualAssetTile
+                    asset={asset}
+                    icon={<VisibilityOff />}
+                    onClick={handleClick}
+                    disableVideoControls
+                />
             ) : (
                 <NonVisualAssetCard asset={asset} />
             )}

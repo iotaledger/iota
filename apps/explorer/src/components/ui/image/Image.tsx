@@ -2,14 +2,9 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { LoadingIndicator } from '@iota/apps-ui-kit';
-import { PlaceholderReplace, VisibilityOff } from '@iota/apps-ui-icons';
 import { cva, cx, type VariantProps } from 'class-variance-authority';
-import clsx from 'clsx';
 import { useAnimate } from 'framer-motion';
-import { type ImgHTMLAttributes, useEffect, useState } from 'react';
-import { useImage } from '~/hooks';
-import { ImageVisibility } from '~/lib/enums';
+import { type ImgHTMLAttributes, useEffect } from 'react';
 
 const imageStyles = cva(null, {
     variants: {
@@ -50,33 +45,23 @@ type ImageStyleProps = VariantProps<typeof imageStyles>;
 
 export interface ImageProps extends ImageStyleProps, ImgHTMLAttributes<HTMLImageElement> {
     onClick?: () => void;
-    moderate?: boolean;
     src: string;
-    visibility?: ImageVisibility;
     fadeIn?: boolean;
 }
 
-function BaseImage({
-    status,
+export function Image({
     size,
     rounded,
     alt,
     src,
     srcSet,
     fit,
-    visibility,
     onClick,
     fadeIn,
     aspect,
     ...imgProps
-}: ImageProps & { status: string }): JSX.Element {
+}: ImageProps): JSX.Element {
     const [scope, animate] = useAnimate();
-    const [isBlurred, setIsBlurred] = useState(false);
-    useEffect(() => {
-        if (visibility && visibility !== ImageVisibility.Pass) {
-            setIsBlurred(true);
-        }
-    }, [visibility]);
 
     const animateFadeIn = fadeIn && status === 'loaded';
 
@@ -95,45 +80,18 @@ function BaseImage({
                 animateFadeIn && 'opacity-0',
             )}
         >
-            {status === 'loading' ? (
-                <LoadingIndicator />
-            ) : status === 'loaded' ? (
-                isBlurred && (
-                    <div
-                        className={clsx(
-                            'absolute z-20 flex h-full w-full items-center justify-center rounded-md bg-neutral-10/30 text-center text-white backdrop-blur-md',
-                            visibility === ImageVisibility.Hide &&
-                                'pointer-events-none cursor-not-allowed',
-                        )}
-                        onClick={() => setIsBlurred(!isBlurred)}
-                    >
-                        <VisibilityOff />
-                    </div>
-                )
-            ) : status === 'failed' ? (
-                <div className="flex h-full w-full items-center justify-center">
-                    <PlaceholderReplace className="h-8 w-8" />
-                </div>
-            ) : null}
-            {status === 'loaded' && (
-                <img
-                    alt={alt}
-                    src={src}
-                    srcSet={srcSet}
-                    className={imageStyles({
-                        rounded,
-                        fit,
-                        size,
-                    })}
-                    onClick={onClick}
-                    {...imgProps}
-                />
-            )}
+            <img
+                alt={alt}
+                src={src}
+                srcSet={srcSet}
+                className={imageStyles({
+                    rounded,
+                    fit,
+                    size,
+                })}
+                onClick={onClick}
+                {...imgProps}
+            />
         </div>
     );
-}
-
-export function Image({ src, moderate = true, ...props }: ImageProps): JSX.Element {
-    const { status, url, moderation } = useImage({ src, moderate });
-    return <BaseImage visibility={moderation?.visibility} status={status} src={url} {...props} />;
 }
