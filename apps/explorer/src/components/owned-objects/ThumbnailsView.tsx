@@ -11,7 +11,6 @@ import { parseObjectType, trimStdLibPrefix } from '~/lib/utils';
 function Thumbnail({ obj }: { obj: IotaObjectResponse }): JSX.Element {
     const displayMeta = obj.data?.display?.data;
     const src = displayMeta?.image_url || '';
-    const videoSrc = displayMeta?.video_url;
     const name = displayMeta?.name ?? displayMeta?.description;
     const type = trimStdLibPrefix(parseObjectType(obj));
     const id = obj.data?.objectId;
@@ -30,7 +29,6 @@ function Thumbnail({ obj }: { obj: IotaObjectResponse }): JSX.Element {
                             title={name || '--'}
                             subtitle={type}
                             src={src}
-                            video={videoSrc}
                             variant="medium"
                         />
                         <div className="absolute bottom-0 flex h-full w-full items-end justify-start rounded-xl p-xs opacity-0 transition-opacity duration-300 group-hover:bg-shader-neutral-light-48 group-hover:opacity-100 group-hover:transition group-hover:duration-300 group-hover:ease-in-out group-hover:dark:bg-shader-primary-dark-48">

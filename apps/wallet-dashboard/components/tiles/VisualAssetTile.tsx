@@ -4,7 +4,7 @@
 'use client';
 
 import { IotaObjectData } from '@iota/iota-sdk/client';
-import { useGetNFTDisplay } from '@iota/core';
+import { NFTMediaRenderer, useGetNFTDisplay } from '@iota/core';
 import { FlexDirection } from '@/lib/ui/enums';
 import { VisualAssetCard, VisualAssetType, type VisualAssetCardProps } from '@iota/apps-ui-kit';
 
@@ -27,10 +27,14 @@ export function VisualAssetTile({
 
     return (
         <VisualAssetCard
-            assetSrc={nftMeta?.imageUrl ?? asset?.display?.data?.imageUrl ?? ''}
+            renderAsset={
+                <NFTMediaRenderer
+                    src={nftMeta?.imageUrl ?? asset?.display?.data?.imageUrl ?? ''}
+                    alt={nftMeta?.name ?? (asset?.display?.data?.name || 'NFT')}
+                />
+            }
             assetTitle={nftMeta?.name ?? asset?.display?.data?.name}
             assetType={VisualAssetType.Image}
-            altText={nftMeta?.name ?? (asset?.display?.data?.name || 'NFT')}
             isHoverable
             icon={icon}
             onClick={onClick}

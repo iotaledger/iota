@@ -22,7 +22,7 @@ type Story = StoryObj<typeof meta>;
 
 export const Default: Story = {
     args: {
-        assetSrc: 'https://d315pvdvxi2gex.cloudfront.net/528399e23c1bb7b14cced0b89.png',
+        src: 'https://d315pvdvxi2gex.cloudfront.net/528399e23c1bb7b14cced0b89.png',
         altText: 'IOTA Logo',
         onIconClick: () => {
             console.log('Icon clicked');
@@ -33,7 +33,7 @@ export const Default: Story = {
         assetTitle: 'IOTA Logo',
     },
     argTypes: {
-        assetSrc: {
+        src: {
             control: 'text',
         },
         altText: {

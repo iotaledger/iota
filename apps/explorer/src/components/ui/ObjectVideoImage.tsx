@@ -2,10 +2,11 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { Play } from '@iota/apps-ui-icons';
-import { NftVideo } from '@iota/core';
+import { LoadingIndicator, VisualAssetType } from '@iota/apps-ui-kit';
+import { NFTVideoAsset, useResolveNFTMedia } from '@iota/core';
 import { cva, type VariantProps } from 'class-variance-authority';
 import clsx from 'clsx';
+import { useRef } from 'react';
 
 import { Image, ObjectModal, type ImageProps } from '~/components/ui';
 
@@ -37,7 +38,6 @@ interface ObjectVideoImageProps extends ImageStylesProps {
     src: string;
     open?: boolean;
     setOpen?: (open: boolean) => void;
-    video?: string | null;
     rounded?: ImageProps['rounded'];
     disablePreview?: boolean;
     fadeIn?: boolean;
@@ -49,7 +49,6 @@ export function ObjectVideoImage({
     title,
     subtitle,
     src,
-    video,
     variant,
     open,
     setOpen,
@@ -59,6 +58,9 @@ export function ObjectVideoImage({
     aspect,
     rounded = 'md',
 }: ObjectVideoImageProps): JSX.Element {
+    const { data: resolvedNFTInfo, isLoading } = useResolveNFTMedia(src);
+    const videoRef = useRef<HTMLVideoElement | null>(null);
+
     const close = () => {
         if (disablePreview) {
             return;
@@ -67,6 +69,8 @@ export function ObjectVideoImage({
         if (setOpen) {
             setOpen(false);
         }
+
+        videoRef.current?.play();
     };
     const openPreview = () => {
         if (disablePreview) {
@@ -76,7 +80,11 @@ export function ObjectVideoImage({
         if (setOpen) {
             setOpen(true);
         }
+
+        videoRef.current?.pause();
     };
+
+    const isAssetVideo = resolvedNFTInfo?.assetType === VisualAssetType.Video;
 
     return (
         <>
@@ -86,29 +94,27 @@ export function ObjectVideoImage({
                 title={title}
                 subtitle={subtitle}
                 src={src}
-                video={video}
                 alt={title}
             />
             <div
-                className={clsx(imageStyles({ variant, disablePreview }), video && 'group/video')}
+                className={clsx(
+                    imageStyles({ variant, disablePreview }),
+                    isAssetVideo && 'group/video',
+                )}
                 onClick={openPreview}
             >
-                {video ? (
-                    <>
+                {isAssetVideo ? (
+                    isLoading ? (
+                        <LoadingIndicator />
+                    ) : (
                         <div className="pointer-events-none flex h-full w-full items-center justify-center">
-                            <NftVideo src={video} preload="auto" />
-                        </div>
-
-                        <div className="absolute bottom-2 right-2 z-10 flex items-center justify-center rounded-full opacity-80">
-                            <Play
-                                className={clsx(
-                                    variant === 'large' ? 'h-8 w-8' : 'h-5 w-5',
-                                    'text-neutral-10 dark:text-neutral-92',
-                                    'opacity-80 transition-opacity group-hover/video:opacity-100',
-                                )}
+                            <NFTVideoAsset
+                                src={src}
+                                isAutoPlayEnabled={resolvedNFTInfo.isAutoPlayEnabled}
+                                ref={videoRef}
                             />
                         </div>
-                    </>
+                    )
                 ) : (
                     <Image
                         aspect={aspect}

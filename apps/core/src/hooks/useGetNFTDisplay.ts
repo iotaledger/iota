@@ -19,12 +19,11 @@ export function useGetNFTDisplay(objectID: string) {
         if (!display) {
             return null;
         }
-        const { name, description, creator, image_url, video_url, link, project_url } = display;
+        const { name, description, creator, image_url, link, project_url } = display;
         return {
             name: name || null,
             description: description || null,
             imageUrl: image_url || null,
-            videoUrl: video_url || null,
             link: link || null,
             projectUrl: project_url || null,
             creator: creator || null,

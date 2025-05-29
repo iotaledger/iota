@@ -21,7 +21,6 @@ function Asset({ object }: { object: IotaObjectResponse }) {
                 title={name}
                 subtitle={type}
                 src={displayMeta?.image_url || ''}
-                video={displayMeta?.video_url}
                 variant="xxs"
             />
             <div className="whitespace-nowrap text-label-lg">{name ? name : '--'}</div>

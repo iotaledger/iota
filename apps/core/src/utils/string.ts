@@ -14,3 +14,5 @@ export function truncateString(value: string, length: number, truncateLength?: n
         return `${startSegment}...`;
     }
 }
+
+export const capitalize = (s: string) => s.charAt(0).toUpperCase() + s.slice(1).toLowerCase();

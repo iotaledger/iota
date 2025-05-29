@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { DisplayStats, TooltipPosition } from '@iota/apps-ui-kit';
-import { CoinFormat, useFormatCoin } from '@iota/core';
+import { CoinFormat, useFormatCoin, useResolveNFTMedia } from '@iota/core';
 import { type IotaObjectResponse, type ObjectOwner } from '@iota/iota-sdk/client';
 import {
     formatAddress,
@@ -13,27 +13,18 @@ import {
     parseStructTag,
 } from '@iota/iota-sdk/utils';
 import { SortByDefault } from '@iota/apps-ui-icons';
-import { useQuery } from '@tanstack/react-query';
 import clsx from 'clsx';
 import { type PropsWithChildren, type ReactNode, useState } from 'react';
 import { AddressLink, Link, ObjectLink, ObjectVideoImage, TransactionLink } from '~/components/ui';
-import {
-    extractName,
-    genFileTypeMsg,
-    onCopySuccess,
-    parseImageURL,
-    parseObjectType,
-    trimStdLibPrefix,
-} from '~/lib/utils';
+import { extractName, onCopySuccess, parseObjectType, trimStdLibPrefix } from '~/lib/utils';
 
 interface HeroVideoImageProps {
     title: string;
     subtitle: string;
     src: string;
-    video?: string | null;
 }
 
-function HeroVideoImage({ title, subtitle, src, video }: HeroVideoImageProps): JSX.Element {
+function HeroVideoImage({ title, subtitle, src }: HeroVideoImageProps): JSX.Element {
     const [open, setOpen] = useState(false);
 
     return (
@@ -44,7 +35,6 @@ function HeroVideoImage({ title, subtitle, src, video }: HeroVideoImageProps): J
                 title={title}
                 subtitle={subtitle}
                 src={src}
-                video={video}
                 variant="fill"
                 open={open}
                 setOpen={setOpen}
@@ -236,13 +226,8 @@ interface ObjectViewProps {
 
 export function ObjectView({ data }: ObjectViewProps): JSX.Element {
     const display = data.data?.display?.data;
-    const imgUrl = parseImageURL(display);
-    const videoUrl = display?.video_url;
-
-    const { data: imageData } = useQuery({
-        queryKey: ['image-file-type', imgUrl],
-        queryFn: ({ signal }) => genFileTypeMsg(imgUrl, signal!),
-    });
+    const src = display?.image_url ?? '';
+    const { data: nftMediaInfo } = useResolveNFTMedia(src);
 
     const name = extractName(display);
     const objectType = parseObjectType(data);
@@ -252,26 +237,23 @@ export function ObjectView({ data }: ObjectViewProps): JSX.Element {
     const lastTransactionBlockDigest = data.data?.previousTransaction;
 
     const heroImageTitle = name || display?.description || trimStdLibPrefix(objectType);
-    const heroImageSubtitle = videoUrl ? 'Video' : (imageData ?? '');
+    const heroImageSubtitle = nftMediaInfo?.fileTypeLabel ?? '';
     const heroImageProps = {
         title: heroImageTitle,
         subtitle: heroImageSubtitle,
-        src: imgUrl,
-        video: videoUrl,
+        src,
     };
-
-    const noMedia = !!imgUrl && imgUrl !== '' && !!videoUrl && videoUrl !== '';
 
     return (
         <div className="flex flex-col gap-md">
             <div
                 className={clsx(
                     'address-grid-container-top',
-                    noMedia && 'no-image',
+                    !src && 'no-image',
                     (!name || !display) && 'no-description',
                 )}
             >
-                {!noMedia && (
+                {src && (
                     <div style={{ gridArea: 'heroImage' }}>
                         <HeroVideoImage {...heroImageProps} />
                     </div>

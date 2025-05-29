@@ -21,12 +21,14 @@ export * from './getDelegationDataByStakeId';
 export * from './api-env';
 export * from './getExplorerPaths';
 export * from './getExplorerLink';
-export * from './truncateString';
+export * from './string';
 export * from './determineCountDownText';
 export * from './toTitleCase';
 export * from './formatBalanceToUSD';
 export * from './getGasBudgetErrorMessage';
 export * from './sumCoinBalances';
+export * from './videoAutoPlay';
+export * from './extractMediaFileType';
 
 export * from './stake';
 export * from './transaction';

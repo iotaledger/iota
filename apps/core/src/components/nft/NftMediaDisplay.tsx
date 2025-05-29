@@ -2,13 +2,11 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { VisualAssetCard, VisualAssetType } from '@iota/apps-ui-kit';
-import { NftVideo } from './NftVideo';
-import { VIDEO_AUTOPLAY_FLAGS } from '../../constants';
+import { VisualAssetCard } from '@iota/apps-ui-kit';
+import { NFTMediaRenderer } from './NFTMediaRenderer';
 
 export interface NftMediaDisplayProps {
-    imageSrc?: string | null;
-    videoSrc?: string | null;
+    src?: string | null;
     title?: string;
     className?: string;
     isHoverable?: boolean;
@@ -17,30 +15,17 @@ export interface NftMediaDisplayProps {
 }
 
 export function NftMediaDisplay({
-    imageSrc,
-    videoSrc,
+    src,
     title,
     isHoverable,
     icon,
     onIconClick,
 }: NftMediaDisplayProps) {
-    const imgSrc = imageSrc ? imageSrc.replace(/^ipfs:\/\//, 'https://ipfs.io/ipfs/') : '';
-
-    const mediaProps: React.ComponentProps<typeof VisualAssetCard> = videoSrc
-        ? {
-              renderAsset: (
-                  <NftVideo
-                      src={videoSrc}
-                      {...VIDEO_AUTOPLAY_FLAGS}
-                      className="w-full h-full object-cover"
-                  />
-              ),
-          }
-        : { assetSrc: imgSrc, assetType: VisualAssetType.Image, altText: title || 'NFT' };
+    const mediaSrc = src ? src.replace(/^ipfs:\/\//, 'https://ipfs.io/ipfs/') : '';
 
     return (
         <VisualAssetCard
-            {...mediaProps}
+            renderAsset={<NFTMediaRenderer src={mediaSrc} alt={title} />}
             altText={title || 'NFT'}
             isHoverable={isHoverable}
             icon={icon}

@@ -43,7 +43,7 @@ export function SendView({ objectId, senderAddress, objectType, onClose, onBack 
                 <div className="flex w-full flex-col items-center justify-center gap-xs">
                     <div className="w-[172px]">
                         <NftMediaDisplay
-                            imageSrc={nftImageUrl}
+                            src={nftImageUrl}
                             title={nftName || 'NFT'}
                             isHoverable={false}
                         />

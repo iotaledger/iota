@@ -4,7 +4,7 @@
 
 import { type ObjectOwner, type IotaObjectResponse } from '@iota/iota-sdk/client';
 
-import { findIPFSvalue } from './stringUtils';
+import { findIPFSvalue } from '@iota/core';
 
 export function parseImageURL(display?: Record<string, string> | null): string {
     const url = display?.image_url;

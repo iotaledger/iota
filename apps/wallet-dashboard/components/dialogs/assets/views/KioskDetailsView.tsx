@@ -81,5 +81,5 @@ interface KioskItemProps {
 function KioskItem({ object, address }: KioskItemProps) {
     const { nftName, nftImageUrl } = useNftDetails(object.objectId, address);
 
-    return <NftMediaDisplay title={nftName} imageSrc={nftImageUrl} isHoverable />;
+    return <NftMediaDisplay title={nftName} src={nftImageUrl} isHoverable />;
 }

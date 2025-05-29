@@ -61,8 +61,7 @@ export function NFTDisplayCard({
                     ) : (
                         <NftMediaDisplay
                             title={nftName}
-                            imageSrc={nftMeta?.imageUrl}
-                            videoSrc={nftMeta?.videoUrl}
+                            src={nftMeta?.imageUrl}
                             isHoverable={isHoverable ?? false}
                             icon={icon}
                             onIconClick={onIconClick}

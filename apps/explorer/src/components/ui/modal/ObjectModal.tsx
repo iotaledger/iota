@@ -5,14 +5,14 @@
 import { Modal, type ModalProps } from './Modal';
 import { Image } from '../image/Image';
 import { Close } from '@iota/apps-ui-icons';
-import { VIDEO_AUTOPLAY_FLAGS, NftVideo } from '@iota/core';
+import { useResolveNFTMedia, NFTVideoAsset } from '@iota/core';
+import { LoadingIndicator, VisualAssetType } from '@iota/apps-ui-kit';
 
 export interface ObjectModalProps extends Omit<ModalProps, 'children'> {
     title: string;
     subtitle: string;
     alt: string;
     src: string;
-    video?: string | null;
     moderate?: boolean;
 }
 
@@ -23,15 +23,25 @@ export function ObjectModal({
     title,
     subtitle,
     src,
-    video,
     // NOTE: Leave false only if ObjectModal is paired with an Image component
     moderate = false,
 }: ObjectModalProps): JSX.Element {
+    const { data: resolvedNFTInfo, isLoading } = useResolveNFTMedia(src);
+
     return (
         <Modal open={open} onClose={onClose}>
             <div className="flex h-full w-full flex-col gap-5">
-                {video ? (
-                    <NftVideo src={video} {...VIDEO_AUTOPLAY_FLAGS} />
+                {resolvedNFTInfo?.assetType === VisualAssetType.Video ? (
+                    <>
+                        {isLoading ? (
+                            <LoadingIndicator />
+                        ) : (
+                            <NFTVideoAsset
+                                src={src}
+                                isAutoPlayEnabled={resolvedNFTInfo.isAutoPlayEnabled}
+                            />
+                        )}
+                    </>
                 ) : (
                     // Moderation is disabled inside the modal so if a user clicks to open an unblurred image the experience is consistent
                     <Image alt={alt} src={src} rounded="none" moderate={moderate} />

@@ -44,7 +44,6 @@ function SmallThumbnailsViewLoading({ limit }: { limit: number }): JSX.Element {
 function SmallThumbnail({ obj }: { obj: IotaObjectResponse }): JSX.Element {
     const displayMeta = obj.data?.display?.data;
     const src = displayMeta?.image_url || '';
-    const videoSrc = displayMeta?.video_url;
     const name = displayMeta?.name ?? displayMeta?.description ?? '--';
     const type = trimStdLibPrefix(parseObjectType(obj));
     const id = obj.data?.objectId;
@@ -57,7 +56,6 @@ function SmallThumbnail({ obj }: { obj: IotaObjectResponse }): JSX.Element {
                 title={name}
                 subtitle={type}
                 src={src}
-                video={videoSrc}
                 variant="xs"
             />
             <div className="flex min-w-0 flex-col flex-nowrap gap-xxs">
