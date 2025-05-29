@@ -52,28 +52,7 @@ macro_rules! bin_version {
 #[macro_export]
 macro_rules! git_revision {
     () => {
-        const _ASSERT_IS_BINARY: () = {
-            env!(
-                "CARGO_BIN_NAME",
-                "`bin_version!()` must be used from a binary"
-            );
-        };
-
-        const GIT_REVISION: &str = {
-            if let Some(revision) = option_env!("GIT_REVISION") {
-                revision
-            } else {
-                let version = $crate::_hidden::git_version!(
-                    args = ["--always", "--abbrev=12", "--dirty", "--exclude", "*"],
-                    fallback = ""
-                );
-
-                if version.is_empty() {
-                    panic!("unable to query git revision");
-                }
-                version
-            }
-        };
+        $crate::git_revision_abbrev!("--abbrev=12");
     };
 }
 
@@ -89,6 +68,13 @@ macro_rules! git_revision {
 #[macro_export]
 macro_rules! git_revision_long {
     () => {
+        $crate::git_revision_abbrev!("--abbrev=40");
+    };
+}
+
+#[macro_export]
+macro_rules! git_revision_abbrev {
+    ($abbrev:literal) => {
         const _ASSERT_IS_BINARY: () = {
             env!(
                 "CARGO_BIN_NAME",
@@ -101,7 +87,7 @@ macro_rules! git_revision_long {
                 revision
             } else {
                 let version = $crate::_hidden::git_version!(
-                    args = ["--always", "--abbrev=40", "--dirty", "--exclude", "*"],
+                    args = ["--always", $abbrev, "--dirty", "--exclude", "*"],
                     fallback = ""
                 );
 
