@@ -4,7 +4,7 @@
 
 import { Loading } from '_components';
 import {
-    NftMediaDisplay,
+    NFTMediaDisplayCard,
     isKioskOwnerToken,
     useGetNFTDisplay,
     useGetObject,
@@ -59,7 +59,7 @@ export function NFTDisplayCard({
                     {objectData?.data && isOwnerToken ? (
                         <KioskTile object={objectData} address={address} />
                     ) : (
-                        <NftMediaDisplay
+                        <NFTMediaDisplayCard
                             title={nftName}
                             src={nftMeta?.imageUrl}
                             isHoverable={isHoverable ?? false}

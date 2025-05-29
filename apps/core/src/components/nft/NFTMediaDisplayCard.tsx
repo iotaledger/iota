@@ -5,7 +5,7 @@
 import { VisualAssetCard } from '@iota/apps-ui-kit';
 import { NFTMediaRenderer } from './NFTMediaRenderer';
 
-export interface NftMediaDisplayProps {
+export interface NftMediaDisplayCardProps {
     src?: string | null;
     title?: string;
     className?: string;
@@ -14,13 +14,13 @@ export interface NftMediaDisplayProps {
     onIconClick?: (e: React.MouseEvent<HTMLButtonElement>) => void;
 }
 
-export function NftMediaDisplay({
+export function NFTMediaDisplayCard({
     src,
     title,
     isHoverable,
     icon,
     onIconClick,
-}: NftMediaDisplayProps) {
+}: NftMediaDisplayCardProps) {
     const mediaSrc = src ? src.replace(/^ipfs:\/\//, 'https://ipfs.io/ipfs/') : '';
 
     return (

@@ -30,7 +30,7 @@ type UseResolveNFTMediaReturnType =
       };
 
 export function useResolveNFTMedia(
-    src: string | undefined,
+    src: string | null | undefined,
 ): UseQueryResult<UseResolveNFTMediaReturnType> {
     return useQuery({
         queryKey: ['nft-media-info', src],
