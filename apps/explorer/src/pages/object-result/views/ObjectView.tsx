@@ -3,7 +3,13 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { DisplayStats, TooltipPosition } from '@iota/apps-ui-kit';
-import { CoinFormat, useFormatCoin, useResolveNFTMedia } from '@iota/core';
+import {
+    capitalize,
+    CoinFormat,
+    resolveNFTMedia,
+    useFormatCoin,
+    useNFTMediaHeaders,
+} from '@iota/core';
 import { type IotaObjectResponse, type ObjectOwner } from '@iota/iota-sdk/client';
 import {
     formatAddress,
@@ -30,8 +36,7 @@ function HeroVideoImage({ title, subtitle, src }: HeroVideoImageProps): JSX.Elem
     return (
         <div className="group relative h-full">
             <ObjectVideoImage
-                imgFit="contain"
-                aspect="square"
+                objectFit="contain"
                 title={title}
                 subtitle={subtitle}
                 src={src}
@@ -227,7 +232,9 @@ interface ObjectViewProps {
 
 export function ObjectView({ data }: ObjectViewProps): JSX.Element {
     const display = data.data?.display?.data;
-    const { data: nftMediaInfo } = useResolveNFTMedia(display?.image_url);
+    const src = display?.image_url || '';
+    const { data: nftMediaHeaders } = useNFTMediaHeaders(src);
+    const { type: nftFileType } = resolveNFTMedia(src, nftMediaHeaders);
 
     const name = extractName(display);
     const objectType = parseObjectType(data);
@@ -237,11 +244,11 @@ export function ObjectView({ data }: ObjectViewProps): JSX.Element {
     const lastTransactionBlockDigest = data.data?.previousTransaction;
 
     const heroImageTitle = name || display?.description || trimStdLibPrefix(objectType);
-    const heroImageSubtitle = nftMediaInfo?.fileTypeLabel ?? '';
+    const heroImageSubtitle = `1 ${capitalize(nftFileType)} File`;
     const heroImageProps = {
         title: heroImageTitle,
         subtitle: heroImageSubtitle,
-        src: nftMediaInfo?.src ?? '',
+        src,
     };
 
     return (
@@ -249,11 +256,11 @@ export function ObjectView({ data }: ObjectViewProps): JSX.Element {
             <div
                 className={clsx(
                     'address-grid-container-top',
-                    !nftMediaInfo?.src && 'no-image',
+                    !src && 'no-image',
                     (!name || !display) && 'no-description',
                 )}
             >
-                {nftMediaInfo?.src && (
+                {src && (
                     <div style={{ gridArea: 'heroImage' }}>
                         <HeroVideoImage {...heroImageProps} />
                     </div>

@@ -12,35 +12,16 @@ interface NFTVideoAssetProps {
 export const NFTVideoAsset = forwardRef<
     HTMLVideoElement,
     React.ComponentPropsWithoutRef<'video'> & NFTVideoAssetProps
->(
-    (
-        {
-            width = '100%',
-            height = 'auto',
-            className,
-            isAutoPlayEnabled,
-            disableControls,
-            ...props
-        },
-        ref,
-    ) => {
-        const videoProps = isAutoPlayEnabled
-            ? disableControls
-                ? VIDEO_AUTOPLAY_FLAGS_NO_CONTROLS
-                : VIDEO_AUTOPLAY_FLAGS
-            : { preload: 'metadata', autoPlay: false };
+>(({ width = '100%', height = 'auto', isAutoPlayEnabled, disableControls, ...props }, ref) => {
+    const videoProps = isAutoPlayEnabled
+        ? disableControls
+            ? VIDEO_AUTOPLAY_FLAGS_NO_CONTROLS
+            : VIDEO_AUTOPLAY_FLAGS
+        : { preload: 'metadata', autoPlay: false };
 
-        return (
-            <video
-                ref={ref}
-                width={width}
-                height={height}
-                className={className}
-                {...videoProps}
-                {...props}
-            >
-                Your browser does not support the video tag.
-            </video>
-        );
-    },
-);
+    return (
+        <video ref={ref} width={width} height={height} {...videoProps} {...props}>
+            Your browser does not support the video tag.
+        </video>
+    );
+});

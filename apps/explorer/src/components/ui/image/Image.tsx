@@ -2,6 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+import { ImageWithFallback } from '@iota/apps-ui-kit';
 import { cva, cx, type VariantProps } from 'class-variance-authority';
 import { useAnimate } from 'framer-motion';
 import { type ImgHTMLAttributes, useEffect } from 'react';
@@ -47,6 +48,7 @@ export interface ImageProps extends ImageStyleProps, ImgHTMLAttributes<HTMLImage
     onClick?: () => void;
     src: string;
     fadeIn?: boolean;
+    forceFallback?: boolean;
 }
 
 export function Image({
@@ -59,6 +61,7 @@ export function Image({
     onClick,
     fadeIn,
     aspect,
+    forceFallback,
     ...imgProps
 }: ImageProps): JSX.Element {
     const [scope, animate] = useAnimate();
@@ -80,7 +83,7 @@ export function Image({
                 animateFadeIn && 'opacity-0',
             )}
         >
-            <img
+            <ImageWithFallback
                 alt={alt}
                 src={src}
                 srcSet={srcSet}
@@ -91,6 +94,7 @@ export function Image({
                 })}
                 onClick={onClick}
                 {...imgProps}
+                forceFallback={forceFallback}
             />
         </div>
     );

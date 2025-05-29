@@ -2,16 +2,21 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { LoadingIndicator, VisualAssetType } from '@iota/apps-ui-kit';
-import { NFTVideoAsset, useResolveNFTMedia } from '@iota/core';
+import { NFTMediaRenderer } from '@iota/core';
 import { cva, type VariantProps } from 'class-variance-authority';
 import clsx from 'clsx';
 import { useRef } from 'react';
 
-import { Image, ObjectModal, type ImageProps } from '~/components/ui';
+import { ObjectModal } from '~/components/ui';
 
 const imageStyles = cva(['flex-shrink-0'], {
     variants: {
+        objectFit: {
+            cover: 'object-cover',
+            contain: 'object-contain',
+            fill: 'object-fill',
+            none: 'object-none',
+        },
         variant: {
             xxs: 'h-8 w-8',
             xs: 'h-12 w-12',
@@ -23,6 +28,15 @@ const imageStyles = cva(['flex-shrink-0'], {
         disablePreview: {
             true: '',
             false: 'cursor-pointer',
+        },
+        rounded: {
+            full: 'rounded-full',
+            '2xl': 'rounded-2xl',
+            lg: 'rounded-lg',
+            xl: 'rounded-xl',
+            md: 'rounded-md',
+            sm: 'rounded-sm',
+            none: 'rounded-none',
         },
     },
     defaultVariants: {
@@ -38,15 +52,13 @@ interface ObjectVideoImageProps extends ImageStylesProps {
     src: string;
     open?: boolean;
     setOpen?: (open: boolean) => void;
-    rounded?: ImageProps['rounded'];
-    disablePreview?: boolean;
-    fadeIn?: boolean;
-    imgFit?: ImageProps['fit'];
-    aspect?: ImageProps['aspect'];
+    rounded?: ImageStylesProps['rounded'];
     disableVideoControls?: boolean;
+    disableAutoPlay?: boolean;
 }
 
 export function ObjectVideoImage({
+    objectFit = 'cover',
     title,
     subtitle,
     src,
@@ -54,17 +66,14 @@ export function ObjectVideoImage({
     open,
     setOpen,
     disablePreview,
-    fadeIn,
-    imgFit,
-    aspect,
     rounded = 'md',
     disableVideoControls,
+    disableAutoPlay = false,
 }: ObjectVideoImageProps): JSX.Element {
-    const { data: resolvedNFTInfo, isLoading } = useResolveNFTMedia(src);
     const videoRef = useRef<HTMLVideoElement | null>(null);
 
     const close = () => {
-        if (disablePreview || isLoading) {
+        if (disablePreview) {
             return;
         }
 
@@ -75,7 +84,7 @@ export function ObjectVideoImage({
         videoRef.current?.play();
     };
     const openPreview = () => {
-        if (disablePreview || isLoading) {
+        if (disablePreview) {
             return;
         }
 
@@ -86,8 +95,6 @@ export function ObjectVideoImage({
         videoRef.current?.pause();
     };
 
-    const isAssetVideo = resolvedNFTInfo?.assetType === VisualAssetType.Video;
-
     return (
         <>
             <ObjectModal
@@ -95,39 +102,25 @@ export function ObjectVideoImage({
                 onClose={close}
                 title={title}
                 subtitle={subtitle}
-                src={resolvedNFTInfo?.src || ''}
+                src={src || ''}
                 alt={title}
             />
             <div
                 className={clsx(
-                    imageStyles({ variant, disablePreview }),
-                    isAssetVideo && 'group/video',
+                    imageStyles({ variant, disablePreview, rounded }),
+                    videoRef?.current && 'group/video',
+                    rounded && 'overflow-hidden',
                 )}
                 onClick={openPreview}
             >
-                {isAssetVideo ? (
-                    isLoading ? (
-                        <LoadingIndicator />
-                    ) : (
-                        <div className="pointer-events-none flex h-full w-full items-center justify-center">
-                            <NFTVideoAsset
-                                src={resolvedNFTInfo.src}
-                                isAutoPlayEnabled={resolvedNFTInfo.isAutoPlayEnabled}
-                                ref={videoRef}
-                                disableControls={disableVideoControls}
-                            />
-                        </div>
-                    )
-                ) : (
-                    <Image
-                        aspect={aspect}
-                        rounded={rounded}
-                        alt={title}
-                        src={src}
-                        fadeIn={fadeIn}
-                        fit={imgFit}
-                    />
-                )}
+                <NFTMediaRenderer
+                    src={src}
+                    alt={title}
+                    disableVideoControls={disableVideoControls}
+                    disableAutoPlay={disableAutoPlay}
+                    videoRef={videoRef}
+                    objectFit={imageStyles({ objectFit })}
+                />
             </div>
         </>
     );

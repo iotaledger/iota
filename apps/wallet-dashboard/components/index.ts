@@ -4,7 +4,6 @@
 export * from './Box';
 export * from './AmountBox';
 export * from './Input';
-export * from './ExternalImage';
 export * from './PageSizeSelector';
 export * from './PaginationOptions';
 export * from './Amplitude';

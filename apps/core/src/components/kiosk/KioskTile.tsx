@@ -1,7 +1,12 @@
 // Copyright (c) Mysten Labs, Inc.
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
-import { getKioskIdFromOwnerCap, hasDisplayData, useGetKioskContents } from '../..';
+import {
+    getKioskIdFromOwnerCap,
+    hasDisplayData,
+    NFTMediaRenderer,
+    useGetKioskContents,
+} from '../..';
 import { type IotaObjectData, type IotaObjectResponse } from '@iota/iota-sdk/client';
 import {
     ButtonUnstyled,
@@ -51,11 +56,7 @@ export function KioskTile({ object, address, onClick }: KioskTileProps) {
                 <div className="absolute left-0 top-0 h-full w-full bg-cover bg-center bg-no-repeat group-hover:bg-shader-neutral-light-48 group-hover:transition group-hover:duration-300 group-hover:ease-in-out group-hover:dark:bg-shader-primary-dark-48" />
                 <div className="relative flex aspect-square h-full w-full items-center justify-center overflow-hidden rounded-xl">
                     {displayBackgroundImage ? (
-                        <img
-                            src={displayBackgroundImage}
-                            alt={kioskId}
-                            className="h-full w-full object-cover"
-                        />
+                        <NFTMediaRenderer src={displayBackgroundImage} alt={kioskId} />
                     ) : (
                         <CardImage type={ImageType.BgTransparent}>
                             <PlaceholderReplace className="text-neutral-40" />

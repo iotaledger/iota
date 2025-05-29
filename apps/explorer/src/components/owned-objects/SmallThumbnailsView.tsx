@@ -51,12 +51,13 @@ function SmallThumbnail({ obj }: { obj: IotaObjectResponse }): JSX.Element {
     return (
         <div className="flex items-center gap-md">
             <ObjectVideoImage
-                fadeIn
                 disablePreview
                 title={name}
                 subtitle={type}
                 src={src}
                 variant="xs"
+                disableVideoControls
+                disableAutoPlay
             />
             <div className="flex min-w-0 flex-col flex-nowrap gap-xxs">
                 <span className="text-label-md text-neutral-10 dark:text-neutral-92">{name}</span>

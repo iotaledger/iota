@@ -13,7 +13,6 @@ import {
     useKioskClient,
     useHiddenAssets,
     toast,
-    useResolveNFTMedia,
     NFTMediaRenderer,
 } from '@iota/core';
 import {
@@ -45,7 +44,6 @@ export function HiddenAsset(item: HiddenAssetProps) {
     const navigate = useNavigate();
     const { objectId, type } = item.data!;
     const { data: nftMeta } = useGetNFTDisplay(objectId);
-    const { data: resolvedNFTInfo } = useResolveNFTMedia(nftMeta?.imageUrl);
 
     const nftName = nftMeta?.name || formatAddress(objectId);
 
@@ -86,7 +84,7 @@ export function HiddenAsset(item: HiddenAssetProps) {
             <Card type={CardType.Default} onClick={handleHiddenAssetClick}>
                 <CardImage type={ImageType.BgTransparent} shape={ImageShape.SquareRounded}>
                     <NFTMediaRenderer
-                        src={resolvedNFTInfo?.src ?? ''}
+                        src={nftMeta?.imageUrl ?? ''}
                         alt={nftName}
                         disableVideoControls
                     />

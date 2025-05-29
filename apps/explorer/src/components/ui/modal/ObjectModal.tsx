@@ -5,7 +5,7 @@
 import { Modal, type ModalProps } from './Modal';
 import { Image } from '../image/Image';
 import { Close } from '@iota/apps-ui-icons';
-import { useResolveNFTMedia, NFTVideoAsset } from '@iota/core';
+import { resolveNFTMedia, NFTVideoAsset, useNFTMediaHeaders } from '@iota/core';
 import { LoadingIndicator, VisualAssetType } from '@iota/apps-ui-kit';
 
 export interface ObjectModalProps extends Omit<ModalProps, 'children'> {
@@ -23,20 +23,18 @@ export function ObjectModal({
     subtitle,
     src,
 }: ObjectModalProps): JSX.Element {
-    const { data: resolvedNFTInfo, isLoading } = useResolveNFTMedia(src);
+    const { data: nftMediaHeaders, isLoading } = useNFTMediaHeaders(src);
+    const { type, isAutoPlaySupported, showFallback } = resolveNFTMedia(src, nftMediaHeaders);
 
     return (
         <Modal open={open} onClose={onClose}>
             <div className="flex h-full w-full flex-col gap-5">
                 {isLoading ? (
                     <LoadingIndicator />
-                ) : resolvedNFTInfo?.assetType === VisualAssetType.Video ? (
-                    <NFTVideoAsset
-                        src={resolvedNFTInfo.src}
-                        isAutoPlayEnabled={resolvedNFTInfo.isAutoPlayEnabled}
-                    />
+                ) : type === VisualAssetType.Video ? (
+                    <NFTVideoAsset src={src} isAutoPlayEnabled={isAutoPlaySupported} />
                 ) : (
-                    <Image alt={alt} src={resolvedNFTInfo?.src ?? ''} rounded="none" />
+                    <Image alt={alt} src={src} rounded="none" forceFallback={showFallback} />
                 )}
                 <div className="flex flex-col gap-3">
                     <span className="text-headline-md text-neutral-100">{title}</span>

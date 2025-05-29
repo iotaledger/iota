@@ -62,7 +62,7 @@ export * from './useIsValidatorCommitteeMember';
 export * from './useIsActiveValidator';
 export * from './useMaxCommitteeSize';
 export * from './useGetNextEpochCommitteeMember';
-export * from './useResolveNFTMedia';
+export * from './useNFTMediaHeaders';
 
 export * from './stake';
 export * from './ui';

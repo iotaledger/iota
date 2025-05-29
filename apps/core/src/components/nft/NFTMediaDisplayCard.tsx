@@ -26,6 +26,7 @@ export function NFTMediaDisplayCard({
     return (
         <VisualAssetCard
             renderAsset={<NFTMediaRenderer src={mediaSrc} alt={title} />}
+            assetTitle={title || 'NFT'}
             altText={title || 'NFT'}
             isHoverable={isHoverable}
             icon={icon}

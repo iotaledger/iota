@@ -16,12 +16,13 @@ function Asset({ object }: { object: IotaObjectResponse }) {
     return (
         <div className="flex items-center gap-x-2.5 text-neutral-40 dark:text-neutral-60">
             <ObjectVideoImage
-                fadeIn
                 disablePreview
                 title={name}
                 subtitle={type}
                 src={displayMeta?.image_url || ''}
                 variant="xxs"
+                disableVideoControls
+                disableAutoPlay
             />
             <div className="whitespace-nowrap text-label-lg">{name ? name : '--'}</div>
         </div>

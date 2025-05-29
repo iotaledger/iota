@@ -27,8 +27,8 @@ export * from './toTitleCase';
 export * from './formatBalanceToUSD';
 export * from './getGasBudgetErrorMessage';
 export * from './sumCoinBalances';
-export * from './videoAutoPlay';
 export * from './extractMediaFileType';
+export * from './nftMediaUtils';
 
 export * from './stake';
 export * from './transaction';
