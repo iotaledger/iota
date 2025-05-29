@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use std::{
-    collections::{BTreeMap, HashSet},
+    collections::{BTreeMap, HashMap, HashSet},
     ops::{Bound::Included, RangeInclusive},
     sync::Arc,
 };
@@ -210,6 +210,7 @@ impl DagBuilder {
                     .iter()
                     .map(|block| block.reference())
                     .collect::<Vec<_>>(),
+                vec![],
             );
 
             last_commit_ref = commit.reference();
@@ -217,6 +218,7 @@ impl DagBuilder {
             let sub_dag = CommittedSubDag::new(
                 leader_block_ref,
                 to_commit,
+                vec![],
                 last_timestamp_ms,
                 commit.reference(),
                 vec![],
@@ -329,6 +331,8 @@ impl DagBuilder {
     pub(crate) fn layer_with_connections(
         &mut self,
         connections: Vec<(AuthorityIndex, Vec<BlockRef>)>,
+        transactions_acknowledgments: HashMap<AuthorityIndex, Vec<BlockRef>>,
+
         round: Round,
     ) {
         let mut references = Vec::new();
@@ -338,6 +342,12 @@ impl DagBuilder {
             let block = VerifiedBlockHeader::new_for_test(
                 TestBlockHeader::new(round, author)
                     .set_ancestors(ancestors)
+                    .set_acknowledgments(
+                        transactions_acknowledgments
+                            .get(&authority)
+                            .cloned()
+                            .unwrap_or_default(),
+                    )
                     .set_timestamp_ms(base_ts + author as u64)
                     .build(),
             );
@@ -407,7 +417,8 @@ pub struct LayerBuilder<'a> {
     // Add random weak links to the current layer using a seed, if provided
     random_weak_links: bool,
     random_weak_links_random_seed: Option<u64>,
-
+    // All transactions from the previous round will be linked in the current round.
+    fully_linked_acknowledgments: bool,
     // Ancestors to link to the current layer
     ancestors: Vec<BlockRef>,
 
@@ -438,6 +449,8 @@ impl<'a> LayerBuilder<'a> {
             min_ancestor_links_random_seed: None,
             random_weak_links: false,
             random_weak_links_random_seed: None,
+            fully_linked_acknowledgments: true,
+            // TODO: add more variations of transaction acknowledgment links
             ancestors,
             blocks: vec![],
         }
@@ -562,11 +575,18 @@ impl<'a> LayerBuilder<'a> {
                 vec![]
             };
 
+            // Do not acknowledge transactions in round 0 (genesis).
+            let acknowledgments = if round > 1 && self.fully_linked_acknowledgments {
+                self.configure_fully_linked_acknowledgments()
+            } else {
+                HashMap::new()
+            };
+
             if self.random_weak_links {
                 connections.append(&mut self.configure_random_weak_links());
             }
 
-            self.create_blocks(round, connections);
+            self.create_blocks(round, connections, acknowledgments);
         }
 
         self.dag_builder.last_ancestors = self.ancestors.clone();
@@ -674,6 +694,15 @@ impl<'a> LayerBuilder<'a> {
         self.configure_skipped_ancestor_links(authorities, missing_leaders)
     }
 
+    fn configure_fully_linked_acknowledgments(&mut self) -> HashMap<AuthorityIndex, Vec<BlockRef>> {
+        self.dag_builder
+            .context
+            .committee
+            .authorities()
+            .map(|authority| (authority.0, self.ancestors.clone()))
+            .collect()
+    }
+
     fn configure_fully_linked_ancestors(&mut self) -> Vec<(AuthorityIndex, Vec<BlockRef>)> {
         self.dag_builder
             .context
@@ -701,8 +730,13 @@ impl<'a> LayerBuilder<'a> {
     }
 
     // Creates the blocks for the new layer based on configured connections, also
-    // sets the ancestors for future layers to be linked to
-    fn create_blocks(&mut self, round: Round, connections: Vec<(AuthorityIndex, Vec<BlockRef>)>) {
+    // sets the ancestors and transaction acks for future layers to be linked to
+    fn create_blocks(
+        &mut self,
+        round: Round,
+        connections: Vec<(AuthorityIndex, Vec<BlockRef>)>,
+        transaction_acknowledgments: HashMap<AuthorityIndex, Vec<BlockRef>>,
+    ) {
         let mut references = Vec::new();
         for (authority, ancestors) in connections {
             if self.should_skip_block(round, authority) {
@@ -716,6 +750,12 @@ impl<'a> LayerBuilder<'a> {
                 let block = VerifiedBlockHeader::new_for_test(
                     TestBlockHeader::new(round, author)
                         .set_ancestors(ancestors.clone())
+                        .set_acknowledgments(
+                            transaction_acknowledgments
+                                .get(&authority)
+                                .cloned()
+                                .unwrap_or_default(),
+                        )
                         .set_timestamp_ms(base_ts + (author + round + num_block) as u64)
                         .build(),
                 );

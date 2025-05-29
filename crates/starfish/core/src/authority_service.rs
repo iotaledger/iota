@@ -648,6 +648,7 @@ mod tests {
         authority_service::AuthorityService,
         block_header::{
             BlockHeaderAPI, BlockRef, SignedBlockHeader, TestBlockHeader, VerifiedBlockHeader,
+            VerifiedTransactions,
         },
         commit::{CertifiedCommits, CommitRange},
         commit_vote_monitor::CommitVoteMonitor,
@@ -686,6 +687,17 @@ mod tests {
             let block_refs = blocks.iter().map(|b| b.reference()).collect();
             self.blocks.lock().extend(blocks);
             Ok(block_refs)
+        }
+
+        async fn add_data(
+            &self,
+            _data: Vec<VerifiedTransactions>,
+        ) -> Result<BTreeSet<BlockRef>, CoreError> {
+            todo!()
+        }
+
+        async fn get_missing_data(&self) -> Result<BTreeSet<BlockRef>, CoreError> {
+            todo!()
         }
 
         async fn add_certified_commits(
