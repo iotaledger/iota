@@ -30,95 +30,7 @@ const developer = [
             'developer/getting-started/oracles',
         ],
     },
-    {
-        type: 'category',
-        label: 'Capture The Flag',
-        link: {
-            type: 'doc',
-            id: 'developer/iota-move-ctf/introduction',
-        },
-        items: [
-            'developer/iota-move-ctf/challenge_0',
-            'developer/iota-move-ctf/challenge_1',
-            'developer/iota-move-ctf/challenge_2',
-            'developer/iota-move-ctf/challenge_3',
-            'developer/iota-move-ctf/challenge_4',
-            'developer/iota-move-ctf/challenge_5',
-            'developer/iota-move-ctf/challenge_6',
-            'developer/iota-move-ctf/challenge_7',
-            'developer/iota-move-ctf/challenge_8',
-        ],
-    },
-    {
-        type: 'category',
-        label: 'From Solidity/EVM to Move',
-        collapsed: true,
-        link: {
-            type: 'doc',
-            id: 'developer/evm-to-move/evm-to-move',
-        },
-        items: [
-            'developer/evm-to-move/tooling-apis',
-            'developer/evm-to-move/creating-token',
-            'developer/evm-to-move/creating-nft',
-        ],
-    },
-    {
-        type: 'category',
-        label: 'Migrating from IOTA Stardust',
-        link: {
-            type: 'doc',
-            id: 'developer/stardust/stardust-migration',
-        },
-        items: [
-            'developer/stardust/exchanges',
-            'developer/stardust/move-models',
-            'developer/stardust/addresses',
-            'developer/stardust/units',
-            'developer/stardust/migration-process',
-            {
-                type: 'category',
-                label: 'Claiming Stardust Assets',
-                link: {
-                    type: 'doc',
-                    id: 'developer/stardust/claiming',
-                },
-                items: [
-                    {
-                        type: 'doc',
-                        label: 'Basic Outputs',
-                        id: 'developer/stardust/claiming/basic',
-                    },
-                    {
-                        type: 'doc',
-                        label: 'Nft Outputs',
-                        id: 'developer/stardust/claiming/nft',
-                    },
-                    {
-                        type: 'doc',
-                        label: 'Alias Outputs',
-                        id: 'developer/stardust/claiming/alias',
-                    },
-                    {
-                        type: 'doc',
-                        label: 'Foundry Outputs',
-                        id: 'developer/stardust/claiming/foundry',
-                    },
-                    {
-                        type: 'doc',
-                        label: 'Output unlockable by an Alias/Nft Address',
-                        id: 'developer/stardust/claiming/address-unlock-condition',
-                    },
-                    {
-                        type: 'doc',
-                        label: 'Self-sponsor IOTA Claiming',
-                        id: 'developer/stardust/claiming/self-sponsor',
-                    },
-                ],
-            },
-        ],
-    },
-    {
+        {
         type: 'category',
         label: "Reference",
         items: [
@@ -206,7 +118,7 @@ const developer = [
             'developer/dev-cheat-sheet',
         ]
     },
-    {
+        {
         type: 'category',
         label: 'Explanation',
         items: [
@@ -405,39 +317,7 @@ const developer = [
     },
     {
         type: 'category',
-        label: 'Tutorials',
-        items: [
-            {
-                type: 'category',
-                label: 'Sponsored Transactions',
-                items: [
-                    'developer/tutorials/sponsored-transactions/sponsored-txs',
-                    'developer/tutorials/sponsored-transactions/media-platform-package',
-                    'developer/tutorials/sponsored-transactions/production-gas-station',
-                    {
-                        type: 'category',
-                        label: 'Custom Implementation',
-                        items: [
-                            'developer/tutorials/sponsored-transactions/gas-station-server',
-                            'developer/tutorials/sponsored-transactions/transaction-builder',
-                        ],
-                    },
-                ],
-            },
-            {
-                type: 'category',
-                label: "Independent Ticketing System Tutorial",
-                items: [
-                    'developer/tutorials/independent-ticketing-system/package',
-                    'developer/tutorials/independent-ticketing-system/frontend',
-                ]
-            },
-            'developer/tutorials/live-concert',
-        ]
-    },
-    {
-        type: 'category',
-        label: 'How-To Guides',
+        label: 'How-To',
         items: [
             {
                 type: 'category',
@@ -507,6 +387,128 @@ const developer = [
             },
         ]
     },
+    {
+        type: 'category',
+        label: 'Tutorials',
+        items: [
+            {
+                type: 'category',
+                label: 'Sponsored Transactions',
+                items: [
+                    'developer/tutorials/sponsored-transactions/sponsored-txs',
+                    'developer/tutorials/sponsored-transactions/media-platform-package',
+                    'developer/tutorials/sponsored-transactions/production-gas-station',
+                    {
+                        type: 'category',
+                        label: 'Custom Implementation',
+                        items: [
+                            'developer/tutorials/sponsored-transactions/gas-station-server',
+                            'developer/tutorials/sponsored-transactions/transaction-builder',
+                        ],
+                    },
+                ],
+            },
+            {
+                type: 'category',
+                label: "Independent Ticketing System Tutorial",
+                items: [
+                    'developer/tutorials/independent-ticketing-system/package',
+                    'developer/tutorials/independent-ticketing-system/frontend',
+                ]
+            },
+            'developer/tutorials/live-concert',
+        ]
+    },
+    {
+        type: 'category',
+        label: 'Challenges',
+        link: {
+            type: 'doc',
+            id: 'developer/iota-move-ctf/introduction',
+        },
+        items: [
+            'developer/iota-move-ctf/challenge_0',
+            'developer/iota-move-ctf/challenge_1',
+            'developer/iota-move-ctf/challenge_2',
+            'developer/iota-move-ctf/challenge_3',
+            'developer/iota-move-ctf/challenge_4',
+            'developer/iota-move-ctf/challenge_5',
+            'developer/iota-move-ctf/challenge_6',
+            'developer/iota-move-ctf/challenge_7',
+            'developer/iota-move-ctf/challenge_8',
+        ],
+    },
+    {
+        type: 'category',
+        label: 'From Solidity/EVM to Move',
+        collapsed: true,
+        link: {
+            type: 'doc',
+            id: 'developer/evm-to-move/evm-to-move',
+        },
+        items: [
+            'developer/evm-to-move/tooling-apis',
+            'developer/evm-to-move/creating-token',
+            'developer/evm-to-move/creating-nft',
+        ],
+    },
+    {
+        type: 'category',
+        label: 'Migrating from IOTA Stardust',
+        link: {
+            type: 'doc',
+            id: 'developer/stardust/stardust-migration',
+        },
+        items: [
+            'developer/stardust/exchanges',
+            'developer/stardust/move-models',
+            'developer/stardust/addresses',
+            'developer/stardust/units',
+            'developer/stardust/migration-process',
+            {
+                type: 'category',
+                label: 'Claiming Stardust Assets',
+                link: {
+                    type: 'doc',
+                    id: 'developer/stardust/claiming',
+                },
+                items: [
+                    {
+                        type: 'doc',
+                        label: 'Basic Outputs',
+                        id: 'developer/stardust/claiming/basic',
+                    },
+                    {
+                        type: 'doc',
+                        label: 'Nft Outputs',
+                        id: 'developer/stardust/claiming/nft',
+                    },
+                    {
+                        type: 'doc',
+                        label: 'Alias Outputs',
+                        id: 'developer/stardust/claiming/alias',
+                    },
+                    {
+                        type: 'doc',
+                        label: 'Foundry Outputs',
+                        id: 'developer/stardust/claiming/foundry',
+                    },
+                    {
+                        type: 'doc',
+                        label: 'Output unlockable by an Alias/Nft Address',
+                        id: 'developer/stardust/claiming/address-unlock-condition',
+                    },
+                    {
+                        type: 'doc',
+                        label: 'Self-sponsor IOTA Claiming',
+                        id: 'developer/stardust/claiming/self-sponsor',
+                    },
+                ],
+            },
+        ],
+    },
+    
+    
     'developer/exchange-integration',
 ];
 module.exports = developer;
