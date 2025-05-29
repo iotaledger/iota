@@ -13,7 +13,12 @@ const FeedbackForm = () => {
     e.preventDefault();
 
     const prefixedTitle = `Docs feedback: ${title}`;
-    const githubNewIssueUrl = `https://github.com/iotaledger/devx/issues/new?template=doc-bug.md&title=${encodeURIComponent(prefixedTitle)}&body=${encodeURIComponent(body)}`;
+    
+    const pageUrl = window.location.href;
+
+    const fullBody = `${body}\n\n\nSubmitted from: ${pageUrl}`;
+
+    const githubNewIssueUrl = `https://github.com/iotaledger/devx/issues/new?template=doc-bug.md&title=${encodeURIComponent(prefixedTitle)}&body=${encodeURIComponent(fullBody)}`;
 
     // Open the GitHub issue page with pre-filled data in a new tab
     window.open(githubNewIssueUrl, "_blank");

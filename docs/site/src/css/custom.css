@@ -452,25 +452,23 @@ h4 {
 }
 
 /** navbar search field **/
-[data-theme='light'] .DocSearch {
-  --docsearch-searchbox-background: var(--ifm-background-color-dark);
-}
 
 .DocSearch-Button-Container {
   width: 100%;
-  justify-content: space-between;
 }
 
 .DocSearch-Button {
   width: 12.5rem;
-  height: 2.625rem !important;
-  font-family: var(--headerFont);
   border: solid 1px rgba(247, 247, 248, 0.1) !important;
-  border-radius: 2.25rem !important;
   padding: 1rem 1.1rem 1rem 1.25rem !important;
+}
+
+[data-theme="dark"] .DocSearch-Button {
   color: var(--iota-white) !important;
-  font-family: var(--primaryFont);
-  letter-spacing: -0.01em;
+}
+
+[data-theme="light"] .DocSearch-Button {
+  color: var(--iota-black) !important;
 }
 
 @media screen and (max-width: 599px) {
@@ -484,9 +482,6 @@ h4 {
   margin-left: auto;
 }
 
-.DocSearch-Search-Icon path {
-  stroke: var(--iota-white);
-}
 
 .DocSearch-Button-Keys {
   display: none !important;

@@ -8,15 +8,18 @@
 #[path = "../utils.rs"]
 mod utils;
 
-use iota_json_rpc_types::{IotaObjectDataFilter, IotaObjectDataOptions, IotaObjectResponseQuery};
 use iota_keys::keystore::{AccountKeystore, FileBasedKeystore, Keystore};
 use iota_sdk::{
     IotaClientBuilder,
-    rpc_types::IotaTransactionBlockResponseOptions,
-    types::{quorum_driver_types::ExecuteTransactionRequestType, transaction::Transaction},
-};
-use iota_types::{
-    crypto::SignatureScheme, iota_system_state::iota_system_state_summary::IotaSystemStateSummary,
+    rpc_types::{
+        IotaObjectDataFilter, IotaObjectDataOptions, IotaObjectResponseQuery,
+        IotaTransactionBlockResponseOptions,
+    },
+    types::{
+        crypto::SignatureScheme,
+        iota_system_state::iota_system_state_summary::IotaSystemStateSummary,
+        quorum_driver_types::ExecuteTransactionRequestType, transaction::Transaction,
+    },
 };
 use shared_crypto::intent::Intent;
 use utils::request_tokens_from_faucet;
