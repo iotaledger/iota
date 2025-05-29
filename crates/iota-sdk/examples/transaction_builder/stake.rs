@@ -10,8 +10,10 @@
 mod utils;
 
 use futures::StreamExt;
-use iota_json_rpc_types::EventFilter;
-use iota_types::iota_system_state::iota_system_state_summary::IotaSystemStateSummary;
+use iota_sdk::{
+    rpc_types::EventFilter,
+    types::iota_system_state::iota_system_state_summary::IotaSystemStateSummary,
+};
 use utils::{setup_for_write, sign_and_execute_transaction};
 
 #[tokio::main]
