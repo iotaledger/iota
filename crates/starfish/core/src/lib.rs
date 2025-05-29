@@ -44,6 +44,7 @@ mod universal_committer;
 #[path = "tests/randomized_tests.rs"]
 mod randomized_tests;
 
+mod data_manager;
 mod decoder;
 mod encoder;
 #[cfg(test)]
