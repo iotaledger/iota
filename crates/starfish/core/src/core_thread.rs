@@ -23,7 +23,7 @@ use tracing::warn;
 
 use crate::{
     BlockHeaderAPI as _,
-    block_header::{BlockRef, Round, VerifiedBlockHeader},
+    block_header::{BlockRef, Round, VerifiedBlockHeader, VerifiedTransactions},
     commit::CertifiedCommits,
     context::Context,
     core::Core,
@@ -66,6 +66,20 @@ pub trait CoreThreadDispatcher: Sync + Send + 'static {
         &self,
         blocks: Vec<VerifiedBlockHeader>,
     ) -> Result<BTreeSet<BlockRef>, CoreError>;
+
+    // TODO: The following method will be called from transaction synchronizer to
+    //  trigger output  of commits that became solid in the DataManager
+    #[expect(unused)]
+    async fn add_data(
+        &self,
+        data: Vec<VerifiedTransactions>,
+    ) -> Result<BTreeSet<BlockRef>, CoreError>;
+
+    // TODO: The following method will be used by the transaction synchronizer to
+    //  get references to missing transactions that has already been committed and
+    //  needs to be fetched before the commit is successfully output.
+    #[expect(unused)]
+    async fn get_missing_data(&self) -> Result<BTreeSet<BlockRef>, CoreError>;
 
     async fn add_certified_commits(
         &self,
@@ -268,6 +282,17 @@ impl CoreThreadDispatcher for ChannelCoreThreadDispatcher {
         Ok(missing_block_refs)
     }
 
+    async fn add_data(
+        &self,
+        _data: Vec<VerifiedTransactions>,
+    ) -> Result<BTreeSet<BlockRef>, CoreError> {
+        todo!()
+    }
+
+    async fn get_missing_data(&self) -> Result<BTreeSet<BlockRef>, CoreError> {
+        todo!()
+    }
+
     async fn add_certified_commits(
         &self,
         commits: CertifiedCommits,
@@ -371,6 +396,17 @@ pub(crate) mod tests {
             let mut add_blocks = self.add_blocks.lock();
             add_blocks.extend(blocks);
             Ok(BTreeSet::new())
+        }
+
+        async fn add_data(
+            &self,
+            _data: Vec<VerifiedTransactions>,
+        ) -> Result<BTreeSet<BlockRef>, CoreError> {
+            todo!()
+        }
+
+        async fn get_missing_data(&self) -> Result<BTreeSet<BlockRef>, CoreError> {
+            todo!()
         }
 
         async fn add_certified_commits(
