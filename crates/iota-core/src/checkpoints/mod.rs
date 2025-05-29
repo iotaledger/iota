@@ -18,6 +18,7 @@ use std::{
 
 use chrono::Utc;
 use diffy::create_patch;
+use iota_common::{debug_fatal, fatal};
 use iota_macros::fail_point;
 use iota_metrics::{MonitoredFutureExt, monitored_future, monitored_scope};
 use iota_network::default_iota_network_config;
@@ -49,10 +50,15 @@ use iota_types::{
     transaction::{TransactionDataAPI, TransactionKey, TransactionKind},
 };
 use itertools::Itertools;
+use nonempty::NonEmpty;
 use parking_lot::Mutex;
 use rand::{rngs::OsRng, seq::SliceRandom};
 use serde::{Deserialize, Serialize};
-use tokio::{sync::Notify, task::JoinSet, time::timeout};
+use tokio::{
+    sync::{Notify, watch},
+    task::JoinSet,
+    time::timeout,
+};
 use tracing::{debug, error, info, instrument, warn};
 use typed_store::{
     DBMapUtils, Map, TypedStoreError,
@@ -458,7 +464,7 @@ impl CheckpointStore {
                 ?local_contents,
                 "Local checkpoint fork detected!",
             );
-            panic!(
+            fatal!(
                 "Local checkpoint fork detected for sequence number: {}",
                 local_checkpoint.sequence_number()
             );
@@ -855,6 +861,7 @@ pub struct CheckpointBuilder {
     epoch_store: Arc<AuthorityPerEpochStore>,
     notify: Arc<Notify>,
     notify_aggregator: Arc<Notify>,
+    last_built: watch::Sender<CheckpointSequenceNumber>,
     effects_store: Arc<dyn TransactionCacheRead>,
     accumulator: Weak<StateAccumulator>,
     output: Box<dyn CheckpointOutput>,
@@ -895,6 +902,7 @@ impl CheckpointBuilder {
         accumulator: Weak<StateAccumulator>,
         output: Box<dyn CheckpointOutput>,
         notify_aggregator: Arc<Notify>,
+        last_built: watch::Sender<CheckpointSequenceNumber>,
         metrics: Arc<CheckpointMetrics>,
         max_transactions_per_checkpoint: usize,
         max_checkpoint_size_bytes: usize,
@@ -908,6 +916,7 @@ impl CheckpointBuilder {
             accumulator,
             output,
             notify_aggregator,
+            last_built,
             metrics,
             max_transactions_per_checkpoint,
             max_checkpoint_size_bytes,
@@ -982,15 +991,31 @@ impl CheckpointBuilder {
                 checkpoint_commit_height = height,
                 "Making checkpoint at commit height"
             );
-            if let Err(e) = self
+
+            match self
                 .make_checkpoint(std::mem::take(&mut grouped_pending_checkpoints))
                 .await
             {
-                error!("Error while making checkpoint, will retry in 1s: {:?}", e);
-                tokio::time::sleep(Duration::from_secs(1)).await;
-                self.metrics.checkpoint_errors.inc();
-                return;
+                Ok(seq) => {
+                    self.last_built.send_if_modified(|cur| {
+                        if seq > *cur {
+                            *cur = seq;
+                            true
+                        } else {
+                            false
+                        }
+                    });
+                }
+                Err(e) => {
+                    error!("Error while making checkpoint, will retry in 1s: {:?}", e);
+                    tokio::time::sleep(Duration::from_secs(1)).await;
+                    self.metrics.checkpoint_errors.inc();
+                    return;
+                }
             }
+            // Ensure that the task can be cancelled at end of epoch, even if no other await
+            // yields execution.
+            tokio::task::yield_now().await;
         }
         debug!(
             "Waiting for more checkpoints from consensus after processing {last_height:?}; {} pending checkpoints left unprocessed until next interval",
@@ -999,7 +1024,10 @@ impl CheckpointBuilder {
     }
 
     #[instrument(level = "debug", skip_all, fields(last_height = pendings.last().unwrap().details().checkpoint_height))]
-    async fn make_checkpoint(&self, pendings: Vec<PendingCheckpoint>) -> anyhow::Result<()> {
+    async fn make_checkpoint(
+        &self,
+        pendings: Vec<PendingCheckpoint>,
+    ) -> anyhow::Result<CheckpointSequenceNumber> {
         let last_details = pendings.last().unwrap().details().clone();
 
         // Keeps track of the effects that are already included in the current
@@ -1019,12 +1047,13 @@ impl CheckpointBuilder {
                 .await?;
             sorted_tx_effects_included_in_checkpoint.extend(txn_in_checkpoint);
         }
-        let new_checkpoint = self
+        let new_checkpoints = self
             .create_checkpoints(sorted_tx_effects_included_in_checkpoint, &last_details)
             .await?;
-        self.write_checkpoints(last_details.checkpoint_height, new_checkpoint)
+        let highest_sequence = *new_checkpoints.last().0.sequence_number();
+        self.write_checkpoints(last_details.checkpoint_height, new_checkpoints)
             .await?;
-        Ok(())
+        Ok(highest_sequence)
     }
 
     // Given the root transactions of a pending checkpoint, resolve the transactions
@@ -1144,7 +1173,7 @@ impl CheckpointBuilder {
     async fn write_checkpoints(
         &self,
         height: CheckpointHeight,
-        new_checkpoints: Vec<(CheckpointSummary, CheckpointContents)>,
+        new_checkpoints: NonEmpty<(CheckpointSummary, CheckpointContents)>,
     ) -> IotaResult {
         let _scope = monitored_scope("CheckpointBuilder::write_checkpoints");
         let mut batch = self.tables.checkpoint_content.batch();
@@ -1281,7 +1310,7 @@ impl CheckpointBuilder {
         &self,
         all_effects: Vec<TransactionEffects>,
         details: &PendingCheckpointInfo,
-    ) -> anyhow::Result<Vec<(CheckpointSummary, CheckpointContents)>> {
+    ) -> anyhow::Result<NonEmpty<(CheckpointSummary, CheckpointContents)>> {
         let _scope = monitored_scope("CheckpointBuilder::create_checkpoints");
         let total = all_effects.len();
         let mut last_checkpoint = self.epoch_store.last_built_checkpoint_summary()?;
@@ -1522,7 +1551,7 @@ impl CheckpointBuilder {
             checkpoints.push((summary, contents));
         }
 
-        Ok(checkpoints)
+        Ok(NonEmpty::from_vec(checkpoints).expect("at least one checkpoint"))
     }
 
     fn get_epoch_total_gas_cost(
@@ -2180,20 +2209,42 @@ pub trait CheckpointServiceNotify {
     fn notify_checkpoint(&self) -> IotaResult;
 }
 
-/// This is a service used to communicate with other pieces of iota(for ex.
-/// authority)
+enum CheckpointServiceState {
+    Unstarted((CheckpointBuilder, CheckpointAggregator)),
+    Started,
+}
+
+impl CheckpointServiceState {
+    fn take_unstarted(&mut self) -> (CheckpointBuilder, CheckpointAggregator) {
+        let mut state = CheckpointServiceState::Started;
+        std::mem::swap(self, &mut state);
+
+        match state {
+            CheckpointServiceState::Unstarted((builder, aggregator)) => (builder, aggregator),
+            CheckpointServiceState::Started => panic!("CheckpointServiceState is already started"),
+        }
+    }
+}
+
 pub struct CheckpointService {
     tables: Arc<CheckpointStore>,
     notify_builder: Arc<Notify>,
     notify_aggregator: Arc<Notify>,
     last_signature_index: Mutex<u64>,
+    // A notification for the current highest built sequence number.
+    highest_currently_built_seq_tx: watch::Sender<CheckpointSequenceNumber>,
+    // The highest sequence number that had already been built at the time CheckpointService
+    // was constructed
+    highest_previously_built_seq: CheckpointSequenceNumber,
     metrics: Arc<CheckpointMetrics>,
+    state: Mutex<CheckpointServiceState>,
 }
 
 impl CheckpointService {
     /// Spawns the checkpoint service, initializing and starting the checkpoint
     /// builder and aggregator tasks.
-    pub fn spawn(
+    /// Constructs a new CheckpointService in an un-started state.
+    pub fn build(
         state: Arc<AuthorityState>,
         checkpoint_store: Arc<CheckpointStore>,
         epoch_store: Arc<AuthorityPerEpochStore>,
@@ -2204,14 +2255,29 @@ impl CheckpointService {
         metrics: Arc<CheckpointMetrics>,
         max_transactions_per_checkpoint: usize,
         max_checkpoint_size_bytes: usize,
-    ) -> (Arc<Self>, JoinSet<()> /* Handle to tasks */) {
+    ) -> Arc<Self> {
         info!(
             "Starting checkpoint service with {max_transactions_per_checkpoint} max_transactions_per_checkpoint and {max_checkpoint_size_bytes} max_checkpoint_size_bytes"
         );
         let notify_builder = Arc::new(Notify::new());
         let notify_aggregator = Arc::new(Notify::new());
 
-        let mut tasks = JoinSet::new();
+        let highest_previously_built_seq = epoch_store
+            .last_built_checkpoint_builder_summary()
+            .expect("epoch should not have ended")
+            .map(|s| s.summary.sequence_number)
+            .unwrap_or(0);
+
+        let (highest_currently_built_seq_tx, _) = watch::channel(highest_previously_built_seq);
+
+        let aggregator = CheckpointAggregator::new(
+            checkpoint_store.clone(),
+            epoch_store.clone(),
+            notify_aggregator.clone(),
+            certified_checkpoint_output,
+            state.clone(),
+            metrics.clone(),
+        );
 
         let builder = CheckpointBuilder::new(
             state.clone(),
@@ -2222,36 +2288,72 @@ impl CheckpointService {
             accumulator,
             checkpoint_output,
             notify_aggregator.clone(),
+            highest_currently_built_seq_tx.clone(),
             metrics.clone(),
             max_transactions_per_checkpoint,
             max_checkpoint_size_bytes,
         );
-        tasks.spawn(monitored_future!(builder.run()));
-
-        let aggregator = CheckpointAggregator::new(
-            checkpoint_store.clone(),
-            epoch_store.clone(),
-            notify_aggregator.clone(),
-            certified_checkpoint_output,
-            state.clone(),
-            metrics.clone(),
-        );
-        tasks.spawn(monitored_future!(aggregator.run()));
 
         let last_signature_index = epoch_store
             .get_last_checkpoint_signature_index()
             .expect("should not cross end of epoch");
         let last_signature_index = Mutex::new(last_signature_index);
 
-        let service = Arc::new(Self {
+        Arc::new(Self {
             tables: checkpoint_store,
             notify_builder,
             notify_aggregator,
             last_signature_index,
+            highest_currently_built_seq_tx,
+            highest_previously_built_seq,
             metrics,
-        });
+            state: Mutex::new(CheckpointServiceState::Unstarted((builder, aggregator))),
+        })
+    }
 
-        (service, tasks)
+    /// Starts the CheckpointService.
+    ///
+    /// This function blocks until the CheckpointBuilder re-builds all
+    /// checkpoints that had been built before the most recent restart. You
+    /// can think of this as a WAL replay operation. Upon startup, we may
+    /// have a number of consensus commits and resulting checkpoints that
+    /// were built but not committed to disk. We want to reprocess the
+    /// commits and rebuild the checkpoints before starting normal operation.
+    pub async fn spawn(&self) -> JoinSet<()> {
+        let mut tasks = JoinSet::new();
+
+        let (builder, aggregator) = self.state.lock().take_unstarted();
+        tasks.spawn(monitored_future!(builder.run()));
+        tasks.spawn(monitored_future!(aggregator.run()));
+
+        loop {
+            if tokio::time::timeout(Duration::from_secs(10), self.wait_for_rebuilt_checkpoints())
+                .await
+                .is_ok()
+            {
+                break;
+            } else {
+                debug_fatal!("Still waiting for checkpoints to be rebuilt");
+            }
+        }
+
+        tasks
+    }
+}
+
+impl CheckpointService {
+    /// Waits until all checkpoints had been built before the node restarted
+    /// are rebuilt.
+    pub async fn wait_for_rebuilt_checkpoints(&self) {
+        let highest_previously_built_seq = self.highest_previously_built_seq;
+        let mut rx = self.highest_currently_built_seq_tx.subscribe();
+        loop {
+            let highest_currently_built_seq = *rx.borrow_and_update();
+            if highest_currently_built_seq >= highest_previously_built_seq {
+                break;
+            }
+            rx.changed().await.unwrap();
+        }
     }
 
     #[cfg(test)]
@@ -2483,7 +2585,7 @@ mod tests {
             state.get_accumulator_store().clone(),
         ));
 
-        let (checkpoint_service, _tasks) = CheckpointService::spawn(
+        let checkpoint_service = CheckpointService::build(
             state.clone(),
             checkpoint_store,
             epoch_store.clone(),
@@ -2495,6 +2597,7 @@ mod tests {
             3,
             100_000,
         );
+        let _tasks = checkpoint_service.spawn().await;
 
         checkpoint_service
             .write_and_notify_checkpoint_for_testing(&epoch_store, p(0, vec![4], 0))
