@@ -753,7 +753,7 @@ impl IotaClientCommands {
 
                 context.config_mut().keystore_mut().remove_key(&address)?;
 
-                IotaClientCommandResult::RemoveAddress(RemoveAddressOutput { address })
+                IotaClientCommandResult::RemoveAddress(address)
             }
             IotaClientCommands::ReplayTransaction {
                 tx_digest,
@@ -2218,24 +2218,8 @@ impl Display for IotaClientCommandResult {
                 };
                 writeln!(writer, "{}", raw_object)?;
             }
-            IotaClientCommandResult::RemoveAddress(remove_address) => {
-                let mut builder = TableBuilder::default();
-                builder.push_record(vec![remove_address.address.to_string()]);
-
-                let mut table = builder.build();
-                table.with(TableStyle::rounded());
-                table.with(TablePanel::header("removed the keypair from keystore."));
-
-                table.with(
-                    TableModify::new(TableCell::new(0, 0))
-                        .with(TableBorder::default().corner_bottom_right('┬')),
-                );
-                table.with(
-                    TableModify::new(TableCell::new(0, 0))
-                        .with(TableBorder::default().corner_top_right('─')),
-                );
-
-                write!(f, "{}", table)?
+            IotaClientCommandResult::RemoveAddress(address) => {
+                write!(writer, "Removed address \"{address}\" from keystore.")?
             }
             IotaClientCommandResult::SerializedUnsignedTransaction(tx_data) => {
                 writeln!(
@@ -2613,12 +2597,6 @@ impl ObjectsOutput {
 }
 
 #[derive(Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct RemoveAddressOutput {
-    pub address: IotaAddress,
-}
-
-#[derive(Serialize)]
 #[serde(untagged)]
 pub enum IotaClientCommandResult {
     ActiveAddress(Option<IotaAddress>),
@@ -2637,7 +2615,7 @@ pub enum IotaClientCommandResult {
     Object(IotaObjectResponse),
     Objects(Vec<IotaObjectResponse>),
     RawObject(IotaObjectResponse),
-    RemoveAddress(RemoveAddressOutput),
+    RemoveAddress(IotaAddress),
     SerializedSignedTransaction(SenderSignedData),
     SerializedUnsignedTransaction(TransactionData),
     Switch(SwitchResponse),
