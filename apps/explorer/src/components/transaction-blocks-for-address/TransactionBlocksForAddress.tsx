@@ -115,9 +115,9 @@ export function TransactionBlocksForAddress({
     return (
         <Panel>
             <div data-testid="tx">
-                <div className="flex w-full items-center justify-between p-md--rs">
+                <div className="flex w-full flex-col justify-between gap-xxs p-md--rs sm:flex-row md:items-center">
                     {header && <Title title={header} />}
-                    <div>
+                    <div className="inline-flex">
                         <FiltersControl filterValue={filterValue} setFilterValue={setFilterValue} />
                     </div>
                 </div>

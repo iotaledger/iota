@@ -74,7 +74,10 @@ export function Activity({ initialLimit, disablePagination }: ActivityProps): JS
     return (
         <Panel>
             <div className="relative flex w-full flex-col justify-between gap-y-sm md:flex-row">
-                <SegmentedButton type={SegmentedButtonType.Transparent}>
+                <SegmentedButton
+                    type={SegmentedButtonType.Transparent}
+                    shape={ButtonSegmentType.Underlined}
+                >
                     {ACTIVITY_CATEGORIES.map(({ label, value }) => (
                         <ButtonSegment
                             key={value}
