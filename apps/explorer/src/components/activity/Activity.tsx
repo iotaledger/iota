@@ -73,7 +73,7 @@ export function Activity({ initialLimit, disablePagination }: ActivityProps): JS
     const refetchInterval = paused || !pollingTxnTableEnabled ? undefined : REFETCH_INTERVAL;
     return (
         <Panel>
-            <div className="relative">
+            <div className="relative flex w-full flex-col justify-between gap-y-sm md:flex-row">
                 <SegmentedButton type={SegmentedButtonType.Transparent}>
                     {ACTIVITY_CATEGORIES.map(({ label, value }) => (
                         <ButtonSegment
@@ -86,7 +86,7 @@ export function Activity({ initialLimit, disablePagination }: ActivityProps): JS
                     ))}
                 </SegmentedButton>
                 {pollingTxnTableEnabled && selectedCategory === ActivityCategory.Transactions && (
-                    <div className="absolute inset-y-0 -top-1 right-sm flex items-center gap-sm text-2xl">
+                    <div className="flex items-center gap-sm px-md--rs">
                         <Toggle
                             label="Show System Transactions"
                             isToggled={showSystemTransactions}
