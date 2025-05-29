@@ -16,6 +16,39 @@ const identity = [
     },
     {
         type: 'category',
+        label: 'References',
+        collapsed: true,
+        items: [
+            {
+                type: 'category',
+                label: 'API',
+                items: [
+                    {
+                        type: 'link',
+                        label: 'Rust',
+                        href: 'https://iotaledger.github.io/identity.rs/identity_iota/index.html',
+                    },
+                    {
+                        type: 'link',
+                        label: 'Wasm',
+                        href: 'references/iota-identity/wasm/api_ref',
+                    },
+                ],
+            },
+            {
+                type: 'category',
+                label: 'Specifications',
+                items: [
+                    'references/iota-identity/overview',
+                    'references/iota-identity/iota-did-method-spec',
+                    'references/iota-identity/revocation-bitmap-2022',
+                    'references/iota-identity/revocation-timeframe-2024',
+                ],
+            },
+        ],
+    },
+    {
+        type: 'category',
         label: 'Explanations',
         items: [
             'iota-identity/explanations/decentralized-identifiers',
@@ -27,7 +60,7 @@ const identity = [
     },
     {
         type: 'category',
-        label: 'How To',
+        label: 'How-To',
         items: [
             {
                 type: 'category',
@@ -62,39 +95,7 @@ const identity = [
             'iota-identity/how-tos/key-storage',
         ],
     },
-    {
-        type: 'category',
-        label: 'References',
-        collapsed: true,
-        items: [
-            {
-                type: 'category',
-                label: 'API',
-                items: [
-                    {
-                        type: 'link',
-                        label: 'Rust',
-                        href: 'https://iotaledger.github.io/identity.rs/identity_iota/index.html',
-                    },
-                    {
-                        type: 'link',
-                        label: 'Wasm',
-                        href: 'references/iota-identity/wasm/api_ref',
-                    },
-                ],
-            },
-            {
-                type: 'category',
-                label: 'Specifications',
-                items: [
-                    'references/iota-identity/overview',
-                    'references/iota-identity/iota-did-method-spec',
-                    'references/iota-identity/revocation-bitmap-2022',
-                    'references/iota-identity/revocation-timeframe-2024',
-                ],
-            },
-        ],
-    },
+    
     'iota-identity/contribute',
 ];
 
