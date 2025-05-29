@@ -7,6 +7,7 @@ use std::{
     sync::{Arc, RwLock},
 };
 
+use iota_core::authority::authority_per_epoch_store::AuthorityPerEpochStore;
 use iota_storage::package_object_cache::PackageObjectCache;
 use iota_types::{
     base_types::{EpochId, ObjectID, SequenceNumber, VersionNumber},
@@ -14,8 +15,7 @@ use iota_types::{
     inner_temporary_store::InnerTemporaryStore,
     object::{Object, Owner},
     storage::{
-        BackingPackageStore, ChildObjectResolver, GetSharedLocks, ObjectStore, PackageObject,
-        get_module_by_id,
+        BackingPackageStore, ChildObjectResolver, ObjectStore, PackageObject, get_module_by_id,
     },
     transaction::{InputObjectKind, InputObjects, ObjectReadResult, TransactionKey},
 };
@@ -53,11 +53,11 @@ impl InMemoryObjectStore {
     // functions. (similarly the one in simulacrum)
     pub(crate) fn read_objects_for_execution(
         &self,
-        shared_locks: &dyn GetSharedLocks,
+        epoch_store: &Arc<AuthorityPerEpochStore>,
         tx_key: &TransactionKey,
         input_object_kinds: &[InputObjectKind],
     ) -> IotaResult<InputObjects> {
-        let shared_locks_cell: OnceCell<Option<HashMap<_, _>>> = OnceCell::new();
+        let shared_version_assignments_cell: OnceCell<Option<HashMap<_, _>>> = OnceCell::new();
         let mut input_objects = Vec::new();
         for kind in input_object_kinds {
             let obj: Option<Object> = match kind {
@@ -67,19 +67,19 @@ impl InMemoryObjectStore {
                 }
 
                 InputObjectKind::SharedMoveObject { id, .. } => {
-                    let shared_locks = shared_locks_cell
+                    let shared_version_assignments = shared_version_assignments_cell
                         .get_or_init(|| {
-                            shared_locks
-                                .get_shared_locks(tx_key)
-                                .expect("get_shared_locks should not fail")
+                            epoch_store
+                                .get_assigned_shared_object_versions(tx_key)
+                                .expect("get_assigned_shared_object_versions should not fail")
                                 .map(|l| l.into_iter().collect())
                         })
                         .as_ref()
                         .ok_or_else(|| IotaError::GenericAuthority {
-                            error: "Shared object locks should have been set.".to_string(),
+                            error: "Shared object versions should have been assigned.".to_string(),
                         })?;
-                    let version = shared_locks.get(id).unwrap_or_else(|| {
-                        panic!("Shared object locks should have been set. key: {tx_key:?}, obj id: {id:?}")
+                    let version = shared_version_assignments.get(id).unwrap_or_else(|| {
+                        panic!("Shared object version should have been assigned. key: {tx_key:?}, obj id: {id:?}")
                     });
 
                     self.get_object_by_key(id, *version)?
@@ -173,14 +173,5 @@ impl GetModule for InMemoryObjectStore {
 
     fn get_module_by_id(&self, id: &ModuleId) -> Result<Option<Self::Item>, Self::Error> {
         get_module_by_id(self, id)
-    }
-}
-
-impl GetSharedLocks for InMemoryObjectStore {
-    fn get_shared_locks(
-        &self,
-        _key: &TransactionKey,
-    ) -> IotaResult<Option<Vec<(ObjectID, SequenceNumber)>>> {
-        unreachable!()
     }
 }
