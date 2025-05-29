@@ -25,6 +25,7 @@ export { default as Dash } from './Dash';
 export { default as DataStack } from './DataStack';
 export { default as Delete } from './Delete';
 export { default as Disconnect } from './Disconnect';
+export { default as Discord } from './Discord';
 export { default as DoubleArrowLeft } from './DoubleArrowLeft';
 export { default as DoubleArrowRight } from './DoubleArrowRight';
 export { default as Edit } from './Edit';
