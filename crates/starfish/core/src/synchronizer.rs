@@ -1743,8 +1743,14 @@ mod tests {
         {
             let mut d = dag_state.write();
             for index in 1..=commit_index {
-                let commit =
-                    TrustedCommit::new_for_test(index, CommitDigest::MIN, 0, BlockRef::MIN, vec![]);
+                let commit = TrustedCommit::new_for_test(
+                    index,
+                    CommitDigest::MIN,
+                    0,
+                    BlockRef::MIN,
+                    vec![],
+                    vec![],
+                );
 
                 d.add_commit(commit);
             }

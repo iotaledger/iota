@@ -2,17 +2,22 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{collections::HashSet, sync::Arc};
+use std::{
+    collections::{HashMap, HashSet},
+    sync::Arc,
+};
 
+use itertools::Itertools;
 use parking_lot::RwLock;
 use starfish_config::AuthorityIndex;
 
 use crate::{
     block_header::{BlockHeaderAPI, BlockRef, VerifiedBlockHeader},
-    commit::{Commit, CommittedSubDag, TrustedCommit, sort_sub_dag_blocks},
+    commit::{Commit, CommitAPI, PendingSubDag, TrustedCommit, sort_sub_dag_blocks},
     context::Context,
     dag_state::DagState,
     leader_schedule::LeaderSchedule,
+    stake_aggregator::{QuorumThreshold, StakeAggregator},
 };
 
 /// The `StorageAPI` trait provides an interface for the block store and has
@@ -31,12 +36,17 @@ impl BlockStoreAPI
 }
 
 /// Expand a committed sequence of leader into a sequence of sub-dags.
-#[derive(Clone)]
 pub(crate) struct Linearizer {
-    /// In memory block store representing the dag state
+    /// In-memory block store representing the dag state
     context: Arc<Context>,
     dag_state: Arc<RwLock<DagState>>,
     leader_schedule: Arc<LeaderSchedule>,
+
+    // TODO: prune this map - any entries older than latest_leader.round() - max_ack_depth -
+    //  max_linearizer_depth should be removed
+    // TODO: should this be part of the Linearizer or
+    //  its own component?
+    transactions_ack_tracker: HashMap<BlockRef, StakeAggregator<QuorumThreshold>>,
 }
 
 impl Linearizer {
@@ -49,6 +59,7 @@ impl Linearizer {
             dag_state,
             leader_schedule,
             context,
+            transactions_ack_tracker: HashMap::new(),
         }
     }
 
@@ -59,7 +70,7 @@ impl Linearizer {
         &mut self,
         leader_block: VerifiedBlockHeader,
         reputation_scores_desc: Vec<(AuthorityIndex, u64)>,
-    ) -> (CommittedSubDag, TrustedCommit) {
+    ) -> (PendingSubDag, TrustedCommit) {
         let _s = self
             .context
             .metrics
@@ -81,6 +92,23 @@ impl Linearizer {
 
         drop(dag_state);
 
+        // Collect all block references for transactions that reached quorum after
+        // adding acknowledgments
+        let committed_transactions = to_commit
+            .iter()
+            // Add the acknowledgments to the tracker and collect the ones that reached quorum.
+            // This will return a vector of block references that reached the quorum threshold, so
+            // using flat_map here to avoid nested vectors.
+            .flat_map(|block| {
+                self.add_committed_transaction_acks(
+                    block.author(),
+                    block.acknowledgments().to_vec(),
+                )
+            })
+            // Remove duplicate block references
+            .unique()
+            .collect::<Vec<BlockRef>>();
+
         // Create the Commit.
         let commit = Commit::new(
             last_commit_index + 1,
@@ -90,7 +118,8 @@ impl Linearizer {
             to_commit
                 .iter()
                 .map(|block| block.reference())
-                .collect::<Vec<_>>(),
+                .collect::<Vec<BlockRef>>(),
+            committed_transactions,
         );
         let serialized = commit
             .serialize()
@@ -98,9 +127,10 @@ impl Linearizer {
         let commit = TrustedCommit::new_trusted(commit, serialized);
 
         // Create the corresponding committed sub dag
-        let sub_dag = CommittedSubDag::new(
+        let sub_dag = PendingSubDag::new(
             leader_block.reference(),
             to_commit,
+            commit.committed_transactions(),
             timestamp_ms,
             commit.reference(),
             reputation_scores_desc,
@@ -162,7 +192,7 @@ impl Linearizer {
     pub(crate) fn handle_commit(
         &mut self,
         committed_leaders: Vec<VerifiedBlockHeader>,
-    ) -> Vec<CommittedSubDag> {
+    ) -> Vec<PendingSubDag> {
         if committed_leaders.is_empty() {
             return vec![];
         }
@@ -173,7 +203,7 @@ impl Linearizer {
             .leader_schedule
             .leader_schedule_updated(&self.dag_state);
 
-        let mut committed_sub_dags = vec![];
+        let mut pending_sub_dags = vec![];
         for (i, leader_block) in committed_leaders.into_iter().enumerate() {
             let reputation_scores_desc = if schedule_updated && i == 0 {
                 self.leader_schedule
@@ -185,8 +215,6 @@ impl Linearizer {
                 vec![]
             };
 
-            // Collect the sub-dag generated using each of these leaders and the
-            // corresponding commit.
             let (sub_dag, commit) =
                 self.collect_sub_dag_and_commit(leader_block, reputation_scores_desc);
 
@@ -194,7 +222,7 @@ impl Linearizer {
             // This also updates the last committed rounds.
             self.dag_state.write().add_commit(commit.clone());
 
-            committed_sub_dags.push(sub_dag);
+            pending_sub_dags.push(sub_dag);
         }
 
         // Committed blocks must be persisted to storage before sending them to IOTA and
@@ -205,17 +233,41 @@ impl Linearizer {
         // storage.
         self.dag_state.write().flush();
 
-        committed_sub_dags
+        pending_sub_dags
+    }
+
+    // This function is called to add the transaction acknowledgments to the tracker
+    // and returns the vector of block refs to transactions that reached the quorum
+    // threshold after adding the acknowledgments.
+    pub(crate) fn add_committed_transaction_acks(
+        &mut self,
+        authority: AuthorityIndex,
+        acknowledgments: Vec<BlockRef>,
+    ) -> Vec<BlockRef> {
+        let mut acknowledged_data = Vec::new();
+        for block_ref in acknowledgments {
+            let votes_collector = self
+                .transactions_ack_tracker
+                .entry(block_ref)
+                .or_insert_with(StakeAggregator::<QuorumThreshold>::new);
+
+            // TODO: check that the acknowlement is not too far in the past?
+            if !votes_collector.reached_threshold(&self.context.committee)
+                && votes_collector.add(authority, &self.context.committee)
+            {
+                acknowledged_data.push(block_ref);
+            }
+        }
+        acknowledged_data
     }
 }
 
 #[cfg(test)]
 mod tests {
-
     use super::*;
     use crate::{
         CommitIndex,
-        commit::{CommitAPI as _, CommitDigest, WAVE_LENGTH},
+        commit::{CommitDigest, WAVE_LENGTH},
         context::Context,
         leader_schedule::{LeaderSchedule, LeaderSwapTable},
         storage::mem_store::MemStore,
@@ -258,16 +310,30 @@ mod tests {
             assert_eq!(subdag.leader, leaders[idx].reference());
             assert_eq!(subdag.timestamp_ms, leaders[idx].timestamp_ms());
             if idx == 0 {
-                // First subdag includes the leader block only
+                // First subdag includes the leader block only and no committed data
                 assert_eq!(subdag.blocks.len(), 1);
+                assert_eq!(subdag.committed_transaction_refs.len(), 0);
+            } else if idx == 1 {
+                // Genesis blocks are included in the first commit
+                assert_eq!(subdag.blocks.len(), num_authorities);
+                // Transactions from genesis are not committed
+                assert_eq!(subdag.committed_transaction_refs.len(), 0);
             } else {
                 // Every subdag after will be missing the leader block from the previous
                 // committed subdag
                 assert_eq!(subdag.blocks.len(), num_authorities);
+                // Every subdag after the first one will have all the committed transactions
+                // from 2 rounds before the leader round
+                assert_eq!(subdag.committed_transaction_refs.len(), num_authorities);
             }
             for block in subdag.blocks.iter() {
                 assert!(block.round() <= leaders[idx].round());
             }
+
+            for committed_transactions_ref in subdag.committed_transaction_refs.iter() {
+                assert!(committed_transactions_ref.round == leaders[idx].round() - 2);
+            }
+
             assert_eq!(subdag.commit_ref.index, idx as CommitIndex + 1);
         }
     }
@@ -308,7 +374,9 @@ mod tests {
         let commits = linearizer.handle_commit(leaders.clone());
 
         // Write them in DagState
-        dag_state.write().add_scoring_subdags(commits);
+        dag_state
+            .write()
+            .add_scoring_subdags(commits.iter().map(|d| d.base.clone()).collect());
         // Now update the leader schedule
         leader_schedule.update_leader_schedule(&dag_state);
         assert!(
@@ -387,6 +455,7 @@ mod tests {
             0,
             first_leader.reference(),
             blocks.into_iter().map(|block| block.reference()).collect(),
+            vec![],
         );
         dag_state.write().add_commit(first_commit_data);
 
@@ -421,6 +490,7 @@ mod tests {
             0,
             leader.reference(),
             blocks.clone(),
+            vec![],
         );
 
         let commit = linearizer.handle_commit(vec![leader.clone()]);
@@ -455,8 +525,7 @@ mod tests {
         telemetry_subscribers::init_for_testing();
 
         let num_authorities = 4;
-        let (mut context, _keys) = Context::new_for_test(num_authorities);
-        context.protocol_config.set_gc_depth_for_testing(0);
+        let (context, _keys) = Context::new_for_test(num_authorities);
 
         let context = Arc::new(context);
         let dag_state = Arc::new(RwLock::new(DagState::new(
@@ -517,8 +586,12 @@ mod tests {
             if idx == 0 {
                 // First subdag includes the leader block only
                 assert_eq!(subdag.blocks.len(), 1);
+                // First subdag does not commit any transactions
+                assert_eq!(subdag.committed_transaction_refs.len(), 0);
             } else if idx == 1 {
                 assert_eq!(subdag.blocks.len(), 3);
+                // The second subdag does not commit any transactions either yet
+                assert_eq!(subdag.committed_transaction_refs.len(), 0);
             } else if idx == 2 {
                 // We commit:
                 // * 1 block on round 4, the leader block
@@ -527,6 +600,12 @@ mod tests {
                 // * 2 blocks on round 2, again as no commit happened on round 3, we commit the
                 //   "sub dag" of leader of round 3, which will be another 2 blocks
                 assert_eq!(subdag.blocks.len(), 6);
+
+                // We commit transactions from:
+                // * 3 blocks on round 1, as no commit happened on round 3 since the leader was
+                //   missing
+                // * 3 blocks on round 2, committed without delay
+                assert_eq!(subdag.committed_transaction_refs.len(), 6);
             } else {
                 // we expect to see all blocks of round >= 1
                 assert_eq!(subdag.blocks.len(), 6);
@@ -534,9 +613,17 @@ mod tests {
                     subdag.blocks.iter().all(|block| block.round() >= 1),
                     "Found blocks that are of round < 1."
                 );
+
+                // The following subdag commits all data from round 3 (leader block was missing,
+                // so only 3 block refs)
+                assert_eq!(subdag.committed_transaction_refs.len(), 3);
             }
             for block in subdag.blocks.iter() {
                 assert!(block.round() <= leaders[idx].round());
+            }
+
+            for committed_transactions_ref in subdag.committed_transaction_refs.iter() {
+                assert!(committed_transactions_ref.round <= leaders[idx].round());
             }
             assert_eq!(subdag.commit_ref.index, idx as CommitIndex + 1);
         }

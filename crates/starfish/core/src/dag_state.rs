@@ -17,14 +17,13 @@ use tokio::time::Instant;
 use tracing::{debug, error, info};
 
 use crate::{
-    CommittedSubDag,
     block_header::{
         BlockHeaderAPI, BlockHeaderDigest, BlockRef, BlockTimestampMs, GENESIS_ROUND, Round, Slot,
         VerifiedBlockHeader, genesis_block_headers,
     },
     commit::{
         CommitAPI as _, CommitDigest, CommitIndex, CommitInfo, CommitRef, CommitVote,
-        GENESIS_COMMIT_INDEX, TrustedCommit, load_committed_subdag_from_store,
+        GENESIS_COMMIT_INDEX, SubDagBase, TrustedCommit, load_pending_subdag_from_store,
     },
     context::Context,
     leader_scoring::{ReputationScores, ScoringSubdag},
@@ -83,8 +82,10 @@ pub(crate) struct DagState {
     // TODO: limit to 1st commit per round with multi-leader.
     pending_commit_votes: VecDeque<CommitVote>,
 
-    // Acknowledgments pending to be included in new blocks. These represent votes indicating
-    // availability of transaction data from the corresponding blocks
+    // TODO: during startup recover pending acknowledgements based on own blocks that are loaded to
+    //  memory upon startup Acknowledgments pending to be included in new blocks. These
+    //  represent votes indicating availability of transaction data from the corresponding
+    //  blocks
     pending_acknowledgments: Vec<BlockRef>,
 
     // Data to be flushed to storage.
@@ -147,8 +148,8 @@ impl DagState {
                     }
 
                     let committed_subdag =
-                        load_committed_subdag_from_store(store.as_ref(), commit.clone(), vec![]); // We don't need to recover reputation scores for unscored_committed_subdags
-                    unscored_committed_subdags.push(committed_subdag);
+                        load_pending_subdag_from_store(store.as_ref(), commit.clone(), vec![]); // We don't need to recover reputation scores for unscored_committed_subdags
+                    unscored_committed_subdags.push(committed_subdag.base);
                 });
         }
 
@@ -943,7 +944,7 @@ impl DagState {
             .unwrap_or_else(|e| panic!("Failed to read from storage: {:?}", e))
     }
 
-    pub(crate) fn add_scoring_subdags(&mut self, scoring_subdags: Vec<CommittedSubDag>) {
+    pub(crate) fn add_scoring_subdags(&mut self, scoring_subdags: Vec<SubDagBase>) {
         self.scoring_subdag.add_subdags(scoring_subdags);
     }
 
@@ -1486,6 +1487,7 @@ mod test {
                 .into_iter()
                 .map(|block| block.reference())
                 .collect::<Vec<_>>(),
+            vec![],
         ));
 
         dag_state.flush();
@@ -1770,6 +1772,7 @@ mod test {
             context.clock.timestamp_utc_ms(),
             dag_builder.leader_block(3).unwrap().reference(),
             vec![],
+            vec![],
         ));
 
         // WHEN search for the latest blocks
@@ -1885,6 +1888,7 @@ mod test {
                 .into_iter()
                 .map(|block| block.reference())
                 .collect::<Vec<_>>(),
+            vec![],
         ));
 
         // Flush the store so we keep in memory only the last 1 round from the last

@@ -679,13 +679,17 @@ mod tests {
             context.clone(),
             Arc::new(MemStore::new()),
         )));
-        let unscored_subdags = vec![CommittedSubDag::new(
-            BlockRef::new(1, AuthorityIndex::ZERO, BlockHeaderDigest::MIN),
-            vec![],
-            context.clock.timestamp_utc_ms(),
-            CommitRef::new(1, CommitDigest::MIN),
-            vec![],
-        )];
+        let unscored_subdags = vec![
+            CommittedSubDag::new(
+                BlockRef::new(1, AuthorityIndex::ZERO, BlockHeaderDigest::MIN),
+                vec![],
+                vec![],
+                context.clock.timestamp_utc_ms(),
+                CommitRef::new(1, CommitDigest::MIN),
+                vec![],
+            )
+            .base,
+        ];
         dag_state.write().add_scoring_subdags(unscored_subdags);
 
         let commits_until_leader_schedule_update =
@@ -773,15 +777,20 @@ mod tests {
                 .iter()
                 .map(|block| block.reference())
                 .collect::<Vec<_>>(),
+            vec![],
         );
 
-        let unscored_subdags = vec![CommittedSubDag::new(
-            leader_ref,
-            blocks,
-            context.clock.timestamp_utc_ms(),
-            last_commit.reference(),
-            vec![],
-        )];
+        let unscored_subdags = vec![
+            CommittedSubDag::new(
+                leader_ref,
+                blocks,
+                vec![], // Committed transactions are not important for this test.
+                context.clock.timestamp_utc_ms(),
+                last_commit.reference(),
+                vec![],
+            )
+            .base,
+        ];
 
         let mut dag_state_write = dag_state.write();
         dag_state_write.set_last_commit(last_commit);

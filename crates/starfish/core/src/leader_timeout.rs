@@ -142,7 +142,7 @@ mod tests {
     use tokio::time::{Instant, sleep};
 
     use crate::{
-        block_header::{BlockRef, Round, VerifiedBlockHeader},
+        block_header::{BlockRef, Round, VerifiedBlockHeader, VerifiedTransactions},
         commit::CertifiedCommits,
         context::Context,
         core::CoreSignals,
@@ -169,6 +169,17 @@ mod tests {
             &self,
             _blocks: Vec<VerifiedBlockHeader>,
         ) -> Result<BTreeSet<BlockRef>, CoreError> {
+            todo!()
+        }
+
+        async fn add_data(
+            &self,
+            _data: Vec<VerifiedTransactions>,
+        ) -> Result<BTreeSet<BlockRef>, CoreError> {
+            todo!()
+        }
+
+        async fn get_missing_data(&self) -> Result<BTreeSet<BlockRef>, CoreError> {
             todo!()
         }
 

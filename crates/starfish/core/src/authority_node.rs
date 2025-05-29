@@ -518,7 +518,7 @@ mod tests {
                 .await
                 .expect("Timed out while waiting for at least one committed block from authority 1")
         {
-            for block in result.blocks {
+            for block in &result.blocks {
                 if block.round() > GENESIS_ROUND && block.author() == index_1 {
                     break 'outer;
                 }
@@ -586,7 +586,7 @@ mod tests {
         // We wait until we see at least one committed block authored from this
         // authority
         'outer: while let Some(result) = receiver.recv().await {
-            for block in result.blocks {
+            for block in &result.blocks {
                 if block.round() > GENESIS_ROUND && block.author() == index_1 {
                     break 'outer;
                 }

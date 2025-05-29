@@ -232,6 +232,7 @@ async fn read_and_scan_commits(
                 BlockHeaderDigest::default(),
             ),
             vec![],
+            vec![],
         ),
         TrustedCommit::new_for_test(
             2,
@@ -242,6 +243,7 @@ async fn read_and_scan_commits(
                 AuthorityIndex::new_for_test(0),
                 BlockHeaderDigest::default(),
             ),
+            vec![],
             vec![],
         ),
         TrustedCommit::new_for_test(
@@ -254,6 +256,7 @@ async fn read_and_scan_commits(
                 BlockHeaderDigest::default(),
             ),
             vec![],
+            vec![],
         ),
         TrustedCommit::new_for_test(
             4,
@@ -264,6 +267,7 @@ async fn read_and_scan_commits(
                 AuthorityIndex::new_for_test(0),
                 BlockHeaderDigest::default(),
             ),
+            vec![],
             vec![],
         ),
     ];

@@ -2,7 +2,10 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{collections::HashSet, sync::Arc};
+use std::{
+    collections::{HashMap, HashSet},
+    sync::Arc,
+};
 
 use nom::{
     IResult,
@@ -63,8 +66,8 @@ pub(crate) fn parse_dag(dag_string: &str) -> IResult<&str, DagBuilder> {
     // Parse subsequent rounds
     loop {
         match parse_round(input, &dag_builder) {
-            Ok((new_input, (round, connections))) => {
-                dag_builder.layer_with_connections(connections, round);
+            Ok((new_input, (round, connections, transaction_acknowledgments))) => {
+                dag_builder.layer_with_connections(connections, transaction_acknowledgments, round);
                 input = new_input
             }
             Err(nom::Err::Error(_)) | Err(nom::Err::Failure(_)) => break,
@@ -79,7 +82,14 @@ pub(crate) fn parse_dag(dag_string: &str) -> IResult<&str, DagBuilder> {
 fn parse_round<'a>(
     input: &'a str,
     dag_builder: &DagBuilder,
-) -> IResult<&'a str, (Round, Vec<(AuthorityIndex, Vec<BlockRef>)>)> {
+) -> IResult<
+    &'a str,
+    (
+        Round,
+        Vec<(AuthorityIndex, Vec<BlockRef>)>,
+        HashMap<AuthorityIndex, Vec<BlockRef>>,
+    ),
+> {
     let (input, _) = tuple((multispace0, tag("Round"), space1))(input)?;
     let (input, round) = take_while1(|c: char| c.is_ascii_digit())(input)?;
 
@@ -88,7 +98,25 @@ fn parse_round<'a>(
         |input| parse_specified_connections(input, dag_builder),
     ))(input)?;
 
-    Ok((input, (round.parse().unwrap(), connections)))
+    // TODO: extend DAG parser with transaction acknowledgments. For now it's
+    //  assumed that transactions are available together with the block headers and
+    //  we acknowledge transactions of all ancestors.
+
+    //  If the round is "1", we assume no transactions in Round 0 (genesis) are
+    // acknowledged.
+    let transactions_acknowledgments: HashMap<AuthorityIndex, Vec<BlockRef>> = if round == "1" {
+        HashMap::new()
+    } else {
+        connections.clone().into_iter().collect()
+    };
+    Ok((
+        input,
+        (
+            round.parse().unwrap(),
+            connections,
+            transactions_acknowledgments,
+        ),
+    ))
 }
 
 fn parse_fully_connected<'a>(
@@ -404,12 +432,19 @@ mod tests {
         let dag_builder = DagBuilder::new(context);
         let result = parse_round(dag_str, &dag_builder);
         assert!(result.is_ok());
-        let (_, (round, connections)) = result.unwrap();
+        let (_, (round, connections, transactions_acknowledgments)) = result.unwrap();
 
         assert_eq!(round, 1);
         for (i, (authority, references)) in connections.into_iter().enumerate() {
             assert_eq!(authority, AuthorityIndex::new_for_test(i as u32));
             assert_eq!(references, dag_builder.last_ancestors);
+            assert_eq!(
+                transactions_acknowledgments
+                    .get(&authority)
+                    .cloned()
+                    .unwrap_or_default(),
+                dag_builder.last_ancestors
+            );
         }
     }
 
@@ -424,7 +459,7 @@ mod tests {
         let dag_builder = DagBuilder::new(context);
         let result = parse_round(dag_str, &dag_builder);
         assert!(result.is_ok());
-        let (_, (round, connections)) = result.unwrap();
+        let (_, (round, connections, transactions_acknowledgments)) = result.unwrap();
 
         let skipped_slot = Slot::new_for_test(0, 0); // A0
         let mut expected_references = [
@@ -443,6 +478,14 @@ mod tests {
             references.sort();
             expected_references[i].sort();
             assert_eq!(references, expected_references[i]);
+
+            let mut transactions_acks = transactions_acknowledgments
+                .get(&authority)
+                .cloned()
+                .unwrap_or_default();
+            transactions_acks.sort();
+
+            assert_eq!(transactions_acks, expected_references[i]);
         }
     }
 

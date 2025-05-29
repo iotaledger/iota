@@ -13,7 +13,7 @@ use starfish_config::AuthorityIndex;
 
 use crate::{
     block_header::{BlockHeaderAPI, BlockRef},
-    commit::{CommitRange, CommittedSubDag},
+    commit::{CommitRange, SubDagBase},
     context::Context,
     stake_aggregator::{QuorumThreshold, StakeAggregator},
 };
@@ -99,7 +99,7 @@ impl ScoringSubdag {
         }
     }
 
-    pub(crate) fn add_subdags(&mut self, committed_subdags: Vec<CommittedSubDag>) {
+    pub(crate) fn add_subdags(&mut self, committed_subdags: Vec<SubDagBase>) {
         let _s = self
             .context
             .metrics
@@ -301,7 +301,7 @@ mod tests {
         let mut scoring_subdag = ScoringSubdag::new(context.clone());
 
         for (sub_dag, _commit) in dag_builder.get_sub_dag_and_commits(1..=4) {
-            scoring_subdag.add_subdags(vec![sub_dag]);
+            scoring_subdag.add_subdags(vec![sub_dag.base]);
         }
 
         let scores = scoring_subdag.calculate_distributed_vote_scores();
