@@ -289,24 +289,27 @@ fn remove_key_test() {
     let keystore_path = temp_dir.path().join("iota.keystore");
     let mut keystore = Keystore::from(FileBasedKeystore::new(&keystore_path).unwrap());
 
-    let (addr, _, _) = keystore
+    let address = keystore
         .generate_and_add_new_key(
             SignatureScheme::ED25519,
             Some("test_key".to_string()),
             None,
             None,
         )
-        .unwrap();
+        .unwrap()
+        .0;
 
     let mut aliases_path = keystore_path.clone();
     aliases_path.set_extension("aliases");
 
     let aliases_content = fs::read_to_string(&aliases_path).unwrap();
     assert!(aliases_content.contains("test_key"));
+    assert!(keystore.get_key(&address).is_ok());
 
-    keystore.remove_key(&addr).unwrap();
+    keystore.remove_key(&address).unwrap();
 
     // Verify alias is removed from file
     let aliases_content = fs::read_to_string(&aliases_path).unwrap();
     assert!(!aliases_content.contains("test_key"));
+    assert!(keystore.get_key(&address).is_err());
 }
