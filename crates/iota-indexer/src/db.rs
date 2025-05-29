@@ -168,6 +168,8 @@ pub fn reset_database(conn: &mut PoolConnection) -> Result<(), anyhow::Error> {
 }
 
 pub mod setup_postgres {
+    use std::collections::BTreeSet;
+
     use anyhow::anyhow;
     use diesel::{
         RunQueryDsl,
@@ -302,26 +304,25 @@ pub mod setup_postgres {
         // since it implicitly creates the __diesel_schema_migrations table if it
         // doesn't exist, which is a write operation that we don't want to do in
         // this function.
-        let applied_migrations: Vec<MigrationVersion> = __diesel_schema_migrations::table
-            .select(__diesel_schema_migrations::version)
-            .order(__diesel_schema_migrations::version.asc())
-            .load(conn)?;
+        let applied_migrations: BTreeSet<MigrationVersion<'_>> = BTreeSet::from_iter(
+            __diesel_schema_migrations::table
+                .select(__diesel_schema_migrations::version)
+                .load(conn)?,
+        );
 
-        // We check that the local migrations is a prefix of the applied migrations.
-        if local_migrations.len() > applied_migrations.len() {
-            return Err(IndexerError::DbMigration(format!(
-                "The number of local migrations is greater than the number of applied migrations. Local migrations: {local_migrations:?}, Applied migrations: {applied_migrations:?}",
-            )));
+        // We check that the local migrations is a subset of the applied migrations.
+        let unapplied_migrations = local_migrations
+            .into_iter()
+            .filter(|m| !applied_migrations.contains(m))
+            .collect::<Vec<_>>();
+
+        if unapplied_migrations.is_empty() {
+            return Ok(());
         }
-        for (local_migration, applied_migration) in local_migrations.iter().zip(&applied_migrations)
-        {
-            if local_migration != applied_migration {
-                return Err(IndexerError::DbMigration(format!(
-                    "The next applied migration `{applied_migration:?}` diverges from the local migration `{local_migration:?}`",
-                )));
-            }
-        }
-        Ok(())
+
+        Err(IndexerError::DbMigration(format!(
+            "This binary expected the following migrations to have been run, and they were not: {unapplied_migrations:?}",
+        )))
     }
 
     pub async fn setup(
@@ -467,6 +468,26 @@ pub mod setup_postgres {
                     .unwrap();
             }
             database.drop_if_exists();
+        }
+
+        #[test]
+        fn db_migration_consistency_subset_test() {
+            let mut database =
+                TestDatabase::new(database_url("db_migration_consistency_subset_test"));
+            database.recreate();
+            let pool = database.to_connection_pool();
+            let mut conn = pool.get().unwrap();
+            setup_postgres::reset_database(&mut conn).unwrap();
+
+            let migrations: Vec<Box<dyn Migration<Pg>>> = MIGRATIONS.migrations().unwrap();
+            let mut local_migrations: Vec<_> =
+                migrations.iter().map(|m| m.name().version()).collect();
+            local_migrations.remove(2);
+
+            // Local migrations are missing one record compared to the applied migrations,
+            // which should still be okay.
+            setup_postgres::check_db_migration_consistency_impl(&mut conn, local_migrations)
+                .unwrap();
         }
     }
 }
