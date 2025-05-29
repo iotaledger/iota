@@ -121,7 +121,7 @@ export function TransactionBlocksForAddress({
                         <FiltersControl filterValue={filterValue} setFilterValue={setFilterValue} />
                     </div>
                 </div>
-                <div className="flex flex-col p-md--rs">
+                <div className="flex flex-col gap-sm p-md--rs">
                     {isPending ||
                     isFetching ||
                     isFetchingNextPage ||
