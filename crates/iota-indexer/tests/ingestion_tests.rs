@@ -9,16 +9,19 @@ mod common;
 mod ingestion_tests {
     use std::{sync::Arc, time::Duration};
 
-    use diesel::{ExpressionMethods, QueryDsl, RunQueryDsl, connection::BoxableConnection};
+    use diesel::{
+        ExpressionMethods, QueryDsl, RunQueryDsl, SelectableHelper, connection::BoxableConnection,
+    };
     use iota_indexer::{
         db::get_pool_connection,
         errors::{Context, IndexerError},
         insert_or_ignore_into,
         models::{
             objects::{StoredObject, StoredObjectSnapshot},
-            transactions::StoredTransaction,
+            transactions::{StoredTransaction, TxGlobalOrder},
+            tx_indices::StoredTxDigest,
         },
-        schema::{objects, objects_snapshot, transactions, tx_insertion_order},
+        schema::{objects, objects_snapshot, transactions, tx_digests, tx_global_order},
         store::PgIndexerStore,
         transactional_blocking_with_retry,
     };
@@ -226,8 +229,7 @@ mod ingestion_tests {
     }
 
     #[tokio::test]
-    #[ignore = "https://github.com/iotaledger/iota/issues/6668"]
-    pub async fn test_tx_insertion_order_table() -> Result<(), IndexerError> {
+    pub async fn test_tx_global_order_table() -> Result<(), IndexerError> {
         let mut sim = Simulacrum::new();
         let data_ingestion_path = tempdir().unwrap().into_path();
         sim.set_data_ingestion_path(data_ingestion_path.clone());
@@ -254,22 +256,32 @@ mod ingestion_tests {
 
         let digest = effects.transaction_digest();
 
-        // Read the transaction from the database directly.
-        let actual_insertion_order = read_only_blocking!(&pg_store.blocking_cp(), |conn| {
-            tx_insertion_order::table
-                .filter(tx_insertion_order::tx_digest.eq(digest.inner().to_vec()))
-                .select(tx_insertion_order::insertion_order)
-                .first::<i64>(conn)
+        let stored_tx_digest = read_only_blocking!(&pg_store.blocking_cp(), |conn| {
+            tx_digests::table
+                .filter(tx_digests::tx_digest.eq(digest.inner().to_vec()))
+                .select(StoredTxDigest::as_select())
+                .first::<StoredTxDigest>(conn)
         })
-        .context("Failed reading tx insertion order from PostgresDB")?;
+        .context("Failed reading tx global order from PostgresDB")?;
 
-        assert_eq!(actual_insertion_order, 2);
+        let stored_global_order = read_only_blocking!(&pg_store.blocking_cp(), |conn| {
+            tx_global_order::table
+                .filter(tx_global_order::tx_digest.eq(digest.inner().to_vec()))
+                .select(TxGlobalOrder::as_select())
+                .first::<TxGlobalOrder>(conn)
+        })
+        .context("Failed reading tx global order from PostgresDB")?;
+
+        assert_eq!(
+            stored_global_order.global_sequence_number,
+            stored_tx_digest.tx_sequence_number
+        );
+        assert!(!stored_global_order.optimistic);
         Ok(())
     }
 
     #[tokio::test]
-    #[ignore = "https://github.com/iotaledger/iota/issues/6668"]
-    pub async fn test_tx_insertion_order_table_for_existing_digest() -> Result<(), IndexerError> {
+    pub async fn test_tx_global_order_table_on_conflict_do_nothing() -> Result<(), IndexerError> {
         let mut sim = Simulacrum::new();
         let data_ingestion_path = tempdir().unwrap().into_path();
         sim.set_data_ingestion_path(data_ingestion_path.clone());
@@ -290,11 +302,12 @@ mod ingestion_tests {
                     &pg_store.blocking_cp(),
                     |conn| {
                         insert_or_ignore_into!(
-                            tx_insertion_order::table,
+                            tx_global_order::table,
                             (
-                                tx_insertion_order::dsl::tx_digest.eq(digest.inner().to_vec()),
-                                tx_insertion_order::dsl::insertion_order
+                                tx_global_order::dsl::tx_digest.eq(digest.inner().to_vec()),
+                                tx_global_order::dsl::global_sequence_number
                                     .eq(pre_existing_insertion_order),
+                                tx_global_order::dsl::optimistic.eq(true)
                             ),
                             conn
                         );
@@ -318,15 +331,16 @@ mod ingestion_tests {
         indexer_wait_for_checkpoint(&pg_store, 1).await;
 
         // Read the transaction from the database directly.
-        let actual_insertion_order = read_only_blocking!(&pg_store.blocking_cp(), |conn| {
-            tx_insertion_order::table
-                .filter(tx_insertion_order::tx_digest.eq(digest.inner().to_vec()))
-                .select(tx_insertion_order::insertion_order)
-                .first::<i64>(conn)
+        let stored = read_only_blocking!(&pg_store.blocking_cp(), |conn| {
+            tx_global_order::table
+                .filter(tx_global_order::tx_digest.eq(digest.inner().to_vec()))
+                .select(TxGlobalOrder::as_select())
+                .first::<TxGlobalOrder>(conn)
         })
         .context("Failed reading tx insertion order from PostgresDB")?;
 
-        assert_eq!(actual_insertion_order, pre_existing_insertion_order);
+        assert_eq!(stored.global_sequence_number, pre_existing_insertion_order);
+        assert!(stored.optimistic);
         Ok(())
     }
 }
