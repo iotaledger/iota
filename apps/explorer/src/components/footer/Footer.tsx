@@ -17,7 +17,7 @@ function FooterLinks(): JSX.Element {
                         <Link
                             variant="text"
                             href={href}
-                            className="dark:text-neutral-60 text-body-md text-neutral-40"
+                            className="text-body-md text-neutral-40 dark:text-neutral-60"
                         >
                             {title}
                         </Link>
@@ -30,7 +30,7 @@ function FooterLinks(): JSX.Element {
 
 export function Footer(): JSX.Element {
     return (
-        <footer className="dark:bg-neutral-10 sticky top-[100%] bg-neutral-96 px-5 py-10 md:px-10 md:py-14">
+        <footer className="sticky top-[100%] bg-neutral-96 px-5 py-10 md:px-10 md:py-14 dark:bg-neutral-10">
             <nav className="container flex flex-col justify-center gap-md md:gap-lg">
                 <div className="gap-7.5 flex flex-col-reverse items-center md:flex-row md:justify-between ">
                     <div className="hidden self-center md:flex md:self-start">
@@ -47,7 +47,7 @@ export function Footer(): JSX.Element {
                     <div className="flex justify-center md:hidden md:self-start">
                         <ThemedIotaLogo />
                     </div>
-                    <p className="dark:text-neutral-60 w-full text-center text-body-sm text-neutral-40">
+                    <p className="w-full text-center text-body-sm text-neutral-40 dark:text-neutral-60">
                         {EXPLORER_REV}
                     </p>
                 </div>

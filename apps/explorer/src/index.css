@@ -124,11 +124,11 @@ body,
     }
 
     .address-grid-container-top.no-description.no-image {
-            @apply grid grid-cols-2 gap-4;
-            grid-template-areas:
-                'objectId version'
-                'owner type'
-                'lastTxBlock storageRebate';
+        @apply grid grid-cols-2 gap-4;
+        grid-template-areas:
+            'objectId version'
+            'owner type'
+            'lastTxBlock storageRebate';
     }
 
     @screen md {

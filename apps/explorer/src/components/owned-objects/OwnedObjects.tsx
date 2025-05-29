@@ -221,7 +221,7 @@ export function OwnedObjects({ id }: OwnedObjectsProps): JSX.Element {
                     <div className="flex w-full flex-row flex-wrap items-center justify-between sm:min-h-[72px]">
                         <Title size={TitleSize.Medium} title="Assets" />
                         {hasVisualAssets && (
-                            <div className="flex justify-between sm:flex-row px-md--rs">
+                            <div className="flex justify-between px-md--rs sm:flex-row">
                                 <div className="flex items-center gap-sm">
                                     {VIEW_MODES.map((mode) => {
                                         const selected = mode.value === viewMode;
