@@ -147,6 +147,10 @@ impl CommitObserver {
         if let Some(last_commit) = &last_commit {
             let last_commit_index = last_commit.index();
 
+            // The earliest commit that still might acknowledge not-yet-committed
+            // transactions that still have a chance of being committed is no higher than
+            // `last_pending_commit_index - MAX_TRANSACTIONS_ACK_CHECK -
+            // MAX_LINEARIZER_DEPTH`.
             recovery_lower_bound = recovery_lower_bound
                 .min(last_commit_index - MAX_TRANSACTIONS_ACK_CHECK - MAX_LINEARIZER_DEPTH);
             assert!(last_commit_index >= last_processed_commit_index);
@@ -158,8 +162,7 @@ impl CommitObserver {
             }
         };
 
-        // We should not send the last processed commit again, so
-        // last_processed_commit_index+1
+        // Retrieve all the commits from the recover lower bound until the end..
         let recovery_commits = self
             .store
             .scan_commits((recovery_lower_bound..=CommitIndex::MAX).into())
@@ -172,7 +175,8 @@ impl CommitObserver {
             recovery_commits.len()
         );
 
-        // Resend all the committed subdags to the consensus output channel
+        // Recover transaction acknowledgment tracker in the linearizer using all the
+        // commits and resend all the committed sub-dags to the consensus output channel
         // for all the commits above the last processed index.
         let mut last_recovered_commit_index = last_processed_commit_index;
         let num_recovery_commits = recovery_commits.len();
@@ -198,12 +202,19 @@ impl CommitObserver {
             let pending_sub_dag =
                 load_pending_subdag_from_store(self.store.as_ref(), commit, reputation_scores);
 
-            // Recover transaction acknowledments tracker state.
-            self.commit_interpreter
-                .recover_transaction_ack_tracker(pending_sub_dag.transaction_acknowledgments());
-
-            // Put all the committed subdags into the commit solidifier to make sure that
-            // they are submitted to IOTA when they become solid.
+            // Recover transaction acknowledgments tracker state by adding transaction
+            // acknowledgments from all pending sub-dags that still might
+            // correctly acknowledge transactions.
+            for (authority_idx, transaction_acknowledgments) in
+                pending_sub_dag.transaction_acknowledgments().into_iter()
+            {
+                self.commit_interpreter
+                    .add_committed_transaction_acks(authority_idx, transaction_acknowledgments);
+            }
+            // Put all the pending sub-dags into the commit solidifier to make sure that
+            // they are tracked there. The commit will be sent to IOTA here if all the
+            // transactions are available, or will be kept in the buffer and sent later when
+            // the transactions become available.
             let solid_sub_dag = self.commit_solidifier.try_commit_one(&pending_sub_dag);
             // Only submit unprocessed commits to IOTA
             if let Some(solid_sub_dag) = solid_sub_dag {

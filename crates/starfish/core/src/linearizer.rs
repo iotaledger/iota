@@ -92,6 +92,23 @@ impl Linearizer {
 
         drop(dag_state);
 
+        // Collect all block references for transactions that reached quorum after
+        // adding acknowledgments
+        let committed_transactions = to_commit
+            .iter()
+            // Add the acknowledgments to the tracker and collect the ones that reached quorum.
+            // This will return a vector of block references that reached the quorum threshold, so
+            // using flat_map here to avoid nested vectors.
+            .flat_map(|block| {
+                self.add_committed_transaction_acks(
+                    block.author(),
+                    block.acknowledgments().to_vec(),
+                )
+            })
+            // Remove duplicate block references
+            .unique()
+            .collect::<Vec<BlockRef>>();
+
         // Create the Commit.
         let commit = Commit::new(
             last_commit_index + 1,
@@ -101,17 +118,8 @@ impl Linearizer {
             to_commit
                 .iter()
                 .map(|block| block.reference())
-                .collect::<Vec<_>>(),
-            to_commit
-                .iter()
-                .flat_map(|block| {
-                    self.add_committed_transaction_acks(
-                        block.author(),
-                        block.acknowledgments().to_vec(),
-                    )
-                })
-                .unique()
-                .collect::<Vec<_>>(),
+                .collect::<Vec<BlockRef>>(),
+            committed_transactions,
         );
         let serialized = commit
             .serialize()
@@ -228,6 +236,9 @@ impl Linearizer {
         pending_sub_dags
     }
 
+    // This function is called to add the transaction acknowledgments to the tracker
+    // and returns the vector of block refs to transactions that reached the quorum
+    // threshold after adding the acknowledgments.
     pub(crate) fn add_committed_transaction_acks(
         &mut self,
         authority: AuthorityIndex,
@@ -248,15 +259,6 @@ impl Linearizer {
             }
         }
         acknowledged_data
-    }
-
-    pub(crate) fn recover_transaction_ack_tracker(
-        &mut self,
-        transactions_acknowledgments: HashMap<AuthorityIndex, Vec<BlockRef>>,
-    ) {
-        for (authority_idx, transaction_acks) in transactions_acknowledgments.into_iter() {
-            self.add_committed_transaction_acks(authority_idx, transaction_acks);
-        }
     }
 }
 

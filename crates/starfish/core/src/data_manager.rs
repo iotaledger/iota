@@ -9,11 +9,7 @@ use crate::{
     BlockRef, CommittedSubDag, commit::PendingSubDag, context::Context, dag_state::DagState,
 };
 
-/// Block manager suspends incoming blocks until they are connected to the
-/// existing graph, returning newly connected blocks.
-/// TODO: As it is possible to have Byzantine validators who produce Blocks
-/// without valid causal history we need to make sure that BlockManager takes
-/// care of that and avoid OOM (Out Of Memory) situations.
+// TODO: write docstring for DataManager
 pub(crate) struct DataManager {
     // context: Arc<Context>,
     // dag_state: Arc<RwLock<DagState>>,
