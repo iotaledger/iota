@@ -16,7 +16,7 @@ module iota::iota {
     const ENotSystemAddress: u64 = 1;
 
     #[allow(unused_const)]
-    /// The amount of Nanos per IOTA token based on the the fact that nanos is
+    /// The amount of Nanos per IOTA token based on the fact that nanos is
     /// 10^-9 of a IOTA token
     const NANOS_PER_IOTA: u64 = 1_000_000_000;
 
