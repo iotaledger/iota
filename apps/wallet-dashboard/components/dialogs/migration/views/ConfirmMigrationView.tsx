@@ -66,6 +66,7 @@ export function ConfirmMigrationView({
     const account = useCurrentAccount();
     const { data: balance, isLoading: isLoadingBalance } = useBalance(account?.address || '');
     const hasBalance = BigInt(balance?.totalBalance || 0) > BigInt(0);
+
     const {
         data: resolvedObjects = [],
         isLoading,
