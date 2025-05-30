@@ -497,6 +497,8 @@ pub enum IotaClientCommands {
         profile_output: Option<PathBuf>,
     },
     /// Remove an existing address by its alias or hexadecimal string.
+    /// Warning: removes the private key from the keystore with no way to
+    /// recover it if it was not backed up.
     RemoveAddress { address: KeyIdentity },
     /// Replay a given transaction to view transaction effects. Set environment
     /// variable MOVE_VM_STEP=1 to debug.
