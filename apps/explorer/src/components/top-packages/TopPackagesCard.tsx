@@ -33,7 +33,7 @@ export function TopPackagesCard(): JSX.Element {
     return (
         <Panel>
             <div className="flex flex-col">
-                <div className="flex w-full flex-col justify-between gap-y-xs sm:flex-row sm:items-center">
+                <div className="flex w-full flex-row flex-wrap items-center justify-between">
                     <Title
                         title="Popular Packages"
                         tooltipText="Popular packages is recomputed on epoch changes."

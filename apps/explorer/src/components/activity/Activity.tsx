@@ -73,7 +73,7 @@ export function Activity({ initialLimit, disablePagination }: ActivityProps): JS
     const refetchInterval = paused || !pollingTxnTableEnabled ? undefined : REFETCH_INTERVAL;
     return (
         <Panel>
-            <div className="relative flex w-full flex-col justify-between gap-y-sm md:flex-row">
+            <div className="relative flex w-full flex-col justify-between gap-y-lg md:flex-row">
                 <SegmentedButton
                     type={SegmentedButtonType.Transparent}
                     shape={ButtonSegmentType.Underlined}
