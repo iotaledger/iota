@@ -129,7 +129,6 @@ export function ConfirmMigrationView({
     const filteredAssetsToMigrateCategories = assetsToMigrateCategories.filter(
         ({ filteredObjects }) => filteredObjects.length > 0,
     );
-
     return (
         <DialogLayout>
             <Header title="Migrate Your Assets" onClose={() => setOpen(false)} titleCentered />
