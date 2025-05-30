@@ -13,7 +13,7 @@ use std::{
     time::Duration,
 };
 
-use anyhow::{anyhow, bail, Context};
+use anyhow::{Context, anyhow, bail};
 use async_trait::async_trait;
 use bimap::btree::BiBTreeMap;
 use criterion::Criterion;
@@ -1242,7 +1242,6 @@ impl IotaTestAdapter {
     }
 
     fn named_variables(&self) -> BTreeMap<String, String> {
-
         let mut variables = BTreeMap::new();
 
         let named_addrs = self
@@ -1350,7 +1349,8 @@ impl IotaTestAdapter {
             let interpolated_cursor = self.interpolate_contents(s, &variables)?;
             let encoded_cursor = self.encode_cursor(&interpolated_cursor)?;
 
-            // Add the encoded cursor to the variables map because they may get used in the query.
+            // Add the encoded cursor to the variables map because they may get used in the
+            // query.
             variables.insert(format!("cursor_{idx}"), encoded_cursor);
         }
         self.interpolate_contents(contents, &variables)
