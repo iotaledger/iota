@@ -37,13 +37,16 @@ pub struct TxGlobalOrder {
     ///
     /// Optimistic transactions will share the same number as checkpointed
     /// transactions. In this case, ties are resolved by the
-    /// `(global_sequence_number, tx_digest)` pair that guarantees
-    /// deterministic ordering.
+    /// `(global_sequence_number, optimistic_sequence_number)` pair that
+    /// guarantees deterministic ordering.
     pub global_sequence_number: i64,
     pub tx_digest: Vec<u8>,
-    /// Boolean flag to determine whether the transaction is indexed
-    /// optimistically or not.
-    pub optimistic: bool,
+    /// Monotonically increasing number that represents the order
+    /// of execution of optimistic transactions.
+    ///
+    /// To maintain these semantics the value should be `0` for
+    /// checkpointed transactions.
+    pub optimistic_sequence_number: i64,
 }
 
 impl From<&IndexedTransaction> for TxGlobalOrder {
@@ -51,7 +54,7 @@ impl From<&IndexedTransaction> for TxGlobalOrder {
         TxGlobalOrder {
             global_sequence_number: tx.tx_sequence_number as i64,
             tx_digest: tx.tx_digest.into_inner().to_vec(),
-            optimistic: false,
+            optimistic_sequence_number: 0,
         }
     }
 }
@@ -78,7 +81,7 @@ pub struct StoredTransaction {
 #[derive(Clone, Debug, Queryable, Insertable, QueryableByName, Selectable)]
 #[diesel(table_name = optimistic_transactions)]
 pub struct OptimisticTransaction {
-    pub global_sequence_number: i64,
+    pub sequence_number: i64,
     pub transaction_digest: Vec<u8>,
     pub raw_transaction: Vec<u8>,
     pub raw_effects: Vec<u8>,
@@ -92,7 +95,7 @@ pub struct OptimisticTransaction {
 impl From<OptimisticTransaction> for StoredTransaction {
     fn from(tx: OptimisticTransaction) -> Self {
         StoredTransaction {
-            tx_sequence_number: tx.global_sequence_number,
+            tx_sequence_number: tx.sequence_number,
             transaction_digest: tx.transaction_digest,
             raw_transaction: tx.raw_transaction,
             raw_effects: tx.raw_effects,
@@ -110,7 +113,7 @@ impl From<OptimisticTransaction> for StoredTransaction {
 impl From<StoredTransaction> for OptimisticTransaction {
     fn from(tx: StoredTransaction) -> Self {
         OptimisticTransaction {
-            global_sequence_number: tx.tx_sequence_number,
+            sequence_number: tx.tx_sequence_number,
             transaction_digest: tx.transaction_digest,
             raw_transaction: tx.raw_transaction,
             raw_effects: tx.raw_effects,

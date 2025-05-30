@@ -276,7 +276,7 @@ mod ingestion_tests {
             stored_global_order.global_sequence_number,
             stored_tx_digest.tx_sequence_number
         );
-        assert!(!stored_global_order.optimistic);
+        assert_eq!(stored_global_order.optimistic_sequence_number, 0);
         Ok(())
     }
 
@@ -295,7 +295,8 @@ mod ingestion_tests {
         sim.create_checkpoint();
         let digest = *effects.transaction_digest();
 
-        let pre_existing_insertion_order = 123;
+        let global_sequence_number = 123;
+        let optimistic_sequence_number = 1;
         let emulate_insertion_order_set_earlier_by_optimistic_indexing =
             move |pg_store: &PgIndexerStore| {
                 transactional_blocking_with_retry!(
@@ -306,8 +307,9 @@ mod ingestion_tests {
                             (
                                 tx_global_order::dsl::tx_digest.eq(digest.inner().to_vec()),
                                 tx_global_order::dsl::global_sequence_number
-                                    .eq(pre_existing_insertion_order),
-                                tx_global_order::dsl::optimistic.eq(true)
+                                    .eq(global_sequence_number),
+                                tx_global_order::dsl::optimistic_sequence_number
+                                    .eq(optimistic_sequence_number)
                             ),
                             conn
                         );
@@ -339,8 +341,11 @@ mod ingestion_tests {
         })
         .context("Failed reading tx insertion order from PostgresDB")?;
 
-        assert_eq!(stored.global_sequence_number, pre_existing_insertion_order);
-        assert!(stored.optimistic);
+        assert_eq!(stored.global_sequence_number, global_sequence_number);
+        assert_eq!(
+            stored.optimistic_sequence_number,
+            optimistic_sequence_number
+        );
         Ok(())
     }
 }

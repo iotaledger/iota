@@ -1840,7 +1840,7 @@ impl IndexerStore for PgIndexerStore {
         &self,
         transaction: OptimisticTransaction,
     ) -> Result<(), IndexerError> {
-        let sequence_number = transaction.global_sequence_number;
+        let sequence_number = transaction.sequence_number;
 
         self.spawn_blocking_task(move |this| {
             transactional_blocking_with_retry!(

@@ -18,7 +18,7 @@ macro_rules! optimistic_from_into_checkpoint {
         impl From<$optimistic_record> for $checkpoint_record {
             fn from(item: $optimistic_record) -> Self {
                 Self {
-                    tx_sequence_number: item.global_sequence_number,
+                    tx_sequence_number: item.sequence_number,
                     $($field: item.$field),*
                 }
             }
@@ -27,7 +27,7 @@ macro_rules! optimistic_from_into_checkpoint {
         impl From<$checkpoint_record> for $optimistic_record {
             fn from(item: $checkpoint_record) -> Self {
                 Self {
-                    global_sequence_number: item.tx_sequence_number,
+                    sequence_number: item.tx_sequence_number,
                     $($field: item.$field),*
                 }
             }

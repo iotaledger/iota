@@ -667,8 +667,8 @@ impl IndexerReader {
         let optimistic_txs = run_query!(&self.pool, |conn| {
             optimistic_transactions::table
                 .inner_join(
-                    tx_global_order::table.on(optimistic_transactions::global_sequence_number
-                        .eq(tx_global_order::global_sequence_number)),
+                    tx_global_order::table.on(optimistic_transactions::sequence_number
+                        .eq(tx_global_order::optimistic_sequence_number)),
                 )
                 // we filter the tx_insertion_order table because it is indexed by digest,
                 // optimistic_transactions table is not
