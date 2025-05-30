@@ -2384,13 +2384,12 @@ impl IndexerStore for PgIndexerStore {
             all_flags.extend(feature_flags);
         }
 
-        // Now insert all of them into the db.
-        // TODO: right now the size of these updates is manageable but later we may
-        // consider batching.
         transactional_blocking_with_retry!(
             &self.blocking_cp,
             |conn| {
-                insert_or_ignore_into!(protocol_configs::table, all_configs.clone(), conn);
+                for config_chunk in all_configs.chunks(PG_COMMIT_CHUNK_SIZE_INTRA_DB_TX) {
+                    insert_or_ignore_into!(protocol_configs::table, config_chunk, conn);
+                }
                 insert_or_ignore_into!(feature_flags::table, all_flags.clone(), conn);
                 Ok::<(), IndexerError>(())
             },
