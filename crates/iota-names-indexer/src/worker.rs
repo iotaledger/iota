@@ -82,7 +82,7 @@ impl IotaNamesWorker {
             }
             IotaNamesEvent::IotaNamesReverseRegistry(_event) => (),
             IotaNamesEvent::AuctionStarted(_event) => (),
-            IotaNamesEvent::Bid(_event) => (),
+            IotaNamesEvent::AuctionBid(_event) => (),
             IotaNamesEvent::AuctionExtended(_event) => (),
             IotaNamesEvent::AuctionFinalized(_event) => (),
         }
