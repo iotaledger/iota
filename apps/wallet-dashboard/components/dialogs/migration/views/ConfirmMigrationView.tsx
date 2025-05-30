@@ -32,7 +32,6 @@ import { getStardustObjectsTotals, filterMigrationObjects } from '@/lib/utils';
 import { DialogLayout, DialogLayoutBody, DialogLayoutFooter } from '../../layout';
 import { Transaction } from '@iota/iota-sdk/transactions';
 import { StardustOutputDetailsFilter } from '@/lib/enums';
-import { BasicOutputObjectSchema } from './../../../../../core/src/types';
 
 interface ConfirmMigrationViewProps {
     basicOutputObjects: IotaObjectData[] | undefined;
@@ -144,32 +143,6 @@ export function ConfirmMigrationView({
                             icon={<Warning />}
                         />
                     )}
-                    {!isLoadingBalance &&
-                        basicOutputObjects.map((obj, idx) => {
-                            const basicOutput = BasicOutputObjectSchema.safeParse(obj);
-                            const balance = basicOutput.data?.content.fields.balance;
-                            const returnAmount =
-                                basicOutput.data?.content.fields.storage_deposit_return_uc.fields
-                                    .return_amount;
-                            const hasEnough =
-                                balance !== undefined &&
-                                returnAmount !== undefined &&
-                                BigInt(balance) > BigInt(returnAmount);
-
-                            if (!hasEnough) {
-                                return (
-                                    <InfoBox
-                                        key={idx}
-                                        title="Insufficient balance"
-                                        supportingText="You don't have enough balance to migrate legacy storage deposit"
-                                        style={InfoBoxStyle.Elevated}
-                                        type={InfoBoxType.Error}
-                                        icon={<Warning />}
-                                    />
-                                );
-                            }
-                            return null;
-                        })}
                     {isGroupedMigrationError && !isLoading && (
                         <InfoBox
                             title="Error"

@@ -9,4 +9,3 @@ export * from './gasSummary';
 export * from './transactionExecute';
 export * from './validators';
 export * from './schema';
-export * from './basicOutputSchema';
