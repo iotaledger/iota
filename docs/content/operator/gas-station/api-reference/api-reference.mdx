@@ -179,6 +179,36 @@ Authorization: Bearer YOUR_TOKEN_HERE
 
 ---
 
+### Reload Access Controller
+
+#### `GET /v1/reload_access_controller`
+
+Reloads the access controller configuration.
+
+**Headers:**
+
+Authorization: Bearer YOUR_TOKEN_HERE
+
+
+**Response:**
+
+```json
+{
+  "result": "success",
+}
+```
+
+**Response (Error):**
+
+```json
+{
+  "error": "Unauthorized"
+}
+```
+
+
+---
+
 ## Error Codes
 
 | **Status Code** | **Description** |
