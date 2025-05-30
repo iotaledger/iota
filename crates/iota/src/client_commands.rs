@@ -755,7 +755,11 @@ impl IotaClientCommands {
 
                 if context.config().keystore().get_key(&address).is_ok() {
                     context.config_mut().keystore_mut().remove_key(&address)?;
-                    if Some(address) == *context.config().active_address() {
+                    if context
+                        .config()
+                        .active_address()
+                        .is_some_and(|a| a == address)
+                    {
                         context.config_mut().set_active_address(None);
                         context.config().save()?;
                     }
