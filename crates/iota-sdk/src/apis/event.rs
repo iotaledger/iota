@@ -38,9 +38,8 @@ impl EventApi {
     /// use std::str::FromStr;
     ///
     /// use futures::StreamExt;
-    /// use iota_json_rpc_types::EventFilter;
-    /// use iota_sdk::IotaClientBuilder;
-    /// use iota_types::base_types::IotaAddress;
+    /// use iota_sdk::{IotaClientBuilder, rpc_types::EventFilter, types::base_types::IotaAddress};
+    ///
     /// #[tokio::main]
     /// async fn main() -> Result<(), anyhow::Error> {
     ///     let iota = IotaClientBuilder::default()

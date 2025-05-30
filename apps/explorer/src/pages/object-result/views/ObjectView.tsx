@@ -131,7 +131,7 @@ function TypeCard({ objectType }: TypeCardCardProps): JSX.Element {
                 </ObjectLink>
             }
             tooltipText={objectType}
-            tooltipPosition={TooltipPosition.Right}
+            tooltipPosition={TooltipPosition.Top}
             copyText={objectType}
             onCopySuccess={onCopySuccess}
         />

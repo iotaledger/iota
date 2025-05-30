@@ -10,10 +10,10 @@ use iota_types::{digests::ConsensusCommitDigest, messages_consensus::ConsensusTr
 use crate::consensus_types::AuthorityIndex;
 
 /// A list of tuples of:
-/// (certificate origin authority index, all transactions corresponding to the
-/// certificate). For each transaction, returns the serialized transaction and
-/// the deserialized transaction.
-type ConsensusOutputTransactions<'a> = Vec<(AuthorityIndex, Vec<(&'a [u8], ConsensusTransaction)>)>;
+/// (block origin authority index, all transactions contained in the block).
+/// For each transaction, returns deserialized transaction and its serialized
+/// size.
+type ConsensusOutputTransactions = Vec<(AuthorityIndex, Vec<(ConsensusTransaction, usize)>)>;
 
 pub(crate) trait ConsensusOutputAPI: Display {
     fn reputation_score_sorted_desc(&self) -> Option<Vec<(AuthorityIndex, u64)>>;
@@ -27,7 +27,7 @@ pub(crate) trait ConsensusOutputAPI: Display {
     fn commit_sub_dag_index(&self) -> u64;
 
     /// Returns all transactions in the commit.
-    fn transactions(&self) -> ConsensusOutputTransactions<'_>;
+    fn transactions(&self) -> ConsensusOutputTransactions;
 
     /// Returns the digest of consensus output.
     fn consensus_digest(&self) -> ConsensusCommitDigest;
@@ -77,8 +77,8 @@ impl ConsensusOutputAPI for consensus_core::CommittedSubDag {
                         let transaction = bcs::from_bytes::<ConsensusTransaction>(tx.data());
                         match transaction {
                             Ok(transaction) => Some((
-                                tx.data(),
                                 transaction,
+                                tx.data().len(),
                             )),
                             Err(err) => {
                                 tracing::error!("Failed to deserialize sequenced consensus transaction(this should not happen) {} from {author} at {round}", err);

@@ -11,12 +11,14 @@ use futures::{future, stream::StreamExt};
 use iota_config::{
     Config, IOTA_CLIENT_CONFIG, IOTA_KEYSTORE_FILENAME, PersistedConfig, iota_config_dir,
 };
-use iota_json_rpc_types::{Coin, IotaObjectDataOptions, IotaTransactionBlockResponse};
 use iota_keys::keystore::{AccountKeystore, FileBasedKeystore};
 use iota_sdk::{
     IotaClient, IotaClientBuilder,
     iota_client_config::{IotaClientConfig, IotaEnv},
-    rpc_types::IotaTransactionBlockResponseOptions,
+    rpc_types::{
+        Coin, IotaObjectDataOptions, IotaTransactionBlockResponse,
+        IotaTransactionBlockResponseOptions,
+    },
     types::{
         base_types::{IotaAddress, ObjectID},
         crypto::SignatureScheme::ED25519,
