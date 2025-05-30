@@ -417,7 +417,7 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
             }
         }
 
-        // Return the serialised blocks & the ancestor blocks
+        // Return the serialised headers and transactions for blocks & their ancestors
         let result = blocks
             .into_iter()
             .chain(ancestor_blocks)
@@ -791,7 +791,7 @@ mod tests {
             _highest_accepted_rounds: Vec<Round>,
             _timeout: Duration,
         ) -> ConsensusResult<Vec<Bytes>> {
-            unimplemented!();
+            unimplemented!("Unimplemented")
         }
 
         async fn fetch_commits(

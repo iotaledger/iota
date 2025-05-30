@@ -328,7 +328,7 @@ mod test {
         for _ in 0..10 {
             tokio::time::sleep(Duration::from_secs(1)).await;
             let service = authority_service.lock();
-            if service.handle_send_block.len() >= 100 {
+            if service.handle_subscribed_block.len() >= 100 {
                 break;
             }
         }
@@ -336,8 +336,8 @@ mod test {
         // Even if the stream ends after 10 blocks, the subscriber should retry and get
         // enough blocks eventually.
         let service = authority_service.lock();
-        assert!(service.handle_send_block.len() >= 100);
-        for (p, block) in service.handle_send_block.iter() {
+        assert!(service.handle_subscribed_block.len() >= 100);
+        for (p, block) in service.handle_subscribed_block.iter() {
             assert_eq!(*p, peer);
             assert_eq!(
                 *block,

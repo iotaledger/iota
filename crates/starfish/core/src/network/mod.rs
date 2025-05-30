@@ -127,12 +127,9 @@ pub(crate) trait NetworkClient: Send + Sync + Sized + 'static {
 /// Network service for handling requests from peers.
 #[async_trait]
 pub(crate) trait NetworkService: Send + Sync + 'static {
-    /// Handles the block sent from the peer via either unicast RPC or
-    /// subscription stream. Peer value can be trusted to be a valid
-    /// authority index. But serialized_block must be verified before its
-    /// contents are trusted.
-    /// Excluded ancestors are also included as part of an effort to further
-    /// propagate blocks to peers despite the current exclusion.
+    /// Handles the block sent from the peer via subscription stream. Peer value
+    /// can be trusted to be a valid authority index. But serialized_block
+    /// must be verified before its contents are trusted.
     async fn handle_subscribed_block(
         &self,
         peer: AuthorityIndex,
@@ -158,6 +155,9 @@ pub(crate) trait NetworkService: Send + Sync + 'static {
     ) -> ConsensusResult<Vec<Bytes>>;
 
     /// Handles the request to fetch blocks by references from the peer.
+    /// The function returns pair of Vec<Bytes>. The first vector contains
+    /// serialization of the headers of blocks from block_refs
+    /// and the second contains serializations of transactions of these blocks.
     async fn handle_fetch_blocks(
         &self,
         peer: AuthorityIndex,

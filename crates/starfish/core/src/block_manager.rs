@@ -56,9 +56,6 @@ pub(crate) struct BlockManager {
     /// TODO: this set can grow to become too big, need to add some eviction
     /// mechanism
     suspended_blocks: BTreeMap<BlockRef, VerifiedBlock>,
-    // TODO: should it be here? need to discuss
-    // TODO: this set can grow to become too big, need to add some eviction mechanism
-    accepted_block_header_refs_without_data: HashSet<BlockRef>,
 
     /// A map that keeps all the blocks that we are missing (keys) and the
     /// corresponding blocks that reference the missing blocks as ancestors
@@ -90,7 +87,6 @@ impl BlockManager {
             block_verifier,
             suspended_block_headers: BTreeMap::new(),
             suspended_blocks: BTreeMap::new(),
-            accepted_block_header_refs_without_data: HashSet::new(),
             missing_ancestors: BTreeMap::new(),
             missing_blocks: BTreeSet::new(),
             received_block_rounds: vec![None; committee_size],
@@ -122,19 +118,11 @@ impl BlockManager {
         }
         for block in blocks {
             let block_ref = &block.reference();
-            if accepted_block_header_refs.remove(block_ref)
-                || self
-                    .accepted_block_header_refs_without_data
-                    .remove(block_ref)
-            {
+            if accepted_block_header_refs.remove(block_ref) {
                 self.dag_state.write().add_block(block);
             } else {
                 self.suspended_blocks.insert(block.reference(), block);
             }
-        }
-        for block_ref in accepted_block_header_refs {
-            self.accepted_block_header_refs_without_data
-                .insert(block_ref);
         }
 
         (accepted_block_headers, missing_block_headers)

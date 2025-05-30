@@ -224,11 +224,11 @@ impl Core {
             let last_proposed_block = self.dag_state.read().get_last_proposed_block();
             if self.should_propose() {
                 assert!(
-                    last_proposed_block.is_some(),
+                    last_proposed_block.round() != GENESIS_ROUND,
                     "At minimum a block of round higher than genesis should have been produced during recovery"
                 );
             }
-            if let Some(last_proposed_block) = last_proposed_block {
+            if last_proposed_block.round() != GENESIS_ROUND {
                 // if no new block proposed then just re-broadcast the last proposed one to
                 // ensure liveness.
                 self.signals.new_block(last_proposed_block.clone()).unwrap();
@@ -987,7 +987,7 @@ impl Core {
     }
 
     #[expect(dead_code)]
-    fn last_proposed_block(&self) -> Option<VerifiedBlock> {
+    fn last_proposed_block(&self) -> VerifiedBlock {
         self.dag_state.read().get_last_proposed_block()
     }
 

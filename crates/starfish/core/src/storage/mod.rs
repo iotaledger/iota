@@ -23,9 +23,10 @@ pub(crate) trait Store: Send + Sync {
     /// Writes blocks, consensus commits and other data to store atomically.
     fn write(&self, write_batch: WriteBatch) -> ConsensusResult<()>;
 
+    /// Reads blocks for the given refs.
     fn read_blocks(&self, refs: &[BlockRef]) -> ConsensusResult<Vec<Option<VerifiedBlock>>>;
 
-    /// Reads blocks headers for the given refs.
+    /// Reads block headers for the given refs.
     fn read_block_headers(
         &self,
         refs: &[BlockRef],

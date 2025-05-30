@@ -17,7 +17,7 @@ use crate::{
 };
 
 pub(crate) struct TestService {
-    pub(crate) handle_send_block: Vec<(AuthorityIndex, SerializedBlock)>,
+    pub(crate) handle_subscribed_block: Vec<(AuthorityIndex, SerializedBlock)>,
     pub(crate) handle_fetch_block_headers: Vec<(AuthorityIndex, Vec<BlockRef>)>,
     pub(crate) handle_fetch_blocks: Vec<(AuthorityIndex, Vec<BlockRef>)>,
     pub(crate) handle_subscribe_blocks: Vec<(AuthorityIndex, Round)>,
@@ -28,7 +28,7 @@ pub(crate) struct TestService {
 impl TestService {
     pub(crate) fn new() -> Self {
         Self {
-            handle_send_block: Vec::new(),
+            handle_subscribed_block: Vec::new(),
             handle_fetch_block_headers: Vec::new(),
             handle_fetch_blocks: Vec::new(),
             handle_subscribe_blocks: Vec::new(),
@@ -51,7 +51,7 @@ impl NetworkService for Mutex<TestService> {
         serialized_block: SerializedBlock,
     ) -> ConsensusResult<()> {
         let mut state = self.lock();
-        state.handle_send_block.push((peer, serialized_block));
+        state.handle_subscribed_block.push((peer, serialized_block));
         Ok(())
     }
 

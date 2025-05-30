@@ -532,18 +532,22 @@ impl DagState {
     }
 
     /// Gets the last proposed block from this authority.
-    /// If no block is proposed yet, returns the genesis block.
-    pub(crate) fn get_last_proposed_block(&self) -> Option<VerifiedBlock> {
+    /// If no block is proposed yet, returns Genesis block.
+    pub(crate) fn get_last_proposed_block(&self) -> VerifiedBlock {
         if let Some(last) = self.recent_blocks_refs_by_authority[self.context.own_index].last() {
-            return Some(
-                self.recent_blocks
-                    .get(last)
-                    .expect("Block should be found in recent blocks")
-                    .clone(),
-            );
+            return self
+                .recent_blocks
+                .get(last)
+                .expect("Block should be found in recent blocks")
+                .clone();
         }
 
-        None
+        let (_, genesis_block) = self
+            .genesis
+            .iter()
+            .find(|(block_ref, _)| block_ref.author == self.context.own_index)
+            .expect("Genesis should be found for authority {authority_index}");
+        genesis_block.clone()
     }
 
     /// Gets the last proposed block header from this authority.
@@ -573,7 +577,7 @@ impl DagState {
             .iter()
             .find(|(block_ref, _)| block_ref.author == authority)
             .expect("Genesis should be found for authority {authority_index}");
-        (**genesis_block).clone()
+        genesis_block.verified_block_header.clone()
     }
 
     /// Returns cached recent blocks from the specified authority.

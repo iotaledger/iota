@@ -1209,17 +1209,14 @@ fn chunk_block_headers(block_headers: Vec<Bytes>, chunk_limit: usize) -> Vec<Vec
     let mut chunks = vec![];
     let mut chunk = vec![];
     let mut chunk_size = 0;
-    for (i, block) in block_headers.iter().enumerate() {
-        let data = &block_headers[i];
-        // Compute the size of block
-        // TODO: this line doesn't make sense
-        let block_size = block.len() + data.len();
+    for block in block_headers.into_iter() {
+        let block_size = block.len();
         if !chunk.is_empty() && chunk_size + block_size > chunk_limit {
             chunks.push(chunk);
             chunk = vec![];
             chunk_size = 0;
         }
-        chunk.push(block.clone());
+        chunk.push(block);
         chunk_size += block_size;
     }
     if !chunk.is_empty() {

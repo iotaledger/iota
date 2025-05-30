@@ -171,10 +171,6 @@ impl DagBuilder {
                     })
                     .collect()
             }
-
-            fn get_blocks(&self, _refs: &[BlockRef]) -> Vec<Option<VerifiedBlock>> {
-                unimplemented!()
-            }
         }
         let mut storage = BlockStorage {
             block_headers: self
