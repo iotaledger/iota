@@ -24,7 +24,7 @@ use move_core_types::{
 };
 use prometheus::Registry;
 use tokio_util::sync::CancellationToken;
-use tracing::{debug, info};
+use tracing::{debug, info, warn};
 
 use crate::{IotaNamesMetrics, events::IotaNamesEvent};
 
@@ -157,8 +157,10 @@ impl Worker for IotaNamesWorker {
 
             if let Some(events) = &transaction.events {
                 for event in events.data.iter() {
-                    if let Ok(event) = IotaNamesEvent::try_from_event(event, &self.config) {
-                        self.process_event(event)?;
+                    match IotaNamesEvent::try_from_event(event, &self.config) {
+                        Ok(Some(event)) => self.process_event(event)?,
+                        Err(e) => warn!("parsing event failed: {e}"),
+                        _ => {}
                     }
                 }
             }
