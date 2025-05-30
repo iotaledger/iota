@@ -11,6 +11,7 @@ use tracing::info;
 
 pub(crate) struct IotaNamesMetrics {
     pub total_name_records: IntGauge,
+    pub iota_names_balance: IntGauge,
 }
 
 impl IotaNamesMetrics {
@@ -19,6 +20,12 @@ impl IotaNamesMetrics {
             total_name_records: register_int_gauge_with_registry!(
                 "total_name_records",
                 "The total number of name records in the registry",
+                registry,
+            )
+            .unwrap(),
+            iota_names_balance: register_int_gauge_with_registry!(
+                "iota_names_balance",
+                "The balance held in IOTA-Names",
                 registry,
             )
             .unwrap(),
