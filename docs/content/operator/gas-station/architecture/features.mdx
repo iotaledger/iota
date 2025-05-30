@@ -159,8 +159,8 @@ You can define multiple rules with independent gas usage counters. Each rule is 
 
 ```yaml
 rules:
-  - sender-address: 0x02020202020202020202020202020202
-    move-call-package-address: 0x03030303030303030303030303030303
+  - sender-address: 0x0202020202020202020202020202020202020202020202020202020202020202
+    move-call-package-address: 0x0101010101010101010101010101010101010101010101010101010101010101
     gas-usage:
       value: <1500000
       window: 1 day
@@ -176,7 +176,7 @@ rules:
 
 Let’s walk through how the transaction processing works with this setup:
 
-Suppose an account with the address `0x02020202020202020202020202020202` initiates a transaction targeting the package `0x03030303030303030303030303030303`. If the transaction requires, for instance, 1,400,000 gas units, it will be accepted by the **first rule** because:
+Suppose an account with the address `0x0202...` initiates a transaction targeting the package `0x0101...`. If the transaction requires, for instance, 1,400,000 gas units, it will be accepted by the **first rule** because:
 
 * The sender address matches exactly.
 * The package address matches.
@@ -223,11 +223,11 @@ Every gas-usage rule results in two Redis operations per transaction, introducin
 
 ### Rego Expressions
 
-From version 0.2, the Access Controller in Gas Station supports policy logic using the Rego language. This enables more complex filtering, especially when multiple nested transaction attributes must be inspected.
+From version `0.2`, the Access Controller in Gas Station supports matching using the Rego language. This enables more complex filtering, especially when multiple nested transaction attributes must be inspected.
 
-#### Example Rego Matcher
+#### Example Rego Predicate
 
-Lets extend the previous example with a Rego matcher that checks for a specific Move Call package address and function name.
+Lets extend the previous example with a Rego predicate that checks for a specific Move Call package address and function name.
 To do this, you can create a Rego script that defines a rule to match the Move Call transaction attributes.
 
 ```go
@@ -247,18 +247,17 @@ allowed_move_call if {
 For more information on Rego syntax and capabilities, refer to the [Rego documentation](https://www.openpolicyagent.org/docs/policy-language/).
 
 
+#### Using the Rego in Access Controller
 
-#### Using the Rego Predicate
-
-Rego expression can be used in the Access Controller as the `rego-expression` matcher. It allows you to define complex rules that can evaluate transaction attributes, such as commands, package addresses, and function names.
+Rego can be used in the Access Controller as the `rego-expression` matcher. It allows you to define complex rules that can evaluate transaction attributes, such as commands, package addresses, and function names.
 
 :::warning
-*rego* expressions are compiled at the start of the Gas Station Server. Therefore the changes in the source location (file, redis, or http) will not be applied until the server is restarted or the [`/v1/reload_access_controller`](../api-reference/api-reference.mdx#reload-access-controller) API endpoint is called.
+rego expressions are compiled at the start of the Gas Station Server. Therefore the changes in the source location (file, redis, or http) will not be applied until the server is restarted or the [`/v1/reload_access_controller`](../api-reference/api-reference.mdx#reload-access-controller) API endpoint is called.
 :::
 
 ```yaml
 rules:
-  - sender-address: 0x02020202020202020202020202020202
+  - sender-address: 0x0202020202020202020202020202020202020202020202020202020202020202
     rego-expression:
       location-type: redis
       url: file://./matchers.rego
@@ -291,7 +290,7 @@ Hook exists as the another type of `action` in the rule definition. It is execut
 
 ```yaml
 rules:
-  - move-call-package-address: 0x03030303030303030303030303030303
+  - move-call-package-address: 0x0101010101010101010101010101010101010101010101010101010101010101
     ptb-command-count: <=1
     action: https://hook.addr
 
@@ -303,7 +302,7 @@ rules:
     action: allow
 ```
 
-This configuration sends matching transactions (package address `0x03030303030303030303030303030303`) to a webhook, and falls back to the gas-usage rule if the hook returns `noDecision`.
+This configuration sends matching transactions (package address `0x0101...`) to a webhook, and falls back to the gas-usage rule if the hook returns `noDecision`.
 
 #### Decision Schema
 
@@ -322,7 +321,7 @@ The hook must return a JSON response with the following structure:
 For up to date information on the hook response schema, refer to the OpenAPI specification at [Github](https://github.com/iotaledger/gas-station/blob/dev/docs/hook-openapi.json).
 :::
 
-#### Hook Implementation example
+#### Hook Implementation Example
 
 If you want to implement a custom hook, you can use example provided in the [Gas Station Server repository](https://github.com/iotaledger/gas-station/tree/dev/examples/hook).
 
