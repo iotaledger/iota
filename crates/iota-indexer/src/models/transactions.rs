@@ -46,7 +46,8 @@ pub struct TxGlobalOrder {
     ///
     /// To maintain these semantics the value should be `0` for
     /// checkpointed transactions.
-    pub optimistic_sequence_number: i64,
+    #[diesel(deserialize_as = i64)]
+    pub optimistic_sequence_number: Option<i64>,
 }
 
 impl From<&IndexedTransaction> for TxGlobalOrder {
@@ -54,7 +55,7 @@ impl From<&IndexedTransaction> for TxGlobalOrder {
         TxGlobalOrder {
             global_sequence_number: tx.tx_sequence_number as i64,
             tx_digest: tx.tx_digest.into_inner().to_vec(),
-            optimistic_sequence_number: 0,
+            optimistic_sequence_number: Some(0),
         }
     }
 }
