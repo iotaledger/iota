@@ -6,7 +6,7 @@ import { useCurrentAccount, useSignAndExecuteTransaction } from '@iota/dapp-kit'
 import { IotaObjectData } from '@iota/iota-sdk/client';
 import { useMigrationTransaction } from '@/hooks/useMigrationTransaction';
 import { Dialog } from '@iota/apps-ui-kit';
-import { toast } from '@iota/core';
+import { GAS_BALANCE_TOO_LOW_ID, GAS_BUDGET_ERROR_MESSAGES, toast } from '@iota/core';
 import { TransactionDialogView } from '../TransactionDialog';
 import { MigrationDialogView } from './enums';
 import { ConfirmMigrationView } from './views';
@@ -59,6 +59,8 @@ export function MigrationDialog({
                 setBasicOutputs(basicOutputObjects.slice(0, -reductionSize.current));
                 setNftOutputs(nftOutputObjects.slice(0, -reductionSize.current));
                 setIsPartialMigration(true);
+            } else if (isMigrationError && error.message.includes(GAS_BALANCE_TOO_LOW_ID)) {
+                toast.error(GAS_BUDGET_ERROR_MESSAGES[GAS_BALANCE_TOO_LOW_ID]);
             } else {
                 toast.error(
                     error.message || 'An error occurred while creating the migration transaction',
