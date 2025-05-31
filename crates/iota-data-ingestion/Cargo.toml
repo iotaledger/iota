@@ -45,10 +45,10 @@ iota-types.workspace = true
 telemetry-subscribers.workspace = true
 
 [dev-dependencies]
+iota-grpc-api.workspace = true
 rand.workspace = true
 tempfile.workspace = true
 test-cluster.workspace = true
-iota-grpc-api.workspace = true
 
 [build-dependencies]
 tonic-build.workspace = true

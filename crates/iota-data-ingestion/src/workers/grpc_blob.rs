@@ -47,7 +47,7 @@ impl GrpcBlobWorker {
             .child(format!("{chk_seq_num}.{CHECKPOINT_FILE_SUFFIX}"))
     }
 
-    async fn upload_blob(&self, bytes: Vec<u8>, chk_seq_num: u64, location: Path) -> Result<()> {
+    async fn upload_blob(&self, bytes: Vec<u8>, _chk_seq_num: u64, location: Path) -> Result<()> {
         self.remote_store
             .put(&location, Bytes::from(bytes).into())
             .await?;

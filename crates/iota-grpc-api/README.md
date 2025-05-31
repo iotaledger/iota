@@ -54,15 +54,15 @@ flowchart LR
 
 ## Key Differences
 
-| Aspect                | REST API Flow                                 | gRPC Flow                                 |
-|-----------------------|-----------------------------------------------|-------------------------------------------|
-| **Server**            | Node REST API                                 | Node gRPC API                             |
-| **Client**            | Indexer (HTTP client)                         | Indexer (gRPC client)                     |
-| **Data Transfer**     | Polling (pull)                                | Streaming (push)                          |
-| **Protocol**          | HTTP/1.1 or HTTP/2, JSON/BCS                  | HTTP/2, Protocol Buffers (protobuf)       |
-| **Efficiency**        | Higher latency (polling interval)             | Lower latency (real-time streaming)       |
-| **Setup**             | `enable_rest_api = true` in node config       | `grpc_api_address` set in node config     |
-| **Integration Test**  | Yes (REST tests)                              | Yes (`grpc_ingestion.rs`, `grpc_blob_ingestion.rs`) |
+| Aspect               | REST API Flow                           | gRPC Flow                                           |
+| -------------------- | --------------------------------------- | --------------------------------------------------- |
+| **Server**           | Node REST API                           | Node gRPC API                                       |
+| **Client**           | Indexer (HTTP client)                   | Indexer (gRPC client)                               |
+| **Data Transfer**    | Polling (pull)                          | Streaming (push)                                    |
+| **Protocol**         | HTTP/1.1 or HTTP/2, JSON/BCS            | HTTP/2, Protocol Buffers (protobuf)                 |
+| **Efficiency**       | Higher latency (polling interval)       | Lower latency (real-time streaming)                 |
+| **Setup**            | `enable_rest_api = true` in node config | `grpc_api_address` set in node config               |
+| **Integration Test** | Yes (REST tests)                        | Yes (`grpc_ingestion.rs`, `grpc_blob_ingestion.rs`) |
 
 ## In summary
 
