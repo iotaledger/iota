@@ -146,6 +146,9 @@ pub mod admin;
 mod handle;
 pub mod metrics;
 
+// Add at the top, after other use statements
+use iota_grpc_api::{CheckpointGrpcService, checkpoint};
+
 pub struct ValidatorComponents {
     validator_server_handle: SpawnOnce,
     validator_server_cancel_handle: tokio::sync::oneshot::Sender<()>,
@@ -227,7 +230,9 @@ pub struct IotaNode {
     _discovery: discovery::Handle,
     state_sync_handle: state_sync::Handle,
     randomness_handle: randomness::Handle,
-    checkpoint_store: Arc<CheckpointStore>,
+    // Expose this because we want to directly stream checkpoints from the
+    // CheckpointStore. Might be a temporary solution.
+    pub checkpoint_store: Arc<CheckpointStore>,
     accumulator: Mutex<Option<Arc<StateAccumulator>>>,
     connection_monitor_status: Arc<ConnectionMonitorStatus>,
 
@@ -865,6 +870,13 @@ impl IotaNode {
         // setup shutdown channel
         let (shutdown_channel, _) = broadcast::channel::<Option<RunWithRange>>(1);
 
+        // Clone config, committee_store, checkpoint_store, and state for gRPC startup
+        // BEFORE node struct construction
+        let grpc_config = config.clone();
+        let grpc_committee_store = committee_store.clone();
+        let grpc_checkpoint_store = checkpoint_store.clone();
+        let grpc_state = state.clone();
+
         let node = Self {
             config,
             validator_components: Mutex::new(validator_components),
@@ -894,6 +906,32 @@ impl IotaNode {
 
             auth_agg,
         };
+
+        // --- gRPC API startup (similar to REST API) ---
+        if let Some(grpc_api_address) = grpc_config.grpc_api_address.clone() {
+            let addr = grpc_api_address.parse().expect("Invalid gRPC address");
+            let rocks = RocksDbStore::new(
+                cache_traits.clone(),
+                grpc_committee_store,
+                grpc_checkpoint_store,
+            );
+            let rest_read_store = std::sync::Arc::new(RestReadStore::new(grpc_state, rocks));
+            let grpc_service = CheckpointGrpcService {
+                state_reader: rest_read_store,
+            };
+            tokio::spawn(async move {
+                info!("Starting gRPC server on {addr}");
+                tonic::transport::Server::builder()
+                    .add_service(
+                        checkpoint::checkpoint_service_server::CheckpointServiceServer::new(
+                            grpc_service,
+                        ),
+                    )
+                    .serve(addr)
+                    .await
+                    .expect("gRPC server failed");
+            });
+        }
 
         info!("IotaNode started!");
         let node = Arc::new(node);

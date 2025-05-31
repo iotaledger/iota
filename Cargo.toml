@@ -144,6 +144,7 @@ members = [
   "crates/iota-transaction-checks",
   "crates/iota-transactional-test-runner",
   "crates/iota-types",
+  "crates/iota-grpc-api",
   "crates/iota-upgrade-compatibility-transactional-tests",
   "crates/iota-verifier-transactional-tests",
   "crates/prometheus-closure-metric",
@@ -161,7 +162,6 @@ members = [
   "iota-execution/latest/iota-adapter",
   "iota-execution/latest/iota-move-natives",
   "iota-execution/latest/iota-verifier",
-  "iota-grpc-api",
 ]
 
 [workspace.package]
@@ -391,6 +391,7 @@ iota-graphql-config = { path = "crates/iota-graphql-config" }
 iota-graphql-rpc = { path = "crates/iota-graphql-rpc" }
 iota-graphql-rpc-client = { path = "crates/iota-graphql-rpc-client" }
 iota-graphql-rpc-headers = { path = "crates/iota-graphql-rpc-headers" }
+iota-grpc-api = { path = "crates/iota-grpc-api" }
 iota-http = { path = "crates/iota-http" }
 iota-indexer = { path = "crates/iota-indexer" }
 iota-indexer-builder = { path = "crates/iota-indexer-builder" }

@@ -9,6 +9,13 @@ tokio = { workspace = true, features = ["rt-multi-thread"] }
 prost.workspace = true
 tokio-stream.workspace = true
 futures.workspace = true
+iota-rest-api.workspace = true
+iota-types.workspace = true
+tracing.workspace = true
 
 [build-dependencies]
 tonic-build.workspace = true
+
+[dev-dependencies]
+move-core-types.workspace = true
+test-cluster.workspace = true

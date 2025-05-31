@@ -260,6 +260,9 @@ pub struct NodeConfig {
 
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub iota_names_config: Option<IotaNamesConfig>,
+
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub grpc_api_address: Option<String>,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]

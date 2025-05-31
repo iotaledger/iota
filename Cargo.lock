@@ -6289,11 +6289,16 @@ name = "iota-grpc-api"
 version = "0.1.0"
 dependencies = [
  "futures",
+ "iota-rest-api",
+ "iota-types",
+ "move-core-types",
  "prost",
+ "test-cluster",
  "tokio",
  "tokio-stream",
  "tonic 0.13.1",
  "tonic-build",
+ "tracing",
 ]
 
 [[package]]
@@ -6884,6 +6889,7 @@ dependencies = [
  "iota-common",
  "iota-config",
  "iota-core",
+ "iota-grpc-api",
  "iota-json-rpc",
  "iota-json-rpc-api",
  "iota-macros",
@@ -6905,6 +6911,7 @@ dependencies = [
  "tap",
  "telemetry-subscribers",
  "tokio",
+ "tonic 0.13.1",
  "tower 0.4.13",
  "tracing",
  "typed-store",

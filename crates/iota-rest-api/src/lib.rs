@@ -335,3 +335,57 @@ mod test {
         axum::serve(listener, router).await.unwrap();
     }
 }
+
+/// Public helper to stream checkpoints from a RestStateReader, similar to
+/// StateReader::checkpoint_iter.
+pub fn stream_checkpoints_public(
+    reader: Arc<dyn RestStateReader>,
+    direction: crate::Direction,
+    start: iota_types::messages_checkpoint::CheckpointSequenceNumber,
+) -> impl Iterator<
+    Item = iota_types::storage::error::Result<(
+        iota_types::messages_checkpoint::CertifiedCheckpointSummary,
+        iota_types::messages_checkpoint::CheckpointContents,
+    )>,
+> {
+    struct PublicCheckpointIter {
+        reader: Arc<dyn RestStateReader>,
+        direction: crate::Direction,
+        next_cursor: Option<iota_types::messages_checkpoint::CheckpointSequenceNumber>,
+    }
+    impl Iterator for PublicCheckpointIter {
+        type Item = iota_types::storage::error::Result<(
+            iota_types::messages_checkpoint::CertifiedCheckpointSummary,
+            iota_types::messages_checkpoint::CheckpointContents,
+        )>;
+        fn next(&mut self) -> Option<Self::Item> {
+            let current_checkpoint = self.next_cursor?;
+            let checkpoint = match self
+                .reader
+                .get_checkpoint_by_sequence_number(current_checkpoint)
+            {
+                Ok(Some(checkpoint)) => checkpoint,
+                Ok(None) => return None,
+                Err(e) => return Some(Err(e)),
+            };
+            let contents = match self
+                .reader
+                .get_checkpoint_contents_by_sequence_number(checkpoint.sequence_number)
+            {
+                Ok(Some(contents)) => contents,
+                Ok(None) => return None,
+                Err(e) => return Some(Err(e)),
+            };
+            self.next_cursor = match self.direction {
+                crate::Direction::Ascending => current_checkpoint.checked_add(1),
+                crate::Direction::Descending => current_checkpoint.checked_sub(1),
+            };
+            Some(Ok((checkpoint.into_inner(), contents)))
+        }
+    }
+    PublicCheckpointIter {
+        reader,
+        direction,
+        next_cursor: Some(start),
+    }
+}
