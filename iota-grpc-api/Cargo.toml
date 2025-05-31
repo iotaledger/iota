@@ -1,0 +1,14 @@
+[package]
+name = "iota-grpc-api"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+tonic.workspace = true
+tokio = { workspace = true, features = ["rt-multi-thread"] }
+prost.workspace = true
+tokio-stream.workspace = true
+futures.workspace = true
+
+[build-dependencies]
+tonic-build.workspace = true

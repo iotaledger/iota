@@ -6285,6 +6285,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "iota-grpc-api"
+version = "0.1.0"
+dependencies = [
+ "futures",
+ "prost",
+ "tokio",
+ "tokio-stream",
+ "tonic 0.13.1",
+ "tonic-build",
+]
+
+[[package]]
 name = "iota-http"
 version = "1.4.0-alpha"
 dependencies = [

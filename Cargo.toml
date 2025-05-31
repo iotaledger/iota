@@ -161,6 +161,7 @@ members = [
   "iota-execution/latest/iota-adapter",
   "iota-execution/latest/iota-move-natives",
   "iota-execution/latest/iota-verifier",
+  "iota-grpc-api",
 ]
 
 [workspace.package]
