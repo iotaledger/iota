@@ -36,6 +36,39 @@ The `StreamCheckpoints` method handles the following scenarios:
 | **Scope**            | Can fetch any checkpoint, full or summary        | **Only streams checkpoints**                     | Aligned (by requirement)  |
 | **Extensibility**    | Can add more REST endpoints if needed            | Only checkpoint streaming is implemented         | Aligned (by requirement)  |
 
+## Visual Comparison
+
+```mermaid
+flowchart LR
+    subgraph REST_API
+        A1["Indexer"] -- "HTTP GET /api/v1/checkpoints/{checkpoint}/full" --> B1["Node REST API"]
+        B1 -- "fetches from" --> C1["Node State"]
+        B1 -- "returns checkpoint data" --> A1
+    end
+    subgraph gRPC
+        A2["Indexer"] -- "gRPC connect" --> B2["Node gRPC API"]
+        B2 -- "streams checkpoints" --> A2
+        B2 -- "fetches from" --> C2["Node State"]
+    end
+```
+
+## Key Differences
+
+| Aspect                | REST API Flow                                 | gRPC Flow                                 |
+|-----------------------|-----------------------------------------------|-------------------------------------------|
+| **Server**            | Node REST API                                 | Node gRPC API                             |
+| **Client**            | Indexer (HTTP client)                         | Indexer (gRPC client)                     |
+| **Data Transfer**     | Polling (pull)                                | Streaming (push)                          |
+| **Protocol**          | HTTP/1.1 or HTTP/2, JSON/BCS                  | HTTP/2, Protocol Buffers (protobuf)       |
+| **Efficiency**        | Higher latency (polling interval)             | Lower latency (real-time streaming)       |
+| **Setup**             | `enable_rest_api = true` in node config       | `grpc_api_address` set in node config     |
+| **Integration Test**  | Yes (REST tests)                              | Yes (`grpc_ingestion.rs`, `grpc_blob_ingestion.rs`) |
+
+## In summary
+
+- **REST API:** Indexer pulls checkpoints from the node by polling HTTP endpoints.
+- **gRPC API:** Indexer receives checkpoints as a real-time stream from the node.
+
 ## Usage
 
 The `iota-grpc-api` crate defines the gRPC service and its messages. The `iota-node` crate integrates and starts this gRPC server if a `grpc_api_address` is configured.
@@ -86,7 +119,6 @@ Located in `crates/iota-grpc-api/tests/`:
   ```bash
   cargo test -p iota-grpc-api -- --nocapture --test-threads=1
   ```
-
 
 These tests ensure that the gRPC streaming API behaves as expected for all supported request patterns and edge cases. All downstream consumers are encouraged to run these tests when upgrading or integrating the gRPC API.
 
