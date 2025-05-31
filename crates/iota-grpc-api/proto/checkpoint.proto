@@ -17,5 +17,5 @@ message StreamRequest {
 
 message Checkpoint {
   uint64 index = 1;
-  string data = 2;
+  bytes data = 2;
 } 

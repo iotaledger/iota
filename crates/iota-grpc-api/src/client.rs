@@ -1,0 +1,34 @@
+// Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2025 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
+tonic::include_proto!("iota.grpc");
+
+use tonic::transport::Channel;
+
+use crate::checkpoint::checkpoint_service_client::CheckpointServiceClient;
+
+/// Shared gRPC client for checkpoint streaming.
+pub struct GrpcNodeClient {
+    client: CheckpointServiceClient<Channel>,
+}
+
+impl GrpcNodeClient {
+    pub async fn connect(url: &str) -> Result<Self, tonic::transport::Error> {
+        let client = CheckpointServiceClient::connect(url.to_string()).await?;
+        Ok(Self { client })
+    }
+
+    pub async fn stream_checkpoints(
+        &mut self,
+        start: u64,
+        end: Option<u64>,
+    ) -> Result<tonic::Streaming<crate::checkpoint::Checkpoint>, tonic::Status> {
+        let request = crate::checkpoint::StreamRequest {
+            start_index: Some(start),
+            end_index: end,
+        };
+        let response = self.client.stream_checkpoints(request).await?;
+        Ok(response.into_inner())
+    }
+}

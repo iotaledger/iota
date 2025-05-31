@@ -4,6 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+bcs.workspace = true
 futures.workspace = true
 iota-rest-api.workspace = true
 iota-types.workspace = true

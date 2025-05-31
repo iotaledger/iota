@@ -6,7 +6,7 @@ use std::{env, path::PathBuf};
 
 use anyhow::Result;
 use iota_data_ingestion::{
-    ArchivalConfig, ArchivalReducer, BlobTaskConfig, BlobWorker, HistoricalReducer,
+    ArchivalConfig, ArchivalReducer, BlobTaskConfig, BlobWorker, GrpcBlobWorker, HistoricalReducer,
     HistoricalWriterConfig, KVStoreTaskConfig, KVStoreWorker, RelayWorker, common,
 };
 use iota_data_ingestion_core::{
@@ -135,44 +135,63 @@ async fn main() -> Result<()> {
                 executor.register(worker_pool).await?;
             }
             Task::Blob(blob_config) => {
-                let rest_client = Client::new(&blob_config.node_rest_api_url);
-                let watermark = executor.read_watermark(task_config.name.clone()).await?;
-                let current_epoch = common::current_epoch(&rest_client).await?;
-                let current_epoch_first_checkpoint_seq_num =
-                    common::epoch_first_checkpoint_sequence_number(&rest_client, current_epoch)
-                        .await?;
-                // if watermark is less than the first checkpoint of current epoch
-                // is safe to assume that an epoch was changed.
-                let worker = if watermark < current_epoch_first_checkpoint_seq_num {
-                    // updating the watermark ensures that the worker will start synchronization
-                    // from that point onward.
-                    executor
-                        .update_watermark(
-                            task_config.name.clone(),
-                            current_epoch_first_checkpoint_seq_num,
+                if let Some(grpc_url) = blob_config.node_grpc_api_url.clone() {
+                    let remote_store = blob_config.object_store_config.make()?;
+                    // For demo, start from 0. In production, fetch current_epoch via gRPC if
+                    // needed.
+                    let current_epoch = 0u64;
+                    let worker = GrpcBlobWorker::new(
+                        remote_store,
+                        grpc_url,
+                        blob_config.checkpoint_chunk_size_mb,
+                        current_epoch,
+                    );
+                    let worker_pool = WorkerPool::new(
+                        worker,
+                        task_config.name,
+                        task_config.concurrency,
+                        Default::default(),
+                    );
+                    executor.register(worker_pool).await?;
+                } else {
+                    let rest_client = Client::new(&blob_config.node_rest_api_url);
+                    let watermark = executor.read_watermark(task_config.name.clone()).await?;
+                    let current_epoch = common::current_epoch(&rest_client).await?;
+                    let current_epoch_first_checkpoint_seq_num =
+                        common::epoch_first_checkpoint_sequence_number(&rest_client, current_epoch)
+                            .await?;
+                    // if watermark is less than the first checkpoint of current epoch
+                    // is safe to assume that an epoch was changed.
+                    let worker = if watermark < current_epoch_first_checkpoint_seq_num {
+                        // updating the watermark ensures that the worker will start synchronization
+                        // from that point onward.
+                        executor
+                            .update_watermark(
+                                task_config.name.clone(),
+                                current_epoch_first_checkpoint_seq_num,
+                            )
+                            .await?;
+                        // get the range from the first checkpoint of the watermark's epoch to the
+                        // watermark
+                        let reset_range = common::checkpoint_sequence_number_range_to_watermark(
+                            &rest_client,
+                            watermark,
                         )
                         .await?;
-                    // get the range from the first checkpoint of the watermark's epoch to the
-                    // watermark
-                    let reset_range = common::checkpoint_sequence_number_range_to_watermark(
-                        &rest_client,
-                        watermark,
-                    )
-                    .await?;
-                    let worker = BlobWorker::new(blob_config, rest_client, current_epoch)?;
-                    worker.reset_remote_store(reset_range).await?;
-                    worker
-                } else {
-                    BlobWorker::new(blob_config, rest_client, current_epoch)?
-                };
-
-                let worker_pool = WorkerPool::new(
-                    worker,
-                    task_config.name,
-                    task_config.concurrency,
-                    Default::default(),
-                );
-                executor.register(worker_pool).await?;
+                        let worker = BlobWorker::new(blob_config, rest_client, current_epoch)?;
+                        worker.reset_remote_store(reset_range).await?;
+                        worker
+                    } else {
+                        BlobWorker::new(blob_config, rest_client, current_epoch)?
+                    };
+                    let worker_pool = WorkerPool::new(
+                        worker,
+                        task_config.name,
+                        task_config.concurrency,
+                        Default::default(),
+                    );
+                    executor.register(worker_pool).await?;
+                }
             }
             Task::Kv(kv_config) => {
                 let worker_pool = WorkerPool::new(

@@ -40,6 +40,7 @@ pub struct BlobTaskConfig {
     #[serde(deserialize_with = "deserialize_chunk")]
     pub checkpoint_chunk_size_mb: u64,
     pub node_rest_api_url: String,
+    pub node_grpc_api_url: Option<String>,
 }
 
 fn deserialize_chunk<'de, D>(deserializer: D) -> Result<u64, D::Error>

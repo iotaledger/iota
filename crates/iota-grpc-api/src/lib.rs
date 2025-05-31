@@ -11,12 +11,14 @@ pub mod checkpoint {
     tonic::include_proto!("iota.grpc");
 }
 
+use bcs;
 use checkpoint::{Checkpoint, StreamRequest, checkpoint_service_server::CheckpointService};
 // In this PoC we use the public function from iota-rest-api to stream checkpoints.
 // In the real implementation we will move the stream_checkpoints_public function and the
 // associated logics to this crate.
 use iota_rest_api::{Direction, stream_checkpoints_public};
 use iota_types::{messages_checkpoint::CheckpointSequenceNumber, storage::RestStateReader};
+pub mod client;
 
 pub struct CheckpointGrpcService {
     pub state_reader: Arc<dyn RestStateReader>,
@@ -65,12 +67,27 @@ impl CheckpointService for CheckpointGrpcService {
                         .unwrap_or(false)
                 })
                 .filter_map(|res| match res {
-                    Ok((summary, _contents)) => {
-                        info!("Streaming checkpoint: {}", summary.sequence_number);
-                        Some(Ok(Checkpoint {
-                            index: summary.sequence_number,
-                            data: format!("{:?}", summary),
-                        }))
+                    Ok((certified_summary, contents)) => {
+                        info!(
+                            "Streaming checkpoint: {}",
+                            certified_summary.sequence_number
+                        );
+                        // Use the state_reader's get_checkpoint_data to get full CheckpointData
+                        match self.state_reader.get_checkpoint_data(
+                            iota_types::message_envelope::VerifiedEnvelope::new_unchecked(
+                                certified_summary.clone(),
+                            ),
+                            contents.clone(),
+                        ) {
+                            Ok(checkpoint_data) => Some(Ok(Checkpoint {
+                                index: certified_summary.sequence_number,
+                                data: bcs::to_bytes(&checkpoint_data).unwrap(),
+                            })),
+                            Err(e) => {
+                                info!("Error building checkpoint data: {:?}", e);
+                                None
+                            }
+                        }
                     }
                     Err(e) => {
                         info!("Error streaming checkpoint: {:?}", e);

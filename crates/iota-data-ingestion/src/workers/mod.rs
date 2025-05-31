@@ -4,6 +4,7 @@
 
 mod archival;
 mod blob;
+pub mod grpc_blob;
 mod historical;
 mod kv_store;
 mod relay;

@@ -21,9 +21,11 @@ diesel_migrations = "2.2.0"
 downcast = "0.11.0"
 fastcrypto = { workspace = true, features = ["copy_key"] }
 futures.workspace = true
+iota-grpc-api.workspace = true
 itertools.workspace = true
 jsonrpsee.workspace = true
 prometheus.workspace = true
+prost.workspace = true
 rayon.workspace = true
 regex.workspace = true
 secrecy = "0.8.0"
@@ -33,7 +35,9 @@ tap.workspace = true
 tempfile.workspace = true
 thiserror.workspace = true
 tokio = { workspace = true, features = ["full"] }
+tokio-stream.workspace = true
 tokio-util = { workspace = true, features = ["rt"] }
+tonic.workspace = true
 tracing.workspace = true
 url.workspace = true
 
@@ -83,3 +87,6 @@ path = "src/main.rs"
 
 [package.metadata.cargo-udeps.ignore]
 development = ["simulacrum"]
+
+[build-dependencies]
+tonic-build.workspace = true
