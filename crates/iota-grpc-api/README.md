@@ -69,6 +69,9 @@ flowchart LR
 - **REST API:** Indexer pulls checkpoints from the node by polling HTTP endpoints.
 - **gRPC API:** Indexer receives checkpoints as a real-time stream from the node.
 
+> **Note:**
+> The gRPC API supports streaming checkpoints, but DOES NOT provide endpoints for fetching metadata such as the current epoch or the first checkpoint sequence number of an epoch. Handling epoch boundaries or resets must be implemented by the client, if needed, by inspecting the streamed checkpoint data. See the modified `crates/iota-data-ingestions/src/main.rs` for more details.
+
 ## Usage
 
 The `iota-grpc-api` crate defines the gRPC service and its messages. The `iota-node` crate integrates and starts this gRPC server if a `grpc_api_address` is configured.
