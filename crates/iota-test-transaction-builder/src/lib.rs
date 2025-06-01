@@ -672,6 +672,22 @@ pub async fn publish_nfts_package(
     (package_id, gas_id, resp.digest)
 }
 
+pub async fn publish_simple_warrior_package(
+    context: &WalletContext,
+) -> (ObjectID, ObjectID, TransactionDigest) {
+    let (sender, gas_object) = context.get_one_gas_object().await.unwrap().unwrap();
+    let gas_id = gas_object.0;
+    let gas_price = context.get_reference_gas_price().await.unwrap();
+    let txn = context.sign_transaction(
+        &TestTransactionBuilder::new(sender, gas_object, gas_price)
+            .publish_examples("simple_warrior")
+            .build(),
+    );
+    let resp = context.execute_transaction_must_succeed(txn).await;
+    let package_id = get_new_package_obj_from_response(&resp).unwrap().0;
+    (package_id, gas_id, resp.digest)
+}
+
 /// Pre-requisite: `publish_nfts_package` must be called before this function.
 /// Executes a transaction to create an NFT and returns the sender address, the
 /// object id of the NFT, and the digest of the transaction.
