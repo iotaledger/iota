@@ -868,6 +868,12 @@ pub(crate) struct ValidatorScoreMetrics {
     // TO DO: discuss if commits/blocks referencing a syntactically invalid block should be
     // considered syntactically invalid, semantically invalid, or something else.
     pub(crate) syntactically_invalid_blocks: Arc<Vec<AtomicU64>>,
+    // Darcy: Adding the missing proposals metric to the scoring. The current implementation reads
+    // the history of blocks to determine all the missing proposals, but the current architecture
+    // register data per epoch, so we need to be careful when implementing the update function.
+    pub(crate) missing_block_proposals: Arc<Vec<AtomicU64>>,
+    // Darcy: Introducing equivocating rounds per authority.
+    pub(crate) equivocating_rounds: Arc<Vec<AtomicU64>>,
 }
 
 // TO DO: check if we need Default for something else, otherwise just merge
@@ -878,9 +884,15 @@ impl Default for ValidatorScoreMetrics {
         semantically_invalid_blocks_inner.resize_with(50, || AtomicU64::new(0));
         let mut syntactically_invalid_blocks_inner = vec![];
         syntactically_invalid_blocks_inner.resize_with(50, || AtomicU64::new(0));
+        let mut missing_block_proposals_inner = vec![];
+        syntactically_invalid_blocks_inner.resize_with(50, || AtomicU64::new(0));
+        let mut equivocating_rounds_inner = vec![];
+        syntactically_invalid_blocks_inner.resize_with(50, || AtomicU64::new(0));
         Self {
             semantically_invalid_blocks: Arc::new(semantically_invalid_blocks_inner),
             syntactically_invalid_blocks: Arc::new(syntactically_invalid_blocks_inner),
+            missing_block_proposals: Arc::new(missing_block_poposals_inner),
+            equivocating_rounds: Arc::new(equivocating_rounds_inner)
         }
     }
 }
@@ -909,7 +921,33 @@ impl ValidatorScoreMetrics {
         let _ = self.syntactically_invalid_blocks[validator.value()]
             .fetch_add(increase, Ordering::Relaxed);
     }
+     pub(crate) fn update_missing_block_proposals(
+        &self,
+        validator: AuthorityIndex,
+        increase: u64,
+    ) {
+        let _ = self.missing_block_proposals[validator.value()]
+            .fetch_add(increase, Ordering::Relaxed);
+    }
+    pub(crate) fn update_equivocating_rounds(
+        &self,
+        validator: AuthorityIndex,
+        increase: u64,
+    ) {
+        let _ = self.equivocating_rounds[validator.value()]
+            .fetch_add(increase, Ordering::Relaxed);
+    }
+    pub(crate) fn get_semantically_invalid_blocks(&self, validator: AuthorityIndex) -> u64 {
+        self.semantically_invalid_blocks[validator.value()].load(Ordering::Relaxed)
+    }
     pub(crate) fn get_syntactically_invalid_blocks(&self, validator: AuthorityIndex) -> u64 {
         self.syntactically_invalid_blocks[validator.value()].load(Ordering::Relaxed)
     }
+    pub(crate) fn get_missing_block_proposals(&self, validator: AuthorityIndex) -> u64 {
+        self.missing_block_proposals[validator.value()].load(Ordering::Relaxed)
+    }
+    pub(crate) fn get_equivocating_rounds(&self, validator: AuthorityIndex) -> u64 {
+        self.equivocating_rounds[validator.value()].load(Ordering::Relaxed)
+    }
+
 }
