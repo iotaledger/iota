@@ -1818,74 +1818,6 @@ fn get_chain_identifier_with_pruning_enabled() {
 }
 
 #[test]
-fn get_transaction_for_deleted_object() {
-    let ApiTestSetup {
-        runtime,
-        store,
-        client,
-        cluster,
-    } = ApiTestSetup::get_or_init();
-
-    runtime.block_on(async move {
-        indexer_wait_for_checkpoint(store, 1).await;
-
-        // Publish NFT package and create an NFT
-        let context = &cluster.wallet;
-        let (package_id, _, _) = publish_nfts_package(context).await;
-
-        let (sender, nft_object_id, tx_digest) = create_nft(context, package_id).await;
-
-        indexer_wait_for_transaction(tx_digest, store, client).await;
-
-        // Transfer the NFT to the sender's address to make the InputObject filter
-        // return a transfer and delete transaction.
-        cluster
-            .transfer_object(
-                sender,
-                sender,
-                nft_object_id,
-                context
-                    .get_one_gas_object_owned_by_address(sender)
-                    .await
-                    .unwrap()
-                    .unwrap()
-                    .0,
-                None,
-            )
-            .await
-            .unwrap();
-
-        // Retrieve the latest object reference (which includes version) for deletion.
-        let nft_object_ref = cluster.get_latest_object_ref(&nft_object_id).await;
-
-        // Delete the NFT
-        let delete_tx = delete_nft(context, sender, package_id, nft_object_ref).await;
-        indexer_wait_for_transaction(delete_tx.digest, store, client).await;
-
-        let res = client
-            .query_transaction_blocks(
-                IotaTransactionBlockResponseQuery {
-                    filter: Some(TransactionFilter::WrappedOrDeletedObject(nft_object_id)),
-                    options: Some(IotaTransactionBlockResponseOptions::full_content()),
-                },
-                None,
-                None,
-                None,
-            )
-            .await
-            .expect("RPC call should succeed");
-
-        // Check if delete_tx.digest is in the result
-        assert_eq!(res.data.len(), 1, "Expected 1 transactions");
-        assert_eq!(
-            res.data.first().unwrap().digest,
-            delete_tx.digest,
-            "Expected delete transaction to be found"
-        );
-    });
-}
-
-#[test]
 fn find_transaction_for_wrapped_or_deleted_object() -> Result<(), anyhow::Error> {
     let ApiTestSetup {
         runtime,
@@ -2136,6 +2068,89 @@ fn find_transaction_for_wrapped_or_deleted_object() -> Result<(), anyhow::Error>
 
         assert!(found_wrap, "expected wrap transaction to be found");
         assert!(found_unwrap_delete, "expected unwrap then delete transaction to be found");
+
+        // Delete the `Warrior` object
+        let warrior_object_ref = cluster.get_latest_object_ref(&warrior_object_ref.object_id).await;
+
+        let pt = {
+            let mut builder = ProgrammableTransactionBuilder::new();
+
+            let warrior_object_ref_arg = builder
+                .input(CallArg::Object(ObjectArg::ImmOrOwnedObject(
+                    warrior_object_ref
+                )))
+                .unwrap();
+
+            let _ = builder.programmable_move_call(
+                package_id,
+                Identifier::from_str("example")?,
+                Identifier::from_str("destroy_warrior")?,
+                vec![],
+                vec![warrior_object_ref_arg],
+            );
+
+            builder.finish()
+        };
+
+        let gas = cluster
+            .fund_address_and_return_gas(
+                cluster.get_reference_gas_price().await,
+                Some(500_000_000_000),
+                address,
+            )
+            .await;
+
+        let tx_builder = TestTransactionBuilder::new(address, gas, 1000);
+        let tx_data = tx_builder.programmable(pt).build();
+        let signed_transaction = to_sender_signed_transaction(tx_data, &keypair);
+        let delete_warrior_transaction_res = cluster
+            .wallet
+            .execute_transaction_must_succeed(signed_transaction)
+            .await;
+        indexer_wait_for_transaction(delete_warrior_transaction_res.digest, store, client).await;
+
+        // 9) Test transaction filter for deleted `Warrior` object
+        let deleted_objects = delete_warrior_transaction_res
+            .effects
+            .unwrap()
+            .deleted()
+            .into_iter()
+            .map(|deleted| deleted.object_id)
+            .collect::<Vec<_>>();
+
+        assert_eq!(
+            deleted_objects.len(),
+            1,
+            "expected exactly one deleted object after warrior deletion"
+        );
+
+        let query_res = client
+            .query_transaction_blocks(
+                IotaTransactionBlockResponseQuery {
+                    filter: Some(TransactionFilter::WrappedOrDeletedObject(
+                        deleted_objects[0],
+                    )),
+                    options: Some(IotaTransactionBlockResponseOptions::full_content()),
+                },
+                None,
+                None,
+                None,
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(
+            query_res.data.len(),
+            1,
+            "expected one transaction for the `delete warrior`"
+        );
+
+        // Check if the delete transaction is present
+        assert_eq!(
+            query_res.data.first().unwrap().digest,
+            delete_warrior_transaction_res.digest,
+            "expected delete transaction to be found"
+        );
 
         Ok(())
     })
