@@ -6,7 +6,7 @@ use std::sync::{Arc, Weak};
 
 use consensus_core::BlockRef;
 use iota_types::{
-    error::IotaResult,
+    error::{IotaError, IotaResult},
     messages_consensus::{ConsensusTransaction, ConsensusTransactionKind},
     transaction::VerifiedCertificate,
 };
@@ -103,7 +103,7 @@ impl MockConsensusClient {
         let transaction = &transactions[0];
         self.tx_sender
             .try_send(transaction.clone())
-            .expect("MockConsensusClient channel should not overflow");
+            .map_err(|_| IotaError::from("MockConsensusClient channel overflowed"))?;
         Ok(with_block_status(consensus_core::BlockStatus::Sequenced(
             BlockRef::MIN,
         )))
