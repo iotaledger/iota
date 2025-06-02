@@ -7,6 +7,7 @@ use std::sync::atomic::Ordering;
 use std::{
     collections::{BTreeSet, HashMap, HashSet},
     fmt,
+    future::Future,
     net::SocketAddr,
     path::PathBuf,
     str::FromStr,
@@ -22,7 +23,7 @@ use anemo_tower::{
 use anyhow::{Result, anyhow};
 use arc_swap::ArcSwap;
 use fastcrypto_zkp::bn254::zk_login::{JWK, JwkId, OIDCProvider};
-use futures::TryFutureExt;
+use futures::{TryFutureExt, future::BoxFuture};
 pub use handle::IotaNodeHandle;
 use iota_archival::{reader::ArchiveReaderBalancer, writer::ArchiveWriter};
 use iota_common::debug_fatal;
@@ -146,7 +147,7 @@ mod handle;
 pub mod metrics;
 
 pub struct ValidatorComponents {
-    validator_server_handle: JoinHandle<Result<()>>,
+    validator_server_handle: SpawnOnce,
     validator_server_cancel_handle: tokio::sync::oneshot::Sender<()>,
     validator_overload_monitor_handle: Option<JoinHandle<()>>,
     consensus_manager: ConsensusManager,
@@ -833,23 +834,28 @@ impl IotaNode {
             Arc::new(IotaNodeMetrics::new(&registry_service.default_registry()));
 
         let validator_components = if state.is_validator(&epoch_store) {
-            Self::reexecute_pending_consensus_certs(&epoch_store, &state).await;
-            let components = Self::construct_validator_components(
-                config.clone(),
-                state.clone(),
-                committee,
-                epoch_store.clone(),
-                checkpoint_store.clone(),
-                state_sync_handle.clone(),
-                randomness_handle.clone(),
-                Arc::downgrade(&accumulator),
-                connection_monitor_status.clone(),
-                &registry_service,
-                iota_node_metrics.clone(),
-            )
-            .await?;
-            // This is only needed during cold start.
+            let (components, _) = futures::join!(
+                Self::construct_validator_components(
+                    config.clone(),
+                    state.clone(),
+                    committee,
+                    epoch_store.clone(),
+                    checkpoint_store.clone(),
+                    state_sync_handle.clone(),
+                    randomness_handle.clone(),
+                    Arc::downgrade(&accumulator),
+                    connection_monitor_status.clone(),
+                    &registry_service,
+                    iota_node_metrics.clone(),
+                ),
+                Self::reexecute_pending_consensus_certs(&epoch_store, &state,)
+            );
+            let mut components = components?;
+
             components.consensus_adapter.submit_recovered(&epoch_store);
+
+            // Start the gRPC server
+            components.validator_server_handle = components.validator_server_handle.start();
 
             Some(components)
         } else {
@@ -1315,7 +1321,7 @@ impl IotaNode {
         consensus_manager: ConsensusManager,
         consensus_store_pruner: ConsensusStorePruner,
         accumulator: Weak<StateAccumulator>,
-        validator_server_handle: JoinHandle<Result<()>>,
+        validator_server_handle: SpawnOnce,
         validator_server_cancel_handle: tokio::sync::oneshot::Sender<()>,
         validator_overload_monitor_handle: Option<JoinHandle<()>>,
         checkpoint_metrics: Arc<CheckpointMetrics>,
@@ -1485,10 +1491,7 @@ impl IotaNode {
         state: Arc<AuthorityState>,
         consensus_adapter: Arc<ConsensusAdapter>,
         prometheus_registry: &Registry,
-    ) -> Result<(
-        tokio::task::JoinHandle<Result<()>>,
-        tokio::sync::oneshot::Sender<()>,
-    )> {
+    ) -> Result<(SpawnOnce, tokio::sync::oneshot::Sender<()>)> {
         let validator_service = ValidatorService::new(
             state.clone(),
             consensus_adapter,
@@ -1515,9 +1518,11 @@ impl IotaNode {
             .expect("GRPC server should still have a cancel handle");
         let local_addr = server.local_addr();
         info!("Listening to traffic on {local_addr}");
-        let grpc_server = spawn_monitored_task!(server.serve().map_err(Into::into));
 
-        Ok((grpc_server, cancel_handle))
+        Ok((
+            SpawnOnce::new(server.serve().map_err(Into::into)),
+            cancel_handle,
+        ))
     }
 
     async fn reexecute_pending_consensus_certs(
@@ -1883,22 +1888,24 @@ impl IotaNode {
                 if self.state.is_validator(&new_epoch_store) {
                     info!("Promoting the node from fullnode to validator, starting grpc server");
 
-                    Some(
-                        Self::construct_validator_components(
-                            self.config.clone(),
-                            self.state.clone(),
-                            Arc::new(next_epoch_committee.clone()),
-                            new_epoch_store.clone(),
-                            self.checkpoint_store.clone(),
-                            self.state_sync_handle.clone(),
-                            self.randomness_handle.clone(),
-                            weak_accumulator,
-                            self.connection_monitor_status.clone(),
-                            &self.registry_service,
-                            self.metrics.clone(),
-                        )
-                        .await?,
+                    let mut components = Self::construct_validator_components(
+                        self.config.clone(),
+                        self.state.clone(),
+                        Arc::new(next_epoch_committee.clone()),
+                        new_epoch_store.clone(),
+                        self.checkpoint_store.clone(),
+                        self.state_sync_handle.clone(),
+                        self.randomness_handle.clone(),
+                        weak_accumulator,
+                        self.connection_monitor_status.clone(),
+                        &self.registry_service,
+                        self.metrics.clone(),
                     )
+                    .await?;
+
+                    components.validator_server_handle = components.validator_server_handle.start();
+
+                    Some(components)
                 } else {
                     None
                 }
@@ -2052,6 +2059,30 @@ impl IotaNode {
         provider: &OIDCProvider,
     ) -> IotaResult<Vec<(JwkId, JWK)>> {
         get_jwk_injector()(authority, provider)
+    }
+}
+
+enum SpawnOnce {
+    // Mutex is only needed to make SpawnOnce Send
+    Unstarted(Mutex<BoxFuture<'static, Result<()>>>),
+    #[allow(unused)]
+    Started(JoinHandle<Result<()>>),
+}
+
+impl SpawnOnce {
+    pub fn new(future: impl Future<Output = Result<()>> + Send + 'static) -> Self {
+        Self::Unstarted(Mutex::new(Box::pin(future)))
+    }
+
+    pub fn start(self) -> Self {
+        match self {
+            Self::Unstarted(future) => {
+                let future = future.into_inner();
+                let handle = tokio::spawn(future);
+                Self::Started(handle)
+            }
+            Self::Started(_) => self,
+        }
     }
 }
 
