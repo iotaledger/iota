@@ -41,11 +41,11 @@ message Checkpoint {
 ### Streaming Range Logic
 
 - **Both `start_index` and `end_index` omitted:**
-  - Streams from 0 to the maximum possible checkpoint index (streams all available).
+  - Streams the latest checkpoint and keep streaming.
 - **Only `start_index` provided:**
-  - Streams from `start_index` to the maximum possible checkpoint index.
+  - Streams from `start_index` and keep streaming.
 - **Only `end_index` provided:**
-  - Streams from 0 to `end_index`.
+  - Streams only the checkpoint at `end_index`.
 - **Both `start_index` and `end_index` provided:**
   - Streams from `start_index` to `end_index` (inclusive).
 
