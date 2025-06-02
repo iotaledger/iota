@@ -46,6 +46,7 @@ iota-json-rpc-api.workspace = true
 iota-json-rpc-types.workspace = true
 iota-mainnet-unlocks.workspace = true
 iota-metrics.workspace = true
+iota-names.workspace = true
 iota-open-rpc.workspace = true
 iota-package-resolver.workspace = true
 iota-protocol-config.workspace = true
@@ -64,6 +65,7 @@ shared_test_runtime = []
 
 [dev-dependencies]
 # external dependencies
+hex.workspace = true
 serde_json.workspace = true
 
 # internal dependencies

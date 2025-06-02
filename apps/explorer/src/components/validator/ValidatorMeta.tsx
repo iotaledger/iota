@@ -5,8 +5,9 @@ import { Badge, BadgeType, KeyValueInfo, Panel } from '@iota/apps-ui-kit';
 import { type IotaValidatorSummary } from '@iota/iota-sdk/client';
 import { ArrowTopRight } from '@iota/apps-ui-icons';
 import { AddressLink } from '~/components/ui';
-import { ImageIcon, ImageIconSize, toast } from '@iota/core';
-import type { InactiveValidatorData } from '~/pages/validator/ValidatorDetails';
+import { ImageIcon, ImageIconSize } from '@iota/core';
+import type { InactiveValidatorData } from '@iota/core/src/types';
+import { onCopySuccess } from '~/lib/utils';
 
 type ValidatorMetaProps = {
     validatorData: IotaValidatorSummary;
@@ -14,8 +15,8 @@ type ValidatorMetaProps = {
 
 export function InactiveValidators({
     validatorData: {
-        logo,
-        validatorName,
+        imageUrl,
+        name,
         description,
         projectUrl,
         validatorPublicKey,
@@ -25,9 +26,6 @@ export function InactiveValidators({
 }: {
     validatorData: InactiveValidatorData;
 }): JSX.Element {
-    function handleOnCopy() {
-        toast('Copied to clipboard');
-    }
     return (
         <div className="flex flex-col gap-y-md">
             <Panel>
@@ -35,9 +33,9 @@ export function InactiveValidators({
                     <div className="flex flex-row gap-lg">
                         <div className="flex h-[120px] w-[120px]">
                             <ImageIcon
-                                src={logo}
-                                label={validatorName}
-                                fallback={validatorName}
+                                src={imageUrl}
+                                label={name}
+                                fallback={name}
                                 size={ImageIconSize.Full}
                             />
                         </div>
@@ -46,7 +44,7 @@ export function InactiveValidators({
                                 <Badge type={BadgeType.Neutral} label="Validator" />
                             </div>
                             <div className="flex flex-row items-center gap-x-xs text-neutral-10 dark:text-neutral-92">
-                                <span className="text-headline-md">{validatorName}</span>
+                                <span className="text-headline-md">{name}</span>
                                 {projectUrl && (
                                     <a href={projectUrl} target="_blank" rel="noreferrer noopener">
                                         <ArrowTopRight />
@@ -55,7 +53,7 @@ export function InactiveValidators({
                             </div>
                         </div>
                     </div>
-                    <div className="flex w-1/2 flex-col gap-y-md">
+                    <div className="flex w-full flex-col gap-y-md md:w-1/2">
                         <span className="text-label-lg text-neutral-40 dark:text-neutral-60">
                             Description
                         </span>
@@ -71,18 +69,19 @@ export function InactiveValidators({
                         keyText="Pool ID"
                         value={validatorStakingPoolId}
                         copyText={validatorStakingPoolId}
-                        onCopySuccess={handleOnCopy}
+                        onCopySuccess={onCopySuccess}
                     />
                     <KeyValueInfo
                         keyText="Address"
                         value={<AddressLink address={validatorAddress} label={validatorAddress} />}
                         copyText={validatorAddress}
-                        onCopySuccess={handleOnCopy}
+                        onCopySuccess={onCopySuccess}
                     />
                     <KeyValueInfo
                         keyText="Public Key"
                         value={validatorPublicKey}
                         copyText={validatorPublicKey}
+                        onCopySuccess={onCopySuccess}
                     />
                 </div>
             </Panel>
@@ -96,10 +95,6 @@ export function ValidatorMeta({ validatorData }: ValidatorMetaProps): JSX.Elemen
     const logo = validatorData.imageUrl;
     const description = validatorData.description;
     const projectUrl = validatorData.projectUrl;
-
-    function handleOnCopy() {
-        toast('Copied to clipboard');
-    }
 
     return (
         <div className="flex flex-col gap-y-md">
@@ -128,7 +123,7 @@ export function ValidatorMeta({ validatorData }: ValidatorMetaProps): JSX.Elemen
                             </div>
                         </div>
                     </div>
-                    <div className="flex w-1/2 flex-col gap-y-md">
+                    <div className="flex w-full flex-col gap-y-md md:w-1/2">
                         <span className="text-label-lg text-neutral-40 dark:text-neutral-60">
                             Description
                         </span>
@@ -144,7 +139,7 @@ export function ValidatorMeta({ validatorData }: ValidatorMetaProps): JSX.Elemen
                         keyText="Pool ID"
                         value={validatorData.stakingPoolId}
                         copyText={validatorData.stakingPoolId}
-                        onCopySuccess={handleOnCopy}
+                        onCopySuccess={onCopySuccess}
                     />
                     <KeyValueInfo
                         keyText="Address"
@@ -155,7 +150,7 @@ export function ValidatorMeta({ validatorData }: ValidatorMetaProps): JSX.Elemen
                             />
                         }
                         copyText={validatorData.iotaAddress}
-                        onCopySuccess={handleOnCopy}
+                        onCopySuccess={onCopySuccess}
                     />
                     <KeyValueInfo
                         keyText="Public Key"

@@ -1,7 +1,7 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { PropsWithChildren } from 'react';
+import type { PropsWithChildren } from 'react';
 import cx from 'classnames';
 import { TooltipPosition } from './tooltip.enums';
 import { TOOLTIP_POSITION } from './tooltip.classes';
@@ -20,11 +20,11 @@ export function Tooltip({
 }: PropsWithChildren<TooltipProps>): React.JSX.Element {
     const tooltipPositionClass = TOOLTIP_POSITION[position];
     return (
-        <div className="group relative inline-block">
+        <div className="group/tooltip relative inline-block">
             {children}
             <div
                 className={cx(
-                    'absolute z-[999] hidden w-max rounded bg-neutral-80 p-xs text-neutral-10 opacity-0 transition-opacity duration-300 group-hover:block group-hover:opacity-100 group-focus:opacity-100 dark:bg-neutral-30 dark:text-neutral-92',
+                    'absolute z-[999] hidden w-max rounded bg-neutral-80 p-xs text-neutral-10 opacity-0 transition-opacity duration-300 group-hover/tooltip:block group-hover/tooltip:opacity-100 group-focus/tooltip:opacity-100 dark:bg-neutral-30 dark:text-neutral-92',
                     tooltipPositionClass,
                     maxWidth,
                 )}

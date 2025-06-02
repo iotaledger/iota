@@ -3,3 +3,4 @@
 
 export * from './ViewTxnOnExplorerButton';
 export * from './ThemeSwitcher';
+export * from './OutlinedCopyButton';

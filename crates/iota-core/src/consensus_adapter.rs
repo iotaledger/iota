@@ -193,60 +193,6 @@ impl ConsensusAdapterMetrics {
     pub fn new_test() -> Self {
         Self::new(&Registry::default())
     }
-
-    pub fn unregister(&self, registry: &Registry) {
-        registry
-            .unregister(Box::new(self.sequencing_certificate_attempt.clone()))
-            .expect("sequencing_certificate_attempt is in registry");
-        registry
-            .unregister(Box::new(self.sequencing_certificate_success.clone()))
-            .expect("sequencing_certificate_success is in registry");
-        registry
-            .unregister(Box::new(self.sequencing_certificate_failures.clone()))
-            .expect("sequencing_certificate_failures is in registry");
-        registry
-            .unregister(Box::new(self.sequencing_certificate_status.clone()))
-            .expect("sequencing_certificate_status is in registry");
-        registry
-            .unregister(Box::new(self.sequencing_certificate_inflight.clone()))
-            .expect("sequencing_certificate_inflight is in registry");
-        registry
-            .unregister(Box::new(self.sequencing_acknowledge_latency.clone()))
-            .expect("sequencing_acknowledge_latency is in registry");
-        registry
-            .unregister(Box::new(self.sequencing_certificate_latency.clone()))
-            .expect("sequencing_certificate_latency is in registry");
-        registry
-            .unregister(Box::new(
-                self.sequencing_certificate_authority_position.clone(),
-            ))
-            .expect("sequencing_certificate_authority_position is in registry");
-        registry
-            .unregister(Box::new(
-                self.sequencing_certificate_positions_moved.clone(),
-            ))
-            .expect("sequencing_certificate_positions_moved is in registry");
-        registry
-            .unregister(Box::new(
-                self.sequencing_certificate_preceding_disconnected.clone(),
-            ))
-            .expect("sequencing_certificate_preceding_disconnected is in registry");
-        registry
-            .unregister(Box::new(self.sequencing_certificate_processed.clone()))
-            .expect("sequencing_certificate_processed is in registry");
-        registry
-            .unregister(Box::new(self.sequencing_in_flight_semaphore_wait.clone()))
-            .expect("sequencing_in_flight_semaphore_wait is in registry");
-        registry
-            .unregister(Box::new(self.sequencing_in_flight_submissions.clone()))
-            .expect("sequencing_in_flight_submissions is in registry");
-        registry
-            .unregister(Box::new(self.sequencing_estimated_latency.clone()))
-            .expect("sequencing_estimated_latency is in registry");
-        registry
-            .unregister(Box::new(self.sequencing_resubmission_interval_ms.clone()))
-            .expect("sequencing_resubmission_interval_ms is in registry");
-    }
 }
 
 pub type BlockStatusReceiver = oneshot::Receiver<BlockStatus>;
@@ -396,10 +342,6 @@ impl ConsensusAdapter {
             }
             self.submit_unchecked(&[transaction], epoch_store);
         }
-    }
-
-    pub fn unregister_consensus_adapter_metrics(&self, registry: &Registry) {
-        self.metrics.unregister(registry);
     }
 
     fn await_submit_delay(
@@ -1302,7 +1244,6 @@ mod adapter_tests {
         committee::Committee,
         crypto::{AuthorityKeyPair, AuthorityPublicKeyBytes, get_key_pair_from_rng},
     };
-    use prometheus::Registry;
     use rand::{Rng, SeedableRng, rngs::StdRng};
 
     use super::position_submit_certificate;
@@ -1411,56 +1352,5 @@ mod adapter_tests {
             }
             assert!(zero_found);
         }
-    }
-
-    #[tokio::test]
-    #[should_panic]
-    async fn test_reregister_consensus_adapter_metrics() {
-        let registry = Registry::new();
-        // create metric the first time
-        let _metrics = ConsensusAdapterMetrics::new(&registry);
-        // create a new metric in the same registry without unregistering
-        // should panic
-        let _metrics = ConsensusAdapterMetrics::new(&registry);
-    }
-
-    #[tokio::test]
-    async fn test_unregister_consensus_adapter_metrics() {
-        let registry = Registry::new();
-
-        // create metric the first time
-        let metrics = ConsensusAdapterMetrics::new(&registry);
-        // use metric
-        metrics
-            .sequencing_certificate_attempt
-            .with_label_values(&["tx"])
-            .inc_by(1);
-        assert_eq!(
-            1,
-            metrics
-                .sequencing_certificate_attempt
-                .with_label_values(&["tx"])
-                .get()
-        );
-        // should not panic
-        metrics.unregister(&registry);
-        // metric can safely be used unregistered
-        metrics
-            .sequencing_certificate_attempt
-            .with_label_values(&["tx"])
-            .inc_by(1);
-
-        // create a new metric in the same registry
-        let metrics = ConsensusAdapterMetrics::new(&registry);
-        // it's fresh
-        assert_eq!(
-            0,
-            metrics
-                .sequencing_certificate_attempt
-                .with_label_values(&["tx"])
-                .get()
-        );
-        // and can be unregistered
-        metrics.unregister(&registry);
     }
 }

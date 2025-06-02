@@ -8,16 +8,18 @@
 #[path = "../utils.rs"]
 mod utils;
 
-use iota_json_rpc_api::GovernanceReadApiClient;
-use iota_json_rpc_types::{IotaObjectDataFilter, IotaObjectDataOptions, IotaObjectResponseQuery};
 use iota_keys::keystore::{AccountKeystore, FileBasedKeystore, Keystore};
 use iota_sdk::{
     IotaClientBuilder,
-    rpc_types::IotaTransactionBlockResponseOptions,
-    types::{quorum_driver_types::ExecuteTransactionRequestType, transaction::Transaction},
-};
-use iota_types::{
-    crypto::SignatureScheme, iota_system_state::iota_system_state_summary::IotaSystemStateSummary,
+    rpc_types::{
+        IotaObjectDataFilter, IotaObjectDataOptions, IotaObjectResponseQuery,
+        IotaTransactionBlockResponseOptions,
+    },
+    types::{
+        crypto::SignatureScheme,
+        iota_system_state::iota_system_state_summary::IotaSystemStateSummary,
+        quorum_driver_types::ExecuteTransactionRequestType, transaction::Transaction,
+    },
 };
 use shared_crypto::intent::Intent;
 use utils::request_tokens_from_faucet;
@@ -115,7 +117,10 @@ async fn main() -> Result<(), anyhow::Error> {
     tokio::time::sleep(std::time::Duration::from_secs(3)).await;
 
     // Check DelegatedTimelockedStake object
-    let staked_iota = client.http().get_timelocked_stakes(address).await?;
+    let staked_iota = client
+        .governance_api()
+        .get_timelocked_stakes(address)
+        .await?;
     println!("Staked: {staked_iota:?}\n\n");
 
     // Unstake timelocked IOTA, if staking for longer than 1 epoch already
@@ -171,7 +176,10 @@ async fn main() -> Result<(), anyhow::Error> {
         tokio::time::sleep(std::time::Duration::from_secs(3)).await;
 
         // Check DelegatedTimelockedStake object
-        let staked_iota = client.http().get_timelocked_stakes(address).await?;
+        let staked_iota = client
+            .governance_api()
+            .get_timelocked_stakes(address)
+            .await?;
         println!("Staked: {staked_iota:?}");
     } else {
         println!("No stake found that can be unlocked (must be staked >= 1 epoch)")

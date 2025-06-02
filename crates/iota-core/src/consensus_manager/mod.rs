@@ -97,11 +97,10 @@ impl ConsensusManager {
         node_config: &NodeConfig,
         consensus_config: &ConsensusConfig,
         registry_service: &RegistryService,
+        metrics_registry: &Registry,
         consensus_client: Arc<UpdatableConsensusClient>,
     ) -> Self {
-        let metrics = Arc::new(ConsensusManagerMetrics::new(
-            &registry_service.default_registry(),
-        ));
+        let metrics = Arc::new(ConsensusManagerMetrics::new(metrics_registry));
         let mysticeti_client = Arc::new(LazyMysticetiClient::new());
         let mysticeti_manager = ProtocolManager::new_mysticeti(
             node_config,

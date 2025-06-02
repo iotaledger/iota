@@ -56,6 +56,7 @@ export function AccountsFinderView(): JSX.Element {
     const [isPasswordModalVisible, setPasswordModalVisible] = useState(false);
     const [searchPhase, setSearchPhase] = useState<SearchPhase>(SearchPhase.Ready);
     const [isConnectLedgerModalOpen, setConnectLedgerModalOpen] = useState(false);
+    const [totalCheckedAddresses, setTotalCheckedAddresses] = useState(1);
     const ledgerIotaClient = useIotaLedgerClient();
     const unlockAccountSourceMutation = useUnlockMutation();
     const sourceStrategy: SourceStrategyToFind = useMemo(
@@ -74,6 +75,9 @@ export function AccountsFinderView(): JSX.Element {
     const { find } = useAccountsFinder({
         accountSourceType,
         sourceStrategy,
+        onDerivationPathChecked: ({ totalCheckedAddresses }) => {
+            setTotalCheckedAddresses(totalCheckedAddresses);
+        },
     });
 
     function unlockLedger() {
@@ -108,12 +112,12 @@ export function AccountsFinderView(): JSX.Element {
         }
         if (searchPhase === SearchPhase.Ongoing) {
             return {
-                text: '',
+                text: 'Searching',
                 icon: <LoadingIndicator />,
             };
         }
         return {
-            text: 'Search again',
+            text: 'Keep searching',
             icon: <Search className="h-4 w-4" />,
         };
     })();
@@ -141,6 +145,8 @@ export function AccountsFinderView(): JSX.Element {
     }
     const groupedAccounts = persistedAccounts && groupAccountsByAccountIndex(persistedAccounts);
 
+    const findingResultText = `Scanned ${totalCheckedAddresses} addresses`;
+
     return (
         <>
             <div className="flex h-full flex-col justify-between">
@@ -156,42 +162,45 @@ export function AccountsFinderView(): JSX.Element {
                     })}
                 </div>
                 <div className="flex flex-col gap-xs pt-sm">
-                    {isLedgerLocked ? (
-                        <Button
-                            type={ButtonType.Secondary}
-                            text="Unlock Ledger"
-                            onClick={unlockLedger}
-                            fullWidth
-                        />
-                    ) : isLocked ? (
-                        <Button
-                            type={ButtonType.Secondary}
-                            text="Verify password"
-                            onClick={verifyPassword}
-                            fullWidth
-                        />
-                    ) : (
-                        <>
+                    {(searchOptions.text === 'Keep searching' || isSearchOngoing) && (
+                        <span className="text-center text-neutral-40 dark:text-neutral-60">
+                            {findingResultText}
+                        </span>
+                    )}
+                    <div className="flex flex-row gap-xs">
+                        {isLedgerLocked ? (
                             <Button
                                 type={ButtonType.Secondary}
-                                text={searchOptions.text}
-                                icon={searchOptions.icon}
-                                iconAfterText
-                                onClick={runAccountsFinder}
-                                disabled={isSearchOngoing}
+                                text="Unlock Ledger"
+                                onClick={unlockLedger}
                                 fullWidth
                             />
-
-                            <div className="flex flex-row gap-xs">
+                        ) : isLocked ? (
+                            <Button
+                                type={ButtonType.Secondary}
+                                text="Verify password"
+                                onClick={verifyPassword}
+                                fullWidth
+                            />
+                        ) : (
+                            <>
                                 <Button
                                     text="Finish"
-                                    disabled={isSearchOngoing}
+                                    type={ButtonType.Secondary}
                                     fullWidth
                                     onClick={() => navigate('/tokens')}
                                 />
-                            </div>
-                        </>
-                    )}
+                                <Button
+                                    text={searchOptions.text}
+                                    icon={searchOptions.icon}
+                                    iconAfterText
+                                    onClick={runAccountsFinder}
+                                    disabled={isSearchOngoing}
+                                    fullWidth
+                                />
+                            </>
+                        )}
+                    </div>
                 </div>
             </div>
             {isPasswordModalVisible ? (

@@ -1,5 +1,30 @@
 # @iota/apps-ui-kit
 
+## 0.5.1
+
+### Patch Changes
+
+-   0524b61: add Tooltip to Badge in Account component
+-   a6d0c82: Add eslint config. Resolve eslint errors/warnings.
+-   a756bbc: add copy button to DisplayStats component
+-   9d01a25: Fix dialog to prevent closing popup when closing a toast
+-   0edfd4e: Update dependencies.
+-   be15d98: Update imports to avoid cycle dependencies
+
+## 0.5.0
+
+### Minor Changes
+
+-   a4b46bc: add more badge types
+
+### Patch Changes
+
+-   6d274df: make renderSuggestion prop optional in Search component
+-   976e7f8: Add heightFull configuration props to Table component
+-   bb45cb5: Add new type for CardImage component
+-   Updated dependencies [a4b46bc]
+    -   @iota/apps-ui-icons@0.3.0
+
 ## 0.4.0
 
 ### Minor Changes

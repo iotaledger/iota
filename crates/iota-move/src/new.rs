@@ -12,7 +12,7 @@ const IOTA_PKG_NAME: &str = "Iota";
 
 // Use testnet by default. Probably want to add options to make this
 // configurable later
-const IOTA_PKG_PATH: &str = "{ git = \"https://github.com/iotaledger/iota.git\", subdir = \"crates/iota-framework/packages/iota-framework\", rev = \"testnet\" }";
+const IOTA_PKG_PATH: &str = "{ git = \"https://github.com/iotaledger/iota.git\", subdir = \"crates/iota-framework/packages/iota-framework\", rev = \"testnet\", override = true }";
 
 #[derive(Parser)]
 #[group(id = "iota-move-new")]

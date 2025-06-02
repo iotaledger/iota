@@ -11,6 +11,7 @@ import {
     useGetValidatorsApy,
     useGetValidatorsEvents,
     useMultiGetObjects,
+    useMaxCommitteeSize,
 } from '@iota/core';
 import {
     Badge,
@@ -36,6 +37,12 @@ import { IOTA_TYPE_ARG, normalizeIotaAddress } from '@iota/iota-sdk/utils';
 
 function ValidatorPageResult(): JSX.Element {
     const { data, isPending, isSuccess, isError } = useIotaClientQuery('getLatestIotaSystemState');
+    const {
+        data: maxCommitteeSize,
+        isPending: isMaxCommitteeSizePending,
+        isSuccess: isMaxCommitteeSizeSuccess,
+        isError: isMaxCommitteeSizeError,
+    } = useMaxCommitteeSize();
     const activeValidators = data?.activeValidators;
     const numberOfValidators = activeValidators?.length || 0;
 
@@ -51,6 +58,7 @@ function ValidatorPageResult(): JSX.Element {
     const { data: pendingActiveValidatorsId } = useGetDynamicFields(
         data?.pendingActiveValidatorsId || '',
     );
+
     const pendingValidatorsObjectIdsData = pendingActiveValidatorsId?.pages[0]?.data || [];
     const pendingValidatorsObjectIds = pendingValidatorsObjectIdsData.map((item) => item.objectId);
     const normalizedIds = pendingValidatorsObjectIds.map((id) => normalizeIotaAddress(id));
@@ -60,7 +68,7 @@ function ValidatorPageResult(): JSX.Element {
         showContent: true,
     });
 
-    const sanitizePendingValidatorsData = sanitizePendingValidators(pendingValidatorsData);
+    const sanitizedPendingValidatorsData = sanitizePendingValidators(pendingValidatorsData);
 
     const { data: validatorsApy } = useGetValidatorsApy();
     const { data: totalSupplyData } = useIotaClientQuery('getTotalSupply', {
@@ -121,34 +129,40 @@ function ValidatorPageResult(): JSX.Element {
         return formatPercentageDisplay(ratio);
     })();
 
-    const tableData = data
+    const activeAndPendingValidators = data
         ? Number(data.pendingActiveValidatorsSize) > 0
-            ? activeValidators?.concat(sanitizePendingValidatorsData)
+            ? activeValidators?.concat(sanitizedPendingValidatorsData)
             : activeValidators
         : [];
 
     const tableColumns = useMemo(() => {
-        if (!data || !validatorEvents) return null;
+        if (!data || !maxCommitteeSize || !validatorEvents) return null;
         const includeColumns = [
             'Name',
             'Stake',
             'APY',
             'Commission',
+            'Next Epoch Commission',
+            'Next Epoch Stake',
             'Last Epoch Rewards',
             'Voting Power',
             'Status',
+            'Current Epoch Rewards',
+            'Next Epoch Rewards',
         ];
 
         return generateValidatorsTableColumns({
+            allValidators: activeAndPendingValidators,
             committeeMembers: data.committeeMembers.map((validator) => validator.iotaAddress),
             atRiskValidators: data.atRiskValidators,
+            maxCommitteeSize,
             validatorEvents,
             rollingAverageApys: validatorsApy,
             highlightValidatorName: true,
             includeColumns,
             currentEpoch: data.epoch,
         });
-    }, [data, validatorEvents, validatorsApy]);
+    }, [data, activeAndPendingValidators, validatorEvents, validatorsApy, maxCommitteeSize]);
 
     const [formattedTotalStakedAmount, totalStakedSymbol] = useFormatCoin({ balance: totalStaked });
     const [formattedlastEpochRewardOnAllValidatorsAmount, lastEpochRewardOnAllValidatorsSymbol] =
@@ -195,7 +209,7 @@ function ValidatorPageResult(): JSX.Element {
     return (
         <PageLayout
             content={
-                isError || validatorEventError ? (
+                isError || isMaxCommitteeSizeError || validatorEventError ? (
                     <InfoBox
                         title="Failed to load data"
                         supportingText="Validator data could not be loaded"
@@ -205,7 +219,7 @@ function ValidatorPageResult(): JSX.Element {
                     />
                 ) : (
                     <div className="flex w-full flex-col gap-xl">
-                        <div className="py-md--rs text-display-sm text-neutral-10 dark:text-neutral-92">
+                        <div className="pt-md--rs text-display-sm text-neutral-10 dark:text-neutral-92">
                             Validators
                         </div>
                         <div className="flex w-full flex-col gap-md--rs md:h-40 md:flex-row">
@@ -236,24 +250,40 @@ function ValidatorPageResult(): JSX.Element {
                             />
                             <div className="p-md">
                                 <ErrorBoundary>
-                                    {(isPending || validatorsEventsLoading) && (
+                                    {(isPending ||
+                                        isMaxCommitteeSizePending ||
+                                        validatorsEventsLoading) && (
                                         <PlaceholderTable
                                             rowCount={20}
                                             rowHeight="13px"
-                                            colHeadings={['Name', 'Address', 'Stake']}
-                                        />
-                                    )}
-                                    {isSuccess && tableData && tableColumns && (
-                                        <TableCard
-                                            sortTable
-                                            defaultSorting={[
-                                                { id: 'stakingPoolIotaBalance', desc: true },
+                                            colHeadings={[
+                                                'Name',
+                                                'Stake',
+                                                'APY',
+                                                'Commission',
+                                                'Last Epoch Rewards',
+                                                'Next Epoch Stake',
+                                                'Voting Power',
+                                                'Status',
+                                                'Current Epoch Rewards',
+                                                'Next Epoch Rewards',
                                             ]}
-                                            data={tableData}
-                                            columns={tableColumns}
-                                            areHeadersCentered={false}
                                         />
                                     )}
+                                    {isSuccess &&
+                                        isMaxCommitteeSizeSuccess &&
+                                        activeAndPendingValidators &&
+                                        tableColumns && (
+                                            <TableCard
+                                                sortTable
+                                                defaultSorting={[
+                                                    { id: 'stakingPoolIotaBalance', desc: true },
+                                                ]}
+                                                data={activeAndPendingValidators}
+                                                columns={tableColumns}
+                                                areHeadersCentered={false}
+                                            />
+                                        )}
                                 </ErrorBoundary>
                             </div>
                         </Panel>

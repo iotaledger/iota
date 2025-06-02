@@ -3,7 +3,8 @@
 
 import { useState } from 'react';
 import type { Meta, StoryObj } from '@storybook/react';
-import { ListItem, Search, SearchBarType, Suggestion } from '@/components';
+import type { Suggestion } from '@/components';
+import { ListItem, Search, SearchBarType } from '@/components';
 import cx from 'classnames';
 
 const meta: Meta<typeof Search> = {

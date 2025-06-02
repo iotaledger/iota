@@ -52,7 +52,10 @@ export function ModuleCodeTabs({
             <TabsProvider tabs={TABS}>
                 <TabSelector>
                     {(selectedTabId, setSelectedTabId) => (
-                        <SegmentedButton type={SegmentedButtonType.Transparent}>
+                        <SegmentedButton
+                            type={SegmentedButtonType.Transparent}
+                            shape={ButtonSegmentType.Underlined}
+                        >
                             {TABS.filter(({ hidden }) => !hidden).map(({ id, label }) => (
                                 <ButtonSegment
                                     key={id}

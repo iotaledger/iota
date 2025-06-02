@@ -16,6 +16,12 @@ const U128_MAX: u128 = 0xFFFF_FFFF_FFFF_FFFF_FFFF_FFFF_FFFF_FFFF;
 const U256_MAX: u256 =
     0xFFFF_FFFF_FFFF_FFFF_FFFF_FFFF_FFFF_FFFF_FFFF_FFFF_FFFF_FFFF_FFFF_FFFF_FFFF_FFFF;
 
+public enum Enum has copy, drop {
+    Empty,
+    U8(u8),
+    U16(u16),
+}
+
 public struct Info has copy, drop {
     a: bool,
     b: u8,
@@ -173,6 +179,23 @@ fun test_option() {
         opt_cases,
         |bytes| bytes.peel_option!(|bytes| bytes.peel_option!(|bytes| bytes.peel_bool())),
     );
+}
+
+#[test]
+fun test_enum() {
+    let enum_cases = vector[Enum::Empty, Enum::U8(1), Enum::U16(2)];
+    cases!(enum_cases, |bytes| bytes.peel_test_enum());
+}
+
+use fun peel_test_enum as BCS.peel_test_enum;
+
+fun peel_test_enum(bytes: &mut BCS): Enum {
+    match (bytes.peel_enum_tag()) {
+        0 => Enum::Empty,
+        1 => Enum::U8(bytes.peel_u8()),
+        2 => Enum::U16(bytes.peel_u16()),
+        _ => abort,
+    }
 }
 
 #[test]

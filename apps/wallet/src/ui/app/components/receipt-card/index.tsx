@@ -8,6 +8,8 @@ import {
     ExplorerLinkType,
     ViewTxnOnExplorerButton,
     useRecognizedPackages,
+    toast,
+    OutlinedCopyButton,
 } from '@iota/core';
 import { type IotaTransactionBlockResponse } from '@iota/iota-sdk/client';
 
@@ -39,10 +41,20 @@ export function ReceiptCard({ txn, activeAddress }: ReceiptCardProps) {
                 activeAddress={activeAddress}
                 renderExplorerLink={ExplorerLinkHelper}
             />
-            <div className="pt-sm">
-                <ExplorerLink transactionID={digest ?? ''} type={ExplorerLinkType.Transaction}>
-                    <ViewTxnOnExplorerButton digest={digest} />
-                </ExplorerLink>
+            <div className="flex flex-row space-x-xs pt-sm">
+                <div className="flex w-full [&_a]:w-full">
+                    <ExplorerLink transactionID={digest ?? ''} type={ExplorerLinkType.Transaction}>
+                        <ViewTxnOnExplorerButton digest={digest} />
+                    </ExplorerLink>
+                </div>
+                <div className="self-center">
+                    <OutlinedCopyButton
+                        textToCopy={digest ?? ''}
+                        onCopySuccess={() =>
+                            toast.success('Transaction digest copied to clipboard')
+                        }
+                    />
+                </div>
             </div>
         </div>
     );

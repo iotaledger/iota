@@ -118,62 +118,76 @@ impl HistoricalReader {
             .await
     }
 
-    /// Stream [`CheckpointData`] for the specified range.
+    /// Stream blobs of [`Bytes`] that include checkpoint data for the specified
+    /// range.
     ///
     /// This method retrieves files with batches of serialized checkpoint
-    /// data from the remote store, decodes the raw data, and streams
-    /// the deserialized values.
+    /// data from the remote store, and streams the respective contents
+    /// as blobs.
     ///
     /// # Errors
     ///
     /// Returns an error if resolving the files that need to be fetched from the
     /// remote store fails.
     ///
-    /// Additionally the stream may contain errors in the following case:
-    ///
-    /// * If fetching the file from the remote store fails.
-    /// * If the file is corrupted and fails to decode.
-    ///
-    /// In this case the stream will yield an `Err` containing the name of the
-    /// remote [`Path`] to the file that gave rise to the error. This would
-    /// allow retry attempts in the callers using
-    /// [`iter_for_file`][Self::iter_for_file].
+    /// Additionally the stream may fail if fetching the file from the remote
+    /// store fails.
     ///
     /// # Examples
     ///
     /// ```ignore
+    /// use futures::StreamExt;
+    ///
     /// let range = 100..200;
-    /// let stream = historical_reader.stream_for_range(range).await?;
-    /// while let Some(result) = stream.next().await {
-    ///     match result {
-    ///         Ok(data) => println!("Received checkpoint data: {data:?}"),
-    ///         Err(path) => eprintln!("Failed to load checkpoint from file: {path}"),
+    /// let mut stream = historical_reader.stream_blobs_for_range(range.clone()).await?;
+    /// while let Some(Ok(blob)) = stream.next().await {
+    ///     // we can now iterate over the checkpoint data
+    ///     for data in make_blob_iterator_for_range(blob, range.clone())? {
+    ///         println!("Received checkpoint data: {data:?}");
     ///     }
     /// }
     /// ```
-    pub async fn stream_for_range(
+    pub async fn stream_blobs_for_range(
         &self,
         checkpoint_range: Range<CheckpointSequenceNumber>,
-    ) -> Result<impl Stream<Item = std::result::Result<CheckpointData, Path>> + use<'_>> {
-        let files = self.get_files_for_range(checkpoint_range.clone()).await?;
-
+    ) -> Result<impl Stream<Item = Result<Bytes>> + Send + use<'_>> {
+        let files = self.get_files_for_range(checkpoint_range).await?;
         Ok(futures::stream::iter(files)
-            .map(move |metadata| {
-                let checkpoint_range = checkpoint_range.clone();
-                async move {
-                    let data_batch = self
-                        .iter_for_file(metadata.file_path())
-                        .await
-                        .map_err(|_| metadata.file_path())?
-                        .filter(move |checkpoint_data| {
-                            checkpoint_range
-                                .contains(checkpoint_data.checkpoint_summary.sequence_number())
-                        });
-                    Ok::<_, Path>(futures::stream::iter(data_batch).map(Ok))
-                }
+            .map(move |metadata| async move {
+                let remote_object_store = Arc::clone(&self.remote_object_store);
+                let file_path = metadata.file_path();
+                Ok(get(&remote_object_store, &file_path).await?)
             })
-            .buffered(self.concurrency)
-            .try_flatten())
+            .buffered(self.concurrency))
+    }
+
+    /// Construct an [`Iterator`] over [`CheckpointData`] for the specified
+    /// range.
+    ///
+    /// This method eagerly consumes the stream of blobs returned from
+    /// [`Self::stream_blobs_for_range`] and holds the data in memory until
+    /// the iterator is consumed.
+    ///
+    /// For lazy processing of the blobs use directly
+    /// [`Self::stream_blobs_for_range`] along with
+    /// [`make_blob_iterator_for_range`].
+    pub async fn iter_for_range(
+        &self,
+        checkpoint_range: Range<CheckpointSequenceNumber>,
+    ) -> Result<impl Iterator<Item = CheckpointData>> {
+        let blobs = self
+            .stream_blobs_for_range(checkpoint_range.clone())
+            .await?
+            .try_collect::<Vec<_>>()
+            .await?;
+        let data_iterators = blobs
+            .into_iter()
+            .map(|blob| {
+                let range = checkpoint_range.clone();
+                make_blob_iterator_for_range(blob, range)
+            })
+            .collect::<Result<Vec<_>>>()?;
+        Ok(data_iterators.into_iter().flatten())
     }
 
     /// Iterate [`CheckpointData`] from the given remote file.
@@ -193,11 +207,7 @@ impl HistoricalReader {
         file_path: Path,
     ) -> Result<impl Iterator<Item = CheckpointData>> {
         let raw_data_batch = get(&self.remote_object_store, &file_path).await?;
-        let data_batch = make_iterator::<CheckpointData, Reader<Bytes>>(
-            CHECKPOINT_FILE_MAGIC,
-            raw_data_batch.reader(),
-        )?;
-        Ok(data_batch)
+        make_blob_iterator(raw_data_batch)
     }
 
     /// Return latest available checkpoint in archive.
@@ -309,4 +319,26 @@ impl HistoricalReader {
             Ok::<(), IngestionError>(())
         });
     }
+}
+
+fn make_blob_iterator(blob: Bytes) -> Result<impl Iterator<Item = CheckpointData>> {
+    Ok(make_iterator::<CheckpointData, Reader<Bytes>>(
+        CHECKPOINT_FILE_MAGIC,
+        blob.reader(),
+    )?)
+}
+
+/// Construct an iterator over a blob of checkpoint data.
+///
+/// The iterator filters checkpoints that belong to the specified range.
+///
+/// # Errors
+///
+/// The function fails if the blob is corrupted and fails to decode.
+pub fn make_blob_iterator_for_range(
+    blob: Bytes,
+    range: Range<CheckpointSequenceNumber>,
+) -> Result<impl Iterator<Item = CheckpointData>> {
+    Ok(make_blob_iterator(blob)?
+        .filter(move |data| range.contains(&data.checkpoint_summary.sequence_number)))
 }
