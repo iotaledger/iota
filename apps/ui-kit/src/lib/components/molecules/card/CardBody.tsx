@@ -1,8 +1,9 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 import cx from 'classnames';
-
-import { ReactNode } from 'react';
+import type { ReactNode } from 'react';
+import { Tooltip } from '@/components/atoms/tooltip';
+import type { TooltipPosition } from '@/components/atoms/tooltip';
 
 export type CardBodyProps = {
     title: string;
@@ -10,6 +11,8 @@ export type CardBodyProps = {
     clickableAction?: React.ReactNode;
     icon?: React.ReactNode;
     isTextTruncated?: boolean;
+    tooltipText?: string;
+    tooltipPosition?: TooltipPosition;
 };
 
 export function CardBody({
@@ -18,6 +21,8 @@ export function CardBody({
     clickableAction,
     icon,
     isTextTruncated,
+    tooltipText,
+    tooltipPosition,
 }: CardBodyProps) {
     const handleActionCardBodyClick = (event: React.MouseEvent) => {
         event?.stopPropagation();
@@ -40,7 +45,13 @@ export function CardBody({
                 >
                     {title}
                 </div>
-                {icon && <div className="flex items-center">{icon}</div>}
+                {tooltipText ? (
+                    <Tooltip text={tooltipText} position={tooltipPosition}>
+                        {icon}
+                    </Tooltip>
+                ) : (
+                    <div className="flex items-center">{icon}</div>
+                )}
                 {clickableAction && (
                     <div onClick={handleActionCardBodyClick} className="flex items-center">
                         {clickableAction}

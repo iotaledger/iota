@@ -20,7 +20,8 @@ use serde::Serialize;
 use super::{ast::ProgramMetadata, lexer::Lexer, parser::ProgramParser};
 use crate::{
     client_commands::{
-        IotaClientCommandResult, Opts, OptsWithGas, dry_run_or_execute_or_serialize,
+        DisplayOption, IotaClientCommandResult, Opts, OptsWithGas, dry_run_or_execute_or_serialize,
+        parse_display_option,
     },
     client_ptb::{
         ast::{ParsedProgram, Program},
@@ -37,6 +38,11 @@ use crate::{
 pub struct PTB {
     #[arg(trailing_var_arg = true, allow_hyphen_values = true)]
     pub args: Vec<String>,
+    /// Select which fields of the response to display.
+    /// If not provided, all fields are displayed.
+    /// The fields are: input, effects, events, object_changes, balance_changes.
+    #[arg(long, required = false, num_args = 0.., value_parser = parse_display_option, default_value = "input,effects,events,object_changes,balance_changes")]
+    pub display: HashSet<DisplayOption>,
 }
 
 pub struct PTBPreview<'a> {
@@ -169,7 +175,7 @@ impl PTB {
                 gas_budget: program_metadata.gas_budget.map(|x| x.value),
                 serialize_unsigned_transaction: program_metadata.serialize_unsigned_set,
                 serialize_signed_transaction: program_metadata.serialize_signed_set,
-                emit: HashSet::new(),
+                display: self.display,
             },
         };
 
@@ -430,5 +436,13 @@ pub fn ptb_description() -> clap::Command {
         .arg(arg!(
             --"json"
             "Return command outputs in json format."
+        ))
+        .arg(arg!(
+            --"display"
+            "Select which fields of the response to display. If not provided, all fields are displayed. \
+            The fields are: input, effects, events, object_changes, balance_changes. \
+            This option only works if it's passed as first argument to the command: \
+            `iota client ptb --display=effects --split-coins gas [1000]`
+            "
         ))
 }

@@ -10,6 +10,8 @@ use futures_core::Stream;
 use iota_json_rpc_api::{
     GovernanceReadApiClient, IndexerApiClient, MoveUtilsClient, ReadApiClient, WriteApiClient,
 };
+#[cfg(feature = "iota-names")]
+use iota_json_rpc_types::IotaNameRecord;
 use iota_json_rpc_types::{
     Checkpoint, CheckpointId, CheckpointPage, DevInspectArgs, DevInspectResults,
     DryRunTransactionBlockResponse, DynamicFieldPage, IotaData, IotaGetPastObjectRequest,
@@ -61,7 +63,7 @@ impl ReadApi {
     ///
     /// #[tokio::main]
     /// async fn main() -> Result<(), anyhow::Error> {
-    ///     let iota = IotaClientBuilder::default().build_localnet().await?;
+    ///     let iota = IotaClientBuilder::default().build_testnet().await?;
     ///     let address = IotaAddress::from_str("0x0000....0000")?;
     ///     let owned_objects = iota
     ///         .read_api()
@@ -103,7 +105,7 @@ impl ReadApi {
     ///
     /// #[tokio::main]
     /// async fn main() -> Result<(), anyhow::Error> {
-    ///     let iota = IotaClientBuilder::default().build_localnet().await?;
+    ///     let iota = IotaClientBuilder::default().build_testnet().await?;
     ///     let address = IotaAddress::from_str("0x0000....0000")?;
     ///     let owned_objects = iota
     ///         .read_api()
@@ -153,6 +155,21 @@ impl ReadApi {
             .await?)
     }
 
+    /// Get information for a specified dynamic field object by its parent
+    /// object ID and field name with options.
+    pub async fn get_dynamic_field_object_v2(
+        &self,
+        parent_object_id: ObjectID,
+        name: DynamicFieldName,
+        options: impl Into<Option<IotaObjectDataOptions>>,
+    ) -> IotaRpcResult<IotaObjectResponse> {
+        Ok(self
+            .api
+            .http
+            .get_dynamic_field_object_v2(parent_object_id, name, options.into())
+            .await?)
+    }
+
     /// Get a parsed past object and version for the provided object ID.
     ///
     /// An object's version increases when the object is mutated, though it is
@@ -171,7 +188,7 @@ impl ReadApi {
     ///
     /// #[tokio::main]
     /// async fn main() -> Result<(), anyhow::Error> {
-    ///     let iota = IotaClientBuilder::default().build_localnet().await?;
+    ///     let iota = IotaClientBuilder::default().build_testnet().await?;
     ///     let address = IotaAddress::from_str("0x0000....0000")?;
     ///     let owned_objects = iota
     ///         .read_api()
@@ -236,7 +253,7 @@ impl ReadApi {
     ///
     /// #[tokio::main]
     /// async fn main() -> Result<(), anyhow::Error> {
-    ///     let iota = IotaClientBuilder::default().build_localnet().await?;
+    ///     let iota = IotaClientBuilder::default().build_testnet().await?;
     ///     let address = IotaAddress::from_str("0x0000....0000")?;
     ///     let owned_objects = iota
     ///         .read_api()
@@ -317,7 +334,7 @@ impl ReadApi {
     ///
     /// #[tokio::main]
     /// async fn main() -> Result<(), anyhow::Error> {
-    ///     let iota = IotaClientBuilder::default().build_localnet().await?;
+    ///     let iota = IotaClientBuilder::default().build_testnet().await?;
     ///     let address = IotaAddress::from_str("0x0000....0000")?;
     ///     let owned_objects = iota
     ///         .read_api()
@@ -372,7 +389,7 @@ impl ReadApi {
     /// use iota_types::base_types::IotaAddress;
     /// #[tokio::main]
     /// async fn main() -> Result<(), anyhow::Error> {
-    ///     let iota = IotaClientBuilder::default().build_localnet().await?;
+    ///     let iota = IotaClientBuilder::default().build_testnet().await?;
     ///     let address = IotaAddress::from_str("0x0000....0000")?;
     ///     let owned_objects = iota
     ///         .read_api()
@@ -446,7 +463,7 @@ impl ReadApi {
     ///
     /// #[tokio::main]
     /// async fn main() -> Result<(), anyhow::Error> {
-    ///     let iota = IotaClientBuilder::default().build_localnet().await?;
+    ///     let iota = IotaClientBuilder::default().build_testnet().await?;
     ///     let total_transaction_blocks = iota.read_api().get_total_transaction_blocks().await?;
     ///     Ok(())
     /// }
@@ -687,6 +704,37 @@ impl ReadApi {
             .api
             .http
             .try_get_object_before_version(object_id, version)
+            .await?)
+    }
+
+    #[cfg(feature = "iota-names")]
+    /// Return the resolved record for the given name.
+    pub async fn iota_names_lookup(&self, name: &str) -> IotaRpcResult<Option<IotaNameRecord>> {
+        Ok(self.api.http.iota_names_lookup(name).await?)
+    }
+
+    #[cfg(feature = "iota-names")]
+    /// Return the resolved name for the given address.
+    pub async fn iota_names_reverse_lookup(
+        &self,
+        address: IotaAddress,
+    ) -> IotaRpcResult<Option<String>> {
+        Ok(self.api.http.iota_names_reverse_lookup(address).await?)
+    }
+
+    #[cfg(feature = "iota-names")]
+    /// Find all registration NFTs for the given address.
+    pub async fn iota_names_find_all_registration_nfts(
+        &self,
+        address: IotaAddress,
+        cursor: Option<ObjectID>,
+        limit: Option<usize>,
+        options: Option<IotaObjectDataOptions>,
+    ) -> IotaRpcResult<ObjectsPage> {
+        Ok(self
+            .api
+            .http
+            .iota_names_find_all_registration_nfts(address, cursor, limit, options)
             .await?)
     }
 }

@@ -14,6 +14,7 @@ import {
     useNewStakeTransaction,
     Validator,
     toast,
+    useIsValidatorCommitteeMember,
 } from '@iota/core';
 import * as Sentry from '@sentry/react';
 import { ampli } from '_src/shared/analytics/ampli';
@@ -29,6 +30,7 @@ import { memo, useEffect, useMemo } from 'react';
 import { useActiveAccount, useSigner } from '_hooks';
 import {
     Button,
+    ButtonPill,
     ButtonType,
     CardType,
     InfoBox,
@@ -37,7 +39,7 @@ import {
     Input,
     InputType,
 } from '@iota/apps-ui-kit';
-import { Exclamation, Loader } from '@iota/apps-ui-icons';
+import { Exclamation, Loader, Warning } from '@iota/apps-ui-icons';
 import { ExplorerLinkHelper } from '../../components';
 import { useMutation } from '@tanstack/react-query';
 import { getSignerOperationErrorMessage } from '../../helpers';
@@ -61,9 +63,9 @@ export function StakeFormComponent({ validatorAddress, epoch, onSuccess }: Stake
     const activeAccount = useActiveAccount();
     const activeAddress = activeAccount?.address ?? '';
     const signer = useSigner(activeAccount);
-    const { data: iotaBalance, isPending: loadingIotaBalances } = useBalance(activeAddress);
+    const { data: iotaBalance, isPending: isIotaBalanceLoading } = useBalance(activeAddress);
     const coinBalance = BigInt(iotaBalance?.totalBalance || 0);
-
+    const { isCommitteeMember } = useIsValidatorCommitteeMember();
     const { data: metadata } = useCoinMetadata(IOTA_TYPE_ARG);
     const decimals = metadata?.decimals ?? 0;
     const coinSymbol = metadata?.symbol ?? '';
@@ -163,20 +165,38 @@ export function StakeFormComponent({ validatorAddress, epoch, onSuccess }: Stake
         setFieldValue('gasBudget', maxAmountTxGasBudget);
     }, [maxAmountTxGasBudget]);
 
-    const maxTokenBalance = coinBalance - maxAmountTxGasBudget;
-    const [maxTokenFormatted, symbol] = useFormatCoin({
-        balance: maxTokenBalance,
+    // for user we show available amount as available_balance - gas_budget
+    const availableBalance = coinBalance - maxAmountTxGasBudget;
+    const [availableBalanceFormatted, symbol] = useFormatCoin({
+        balance: availableBalance,
         format: CoinFormat.FULL,
     });
 
-    const hasEnoughRemainingBalance =
-        maxTokenBalance > parseAmount(amount, decimals) + BigInt(2) * maxAmountTxGasBudget;
-
     const isLoading =
-        loadingIotaBalances ||
+        isIotaBalanceLoading ||
         isSubmitting ||
         isStakeTokenTransactionLoading ||
         isStakeTokenTransactionPending;
+
+    const gasUnstakeBuffer = maxAmountTxGasBudget * BigInt(2);
+    const maxSafeAmount = availableBalance - gasUnstakeBuffer;
+    const [maxSafeAmountFormatted, maxSafeAmountSymbol] = useFormatCoin({
+        balance: maxSafeAmount,
+        format: CoinFormat.FULL,
+    });
+    const isUnsafeAmount =
+        amountWithoutDecimals &&
+        amountWithoutDecimals > maxSafeAmount &&
+        amountWithoutDecimals <= availableBalance;
+
+    function setMaxAmount() {
+        setFieldValue('amount', availableBalanceFormatted, true);
+    }
+
+    function setRecommendedAmount() {
+        setFieldValue('amount', maxSafeAmountFormatted, true);
+    }
+
     return (
         <FormikProvider value={formik}>
             <Form
@@ -203,20 +223,48 @@ export function StakeFormComponent({ validatorAddress, epoch, onSuccess }: Stake
                                 value={amount}
                                 caption={
                                     maxAmountTxGasBudget
-                                        ? `${maxTokenFormatted} ${symbol} Available`
+                                        ? `${availableBalanceFormatted} ${symbol} Available`
                                         : '--'
                                 }
                                 suffix={' ' + symbol}
                                 errorMessage={amount && meta.error ? meta.error : undefined}
                                 label="Amount"
+                                trailingElement={
+                                    <ButtonPill onClick={setMaxAmount}>Max</ButtonPill>
+                                }
                             />
                         );
                     }}
                 </Field>
-                {!hasEnoughRemainingBalance ? (
+                {!isCommitteeMember(validatorAddress) && (
                     <InfoBox
-                        type={InfoBoxType.Error}
-                        supportingText="You have selected an amount that will leave you with insufficient funds to pay for gas fees for unstaking or any other transactions."
+                        type={InfoBoxType.Warning}
+                        title="Validator is not earning rewards."
+                        supportingText="Validator is active but not in the current committee, so not earning rewards this epoch. It may earn in future epochs. Stake at your discretion."
+                        icon={<Warning />}
+                        style={InfoBoxStyle.Elevated}
+                    />
+                )}
+
+                {isUnsafeAmount ? (
+                    <InfoBox
+                        type={InfoBoxType.Warning}
+                        supportingText={
+                            <>
+                                Staking your full balance may leave you without enough funds to
+                                cover gas fees for future actions like unstaking. To avoid this, we
+                                recommend staking up to {maxSafeAmountFormatted}&nbsp;
+                                {maxSafeAmountSymbol}.
+                                <div>
+                                    <span
+                                        onClick={setRecommendedAmount}
+                                        className="cursor-pointer underline hover:opacity-80"
+                                    >
+                                        Set recommended amount
+                                    </span>
+                                </div>
+                            </>
+                        }
                         style={InfoBoxStyle.Elevated}
                         icon={<Exclamation />}
                     />

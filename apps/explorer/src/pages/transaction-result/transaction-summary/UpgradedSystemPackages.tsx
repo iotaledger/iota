@@ -4,9 +4,16 @@
 
 import { useState } from 'react';
 import { CollapsibleCard, ObjectLink } from '~/components/ui';
-import { Accordion, AccordionContent, AccordionHeader, Title, TitleSize } from '@iota/apps-ui-kit';
-
+import {
+    Accordion,
+    AccordionContent,
+    AccordionHeader,
+    KeyValueInfo,
+    Title,
+    TitleSize,
+} from '@iota/apps-ui-kit';
 import type { OwnedObjectRef } from '@iota/iota-sdk/client';
+import { onCopySuccess } from '~/lib/utils';
 
 export function UpgradedSystemPackages({ data }: { data: OwnedObjectRef[] }): JSX.Element | null {
     const [isExpanded, setIsExpanded] = useState(true);
@@ -28,18 +35,19 @@ export function UpgradedSystemPackages({ data }: { data: OwnedObjectRef[] }): JS
                                 const { objectId } = object.reference;
                                 return (
                                     <div
-                                        className="flex flex-wrap items-center justify-between"
+                                        className="flex flex-col gap-y-sm px-md--rs py-xs"
                                         key={objectId}
                                     >
-                                        <div className="flex items-center gap-0.5">
-                                            <span className="text-body-md text-neutral-40">
-                                                Package
-                                            </span>
-                                        </div>
-
-                                        <div className="flex items-center">
-                                            <ObjectLink objectId={objectId} />
-                                        </div>
+                                        <KeyValueInfo
+                                            keyText="Package"
+                                            value={
+                                                <ObjectLink
+                                                    objectId={objectId}
+                                                    copyText={objectId}
+                                                    onCopySuccess={onCopySuccess}
+                                                />
+                                            }
+                                        />
                                     </div>
                                 );
                             })}

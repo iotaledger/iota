@@ -2,12 +2,11 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { useCoinsReFetchingConfig, useActiveAddress } from '_hooks';
 import { Loading } from '_components';
-import { useIotaClientQuery } from '@iota/dapp-kit';
 import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 import { Link } from 'react-router-dom';
-import { filterAndSortTokenBalances, CoinItem } from '@iota/core';
+import { CoinItem, useGetAllBalances } from '@iota/core';
+import { useActiveAddress } from '../../hooks';
 
 interface ActiveCoinsCardProps {
     activeCoinType: string;
@@ -18,19 +17,8 @@ export function ActiveCoinsCard({
     activeCoinType = IOTA_TYPE_ARG,
     showActiveCoin = true,
 }: ActiveCoinsCardProps) {
-    const selectedAddress = useActiveAddress();
-
-    const { staleTime, refetchInterval } = useCoinsReFetchingConfig();
-    const { data: coins, isPending } = useIotaClientQuery(
-        'getAllBalances',
-        { owner: selectedAddress! },
-        {
-            enabled: !!selectedAddress,
-            refetchInterval,
-            staleTime,
-            select: filterAndSortTokenBalances,
-        },
-    );
+    const address = useActiveAddress();
+    const { data: coins, isPending } = useGetAllBalances(address);
 
     const activeCoin = coins?.find(({ coinType }) => coinType === activeCoinType);
 

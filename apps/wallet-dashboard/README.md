@@ -21,3 +21,17 @@ pnpm wallet-dashboard dev
 ```
 
 This will start the dev server on port 3000, which should be accessible on http://localhost:3000/
+
+## To run end-to-end localnet test
+
+Prepare builds for wallet and wallet-dashboard before run tests
+
+```bash
+pnpm --filter wallet-dashboard prepare:e2e
+```
+
+In a separate terminal, you can now run the end-to-end tests:
+
+```bash
+pnpm --filter wallet-dashboard playwright test
+```

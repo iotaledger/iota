@@ -3,19 +3,19 @@
 
 import { type SerializedUIAccount } from '_src/background/accounts/account';
 import {
+    haveSupplyIncreaseLabel,
     COIN_TYPE,
     Collapsible,
     formatBalance,
     IOTA_COIN_METADATA,
     STARDUST_BASIC_OUTPUT_TYPE,
     STARDUST_NFT_OUTPUT_TYPE,
-    SUPPLY_INCREASE_VESTING_LABEL,
     TIMELOCK_IOTA_TYPE,
     TIMELOCK_STAKED_TYPE,
     useBalance,
     useFormatCoin,
 } from '@iota/core';
-import { TriangleDown } from '@iota/apps-ui-icons';
+import { Info, TriangleDown } from '@iota/apps-ui-icons';
 import clsx from 'clsx';
 import { Badge, BadgeType } from '@iota/apps-ui-kit';
 import { formatAddress, IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
@@ -26,7 +26,6 @@ import {
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useIotaClientContext } from '@iota/dapp-kit';
 import { useEffect, useState } from 'react';
-import { type PaginatedObjectsResponse } from '@iota/iota-sdk/client';
 
 interface AccountBalanceItemProps {
     accounts: SerializedUIAccount[];
@@ -104,10 +103,14 @@ export function AccountBalanceItem({
     );
 
     const hasMigrationObjects =
-        !!stardustOwnedObjects?.pages?.[0]?.[0]?.data?.length ||
-        !!stardustSharedObjects?.pages?.[0]?.length;
+        stardustOwnedObjects?.pages?.some((data) => data.some((data) => data.data.length > 0)) ||
+        stardustSharedObjects?.pages?.some((data) =>
+            data.some((data) => data.nftOutputs.length > 0 || data.basicOutputs.length > 0),
+        );
 
-    const hasAccountAssets = !!ownedObjects?.pages?.[0]?.[0]?.data?.length;
+    const hasAccountAssets = !!ownedObjects?.pages.some((data) =>
+        data.some((data) => data.data.length > 0),
+    );
 
     const {
         data: vestingObjects,
@@ -121,19 +124,9 @@ export function AccountBalanceItem({
         10,
     );
 
-    const checkForVestingObject = (pages: PaginatedObjectsResponse[]) => {
-        return pages[pages.length - 1]?.data.some(
-            (object) =>
-                object.data?.content?.dataType === 'moveObject' &&
-                object.data?.content?.fields &&
-                'label' in object.data.content.fields &&
-                object.data?.content?.fields?.label === SUPPLY_INCREASE_VESTING_LABEL,
-        );
-    };
-
     useEffect(() => {
         if (vestingObjects?.pages) {
-            const foundVestingObject = checkForVestingObject(vestingObjects.pages.flat());
+            const foundVestingObject = haveSupplyIncreaseLabel(vestingObjects.pages.flat());
             setHasVestingObjects(foundVestingObject);
 
             if (!foundVestingObject && hasNextPage) {
@@ -179,6 +172,16 @@ export function AccountBalanceItem({
                 </div>
             )}
         >
+            {(hasMigrationObjects || hasVestingObjects) && (
+                <div className="mx-sm flex flex-row items-start gap-x-xs rounded-xl border border-shader-neutral-light-8 p-xs text-neutral-10 dark:border-shader-neutral-dark-8 dark:text-neutral-92">
+                    <Info className="h-4 w-4 shrink-0" />
+                    <small>
+                        For an accurate portfolio view, ensure your total balance matches the total
+                        of your found IOTA, vested, and migration funds. Check the Dashboard tabs
+                        for details
+                    </small>
+                </div>
+            )}
             <div className="flex flex-col gap-y-sm p-sm pl-lg text-body-md text-neutral-10 dark:text-neutral-92">
                 {accounts.map(({ address, id }) => (
                     <AddressItem key={id} address={address} />

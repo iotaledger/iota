@@ -466,7 +466,7 @@ pub mod ws {
                     }
                 },
                 Some(response) = rx.recv() => {
-                    if socket.send(Message::Text(response)).await.is_err() {
+                    if socket.send(Message::Text(response.into())).await.is_err() {
                         break;
                     }
                 },

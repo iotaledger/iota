@@ -1,5 +1,42 @@
 # @iota/iota-sdk
 
+## 1.0.1
+
+### Patch Changes
+
+-   26cf13b: Include mainnet into default network envs
+
+## 1.0.0
+
+### Major Changes
+
+-   daa968f: Initial release of `@iota/bcs` and `@iota/iota-sdk`
+
+### Minor Changes
+
+-   864fd32: Rename `getLatestIotaSystemState` to `getLatestIotaSystemStateV1` and add a new
+    backwards-compatible and future-proof `getLatestIotaSystemState` method that dynamically calls
+    ``getLatestIotaSystemStateV1`or`getLatestIotaSystemStateV2` based on the protocol version of the
+    node.
+
+### Patch Changes
+
+-   f4d75c7: Add graphql field in the network configuration.
+-   Updated dependencies [daa968f]
+    -   @iota/bcs@1.0.0
+
+## 0.7.0
+
+### Minor Changes
+
+-   42898f1: Add support for getDynamicFieldObjectV2
+-   bdb736e: Update clients after RPC updates to base64
+-   65a0900: Add circulating supply support to the iota client
+
+### Patch Changes
+
+-   1ad39f9: Update dependencies
+
 ## 0.6.0
 
 ### Minor Changes

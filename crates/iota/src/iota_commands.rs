@@ -4,7 +4,7 @@
 
 use std::{
     fs, io,
-    io::{Write, stderr, stdout},
+    io::{Write, stdout},
     net::{AddrParseError, IpAddr, Ipv4Addr, SocketAddr},
     num::NonZeroUsize,
     path::{Path, PathBuf},
@@ -59,9 +59,11 @@ use rand::rngs::OsRng;
 use tempfile::tempdir;
 use tracing::{self, info};
 
+#[cfg(feature = "iota-names")]
+use crate::name_commands;
 use crate::{
+    PrintableResult,
     client_commands::IotaClientCommands,
-    console::start_console,
     fire_drill::{FireDrill, run_fire_drill},
     genesis_ceremony::{Ceremony, run},
     keytool::KeyToolCommand,
@@ -154,6 +156,20 @@ pub enum IotaCommand {
     /// generate the genesis blob, and start the network.
     ///
     /// Note that if you want to start an indexer, Postgres DB is required.
+    ///
+    /// Protocol config parameters can be overridden individually by setting
+    /// environment variables as follows:
+    /// - IOTA_PROTOCOL_CONFIG_OVERRIDE_ENABLE=1
+    /// - Then, to configure an override, use the prefix
+    ///   `IOTA_PROTOCOL_CONFIG_OVERRIDE_` along with the parameter name. For
+    ///   example, to increase the interval between checkpoint creation to >1/s,
+    ///   you might set:
+    ///   IOTA_PROTOCOL_CONFIG_OVERRIDE_min_checkpoint_interval_ms=1000
+    ///
+    /// Note that protocol config parameters must match between all nodes, or
+    /// the network may break. Changing these values outside of local
+    /// networks is very dangerous.
+    #[command(verbatim_doc_comment)]
     Start {
         /// Config directory that will be used to store network config, node db,
         /// keystore.
@@ -190,6 +206,10 @@ pub enum IotaCommand {
         /// Defaults to `200000000000`(200 IOTA).
         #[arg(long)]
         faucet_amount: Option<u64>,
+        /// Set the amount of coin objects the faucet will send for each
+        /// request. Defaults to 5.
+        #[arg(long)]
+        faucet_coin_count: Option<usize>,
         #[cfg(feature = "indexer")]
         #[command(flatten)]
         indexer_feature_args: IndexerFeatureArgs,
@@ -286,13 +306,6 @@ pub enum IotaCommand {
         #[command(subcommand)]
         cmd: KeyToolCommand,
     },
-    /// Start IOTA interactive console.
-    Console {
-        /// Sets the file storing the state of our user accounts (an empty one
-        /// will be created if missing)
-        #[arg(long = "client.config")]
-        config: Option<PathBuf>,
-    },
     /// Client for interacting with the IOTA network.
     Client {
         /// Sets the file storing the state of our user accounts (an empty one
@@ -338,6 +351,18 @@ pub enum IotaCommand {
         #[command(subcommand)]
         cmd: iota_move::Command,
     },
+    #[cfg(feature = "iota-names")]
+    /// Manage names registered in IOTA-Names.
+    Name {
+        /// The file storing the state of the user accounts
+        #[arg(long = "client.config")]
+        config: Option<PathBuf>,
+        /// Return command outputs in json format.
+        #[arg(long, global = true)]
+        json: bool,
+        #[command(subcommand)]
+        cmd: name_commands::NameCommand,
+    },
     /// Command to initialize the bridge committee, usually used when
     /// running local bridge cluster.
     #[command(name = "bridge-committee-init")]
@@ -371,6 +396,7 @@ impl IotaCommand {
                 force_regenesis,
                 with_faucet,
                 faucet_amount,
+                faucet_coin_count,
                 #[cfg(feature = "indexer")]
                 indexer_feature_args,
                 fullnode_rpc_port,
@@ -387,6 +413,7 @@ impl IotaCommand {
                     config_dir.clone(),
                     with_faucet,
                     faucet_amount,
+                    faucet_coin_count,
                     #[cfg(feature = "indexer")]
                     indexer_feature_args,
                     force_regenesis,
@@ -443,12 +470,6 @@ impl IotaCommand {
                 let mut keystore = Keystore::from(FileBasedKeystore::new(&keystore_path)?);
                 cmd.execute(&mut keystore).await?.print(!json);
                 Ok(())
-            }
-            IotaCommand::Console { config } => {
-                let config = config.unwrap_or(iota_config_dir()?.join(IOTA_CLIENT_CONFIG));
-                prompt_if_no_config(&config, false, true, true)?;
-                let context = WalletContext::new(&config, None, None)?;
-                start_console(context, &mut stdout(), &mut stderr()).await
             }
             IotaCommand::Client {
                 config,
@@ -520,6 +541,14 @@ impl IotaCommand {
                     _ => (),
                 };
                 execute_move_command(package_path.as_deref(), build_config, cmd)
+            }
+            #[cfg(feature = "iota-names")]
+            IotaCommand::Name { config, json, cmd } => {
+                let config_path = config.unwrap_or(iota_config_dir()?.join(IOTA_CLIENT_CONFIG));
+                prompt_if_no_config(&config_path, false, true, true)?;
+                let mut context = WalletContext::new(&config_path, None, None)?;
+                cmd.execute(&mut context).await?.print(!json);
+                Ok(())
             }
             IotaCommand::BridgeInitialize {
                 network_config,
@@ -617,6 +646,7 @@ async fn start(
     config_dir: Option<PathBuf>,
     with_faucet: Option<String>,
     faucet_amount: Option<u64>,
+    faucet_coin_count: Option<usize>,
     #[cfg(feature = "indexer")] indexer_feature_args: IndexerFeatureArgs,
     force_regenesis: bool,
     epoch_duration_ms: Option<u64>,
@@ -706,6 +736,14 @@ async fn start(
         let network_config_path = config_path.join(IOTA_NETWORK_CONFIG);
         // Auto genesis if no configuration exists in the configuration directory.
         if !network_config_path.exists() {
+            if !config_path.exists() {
+                fs::create_dir(&config_path).map_err(|err| {
+                    anyhow!(err).context(format!(
+                        "Cannot create network config dir {}",
+                        config_path.display()
+                    ))
+                })?;
+            }
             genesis(
                 None,
                 None,
@@ -756,7 +794,7 @@ async fn start(
         };
 
         swarm_builder = swarm_builder
-            .dir(config_path)
+            .dir(config_path.clone())
             .with_network_config(network_config);
     }
 
@@ -806,8 +844,9 @@ async fn start(
             pg_address.clone(),
             // reset the existing db
             true,
+            None,
             fullnode_url.clone(),
-            IndexerTypeConfig::writer_mode(None),
+            IndexerTypeConfig::writer_mode(None, None),
             data_ingestion_dir.clone(),
         )
         .await;
@@ -817,6 +856,7 @@ async fn start(
         start_test_indexer(
             pg_address.clone(),
             false,
+            None,
             fullnode_url.clone(),
             IndexerTypeConfig::reader_mode(indexer_address.to_string()),
             data_ingestion_dir.clone(),
@@ -828,6 +868,7 @@ async fn start(
         start_test_indexer(
             pg_address.clone(),
             false,
+            None,
             fullnode_url.clone(),
             IndexerTypeConfig::AnalyticalWorker,
             data_ingestion_dir,
@@ -862,13 +903,11 @@ async fn start(
         let faucet_address = parse_host_port(input, DEFAULT_FAUCET_PORT)
             .map_err(|_| anyhow!("Invalid faucet host and port"))?;
         tracing::info!("Starting the faucet service at {faucet_address}");
-        let config_dir = if force_regenesis {
+        let faucet_config_dir = if force_regenesis {
+            // tempdir is used so the faucet file is cleaned up afterwards
             tempdir()?.into_path()
         } else {
-            match config_dir {
-                Some(config) => config,
-                None => iota_config_dir()?,
-            }
+            config_path
         };
 
         let host_ip = match faucet_address {
@@ -879,7 +918,7 @@ async fn start(
         let config = FaucetConfig {
             host_ip,
             port: faucet_address.port(),
-            num_coins: DEFAULT_FAUCET_NUM_COINS,
+            num_coins: faucet_coin_count.unwrap_or(DEFAULT_FAUCET_NUM_COINS),
             amount: faucet_amount.unwrap_or(DEFAULT_FAUCET_NANOS_AMOUNT),
             ..Default::default()
         };
@@ -887,7 +926,7 @@ async fn start(
         let prometheus_registry = prometheus::Registry::new();
         if force_regenesis {
             let kp = swarm.config_mut().account_keys.swap_remove(0);
-            let keystore_path = config_dir.join(IOTA_KEYSTORE_FILENAME);
+            let keystore_path = faucet_config_dir.join(IOTA_KEYSTORE_FILENAME);
             let mut keystore = Keystore::from(FileBasedKeystore::new(&keystore_path).unwrap());
             let address: IotaAddress = kp.public().into();
             keystore.add_key(None, IotaKeyPair::Ed25519(kp)).unwrap();
@@ -895,13 +934,13 @@ async fn start(
                 .with_envs([IotaEnv::new("localnet", fullnode_url)])
                 .with_active_address(address)
                 .with_active_env("localnet".to_string())
-                .persisted(config_dir.join(IOTA_CLIENT_CONFIG).as_path())
+                .persisted(faucet_config_dir.join(IOTA_CLIENT_CONFIG).as_path())
                 .save()
                 .unwrap();
         }
-        let faucet_wal = config_dir.join("faucet.wal");
+        let faucet_wal = faucet_config_dir.join("faucet.wal");
         let simple_faucet = SimpleFaucet::new(
-            create_wallet_context(config.wallet_client_timeout_secs, config_dir)?,
+            create_wallet_context(config.wallet_client_timeout_secs, faucet_config_dir)?,
             &prometheus_registry,
             faucet_wal.as_path(),
             config.clone(),

@@ -22,6 +22,7 @@ criterion.workspace = true
 eyre.workspace = true
 fastcrypto.workspace = true
 futures.workspace = true
+http.workspace = true
 once_cell.workspace = true
 rand.workspace = true
 regex.workspace = true
@@ -29,6 +30,7 @@ rocksdb.workspace = true
 serde_json.workspace = true
 tempfile.workspace = true
 tokio.workspace = true
+tracing.workspace = true
 
 # internal dependencies
 iota-config.workspace = true

@@ -574,13 +574,13 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> Synchronizer<C
         let peer_hostname = &context.committee.authority(peer_index).hostname;
         metrics
             .synchronizer_fetched_blocks_by_peer
-            .with_label_values(&[peer_hostname, sync_method])
+            .with_label_values(&[peer_hostname.as_str(), sync_method])
             .inc_by(blocks.len() as u64);
         for block in &blocks {
             let block_hostname = &context.committee.authority(block.author()).hostname;
             metrics
                 .synchronizer_fetched_blocks_by_authority
-                .with_label_values(&[block_hostname, sync_method])
+                .with_label_values(&[block_hostname.as_str(), sync_method])
                 .inc();
         }
 
@@ -631,7 +631,7 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> Synchronizer<C
 
         blocks
             .into_iter()
-            .map(|block| block.round())
+            .map(|(block, _)| block.round())
             .collect::<Vec<_>>()
     }
 
@@ -657,7 +657,7 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> Synchronizer<C
                     .metrics
                     .node_metrics
                     .invalid_blocks
-                    .with_label_values(&[&hostname, "synchronizer", e.clone().name()])
+                    .with_label_values(&[hostname.as_str(), "synchronizer", e.clone().name()])
                     .inc();
                 warn!("Invalid block received from {}: {}", peer_index, e);
                 return Err(e);
@@ -740,6 +740,7 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> Synchronizer<C
         const MAX_RETRY_DELAY_STEP: Duration = Duration::from_millis(4_000);
 
         let context = self.context.clone();
+        let dag_state = self.dag_state.clone();
         let network_client = self.network_client.clone();
         let block_verifier = self.block_verifier.clone();
         let core_dispatcher = self.core_dispatcher.clone();
@@ -763,16 +764,12 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> Synchronizer<C
                                     for serialized_block in blocks {
                                         let signed_block = bcs::from_bytes(&serialized_block).map_err(ConsensusError::MalformedBlock)?;
                                         block_verifier.verify(&signed_block).tap_err(|err|{
-                                            let hostname = if context.committee.is_valid_index(signed_block.author()) {
-                                                context.committee.authority(signed_block.author()).hostname.clone()
-                                            } else {
-                                                signed_block.author().to_string()
-                                            };
+                                            let hostname = context.committee.authority(authority_index).hostname.clone();
                                             context
                                                 .metrics
                                                 .node_metrics
                                                 .invalid_blocks
-                                                .with_label_values(&[&hostname, "synchronizer_own_block", err.clone().name()])
+                                                .with_label_values(&[hostname.as_str(), "synchronizer_own_block", err.clone().name()])
                                                 .inc();
                                             warn!("Invalid block received from {}: {}", authority_index, err);
                                         })?;
@@ -787,12 +784,17 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> Synchronizer<C
                 };
 
                 // Get the highest of all the results. Retry until at least `f+1` results have been gathered.
-                let mut total_stake;
                 let mut highest_round;
                 let mut retries = 0;
                 let mut retry_delay_step = Duration::from_millis(500);
                 'main:loop {
-                    total_stake = 0;
+                    if context.committee.size() == 1 {
+                        highest_round = dag_state.read().get_last_proposed_block().round();
+                        info!("Only one node in the network, will not try fetching own last block from peers.");
+                        break 'main;
+                    }
+
+                    let mut total_stake = 0;
                     highest_round = 0;
 
                     // Ask all the other peers about our last block
@@ -845,16 +847,16 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> Synchronizer<C
                     if context.committee.reached_validity(total_stake) {
                         info!("{} out of {} total stake returned acceptable results for our own last block with highest round {}, with {retries} retries.", total_stake, context.committee.total_stake(), highest_round);
                         break 'main;
-                    } else {
-                        retries += 1;
-                        context.metrics.node_metrics.sync_last_known_own_block_retries.inc();
-                        warn!("Not enough stake: {} out of {} total stake returned acceptable results for our own last block with highest round {}. Will now retry {retries}.", total_stake, context.committee.total_stake(), highest_round);
-
-                        sleep(retry_delay_step).await;
-
-                        retry_delay_step = Duration::from_secs_f64(retry_delay_step.as_secs_f64() * 1.5);
-                        retry_delay_step = retry_delay_step.min(MAX_RETRY_DELAY_STEP);
                     }
+
+                    retries += 1;
+                    context.metrics.node_metrics.sync_last_known_own_block_retries.inc();
+                    warn!("Not enough stake: {} out of {} total stake returned acceptable results for our own last block with highest round {}. Will now retry {retries}.", total_stake, context.committee.total_stake(), highest_round);
+
+                    sleep(retry_delay_step).await;
+
+                    retry_delay_step = Duration::from_secs_f64(retry_delay_step.as_secs_f64() * 1.5);
+                    retry_delay_step = retry_delay_step.min(MAX_RETRY_DELAY_STEP);
                 }
 
                 // Update the Core with the highest detected round
@@ -889,6 +891,14 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> Synchronizer<C
 
         let (commit_lagging, last_commit_index, quorum_commit_index) = self.is_commit_lagging();
         if commit_lagging {
+            // If gc is enabled and we are commit lagging, then we don't want to enable the
+            // scheduler. As the new logic of processing the certified commits
+            // takes place we are guaranteed that commits will happen for all the certified
+            // commits.
+            if dag_state.read().gc_enabled() {
+                return Ok(());
+            }
+
             // As node is commit lagging try to sync only the missing blocks that are within
             // the acceptable round thresholds to sync. The rest we don't attempt to
             // sync yet.
@@ -935,7 +945,6 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> Synchronizer<C
                     blocks_to_fetch.clone(),
                     network_client,
                     missing_blocks,
-                    core_dispatcher.clone(),
                     dag_state,
                 )
                 .await;
@@ -1004,7 +1013,6 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> Synchronizer<C
         inflight_blocks: Arc<InflightBlocksMap>,
         network_client: Arc<C>,
         missing_blocks: BTreeSet<BlockRef>,
-        _core_dispatcher: Arc<D>,
         dag_state: Arc<RwLock<DagState>>,
     ) -> Vec<(BlocksGuard, Vec<Bytes>, AuthorityIndex)> {
         const MAX_PEERS: usize = 3;
@@ -1014,6 +1022,7 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> Synchronizer<C
             .into_iter()
             .take(MAX_PEERS * MAX_BLOCKS_PER_FETCH)
             .collect::<Vec<_>>();
+
         let mut missing_blocks_per_authority = vec![0; context.committee.size()];
         for block in &missing_blocks {
             missing_blocks_per_authority[block.author] += 1;
@@ -1028,6 +1037,12 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> Synchronizer<C
                 .synchronizer_missing_blocks_by_authority
                 .with_label_values(&[&authority.hostname])
                 .inc_by(missing as u64);
+            context
+                .metrics
+                .node_metrics
+                .synchronizer_current_missing_blocks_by_authority
+                .with_label_values(&[&authority.hostname])
+                .set(missing as i64);
         }
 
         #[cfg_attr(test, expect(unused_mut))]
@@ -1090,6 +1105,7 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> Synchronizer<C
                     let peer_hostname = &context.committee.authority(peer_index).hostname;
                     match response {
                         Ok(fetched_blocks) => {
+                            info!("Fetched {} blocks from peer {}", fetched_blocks.len(), peer_hostname);
                             results.push((blocks_guard, fetched_blocks, peer_index));
 
                             // no more pending requests are left, just break the loop
@@ -1130,7 +1146,7 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> Synchronizer<C
                     }
                 },
                 _ = &mut fetcher_timeout => {
-                    debug!("Timed out while fetching all the blocks");
+                    debug!("Timed out while fetching missing blocks");
                     break;
                 }
             }
@@ -1306,6 +1322,14 @@ mod tests {
             }
 
             Ok(serialised)
+        }
+
+        async fn get_latest_rounds(
+            &self,
+            _peer: AuthorityIndex,
+            _timeout: Duration,
+        ) -> ConsensusResult<(Vec<Round>, Vec<Round>)> {
+            unimplemented!("Unimplemented")
         }
     }
 
@@ -1561,7 +1585,14 @@ mod tests {
     async fn synchronizer_periodic_task_when_commit_lagging_with_missing_blocks_in_acceptable_thresholds()
      {
         // GIVEN
-        let (context, _) = Context::new_for_test(4);
+        let (mut context, _) = Context::new_for_test(4);
+
+        // We want to run this test only when gc is disabled. Once gc gets enabled this
+        // logic won't execute any more.
+        context
+            .protocol_config
+            .set_consensus_gc_depth_for_testing(0);
+
         let context = Arc::new(context);
         let block_verifier = Arc::new(NoopBlockVerifier {});
         let core_dispatcher = Arc::new(MockCoreThreadDispatcher::default());

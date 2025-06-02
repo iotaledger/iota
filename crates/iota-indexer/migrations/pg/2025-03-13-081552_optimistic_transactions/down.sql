@@ -1,0 +1,9 @@
+DROP TABLE IF EXISTS optimistic_tx_kinds;
+DROP TABLE IF EXISTS optimistic_tx_calls_fun;
+DROP TABLE IF EXISTS optimistic_tx_calls_mod;
+DROP TABLE IF EXISTS optimistic_tx_calls_pkg;
+DROP TABLE IF EXISTS optimistic_tx_changed_objects;
+DROP TABLE IF EXISTS optimistic_tx_input_objects;
+DROP TABLE IF EXISTS optimistic_tx_recipients;
+DROP TABLE IF EXISTS optimistic_tx_senders;
+DROP TABLE IF EXISTS optimistic_transactions;

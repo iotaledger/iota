@@ -1,5 +1,11 @@
 # @iota/apps-ui-icons
 
+## 0.3.0
+
+### Minor Changes
+
+-   a4b46bc: add new icons
+
 ## 0.2.2
 
 ### Patch Changes
