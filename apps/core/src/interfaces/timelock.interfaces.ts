@@ -1,6 +1,8 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+import { TimelockedStake } from '@iota/iota-sdk/client';
+
 export interface UID {
     id: string;
 }
@@ -22,3 +24,8 @@ export interface TimelockedIotaResponse {
     expiration_timestamp_ms: string;
     label?: string;
 }
+
+export type ExtendedDelegatedTimelockedStake = TimelockedStake & {
+    validatorAddress: string;
+    stakingPool: string;
+};
