@@ -1311,7 +1311,10 @@ impl IotaTestAdapter {
             .strip_prefix("bcs(")
             .and_then(|c| c.strip_suffix(")"))
         else {
-            return Ok(base64::Engine::encode(&base64::engine::general_purpose::URL_SAFE_NO_PAD, cursor));
+            return Ok(base64::Engine::encode(
+                &base64::engine::general_purpose::URL_SAFE_NO_PAD,
+                cursor,
+            ));
         };
 
         let mut parts = args.split(",");
