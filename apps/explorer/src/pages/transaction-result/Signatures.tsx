@@ -30,7 +30,7 @@ function SignaturePanel({ title, signature: data }: SignaturePanelProps): JSX.El
     const { signature, signatureScheme } = data;
     return (
         <div className="flex w-full flex-col gap-md">
-            <ButtonSegment selected label={title} type={ButtonSegmentType.Underlined} />
+            <ButtonSegment selected label={title} type={ButtonSegmentType.Underlined} isNested />
             <KeyValueInfo keyText="Scheme" value={signatureScheme} fullwidth />
             <KeyValueInfo
                 keyText="Address"
@@ -119,7 +119,7 @@ export function Signatures({ transaction }: SignaturesProps) {
         : null;
 
     return (
-        <div className="flex flex-wrap gap-lg px-md--rs py-md md:py-md">
+        <div className="flex flex-wrap gap-lg p-sm--rs">
             {userSignatures.length > 0 && (
                 <div className="flex w-full flex-col gap-lg">
                     {userSignatures.map((signature, index) => (

@@ -992,7 +992,7 @@ impl KeyToolCommand {
                *         &eph_pk_bytes,
                *         max_epoch,
                *         "6c56t7re6ekgmv23o7to8r0sic",
-               *         "https://www.iota.io/",
+               *         "https://www.iota.org/",
                *         &jwt_randomness,
                *     )?;
                *     let url_10 = get_oidc_url(
@@ -1000,7 +1000,7 @@ impl KeyToolCommand {
                *         &eph_pk_bytes,
                *         max_epoch,
                *         "2e3e87cb-bf24-4399-ab98-48343d457124",
-               *         "https://www.iota.io",
+               *         "https://www.iota.org",
                *         &jwt_randomness,
                *     )?;
                *     let url_11 = get_oidc_url(
@@ -1117,7 +1117,7 @@ impl KeyToolCommand {
                * ZkLoginEnv::Prod,                 _ => return Err(anyhow!("Invalid
                * network")),             };
                *             let verify_params =
-               *                 VerifyParams::new(parsed, vec![], env, true, Some(2)); */
+               *                 VerifyParams::new(parsed, vec![], env, true, true, Some(2)); */
 
               /*             let (serialized, res) = match IntentScope::try_from(intent_scope)
                *                 .map_err(|_| anyhow!("Invalid scope"))?
