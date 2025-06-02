@@ -32,7 +32,7 @@ const developer = [
     },
         {
         type: 'category',
-        label: "Reference",
+        label: "References",
         items: [
             'developer/network-overview',
             {
@@ -317,7 +317,7 @@ const developer = [
     },
     {
         type: 'category',
-        label: 'How-To',
+        label: 'How To',
         items: [
             {
                 type: 'category',
