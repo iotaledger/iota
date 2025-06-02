@@ -161,14 +161,8 @@ jobs:
         run: |
           [ -f ~/.cargo/env ] && source ~/.cargo/env
 
-          binaries=$(jq -r 'to_entries[] | select(.key=="release_binaries") | .value | to_entries[] | @base64' ${{ env.BINARY_LIST_FILE }})
-          for entry in $binaries; do
-            _jq() {
-              echo "${entry}" | base64 --decode | jq -r "$1"
-            }
-            binary=$(_jq '.key')
-            features=$(_jq '.value | join(",")')
-
+          jq -r '.release_binaries | to_entries[] | [.key, (.value | join(","))] | @tsv' ${{ env.BINARY_LIST_FILE }} | while IFS=$'\t' read -r binary features; do
+            echo ">>> Building $binary with features: $features"
             if [[ -z "$features" ]]; then
               cargo build --release --bin "$binary"
             else
