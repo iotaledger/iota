@@ -221,7 +221,7 @@ export function OwnedObjects({ id }: OwnedObjectsProps): JSX.Element {
                     <div className="flex w-full flex-row flex-wrap items-center justify-between sm:min-h-[72px]">
                         <Title size={TitleSize.Medium} title="Assets" />
                         {hasVisualAssets && (
-                            <div className="flex justify-between sm:flex-row sm:pr-lg">
+                            <div className="flex justify-between px-md--rs sm:flex-row">
                                 <div className="flex items-center gap-sm">
                                     {VIEW_MODES.map((mode) => {
                                         const selected = mode.value === viewMode;
@@ -305,7 +305,7 @@ export function OwnedObjects({ id }: OwnedObjectsProps): JSX.Element {
                     )}
 
                     {showPagination && hasVisualAssets && (
-                        <div className="flex flex-row flex-wrap items-center justify-between gap-sm px-sm--rs py-sm--rs">
+                        <div className="flex flex-col items-center justify-between gap-sm px-sm--rs py-sm--rs md:flex-row">
                             <Pagination {...pagination} />
                             <div className="flex items-center gap-3">
                                 {!isPending && (
