@@ -31,6 +31,9 @@ use crate::{
     threshold_clock::ThresholdClock,
 };
 
+// TODO: make it derivable from the protocol parameters
+pub(crate) const MAX_TRANSACTIONS_ACK_DEPTH: Round = 50;
+
 /// DagState provides the API to write and read accepted blocks from the DAG.
 /// Only uncommitted and last committed blocks are cached in memory.
 /// The rest of blocks are stored on disk.
