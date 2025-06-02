@@ -77,6 +77,7 @@ export function StakeFormComponent({ validatorAddress, epoch, onSuccess }: Stake
         coinBalance,
         activeAddress,
     );
+
     const maxAmountTxGasBudget = BigInt(maxAmountTransactionData?.gasSummary?.budget ?? 0n);
     const availableBalance = coinBalance - maxAmountTxGasBudget;
     const [availableBalanceFormatted, symbol] = useFormatCoin({

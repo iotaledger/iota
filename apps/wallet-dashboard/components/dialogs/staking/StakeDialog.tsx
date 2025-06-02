@@ -95,9 +95,6 @@ export function StakeDialog({
         };
     });
 
-    // const amount = formik.values.amount;
-    // const amountWithoutDecimals = parseAmount(amount, coinDecimals);
-
     function handleBack(): void {
         setView(StakeDialogView.SelectValidator);
     }
@@ -163,7 +160,6 @@ export function StakeDialog({
                             selectedValidator={selectedValidator}
                             handleClose={handleClose}
                             onBack={handleBack}
-                            // amountWithoutDecimals={amountWithoutDecimals}
                             availableBalance={availableBalance}
                             senderAddress={senderAddress}
                             onSuccess={handleTransactionSuccess}
@@ -177,7 +173,6 @@ export function StakeDialog({
                             onBack={handleBack}
                             senderAddress={senderAddress}
                             onSuccess={handleTransactionSuccess}
-                            // amountWithoutDecimals={amountWithoutDecimals}
                         />
                     )}
                     {view === StakeDialogView.TransactionDetails && (
