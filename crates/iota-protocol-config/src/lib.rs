@@ -19,7 +19,7 @@ use tracing::{info, warn};
 
 /// The minimum and maximum protocol versions supported by this build.
 const MIN_PROTOCOL_VERSION: u64 = 1;
-pub const MAX_PROTOCOL_VERSION: u64 = 8;
+pub const MAX_PROTOCOL_VERSION: u64 = 9;
 
 // Record history of protocol version allocations here:
 //
@@ -51,6 +51,13 @@ pub const MAX_PROTOCOL_VERSION: u64 = 8;
 //            Enable the new consensus commit rule for testnet.
 //            Enable min_free_execution_slot for the shared object congestion
 //            tracker in devnet.
+// Version 9: Enable smart ancestor selection for mainnet.
+//            Enable probing for accepted rounds in round prober for mainnet.
+//            Switch to distributed vote scoring in consensus in mainnet.
+//            Enable zstd compression for consensus tonic network in mainnet.
+//            Enable consensus garbage collection for mainnet
+//            Enable the new consensus commit rule for mainnet.
+//            Increase the committee size to 80.
 
 #[derive(Copy, Clone, Debug, Hash, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ProtocolVersion(u64);
@@ -1953,9 +1960,6 @@ impl ProtocolConfig {
                 // version 7 is a new framework version but with no config changes
                 7 => {}
                 8 => {
-                    // TODO: add new consensus related config params to this
-                    // version
-
                     cfg.feature_flags.variant_nodes = true;
 
                     if chain != Chain::Mainnet {
@@ -1982,6 +1986,27 @@ impl ProtocolConfig {
                     if chain != Chain::Testnet && chain != Chain::Mainnet {
                         cfg.feature_flags.congestion_control_min_free_execution_slot = true;
                     }
+                }
+                9 => {
+                    // Enable round prober in consensus.
+                    cfg.feature_flags.consensus_round_prober = true;
+                    // Enable distributed vote scoring.
+                    cfg.feature_flags
+                        .consensus_distributed_vote_scoring_strategy = true;
+                    cfg.feature_flags.consensus_linearize_subdag_v2 = true;
+                    // Enable smart ancestor selection
+                    cfg.feature_flags.consensus_smart_ancestor_selection = true;
+                    // Enable probing for accepted rounds in round prober
+                    cfg.feature_flags
+                        .consensus_round_prober_probe_accepted_rounds = true;
+                    // Enable zstd compression for consensus
+                    cfg.feature_flags.consensus_zstd_compression = true;
+                    // Assuming a round rate of max 15/sec, then using a gc depth of 60 allow
+                    // blocks within a window of ~4 seconds
+                    // to be included before be considered garbage collected.
+                    cfg.consensus_gc_depth = Some(60);
+
+                    cfg.max_committee_members_count = Some(80);
                 }
                 // Use this template when making changes:
                 //
