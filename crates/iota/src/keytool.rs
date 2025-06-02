@@ -1115,7 +1115,7 @@ impl KeyToolCommand {
                * network.as_str() {                 "devnet" | "localnet" =>
                * ZkLoginEnv::Test,                 "mainnet" | "testnet" =>
                * ZkLoginEnv::Prod,                 _ => bail!("Invalid
-               * network")),             };
+               * network"),             };
                *             let verify_params =
                *                 VerifyParams::new(parsed, vec![], env, true, Some(2)); */
 
@@ -1159,7 +1159,7 @@ impl KeyToolCommand {
                *                     );
                *                     (serde_json::to_string(&data)?, res)
                *                 }
-               *                 _ => bail!("Invalid intent scope")),
+               *                 _ => bail!("Invalid intent scope"),
                *             };
                *             CommandOutput::ZkLoginSigVerify(ZkLoginSigVerifyResponse {
                *                 data: Some(serialized),
