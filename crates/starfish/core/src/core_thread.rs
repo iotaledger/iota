@@ -23,7 +23,7 @@ use tracing::warn;
 
 use crate::{
     BlockHeaderAPI as _, VerifiedBlockHeader,
-    block_header::{BlockRef, Round, VerifiedBlock},
+    block_header::{BlockRef, Round, VerifiedBlock, VerifiedTransactions},
     commit::CertifiedCommits,
     context::Context,
     core::Core,

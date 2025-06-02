@@ -148,6 +148,7 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
         let verified_transactions = VerifiedTransactions::new(
             transactions,
             verified_block_header.reference(),
+            verified_block_header.transactions_commitment(),
             serialized_block.serialized_transactions,
         );
         let verified_block = VerifiedBlock::new(verified_block_header, verified_transactions);

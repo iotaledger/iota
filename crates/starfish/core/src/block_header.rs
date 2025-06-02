@@ -586,7 +586,6 @@ impl VerifiedBlockHeader {
         self.digest
     }
 
-    #[cfg_attr(not(test), expect(unused))]
     pub(crate) fn transactions_commitment(&self) -> TransactionsCommitment {
         self.signed_block_header.inner.transactions_commitment()
     }
@@ -642,7 +641,7 @@ impl fmt::Debug for VerifiedBlockHeader {
 }
 
 /// VerifiedTransactions are transactions that correspond to an existing block
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct VerifiedTransactions {
     transactions: Vec<Transaction>,
 
@@ -685,7 +684,6 @@ impl VerifiedTransactions {
         self.block_ref
     }
 
-    #[expect(dead_code)]
     pub fn serialized(&self) -> &Bytes {
         &self.serialized
     }
@@ -723,6 +721,7 @@ impl VerifiedBlock {
                 verified_block_header.author(),
                 verified_block_header.digest(),
             ),
+            verified_block_header.transactions_commitment(),
             Bytes::from(bcs::to_bytes::<Vec<Transaction>>(&vec![]).unwrap()),
         );
         Self {
@@ -772,6 +771,7 @@ impl TryFrom<SerializedBlock> for VerifiedBlock {
         let verified_transactions = VerifiedTransactions::new(
             transactions,
             verified_block_header.reference(),
+            verified_block_header.transactions_commitment(),
             serialized_block.serialized_transactions,
         );
         // Assemble the block from the header and transactions
@@ -802,7 +802,8 @@ pub(crate) fn genesis_blocks(context: Arc<Context>) -> Vec<VerifiedBlock> {
                 verified_transactions: VerifiedTransactions {
                     transactions: vec![],
                     block_ref: verified_block_header.reference(),
-                    serialized: Bytes::new(),
+                    transactions_commitment: verified_block_header.transactions_commitment(),
+                    serialized: Bytes::from(bcs::to_bytes::<Vec<Transaction>>(&vec![]).unwrap()),
                 },
             }
         })

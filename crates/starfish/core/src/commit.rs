@@ -19,8 +19,8 @@ use starfish_config::{AuthorityIndex, DIGEST_LENGTH, DefaultHashFunction};
 
 use crate::{
     block_header::{
-        BlockHeaderAPI, BlockRef, BlockTimestampMs, Round, Slot, VerifiedBlockHeader,
-        VerifiedTransactions,
+        BlockHeaderAPI, BlockRef, BlockTimestampMs, Round, Slot, VerifiedBlock,
+        VerifiedBlockHeader, VerifiedTransactions,
     },
     leader_scoring::ReputationScores,
     storage::Store,
@@ -948,7 +948,7 @@ mod tests {
             .map(|block| (block.reference(), block))
             .unzip();
         store
-            .write(WriteBatch::default().blocks(first_round_headers))
+            .write(WriteBatch::default().block_headers(first_round_headers))
             .unwrap();
         blocks.append(&mut first_round_references.clone());
 
@@ -966,7 +966,7 @@ mod tests {
                         .build(),
                 );
                 store
-                    .write(WriteBatch::default().blocks(vec![block.clone()]))
+                    .write(WriteBatch::default().block_headers(vec![block.clone()]))
                     .unwrap();
                 new_ancestors.push(block.reference());
                 blocks.push(block.reference());

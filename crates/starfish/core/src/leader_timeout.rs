@@ -140,13 +140,11 @@ mod tests {
     use tokio::time::{Instant, sleep};
 
     use crate::{
-        block_header::{BlockRef, Round, VerifiedBlockHeader, VerifiedTransactions},
-        commit::CertifiedCommits,
         context::Context,
         core::CoreSignals,
-        core_thread::{CoreError, CoreThreadDispatcher},
         leader_timeout::LeaderTimeoutTask,
     };
+    use crate::core_thread::tests::MockCoreThreadDispatcher;
 
     #[tokio::test(flavor = "current_thread", start_paused = true)]
     async fn basic_leader_timeout() {

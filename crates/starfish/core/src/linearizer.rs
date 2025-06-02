@@ -13,7 +13,7 @@ use starfish_config::AuthorityIndex;
 
 use crate::{
     block_header::{BlockHeaderAPI, BlockRef, VerifiedBlockHeader},
-    commit::{Commit, CommittedSubDag, TrustedCommit, sort_sub_dag_blocks},
+    commit::{Commit, CommitAPI, PendingSubDag, TrustedCommit, sort_sub_dag_blocks},
     context::Context,
     dag_state::DagState,
     leader_schedule::LeaderSchedule,
