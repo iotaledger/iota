@@ -55,7 +55,7 @@ export async function requestFaucetTokensOnWalletHome(page: Page) {
     const originalBalance = await page.getByTestId('coin-balance').textContent();
     await page.getByRole('button', { name: /Request \w+ Tokens/ }).click();
     await expect(page.getByTestId('coin-balance')).not.toHaveText(`${originalBalance}`, {
-        timeout: 60_000,
+        timeout: 30_000,
     });
 }
 

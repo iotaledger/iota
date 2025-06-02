@@ -27,7 +27,7 @@ test.describe('Wallet staking', () => {
         await dashboardPage.getByText('Next').click();
 
         await dashboardPage.getByLabel('Amount').fill('10');
-        await dashboardPage.pause();
+
         let stakeButton = dashboardPage.getByTestId('stake-confirm-btn');
         await expect(stakeButton).toBeVisible();
 
