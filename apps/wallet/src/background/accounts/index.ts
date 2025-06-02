@@ -299,6 +299,20 @@ export async function accountsHandleUIMessage(msg: Message, uiConnection: UiConn
         await uiConnection.send(createMessage({ type: 'done' }, msg.id));
         return true;
     }
+    if (isMethodPayload(payload, 'getLockedState')) {
+        const { failedAttempts, lastFailedAttemptTime, isLockedOut, lockTimeMs } =
+            await getLockedState();
+        await uiConnection.send(
+            createMessage<MethodPayload<'getLockedStateResponse'>>(
+                {
+                    type: 'method-payload',
+                    method: 'getLockedStateResponse',
+                    args: { failedAttempts, lastFailedAttemptTime, isLockedOut, lockTimeMs },
+                },
+                msg.id,
+            ),
+        );
+    }
     if (isMethodPayload(payload, 'verifyPassword')) {
         const MAX_UNLOCK_ATTEMPTS = 3;
         const WALLET_LOCK_DURATION_IN_MS = 60 * MILLISECONDS_PER_SECOND;

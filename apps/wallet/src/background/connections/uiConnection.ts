@@ -152,6 +152,22 @@ export class UiConnection extends Connection {
                         msg.id,
                     ),
                 );
+                // } else if (isMethodPayload(payload, 'getLockedState')) {
+                //     this.send(
+                //         createMessage<MethodPayload<'getLockedStateResponse'>>(
+                //             {
+                //                 method: 'getLockedStateResponse',
+                //                 type: 'method-payload',
+                //                 args: {
+                //                     failedAttempts: payload.args.failedAttempts,
+                //                     lastFailedAttemptTime: payload.args.lastFailedAttemptTime,
+                //                     isLockedOut: payload.args.isLockedOut,
+                //                     lockTimeMs: payload.args.lockTimeMs,
+                //                 },
+                //             },
+                //             msg.id,
+                //         ),
+                //     );
             } else if (await accountSourcesHandleUIMessage(msg, this)) {
                 return;
             } else if (await accountsHandleUIMessage(msg, this)) {

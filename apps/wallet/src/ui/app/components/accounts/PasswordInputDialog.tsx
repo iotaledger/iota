@@ -61,6 +61,50 @@ export function PasswordModalDialog({
         interval: NodeJS.Timeout;
         message: string;
     } | null>(null);
+    const backgroundService = useBackgroundClient();
+
+    useEffect(() => {
+        if (!open) return;
+        function updateCountdown(remainingTime: number, interval: NodeJS.Timeout) {
+            const message = `Too many failed attempts. Please try again in ${remainingTime} ${remainingTime === 1 ? 'second' : 'seconds'}.`;
+            setCountdownError({
+                interval,
+                message,
+            });
+
+            if (remainingTime === 0) {
+                clearInterval(interval);
+                setCountdownError(null);
+                return;
+            }
+
+            remainingTime -= 1;
+        }
+        async function checkLockStateOnOpen() {
+            let interval: NodeJS.Timeout;
+            try {
+                const lockedState = await backgroundService.getLockedState({});
+                console.log(lockedState);
+                if (lockedState.isLockedOut && lockedState.lockTimeMs) {
+                    const lockTimeMs = Number(lockedState.lockTimeMs);
+                    const lockDurationMs = 60 * 1000;
+                    let remainingTime = Math.ceil(
+                        (lockTimeMs + lockDurationMs - Date.now()) / MILLISECONDS_PER_SECOND,
+                    );
+                    if (remainingTime < 0) remainingTime = 0;
+
+                    interval = setInterval(
+                        updateCountdown,
+                        MILLISECONDS_PER_SECOND,
+                    ) as unknown as NodeJS.Timeout;
+                    updateCountdown(remainingTime, interval);
+                }
+            } catch (e) {
+                console.log('Error: ', e);
+            }
+        }
+        checkLockStateOnOpen();
+    }, [open]);
 
     // Clear the interval and error if the dialog closed but not unmounted
     useEffect(() => {
@@ -86,7 +130,6 @@ export function PasswordModalDialog({
         formState: { isSubmitting, isValid },
     } = form;
 
-    const backgroundService = useBackgroundClient();
     const [formID] = useState(() => uuidV4());
     const { data: allAccountsSources } = useAccountSources();
     const hasAccountsSources =
