@@ -95,7 +95,7 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
                     .metrics
                     .node_metrics
                     .syntactically_invalid_blocks
-                    .with_label_values(&[committee.authority(block.author()).hostname.clone(), "handle_send_block".to_string(), "MalformedBlock".to_string()])
+                    .with_label_values(&[peer_hostname.clone(), "handle_send_block".to_string(), "MalformedBlock".to_string()])
                     .inc();
                 // Update validator score
                 self.context
