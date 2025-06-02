@@ -107,6 +107,9 @@ impl BlockManager {
             .collect();
         let (accepted_block_headers, missing_block_headers) =
             self.try_accept_block_headers_internal(block_headers);
+        // TODO: logic below should be applied also when headers are accepted. Need to
+        // move it to internal function.
+
         let mut accepted_block_header_refs: HashSet<BlockRef> = HashSet::new();
         for block_header in accepted_block_headers.iter() {
             if let Some(block) = self.suspended_blocks.remove(&block_header.reference()) {
