@@ -7,13 +7,16 @@ use std::sync::Arc;
 use anyhow::Result;
 use async_trait::async_trait;
 use bytes::Bytes;
+use futures::StreamExt;
 use iota_data_ingestion_core::Worker;
+use iota_grpc_api::client::GrpcNodeClient;
 use iota_storage::blob::{Blob, BlobEncoding};
 use iota_types::{
     full_checkpoint_content::CheckpointData, messages_checkpoint::CheckpointSequenceNumber,
 };
 use object_store::{DynObjectStore, path::Path};
 use tokio::sync::Mutex;
+use tracing;
 
 const CHECKPOINT_FILE_SUFFIX: &str = "chk";
 const LIVE_DIR_NAME: &str = "live";
@@ -41,7 +44,7 @@ impl GrpcBlobWorker {
         }
     }
 
-    fn file_path(chk_seq_num: CheckpointSequenceNumber) -> Path {
+    pub fn file_path(chk_seq_num: CheckpointSequenceNumber) -> Path {
         Path::from(INGESTION_DIR_NAME)
             .child(LIVE_DIR_NAME)
             .child(format!("{chk_seq_num}.{CHECKPOINT_FILE_SUFFIX}"))
@@ -69,7 +72,33 @@ impl Worker for GrpcBlobWorker {
         {
             let mut current_epoch = self.current_epoch.lock().await;
             if epoch > *current_epoch {
-                // For simplicity, skip remote store reset logic here. Add if needed.
+                // Epoch transition detected. Fetch first checkpoint of previous epoch and reset
+                // remote store.
+                tracing::info!(
+                    "Epoch transition: {} -> {}. Performing remote store reset.",
+                    *current_epoch,
+                    epoch
+                );
+                let mut grpc_client = GrpcNodeClient::connect(&self.grpc_url).await?;
+                let delete_start = grpc_client
+                    .get_epoch_first_checkpoint_sequence_number(*current_epoch)
+                    .await?;
+                if delete_start < chk_seq_num {
+                    // Only reset if there is something to delete
+                    let paths = (delete_start..chk_seq_num)
+                        .map(|chk_seq_num| Ok(Self::file_path(chk_seq_num)))
+                        .collect::<Vec<_>>();
+                    let paths_stream = futures::stream::iter(paths).boxed();
+                    self.remote_store
+                        .delete_stream(paths_stream)
+                        .for_each_concurrent(10, |delete_result| async {
+                            if let Err(err) = delete_result {
+                                tracing::warn!("deletion failed with: {err}");
+                            }
+                        })
+                        .await;
+                }
+                // Update epoch after reset
                 *current_epoch = epoch;
             }
         }

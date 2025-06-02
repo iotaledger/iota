@@ -38,6 +38,7 @@ url.workspace = true
 iota-archival.workspace = true
 iota-config.workspace = true
 iota-data-ingestion-core.workspace = true
+iota-grpc-api.workspace = true
 iota-metrics.workspace = true
 iota-rest-api.workspace = true
 iota-storage.workspace = true
@@ -45,7 +46,6 @@ iota-types.workspace = true
 telemetry-subscribers.workspace = true
 
 [dev-dependencies]
-iota-grpc-api.workspace = true
 rand.workspace = true
 tempfile.workspace = true
 test-cluster.workspace = true

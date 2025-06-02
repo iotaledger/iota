@@ -8,11 +8,20 @@ package iota.grpc;
 
 service CheckpointService {
   rpc StreamCheckpoints (StreamRequest) returns (stream Checkpoint);
+  rpc GetEpochFirstCheckpointSequenceNumber (EpochRequest) returns (CheckpointSequenceNumberResponse);
 }
 
 message StreamRequest {
   optional uint64 start_index = 1;
   optional uint64 end_index = 2;
+}
+
+message EpochRequest {
+  uint64 epoch = 1;
+}
+
+message CheckpointSequenceNumberResponse {
+  uint64 sequence_number = 1;
 }
 
 message Checkpoint {

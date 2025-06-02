@@ -6,23 +6,50 @@ The gRPC API supports subscriptions, similar to the `INX` (IOTA Node Extension) 
 
 ## Features
 
-The `CheckpointService` provides a `StreamCheckpoints` RPC endpoint, allowing clients to stream checkpoint data based on various criteria.
+The `CheckpointService` provides the following RPC endpoints:
 
-The `StreamRequest` message allows for flexible specification of the desired checkpoint range:
+- `StreamCheckpoints`: Stream checkpoint data based on a flexible range.
+- `GetEpochFirstCheckpointSequenceNumber`: Query the first checkpoint sequence number for a given epoch (useful for robust reset and epoch boundary handling).
+
+### Proto
 
 ```protobuf
+service CheckpointService {
+  rpc StreamCheckpoints (StreamRequest) returns (stream Checkpoint);
+  rpc GetEpochFirstCheckpointSequenceNumber (EpochRequest) returns (CheckpointSequenceNumberResponse);
+}
+
 message StreamRequest {
   optional uint64 start_index = 1;
   optional uint64 end_index = 2;
 }
+
+message EpochRequest {
+  uint64 epoch = 1;
+}
+
+message CheckpointSequenceNumberResponse {
+  uint64 sequence_number = 1;
+}
+
+message Checkpoint {
+  uint64 index = 1;
+  bytes data = 2;
+}
 ```
 
-The `StreamCheckpoints` method handles the following scenarios:
+### Streaming Range Logic
 
-1. **Only `start_index` provided**: The service will stream all available checkpoints starting from `start_index` up to the latest confirmed checkpoint.
-2. **Only `end_index` provided**: The service will stream only the checkpoint at the specified `end_index`.
-3. **Both `start_index` and `end_index` provided**: The service will stream checkpoints within the specified range, from `start_index` up to `min(latest_checkpoint_index, end_index)`.
-4. **Neither `start_index` nor `end_index` provided**: The service will stream all available checkpoints, starting from checkpoint index `0` up to the latest confirmed checkpoint.
+- **Both `start_index` and `end_index` omitted:**
+  - Streams from 0 to the maximum possible checkpoint index (streams all available).
+- **Only `start_index` provided:**
+  - Streams from `start_index` to the maximum possible checkpoint index.
+- **Only `end_index` provided:**
+  - Streams from 0 to `end_index`.
+- **Both `start_index` and `end_index` provided:**
+  - Streams from `start_index` to `end_index` (inclusive).
+
+The service does not attempt to compute a "latest" checkpoint index, making it robust to on-the-fly checkpoint generation.
 
 ## REST vs. gRPC Checkpoint Streaming: Comparison
 
@@ -70,7 +97,7 @@ flowchart LR
 - **gRPC API:** Indexer receives checkpoints as a real-time stream from the node.
 
 > **Note:**
-> The gRPC API supports streaming checkpoints, but DOES NOT provide endpoints for fetching metadata such as the current epoch or the first checkpoint sequence number of an epoch. Handling epoch boundaries or resets must be implemented by the client, if needed, by inspecting the streamed checkpoint data. See the modified `crates/iota-data-ingestions/src/main.rs` for more details.
+> The gRPC API now provides an endpoint for querying the first checkpoint of a given epoch (`GetEpochFirstCheckpointSequenceNumber`), making robust reset and epoch boundary handling possible for clients. Handling epoch boundaries or resets can be implemented by the client by inspecting the streamed checkpoint data or by using this endpoint.
 
 ## Usage
 
@@ -114,7 +141,8 @@ Located in `crates/iota-grpc-api/tests/`:
   - **`test_end_index_only`**: Focuses on the scenario where only `end_index` is specified, confirming that only the checkpoint at the specified `end_index` is streamed.
 
 - **`checkpoint_e2e.rs`**
-  - **`e2e_stream_checkpoints`**: An end-to-end test that covers the scenario where neither `start_index` nor `end_index` is provided, verifying that all available checkpoints from genesis are streamed.
+  - **`e2e_stream_checkpoints`**: End-to-end test that streams all available checkpoints from genesis when neither `start_index` nor `end_index` is provided.
+  - **`test_get_epoch_first_checkpoint_sequence_number`**: Tests the gRPC endpoint for querying the first checkpoint of a given epoch.
 
 ### **How to Run the Tests**
 
@@ -123,7 +151,7 @@ Located in `crates/iota-grpc-api/tests/`:
   cargo test -p iota-grpc-api -- --nocapture --test-threads=1
   ```
 
-These tests ensure that the gRPC streaming API behaves as expected for all supported request patterns and edge cases. All downstream consumers are encouraged to run these tests when upgrading or integrating the gRPC API.
+These tests ensure that the gRPC streaming API behaves as expected for all supported request patterns and edge cases, including epoch boundary and reset handling. All downstream consumers are encouraged to run these tests when upgrading or integrating the gRPC API.
 
 ## Downstream Integration Tests: gRPC Checkpoint Streaming
 
@@ -132,7 +160,7 @@ The following integration tests have been added in downstream crates to ensure t
 ### **iota-data-ingestion**
 
 - **`tests/grpc_blob_ingestion.rs`**
-  - **`test_grpc_blob_ingestion`**: Spins up a test cluster with a gRPC-enabled node, streams checkpoints using the shared gRPC client, decodes and processes the streamed checkpoint data, and verifies successful ingestion. This test ensures the gRPC ingestion path is fully functional and aligned with the REST path for checkpoint data.
+  - **`test_grpc_blob_worker_reset_logic`**: Comprehensive test that covers streaming checkpoints, simulating a stale local watermark, verifying ingestion, simulating missing blobs, and testing worker reset and recovery logic. This test ensures robust recovery from stale state and correct handling of checkpoint ingestion and reset.
 
   **How to run:**
   ```bash
@@ -142,7 +170,7 @@ The following integration tests have been added in downstream crates to ensure t
 ### **iota-indexer**
 
 - **`tests/grpc_ingestion.rs`**
-  - **`test_grpc_checkpoint_stream`**: Spins up a test cluster with a gRPC-enabled node, streams checkpoints using the shared gRPC client, and verifies that at least one checkpoint is received. This test ensures the indexer can connect to a gRPC node and stream checkpoints as expected.
+  - **No active tests implemented.** (The file contains a placeholder for `test_grpc_checkpoint_stream`, but it is not implemented.)
 
   **How to run:**
   ```bash

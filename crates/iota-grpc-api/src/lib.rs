@@ -40,24 +40,12 @@ impl CheckpointService for CheckpointGrpcService {
             req.start_index, req.end_index
         );
 
-        // Get latest checkpoint index
-        let latest = stream_checkpoints_public(
-            self.state_reader.clone(),
-            Direction::Descending,
-            CheckpointSequenceNumber::MAX,
-        )
-        .next()
-        .and_then(|res| res.ok().map(|(summary, _)| summary.sequence_number))
-        .unwrap_or(0);
-        info!("Latest checkpoint index in store: {}", latest);
-
         let (start, end) = match (req.start_index, req.end_index) {
-            (Some(start), Some(end)) => (start, std::cmp::min(latest, end)),
-            (Some(start), None) => (start, latest),
+            (Some(start), Some(end)) => (start, end),
+            (Some(start), None) => (start, CheckpointSequenceNumber::MAX),
             (None, Some(end)) => (end, end),
-            (None, None) => (0, latest),
+            (None, None) => (0, CheckpointSequenceNumber::MAX),
         };
-        info!("Streaming checkpoints from {} to {}", start, end);
 
         let checkpoints: Vec<_> =
             stream_checkpoints_public(self.state_reader.clone(), Direction::Ascending, start)
@@ -101,5 +89,43 @@ impl CheckpointService for CheckpointGrpcService {
         }
         let stream = futures::stream::iter(checkpoints);
         Ok(Response::new(Box::pin(stream) as CheckpointStream))
+    }
+
+    async fn get_epoch_first_checkpoint_sequence_number(
+        &self,
+        request: Request<checkpoint::EpochRequest>,
+    ) -> Result<Response<checkpoint::CheckpointSequenceNumberResponse>, Status> {
+        let epoch = request.into_inner().epoch;
+        println!(
+            "[GRPC] get_epoch_first_checkpoint_sequence_number called for epoch {}",
+            epoch
+        );
+        // Iterate over checkpoints in ascending order to find the first in the
+        // requested epoch
+        let mut iter =
+            stream_checkpoints_public(self.state_reader.clone(), Direction::Ascending, 0);
+        let mut found = 0u64;
+        while let Some(Ok((summary, _))) = iter.next() {
+            println!(
+                "[GRPC] Inspecting checkpoint: seq={}, epoch={}",
+                summary.sequence_number, summary.epoch
+            );
+            if summary.epoch == epoch {
+                found = summary.sequence_number;
+                println!(
+                    "[GRPC] Found first checkpoint for epoch {}: seq={}",
+                    epoch, found
+                );
+                break;
+            }
+        }
+        if found == 0 {
+            println!("[GRPC] No checkpoint found for epoch {}", epoch);
+        }
+        Ok(Response::new(
+            checkpoint::CheckpointSequenceNumberResponse {
+                sequence_number: found,
+            },
+        ))
     }
 }

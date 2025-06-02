@@ -12,9 +12,11 @@ use iota_data_ingestion::{
 use iota_data_ingestion_core::{
     DataIngestionMetrics, FileProgressStore, IndexerExecutor, ReaderOptions, WorkerPool,
 };
+use iota_grpc_api::client::GrpcNodeClient;
 use iota_rest_api::Client;
 use prometheus::Registry;
 use serde::{Deserialize, Serialize};
+use tokio_stream::StreamExt;
 use tokio_util::sync::CancellationToken;
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
@@ -137,8 +139,24 @@ async fn main() -> Result<()> {
             Task::Blob(blob_config) => {
                 if let Some(grpc_url) = blob_config.node_grpc_api_url.clone() {
                     let remote_store = blob_config.object_store_config.make()?;
-                    // For demo, start from 0. In production, fetch current_epoch via gRPC if
-                    // needed.
+                    let task_name = task_config.name.clone();
+                    let mut watermark = executor.read_watermark(task_name.clone()).await?;
+
+                    let mut grpc_client = GrpcNodeClient::connect(&grpc_url).await?;
+                    let mut stream = grpc_client.stream_checkpoints(watermark, None).await?;
+                    if let Some(Ok(first_checkpoint)) = stream.next().await {
+                        if first_checkpoint.index > watermark {
+                            tracing::warn!(
+                                "Watermark {} is behind node's first available checkpoint {}. Resetting.",
+                                watermark,
+                                first_checkpoint.index
+                            );
+                            watermark = first_checkpoint.index;
+                            executor
+                                .update_watermark(task_name.clone(), watermark)
+                                .await?;
+                        }
+                    }
                     let current_epoch = 0u64;
                     let worker = GrpcBlobWorker::new(
                         remote_store,

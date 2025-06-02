@@ -31,4 +31,16 @@ impl GrpcNodeClient {
         let response = self.client.stream_checkpoints(request).await?;
         Ok(response.into_inner())
     }
+
+    pub async fn get_epoch_first_checkpoint_sequence_number(
+        &mut self,
+        epoch: u64,
+    ) -> Result<u64, tonic::Status> {
+        let request = crate::checkpoint::EpochRequest { epoch };
+        let response = self
+            .client
+            .get_epoch_first_checkpoint_sequence_number(request)
+            .await?;
+        Ok(response.into_inner().sequence_number)
+    }
 }
