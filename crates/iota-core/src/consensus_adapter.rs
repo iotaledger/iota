@@ -203,9 +203,8 @@ impl ConsensusAdapterMetrics {
 pub type BlockStatusReceiver = oneshot::Receiver<BlockStatus>;
 
 #[mockall::automock]
-#[async_trait::async_trait]
 pub trait SubmitToConsensus: Sync + Send + 'static {
-    async fn submit_to_consensus(
+    fn submit_to_consensus(
         &self,
         transactions: &[ConsensusTransaction],
         epoch_store: &Arc<AuthorityPerEpochStore>,
@@ -1218,9 +1217,8 @@ impl Drop for InflightDropGuard<'_> {
     }
 }
 
-#[async_trait::async_trait]
 impl SubmitToConsensus for Arc<ConsensusAdapter> {
-    async fn submit_to_consensus(
+    fn submit_to_consensus(
         &self,
         transactions: &[ConsensusTransaction],
         epoch_store: &Arc<AuthorityPerEpochStore>,
