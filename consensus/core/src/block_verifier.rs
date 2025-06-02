@@ -111,7 +111,7 @@ impl BlockVerifier for SignedBlockVerifier {
                 .metrics
                 .node_metrics
                 .semantically_invalid_blocks
-                .with_label_values(&[&committee.authority(author_index).hostname, "verify", "WrongEpoch"])
+                .with_label_values(&[committee.authority(block.author()).hostname.clone(), "verify".to_string(), "WrongEpoch".to_string()])
                 .inc();
             // Update validator score
             self.context

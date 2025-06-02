@@ -898,7 +898,7 @@ impl Default for ValidatorScoreMetrics {
         Self {
             semantically_invalid_blocks: Arc::new(semantically_invalid_blocks_inner),
             syntactically_invalid_blocks: Arc::new(syntactically_invalid_blocks_inner),
-            missing_block_proposals: Arc::new(missing_block_poposals_inner),
+            missing_block_proposals: Arc::new(missing_block_proposals_inner),
             equivocating_rounds: Arc::new(equivocating_rounds_inner)
         }
     }
