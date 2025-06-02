@@ -444,6 +444,7 @@ impl NodeMetrics {
                 "Number of semantically invalid blocks per peer authority",
                 &["authority", "source", "error"],
                 registry,
+            ).unwrap(),
             rejected_blocks: register_int_counter_vec_with_registry!(
                 "rejected_blocks",
                 "Number of blocks rejected before verifications",
