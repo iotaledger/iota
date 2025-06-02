@@ -143,6 +143,7 @@ pub(crate) struct NodeMetrics {
     pub(crate) network_excluded_ancestors_count_by_authority: IntCounterVec,
     pub(crate) invalid_blocks: IntCounterVec,
     pub(crate) semantically_invalid_blocks: IntCounterVec,
+    pub(crate) syntactically_invalid_blocks: IntCounterVec,
     pub(crate) rejected_blocks: IntCounterVec,
     pub(crate) rejected_future_blocks: IntCounterVec,
     pub(crate) subscribed_blocks: IntCounterVec,
@@ -442,6 +443,12 @@ impl NodeMetrics {
             semantically_invalid_blocks: register_int_counter_vec_with_registry!(
                 "invalid_blocks",
                 "Number of semantically invalid blocks per peer authority",
+                &["authority", "source", "error"],
+                registry,
+             ).unwrap(),
+            syntactically_invalid_blocks: register_int_counter_vec_with_registry!(
+                "syntactically_invalid_blocks",
+                "Number of syntactically invalid blocks per peer authority",
                 &["authority", "source", "error"],
                 registry,
             ).unwrap(),

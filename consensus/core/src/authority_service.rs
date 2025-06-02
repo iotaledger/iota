@@ -90,8 +90,17 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
         let signed_block: SignedBlock = match bcs::from_bytes(&serialized_block.block) {
             Ok(block) => block,
             error => {
-                let scoring_metrics = &self.context.scoring_metrics;
-                scoring_metrics.update_syntactically_invalid_blocks(peer, 1);
+                // Update prometheus metric
+                self.context
+                    .metrics
+                    .node_metrics
+                    .syntactically_invalid_blocks
+                    .with_label_values(&[committee.authority(block.author()).hostname.clone(), "handle_send_block".to_string(), "MalformedBlock".to_string()])
+                    .inc();
+                // Update validator score
+                self.context
+                    .scoring_metrics
+                    .update_syntactically_invalid_blocks(peer, 1);
                 error.map_err(ConsensusError::MalformedBlock)?
             }
         };

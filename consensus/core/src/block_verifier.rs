@@ -155,7 +155,20 @@ impl BlockVerifier for SignedBlockVerifier {
         }
 
         // Verify the block's signature.
-        block.verify_signature(&self.context)?;
+        if let Err(e) = block.verify_signature(&self.context) {
+            // Update prometheus metric
+            self.context
+                .metrics
+                .node_metrics
+                .syntactically_invalid_blocks
+                .with_label_values(&[committee.authority(block.author()).hostname.clone(), "verify".to_string(), "MalformedSignature".to_string()])
+                .inc();
+            // Update validator score
+            self.context
+                .scoring_metrics
+                .update_syntactically_invalid_blocks(block.author(),1);
+            return Err(e);
+        }
 
         // Verify the block's ancestor refs are consistent with the block's round,
         // and total parent stakes reach quorum.
