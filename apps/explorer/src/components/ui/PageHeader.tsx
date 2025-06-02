@@ -100,7 +100,7 @@ export function PageHeader({
                             </>
                         )}
                     </div>
-                    {after && <div className="w-1/2 sm:w-1/4">{after}</div>}
+                    {after && <div className="w-full md:w-1/4">{after}</div>}
                 </div>
             </div>
         </Panel>
