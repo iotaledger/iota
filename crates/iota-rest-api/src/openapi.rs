@@ -88,11 +88,7 @@ impl<'a, S> Api<'a, S> {
             let handler = endpoint.handler();
             assert_eq!(handler.method(), endpoint.method());
 
-            // we need to replace any path parameters wrapped in braces to be prefaced by a
-            // colon until axum updates matchit: https://github.com/tokio-rs/axum/pull/2645
-            let path = endpoint.path().replace('{', ":").replace('}', "");
-
-            router = router.route(&path, handler.handler);
+            router = router.route(endpoint.path(), handler.handler);
         }
 
         router

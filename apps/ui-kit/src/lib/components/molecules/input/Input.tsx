@@ -3,7 +3,8 @@
 
 import { forwardRef, Fragment, useEffect, useRef, useState } from 'react';
 import cx from 'classnames';
-import { InputWrapper, InputWrapperProps } from './InputWrapper';
+import type { InputWrapperProps } from './InputWrapper';
+import { InputWrapper } from './InputWrapper';
 import {
     BORDER_CLASSES,
     INPUT_CLASSES,
@@ -12,10 +13,10 @@ import {
     INPUT_PLACEHOLDER_CLASSES,
 } from './input.classes';
 import { InputType } from './input.enums';
-import { SecondaryText } from '../../atoms/secondary-text';
+import { SecondaryText } from '@/components/atoms/secondary-text';
 import { Close, VisibilityOff, VisibilityOn } from '@iota/apps-ui-icons';
-import { ButtonUnstyled } from '../../atoms/button';
-import { InputPropsByType, NumericFormatInputProps } from './input.types';
+import { ButtonUnstyled } from '@/components/atoms/button';
+import type { InputPropsByType, NumericFormatInputProps } from './input.types';
 import { NumericFormat } from 'react-number-format';
 
 export interface BaseInputProps extends InputWrapperProps {

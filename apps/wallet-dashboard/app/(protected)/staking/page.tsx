@@ -8,9 +8,6 @@ import {
     ButtonSize,
     ButtonType,
     DisplayStats,
-    InfoBox,
-    InfoBoxStyle,
-    InfoBoxType,
     Panel,
     Title,
     TitleSize,
@@ -34,18 +31,32 @@ import {
     DELEGATED_STAKES_QUERY_STALE_TIME,
     StakedCard,
     useFormatCoin,
+    useGetAllOwnedObjects,
+    TIMELOCK_IOTA_TYPE,
+    Feature,
 } from '@iota/core';
 import { useCurrentAccount, useIotaClient, useIotaClientQuery } from '@iota/dapp-kit';
-import { IotaSystemStateSummaryV1 } from '@iota/iota-sdk/client';
-import { Info } from '@iota/apps-ui-icons';
 import { useMemo } from 'react';
 import { IotaSignAndExecuteTransactionOutput } from '@iota/wallet-standard';
+import { isSupplyIncreaseVestingObject, mapTimelockObjects } from '@/lib/utils';
+import { useFeature } from '@growthbook/growthbook-react';
+import { useRouter } from 'next/navigation';
 
 function StakingDashboardPage(): React.JSX.Element {
+    const router = useRouter();
     const account = useCurrentAccount();
     const { data: system } = useIotaClientQuery('getLatestIotaSystemState');
-    const activeValidators = (system as IotaSystemStateSummaryV1)?.activeValidators;
+    const committeeMembers = system?.committeeMembers;
+    const activeValidators = system?.activeValidators;
     const iotaClient = useIotaClient();
+
+    const { data: timelockedObjects } = useGetAllOwnedObjects(account?.address || '', {
+        StructType: TIMELOCK_IOTA_TYPE,
+    });
+    const hasAvailableVestedStaking = mapTimelockObjects(timelockedObjects || []).some(
+        isSupplyIncreaseVestingObject,
+    );
+    const supplyIncreaseVestingEnabled = useFeature<boolean>(Feature.SupplyIncreaseVesting).value;
 
     const {
         isDialogStakeOpen,
@@ -81,22 +92,22 @@ function StakingDashboardPage(): React.JSX.Element {
 
     const delegations = useMemo(() => {
         return delegatedStakeData?.flatMap((delegation) => {
+            const isInCommittee = committeeMembers?.find(
+                (member) => member.stakingPoolId === delegation.stakingPool,
+            );
+            const isActive = activeValidators?.find(
+                (validator) => validator.stakingPoolId === delegation.stakingPool,
+            );
             return delegation.stakes.map((d) => ({
                 ...d,
                 // flag any inactive validator for the stakeIota object
-                // if the stakingPoolId is not found in the activeValidators list flag as inactive
-                inactiveValidator: !activeValidators?.find(
-                    ({ stakingPoolId }) => stakingPoolId === delegation.stakingPool,
-                ),
+                // if the stakingPoolId is not found in the committeeMembers list flag as inactive
+                activeButNotInTheCommittee: !isInCommittee && isActive,
+                inactiveValidator: !isActive,
                 validatorAddress: delegation.validatorAddress,
             }));
         });
-    }, [activeValidators, delegatedStakeData]);
-
-    // Check if there are any inactive validators
-    const hasInactiveValidatorDelegation = delegations?.some(
-        ({ inactiveValidator }) => inactiveValidator,
-    );
+    }, [activeValidators, committeeMembers, delegatedStakeData]);
 
     const viewStakeDetails = (extendedStake: ExtendedDelegatedStake) => {
         setStakeDialogView(StakeDialogView.Details);
@@ -141,7 +152,7 @@ function StakingDashboardPage(): React.JSX.Element {
 
     return (
         <div className="flex justify-center">
-            <div className="w-full md:w-3/4">
+            <div className="flex w-full flex-col gap-y-md md:w-3/4">
                 {(delegatedStakeData?.length ?? 0) > 0 ? (
                     <Panel>
                         <Title
@@ -170,44 +181,59 @@ function StakingDashboardPage(): React.JSX.Element {
                             </div>
                             <Title title="In progress" size={TitleSize.Small} />
                             <div className="flex max-h-[420px] w-full flex-1 flex-col items-start overflow-auto">
-                                {hasInactiveValidatorDelegation ? (
-                                    <div className="mb-3">
-                                        <InfoBox
-                                            type={InfoBoxType.Default}
-                                            title="Earn with active validators"
-                                            supportingText="Unstake IOTA from the inactive validators and stake on an active validator to start earning rewards again."
-                                            icon={<Info />}
-                                            style={InfoBoxStyle.Elevated}
-                                        />
-                                    </div>
-                                ) : null}
-                                <div className="w-full gap-2">
-                                    {system &&
-                                        delegations
-                                            ?.filter(({ inactiveValidator }) => inactiveValidator)
-                                            .map((delegation) => (
+                                {system &&
+                                    delegations
+                                        ?.filter(({ inactiveValidator }) => inactiveValidator)
+                                        .map((delegation) => (
+                                            <div
+                                                className="w-full gap-2"
+                                                key={delegation.stakedIotaId}
+                                            >
                                                 <StakedCard
                                                     extendedStake={delegation}
-                                                    currentEpoch={Number(system.epoch)}
-                                                    key={delegation.stakedIotaId}
                                                     inactiveValidator
+                                                    currentEpoch={Number(system.epoch)}
                                                     onClick={() => viewStakeDetails(delegation)}
                                                 />
-                                            ))}
-                                </div>
-                                <div className="w-full gap-2">
-                                    {system &&
-                                        delegations
-                                            ?.filter(({ inactiveValidator }) => !inactiveValidator)
-                                            .map((delegation) => (
+                                            </div>
+                                        ))}
+                                {system &&
+                                    delegations
+                                        ?.filter(
+                                            ({ activeButNotInTheCommittee }) =>
+                                                activeButNotInTheCommittee,
+                                        )
+                                        .map((delegation) => (
+                                            <div
+                                                className="w-full gap-2"
+                                                key={delegation.stakedIotaId}
+                                            >
                                                 <StakedCard
                                                     extendedStake={delegation}
                                                     currentEpoch={Number(system.epoch)}
-                                                    key={delegation.stakedIotaId}
+                                                    activeButNotInTheCommittee
                                                     onClick={() => viewStakeDetails(delegation)}
                                                 />
-                                            ))}
-                                </div>
+                                            </div>
+                                        ))}
+                                {system &&
+                                    delegations
+                                        ?.filter(
+                                            ({ activeButNotInTheCommittee, inactiveValidator }) =>
+                                                !activeButNotInTheCommittee && !inactiveValidator,
+                                        )
+                                        .map((delegation) => (
+                                            <div
+                                                className="w-full gap-2"
+                                                key={delegation.stakedIotaId}
+                                            >
+                                                <StakedCard
+                                                    extendedStake={delegation}
+                                                    currentEpoch={Number(system.epoch)}
+                                                    onClick={() => viewStakeDetails(delegation)}
+                                                />
+                                            </div>
+                                        ))}
                             </div>
                         </div>
                         {isDialogStakeOpen && (
@@ -233,9 +259,27 @@ function StakingDashboardPage(): React.JSX.Element {
                         )}
                     </Panel>
                 ) : (
-                    <div className="flex h-[270px] p-lg">
+                    <div className="flex h-[270px] py-lg">
                         <StartStaking />
                     </div>
+                )}
+                {hasAvailableVestedStaking && supplyIncreaseVestingEnabled && (
+                    <Panel bgColor="bg-secondary-90 dark:bg-secondary-10">
+                        <div className="py-sm">
+                            <Title
+                                title="Available Vested Staking"
+                                subtitle="In progress vested staking"
+                                trailingElement={
+                                    <Button
+                                        onClick={() => router.push('/vesting')}
+                                        size={ButtonSize.Small}
+                                        type={ButtonType.Outlined}
+                                        text="View"
+                                    />
+                                }
+                            />
+                        </div>
+                    </Panel>
                 )}
             </div>
         </div>

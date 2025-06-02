@@ -36,6 +36,7 @@ export interface TableCardProps<DataType extends RowData> {
     totalLabel?: string;
     viewAll?: string;
     pageSizeSelector?: ReactNode;
+    heightFull?: boolean;
 }
 
 export function TableCard<DataType extends object>({
@@ -49,6 +50,7 @@ export function TableCard<DataType extends object>({
     totalLabel,
     viewAll,
     pageSizeSelector,
+    heightFull,
 }: TableCardProps<DataType>): JSX.Element {
     const [sorting, setSorting] = useState<SortingState>(defaultSorting || []);
 
@@ -80,8 +82,15 @@ export function TableCard<DataType extends object>({
     }
 
     return (
-        <div className={clsx('w-full overflow-visible', refetching && 'opacity-50')}>
+        <div
+            className={clsx(
+                'w-full overflow-visible',
+                refetching && 'opacity-50',
+                heightFull && 'h-full',
+            )}
+        >
             <Table
+                heightFull
                 rowIndexes={table.getRowModel().rows.map((row) => row.index)}
                 paginationOptions={paginationOptions}
                 supportingLabel={totalLabel}

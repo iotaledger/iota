@@ -1,0 +1,56 @@
+---
+# Key pairs
+authority-key-pair:
+  path: /opt/iota/key-pairs/authority.key
+protocol-key-pair:
+  path: /opt/iota/key-pairs/protocol.key
+network-key-pair:
+  path: /opt/iota/key-pairs/network.key
+
+# Database Configuration
+db-path: /opt/iota/db/authorities_db
+consensus-config:
+  db-path: /opt/iota/db/consensus_db
+
+# Genesis Configuration
+genesis:
+  genesis-file-location: /opt/iota/config/genesis.blob
+migration-tx-data-path: /opt/iota/config/migration.blob
+
+# Network Configuration
+network-address: /ip4/0.0.0.0/tcp/8080/http
+p2p-config:
+  listen-address: "0.0.0.0:8084"
+  external-address: /dns/$HOSTNAME/udp/8084 # UPDATE THIS
+  anemo-config:
+    max-concurrent-connections: 0
+  seed-peers: # Add your SSFN peers here
+#    - address: /dns/ssfn-hostname/udp/8084
+#      peer-id: <ssfn-peer-id>
+
+# Pruning Configuration
+authority-store-pruning-config:
+  num-epochs-to-retain: 0
+  num-epochs-to-retain-for-checkpoints: 2
+
+# Resource Optimization
+enable-index-processing: false
+checkpoint-executor-config:
+  local-execution-timeout-sec: 10
+indirect-objects-threshold: 18446744073709551615
+
+# Metrics Configuration
+metrics:
+  push-interval-seconds: 60
+  push-url: https://metrics-proxy.mainnet.iota.cafe:8443/publish/metrics
+
+# State Sync Archive Fallback
+state-archive-read-config:
+  - object-store-config:
+      object-store: "S3"
+      aws-endpoint: "https://archive.mainnet.iota.cafe"
+      aws-virtual-hosted-style-request: true
+      object-store-connection-limit: 20
+      no-sign-request: true
+    concurrency: 5
+    use-for-pruning-watermark: false

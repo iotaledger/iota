@@ -9,18 +9,18 @@ use move_symbol_pool::Symbol;
 
 use crate::{
     diag,
-    diagnostics::{Diagnostic, DiagnosticReporter, Diagnostics, warning_filters::WarningFilters},
+    diagnostics::{warning_filters::WarningFilters, Diagnostic, DiagnosticReporter, Diagnostics},
     editions::Flavor,
-    expansion::ast::{AbilitySet, Fields, ModuleIdent, Mutability, TargetKind, Visibility},
-    iota_mode::*,
+    expansion::ast::{AbilitySet, Fields, ModuleIdent, Mutability, Visibility},
     naming::ast::{
-        self as N, BuiltinTypeName_, FunctionSignature, StructFields, Type, Type_, TypeName_, Var,
+        self as N, BuiltinTypeName_, FunctionSignature, StructFields, Type, TypeName_, Type_, Var,
     },
-    parser::ast::{Ability_, DatatypeName, FunctionName},
-    shared::{CompilationEnv, Identifier, program_info::TypingProgramInfo},
+    parser::ast::{Ability_, DatatypeName, DocComment, FunctionName, TargetKind},
+    shared::{program_info::TypingProgramInfo, CompilationEnv, Identifier},
+    iota_mode::*,
     typing::{
         ast::{self as T, ModuleCall},
-        core::{Subst, ability_not_satisfied_tips, error_format, error_format_},
+        core::{ability_not_satisfied_tips, error_format, error_format_, Subst},
         visitor::{TypingVisitorConstructor, TypingVisitorContext},
     },
 };
@@ -125,9 +125,12 @@ impl<'a> TypingVisitorContext for Context<'a> {
             // Skip if not iota
             return true;
         }
-        if !matches!(mdef.target_kind, TargetKind::Source {
-            is_root_package: true
-        }) {
+        if !matches!(
+            mdef.target_kind,
+            TargetKind::Source {
+                is_root_package: true
+            }
+        ) {
             // Skip non-source, dependency modules
             return true;
         }
@@ -188,6 +191,7 @@ impl<'a> TypingVisitorContext for Context<'a> {
 
 fn struct_def(context: &mut Context, name: DatatypeName, sdef: &N::StructDefinition) {
     let N::StructDefinition {
+        doc: _,
         warning_filter: _,
         index: _,
         loc: _,
@@ -219,7 +223,7 @@ fn struct_def(context: &mut Context, name: DatatypeName, sdef: &N::StructDefinit
         return;
     };
 
-    let (_, id_field_type) = fields.get_(&ID_FIELD_NAME).unwrap();
+    let (_, (_, id_field_type)) = fields.get_(&ID_FIELD_NAME).unwrap();
     let id_field_loc = fields.get_loc_(&ID_FIELD_NAME).unwrap();
     if !id_field_type
         .value
@@ -257,6 +261,7 @@ fn invalid_object_id_field_diag(key_loc: Loc, loc: Loc, name: DatatypeName) -> D
 
 fn enum_def(context: &mut Context, name: DatatypeName, edef: &N::EnumDefinition) {
     let N::EnumDefinition {
+        doc: _,
         warning_filter: _,
         index: _,
         loc: _loc,
@@ -279,6 +284,8 @@ fn enum_def(context: &mut Context, name: DatatypeName, edef: &N::EnumDefinition)
 
 fn function(context: &mut Context, name: FunctionName, fdef: &T::Function) {
     let T::Function {
+        doc: _,
+        loc: _,
         compiled_visibility: _,
         visibility,
         signature,
@@ -287,7 +294,6 @@ fn function(context: &mut Context, name: FunctionName, fdef: &T::Function) {
         index: _,
         macro_: _,
         attributes,
-        loc: _,
         entry,
     } = fdef;
     let prev_in_test = context.in_test;
@@ -555,8 +561,8 @@ enum InvalidOTW {
 // Find the first invalid field in a one-time witness type, if any.
 // First looks for a non-boolean field, otherwise looks for any field after the
 // first.
-fn invalid_otw_field_loc(fields: &Fields<Type>) -> Option<InvalidOTW> {
-    let invalid_first_field = fields.iter().find_map(|(loc, _, (idx, ty))| {
+fn invalid_otw_field_loc(fields: &Fields<(DocComment, Type)>) -> Option<InvalidOTW> {
+    let invalid_first_field = fields.iter().find_map(|(loc, _, (idx, (_, ty)))| {
         if *idx != 0 {
             return None;
         }

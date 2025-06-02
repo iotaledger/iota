@@ -28,6 +28,7 @@ const developer = [
             'developer/getting-started/client-tssdk',
             'developer/getting-started/coffee-example',
             'developer/getting-started/simple-token-transfer',
+            'developer/getting-started/oracles',
         ],
     },
     {
@@ -44,7 +45,6 @@ const developer = [
                 items: [
                     'references/cli/client',
                     'references/cli/ptb',
-                    'references/cli/console',
                     'references/cli/keytool',
                     'references/cli/move',
                     'references/cli/validator',
@@ -322,7 +322,7 @@ const developer = [
             },
             'developer/tutorials/live-concert',
         ],
-    },    
+    },
     {
         type: 'category',
         label: 'Capture The Flag',
@@ -436,11 +436,7 @@ const developer = [
             },
         ],
     },
-    {
-        type: 'category',
-        label: 'Exchange integration',
-        items: ['developer/exchange-integration/exchange-integration'],
-    },
+    'developer/exchange-integration',
     'developer/dev-cheat-sheet',
 ];
 module.exports = developer;

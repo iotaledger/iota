@@ -1,7 +1,8 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { Tooltip, TooltipPosition } from '../../atoms';
+import type { TooltipPosition } from '@/components/atoms';
+import { Tooltip } from '@/components/atoms';
 import { Info } from '@iota/apps-ui-icons';
 import { TitleSize } from './titleSize.enums';
 import cx from 'classnames';
@@ -36,6 +37,10 @@ interface TitleProps {
      * The size of the component
      */
     size?: TitleSize;
+    /**
+     * The 'data-testid' attribute value (used in e2e tests)
+     */
+    testId?: string;
 }
 
 export function Title({
@@ -46,9 +51,13 @@ export function Title({
     supportingElement,
     tooltipPosition,
     size = TitleSize.Medium,
+    testId,
 }: TitleProps) {
     return (
-        <div className={cx('flex flex-row items-center justify-between', TITLE_PADDINGS[size])}>
+        <div
+            className={cx('flex flex-row items-center justify-between', TITLE_PADDINGS[size])}
+            data-testid={testId}
+        >
             <div className="flex flex-row items-center gap-x-xxxs">
                 <div className="flex flex-col justify-start">
                     <div className="flex flex-row items-center gap-x-0.5 text-neutral-10 dark:text-neutral-92">

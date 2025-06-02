@@ -24,9 +24,10 @@ use expect_test::expect;
 #[cfg(feature = "indexer")]
 use iota::iota_commands::IndexerFeatureArgs;
 use iota::{
+    PrintableResult,
     client_commands::{
-        EmitOption, IotaClientCommandResult, IotaClientCommands, Opts, OptsWithGas, SwitchResponse,
-        estimate_gas_budget,
+        DisplayOption, IotaClientCommandResult, IotaClientCommands, Opts, OptsWithGas,
+        SwitchResponse, estimate_gas_budget,
     },
     client_ptb::ptb::PTB,
     iota_commands::{IotaCommand, parse_host_port},
@@ -46,7 +47,9 @@ use iota_json_rpc_types::{
 use iota_keys::keystore::AccountKeystore;
 use iota_macros::sim_test;
 use iota_move_build::{BuildConfig, IotaPackageHooks};
-use iota_sdk::{IotaClient, iota_client_config::IotaClientConfig, wallet_context::WalletContext};
+use iota_sdk::{
+    IotaClient, PagedFn, iota_client_config::IotaClientConfig, wallet_context::WalletContext,
+};
 use iota_swarm_config::{
     genesis_config::{AccountConfig, DEFAULT_NUMBER_OF_AUTHORITIES, GenesisConfig},
     network_config::NetworkConfigLight,
@@ -159,6 +162,7 @@ async fn test_start() -> Result<(), anyhow::Error> {
             force_regenesis: false,
             with_faucet: None,
             faucet_amount: None,
+            faucet_coin_count: None,
             fullnode_rpc_port: 9000,
             committee_size: None,
             epoch_duration_ms: None,
@@ -376,9 +380,12 @@ async fn test_ptb_publish_and_complex_arg_resolution() -> Result<(), anyhow::Err
     );
 
     let args = shlex::split(&complex_ptb_string).unwrap();
-    iota::client_ptb::ptb::PTB { args: args.clone() }
-        .execute(context)
-        .await?;
+    iota::client_ptb::ptb::PTB {
+        args: args.clone(),
+        display: HashSet::new(),
+    }
+    .execute(context)
+    .await?;
 
     let delete_object_ptb_string = format!(
         r#"
@@ -392,9 +399,12 @@ async fn test_ptb_publish_and_complex_arg_resolution() -> Result<(), anyhow::Err
     );
 
     let args = shlex::split(&delete_object_ptb_string).unwrap();
-    iota::client_ptb::ptb::PTB { args: args.clone() }
-        .execute(context)
-        .await?;
+    iota::client_ptb::ptb::PTB {
+        args: args.clone(),
+        display: HashSet::new(),
+    }
+    .execute(context)
+    .await?;
 
     Ok(())
 }
@@ -421,9 +431,12 @@ async fn test_ptb_publish() -> Result<(), anyhow::Error> {
         package_path.display()
     );
     let args = shlex::split(&publish_ptb_string).unwrap();
-    iota::client_ptb::ptb::PTB { args: args.clone() }
-        .execute(context)
-        .await?;
+    iota::client_ptb::ptb::PTB {
+        args: args.clone(),
+        display: HashSet::new(),
+    }
+    .execute(context)
+    .await?;
     Ok(())
 }
 
@@ -1800,6 +1813,61 @@ async fn test_package_publish_test_flag() -> Result<(), anyhow::Error> {
 }
 
 #[sim_test]
+async fn test_package_publish_empty() -> Result<(), anyhow::Error> {
+    let mut test_cluster = TestClusterBuilder::new().build().await;
+    let rgp = test_cluster.get_reference_gas_price().await;
+    let address = test_cluster.get_address_0();
+    let context = &mut test_cluster.wallet;
+
+    let client = context.get_client().await?;
+    let object_refs = client
+        .read_api()
+        .get_owned_objects(
+            address,
+            Some(IotaObjectResponseQuery::new_with_options(
+                IotaObjectDataOptions::new()
+                    .with_type()
+                    .with_owner()
+                    .with_previous_transaction(),
+            )),
+            None,
+            None,
+        )
+        .await?
+        .data;
+
+    // Check log output contains all object ids.
+    let gas_obj_id = object_refs.first().unwrap().object().unwrap().object_id;
+
+    // Provide path to well formed package sources
+    let mut package_path = PathBuf::from(TEST_DATA_DIR);
+    package_path.push("empty");
+    let build_config = BuildConfig::new_for_testing().config;
+    let result = IotaClientCommands::Publish {
+        package_path,
+        build_config,
+        opts: OptsWithGas::for_testing(Some(gas_obj_id), rgp * TEST_ONLY_GAS_UNIT_FOR_PUBLISH),
+        skip_dependency_verification: false,
+        verify_deps: true,
+        with_unpublished_dependencies: false,
+    }
+    .execute(context)
+    .await;
+
+    // should return error
+    let expect = expect![[r#"
+        Err(
+            ModulePublishFailure {
+                error: "No modules found in the package",
+            },
+        )
+    "#]];
+
+    expect.assert_debug_eq(&result);
+    Ok(())
+}
+
+#[sim_test]
 async fn test_package_upgrade_command() -> Result<(), anyhow::Error> {
     move_package::package_hooks::register_package_hooks(Box::new(IotaPackageHooks));
     let mut test_cluster = TestClusterBuilder::new()
@@ -1912,6 +1980,7 @@ async fn test_package_upgrade_command() -> Result<(), anyhow::Error> {
         upgrade_capability: cap.reference.object_id,
         build_config,
         opts: OptsWithGas::for_testing(Some(gas_obj_id), rgp * TEST_ONLY_GAS_UNIT_FOR_PUBLISH),
+        verify_compatibility: true,
         skip_dependency_verification: false,
         verify_deps: true,
         with_unpublished_dependencies: false,
@@ -2036,6 +2105,7 @@ async fn test_package_management_on_upgrade_command() -> Result<(), anyhow::Erro
         upgrade_capability: cap.reference.object_id,
         build_config: build_config.clone(),
         opts: OptsWithGas::for_testing(Some(gas_obj_id), rgp * TEST_ONLY_GAS_UNIT_FOR_PUBLISH),
+        verify_compatibility: true,
         skip_dependency_verification: false,
         verify_deps: true,
         with_unpublished_dependencies: false,
@@ -2193,6 +2263,7 @@ async fn test_package_management_on_upgrade_command_conflict() -> Result<(), any
         upgrade_capability: cap.reference.object_id,
         build_config: build_config_upgrade.clone(),
         opts: OptsWithGas::for_testing(Some(gas_obj_id), rgp * TEST_ONLY_GAS_UNIT_FOR_PUBLISH),
+        verify_compatibility: true,
         skip_dependency_verification: false,
         verify_deps: true,
         with_unpublished_dependencies: false,
@@ -3049,7 +3120,7 @@ async fn test_serialize_tx() -> Result<(), anyhow::Error> {
             dev_inspect: false,
             serialize_unsigned_transaction: true,
             serialize_signed_transaction: false,
-            emit: HashSet::new(),
+            display: HashSet::new(),
         },
     }
     .execute(context)
@@ -3065,7 +3136,7 @@ async fn test_serialize_tx() -> Result<(), anyhow::Error> {
             dev_inspect: false,
             serialize_unsigned_transaction: false,
             serialize_signed_transaction: true,
-            emit: HashSet::new(),
+            display: HashSet::new(),
         },
     }
     .execute(context)
@@ -3082,7 +3153,7 @@ async fn test_serialize_tx() -> Result<(), anyhow::Error> {
             dev_inspect: false,
             serialize_unsigned_transaction: false,
             serialize_signed_transaction: true,
-            emit: HashSet::new(),
+            display: HashSet::new(),
         },
     }
     .execute(context)
@@ -3102,11 +3173,17 @@ async fn test_serialize_tx() -> Result<(), anyhow::Error> {
     ];
     let mut args = ptb_args.clone();
     args.push("--serialize-signed-transaction".to_string());
-    let ptb = PTB { args };
+    let ptb = PTB {
+        args,
+        display: HashSet::new(),
+    };
     IotaClientCommands::PTB(ptb).execute(context).await.unwrap();
     let mut args = ptb_args.clone();
     args.push("--serialize-unsigned-transaction".to_string());
-    let ptb = PTB { args };
+    let ptb = PTB {
+        args,
+        display: HashSet::new(),
+    };
     IotaClientCommands::PTB(ptb).execute(context).await.unwrap();
 
     Ok(())
@@ -3283,11 +3360,8 @@ async fn test_get_owned_objects_owned_by_address_and_check_pagination() -> Resul
     assert!(!object_responses.has_next_page);
 
     // Pagination check
-    let mut has_next = true;
-    let mut cursor = None;
-    let mut response_data: Vec<IotaObjectResponse> = Vec::new();
-    while has_next {
-        let object_responses = client
+    let response_data = PagedFn::collect::<Vec<_>>(async |cursor| {
+        client
             .read_api()
             .get_owned_objects(
                 address,
@@ -3303,16 +3377,9 @@ async fn test_get_owned_objects_owned_by_address_and_check_pagination() -> Resul
                 cursor,
                 Some(1),
             )
-            .await?;
-
-        response_data.push(object_responses.data.first().unwrap().clone());
-
-        if object_responses.has_next_page {
-            cursor = object_responses.next_cursor;
-        } else {
-            has_next = false;
-        }
-    }
+            .await
+    })
+    .await?;
 
     assert_eq!(&response_data, &object_responses.data);
 
@@ -3856,7 +3923,7 @@ async fn test_gas_estimation() -> Result<(), anyhow::Error> {
             dev_inspect: false,
             serialize_unsigned_transaction: false,
             serialize_signed_transaction: false,
-            emit: HashSet::new(),
+            display: HashSet::new(),
         },
     }
     .execute(context)
@@ -4473,7 +4540,7 @@ async fn test_move_new() -> Result<(), anyhow::Error> {
 }
 
 #[sim_test]
-async fn test_call_command_emit_args() -> Result<(), anyhow::Error> {
+async fn test_call_command_display_args() -> Result<(), anyhow::Error> {
     // Publish the package
     move_package::package_hooks::register_package_hooks(Box::new(IotaPackageHooks));
     let mut test_cluster = TestClusterBuilder::new()
@@ -4535,10 +4602,10 @@ async fn test_call_command_emit_args() -> Result<(), anyhow::Error> {
         type_args: vec![],
         gas_price: None,
         args: vec![],
-        opts: OptsWithGas::for_testing_emit_options(
+        opts: OptsWithGas::for_testing_display_options(
             None,
             rgp * TEST_ONLY_GAS_UNIT_FOR_PUBLISH,
-            HashSet::from([EmitOption::BalanceChanges]),
+            HashSet::from([DisplayOption::BalanceChanges]),
         ),
     }
     .execute(context)
@@ -4558,7 +4625,7 @@ async fn test_call_command_emit_args() -> Result<(), anyhow::Error> {
         panic!("Transaction block response is None");
     }
 
-    // Make another call, this time with multiple emit args
+    // Make another call, this time with multiple display args
     let start_call_result = IotaClientCommands::Call {
         package: package.reference.object_id,
         module: "trusted_coin".to_string(),
@@ -4566,13 +4633,13 @@ async fn test_call_command_emit_args() -> Result<(), anyhow::Error> {
         type_args: vec![],
         gas_price: None,
         args: vec![],
-        opts: OptsWithGas::for_testing_emit_options(
+        opts: OptsWithGas::for_testing_display_options(
             None,
             rgp * TEST_ONLY_GAS_UNIT_FOR_PUBLISH,
             HashSet::from([
-                EmitOption::BalanceChanges,
-                EmitOption::Effects,
-                EmitOption::ObjectChanges,
+                DisplayOption::BalanceChanges,
+                DisplayOption::Effects,
+                DisplayOption::ObjectChanges,
             ]),
         ),
     }
@@ -4593,8 +4660,8 @@ async fn test_call_command_emit_args() -> Result<(), anyhow::Error> {
         panic!("Transaction block response is None");
     }
 
-    // Make another call, this time with no emit args. This should return the full
-    // response
+    // Make another call, this time without display args. This should return the
+    // full response
     let start_call_result = IotaClientCommands::Call {
         package: package.reference.object_id,
         module: "trusted_coin".to_string(),
@@ -4602,7 +4669,7 @@ async fn test_call_command_emit_args() -> Result<(), anyhow::Error> {
         type_args: vec![],
         gas_price: None,
         args: vec![],
-        opts: OptsWithGas::for_testing_emit_options(
+        opts: OptsWithGas::for_testing_display_options(
             None,
             rgp * TEST_ONLY_GAS_UNIT_FOR_PUBLISH,
             HashSet::new(),
@@ -4639,8 +4706,52 @@ async fn test_ptb_dev_inspect() -> Result<(), anyhow::Error> {
         --dev-inspect
         "#;
     let args = shlex::split(publish_ptb_string).unwrap();
-    let res = iota::client_ptb::ptb::PTB { args }.execute(context).await?;
+    let res = iota::client_ptb::ptb::PTB {
+        args,
+        display: HashSet::new(),
+    }
+    .execute(context)
+    .await?;
     assert!(res.contains("Execution Result\n  Return values\n    IOTA TypeTag: IotaTypeTag(\"0x1::string::String\")\n    Bytes: [5, 72, 101, 108, 108, 111]"));
+    Ok(())
+}
+
+#[sim_test]
+async fn test_ptb_display_args() -> Result<(), anyhow::Error> {
+    let mut test_cluster = TestClusterBuilder::new()
+        .with_num_validators(2)
+        .build()
+        .await;
+    let context = &mut test_cluster.wallet;
+
+    let ptb_string = r#"
+    --make-move-vec <u8> "[1]"
+    "#;
+    let args = shlex::split(ptb_string).unwrap();
+    let res = iota::client_ptb::ptb::PTB {
+        args,
+        display: HashSet::from([DisplayOption::Input]),
+    }
+    .execute(context)
+    .await?;
+
+    assert!(res.contains("Transaction Data"));
+    assert!(res.contains("Transaction Effects"));
+
+    let ptb_string = r#"
+        --make-move-vec <u8> "[1]"
+        "#;
+    let args = shlex::split(ptb_string).unwrap();
+    let res = iota::client_ptb::ptb::PTB {
+        args,
+        display: HashSet::from([DisplayOption::Events]),
+    }
+    .execute(context)
+    .await?;
+    // `DisplayOption::Input` wasn't provided, so there is no `Transaction Data`
+    assert!(!res.contains("Transaction Data"));
+    assert!(res.contains("Transaction Effects"));
+
     Ok(())
 }
 

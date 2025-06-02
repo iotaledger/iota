@@ -15,12 +15,13 @@ import {
 import { SortByDefault } from '@iota/apps-ui-icons';
 import { useQuery } from '@tanstack/react-query';
 import clsx from 'clsx';
-import { type PropsWithChildren, type ReactNode, useEffect, useState } from 'react';
+import { type PropsWithChildren, type ReactNode, useState } from 'react';
 import { AddressLink, Link, ObjectLink, ObjectVideoImage, TransactionLink } from '~/components/ui';
 import { useResolveVideo } from '~/hooks/useResolveVideo';
 import {
     extractName,
     genFileTypeMsg,
+    onCopySuccess,
     parseImageURL,
     parseObjectType,
     trimStdLibPrefix,
@@ -89,6 +90,8 @@ function ObjectIdCard({ objectId }: ObjectIdCardProps): JSX.Element {
         <DisplayStats
             label="Object ID"
             value={<ObjectLink objectId={objectId}>{formatAddress(objectId)}</ObjectLink>}
+            copyText={objectId}
+            onCopySuccess={onCopySuccess}
         />
     );
 }
@@ -129,6 +132,8 @@ function TypeCard({ objectType }: TypeCardCardProps): JSX.Element {
             }
             tooltipText={objectType}
             tooltipPosition={TooltipPosition.Right}
+            copyText={objectType}
+            onCopySuccess={onCopySuccess}
         />
     );
 }
@@ -150,6 +155,8 @@ function LastTxBlockCard({ digest }: LastTxBlockCardProps): JSX.Element {
         <DisplayStats
             label="Last Transaction Block Digest"
             value={<TransactionLink digest={digest}>{formatDigest(digest)}</TransactionLink>}
+            copyText={digest}
+            onCopySuccess={onCopySuccess}
         />
     );
 }
@@ -170,10 +177,23 @@ function OwnerCard({ objOwner }: OwnerCardProps): JSX.Element | null {
             : formatAddress(objOwner.AddressOwner);
     }
 
+    let copyValue: string | undefined;
+
+    if (typeof objOwner === 'string') {
+        copyValue = objOwner;
+    } else if ('AddressOwner' in objOwner) {
+        copyValue = objOwner.AddressOwner;
+    } else if ('ObjectOwner' in objOwner) {
+        copyValue = objOwner.ObjectOwner;
+    } else if ('Shared' in objOwner) {
+        copyValue = objOwner.Shared.initial_shared_version;
+    }
     return (
         <DisplayStats
             label="Owner"
             value={<OwnerLink objOwner={objOwner}>{getOwner(objOwner)}</OwnerLink>}
+            copyText={copyValue}
+            onCopySuccess={onCopySuccess}
         />
     );
 }
@@ -216,10 +236,15 @@ interface ObjectViewProps {
 }
 
 export function ObjectView({ data }: ObjectViewProps): JSX.Element {
-    const [fileType, setFileType] = useState<undefined | string>(undefined);
+    const video = useResolveVideo(data);
     const display = data.data?.display?.data;
     const imgUrl = parseImageURL(display);
-    const video = useResolveVideo(data);
+
+    const { data: imageData } = useQuery({
+        queryKey: ['image-file-type', imgUrl],
+        queryFn: ({ signal }) => genFileTypeMsg(imgUrl, signal!),
+    });
+
     const name = extractName(display);
     const objectType = parseObjectType(data);
     const objOwner = data.data?.owner;
@@ -228,24 +253,13 @@ export function ObjectView({ data }: ObjectViewProps): JSX.Element {
     const lastTransactionBlockDigest = data.data?.previousTransaction;
 
     const heroImageTitle = name || display?.description || trimStdLibPrefix(objectType);
-    const heroImageSubtitle = video ? 'Video' : (fileType ?? '');
+    const heroImageSubtitle = video ? 'Video' : (imageData ?? '');
     const heroImageProps = {
         title: heroImageTitle,
         subtitle: heroImageSubtitle,
         src: imgUrl,
         video: video,
     };
-
-    const { data: imageData } = useQuery({
-        queryKey: ['image-file-type', imgUrl],
-        queryFn: ({ signal }) => genFileTypeMsg(imgUrl, signal!),
-    });
-
-    useEffect(() => {
-        if (imageData) {
-            setFileType(imageData);
-        }
-    }, [imageData]);
 
     return (
         <div className="flex flex-col gap-md">
@@ -278,7 +292,7 @@ export function ObjectView({ data }: ObjectViewProps): JSX.Element {
                     </div>
                 )}
 
-                {objectType && (
+                {objectType && objectType !== 'unknown' && (
                     <div style={{ gridArea: 'type' }}>
                         <TypeCard objectType={objectType} />
                     </div>

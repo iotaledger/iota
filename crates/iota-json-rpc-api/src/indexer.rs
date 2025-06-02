@@ -3,9 +3,9 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use iota_json_rpc_types::{
-    DynamicFieldPage, EventFilter, EventPage, IotaEvent, IotaObjectResponse,
-    IotaObjectResponseQuery, IotaTransactionBlockEffects, IotaTransactionBlockResponseQuery,
-    ObjectsPage, TransactionBlocksPage, TransactionFilter,
+    DynamicFieldPage, EventFilter, EventPage, IotaEvent, IotaNameRecord, IotaObjectDataOptions,
+    IotaObjectResponse, IotaObjectResponseQuery, IotaTransactionBlockEffects,
+    IotaTransactionBlockResponseQuery, ObjectsPage, TransactionBlocksPage, TransactionFilter,
 };
 use iota_open_rpc_macros::open_rpc;
 use iota_types::{
@@ -26,8 +26,8 @@ use jsonrpsee::{
 pub trait IndexerApi {
     /// Return the list of objects owned by an address.
     /// Note that if the address owns more than `QUERY_MAX_RESULT_LIMIT` objects,
-    /// the pagination is not accurate, because previous page may have been updated when
-    /// the next page is fetched.
+    /// the pagination is not accurate, because previous page may have been updated
+    /// when the next page is fetched.
     /// Please use iotax_queryObjects if this is a concern.
     #[rustfmt::skip]
     #[method(name = "getOwnedObjects")]
@@ -109,4 +109,44 @@ pub trait IndexerApi {
         /// The Name of the dynamic field
         name: DynamicFieldName,
     ) -> RpcResult<IotaObjectResponse>;
+
+    /// Return the dynamic field object information for a specified object with
+    /// content options.
+    #[rustfmt::skip]
+    #[method(name = "getDynamicFieldObjectV2")]
+    async fn get_dynamic_field_object_v2(
+        &self,
+        /// The ID of the queried parent object
+        parent_object_id: ObjectID,
+        /// The Name of the dynamic field
+        name: DynamicFieldName,
+        /// Options for specifying the content to be returned
+        options: Option<IotaObjectDataOptions>,
+    ) -> RpcResult<IotaObjectResponse>;
+
+    /// Return the resolved record for the given name.
+    #[method(name = "iotaNamesLookup")]
+    async fn iota_names_lookup(
+        &self,
+        /// The name to resolve
+        name: &str,
+    ) -> RpcResult<Option<IotaNameRecord>>;
+
+    /// Return the resolved name for the given address.
+    #[method(name = "iotaNamesReverseLookup")]
+    async fn iota_names_reverse_lookup(
+        &self,
+        /// The address to resolve.
+        address: IotaAddress,
+    ) -> RpcResult<Option<String>>;
+
+    /// Find all registration NFTs for the given address.
+    #[method(name = "iotaNamesFindAllRegistrationNFTs")]
+    async fn iota_names_find_all_registration_nfts(
+        &self,
+        address: IotaAddress,
+        cursor: Option<ObjectID>,
+        limit: Option<usize>,
+        options: Option<IotaObjectDataOptions>,
+    ) -> RpcResult<ObjectsPage>;
 }

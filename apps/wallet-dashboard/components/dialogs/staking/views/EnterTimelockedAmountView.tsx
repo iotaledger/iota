@@ -10,6 +10,7 @@ import {
     SIZE_LIMIT_EXCEEDED,
     useGetClockTimestamp,
     toast,
+    getGasBudgetErrorMessage,
 } from '@iota/core';
 import { NANOS_PER_IOTA } from '@iota/iota-sdk/utils';
 import { useFormikContext } from 'formik';
@@ -18,6 +19,8 @@ import { getAmountFromGroupedTimelockObjects, useNewStakeTimelockedTransaction }
 import { prepareObjectsForTimelockedStakingTransaction } from '@/lib/utils';
 import { EnterAmountDialogLayout } from './EnterAmountDialogLayout';
 import { ampli } from '@/lib/utils/analytics';
+import { InfoBox, InfoBoxStyle, InfoBoxType } from '@iota/apps-ui-kit';
+import { Exclamation } from '@iota/apps-ui-icons';
 
 interface FormValues {
     amount: string;
@@ -166,20 +169,37 @@ export function EnterTimelockedAmountView({
         }
     }, [isError, possibleAmount, stakeTransactionError]);
 
+    const errorMessage = useMemo(() => {
+        if (isError) {
+            return getGasBudgetErrorMessage(stakeTransactionError);
+        } else {
+            return undefined;
+        }
+    }, [stakeTransactionError, isError]);
+
     return (
         <EnterAmountDialogLayout
             selectedValidator={selectedValidator}
             totalGas={newStakeData?.gasSummary?.totalGas}
             senderAddress={senderAddress}
             caption={caption}
-            showInfo={!!info.message}
-            infoTitle={info.title}
-            infoMessage={info.message}
+            renderInfo={
+                info.message ? (
+                    <InfoBox
+                        title={info.title}
+                        type={InfoBoxType.Error}
+                        supportingText={info.message}
+                        style={InfoBoxStyle.Elevated}
+                        icon={<Exclamation />}
+                    />
+                ) : undefined
+            }
             isLoading={isTransactionLoading}
             isStakeDisabled={!hasGroupedTimelockObjects || isSearchingProtocolMaxAmount}
             onBack={onBack}
             handleClose={handleClose}
             handleStake={handleStake}
+            errorMessage={errorMessage}
         />
     );
 }

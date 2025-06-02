@@ -13,7 +13,7 @@ import {
     PkgModulesWrapper,
     TransactionBlocksForAddress,
 } from '~/components';
-import { getOwnerStr, trimStdLibPrefix } from '~/lib/utils';
+import { getOwnerStr, onCopySuccess, trimStdLibPrefix } from '~/lib/utils';
 import { type DataType } from '../ObjectResultType';
 
 import { ObjectFilterValue } from '~/lib/enums';
@@ -84,6 +84,8 @@ export function PkgView({ data }: PkgViewProps): JSX.Element {
                         <KeyValueInfo
                             keyText="Object ID"
                             value={<ObjectLink objectId={viewedData.id} label={viewedData.id} />}
+                            copyText={viewedData.id}
+                            onCopySuccess={onCopySuccess}
                         />
 
                         <KeyValueInfo keyText="Version" value={viewedData.version} />
@@ -96,6 +98,8 @@ export function PkgView({ data }: PkgViewProps): JSX.Element {
                                         label={viewedData.publisherAddress}
                                     />
                                 }
+                                copyText={viewedData.publisherAddress}
+                                onCopySuccess={onCopySuccess}
                             />
                         )}
                     </div>

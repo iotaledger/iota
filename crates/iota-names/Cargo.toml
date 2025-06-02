@@ -1,0 +1,18 @@
+[package]
+name = "iota-names"
+version.workspace = true
+authors = ["IOTA Foundation <info@iota.org>"]
+edition = "2021"
+license = "Apache-2.0"
+publish = false
+
+[dependencies]
+# external dependencies
+anyhow.workspace = true
+bcs.workspace = true
+serde.workspace = true
+thiserror.workspace = true
+
+# internal dependencies
+iota-types.workspace = true
+move-core-types.workspace = true

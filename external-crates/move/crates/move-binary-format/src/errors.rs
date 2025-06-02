@@ -94,6 +94,7 @@ impl VMError {
         self.0.major_status.status_type()
     }
 
+    #[allow(clippy::type_complexity)]
     pub fn all_data(
         self,
     ) -> (
@@ -191,6 +192,7 @@ struct PartialVMError_ {
 }
 
 impl PartialVMError {
+    #[allow(clippy::type_complexity)]
     pub fn all_data(
         self,
     ) -> (
@@ -295,8 +297,8 @@ impl PartialVMError {
         self
     }
 
-    /// Append the message `message` to the message field of the VM status, and
-    /// insert a seperator if the original message is non-empty.
+    /// Append the message `message` to the message field of the VM status, and insert a separator
+    /// if the original message is non-empty.
     pub fn append_message_with_separator(
         mut self,
         separator: char,

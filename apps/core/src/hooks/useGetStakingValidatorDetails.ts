@@ -1,7 +1,6 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { useIotaClientQuery } from '@iota/dapp-kit';
 import { useGetDelegatedStake } from './stake';
 import { useGetValidatorsApy } from './useGetValidatorsApy';
 import {
@@ -15,6 +14,7 @@ import {
     getValidatorCommission,
 } from '../utils';
 import { useFormatCoin } from './useFormatCoin';
+import { useIotaClientQuery } from '@iota/dapp-kit';
 
 interface UseGetStakingValidatorDetailsArgs {
     accountAddress: string | null;

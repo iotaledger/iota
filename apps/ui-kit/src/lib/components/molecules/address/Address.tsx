@@ -3,7 +3,7 @@
 
 import cx from 'classnames';
 import { Copy, ArrowTopRight } from '@iota/apps-ui-icons';
-import { ButtonUnstyled } from '../../atoms/button';
+import { ButtonUnstyled } from '@/components/atoms/button';
 
 interface AddressProps {
     /**

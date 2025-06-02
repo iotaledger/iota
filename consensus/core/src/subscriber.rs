@@ -60,11 +60,25 @@ impl<C: NetworkClient, S: NetworkService> Subscriber<C, S> {
         let context = self.context.clone();
         let network_client = self.network_client.clone();
         let authority_service = self.authority_service.clone();
-        let last_received = self
-            .dag_state
-            .read()
-            .get_last_block_for_authority(peer)
-            .round();
+        let (mut last_received, gc_round, gc_enabled) = {
+            let dag_state = self.dag_state.read();
+            (
+                dag_state.get_last_block_for_authority(peer).round(),
+                dag_state.gc_round(),
+                dag_state.gc_enabled(),
+            )
+        };
+
+        // If the latest block we have accepted by an authority is older than the
+        // current gc round, then do not attempt to fetch any blocks from that
+        // point as they will simply be skipped. Instead do attempt to fetch
+        // from the gc round.
+        if gc_enabled && last_received < gc_round {
+            info!(
+                "Last received block for peer {peer} is older than GC round, {last_received} < {gc_round}, fetching from GC round"
+            );
+            last_received = gc_round;
+        }
 
         let mut subscriptions = self.subscriptions.lock();
         self.unsubscribe_locked(peer, &mut subscriptions[peer.value()]);
@@ -157,7 +171,7 @@ impl<C: NetworkClient, S: NetworkService> Subscriber<C, S> {
                         .metrics
                         .node_metrics
                         .subscriber_connection_attempts
-                        .with_label_values(&[peer_hostname, "success"])
+                        .with_label_values(&[peer_hostname.as_str(), "success"])
                         .inc();
                     blocks
                 }
@@ -170,7 +184,7 @@ impl<C: NetworkClient, S: NetworkService> Subscriber<C, S> {
                         .metrics
                         .node_metrics
                         .subscriber_connection_attempts
-                        .with_label_values(&[peer_hostname, "failure"])
+                        .with_label_values(&[peer_hostname.as_str(), "failure"])
                         .inc();
                     continue 'subscription;
                 }
@@ -237,10 +251,11 @@ mod test {
 
     use super::*;
     use crate::{
-        block::{BlockRef, VerifiedBlock},
+        VerifiedBlock,
+        block::BlockRef,
         commit::CommitRange,
         error::ConsensusResult,
-        network::{BlockStream, test_network::TestService},
+        network::{BlockStream, ExtendedSerializedBlock, test_network::TestService},
         storage::mem_store::MemStore,
     };
 
@@ -273,7 +288,11 @@ mod test {
         ) -> ConsensusResult<BlockStream> {
             let block_stream = stream::unfold((), |_| async {
                 sleep(Duration::from_millis(1)).await;
-                Some((Bytes::from(vec![1u8; 8]), ()))
+                let block = ExtendedSerializedBlock {
+                    block: Bytes::from(vec![1u8; 8]),
+                    excluded_ancestors: vec![],
+                };
+                Some((block, ()))
             })
             .take(10);
             Ok(Box::pin(block_stream))
@@ -304,6 +323,14 @@ mod test {
             _authorities: Vec<AuthorityIndex>,
             _timeout: Duration,
         ) -> ConsensusResult<Vec<Bytes>> {
+            unimplemented!("Unimplemented")
+        }
+
+        async fn get_latest_rounds(
+            &self,
+            _peer: AuthorityIndex,
+            _timeout: Duration,
+        ) -> ConsensusResult<(Vec<Round>, Vec<Round>)> {
             unimplemented!("Unimplemented")
         }
     }
@@ -341,7 +368,13 @@ mod test {
         assert!(service.handle_send_block.len() >= 100);
         for (p, block) in service.handle_send_block.iter() {
             assert_eq!(*p, peer);
-            assert_eq!(*block, Bytes::from(vec![1u8; 8]));
+            assert_eq!(
+                *block,
+                ExtendedSerializedBlock {
+                    block: Bytes::from(vec![1u8; 8]),
+                    excluded_ancestors: vec![]
+                }
+            );
         }
     }
 }

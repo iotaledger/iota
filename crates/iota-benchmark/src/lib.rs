@@ -23,7 +23,7 @@ use anyhow::bail;
 use async_trait::async_trait;
 use embedded_reconfig_observer::EmbeddedReconfigObserver;
 use fullnode_reconfig_observer::FullNodeReconfigObserver;
-use futures::{FutureExt, StreamExt, stream::FuturesUnordered};
+use futures::{FutureExt, StreamExt, TryStreamExt, stream::FuturesUnordered};
 use iota_config::genesis::Genesis;
 use iota_core::{
     authority_aggregator::{AuthorityAggregator, AuthorityAggregatorBuilder},
@@ -33,12 +33,11 @@ use iota_core::{
     },
 };
 use iota_json_rpc_types::{
-    IotaObjectDataOptions, IotaObjectResponse, IotaObjectResponseQuery,
-    IotaTransactionBlockEffects, IotaTransactionBlockEffectsAPI,
-    IotaTransactionBlockResponseOptions,
+    IotaObjectDataOptions, IotaObjectResponseQuery, IotaTransactionBlockEffects,
+    IotaTransactionBlockEffectsAPI, IotaTransactionBlockResponseOptions,
 };
 use iota_metrics::GaugeGuard;
-use iota_sdk::{IotaClient, IotaClientBuilder};
+use iota_sdk::{IotaClient, IotaClientBuilder, PagedFn};
 use iota_types::{
     base_types::{
         AuthorityName, ConciseableName, IotaAddress, ObjectID, ObjectRef, SequenceNumber,
@@ -456,7 +455,7 @@ impl ValidatorProxy for LocalValidatorAggregatorProxy {
                         .load()
                         .metrics
                         .process_tx_errors
-                        .with_label_values(&[&name.concise().to_string(), e.as_ref()])
+                        .with_label_values(&[name.concise().to_string().as_str(), e.as_ref()])
                         .inc();
                     tracing::warn!("Failed to submit transaction: {e}")
                 }
@@ -559,7 +558,7 @@ impl ValidatorProxy for LocalValidatorAggregatorProxy {
                     auth_agg
                         .metrics
                         .process_cert_errors
-                        .with_label_values(&[&name.concise().to_string(), e.as_ref()])
+                        .with_label_values(&[name.concise().to_string().as_str(), e.as_ref()])
                         .inc();
                     tracing::warn!("Failed to submit certificate: {e}")
                 }
@@ -687,11 +686,8 @@ impl ValidatorProxy for FullNodeProxy {
         &self,
         account_address: IotaAddress,
     ) -> Result<Vec<(u64, Object)>, anyhow::Error> {
-        let mut objects: Vec<IotaObjectResponse> = Vec::new();
-        let mut cursor = None;
-        loop {
-            let response = self
-                .iota_client
+        let mut stream = PagedFn::stream(async |cursor| {
+            self.iota_client
                 .read_api()
                 .get_owned_objects(
                     account_address,
@@ -701,20 +697,12 @@ impl ValidatorProxy for FullNodeProxy {
                     cursor,
                     None,
                 )
-                .await?;
-
-            objects.extend(response.data);
-
-            if response.has_next_page {
-                cursor = response.next_cursor;
-            } else {
-                break;
-            }
-        }
+                .await
+        });
 
         let mut values_objects = Vec::new();
 
-        for object in objects {
+        while let Some(object) = stream.try_next().await? {
             let o = object.data;
             if let Some(o) = o {
                 let temp: Object = o.clone().try_into()?;

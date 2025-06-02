@@ -7,6 +7,12 @@ import { useQuery } from '@tanstack/react-query';
 import { useCoinMetadata } from './useFormatCoin';
 import { createTokenTransferTransaction, getGasSummary } from '../utils';
 import { Transaction } from '@iota/iota-sdk/transactions';
+import { GasSummaryType } from '../types';
+
+export interface SendCoinTransaction {
+    transaction: Transaction;
+    gasSummary: GasSummaryType;
+}
 
 interface SendCoinTransactionParams {
     coins: CoinStruct[];
@@ -61,7 +67,7 @@ export function useSendCoinTransaction({
             return {
                 transaction: Transaction.from(txBytes),
                 gasSummary: getGasSummary(txDryRun),
-            };
+            } as SendCoinTransaction;
         },
     });
 }

@@ -1,0 +1,214 @@
+---
+source: external-crates/move/crates/move-transactional-test-runner/src/framework.rs
+---
+processed 12 tasks
+
+init:
+A: object(0,0), B: object(0,1)
+
+task 1, lines 7-35:
+//# publish
+created: object(1,0)
+mutated: object(0,2)
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 6596800,  storage_rebate: 0, non_refundable_storage_fee: 0
+
+task 2, line 37:
+//# run Test::M2::emit_emit_a --sender A --args 20
+events: Event { package_id: Test, transaction_module: Identifier("M2"), sender: A, type_: StructTag { address: Test, module: Identifier("M1"), name: Identifier("EventA"), type_params: [] }, contents: [20, 0, 0, 0, 0, 0, 0, 0] }
+mutated: object(0,0)
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 980400,  storage_rebate: 0, non_refundable_storage_fee: 0
+
+task 3, line 39:
+//# create-checkpoint
+Checkpoint created: 1
+
+task 4, lines 41-58:
+//# run-graphql
+Response: {
+  "data": {
+    "events": {
+      "nodes": [
+        {
+          "sendingModule": {
+            "name": "M2"
+          },
+          "type": {
+            "repr": "0x04b73a371905bb6e3a7121f167b6b256451f2bad3d620a078c444afd516ecbd9::M1::EventA"
+          },
+          "sender": {
+            "address": "0x8cca4e1ce0ba5904cea61df9242da2f7d29e3ef328fb7ec07c086b3bf47ca61a"
+          },
+          "json": {
+            "new_value": "20"
+          },
+          "bcs": "FAAAAAAAAAA="
+        }
+      ]
+    }
+  }
+}
+
+task 5, line 60:
+//# run Test::M2::emit_b --sender A --args 42
+events: Event { package_id: Test, transaction_module: Identifier("M2"), sender: A, type_: StructTag { address: Test, module: Identifier("M2"), name: Identifier("EventB"), type_params: [] }, contents: [42, 0, 0, 0, 0, 0, 0, 0] }
+mutated: object(0,0)
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 980400,  storage_rebate: 980400, non_refundable_storage_fee: 0
+
+task 6, line 62:
+//# run Test::M2::emit_b --sender B --args 43
+events: Event { package_id: Test, transaction_module: Identifier("M2"), sender: B, type_: StructTag { address: Test, module: Identifier("M2"), name: Identifier("EventB"), type_params: [] }, contents: [43, 0, 0, 0, 0, 0, 0, 0] }
+mutated: object(0,1)
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 980400,  storage_rebate: 0, non_refundable_storage_fee: 0
+
+task 7, line 64:
+//# create-checkpoint
+Checkpoint created: 2
+
+task 8, lines 66-83:
+//# run-graphql
+Response: {
+  "data": {
+    "events": {
+      "nodes": [
+        {
+          "sendingModule": {
+            "name": "M2"
+          },
+          "type": {
+            "repr": "0x04b73a371905bb6e3a7121f167b6b256451f2bad3d620a078c444afd516ecbd9::M1::EventA"
+          },
+          "sender": {
+            "address": "0x8cca4e1ce0ba5904cea61df9242da2f7d29e3ef328fb7ec07c086b3bf47ca61a"
+          },
+          "json": {
+            "new_value": "20"
+          },
+          "bcs": "FAAAAAAAAAA="
+        }
+      ]
+    }
+  }
+}
+
+task 9, lines 85-102:
+//# run-graphql
+Response: {
+  "data": {
+    "events": {
+      "nodes": [
+        {
+          "sendingModule": {
+            "name": "M2"
+          },
+          "type": {
+            "repr": "0x04b73a371905bb6e3a7121f167b6b256451f2bad3d620a078c444afd516ecbd9::M2::EventB"
+          },
+          "sender": {
+            "address": "0x8cca4e1ce0ba5904cea61df9242da2f7d29e3ef328fb7ec07c086b3bf47ca61a"
+          },
+          "json": {
+            "new_value": "42"
+          },
+          "bcs": "KgAAAAAAAAA="
+        }
+      ]
+    }
+  }
+}
+
+task 10, lines 104-121:
+//# run-graphql
+Response: {
+  "data": {
+    "events": {
+      "nodes": [
+        {
+          "sendingModule": {
+            "name": "M2"
+          },
+          "type": {
+            "repr": "0x04b73a371905bb6e3a7121f167b6b256451f2bad3d620a078c444afd516ecbd9::M1::EventA"
+          },
+          "sender": {
+            "address": "0x8cca4e1ce0ba5904cea61df9242da2f7d29e3ef328fb7ec07c086b3bf47ca61a"
+          },
+          "json": {
+            "new_value": "20"
+          },
+          "bcs": "FAAAAAAAAAA="
+        },
+        {
+          "sendingModule": {
+            "name": "M2"
+          },
+          "type": {
+            "repr": "0x04b73a371905bb6e3a7121f167b6b256451f2bad3d620a078c444afd516ecbd9::M2::EventB"
+          },
+          "sender": {
+            "address": "0x8cca4e1ce0ba5904cea61df9242da2f7d29e3ef328fb7ec07c086b3bf47ca61a"
+          },
+          "json": {
+            "new_value": "42"
+          },
+          "bcs": "KgAAAAAAAAA="
+        }
+      ]
+    }
+  }
+}
+
+task 11, lines 123-140:
+//# run-graphql
+Response: {
+  "data": {
+    "events": {
+      "nodes": [
+        {
+          "sendingModule": {
+            "name": "M2"
+          },
+          "type": {
+            "repr": "0x04b73a371905bb6e3a7121f167b6b256451f2bad3d620a078c444afd516ecbd9::M1::EventA"
+          },
+          "sender": {
+            "address": "0x8cca4e1ce0ba5904cea61df9242da2f7d29e3ef328fb7ec07c086b3bf47ca61a"
+          },
+          "json": {
+            "new_value": "20"
+          },
+          "bcs": "FAAAAAAAAAA="
+        },
+        {
+          "sendingModule": {
+            "name": "M2"
+          },
+          "type": {
+            "repr": "0x04b73a371905bb6e3a7121f167b6b256451f2bad3d620a078c444afd516ecbd9::M2::EventB"
+          },
+          "sender": {
+            "address": "0x8cca4e1ce0ba5904cea61df9242da2f7d29e3ef328fb7ec07c086b3bf47ca61a"
+          },
+          "json": {
+            "new_value": "42"
+          },
+          "bcs": "KgAAAAAAAAA="
+        },
+        {
+          "sendingModule": {
+            "name": "M2"
+          },
+          "type": {
+            "repr": "0x04b73a371905bb6e3a7121f167b6b256451f2bad3d620a078c444afd516ecbd9::M2::EventB"
+          },
+          "sender": {
+            "address": "0x28f02a953f3553f51a9365593c7d4bd0643d2085f004b18c6ca9de51682b2c80"
+          },
+          "json": {
+            "new_value": "43"
+          },
+          "bcs": "KwAAAAAAAAA="
+        }
+      ]
+    }
+  }
+}

@@ -1,6 +1,6 @@
 {
     "name": "@iota/apps-ui-kit",
-    "version": "0.3.0",
+    "version": "0.5.0",
     "repository": {
         "type": "git",
         "url": "github.com:iotaledger/iota.git"
@@ -68,7 +68,7 @@
         "storybook-dark-mode": "^4.0.2",
         "tailwindcss": "^3.3.3",
         "typescript": "^5.5.3",
-        "vite": "^5.3.3",
+        "vite": "^5.4.12",
         "vite-plugin-dts": "^4.3.0",
         "vite-tsconfig-paths": "^4.2.0"
     }

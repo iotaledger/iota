@@ -2,8 +2,6 @@
 
 `@iota/graphql-transport` is part of the **IOTA Rebased SDK**, designed specifically for interacting with the IOTA Rebased protocol.
 
-> **Note**: This package is currently supported **only in Testnet and Devnet**, it is **not yet supported in Mainnet**.
-
 This package provides a `IotaTransport` that enables `IotaClient` to make requests using the RPC 2.0
 (GraphQL) API instead of the JSON RPC API.
 
@@ -45,6 +43,9 @@ error, or fallback to the JSON RPC API if a `fallbackFullNodeUrl` is provided:
 - `dryRunTransactionBlock`
 - `devInspectTransactionBlock`
 - `executeTransactionBlock`
+- `getParticipationMetrics`
+- `getCirculatingSupply`
+- `getDynamicFieldObjectV2`
 
 ### Unsupported parameters
 
@@ -67,7 +68,7 @@ If an unsupported parameter is used, the request will error, or fallback to JSON
   - missing `id` for `events`
 - `getStakes` and `getStakesByIds`
   - missing `validatorAddress`
-- `getLatestIotaSystemState`
+- `getLatestIotaSystemState` and `getLatestIotaSystemStateV2`
   - missing `stakingPoolMappingsId`, `inactivePoolsId`, `pendingActiveValidatorsId`,
     `validatorCandidatesId`
   - missing `reportRecords` on validators
@@ -95,7 +96,7 @@ Some may require multiple requests to properly resolve:
   - may require additional requests to load all `friends`, `functions`, and `structs`
 - `getCheckpoint` and `getCheckpoints`,
   - may require additional requests to load all `transactionBlocks` and `validators`
-- `getLatestIotaSystemState`, `getCurrentEpoch`, `getValidatorsApy` and `getCommitteeInfo`:
+- `getLatestIotaSystemState`,`getLatestIotaSystemStateV2`, `getCurrentEpoch`, `getValidatorsApy` and `getCommitteeInfo`:
   - may require additional requests to load all `validators`
 
 ### Pagination
