@@ -53,7 +53,7 @@ use iota_types::{
         ConsensusTransactionKind, VersionedDkgConfirmation, check_total_jwk_size,
     },
     signature::GenericSignature,
-    storage::{BackingPackageStore, GetSharedLocks, InputKey, ObjectStore},
+    storage::{BackingPackageStore, InputKey, ObjectStore},
     transaction::{
         AuthenticatorStateUpdateV1, CertifiedTransaction, InputObjectKind, SenderSignedData,
         Transaction, TransactionDataAPI, TransactionKey, TransactionKind, VerifiedCertificate,
@@ -62,6 +62,7 @@ use iota_types::{
 };
 use itertools::{Itertools, izip};
 use move_bytecode_utils::module_cache::SyncModuleCache;
+use nonempty::NonEmpty;
 use parking_lot::{Mutex, RwLock, RwLockReadGuard, RwLockWriteGuard};
 use prometheus::IntCounter;
 use serde::{Deserialize, Serialize};
@@ -209,12 +210,6 @@ pub enum ConsensusCertificateResult {
     ),
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug, Default, PartialEq, Eq)]
-pub struct ExecutionIndicesWithHash {
-    pub index: ExecutionIndices,
-    pub hash: u64,
-}
-
 /// ConsensusStats is versioned because we may iterate on the struct, and it is
 /// stored on disk.
 #[enum_dispatch]
@@ -315,6 +310,7 @@ impl PartialOrd for ExecutionIndices {
 #[derive(Serialize, Deserialize, Clone, Debug, Default, PartialEq, Eq)]
 pub struct ExecutionIndicesWithStats {
     pub index: ExecutionIndices,
+    // Hash is always 0 and kept for compatibility only.
     pub hash: u64,
     pub stats: ConsensusStats,
 }
@@ -408,7 +404,7 @@ pub struct AuthorityPerEpochStore {
     /// Lock ordering: this is a 'leaf' lock, no other locks should be acquired
     /// in the scope of this lock In particular, this lock is always
     /// acquired after taking read or write lock on reconfig state
-    pending_consensus_certificates: Mutex<HashSet<TransactionDigest>>,
+    pending_consensus_certificates: RwLock<HashSet<TransactionDigest>>,
 
     /// MutexTable for transaction locks (prevent concurrent execution of same
     /// transaction)
@@ -527,13 +523,9 @@ pub struct AuthorityEpochTables {
     #[default_options_override_fn = "pending_consensus_transactions_table_default_config"]
     pending_consensus_transactions: DBMap<ConsensusTransactionKey, ConsensusTransaction>,
 
-    /// The following table is used to store a single value (the corresponding
-    /// key is a constant). The value represents the index of the latest
-    /// consensus message this authority processed. This field is written by
-    /// a single process acting as consensus (light) client. It is used to
-    /// ensure the authority processes every message output by consensus
-    /// (and in the right order).
-    last_consensus_index: DBMap<u64, ExecutionIndicesWithHash>,
+    /// this table is not used
+    #[allow(dead_code)]
+    last_consensus_index: DBMap<(), ()>,
 
     /// The following table is used to store a single value (the corresponding
     /// key is a constant). The value represents the index of the latest
@@ -745,8 +737,11 @@ impl AuthorityEpochTables {
         Ok(())
     }
 
-    pub fn get_last_consensus_index(&self) -> IotaResult<Option<ExecutionIndicesWithHash>> {
-        Ok(self.last_consensus_index.get(&LAST_CONSENSUS_STATS_ADDR)?)
+    pub fn get_last_consensus_index(&self) -> IotaResult<Option<ExecutionIndices>> {
+        Ok(self
+            .last_consensus_stats
+            .get(&LAST_CONSENSUS_STATS_ADDR)?
+            .map(|s| s.index))
     }
 
     pub fn get_last_consensus_stats(&self) -> IotaResult<Option<ExecutionIndicesWithStats>> {
@@ -933,7 +928,7 @@ impl AuthorityPerEpochStore {
             synced_checkpoint_notify_read: NotifyRead::new(),
             highest_synced_checkpoint: RwLock::new(0),
             end_of_publish: Mutex::new(end_of_publish),
-            pending_consensus_certificates: Mutex::new(pending_consensus_certificates),
+            pending_consensus_certificates: RwLock::new(pending_consensus_certificates),
             mutex_table: MutexTable::new(MUTEX_TABLE_SIZE),
             epoch_open_time: current_time,
             epoch_close_time: Default::default(),
@@ -1322,31 +1317,31 @@ impl AuthorityPerEpochStore {
         key: &TransactionKey,
         objects: &[InputObjectKind],
     ) -> IotaResult<BTreeSet<InputKey>> {
-        let shared_locks =
+        let assigned_shared_versions =
             once_cell::unsync::OnceCell::<Option<HashMap<ObjectID, SequenceNumber>>>::new();
         objects
             .iter()
             .map(|kind| {
                 Ok(match kind {
                     InputObjectKind::SharedMoveObject { id, .. } => {
-                        let shared_locks = shared_locks
+                        let assigned_shared_versions = assigned_shared_versions
                             .get_or_init(|| {
-                                self.get_shared_locks(key)
-                                    .expect("reading shared locks should not fail")
-                                    .map(|locks| locks.into_iter().collect())
+                                self.get_assigned_shared_object_versions(key)
+                                    .expect("reading assigned shared versions should not fail")
+                                    .map(|versions| versions.into_iter().collect())
                             })
                             .as_ref()
                             // Shared version assignments could have been deleted if the tx just
                             // finished executing concurrently.
                             .ok_or(IotaError::GenericAuthority {
-                                error: "no shared locks".to_string(),
+                                error: "no assigned shared versions".to_string(),
                             })?;
-                        // If we found locks, but they are missing the assignment for this object,
-                        // it indicates a serious inconsistency!
-                        let Some(version) = shared_locks.get(id) else {
+                        // If we found assigned versions, but they are missing the assignment for
+                        // this object, it indicates a serious inconsistency!
+                        let Some(version) = assigned_shared_versions.get(id) else {
                             panic!(
-                                "Shared object locks should have been set. key: {key:?}, obj \
-                                id: {id:?}",
+                                "Shared object version should have been assigned. key: {key:?}, \
+                                obj id: {id:?}, assigned_shared_versions: {assigned_shared_versions:?}",
                             )
                         };
                         InputKey::VersionedObject {
@@ -1364,24 +1359,17 @@ impl AuthorityPerEpochStore {
             .collect()
     }
 
-    pub fn get_last_consensus_index(&self) -> IotaResult<ExecutionIndicesWithHash> {
-        self.tables()?
-            .get_last_consensus_index()
-            .map(|x| x.unwrap_or_default())
-    }
-
     pub fn get_last_consensus_stats(&self) -> IotaResult<ExecutionIndicesWithStats> {
         match self.tables()?.get_last_consensus_stats()? {
             Some(stats) => Ok(stats),
-            // TODO: stop reading from last_consensus_index after rollout.
             None => {
                 let indices = self
                     .tables()?
                     .get_last_consensus_index()
                     .map(|x| x.unwrap_or_default())?;
                 Ok(ExecutionIndicesWithStats {
-                    index: indices.index,
-                    hash: indices.hash,
+                    index: indices,
+                    hash: 0, // unused
                     stats: ConsensusStats::default(),
                 })
             }
@@ -1563,7 +1551,7 @@ impl AuthorityPerEpochStore {
     // computation of the transaction that created the shared object originally
     // - which transaction may not yet have been executed on this node).
     //
-    // Because all paths that assign shared locks for a shared object transaction
+    // Because all paths that assign shared versions for a shared object transaction
     // call this function, it is impossible for parent_sync to be updated before
     // this function completes successfully for each affected object id.
     pub(crate) async fn get_or_init_next_object_versions(
@@ -1636,6 +1624,13 @@ impl AuthorityPerEpochStore {
         })?;
 
         Ok(ret)
+    }
+
+    pub fn get_assigned_shared_object_versions(
+        &self,
+        key: &TransactionKey,
+    ) -> IotaResult<Option<Vec<(ObjectID, SequenceNumber)>>> {
+        Ok(self.tables()?.assigned_shared_object_versions.get(key)?)
     }
 
     async fn set_assigned_shared_object_versions_with_db_batch(
@@ -1837,13 +1832,13 @@ impl AuthorityPerEpochStore {
         }
     }
 
-    /// Lock a sequence number for the shared objects of the input transaction
+    /// Assign a sequence number for the shared objects of the input transaction
     /// based on the effects of that transaction.
     /// Used by full nodes who don't listen to consensus, and validators who
     /// catch up by state sync.
-    // TODO: We should be able to pass in a vector of certs/effects and lock them all at once.
+    // TODO: We should be able to pass in a vector of certs/effects and acquire them all at once.
     #[instrument(level = "trace", skip_all)]
-    pub async fn acquire_shared_locks_from_effects(
+    pub async fn acquire_shared_version_assignments_from_effects(
         &self,
         certificate: &VerifiedExecutableTransaction,
         effects: &TransactionEffects,
@@ -1884,7 +1879,7 @@ impl AuthorityPerEpochStore {
                     "Reconfiguration state should allow accepting user transactions"
                 );
                 self.pending_consensus_certificates
-                    .lock()
+                    .write()
                     .insert(*cert.digest());
             }
         }
@@ -1901,22 +1896,28 @@ impl AuthorityPerEpochStore {
         // TODO: lock once for all remove() calls.
         for key in keys {
             if let ConsensusTransactionKey::Certificate(cert) = key {
-                self.pending_consensus_certificates.lock().remove(cert);
+                self.pending_consensus_certificates.write().remove(cert);
             }
         }
         Ok(())
     }
 
     pub fn pending_consensus_certificates_count(&self) -> usize {
-        self.pending_consensus_certificates.lock().len()
+        self.pending_consensus_certificates.read().len()
     }
 
     pub fn pending_consensus_certificates_empty(&self) -> bool {
-        self.pending_consensus_certificates.lock().is_empty()
+        self.pending_consensus_certificates.read().is_empty()
     }
 
     pub fn pending_consensus_certificates(&self) -> HashSet<TransactionDigest> {
-        self.pending_consensus_certificates.lock().clone()
+        self.pending_consensus_certificates.read().clone()
+    }
+
+    pub fn is_pending_consensus_certificate(&self, tx_digest: &TransactionDigest) -> bool {
+        self.pending_consensus_certificates
+            .read()
+            .contains(tx_digest)
     }
 
     pub fn deferred_transactions_empty(&self) -> bool {
@@ -2558,7 +2559,7 @@ impl AuthorityPerEpochStore {
     }
 
     fn db_batch(&self) -> IotaResult<DBBatch> {
-        Ok(self.tables()?.last_consensus_index.batch())
+        Ok(self.tables()?.last_consensus_stats.batch())
     }
 
     #[cfg(test)]
@@ -3745,7 +3746,7 @@ impl AuthorityPerEpochStore {
     pub fn process_pending_checkpoint(
         &self,
         commit_height: CheckpointHeight,
-        content_info: Vec<(CheckpointSummary, CheckpointContents)>,
+        content_info: NonEmpty<(CheckpointSummary, CheckpointContents)>,
     ) -> IotaResult<()> {
         let tables = self.tables()?;
         // All created checkpoints are inserted in builder_checkpoint_summary in a
@@ -4162,16 +4163,6 @@ impl ConsensusCommitOutput {
 
         if let Some(consensus_commit_stats) = &self.consensus_commit_stats {
             batch.insert_batch(
-                &tables.last_consensus_index,
-                [(
-                    LAST_CONSENSUS_STATS_ADDR,
-                    ExecutionIndicesWithHash {
-                        index: consensus_commit_stats.index,
-                        hash: consensus_commit_stats.hash,
-                    },
-                )],
-            )?;
-            batch.insert_batch(
                 &tables.last_consensus_stats,
                 [(LAST_CONSENSUS_STATS_ADDR, consensus_commit_stats)],
             )?;
@@ -4236,15 +4227,6 @@ impl ConsensusCommitOutput {
         )?;
 
         Ok(())
-    }
-}
-
-impl GetSharedLocks for AuthorityPerEpochStore {
-    fn get_shared_locks(
-        &self,
-        key: &TransactionKey,
-    ) -> IotaResult<Option<Vec<(ObjectID, SequenceNumber)>>> {
-        Ok(self.tables()?.assigned_shared_object_versions.get(key)?)
     }
 }
 
