@@ -158,9 +158,17 @@ jobs:
 
       - name: Cargo build for ${{ matrix.os_type }} platform
         shell: bash
-        # Currently building in release mode, but we could also have debug builds for testing
         run: |
-          [ -f ~/.cargo/env ] && source ~/.cargo/env ; cargo build --release --features indexer,gen-completions,tracing
+          [ -f ~/.cargo/env ] && source ~/.cargo/env
+
+          jq -r '.release_binaries | to_entries[] | [.key, (.value | join(","))] | @tsv' ${{ env.BINARY_LIST_FILE }} | while IFS=$'\t' read -r binary features; do
+            echo ">>> Building $binary with features: $features"
+            if [[ -z "$features" ]]; then
+              cargo build --release --bin "$binary"
+            else
+              cargo build --release --bin "$binary" --features "$features"
+            fi
+          done
 
       - name: Rename binaries for ${{ matrix.os_type }}
         shell: bash
