@@ -27,7 +27,7 @@ test.describe('Wallet staking', () => {
         await dashboardPage.getByText('Next').click();
 
         await dashboardPage.getByLabel('Amount').fill('10');
-
+        await dashboardPage.pause();
         let stakeButton = dashboardPage.getByTestId('stake-confirm-btn');
         await expect(stakeButton).toBeVisible();
 
@@ -37,6 +37,8 @@ test.describe('Wallet staking', () => {
 
         let walletApprovePage = await walletApprovePagePromise;
         await walletApprovePage.getByRole('button', { name: 'Approve' }).click();
+
+        await dashboardPage.bringToFront();
 
         await expect(dashboardPage.getByText('Successfully sent')).toBeVisible({
             timeout: 30_000,
