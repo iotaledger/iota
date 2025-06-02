@@ -54,7 +54,7 @@ impl CoinManager {
 
     pub fn from_bcs_bytes(content: &[u8]) -> Result<Self, IotaError> {
         bcs::from_bytes(content).map_err(|err| IotaError::ObjectDeserialization {
-            error: format!("Unable to deserialize CoinManager object: {}", err),
+            error: format!("Unable to deserialize CoinManager object: {err}"),
         })
     }
 
@@ -110,17 +110,14 @@ impl TryFrom<Object> for CoinManager {
 impl TryFrom<&Object> for CoinManager {
     type Error = IotaError;
     fn try_from(object: &Object) -> Result<Self, Self::Error> {
-        match &object.data {
-            Data::Move(o) => {
-                if o.type_().is_coin_manager() {
-                    return CoinManager::from_bcs_bytes(o.contents());
-                }
+        if let Data::Move(o) = &object.data {
+            if o.type_().is_coin_manager() {
+                return CoinManager::from_bcs_bytes(o.contents());
             }
-            Data::Package(_) => {}
         }
 
         Err(IotaError::Type {
-            error: format!("Object type is not a CoinManager: {:?}", object),
+            error: format!("Object type is not a CoinManager: {object:?}"),
         })
     }
 }

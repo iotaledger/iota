@@ -319,12 +319,7 @@ impl MoveObjectType {
     }
 
     pub fn is_coin_manager(&self) -> bool {
-        match &self.0 {
-            MoveObjectType_::GasCoin | MoveObjectType_::StakedIota | MoveObjectType_::Coin(_) => {
-                false
-            }
-            MoveObjectType_::Other(s) => CoinManager::is_coin_manager(s),
-        }
+        matches!(&self.0, MoveObjectType_::Other(struct_tag) if CoinManager::is_coin_manager(struct_tag))
     }
 
     pub fn is_treasury_cap(&self) -> bool {
