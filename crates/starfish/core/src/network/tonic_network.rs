@@ -517,10 +517,7 @@ impl<S: NetworkService> ConsensusService for TonicServiceProxy<S> {
             .handle_subscribe_blocks(peer_index, first_request.last_received_round)
             .await
             .map_err(|e| tonic::Status::internal(format!("{e:?}")))?
-            .map(|block| {
-                let serialized_block = SerializedBlock::try_from(block)
-                    .map_err(|e| tonic::Status::internal(format!("serialization error: {e:?}")))?;
-
+            .map(|serialized_block| {
                 Ok(SubscribeBlocksResponse {
                     vec_serialized_blocks: serialized_block.serialized_block,
                 })

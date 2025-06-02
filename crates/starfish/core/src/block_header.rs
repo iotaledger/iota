@@ -643,6 +643,7 @@ impl fmt::Debug for VerifiedBlockHeader {
 /// VerifiedTransactions are transactions that correspond to an existing block
 #[derive(Clone, Debug)]
 pub struct VerifiedTransactions {
+    #[expect(dead_code)]
     transactions: Vec<Transaction>,
 
     /// The block reference of the block that contains the transactions.
