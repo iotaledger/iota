@@ -1241,7 +1241,7 @@ impl AuthorityPerEpochStore {
         tx_digest: &TransactionDigest,
     ) -> IotaResult {
         let tables = self.tables()?;
-        let mut batch = self.tables()?.effects_signatures.batch();
+        let mut batch = self.tables()?.executed_in_epoch.batch();
 
         batch.insert_batch(&tables.executed_in_epoch, [(tx_digest, ())])?;
 
