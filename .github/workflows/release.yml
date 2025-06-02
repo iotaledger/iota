@@ -175,26 +175,29 @@ jobs:
 
           tar -cvzf ./tmp/${{ steps.create-artifact.outputs.artifact_name }}.tgz -C ${{ env.TMP_BUILD_DIR }} .
 
-      #      - name: Publish Windows iota binary to Chocolatey
-      #        if: ${{ matrix.os == 'windows-latest' && github.event_name == 'release' &&  && contains(env.iota_ref, '-rc') }}
-      #        shell: bash
-      #        run: |
-      #          choco install checksum
-      #          export iota_sha=$(checksum -t sha256 ${{ env.TMP_BUILD_DIR }}/iota.exe)
-      #          cd chocolatey
-      #
-      #          cat <<EOF >>VERIFICATION.txt
-      #          IOTA Binary verification steps
-      #          1. Download https://github.com/iotaledger/iota/releases/download/${{ env.iota_ref }}/${{ env.artifact_name }}.tgz
-      #          2. Extract iota.exe
-      #          3. Verify binary: checksum.exe -t sha256 iota.exe: ${iota_sha}
-      #
-      #          File 'LICENSE.txt' is obtained from: https://github.com/iotaledger/iota/blob/develop/LICENSE
-      #          EOF
-      #
-      #          choco pack --version ${{ env.iota_ref }} configuration=release
-      #          choco apikey --api-key ${{ secrets.CHOCO_API_KEY }} --source https://push.chocolatey.org/
-      #          choco push iota.${{ env.iota_ref }}.nupkg --source https://push.chocolatey.org/
+      - name: Publish Windows iota binary to Chocolatey
+        if: ${{ matrix.os == 'windows-latest' && github.event_name == 'release' }}
+        shell: bash
+        run: |
+          choco install checksum
+          export iota_sha=$(checksum -t sha256 ${{ env.TMP_BUILD_DIR }}/iota.exe)
+          cd chocolatey
+
+          cat <<EOF >>VERIFICATION.txt
+          IOTA Binary verification steps
+          1. Download https://github.com/iotaledger/iota/releases/download/${{ env.iota_ref }}/${{ env.artifact_name }}.tgz
+          2. Extract iota.exe
+          3. Verify binary: checksum.exe -t sha256 iota.exe: ${iota_sha}
+          4. Verify file 'LICENSE.txt': https://github.com/iotaledger/iota/blob/develop/LICENSE
+          EOF
+
+          choco pack --version ${{ env.iota_ref }} configuration=release
+          choco apikey --api-key ${{ secrets.CHOCO_API_KEY }} --source https://push.chocolatey.org/
+          if [[ "${{ env.iota_ref }}" == *"-"* ]]; then
+            choco push iota.${{ env.iota_ref }}.nupkg --source https://push.chocolatey.org/ --pre
+          else
+            choco push iota.${{ env.iota_ref }}.nupkg --source https://push.chocolatey.org/
+          fi
 
       - name: Upload artifacts for ${{ matrix.os_type }} platform
         uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # v4.4.3

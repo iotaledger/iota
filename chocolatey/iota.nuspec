@@ -5,9 +5,9 @@ enclosed in quotation marks, you should use an editor that supports UTF-8, not t
 	<metadata>
 		<id>iota</id>
 		<version>$version$</version>
-		<owners>iota</owners>
-		<title>Main IOTA Binary</title>
-		<authors>iota</authors>
+		<owners>IOTA Foundation</owners>
+		<title>IOTA CLI</title>
+		<authors>iotaledger</authors>
 		<projectUrl>https://iota.org/</projectUrl>
 		<licenseUrl>https://github.com/iotaledger/iota/blob/develop/LICENSE</licenseUrl>
 		<iconUrl>https://assets-global.website-files.com/6425f546844727ce5fb9e5ab/643775f4a15c9a9e10426daa_Iota_Favicon_256.png</iconUrl>
@@ -15,12 +15,15 @@ enclosed in quotation marks, you should use an editor that supports UTF-8, not t
 		<bugTrackerUrl>https://github.com/iotaledger/iota/issues</bugTrackerUrl>
 		<tags>iota</tags>
 		<packageSourceUrl>https://community.chocolatey.org/packages/iota.portable</packageSourceUrl>
-		<summary>Run a local iota binary</summary>
-		<description>IOTA is the first internet-scale programmable blockchain platform</description>
+		<summary>IOTA CLI to interact with the IOTA network</summary>
+		<description>Bringing the real world to Web3 with a scalable, decentralized and programmable DLT infrastructure</description>
 		<releaseNotes>https://github.com/iotaledger/iota/releases/tag/mainnet-v$version$</releaseNotes>
 	</metadata>
+	<dependencies>
+    	<dependency id="postgresql" version="14.0.1" />
+	</dependencies>
 	<files>
-		<file src="../target/release/iota.exe" target="bin/iota.exe" />
+		<file src="../tmp/release/iota.exe" target="bin/iota.exe" />
 		<file src="../LICENSE" target="bin/LICENSE.txt" />
 		<file src="./VERIFICATION.txt" target="bin/VERIFICATION.txt" />
 	</files>
