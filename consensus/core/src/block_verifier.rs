@@ -106,6 +106,17 @@ impl BlockVerifier for SignedBlockVerifier {
         // The block must belong to the current epoch and have valid authority index,
         // before having its signature verified.
         if block.epoch() != committee.epoch() {
+            // Update prometheus metric
+            self.context
+                .metrics
+                .node_metrics
+                .semantically_invalid_blocks
+                .with_label_values(&[&committee.authority(author_index).hostname, "verify", "WrongEpoch"])
+                .inc();
+            // Update validator score
+            self.context
+                .scoring_metrics
+                .update_semantically_invalid_blocks(block.author(),1);
             return Err(ConsensusError::WrongEpoch {
                 expected: committee.epoch(),
                 actual: block.epoch(),
