@@ -176,7 +176,7 @@ jobs:
           mkdir -p ${{ env.TMP_BUILD_DIR }}
 
           [ ! -f ${{ env.BINARY_LIST_FILE }} ] && echo "${{ env.BINARY_LIST_FILE }} cannot be found" && exit 1
-          for binary in $(cat ${{ env.BINARY_LIST_FILE }} | jq -r '.release_binaries[]'); do
+          jq -r '.release_binaries | keys[]' ${{ env.BINARY_LIST_FILE }} | while read -r binary; do
             export binary=$(echo ${binary} | tr -d $'\r')
             mv ./target/release/${binary}${{ env.extension }} ${{ env.TMP_BUILD_DIR }}/${binary}${{ env.extension }}
           done
