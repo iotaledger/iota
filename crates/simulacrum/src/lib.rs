@@ -433,18 +433,11 @@ impl ValidatorKeypairProvider for CommitteeWithKeys<'_> {
 }
 
 impl<T, V: store::SimulatorStore> ObjectStore for Simulacrum<T, V> {
-    fn get_object(
-        &self,
-        object_id: &ObjectID,
-    ) -> Result<Option<Object>, iota_types::storage::error::Error> {
-        Ok(store::SimulatorStore::get_object(&self.store, object_id))
+    fn get_object(&self, object_id: &ObjectID) -> Option<Object> {
+        store::SimulatorStore::get_object(&self.store, object_id)
     }
 
-    fn get_object_by_key(
-        &self,
-        object_id: &ObjectID,
-        version: VersionNumber,
-    ) -> Result<Option<Object>, iota_types::storage::error::Error> {
+    fn get_object_by_key(&self, object_id: &ObjectID, version: VersionNumber) -> Option<Object> {
         self.store.get_object_by_key(object_id, version)
     }
 }
@@ -453,7 +446,7 @@ impl<T, V: store::SimulatorStore> ReadStore for Simulacrum<T, V> {
     fn get_committee(
         &self,
         _epoch: iota_types::committee::EpochId,
-    ) -> iota_types::storage::error::Result<Option<std::sync::Arc<Committee>>> {
+    ) -> Option<std::sync::Arc<Committee>> {
         todo!()
     }
 
@@ -485,73 +478,64 @@ impl<T, V: store::SimulatorStore> ReadStore for Simulacrum<T, V> {
     fn get_checkpoint_by_digest(
         &self,
         digest: &iota_types::messages_checkpoint::CheckpointDigest,
-    ) -> iota_types::storage::error::Result<Option<VerifiedCheckpoint>> {
-        Ok(self.store().get_checkpoint_by_digest(digest))
+    ) -> Option<VerifiedCheckpoint> {
+        self.store().get_checkpoint_by_digest(digest)
     }
 
     fn get_checkpoint_by_sequence_number(
         &self,
         sequence_number: iota_types::messages_checkpoint::CheckpointSequenceNumber,
-    ) -> iota_types::storage::error::Result<Option<VerifiedCheckpoint>> {
-        Ok(self
-            .store()
-            .get_checkpoint_by_sequence_number(sequence_number))
+    ) -> Option<VerifiedCheckpoint> {
+        self.store()
+            .get_checkpoint_by_sequence_number(sequence_number)
     }
 
     fn get_checkpoint_contents_by_digest(
         &self,
         digest: &iota_types::messages_checkpoint::CheckpointContentsDigest,
-    ) -> iota_types::storage::error::Result<
-        Option<iota_types::messages_checkpoint::CheckpointContents>,
-    > {
-        Ok(self.store().get_checkpoint_contents(digest))
+    ) -> Option<iota_types::messages_checkpoint::CheckpointContents> {
+        self.store().get_checkpoint_contents(digest)
     }
 
     fn get_checkpoint_contents_by_sequence_number(
         &self,
         _sequence_number: iota_types::messages_checkpoint::CheckpointSequenceNumber,
-    ) -> iota_types::storage::error::Result<
-        Option<iota_types::messages_checkpoint::CheckpointContents>,
-    > {
+    ) -> Option<iota_types::messages_checkpoint::CheckpointContents> {
         todo!()
     }
 
     fn get_transaction(
         &self,
         tx_digest: &iota_types::digests::TransactionDigest,
-    ) -> iota_types::storage::error::Result<Option<Arc<VerifiedTransaction>>> {
-        Ok(self.store().get_transaction(tx_digest).map(Arc::new))
+    ) -> Option<Arc<VerifiedTransaction>> {
+        self.store().get_transaction(tx_digest).map(Arc::new)
     }
 
     fn get_transaction_effects(
         &self,
         tx_digest: &iota_types::digests::TransactionDigest,
-    ) -> iota_types::storage::error::Result<Option<TransactionEffects>> {
-        Ok(self.store().get_transaction_effects(tx_digest))
+    ) -> Option<TransactionEffects> {
+        self.store().get_transaction_effects(tx_digest)
     }
 
     fn get_events(
         &self,
         event_digest: &iota_types::digests::TransactionEventsDigest,
-    ) -> iota_types::storage::error::Result<Option<iota_types::effects::TransactionEvents>> {
-        Ok(self.store().get_transaction_events(event_digest))
+    ) -> Option<iota_types::effects::TransactionEvents> {
+        self.store().get_transaction_events(event_digest)
     }
 
     fn get_full_checkpoint_contents_by_sequence_number(
         &self,
         _sequence_number: iota_types::messages_checkpoint::CheckpointSequenceNumber,
-    ) -> iota_types::storage::error::Result<
-        Option<iota_types::messages_checkpoint::FullCheckpointContents>,
-    > {
+    ) -> Option<iota_types::messages_checkpoint::FullCheckpointContents> {
         todo!()
     }
 
     fn get_full_checkpoint_contents(
         &self,
         _digest: &iota_types::messages_checkpoint::CheckpointContentsDigest,
-    ) -> iota_types::storage::error::Result<
-        Option<iota_types::messages_checkpoint::FullCheckpointContents>,
-    > {
+    ) -> Option<iota_types::messages_checkpoint::FullCheckpointContents> {
         todo!()
     }
 }

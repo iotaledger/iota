@@ -367,75 +367,75 @@ impl AuthorityMetrics {
                 "Total number of transaction orders",
                 registry,
             )
-            .unwrap(),
+                .unwrap(),
             total_certs: register_int_counter_with_registry!(
                 "total_transaction_certificates",
                 "Total number of transaction certificates handled",
                 registry,
             )
-            .unwrap(),
+                .unwrap(),
             total_cert_attempts: register_int_counter_with_registry!(
                 "total_handle_certificate_attempts",
                 "Number of calls to handle_certificate",
                 registry,
             )
-            .unwrap(),
+                .unwrap(),
             // total_effects == total transactions finished
             total_effects: register_int_counter_with_registry!(
                 "total_transaction_effects",
                 "Total number of transaction effects produced",
                 registry,
             )
-            .unwrap(),
+                .unwrap(),
 
             shared_obj_tx: register_int_counter_with_registry!(
                 "num_shared_obj_tx",
                 "Number of transactions involving shared objects",
                 registry,
             )
-            .unwrap(),
+                .unwrap(),
 
             sponsored_tx: register_int_counter_with_registry!(
                 "num_sponsored_tx",
                 "Number of sponsored transactions",
                 registry,
             )
-            .unwrap(),
+                .unwrap(),
 
             tx_already_processed: register_int_counter_with_registry!(
                 "num_tx_already_processed",
                 "Number of transaction orders already processed previously",
                 registry,
             )
-            .unwrap(),
+                .unwrap(),
             num_input_objs: register_histogram_with_registry!(
                 "num_input_objects",
                 "Distribution of number of input TX objects per TX",
                 POSITIVE_INT_BUCKETS.to_vec(),
                 registry,
             )
-            .unwrap(),
+                .unwrap(),
             num_shared_objects: register_histogram_with_registry!(
                 "num_shared_objects",
                 "Number of shared input objects per TX",
                 POSITIVE_INT_BUCKETS.to_vec(),
                 registry,
             )
-            .unwrap(),
+                .unwrap(),
             batch_size: register_histogram_with_registry!(
                 "batch_size",
                 "Distribution of size of transaction batch",
                 POSITIVE_INT_BUCKETS.to_vec(),
                 registry,
             )
-            .unwrap(),
+                .unwrap(),
             authority_state_handle_transaction_latency: register_histogram_with_registry!(
                 "authority_state_handle_transaction_latency",
                 "Latency of handling transactions",
                 LATENCY_SEC_BUCKETS.to_vec(),
                 registry,
             )
-            .unwrap(),
+                .unwrap(),
             execute_certificate_latency_single_writer,
             execute_certificate_latency_shared_object,
             execute_certificate_with_effects_latency: register_histogram_with_registry!(
@@ -444,35 +444,35 @@ impl AuthorityMetrics {
                 LATENCY_SEC_BUCKETS.to_vec(),
                 registry,
             )
-            .unwrap(),
+                .unwrap(),
             internal_execution_latency: register_histogram_with_registry!(
                 "authority_state_internal_execution_latency",
                 "Latency of actual certificate executions",
                 LATENCY_SEC_BUCKETS.to_vec(),
                 registry,
             )
-            .unwrap(),
+                .unwrap(),
             execution_load_input_objects_latency: register_histogram_with_registry!(
                 "authority_state_execution_load_input_objects_latency",
                 "Latency of loading input objects for execution",
                 LOW_LATENCY_SEC_BUCKETS.to_vec(),
                 registry,
             )
-            .unwrap(),
+                .unwrap(),
             prepare_certificate_latency: register_histogram_with_registry!(
                 "authority_state_prepare_certificate_latency",
                 "Latency of executing certificates, before committing the results",
                 LATENCY_SEC_BUCKETS.to_vec(),
                 registry,
             )
-            .unwrap(),
+                .unwrap(),
             commit_certificate_latency: register_histogram_with_registry!(
                 "authority_state_commit_certificate_latency",
                 "Latency of committing certificate execution results",
                 LATENCY_SEC_BUCKETS.to_vec(),
                 registry,
             )
-            .unwrap(),
+                .unwrap(),
             db_checkpoint_latency: register_histogram_with_registry!(
                 "db_checkpoint_latency",
                 "Latency of checkpointing dbs",
@@ -485,171 +485,171 @@ impl AuthorityMetrics {
                 &["result"],
                 registry,
             )
-            .unwrap(),
+                .unwrap(),
             transaction_manager_num_missing_objects: register_int_gauge_with_registry!(
                 "transaction_manager_num_missing_objects",
                 "Current number of missing objects in TransactionManager",
                 registry,
             )
-            .unwrap(),
+                .unwrap(),
             transaction_manager_num_pending_certificates: register_int_gauge_with_registry!(
                 "transaction_manager_num_pending_certificates",
                 "Number of certificates pending in TransactionManager, with at least 1 missing input object",
                 registry,
             )
-            .unwrap(),
+                .unwrap(),
             transaction_manager_num_executing_certificates: register_int_gauge_with_registry!(
                 "transaction_manager_num_executing_certificates",
                 "Number of executing certificates, including queued and actually running certificates",
                 registry,
             )
-            .unwrap(),
+                .unwrap(),
             transaction_manager_num_ready: register_int_gauge_with_registry!(
                 "transaction_manager_num_ready",
                 "Number of ready transactions in TransactionManager",
                 registry,
             )
-            .unwrap(),
+                .unwrap(),
             transaction_manager_object_cache_size: register_int_gauge_with_registry!(
                 "transaction_manager_object_cache_size",
                 "Current size of object-availability cache in TransactionManager",
                 registry,
             )
-            .unwrap(),
+                .unwrap(),
             transaction_manager_object_cache_hits: register_int_counter_with_registry!(
                 "transaction_manager_object_cache_hits",
                 "Number of object-availability cache hits in TransactionManager",
                 registry,
             )
-            .unwrap(),
+                .unwrap(),
             authority_overload_status: register_int_gauge_with_registry!(
                 "authority_overload_status",
                 "Whether authority is current experiencing overload and enters load shedding mode.",
                 registry)
-            .unwrap(),
+                .unwrap(),
             authority_load_shedding_percentage: register_int_gauge_with_registry!(
                 "authority_load_shedding_percentage",
                 "The percentage of transactions is shed when the authority is in load shedding mode.",
                 registry)
-            .unwrap(),
+                .unwrap(),
             transaction_manager_object_cache_misses: register_int_counter_with_registry!(
                 "transaction_manager_object_cache_misses",
                 "Number of object-availability cache misses in TransactionManager",
                 registry,
             )
-            .unwrap(),
+                .unwrap(),
             transaction_manager_object_cache_evictions: register_int_counter_with_registry!(
                 "transaction_manager_object_cache_evictions",
                 "Number of object-availability cache evictions in TransactionManager",
                 registry,
             )
-            .unwrap(),
+                .unwrap(),
             transaction_manager_package_cache_size: register_int_gauge_with_registry!(
                 "transaction_manager_package_cache_size",
                 "Current size of package-availability cache in TransactionManager",
                 registry,
             )
-            .unwrap(),
+                .unwrap(),
             transaction_manager_package_cache_hits: register_int_counter_with_registry!(
                 "transaction_manager_package_cache_hits",
                 "Number of package-availability cache hits in TransactionManager",
                 registry,
             )
-            .unwrap(),
+                .unwrap(),
             transaction_manager_package_cache_misses: register_int_counter_with_registry!(
                 "transaction_manager_package_cache_misses",
                 "Number of package-availability cache misses in TransactionManager",
                 registry,
             )
-            .unwrap(),
+                .unwrap(),
             transaction_manager_package_cache_evictions: register_int_counter_with_registry!(
                 "transaction_manager_package_cache_evictions",
                 "Number of package-availability cache evictions in TransactionManager",
                 registry,
             )
-            .unwrap(),
+                .unwrap(),
             transaction_manager_transaction_queue_age_s: register_histogram_with_registry!(
                 "transaction_manager_transaction_queue_age_s",
                 "Time spent in waiting for transaction in the queue",
                 LATENCY_SEC_BUCKETS.to_vec(),
                 registry,
             )
-            .unwrap(),
+                .unwrap(),
             transaction_overload_sources: register_int_counter_vec_with_registry!(
                 "transaction_overload_sources",
                 "Number of times each source indicates transaction overload.",
                 &["source"],
                 registry)
-            .unwrap(),
+                .unwrap(),
             execution_driver_executed_transactions: register_int_counter_with_registry!(
                 "execution_driver_executed_transactions",
                 "Cumulative number of transaction executed by execution driver",
                 registry,
             )
-            .unwrap(),
+                .unwrap(),
             execution_driver_dispatch_queue: register_int_gauge_with_registry!(
                 "execution_driver_dispatch_queue",
                 "Number of transaction pending in execution driver dispatch queue",
                 registry,
             )
-            .unwrap(),
+                .unwrap(),
             execution_queueing_delay_s: register_histogram_with_registry!(
                 "execution_queueing_delay_s",
                 "Queueing delay between a transaction is ready for execution until it starts executing.",
                 LATENCY_SEC_BUCKETS.to_vec(),
                 registry
             )
-            .unwrap(),
+                .unwrap(),
             prepare_cert_gas_latency_ratio: register_histogram_with_registry!(
                 "prepare_cert_gas_latency_ratio",
                 "The ratio of computation gas divided by VM execution latency.",
                 GAS_LATENCY_RATIO_BUCKETS.to_vec(),
                 registry
             )
-            .unwrap(),
+                .unwrap(),
             execution_gas_latency_ratio: register_histogram_with_registry!(
                 "execution_gas_latency_ratio",
                 "The ratio of computation gas divided by certificate execution latency, include committing certificate.",
                 GAS_LATENCY_RATIO_BUCKETS.to_vec(),
                 registry
             )
-            .unwrap(),
+                .unwrap(),
             skipped_consensus_txns: register_int_counter_with_registry!(
                 "skipped_consensus_txns",
                 "Total number of consensus transactions skipped",
                 registry,
             )
-            .unwrap(),
+                .unwrap(),
             skipped_consensus_txns_cache_hit: register_int_counter_with_registry!(
                 "skipped_consensus_txns_cache_hit",
                 "Total number of consensus transactions skipped because of local cache hit",
                 registry,
             )
-            .unwrap(),
+                .unwrap(),
             post_processing_total_events_emitted: register_int_counter_with_registry!(
                 "post_processing_total_events_emitted",
                 "Total number of events emitted in post processing",
                 registry,
             )
-            .unwrap(),
+                .unwrap(),
             post_processing_total_tx_indexed: register_int_counter_with_registry!(
                 "post_processing_total_tx_indexed",
                 "Total number of txes indexed in post processing",
                 registry,
             )
-            .unwrap(),
+                .unwrap(),
             post_processing_total_tx_had_event_processed: register_int_counter_with_registry!(
                 "post_processing_total_tx_had_event_processed",
                 "Total number of txes finished event processing in post processing",
                 registry,
             )
-            .unwrap(),
+                .unwrap(),
             post_processing_total_failures: register_int_counter_with_registry!(
                 "post_processing_total_failures",
                 "Total number of failure in post processing",
                 registry,
             )
-            .unwrap(),
+                .unwrap(),
             consensus_handler_processed: register_int_counter_vec_with_registry!(
                 "consensus_handler_processed",
                 "Number of transactions processed by consensus handler",
@@ -720,19 +720,19 @@ impl AuthorityMetrics {
                 "Number of failed authenticator state updates",
                 registry,
             )
-            .unwrap(),
+                .unwrap(),
             zklogin_sig_count: register_int_counter_with_registry!(
                 "zklogin_sig_count",
                 "Count of zkLogin signatures",
                 registry,
             )
-            .unwrap(),
+                .unwrap(),
             multisig_sig_count: register_int_counter_with_registry!(
                 "multisig_sig_count",
                 "Count of zkLogin signatures",
                 registry,
             )
-            .unwrap(),
+                .unwrap(),
             consensus_calculated_throughput: register_int_gauge_with_registry!(
                 "consensus_calculated_throughput",
                 "The calculated throughput from consensus output. Result is calculated based on unique transactions.",
@@ -1092,7 +1092,7 @@ impl AuthorityState {
             .instrument(tracing::debug_span!(
                 "notify_read_effects_in_execute_certificate_with_effects"
             ))
-            .await?
+            .await
             .pop()
             .expect("notify_read_effects should return exactly 1 element");
 
@@ -1181,7 +1181,7 @@ impl AuthorityState {
         // so check if the effects have already been written.
         if let Some(effects) = self
             .get_transaction_cache_reader()
-            .get_executed_effects(tx_digest)?
+            .get_executed_effects(tx_digest)
         {
             tx_guard.release();
             return Ok((effects, None));
@@ -1252,10 +1252,12 @@ impl AuthorityState {
         &self,
         certificate: &VerifiedCertificate,
     ) -> IotaResult<TransactionEffects> {
-        self.get_transaction_cache_reader()
+        Ok(self
+            .get_transaction_cache_reader()
             .notify_read_executed_effects(&[*certificate.digest()])
             .await
-            .map(|mut r| r.pop().expect("must return correct number of effects"))
+            .pop()
+            .expect("must return correct number of effects"))
     }
 
     fn check_owned_locks(&self, owned_object_refs: &[ObjectRef]) -> IotaResult {
@@ -1497,7 +1499,7 @@ impl AuthorityState {
         );
         self.get_cache_writer()
             .write_transaction_outputs(epoch_store.epoch(), transaction_outputs.into())
-            .await?;
+            .await;
 
         if certificate.transaction_data().is_end_of_epoch_tx() {
             // At the end of epoch, since system packages may have been upgraded, force
@@ -2089,7 +2091,7 @@ impl AuthorityState {
         Ok(epoch_store.reference_gas_price())
     }
 
-    pub fn is_tx_already_executed(&self, digest: &TransactionDigest) -> IotaResult<bool> {
+    pub fn is_tx_already_executed(&self, digest: &TransactionDigest) -> bool {
         self.get_transaction_cache_reader()
             .is_tx_already_executed(digest)
     }
@@ -2228,9 +2230,7 @@ impl AuthorityState {
                 };
                 // When we process the index, the latest object hasn't been written yet so
                 // the old object must be present.
-                let Some(old_object) = self
-                    .get_object_store()
-                    .get_object_by_key(id, *old_version)?
+                let Some(old_object) = self.get_object_store().get_object_by_key(id, *old_version)
                 else {
                     panic!(
                         "tx_digest={:?}, error processing object owner index, cannot find owner for object {:?} at version {:?}",
@@ -2304,11 +2304,11 @@ impl AuthorityState {
                             error!("try_create_dynamic_field_info should not fail, {}, new_object={:?}", e, new_object);
                             None
                         }
-                    )
-                        else {
-                            // Skip indexing for non dynamic field objects.
-                            continue;
-                        };
+                        )
+                    else {
+                        // Skip indexing for non dynamic field objects.
+                        continue;
+                    };
                     new_dynamic_fields.push(((ObjectID::from(owner), *id), df_info))
                 }
                 _ => {}
@@ -2399,7 +2399,7 @@ impl AuthorityState {
                     // If not found, try to find it in the database.
                     let object = self
                         .get_object_store()
-                        .get_object_by_key(&object_id, o.version())?
+                        .get_object_by_key(&object_id, o.version())
                         .ok_or_else(|| UserInputError::ObjectNotFound {
                             object_id,
                             version: Some(o.version()),
@@ -2548,7 +2548,7 @@ impl AuthorityState {
             ObjectInfoRequestKind::LatestObjectInfo => {
                 let (_, seq, _) = self
                     .get_object_or_tombstone(request.object_id)
-                    .await?
+                    .await
                     .ok_or_else(|| {
                         IotaError::from(UserInputError::ObjectNotFound {
                             object_id: request.object_id,
@@ -2562,7 +2562,7 @@ impl AuthorityState {
 
         let object = self
             .get_object_store()
-            .get_object_by_key(&request.object_id, requested_object_seq)?
+            .get_object_by_key(&request.object_id, requested_object_seq)
             .ok_or_else(|| {
                 IotaError::from(UserInputError::ObjectNotFound {
                     object_id: request.object_id,
@@ -2965,7 +2965,7 @@ impl AuthorityState {
             epoch_supply_change,
         )?;
         self.get_reconfig_api()
-            .set_epoch_start_configuration(&epoch_start_configuration)?;
+            .set_epoch_start_configuration(&epoch_start_configuration);
         if let Some(checkpoint_path) = &self.db_checkpoint_config.checkpoint_path {
             if self
                 .db_checkpoint_config
@@ -3191,16 +3191,14 @@ impl AuthorityState {
     }
 
     #[instrument(level = "trace", skip_all)]
-    pub async fn get_object(&self, object_id: &ObjectID) -> IotaResult<Option<Object>> {
-        self.get_object_store()
-            .get_object(object_id)
-            .map_err(Into::into)
+    pub async fn get_object(&self, object_id: &ObjectID) -> Option<Object> {
+        self.get_object_store().get_object(object_id)
     }
 
     pub async fn get_iota_system_package_object_ref(&self) -> IotaResult<ObjectRef> {
         Ok(self
             .get_object(&IOTA_SYSTEM_ADDRESS.into())
-            .await?
+            .await
             .expect("framework object should always exist")
             .compute_object_reference())
     }
@@ -3242,7 +3240,7 @@ impl AuthorityState {
         Ok(
             match self
                 .get_object_cache_reader()
-                .get_latest_object_or_tombstone(*object_id)?
+                .get_latest_object_or_tombstone(*object_id)
             {
                 Some((_, ObjectOrTombstone::Object(object))) => {
                     let layout = self.get_object_layout(&object)?;
@@ -3303,7 +3301,7 @@ impl AuthorityState {
         // Firstly we see if the object ever existed by getting its latest data
         let Some(obj_ref) = self
             .get_object_cache_reader()
-            .get_latest_object_ref_or_tombstone(*object_id)?
+            .get_latest_object_ref_or_tombstone(*object_id)
         else {
             return Ok(PastObjectRead::ObjectNotExists(*object_id));
         };
@@ -3356,7 +3354,7 @@ impl AuthorityState {
     ) -> IotaResult<Option<(Object, Option<MoveStructLayout>)>> {
         let Some(object) = self
             .get_object_cache_reader()
-            .get_object_by_key(object_id, version)?
+            .get_object_by_key(object_id, version)
         else {
             return Ok(None);
         };
@@ -3388,7 +3386,7 @@ impl AuthorityState {
         version: SequenceNumber,
     ) -> IotaResult<Owner> {
         self.get_object_store()
-            .get_object_by_key(object_id, version)?
+            .get_object_by_key(object_id, version)
             .ok_or_else(|| {
                 IotaError::from(UserInputError::ObjectNotFound {
                     object_id: *object_id,
@@ -3467,7 +3465,7 @@ impl AuthorityState {
 
         let objects = self
             .get_object_store()
-            .multi_get_objects_by_key(&object_ids)?;
+            .multi_get_objects_by_key(&object_ids);
 
         for (o, id) in objects.into_iter().zip(object_ids) {
             let object = o.ok_or_else(|| {
@@ -3562,7 +3560,7 @@ impl AuthorityState {
         digest: &TransactionEventsDigest,
     ) -> IotaResult<TransactionEvents> {
         self.get_transaction_cache_reader()
-            .get_events(digest)?
+            .get_events(digest)
             .ok_or(IotaError::TransactionEventsNotFound { digest: *digest })
     }
 
@@ -3578,7 +3576,7 @@ impl AuthorityState {
 
         let input_objects = self
             .get_object_store()
-            .multi_get_objects_by_key(&input_object_keys)?
+            .multi_get_objects_by_key(&input_object_keys)
             .into_iter()
             .enumerate()
             .map(|(idx, maybe_object)| {
@@ -3606,7 +3604,7 @@ impl AuthorityState {
 
         let output_objects = self
             .get_object_store()
-            .multi_get_objects_by_key(&output_object_keys)?
+            .multi_get_objects_by_key(&output_object_keys)
             .into_iter()
             .enumerate()
             .map(|(idx, maybe_object)| {
@@ -3968,9 +3966,7 @@ impl AuthorityState {
     }
 
     pub async fn insert_genesis_object(&self, object: Object) {
-        self.get_reconfig_api()
-            .insert_genesis_object(object)
-            .expect("Cannot insert genesis object")
+        self.get_reconfig_api().insert_genesis_object(object);
     }
 
     pub async fn insert_genesis_objects(&self, objects: &[Object]) {
@@ -3995,7 +3991,7 @@ impl AuthorityState {
         {
             if let Some(transaction) = self
                 .get_transaction_cache_reader()
-                .get_transaction_block(transaction_digest)?
+                .get_transaction_block(transaction_digest)
             {
                 let cert_sig = epoch_store.get_transaction_cert_sig(transaction_digest)?;
                 let events = if let Some(digest) = effects.events_digest() {
@@ -4035,7 +4031,7 @@ impl AuthorityState {
     ) -> IotaResult<Option<VerifiedSignedTransactionEffects>> {
         let effects = self
             .get_transaction_cache_reader()
-            .get_executed_effects(transaction_digest)?;
+            .get_executed_effects(transaction_digest);
         match effects {
             Some(effects) => Ok(Some(self.sign_effects(effects, epoch_store)?)),
             None => Ok(None),
@@ -4179,14 +4175,11 @@ impl AuthorityState {
         epoch_store.get_signed_transaction(&lock_info)
     }
 
-    pub async fn get_objects(&self, objects: &[ObjectID]) -> IotaResult<Vec<Option<Object>>> {
+    pub async fn get_objects(&self, objects: &[ObjectID]) -> Vec<Option<Object>> {
         self.get_object_cache_reader().get_objects(objects)
     }
 
-    pub async fn get_object_or_tombstone(
-        &self,
-        object_id: ObjectID,
-    ) -> IotaResult<Option<ObjectRef>> {
+    pub async fn get_object_or_tombstone(&self, object_id: ObjectID) -> Option<ObjectRef> {
         self.get_object_cache_reader()
             .get_latest_object_ref_or_tombstone(object_id)
     }
@@ -4296,7 +4289,7 @@ impl AuthorityState {
         binary_config: &BinaryConfig,
     ) -> Option<Vec<(SequenceNumber, Vec<Vec<u8>>, Vec<ObjectID>)>> {
         let ids: Vec<_> = system_packages.iter().map(|(id, _, _)| *id).collect();
-        let objects = self.get_objects(&ids).await.expect("read cannot fail");
+        let objects = self.get_objects(&ids).await;
 
         let mut res = Vec::with_capacity(system_packages.len());
         for (system_package_ref, object) in system_packages.into_iter().zip(objects.iter()) {
@@ -4692,7 +4685,6 @@ impl AuthorityState {
         if self
             .get_transaction_cache_reader()
             .is_tx_already_executed(tx_digest)
-            .expect("read cannot fail")
         {
             warn!("change epoch tx has already been executed via state sync");
             return Err(anyhow::anyhow!(
@@ -4736,11 +4728,7 @@ impl AuthorityState {
         // able to deliver to the transaction to CheckpointExecutor after it is
         // included in a certified checkpoint.
         self.get_state_sync_store()
-            .insert_transaction_and_effects(&tx, &effects)
-            .map_err(|err| {
-                let err: anyhow::Error = err.into();
-                err
-            })?;
+            .insert_transaction_and_effects(&tx, &effects);
 
         info!(
             "Effects summary of the change epoch transaction: {:?}",
@@ -4791,7 +4779,7 @@ impl AuthorityState {
             }
             info!("Reverting {:?} at the end of epoch", digest);
             epoch_store.revert_executed_transaction(&digest)?;
-            self.get_reconfig_api().revert_state_update(&digest)?;
+            self.get_reconfig_api().revert_state_update(&digest);
         }
         info!("All uncommitted local transactions reverted");
         Ok(())
@@ -4845,8 +4833,7 @@ impl AuthorityState {
     /// NOTE: this function is only to be used for fuzzing and testing. Never
     /// use in prod
     pub async fn insert_objects_unsafe_for_testing_only(&self, objects: &[Object]) -> IotaResult {
-        self.get_reconfig_api()
-            .bulk_insert_genesis_objects(objects)?;
+        self.get_reconfig_api().bulk_insert_genesis_objects(objects);
         self.get_object_cache_reader()
             .force_reload_system_packages(&BuiltInFramework::all_package_ids());
         Ok(())
@@ -4936,7 +4923,7 @@ impl RandomnessRoundReceiver {
                     .notify_read_executed_effects(&[digest]),
             )
             .await;
-            let result = match result {
+            let mut effects = match result {
                 Ok(result) => result,
                 Err(_) => {
                     if cfg!(debug_assertions) {
@@ -4956,7 +4943,6 @@ impl RandomnessRoundReceiver {
                 }
             };
 
-            let mut effects = result.unwrap_or_else(|_| panic!("failed to get effects for randomness state update transaction at epoch {epoch}, round {round}"));
             let effects = effects.pop().expect("should return effects");
             if *effects.status() != ExecutionStatus::Success {
                 panic!(
@@ -4979,7 +4965,7 @@ impl TransactionKeyValueStoreTrait for AuthorityState {
     ) -> IotaResult<KVStoreTransactionData> {
         let txns = if !transaction_keys.is_empty() {
             self.get_transaction_cache_reader()
-                .multi_get_transaction_blocks(transaction_keys)?
+                .multi_get_transaction_blocks(transaction_keys)
                 .into_iter()
                 .map(|t| t.map(|t| (*t).clone().into_inner()))
                 .collect()
@@ -4989,7 +4975,7 @@ impl TransactionKeyValueStoreTrait for AuthorityState {
 
         let fx = if !effects_keys.is_empty() {
             self.get_transaction_cache_reader()
-                .multi_get_executed_effects(effects_keys)?
+                .multi_get_executed_effects(effects_keys)
         } else {
             vec![]
         };
@@ -5045,9 +5031,10 @@ impl TransactionKeyValueStoreTrait for AuthorityState {
         &self,
         digest: TransactionDigest,
     ) -> IotaResult<Option<CheckpointSequenceNumber>> {
-        self.get_checkpoint_cache()
+        Ok(self
+            .get_checkpoint_cache()
             .get_transaction_perpetual_checkpoint(&digest)
-            .map(|res| res.map(|(_epoch, checkpoint)| checkpoint))
+            .map(|(_epoch, checkpoint)| checkpoint))
     }
 
     async fn get_object(
@@ -5055,8 +5042,9 @@ impl TransactionKeyValueStoreTrait for AuthorityState {
         object_id: ObjectID,
         version: VersionNumber,
     ) -> IotaResult<Option<Object>> {
-        self.get_object_cache_reader()
-            .get_object_by_key(&object_id, version)
+        Ok(self
+            .get_object_cache_reader()
+            .get_object_by_key(&object_id, version))
     }
 
     async fn multi_get_transactions_perpetual_checkpoints(
@@ -5065,7 +5053,7 @@ impl TransactionKeyValueStoreTrait for AuthorityState {
     ) -> IotaResult<Vec<Option<CheckpointSequenceNumber>>> {
         let res = self
             .get_checkpoint_cache()
-            .multi_get_transactions_perpetual_checkpoints(digests)?;
+            .multi_get_transactions_perpetual_checkpoints(digests);
 
         Ok(res
             .into_iter()
@@ -5083,14 +5071,14 @@ impl TransactionKeyValueStoreTrait for AuthorityState {
         }
         let events_digests: Vec<_> = self
             .get_transaction_cache_reader()
-            .multi_get_executed_effects(digests)?
+            .multi_get_executed_effects(digests)
             .into_iter()
             .map(|t| t.and_then(|t| t.events_digest().cloned()))
             .collect();
         let non_empty_events: Vec<_> = events_digests.iter().filter_map(|e| *e).collect();
         let mut events = self
             .get_transaction_cache_reader()
-            .multi_get_events(&non_empty_events)?
+            .multi_get_events(&non_empty_events)
             .into_iter();
         Ok(events_digests
             .into_iter()
@@ -5279,7 +5267,7 @@ impl NodeStateDump {
         // Record all system packages at this version
         let mut relevant_system_packages = Vec::new();
         for sys_package_id in BuiltInFramework::all_package_ids() {
-            if let Some(w) = object_store.get_object(&sys_package_id)? {
+            if let Some(w) = object_store.get_object(&sys_package_id) {
                 relevant_system_packages.push(ObjDumpFormat::new(w))
             }
         }
@@ -5289,7 +5277,7 @@ impl NodeStateDump {
         for kind in effects.input_shared_objects() {
             match kind {
                 InputSharedObject::Mutate(obj_ref) | InputSharedObject::ReadOnly(obj_ref) => {
-                    if let Some(w) = object_store.get_object_by_key(&obj_ref.0, obj_ref.1)? {
+                    if let Some(w) = object_store.get_object_by_key(&obj_ref.0, obj_ref.1) {
                         shared_objects.push(ObjDumpFormat::new(w))
                     }
                 }
@@ -5304,7 +5292,7 @@ impl NodeStateDump {
         // Child objects which are read but not mutated are not tracked anywhere else
         let mut loaded_child_objects = Vec::new();
         for (id, meta) in &inner_temporary_store.loaded_runtime_objects {
-            if let Some(w) = object_store.get_object_by_key(id, meta.version)? {
+            if let Some(w) = object_store.get_object_by_key(id, meta.version) {
                 loaded_child_objects.push(ObjDumpFormat::new(w))
             }
         }
@@ -5312,7 +5300,7 @@ impl NodeStateDump {
         // Record all modified objects
         let mut modified_at_versions = Vec::new();
         for (id, ver) in effects.modified_at_versions() {
-            if let Some(w) = object_store.get_object_by_key(&id, ver)? {
+            if let Some(w) = object_store.get_object_by_key(&id, ver) {
                 modified_at_versions.push(ObjDumpFormat::new(w))
             }
         }

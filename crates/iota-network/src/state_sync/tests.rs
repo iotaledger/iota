@@ -727,14 +727,8 @@ async fn sync_with_checkpoints_watermark() {
             let content_digest = contents.into_checkpoint_contents_digest();
             store_1
                 .get_full_checkpoint_contents(&content_digest)
-                .unwrap()
                 .unwrap();
-            assert_eq!(
-                store_2
-                    .get_full_checkpoint_contents(&content_digest)
-                    .unwrap(),
-                None
-            );
+            assert_eq!(store_2.get_full_checkpoint_contents(&content_digest), None);
         }
     })
     .await
@@ -794,7 +788,6 @@ async fn sync_with_checkpoints_watermark() {
         let content_digest = contents[1].clone().into_checkpoint_contents_digest();
         store_3
             .get_full_checkpoint_contents(&content_digest)
-            .unwrap()
             .unwrap();
     })
     .await
@@ -831,14 +824,8 @@ async fn sync_with_checkpoints_watermark() {
             assert_eq!(subscriber_2.recv().await.unwrap().data(), checkpoint.data());
             assert_eq!(subscriber_3.recv().await.unwrap().data(), checkpoint.data());
             let content_digest = contents.into_checkpoint_contents_digest();
-            store_2
-                .get_full_checkpoint_contents(&content_digest)
-                .unwrap()
-                .unwrap();
-            store_3
-                .get_full_checkpoint_contents(&content_digest)
-                .unwrap()
-                .unwrap();
+            store_2.get_full_checkpoint_contents(&content_digest);
+            store_3.get_full_checkpoint_contents(&content_digest);
         }
     })
     .await
@@ -914,7 +901,6 @@ async fn sync_with_checkpoints_watermark() {
             let content_digest = contents.into_checkpoint_contents_digest();
             store_4
                 .get_full_checkpoint_contents(&content_digest)
-                .unwrap()
                 .unwrap();
         }
     })

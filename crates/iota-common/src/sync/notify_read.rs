@@ -4,7 +4,6 @@
 
 use std::{
     collections::{HashMap, hash_map::DefaultHasher},
-    error::Error,
     future::Future,
     hash::{Hash, Hasher},
     mem,
@@ -120,14 +119,10 @@ impl<K: Eq + Hash + Clone, V: Clone> NotifyRead<K, V> {
 }
 
 impl<K: Eq + Hash + Clone + Unpin, V: Clone + Unpin> NotifyRead<K, V> {
-    pub async fn read<E: Error>(
-        &self,
-        keys: &[K],
-        fetch: impl FnOnce(&[K]) -> Result<Vec<Option<V>>, E>,
-    ) -> Result<Vec<V>, E> {
+    pub async fn read(&self, keys: &[K], fetch: impl FnOnce(&[K]) -> Vec<Option<V>>) -> Vec<V> {
         let registrations = self.register_all(keys);
 
-        let results = fetch(keys)?;
+        let results = fetch(keys);
 
         let results = results
             .into_iter()
@@ -138,7 +133,7 @@ impl<K: Eq + Hash + Clone + Unpin, V: Clone + Unpin> NotifyRead<K, V> {
                 None => Either::Right(r),
             });
 
-        Ok(join_all(results).await)
+        join_all(results).await
     }
 }
 

@@ -335,15 +335,11 @@ impl UnsignedGenesis {
     pub fn has_randomness_state_object(&self) -> bool {
         self.objects()
             .get_object(&IOTA_RANDOMNESS_STATE_OBJECT_ID)
-            .expect("read from genesis cannot fail")
             .is_some()
     }
 
     pub fn has_bridge_object(&self) -> bool {
-        self.objects()
-            .get_object(&IOTA_BRIDGE_OBJECT_ID)
-            .expect("read from genesis cannot fail")
-            .is_some()
+        self.objects().get_object(&IOTA_BRIDGE_OBJECT_ID).is_some()
     }
 
     pub fn has_coin_deny_list_object(&self) -> bool {

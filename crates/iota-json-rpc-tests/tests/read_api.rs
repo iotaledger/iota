@@ -1469,16 +1469,11 @@ async fn try_get_past_object_version_not_found() {
     let mut at_least_one_version_not_found = false;
 
     for mutated_obj_id in mutated_objects {
-        if !cluster
-            .fullnode_handle
-            .iota_node
-            .with(|node| {
-                node.state()
-                    .get_object_cache_reader()
-                    .object_exists_by_key(&mutated_obj_id, seq_num)
-            })
-            .unwrap()
-        {
+        if !cluster.fullnode_handle.iota_node.with(|node| {
+            node.state()
+                .get_object_cache_reader()
+                .object_exists_by_key(&mutated_obj_id, seq_num)
+        }) {
             let rpc_past_obj = http_client
                 .try_get_past_object(mutated_obj_id, seq_num, None)
                 .await

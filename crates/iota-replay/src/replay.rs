@@ -1937,7 +1937,7 @@ impl ChildObjectResolver for LocalExec {
             receiving_object_id: &ObjectID,
             receive_object_at_version: SequenceNumber,
         ) -> IotaResult<Option<Object>> {
-            let recv_object = match self_.get_object(receiving_object_id)? {
+            let recv_object = match self_.get_object(receiving_object_id) {
                 None => return Ok(None),
                 Some(o) => o,
             };
@@ -2056,10 +2056,7 @@ impl ModuleResolver for &mut LocalExec {
 impl ObjectStore for LocalExec {
     /// The object must be present in store by normal process we used to
     /// backfill store in init We dont download if not present
-    fn get_object(
-        &self,
-        object_id: &ObjectID,
-    ) -> iota_types::storage::error::Result<Option<Object>> {
+    fn get_object(&self, object_id: &ObjectID) -> Option<Object> {
         let res = self
             .storage
             .live_objects_store
@@ -2074,16 +2071,12 @@ impl ObjectStore for LocalExec {
                 object_id: *object_id,
                 result: Ok(res.clone()),
             });
-        Ok(res)
+        res
     }
 
     /// The object must be present in store by normal process we used to
     /// backfill store in init We dont download if not present
-    fn get_object_by_key(
-        &self,
-        object_id: &ObjectID,
-        version: VersionNumber,
-    ) -> iota_types::storage::error::Result<Option<Object>> {
+    fn get_object_by_key(&self, object_id: &ObjectID, version: VersionNumber) -> Option<Object> {
         let res = self
             .storage
             .live_objects_store
@@ -2107,25 +2100,18 @@ impl ObjectStore for LocalExec {
                 result: Ok(res.clone()),
             });
 
-        Ok(res)
+        res
     }
 }
 
 impl ObjectStore for &mut LocalExec {
-    fn get_object(
-        &self,
-        object_id: &ObjectID,
-    ) -> iota_types::storage::error::Result<Option<Object>> {
+    fn get_object(&self, object_id: &ObjectID) -> Option<Object> {
         // Recording event here will be double-counting since its already recorded in
         // the get_module fn
         (**self).get_object(object_id)
     }
 
-    fn get_object_by_key(
-        &self,
-        object_id: &ObjectID,
-        version: VersionNumber,
-    ) -> iota_types::storage::error::Result<Option<Object>> {
+    fn get_object_by_key(&self, object_id: &ObjectID, version: VersionNumber) -> Option<Object> {
         // Recording event here will be double-counting since its already recorded in
         // the get_module fn
         (**self).get_object_by_key(object_id, version)

@@ -18,7 +18,6 @@ use iota_types::{
     digests::{CheckpointContentsDigest, TransactionDigest},
     effects::TransactionEffectsAPI,
     messages_checkpoint::{CheckpointDigest, CheckpointSequenceNumber},
-    storage::ObjectStore,
 };
 use typed_store::rocks::MetricConf;
 
@@ -277,9 +276,9 @@ pub fn print_object(path: &Path, opt: PrintObjectOptions) -> anyhow::Result<()> 
     let perpetual_db = AuthorityPerpetualTables::open(&path.join("store"), None);
 
     let obj = if let Some(version) = opt.version {
-        perpetual_db.get_object_by_key(&opt.id, version.into())?
+        perpetual_db.get_object_by_key_fallible(&opt.id, version.into())?
     } else {
-        perpetual_db.get_object(&opt.id)?
+        perpetual_db.get_object_fallible(&opt.id)?
     };
 
     if let Some(obj) = obj {

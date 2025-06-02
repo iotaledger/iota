@@ -501,59 +501,43 @@ impl ModuleResolver for PersistedStore {
 }
 
 impl ObjectStore for PersistedStore {
-    fn get_object(
-        &self,
-        object_id: &ObjectID,
-    ) -> Result<Option<Object>, iota_types::storage::error::Error> {
-        Ok(SimulatorStore::get_object(self, object_id))
+    fn get_object(&self, object_id: &ObjectID) -> Option<Object> {
+        SimulatorStore::get_object(self, object_id)
     }
 
     fn get_object_by_key(
         &self,
         object_id: &ObjectID,
         version: iota_types::base_types::VersionNumber,
-    ) -> Result<Option<Object>, iota_types::storage::error::Error> {
-        Ok(self.get_object_at_version(object_id, version))
+    ) -> Option<Object> {
+        self.get_object_at_version(object_id, version)
     }
 }
 
 impl ObjectStore for PersistedStoreInnerReadOnlyWrapper {
-    fn get_object(
-        &self,
-        object_id: &ObjectID,
-    ) -> iota_types::storage::error::Result<Option<Object>> {
+    fn get_object(&self, object_id: &ObjectID) -> Option<Object> {
         self.sync();
 
         self.inner
             .live_objects
             .get(object_id)
             .expect("Fatal: DB read failed")
-            .map(|version| self.get_object_by_key(object_id, version))
-            .transpose()
-            .map(|f| f.flatten())
+            .and_then(|version| self.get_object_by_key(object_id, version))
     }
 
-    fn get_object_by_key(
-        &self,
-        object_id: &ObjectID,
-        version: VersionNumber,
-    ) -> iota_types::storage::error::Result<Option<Object>> {
+    fn get_object_by_key(&self, object_id: &ObjectID, version: VersionNumber) -> Option<Object> {
         self.sync();
 
-        Ok(self
-            .inner
+        self.inner
             .objects
             .get(object_id)
             .expect("Fatal: DB read failed")
-            .and_then(|x| x.get(&version).cloned()))
+            .and_then(|x| x.get(&version).cloned())
     }
 }
 
 impl ReadStore for PersistedStoreInnerReadOnlyWrapper {
-    fn get_committee(
-        &self,
-        _epoch: EpochId,
-    ) -> iota_types::storage::error::Result<Option<std::sync::Arc<Committee>>> {
+    fn get_committee(&self, _epoch: EpochId) -> Option<std::sync::Arc<Committee>> {
         todo!()
     }
 
@@ -589,101 +573,76 @@ impl ReadStore for PersistedStoreInnerReadOnlyWrapper {
         Ok(0)
     }
 
-    fn get_checkpoint_by_digest(
-        &self,
-        _digest: &CheckpointDigest,
-    ) -> iota_types::storage::error::Result<Option<VerifiedCheckpoint>> {
+    fn get_checkpoint_by_digest(&self, _digest: &CheckpointDigest) -> Option<VerifiedCheckpoint> {
         todo!()
     }
 
     fn get_checkpoint_by_sequence_number(
         &self,
         sequence_number: CheckpointSequenceNumber,
-    ) -> iota_types::storage::error::Result<Option<VerifiedCheckpoint>> {
+    ) -> Option<VerifiedCheckpoint> {
         self.sync();
-        Ok(self
-            .inner
+        self.inner
             .checkpoints
             .get(&sequence_number)
             .expect("Fatal: DB read failed")
-            .map(|checkpoint| checkpoint.into()))
+            .map(|checkpoint| checkpoint.into())
     }
 
     fn get_checkpoint_contents_by_digest(
         &self,
         digest: &CheckpointContentsDigest,
-    ) -> iota_types::storage::error::Result<Option<CheckpointContents>> {
+    ) -> Option<CheckpointContents> {
         self.sync();
-
-        Ok(self
-            .inner
+        self.inner
             .checkpoint_contents
             .get(digest)
-            .expect("Fatal: DB read failed"))
+            .expect("Fatal: DB read failed")
     }
 
     fn get_checkpoint_contents_by_sequence_number(
         &self,
         _sequence_number: CheckpointSequenceNumber,
-    ) -> iota_types::storage::error::Result<Option<CheckpointContents>> {
+    ) -> Option<CheckpointContents> {
         todo!()
     }
 
-    fn get_transaction(
-        &self,
-        tx_digest: &TransactionDigest,
-    ) -> iota_types::storage::error::Result<Option<Arc<VerifiedTransaction>>> {
+    fn get_transaction(&self, tx_digest: &TransactionDigest) -> Option<Arc<VerifiedTransaction>> {
         self.sync();
-
-        Ok(self
-            .inner
+        self.inner
             .transactions
             .get(tx_digest)
             .expect("Fatal: DB read failed")
-            .map(|transaction| Arc::new(transaction.into())))
+            .map(|transaction| Arc::new(transaction.into()))
     }
 
-    fn get_transaction_effects(
-        &self,
-        tx_digest: &TransactionDigest,
-    ) -> iota_types::storage::error::Result<Option<TransactionEffects>> {
+    fn get_transaction_effects(&self, tx_digest: &TransactionDigest) -> Option<TransactionEffects> {
         self.sync();
-
-        Ok(self
-            .inner
+        self.inner
             .effects
             .get(tx_digest)
-            .expect("Fatal: DB read failed"))
+            .expect("Fatal: DB read failed")
     }
 
-    fn get_events(
-        &self,
-        event_digest: &TransactionEventsDigest,
-    ) -> iota_types::storage::error::Result<Option<TransactionEvents>> {
+    fn get_events(&self, event_digest: &TransactionEventsDigest) -> Option<TransactionEvents> {
         self.sync();
-
-        Ok(self
-            .inner
+        self.inner
             .events
             .get(event_digest)
-            .expect("Fatal: DB read failed"))
+            .expect("Fatal: DB read failed")
     }
 
     fn get_full_checkpoint_contents_by_sequence_number(
         &self,
         _sequence_number: CheckpointSequenceNumber,
-    ) -> iota_types::storage::error::Result<
-        Option<iota_types::messages_checkpoint::FullCheckpointContents>,
-    > {
+    ) -> Option<iota_types::messages_checkpoint::FullCheckpointContents> {
         todo!()
     }
 
     fn get_full_checkpoint_contents(
         &self,
         _digest: &CheckpointContentsDigest,
-    ) -> iota_types::storage::error::Result<
-        Option<iota_types::messages_checkpoint::FullCheckpointContents>,
-    > {
+    ) -> Option<iota_types::messages_checkpoint::FullCheckpointContents> {
         todo!()
     }
 }
@@ -705,12 +664,7 @@ impl RestStateReader for PersistedStoreInnerReadOnlyWrapper {
     fn get_chain_identifier(
         &self,
     ) -> iota_types::storage::error::Result<iota_types::digests::ChainIdentifier> {
-        Ok((*self
-            .get_checkpoint_by_sequence_number(0)
-            .unwrap()
-            .unwrap()
-            .digest())
-        .into())
+        Ok((*self.get_checkpoint_by_sequence_number(0).unwrap().digest()).into())
     }
 
     fn account_owned_objects_info_iter(

@@ -673,7 +673,6 @@ mod tests {
             .get_object(&gas_object_id)
             .await
             .unwrap()
-            .unwrap()
             .compute_object_reference();
         let tx_data = TestTransactionBuilder::new(
             sender,
@@ -708,7 +707,6 @@ mod tests {
                 client
                     .authority
                     .is_tx_already_executed(tx_digest)
-                    .unwrap()
                     .then_some(auth_agg.committee.weight(name))
             })
             .sum();

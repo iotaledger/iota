@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::sync::Arc;
+use std::{future::ready, sync::Arc};
 
 use futures::{FutureExt, future::BoxFuture};
 use iota_common::sync::notify_read::NotifyRead;
@@ -13,7 +13,7 @@ use iota_types::{
     bridge::{Bridge, get_bridge},
     digests::{TransactionDigest, TransactionEffectsDigest, TransactionEventsDigest},
     effects::{TransactionEffects, TransactionEvents},
-    error::{IotaError, IotaResult},
+    error::IotaResult,
     iota_system_state::{IotaSystemState, get_iota_system_state},
     message_envelope::Message,
     messages_checkpoint::CheckpointSequenceNumber,
@@ -68,8 +68,8 @@ impl PassthroughCache {
         &self.store
     }
 
-    fn revert_state_update_impl(&self, digest: &TransactionDigest) -> IotaResult {
-        self.store.revert_state_update(digest)
+    fn revert_state_update_impl(&self, digest: &TransactionDigest) {
+        self.store.revert_state_update(digest).expect("db error");
     }
 
     fn clear_state_end_of_epoch_impl(&self, execution_guard: &ExecutionLockWriteGuard) {
@@ -93,57 +93,53 @@ impl ObjectCacheRead for PassthroughCache {
             .force_reload_system_packages(system_package_ids.iter().cloned(), self);
     }
 
-    fn get_object(&self, id: &ObjectID) -> IotaResult<Option<Object>> {
-        self.store.get_object(id).map_err(Into::into)
+    fn get_object(&self, id: &ObjectID) -> Option<Object> {
+        self.store.get_object(id)
     }
 
-    fn get_object_by_key(
-        &self,
-        object_id: &ObjectID,
-        version: SequenceNumber,
-    ) -> IotaResult<Option<Object>> {
-        Ok(self.store.get_object_by_key(object_id, version)?)
+    fn get_object_by_key(&self, object_id: &ObjectID, version: SequenceNumber) -> Option<Object> {
+        self.store.get_object_by_key(object_id, version)
     }
 
-    fn multi_get_objects_by_key(
-        &self,
-        object_keys: &[ObjectKey],
-    ) -> Result<Vec<Option<Object>>, IotaError> {
-        Ok(self.store.multi_get_objects_by_key(object_keys)?)
+    fn multi_get_objects_by_key(&self, object_keys: &[ObjectKey]) -> Vec<Option<Object>> {
+        self.store.multi_get_objects_by_key(object_keys)
     }
 
-    fn object_exists_by_key(
-        &self,
-        object_id: &ObjectID,
-        version: SequenceNumber,
-    ) -> IotaResult<bool> {
-        self.store.object_exists_by_key(object_id, version)
+    fn object_exists_by_key(&self, object_id: &ObjectID, version: SequenceNumber) -> bool {
+        self.store
+            .object_exists_by_key(object_id, version)
+            .expect("db error")
     }
 
-    fn multi_object_exists_by_key(&self, object_keys: &[ObjectKey]) -> IotaResult<Vec<bool>> {
-        self.store.multi_object_exists_by_key(object_keys)
+    fn multi_object_exists_by_key(&self, object_keys: &[ObjectKey]) -> Vec<bool> {
+        self.store
+            .multi_object_exists_by_key(object_keys)
+            .expect("db error")
     }
 
-    fn get_latest_object_ref_or_tombstone(
-        &self,
-        object_id: ObjectID,
-    ) -> IotaResult<Option<ObjectRef>> {
-        self.store.get_latest_object_ref_or_tombstone(object_id)
+    fn get_latest_object_ref_or_tombstone(&self, object_id: ObjectID) -> Option<ObjectRef> {
+        self.store
+            .get_latest_object_ref_or_tombstone(object_id)
+            .expect("db error")
     }
 
     fn get_latest_object_or_tombstone(
         &self,
         object_id: ObjectID,
-    ) -> Result<Option<(ObjectKey, ObjectOrTombstone)>, IotaError> {
-        self.store.get_latest_object_or_tombstone(object_id)
+    ) -> Option<(ObjectKey, ObjectOrTombstone)> {
+        self.store
+            .get_latest_object_or_tombstone(object_id)
+            .expect("db error")
     }
 
     fn find_object_lt_or_eq_version(
         &self,
         object_id: ObjectID,
         version: SequenceNumber,
-    ) -> IotaResult<Option<Object>> {
-        self.store.find_object_lt_or_eq_version(object_id, version)
+    ) -> Option<Object> {
+        self.store
+            .find_object_lt_or_eq_version(object_id, version)
+            .expect("db error")
     }
 
     fn get_lock(&self, obj_ref: ObjectRef, epoch_store: &AuthorityPerEpochStore) -> IotaLockResult {
@@ -171,20 +167,27 @@ impl ObjectCacheRead for PassthroughCache {
         object_id: &ObjectID,
         version: SequenceNumber,
         epoch_id: EpochId,
-    ) -> IotaResult<Option<MarkerValue>> {
-        self.store.get_marker_value(object_id, &version, epoch_id)
+    ) -> Option<MarkerValue> {
+        self.store
+            .get_marker_value(object_id, &version, epoch_id)
+            .expect("db error")
     }
 
     fn get_latest_marker(
         &self,
         object_id: &ObjectID,
         epoch_id: EpochId,
-    ) -> IotaResult<Option<(SequenceNumber, MarkerValue)>> {
-        self.store.get_latest_marker(object_id, epoch_id)
+    ) -> Option<(SequenceNumber, MarkerValue)> {
+        self.store
+            .get_latest_marker(object_id, epoch_id)
+            .expect("db error")
     }
 
-    fn get_highest_pruned_checkpoint(&self) -> IotaResult<CheckpointSequenceNumber> {
-        self.store.perpetual_tables.get_highest_pruned_checkpoint()
+    fn get_highest_pruned_checkpoint(&self) -> CheckpointSequenceNumber {
+        self.store
+            .perpetual_tables
+            .get_highest_pruned_checkpoint()
+            .expect("db error")
     }
 }
 
@@ -192,33 +195,39 @@ impl TransactionCacheRead for PassthroughCache {
     fn multi_get_transaction_blocks(
         &self,
         digests: &[TransactionDigest],
-    ) -> IotaResult<Vec<Option<Arc<VerifiedTransaction>>>> {
-        Ok(self
-            .store
-            .multi_get_transaction_blocks(digests)?
+    ) -> Vec<Option<Arc<VerifiedTransaction>>> {
+        self.store
+            .multi_get_transaction_blocks(digests)
+            .expect("db error")
             .into_iter()
             .map(|o| o.map(Arc::new))
-            .collect())
+            .collect()
     }
 
     fn multi_get_executed_effects_digests(
         &self,
         digests: &[TransactionDigest],
-    ) -> IotaResult<Vec<Option<TransactionEffectsDigest>>> {
-        self.store.multi_get_executed_effects_digests(digests)
+    ) -> Vec<Option<TransactionEffectsDigest>> {
+        self.store
+            .multi_get_executed_effects_digests(digests)
+            .expect("db error")
     }
 
     fn multi_get_effects(
         &self,
         digests: &[TransactionEffectsDigest],
-    ) -> IotaResult<Vec<Option<TransactionEffects>>> {
-        Ok(self.store.perpetual_tables.effects.multi_get(digests)?)
+    ) -> Vec<Option<TransactionEffects>> {
+        self.store
+            .perpetual_tables
+            .effects
+            .multi_get(digests)
+            .expect("db error")
     }
 
     fn notify_read_executed_effects_digests<'a>(
         &'a self,
         digests: &'a [TransactionDigest],
-    ) -> BoxFuture<'a, IotaResult<Vec<TransactionEffectsDigest>>> {
+    ) -> BoxFuture<'a, Vec<TransactionEffectsDigest>> {
         self.executed_effects_digests_notify_read
             .read(digests, |digests| {
                 self.multi_get_executed_effects_digests(digests)
@@ -229,8 +238,10 @@ impl TransactionCacheRead for PassthroughCache {
     fn multi_get_events(
         &self,
         event_digests: &[TransactionEventsDigest],
-    ) -> IotaResult<Vec<Option<TransactionEvents>>> {
-        self.store.multi_get_events(event_digests)
+    ) -> Vec<Option<TransactionEvents>> {
+        self.store
+            .multi_get_events(event_digests)
+            .expect("db error")
     }
 }
 
@@ -240,7 +251,7 @@ impl ExecutionCacheWrite for PassthroughCache {
         &'a self,
         epoch_id: EpochId,
         tx_outputs: Arc<TransactionOutputs>,
-    ) -> BoxFuture<'a, IotaResult> {
+    ) -> BoxFuture<'a, ()> {
         async move {
             let tx_digest = *tx_outputs.transaction.digest();
             let effects_digest = tx_outputs.effects.digest();
@@ -258,11 +269,13 @@ impl ExecutionCacheWrite for PassthroughCache {
             //    could have since been deleted by a concurrent tx that finished first. In
             //    that case, check if the tx effects exist.
             self.store
-                .check_owned_objects_are_live(&tx_outputs.live_object_markers_to_delete)?;
+                .check_owned_objects_are_live(&tx_outputs.live_object_markers_to_delete)
+                .expect("db error");
 
             self.store
                 .write_transaction_outputs(epoch_id, &[tx_outputs])
-                .await?;
+                .await
+                .expect("db error");
 
             self.executed_effects_digests_notify_read
                 .notify(&tx_digest, &effects_digest);
@@ -270,8 +283,6 @@ impl ExecutionCacheWrite for PassthroughCache {
             self.metrics
                 .pending_notify_read
                 .set(self.executed_effects_digests_notify_read.num_pending() as i64);
-
-            Ok(())
         }
         .boxed()
     }
@@ -324,16 +335,16 @@ impl ExecutionCacheCommit for PassthroughCache {
         &'a self,
         _epoch: EpochId,
         _digests: &'a [TransactionDigest],
-    ) -> BoxFuture<'a, IotaResult> {
+    ) -> BoxFuture<'a, ()> {
         // Nothing needs to be done since they were already committed in
         // write_transaction_outputs
-        async { Ok(()) }.boxed()
+        ready(()).boxed()
     }
 
-    fn persist_transactions(&self, _digests: &[TransactionDigest]) -> BoxFuture<'_, IotaResult> {
+    fn persist_transactions(&self, _digests: &[TransactionDigest]) -> BoxFuture<'_, ()> {
         // Nothing needs to be done since they were already committed in
         // write_transaction_outputs
-        async { Ok(()) }.boxed()
+        ready(()).boxed()
     }
 }
 

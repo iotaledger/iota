@@ -556,7 +556,6 @@ impl ArchiveReader {
     {
         store
             .get_checkpoint_by_sequence_number(certified_checkpoint.sequence_number)
-            .map_err(|e| anyhow!("Store op failed: {e}"))?
             .map(Ok::<VerifiedCheckpoint, anyhow::Error>)
             .unwrap_or_else(|| {
                 let verified_checkpoint = if verify {
@@ -567,7 +566,6 @@ impl ArchiveReader {
                         .context("Checkpoint seq num underflow")?;
                     let prev_checkpoint = store
                         .get_checkpoint_by_sequence_number(prev_checkpoint_seq_num)
-                        .map_err(|e| anyhow!("Store op failed: {e}"))?
                         .context(format!(
                             "Missing previous checkpoint {} in store",
                             prev_checkpoint_seq_num

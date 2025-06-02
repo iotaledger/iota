@@ -104,17 +104,12 @@ impl ModuleResolver for &mut InMemoryStorage {
 }
 
 impl ObjectStore for InMemoryStorage {
-    fn get_object(&self, object_id: &ObjectID) -> crate::storage::error::Result<Option<Object>> {
-        Ok(self.persistent.get(object_id).cloned())
+    fn get_object(&self, object_id: &ObjectID) -> Option<Object> {
+        self.persistent.get(object_id).cloned()
     }
 
-    fn get_object_by_key(
-        &self,
-        object_id: &ObjectID,
-        version: VersionNumber,
-    ) -> crate::storage::error::Result<Option<Object>> {
-        Ok(self
-            .persistent
+    fn get_object_by_key(&self, object_id: &ObjectID, version: VersionNumber) -> Option<Object> {
+        self.persistent
             .get(object_id)
             .and_then(|obj| {
                 if obj.version() == version {
@@ -123,22 +118,17 @@ impl ObjectStore for InMemoryStorage {
                     None
                 }
             })
-            .cloned())
+            .cloned()
     }
 }
 
 impl ObjectStore for &mut InMemoryStorage {
-    fn get_object(&self, object_id: &ObjectID) -> crate::storage::error::Result<Option<Object>> {
-        Ok(self.persistent.get(object_id).cloned())
+    fn get_object(&self, object_id: &ObjectID) -> Option<Object> {
+        self.persistent.get(object_id).cloned()
     }
 
-    fn get_object_by_key(
-        &self,
-        object_id: &ObjectID,
-        version: VersionNumber,
-    ) -> crate::storage::error::Result<Option<Object>> {
-        Ok(self
-            .persistent
+    fn get_object_by_key(&self, object_id: &ObjectID, version: VersionNumber) -> Option<Object> {
+        self.persistent
             .get(object_id)
             .and_then(|obj| {
                 if obj.version() == version {
@@ -147,7 +137,7 @@ impl ObjectStore for &mut InMemoryStorage {
                     None
                 }
             })
-            .cloned())
+            .cloned()
     }
 }
 

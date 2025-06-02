@@ -99,7 +99,7 @@ impl TestCallArg {
     }
 
     async fn call_arg_from_id(object_id: ObjectID, state: &AuthorityState) -> ObjectArg {
-        let object = state.get_object(&object_id).await.unwrap().unwrap();
+        let object = state.get_object(&object_id).await.unwrap();
         match &object.owner {
             Owner::AddressOwner(_) | Owner::ObjectOwner(_) | Owner::Immutable => {
                 ObjectArg::ImmOrOwnedObject(object.compute_object_reference())
@@ -150,11 +150,7 @@ async fn construct_shared_object_transaction_with_sequence_number(
         .unwrap();
         effects.status().unwrap();
         let shared_object_id = effects.created()[0].0.0;
-        let mut shared_object = authority
-            .get_object(&shared_object_id)
-            .await
-            .unwrap()
-            .unwrap();
+        let mut shared_object = authority.get_object(&shared_object_id).await.unwrap();
         if let Some(initial_shared_version) = initial_shared_version_override {
             shared_object
                 .data
@@ -176,7 +172,7 @@ async fn construct_shared_object_transaction_with_sequence_number(
     validator.insert_genesis_object(shared_object.clone()).await;
     fullnode.insert_genesis_object(shared_object.clone()).await;
     let rgp = validator.reference_gas_price_for_testing().unwrap();
-    let gas_object = validator.get_object(&gas_object_id).await.unwrap();
+    let gas_object = validator.get_object(&gas_object_id).await;
     let gas_object_ref = gas_object.unwrap().compute_object_reference();
     let data = TransactionData::new_move_call(
         sender,
@@ -216,7 +212,6 @@ async fn test_dry_run_transaction_block() {
         .get_object(&shared_object_id)
         .await
         .unwrap()
-        .unwrap()
         .version();
 
     let transaction_digest = *transaction.digest();
@@ -232,17 +227,11 @@ async fn test_dry_run_transaction_block() {
     let gas_usage = response.effects.gas_cost_summary();
 
     // Make sure that objects are not mutated after dry run.
-    let gas_object_version = fullnode
-        .get_object(&gas_object_id)
-        .await
-        .unwrap()
-        .unwrap()
-        .version();
+    let gas_object_version = fullnode.get_object(&gas_object_id).await.unwrap().version();
     assert_eq!(gas_object_version, OBJECT_START_VERSION);
     let shared_object_version = fullnode
         .get_object(&shared_object_id)
         .await
-        .unwrap()
         .unwrap()
         .version();
     assert_eq!(shared_object_version, initial_shared_object_version);
@@ -358,11 +347,7 @@ async fn test_dev_inspect_object_by_bytes() {
     .await
     .unwrap();
     let created_object_id = effects.created()[0].0.0;
-    let created_object = validator
-        .get_object(&created_object_id)
-        .await
-        .unwrap()
-        .unwrap();
+    let created_object = validator.get_object(&created_object_id).await.unwrap();
     let created_object_bytes = created_object
         .data
         .try_as_move()
@@ -433,11 +418,7 @@ async fn test_dev_inspect_object_by_bytes() {
     assert!(effects.unwrapped_then_deleted().is_empty());
 
     // compare the bytes
-    let updated_object = validator
-        .get_object(&created_object_id)
-        .await
-        .unwrap()
-        .unwrap();
+    let updated_object = validator.get_object(&created_object_id).await.unwrap();
     let updated_object_bytes = updated_object.data.try_as_move().unwrap().contents();
     assert_eq!(updated_object_bytes, updated_reference_bytes)
 }
@@ -470,11 +451,7 @@ async fn test_dev_inspect_unowned_object() {
     .await
     .unwrap();
     let created_object_id = effects.created()[0].0.0;
-    let created_object = validator
-        .get_object(&created_object_id)
-        .await
-        .unwrap()
-        .unwrap();
+    let created_object = validator.get_object(&created_object_id).await.unwrap();
     assert!(alice != bob);
     assert_eq!(created_object.owner, Owner::AddressOwner(bob));
 
@@ -543,11 +520,7 @@ async fn test_dev_inspect_dynamic_field() {
                 .unwrap();
                 assert!(effects.status().is_ok(), "{:#?}", effects.status());
                 let created_object_id = effects.created()[0].0.0;
-                let created_object = validator
-                    .get_object(&created_object_id)
-                    .await
-                    .unwrap()
-                    .unwrap();
+                let created_object = validator.get_object(&created_object_id).await.unwrap();
                 created_object
                     .data
                     .try_as_move()
@@ -655,11 +628,7 @@ async fn test_dev_inspect_return_values() {
     .await
     .unwrap();
     let created_object_id = effects.created()[0].0.0;
-    let created_object = validator
-        .get_object(&created_object_id)
-        .await
-        .unwrap()
-        .unwrap();
+    let created_object = validator.get_object(&created_object_id).await.unwrap();
     let created_object_bytes = created_object
         .data
         .try_as_move()
@@ -1073,7 +1042,7 @@ async fn test_dry_run_dev_inspect_dynamic_field_too_new() {
     assert_eq!(effects.created().len(), 1);
 
     // make sure the parent was updated
-    let new_parent = fullnode.get_object(&parent.0).await.unwrap().unwrap();
+    let new_parent = fullnode.get_object(&parent.0).await.unwrap();
     assert!(parent.1 < new_parent.version());
 
     // no child to delete since we are using the old version of the parent
@@ -1173,16 +1142,8 @@ async fn test_handle_transfer_transaction_bad_signature() {
     let authority_state =
         init_state_with_ids(vec![(sender, object_id), (sender, gas_object_id)]).await;
     let rgp = authority_state.reference_gas_price_for_testing().unwrap();
-    let object = authority_state
-        .get_object(&object_id)
-        .await
-        .unwrap()
-        .unwrap();
-    let gas_object = authority_state
-        .get_object(&gas_object_id)
-        .await
-        .unwrap()
-        .unwrap();
+    let object = authority_state.get_object(&object_id).await.unwrap();
+    let gas_object = authority_state.get_object(&gas_object_id).await.unwrap();
     let transfer_transaction = init_transfer_transaction(
         &authority_state,
         sender,
@@ -1222,11 +1183,7 @@ async fn test_handle_transfer_transaction_bad_signature() {
     // address in verify_user_input (transaction.rs)
     // assert_eq!(metrics.signature_errors.get(), 1);
 
-    let object = authority_state
-        .get_object(&object_id)
-        .await
-        .unwrap()
-        .unwrap();
+    let object = authority_state.get_object(&object_id).await.unwrap();
     assert!(
         authority_state
             .get_transaction_lock(
@@ -1263,16 +1220,8 @@ async fn test_handle_transfer_transaction_with_max_sequence_number() {
     .await;
     let rgp = authority_state.reference_gas_price_for_testing().unwrap();
     let epoch_store = authority_state.load_epoch_store_one_call_per_task();
-    let object = authority_state
-        .get_object(&object_id)
-        .await
-        .unwrap()
-        .unwrap();
-    let gas_object = authority_state
-        .get_object(&gas_object_id)
-        .await
-        .unwrap()
-        .unwrap();
+    let object = authority_state.get_object(&object_id).await.unwrap();
+    let gas_object = authority_state.get_object(&gas_object_id).await.unwrap();
     let transfer_transaction = init_transfer_transaction(
         &authority_state,
         sender,
@@ -1320,16 +1269,8 @@ async fn test_handle_transfer_transaction_unknown_sender() {
     let rgp = authority_state.reference_gas_price_for_testing().unwrap();
 
     let epoch_store = authority_state.load_epoch_store_one_call_per_task();
-    let object = authority_state
-        .get_object(&object_id)
-        .await
-        .unwrap()
-        .unwrap();
-    let gas_object = authority_state
-        .get_object(&gas_object_id)
-        .await
-        .unwrap()
-        .unwrap();
+    let object = authority_state.get_object(&object_id).await.unwrap();
+    let gas_object = authority_state.get_object(&gas_object_id).await.unwrap();
 
     let unknown_sender_transfer_transaction = init_transfer_transaction(
         &authority_state,
@@ -1349,11 +1290,7 @@ async fn test_handle_transfer_transaction_unknown_sender() {
             .is_err()
     );
 
-    let object = authority_state
-        .get_object(&object_id)
-        .await
-        .unwrap()
-        .unwrap();
+    let object = authority_state.get_object(&object_id).await.unwrap();
     assert!(
         authority_state
             .get_transaction_lock(
@@ -1389,16 +1326,8 @@ async fn test_handle_transfer_transaction_ok() {
     let rgp = authority_state.reference_gas_price_for_testing().unwrap();
     let epoch_store = authority_state.load_epoch_store_one_call_per_task();
 
-    let object = authority_state
-        .get_object(&object_id)
-        .await
-        .unwrap()
-        .unwrap();
-    let gas_object = authority_state
-        .get_object(&gas_object_id)
-        .await
-        .unwrap()
-        .unwrap();
+    let object = authority_state.get_object(&object_id).await.unwrap();
+    let gas_object = authority_state.get_object(&gas_object_id).await.unwrap();
 
     let before_object_version = object.version();
     let after_object_version =
@@ -1487,16 +1416,8 @@ async fn test_handle_sponsored_transaction() {
     let rgp = authority_state.reference_gas_price_for_testing().unwrap();
     let epoch_store = authority_state.load_epoch_store_one_call_per_task();
 
-    let object = authority_state
-        .get_object(&object_id)
-        .await
-        .unwrap()
-        .unwrap();
-    let gas_object = authority_state
-        .get_object(&gas_object_id)
-        .await
-        .unwrap()
-        .unwrap();
+    let object = authority_state.get_object(&object_id).await.unwrap();
+    let gas_object = authority_state.get_object(&gas_object_id).await.unwrap();
 
     let pt = {
         let mut builder = ProgrammableTransactionBuilder::new();
@@ -1621,11 +1542,7 @@ async fn test_transfer_package() {
     let authority_state = init_state_with_ids(vec![(sender, object_id)]).await;
     let rgp = authority_state.reference_gas_price_for_testing().unwrap();
     let epoch_store = authority_state.load_epoch_store_one_call_per_task();
-    let gas_object = authority_state
-        .get_object(&object_id)
-        .await
-        .unwrap()
-        .unwrap();
+    let gas_object = authority_state.get_object(&object_id).await.unwrap();
     let package_object_ref = authority_state
         .get_iota_system_package_object_ref()
         .await
@@ -1663,11 +1580,7 @@ async fn test_immutable_gas() {
     authority_state
         .insert_genesis_object(imm_object.clone())
         .await;
-    let mut_object = authority_state
-        .get_object(&mut_object_id)
-        .await
-        .unwrap()
-        .unwrap();
+    let mut_object = authority_state.get_object(&mut_object_id).await.unwrap();
     let transfer_transaction = init_transfer_transaction(
         &authority_state,
         sender,
@@ -1784,13 +1697,7 @@ async fn test_publish_dependent_module_ok() {
         TxContext::new(&sender, transaction.digest(), &EpochData::new_test()).fresh_id();
 
     // Object does not exist
-    assert!(
-        authority
-            .get_object(&dependent_module_id)
-            .await
-            .unwrap()
-            .is_none()
-    );
+    assert!(authority.get_object(&dependent_module_id).await.is_none());
     let signed_effects = send_and_confirm_transaction(&authority, transaction)
         .await
         .unwrap()
@@ -1798,7 +1705,7 @@ async fn test_publish_dependent_module_ok() {
     signed_effects.into_data().status().unwrap();
 
     // check that the dependent module got published
-    assert!(authority.get_object(&dependent_module_id).await.is_ok());
+    assert!(authority.get_object(&dependent_module_id).await.is_some());
 }
 
 // Test that publishing a module with no dependencies works
@@ -1909,7 +1816,6 @@ async fn test_publish_non_existing_dependent_module() {
             .get_object(&gas_payment_object_id)
             .await
             .unwrap()
-            .unwrap()
             .version(),
         gas_payment_object_ref.1
     );
@@ -1996,7 +1902,6 @@ async fn test_handle_move_transaction() {
     let created_obj = authority_state
         .get_object(&created_object_id)
         .await
-        .unwrap()
         .unwrap();
     assert_eq!(created_obj.owner, sender);
     assert_eq!(created_obj.id(), created_object_id);
@@ -2014,16 +1919,8 @@ async fn test_conflicting_transactions() {
 
     let rgp = authority_state.reference_gas_price_for_testing().unwrap();
     let epoch_store = authority_state.load_epoch_store_one_call_per_task();
-    let object = authority_state
-        .get_object(&object_id)
-        .await
-        .unwrap()
-        .unwrap();
-    let gas_object = authority_state
-        .get_object(&gas_object_id)
-        .await
-        .unwrap()
-        .unwrap();
+    let object = authority_state.get_object(&object_id).await.unwrap();
+    let gas_object = authority_state.get_object(&gas_object_id).await.unwrap();
 
     let tx1 = init_transfer_transaction(
         &authority_state,
@@ -2128,16 +2025,8 @@ async fn test_handle_transfer_transaction_double_spend() {
 
     let rgp = authority_state.reference_gas_price_for_testing().unwrap();
     let epoch_store = authority_state.load_epoch_store_one_call_per_task();
-    let object = authority_state
-        .get_object(&object_id)
-        .await
-        .unwrap()
-        .unwrap();
-    let gas_object = authority_state
-        .get_object(&gas_object_id)
-        .await
-        .unwrap()
-        .unwrap();
+    let object = authority_state.get_object(&object_id).await.unwrap();
+    let gas_object = authority_state.get_object(&gas_object_id).await.unwrap();
     let transfer_transaction = init_transfer_transaction(
         &authority_state,
         sender,
@@ -2170,11 +2059,7 @@ async fn test_handle_transfer_iota_with_amount_insufficient_gas() {
     let object_id = ObjectID::random();
     let authority_state = init_state_with_ids(vec![(sender, object_id)]).await;
     let rgp = authority_state.reference_gas_price_for_testing().unwrap();
-    let object = authority_state
-        .get_object(&object_id)
-        .await
-        .unwrap()
-        .unwrap();
+    let object = authority_state.get_object(&object_id).await.unwrap();
     let data = TransactionData::new_transfer_iota(
         recipient,
         sender,
@@ -2205,11 +2090,7 @@ async fn test_missing_package() {
         init_state_with_ids_and_object_basics(vec![(sender, gas_object_id)]).await;
     let epoch_store = authority_state.load_epoch_store_one_call_per_task();
     let rgp = authority_state.reference_gas_price_for_testing().unwrap();
-    let gas_object = authority_state
-        .get_object(&gas_object_id)
-        .await
-        .unwrap()
-        .unwrap();
+    let gas_object = authority_state.get_object(&gas_object_id).await.unwrap();
     let non_existent_package = ObjectID::MAX;
     let gas_object_ref = gas_object.compute_object_reference();
     let data = TransactionData::new_move_call(
@@ -2248,15 +2129,15 @@ async fn test_type_argument_dependencies() {
     let epoch_store = authority_state.load_epoch_store_one_call_per_task();
     let rgp = authority_state.reference_gas_price_for_testing().unwrap();
     let gas1 = {
-        let o = authority_state.get_object(&gas1).await.unwrap().unwrap();
+        let o = authority_state.get_object(&gas1).await.unwrap();
         o.compute_object_reference()
     };
     let gas2 = {
-        let o = authority_state.get_object(&gas2).await.unwrap().unwrap();
+        let o = authority_state.get_object(&gas2).await.unwrap();
         o.compute_object_reference()
     };
     let gas3 = {
-        let o = authority_state.get_object(&gas3).await.unwrap().unwrap();
+        let o = authority_state.get_object(&gas3).await.unwrap();
         o.compute_object_reference()
     };
     // primitive type tag succeeds
@@ -2343,16 +2224,8 @@ async fn test_handle_confirmation_transaction_receiver_equal_sender() {
     let gas_object_id = ObjectID::random();
     let authority_state =
         init_state_with_ids(vec![(address, object_id), (address, gas_object_id)]).await;
-    let object = authority_state
-        .get_object(&object_id)
-        .await
-        .unwrap()
-        .unwrap();
-    let gas_object = authority_state
-        .get_object(&gas_object_id)
-        .await
-        .unwrap()
-        .unwrap();
+    let object = authority_state.get_object(&object_id).await.unwrap();
+    let gas_object = authority_state.get_object(&gas_object_id).await.unwrap();
 
     let certified_transfer_transaction = init_certified_transfer_transaction(
         address,
@@ -2380,16 +2253,8 @@ async fn test_handle_confirmation_transaction_ok() {
     let gas_object_id = ObjectID::random();
     let authority_state =
         init_state_with_ids(vec![(sender, object_id), (sender, gas_object_id)]).await;
-    let object = authority_state
-        .get_object(&object_id)
-        .await
-        .unwrap()
-        .unwrap();
-    let gas_object = authority_state
-        .get_object(&gas_object_id)
-        .await
-        .unwrap()
-        .unwrap();
+    let object = authority_state.get_object(&object_id).await.unwrap();
+    let gas_object = authority_state.get_object(&gas_object_id).await.unwrap();
 
     let next_sequence_number =
         SequenceNumber::lamport_increment([object.version(), gas_object.version()]);
@@ -2403,11 +2268,7 @@ async fn test_handle_confirmation_transaction_ok() {
         &authority_state,
     );
 
-    let old_account = authority_state
-        .get_object(&object_id)
-        .await
-        .unwrap()
-        .unwrap();
+    let old_account = authority_state.get_object(&object_id).await.unwrap();
 
     let signed_effects = authority_state
         .execute_certificate(
@@ -2419,11 +2280,7 @@ async fn test_handle_confirmation_transaction_ok() {
     signed_effects.status().unwrap();
     // Key check: the ownership has changed
 
-    let new_account = authority_state
-        .get_object(&object_id)
-        .await
-        .unwrap()
-        .unwrap();
+    let new_account = authority_state.get_object(&object_id).await.unwrap();
     assert_eq!(new_account.owner, recipient);
     assert_eq!(next_sequence_number, new_account.version());
 
@@ -2457,16 +2314,8 @@ async fn test_handle_confirmation_transaction_idempotent() {
     let gas_object_id = ObjectID::random();
     let authority_state =
         init_state_with_ids(vec![(sender, object_id), (sender, gas_object_id)]).await;
-    let object = authority_state
-        .get_object(&object_id)
-        .await
-        .unwrap()
-        .unwrap();
-    let gas_object = authority_state
-        .get_object(&gas_object_id)
-        .await
-        .unwrap()
-        .unwrap();
+    let object = authority_state.get_object(&object_id).await.unwrap();
+    let gas_object = authority_state.get_object(&gas_object_id).await.unwrap();
 
     let certified_transfer_transaction = init_certified_transfer_transaction(
         sender,
@@ -2547,7 +2396,6 @@ async fn test_move_call_mutable_object_not_mutated() {
         .get_object(&gas_object_id)
         .await
         .unwrap()
-        .unwrap()
         .version();
 
     let next_object_version = SequenceNumber::lamport_increment([gas_version, seq1, seq2]);
@@ -2577,7 +2425,6 @@ async fn test_move_call_mutable_object_not_mutated() {
             .get_object(&new_object_id1)
             .await
             .unwrap()
-            .unwrap()
             .version(),
         next_object_version
     );
@@ -2585,7 +2432,6 @@ async fn test_move_call_mutable_object_not_mutated() {
         authority_state
             .get_object(&new_object_id2)
             .await
-            .unwrap()
             .unwrap()
             .version(),
         next_object_version
@@ -2621,12 +2467,10 @@ async fn test_move_call_insufficient_gas() {
             .get_object(&object_id)
             .await
             .unwrap()
-            .unwrap()
             .compute_object_reference(),
         authority_state
             .get_object(&gas_object_id1)
             .await
-            .unwrap()
             .unwrap()
             .compute_object_reference(),
         &authority_state,
@@ -2645,13 +2489,11 @@ async fn test_move_call_insufficient_gas() {
         .get_object(&object_id)
         .await
         .unwrap()
-        .unwrap()
         .compute_object_reference();
 
     let gas_ref = authority_state
         .get_object(&gas_object_id2)
         .await
-        .unwrap()
         .unwrap()
         .compute_object_reference();
 
@@ -2679,11 +2521,7 @@ async fn test_move_call_insufficient_gas() {
         .1;
     let effects = signed_effects.into_data();
     assert!(effects.status().is_err());
-    let obj = authority_state
-        .get_object(&object_id)
-        .await
-        .unwrap()
-        .unwrap();
+    let obj = authority_state.get_object(&object_id).await.unwrap();
     assert_eq!(obj.previous_transaction, tx_digest);
     assert_eq!(obj.version(), next_object_version);
     assert_eq!(obj.owner, recipient);
@@ -2768,7 +2606,6 @@ async fn test_get_latest_parent_entry_genesis() {
         authority_state
             .get_object_or_tombstone(ObjectID::ZERO)
             .await
-            .unwrap()
             .is_none()
     );
 }
@@ -2825,7 +2662,6 @@ async fn test_get_latest_parent_entry() {
     let obj_ref = authority_state
         .get_object_or_tombstone(new_object_id1)
         .await
-        .unwrap()
         .unwrap();
     assert_eq!(obj_ref.0, new_object_id1);
     assert_eq!(obj_ref.1, update_version);
@@ -2858,7 +2694,6 @@ async fn test_get_latest_parent_entry() {
         authority_state
             .get_object_or_tombstone(unknown_object_id)
             .await
-            .unwrap()
             .is_none()
     );
 
@@ -2866,7 +2701,6 @@ async fn test_get_latest_parent_entry() {
     let obj_ref = authority_state
         .get_object_or_tombstone(gas_object_id)
         .await
-        .unwrap()
         .unwrap();
     assert_eq!(obj_ref.0, gas_object_id);
     assert_eq!(obj_ref.1, delete_version);
@@ -2875,7 +2709,6 @@ async fn test_get_latest_parent_entry() {
     let obj_ref = authority_state
         .get_object_or_tombstone(new_object_id1)
         .await
-        .unwrap()
         .unwrap();
     assert_eq!(obj_ref.0, new_object_id1);
     assert_eq!(obj_ref.1, delete_version);
@@ -2888,11 +2721,7 @@ async fn test_account_state_ok() {
     let object_id = dbg_object_id(1);
 
     let authority_state = init_state_with_object_id(sender, object_id).await;
-    authority_state
-        .get_object(&object_id)
-        .await
-        .unwrap()
-        .unwrap();
+    authority_state.get_object(&object_id).await.unwrap();
 }
 
 #[tokio::test]
@@ -2900,13 +2729,7 @@ async fn test_account_state_unknown_account() {
     let sender = dbg_addr(1);
     let unknown_address = dbg_object_id(99);
     let authority_state = init_state_with_object_id(sender, ObjectID::random()).await;
-    assert!(
-        authority_state
-            .get_object(&unknown_address)
-            .await
-            .unwrap()
-            .is_none()
-    );
+    assert!(authority_state.get_object(&unknown_address).await.is_none());
 }
 
 #[tokio::test]
@@ -2966,7 +2789,7 @@ async fn test_authority_persist() {
             .await
             .unwrap();
     let authority2 = init_state(&genesis, authority_key, store).await;
-    let obj2 = authority2.get_object(&object_id).await.unwrap().unwrap();
+    let obj2 = authority2.get_object(&object_id).await.unwrap();
 
     // Check the object is present
     assert_eq!(obj2.id(), object_id);
@@ -3259,7 +3082,6 @@ async fn test_genesis_iota_system_state_object() {
     let wrapper = authority_state
         .get_object(&IOTA_SYSTEM_STATE_OBJECT_ID)
         .await
-        .unwrap()
         .unwrap();
     assert_eq!(wrapper.version(), SequenceNumber::from(1));
     let move_object = wrapper.data.try_as_move().unwrap();
@@ -3324,11 +3146,7 @@ async fn test_transfer_iota_no_amount() {
     assert!(gas_ref.1 < effects.gas_object().0.1);
     assert_eq!(effects.gas_object().1, Owner::AddressOwner(recipient));
     let new_balance = iota_types::gas::get_gas_balance(
-        &authority_state
-            .get_object(&gas_object_id)
-            .await
-            .unwrap()
-            .unwrap(),
+        &authority_state.get_object(&gas_object_id).await.unwrap(),
     )
     .unwrap();
     assert_eq!(
@@ -3371,17 +3189,12 @@ async fn test_transfer_iota_with_amount() {
     let new_gas = authority_state
         .get_object(&effects.created()[0].0.0)
         .await
-        .unwrap()
         .unwrap();
     assert_eq!(iota_types::gas::get_gas_balance(&new_gas).unwrap(), 500);
     assert!(gas_ref.1 < effects.gas_object().0.1);
     assert_eq!(effects.gas_object().1, Owner::AddressOwner(sender));
     let new_balance = iota_types::gas::get_gas_balance(
-        &authority_state
-            .get_object(&gas_object_id)
-            .await
-            .unwrap()
-            .unwrap(),
+        &authority_state.get_object(&gas_object_id).await.unwrap(),
     )
     .unwrap();
     assert_eq!(
@@ -3422,7 +3235,7 @@ async fn test_store_revert_transfer_iota() {
     db.revert_state_update(&tx_digest).unwrap();
 
     assert_eq!(
-        db.get_object(&gas_object_id).unwrap().unwrap().owner,
+        db.get_object(&gas_object_id).unwrap().owner,
         Owner::AddressOwner(sender),
     );
     assert_eq!(
@@ -3495,14 +3308,14 @@ async fn test_store_revert_wrap_move_call() {
     db.revert_state_update(&wrap_digest).unwrap();
 
     // The wrapped object is unwrapped once again (accessible from storage).
-    let object = db.get_object(&object_v0.0).unwrap().unwrap();
+    let object = db.get_object(&object_v0.0).unwrap();
     assert_eq!(object.version(), object_v0.1);
 
     // The wrapper doesn't exist
-    assert!(db.get_object(&wrapper_v0.0).unwrap().is_none());
+    assert!(db.get_object(&wrapper_v0.0).is_none());
 
     // The gas is uncharged
-    let gas = db.get_object(&gas_object_id).unwrap().unwrap();
+    let gas = db.get_object(&gas_object_id).unwrap();
     assert_eq!(gas.version(), create_effects.gas_object().0.1);
 }
 
@@ -3582,14 +3395,14 @@ async fn test_store_revert_unwrap_move_call() {
     db.revert_state_update(&unwrap_digest).unwrap();
 
     // The unwrapped object is wrapped once again
-    assert!(db.get_object(&object_v0.0).unwrap().is_none());
+    assert!(db.get_object(&object_v0.0).is_none());
 
     // The wrapper exists
-    let wrapper = db.get_object(&wrapper_v0.0).unwrap().unwrap();
+    let wrapper = db.get_object(&wrapper_v0.0).unwrap();
     assert_eq!(wrapper.version(), wrapper_v0.1);
 
     // The gas is uncharged
-    let gas = db.get_object(&gas_object_id).unwrap().unwrap();
+    let gas = db.get_object(&gas_object_id).unwrap();
     assert_eq!(gas.version(), wrap_effects.gas_object().0.1);
 }
 #[tokio::test]
@@ -3840,25 +3653,25 @@ async fn test_store_revert_add_ofield() {
 
     let db = &authority_state.database_for_testing();
 
-    let outer = db.get_object(&outer_v0.0).unwrap().unwrap();
+    let outer = db.get_object(&outer_v0.0).unwrap();
     assert_eq!(outer.version(), outer_v1.1);
 
-    let field = db.get_object(&field_v0.0).unwrap().unwrap();
+    let field = db.get_object(&field_v0.0).unwrap();
     assert_eq!(field.owner, Owner::ObjectOwner(outer_v0.0.into()));
 
-    let inner = db.get_object(&inner_v0.0).unwrap().unwrap();
+    let inner = db.get_object(&inner_v0.0).unwrap();
     assert_eq!(inner.version(), inner_v1.1);
     assert_eq!(inner.owner, Owner::ObjectOwner(field_v0.0.into()));
 
     db.revert_state_update(&add_digest).unwrap();
 
-    let outer = db.get_object(&outer_v0.0).unwrap().unwrap();
+    let outer = db.get_object(&outer_v0.0).unwrap();
     assert_eq!(outer.version(), outer_v0.1);
 
     // Field no longer exists
-    assert!(db.get_object(&field_v0.0).unwrap().is_none());
+    assert!(db.get_object(&field_v0.0).is_none());
 
-    let inner = db.get_object(&inner_v0.0).unwrap().unwrap();
+    let inner = db.get_object(&inner_v0.0).unwrap();
     assert_eq!(inner.version(), inner_v0.1);
     assert_eq!(inner.owner, Owner::AddressOwner(sender));
 }
@@ -3952,22 +3765,22 @@ async fn test_store_revert_remove_ofield() {
 
     let db = &authority_state.database_for_testing();
 
-    let outer = db.get_object(&outer_v0.0).unwrap().unwrap();
+    let outer = db.get_object(&outer_v0.0).unwrap();
     assert_eq!(outer.version(), outer_v2.1);
 
-    let inner = db.get_object(&inner_v0.0).unwrap().unwrap();
+    let inner = db.get_object(&inner_v0.0).unwrap();
     assert_eq!(inner.owner, Owner::AddressOwner(sender));
     assert_eq!(inner.version(), inner_v2.1);
 
     db.revert_state_update(&remove_ofield_digest).unwrap();
 
-    let outer = db.get_object(&outer_v0.0).unwrap().unwrap();
+    let outer = db.get_object(&outer_v0.0).unwrap();
     assert_eq!(outer.version(), outer_v1.1);
 
-    let field = db.get_object(&field_v0.0).unwrap().unwrap();
+    let field = db.get_object(&field_v0.0).unwrap();
     assert_eq!(field.owner, Owner::ObjectOwner(outer_v0.0.into()));
 
-    let inner = db.get_object(&inner_v0.0).unwrap().unwrap();
+    let inner = db.get_object(&inner_v0.0).unwrap();
     assert_eq!(inner.owner, Owner::ObjectOwner(field_v0.0.into()));
     assert_eq!(inner.version(), inner_v1.1);
 }
@@ -3991,8 +3804,8 @@ async fn test_iter_live_object_set() {
         })
         .collect();
 
-    let gas_obj = authority.get_object(&gas).await.unwrap().unwrap();
-    let obj = authority.get_object(&obj_id).await.unwrap().unwrap();
+    let gas_obj = authority.get_object(&gas).await.unwrap();
+    let obj = authority.get_object(&obj_id).await.unwrap();
 
     let certified_transfer_transaction = init_certified_transfer_transaction(
         sender,
@@ -4309,7 +4122,7 @@ pub async fn call_move_(
     test_args: Vec<TestCallArg>,
     with_shared: bool, // Move call includes shared objects
 ) -> IotaResult<TransactionEffects> {
-    let gas_object = authority.get_object(gas_object_id).await.unwrap();
+    let gas_object = authority.get_object(gas_object_id).await;
     let gas_object_ref = gas_object.unwrap().compute_object_reference();
     let mut builder = ProgrammableTransactionBuilder::new();
     let mut args = vec![];
@@ -4393,7 +4206,7 @@ pub async fn build_programmable_transaction(
     gas_unit: u64,
 ) -> IotaResult<Transaction> {
     let rgp = authority.reference_gas_price_for_testing().unwrap();
-    let gas_object = authority.get_object(gas_object_id).await.unwrap();
+    let gas_object = authority.get_object(gas_object_id).await;
     let gas_object_ref = gas_object.unwrap().compute_object_reference();
     let data =
         TransactionData::new_programmable(*sender, vec![gas_object_ref], pt, rgp * gas_unit, rgp);
@@ -4412,7 +4225,7 @@ async fn execute_programmable_transaction_(
     gas_unit: u64,
 ) -> IotaResult<TransactionEffects> {
     let rgp = authority.reference_gas_price_for_testing().unwrap();
-    let gas_object = authority.get_object(gas_object_id).await.unwrap();
+    let gas_object = authority.get_object(gas_object_id).await;
     let gas_object_ref = gas_object.unwrap().compute_object_reference();
     let data =
         TransactionData::new_programmable(*sender, vec![gas_object_ref], pt, rgp * gas_unit, rgp);
@@ -4441,7 +4254,7 @@ async fn call_move_with_gas_coins(
 ) -> IotaResult<TransactionEffects> {
     let mut gas_object_refs = vec![];
     for obj_id in gas_object_ids {
-        let gas_object = authority.get_object(obj_id).await.unwrap();
+        let gas_object = authority.get_object(obj_id).await;
         let gas_ref = gas_object.unwrap().compute_object_reference();
         gas_object_refs.push(gas_ref);
     }
@@ -4769,7 +4582,6 @@ async fn test_shared_object_transaction_ok() {
         .get_object(&shared_object_id)
         .await
         .unwrap()
-        .unwrap()
         .version();
     assert_eq!(shared_object_version, SequenceNumber::from(2));
 }
@@ -4974,7 +4786,6 @@ async fn test_consensus_message_processed() {
             authority2
                 .get_transaction_cache_reader()
                 .get_executed_effects(transaction_digest)
-                .unwrap()
                 .unwrap()
         };
 
@@ -5347,10 +5158,9 @@ async fn test_gas_smashing() {
             );
         }
         // balance on first coin is correct
-        let balance = iota_types::gas::get_gas_balance(
-            &state.get_object(&gas_coin_ids[0]).await.unwrap().unwrap(),
-        )
-        .unwrap();
+        let balance =
+            iota_types::gas::get_gas_balance(&state.get_object(&gas_coin_ids[0]).await.unwrap())
+                .unwrap();
         let gas_used = effects.gas_cost_summary().gas_used();
         assert!(reference_gas_used > balance);
         assert_eq!(reference_gas_used, balance + gas_used);
@@ -5485,7 +5295,7 @@ async fn test_publish_transitive_dependencies_ok() {
     let rgp = state.reference_gas_price_for_testing().unwrap();
 
     // Get gas object
-    let gas_object = state.get_object(&gas_id).await.unwrap().unwrap();
+    let gas_object = state.get_object(&gas_id).await.unwrap();
     let gas_ref = gas_object.compute_object_reference();
 
     // Publish `package C`
@@ -5657,7 +5467,7 @@ async fn test_publish_missing_dependency() {
     let state = init_state_with_ids(vec![(sender, gas_id)]).await;
 
     // Get gas object
-    let gas_object = state.get_object(&gas_id).await.unwrap().unwrap();
+    let gas_object = state.get_object(&gas_id).await.unwrap();
     let gas_ref = gas_object.compute_object_reference();
 
     // Module bytes
@@ -5706,7 +5516,7 @@ async fn test_publish_missing_transitive_dependency() {
     let state = init_state_with_ids(vec![(sender, gas_id)]).await;
 
     // Get gas object
-    let gas_object = state.get_object(&gas_id).await.unwrap().unwrap();
+    let gas_object = state.get_object(&gas_id).await.unwrap();
     let gas_ref = gas_object.compute_object_reference();
 
     // Module bytes
@@ -5755,7 +5565,7 @@ async fn test_publish_not_a_package_dependency() {
     let state = init_state_with_ids(vec![(sender, gas_id)]).await;
 
     // Get gas object
-    let gas_object = state.get_object(&gas_id).await.unwrap().unwrap();
+    let gas_object = state.get_object(&gas_id).await.unwrap();
     let gas_ref = gas_object.compute_object_reference();
 
     // Module bytes

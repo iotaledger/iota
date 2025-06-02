@@ -472,42 +472,48 @@ impl AuthorityPerpetualTables {
         wb.write()?;
         Ok(())
     }
-}
 
-impl ObjectStore for AuthorityPerpetualTables {
-    /// Read an object and return it, or Ok(None) if the object was not found.
-    fn get_object(
-        &self,
-        object_id: &ObjectID,
-    ) -> Result<Option<Object>, iota_types::storage::error::Error> {
+    // fallible get object methods for iota-tool, which may need to attempt to read
+    // a corrupted database
+    pub fn get_object_fallible(&self, object_id: &ObjectID) -> IotaResult<Option<Object>> {
         let obj_entry = self
             .objects
             .unbounded_iter()
-            .skip_prior_to(&ObjectKey::max_for_id(object_id))
-            .map_err(iota_types::storage::error::Error::custom)?
+            .skip_prior_to(&ObjectKey::max_for_id(object_id))?
             .next();
 
         match obj_entry {
-            Some((ObjectKey(obj_id, version), obj)) if obj_id == *object_id => Ok(self
-                .object(&ObjectKey(obj_id, version), obj)
-                .map_err(iota_types::storage::error::Error::custom)?),
+            Some((ObjectKey(obj_id, version), obj)) if obj_id == *object_id => {
+                Ok(self.object(&ObjectKey(obj_id, version), obj)?)
+            }
             _ => Ok(None),
         }
     }
 
-    fn get_object_by_key(
+    pub fn get_object_by_key_fallible(
         &self,
         object_id: &ObjectID,
         version: VersionNumber,
-    ) -> Result<Option<Object>, iota_types::storage::error::Error> {
+    ) -> IotaResult<Option<Object>> {
         Ok(self
             .objects
-            .get(&ObjectKey(*object_id, version))
-            .map_err(iota_types::storage::error::Error::custom)?
-            .map(|object| self.object(&ObjectKey(*object_id, version), object))
-            .transpose()
-            .map_err(iota_types::storage::error::Error::custom)?
-            .flatten())
+            .get(&ObjectKey(*object_id, version))?
+            .and_then(|object| {
+                self.object(&ObjectKey(*object_id, version), object)
+                    .expect("object construction error")
+            }))
+    }
+}
+
+impl ObjectStore for AuthorityPerpetualTables {
+    /// Read an object and return it, or Ok(None) if the object was not found.
+    fn get_object(&self, object_id: &ObjectID) -> Option<Object> {
+        self.get_object_fallible(object_id).expect("db error")
+    }
+
+    fn get_object_by_key(&self, object_id: &ObjectID, version: VersionNumber) -> Option<Object> {
+        self.get_object_by_key_fallible(object_id, version)
+            .expect("db error")
     }
 }
 

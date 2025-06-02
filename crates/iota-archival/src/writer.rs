@@ -15,7 +15,7 @@ use std::{
     time::Duration,
 };
 
-use anyhow::{Context, Result, anyhow};
+use anyhow::{Context, Result};
 use byteorder::{BigEndian, ByteOrder, WriteBytesExt};
 use iota_config::object_storage_config::ObjectStoreConfig;
 use iota_storage::{
@@ -440,13 +440,11 @@ impl ArchiveWriter {
         info!("Starting checkpoint tailing from sequence number: {checkpoint_sequence_number}");
 
         while kill.try_recv().is_err() {
-            if let Some(checkpoint_summary) = store
-                .get_checkpoint_by_sequence_number(checkpoint_sequence_number)
-                .map_err(|_| anyhow!("Failed to read checkpoint summary from store"))?
+            if let Some(checkpoint_summary) =
+                store.get_checkpoint_by_sequence_number(checkpoint_sequence_number)
             {
-                if let Some(checkpoint_contents) = store
-                    .get_full_checkpoint_contents(&checkpoint_summary.content_digest)
-                    .map_err(|_| anyhow!("Failed to read checkpoint content from store"))?
+                if let Some(checkpoint_contents) =
+                    store.get_full_checkpoint_contents(&checkpoint_summary.content_digest)
                 {
                     checkpoint_writer
                         .write(checkpoint_contents, checkpoint_summary.into_inner())?;

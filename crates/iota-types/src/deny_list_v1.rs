@@ -254,16 +254,10 @@ pub fn check_global_pause(
 
 pub fn get_deny_list_root_object(object_store: &dyn ObjectStore) -> IotaResult<Object> {
     match object_store.get_object(&IOTA_DENY_LIST_OBJECT_ID) {
-        Ok(Some(obj)) => Ok(obj),
-        Ok(None) => {
+        Some(obj) => Ok(obj),
+        None => {
             error!("Deny list object not found");
             Err(IotaError::Storage("Deny list object not found".to_string()))
-        }
-        Err(err) => {
-            error!("Failed to get deny list object: {err}");
-            Err(IotaError::Storage(format!(
-                "Failed to get deny list object: {err}"
-            )))
         }
     }
 }

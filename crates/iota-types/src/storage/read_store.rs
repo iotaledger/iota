@@ -28,7 +28,7 @@ pub trait ReadStore: ObjectStore {
     // Committee Getters
     //
 
-    fn get_committee(&self, epoch: EpochId) -> Result<Option<Arc<Committee>>>;
+    fn get_committee(&self, epoch: EpochId) -> Option<Arc<Committee>>;
 
     // Checkpoint Getters
     //
@@ -77,72 +77,60 @@ pub trait ReadStore: ObjectStore {
     /// For object availability see `get_lowest_available_checkpoint_objects`.
     fn get_lowest_available_checkpoint(&self) -> Result<CheckpointSequenceNumber>;
 
-    fn get_checkpoint_by_digest(
-        &self,
-        digest: &CheckpointDigest,
-    ) -> Result<Option<VerifiedCheckpoint>>;
+    fn get_checkpoint_by_digest(&self, digest: &CheckpointDigest) -> Option<VerifiedCheckpoint>;
 
     fn get_checkpoint_by_sequence_number(
         &self,
         sequence_number: CheckpointSequenceNumber,
-    ) -> Result<Option<VerifiedCheckpoint>>;
+    ) -> Option<VerifiedCheckpoint>;
 
     fn get_checkpoint_contents_by_digest(
         &self,
         digest: &CheckpointContentsDigest,
-    ) -> Result<Option<CheckpointContents>>;
+    ) -> Option<CheckpointContents>;
 
     fn get_checkpoint_contents_by_sequence_number(
         &self,
         sequence_number: CheckpointSequenceNumber,
-    ) -> Result<Option<CheckpointContents>>;
+    ) -> Option<CheckpointContents>;
 
     // Transaction Getters
     //
 
-    fn get_transaction(
-        &self,
-        tx_digest: &TransactionDigest,
-    ) -> Result<Option<Arc<VerifiedTransaction>>>;
+    fn get_transaction(&self, tx_digest: &TransactionDigest) -> Option<Arc<VerifiedTransaction>>;
 
     fn multi_get_transactions(
         &self,
         tx_digests: &[TransactionDigest],
-    ) -> Result<Vec<Option<Arc<VerifiedTransaction>>>> {
+    ) -> Vec<Option<Arc<VerifiedTransaction>>> {
         tx_digests
             .iter()
             .map(|digest| self.get_transaction(digest))
-            .collect::<Result<Vec<_>, _>>()
+            .collect()
     }
 
-    fn get_transaction_effects(
-        &self,
-        tx_digest: &TransactionDigest,
-    ) -> Result<Option<TransactionEffects>>;
+    fn get_transaction_effects(&self, tx_digest: &TransactionDigest) -> Option<TransactionEffects>;
 
     fn multi_get_transaction_effects(
         &self,
         tx_digests: &[TransactionDigest],
-    ) -> Result<Vec<Option<TransactionEffects>>> {
+    ) -> Vec<Option<TransactionEffects>> {
         tx_digests
             .iter()
             .map(|digest| self.get_transaction_effects(digest))
-            .collect::<Result<Vec<_>, _>>()
+            .collect()
     }
 
-    fn get_events(
-        &self,
-        event_digest: &TransactionEventsDigest,
-    ) -> Result<Option<TransactionEvents>>;
+    fn get_events(&self, event_digest: &TransactionEventsDigest) -> Option<TransactionEvents>;
 
     fn multi_get_events(
         &self,
         event_digests: &[TransactionEventsDigest],
-    ) -> Result<Vec<Option<TransactionEvents>>> {
+    ) -> Vec<Option<TransactionEvents>> {
         event_digests
             .iter()
             .map(|digest| self.get_events(digest))
-            .collect::<Result<Vec<_>, _>>()
+            .collect()
     }
 
     // Extra Checkpoint fetching apis
@@ -153,14 +141,14 @@ pub trait ReadStore: ObjectStore {
     fn get_full_checkpoint_contents_by_sequence_number(
         &self,
         sequence_number: CheckpointSequenceNumber,
-    ) -> Result<Option<FullCheckpointContents>>;
+    ) -> Option<FullCheckpointContents>;
 
     /// Get a "full" checkpoint for purposes of state-sync
     /// "full" checkpoints include: header, contents, transactions, effects
     fn get_full_checkpoint_contents(
         &self,
         digest: &CheckpointContentsDigest,
-    ) -> Result<Option<FullCheckpointContents>>;
+    ) -> Option<FullCheckpointContents>;
 
     // Fetch all checkpoint data
     // TODO fix return type to not be anyhow
@@ -181,7 +169,7 @@ pub trait ReadStore: ObjectStore {
             .map(|execution_digests| execution_digests.transaction)
             .collect::<Vec<_>>();
         let transactions = self
-            .multi_get_transactions(&transaction_digests)?
+            .multi_get_transactions(&transaction_digests)
             .into_iter()
             .map(|maybe_transaction| {
                 maybe_transaction.ok_or_else(|| anyhow::anyhow!("missing transaction"))
@@ -189,7 +177,7 @@ pub trait ReadStore: ObjectStore {
             .collect::<anyhow::Result<Vec<_>>>()?;
 
         let effects = self
-            .multi_get_transaction_effects(&transaction_digests)?
+            .multi_get_transaction_effects(&transaction_digests)
             .into_iter()
             .map(|maybe_effects| maybe_effects.ok_or_else(|| anyhow::anyhow!("missing effects")))
             .collect::<anyhow::Result<Vec<_>>>()?;
@@ -200,7 +188,7 @@ pub trait ReadStore: ObjectStore {
             .collect::<Vec<_>>();
 
         let events = self
-            .multi_get_events(&event_digests)?
+            .multi_get_events(&event_digests)
             .into_iter()
             .map(|maybe_event| maybe_event.ok_or_else(|| anyhow::anyhow!("missing event")))
             .collect::<anyhow::Result<Vec<_>>>()?;
@@ -225,7 +213,7 @@ pub trait ReadStore: ObjectStore {
                 .collect::<Vec<_>>();
 
             let input_objects = self
-                .multi_get_objects_by_key(&input_object_keys)?
+                .multi_get_objects_by_key(&input_object_keys)
                 .into_iter()
                 .enumerate()
                 .map(|(idx, maybe_object)| {
@@ -246,7 +234,7 @@ pub trait ReadStore: ObjectStore {
                 .collect::<Vec<_>>();
 
             let output_objects = self
-                .multi_get_objects_by_key(&output_object_keys)?
+                .multi_get_objects_by_key(&output_object_keys)
                 .into_iter()
                 .enumerate()
                 .map(|(idx, maybe_object)| {
@@ -282,7 +270,7 @@ pub trait ReadStore: ObjectStore {
 }
 
 impl<T: ReadStore + ?Sized> ReadStore for &T {
-    fn get_committee(&self, epoch: EpochId) -> Result<Option<Arc<Committee>>> {
+    fn get_committee(&self, epoch: EpochId) -> Option<Arc<Committee>> {
         (*self).get_committee(epoch)
     }
 
@@ -310,87 +298,75 @@ impl<T: ReadStore + ?Sized> ReadStore for &T {
         (*self).get_lowest_available_checkpoint()
     }
 
-    fn get_checkpoint_by_digest(
-        &self,
-        digest: &CheckpointDigest,
-    ) -> Result<Option<VerifiedCheckpoint>> {
+    fn get_checkpoint_by_digest(&self, digest: &CheckpointDigest) -> Option<VerifiedCheckpoint> {
         (*self).get_checkpoint_by_digest(digest)
     }
 
     fn get_checkpoint_by_sequence_number(
         &self,
         sequence_number: CheckpointSequenceNumber,
-    ) -> Result<Option<VerifiedCheckpoint>> {
+    ) -> Option<VerifiedCheckpoint> {
         (*self).get_checkpoint_by_sequence_number(sequence_number)
     }
 
     fn get_checkpoint_contents_by_digest(
         &self,
         digest: &CheckpointContentsDigest,
-    ) -> Result<Option<CheckpointContents>> {
+    ) -> Option<CheckpointContents> {
         (*self).get_checkpoint_contents_by_digest(digest)
     }
 
     fn get_checkpoint_contents_by_sequence_number(
         &self,
         sequence_number: CheckpointSequenceNumber,
-    ) -> Result<Option<CheckpointContents>> {
+    ) -> Option<CheckpointContents> {
         (*self).get_checkpoint_contents_by_sequence_number(sequence_number)
     }
 
-    fn get_transaction(
-        &self,
-        tx_digest: &TransactionDigest,
-    ) -> Result<Option<Arc<VerifiedTransaction>>> {
+    fn get_transaction(&self, tx_digest: &TransactionDigest) -> Option<Arc<VerifiedTransaction>> {
         (*self).get_transaction(tx_digest)
     }
 
     fn multi_get_transactions(
         &self,
         tx_digests: &[TransactionDigest],
-    ) -> Result<Vec<Option<Arc<VerifiedTransaction>>>> {
+    ) -> Vec<Option<Arc<VerifiedTransaction>>> {
         (*self).multi_get_transactions(tx_digests)
     }
 
-    fn get_transaction_effects(
-        &self,
-        tx_digest: &TransactionDigest,
-    ) -> Result<Option<TransactionEffects>> {
+    fn get_transaction_effects(&self, tx_digest: &TransactionDigest) -> Option<TransactionEffects> {
         (*self).get_transaction_effects(tx_digest)
     }
 
     fn multi_get_transaction_effects(
         &self,
         tx_digests: &[TransactionDigest],
-    ) -> Result<Vec<Option<TransactionEffects>>> {
+    ) -> Vec<Option<TransactionEffects>> {
         (*self).multi_get_transaction_effects(tx_digests)
     }
 
-    fn get_events(
-        &self,
-        event_digest: &TransactionEventsDigest,
-    ) -> Result<Option<TransactionEvents>> {
+    fn get_events(&self, event_digest: &TransactionEventsDigest) -> Option<TransactionEvents> {
         (*self).get_events(event_digest)
     }
 
     fn multi_get_events(
         &self,
         event_digests: &[TransactionEventsDigest],
-    ) -> Result<Vec<Option<TransactionEvents>>> {
+    ) -> Vec<Option<TransactionEvents>> {
         (*self).multi_get_events(event_digests)
     }
 
     fn get_full_checkpoint_contents_by_sequence_number(
         &self,
         sequence_number: CheckpointSequenceNumber,
-    ) -> Result<Option<FullCheckpointContents>> {
+    ) -> Option<FullCheckpointContents> {
         (*self).get_full_checkpoint_contents_by_sequence_number(sequence_number)
     }
 
     fn get_full_checkpoint_contents(
         &self,
         digest: &CheckpointContentsDigest,
-    ) -> Result<Option<FullCheckpointContents>> {
+    ) -> Option<FullCheckpointContents> {
         (*self).get_full_checkpoint_contents(digest)
     }
 
@@ -404,7 +380,7 @@ impl<T: ReadStore + ?Sized> ReadStore for &T {
 }
 
 impl<T: ReadStore + ?Sized> ReadStore for Box<T> {
-    fn get_committee(&self, epoch: EpochId) -> Result<Option<Arc<Committee>>> {
+    fn get_committee(&self, epoch: EpochId) -> Option<Arc<Committee>> {
         (**self).get_committee(epoch)
     }
 
@@ -432,87 +408,75 @@ impl<T: ReadStore + ?Sized> ReadStore for Box<T> {
         (**self).get_lowest_available_checkpoint()
     }
 
-    fn get_checkpoint_by_digest(
-        &self,
-        digest: &CheckpointDigest,
-    ) -> Result<Option<VerifiedCheckpoint>> {
+    fn get_checkpoint_by_digest(&self, digest: &CheckpointDigest) -> Option<VerifiedCheckpoint> {
         (**self).get_checkpoint_by_digest(digest)
     }
 
     fn get_checkpoint_by_sequence_number(
         &self,
         sequence_number: CheckpointSequenceNumber,
-    ) -> Result<Option<VerifiedCheckpoint>> {
+    ) -> Option<VerifiedCheckpoint> {
         (**self).get_checkpoint_by_sequence_number(sequence_number)
     }
 
     fn get_checkpoint_contents_by_digest(
         &self,
         digest: &CheckpointContentsDigest,
-    ) -> Result<Option<CheckpointContents>> {
+    ) -> Option<CheckpointContents> {
         (**self).get_checkpoint_contents_by_digest(digest)
     }
 
     fn get_checkpoint_contents_by_sequence_number(
         &self,
         sequence_number: CheckpointSequenceNumber,
-    ) -> Result<Option<CheckpointContents>> {
+    ) -> Option<CheckpointContents> {
         (**self).get_checkpoint_contents_by_sequence_number(sequence_number)
     }
 
-    fn get_transaction(
-        &self,
-        tx_digest: &TransactionDigest,
-    ) -> Result<Option<Arc<VerifiedTransaction>>> {
+    fn get_transaction(&self, tx_digest: &TransactionDigest) -> Option<Arc<VerifiedTransaction>> {
         (**self).get_transaction(tx_digest)
     }
 
     fn multi_get_transactions(
         &self,
         tx_digests: &[TransactionDigest],
-    ) -> Result<Vec<Option<Arc<VerifiedTransaction>>>> {
+    ) -> Vec<Option<Arc<VerifiedTransaction>>> {
         (**self).multi_get_transactions(tx_digests)
     }
 
-    fn get_transaction_effects(
-        &self,
-        tx_digest: &TransactionDigest,
-    ) -> Result<Option<TransactionEffects>> {
+    fn get_transaction_effects(&self, tx_digest: &TransactionDigest) -> Option<TransactionEffects> {
         (**self).get_transaction_effects(tx_digest)
     }
 
     fn multi_get_transaction_effects(
         &self,
         tx_digests: &[TransactionDigest],
-    ) -> Result<Vec<Option<TransactionEffects>>> {
+    ) -> Vec<Option<TransactionEffects>> {
         (**self).multi_get_transaction_effects(tx_digests)
     }
 
-    fn get_events(
-        &self,
-        event_digest: &TransactionEventsDigest,
-    ) -> Result<Option<TransactionEvents>> {
+    fn get_events(&self, event_digest: &TransactionEventsDigest) -> Option<TransactionEvents> {
         (**self).get_events(event_digest)
     }
 
     fn multi_get_events(
         &self,
         event_digests: &[TransactionEventsDigest],
-    ) -> Result<Vec<Option<TransactionEvents>>> {
+    ) -> Vec<Option<TransactionEvents>> {
         (**self).multi_get_events(event_digests)
     }
 
     fn get_full_checkpoint_contents_by_sequence_number(
         &self,
         sequence_number: CheckpointSequenceNumber,
-    ) -> Result<Option<FullCheckpointContents>> {
+    ) -> Option<FullCheckpointContents> {
         (**self).get_full_checkpoint_contents_by_sequence_number(sequence_number)
     }
 
     fn get_full_checkpoint_contents(
         &self,
         digest: &CheckpointContentsDigest,
-    ) -> Result<Option<FullCheckpointContents>> {
+    ) -> Option<FullCheckpointContents> {
         (**self).get_full_checkpoint_contents(digest)
     }
 
@@ -526,7 +490,7 @@ impl<T: ReadStore + ?Sized> ReadStore for Box<T> {
 }
 
 impl<T: ReadStore + ?Sized> ReadStore for Arc<T> {
-    fn get_committee(&self, epoch: EpochId) -> Result<Option<Arc<Committee>>> {
+    fn get_committee(&self, epoch: EpochId) -> Option<Arc<Committee>> {
         (**self).get_committee(epoch)
     }
 
@@ -554,87 +518,75 @@ impl<T: ReadStore + ?Sized> ReadStore for Arc<T> {
         (**self).get_lowest_available_checkpoint()
     }
 
-    fn get_checkpoint_by_digest(
-        &self,
-        digest: &CheckpointDigest,
-    ) -> Result<Option<VerifiedCheckpoint>> {
+    fn get_checkpoint_by_digest(&self, digest: &CheckpointDigest) -> Option<VerifiedCheckpoint> {
         (**self).get_checkpoint_by_digest(digest)
     }
 
     fn get_checkpoint_by_sequence_number(
         &self,
         sequence_number: CheckpointSequenceNumber,
-    ) -> Result<Option<VerifiedCheckpoint>> {
+    ) -> Option<VerifiedCheckpoint> {
         (**self).get_checkpoint_by_sequence_number(sequence_number)
     }
 
     fn get_checkpoint_contents_by_digest(
         &self,
         digest: &CheckpointContentsDigest,
-    ) -> Result<Option<CheckpointContents>> {
+    ) -> Option<CheckpointContents> {
         (**self).get_checkpoint_contents_by_digest(digest)
     }
 
     fn get_checkpoint_contents_by_sequence_number(
         &self,
         sequence_number: CheckpointSequenceNumber,
-    ) -> Result<Option<CheckpointContents>> {
+    ) -> Option<CheckpointContents> {
         (**self).get_checkpoint_contents_by_sequence_number(sequence_number)
     }
 
-    fn get_transaction(
-        &self,
-        tx_digest: &TransactionDigest,
-    ) -> Result<Option<Arc<VerifiedTransaction>>> {
+    fn get_transaction(&self, tx_digest: &TransactionDigest) -> Option<Arc<VerifiedTransaction>> {
         (**self).get_transaction(tx_digest)
     }
 
     fn multi_get_transactions(
         &self,
         tx_digests: &[TransactionDigest],
-    ) -> Result<Vec<Option<Arc<VerifiedTransaction>>>> {
+    ) -> Vec<Option<Arc<VerifiedTransaction>>> {
         (**self).multi_get_transactions(tx_digests)
     }
 
-    fn get_transaction_effects(
-        &self,
-        tx_digest: &TransactionDigest,
-    ) -> Result<Option<TransactionEffects>> {
+    fn get_transaction_effects(&self, tx_digest: &TransactionDigest) -> Option<TransactionEffects> {
         (**self).get_transaction_effects(tx_digest)
     }
 
     fn multi_get_transaction_effects(
         &self,
         tx_digests: &[TransactionDigest],
-    ) -> Result<Vec<Option<TransactionEffects>>> {
+    ) -> Vec<Option<TransactionEffects>> {
         (**self).multi_get_transaction_effects(tx_digests)
     }
 
-    fn get_events(
-        &self,
-        event_digest: &TransactionEventsDigest,
-    ) -> Result<Option<TransactionEvents>> {
+    fn get_events(&self, event_digest: &TransactionEventsDigest) -> Option<TransactionEvents> {
         (**self).get_events(event_digest)
     }
 
     fn multi_get_events(
         &self,
         event_digests: &[TransactionEventsDigest],
-    ) -> Result<Vec<Option<TransactionEvents>>> {
+    ) -> Vec<Option<TransactionEvents>> {
         (**self).multi_get_events(event_digests)
     }
 
     fn get_full_checkpoint_contents_by_sequence_number(
         &self,
         sequence_number: CheckpointSequenceNumber,
-    ) -> Result<Option<FullCheckpointContents>> {
+    ) -> Option<FullCheckpointContents> {
         (**self).get_full_checkpoint_contents_by_sequence_number(sequence_number)
     }
 
     fn get_full_checkpoint_contents(
         &self,
         digest: &CheckpointContentsDigest,
-    ) -> Result<Option<FullCheckpointContents>> {
+    ) -> Option<FullCheckpointContents> {
         (**self).get_full_checkpoint_contents(digest)
     }
 
