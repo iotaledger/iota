@@ -27,7 +27,7 @@ use crate::{
     core_thread::CoreThreadDispatcher,
     dag_state::DagState,
     error::{ConsensusError, ConsensusResult},
-    network::{BlockStream, NetworkService, SerializedBlock},
+    network::{BlockStream, NetworkService, SerializedBlock, SerializedHeaderAndTransactions},
     stake_aggregator::{QuorumThreshold, StakeAggregator},
     storage::Store,
     synchronizer::SynchronizerHandle,
@@ -88,9 +88,10 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
         fail_point_async!("consensus-rpc-response");
 
         let peer_hostname = &self.context.committee.authority(peer).hostname;
-
+        let serialized_block_and_transactions =
+            SerializedHeaderAndTransactions::try_from(serialized_block)?;
         let signed_block_header: SignedBlockHeader =
-            bcs::from_bytes(&serialized_block.serialized_block_header)
+            bcs::from_bytes(&serialized_block_and_transactions.serialized_block_header)
                 .map_err(ConsensusError::MalformedBlockHeader)?;
 
         // Reject blocks not produced by the peer.
@@ -127,7 +128,7 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
 
         if signed_block_header.transactions_commitment()
             != TransactionsCommitment::compute_transactions_commitment(
-                &serialized_block.serialized_transactions,
+                &serialized_block_and_transactions.serialized_transactions,
             )
             .expect("we should expect correct computation of the transactions commitment")
         {
@@ -140,16 +141,16 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
 
         let verified_block_header = VerifiedBlockHeader::new_verified(
             signed_block_header,
-            serialized_block.serialized_block_header,
+            serialized_block_and_transactions.serialized_block_header,
         );
         let transactions: Vec<Transaction> =
-            bcs::from_bytes(&serialized_block.serialized_transactions)
+            bcs::from_bytes(&serialized_block_and_transactions.serialized_transactions)
                 .map_err(ConsensusError::MalformedTransactions)?;
         let verified_transactions = VerifiedTransactions::new(
             transactions,
             verified_block_header.reference(),
             verified_block_header.transactions_commitment(),
-            serialized_block.serialized_transactions,
+            serialized_block_and_transactions.serialized_transactions,
         );
         let verified_block = VerifiedBlock::new(verified_block_header, verified_transactions);
 
@@ -281,7 +282,8 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
             dag_state
                 .get_cached_blocks(self.context.own_index, last_received + 1)
                 .into_iter()
-                .map(SerializedBlock::from),
+                // TODO::deal with possible error in try_from
+                .map(|block| SerializedBlock::try_from(block).unwrap()),
         );
 
         let broadcasted_blocks = BroadcastedBlockStream::new(
@@ -292,9 +294,10 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
 
         // Return a stream of blocks that first yields missed blocks as requested, then
         // new blocks.
-        Ok(Box::pin(
-            missed_blocks.chain(broadcasted_blocks.map(SerializedBlock::from)),
-        ))
+        // TODO::deal with possible error in try_from
+        Ok(Box::pin(missed_blocks.chain(
+            broadcasted_blocks.map(|block| SerializedBlock::try_from(block).unwrap()),
+        )))
     }
 
     async fn handle_fetch_block_headers(
@@ -368,7 +371,7 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
         peer: AuthorityIndex,
         block_refs: Vec<BlockRef>,
         highest_accepted_rounds: Vec<Round>,
-    ) -> ConsensusResult<(Vec<Bytes>, Vec<Bytes>)> {
+    ) -> ConsensusResult<Vec<Bytes>> {
         fail_point_async!("consensus-rpc-response");
 
         const MAX_ADDITIONAL_BLOCKS: usize = 10;
@@ -424,8 +427,8 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
             .chain(ancestor_blocks)
             .flatten()
             .map(|block| {
-                let (serialized_header, serialized_transactions) = block.serialized();
-                (serialized_header.clone(), serialized_transactions.clone())
+                // TODO::propagate error correctly
+                SerializedBlock::try_from(block).unwrap().serialized_block
             })
             .collect();
 
@@ -780,7 +783,7 @@ mod tests {
             _block_refs: Vec<BlockRef>,
             _highest_accepted_rounds: Vec<Round>,
             _timeout: Duration,
-        ) -> ConsensusResult<(Vec<Bytes>, Vec<Bytes>)> {
+        ) -> ConsensusResult<Vec<Bytes>> {
             unimplemented!("Unimplemented")
         }
 
@@ -855,7 +858,7 @@ mod tests {
         );
 
         let service = authority_service.clone();
-        let serialized_block = SerializedBlock::from(input_block.clone());
+        let serialized_block = SerializedBlock::try_from(input_block.clone()).unwrap();
 
         tokio::spawn(async move {
             service

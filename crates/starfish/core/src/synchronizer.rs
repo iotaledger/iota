@@ -1185,7 +1185,7 @@ mod tests {
         core_thread::{CoreThreadDispatcher, tests::MockCoreThreadDispatcher},
         dag_state::DagState,
         error::{ConsensusError, ConsensusResult},
-        network::{BlockStream, NetworkClient},
+        network::{BlockStream, NetworkClient, SerializedBlock},
         storage::mem_store::MemStore,
         synchronizer::{
             FETCH_BLOCKS_CONCURRENCY, FETCH_REQUEST_TIMEOUT, InflightBlockHeadersMap,
@@ -1258,18 +1258,15 @@ mod tests {
             block_refs: Vec<BlockRef>,
             _highest_accepted_rounds: Vec<Round>,
             _timeout: Duration,
-        ) -> ConsensusResult<(Vec<Bytes>, Vec<Bytes>)> {
+        ) -> ConsensusResult<Vec<Bytes>> {
             let mut lock = self.fetch_blocks_requests.lock().await;
             let response = lock
                 .remove(&(block_refs, peer))
                 .expect("Unexpected fetch blocks request made");
 
-            let mut serialized_headers = vec![];
-            let mut serialized_block_transactions = vec![];
+            let mut serialized_blocks = vec![];
             for block in response.0.into_iter() {
-                let (serialized_header, serialized_transactions) = block.serialized();
-                serialized_headers.push(serialized_header.clone());
-                serialized_block_transactions.push(serialized_transactions.clone());
+                serialized_blocks.push(SerializedBlock::try_from(block).unwrap().serialized_block);
             }
 
             drop(lock);
@@ -1278,7 +1275,7 @@ mod tests {
                 sleep(latency).await;
             }
 
-            Ok((serialized_headers, serialized_block_transactions))
+            Ok(serialized_blocks)
         }
 
         async fn fetch_block_headers(

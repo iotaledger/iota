@@ -120,8 +120,7 @@ impl NetworkClient for TonicClient {
             .filter_map(move |b| async move {
                 match b {
                     Ok(response) => Some(SerializedBlock {
-                        serialized_block_header: response.serialized_block_header,
-                        serialized_transactions: response.serialized_transactions,
+                        serialized_block: response.vec_serialized_blocks,
                     }),
                     Err(e) => {
                         debug!("Network error received from {}: {e:?}", peer);
@@ -142,7 +141,7 @@ impl NetworkClient for TonicClient {
         block_refs: Vec<BlockRef>,
         highest_accepted_rounds: Vec<Round>,
         timeout: Duration,
-    ) -> ConsensusResult<(Vec<Bytes>, Vec<Bytes>)> {
+    ) -> ConsensusResult<Vec<Bytes>> {
         let mut client = self.get_client(peer, timeout).await?;
         let mut request = Request::new(FetchBlocksRequest {
             block_refs: block_refs
@@ -169,20 +168,14 @@ impl NetworkClient for TonicClient {
                 }
             })?
             .into_inner();
-        let mut vec_serialized_block_header = vec![];
-        let mut vec_serialized_block_transactions = vec![];
         let mut total_fetched_bytes = 0;
+        let mut vec_serialized_blocks = vec![];
         loop {
             match stream.message().await {
                 Ok(Some(response)) => {
-                    for b in &response.vec_serialized_block_header {
+                    for b in &response.vec_serialized_blocks {
                         total_fetched_bytes += b.len();
                     }
-                    for b in &response.vec_serialized_transactions {
-                        total_fetched_bytes += b.len();
-                    }
-                    vec_serialized_block_header.extend(response.vec_serialized_block_header);
-                    vec_serialized_block_transactions.extend(response.vec_serialized_transactions);
                     if total_fetched_bytes > MAX_TOTAL_FETCHED_BYTES {
                         info!(
                             "fetch_blocks() fetched bytes exceeded limit: {} > {}, terminating stream.",
@@ -190,12 +183,13 @@ impl NetworkClient for TonicClient {
                         );
                         break;
                     }
+                    vec_serialized_blocks.extend(response.vec_serialized_blocks);
                 }
                 Ok(None) => {
                     break;
                 }
                 Err(e) => {
-                    if vec_serialized_block_header.is_empty() {
+                    if total_fetched_bytes == 0 {
                         if e.code() == tonic::Code::DeadlineExceeded {
                             return Err(ConsensusError::NetworkRequestTimeout(format!(
                                 "fetch_blocks failed mid-stream: {e:?}"
@@ -211,10 +205,7 @@ impl NetworkClient for TonicClient {
                 }
             }
         }
-        Ok((
-            vec_serialized_block_header,
-            vec_serialized_block_transactions,
-        ))
+        Ok(vec_serialized_blocks)
     }
 
     // Returns a vector of serialized block headers
@@ -527,9 +518,11 @@ impl<S: NetworkService> ConsensusService for TonicServiceProxy<S> {
             .await
             .map_err(|e| tonic::Status::internal(format!("{e:?}")))?
             .map(|block| {
+                let serialized_block = SerializedBlock::try_from(block)
+                    .map_err(|e| tonic::Status::internal(format!("serialization error: {e:?}")))?;
+
                 Ok(SubscribeBlocksResponse {
-                    serialized_block_header: block.serialized_block_header,
-                    serialized_transactions: block.serialized_transactions,
+                    vec_serialized_blocks: serialized_block.serialized_block,
                 })
             });
         let rate_limited_stream =
@@ -571,7 +564,7 @@ impl<S: NetworkService> ConsensusService for TonicServiceProxy<S> {
             .await
             .map_err(|e| tonic::Status::internal(format!("{e:?}")))?;
         let responses: std::vec::IntoIter<Result<FetchBlockHeadersResponse, tonic::Status>> =
-            chunk_block_headers(blocks, MAX_FETCH_RESPONSE_BYTES)
+            chunk_data(blocks, MAX_FETCH_RESPONSE_BYTES)
                 .into_iter()
                 .map(|block_headers| {
                     Ok(FetchBlockHeadersResponse {
@@ -616,12 +609,11 @@ impl<S: NetworkService> ConsensusService for TonicServiceProxy<S> {
             .await
             .map_err(|e| tonic::Status::internal(format!("{e:?}")))?;
         let responses: std::vec::IntoIter<Result<FetchBlocksResponse, tonic::Status>> =
-            chunk_blocks(blocks, MAX_FETCH_RESPONSE_BYTES)
+            chunk_data(blocks, MAX_FETCH_RESPONSE_BYTES)
                 .into_iter()
-                .map(|(block_headers, block_transactions)| {
+                .map(|serialized_block| {
                     Ok(FetchBlocksResponse {
-                        vec_serialized_block_header: block_headers,
-                        vec_serialized_transactions: block_transactions,
+                        vec_serialized_blocks: serialized_block,
                     })
                 })
                 .collect::<Vec<_>>()
@@ -698,7 +690,7 @@ impl<S: NetworkService> ConsensusService for TonicServiceProxy<S> {
             .await
             .map_err(|e| tonic::Status::internal(format!("{e:?}")))?;
         let responses: std::vec::IntoIter<Result<FetchLatestBlockHeadersResponse, tonic::Status>> =
-            chunk_block_headers(blocks, MAX_FETCH_RESPONSE_BYTES)
+            chunk_data(blocks, MAX_FETCH_RESPONSE_BYTES)
                 .into_iter()
                 .map(|block_headers| {
                     Ok(FetchLatestBlockHeadersResponse {
@@ -1104,11 +1096,8 @@ impl ResponseHandler for MetricsResponseCallback {
 /// Network message types.
 #[derive(Clone, prost::Message)]
 pub(crate) struct SendBlockRequest {
-    // Serialized SignedBlockHeader and transactions.
-    #[prost(bytes = "bytes", tag = "1")]
-    serialized_block_header: Bytes,
-    #[prost(bytes = "bytes", tag = "2")]
-    serialized_transactions: Bytes,
+    #[prost(bytes = "bytes", repeated, tag = "1")]
+    vec_serialized_blocks: Vec<Bytes>,
 }
 
 #[derive(Clone, prost::Message)]
@@ -1123,9 +1112,7 @@ pub(crate) struct SubscribeBlocksRequest {
 #[derive(Clone, prost::Message)]
 pub(crate) struct SubscribeBlocksResponse {
     #[prost(bytes = "bytes", tag = "1")]
-    serialized_block_header: Bytes,
-    #[prost(bytes = "bytes", tag = "2")]
-    serialized_transactions: Bytes,
+    vec_serialized_blocks: Bytes,
 }
 
 #[derive(Clone, prost::Message)]
@@ -1157,9 +1144,7 @@ pub(crate) struct FetchBlocksRequest {
 #[derive(Clone, prost::Message)]
 pub(crate) struct FetchBlocksResponse {
     #[prost(bytes = "bytes", repeated, tag = "1")]
-    vec_serialized_block_header: Vec<Bytes>,
-    #[prost(bytes = "bytes", repeated, tag = "2")]
-    vec_serialized_transactions: Vec<Bytes>,
+    vec_serialized_blocks: Vec<Bytes>,
 }
 
 #[derive(Clone, prost::Message)]
@@ -1205,53 +1190,25 @@ pub(crate) struct GetLatestRoundsResponse {
     highest_accepted: Vec<u32>,
 }
 
-fn chunk_block_headers(block_headers: Vec<Bytes>, chunk_limit: usize) -> Vec<Vec<Bytes>> {
+// Splits a list of byte sequences into chunks where each chunk's total size
+// does not exceed the specified `chunk_limit`.
+// Returns a vector of chunks, each being a vector of `Bytes`.
+fn chunk_data(data: Vec<Bytes>, chunk_limit: usize) -> Vec<Vec<Bytes>> {
     let mut chunks = vec![];
     let mut chunk = vec![];
     let mut chunk_size = 0;
-    for block in block_headers.into_iter() {
-        let block_size = block.len();
-        if !chunk.is_empty() && chunk_size + block_size > chunk_limit {
+    for piece in data.into_iter() {
+        let piece_size = piece.len();
+        if !chunk.is_empty() && chunk_size + piece_size > chunk_limit {
             chunks.push(chunk);
             chunk = vec![];
             chunk_size = 0;
         }
-        chunk.push(block);
-        chunk_size += block_size;
+        chunk.push(piece);
+        chunk_size += piece_size;
     }
     if !chunk.is_empty() {
         chunks.push(chunk);
-    }
-    chunks
-}
-
-fn chunk_blocks(
-    serialized_blocks: (Vec<Bytes>, Vec<Bytes>),
-    chunk_limit: usize,
-) -> Vec<(Vec<Bytes>, Vec<Bytes>)> {
-    let mut chunks = vec![];
-    let mut chunk_header = vec![];
-    let mut chunk_transactions = vec![];
-    let mut chunk_size = 0;
-    let serialized_block_headers = serialized_blocks.0;
-    let serialized_block_transactions = serialized_blocks.1;
-    for (block_header, block_transactions) in serialized_block_headers
-        .iter()
-        .zip(serialized_block_transactions)
-    {
-        let block_size = block_header.len() + block_transactions.len();
-        if !chunk_header.is_empty() && chunk_size + block_size > chunk_limit {
-            chunks.push((chunk_header, chunk_transactions));
-            chunk_header = vec![];
-            chunk_transactions = vec![];
-            chunk_size = 0;
-        }
-        chunk_header.push(block_header.clone());
-        chunk_transactions.push(block_transactions.clone());
-        chunk_size += block_size;
-    }
-    if !chunk_header.is_empty() {
-        chunks.push((chunk_header, chunk_transactions));
     }
     chunks
 }

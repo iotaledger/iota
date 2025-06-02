@@ -10,15 +10,17 @@ use parking_lot::Mutex;
 use rstest::rstest;
 
 use super::{
-    NetworkClient, SerializedBlock, test_network::TestService, tonic_network::TonicManager,
+    NetworkClient, SerializedBlock, SerializedHeaderAndTransactions, test_network::TestService,
+    tonic_network::TonicManager,
 };
 use crate::{Round, context::Context};
 
 fn serialized_block_for_round(round: Round) -> SerializedBlock {
-    SerializedBlock {
+    SerializedBlock::try_from(SerializedHeaderAndTransactions {
         serialized_block_header: Bytes::from(vec![round as u8; 16]),
         serialized_transactions: Bytes::from(vec![round as u8; 16]),
-    }
+    })
+    .unwrap()
 }
 
 fn service_with_own_blocks() -> Arc<Mutex<TestService>> {

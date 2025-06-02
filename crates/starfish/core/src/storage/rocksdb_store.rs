@@ -22,7 +22,7 @@ use crate::{
     },
     commit::{CommitAPI as _, CommitDigest, CommitIndex, CommitRange, CommitRef, TrustedCommit},
     error::{ConsensusError, ConsensusResult},
-    network::SerializedBlock,
+    network::SerializedHeaderAndTransactions,
 };
 
 /// Persistent storage with RocksDB.
@@ -220,7 +220,7 @@ impl Store for RocksDBStore {
             if let (Some(serialized_block_header), Some(serialized_transactions)) =
                 (serialized_block_header, serialized_transactions)
             {
-                let block = VerifiedBlock::try_from(SerializedBlock {
+                let block = VerifiedBlock::try_from(SerializedHeaderAndTransactions {
                     serialized_block_header,
                     serialized_transactions,
                 })?;

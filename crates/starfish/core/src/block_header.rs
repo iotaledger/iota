@@ -23,7 +23,7 @@ use crate::{
     context::Context,
     ensure,
     error::{ConsensusError, ConsensusResult},
-    network::SerializedBlock,
+    network::SerializedHeaderAndTransactions,
 };
 
 /// Round number of a block.
@@ -750,10 +750,10 @@ impl Deref for VerifiedBlock {
     }
 }
 
-impl TryFrom<SerializedBlock> for VerifiedBlock {
+impl TryFrom<SerializedHeaderAndTransactions> for VerifiedBlock {
     type Error = ConsensusError;
 
-    fn try_from(serialized_block: SerializedBlock) -> ConsensusResult<Self> {
+    fn try_from(serialized_block: SerializedHeaderAndTransactions) -> ConsensusResult<Self> {
         let signed_block_header: SignedBlockHeader =
             bcs::from_bytes(&serialized_block.serialized_block_header)
                 .map_err(ConsensusError::MalformedBlockHeader)?;

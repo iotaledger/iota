@@ -64,7 +64,7 @@ use crate::{
     core_thread::CoreThreadDispatcher,
     dag_state::DagState,
     error::{ConsensusError, ConsensusResult},
-    network::{NetworkClient, SerializedBlock},
+    network::{NetworkClient, SerializedBlock, SerializedHeaderAndTransactions},
     stake_aggregator::{QuorumThreshold, StakeAggregator},
 };
 
@@ -602,47 +602,38 @@ impl<C: NetworkClient> CommitSyncer<C> {
                         )
                         .await?;
                     // 5. Verify the same number of blocks are returned as requested.
-                    if request_block_refs.len() != serialized_blocks.0.len()
-                        || request_block_refs.len() != serialized_blocks.1.len()
-                    {
+                    if request_block_refs.len() != serialized_blocks.len() {
                         return Err(ConsensusError::UnexpectedNumberOfBlocksFetched {
                             authority: target_authority,
                             requested: request_block_refs.len(),
-                            received_headers: serialized_blocks.0.len(),
-                            received_transactions: serialized_blocks.1.len(),
+                            received_blocks: serialized_blocks.len(),
                         });
                     }
                     // 6. Verify returned blocks have valid formats.
                     let verified_blocks = serialized_blocks
-                        .0
                         .iter()
                         .cloned()
-                        .zip(serialized_blocks.1)
                         .zip(request_block_refs)
-                        .map(
-                            |(
-                                (serialized_block_header, serialized_transactions),
-                                requested_block_ref,
-                            )| {
-                                let block = VerifiedBlock::try_from(SerializedBlock {
-                                    serialized_block_header,
-                                    serialized_transactions,
-                                })?;
+                        .map(|(serialized_block, requested_block_ref)| {
+                            let block = VerifiedBlock::try_from(
+                                SerializedHeaderAndTransactions::try_from(SerializedBlock {
+                                    serialized_block,
+                                })?,
+                            )?;
 
-                                // 7. Verify the returned blocks match the requested block refs.
-                                // If they do match, the returned blocks can be considered verified
-                                // as well.
-                                if *requested_block_ref != block.reference() {
-                                    return Err(ConsensusError::UnexpectedBlockForCommit {
-                                        peer: target_authority,
-                                        requested: *requested_block_ref,
-                                        received: block.reference(),
-                                    });
-                                }
+                            // 7. Verify the returned blocks match the requested block refs.
+                            // If they do match, the returned blocks can be considered verified
+                            // as well.
+                            if *requested_block_ref != block.reference() {
+                                return Err(ConsensusError::UnexpectedBlockForCommit {
+                                    peer: target_authority,
+                                    requested: *requested_block_ref,
+                                    received: block.reference(),
+                                });
+                            }
 
-                                Ok(block)
-                            },
-                        )
+                            Ok(block)
+                        })
                         .collect::<ConsensusResult<Vec<_>>>()?;
 
                     Ok(verified_blocks)
@@ -878,7 +869,7 @@ mod tests {
             _block_refs: Vec<BlockRef>,
             _highest_accepted_rounds: Vec<Round>,
             _timeout: Duration,
-        ) -> ConsensusResult<(Vec<Bytes>, Vec<Bytes>)> {
+        ) -> ConsensusResult<Vec<Bytes>> {
             unimplemented!("Unimplemented")
         }
 

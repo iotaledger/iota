@@ -239,7 +239,10 @@ mod test {
         block_header::BlockRef,
         commit::CommitRange,
         error::ConsensusResult,
-        network::{BlockStream, SerializedBlock, test_network::TestService},
+        network::{
+            BlockStream, SerializedBlock, SerializedHeaderAndTransactions,
+            test_network::TestService,
+        },
         storage::mem_store::MemStore,
     };
 
@@ -261,7 +264,13 @@ mod test {
         ) -> ConsensusResult<BlockStream> {
             let block_stream = stream::unfold((), |_| async {
                 sleep(Duration::from_millis(1)).await;
-                Some((SerializedBlock::new_for_test(Bytes::from(vec![1u8; 8])), ()))
+                Some((
+                    SerializedBlock::try_from(SerializedHeaderAndTransactions::new_for_test(
+                        Bytes::from(vec![1u8; 8]),
+                    ))
+                    .unwrap(),
+                    (),
+                ))
             })
             .take(10);
             Ok(Box::pin(block_stream))
@@ -273,7 +282,7 @@ mod test {
             _block_refs: Vec<BlockRef>,
             _highest_accepted_rounds: Vec<Round>,
             _timeout: Duration,
-        ) -> ConsensusResult<(Vec<Bytes>, Vec<Bytes>)> {
+        ) -> ConsensusResult<Vec<Bytes>> {
             unimplemented!("Unimplemented")
         }
 
@@ -341,7 +350,10 @@ mod test {
             assert_eq!(*p, peer);
             assert_eq!(
                 *block,
-                SerializedBlock::new_for_test(Bytes::from(vec![1u8; 8]))
+                SerializedBlock::try_from(SerializedHeaderAndTransactions::new_for_test(
+                    Bytes::from(vec![1u8; 8])
+                ))
+                .unwrap()
             );
         }
     }

@@ -34,7 +34,7 @@ use crate::{
     Round, VerifiedBlockHeader,
     block_header::{BlockRef, VerifiedBlock},
     commit::{CommitRange, TrustedCommit},
-    error::ConsensusResult,
+    error::{ConsensusError, ConsensusResult},
 };
 
 // Tonic generated RPC stubs.
@@ -85,7 +85,7 @@ pub(crate) trait NetworkClient: Send + Sync + Sized + 'static {
         block_refs: Vec<BlockRef>,
         highest_accepted_rounds: Vec<Round>,
         timeout: Duration,
-    ) -> ConsensusResult<(Vec<Bytes>, Vec<Bytes>)>;
+    ) -> ConsensusResult<Vec<Bytes>>;
 
     // TODO: add a parameter for maximum total size of blocks returned.
     /// Fetches serialized `SignedBlockHeader`s from a peer. It also might
@@ -155,15 +155,14 @@ pub(crate) trait NetworkService: Send + Sync + 'static {
     ) -> ConsensusResult<Vec<Bytes>>;
 
     /// Handles the request to fetch blocks by references from the peer.
-    /// The function returns pair of Vec<Bytes>. The first vector contains
-    /// serialization of the headers of blocks from block_refs
-    /// and the second contains serializations of transactions of these blocks.
+    /// The function returns Vec<Bytes>. Each element is a serialization of
+    /// header and transactions of a block.
     async fn handle_fetch_blocks(
         &self,
         peer: AuthorityIndex,
         block_refs: Vec<BlockRef>,
         highest_accepted_rounds: Vec<Round>,
-    ) -> ConsensusResult<(Vec<Bytes>, Vec<Bytes>)>;
+    ) -> ConsensusResult<Vec<Bytes>>;
 
     /// Handles the request to fetch commits by index range from the peer.
     async fn handle_fetch_commits(
@@ -188,13 +187,48 @@ pub(crate) trait NetworkService: Send + Sync + 'static {
     ) -> ConsensusResult<(Vec<Round>, Vec<Round>)>;
 }
 
-#[derive(Clone, PartialEq, Eq, Default, Serialize, Deserialize, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub(crate) struct SerializedBlock {
+    pub(crate) serialized_block: Bytes,
+}
+
+impl TryFrom<SerializedHeaderAndTransactions> for SerializedBlock {
+    type Error = ConsensusError;
+
+    fn try_from(
+        serialized_header_and_transactions: SerializedHeaderAndTransactions,
+    ) -> ConsensusResult<Self> {
+        let bytes = bcs::to_bytes(&serialized_header_and_transactions)
+            .map_err(ConsensusError::SerializationFailure)?;
+        Ok(Self {
+            serialized_block: Bytes::from(bytes),
+        })
+    }
+}
+
+impl TryFrom<VerifiedBlock> for SerializedBlock {
+    type Error = ConsensusError;
+    fn try_from(verified_block: VerifiedBlock) -> ConsensusResult<Self> {
+        let (serialized_block_header, serialized_transactions) = verified_block.serialized();
+        let serialized_header_and_transactions = SerializedHeaderAndTransactions {
+            serialized_block_header: serialized_block_header.clone(),
+            serialized_transactions: serialized_transactions.clone(),
+        };
+        let bytes = bcs::to_bytes(&serialized_header_and_transactions)
+            .map_err(ConsensusError::SerializationFailure)?;
+        Ok(Self {
+            serialized_block: Bytes::from(bytes),
+        })
+    }
+}
+
+#[derive(Clone, PartialEq, Eq, Default, Serialize, Deserialize, Debug)]
+pub(crate) struct SerializedHeaderAndTransactions {
     pub(crate) serialized_block_header: Bytes,
     pub(crate) serialized_transactions: Bytes,
 }
 
-impl SerializedBlock {
+impl SerializedHeaderAndTransactions {
     #[cfg(test)]
     pub(crate) fn new_for_test(bytes: Bytes) -> Self {
         Self {
@@ -204,12 +238,20 @@ impl SerializedBlock {
     }
 }
 
-impl From<VerifiedBlock> for SerializedBlock {
+impl From<VerifiedBlock> for SerializedHeaderAndTransactions {
     fn from(verified_block: VerifiedBlock) -> Self {
         let (serialized_block_header, serialized_transactions) = verified_block.serialized();
         Self {
             serialized_block_header: serialized_block_header.clone(),
             serialized_transactions: serialized_transactions.clone(),
         }
+    }
+}
+
+impl TryFrom<SerializedBlock> for SerializedHeaderAndTransactions {
+    type Error = ConsensusError;
+
+    fn try_from(serialized_block: SerializedBlock) -> ConsensusResult<Self> {
+        bcs::from_bytes(&serialized_block.serialized_block).map_err(ConsensusError::MalformedBlock)
     }
 }
