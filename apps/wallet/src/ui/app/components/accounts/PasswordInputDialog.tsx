@@ -115,19 +115,18 @@ export function PasswordModalDialog({
         }
 
         checkLockStateOnOpen();
-
         return () => {
             if (interval) clearInterval(interval);
         };
     }, [open]);
 
     // Clear the interval and error if the dialog closed but not unmounted
-    // useEffect(() => {
-    //     if (!open && countdownError?.interval) {
-    //         clearInterval(countdownError.interval);
-    //         setCountdownError(null);
-    //     }
-    // }, [open]);
+    useEffect(() => {
+        if (!open && countdownError?.interval) {
+            clearInterval(countdownError.interval);
+            setCountdownError(null);
+        }
+    }, [open]);
 
     // Clear the interval if the dialog unmounted
     useEffect(() => {
@@ -155,6 +154,7 @@ export function PasswordModalDialog({
     async function handleOnSubmit({ password }: { password: string }) {
         let remainingTime: number;
         let interval: NodeJS.Timeout;
+        setMessageError({ message: '' });
 
         function updateCountdown() {
             const message = `Too many failed attempts. Please try again in ${remainingTime} ${remainingTime === 1 ? 'second' : 'seconds'}.`;
