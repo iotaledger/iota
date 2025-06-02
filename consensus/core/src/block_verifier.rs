@@ -123,9 +123,31 @@ impl BlockVerifier for SignedBlockVerifier {
             });
         }
         if block.round() == 0 {
+            // Update prometheus metric
+            self.context
+                .metrics
+                .node_metrics
+                .semantically_invalid_blocks
+                .with_label_values(&[committee.authority(block.author()).hostname.clone(), "verify".to_string(), "UnexpectedGenesisBlock".to_string()])
+                .inc();
+            // Update validator score
+            self.context
+                .scoring_metrics
+                .update_semantically_invalid_blocks(block.author(),1);
             return Err(ConsensusError::UnexpectedGenesisBlock);
         }
         if !committee.is_valid_index(block.author()) {
+            // Update prometheus metric
+            self.context
+                .metrics
+                .node_metrics
+                .semantically_invalid_blocks
+                .with_label_values(&[committee.authority(block.author()).hostname.clone(), "verify".to_string(), "InvalidAuthorityIndex".to_string()])
+                .inc();
+            // Update validator score
+            self.context
+                .scoring_metrics
+                .update_semantically_invalid_blocks(block.author(),1);
             return Err(ConsensusError::InvalidAuthorityIndex {
                 index: block.author(),
                 max: committee.size() - 1,
@@ -138,12 +160,32 @@ impl BlockVerifier for SignedBlockVerifier {
         // Verify the block's ancestor refs are consistent with the block's round,
         // and total parent stakes reach quorum.
         if block.ancestors().len() > committee.size() {
+            self.context
+                .metrics
+                .node_metrics
+                .semantically_invalid_blocks
+                .with_label_values(&[committee.authority(block.author()).hostname.clone(), "verify".to_string(), "TooManyAncestors".to_string()])
+                .inc();
+            // Update validator score
+            self.context
+                .scoring_metrics
+                .update_semantically_invalid_blocks(block.author(),1);
             return Err(ConsensusError::TooManyAncestors(
                 block.ancestors().len(),
                 committee.size(),
             ));
         }
         if block.ancestors().is_empty() {
+            self.context
+                .metrics
+                .node_metrics
+                .semantically_invalid_blocks
+                .with_label_values(&[committee.authority(block.author()).hostname.clone(), "verify".to_string(), "InsufficientParentStakes".to_string()])
+                .inc();
+            // Update validator score
+            self.context
+                .scoring_metrics
+                .update_semantically_invalid_blocks(block.author(),1);
             return Err(ConsensusError::InsufficientParentStakes {
                 parent_stakes: 0,
                 quorum: committee.quorum_threshold(),
@@ -153,6 +195,16 @@ impl BlockVerifier for SignedBlockVerifier {
         let mut parent_stakes = 0;
         for (i, ancestor) in block.ancestors().iter().enumerate() {
             if !committee.is_valid_index(ancestor.author) {
+                self.context
+                    .metrics
+                    .node_metrics
+                    .semantically_invalid_blocks
+                    .with_label_values(&[committee.authority(block.author()).hostname.clone(), "verify".to_string(), "InvalidAuthorityIndex".to_string()])
+                    .inc();
+                // Update validator score
+                self.context
+                    .scoring_metrics
+                    .update_semantically_invalid_blocks(block.author(),1);
                 return Err(ConsensusError::InvalidAuthorityIndex {
                     index: ancestor.author,
                     max: committee.size() - 1,
@@ -161,6 +213,16 @@ impl BlockVerifier for SignedBlockVerifier {
             if (i == 0 && ancestor.author != block.author())
                 || (i > 0 && ancestor.author == block.author())
             {
+                self.context
+                    .metrics
+                    .node_metrics
+                    .semantically_invalid_blocks
+                    .with_label_values(&[committee.authority(block.author()).hostname.clone(), "verify".to_string(), "InvalidAncestorPosition".to_string()])
+                    .inc();
+                // Update validator score
+                self.context
+                    .scoring_metrics
+                    .update_semantically_invalid_blocks(block.author(),1);
                 return Err(ConsensusError::InvalidAncestorPosition {
                     block_authority: block.author(),
                     ancestor_authority: ancestor.author,
@@ -168,15 +230,45 @@ impl BlockVerifier for SignedBlockVerifier {
                 });
             }
             if ancestor.round >= block.round() {
+                self.context
+                    .metrics
+                    .node_metrics
+                    .semantically_invalid_blocks
+                    .with_label_values(&[committee.authority(block.author()).hostname.clone(), "verify".to_string(), "InvalidAncestorRound".to_string()])
+                    .inc();
+                // Update validator score
+                self.context
+                    .scoring_metrics
+                    .update_semantically_invalid_blocks(block.author(),1);
                 return Err(ConsensusError::InvalidAncestorRound {
                     ancestor: ancestor.round,
                     block: block.round(),
                 });
             }
             if ancestor.round == GENESIS_ROUND && !self.genesis.contains(ancestor) {
+                self.context
+                    .metrics
+                    .node_metrics
+                    .semantically_invalid_blocks
+                    .with_label_values(&[committee.authority(block.author()).hostname.clone(), "verify".to_string(), "InvalidGenesisAncestor".to_string()])
+                    .inc();
+                // Update validator score
+                self.context
+                    .scoring_metrics
+                    .update_semantically_invalid_blocks(block.author(),1);
                 return Err(ConsensusError::InvalidGenesisAncestor(*ancestor));
             }
             if seen_ancestors[ancestor.author] {
+                self.context
+                    .metrics
+                    .node_metrics
+                    .semantically_invalid_blocks
+                    .with_label_values(&[committee.authority(block.author()).hostname.clone(), "verify".to_string(), "DuplicatedAncestorsAuthority".to_string()])
+                    .inc();
+                // Update validator score
+                self.context
+                    .scoring_metrics
+                    .update_semantically_invalid_blocks(block.author(),1);
                 return Err(ConsensusError::DuplicatedAncestorsAuthority(
                     ancestor.author,
                 ));
@@ -188,6 +280,16 @@ impl BlockVerifier for SignedBlockVerifier {
             }
         }
         if !committee.reached_quorum(parent_stakes) {
+            self.context
+                .metrics
+                .node_metrics
+                .semantically_invalid_blocks
+                .with_label_values(&[committee.authority(block.author()).hostname.clone(), "verify".to_string(), "InsufficientParentStakes".to_string()])
+                .inc();
+            // Update validator score
+            self.context
+                .scoring_metrics
+                .update_semantically_invalid_blocks(block.author(),1);
             return Err(ConsensusError::InsufficientParentStakes {
                 parent_stakes,
                 quorum: committee.quorum_threshold(),
@@ -198,9 +300,25 @@ impl BlockVerifier for SignedBlockVerifier {
 
         self.check_transactions(&batch)?;
 
-        self.transaction_verifier
+        match self.transaction_verifier
             .verify_batch(&batch)
             .map_err(|e| ConsensusError::InvalidTransaction(format!("{e:?}")))
+        {
+            Err(r) =>{
+                self.context
+                    .metrics
+                    .node_metrics
+                    .semantically_invalid_blocks
+                    .with_label_values(&[committee.authority(block.author()).hostname.clone(), "verify".to_string(), "InvalidTransaction".to_string()])
+                    .inc();
+                // Update validator score
+                self.context
+                    .scoring_metrics
+                    .update_semantically_invalid_blocks(block.author(),1);
+                return Err(r);
+            }
+            Ok(o) => {return Ok(o);}
+        }
     }
 
     fn check_ancestors(
