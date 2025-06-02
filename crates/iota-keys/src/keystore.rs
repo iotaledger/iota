@@ -37,10 +37,12 @@ pub enum Keystore {
     File(FileBasedKeystore),
     InMem(InMemKeystore),
 }
+
 #[enum_dispatch]
 pub trait AccountKeystore: Send + Sync {
     fn add_key(&mut self, alias: Option<String>, keypair: IotaKeyPair)
     -> Result<(), anyhow::Error>;
+    fn remove_key(&mut self, address: &IotaAddress) -> Result<(), anyhow::Error>;
     fn keys(&self) -> Vec<PublicKey>;
     fn get_key(&self, address: &IotaAddress) -> Result<&IotaKeyPair, anyhow::Error>;
 
@@ -245,6 +247,13 @@ impl AccountKeystore for FileBasedKeystore {
             },
         );
         self.keys.insert(address, keypair);
+        self.save()?;
+        Ok(())
+    }
+
+    fn remove_key(&mut self, address: &IotaAddress) -> Result<(), anyhow::Error> {
+        self.aliases.remove(address);
+        self.keys.remove(address);
         self.save()?;
         Ok(())
     }
@@ -527,6 +536,12 @@ impl AccountKeystore for InMemKeystore {
         };
         self.aliases.insert(address, alias);
         self.keys.insert(address, keypair);
+        Ok(())
+    }
+
+    fn remove_key(&mut self, address: &IotaAddress) -> Result<(), anyhow::Error> {
+        self.aliases.remove(address);
+        self.keys.remove(address);
         Ok(())
     }
 
