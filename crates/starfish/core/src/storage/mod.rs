@@ -13,7 +13,7 @@ use starfish_config::AuthorityIndex;
 
 use crate::{
     CommitIndex,
-    block_header::{BlockRef, Round, VerifiedBlock, VerifiedBlockHeader},
+    block_header::{BlockRef, Round, VerifiedBlock, VerifiedBlockHeader, VerifiedTransactions},
     commit::{CommitInfo, CommitRange, CommitRef, TrustedCommit},
     error::ConsensusResult,
 };
@@ -23,7 +23,8 @@ pub(crate) trait Store: Send + Sync {
     /// Writes blocks, consensus commits and other data to store atomically.
     fn write(&self, write_batch: WriteBatch) -> ConsensusResult<()>;
 
-    /// Reads blocks for the given refs.
+    /// Reads complete blocks by combining transactions and headers for the
+    /// given refs.
     fn read_blocks(&self, refs: &[BlockRef]) -> ConsensusResult<Vec<Option<VerifiedBlock>>>;
 
     /// Reads block headers for the given refs.
@@ -32,9 +33,15 @@ pub(crate) trait Store: Send + Sync {
         refs: &[BlockRef],
     ) -> ConsensusResult<Vec<Option<VerifiedBlockHeader>>>;
 
-    /// Checks if blocks exist in the store.
+    /// Reads transactions for the given refs.
+    fn read_transactions(
+        &self,
+        refs: &[BlockRef],
+    ) -> ConsensusResult<Vec<Option<VerifiedTransactions>>>;
+
+    /// Checks if transactions exist in the store.
     #[cfg_attr(not(test), expect(dead_code))]
-    fn contains_blocks(&self, refs: &[BlockRef]) -> ConsensusResult<Vec<bool>>;
+    fn contains_transactions(&self, refs: &[BlockRef]) -> ConsensusResult<Vec<bool>>;
 
     /// Checks if block headers exist in the store.
     fn contains_block_headers(&self, refs: &[BlockRef]) -> ConsensusResult<Vec<bool>>;
@@ -85,7 +92,7 @@ pub(crate) trait Store: Send + Sync {
 /// Represents data to be written to the store together atomically.
 #[derive(Debug, Default)]
 pub(crate) struct WriteBatch {
-    pub(crate) blocks: Vec<VerifiedBlock>,
+    pub(crate) transactions: Vec<VerifiedTransactions>,
     pub(crate) block_headers: Vec<VerifiedBlockHeader>,
     pub(crate) commits: Vec<TrustedCommit>,
     pub(crate) commit_info: Vec<(CommitRef, CommitInfo)>,
@@ -93,13 +100,13 @@ pub(crate) struct WriteBatch {
 
 impl WriteBatch {
     pub(crate) fn new(
-        blocks: Vec<VerifiedBlock>,
+        transactions: Vec<VerifiedTransactions>,
         block_headers: Vec<VerifiedBlockHeader>,
         commits: Vec<TrustedCommit>,
         commit_info: Vec<(CommitRef, CommitInfo)>,
     ) -> Self {
         WriteBatch {
-            blocks,
+            transactions,
             block_headers,
             commits,
             commit_info,
@@ -109,8 +116,8 @@ impl WriteBatch {
     // Test setters.
 
     #[cfg(test)]
-    pub(crate) fn blocks(mut self, blocks: Vec<VerifiedBlock>) -> Self {
-        self.blocks = blocks;
+    pub(crate) fn transactions(mut self, transactions: Vec<VerifiedTransactions>) -> Self {
+        self.transactions = transactions;
         self
     }
 

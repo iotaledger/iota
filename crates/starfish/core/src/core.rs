@@ -1244,7 +1244,7 @@ mod test {
         }
         // write them in store
         store
-            .write(WriteBatch::default().blocks(all_blocks))
+            .write(WriteBatch::default().transactions(all_blocks))
             .expect("Storage error");
 
         // create dag state after all blocks have been written to store
@@ -1368,7 +1368,7 @@ mod test {
 
         // write them in store
         store
-            .write(WriteBatch::default().blocks(all_blocks))
+            .write(WriteBatch::default().transactions(all_blocks))
             .expect("Storage error");
 
         // create dag state after all blocks have been written to store
