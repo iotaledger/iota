@@ -41,7 +41,7 @@ async fn e2e_stream_checkpoints() {
     let request = Request::new(StreamRequest {
         start_index: None,
         end_index: None,
-        full: false,
+        full: None,
     });
     let mut stream = client
         .stream_checkpoints(request)

@@ -22,7 +22,7 @@ service CheckpointService {
 message StreamRequest {
   optional uint64 start_index = 1;
   optional uint64 end_index = 2;
-  bool full = 3;
+  optional bool full = 3;
 }
 
 message EpochRequest {
@@ -41,18 +41,20 @@ message Checkpoint {
 
 ### Streaming Range Logic
 
+For all cases, the `full` flag determines the data type:
+- If `full=false` (default): streams `CertifiedCheckpointSummary` (BCS-encoded in bytes field)
+- If `full=true`: streams `CheckpointData` (BCS-encoded in bytes field)
+
+The four supported range patterns:
+
 - **Both `start_index` and `end_index` omitted:**
-  - Streams the latest checkpoint and keep streaming.
+  - Streams the latest checkpoint and keeps streaming new ones as they arrive.
 - **Only `start_index` provided:**
-  - Streams from `start_index` and keep streaming.
+  - Streams from `start_index` and keeps streaming new ones as they arrive.
 - **Only `end_index` provided:**
   - Streams only the checkpoint at `end_index`.
 - **Both `start_index` and `end_index` provided:**
   - Streams from `start_index` to `end_index` (inclusive).
-- **If `full=true` and only `end_index` is set (start_index is None):**
-  - Streams the full CheckpointData for that checkpoint index (BCS-encoded in bytes field).
-- **If `full=true`, `start_index` is provided, and `end_index` is None:**
-  - Streams all full CheckpointData from `start_index` onward, including new as produced.
 
 The service does not attempt to compute a "latest" checkpoint index, making it robust to on-the-fly checkpoint generation.
 

@@ -381,7 +381,7 @@ async fn test_start_index_only() {
     let req = StreamRequest {
         start_index: Some(5),
         end_index: None,
-        full: true,
+        full: Some(true),
     };
     let mut stream = svc
         .stream_checkpoints(Request::new(req))
@@ -420,7 +420,7 @@ async fn test_start_and_end_index() {
     let req = StreamRequest {
         start_index: Some(3),
         end_index: Some(7),
-        full: false,
+        full: Some(false),
     };
     let mut stream = svc
         .stream_checkpoints(Request::new(req))
@@ -459,7 +459,7 @@ async fn test_end_index_only() {
     let req = StreamRequest {
         start_index: None,
         end_index: Some(4),
-        full: false,
+        full: Some(false),
     };
     let mut stream = svc
         .stream_checkpoints(Request::new(req))
@@ -485,7 +485,7 @@ async fn test_end_index_only_full() {
     let req = StreamRequest {
         start_index: None,
         end_index: Some(4),
-        full: true,
+        full: Some(true),
     };
     let mut stream = svc
         .stream_checkpoints(Request::new(req))
@@ -515,7 +515,7 @@ async fn test_both_indices_omitted() {
     let req = StreamRequest {
         start_index: None,
         end_index: None,
-        full: false,
+        full: Some(false),
     };
 
     // Subscribe to the stream after buffer is pre-filled (0..=10)

@@ -88,354 +88,251 @@ impl CheckpointService for CheckpointGrpcService {
         let req = request.into_inner();
         let start = req.start_index;
         let end = req.end_index;
+        let full = req.full;
 
-        // Case: full=true, start_index provided, end_index omitted
-        if req.full && start.is_some() && end.is_none() {
-            let start_index = start.unwrap();
-            let buffer = self.checkpoint_data_buffer.clone();
-            let rx = self.checkpoint_data_tx.subscribe();
-            let mut items = Vec::new();
-            // 1. Lock and read the buffer
+        // Helper: serialize and wrap as proto
+        fn to_proto<T, F>(item: &T, index: u64, ser: F) -> Result<checkpoint::Checkpoint, Status>
+        where
+            F: Fn(&T) -> Result<Vec<u8>, bcs::Error>,
+        {
+            let data =
+                ser(item).map_err(|e| Status::internal(format!("BCS serialization error: {e}")))?;
+            Ok(checkpoint::Checkpoint { index, data })
+        }
+
+        // Helper: buffered + live stream for summary or full
+        async fn buffered_and_live_stream<T, F, G>(
+            buffer: Arc<tokio::sync::Mutex<std::collections::VecDeque<Arc<T>>>>,
+            tx: tokio::sync::broadcast::Sender<Arc<T>>,
+            start_index: Option<u64>,
+            ser: F,
+            get_index: G,
+        ) -> impl futures::Stream<Item = Result<checkpoint::Checkpoint, Status>>
+        where
+            F: Fn(&T) -> Result<Vec<u8>, bcs::Error> + Send + Sync + 'static + Copy,
+            G: Fn(&T) -> u64 + Send + Sync + 'static + Copy,
+            T: Send + Sync + 'static,
+        {
+            let rx = tx.subscribe(); // subscribe first to avoid gap
+            let start_index = start_index.unwrap_or(0);
             let buf = buffer.lock().await;
-            for data in buf.iter() {
-                if data.checkpoint_summary.sequence_number >= start_index {
-                    let bytes = match bcs::to_bytes(&**data) {
-                        Ok(b) => {
-                            println!(
-                                "[gRPC][Fullnode] Serializing CheckpointData seq={}, size={} bytes",
-                                data.checkpoint_summary.sequence_number,
-                                b.len()
-                            );
-                            b
-                        }
+            let mut items = Vec::new();
+            for item in buf.iter() {
+                if get_index(item) >= start_index {
+                    match to_proto(&**item, get_index(item), ser) {
+                        Ok(proto) => items.push(Ok(proto)),
                         Err(e) => {
-                            items.push(Err(Status::internal(format!(
-                                "BCS serialization error: {e}"
-                            ))));
+                            items.push(Err(e));
                             break;
                         }
-                    };
-                    let checkpoint_proto = checkpoint::Checkpoint {
-                        index: data.checkpoint_summary.sequence_number,
-                        data: bytes,
-                    };
-                    items.push(Ok(checkpoint_proto));
+                    }
                 }
             }
             drop(buf);
-            // 2. Stream new full CheckpointData as they arrive
-            let live = Box::pin(
-                BroadcastStream::new(rx).filter_map(move |result| async move {
+            let live = Box::pin(BroadcastStream::new(rx).filter_map(move |result| {
+                let ser = ser;
+                let get_index = get_index;
+                async move {
                     match result {
-                        Ok(data) => {
-                            if data.checkpoint_summary.sequence_number >= start_index {
-                                println!(
-                                    "[gRPC DEBUG] live stream: sending seq={}",
-                                    data.checkpoint_summary.sequence_number
-                                );
-                                let bytes = match bcs::to_bytes(&*data) {
-                                    Ok(b) => b,
-                                    Err(e) => {
-                                        return Some(Err(Status::internal(format!(
-                                            "BCS serialization error: {e}"
-                                        ))));
-                                    }
-                                };
-                                let checkpoint_proto = checkpoint::Checkpoint {
-                                    index: data.checkpoint_summary.sequence_number,
-                                    data: bytes,
-                                };
-                                return Some(Ok(checkpoint_proto));
+                        Ok(item) => {
+                            if get_index(&item) >= start_index {
+                                match to_proto(&*item, get_index(&item), ser) {
+                                    Ok(proto) => Some(Ok(proto)),
+                                    Err(e) => Some(Err(e)),
+                                }
+                            } else {
+                                None
                             }
-                            None
                         }
                         Err(_) => None,
                     }
-                }),
-            );
-            let full_stream = futures::stream::iter(items).chain(live);
-            return Ok(Response::new(Box::pin(full_stream)));
+                }
+            }));
+            futures::stream::iter(items).chain(live)
         }
 
-        // Case: Both start_index and end_index omitted
-        if start.is_none() && end.is_none() {
-            let buffer = self.buffer.clone();
-            fn arc_ptr<T>(arc: &std::sync::Arc<T>) -> usize {
-                arc.as_ref() as *const T as usize
-            }
-            println!(
-                "[gRPC DEBUG] buffer Arc ptr (gRPC): 0x{:x}",
-                arc_ptr(&buffer)
-            );
-            let rx = self.checkpoint_summary_tx.subscribe();
-            println!("[gRPC DEBUG] Subscribed to broadcast channel");
-            // 1. Lock and clone the buffer
-            let buf = buffer.lock().await;
-            println!("[gRPC DEBUG] Buffer length: {}", buf.len());
-            let buffered: Vec<_> = buf.back().cloned().into_iter().collect();
-            drop(buf);
-            // 2. Create a stream that yields all buffered checkpoints first
-            let buffered_stream = futures::stream::iter(buffered.into_iter().map(|summary| {
-                let data = match bcs::to_bytes(&summary.data()) {
-                    Ok(bytes) => {
-                        println!(
-                            "[gRPC][Fullnode] Serializing CertifiedCheckpointSummary seq={}, size={} bytes",
-                            summary.data().sequence_number,
-                            bytes.len()
-                        );
-                        bytes
-                    },
-                    Err(e) => {
-                        return Err(Status::internal(format!("BCS serialization error: {e}")));
+        // Helper: single checkpoint (summary or full)
+        fn single_checkpoint<T, F>(
+            item: Option<T>,
+            index: u64,
+            ser: F,
+        ) -> impl futures::Stream<Item = Result<checkpoint::Checkpoint, Status>>
+        where
+            F: Fn(&T) -> Result<Vec<u8>, bcs::Error> + Send + Sync + 'static + Copy,
+            T: Send + Sync + 'static,
+        {
+            futures::stream::once(async move {
+                match item {
+                    Some(val) => to_proto(&val, index, ser),
+                    None => Err(Status::not_found("Checkpoint not found")),
+                }
+            })
+        }
+
+        // Helper: range stream (summary or full)
+        fn range_stream<T, F, H>(
+            state_reader: Arc<dyn RestStateReader>,
+            start: u64,
+            end: u64,
+            get_item: H,
+            ser: F,
+            get_index: fn(&T) -> u64,
+        ) -> impl futures::Stream<Item = Result<checkpoint::Checkpoint, Status>>
+        where
+            F: Fn(&T) -> Result<Vec<u8>, bcs::Error> + Send + Sync + 'static + Copy,
+            H: Fn(Arc<dyn RestStateReader>, u64) -> Option<T> + Send + Sync + 'static + Copy,
+            T: Send + Sync + 'static,
+        {
+            stream::unfold(start, move |current| {
+                let state_reader = state_reader.clone();
+                async move {
+                    if current > end {
+                        return None;
                     }
-                };
-                let checkpoint_proto = checkpoint::Checkpoint {
-                    index: summary.data().sequence_number,
-                    data,
-                };
-                println!(
-                    "Buffered checkpoint: seq={}, epoch={}",
-                    summary.data().sequence_number,
-                    summary.data().epoch
-                );
-                Ok(checkpoint_proto)
-            }));
-            // 3. Then stream new checkpoints as they arrive
-            let live_stream = BroadcastStream::new(rx).filter_map(move |result| async move {
-                match result {
-                    Ok(summary) => {
-                        println!(
-                            "[gRPC DEBUG] Received new checkpoint from broadcast: seq={}, epoch={}",
-                            summary.data().sequence_number,
-                            summary.data().epoch
-                        );
-                        let data = match bcs::to_bytes(&summary.data()) {
-                            Ok(bytes) => {
-                                println!(
-                                    "[gRPC][Fullnode] Serializing CertifiedCheckpointSummary seq={}, size={} bytes",
-                                    summary.data().sequence_number,
-                                    bytes.len()
-                                );
-                                bytes
-                            },
-                            Err(e) => {
-                                return Some(Err(Status::internal(format!(
-                                    "BCS serialization error: {e}"
-                                ))));
+                    let item = get_item(state_reader.clone(), current);
+                    let result = match item {
+                        Some(val) => to_proto(&val, get_index(&val), ser),
+                        None => Err(Status::not_found("Checkpoint not found")),
+                    };
+                    Some((result, current + 1))
+                }
+            })
+        }
+
+        // Main logic
+        let stream: Pin<
+            Box<dyn futures::Stream<Item = Result<checkpoint::Checkpoint, Status>> + Send>,
+        > = if full.unwrap_or(false) {
+            // --- FULL (CheckpointData) ---
+            match (start, end) {
+                (None, None) => {
+                    // Subscribe first to avoid gap
+                    let tx = self.checkpoint_data_tx.clone();
+                    let rx = tx.subscribe();
+                    let buffer = self.checkpoint_data_buffer.clone();
+                    let last = buffer.lock().await.back().cloned();
+                    let initial: Pin<
+                        Box<
+                            dyn futures::Stream<Item = Result<checkpoint::Checkpoint, Status>>
+                                + Send,
+                        >,
+                    > = match last {
+                        Some(data) => Box::pin(futures::stream::once(async move {
+                            to_proto(&*data, data.checkpoint_summary.sequence_number, |d| {
+                                bcs::to_bytes(d)
+                            })
+                        })),
+                        None => Box::pin(futures::stream::empty()),
+                    };
+                    let live = Box::pin(BroadcastStream::new(rx).filter_map(
+                        move |result| async move {
+                            match result {
+                                Ok(data) => Some(to_proto(
+                                    &*data,
+                                    data.checkpoint_summary.sequence_number,
+                                    |d| bcs::to_bytes(d),
+                                )),
+                                Err(_) => None,
                             }
-                        };
-                        let checkpoint_proto = checkpoint::Checkpoint {
-                            index: summary.data().sequence_number,
-                            data,
-                        };
-                        println!(
-                            "[gRPC DEBUG] Live checkpoint: seq={}, epoch={}",
-                            summary.data().sequence_number,
-                            summary.data().epoch
-                        );
-                        Some(Ok(checkpoint_proto))
-                    }
-                    Err(tokio_stream::wrappers::errors::BroadcastStreamRecvError::Lagged(
-                        skipped,
-                    )) => {
-                        println!(
-                            "[gRPC DEBUG] Broadcast channel lagged, skipped {} messages",
-                            skipped
-                        );
-                        None
-                    }
+                        },
+                    ));
+                    Box::pin(initial.chain(live))
                 }
-            });
-            // 4. Chain the two streams together
-            let full_stream = buffered_stream.chain(live_stream);
-            println!("[gRPC DEBUG] Returning chained stream to client");
-            return Ok(Response::new(Box::pin(full_stream)));
-        }
-
-        // Case: Only start_index provided
-        if start.is_some() && end.is_none() {
-            let start_index = start.unwrap();
-            let buffer = self.buffer.clone();
-            let mut rx = self.checkpoint_summary_tx.subscribe();
-            let mut items = Vec::new();
-            // 1. Subscribe first (already done above)
-            // 2. Lock and read the buffer
-            let mut buf = buffer.lock().await;
-            // 3. Drain the channel into the buffer before unlocking
-            while let Ok(summary) = rx.try_recv() {
-                buf.push_back(summary.clone());
-                if buf.len() > 100 {
-                    buf.pop_front();
+                (Some(start_index), None) => Box::pin(
+                    buffered_and_live_stream(
+                        self.checkpoint_data_buffer.clone(),
+                        self.checkpoint_data_tx.clone(),
+                        Some(start_index),
+                        |d| bcs::to_bytes(d),
+                        |d| d.checkpoint_summary.sequence_number,
+                    )
+                    .await,
+                ),
+                (None, Some(end_index)) => {
+                    // Single full checkpoint
+                    Box::pin(single_checkpoint(
+                        self.state_reader.get_full_checkpoint_data(end_index),
+                        end_index,
+                        |d| bcs::to_bytes(d),
+                    ))
+                }
+                (Some(start_index), Some(end_index)) => {
+                    // Range of full checkpoints
+                    Box::pin(range_stream(
+                        self.state_reader.clone(),
+                        start_index,
+                        end_index,
+                        |reader, idx| reader.get_full_checkpoint_data(idx),
+                        |d| bcs::to_bytes(d),
+                        |d| d.checkpoint_summary.sequence_number,
+                    ))
                 }
             }
-            // Send all buffered checkpoints with index >= start_index
-            for summary in buf.iter() {
-                if summary.data().sequence_number >= start_index {
-                    let data = match bcs::to_bytes(&summary.data()) {
-                        Ok(bytes) => {
-                            println!(
-                                "[gRPC][Fullnode] Serializing CertifiedCheckpointSummary seq={}, size={} bytes",
-                                summary.data().sequence_number,
-                                bytes.len()
-                            );
-                            bytes
-                        }
-                        Err(e) => {
-                            items.push(Err(Status::internal(format!(
-                                "BCS serialization error: {e}"
-                            ))));
-                            break;
-                        }
+        } else {
+            // --- SUMMARY (CertifiedCheckpointSummary) ---
+            match (start, end) {
+                (None, None) => {
+                    // Subscribe first to avoid gap
+                    let tx = self.checkpoint_summary_tx.clone();
+                    let rx = tx.subscribe();
+                    let buffer = self.buffer.clone();
+                    let last = buffer.lock().await.back().cloned();
+                    let initial: Pin<
+                        Box<
+                            dyn futures::Stream<Item = Result<checkpoint::Checkpoint, Status>>
+                                + Send,
+                        >,
+                    > = match last {
+                        Some(data) => Box::pin(futures::stream::once(async move {
+                            to_proto(&*data, data.data().sequence_number, |d| {
+                                bcs::to_bytes(&d.data())
+                            })
+                        })),
+                        None => Box::pin(futures::stream::empty()),
                     };
-                    let checkpoint_proto = checkpoint::Checkpoint {
-                        index: summary.data().sequence_number,
-                        data,
-                    };
-                    items.push(Ok(checkpoint_proto));
-                }
-            }
-            drop(buf);
-            // 4. Stream new checkpoints from the buffer as they arrive
-            let live = Box::pin(BroadcastStream::new(rx).filter_map(move |result| {
-                async move {
-                    match result {
-                        Ok(summary) => {
-                            println!("[gRPC DEBUG] Received checkpoint from broadcast channel: seq={}, epoch={}", summary.data().sequence_number, summary.data().epoch);
-                            let data = match bcs::to_bytes(&summary.data()) {
-                                Ok(bytes) => {
-                                    println!(
-                                        "[gRPC][Fullnode] Serializing CertifiedCheckpointSummary seq={}, size={} bytes",
-                                        summary.data().sequence_number,
-                                        bytes.len()
-                                    );
-                                    bytes
-                                },
-                                Err(e) => {
-                                    return Some(Err(Status::internal(format!(
-                                        "BCS serialization error: {e}"
-                                    ))));
+                    let live = Box::pin(BroadcastStream::new(rx).filter_map(
+                        move |result| async move {
+                            match result {
+                                Ok(data) => {
+                                    Some(to_proto(&*data, data.data().sequence_number, |d| {
+                                        bcs::to_bytes(&d.data())
+                                    }))
                                 }
-                            };
-                            let checkpoint_proto = checkpoint::Checkpoint {
-                                index: summary.data().sequence_number,
-                                data,
-                            };
-                            Some(Ok(checkpoint_proto))
-                        }
-                        Err(tokio_stream::wrappers::errors::BroadcastStreamRecvError::Lagged(
-                            _,
-                        )) => None,
-                    }
+                                Err(_) => None,
+                            }
+                        },
+                    ));
+                    Box::pin(initial.chain(live))
                 }
-            }));
-            let full_stream = futures::stream::iter(items).chain(live);
-            return Ok(Response::new(Box::pin(full_stream)));
-        }
-
-        // Case: Only end_index provided
-        if start.is_none() && end.is_some() {
-            let end_index = end.unwrap();
-            let full = req.full;
-            let state_reader = self.state_reader.clone();
-            let single = stream::unfold(false, move |done| {
-                let state_reader = state_reader.clone();
-                async move {
-                    if done {
-                        return None;
-                    }
-                    if full {
-                        // Fetch full CheckpointData
-                        let checkpoint_data = state_reader.get_full_checkpoint_data(end_index);
-                        if let Some(data) = checkpoint_data {
-                            let bytes = match bcs::to_bytes(&data) {
-                                Ok(b) => b,
-                                Err(e) => {
-                                    return Some((
-                                        Err(Status::internal(format!(
-                                            "BCS serialization error: {e}"
-                                        ))),
-                                        true,
-                                    ));
-                                }
-                            };
-                            let checkpoint_proto = checkpoint::Checkpoint {
-                                index: end_index,
-                                data: bytes,
-                            };
-                            Some((Ok(checkpoint_proto), true))
-                        } else {
-                            None
-                        }
-                    } else {
-                        // Existing summary logic
-                        let summary = state_reader
-                            .get_checkpoint_by_sequence_number(end_index)
-                            .ok()
-                            .flatten();
-                        if let Some(summary) = summary {
-                            let data = match bcs::to_bytes(&summary.data()) {
-                                Ok(bytes) => bytes,
-                                Err(e) => {
-                                    return Some((
-                                        Err(Status::internal(format!(
-                                            "BCS serialization error: {e}"
-                                        ))),
-                                        true,
-                                    ));
-                                }
-                            };
-                            let checkpoint_proto = checkpoint::Checkpoint {
-                                index: summary.data().sequence_number,
-                                data,
-                            };
-                            Some((Ok(checkpoint_proto), true))
-                        } else {
-                            None
-                        }
-                    }
-                }
-            });
-            return Ok(Response::new(Box::pin(single)));
-        }
-
-        // Case: Both start_index and end_index provided
-        if let (Some(start_index), Some(end_index)) = (start, end) {
-            let state_reader = self.state_reader.clone();
-            let range = stream::unfold(start_index, move |current| {
-                let state_reader = state_reader.clone();
-                async move {
-                    if current > end_index {
-                        return None;
-                    }
-                    let summary = state_reader
-                        .get_checkpoint_by_sequence_number(current)
+                (Some(start_index), None) => Box::pin(
+                    buffered_and_live_stream(
+                        self.buffer.clone(),
+                        self.checkpoint_summary_tx.clone(),
+                        Some(start_index),
+                        |d| bcs::to_bytes(&d.data()),
+                        |d| d.data().sequence_number,
+                    )
+                    .await,
+                ),
+                (None, Some(end_index)) => Box::pin(single_checkpoint(
+                    self.state_reader
+                        .get_checkpoint_by_sequence_number(end_index)
                         .ok()
-                        .flatten();
-                    if let Some(summary) = summary {
-                        let data = match bcs::to_bytes(&summary.data()) {
-                            Ok(bytes) => bytes,
-                            Err(e) => {
-                                return Some((
-                                    Err(Status::internal(format!("BCS serialization error: {e}"))),
-                                    current + 1,
-                                ));
-                            }
-                        };
-                        let checkpoint_proto = checkpoint::Checkpoint {
-                            index: summary.data().sequence_number,
-                            data,
-                        };
-                        Some((Ok(checkpoint_proto), current + 1))
-                    } else {
-                        None
-                    }
-                }
-            });
-            return Ok(Response::new(Box::pin(range)));
-        }
-
-        // Fallback: empty stream
-        Ok(Response::new(Box::pin(stream::empty())))
+                        .flatten(),
+                    end_index,
+                    |d| bcs::to_bytes(&d.data()),
+                )),
+                (Some(start_index), Some(end_index)) => Box::pin(range_stream(
+                    self.state_reader.clone(),
+                    start_index,
+                    end_index,
+                    |reader, idx| reader.get_checkpoint_by_sequence_number(idx).ok().flatten(),
+                    |d| bcs::to_bytes(&d.data()),
+                    |d| d.data().sequence_number,
+                )),
+            }
+        };
+        Ok(Response::new(stream))
     }
 
     async fn get_epoch_first_checkpoint_sequence_number(

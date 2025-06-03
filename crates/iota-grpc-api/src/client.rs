@@ -29,7 +29,7 @@ impl GrpcNodeClient {
         let request = crate::checkpoint::StreamRequest {
             start_index: start,
             end_index: end,
-            full: full.unwrap_or(false),
+            full,
         };
         let response = self.client.stream_checkpoints(request).await?;
         Ok(response.into_inner())
