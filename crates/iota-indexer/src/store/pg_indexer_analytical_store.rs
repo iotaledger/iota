@@ -583,29 +583,28 @@ fn construct_address_persisting_query(start_tx_seq: i64, end_tx_seq: i64) -> Str
 
 fn construct_active_address_persisting_query(start_tx_seq: i64, end_tx_seq: i64) -> String {
     format!(
-        "WITH senders AS (
-        SELECT
-            s.sender AS address,
-            s.tx_sequence_number,
-            t.timestamp_ms
-        FROM tx_senders s
-        JOIN transactions t
-        ON s.tx_sequence_number = t.tx_sequence_number
-        WHERE s.tx_sequence_number >= {} AND s.tx_sequence_number < {}
-      )
-      INSERT INTO active_addresses
-      SELECT
-            address,
-            MIN(tx_sequence_number) AS first_appearance_tx,
-            MIN(timestamp_ms) AS first_appearance_time,
-            MAX(tx_sequence_number) AS last_appearance_tx,
-            MAX(timestamp_ms) AS last_appearance_time
-      FROM senders
-      GROUP BY address
-      ON CONFLICT (address) DO UPDATE
-      SET
-        last_appearance_tx = GREATEST(EXCLUDED.last_appearance_tx, active_addresses.last_appearance_tx),
-        last_appearance_time = GREATEST(EXCLUDED.last_appearance_time, active_addresses.last_appearance_time);
+        "INSERT INTO active_addresses (
+           address,
+           first_appearance_tx,
+           first_appearance_time,
+           last_appearance_tx,
+           last_appearance_time
+         )
+         SELECT
+           s.sender as address,
+           MIN(s.tx_sequence_number) AS first_appearance_tx,
+           MIN(t.timestamp_ms) AS first_appearance_time,
+           MAX(s.tx_sequence_number) AS last_appearance_tx,
+           MAX(t.timestamp_ms) AS last_appearance_time
+         FROM tx_senders s
+         JOIN transactions t
+           ON s.tx_sequence_number = t.tx_sequence_number
+         WHERE t.tx_sequence_number >= {} AND t.tx_sequence_number < {}
+         GROUP BY address
+         ON CONFLICT (address) DO UPDATE
+         SET
+           last_appearance_tx = GREATEST(EXCLUDED.last_appearance_tx, active_addresses.last_appearance_tx),
+           last_appearance_time = GREATEST(EXCLUDED.last_appearance_time, active_addresses.last_appearance_time);
     ",
         start_tx_seq, end_tx_seq
     )
