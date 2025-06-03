@@ -26,6 +26,7 @@ test.describe('Wallet staking', () => {
         await dashboardPage.getByText('validator-1').click();
         await dashboardPage.getByText('Next').click();
 
+        await expect(dashboardPage.getByText(/IOTA Available/)).toBeVisible({ timeout: 30_000 });
         await dashboardPage.getByLabel('Amount').fill('10');
 
         let stakeButton = dashboardPage.getByTestId('stake-confirm-btn');
