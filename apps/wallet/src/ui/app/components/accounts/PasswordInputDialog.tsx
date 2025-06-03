@@ -70,7 +70,7 @@ export function PasswordModalDialog({
     useEffect(() => {
         if (!open || !runLockInterval) return;
 
-        async function checkIsLockedOnOpen() {
+        async function checkLockState() {
             const { remainingTime } = await backgroundService.getLockedState({});
 
             if (remainingTime <= 0) {
@@ -86,10 +86,10 @@ export function PasswordModalDialog({
         }
 
         const interval = setInterval(() => {
-            checkIsLockedOnOpen();
+            checkLockState();
         }, MILLISECONDS_PER_SECOND);
 
-        checkIsLockedOnOpen();
+        checkLockState();
 
         return () => {
             clearInterval(interval);
