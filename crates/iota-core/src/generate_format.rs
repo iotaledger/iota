@@ -57,6 +57,23 @@ use serde_reflection::{Registry, Result, Samples, Tracer, TracerConfig};
 use shared_crypto::intent::{Intent, IntentMessage, PersonalMessage};
 use typed_store::TypedStoreError;
 
+/// Generate a type format registry for IOTA types
+///
+/// Used for regression testing.
+///
+/// It uses [serde_reflection] for serializing the type system
+/// which conveniently plugs into [serde].
+///
+/// The process is not automatic though, so all types that should
+/// be tracked must be presented to the [Tracer]. Whenever possible the
+/// [Tracer::trace_type] function should be used, but in cases when
+/// custom [serde::Deserialize] is implemented for a type with additional
+/// restrictions a [Tracer::trace_value] is likely necessary, so that [Tracer]
+/// may verify the type formats. This later requirement seems to be transitive.
+///
+/// For example **TypeA** implements a custom serializer, hence necessitating
+/// the use of [Tracer::trace_value], then every type that contains **TypeA**
+/// will require a sample to be provided.
 fn get_registry() -> Result<Registry> {
     let config = TracerConfig::default()
         .record_samples_for_structs(true)
