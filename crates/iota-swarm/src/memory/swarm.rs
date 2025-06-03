@@ -68,6 +68,7 @@ pub struct SwarmBuilder<R = OsRng> {
     state_accumulator_config: StateAccumulatorV1EnabledConfig,
     disable_fullnode_pruning: bool,
     fullnode_grpc_api_address: Option<String>,
+    validator_grpc_api_address: Option<String>,
 }
 
 impl SwarmBuilder {
@@ -98,6 +99,7 @@ impl SwarmBuilder {
             state_accumulator_config: StateAccumulatorV1EnabledConfig::Global(true),
             disable_fullnode_pruning: false,
             fullnode_grpc_api_address: None,
+            validator_grpc_api_address: None,
         }
     }
 }
@@ -130,6 +132,7 @@ impl<R> SwarmBuilder<R> {
             state_accumulator_config: self.state_accumulator_config,
             disable_fullnode_pruning: self.disable_fullnode_pruning,
             fullnode_grpc_api_address: self.fullnode_grpc_api_address,
+            validator_grpc_api_address: self.validator_grpc_api_address,
         }
     }
 
@@ -294,6 +297,11 @@ impl<R> SwarmBuilder<R> {
         self
     }
 
+    pub fn with_validator_grpc_api_address(mut self, addr: String) -> Self {
+        self.validator_grpc_api_address = Some(addr);
+        self
+    }
+
     fn get_or_init_genesis_config(&mut self) -> &mut GenesisConfig {
         if self.genesis_config.is_none() {
             assert!(self.network_config.is_none());
@@ -397,7 +405,11 @@ impl<R: rand::RngCore + rand::CryptoRng> SwarmBuilder<R> {
                     "SwarmBuilder configuring validator with name {}",
                     config.authority_public_key()
                 );
-                (config.authority_public_key(), Node::new(config.to_owned()))
+                let mut config = config.to_owned();
+                if let Some(addr) = &self.validator_grpc_api_address {
+                    config.grpc_api_address = Some(addr.clone());
+                }
+                (config.authority_public_key(), Node::new(config))
             })
             .collect();
 

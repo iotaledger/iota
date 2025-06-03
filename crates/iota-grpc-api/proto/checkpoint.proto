@@ -26,5 +26,6 @@ message CheckpointSequenceNumberResponse {
 
 message Checkpoint {
   uint64 index = 1;
+  // BCS-encoded CertifiedCheckpointSummary (Rust type)
   bytes data = 2;
 } 

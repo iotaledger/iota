@@ -19,13 +19,14 @@ impl GrpcNodeClient {
         Ok(Self { client })
     }
 
+    /// Stream checkpoints with any combination of start and end indices.
     pub async fn stream_checkpoints(
         &mut self,
-        start: u64,
+        start: Option<u64>,
         end: Option<u64>,
     ) -> Result<tonic::Streaming<crate::checkpoint::Checkpoint>, tonic::Status> {
         let request = crate::checkpoint::StreamRequest {
-            start_index: Some(start),
+            start_index: start,
             end_index: end,
         };
         let response = self.client.stream_checkpoints(request).await?;

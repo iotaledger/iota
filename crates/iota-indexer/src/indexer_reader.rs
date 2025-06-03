@@ -2163,7 +2163,7 @@ fn get_single_obj_id_from_package_publish(
 
 pub async fn stream_checkpoints_via_grpc(
     grpc_url: &str,
-    start: u64,
+    start: Option<u64>,
     end: Option<u64>,
 ) -> anyhow::Result<()> {
     use iota_grpc_api::client::GrpcNodeClient;

@@ -22,7 +22,7 @@
 //! a signal for reconfig.
 
 use std::{
-    collections::HashMap,
+    collections::{HashMap, VecDeque},
     path::PathBuf,
     sync::Arc,
     time::{Duration, Instant},
@@ -43,13 +43,15 @@ use iota_types::{
     full_checkpoint_content::CheckpointData,
     inner_temporary_store::PackageStoreWithFallback,
     message_envelope::Message,
-    messages_checkpoint::{CheckpointSequenceNumber, VerifiedCheckpoint},
+    messages_checkpoint::{
+        CertifiedCheckpointSummary, CheckpointSequenceNumber, VerifiedCheckpoint,
+    },
     transaction::{TransactionDataAPI, TransactionKind, VerifiedTransaction},
 };
 use itertools::izip;
 use tap::{TapFallible, TapOptional};
 use tokio::{
-    sync::broadcast::{self, error::RecvError},
+    sync::{Mutex, broadcast, broadcast::error::RecvError},
     task::JoinHandle,
     time::timeout,
 };
@@ -152,6 +154,8 @@ pub struct CheckpointExecutor {
     accumulator: Arc<StateAccumulator>,
     config: CheckpointExecutorConfig,
     metrics: Arc<CheckpointExecutorMetrics>,
+    grpc_buffer: Option<Arc<Mutex<VecDeque<Arc<CertifiedCheckpointSummary>>>>>,
+    checkpoint_summary_tx: Option<broadcast::Sender<Arc<CertifiedCheckpointSummary>>>,
 }
 
 impl CheckpointExecutor {
@@ -162,6 +166,8 @@ impl CheckpointExecutor {
         accumulator: Arc<StateAccumulator>,
         config: CheckpointExecutorConfig,
         metrics: Arc<CheckpointExecutorMetrics>,
+        grpc_buffer: Option<Arc<Mutex<VecDeque<Arc<CertifiedCheckpointSummary>>>>>,
+        checkpoint_summary_tx: Option<broadcast::Sender<Arc<CertifiedCheckpointSummary>>>,
     ) -> Self {
         Self {
             mailbox,
@@ -173,6 +179,8 @@ impl CheckpointExecutor {
             accumulator,
             config,
             metrics,
+            grpc_buffer,
+            checkpoint_summary_tx,
         }
     }
 
@@ -189,6 +197,8 @@ impl CheckpointExecutor {
             accumulator,
             Default::default(),
             CheckpointExecutorMetrics::new_for_tests(),
+            None,
+            None,
         )
     }
 
@@ -459,6 +469,27 @@ impl CheckpointExecutor {
                 .await
                 .expect("Failed to accumulate running root");
             self.bump_highest_executed_checkpoint(checkpoint);
+            if let (Some(buffer), Some(tx)) = (&self.grpc_buffer, &self.checkpoint_summary_tx) {
+                let summary = CertifiedCheckpointSummary::from(checkpoint.clone());
+                let arc_summary = Arc::new(summary);
+                {
+                    let mut buf = buffer.lock().await;
+                    buf.push_back(arc_summary.clone());
+                    if buf.len() > 100 {
+                        buf.pop_front();
+                    }
+                    println!(
+                        "[gRPC][Fullnode] Buffer updated, new length: {} (seq={})",
+                        buf.len(),
+                        arc_summary.sequence_number
+                    );
+                }
+                println!(
+                    "[gRPC][Fullnode] Broadcasting checkpoint: seq={}, epoch={}",
+                    arc_summary.sequence_number, arc_summary.epoch
+                );
+                let _ = tx.send(arc_summary);
+            }
         }
     }
 

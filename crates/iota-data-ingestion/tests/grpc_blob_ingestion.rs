@@ -15,6 +15,8 @@ use tokio_stream::StreamExt;
 #[tokio::test]
 async fn test_grpc_blob_worker_reset_logic() {
     // Start a test cluster with gRPC enabled
+    // TODO: Fix the test error because now we only have the checkpoint summary
+    // in the gRPC stream.
     let grpc_port = 50063u16;
     let grpc_addr = format!("127.0.0.1:{}", grpc_port);
     let cluster = TestClusterBuilder::new()
@@ -42,7 +44,7 @@ async fn test_grpc_blob_worker_reset_logic() {
     // Connect to the gRPC endpoint and get the first available checkpoint
     let mut grpc_client = GrpcNodeClient::connect(&grpc_url).await.expect("connect");
     let mut stream = grpc_client
-        .stream_checkpoints(0, None)
+        .stream_checkpoints(Some(0), None)
         .await
         .expect("stream");
     let mut first_checkpoint_index = None;

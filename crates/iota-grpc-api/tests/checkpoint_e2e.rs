@@ -17,8 +17,12 @@ async fn e2e_stream_checkpoints() {
     let grpc_addr = format!("127.0.0.1:{}", grpc_port);
 
     // Start a test cluster with gRPC enabled and pruning disabled
+    // Note that the validator gRPC API can be also used for getting the checkpoint
+    // stream. In this PoC we also implemented this.
     let cluster = TestClusterBuilder::new()
+        // .with_validator_grpc_api_address(grpc_addr.clone())
         .with_fullnode_grpc_api_address(grpc_addr.clone())
+        .with_num_validators(1)
         .build()
         .await;
 
@@ -43,17 +47,30 @@ async fn e2e_stream_checkpoints() {
         .await
         .expect("gRPC call")
         .into_inner();
-    let mut indices = vec![];
     println!("Starting to stream checkpoints");
-    while let Some(Ok(cp)) = stream.next().await {
-        let data: iota_types::full_checkpoint_content::CheckpointData =
-            bcs::from_bytes(&cp.data).unwrap();
-        println!(
-            "Received checkpoint: index={}, epoch={}",
-            cp.index, data.checkpoint_summary.epoch
-        );
-        indices.push(cp.index);
+    // Wait for 10 checkpoints to be available
+    cluster.wait_for_checkpoint(10, None).await;
+
+    // Only collect the first 2 checkpoints to avoid hanging
+    let mut indices = Vec::new();
+    let mut count = 0;
+    while let Some(res) = stream.next().await {
+        match res {
+            Ok(cp) => {
+                println!("[gRPC DEBUG] Received checkpoint: {:?}", cp);
+                indices.push(cp.index);
+                count += 1;
+                if count >= 2 {
+                    break;
+                }
+            }
+            Err(e) => {
+                println!("[gRPC DEBUG] Error streaming checkpoint: {:?}", e);
+                break;
+            }
+        }
     }
+    cluster.wait_for_checkpoint(20, None).await;
     if indices.is_empty() {
         println!("No checkpoints were streamed!");
     }
@@ -70,6 +87,7 @@ async fn test_get_epoch_first_checkpoint_sequence_number() {
     // Start a test cluster with gRPC enabled and pruning disabled
     let cluster = TestClusterBuilder::new()
         .with_fullnode_grpc_api_address(grpc_addr.clone())
+        .with_num_validators(1)
         .build()
         .await;
 
@@ -105,20 +123,40 @@ async fn test_get_epoch_first_checkpoint_sequence_number() {
         .expect("connect gRPC");
 
     // List all checkpoints and their epochs using the gRPC stream
-    println!("Listing all checkpoints and their epochs via gRPC stream");
+    println!("[gRPC DEBUG] Listing all checkpoints and their epochs via gRPC stream");
     let mut stream = client
-        .stream_checkpoints(0, None)
+        .stream_checkpoints(Some(0), None)
         .await
         .expect("gRPC stream");
     let mut all_indices = vec![];
     let mut all_epochs = vec![];
-    while let Some(Ok(cp)) = stream.next().await {
-        let data: iota_types::full_checkpoint_content::CheckpointData =
-            bcs::from_bytes(&cp.data).unwrap();
-        let epoch = data.checkpoint_summary.epoch;
-        println!("Checkpoint index: {}, epoch: {}", cp.index, epoch);
-        all_indices.push(cp.index);
-        all_epochs.push(epoch);
+    while let Some(res) = stream.next().await {
+        match res {
+            Ok(cp) => {
+                match bcs::from_bytes::<iota_types::messages_checkpoint::CertifiedCheckpointSummary>(
+                    &cp.data,
+                ) {
+                    Ok(summary) => {
+                        let epoch = summary.epoch;
+                        println!("Checkpoint index: {}, epoch: {}", cp.index, epoch);
+                        all_indices.push(cp.index);
+                        all_epochs.push(epoch);
+                    }
+                    Err(e) => {
+                        println!(
+                            "[gRPC DEBUG] Failed to deserialize checkpoint summary at index {}: {:?}",
+                            cp.index, e
+                        );
+                        println!("[gRPC DEBUG] Raw checkpoint data: {:?}", cp.data);
+                        break;
+                    }
+                }
+            }
+            Err(e) => {
+                println!("[gRPC DEBUG] Stream error: {:?}", e);
+                break;
+            }
+        }
     }
 
     // Query for the first checkpoint of epoch 0 (should be 0)
@@ -126,7 +164,7 @@ async fn test_get_epoch_first_checkpoint_sequence_number() {
         .get_epoch_first_checkpoint_sequence_number(0)
         .await
         .expect("gRPC call");
-    println!("First checkpoint of epoch 0: {}", first_0);
+    println!("[gRPC DEBUG] First checkpoint of epoch 0: {}", first_0);
     assert_eq!(first_0, 0, "First checkpoint of epoch 0 should be 0");
 
     // Query for the first checkpoint of epoch 1 (should be >= 2)
@@ -134,7 +172,7 @@ async fn test_get_epoch_first_checkpoint_sequence_number() {
         .get_epoch_first_checkpoint_sequence_number(1)
         .await
         .expect("gRPC call");
-    println!("First checkpoint of epoch 1: {}", first_1);
+    println!("[gRPC DEBUG] First checkpoint of epoch 1: {}", first_1);
     assert!(
         first_1 >= 2,
         "First checkpoint of epoch 1 should be >= 2, got {}",

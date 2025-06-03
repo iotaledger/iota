@@ -8,7 +8,7 @@ mod checkpoint_output;
 mod metrics;
 
 use std::{
-    collections::{BTreeMap, BTreeSet, HashMap, HashSet},
+    collections::{BTreeMap, BTreeSet, HashMap, HashSet, VecDeque},
     fs::File,
     io::Write,
     path::Path,
@@ -55,7 +55,7 @@ use parking_lot::Mutex;
 use rand::{rngs::OsRng, seq::SliceRandom};
 use serde::{Deserialize, Serialize};
 use tokio::{
-    sync::{Notify, watch},
+    sync::{Notify, broadcast, watch},
     task::JoinSet,
     time::timeout,
 };
@@ -878,6 +878,7 @@ pub struct CheckpointAggregator {
     output: Box<dyn CertifiedCheckpointOutput>,
     state: Arc<AuthorityState>,
     metrics: Arc<CheckpointMetrics>,
+    service_weak: Option<Weak<CheckpointService>>,
 }
 
 // This holds information to aggregate signatures for one checkpoint
@@ -1769,6 +1770,7 @@ impl CheckpointAggregator {
         output: Box<dyn CertifiedCheckpointOutput>,
         state: Arc<AuthorityState>,
         metrics: Arc<CheckpointMetrics>,
+        service_weak: Option<Weak<CheckpointService>>,
     ) -> Self {
         let current = None;
         Self {
@@ -1779,6 +1781,7 @@ impl CheckpointAggregator {
             output,
             state,
             metrics,
+            service_weak,
         }
     }
 
@@ -1808,6 +1811,24 @@ impl CheckpointAggregator {
         let summaries = self.run_inner()?;
         for summary in summaries {
             self.output.certified_checkpoint_created(&summary).await?;
+            if let Some(service) = self.service_weak.as_ref().and_then(|w| w.upgrade()) {
+                let arc_summary = Arc::new(summary.clone());
+                // --- Update the buffer ---
+                {
+                    let mut buf = service.buffer.lock().await;
+                    buf.push_back(arc_summary.clone());
+                    if buf.len() > 100 {
+                        buf.pop_front();
+                    }
+                    println!("[gRPC DEBUG] Buffer updated, new length: {}", buf.len());
+                }
+                // --- Send to broadcast channel ---
+                println!(
+                    "[gRPC DEBUG] Sending checkpoint to broadcast channel: seq={}, epoch={}",
+                    arc_summary.sequence_number, arc_summary.epoch
+                );
+                let _ = service.checkpoint_summary_tx.send(arc_summary);
+            }
         }
         Ok(())
     }
@@ -2243,6 +2264,8 @@ pub struct CheckpointService {
     highest_previously_built_seq: CheckpointSequenceNumber,
     metrics: Arc<CheckpointMetrics>,
     state: Mutex<CheckpointServiceState>,
+    pub checkpoint_summary_tx: broadcast::Sender<Arc<CertifiedCheckpointSummary>>,
+    pub buffer: Arc<tokio::sync::Mutex<VecDeque<Arc<CertifiedCheckpointSummary>>>>,
 }
 
 impl CheckpointService {
@@ -2260,59 +2283,57 @@ impl CheckpointService {
         metrics: Arc<CheckpointMetrics>,
         max_transactions_per_checkpoint: usize,
         max_checkpoint_size_bytes: usize,
+        buffer: Arc<tokio::sync::Mutex<VecDeque<Arc<CertifiedCheckpointSummary>>>>,
+        checkpoint_summary_tx: tokio::sync::broadcast::Sender<Arc<CertifiedCheckpointSummary>>,
     ) -> Arc<Self> {
-        info!(
-            "Starting checkpoint service with {max_transactions_per_checkpoint} max_transactions_per_checkpoint and {max_checkpoint_size_bytes} max_checkpoint_size_bytes"
-        );
         let notify_builder = Arc::new(Notify::new());
         let notify_aggregator = Arc::new(Notify::new());
-
         let highest_previously_built_seq = epoch_store
             .last_built_checkpoint_builder_summary()
             .expect("epoch should not have ended")
             .map(|s| s.summary.sequence_number)
             .unwrap_or(0);
-
         let (highest_currently_built_seq_tx, _) = watch::channel(highest_previously_built_seq);
-
-        let aggregator = CheckpointAggregator::new(
-            checkpoint_store.clone(),
-            epoch_store.clone(),
-            notify_aggregator.clone(),
-            certified_checkpoint_output,
-            state.clone(),
-            metrics.clone(),
-        );
-
-        let builder = CheckpointBuilder::new(
-            state.clone(),
-            checkpoint_store.clone(),
-            epoch_store.clone(),
-            notify_builder.clone(),
-            effects_store,
-            accumulator,
-            checkpoint_output,
-            notify_aggregator.clone(),
-            highest_currently_built_seq_tx.clone(),
-            metrics.clone(),
-            max_transactions_per_checkpoint,
-            max_checkpoint_size_bytes,
-        );
-
-        let last_signature_index = epoch_store
-            .get_last_checkpoint_signature_index()
-            .expect("should not cross end of epoch");
-        let last_signature_index = Mutex::new(last_signature_index);
-
-        Arc::new(Self {
-            tables: checkpoint_store,
-            notify_builder,
-            notify_aggregator,
-            last_signature_index,
-            highest_currently_built_seq_tx,
-            highest_previously_built_seq,
-            metrics,
-            state: Mutex::new(CheckpointServiceState::Unstarted((builder, aggregator))),
+        Arc::new_cyclic(|weak_service| {
+            let aggregator = CheckpointAggregator::new(
+                checkpoint_store.clone(),
+                epoch_store.clone(),
+                notify_aggregator.clone(),
+                certified_checkpoint_output,
+                state.clone(),
+                metrics.clone(),
+                Some(weak_service.clone()),
+            );
+            let builder = CheckpointBuilder::new(
+                state.clone(),
+                checkpoint_store.clone(),
+                epoch_store.clone(),
+                notify_builder.clone(),
+                effects_store,
+                accumulator,
+                checkpoint_output,
+                notify_aggregator.clone(),
+                highest_currently_built_seq_tx.clone(),
+                metrics.clone(),
+                max_transactions_per_checkpoint,
+                max_checkpoint_size_bytes,
+            );
+            let last_signature_index = epoch_store
+                .get_last_checkpoint_signature_index()
+                .expect("should not cross end of epoch");
+            let last_signature_index = Mutex::new(last_signature_index);
+            Self {
+                tables: checkpoint_store,
+                notify_builder,
+                notify_aggregator,
+                last_signature_index,
+                highest_currently_built_seq_tx,
+                highest_previously_built_seq,
+                metrics,
+                state: Mutex::new(CheckpointServiceState::Unstarted((builder, aggregator))),
+                checkpoint_summary_tx,
+                buffer,
+            }
         })
     }
 
@@ -2588,6 +2609,11 @@ mod tests {
             state.get_accumulator_store().clone(),
         ));
 
+        // At the top of the test or helper function, create the shared buffer and
+        // channel
+        let (checkpoint_summary_tx, _) = tokio::sync::broadcast::channel(100);
+        let buffer = Arc::new(tokio::sync::Mutex::new(VecDeque::new()));
+
         let checkpoint_service = CheckpointService::build(
             state.clone(),
             checkpoint_store,
@@ -2599,6 +2625,8 @@ mod tests {
             CheckpointMetrics::new_for_tests(),
             3,
             100_000,
+            buffer.clone(),
+            checkpoint_summary_tx.clone(),
         );
         let _tasks = checkpoint_service.spawn().await;
 

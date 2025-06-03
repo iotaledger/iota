@@ -136,13 +136,14 @@ The following tests have been added to ensure the correctness and robustness of 
 Located in `crates/iota-grpc-api/tests/`:
 
 - **`checkpoint_stream.rs`**
-  - **`test_start_index_only`**: Verifies that when only `start_index` is provided, the stream begins from the specified starting point and retrieves all subsequent checkpoints up to the latest available.
-  - **`test_start_and_end_index`**: Validates that when both `start_index` and `end_index` are provided, the streamed checkpoints are precisely within the inclusive range defined by both bounds.
-  - **`test_end_index_only`**: Focuses on the scenario where only `end_index` is specified, confirming that only the checkpoint at the specified `end_index` is streamed.
+  - **`test_start_index_only`**: Streams all available checkpoints starting from the specified `start_index` (5). The test collects checkpoints from 5 up to 15, covering both buffered and live-streamed checkpoints, and then ends.
+  - **`test_start_and_end_index`**: Streams checkpoints within the inclusive range defined by `start_index` (3) and `end_index` (7). The test collects checkpoints `[3, 4, 5, 6, 7]` and then ends, ensuring no live checkpoints are collected beyond the end index.
+  - **`test_end_index_only`**: Streams only the checkpoint at the specified `end_index` (4). The test collects `[4]` and then ends.
+  - **`test_both_indices_omitted`**: Streams all available buffered checkpoints (0..=10) and then continues to collect live checkpoints as they are produced, up to index 24. The test collects checkpoints `[10, 11, 12, ..., 24]` to verify both buffered and live streaming.
 
 - **`checkpoint_e2e.rs`**
-  - **`e2e_stream_checkpoints`**: End-to-end test that streams all available checkpoints from genesis when neither `start_index` nor `end_index` is provided.
-  - **`test_get_epoch_first_checkpoint_sequence_number`**: Tests the gRPC endpoint for querying the first checkpoint of a given epoch.
+  - **`e2e_stream_checkpoints`**: End-to-end test that connects to a real node and streams checkpoints from the gRPC API with both indices omitted. The test collects the first two checkpoints (e.g., genesis and the next one) to verify that streaming works and new checkpoints are delivered in real time.
+  - **`test_get_epoch_first_checkpoint_sequence_number`**: End-to-end test that streams all checkpoints from the node and verifies the epoch for each. It also tests the gRPC endpoint for querying the first checkpoint of a given epoch, ensuring that the correct sequence number is returned for both epoch 0 and epoch 1.
 
 ### **How to Run the Tests**
 

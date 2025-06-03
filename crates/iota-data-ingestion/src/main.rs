@@ -143,7 +143,9 @@ async fn main() -> Result<()> {
                     let mut watermark = executor.read_watermark(task_name.clone()).await?;
 
                     let mut grpc_client = GrpcNodeClient::connect(&grpc_url).await?;
-                    let mut stream = grpc_client.stream_checkpoints(watermark, None).await?;
+                    let mut stream = grpc_client
+                        .stream_checkpoints(Some(watermark), None)
+                        .await?;
                     if let Some(Ok(first_checkpoint)) = stream.next().await {
                         if first_checkpoint.index > watermark {
                             tracing::warn!(

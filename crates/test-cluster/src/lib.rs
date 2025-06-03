@@ -1388,6 +1388,7 @@ impl TestClusterBuilder {
 
         if self.disable_fullnode_pruning {
             builder = builder.with_disable_fullnode_pruning();
+        }
         if let Some(addr) = &self.fullnode_grpc_api_address {
             builder = builder.with_fullnode_grpc_api_address(addr.clone());
         }
