@@ -901,7 +901,7 @@ async fn test_epoch_flag_upgrade() {
 
     test_cluster.wait_for_epoch_all_nodes(1).await;
 
-    // Make sure that all nodes have empty flags.
+    // Make sure that all nodes have non-empty flags.
     let all_non_empty = test_cluster.all_node_handles().iter().all(|node| {
         node.with(|node| {
             !node
