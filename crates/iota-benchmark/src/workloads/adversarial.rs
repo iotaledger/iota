@@ -16,7 +16,6 @@ use iota_types::{
     transaction::{CallArg, Command, ObjectArg, Transaction, TransactionData},
     utils::to_sender_signed_transaction,
 };
-use itertools::Itertools;
 use move_core_types::identifier::Identifier;
 use rand::{
     Rng,
@@ -152,7 +151,7 @@ impl FromStr for AdversarialPayloadCfg {
         if !re.is_match(s) {
             return Err(anyhow!("invalid load config"));
         };
-        let toks = s.split('-').collect_vec();
+        let toks = s.split('-').collect::<Vec<_>>();
         let payload_type = AdversarialPayloadType::from_str(toks[0])?;
         let load_factor = toks[1].parse::<f32>().unwrap();
 
