@@ -63,10 +63,7 @@ type MethodPayloads = {
     verifyPassword: { password: string };
     getLockedState: {};
     getLockedStateResponse: {
-        failedAttempts: number | boolean | null;
-        lastFailedAttemptTime: number | boolean | null;
-        isLockedOut: number | boolean | null;
-        lockTimeMs: number | true | null;
+        remainingTime: number;
     };
     storeLedgerAccountsPublicKeys: { publicKeysToStore: LedgerAccountsPublicKeys };
     getAccountSourceEntropy: { accountSourceID: string; password?: string };

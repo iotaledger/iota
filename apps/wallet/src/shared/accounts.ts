@@ -32,26 +32,11 @@ export interface AccountFromFinder {
 }
 
 export class AccountTooManyAttemptsError extends Error {
-    public remainingTime: number;
-
-    constructor(remainingTime: number) {
-        super(
-            JSON.stringify({
-                remainingTime,
-            }),
-        );
-        this.remainingTime = remainingTime;
+    constructor() {
+        super('too-many-attempts');
     }
 
-    static fromError(error: Error) {
-        try {
-            const message = JSON.parse(error.message);
-            if ('remainingTime' in message) {
-                return new AccountTooManyAttemptsError(Number(message.remainingTime));
-            }
-            return null;
-        } catch {
-            return null;
-        }
+    static is(error: Error) {
+        return error.message === 'too-many-attempts';
     }
 }

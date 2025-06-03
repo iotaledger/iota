@@ -300,14 +300,21 @@ export async function accountsHandleUIMessage(msg: Message, uiConnection: UiConn
         return true;
     }
     if (isMethodPayload(payload, 'getLockedState')) {
-        const { failedAttempts, lastFailedAttemptTime, isLockedOut, lockTimeMs } =
-            await getLockedState();
+        let remainingTime = 0;
+        const WALLET_LOCK_DURATION_IN_MS = 60 * MILLISECONDS_PER_SECOND;
+        const { isLockedOut, lockTimeMs } = await getLockedState();
+        if (isLockedOut && lockTimeMs) {
+            const elapsedTime = Date.now() - Number(lockTimeMs);
+            remainingTime = Math.max(0, WALLET_LOCK_DURATION_IN_MS - elapsedTime);
+        }
         await uiConnection.send(
             createMessage<MethodPayload<'getLockedStateResponse'>>(
                 {
                     type: 'method-payload',
                     method: 'getLockedStateResponse',
-                    args: { failedAttempts, lastFailedAttemptTime, isLockedOut, lockTimeMs },
+                    args: {
+                        remainingTime,
+                    },
                 },
                 msg.id,
             ),
@@ -327,7 +334,7 @@ export async function accountsHandleUIMessage(msg: Message, uiConnection: UiConn
 
             if (remainingTime > 0) {
                 // The wallet is still locked after the maximum number of failed attempts
-                throw new AccountTooManyAttemptsError(remainingTime);
+                throw new AccountTooManyAttemptsError();
             } else {
                 await clearStateAfterManyFailedAttempts();
             }
@@ -364,7 +371,7 @@ export async function accountsHandleUIMessage(msg: Message, uiConnection: UiConn
                     lockTimeMs: Date.now(),
                     isLockedOut: true,
                 });
-                throw new AccountTooManyAttemptsError(WALLET_LOCK_DURATION_IN_MS);
+                throw new AccountTooManyAttemptsError();
             } else {
                 // Update the failed attempts count and the time of the last failed attempt
                 await updateLockedState({ failedAttempts, lastFailedAttemptTime: currentTime });

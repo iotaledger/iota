@@ -56,86 +56,45 @@ export function PasswordModalDialog({
         },
         shouldUnregister: true,
     });
-    const [messageError, setMessageError] = useState<{ message: string }>();
-    const [countdownError, setCountdownError] = useState<{
-        interval: NodeJS.Timeout;
-        message: string;
-    } | null>(null);
+    const [countdownError, setCountdownError] = useState<string | null>(null);
+    const [runLockInterval, setRunLockInterval] = useState<boolean>(true);
     const backgroundService = useBackgroundClient();
 
+    // Run the lock interval if the popup just got opened again
     useEffect(() => {
-        if (!open) return;
-
-        let interval: NodeJS.Timeout;
-
-        async function checkLockStateOnOpen() {
-            const lockedState = await backgroundService.getLockedState({});
-            if (!lockedState.isLockedOut && lockedState.failedAttempts === 1) {
-                setMessageError({
-                    message: 'Incorrect password. You have 2 attempts left.',
-                });
-            } else if (!lockedState.isLockedOut && lockedState.failedAttempts === 2) {
-                setMessageError({
-                    message: 'Incorrect password. You have 1 attempt left.',
-                });
-            } else if (
-                lockedState.isLockedOut &&
-                Math.ceil(
-                    (Number(lockedState.lockTimeMs) + 60 * 1000 - Date.now()) /
-                        MILLISECONDS_PER_SECOND,
-                ) > 0
-            ) {
-                const lockTimeMs = Number(lockedState.lockTimeMs);
-                const lockDurationMs = 60 * 1000;
-
-                let remainingTime = Math.ceil(
-                    (lockTimeMs + lockDurationMs - Date.now()) / MILLISECONDS_PER_SECOND,
-                );
-
-                if (remainingTime < 0) remainingTime = 0;
-
-                interval = setInterval(() => {
-                    remainingTime -= 1;
-                    const message = `Too many failed attempts. Please try again in ${remainingTime} ${remainingTime === 1 ? 'second' : 'seconds'}.`;
-
-                    setCountdownError({
-                        interval,
-                        message,
-                    });
-
-                    if (remainingTime <= 0) {
-                        clearInterval(interval);
-                        setCountdownError(null);
-                    }
-                }, MILLISECONDS_PER_SECOND);
-
-                const message = `Too many failed attempts. Please try again in ${remainingTime} ${remainingTime === 1 ? 'second' : 'seconds'}.`;
-                setCountdownError({ interval, message });
-            }
-        }
-
-        checkLockStateOnOpen();
-        return () => {
-            if (interval) clearInterval(interval);
-        };
-    }, [open]);
-
-    // Clear the interval and error if the dialog closed but not unmounted
-    useEffect(() => {
-        if (!open && countdownError?.interval) {
-            clearInterval(countdownError.interval);
-            setCountdownError(null);
+        if (open && !runLockInterval) {
+            setRunLockInterval(true);
         }
     }, [open]);
 
-    // Clear the interval if the dialog unmounted
     useEffect(() => {
-        return () => {
-            if (countdownError?.interval) {
-                clearInterval(countdownError.interval);
+        if (!open || !runLockInterval) return;
+
+        async function checkIsLockedOnOpen() {
+            const { remainingTime } = await backgroundService.getLockedState({});
+
+            if (remainingTime <= 0) {
+                // It is unlockable now so we cancel the interval and clear the error
+                setCountdownError(null);
+                setRunLockInterval(false);
+            } else {
+                // Update the error
+                const remainingSeconds = Math.ceil(remainingTime / MILLISECONDS_PER_SECOND);
+                const message = `Too many failed attempts. Please try again in ${remainingSeconds} ${remainingSeconds === 1 ? 'second' : 'seconds'}.`;
+                setCountdownError(message);
             }
+        }
+
+        const interval = setInterval(() => {
+            checkIsLockedOnOpen();
+        }, MILLISECONDS_PER_SECOND);
+
+        checkIsLockedOnOpen();
+
+        return () => {
+            clearInterval(interval);
         };
-    }, [countdownError?.interval]);
+    }, [runLockInterval, open]);
 
     const {
         register,
@@ -152,27 +111,6 @@ export function PasswordModalDialog({
         ) || false;
 
     async function handleOnSubmit({ password }: { password: string }) {
-        let remainingTime: number;
-        let interval: NodeJS.Timeout;
-        setMessageError({ message: '' });
-
-        function updateCountdown() {
-            const message = `Too many failed attempts. Please try again in ${remainingTime} ${remainingTime === 1 ? 'second' : 'seconds'}.`;
-            setCountdownError({
-                interval,
-                message,
-            });
-
-            // Clear the interval and error when its done
-            if (remainingTime === 0) {
-                clearInterval(interval);
-                setCountdownError(null);
-                return;
-            }
-
-            remainingTime -= 1;
-        }
-
         try {
             if (verify) {
                 await backgroundService.verifyPassword({ password });
@@ -181,11 +119,8 @@ export function PasswordModalDialog({
             reset();
         } catch (e) {
             if (e instanceof Error) {
-                const verifyError = AccountTooManyAttemptsError.fromError(e);
-                if (verifyError) {
-                    remainingTime = Math.ceil(verifyError.remainingTime / MILLISECONDS_PER_SECOND);
-                    interval = setInterval(updateCountdown, MILLISECONDS_PER_SECOND);
-                    updateCountdown();
+                if (AccountTooManyAttemptsError.is(e)) {
+                    setRunLockInterval(true);
                 } else {
                     setError('password', { message: e.message }, { shouldFocus: true });
                 }
@@ -193,8 +128,8 @@ export function PasswordModalDialog({
         }
     }
 
-    const isConfirmDisabled = !!countdownError;
-    isSubmitting || !isValid || !!form.formState.errors.password?.message;
+    const isConfirmDisabled =
+        !!countdownError || isSubmitting || !isValid || !!form.formState.errors.password?.message;
 
     return (
         <Dialog open={open}>
@@ -210,9 +145,7 @@ export function PasswordModalDialog({
                                     isVisibilityToggleEnabled
                                     placeholder="Password"
                                     errorMessage={
-                                        countdownError?.message ||
-                                        messageError?.message ||
-                                        form.formState.errors.password?.message
+                                        countdownError || form.formState.errors.password?.message
                                     }
                                     {...register('password')}
                                     name="password"

@@ -212,9 +212,8 @@ export class BackgroundClient {
                     if (!isMethodPayload(payload, 'getLockedStateResponse')) {
                         throw new Error('Unknown response for getLockedState');
                     }
-                    const { failedAttempts, lastFailedAttemptTime, isLockedOut, lockTimeMs } =
-                        payload.args;
-                    return { failedAttempts, lastFailedAttemptTime, isLockedOut, lockTimeMs };
+                    const { remainingTime } = payload.args;
+                    return { remainingTime };
                 }),
             ),
         );
