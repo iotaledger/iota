@@ -47,6 +47,7 @@ const developer = [
                     'references/cli/ptb',
                     'references/cli/keytool',
                     'references/cli/move',
+                    'references/cli/name',
                     'references/cli/validator',
                     'references/cli/ceremony',
                     'references/cli/cheatsheet',

@@ -1,0 +1,329 @@
+---
+title: IOTA Name CLI
+description: The IOTA Name CLI provides subcommands for interacting with the on-chain name service, allowing users to register, resolve, and manage names like `yourname.iota`.
+tags: [cli, names, reference, iota-cli]
+teams:
+  - iotaledger/dev-tools
+---
+
+The `iota name` command enables interactions with the IOTA Names via the command line, such as registeration, resolution and renewal of  `.iota` names.
+
+## Commands
+
+The `iota name` command manages name registration and resolution on IOTA. Run `iota name --help` for the latest list of subcommands.
+```bash
+iota name --help
+Manage names registered in IOTA-Names
+
+Usage: iota name [OPTIONS] <COMMAND>
+
+Commands:
+  auction               Auction related operations, like bidding and claiming
+  availability          Check the availability of a domain and return its price if available. Subdomains are always free to register by the parent domain owner
+  burn                  Burn an expired IOTA-Names NFT
+  get-user-data         Get user data by its key
+  list                  List the domains owned by the given address, or the active address
+  lookup                Lookup the address of a domain
+  register              Register a domain
+  renew                 Renew an existing domain. Cost is the domain price * years
+  reverse-lookup        Lookup a domain by its address if reverse lookup was set
+  set-reverse-lookup    Set the reverse lookup of the domain to the transaction sender address
+  set-target-address    Set the target address for a domain
+  set-user-data         Set arbitrary keyed user data
+  subdomain             Commands for managing subdomains
+  transfer              Transfer a registered domain to another address via the owned NFT
+  unset-reverse-lookup  Unset reverse lookup
+  unset-user-data       Unset keyed user data
+  help                  Print this message or the help of the given subcommand(s)
+
+Options:
+      --client.config <CONFIG>  The file storing the state of the user accounts
+      --json                    Return command outputs in json format
+  -h, --help                    Print help
+  -V, --version                 Print version
+```
+
+Over the next sections, we will cover the most commonly used subcommands of `iota name` in detail.
+
+### Auction
+
+Used only during the **initial launch phase**, the `iota name auction` subcommand enables users to acquire `.iota` domains through a fair and open bidding process.
+
+During this temporary period (e.g. ~1 month), all domains must be obtained via auction — no direct registration is available. This approach ensures a fair distribution of names, particularly short or in-demand ones, and prevents issues like front-running or squatting.
+
+To participate in the auction, users can place bids on available names. The auction will conclude after a set period, and the highest bidder for each name will win the right to register it.
+
+```bash
+iota name auction --help
+Auction related operations, like bidding and claiming
+
+Usage: iota name auction [OPTIONS] <COMMAND>
+
+Commands:
+  bid       Place a new bid
+  claim     Claim the name if the auction winner is the sender
+  metadata  Get metadata of an auction
+  start     Start an auction, if it's not started yet, and make the first bid
+  help      Print this message or the help of the given subcommand(s)
+
+Options:
+      --json     Return command outputs in json format
+  -h, --help     Print help
+  -V, --version  Print version
+```
+
+#### Example: Start and Bid in an Auction
+To start an auction for a name, use the `start` command. This command initializes the auction and allows you to place the first bid.
+
+```bash
+iota name auction start awesome.iota
+Successfully started auction for awesome.iota
+Auction status: Active
+╭────────────────┬────────────────────────────────────────────────────────────────────╮
+│ field          │ value                                                              │
+├────────────────┼────────────────────────────────────────────────────────────────────┤
+│ Start          │ 2025-06-03 17:53:01.182000000 UTC                                  │
+│ End            │ 2025-06-03 18:53:01.182000000 UTC                                  │
+│ Current Bid    │ 10000000                                                           │
+│ Current Bidder │ 0xc9f649324694c0c18c6278c3a81945fb3ef0c9b91f21dd5b6a4364447ee348df │
+╰────────────────┴────────────────────────────────────────────────────────────────────╯
+Transaction digest: HCUc5QjaunVPUwqj6vWCMxJ8nTBkDw88stNb4r2o4a1X
+```
+
+To place a new bid, use the `bid` command. This command allows you to increase the current bid for the auctioned name.
+In this example, we will switch to another account to place a bid for the name `awesome.iota`.
+
+```bash
+iota client switch <account_2_alias>
+iota name auction bid awesome.iota --amount 1010000000
+```
+The output will confirm the successful bid placement and display the current auction status, including the start and end times, current bid amount, and the current bidder's address.
+```bash
+iota name auction bid awesome.iota
+Successfully placed bid for awesome.iota
+Auction status: Active
+╭────────────────┬────────────────────────────────────────────────────────────────────╮
+│ field          │ value                                                              │
+├────────────────┼────────────────────────────────────────────────────────────────────┤
+│ Start          │ 2025-06-03 17:53:01.182000000 UTC                                  │
+│ End            │ 2025-06-03 18:53:01.182000000 UTC                                  │
+│ Current Bid    │ 1010000000                                                         │
+│ Current Bidder │ 0x55771a075822ffe446b638d64f5b69641992c556471f3c0055fd9646e0c4c3f6 │
+╰────────────────┴────────────────────────────────────────────────────────────────────╯
+NFT:
+╭────────────┬────────────────────────────────────────────────────────────────────╮
+│ field      │ value                                                              │
+├────────────┼────────────────────────────────────────────────────────────────────┤
+│ ID         │ 0x896cee37d691bf053e5883fa3f696be90329d67adf879b1323f01982d9a00466 │
+│ Domain     │ awesome.iota                                                       │
+│ Expiration │ 1780509181182 (2026-06-03 17:53:01.182000000 UTC)                  │
+╰────────────┴────────────────────────────────────────────────────────────────────╯
+Transaction digest: BYzwdmW3AM8b9WA7eA6kDvxbH4jf5ftg1ofPX4R6ZXW4
+```
+
+After the auction ends, the highest bidder can claim the name using the `claim` command. This command transfers ownership of the name to the winning bidder.
+If you try to claim a name before the auction ends, you will receive an error message indicating that the auction is still active.
+
+```bash
+iota name auction claim awesome.iota
+Error executing transaction 'G9Xmyyso2DznMe7Y1fTB12TbvzFtfuSA82JsTVgbnAt9': 2nd command aborted within function '0x5e7a300e640f645a4030aeb507c7be16909e6fa9711e7ca2d4397bbd967d5c50::auction::claim' at line 228. Aborted with 'EAuctionNotEnded' -- 'The auction has not ended.'
+```
+
+Once the auction has ended, the winning bidder can successfully claim the name:
+
+```bash
+iota name auction claim awesome.iota
+Successfully claimed awesome.iota
+╭────────────────┬────────────────────────────────────────────────────────────────────╮
+│ field          │ value                                                              │
+├────────────────┼────────────────────────────────────────────────────────────────────┤
+│ NFT ID         │ 0x896cee37d691bf053e5883fa3f696be90329d67adf879b1323f01982d9a00466 │
+│ Target Address │ none                                                               │
+│ Expiration     │ 1780509181182 (2026-06-03 17:53:01.182000000 UTC)                  │
+╰────────────────┴────────────────────────────────────────────────────────────────────╯
+Created NFT:
+╭────────────┬────────────────────────────────────────────────────────────────────╮
+│ field      │ value                                                              │
+├────────────┼────────────────────────────────────────────────────────────────────┤
+│ ID         │ 0x896cee37d691bf053e5883fa3f696be90329d67adf879b1323f01982d9a00466 │
+│ Domain     │ awesome.iota                                                       │
+│ Expiration │ 1780509181182 (2026-06-03 17:53:01.182000000 UTC)                  │
+╰────────────┴────────────────────────────────────────────────────────────────────╯
+Transaction digest: Ap53V8mwCK5rP38CxbCMJgaeNe9NfxqrofzkdJzZzJrh
+```
+
+### Register
+
+After the auction phase, users can register `.iota` names directly using the `iota name register` command. This command allows you to register a name that is not currently owned by anyone.
+
+:::note
+The `register` command is only available after the auction period ends. During the auction phase, you must use the `iota name auction` commands to acquire names.
+:::
+
+#### Example: Register a Name
+
+To register a name, use the `register` command followed by the desired name. To set reverse lookup of the domain to the transaction sender address, you can use the `--reverse-lookup` flag.
+
+:::tip
+If you want to set reverse lookup of the domain to the transaction sender address, you must set the `--set-target-address` flag to the address of the sender.
+:::
+
+```bash
+iota name register abc.iota --set-reverse-lookup --set-target-address=<sender_address>
+Registered record:
+╭────────────────┬────────────────────────────────────────────────────────────────────╮
+│ field          │ value                                                              │
+├────────────────┼────────────────────────────────────────────────────────────────────┤
+│ NFT ID         │ 0x831b7d983d20914950fe98ca49ffcd366b55fca593ede95805869c9a090a8de8 │
+│ Target Address │ 0x55771a075822ffe446b638d64f5b69641992c556471f3c0055fd9646e0c4c3f6 │
+│ Expiration     │ 1780512084730 (2026-06-03 18:41:24.730000000 UTC)                  │
+╰────────────────┴────────────────────────────────────────────────────────────────────╯
+Created NFT:
+╭────────────┬────────────────────────────────────────────────────────────────────╮
+│ field      │ value                                                              │
+├────────────┼────────────────────────────────────────────────────────────────────┤
+│ ID         │ 0x831b7d983d20914950fe98ca49ffcd366b55fca593ede95805869c9a090a8de8 │
+│ Domain     │ abc.iota                                                           │
+│ Expiration │ 1780512084730 (2026-06-03 18:41:24.730000000 UTC)                  │
+╰────────────┴────────────────────────────────────────────────────────────────────╯
+Transaction digest: 7XRX6zr3As7UgXNw7BnuYsxYsJbavnMfvrFEC2AHJcdf
+```
+
+### Lookup
+The `iota name lookup` command allows you to resolve a `.iota` name to its associated address. This is useful for checking the ownership of a name or finding the address linked to it.
+
+Since we registered the name `abc.iota` in the previous example, we can now look it up to see its associated address:
+
+```bash
+iota name lookup abc.iota
+0x55771a075822ffe446b638d64f5b69641992c556471f3c0055fd9646e0c4c3f6
+```
+
+### Reverse Lookup
+The `iota name reverse-lookup` command allows you to find the `.iota` name associated with a specific address. This is useful for checking if an address has a registered name and retrieving that name.
+To perform a reverse lookup, you can use the `reverse-lookup` command followed by the address you want to check. If the address has a registered name with reverse lookup set, it will return that name.
+
+```bash
+iota name reverse-lookup 0x55771a075822ffe446b638d64f5b69641992c556471f3c0055fd9646e0c4c3f6
+abc.iota
+```
+
+### Subdomain
+Once you own a `.iota` domain, you can create and manage subdomains using the `iota name subdomain` command. This command allows you to register subdomains under your main domain, enabling a hierarchical structure for your names.
+```bash
+iota name subdomain
+Commands for managing subdomains
+
+Usage: iota name subdomain [OPTIONS] <COMMAND>
+
+Commands:
+  register-leaf      Register a new leaf subdomain, which can only be managed by the parent's NFT
+  register-node      Register a new node subdomain, which will create an NFT for management
+  update-metadata    Update the metadata flags for a subdomain
+  extend-expiration  Extend the expiration of a subdomain
+  help               Print this message or the help of the given subcommand(s)
+
+Options:
+      --json     Return command outputs in json format
+  -h, --help     Print help
+  -V, --version  Print version
+```
+
+#### Leaf vs Node Subdomains
+Subdomains in IOTA can be either **leaf** or **node** types:
+
+ - Leaf subdomains are lightweight and fully controlled by the parent domain. They do not have their own NFT, cannot be transferred, and are ideal for internal or programmatic use.
+
+ - Node subdomains have their own NFT, allowing independent ownership, customization, and transfer. They support features like expiration control, reverse lookup, and target address updates.
+
+:::tip
+Use leaf subdomains when centralized control is needed, and node subdomains when delegating ownership or creating standalone identities.
+:::
+
+#### Example: Register a Subdomain
+To register a subdomain, use the `register` command under the `subdomain` subcommand. Specify the parent domain and the desired subdomain name.
+
+```bash
+iota name subdomain register-leaf first.abc.iota
+Registered record:
+╭────────────────┬────────────────────────────────────────────────────────────────────╮
+│ field          │ value                                                              │
+├────────────────┼────────────────────────────────────────────────────────────────────┤
+│ NFT ID         │ 0x831b7d983d20914950fe98ca49ffcd366b55fca593ede95805869c9a090a8de8 │
+│ Target Address │ 0x55771a075822ffe446b638d64f5b69641992c556471f3c0055fd9646e0c4c3f6 │
+│ Expiration     │ 0 (1970-01-01 00:00:00.000000000 UTC)                              │
+╰────────────────┴────────────────────────────────────────────────────────────────────╯
+Transaction digest: 9R6ABmmMDLdKvbVqa8QS99d2JXFmYwHk1dUZVo81xeE7
+```
+
+### Availability
+The iota name availability command checks whether a `.iota` domain is available for registration. If the domain is available, the command also returns the price required to register it. This is useful for determining domain availability before attempting an auction or registration.
+```bash
+iota name availability new.iota
+"new.iota" is available for 500000000 NANOs
+```
+
+
+### Burn
+The `iota name burn` command allows you to burn an expired `.iota` name NFT that you do not want to renew. This is useful for cleaning up expired names and freeing up resources on the network.
+If you try to burn a name that is not expired, you will receive an error message indicating that the name is still active.
+
+```bash
+iota name burn awesome.iota
+NFT for awesome.iota has not expired yet: 2026-06-03 17:53:01.182000000 UTC
+```
+
+### List
+
+The `iota name list` command displays all domains currently owned by the active wallet address (or a specified address).
+
+```bash
+iota name list
+╭────────────────────────────────────────────────────────────────────┬──────────────┬───────────────────────────────────────────────────╮
+│ id                                                                 │ domain       │ expiration                                        │
+├────────────────────────────────────────────────────────────────────┼──────────────┼───────────────────────────────────────────────────┤
+│ 0x831b7d983d20914950fe98ca49ffcd366b55fca593ede95805869c9a090a8de8 │ abc.iota     │ 1780512084730 (2026-06-03 18:41:24.730000000 UTC) │
+│ 0x896cee37d691bf053e5883fa3f696be90329d67adf879b1323f01982d9a00466 │ awesome.iota │ 1780509181182 (2026-06-03 17:53:01.182000000 UTC) │
+╰────────────────────────────────────────────────────────────────────┴──────────────┴───────────────────────────────────────────────────╯
+```
+
+
+### Renew
+
+The `iota name renew` command extends the expiration of an existing `.iota` name. The renewal cost is calculated as the domain's base price multiplied by the number of years.
+
+```bash
+iota name renew abc.iota 2
+Renewed record:
+╭────────────────┬────────────────────────────────────────────────────────────────────╮
+│ field          │ value                                                              │
+├────────────────┼────────────────────────────────────────────────────────────────────┤
+│ NFT ID         │ 0x831b7d983d20914950fe98ca49ffcd366b55fca593ede95805869c9a090a8de8 │
+│ Target Address │ 0x55771a075822ffe446b638d64f5b69641992c556471f3c0055fd9646e0c4c3f6 │
+│ Expiration     │ 1843584084730 (2028-06-02 18:41:24.730000000 UTC)                  │
+╰────────────────┴────────────────────────────────────────────────────────────────────╯
+Updated NFT:
+╭────────────┬────────────────────────────────────────────────────────────────────╮
+│ field      │ value                                                              │
+├────────────┼────────────────────────────────────────────────────────────────────┤
+│ ID         │ 0x831b7d983d20914950fe98ca49ffcd366b55fca593ede95805869c9a090a8de8 │
+│ Domain     │ abc.iota                                                           │
+│ Expiration │ 1843584084730 (2028-06-02 18:41:24.730000000 UTC)                  │
+╰────────────┴────────────────────────────────────────────────────────────────────╯
+Transaction digest: 5F2B4saqVPzDExdnCm3p9goCLDx3BCApt3zpDfvWz9Lq
+```
+
+
+### Transfer
+
+The `iota name transfer` command transfers a domain to a different address by transferring the NFT associated with the domain.
+
+```bash
+iota name transfer awesome.iota <to_address>
+Successfully transferred awesome.iota to <to_address>
+Transaction digest: 4JwitxtpCGtLgh1PGpTWRxfv4ajzeozgnpuHtmLwDVC7
+```
+
+
+
+

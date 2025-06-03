@@ -300,3 +300,8 @@ node-operation:
 infrastructure:
   label: Infrastructure
   description: Infrastructure
+
+# Names
+names:
+  label: Names
+  description: IOTA Names
