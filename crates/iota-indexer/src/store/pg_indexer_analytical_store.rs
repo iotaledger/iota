@@ -526,58 +526,44 @@ fn construct_peak_tps_query(epoch: i64, offset: i64) -> String {
 
 fn construct_address_persisting_query(start_tx_seq: i64, end_tx_seq: i64) -> String {
     format!(
-        "WITH senders AS (
-        SELECT
-            s.sender AS address,
-            s.tx_sequence_number,
-            t.timestamp_ms
-        FROM tx_senders s
-        JOIN transactions t
-        ON s.tx_sequence_number = t.tx_sequence_number
-        WHERE s.tx_sequence_number >= {} AND s.tx_sequence_number < {}
-      ),
-      recipients AS (
-        SELECT
-            r.recipient AS address,
-            r.tx_sequence_number,
-            t.timestamp_ms
-        FROM tx_recipients r
-        JOIN transactions t
-        ON r.tx_sequence_number = t.tx_sequence_number
-        WHERE r.tx_sequence_number >= {} AND r.tx_sequence_number < {}
-      ),
-      union_address AS (
+        "INSERT INTO addresses (
+            address,
+            first_appearance_tx,
+            first_appearance_time,
+            last_appearance_tx,
+            last_appearance_time
+        )
         SELECT
             address,
-            MIN(tx_sequence_number) as first_seq,
-            MIN(timestamp_ms) AS first_timestamp,
-            MAX(tx_sequence_number) as last_seq,
-            MAX(timestamp_ms) AS last_timestamp
-        FROM recipients GROUP BY address
-        UNION ALL
-        SELECT
-            address,
-            MIN(tx_sequence_number) as first_seq,
-            MIN(timestamp_ms) AS first_timestamp,
-            MAX(tx_sequence_number) as last_seq,
-            MAX(timestamp_ms) AS last_timestamp
-        FROM senders GROUP BY address
-      )
-      INSERT INTO addresses
-      SELECT
-        address,
-        MIN(first_seq) AS first_appearance_tx,
-        MIN(first_timestamp) AS first_appearance_time,
-        MAX(last_seq) AS last_appearance_tx,
-        MAX(last_timestamp) AS last_appearance_time
-      FROM union_address
-      GROUP BY address
-      ON CONFLICT (address) DO UPDATE
-      SET
-        last_appearance_tx = GREATEST(EXCLUDED.last_appearance_tx, addresses.last_appearance_tx),
-        last_appearance_time = GREATEST(EXCLUDED.last_appearance_time, addresses.last_appearance_time);
-    ",
-        start_tx_seq, end_tx_seq, start_tx_seq, end_tx_seq
+            MIN(all_addresses.tx_sequence_number) AS first_appearance_tx,
+            MIN(timestamp_ms)       AS first_appearance_time,
+            MAX(all_addresses.tx_sequence_number) AS last_appearance_tx,
+            MAX(timestamp_ms)       AS last_appearance_time
+        FROM (
+            SELECT
+                sender AS address,
+                tx_sequence_number
+            FROM tx_senders
+            WHERE tx_sequence_number BETWEEN {} AND {}
+
+            UNION ALL
+
+            SELECT
+                recipient AS address,
+                tx_sequence_number
+            FROM tx_recipients
+            WHERE tx_sequence_number BETWEEN {} AND {}
+        ) AS all_addresses
+        JOIN transactions t
+          ON t.tx_sequence_number = all_addresses.tx_sequence_number
+          WHERE t.tx_sequence_number BETWEEN {} AND {}
+        GROUP BY address
+        ON CONFLICT (address) DO UPDATE
+        SET
+            last_appearance_tx = GREATEST(EXCLUDED.last_appearance_tx, addresses.last_appearance_tx),
+            last_appearance_time = GREATEST(EXCLUDED.last_appearance_time, addresses.last_appearance_time);
+        ",
+        start_tx_seq, end_tx_seq, start_tx_seq, end_tx_seq, start_tx_seq, end_tx_seq
     )
 }
 
