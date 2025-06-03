@@ -51,7 +51,8 @@ message Checkpoint {
   - Streams from `start_index` to `end_index` (inclusive).
 - **If `full=true` and only `end_index` is set (start_index is None):**
   - Streams the full CheckpointData for that checkpoint index (BCS-encoded in bytes field).
-  - In all other cases, streams only the CertifiedCheckpointSummary.
+- **If `full=true`, `start_index` is provided, and `end_index` is None:**
+  - Streams all full CheckpointData from `start_index` onward, including new as produced.
 
 The service does not attempt to compute a "latest" checkpoint index, making it robust to on-the-fly checkpoint generation.
 
@@ -123,6 +124,10 @@ let mut stream = client.stream_checkpoints(None, Some(4), Some(true)).await?;
 if let Some(Ok(checkpoint)) = stream.next().await {
     // Deserialize as CheckpointData
 }
+let mut stream = client.stream_checkpoints(Some(5), None, Some(true)).await?;
+while let Some(Ok(checkpoint)) = stream.next().await {
+    // checkpoint.data is BCS-encoded CheckpointData
+}
 ```
 
 ## Testing
@@ -179,11 +184,13 @@ The following integration tests have been added in downstream crates to ensure t
 ### **iota-indexer**
 
 - **`tests/grpc_ingestion.rs`**
-  - **No active tests implemented.** (The file contains a placeholder for `test_grpc_checkpoint_stream`, but it is not implemented.)
+  - **`test_grpc_checkpoint_ingestion`**: This test starts a test cluster with gRPC enabled, launches the indexer with gRPC ingestion, and waits for the indexer to process at least six checkpoints. It verifies that the indexer can successfully connect to the gRPC service and stream both previously produced (buffered) and newly created checkpoints in real time. The test ensures the end-to-end gRPC ingestion path is working, robust to cluster startup, and that the indexer can handle both historical and live checkpoint streaming scenarios.
 
   **How to run:**
   ```bash
   cargo test -p iota-indexer --test grpc_ingestion -- --nocapture
   ```
+
+This test provides confidence that the indexer is correctly integrated with the gRPC API and can process checkpoints as soon as they are available from the node, whether they are old or new.
 
 These tests are recommended for all downstream consumers and contributors to verify that gRPC checkpoint streaming works as expected in real-world integration scenarios.

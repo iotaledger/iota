@@ -186,6 +186,49 @@ pub async fn start_test_indexer_impl(
     (store, handle)
 }
 
+/// Starts an indexer writer for testing using gRPC ingestion.
+pub async fn start_test_indexer_grpc(
+    db_url: String,
+    reset_db: bool,
+    db_init_hook: Option<DBInitHook>,
+    grpc_url: String,
+    data_ingestion_path: Option<PathBuf>,
+    cancel: CancellationToken,
+) -> (PgIndexerStore, JoinHandle<Result<(), IndexerError>>) {
+    let config = IndexerConfig {
+        db_url: Some(db_url.clone().into()),
+        grpc_client_url: Some(grpc_url),
+        reset_db,
+        fullnode_sync_worker: true,
+        rpc_server_worker: false,
+        data_ingestion_path,
+        ..Default::default()
+    };
+
+    let store = create_pg_store(config.get_db_url().unwrap(), reset_db);
+    if config.reset_db {
+        crate::db::reset_database(&mut store.blocking_cp().get().unwrap()).unwrap();
+    }
+    if let Some(db_init_hook) = db_init_hook {
+        db_init_hook(&store);
+    }
+    let store_clone = store.clone();
+    let registry = prometheus::Registry::default();
+    let indexer_metrics = IndexerMetrics::new(&registry);
+    let handle = tokio::spawn(async move {
+        Indexer::start_writer_with_config(
+            &config,
+            store_clone,
+            indexer_metrics,
+            SnapshotLagConfig::default(),
+            None,
+            cancel,
+        )
+        .await
+    });
+    (store, handle)
+}
+
 /// Manage a test database for integration tests.
 pub struct TestDatabase {
     pub url: String,

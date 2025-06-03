@@ -2,14 +2,16 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{collections::HashMap, env};
+use std::{collections::HashMap, env, sync::Arc};
 
 use anyhow::Result;
 use async_trait::async_trait;
 use iota_data_ingestion_core::{
-    DataIngestionMetrics, IndexerExecutor, ProgressStore, ReaderOptions, WorkerPool,
+    DataIngestionMetrics, IndexerExecutor, ProgressStore, ReaderOptions, Worker, WorkerPool,
 };
+use iota_grpc_api::client::GrpcNodeClient;
 use iota_metrics::spawn_monitored_task;
+use iota_rest_api::CheckpointData;
 use iota_types::messages_checkpoint::CheckpointSequenceNumber;
 use prometheus::Registry;
 use tokio_util::sync::CancellationToken;
@@ -149,6 +151,65 @@ impl Indexer {
                 extra_reader_options,
             )
             .await?;
+
+        // Branch: gRPC or REST.
+        if let Some(grpc_url) = &config.grpc_client_url {
+            println!("Using gRPC checkpoint ingestion from {}", grpc_url);
+            run_grpc_checkpoint_ingestion(
+                grpc_url,
+                store.clone(),
+                metrics.clone(),
+                primary_watermark,
+                cancel.clone(),
+            )
+            .await?;
+        } else {
+            info!(
+                "Using REST checkpoint ingestion from {}",
+                config
+                    .remote_store_url
+                    .as_ref()
+                    .unwrap_or(&config.rpc_client_url)
+            );
+            let mut executor = IndexerExecutor::new(
+                ShimIndexerProgressStore::new(vec![
+                    ("primary".to_string(), primary_watermark),
+                    ("object_snapshot".to_string(), object_snapshot_watermark),
+                ]),
+                1,
+                DataIngestionMetrics::new(&Registry::new()),
+                cancel.child_token(),
+            );
+            let worker = new_handlers(store, metrics, primary_watermark, cancel.clone()).await?;
+            let worker_pool = WorkerPool::new(
+                worker,
+                "primary".to_string(),
+                download_queue_size,
+                Default::default(),
+            );
+
+            executor.register(worker_pool).await?;
+
+            let worker_pool = WorkerPool::new(
+                object_snapshot_worker,
+                "object_snapshot".to_string(),
+                download_queue_size,
+                Default::default(),
+            );
+            executor.register(worker_pool).await?;
+            info!("Starting data ingestion executor...");
+            executor
+                .run(
+                    config
+                        .data_ingestion_path
+                        .clone()
+                        .unwrap_or(tempfile::tempdir().unwrap().into_path()),
+                    config.remote_store_url.clone(),
+                    vec![],
+                    extra_reader_options,
+                )
+                .await?;
+        }
         Ok(())
     }
 
@@ -210,4 +271,68 @@ impl ProgressStore for ShimIndexerProgressStore {
     async fn save(&mut self, _: String, _: CheckpointSequenceNumber) -> Result<(), Self::Error> {
         Ok(())
     }
+}
+
+// The gRPC ingestion logic.
+pub async fn run_grpc_checkpoint_ingestion(
+    grpc_url: &str,
+    store: PgIndexerStore,
+    metrics: IndexerMetrics,
+    start_watermark: u64,
+    cancel: CancellationToken,
+) -> Result<(), IndexerError> {
+    use tokio_stream::StreamExt;
+    let mut client = GrpcNodeClient::connect(grpc_url)
+        .await
+        .map_err(|e| IndexerError::Generic(format!("Failed to connect to gRPC: {e}")))?;
+    println!(
+        "[gRPC][Indexer] starting stream from watermark {}",
+        start_watermark
+    );
+    let mut stream = client
+        .stream_checkpoints(Some(start_watermark), None, Some(true))
+        .await
+        .map_err(|e| IndexerError::Generic(format!("Failed to stream checkpoints: {e}")))?;
+
+    let handler = std::sync::Arc::new(
+        crate::handlers::checkpoint_handler::new_handlers(
+            store.clone(),
+            metrics.clone(),
+            start_watermark,
+            cancel.clone(),
+        )
+        .await?,
+    );
+
+    while let Some(Ok(cp)) = stream.next().await {
+        println!(
+            "[gRPC][Indexer] Received raw checkpoint, {} bytes (expecting CheckpointData)",
+            cp.data.len()
+        );
+        let checkpoint_data: CheckpointData = match bcs::from_bytes::<CheckpointData>(&cp.data) {
+            Ok(data) => {
+                println!(
+                    "[gRPC][Indexer] Successfully decoded CheckpointData seq={}, size={} bytes",
+                    data.checkpoint_summary.sequence_number,
+                    cp.data.len()
+                );
+                data
+            }
+            Err(e) => {
+                println!("[gRPC][Indexer] BCS decode error: {e}");
+                continue;
+            }
+        };
+        println!(
+            "[gRPC][Indexer] Received checkpoint seq={}",
+            checkpoint_data.checkpoint_summary.sequence_number
+        );
+        std::sync::Arc::clone(&handler)
+            .process_checkpoint(Arc::new(checkpoint_data))
+            .await?;
+        if cancel.is_cancelled() {
+            break;
+        }
+    }
+    Ok(())
 }
