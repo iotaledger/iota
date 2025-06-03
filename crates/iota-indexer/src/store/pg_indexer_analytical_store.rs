@@ -6,7 +6,9 @@ use core::result::Result::Ok;
 use std::time::Duration;
 
 use async_trait::async_trait;
-use diesel::{ExpressionMethods, OptionalExtension, QueryDsl, RunQueryDsl, dsl::count};
+use diesel::{
+    ExpressionMethods, OptionalExtension, QueryDsl, RunQueryDsl, dsl::count, sql_types::BigInt,
+};
 use downcast::Any;
 use iota_types::base_types::ObjectID;
 use tap::tap::TapFallible;
@@ -203,7 +205,6 @@ impl IndexerAnalyticalStore for PgIndexerAnalyticalStore {
         start_checkpoint: i64,
         end_checkpoint: i64,
     ) -> IndexerResult<()> {
-        let tx_count_query = construct_checkpoint_tx_count_query(start_checkpoint, end_checkpoint);
         info!(
             "Persisting tx count metrics for checkpoints [{}-{}]",
             start_checkpoint,
@@ -212,7 +213,10 @@ impl IndexerAnalyticalStore for PgIndexerAnalyticalStore {
         transactional_blocking_with_retry!(
             &self.blocking_cp,
             |conn| {
-                diesel::sql_query(tx_count_query.clone()).execute(conn)?;
+                diesel::sql_query("CALL calculate_tx_count_metrics($1, $2)")
+                    .bind::<BigInt, _>(start_checkpoint)
+                    .bind::<BigInt, _>(end_checkpoint)
+                    .execute(conn)?;
                 Ok::<(), IndexerError>(())
             },
             Duration::from_secs(10)
@@ -486,34 +490,6 @@ impl IndexerAnalyticalStore for PgIndexerAnalyticalStore {
         .context("Failed persisting move call metrics to PostgresDB")?;
         Ok(())
     }
-}
-
-fn construct_checkpoint_tx_count_query(start_checkpoint: i64, end_checkpoint: i64) -> String {
-    format!(
-        "WITH expanded_checkpoint_range AS (
-            SELECT
-                sequence_number AS checkpoint_sequence_number,
-                epoch,
-                generate_series(min_tx_sequence_number, max_tx_sequence_number) AS tx_sequence_number
-            FROM checkpoints
-            WHERE sequence_number >= {start_checkpoint} AND sequence_number < {end_checkpoint}
-        )
-
-        INSERT INTO tx_count_metrics
-        SELECT
-            ecr.checkpoint_sequence_number,
-            ecr.epoch,
-            MAX(t.timestamp_ms) AS timestamp_ms,
-            COUNT(*) AS total_transaction_blocks,
-            SUM(CASE WHEN t.success_command_count > 0 THEN 1 ELSE 0 END) AS total_successful_transaction_blocks,
-            SUM(t.success_command_count) AS total_successful_transactions
-        FROM expanded_checkpoint_range ecr
-        JOIN transactions t
-            ON t.tx_sequence_number = ecr.tx_sequence_number
-        GROUP BY ecr.checkpoint_sequence_number, ecr.epoch
-        ORDER BY ecr.checkpoint_sequence_number
-        ON CONFLICT (checkpoint_sequence_number) DO NOTHING;"
-    )
 }
 
 fn construct_peak_tps_query(epoch: i64, offset: i64) -> String {
