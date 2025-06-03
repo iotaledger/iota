@@ -64,7 +64,7 @@ export function CheckpointsTable({
                 <PlaceholderTable
                     rowCount={Number(limit)}
                     rowHeight="16px"
-                    colHeadings={['Digest', 'Sequence Number', 'Time', 'Transaction Count']}
+                    colHeadings={['Digest', 'Sequence Number', 'Time', 'Transactions']}
                 />
             ) : (
                 <TableCard
