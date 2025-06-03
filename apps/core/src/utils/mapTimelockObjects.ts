@@ -2,8 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { IotaObjectData } from '@iota/iota-sdk/client';
-import { TimelockedIotaObjectSchema, TimelockedObjectFieldsSchema } from './stake';
-import { TimelockedIotaResponse, TimelockedObject } from '../interfaces';
+import { TimelockedIotaObjectSchema, TimelockedObjectFieldsSchema } from './stake/types';
+import { TimelockedIotaResponse, TimelockedObject } from '../interfaces/timelock.interfaces';
 
 export function mapTimelockObjects(iotaObjects: IotaObjectData[]): TimelockedObject[] {
     return iotaObjects.map((iotaObject) => {

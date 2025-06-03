@@ -1,9 +1,9 @@
 // Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { DelegatedTimelockedStake } from '@iota/iota-sdk/client';
-import { DelegatedTimelockedStakeSchema } from './stake';
-import { ExtendedDelegatedTimelockedStake } from '../interfaces';
+import { DelegatedTimelockedStakeSchema } from './stake/types';
+import type { DelegatedTimelockedStake } from '@iota/iota-sdk/client';
+import type { ExtendedDelegatedTimelockedStake } from '../interfaces';
 
 export function formatDelegatedTimelockedStake(
     delegatedTimelockedStakeData: DelegatedTimelockedStake[],

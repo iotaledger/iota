@@ -1,13 +1,13 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+import { GroupedTimelockObject } from '@iota/core/utils/stake/createTimelockedStakeTransaction';
 import {
-    GroupedTimelockObject,
     TimelockedObject,
-    mapTimelockObjects,
     type ExtendedDelegatedTimelockedStake,
-} from '@iota/core';
+} from '@iota/core/interfaces/timelock.interfaces';
 import { SUPPLY_INCREASE_VESTING_LABEL } from '@iota/core/constants/vesting.constants';
+import { mapTimelockObjects } from '@iota/core/utils/mapTimelockObjects';
 import {
     MIN_STAKING_THRESHOLD,
     SUPPLY_INCREASE_INVESTOR_VESTING_DURATION,

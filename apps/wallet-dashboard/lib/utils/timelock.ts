@@ -1,7 +1,10 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { ExtendedDelegatedTimelockedStake, TimelockedObject } from '@iota/core';
+import {
+    ExtendedDelegatedTimelockedStake,
+    TimelockedObject,
+} from '@iota/core/interfaces/timelock.interfaces';
 
 export type TimelockedStakedObjectsGrouped = {
     validatorAddress: string;
