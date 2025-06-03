@@ -29,6 +29,7 @@ indicatif.workspace = true
 integer-encoding.workspace = true
 itertools.workspace = true
 lru.workspace = true
+moka.workspace = true
 num_enum.workspace = true
 object_store.workspace = true
 parking_lot.workspace = true

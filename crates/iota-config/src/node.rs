@@ -210,7 +210,7 @@ pub struct NodeConfig {
     #[serde(default)]
     pub indexer_max_subscriptions: Option<usize>,
 
-    #[serde(default)]
+    #[serde(default = "default_transaction_kv_store_config")]
     pub transaction_kv_store_read_config: TransactionKeyValueStoreReadConfig,
 
     // TODO: write config seem to be unused.
@@ -250,6 +250,12 @@ pub struct NodeConfig {
     #[serde(default)]
     pub verifier_signing_config: VerifierSigningConfig,
 
+    /// If a value is set, it determines if writes to DB can stall, which can
+    /// halt the whole process. By default, write stall is enabled on
+    /// validators but not on fullnodes.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub enable_db_write_stall: Option<bool>,
+
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub iota_names_config: Option<IotaNamesConfig>,
 }
@@ -272,10 +278,31 @@ pub enum ServerType {
     Both,
 }
 
-#[derive(Clone, Debug, Deserialize, Serialize, Default)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(rename_all = "kebab-case")]
 pub struct TransactionKeyValueStoreReadConfig {
+    #[serde(default = "default_base_url")]
     pub base_url: String,
+
+    #[serde(default = "default_cache_size")]
+    pub cache_size: u64,
+}
+
+impl Default for TransactionKeyValueStoreReadConfig {
+    fn default() -> Self {
+        Self {
+            base_url: default_base_url(),
+            cache_size: default_cache_size(),
+        }
+    }
+}
+
+fn default_base_url() -> String {
+    "".to_string()
+}
+
+fn default_cache_size() -> u64 {
+    100_000
 }
 
 fn default_jwk_fetch_interval_seconds() -> u64 {
@@ -312,6 +339,10 @@ pub fn default_zklogin_oauth_providers() -> BTreeMap<Chain, BTreeSet<String>> {
     map.insert(Chain::Testnet, providers);
     map.insert(Chain::Unknown, experimental_providers);
     map
+}
+
+fn default_transaction_kv_store_config() -> TransactionKeyValueStoreReadConfig {
+    TransactionKeyValueStoreReadConfig::default()
 }
 
 fn default_authority_store_pruning_config() -> AuthorityStorePruningConfig {
