@@ -4,10 +4,9 @@
 
 use std::sync::Arc;
 
-use iota_metrics::histogram::Histogram;
 use prometheus::{
-    IntCounter, IntGauge, Registry, register_int_counter_with_registry,
-    register_int_gauge_with_registry,
+    Histogram, IntCounter, IntGauge, Registry, register_histogram_with_registry,
+    register_int_counter_with_registry, register_int_gauge_with_registry,
 };
 
 pub struct CheckpointExecutorMetrics {
@@ -17,11 +16,11 @@ pub struct CheckpointExecutorMetrics {
     pub checkpoint_exec_errors: IntCounter,
     pub checkpoint_exec_epoch: IntGauge,
     pub checkpoint_exec_inflight: IntGauge,
-    pub checkpoint_exec_latency_us: Histogram,
-    pub checkpoint_prepare_latency_us: Histogram,
+    pub checkpoint_exec_latency: Histogram,
+    pub checkpoint_prepare_latency: Histogram,
     pub checkpoint_transaction_count: Histogram,
-    pub checkpoint_contents_age_ms: Histogram,
-    pub last_executed_checkpoint_age_ms: Histogram,
+    pub checkpoint_contents_age: Histogram,
+    pub last_executed_checkpoint_age: Histogram,
 }
 
 impl CheckpointExecutorMetrics {
@@ -63,31 +62,41 @@ impl CheckpointExecutorMetrics {
                 registry
             )
             .unwrap(),
-            checkpoint_exec_latency_us: Histogram::new_in_registry(
-                "checkpoint_exec_latency_us",
-                "Latency of executing a checkpoint from enqueue to all effects available, in microseconds",
+            checkpoint_exec_latency: register_histogram_with_registry!(
+                "checkpoint_exec_latency",
+                "Latency of executing a checkpoint from enqueue to all effects available",
+                iota_metrics::SUBSECOND_LATENCY_SEC_BUCKETS.to_vec(),
                 registry,
-            ),
-            checkpoint_prepare_latency_us: Histogram::new_in_registry(
-                "checkpoint_prepare_latency_us",
-                "Latency of preparing a checkpoint to enqueue for execution, in microseconds",
+            )
+            .unwrap(),
+            checkpoint_prepare_latency: register_histogram_with_registry!(
+                "checkpoint_prepare_latency",
+                "Latency of preparing a checkpoint to enqueue for execution",
+                iota_metrics::SUBSECOND_LATENCY_SEC_BUCKETS.to_vec(),
                 registry,
-            ),
-            checkpoint_transaction_count: Histogram::new_in_registry(
+            )
+            .unwrap(),
+            checkpoint_transaction_count: register_histogram_with_registry!(
                 "checkpoint_transaction_count",
                 "Number of transactions in the checkpoint",
+                iota_metrics::COUNT_BUCKETS.to_vec(),
                 registry,
-            ),
-            checkpoint_contents_age_ms: Histogram::new_in_registry(
-                "checkpoint_contents_age_ms",
+            )
+            .unwrap(),
+            checkpoint_contents_age: register_histogram_with_registry!(
+                "checkpoint_contents_age",
                 "Age of checkpoints when they arrive for execution",
+                iota_metrics::LATENCY_SEC_BUCKETS.to_vec(),
                 registry,
-            ),
-            last_executed_checkpoint_age_ms: Histogram::new_in_registry(
-                "last_executed_checkpoint_age_ms",
+            )
+            .unwrap(),
+            last_executed_checkpoint_age: register_histogram_with_registry!(
+                "last_executed_checkpoint_age",
                 "Age of the last executed checkpoint",
-                registry,
-            ),
+                iota_metrics::LATENCY_SEC_BUCKETS.to_vec(),
+                registry
+            )
+            .unwrap(),
         };
         Arc::new(this)
     }

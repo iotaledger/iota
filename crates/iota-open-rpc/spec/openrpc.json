@@ -1304,6 +1304,7 @@
               "maxSupportedProtocolVersion": "9",
               "protocolVersion": "6",
               "featureFlags": {
+                "accept_passkey_in_multisig": false,
                 "accept_zklogin_in_multisig": false,
                 "bridge": false,
                 "congestion_control_min_free_execution_slot": false,
@@ -6320,6 +6321,18 @@
               }
             },
             "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "required": [
+              "Passkey"
+            ],
+            "properties": {
+              "Passkey": {
+                "$ref": "#/components/schemas/PasskeyAuthenticatorAsBytes"
+              }
+            },
+            "additionalProperties": false
           }
         ]
       },
@@ -11282,6 +11295,9 @@
             "type": "string"
           }
         }
+      },
+      "PasskeyAuthenticatorAsBytes": {
+        "$ref": "#/components/schemas/Base64"
       },
       "ProtocolConfig": {
         "type": "object",

@@ -58,6 +58,7 @@ pub const MAX_PROTOCOL_VERSION: u64 = 9;
 //            Enable consensus garbage collection for mainnet
 //            Enable the new consensus commit rule for mainnet.
 //            Increase the committee size to 80.
+//            Enable passkey auth in multisig for devnet.
 
 #[derive(Copy, Clone, Debug, Hash, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ProtocolVersion(u64);
@@ -277,6 +278,10 @@ struct FeatureFlags {
     // object congestion tracker.
     #[serde(skip_serializing_if = "is_false")]
     congestion_control_min_free_execution_slot: bool,
+
+    // If true, multisig containing passkey sig is accepted.
+    #[serde(skip_serializing_if = "is_false")]
+    accept_passkey_in_multisig: bool,
 }
 
 fn is_true(b: &bool) -> bool {
@@ -1250,6 +1255,10 @@ impl ProtocolConfig {
         self.feature_flags
             .congestion_control_min_free_execution_slot
     }
+
+    pub fn accept_passkey_in_multisig(&self) -> bool {
+        self.feature_flags.accept_passkey_in_multisig
+    }
 }
 
 #[cfg(not(msim))]
@@ -2007,6 +2016,11 @@ impl ProtocolConfig {
                     cfg.consensus_gc_depth = Some(60);
 
                     cfg.max_committee_members_count = Some(80);
+
+                    // Enable passkey in multisig in devnet.
+                    if chain != Chain::Testnet && chain != Chain::Mainnet {
+                        cfg.feature_flags.accept_passkey_in_multisig = true;
+                    }
                 }
                 // Use this template when making changes:
                 //
@@ -2148,6 +2162,10 @@ impl ProtocolConfig {
     pub fn set_consensus_round_prober_probe_accepted_rounds(&mut self, val: bool) {
         self.feature_flags
             .consensus_round_prober_probe_accepted_rounds = val;
+    }
+
+    pub fn set_accept_passkey_in_multisig_for_testing(&mut self, val: bool) {
+        self.feature_flags.accept_passkey_in_multisig = val;
     }
 }
 
