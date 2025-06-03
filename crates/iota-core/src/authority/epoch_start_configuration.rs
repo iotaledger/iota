@@ -94,6 +94,7 @@ impl fmt::Display for EpochFlag {
 #[enum_dispatch(EpochStartConfigTrait)]
 pub enum EpochStartConfiguration {
     V1(EpochStartConfigurationV1),
+    V2(EpochStartConfigurationV2),
 }
 
 impl EpochStartConfiguration {
@@ -109,7 +110,7 @@ impl EpochStartConfiguration {
             get_randomness_state_obj_initial_shared_version(object_store)?;
         let coin_deny_list_obj_initial_shared_version =
             get_deny_list_obj_initial_shared_version(object_store)?;
-        Ok(Self::V1(EpochStartConfigurationV1 {
+        Ok(Self::V2(EpochStartConfigurationV2 {
             system_state,
             epoch_digest,
             flags: initial_epoch_flags,
@@ -125,6 +126,18 @@ impl EpochStartConfiguration {
         // When a new version is introduced, this function should be updated.
         match self {
             Self::V1(config) => Self::V1(EpochStartConfigurationV1 {
+                system_state: config.system_state.new_at_next_epoch_for_testing(),
+                epoch_digest: config.epoch_digest,
+                flags: config.flags.clone(),
+                authenticator_obj_initial_shared_version: config
+                    .authenticator_obj_initial_shared_version,
+                randomness_obj_initial_shared_version: config.randomness_obj_initial_shared_version,
+                coin_deny_list_obj_initial_shared_version: config
+                    .coin_deny_list_obj_initial_shared_version,
+                bridge_obj_initial_shared_version: config.bridge_obj_initial_shared_version,
+                bridge_committee_initiated: config.bridge_committee_initiated,
+            }),
+            Self::V2(config) => Self::V2(EpochStartConfigurationV2 {
                 system_state: config.system_state.new_at_next_epoch_for_testing(),
                 epoch_digest: config.epoch_digest,
                 flags: config.flags.clone(),
@@ -162,9 +175,48 @@ pub struct EpochStartConfigurationV1 {
     authenticator_obj_initial_shared_version: Option<SequenceNumber>,
     randomness_obj_initial_shared_version: SequenceNumber,
     coin_deny_list_obj_initial_shared_version: SequenceNumber,
+    bridge_obj_initial_shared_version: Option<SequenceNumber>,
+    bridge_committee_initiated: bool,
 }
 
 impl EpochStartConfigTrait for EpochStartConfigurationV1 {
+    fn epoch_digest(&self) -> CheckpointDigest {
+        self.epoch_digest
+    }
+
+    fn epoch_start_state(&self) -> &EpochStartSystemState {
+        &self.system_state
+    }
+
+    fn flags(&self) -> &[EpochFlag] {
+        &self.flags
+    }
+
+    fn authenticator_obj_initial_shared_version(&self) -> Option<SequenceNumber> {
+        self.authenticator_obj_initial_shared_version
+    }
+
+    fn randomness_obj_initial_shared_version(&self) -> SequenceNumber {
+        self.randomness_obj_initial_shared_version
+    }
+
+    fn coin_deny_list_obj_initial_shared_version(&self) -> SequenceNumber {
+        self.coin_deny_list_obj_initial_shared_version
+    }
+}
+
+#[derive(Serialize, Deserialize, Debug, Eq, PartialEq)]
+pub struct EpochStartConfigurationV2 {
+    system_state: EpochStartSystemState,
+    epoch_digest: CheckpointDigest,
+    flags: Vec<EpochFlag>,
+    /// Do the state objects exist at the beginning of the epoch?
+    authenticator_obj_initial_shared_version: Option<SequenceNumber>,
+    randomness_obj_initial_shared_version: SequenceNumber,
+    coin_deny_list_obj_initial_shared_version: SequenceNumber,
+}
+
+impl EpochStartConfigTrait for EpochStartConfigurationV2 {
     fn epoch_digest(&self) -> CheckpointDigest {
         self.epoch_digest
     }
