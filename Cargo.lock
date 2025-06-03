@@ -7196,7 +7196,6 @@ dependencies = [
  "clap",
  "env_logger",
  "futures",
- "getset",
  "iota-archival",
  "iota-config",
  "iota-data-ingestion-core",
