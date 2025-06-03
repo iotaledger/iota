@@ -24,6 +24,7 @@ interface BalanceBreakdownElement {
     supportingLabel: string;
     isLoading?: boolean;
     isError?: boolean;
+    tooltipText?: string;
 }
 
 export function AddressBalanceBreakdown({ address }: { address: string }): React.JSX.Element {
@@ -34,7 +35,7 @@ export function AddressBalanceBreakdown({ address }: { address: string }): React
         isError: isBalanceErrored,
     } = useBalance(address);
 
-    const [totalLiquidBalance, symbol] = useFormatCoin({
+    const [totalAvailableBalance, symbol] = useFormatCoin({
         balance: balance?.totalBalance,
     });
 
@@ -113,11 +114,12 @@ export function AddressBalanceBreakdown({ address }: { address: string }): React
 
     const BALANCE_BREAKDOWN: BalanceBreakdownElement[] = [
         {
-            keyText: 'Liquid Balance',
-            value: totalLiquidBalance,
+            keyText: 'Available',
+            value: totalAvailableBalance,
             supportingLabel: symbol,
             isLoading: isLoadingBalance,
             isError: isBalanceErrored,
+            tooltipText: 'IOTA that can be used or transferred immediately.',
         },
         {
             keyText: 'Staked',
@@ -125,6 +127,7 @@ export function AddressBalanceBreakdown({ address }: { address: string }): React
             supportingLabel: symbol,
             isLoading: isLoadingDelegatedStakes,
             isError: isDelegatedStakeErrored,
+            tooltipText: 'IOTA currently locked in staking. Cannot be used until unstaked.',
         },
         {
             keyText: 'Timelocked Staked',
@@ -132,6 +135,8 @@ export function AddressBalanceBreakdown({ address }: { address: string }): React
             supportingLabel: symbol,
             isLoading: isLoadingTimelockedStakeObjects,
             isError: isTimelockedStakedObjectsErrored,
+            tooltipText:
+                'IOTA both timelocked and staked. To access these funds, they must first be unstaked, and then handled according to their timelock conditions.',
         },
         {
             keyText: 'Timelocked',
@@ -139,6 +144,8 @@ export function AddressBalanceBreakdown({ address }: { address: string }): React
             supportingLabel: symbol,
             isLoading: isTimelockedObjectsLoading,
             isError: isTimelockedObjectsError,
+            tooltipText:
+                "IOTA locked until a specific time. Depending on the lock's expiration, these funds can either be used for staking or collected (unwrapped) when the timelock allows it.",
         },
     ];
     return (
@@ -163,6 +170,7 @@ export function AddressBalanceBreakdown({ address }: { address: string }): React
                             <KeyValueInfo
                                 key={item.keyText}
                                 keyText={item.keyText}
+                                tooltipText={item.tooltipText}
                                 fullwidth
                                 value={
                                     <RenderBalanceValue
