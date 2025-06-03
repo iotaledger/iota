@@ -24,6 +24,8 @@ validate real smart contracts and entire inter-chain protocols before deploying 
 [Go (version 1.20)](https://tip.golang.org/doc/go1.20). As _Solo_ tests are written in Go, you must
 [install Go](https://go.dev/doc/install).
 
+[Docker](https://www.docker.com/). To work with Wasp Repo (specifically), it is necessary to run it locally first.
+
 ### Access the Solo Framework
 
 You can access the Solo package by cloning the [Wasp repository](#clone-the-wasp-repository)
