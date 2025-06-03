@@ -104,7 +104,8 @@ pub enum UserInputError {
         version: Option<SequenceNumber>,
     },
     #[error(
-        "Object {provided_obj_ref:?} is not available for consumption, its current version: {current_version:?}"
+        "Object ID {} Version {} Digest {} is not available for consumption, current version: {current_version}",
+        .provided_obj_ref.0, .provided_obj_ref.1, .provided_obj_ref.2
     )]
     ObjectVersionUnavailableForConsumption {
         provided_obj_ref: ObjectRef,
@@ -280,6 +281,12 @@ pub enum UserInputError {
         limit
     )]
     TooManyTransactionsInSoftBundle { limit: u64 },
+    #[error(
+        "Total transactions size ({:?})bytes exceeds the maximum allowed ({:?})bytes in a Soft Bundle",
+        size,
+        limit
+    )]
+    SoftBundleTooLarge { size: u64, limit: u64 },
     #[error("Transaction {:?} in Soft Bundle contains no shared objects", digest)]
     NoSharedObject { digest: TransactionDigest },
     #[error("Transaction {:?} in Soft Bundle has already been executed", digest)]

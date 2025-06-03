@@ -12,7 +12,6 @@ anyhow = { workspace = true, features = ["backtrace"] }
 async-trait.workspace = true
 clap.workspace = true
 derive_more = { workspace = true, features = ["debug"] }
-diesel.workspace = true
 fastcrypto.workspace = true
 futures.workspace = true
 jsonrpsee.workspace = true
@@ -46,6 +45,5 @@ telemetry-subscribers.workspace = true
 test-cluster.workspace = true
 
 [features]
-default = ["postgres-feature"]
-postgres-feature = ["diesel/postgres", "diesel/postgres_backend"]
+default = []
 pg_integration = []

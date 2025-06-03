@@ -23,7 +23,7 @@ function ArrayArgument({
     return (
         <>
             {data && (
-                <span className="text-body-md text-neutral-40 dark:text-neutral-60">
+                <span className="break-all text-body-md text-neutral-40 dark:text-neutral-60">
                     ({flattenIotaArguments(data)})
                 </span>
             )}

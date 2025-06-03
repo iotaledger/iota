@@ -166,7 +166,10 @@ function ExecutePanelContent({
     return (
         <TabbedContentWrapper>
             <TabsProvider tabs={TABS}>
-                <SegmentedButton type={SegmentedButtonType.Transparent}>
+                <SegmentedButton
+                    type={SegmentedButtonType.Transparent}
+                    shape={ButtonSegmentType.Underlined}
+                >
                     {TABS.map(({ id, label }) => (
                         <ButtonSegment
                             type={ButtonSegmentType.Underlined}

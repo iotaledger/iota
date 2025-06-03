@@ -3,11 +3,11 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use iota_metrics::histogram::Histogram;
 use prometheus::{
-    HistogramVec, IntCounter, IntCounterVec, IntGauge, Registry,
-    register_histogram_vec_with_registry, register_int_counter_vec_with_registry,
-    register_int_counter_with_registry, register_int_gauge_with_registry,
+    Histogram, HistogramVec, IntCounter, IntCounterVec, IntGauge, Registry,
+    register_histogram_vec_with_registry, register_histogram_with_registry,
+    register_int_counter_vec_with_registry, register_int_counter_with_registry,
+    register_int_gauge_with_registry,
 };
 
 const FINALITY_LATENCY_SEC_BUCKETS: &[f64] = &[
@@ -29,10 +29,6 @@ pub struct QuorumDriverMetrics {
     // TODO: add histogram of attempt that tx succeeds
     pub(crate) current_requests_in_flight: IntGauge,
 
-    pub(crate) total_err_process_tx_responses_with_nonzero_conflicting_transactions: IntCounter,
-    pub(crate) total_attempts_retrying_conflicting_transaction: IntCounter,
-    pub(crate) total_successful_attempts_retrying_conflicting_transaction: IntCounter,
-    pub(crate) total_times_conflicting_transaction_already_finalized_when_retrying: IntCounter,
     pub(crate) total_retryable_overload_errors: IntCounter,
     pub(crate) transaction_retry_count: Histogram,
     pub(crate) current_transactions_in_retry: IntGauge,
@@ -68,38 +64,16 @@ impl QuorumDriverMetrics {
                 registry,
             )
             .unwrap(),
-            attempt_times_ok_response: Histogram::new_in_registry(
+            attempt_times_ok_response: register_histogram_with_registry!(
                 "quorum_driver_attempt_times_ok_response",
                 "Total attempt times of ok response",
+                iota_metrics::COUNT_BUCKETS.to_vec(),
                 registry,
-            ),
+            )
+            .unwrap(),
             current_requests_in_flight: register_int_gauge_with_registry!(
                 "current_requests_in_flight",
                 "Current number of requests being processed in QuorumDriver",
-                registry,
-            )
-            .unwrap(),
-            total_err_process_tx_responses_with_nonzero_conflicting_transactions: register_int_counter_with_registry!(
-                "quorum_driver_total_err_process_tx_responses_with_nonzero_conflicting_transactions",
-                "Total number of err process_tx responses with non empty conflicting transactions",
-                registry,
-            )
-            .unwrap(),
-            total_attempts_retrying_conflicting_transaction: register_int_counter_with_registry!(
-                "quorum_driver_total_attempts_trying_conflicting_transaction",
-                "Total number of attempts to retry a conflicting transaction",
-                registry,
-            )
-            .unwrap(),
-            total_successful_attempts_retrying_conflicting_transaction: register_int_counter_with_registry!(
-                "quorum_driver_total_successful_attempts_trying_conflicting_transaction",
-                "Total number of successful attempts to retry a conflicting transaction",
-                registry,
-            )
-            .unwrap(),
-            total_times_conflicting_transaction_already_finalized_when_retrying: register_int_counter_with_registry!(
-                "quorum_driver_total_times_conflicting_transaction_already_finalized_when_retrying",
-                "Total number of times the conflicting transaction is already finalized when retrying",
                 registry,
             )
             .unwrap(),
@@ -109,11 +83,13 @@ impl QuorumDriverMetrics {
                 registry,
             )
             .unwrap(),
-            transaction_retry_count: Histogram::new_in_registry(
+            transaction_retry_count: register_histogram_with_registry!(
                 "quorum_driver_transaction_retry_count",
                 "Histogram of transaction retry count",
+                iota_metrics::COUNT_BUCKETS.to_vec(),
                 registry,
-            ),
+            )
+            .unwrap(),
             current_transactions_in_retry: register_int_gauge_with_registry!(
                 "current_transactions_in_retry",
                 "Current number of transactions in retry loop in QuorumDriver",

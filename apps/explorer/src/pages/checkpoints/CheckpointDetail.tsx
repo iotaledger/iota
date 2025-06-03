@@ -79,7 +79,7 @@ export function CheckpointDetail(): JSX.Element {
                 ) : (
                     <div className="flex flex-col gap-2xl">
                         <PageHeader title={data.digest} type="Checkpoint" />
-                        <div className="flex flex-row gap-lg">
+                        <div className="flex flex-col gap-lg md:flex-row">
                             <Panel>
                                 <SegmentedButton
                                     type={SegmentedButtonType.Transparent}
@@ -136,7 +136,7 @@ export function CheckpointDetail(): JSX.Element {
                                     </div>
                                 ) : null}
                                 {activeDetailsTabId === DetailsTabs.Signatures ? (
-                                    <>
+                                    <div className="flex flex-wrap p-sm--rs">
                                         <div className="inline-flex">
                                             <SegmentedButton
                                                 type={SegmentedButtonType.Transparent}
@@ -151,11 +151,12 @@ export function CheckpointDetail(): JSX.Element {
                                                     onClick={() =>
                                                         setActiveNestedTabId(NestedTabs.Aggregated)
                                                     }
+                                                    isNested
                                                 />
                                             </SegmentedButton>
                                         </div>
                                         {activeNestedTabId === NestedTabs.Aggregated ? (
-                                            <div className="flex flex-col gap-lg p-md--rs">
+                                            <div className="flex flex-col gap-lg break-all p-md--rs">
                                                 <LabelText
                                                     size={LabelTextSize.Medium}
                                                     label="Aggregated Validator Signature"
@@ -163,7 +164,7 @@ export function CheckpointDetail(): JSX.Element {
                                                 />
                                             </div>
                                         ) : null}
-                                    </>
+                                    </div>
                                 ) : null}
                             </Panel>
                             <Panel>
