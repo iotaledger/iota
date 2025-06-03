@@ -28,7 +28,7 @@ interface BalanceBreakdownElement {
 }
 
 export function AddressBalanceBreakdown({ address }: { address: string }): React.JSX.Element {
-    const [open, setOpen] = useState(false);
+    const [open, setOpen] = useState(true);
     const {
         data: balance,
         isLoading: isLoadingBalance,
