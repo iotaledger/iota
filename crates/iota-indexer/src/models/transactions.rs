@@ -46,6 +46,9 @@ pub struct TxGlobalOrder {
     ///
     /// To maintain these semantics the value should be `0` for
     /// checkpointed transactions.
+    ///
+    /// Optimistic transactions should set this value to `None`,
+    /// so that it is auto-generated on the database.
     #[diesel(deserialize_as = i64)]
     pub optimistic_sequence_number: Option<i64>,
 }

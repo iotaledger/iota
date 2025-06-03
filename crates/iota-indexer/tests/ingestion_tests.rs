@@ -262,7 +262,7 @@ mod ingestion_tests {
                 .select(StoredTxDigest::as_select())
                 .first::<StoredTxDigest>(conn)
         })
-        .context("Failed reading tx global order from PostgresDB")?;
+        .context("Failed reading `tx_global_order` from PostgresDB")?;
 
         let stored_global_order = read_only_blocking!(&pg_store.blocking_cp(), |conn| {
             tx_global_order::table
@@ -270,7 +270,7 @@ mod ingestion_tests {
                 .select(TxGlobalOrder::as_select())
                 .first::<TxGlobalOrder>(conn)
         })
-        .context("Failed reading tx global order from PostgresDB")?;
+        .context("Failed reading `tx_global_order` from PostgresDB")?;
 
         assert_eq!(
             stored_global_order.global_sequence_number,
@@ -337,7 +337,7 @@ mod ingestion_tests {
                 .select(TxGlobalOrder::as_select())
                 .first::<TxGlobalOrder>(conn)
         })
-        .context("Failed reading tx insertion order from PostgresDB")?;
+        .context("Failed reading `tx_global_order` from PostgresDB")?;
 
         assert_eq!(stored.global_sequence_number, global_sequence_number);
         let expected_optimistic_sequence_number = 1;

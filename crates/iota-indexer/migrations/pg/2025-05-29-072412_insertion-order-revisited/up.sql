@@ -3,12 +3,13 @@ DROP TABLE IF EXISTS tx_insertion_order;
 -- It provides common ordering for optimistic and checkpointed transactions, whereas
 -- `tx_digests.tx_sequence_number` provides ordering only for checkpointed transactions.
 --
--- The `sequence_number` in this table defaults to the checkpoint sequence number for
--- checkpointed transactions, and to the `SELECT MAX(tx_sequence_number) FROM
--- tx_digests` at the time of insertion for optimistic transactions.
+-- The `sequence_number` in this table defaults to the transaction sequence
+-- number assigned in the checkpoint for checkpointed transactions, and to the
+-- `SELECT MAX(tx_sequence_number) FROM tx_digests` at the time of insertion
+-- for optimistic transactions.
 --
 -- Deterministic global order is guaranteed by the composite index on
--- `(insertion_order, optimistic_sequence_number)`, where
+-- `(global_sequence_number, optimistic_sequence_number)`, where
 -- `optimistic_sequence_number` is the monotically increasing number
 -- that represents the order of execution for optimistic transactions.
 --

@@ -670,7 +670,7 @@ impl IndexerReader {
                     tx_global_order::table.on(optimistic_transactions::sequence_number
                         .eq(tx_global_order::optimistic_sequence_number)),
                 )
-                // we filter the tx_insertion_order table because it is indexed by digest,
+                // we filter the `tx_global_order` table because it is indexed by digest,
                 // optimistic_transactions table is not
                 .filter(tx_global_order::tx_digest.eq_any(missing_digests))
                 .select(OptimisticTransaction::as_select())
