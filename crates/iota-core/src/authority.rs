@@ -4829,7 +4829,8 @@ impl AuthorityState {
     pub(crate) fn iter_live_object_set_for_testing(
         &self,
     ) -> impl Iterator<Item = authority_store_tables::LiveObject> + '_ {
-        self.get_accumulator_store().iter_live_object_set()
+        self.get_accumulator_store()
+            .iter_cached_live_object_set_for_testing()
     }
 
     #[cfg(test)]
@@ -4849,6 +4850,8 @@ impl AuthorityState {
             .bulk_insert_genesis_objects(objects)?;
         self.get_object_cache_reader()
             .force_reload_system_packages(&BuiltInFramework::all_package_ids());
+        self.get_reconfig_api()
+            .clear_state_end_of_epoch(&self.execution_lock_for_reconfiguration().await);
         Ok(())
     }
 }
