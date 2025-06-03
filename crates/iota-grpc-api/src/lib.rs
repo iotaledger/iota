@@ -19,6 +19,8 @@ pub mod client;
 
 use bcs;
 use futures::{StreamExt as FuturesStreamExt, stream};
+// Helper to fetch full CheckpointData from a RestStateReader
+use iota_types::full_checkpoint_content::CheckpointData;
 use iota_types::messages_checkpoint::CertifiedCheckpointSummary;
 use tokio_stream::wrappers::BroadcastStream;
 
@@ -45,6 +47,31 @@ impl CheckpointGrpcService {
     }
 }
 
+// Trait to extend Arc<dyn RestStateReader> with get_full_checkpoint_data
+pub trait FullCheckpointDataExt {
+    fn get_full_checkpoint_data(
+        &self,
+        seq: u64,
+    ) -> Option<iota_types::full_checkpoint_content::CheckpointData>;
+}
+
+impl FullCheckpointDataExt for std::sync::Arc<dyn RestStateReader> {
+    fn get_full_checkpoint_data(
+        &self,
+        seq: u64,
+    ) -> Option<iota_types::full_checkpoint_content::CheckpointData> {
+        let summary = self.get_checkpoint_by_sequence_number(seq).ok()??;
+        let contents = self
+            .get_checkpoint_contents_by_sequence_number(seq)
+            .ok()??;
+        Some(iota_types::full_checkpoint_content::CheckpointData {
+            checkpoint_summary: summary.into_inner(),
+            checkpoint_contents: contents,
+            transactions: vec![], // Fill if available
+        })
+    }
+}
+
 #[tonic::async_trait]
 impl CheckpointService for CheckpointGrpcService {
     type StreamCheckpointsStream =
@@ -58,6 +85,7 @@ impl CheckpointService for CheckpointGrpcService {
         let req = request.into_inner();
         let start = req.start_index;
         let end = req.end_index;
+        let full = req.full;
 
         // Case 1: Both start_index and end_index omitted
         if start.is_none() && end.is_none() {
@@ -209,6 +237,7 @@ impl CheckpointService for CheckpointGrpcService {
         // Case 3: Only end_index provided
         if start.is_none() && end.is_some() {
             let end_index = end.unwrap();
+            let full = req.full;
             let state_reader = self.state_reader.clone();
             let single = stream::unfold(false, move |done| {
                 let state_reader = state_reader.clone();
@@ -216,27 +245,55 @@ impl CheckpointService for CheckpointGrpcService {
                     if done {
                         return None;
                     }
-                    let summary = state_reader
-                        .get_checkpoint_by_sequence_number(end_index)
-                        .ok()
-                        .flatten();
-                    if let Some(summary) = summary {
-                        let data = match bcs::to_bytes(&summary.data()) {
-                            Ok(bytes) => bytes,
-                            Err(e) => {
-                                return Some((
-                                    Err(Status::internal(format!("BCS serialization error: {e}"))),
-                                    true,
-                                ));
-                            }
-                        };
-                        let checkpoint_proto = checkpoint::Checkpoint {
-                            index: summary.data().sequence_number,
-                            data,
-                        };
-                        Some((Ok(checkpoint_proto), true))
+                    if full {
+                        // Fetch full CheckpointData
+                        let checkpoint_data = state_reader.get_full_checkpoint_data(end_index);
+                        if let Some(data) = checkpoint_data {
+                            let bytes = match bcs::to_bytes(&data) {
+                                Ok(b) => b,
+                                Err(e) => {
+                                    return Some((
+                                        Err(Status::internal(format!(
+                                            "BCS serialization error: {e}"
+                                        ))),
+                                        true,
+                                    ));
+                                }
+                            };
+                            let checkpoint_proto = checkpoint::Checkpoint {
+                                index: end_index,
+                                data: bytes,
+                            };
+                            Some((Ok(checkpoint_proto), true))
+                        } else {
+                            None
+                        }
                     } else {
-                        None
+                        // Existing summary logic
+                        let summary = state_reader
+                            .get_checkpoint_by_sequence_number(end_index)
+                            .ok()
+                            .flatten();
+                        if let Some(summary) = summary {
+                            let data = match bcs::to_bytes(&summary.data()) {
+                                Ok(bytes) => bytes,
+                                Err(e) => {
+                                    return Some((
+                                        Err(Status::internal(format!(
+                                            "BCS serialization error: {e}"
+                                        ))),
+                                        true,
+                                    ));
+                                }
+                            };
+                            let checkpoint_proto = checkpoint::Checkpoint {
+                                index: summary.data().sequence_number,
+                                data,
+                            };
+                            Some((Ok(checkpoint_proto), true))
+                        } else {
+                            None
+                        }
                     }
                 }
             });

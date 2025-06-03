@@ -14,6 +14,8 @@ service CheckpointService {
 message StreamRequest {
   optional uint64 start_index = 1;
   optional uint64 end_index = 2;
+  // If true, stream the full CheckpointData (not just the summary). Only supported when start_index is None and end_index is set.
+  bool full = 3;
 }
 
 message EpochRequest {
@@ -26,6 +28,6 @@ message CheckpointSequenceNumberResponse {
 
 message Checkpoint {
   uint64 index = 1;
-  // BCS-encoded CertifiedCheckpointSummary (Rust type)
+  // BCS-encoded CertifiedCheckpointSummary (default) or CheckpointData (if full=true)
   bytes data = 2;
 } 

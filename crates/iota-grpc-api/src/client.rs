@@ -24,10 +24,12 @@ impl GrpcNodeClient {
         &mut self,
         start: Option<u64>,
         end: Option<u64>,
+        full: Option<bool>,
     ) -> Result<tonic::Streaming<crate::checkpoint::Checkpoint>, tonic::Status> {
         let request = crate::checkpoint::StreamRequest {
             start_index: start,
             end_index: end,
+            full: full.unwrap_or(false),
         };
         let response = self.client.stream_checkpoints(request).await?;
         Ok(response.into_inner())

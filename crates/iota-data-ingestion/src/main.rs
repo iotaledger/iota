@@ -144,7 +144,7 @@ async fn main() -> Result<()> {
 
                     let mut grpc_client = GrpcNodeClient::connect(&grpc_url).await?;
                     let mut stream = grpc_client
-                        .stream_checkpoints(Some(watermark), None)
+                        .stream_checkpoints(None, Some(watermark), Some(true))
                         .await?;
                     if let Some(Ok(first_checkpoint)) = stream.next().await {
                         if first_checkpoint.index > watermark {

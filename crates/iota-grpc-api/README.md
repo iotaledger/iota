@@ -22,6 +22,7 @@ service CheckpointService {
 message StreamRequest {
   optional uint64 start_index = 1;
   optional uint64 end_index = 2;
+  bool full = 3;
 }
 
 message EpochRequest {
@@ -48,6 +49,9 @@ message Checkpoint {
   - Streams only the checkpoint at `end_index`.
 - **Both `start_index` and `end_index` provided:**
   - Streams from `start_index` to `end_index` (inclusive).
+- **If `full=true` and only `end_index` is set (start_index is None):**
+  - Streams the full CheckpointData for that checkpoint index (BCS-encoded in bytes field).
+  - In all other cases, streams only the CertifiedCheckpointSummary.
 
 The service does not attempt to compute a "latest" checkpoint index, making it robust to on-the-fly checkpoint generation.
 
@@ -111,9 +115,13 @@ A shared gRPC client (`GrpcNodeClient`) is provided by this crate and should be 
 use iota_grpc_api::client::GrpcNodeClient;
 
 let mut client = GrpcNodeClient::connect("http://localhost:50051").await?;
-let mut stream = client.stream_checkpoints(0, Some(10)).await?;
+let mut stream = client.stream_checkpoints(0, Some(10), Some(false)).await?;
 while let Some(Ok(checkpoint)) = stream.next().await {
-    // Deserialize and process checkpoint.data (BCS-encoded CheckpointData)
+    // Deserialize and process checkpoint.data (BCS-encoded CertifiedCheckpointSummary)
+}
+let mut stream = client.stream_checkpoints(None, Some(4), Some(true)).await?;
+if let Some(Ok(checkpoint)) = stream.next().await {
+    // Deserialize as CheckpointData
 }
 ```
 
@@ -161,7 +169,7 @@ The following integration tests have been added in downstream crates to ensure t
 ### **iota-data-ingestion**
 
 - **`tests/grpc_blob_ingestion.rs`**
-  - **`test_grpc_blob_worker_reset_logic`**: Comprehensive test that covers streaming checkpoints, simulating a stale local watermark, verifying ingestion, simulating missing blobs, and testing worker reset and recovery logic. This test ensures robust recovery from stale state and correct handling of checkpoint ingestion and reset.
+  - **`test_grpc_blob_worker_logic`**: Streams the full CheckpointData for a single checkpoint (using full=true, start_index=None, end_index=Some(idx)), decodes it, and passes it to the GrpcBlobWorker to verify ingestion logic. This test ensures the worker can process a full checkpoint streamed via gRPC.
 
   **How to run:**
   ```bash

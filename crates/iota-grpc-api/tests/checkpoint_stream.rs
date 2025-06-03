@@ -329,6 +329,7 @@ async fn test_start_index_only() {
     let req = StreamRequest {
         start_index: Some(5),
         end_index: None,
+        full: false,
     };
     let mut stream = svc
         .stream_checkpoints(Request::new(req))
@@ -362,6 +363,7 @@ async fn test_start_and_end_index() {
     let req = StreamRequest {
         start_index: Some(3),
         end_index: Some(7),
+        full: false,
     };
     let mut stream = svc
         .stream_checkpoints(Request::new(req))
@@ -395,6 +397,7 @@ async fn test_end_index_only() {
     let req = StreamRequest {
         start_index: None,
         end_index: Some(4),
+        full: false,
     };
     let mut stream = svc
         .stream_checkpoints(Request::new(req))
@@ -415,11 +418,42 @@ async fn test_end_index_only() {
 }
 
 #[tokio::test]
+async fn test_end_index_only_full() {
+    let svc = test_service().await;
+    let req = StreamRequest {
+        start_index: None,
+        end_index: Some(4),
+        full: true,
+    };
+    let mut stream = svc
+        .stream_checkpoints(Request::new(req))
+        .await
+        .unwrap()
+        .into_inner();
+    println!("Collecting results for test_end_index_only_full");
+    let mut result = Vec::new();
+    while let Some(res) = stream.next().await {
+        match res {
+            Ok(cp) => {
+                let checkpoint_data: iota_types::full_checkpoint_content::CheckpointData =
+                    bcs::from_bytes(&cp.data).expect("bcs decode");
+                result.push(checkpoint_data.checkpoint_summary.sequence_number);
+            }
+            Err(status) if status.code() == tonic::Code::NotFound => break,
+            Err(e) => panic!("Unexpected error: {:?}", e),
+        }
+    }
+    println!("Result: {:?}", result);
+    assert_eq!(result, vec![4]);
+}
+
+#[tokio::test]
 async fn test_both_indices_omitted() {
     let svc = test_service().await;
     let req = StreamRequest {
         start_index: None,
         end_index: None,
+        full: false,
     };
 
     // Subscribe to the stream after buffer is pre-filled (0..=10)

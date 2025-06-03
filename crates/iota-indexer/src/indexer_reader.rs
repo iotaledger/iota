@@ -2165,11 +2165,12 @@ pub async fn stream_checkpoints_via_grpc(
     grpc_url: &str,
     start: Option<u64>,
     end: Option<u64>,
+    full: Option<bool>,
 ) -> anyhow::Result<()> {
     use iota_grpc_api::client::GrpcNodeClient;
     use tokio_stream::StreamExt;
     let mut client = GrpcNodeClient::connect(grpc_url).await?;
-    let mut stream = client.stream_checkpoints(start, end).await?;
+    let mut stream = client.stream_checkpoints(start, end, full).await?;
     while let Some(Ok(_checkpoint)) = stream.next().await {
         // Process checkpoint here
     }

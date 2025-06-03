@@ -41,6 +41,7 @@ async fn e2e_stream_checkpoints() {
     let request = Request::new(StreamRequest {
         start_index: None,
         end_index: None,
+        full: false,
     });
     let mut stream = client
         .stream_checkpoints(request)
@@ -125,7 +126,7 @@ async fn test_get_epoch_first_checkpoint_sequence_number() {
     // List all checkpoints and their epochs using the gRPC stream
     println!("[gRPC DEBUG] Listing all checkpoints and their epochs via gRPC stream");
     let mut stream = client
-        .stream_checkpoints(Some(0), None)
+        .stream_checkpoints(Some(0), None, None)
         .await
         .expect("gRPC stream");
     let mut all_indices = vec![];
@@ -178,4 +179,30 @@ async fn test_get_epoch_first_checkpoint_sequence_number() {
         "First checkpoint of epoch 1 should be >= 2, got {}",
         first_1
     );
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn test_stream_full_checkpoint_data() {
+    let grpc_port = 50059u16;
+    let grpc_addr = format!("127.0.0.1:{}", grpc_port);
+    let cluster = TestClusterBuilder::new()
+        .with_fullnode_grpc_api_address(grpc_addr.clone())
+        .with_num_validators(1)
+        .build()
+        .await;
+    cluster.wait_for_checkpoint(2, None).await;
+    let mut client = GrpcNodeClient::connect(&format!("http://{}", grpc_addr))
+        .await
+        .unwrap();
+    let mut stream = client
+        .stream_checkpoints(None, Some(2), Some(true))
+        .await
+        .unwrap();
+    if let Some(Ok(cp)) = stream.next().await {
+        let checkpoint_data: iota_types::full_checkpoint_content::CheckpointData =
+            bcs::from_bytes(&cp.data).expect("bcs decode");
+        assert_eq!(checkpoint_data.checkpoint_summary.sequence_number, 2);
+    } else {
+        panic!("No checkpoint data returned");
+    }
 }
