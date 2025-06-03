@@ -20,7 +20,7 @@ import {
     SegmentedButtonType,
 } from '@iota/apps-ui-kit';
 import { CheckpointsTable, PageLayout } from '~/components';
-import { Link, TableCard } from '~/components/ui';
+import { Link, LinkWithQuery, TableCard } from '~/components/ui';
 import { useEnhancedRpcClient } from '~/hooks/useEnhancedRpc';
 import { EpochStats, EpochStatsGrid } from './stats/EpochStats';
 import { ValidatorStatus } from './stats/ValidatorStatus';
@@ -33,7 +33,7 @@ import { ArrowLeft, ArrowRight, Warning } from '@iota/apps-ui-icons';
 import { VALIDATORS_EVENTS_QUERY } from '@iota/core';
 import { useEndOfEpochTransactionFromCheckpoint } from '~/hooks/useEndOfEpochTransactionFromCheckpoint';
 import { type IotaEvent } from '@iota/iota-sdk/src/client';
-import { useIotaClientContext, useIotaClientQuery } from '@iota/dapp-kit';
+import { useIotaClientQuery } from '@iota/dapp-kit';
 
 enum EpochTabs {
     Checkpoints = 'checkpoints',
@@ -44,7 +44,6 @@ export function EpochDetail() {
     const [activeTabId, setActiveTabId] = useState(EpochTabs.Checkpoints);
     const { id } = useParams();
     const enhancedRpc = useEnhancedRpcClient();
-    const { network } = useIotaClientContext();
     const { data: systemState } = useIotaClientQuery('getLatestIotaSystemState');
     const { data, isPending, isError } = useQuery({
         queryKey: ['epoch', id],
@@ -140,19 +139,15 @@ export function EpochDetail() {
                             subtitle={isCurrentEpoch ? 'In progress' : 'Ended'}
                             trailingElement={
                                 <div className="flex flex-row gap-x-xs">
-                                    <Link
-                                        to={`/epoch/${Number(epochData.epoch) - 1}?network=${network.toLowerCase()}`}
-                                    >
+                                    <LinkWithQuery to={`/epoch/${Number(epochData.epoch) - 1}`}>
                                         <Button
                                             type={ButtonType.Secondary}
                                             size={ButtonSize.Small}
                                             icon={<ArrowLeft />}
                                             disabled={epochData.epoch === '0'}
                                         />
-                                    </Link>
-                                    <Link
-                                        to={`/epoch/${Number(epochData.epoch) + 1}?network=${network.toLowerCase()}`}
-                                    >
+                                    </LinkWithQuery>
+                                    <Link to={`/epoch/${Number(epochData.epoch) + 1}`}>
                                         <Button
                                             type={ButtonType.Secondary}
                                             size={ButtonSize.Small}
