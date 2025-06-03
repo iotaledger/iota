@@ -1,0 +1,9 @@
+[package]
+name = "Native Coin manager coins"
+version = "0.0.1"
+
+[dependencies]
+Iota = { local = "../../../../iota-framework/packages/iota-framework" }
+
+[addresses]
+coin_manager_coin = "0x0"
