@@ -29,7 +29,11 @@ import { ImportedAccount } from './importedAccount';
 import { LedgerAccount } from './ledgerAccount';
 import { MnemonicAccount } from './mnemonicAccount';
 import { SeedAccount } from './seedAccount';
-import { MILLISECONDS_PER_SECOND, SECONDS_PER_MINUTE } from '@iota/core';
+import {
+    MILLISECONDS_PER_SECOND,
+    SECONDS_PER_MINUTE,
+    WALLET_LOCK_DURATION_IN_MS,
+} from '@iota/core';
 import { AccountTooManyAttemptsError } from '_src/shared/accounts';
 
 function toAccount(account: SerializedAccount) {
@@ -301,7 +305,6 @@ export async function accountsHandleUIMessage(msg: Message, uiConnection: UiConn
     }
     if (isMethodPayload(payload, 'getLockedState')) {
         let remainingTime = 0;
-        const WALLET_LOCK_DURATION_IN_MS = 60 * MILLISECONDS_PER_SECOND;
         const { isLockedOut, lockTimeMs } = await getLockedState();
         if (isLockedOut && lockTimeMs) {
             const elapsedTime = Date.now() - Number(lockTimeMs);
@@ -322,7 +325,6 @@ export async function accountsHandleUIMessage(msg: Message, uiConnection: UiConn
     }
     if (isMethodPayload(payload, 'verifyPassword')) {
         const MAX_UNLOCK_ATTEMPTS = 3;
-        const WALLET_LOCK_DURATION_IN_MS = 60 * MILLISECONDS_PER_SECOND;
         const RESET_FAILED_ATTEMPTS_THRESHOLD_IN_MS =
             60 * SECONDS_PER_MINUTE * MILLISECONDS_PER_SECOND;
 
