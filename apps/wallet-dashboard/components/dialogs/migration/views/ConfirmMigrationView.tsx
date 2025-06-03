@@ -1,7 +1,7 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { MigrationObjectLoading, VirtualList, MigrationObjectDetailsCard } from '@/components';
+import { MigrationObjectLoading, MigrationObjectDetailsCard } from '@/components';
 import { useCurrentAccount } from '@iota/dapp-kit';
 import { IotaObjectData } from '@iota/iota-sdk/client';
 import {
@@ -17,8 +17,17 @@ import {
     TitleSize,
 } from '@iota/apps-ui-kit';
 import { useGroupedStardustObjects } from '@/hooks';
-import { Loader, Warning } from '@iota/apps-ui-icons';
-import { CoinFormat, Collapsible, useFormatCoin } from '@iota/core';
+import { Exclamation, Loader, Warning } from '@iota/apps-ui-icons';
+import {
+    CoinFormat,
+    Collapsible,
+    GAS_BUDGET_ERROR_MESSAGES,
+    GAS_BALANCE_TOO_LOW_ID,
+    GasSummaryType,
+    useBalance,
+    useFormatCoin,
+    VirtualList,
+} from '@iota/core';
 import { getStardustObjectsTotals, filterMigrationObjects } from '@/lib/utils';
 import { DialogLayout, DialogLayoutBody, DialogLayoutFooter } from '../../layout';
 import { Transaction } from '@iota/iota-sdk/transactions';
@@ -33,7 +42,7 @@ interface ConfirmMigrationViewProps {
     migrateData:
         | {
               transaction: Transaction;
-              gasBudget: string | number | null;
+              gasSummary: GasSummaryType;
           }
         | undefined;
     isMigrationPending: boolean;
@@ -55,6 +64,8 @@ export function ConfirmMigrationView({
     isSendingTransaction,
 }: ConfirmMigrationViewProps): JSX.Element {
     const account = useCurrentAccount();
+    const { data: balance, isLoading: isLoadingBalance } = useBalance(account?.address || '');
+    const hasBalance = BigInt(balance?.totalBalance || 0) > BigInt(0);
 
     const {
         data: resolvedObjects = [],
@@ -75,7 +86,7 @@ export function ConfirmMigrationView({
     });
 
     const [gasFee, gasFeeSymbol] = useFormatCoin({
-        balance: migrateData?.gasBudget,
+        balance: migrateData?.gasSummary?.totalGas,
         format: CoinFormat.FULL,
     });
     const [timelockedIotaTokens, symbol] = useFormatCoin({ balance: totalIotaAmount });
@@ -94,6 +105,9 @@ export function ConfirmMigrationView({
         resolvedObjects,
         StardustOutputDetailsFilter.VisualAssets,
     );
+
+    const hasEnoughBalanceToPayGas =
+        BigInt(balance?.totalBalance || 0) >= BigInt(migrateData?.gasSummary?.totalGas || 0);
 
     const assetsToMigrateCategories = [
         {
@@ -120,6 +134,15 @@ export function ConfirmMigrationView({
             <Header title="Migrate Your Assets" onClose={() => setOpen(false)} titleCentered />
             <DialogLayoutBody>
                 <div className="flex h-full flex-col gap-y-md">
+                    {!isLoadingBalance && !hasBalance && (
+                        <InfoBox
+                            title="Insufficient balance"
+                            supportingText="You don't have enough balance to migrate"
+                            style={InfoBoxStyle.Elevated}
+                            type={InfoBoxType.Error}
+                            icon={<Warning />}
+                        />
+                    )}
                     {isGroupedMigrationError && !isLoading && (
                         <InfoBox
                             title="Error"
@@ -134,7 +157,7 @@ export function ConfirmMigrationView({
                             title="Partial migration"
                             supportingText="Due to the large number of objects, a partial migration will be attempted. After the migration is complete, you can migrate the remaining assets."
                             style={InfoBoxStyle.Elevated}
-                            type={InfoBoxType.Error}
+                            type={InfoBoxType.Warning}
                             icon={<Warning />}
                         />
                     )}
@@ -171,8 +194,10 @@ export function ConfirmMigrationView({
                                             <div className="flex h-full max-h-[300px] flex-col gap-y-sm pb-sm">
                                                 <VirtualList
                                                     heightClassName="h-full"
-                                                    overflowClassName="overflow-y-auto"
                                                     items={filteredObjects}
+                                                    getItemKey={(migrationObject) =>
+                                                        migrationObject.uniqueId
+                                                    }
                                                     estimateSize={() => 58}
                                                     render={(migrationObject) => (
                                                         <MigrationObjectDetailsCard
@@ -207,6 +232,16 @@ export function ConfirmMigrationView({
                 </div>
             </DialogLayoutBody>
             <DialogLayoutFooter>
+                {!hasEnoughBalanceToPayGas && (
+                    <div className="mb-sm">
+                        <InfoBox
+                            type={InfoBoxType.Error}
+                            supportingText={GAS_BUDGET_ERROR_MESSAGES[GAS_BALANCE_TOO_LOW_ID]}
+                            style={InfoBoxStyle.Elevated}
+                            icon={<Exclamation />}
+                        />
+                    </div>
+                )}
                 <Button
                     text="Migrate"
                     disabled={isMigrationPending || isMigrationError || isSendingTransaction}

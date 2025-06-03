@@ -73,6 +73,12 @@ export const IOTA_PRIMITIVES_COLOR_PALETTE = {
         '98': '#f8fafc',
         '100': '#ffffff',
     },
+    warning: {
+        '10': '#422C00',
+        '20': '#2D1E00',
+        '60': '#BE8F32',
+        '90': '#FFE3AB',
+    },
 };
 
 export const SHADER_COLOR_PALETTE = {

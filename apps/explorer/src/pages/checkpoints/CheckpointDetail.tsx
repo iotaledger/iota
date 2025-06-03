@@ -53,6 +53,9 @@ export function CheckpointDetail(): JSX.Element {
     const [formattedComputationCost, computationCostCoinType] = useFormatCoin({
         balance: data?.epochRollingGasCostSummary?.computationCost,
     });
+    const [formattedComputationCostBurned, computationCostBurnedCoinType] = useFormatCoin({
+        balance: data?.epochRollingGasCostSummary?.computationCostBurned,
+    });
     const [formattedStorageCost, storageCostCoinType] = useFormatCoin({
         balance: data?.epochRollingGasCostSummary.storageCost,
     });
@@ -76,7 +79,7 @@ export function CheckpointDetail(): JSX.Element {
                 ) : (
                     <div className="flex flex-col gap-2xl">
                         <PageHeader title={data.digest} type="Checkpoint" />
-                        <div className="flex flex-row gap-lg">
+                        <div className="flex flex-col gap-lg md:flex-row">
                             <Panel>
                                 <SegmentedButton
                                     type={SegmentedButtonType.Transparent}
@@ -133,7 +136,7 @@ export function CheckpointDetail(): JSX.Element {
                                     </div>
                                 ) : null}
                                 {activeDetailsTabId === DetailsTabs.Signatures ? (
-                                    <>
+                                    <div className="flex flex-wrap p-sm--rs">
                                         <div className="inline-flex">
                                             <SegmentedButton
                                                 type={SegmentedButtonType.Transparent}
@@ -148,11 +151,12 @@ export function CheckpointDetail(): JSX.Element {
                                                     onClick={() =>
                                                         setActiveNestedTabId(NestedTabs.Aggregated)
                                                     }
+                                                    isNested
                                                 />
                                             </SegmentedButton>
                                         </div>
                                         {activeNestedTabId === NestedTabs.Aggregated ? (
-                                            <div className="flex flex-col gap-lg p-md--rs">
+                                            <div className="flex flex-col gap-lg break-all p-md--rs">
                                                 <LabelText
                                                     size={LabelTextSize.Medium}
                                                     label="Aggregated Validator Signature"
@@ -160,7 +164,7 @@ export function CheckpointDetail(): JSX.Element {
                                                 />
                                             </div>
                                         ) : null}
-                                    </>
+                                    </div>
                                 ) : null}
                             </Panel>
                             <Panel>
@@ -179,12 +183,20 @@ export function CheckpointDetail(): JSX.Element {
                                 </SegmentedButton>
                                 {activeFeesTabId === FeesTabs.GasAndStorageFees ? (
                                     <div className="flex flex-col gap-lg p-md--rs">
-                                        <LabelText
-                                            size={LabelTextSize.Medium}
-                                            label="Computation Fee"
-                                            text={formattedComputationCost}
-                                            supportingLabel={computationCostCoinType}
-                                        />
+                                        <div className="flex flex-row items-center gap-lg">
+                                            <LabelText
+                                                size={LabelTextSize.Medium}
+                                                label="Computation Fee"
+                                                text={formattedComputationCost}
+                                                supportingLabel={computationCostCoinType}
+                                            />
+                                            <LabelText
+                                                size={LabelTextSize.Medium}
+                                                label="Burnt"
+                                                text={formattedComputationCostBurned}
+                                                supportingLabel={computationCostBurnedCoinType}
+                                            />
+                                        </div>
                                         <LabelText
                                             size={LabelTextSize.Medium}
                                             label="Storage Fee"

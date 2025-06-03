@@ -34,7 +34,6 @@ use iota_types::{
     object::{Data, GAS_VALUE_FOR_TESTING, OBJECT_START_VERSION, Owner},
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     randomness_state::get_randomness_state_obj_initial_shared_version,
-    storage::GetSharedLocks,
     supported_protocol_versions::SupportedProtocolVersions,
     utils::{to_sender_signed_transaction, to_sender_signed_transaction_with_multi_signers},
 };
@@ -326,6 +325,8 @@ async fn test_dev_inspect_object_by_bytes() {
     assert_eq!(effects.mutated().len(), 1);
     assert!(effects.deleted().is_empty());
     assert!(effects.gas_cost_summary().computation_cost > 0);
+    assert!(effects.gas_cost_summary().computation_cost_burned > 0);
+
     let mut results = results.unwrap();
     assert_eq!(results.len(), 1);
     let exec_results = results.pop().unwrap();
@@ -394,6 +395,7 @@ async fn test_dev_inspect_object_by_bytes() {
     assert_eq!(effects.mutated().len(), 1);
     assert!(effects.deleted().is_empty());
     assert!(effects.gas_cost_summary().computation_cost > 0);
+    assert!(effects.gas_cost_summary().computation_cost_burned > 0);
 
     let mut results = results.unwrap();
     assert_eq!(results.len(), 1);
@@ -498,6 +500,7 @@ async fn test_dev_inspect_unowned_object() {
     assert_eq!(effects.mutated().len(), 2);
     assert!(effects.deleted().is_empty());
     assert!(effects.gas_cost_summary().computation_cost > 0);
+    assert!(effects.gas_cost_summary().computation_cost_burned > 0);
 
     let mut results = results.unwrap();
     assert_eq!(results.len(), 1);
@@ -612,6 +615,8 @@ async fn test_dev_inspect_dynamic_field() {
     // nothing is deleted
     assert!(effects.deleted().is_empty());
     assert!(effects.gas_cost_summary().computation_cost > 0);
+    assert!(effects.gas_cost_summary().computation_cost_burned > 0);
+
     assert_eq!(results.len(), 1);
     let exec_results = results.pop().unwrap();
     let IotaExecutionResult {
@@ -4031,7 +4036,7 @@ async fn test_iter_live_object_set() {
     .await
     .unwrap();
     assert!(
-        matches!(effects.status(), ExecutionStatus::Success { .. }),
+        matches!(effects.status(), ExecutionStatus::Success),
         "{:?}",
         effects.status()
     );
@@ -4052,7 +4057,7 @@ async fn test_iter_live_object_set() {
     .await
     .unwrap();
     assert!(
-        matches!(effects.status(), ExecutionStatus::Success { .. }),
+        matches!(effects.status(), ExecutionStatus::Success),
         "{:?}",
         effects.status()
     );
@@ -4083,7 +4088,7 @@ async fn test_iter_live_object_set() {
     .await
     .unwrap();
     assert!(
-        matches!(effects.status(), ExecutionStatus::Success { .. }),
+        matches!(effects.status(), ExecutionStatus::Success),
         "{:?}",
         effects.status()
     );
@@ -4109,7 +4114,7 @@ async fn test_iter_live_object_set() {
     .await
     .unwrap();
     assert!(
-        matches!(effects.status(), ExecutionStatus::Success { .. }),
+        matches!(effects.status(), ExecutionStatus::Success),
         "{:?}",
         effects.status()
     );
@@ -4130,7 +4135,7 @@ async fn test_iter_live_object_set() {
     .await
     .unwrap();
     assert!(
-        matches!(effects.status(), ExecutionStatus::Success { .. }),
+        matches!(effects.status(), ExecutionStatus::Success),
         "{:?}",
         effects.status()
     );
@@ -4739,9 +4744,9 @@ async fn test_shared_object_transaction_ok() {
     // Verify shared locks are now set for the transaction.
     let shared_object_version = authority
         .epoch_store_for_testing()
-        .get_shared_locks(&certificate.key())
-        .expect("failed to read shared locks")
-        .expect("locks are not set")
+        .get_assigned_shared_object_versions(&certificate.key())
+        .expect("Reading shared version assignments should not fail")
+        .expect("Versions should be set")
         .into_iter()
         .find_map(|(object_id, version)| {
             if object_id == shared_object_id {
@@ -4750,7 +4755,7 @@ async fn test_shared_object_transaction_ok() {
                 None
             }
         })
-        .expect("shared object is not locked");
+        .expect("shared object must be assigned a version");
     assert_eq!(shared_object_version, OBJECT_START_VERSION);
 
     // Finally (Re-)execute the contract should succeed.
@@ -4851,9 +4856,9 @@ async fn test_consensus_commit_prologue_generation() {
     let get_assigned_version = |txn_key: &TransactionKey| -> SequenceNumber {
         authority_state
             .epoch_store_for_testing()
-            .get_shared_locks(txn_key)
+            .get_assigned_shared_object_versions(txn_key)
             .unwrap()
-            .expect("locks are not set")
+            .expect("versions should be set")
             .iter()
             .filter_map(|(id, seq)| {
                 if id == &IOTA_CLOCK_OBJECT_ID {
@@ -4958,7 +4963,7 @@ async fn test_consensus_message_processed() {
         } else {
             let epoch_store = authority2.epoch_store_for_testing();
             epoch_store
-                .acquire_shared_locks_from_effects(
+                .acquire_shared_version_assignments_from_effects(
                     &VerifiedExecutableTransaction::new_from_certificate(certificate.clone()),
                     &effects1,
                     authority2.get_object_cache_reader().as_ref(),
@@ -6178,15 +6183,15 @@ async fn test_consensus_handler_congestion_control_transaction_cancellation() {
     // Check cancelled transaction shared locks.
     let shared_object_version = authority
         .epoch_store_for_testing()
-        .get_shared_locks(&cancelled_txn.key())
-        .expect("failed to read shared locks")
-        .expect("locks are not set")
+        .get_assigned_shared_object_versions(&cancelled_txn.key())
+        .expect("Reading shared version assignments should not fail")
+        .expect("Versions should be set")
         .into_iter()
         .collect::<HashMap<_, _>>();
     assert_eq!(
         [
             (shared_objects[0].id(), SequenceNumber::CONGESTED),
-            (shared_objects[1].id(), SequenceNumber::CANCELLED_READ)
+            (shared_objects[1].id(), SequenceNumber::CONGESTED)
         ]
         .into_iter()
         .collect::<HashMap<_, _>>(),
@@ -6197,7 +6202,7 @@ async fn test_consensus_handler_congestion_control_transaction_cancellation() {
     let input_loader = TransactionInputLoader::new(authority.get_object_cache_reader().clone());
     let input_objects = input_loader
         .read_objects_for_execution(
-            authority.epoch_store_for_testing().as_ref(),
+            &authority.epoch_store_for_testing(),
             &cancelled_txn.key(),
             &CertLockGuard::guard_for_tests(),
             &cancelled_txn
@@ -6218,13 +6223,16 @@ async fn test_consensus_handler_congestion_control_transaction_cancellation() {
         shared_inputs,
         vec![
             SharedInput::Cancelled((shared_objects[0].id(), SequenceNumber::CONGESTED)),
-            SharedInput::Cancelled((shared_objects[1].id(), SequenceNumber::CANCELLED_READ))
+            SharedInput::Cancelled((shared_objects[1].id(), SequenceNumber::CONGESTED))
         ]
     );
 
     // Test get_cancelled_objects.
     let (cancelled_objects, cancellation_reason) = input_objects.get_cancelled_objects().unwrap();
-    assert_eq!(cancelled_objects, vec![shared_objects[0].id()]);
+    assert_eq!(
+        cancelled_objects,
+        vec![shared_objects[0].id(), shared_objects[1].id()]
+    );
     assert_eq!(cancellation_reason, SequenceNumber::CONGESTED);
 
     // Consensus commit prologue contains cancelled txn shared object version
@@ -6239,7 +6247,7 @@ async fn test_consensus_handler_congestion_control_transaction_cancellation() {
                                 *cancelled_txn.digest(),
                                 vec![
                                     (shared_objects[0].id(), SequenceNumber::CONGESTED),
-                                    (shared_objects[1].id(), SequenceNumber::CANCELLED_READ)
+                                    (shared_objects[1].id(), SequenceNumber::CONGESTED)
                                 ]
                             )]
         ));

@@ -18,7 +18,7 @@ use test_cluster::TestClusterBuilder;
 ///
 /// - A total stake of 3.5B IOTA.
 /// - The default validator commission of 2%.
-/// - A validator target reward of 767K IOTA.
+/// - A validator subsidy (target reward) of 767K IOTA.
 ///
 /// This test uses the TestCluster which has limitations on how the validators
 /// can be set up. Only the validator committee size can be changed, but not
@@ -26,7 +26,7 @@ use test_cluster::TestClusterBuilder;
 /// default number of 4 validators and their initial stake of
 /// VALIDATOR_LOW_STAKE_THRESHOLD_NANOS. Note that in this case, each validator
 /// has 25% of the total voting power which results in each pool getting 25% of
-/// the target reward. In order to get the total stake up to the 3.5B IOTA, we
+/// the subsidy. In order to get the total stake up to the 3.5B IOTA, we
 /// would have to add that amount of stake to *each* pool. But: APY is
 /// calculated from the exchange rates of a single pool, which is independent of
 /// the total stake. So we actually only need to add a quarter of that stake
@@ -44,8 +44,13 @@ use test_cluster::TestClusterBuilder;
 /// of the pool at the expected number (a quarter of 3.5B IOTAs) starting from
 /// epoch 1, this is totally fine.
 #[sim_test]
-#[ignore = "Very flaky. TODO in tracking issue https://github.com/iotaledger/iota/issues/5293: reactivate"]
 async fn test_apy() {
+    // clean up the `cached` cache before running the test.
+    #[cfg(msim)]
+    {
+        iota_json_rpc::governance_api::clear_exchange_rates_cache_for_testing().await;
+    }
+
     // We need a large stake for low enough APY values such that they are not
     // filtered out by the APY calculation function.
     let pool_stake = 3_500_000_000 * NANOS_PER_IOTA / 4;

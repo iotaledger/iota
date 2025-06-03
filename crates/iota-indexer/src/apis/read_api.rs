@@ -2,6 +2,8 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use std::{collections::HashMap, sync::Arc};
+
 use async_trait::async_trait;
 use iota_json_rpc::{IotaRpcModule, error::IotaRpcInputError};
 use iota_json_rpc_api::{QUERY_MAX_RESULT_LIMIT, ReadApiServer, internal_error};
@@ -17,11 +19,11 @@ use iota_types::{
     digests::{ChainIdentifier, TransactionDigest},
     error::IotaObjectResponseError,
     iota_serde::BigInt,
-    object::ObjectRead,
+    object::{ObjectRead, PastObjectRead},
 };
 use jsonrpsee::{RpcModule, core::RpcResult};
 
-use crate::{errors::IndexerError, indexer_reader::IndexerReader};
+use crate::{errors::IndexerError, indexer_reader::IndexerReader, models::objects::StoredObject};
 
 #[derive(Clone)]
 pub(crate) struct ReadApi {
@@ -54,24 +56,14 @@ impl ReadApi {
     }
 
     async fn get_chain_identifier(&self) -> RpcResult<ChainIdentifier> {
-        let genesis_checkpoint = self.get_checkpoint(CheckpointId::SequenceNumber(0)).await?;
-        Ok(ChainIdentifier::from(genesis_checkpoint.digest))
+        Ok(self.inner.get_chain_identifier_in_blocking_task().await?)
     }
-}
 
-#[async_trait]
-impl ReadApiServer for ReadApi {
-    async fn get_object(
+    async fn object_read_to_object_response(
         &self,
-        object_id: ObjectID,
-        options: Option<IotaObjectDataOptions>,
+        object_read: ObjectRead,
+        options: IotaObjectDataOptions,
     ) -> RpcResult<IotaObjectResponse> {
-        let options = options.unwrap_or_default();
-        let object_read = self
-            .inner
-            .get_object_read_in_blocking_task(object_id)
-            .await?;
-
         match object_read {
             ObjectRead::NotExists(id) => Ok(IotaObjectResponse::new_with_error(
                 IotaObjectResponseError::NotExists { object_id: id },
@@ -109,9 +101,71 @@ impl ReadApiServer for ReadApi {
         }
     }
 
-    // For ease of implementation we just forward to the single object query,
-    // although in the future we may want to improve the performance by having a
-    // more naitive multi_get functionality
+    async fn past_object_read_to_response(
+        &self,
+        options: Option<IotaObjectDataOptions>,
+        past_object_read: PastObjectRead,
+    ) -> RpcResult<IotaPastObjectResponse> {
+        let options = options.unwrap_or_default();
+
+        match past_object_read {
+            PastObjectRead::ObjectNotExists(id) => Ok(IotaPastObjectResponse::ObjectNotExists(id)),
+
+            PastObjectRead::ObjectDeleted(object_ref) => {
+                Ok(IotaPastObjectResponse::ObjectDeleted(object_ref.into()))
+            }
+
+            PastObjectRead::VersionFound(object_ref, object, layout) => {
+                let display_fields = if options.show_display {
+                    let rendered_fields = self
+                        .inner
+                        .get_display_fields(&object, &layout)
+                        .await
+                        .map_err(internal_error)?;
+
+                    Some(rendered_fields)
+                } else {
+                    None
+                };
+
+                Ok(IotaPastObjectResponse::VersionFound(
+                    IotaObjectData::new(object_ref, object, layout, options, display_fields)
+                        .map_err(internal_error)?,
+                ))
+            }
+
+            PastObjectRead::VersionNotFound(object_id, version) => {
+                Ok(IotaPastObjectResponse::VersionNotFound(object_id, version))
+            }
+
+            PastObjectRead::VersionTooHigh {
+                object_id,
+                asked_version,
+                latest_version,
+            } => Ok(IotaPastObjectResponse::VersionTooHigh {
+                object_id,
+                asked_version,
+                latest_version,
+            }),
+        }
+    }
+}
+
+#[async_trait]
+impl ReadApiServer for ReadApi {
+    async fn get_object(
+        &self,
+        object_id: ObjectID,
+        options: Option<IotaObjectDataOptions>,
+    ) -> RpcResult<IotaObjectResponse> {
+        let object_read = self
+            .inner
+            .get_object_read_in_blocking_task(object_id)
+            .await?;
+        self.object_read_to_object_response(object_read, options.unwrap_or_default())
+            .await
+    }
+
     async fn multi_get_objects(
         &self,
         object_ids: Vec<ObjectID>,
@@ -123,15 +177,55 @@ impl ReadApiServer for ReadApi {
             );
         }
 
-        let mut futures = vec![];
-        for object_id in object_ids {
-            futures.push(self.get_object(object_id, options.clone()));
-        }
+        // Doesn't take care of missing objects.
+        let stored_objects = self
+            .inner
+            .multi_get_objects_in_blocking_task(object_ids.clone())
+            .await?;
 
-        futures::future::join_all(futures)
-            .await
-            .into_iter()
-            .collect::<Result<Vec<_>, _>>()
+        // Map the returned `StoredObject`s to `ObjectID`
+        let object_map: Arc<HashMap<ObjectID, StoredObject>> = Arc::new(
+            stored_objects
+                .into_iter()
+                .map(|obj| {
+                    let object_id = ObjectID::try_from(obj.object_id.clone()).map_err(|_| {
+                        IndexerError::PersistentStorageDataCorruption(format!(
+                            "failed to parse ObjectID: {:?}",
+                            obj.object_id
+                        ))
+                    })?;
+                    Ok::<(ObjectID, StoredObject), IndexerError>((object_id, obj))
+                })
+                .collect::<Result<_, IndexerError>>()?,
+        );
+
+        let options = options.unwrap_or_default();
+        let resolver = self.inner.package_resolver();
+
+        // Create a future for each requested object id
+        let futures = object_ids.into_iter().map(|object_id| {
+            let options = options.clone();
+            let resolver = resolver.clone();
+            let maybe_stored = object_map.get(&object_id).cloned();
+            async move {
+                match maybe_stored {
+                    Some(stored) => {
+                        let object_read = stored.try_into_object_read(resolver).await?;
+                        self.object_read_to_object_response(object_read, options)
+                            .await
+                    }
+                    None => {
+                        self.object_read_to_object_response(
+                            ObjectRead::NotExists(object_id),
+                            options,
+                        )
+                        .await
+                    }
+                }
+            }
+        });
+
+        futures::future::try_join_all(futures).await
     }
 
     async fn get_total_transaction_blocks(&self) -> RpcResult<BigInt<u64>> {
@@ -178,27 +272,53 @@ impl ReadApiServer for ReadApi {
 
     async fn try_get_past_object(
         &self,
-        _object_id: ObjectID,
-        _version: SequenceNumber,
-        _options: Option<IotaObjectDataOptions>,
+        object_id: ObjectID,
+        version: SequenceNumber,
+        options: Option<IotaObjectDataOptions>,
     ) -> RpcResult<IotaPastObjectResponse> {
-        Err(jsonrpsee::types::error::ErrorCode::MethodNotFound.into())
+        let past_object_read = self
+            .inner
+            .get_past_object_read(object_id, version, false)
+            .await?;
+
+        self.past_object_read_to_response(options, past_object_read)
+            .await
     }
 
     async fn try_get_object_before_version(
         &self,
-        _: ObjectID,
-        _: SequenceNumber,
+        object_id: ObjectID,
+        version: SequenceNumber,
     ) -> RpcResult<IotaPastObjectResponse> {
-        Err(jsonrpsee::types::error::ErrorCode::MethodNotFound.into())
+        let past_object_read = self
+            .inner
+            .get_past_object_read(object_id, version, true)
+            .await?;
+
+        self.past_object_read_to_response(None, past_object_read)
+            .await
     }
 
     async fn try_multi_get_past_objects(
         &self,
-        _past_objects: Vec<IotaGetPastObjectRequest>,
-        _options: Option<IotaObjectDataOptions>,
+        past_objects: Vec<IotaGetPastObjectRequest>,
+        options: Option<IotaObjectDataOptions>,
     ) -> RpcResult<Vec<IotaPastObjectResponse>> {
-        Err(jsonrpsee::types::error::ErrorCode::MethodNotFound.into())
+        let mut responses = Vec::with_capacity(past_objects.len());
+
+        for request in past_objects {
+            let past_object_read = self
+                .inner
+                .get_past_object_read(request.object_id, request.version, false)
+                .await?;
+
+            responses.push(
+                self.past_object_read_to_response(options.clone(), past_object_read)
+                    .await?,
+            );
+        }
+
+        Ok(responses)
     }
 
     async fn get_latest_checkpoint_sequence_number(&self) -> RpcResult<BigInt<u64>> {

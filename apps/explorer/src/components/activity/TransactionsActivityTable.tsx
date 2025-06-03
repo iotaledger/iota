@@ -16,12 +16,13 @@ import { InfoBox, InfoBoxStyle, InfoBoxType, Select, SelectSize } from '@iota/ap
 import { generateTransactionsTableColumns } from '~/lib/ui';
 import { Warning } from '@iota/apps-ui-icons';
 import { PAGE_SIZES_RANGE_20_60 } from '~/lib/constants';
+import { type IotaTransactionKind } from '@iota/iota-sdk/client';
 
 interface TransactionsActivityTableProps {
     disablePagination?: boolean;
     refetchInterval?: number;
     initialLimit?: number;
-    transactionKindFilter?: 'ProgrammableTransaction';
+    transactionKindFilter?: IotaTransactionKind;
 }
 
 export function TransactionsActivityTable({
@@ -54,7 +55,7 @@ export function TransactionsActivityTable({
     }, [transactionKindFilter]);
     return (
         <div data-testid="tx">
-            {isError && (
+            {isError ? (
                 <InfoBox
                     title="Error"
                     supportingText="Failed to load Transactions"
@@ -62,40 +63,41 @@ export function TransactionsActivityTable({
                     type={InfoBoxType.Error}
                     style={InfoBoxStyle.Default}
                 />
+            ) : (
+                <div className="flex flex-col space-y-3 text-left">
+                    {isPending || isFetching || !data?.data ? (
+                        <PlaceholderTable
+                            rowCount={limit}
+                            rowHeight="16px"
+                            colHeadings={['Digest', 'Sender', 'Txns', 'Gas', 'Time']}
+                        />
+                    ) : (
+                        <TableCard
+                            data={data.data}
+                            columns={tableColumns}
+                            totalLabel={count ? `${numberSuffix(Number(count))} Total` : '-'}
+                            viewAll="/recent"
+                            paginationOptions={!disablePagination ? pagination : undefined}
+                            pageSizeSelector={
+                                !disablePagination && (
+                                    <Select
+                                        value={limit.toString()}
+                                        options={PAGE_SIZES_RANGE_20_60.map((size) => ({
+                                            label: `${size} / page`,
+                                            id: size.toString(),
+                                        }))}
+                                        onValueChange={(e) => {
+                                            setLimit(Number(e));
+                                            pagination.onFirst();
+                                        }}
+                                        size={SelectSize.Small}
+                                    />
+                                )
+                            }
+                        />
+                    )}
+                </div>
             )}
-            <div className="flex flex-col space-y-3 text-left">
-                {isPending || isFetching || !data?.data ? (
-                    <PlaceholderTable
-                        rowCount={limit}
-                        rowHeight="16px"
-                        colHeadings={['Digest', 'Sender', 'Txns', 'Gas', 'Time']}
-                    />
-                ) : (
-                    <TableCard
-                        data={data.data}
-                        columns={tableColumns}
-                        totalLabel={count ? `${numberSuffix(Number(count))} Total` : '-'}
-                        viewAll="/recent"
-                        paginationOptions={!disablePagination ? pagination : undefined}
-                        pageSizeSelector={
-                            !disablePagination && (
-                                <Select
-                                    value={limit.toString()}
-                                    options={PAGE_SIZES_RANGE_20_60.map((size) => ({
-                                        label: `${size} / page`,
-                                        id: size.toString(),
-                                    }))}
-                                    onValueChange={(e) => {
-                                        setLimit(Number(e));
-                                        pagination.onFirst();
-                                    }}
-                                    size={SelectSize.Small}
-                                />
-                            )
-                        }
-                    />
-                )}
-            </div>
         </div>
     );
 }

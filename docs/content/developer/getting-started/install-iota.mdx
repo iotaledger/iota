@@ -37,7 +37,7 @@ IOTA supports the following operating systems:
 
 ## Install Using a Package Manager
 
-You can use [Homebrew](https://brew.sh/) on macOS, Linux, or Windows Subsystem for Linux to install `iota` and [`iota-tool`](../../operator/iota-tool.mdx):
+You can use [Homebrew](https://brew.sh/) on macOS, Linux, or Windows Subsystem for Linux to install `iota`:
 
 ```bash
 brew install iotaledger/tap/iota
@@ -52,9 +52,7 @@ the latest stable release for the network you are working on.
 <Tabs groupId="operating-systems">
 
 <TabItem value="linux" label="Linux">
-1. Go to https://github.com/iotaledger/iota.
-1. In the right pane, find the **Releases** section.
-
+1. Go to https://github.com/iotaledger/iota/releases.
     ![IOTA releases in GitHub](./images/releases.png)
 1. Click the release tagged **Latest** to open the release's page.
 1. In the **Assets** section of the release, select the .tgz compressed file that corresponds to your operating system.
@@ -71,9 +69,7 @@ and install the necessary binaries. You should start with the main IOTA binary:
 
 <TabItem value="mac" label="macOS">
 
-1. Go to https://github.com/iotaledger/iota.
-1. In the right pane, find the **Releases** section.
-
+1. Go to https://github.com/iotaledger/iota/releases.
     ![IOTA releases in GitHub](./images/releases.png)
 1. Click the release tagged **Latest** to open the release's page.
 1. In the **Assets** section of the release, select the .tgz compressed file that corresponds to your operating system.
@@ -91,9 +87,7 @@ and install the necessary binaries. You should start with the main IOTA binary:
 
 <TabItem value="win" label="Windows">
 
-1. Go to https://github.com/iotaledger/iota.
-1. In the right pane, find the **Releases** section.
-
+1. Go to https://github.com/iotaledger/iota/releases.
     ![IOTA releases in GitHub](./images/releases.png)
 1. Click the release tagged **Latest** to open the release's page.
 1. In the **Assets** section of the release, select the .tgz compressed file that corresponds to your operating system.
@@ -416,8 +410,6 @@ IOTA requires the following additional tools for computers running Windows:
 - [C++ build tools](https://visualstudio.microsoft.com/downloads/) is required to [install Rust](#rust-and-cargo).
 - The [LLVM Compiler Infrastructure](https://releases.llvm.org/). Look for a file with a name similar to
   LLVM-15.0.7-win64.exe for 64-bit Windows or LLVM-15.0.7-win32.exe for 32-bit Windows.
-
-**Known issue** - The `iota console` command does not work in PowerShell.
 
 </TabItem>
 

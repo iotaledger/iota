@@ -134,9 +134,6 @@ pub(crate) enum ConsensusError {
         block_timestamp_ms: u64,
     },
 
-    #[error("No available authority to fetch commits")]
-    NoAvailableAuthorityToFetchCommits,
-
     #[error("Received no commit from peer {peer}")]
     NoCommitReceived { peer: AuthorityIndex },
 
@@ -172,6 +169,14 @@ pub(crate) enum ConsensusError {
         received: BlockRef,
     },
 
+    #[error(
+        "Unexpected certified commit index and last committed index. Expected next commit index to be {expected_commit_index}, but found {commit_index}"
+    )]
+    UnexpectedCertifiedCommitIndex {
+        expected_commit_index: CommitIndex,
+        commit_index: CommitIndex,
+    },
+
     #[error("RocksDB failure: {0}")]
     RocksDBFailure(#[from] TypedStoreError),
 
@@ -180,9 +185,6 @@ pub(crate) enum ConsensusError {
 
     #[error("Failed to connect as client: {0:?}")]
     NetworkClientConnection(String),
-
-    #[error("Failed to connect as server: {0:?}")]
-    NetworkServerConnection(String),
 
     #[error("Failed to send request: {0:?}")]
     NetworkRequest(String),

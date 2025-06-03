@@ -5,6 +5,7 @@
 use fastcrypto::error::FastCryptoError;
 use iota_data_ingestion_core::IngestionError;
 use iota_json_rpc_api::{error_object_from_rpc, internal_error};
+use iota_names::error::IotaNamesError;
 use iota_types::{
     base_types::ObjectIDParseError,
     error::{IotaError, IotaObjectResponseError, UserInputError},
@@ -31,7 +32,10 @@ impl std::fmt::Display for DataDownloadError {
 #[derive(Debug, Error)]
 #[non_exhaustive]
 pub enum IndexerError {
-    #[error("Indexer failed to convert timestamp to NaiveDateTime with error: `{0}`")]
+    #[error("Stream closed unexpectedly with error: `{0}`")]
+    ChannelClosed(String),
+
+    #[error("Indexer failed to convert timestamp to DateTime with error: `{0}`")]
     DateTimeParsing(String),
 
     #[error("Indexer failed to deserialize event from events table with error: `{0}`")]
@@ -137,6 +141,9 @@ pub enum IndexerError {
 
     #[error(transparent)]
     Ingestion(#[from] IngestionError),
+
+    #[error(transparent)]
+    IotaNames(#[from] IotaNamesError),
 }
 
 pub trait Context<T> {

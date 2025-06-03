@@ -6,61 +6,58 @@ use std::{
     borrow::Borrow,
     collections::{HashMap, HashSet, VecDeque},
     iter::repeat,
-    time::{Duration, Instant},
+    sync::Arc,
+    time::Duration,
 };
 
-use anyhow::{Result, anyhow};
+use anyhow::Result;
 use async_trait::async_trait;
 use aws_config::{BehaviorVersion, timeout::TimeoutConfig};
 use aws_sdk_dynamodb::{
     Client,
+    config::{Credentials, Region},
     primitives::Blob,
     types::{AttributeValue, PutRequest, WriteRequest},
 };
-use aws_sdk_s3 as s3;
-use aws_sdk_s3::config::{Credentials, Region};
 use backoff::{ExponentialBackoff, backoff::Backoff};
+use bytes::Bytes;
+use iota_config::object_storage_config::ObjectStoreConfig;
 use iota_data_ingestion_core::Worker;
-use iota_storage::http_key_value_store::TaggedKey;
+use iota_storage::http_key_value_store::{ItemType, TaggedKey};
 use iota_types::{full_checkpoint_content::CheckpointData, storage::ObjectKey};
+use object_store::{DynObjectStore, path::Path};
 use serde::{Deserialize, Serialize};
-
-const TIMEOUT: Duration = Duration::from_secs(60);
+use tracing::{error, info, warn};
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
 #[serde(rename_all = "kebab-case")]
 pub struct KVStoreTaskConfig {
+    pub object_store_config: ObjectStoreConfig,
+    pub dynamodb_config: DynamoDBConfig,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug)]
+#[serde(rename_all = "kebab-case")]
+pub struct DynamoDBConfig {
     pub aws_access_key_id: String,
     pub aws_secret_access_key: String,
     pub aws_region: String,
     pub aws_endpoint: Option<String>,
     pub table_name: String,
-    pub bucket_name: String,
 }
 
 #[derive(Clone)]
 pub struct KVStoreWorker {
     dynamo_client: Client,
-    s3_client: s3::Client,
-    bucket_name: String,
+    remote_store: Arc<DynObjectStore>,
     table_name: String,
 }
 
-#[derive(Hash, Eq, PartialEq, Debug, Copy, Clone)]
-pub enum KVTable {
-    Transactions,
-    Effects,
-    EventsByTxDigest,
-    Objects,
-    CheckpointSummary,
-    TransactionToCheckpoint,
-}
-
 impl KVStoreWorker {
-    pub async fn new(config: KVStoreTaskConfig) -> Self {
+    pub async fn new(config: KVStoreTaskConfig) -> anyhow::Result<Self> {
         let credentials = Credentials::new(
-            &config.aws_access_key_id,
-            &config.aws_secret_access_key,
+            &config.dynamodb_config.aws_access_key_id,
+            &config.dynamodb_config.aws_secret_access_key,
             None,
             None,
             "dynamodb",
@@ -70,32 +67,28 @@ impl KVStoreWorker {
             .operation_attempt_timeout(Duration::from_secs(10))
             .connect_timeout(Duration::from_secs(3))
             .build();
+
         let mut aws_config_loader = aws_config::defaults(BehaviorVersion::latest())
             .credentials_provider(credentials)
-            .region(Region::new(config.aws_region))
+            .region(Region::new(config.dynamodb_config.aws_region))
             .timeout_config(timeout_config);
 
-        if let Some(url) = config.aws_endpoint {
+        if let Some(url) = config.dynamodb_config.aws_endpoint {
             aws_config_loader = aws_config_loader.endpoint_url(url);
         }
         let aws_config = aws_config_loader.load().await;
-
-        let dynamo_client = Client::new(&aws_config);
-        let s3_client = s3::Client::new(&aws_config);
-        Self {
-            dynamo_client,
-            s3_client,
-            bucket_name: config.bucket_name,
-            table_name: config.table_name,
-        }
+        Ok(Self {
+            dynamo_client: Client::new(&aws_config),
+            remote_store: config.object_store_config.make()?,
+            table_name: config.dynamodb_config.table_name,
+        })
     }
 
     async fn multi_set<V: Serialize>(
         &self,
-        table: KVTable,
+        item_type: ItemType,
         values: impl IntoIterator<Item = (Vec<u8>, V)> + std::marker::Send,
     ) -> anyhow::Result<()> {
-        let instant = Instant::now();
         let mut items = vec![];
         let mut seen = HashSet::new();
         for (digest, value) in values {
@@ -107,7 +100,7 @@ impl KVStoreWorker {
                 .set_put_request(Some(
                     PutRequest::builder()
                         .item("digest", AttributeValue::B(Blob::new(digest)))
-                        .item("type", AttributeValue::S(Self::type_name(table)))
+                        .item("type", AttributeValue::S(item_type.to_string()))
                         .item(
                             "bcs",
                             AttributeValue::B(Blob::new(bcs::to_bytes(value.borrow())?)),
@@ -123,9 +116,6 @@ impl KVStoreWorker {
         let mut backoff = ExponentialBackoff::default();
         let mut queue: VecDeque<Vec<_>> = items.chunks(25).map(|ck| ck.to_vec()).collect();
         while let Some(chunk) = queue.pop_front() {
-            if instant.elapsed() > TIMEOUT {
-                return Err(anyhow!("key value worker timed out"));
-            }
             let response = self
                 .dynamo_client
                 .batch_write_item()
@@ -134,7 +124,13 @@ impl KVStoreWorker {
                     chunk.to_vec(),
                 )])))
                 .send()
-                .await?;
+                .await
+                .inspect_err(|sdk_err| {
+                    error!(
+                        "{:?}",
+                        sdk_err.as_service_error().map(|e| e.meta().to_string())
+                    )
+                })?;
             if let Some(response) = response.unprocessed_items {
                 if let Some(unprocessed) = response.into_iter().next() {
                     if !unprocessed.1.is_empty() {
@@ -151,40 +147,64 @@ impl KVStoreWorker {
         Ok(())
     }
 
-    async fn upload_blob<V: Serialize + std::marker::Send>(
+    /// Uploads checkpoint contents to storage, with automatic fallback from
+    /// DynamoDB to S3.
+    ///
+    /// This function attempts to store checkpoint contents in DynamoDB first.
+    /// If that fails (typically due to size constraints), it automatically
+    /// falls back to uploading the contents to S3 instead.
+    async fn upload_checkpoint_contents<V: Serialize + std::marker::Send>(
         &self,
         key: Vec<u8>,
         value: V,
     ) -> anyhow::Result<()> {
-        let body = bcs::to_bytes(value.borrow())?.into();
-        self.s3_client
-            .put_object()
-            .bucket(self.bucket_name.clone())
-            .key(base64_url::encode(&key))
-            .body(body)
-            .send()
-            .await?;
-        Ok(())
-    }
+        let bcs_bytes = bcs::to_bytes(value.borrow())?;
 
-    fn type_name(table: KVTable) -> String {
-        match table {
-            KVTable::Transactions => "tx",
-            KVTable::Effects => "fx",
-            KVTable::EventsByTxDigest => "evtx",
-            KVTable::Objects => "ob",
-            KVTable::CheckpointSummary => "cs",
-            KVTable::TransactionToCheckpoint => "tx2c",
+        let attributes = HashMap::from([
+            (
+                "digest".to_string(),
+                AttributeValue::B(Blob::new(key.clone())),
+            ),
+            (
+                "type".to_string(),
+                AttributeValue::S(ItemType::CheckpointContents.to_string()),
+            ),
+            (
+                "bcs".to_string(),
+                AttributeValue::B(Blob::new(bcs_bytes.clone())),
+            ),
+        ]);
+
+        let res = self
+            .dynamo_client
+            .put_item()
+            .table_name(&self.table_name)
+            .set_item(Some(attributes))
+            .send()
+            .await
+            .inspect_err(|err| warn!("dynamodb error: {err}"));
+
+        if res.is_err() {
+            info!("attempt to store chekpoint contents on S3");
+            let location = Path::from(base64_url::encode(&key));
+            self.remote_store
+                .put(&location, Bytes::from(bcs_bytes).into())
+                .await?;
         }
-        .to_string()
+
+        Ok(())
     }
 }
 
 #[async_trait]
 impl Worker for KVStoreWorker {
+    type Message = ();
     type Error = anyhow::Error;
 
-    async fn process_checkpoint(&self, checkpoint: &CheckpointData) -> Result<(), Self::Error> {
+    async fn process_checkpoint(
+        &self,
+        checkpoint: Arc<CheckpointData>,
+    ) -> Result<Self::Message, Self::Error> {
         let mut transactions = vec![];
         let mut effects = vec![];
         let mut events = vec![];
@@ -206,25 +226,30 @@ impl Worker for KVStoreWorker {
                 objects.push((bcs::to_bytes(&object_key)?, object));
             }
         }
-        self.multi_set(KVTable::Transactions, transactions).await?;
-        self.multi_set(KVTable::Effects, effects).await?;
-        self.multi_set(KVTable::EventsByTxDigest, events).await?;
-        self.multi_set(KVTable::Objects, objects).await?;
-        self.multi_set(KVTable::TransactionToCheckpoint, transactions_to_checkpoint)
+        self.multi_set(ItemType::Transaction, transactions).await?;
+        self.multi_set(ItemType::TransactionEffects, effects)
             .await?;
+        self.multi_set(ItemType::EventTransactionDigest, events)
+            .await?;
+        self.multi_set(ItemType::Object, objects).await?;
+        self.multi_set(
+            ItemType::TransactionToCheckpoint,
+            transactions_to_checkpoint,
+        )
+        .await?;
 
         let serialized_checkpoint_number =
             bcs::to_bytes(&TaggedKey::CheckpointSequenceNumber(checkpoint_number))?;
         let checkpoint_summary = &checkpoint.checkpoint_summary;
-        for key in [
+
+        self.upload_checkpoint_contents(
             serialized_checkpoint_number.clone(),
-            checkpoint_summary.content_digest.into_inner().to_vec(),
-        ] {
-            self.upload_blob(key, checkpoint.checkpoint_contents.clone())
-                .await?;
-        }
+            checkpoint.checkpoint_contents.clone(),
+        )
+        .await?;
+
         self.multi_set(
-            KVTable::CheckpointSummary,
+            ItemType::CheckpointSummary,
             [
                 serialized_checkpoint_number,
                 checkpoint_summary.digest().into_inner().to_vec(),

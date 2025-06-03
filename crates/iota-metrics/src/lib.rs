@@ -5,6 +5,7 @@
 use std::{
     future::Future,
     net::SocketAddr,
+    path::Path,
     pin::Pin,
     sync::Arc,
     task::{Context, Poll},
@@ -23,8 +24,9 @@ use dashmap::DashMap;
 use once_cell::sync::OnceCell;
 use parking_lot::Mutex;
 use prometheus::{
-    Histogram, IntGaugeVec, Registry, TextEncoder, register_histogram_with_registry,
-    register_int_gauge_vec_with_registry,
+    Histogram, IntGaugeVec, Registry, TextEncoder,
+    core::{AtomicI64, GenericGauge},
+    register_histogram_with_registry, register_int_gauge_vec_with_registry,
 };
 pub use scopeguard;
 use simple_server_timing_header::Timer;
@@ -33,6 +35,7 @@ use tracing::{Span, warn};
 use uuid::Uuid;
 
 mod guards;
+pub mod hardware_metrics;
 pub mod histogram;
 pub mod metered_channel;
 pub mod metrics_network;
@@ -43,10 +46,27 @@ pub use guards::*;
 pub const TX_TYPE_SINGLE_WRITER_TX: &str = "single_writer";
 pub const TX_TYPE_SHARED_OBJ_TX: &str = "shared_object";
 
+pub const SUBSECOND_LATENCY_SEC_BUCKETS: &[f64] = &[
+    0.005, 0.01, 0.02, 0.03, 0.05, 0.075, 0.1, 0.2, 0.3, 0.5, 0.7, 1.,
+];
+
+pub const COARSE_LATENCY_SEC_BUCKETS: &[f64] = &[
+    0.005, 0.01, 0.025, 0.05, 0.075, 0.1, 0.2, 0.3, 0.5, 0.7, 1., 2., 3., 5., 10., 20., 30., 60.,
+];
+
 pub const LATENCY_SEC_BUCKETS: &[f64] = &[
     0.001, 0.005, 0.01, 0.025, 0.05, 0.075, 0.1, 0.15, 0.2, 0.25, 0.3, 0.35, 0.4, 0.45, 0.5, 0.6,
     0.7, 0.8, 0.9, 1., 1.1, 1.2, 1.3, 1.4, 1.5, 1.6, 1.7, 1.8, 1.9, 2., 2.5, 3., 3.5, 4., 4.5, 5.,
     6., 7., 8., 9., 10., 15., 20., 25., 30., 60., 90.,
+];
+
+pub const COUNT_BUCKETS: &[f64] = &[
+    2., 5., 10., 20., 50., 100., 200., 500., 1000., 2000., 5000., 10000.,
+];
+
+pub const BYTES_BUCKETS: &[f64] = &[
+    1024., 4096., 16384., 65536., 262144., 524288., 1048576., 2097152., 4194304., 8388608.,
+    16777216., 33554432., 67108864.,
 ];
 
 #[derive(Debug)]
@@ -56,6 +76,7 @@ pub struct Metrics {
     pub channel_inflight: IntGaugeVec,
     pub channel_sent: IntGaugeVec,
     pub channel_received: IntGaugeVec,
+    pub future_active_duration_ns: IntGaugeVec,
     pub scope_iterations: IntGaugeVec,
     pub scope_duration_ns: IntGaugeVec,
     pub scope_entrance: IntGaugeVec,
@@ -103,6 +124,13 @@ impl Metrics {
             channel_received: register_int_gauge_vec_with_registry!(
                 "monitored_channel_received",
                 "Received items in channels.",
+                &["name"],
+                registry,
+            )
+            .unwrap(),
+            future_active_duration_ns: register_int_gauge_vec_with_registry!(
+                "monitored_future_active_duration_ns",
+                "Total duration in nanosecs where the monitored future is active (consuming CPU time)",
                 &["name"],
                 registry,
             )
@@ -384,6 +412,8 @@ impl<F: Future> MonitoredFutureExt for F {
     fn in_monitored_scope(self, name: &'static str) -> MonitoredScopeFuture<Self> {
         MonitoredScopeFuture {
             f: Box::pin(self),
+            active_duration_metric: get_metrics()
+                .map(|m| m.future_active_duration_ns.with_label_values(&[name])),
             _scope: monitored_scope(name),
         }
     }
@@ -395,6 +425,7 @@ impl<F: Future> MonitoredFutureExt for F {
 /// to the underlying future while maintaining the monitoring scope.
 pub struct MonitoredScopeFuture<F: Sized> {
     f: Pin<Box<F>>,
+    active_duration_metric: Option<GenericGauge<AtomicI64>>,
     _scope: Option<MonitoredScopeGuard>,
 }
 
@@ -402,7 +433,12 @@ impl<F: Future> Future for MonitoredScopeFuture<F> {
     type Output = F::Output;
 
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-        self.f.as_mut().poll(cx)
+        let active_timer = Instant::now();
+        let ret = self.f.as_mut().poll(cx);
+        if let Some(m) = &self.active_duration_metric {
+            m.add(active_timer.elapsed().as_nanos() as i64);
+        }
+        ret
     }
 }
 
@@ -572,7 +608,9 @@ pub fn uptime_metric(
     let opts = prometheus::opts!("uptime", "uptime of the node service in seconds")
         .variable_label("process")
         .variable_label("version")
-        .variable_label("chain_identifier");
+        .variable_label("chain_identifier")
+        .variable_label("os_version")
+        .variable_label("is_docker");
 
     let start_time = std::time::Instant::now();
     let uptime = move || start_time.elapsed().as_secs();
@@ -580,11 +618,24 @@ pub fn uptime_metric(
         opts,
         prometheus_closure_metric::ValueType::Counter,
         uptime,
-        &[process, version, chain_identifier],
+        &[
+            process,
+            version,
+            chain_identifier,
+            &sysinfo::System::long_os_version()
+                .unwrap_or_else(|| "os_version_unavailable".to_string()),
+            &is_running_in_docker().to_string(),
+        ],
     )
     .unwrap();
 
     Box::new(metric)
+}
+
+pub fn is_running_in_docker() -> bool {
+    // Check for .dockerenv file instead. This file exists in the debian:__-slim
+    // image we use at runtime.
+    Path::new("/.dockerenv").exists()
 }
 
 pub const METRICS_ROUTE: &str = "/metrics";
@@ -672,17 +723,17 @@ mod tests {
 
         // THEN
         let mut metrics = registry_service.gather_all();
-        metrics.sort_by(|m1, m2| Ord::cmp(m1.get_name(), m2.get_name()));
+        metrics.sort_by(|m1, m2| Ord::cmp(m1.name(), m2.name()));
 
         assert_eq!(metrics.len(), 2);
 
         let metric_default = metrics.remove(0);
-        assert_eq!(metric_default.get_name(), "default_counter");
-        assert_eq!(metric_default.get_help(), "counter_desc");
+        assert_eq!(metric_default.name(), "default_counter");
+        assert_eq!(metric_default.help(), "counter_desc");
 
         let metric_1: prometheus::proto::MetricFamily = metrics.remove(0);
-        assert_eq!(metric_1.get_name(), "iota_counter_1");
-        assert_eq!(metric_1.get_help(), "counter_1_desc");
+        assert_eq!(metric_1.name(), "iota_counter_1");
+        assert_eq!(metric_1.help(), "counter_1_desc");
 
         // AND add a second registry with a metric
         let registry_2 = Registry::new_custom(Some("iota".to_string()), None).unwrap();
@@ -695,37 +746,37 @@ mod tests {
 
         // THEN all the metrics should be returned
         let mut metrics = registry_service.gather_all();
-        metrics.sort_by(|m1, m2| Ord::cmp(m1.get_name(), m2.get_name()));
+        metrics.sort_by(|m1, m2| Ord::cmp(m1.name(), m2.name()));
 
         assert_eq!(metrics.len(), 3);
 
         let metric_default = metrics.remove(0);
-        assert_eq!(metric_default.get_name(), "default_counter");
-        assert_eq!(metric_default.get_help(), "counter_desc");
+        assert_eq!(metric_default.name(), "default_counter");
+        assert_eq!(metric_default.help(), "counter_desc");
 
         let metric_1 = metrics.remove(0);
-        assert_eq!(metric_1.get_name(), "iota_counter_1");
-        assert_eq!(metric_1.get_help(), "counter_1_desc");
+        assert_eq!(metric_1.name(), "iota_counter_1");
+        assert_eq!(metric_1.help(), "counter_1_desc");
 
         let metric_2 = metrics.remove(0);
-        assert_eq!(metric_2.get_name(), "iota_counter_2");
-        assert_eq!(metric_2.get_help(), "counter_2_desc");
+        assert_eq!(metric_2.name(), "iota_counter_2");
+        assert_eq!(metric_2.help(), "counter_2_desc");
 
         // AND remove first registry
         assert!(registry_service.remove(registry_1_id));
 
         // THEN metrics should now not contain metric of registry_1
         let mut metrics = registry_service.gather_all();
-        metrics.sort_by(|m1, m2| Ord::cmp(m1.get_name(), m2.get_name()));
+        metrics.sort_by(|m1, m2| Ord::cmp(m1.name(), m2.name()));
 
         assert_eq!(metrics.len(), 2);
 
         let metric_default = metrics.remove(0);
-        assert_eq!(metric_default.get_name(), "default_counter");
-        assert_eq!(metric_default.get_help(), "counter_desc");
+        assert_eq!(metric_default.name(), "default_counter");
+        assert_eq!(metric_default.help(), "counter_desc");
 
         let metric_1 = metrics.remove(0);
-        assert_eq!(metric_1.get_name(), "iota_counter_2");
-        assert_eq!(metric_1.get_help(), "counter_2_desc");
+        assert_eq!(metric_1.name(), "iota_counter_2");
+        assert_eq!(metric_1.help(), "counter_2_desc");
     }
 }

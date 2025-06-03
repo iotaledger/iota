@@ -1,0 +1,102 @@
+---
+source: crates/move-compiler/tests/move_check_testsuite.rs
+info:
+  flavor: iota
+  edition: 2024.alpha
+  lint: false
+---
+warning[W02021]: duplicate alias
+   ┌─ tests/iota_mode/move_2024/expansion/unnecessary_alias_default.move:11:24
+   │
+11 │     use iota::object::{Self, ID, UID};
+   │                        ^^^^ Unnecessary alias 'object' for module 'iota::object'. This alias is provided by default
+   │
+   = This warning can be suppressed with '#[allow(duplicate_alias)]' applied to the 'module' or module member ('const', 'fun', or 'struct')
+
+warning[W09001]: unused alias
+   ┌─ tests/iota_mode/move_2024/expansion/unnecessary_alias_default.move:11:24
+   │
+11 │     use iota::object::{Self, ID, UID};
+   │                        ^^^^ Unused 'use' of alias 'object'. Consider removing it
+   │
+   = This warning can be suppressed with '#[allow(unused_use)]' applied to the 'module' or module member ('const', 'fun', or 'struct')
+
+warning[W02021]: duplicate alias
+   ┌─ tests/iota_mode/move_2024/expansion/unnecessary_alias_default.move:11:30
+   │
+11 │     use iota::object::{Self, ID, UID};
+   │                              ^^ Unnecessary alias 'ID' for module member 'iota::object::ID'. This alias is provided by default
+   │
+   = This warning can be suppressed with '#[allow(duplicate_alias)]' applied to the 'module' or module member ('const', 'fun', or 'struct')
+
+warning[W09001]: unused alias
+   ┌─ tests/iota_mode/move_2024/expansion/unnecessary_alias_default.move:11:30
+   │
+11 │     use iota::object::{Self, ID, UID};
+   │                              ^^ Unused 'use' of alias 'ID'. Consider removing it
+   │
+   = This warning can be suppressed with '#[allow(unused_use)]' applied to the 'module' or module member ('const', 'fun', or 'struct')
+
+warning[W02021]: duplicate alias
+   ┌─ tests/iota_mode/move_2024/expansion/unnecessary_alias_default.move:11:34
+   │
+11 │     use iota::object::{Self, ID, UID};
+   │                                  ^^^ Unnecessary alias 'UID' for module member 'iota::object::UID'. This alias is provided by default
+   │
+   = This warning can be suppressed with '#[allow(duplicate_alias)]' applied to the 'module' or module member ('const', 'fun', or 'struct')
+
+warning[W09001]: unused alias
+   ┌─ tests/iota_mode/move_2024/expansion/unnecessary_alias_default.move:11:34
+   │
+11 │     use iota::object::{Self, ID, UID};
+   │                                  ^^^ Unused 'use' of alias 'UID'. Consider removing it
+   │
+   = This warning can be suppressed with '#[allow(unused_use)]' applied to the 'module' or module member ('const', 'fun', or 'struct')
+
+warning[W02021]: duplicate alias
+   ┌─ tests/iota_mode/move_2024/expansion/unnecessary_alias_default.move:12:15
+   │
+12 │     use iota::transfer;
+   │               ^^^^^^^^ Unnecessary alias 'transfer' for module 'iota::transfer'. This alias is provided by default
+   │
+   = This warning can be suppressed with '#[allow(duplicate_alias)]' applied to the 'module' or module member ('const', 'fun', or 'struct')
+
+warning[W09001]: unused alias
+   ┌─ tests/iota_mode/move_2024/expansion/unnecessary_alias_default.move:12:15
+   │
+12 │     use iota::transfer;
+   │               ^^^^^^^^ Unused 'use' of alias 'transfer'. Consider removing it
+   │
+   = This warning can be suppressed with '#[allow(unused_use)]' applied to the 'module' or module member ('const', 'fun', or 'struct')
+
+warning[W02021]: duplicate alias
+   ┌─ tests/iota_mode/move_2024/expansion/unnecessary_alias_default.move:13:28
+   │
+13 │     use iota::tx_context::{Self, TxContext};
+   │                            ^^^^ Unnecessary alias 'tx_context' for module 'iota::tx_context'. This alias is provided by default
+   │
+   = This warning can be suppressed with '#[allow(duplicate_alias)]' applied to the 'module' or module member ('const', 'fun', or 'struct')
+
+warning[W09001]: unused alias
+   ┌─ tests/iota_mode/move_2024/expansion/unnecessary_alias_default.move:13:28
+   │
+13 │     use iota::tx_context::{Self, TxContext};
+   │                            ^^^^ Unused 'use' of alias 'tx_context'. Consider removing it
+   │
+   = This warning can be suppressed with '#[allow(unused_use)]' applied to the 'module' or module member ('const', 'fun', or 'struct')
+
+warning[W02021]: duplicate alias
+   ┌─ tests/iota_mode/move_2024/expansion/unnecessary_alias_default.move:13:34
+   │
+13 │     use iota::tx_context::{Self, TxContext};
+   │                                  ^^^^^^^^^ Unnecessary alias 'TxContext' for module member 'iota::tx_context::TxContext'. This alias is provided by default
+   │
+   = This warning can be suppressed with '#[allow(duplicate_alias)]' applied to the 'module' or module member ('const', 'fun', or 'struct')
+
+warning[W09001]: unused alias
+   ┌─ tests/iota_mode/move_2024/expansion/unnecessary_alias_default.move:13:34
+   │
+13 │     use iota::tx_context::{Self, TxContext};
+   │                                  ^^^^^^^^^ Unused 'use' of alias 'TxContext'. Consider removing it
+   │
+   = This warning can be suppressed with '#[allow(unused_use)]' applied to the 'module' or module member ('const', 'fun', or 'struct')

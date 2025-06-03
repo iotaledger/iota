@@ -1,0 +1,93 @@
+---
+title: Docker Setup
+description: Learn how to set up a IOTA validator using Docker.
+tags: [node-operation]
+teams:
+  - iotaledger/node
+---
+
+import GenesisBlobLocation from '../../_snippets/operator/genesis-blob-location.mdx'
+import ValidatorRequirements from '../../_snippets/operator/validator-requirements-tab.mdx'
+import ValidatorPorts from '../../_snippets/operator/validator-ports.mdx'
+import ValidatorGenerateInfo from '../../_snippets/operator/validator-generate-info.mdx'
+import ValidatorDownloadConfig from '../../_snippets/operator/validator-download-config.mdx'
+import ValidatorP2P from '../../_snippets/operator/validator-p2p.mdx'
+import ValidatorJoinMonitor from '../../_snippets/operator/validator-join-monitor.mdx'
+import ValidatorSetupSSFN from '../../_snippets/operator/validator-setup-ssfn.mdx'
+
+<ValidatorRequirements/ >
+
+<ValidatorPorts />
+
+<ValidatorGenerateInfo />
+
+## 2. Setup Validator Node
+
+:::info Note
+
+Perform these steps on the server that will be running the validator instance.
+
+:::
+
+
+### 2.1. Download Docker Compose configuration
+
+Download the docker compose file:
+
+<Tabs groupId="network" queryString>
+    <TabItem label="Mainnet" value="mainnet">
+      ```bash
+      curl -fLJ -o docker-compose.yml https://github.com/iotaledger/iota/raw/refs/heads/develop/setups/validator/docker-compose-mainnet.yml
+      ```
+    </TabItem>
+    <TabItem label="Testnet" value="testnet">
+      ```bash
+      curl -fLJ -o docker-compose.yml https://github.com/iotaledger/iota/raw/refs/heads/develop/setups/validator/docker-compose-testnet.yml
+      ```
+    </TabItem>
+</Tabs>
+
+
+### 2.2. Download Configuration Template
+
+<ValidatorDownloadConfig />
+
+### 2.3. Configure P2P Settings
+
+<ValidatorP2P />
+
+### 2.4. Download Genesis Blobs
+
+<GenesisBlobLocation />
+
+### 2.5. Copy Validator Keys
+
+Copy the `protocol.key`, `network.key` and `authority.key` you created previously to the server and place them in a folder named `key-pairs`.
+
+### 2.6. Download the latest Formal Snapshot
+
+<Tabs groupId="network" queryString>
+    <TabItem label="Mainnet" value="mainnet">
+      ```bash
+      docker run --rm -v ./iotadb:/opt/iota/db -v ./genesis.blob:/opt/iota/config/genesis.blob iotaledger/iota-tools:mainnet /bin/sh -c "/usr/local/bin/iota-tool download-formal-snapshot --latest --genesis /opt/iota/config/genesis.blob --path /opt/iota/db/authorities_db --num-parallel-downloads 50 --no-sign-request --verify normal --network mainnet --verbose"
+      ```
+    </TabItem>
+    <TabItem label="Testnet" value="testnet">
+      ```bash
+      docker run --rm -v ./iotadb:/opt/iota/db -v ./genesis.blob:/opt/iota/config/genesis.blob iotaledger/iota-tools:testnet /bin/sh -c "/usr/local/bin/iota-tool download-formal-snapshot --latest --genesis /opt/iota/config/genesis.blob --path /opt/iota/db/authorities_db --num-parallel-downloads 50 --no-sign-request --verify normal --network testnet --verbose"
+      ```
+    </TabItem>
+</Tabs>
+
+### 2.7. Start Your Validator Node
+
+```bash
+docker compose up -d
+docker compose logs -f
+```
+
+<ValidatorJoinMonitor />
+
+You can also check the [Monitoring](./monitoring.mdx) about metrics endpoint.
+
+<ValidatorSetupSSFN />

@@ -49,6 +49,7 @@ export function AccountGroup({
     outerRef?: React.RefObject<HTMLDivElement>;
 }) {
     const [isDropdownOpen, setDropdownOpen] = useState(false);
+    const [isCollapsibleGroupOpen, setIsCollapsibleGroupOpen] = useState(true);
     const navigate = useNavigate();
     const activeAccount = useActiveAccount();
     const createAccountMutation = useCreateAccountsMutation();
@@ -61,6 +62,8 @@ export function AccountGroup({
 
     async function handleAdd(e: React.MouseEvent<HTMLButtonElement>) {
         if (!accountSource) return;
+
+        setIsCollapsibleGroupOpen(true);
 
         // prevent the collapsible from closing when clicking the "new" button
         e.stopPropagation();
@@ -126,7 +129,8 @@ export function AccountGroup({
     return (
         <div className="relative overflow-visible">
             <Collapsible
-                defaultOpen
+                isOpen={isCollapsibleGroupOpen}
+                onOpenChange={setIsCollapsibleGroupOpen}
                 hideArrow
                 hideBorder
                 render={({ isOpen }) => (
@@ -134,7 +138,7 @@ export function AccountGroup({
                         <div className="flex items-center gap-1">
                             <TriangleDown
                                 className={clsx(
-                                    'h-5 w-5 text-neutral-10 dark:text-neutral-92',
+                                    'h-5 w-5 text-neutral-10 dark:text-neutral-40',
                                     isOpen
                                         ? 'rotate-0 transition-transform ease-linear'
                                         : '-rotate-90 transition-transform ease-linear',

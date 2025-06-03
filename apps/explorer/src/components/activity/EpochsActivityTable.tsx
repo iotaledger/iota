@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { InfoBox, InfoBoxStyle, InfoBoxType, Select, SelectSize } from '@iota/apps-ui-kit';
-import { useIotaClientQuery, useIotaClient, useIotaClientInfiniteQuery } from '@iota/dapp-kit';
+import { useIotaClient, useIotaClientInfiniteQuery, useIotaClientQuery } from '@iota/dapp-kit';
 import { useCursorPagination } from '@iota/core';
 import { Warning } from '@iota/apps-ui-icons';
 import { useQuery } from '@tanstack/react-query';
@@ -45,7 +45,7 @@ export function EpochsActivityTable({
 
     return (
         <div className="flex flex-col space-y-3 text-left xl:pr-10">
-            {isError && (
+            {isError ? (
                 <InfoBox
                     title="Error"
                     supportingText="Failed to load Epochs"
@@ -53,8 +53,7 @@ export function EpochsActivityTable({
                     type={InfoBoxType.Error}
                     style={InfoBoxStyle.Default}
                 />
-            )}
-            {isPending || isFetching || !data?.data ? (
+            ) : isPending || isFetching || !data?.data ? (
                 <PlaceholderTable
                     rowCount={limit}
                     rowHeight="16px"

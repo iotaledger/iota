@@ -7,7 +7,6 @@ import cn from 'clsx';
 import { createContext, type ReactNode, useState } from 'react';
 import { useAppSelector, useActiveAccount } from '_hooks';
 import { AppType } from '../../redux/slices/app/appType';
-import { DappStatus } from '../dapp-status';
 import { Header } from '../header/Header';
 import { Toaster } from '../toaster';
 import { IotaLogoMark, Ledger } from '@iota/apps-ui-icons';
@@ -17,6 +16,7 @@ import { type SerializedUIAccount } from '_src/background/accounts/account';
 import { formatAddress } from '@iota/iota-sdk/utils';
 import { Badge, BadgeType } from '@iota/apps-ui-kit';
 import { isLegacyAccount } from '_src/background/accounts/isLegacyAccount';
+import { isMainAccount } from '_src/background/accounts/isMainAccount';
 
 export const PageMainLayoutContext = createContext<HTMLDivElement | null>(null);
 
@@ -31,7 +31,6 @@ export function PageMainLayout({
     children,
     bottomNavEnabled = false,
     topNavMenuEnabled = false,
-    dappStatusEnabled = false,
 }: PageMainLayoutProps) {
     const appType = useAppSelector((state) => state.app.appType);
     const activeAccount = useActiveAccount();
@@ -55,11 +54,10 @@ export function PageMainLayout({
                             isLedgerAccount={isLedgerAccount}
                             isLocked={activeAccount?.isLocked}
                             isLegacyAccount={isLegacyAccount(activeAccount)}
+                            isMainAccount={isMainAccount(activeAccount)}
                         />
                     }
-                    middleContent={
-                        dappStatusEnabled ? <DappStatus /> : <div ref={setTitlePortalContainer} />
-                    }
+                    middleContent={<div ref={setTitlePortalContainer} />}
                     rightContent={topNavMenuEnabled ? <WalletSettingsButton /> : undefined}
                 />
             ) : null}
@@ -89,11 +87,13 @@ function LeftContent({
     isLedgerAccount,
     isLocked,
     isLegacyAccount,
+    isMainAccount,
 }: {
     account: SerializedUIAccount | null;
     isLedgerAccount: boolean | null;
     isLocked?: boolean;
     isLegacyAccount?: boolean;
+    isMainAccount?: boolean;
 }) {
     const accountName = account?.nickname ?? formatAddress(account?.address || '');
     const backgroundColor = isLocked ? 'bg-neutral-90' : 'bg-primary-30';
@@ -115,6 +115,7 @@ function LeftContent({
                 {accountName}
             </span>
             {isLegacyAccount && <Badge type={BadgeType.Neutral} label="Legacy" />}
+            {isMainAccount && <Badge type={BadgeType.PrimarySoft} label="Main" />}
         </Link>
     );
 }

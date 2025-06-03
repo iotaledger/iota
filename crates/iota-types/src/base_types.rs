@@ -973,10 +973,10 @@ pub fn move_ascii_str_layout() -> A::MoveStructLayout {
             name: STD_ASCII_STRUCT_NAME.to_owned(),
             type_params: vec![],
         },
-        fields: Box::new(vec![A::MoveFieldLayout::new(
+        fields: vec![A::MoveFieldLayout::new(
             ident_str!("bytes").into(),
             A::MoveTypeLayout::Vector(Box::new(A::MoveTypeLayout::U8)),
-        )]),
+        )],
     }
 }
 
@@ -988,10 +988,10 @@ pub fn move_utf8_str_layout() -> A::MoveStructLayout {
             name: STD_UTF8_STRUCT_NAME.to_owned(),
             type_params: vec![],
         },
-        fields: Box::new(vec![A::MoveFieldLayout::new(
+        fields: vec![A::MoveFieldLayout::new(
             ident_str!("bytes").into(),
             A::MoveTypeLayout::Vector(Box::new(A::MoveTypeLayout::U8)),
-        )]),
+        )],
     }
 }
 
@@ -1306,7 +1306,7 @@ impl ObjectID {
         ObjectID::try_from(&hash.as_ref()[0..ObjectID::LENGTH]).unwrap()
     }
 
-    /// Incremenent the ObjectID by usize IDs, assuming the ObjectID hex is a
+    /// Increment the ObjectID by usize IDs, assuming the ObjectID hex is a
     /// number represented as an array of bytes
     pub fn advance(&self, step: usize) -> Result<ObjectID, anyhow::Error> {
         let mut curr_vec = self.to_vec();

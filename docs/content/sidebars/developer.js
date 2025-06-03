@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 import IdentitySidebar from './identity.js';
 import TsSDKSidebar from './ts-sdk.js';
-import ReferencesSidebar from `./references.js`;
+import ReferencesSidebar from './references.js';
 
 const developer = [
     'developer/developer',
@@ -31,6 +31,7 @@ const developer = [
             'developer/getting-started/client-tssdk',
             'developer/getting-started/coffee-example',
             'developer/getting-started/simple-token-transfer',
+            'developer/getting-started/oracles',
         ],
     },
     {
@@ -47,7 +48,6 @@ const developer = [
                 items: [
                     'references/cli/client',
                     'references/cli/ptb',
-                    'references/cli/console',
                     'references/cli/keytool',
                     'references/cli/move',
                     'references/cli/validator',
@@ -285,6 +285,7 @@ const developer = [
                     'developer/standards/closed-loop-token/spending',
                     'developer/standards/closed-loop-token/rules',
                     'developer/standards/closed-loop-token/coin-token-comparison',
+                    'developer/standards/closed-loop-token/tutorial',
                 ],
             },
             'developer/standards/kiosk',
@@ -303,9 +304,24 @@ const developer = [
                 items: [
                     'developer/tutorials/sponsored-transactions/sponsored-txs',
                     'developer/tutorials/sponsored-transactions/media-platform-package',
-                    'developer/tutorials/sponsored-transactions/gas-station-server',
-                    'developer/tutorials/sponsored-transactions/transaction-builder',
+                    'developer/tutorials/sponsored-transactions/production-gas-station',
+                    {
+                        type: 'category',
+                        label: 'Custom Implementation',
+                        items: [
+                            'developer/tutorials/sponsored-transactions/gas-station-server',
+                            'developer/tutorials/sponsored-transactions/transaction-builder',
+                        ],
+                    },
                 ],
+            },
+            {
+                type: 'category',
+                label: "Independent Ticketing System Tutorial",
+                items: [
+                    'developer/tutorials/independent-ticketing-system/package',
+                    'developer/tutorials/independent-ticketing-system/frontend',
+                ]
             },
             'developer/tutorials/live-concert',
         ],
@@ -430,14 +446,10 @@ const developer = [
     },
     {
         type: 'category',
-        label: 'Exchange integration',
-        items: ['developer/exchange-integration/exchange-integration'],
-    },
-    {
-        type: 'category',
         label: 'References',
         items: ReferencesSidebar
     },
+    'developer/exchange-integration',
     'developer/dev-cheat-sheet',
 ];
 module.exports = developer;

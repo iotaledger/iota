@@ -19,7 +19,15 @@ import {
     Header,
 } from '@iota/apps-ui-kit';
 import { formatAddress } from '@iota/iota-sdk/utils';
-import { CoinIcon, ImageIconSize, useFormatCoin, ExplorerLinkType, CoinFormat } from '@iota/core';
+import {
+    CoinIcon,
+    ImageIconSize,
+    useFormatCoin,
+    ExplorerLinkType,
+    CoinFormat,
+    useCoinMetadata,
+    parseAmount,
+} from '@iota/core';
 import { Loader } from '@iota/apps-ui-icons';
 import { ExplorerLink } from '@/components';
 import { DialogLayoutBody, DialogLayoutFooter } from '../../layout';
@@ -33,10 +41,11 @@ interface ReviewValuesFormProps {
     isPayAllIota?: boolean;
     onClose: () => void;
     onBack: () => void;
+    totalGas: string | undefined;
 }
 
 export function ReviewValuesFormView({
-    formData: { amount, to, gasBudgetEst },
+    formData: { amount, to },
     senderAddress,
     isPending,
     executeTransfer,
@@ -44,14 +53,18 @@ export function ReviewValuesFormView({
     isPayAllIota,
     onClose,
     onBack,
+    totalGas,
 }: ReviewValuesFormProps): JSX.Element {
+    const { data: metadata } = useCoinMetadata(coinType);
+    const amountWithoutDecimals = parseAmount(amount, metadata?.decimals ?? 0);
     const [roundedAmount, symbol] = useFormatCoin({
-        balance: amount,
+        balance: amountWithoutDecimals,
         coinType,
         format: CoinFormat.ROUNDED,
     });
+
     const [gasFormatted, gasSymbol] = useFormatCoin({
-        balance: gasBudgetEst,
+        balance: totalGas,
         format: CoinFormat.FULL,
     });
 

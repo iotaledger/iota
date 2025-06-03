@@ -2,7 +2,6 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { useIotaClientQuery } from '@iota/dapp-kit';
 import { Link, PlaceholderTable, TableCard } from '~/components/ui';
 import { generateValidatorsTableColumns } from '~/lib/ui';
 import {
@@ -16,7 +15,8 @@ import {
     Title,
 } from '@iota/apps-ui-kit';
 import { ErrorBoundary } from '../error-boundary/ErrorBoundary';
-import { Warning } from '@iota/apps-ui-icons';
+import { Info, Warning } from '@iota/apps-ui-icons';
+import { useIotaClientQuery } from '@iota/dapp-kit';
 
 const NUMBER_OF_VALIDATORS = 10;
 
@@ -28,45 +28,50 @@ type TopValidatorsCardProps = {
 export function TopValidatorsCard({ limit, showIcon }: TopValidatorsCardProps): JSX.Element {
     const { data, isPending, isSuccess, isError } = useIotaClientQuery('getLatestIotaSystemState');
 
-    const topActiveValidators =
-        data?.activeValidators.slice(0, limit || NUMBER_OF_VALIDATORS) ?? [];
+    const committeeMembers = data?.committeeMembers || [];
 
     const tableColumns = generateValidatorsTableColumns({
-        atRiskValidators: [],
-        validatorEvents: [],
-        rollingAverageApys: null,
-        limit,
         showValidatorIcon: showIcon,
         includeColumns: ['Name', 'Address', 'Stake'],
     });
 
-    if (isError || (!isPending && !data.activeValidators.length)) {
-        return (
-            <InfoBox
-                title="Failed loading data"
-                supportingText="Validator data could not be loaded"
-                icon={<Warning />}
-                type={InfoBoxType.Error}
-                style={InfoBoxStyle.Elevated}
-            />
-        );
-    }
-
     return (
         <Panel>
             <div className="relative">
-                <div className="absolute right-0 mr-4 mt-2">
-                    <Link to="/validators">
-                        <Button
-                            type={ButtonType.Secondary}
-                            size={ButtonSize.Small}
-                            text="View All"
-                        />
-                    </Link>
+                <div className="flex w-full flex-row items-center justify-between">
+                    <Title title="Top Validators" />
+                    <div className="px-md--rs py-xxs">
+                        <Link to="/validators">
+                            <Button
+                                type={ButtonType.Secondary}
+                                size={ButtonSize.Small}
+                                text="View All"
+                            />
+                        </Link>
+                    </div>
                 </div>
-                <Title title="Top Validators" />
 
                 <div className="p-md">
+                    {isError ? (
+                        !isPending && !data?.committeeMembers.length ? (
+                            <InfoBox
+                                title="No validators found"
+                                supportingText="There are currently no validators to display."
+                                icon={<Info />}
+                                type={InfoBoxType.Default}
+                                style={InfoBoxStyle.Default}
+                            />
+                        ) : (
+                            <InfoBox
+                                title="Failed loading data"
+                                supportingText="Validator data could not be loaded"
+                                icon={<Warning />}
+                                type={InfoBoxType.Error}
+                                style={InfoBoxStyle.Default}
+                            />
+                        )
+                    ) : null}
+
                     {isPending && (
                         <PlaceholderTable
                             rowCount={limit || NUMBER_OF_VALIDATORS}
@@ -77,7 +82,14 @@ export function TopValidatorsCard({ limit, showIcon }: TopValidatorsCardProps): 
 
                     {isSuccess && (
                         <ErrorBoundary>
-                            <TableCard data={topActiveValidators} columns={tableColumns} />
+                            <TableCard
+                                sortTable
+                                allowManualTableSort={false}
+                                defaultSorting={[{ id: 'stakingPoolIotaBalance', desc: true }]}
+                                data={committeeMembers}
+                                columns={tableColumns}
+                                rowLimit={NUMBER_OF_VALIDATORS}
+                            />
                         </ErrorBoundary>
                     )}
                 </div>

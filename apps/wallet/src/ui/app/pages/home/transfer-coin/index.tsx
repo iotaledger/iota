@@ -5,60 +5,94 @@
 import { Overlay } from '_components';
 import { ampli } from '_src/shared/analytics/ampli';
 import { getSignerOperationErrorMessage } from '_src/ui/app/helpers/errorMessages';
-import { useSigner, useActiveAccount, useUnlockedGuard } from '_hooks';
+import { useSigner, useActiveAccount, useUnlockedGuard, usePinnedCoinTypes } from '_hooks';
 import {
-    COINS_QUERY_REFETCH_INTERVAL,
-    COINS_QUERY_STALE_TIME,
     CoinSelector,
-    createTokenTransferTransaction,
-    filterAndSortTokenBalances,
-    parseAmount,
+    useSortedCoinsByCategories,
+    useSendCoinTransaction,
+    toast,
+    useGetAllBalances,
+    useGetAllCoins,
+    sumCoinBalances,
     useCoinMetadata,
+    createValidationSchemaSendTokenForm,
 } from '@iota/core';
 import * as Sentry from '@sentry/react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useMemo, useState } from 'react';
-import { toast } from 'react-hot-toast';
 import { Navigate, useNavigate, useSearchParams } from 'react-router-dom';
 import { PreviewTransfer } from './PreviewTransfer';
-import { SendTokenForm, type SubmitProps } from './SendTokenForm';
+import { SendTokenForm } from './SendTokenForm';
 import { Button, ButtonType, LoadingIndicator } from '@iota/apps-ui-kit';
 import { Loader } from '@iota/apps-ui-icons';
-import { useIotaClientQuery } from '@iota/dapp-kit';
-import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
+import { FormikProvider, useFormik } from 'formik';
+
+const INITIAL_VALUES = {
+    to: '',
+    amount: '',
+};
+
+export type FormValues = typeof INITIAL_VALUES;
 
 export function TransferCoinPage() {
     const [searchParams] = useSearchParams();
-    const selectedCoinType = searchParams.get('type');
     const [showTransactionPreview, setShowTransactionPreview] = useState<boolean>(false);
-    const [formData, setFormData] = useState<SubmitProps>();
+
     const navigate = useNavigate();
-    const { data: coinMetadata } = useCoinMetadata(selectedCoinType);
     const activeAccount = useActiveAccount();
     const signer = useSigner(activeAccount);
-    const address = activeAccount?.address;
+    const address = activeAccount?.address || '';
     const queryClient = useQueryClient();
 
-    const { data: coinsBalance, isPending: coinsBalanceIsPending } = useIotaClientQuery(
-        'getAllBalances',
-        { owner: address! },
-        {
-            enabled: !!address,
-            refetchInterval: COINS_QUERY_REFETCH_INTERVAL,
-            staleTime: COINS_QUERY_STALE_TIME,
-            select: filterAndSortTokenBalances,
-        },
-    );
-    const coinBalance = coinsBalance?.find(
-        (coin) => coin.coinType === selectedCoinType,
-    )?.totalBalance;
+    const { data: coinsBalance, isPending: coinsBalanceIsPending } = useGetAllBalances(address);
+    const selectedCoinType = searchParams.get('type') || coinsBalance?.[0]?.coinType || '';
 
-    const selectedAmount = formData?.amount;
-    const selectedCoinDecimals = coinMetadata?.decimals;
-    const hasSelectedMaxCoinBalance =
-        selectedAmount && selectedCoinDecimals && coinBalance
-            ? parseAmount(selectedAmount, coinMetadata.decimals) === BigInt(coinBalance)
-            : false;
+    // Get all coins of the type
+    const selectedCoinsQuery = useGetAllCoins(selectedCoinType, activeAccount?.address);
+    const { data: selectedCoins = [] } = selectedCoinsQuery;
+
+    const coinBalance = sumCoinBalances(selectedCoins);
+
+    const coinMetadata = useCoinMetadata(selectedCoinType);
+    const coinDecimals = coinMetadata.data?.decimals ?? 0;
+
+    const validationSchemaStepOne = useMemo(
+        () =>
+            createValidationSchemaSendTokenForm(
+                coinBalance,
+                coinMetadata.data?.symbol ?? '',
+                coinDecimals,
+            ),
+        [coinBalance, coinMetadata.data, coinDecimals],
+    );
+
+    const formik = useFormik<FormValues>({
+        initialValues: INITIAL_VALUES,
+        validationSchema: validationSchemaStepOne,
+        enableReinitialize: true,
+        validateOnChange: false,
+        validateOnBlur: false,
+        onSubmit: () => {},
+    });
+
+    const [pinnedCoinTypes] = usePinnedCoinTypes();
+    const { recognized, pinned, unrecognized } = useSortedCoinsByCategories(
+        coinsBalance || [],
+        pinnedCoinTypes,
+    );
+    const sortedCoinsBalance = [...recognized, ...pinned, ...unrecognized];
+
+    const totalCoinBalance =
+        coinsBalance?.find((coin) => coin.coinType === selectedCoinType)?.totalBalance || '0';
+
+    const sendCoinTransactionQuery = useSendCoinTransaction({
+        coins: selectedCoins,
+        coinType: selectedCoinType,
+        senderAddress: address,
+        recipientAddress: formik.values.to,
+        amount: formik.values.amount,
+    });
+    const { data: transactionData, isPending } = sendCoinTransactionQuery;
 
     if (coinsBalanceIsPending) {
         return (
@@ -68,23 +102,9 @@ export function TransferCoinPage() {
         );
     }
 
-    const isPayAllIota: boolean =
-        (hasSelectedMaxCoinBalance && selectedCoinType === IOTA_TYPE_ARG) ?? false;
-
-    const transaction = useMemo(() => {
-        if (!selectedCoinType || !signer || !formData || !address) return null;
-
-        return createTokenTransferTransaction({
-            coinType: selectedCoinType,
-            coinDecimals: coinMetadata?.decimals ?? 0,
-            isPayAllIota,
-            ...formData,
-        });
-    }, [formData, signer, selectedCoinType, address, coinMetadata?.decimals]);
-
     const executeTransfer = useMutation({
         mutationFn: async () => {
-            if (!transaction || !signer) {
+            if (!transactionData?.transaction || !signer) {
                 throw new Error('Missing data');
             }
             return Sentry.startSpan(
@@ -94,7 +114,7 @@ export function TransferCoinPage() {
                 (span) => {
                     try {
                         return signer.signAndExecuteTransaction({
-                            transactionBlock: transaction,
+                            transactionBlock: transactionData.transaction,
                             options: {
                                 showInput: true,
                                 showEffects: true,
@@ -138,7 +158,7 @@ export function TransferCoinPage() {
         return null;
     }
 
-    if (!selectedCoinType || !coinsBalance) {
+    if (!coinsBalance) {
         return <Navigate to="/" replace={true} />;
     }
 
@@ -151,25 +171,26 @@ export function TransferCoinPage() {
             onBack={showTransactionPreview ? () => setShowTransactionPreview(false) : undefined}
         >
             <div className="flex h-full w-full flex-col gap-md">
-                {showTransactionPreview && formData ? (
+                {showTransactionPreview && formik.values ? (
                     <div className="flex h-full flex-col">
                         <div className="h-full flex-1">
                             <PreviewTransfer
                                 coinType={selectedCoinType}
-                                amount={formData.amount}
-                                to={formData.to}
-                                approximation={isPayAllIota}
-                                gasBudget={formData.gasBudgetEst}
+                                amount={formik.values.amount}
+                                to={formik.values.to}
+                                coinBalance={totalCoinBalance}
+                                gasBudget={transactionData?.gasSummary?.totalGas}
                             />
                         </div>
                         <Button
                             type={ButtonType.Primary}
                             onClick={() => {
-                                setFormData(formData);
                                 executeTransfer.mutateAsync();
                             }}
                             text="Send Now"
-                            disabled={selectedCoinType === null || executeTransfer.isPending}
+                            disabled={
+                                selectedCoinType === null || executeTransfer.isPending || isPending
+                            }
                             icon={
                                 executeTransfer.isPending ? (
                                     <Loader className="animate-spin" />
@@ -182,25 +203,25 @@ export function TransferCoinPage() {
                     <>
                         <CoinSelector
                             activeCoinType={selectedCoinType}
-                            coins={coinsBalance || []}
+                            coins={sortedCoinsBalance}
                             onClick={(coinType) => {
-                                setFormData(undefined);
+                                formik.resetForm();
                                 navigate(
                                     `/send?${new URLSearchParams({ type: coinType }).toString()}`,
                                 );
                             }}
                         />
 
-                        <SendTokenForm
-                            onSubmit={(formData) => {
-                                setFormData(formData);
-                                setShowTransactionPreview(true);
-                            }}
-                            key={selectedCoinType}
-                            coinType={selectedCoinType}
-                            initialAmount={formData?.amount || ''}
-                            initialTo={formData?.to || ''}
-                        />
+                        <FormikProvider value={formik} key={selectedCoinType}>
+                            <SendTokenForm
+                                onNext={() => {
+                                    setShowTransactionPreview(true);
+                                }}
+                                coinType={selectedCoinType}
+                                sendCoinTransactionQuery={sendCoinTransactionQuery}
+                                selectedCoinsQuery={selectedCoinsQuery}
+                            />
+                        </FormikProvider>
                     </>
                 )}
             </div>

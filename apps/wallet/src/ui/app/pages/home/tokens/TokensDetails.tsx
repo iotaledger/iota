@@ -3,22 +3,14 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { ExplorerLinkType, Loading, UnlockAccountButton } from '_components';
-import {
-    useActiveAccount,
-    useAppSelector,
-    useCoinsReFetchingConfig,
-    useExplorerLink,
-} from '_hooks';
+import { useActiveAccount, useActiveAddress, useAppSelector, useExplorerLink } from '_hooks';
 import { FaucetRequestButton } from '_src/ui/app/shared/faucet/FaucetRequestButton';
 import { useFeature } from '@growthbook/growthbook-react';
-import { toast } from 'react-hot-toast';
 import {
     Feature,
     DELEGATED_STAKES_QUERY_REFETCH_INTERVAL,
     DELEGATED_STAKES_QUERY_STALE_TIME,
-    filterAndSortTokenBalances,
     useAppsBackend,
-    useBalance,
     useGetDelegatedStake,
     TIMELOCK_IOTA_TYPE,
     useGetOwnedObjects,
@@ -27,6 +19,9 @@ import {
     STARDUST_NFT_OUTPUT_TYPE,
     useGetStardustSharedBasicObjects,
     useGetStardustSharedNftObjects,
+    useGetAllBalances,
+    toast,
+    haveSupplyIncreaseLabel,
 } from '@iota/core';
 import {
     Button,
@@ -37,7 +32,6 @@ import {
     InfoBoxType,
     InfoBoxStyle,
 } from '@iota/apps-ui-kit';
-import { useIotaClientQuery } from '@iota/dapp-kit';
 import { Network } from '@iota/iota-sdk/client';
 import { formatAddress, IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 import { useQuery } from '@tanstack/react-query';
@@ -53,26 +47,15 @@ import { OverviewHint } from './OverviewHint';
 import { SupplyIncreaseVestingStakingDialog } from './SupplyIncreaseVestingStakingDialog';
 import { MigrationDialog } from './MigrationDialog';
 
-interface TokenDetailsProps {
-    coinType?: string;
-}
-
-export function TokenDetails({ coinType }: TokenDetailsProps) {
+export function TokenDetails() {
     const navigate = useNavigate();
     const [dialogReceiveOpen, setDialogReceiveOpen] = useState(false);
     const [dialogVestingOpen, setDialogVestingOpen] = useState(false);
     const [dialogMigrationOpen, setDialogMigrationOpen] = useState(false);
     const [interstitialDismissed, setInterstitialDismissed] = useState<boolean>(false);
-    const activeCoinType = coinType || IOTA_TYPE_ARG;
+    const activeCoinType = IOTA_TYPE_ARG;
     const activeAccount = useActiveAccount();
     const activeAccountAddress = activeAccount?.address;
-    const { staleTime, refetchInterval } = useCoinsReFetchingConfig();
-    const {
-        data: coinBalance,
-        isError,
-        isPending,
-        isFetched,
-    } = useBalance(activeAccountAddress!, { coinType: activeCoinType });
     const network = useAppSelector((state) => state.app.network);
     const isMainnet = network === Network.Mainnet;
     const supplyIncreaseVestingEnabled = useFeature<boolean>(Feature.SupplyIncreaseVesting).value;
@@ -96,21 +79,15 @@ export function TokenDetails({ coinType }: TokenDetailsProps) {
         type: ExplorerLinkType.Address,
         address: activeAccountAddress,
     });
-
+    const address = useActiveAddress();
     const {
         data: coinBalances,
-        isPending: coinBalancesLoading,
-        isFetched: coinBalancesFetched,
-    } = useIotaClientQuery(
-        'getAllBalances',
-        { owner: activeAccountAddress! },
-        {
-            enabled: !!activeAccountAddress,
-            staleTime,
-            refetchInterval,
-            select: filterAndSortTokenBalances,
-        },
-    );
+        isPending,
+        isLoading,
+        isFetched,
+        isError,
+    } = useGetAllBalances(address);
+    const coinBalance = coinBalances?.find((balance) => balance.coinType === activeCoinType);
 
     const { data: delegatedStake } = useGetDelegatedStake({
         address: activeAccountAddress || '',
@@ -159,8 +136,8 @@ export function TokenDetails({ coinType }: TokenDetailsProps) {
 
     if (supplyIncreaseVestingEnabled) {
         hasSupplyIncreaseVestingObjects =
-            !!supplyIncreaseVestingObjects?.pages?.[0]?.data?.length ||
-            !!supplyIncreaseVestingObjectsStaked?.pages?.[0]?.data?.length;
+            haveSupplyIncreaseLabel(supplyIncreaseVestingObjects?.pages || []) ||
+            haveSupplyIncreaseLabel(supplyIncreaseVestingObjectsStaked?.pages || []);
     }
 
     if (migrationEnabled) {
@@ -243,7 +220,7 @@ export function TokenDetails({ coinType }: TokenDetailsProps) {
                                 text={formatAddress(activeAccountAddress)}
                                 isCopyable
                                 copyText={activeAccountAddress}
-                                onCopySuccess={() => toast.success('Address copied')}
+                                onCopySuccess={() => toast('Address copied')}
                             />
                             <CoinBalance amount={tokenBalance} type={activeCoinType} />
                         </div>
@@ -253,7 +230,6 @@ export function TokenDetails({ coinType }: TokenDetailsProps) {
                                 type={ButtonType.Secondary}
                                 icon={<ArrowBottomLeft />}
                                 size={ButtonSize.Small}
-                                disabled={activeAccount?.isLocked}
                             />
                             <Button
                                 onClick={onSendClick}
@@ -274,7 +250,6 @@ export function TokenDetails({ coinType }: TokenDetailsProps) {
                                 <div className="flex w-full flex-col items-center gap-xs">
                                     {accountHasIota || delegatedStake?.length ? (
                                         <TokenStakingOverview
-                                            disabled={!tokenBalance}
                                             accountAddress={activeAccountAddress}
                                         />
                                     ) : null}
@@ -300,7 +275,7 @@ export function TokenDetails({ coinType }: TokenDetailsProps) {
                                 {!accountHasIota ? (
                                     <div className="flex flex-col gap-md">
                                         <div className="flex flex-col flex-nowrap items-center justify-center px-sm text-center">
-                                            <span className="text-body-sm text-neutral-40">
+                                            <span className="text-body-sm text-neutral-40 dark:text-neutral-60">
                                                 {isMainnet
                                                     ? 'Start by buying IOTA'
                                                     : 'Need to send transactions on the IOTA network? You’ll need IOTA in your wallet'}
@@ -313,8 +288,8 @@ export function TokenDetails({ coinType }: TokenDetailsProps) {
                             {coinBalances?.length ? (
                                 <MyTokens
                                     coinBalances={coinBalances ?? []}
-                                    isLoading={coinBalancesLoading}
-                                    isFetched={coinBalancesFetched}
+                                    isLoading={isLoading}
+                                    isFetched={isFetched}
                                 />
                             ) : null}
                         </div>

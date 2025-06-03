@@ -3,6 +3,7 @@
 
 pub type IngestionResult<T, E = IngestionError> = core::result::Result<T, E>;
 
+// TODO: make first letter lower-case to all messages
 #[derive(Debug, thiserror::Error)]
 #[non_exhaustive]
 pub enum IngestionError {
@@ -42,6 +43,15 @@ pub enum IngestionError {
     #[error("Progress Store error: `{0}`")]
     ProgressStore(String),
 
+    #[error("Reducer error: `{0}`")]
+    Reducer(String),
+
     #[error("Deserialize checkpoint failed: `{0}`")]
     DeserializeCheckpoint(String),
+
+    #[error(transparent)]
+    Upstream(#[from] anyhow::Error),
+
+    #[error("reading historical data failed: `{0}`")]
+    HistoryRead(String),
 }

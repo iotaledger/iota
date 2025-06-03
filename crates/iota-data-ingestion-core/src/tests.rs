@@ -2,7 +2,14 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{path::PathBuf, time::Duration};
+use std::{
+    path::PathBuf,
+    sync::{
+        Arc,
+        atomic::{AtomicU64, Ordering},
+    },
+    time::Duration,
+};
 
 use async_trait::async_trait;
 use iota_protocol_config::ProtocolConfig;
@@ -20,11 +27,12 @@ use iota_types::{
 use prometheus::Registry;
 use rand::{SeedableRng, prelude::StdRng};
 use tempfile::NamedTempFile;
+use tokio::time::timeout;
 use tokio_util::sync::CancellationToken;
 
 use crate::{
     DataIngestionMetrics, FileProgressStore, IndexerExecutor, IngestionError, IngestionResult,
-    ReaderOptions, Worker, WorkerPool, progress_store::ExecutorProgress,
+    ProgressStore, ReaderOptions, Reducer, Worker, WorkerPool, progress_store::ExecutorProgress,
 };
 
 async fn add_worker_pool<W: Worker + 'static>(
@@ -32,7 +40,7 @@ async fn add_worker_pool<W: Worker + 'static>(
     worker: W,
     concurrency: usize,
 ) -> IngestionResult<()> {
-    let worker_pool = WorkerPool::new(worker, "test".to_string(), concurrency);
+    let worker_pool = WorkerPool::new(worker, "test".to_string(), concurrency, Default::default());
     indexer.register(worker_pool).await?;
     Ok(())
 }
@@ -83,9 +91,13 @@ struct TestWorker;
 
 #[async_trait]
 impl Worker for TestWorker {
+    type Message = ();
     type Error = IngestionError;
 
-    async fn process_checkpoint(&self, _checkpoint: &CheckpointData) -> Result<(), Self::Error> {
+    async fn process_checkpoint(
+        &self,
+        _checkpoint: Arc<CheckpointData>,
+    ) -> Result<Self::Message, Self::Error> {
         Ok(())
     }
 }
@@ -93,31 +105,89 @@ impl Worker for TestWorker {
 /// This worker implementation always returns an error when processing a
 /// checkpoint.
 ///
-/// Useful for testing graceful shutdown logic and behaviours
+/// Useful for testing graceful shutdown logic.
 #[derive(Clone)]
 struct FaultyWorker;
 
 #[async_trait]
 impl Worker for FaultyWorker {
+    type Message = ();
     type Error = IngestionError;
 
-    async fn process_checkpoint(&self, _checkpoint: &CheckpointData) -> Result<(), Self::Error> {
+    async fn process_checkpoint(
+        &self,
+        _checkpoint: Arc<CheckpointData>,
+    ) -> Result<Self::Message, Self::Error> {
         Err(IngestionError::CheckpointProcessing(
             "unable to process checkpoint".into(),
         ))
     }
 }
 
+/// A Reducer implementation that commits messages in fixed-size batches.
+///
+/// This reducer maintains a count of committed batches and enforces a fixed
+/// batch size before triggering commits. It's primarily used for testing the
+/// worker pool and reducer functionality.
+struct FixedBatchSizeReducer {
+    commit_count: Arc<AtomicU64>,
+    batch_size: usize,
+}
+
+impl FixedBatchSizeReducer {
+    fn new(batch_size: usize) -> Self {
+        Self {
+            commit_count: Arc::new(AtomicU64::new(0)),
+            batch_size,
+        }
+    }
+}
+
+#[async_trait]
+impl Reducer<TestWorker> for FixedBatchSizeReducer {
+    async fn commit(&self, _batch: &[()]) -> Result<(), IngestionError> {
+        self.commit_count.fetch_add(1, Ordering::SeqCst);
+        Ok(())
+    }
+    fn should_close_batch(&self, batch: &[()], _next_item: Option<&()>) -> bool {
+        batch.len() >= self.batch_size
+    }
+}
+
+/// This reducer implementation always returns an error when committing a batch.
+///
+/// Useful for testing graceful shutdown logic.
+struct FaultyReducer {
+    batch_size: usize,
+}
+
+impl FaultyReducer {
+    fn new(batch_size: usize) -> Self {
+        Self { batch_size }
+    }
+}
+
+#[async_trait]
+impl Reducer<TestWorker> for FaultyReducer {
+    async fn commit(&self, _batch: &[()]) -> Result<(), IngestionError> {
+        Err(IngestionError::Reducer("unable to commit data".into()))
+    }
+
+    fn should_close_batch(&self, batch: &[()], _next_item: Option<&()>) -> bool {
+        batch.len() >= self.batch_size
+    }
+}
+
 #[tokio::test]
 async fn empty_pools() {
-    let bundle = create_executor_bundle();
+    let bundle = create_executor_bundle().await;
     let result = run(bundle.executor, None, None, bundle.token).await;
     assert!(matches!(result, Err(IngestionError::EmptyWorkerPool)));
 }
 
 #[tokio::test]
 async fn basic_flow() {
-    let mut bundle = create_executor_bundle();
+    let mut bundle = create_executor_bundle().await;
     add_worker_pool(&mut bundle.executor, TestWorker, 5)
         .await
         .unwrap();
@@ -141,18 +211,18 @@ async fn basic_flow() {
 // failures.
 //
 // This test verifies that:
-// 1. When Worker::process_checkpoint implementation continuously fails
+// 1. When Worker::process_checkpoint implementation continuously fails.
 // 2. The exponential backoff retry mechanism would normally create an loop
-//    until the successful value is returned
+//    until the successful value is returned.
 // 3. The graceful shutdown logic successfully breaks these retry loops upon
-//    cancellation
-// 4. All workers exit cleanly without processing any checkpoints
+//    cancellation.
+// 4. All workers exit cleanly without processing any checkpoints.
 //
 // The test uses `FaultyWorker` which always fails, simulating a worst-case
 // scenario where all workers are unable to process checkpoints.
 #[tokio::test]
-async fn graceful_shutdown() {
-    let mut bundle = create_executor_bundle();
+async fn graceful_shutdown_faulty_worker() {
+    let mut bundle = create_executor_bundle().await;
     // all worker pool's workers will not be able to process any checkpoint
     add_worker_pool(&mut bundle.executor, FaultyWorker, 5)
         .await
@@ -173,17 +243,171 @@ async fn graceful_shutdown() {
     assert_eq!(result.unwrap().get("test"), Some(&0));
 }
 
+/// Tests the integration of WorkerPool with a FixedBatchSizeReducer.
+///
+/// This test verifies reducer processing logic:
+/// - Creates 20 mock checkpoints.
+/// - Configures reducer with fixed batch size of 5.
+/// - Expects minimum 4 batch commits (20/5 = 4).
+/// - ExecutorProgress should show 20 processed checkpoints.
+#[tokio::test]
+async fn worker_pool_with_reducer() {
+    // create a reducer with max batch of 5
+    let reducer = FixedBatchSizeReducer::new(5);
+    let commit_count = reducer.commit_count.clone();
+    let mut bundle = create_executor_bundle().await;
+    // Create worker pool with reducer
+    let pool = WorkerPool::new_with_reducer(
+        TestWorker,
+        "test".to_string(),
+        5,
+        Default::default(),
+        reducer,
+    );
+    bundle.executor.register(pool).await.unwrap();
+
+    let path = temp_dir();
+    for checkpoint_number in 0..20 {
+        let bytes = mock_checkpoint_data_bytes(checkpoint_number);
+        std::fs::write(path.join(format!("{}.chk", checkpoint_number)), bytes).unwrap();
+    }
+    let result = run(
+        bundle.executor,
+        Some(path),
+        Some(Duration::from_secs(1)),
+        bundle.token,
+    )
+    .await;
+    // 4 commits (batches of 5 checkpoints)
+    assert_eq!(commit_count.load(Ordering::SeqCst), 4);
+    assert!(result.is_ok());
+    assert_eq!(result.unwrap().get("test"), Some(&20));
+}
+
+// Tests the graceful shutdown behavior when reducer encounter persistent
+// failures.
+//
+// This test verifies that:
+// 1. When Reducer::commit implementation continuously fails.
+// 2. The exponential backoff retry mechanism would normally create a loop until
+//    the successful value is returned.
+// 3. The graceful shutdown logic successfully breaks these retry loops upon
+//    cancellation.
+// 4. The Reducer exit cleanly without committing any batch.
+//
+// The test uses `FaultyReducer` which always fails, simulating a worst-case
+// scenario where all WorkerPools are unable to send progress data to
+// IndexerExecutor.
+#[tokio::test]
+async fn graceful_shutdown_faulty_reducer() {
+    // create a reducer with max batch of 5
+    let reducer = FaultyReducer::new(5);
+    let mut bundle = create_executor_bundle().await;
+    // Create worker pool with reducer
+    let pool = WorkerPool::new_with_reducer(
+        TestWorker,
+        "test".to_string(),
+        5,
+        Default::default(),
+        reducer,
+    );
+    bundle.executor.register(pool).await.unwrap();
+
+    let path = temp_dir();
+    for checkpoint_number in 0..20 {
+        let bytes = mock_checkpoint_data_bytes(checkpoint_number);
+        std::fs::write(path.join(format!("{}.chk", checkpoint_number)), bytes).unwrap();
+    }
+    let result = run(
+        bundle.executor,
+        Some(path),
+        Some(Duration::from_secs(1)),
+        bundle.token,
+    )
+    .await;
+    assert!(result.is_ok());
+    assert_eq!(result.unwrap().get("test"), Some(&0));
+}
+
+/// Tests the atomicity of FileProgressStore's save operation by simulating a
+/// crash/interruption.
+///
+/// This test attempts to save a new value with a very short timeout, simulating
+/// a crash before the save completes. It verifies that if the save is
+/// interrupted, the original value remains unchanged, demonstrating that
+/// FileProgressStore does not leave the file in a partial or corrupted state
+/// even if the save is not completed.
+#[tokio::test]
+async fn file_progress_store_save_timeout_simulates_crash() {
+    // Setup: create a FileProgressStore with initial data
+    let progress_file = NamedTempFile::new().unwrap();
+    let path = progress_file.path().to_path_buf();
+    let mut store = FileProgressStore::new(path.clone()).await.unwrap();
+
+    // Save an initial value
+    store.save("task1".to_string(), 42).await.unwrap();
+
+    // Confirm the value is present
+    let value = store.load("task1".to_string()).await.unwrap();
+    assert_eq!(value, 42);
+
+    // Attempt to save a new value, but with a very short timeout to simulate a
+    // crash/interruption
+    let result = timeout(
+        Duration::from_nanos(5),
+        store.save("task1".to_string(), 100),
+    )
+    .await;
+
+    // The operation should time out (simulate crash)
+    assert!(result.is_err(), "Save did not time out as expected");
+
+    // The value should still be the old value, as the save was interrupted
+    let value = store.load("task1".to_string()).await.unwrap();
+    assert_eq!(
+        value, 42,
+        "Value should remain unchanged after interrupted save"
+    );
+}
+
+/// Tests the basic save and load functionality of FileProgressStore.
+///
+/// This test saves an initial value, verifies it, then saves a new value and
+/// verifies the update. It demonstrates that FileProgressStore correctly
+/// persists and retrieves checkpoint data.
+#[tokio::test]
+async fn file_progress_store() {
+    // Setup: create a FileProgressStore with initial data
+    let progress_file = NamedTempFile::new().unwrap();
+    let path = progress_file.path().to_path_buf();
+    let mut store = FileProgressStore::new(path.clone()).await.unwrap();
+
+    // Save an initial value
+    store.save("task1".to_string(), 42).await.unwrap();
+
+    // Confirm the value is present
+    let value = store.load("task1".to_string()).await.unwrap();
+    assert_eq!(value, 42);
+
+    // Save a new value
+    store.save("task1".to_string(), 100).await.unwrap();
+
+    // Confirm the value is updated
+    let value = store.load("task1".to_string()).await.unwrap();
+    assert_eq!(value, 100);
+}
+
 fn temp_dir() -> std::path::PathBuf {
     tempfile::tempdir()
         .expect("Failed to open temporary directory")
         .into_path()
 }
 
-fn create_executor_bundle() -> ExecutorBundle {
+async fn create_executor_bundle() -> ExecutorBundle {
     let progress_file = NamedTempFile::new().unwrap();
     let path = progress_file.path().to_path_buf();
     std::fs::write(path.clone(), "{}").unwrap();
-    let progress_store = FileProgressStore::new(path);
+    let progress_store = FileProgressStore::new(path).await.unwrap();
     let token = CancellationToken::new();
     let child_token = token.child_token();
     let executor = IndexerExecutor::new(

@@ -47,7 +47,7 @@ process_pending_stakes_and_withdraws
 	public(package) fun
 	0x3::staking_pool
 process_pending_stake_withdraw
-	fun
+	public(package) fun
 	0x3::staking_pool
 process_pending_stake
 	public(package) fun
@@ -148,7 +148,7 @@ deactivate
 activate
 	public(package) fun
 	0x3::validator
-adjust_stake_and_gas_price
+adjust_next_epoch_commission_rate
 	public(package) fun
 	0x3::validator
 request_add_stake
@@ -161,12 +161,6 @@ request_add_stake_at_genesis_with_receipt
 	public(package) fun
 	0x3::validator
 request_withdraw_stake
-	public(package) fun
-	0x3::validator
-request_set_gas_price
-	public(package) fun
-	0x3::validator
-set_candidate_gas_price
 	public(package) fun
 	0x3::validator
 request_set_commission_rate
@@ -259,6 +253,9 @@ stake_amount
 total_stake
 	public fun
 	0x3::validator
+next_epoch_stake
+	public(package) fun
+	0x3::validator
 voting_power
 	public fun
 	0x3::validator
@@ -291,6 +288,9 @@ is_equal_some_and_value
 	0x3::validator
 is_equal_some
 	fun
+	0x3::validator
+smaller_than
+	public(package) fun
 	0x3::validator
 new_unverified_validator_operation_cap_and_transfer
 	public(package) fun
@@ -367,8 +367,8 @@ set_voting_power
 init_voting_power_info
 	fun
 	0x3::voting_power
-total_stake
-	fun
+total_committee_stake
+	public(package) fun
 	0x3::voting_power
 insert
 	fun
@@ -409,6 +409,9 @@ version
 ValidatorSetV1
 	public struct
 	0x3::validator_set
+ValidatorSetV2
+	public struct
+	0x3::validator_set
 ValidatorEpochInfoEventV1
 	public struct
 	0x3::validator_set
@@ -418,7 +421,16 @@ ValidatorJoinEvent
 ValidatorLeaveEvent
 	public struct
 	0x3::validator_set
-new
+CommitteeValidatorJoinEvent
+	public struct
+	0x3::validator_set
+CommitteeValidatorLeaveEvent
+	public struct
+	0x3::validator_set
+new_v1
+	public(package) fun
+	0x3::validator_set
+v1_to_v2
 	public(package) fun
 	0x3::validator_set
 request_add_validator_candidate
@@ -475,6 +487,27 @@ validator_staking_pool_id
 staking_pool_mappings
 	public fun
 	0x3::validator_set
+total_stake_inner
+	public(package) fun
+	0x3::validator_set
+validator_total_stake_amount_inner
+	public(package) fun
+	0x3::validator_set
+validator_stake_amount_inner
+	public(package) fun
+	0x3::validator_set
+validator_voting_power_inner
+	public(package) fun
+	0x3::validator_set
+validator_staking_pool_id_inner
+	public(package) fun
+	0x3::validator_set
+staking_pool_mappings_inner
+	public(package) fun
+	0x3::validator_set
+validator_address_by_pool_id_inner
+	public(package) fun
+	0x3::validator_set
 pool_exchange_rates
 	public(package) fun
 	0x3::validator_set
@@ -482,6 +515,9 @@ next_epoch_validator_count
 	public(package) fun
 	0x3::validator_set
 is_active_validator_by_iota_address
+	public(package) fun
+	0x3::validator_set
+is_committee_validator_by_iota_address
 	public(package) fun
 	0x3::validator_set
 is_duplicate_with_active_validator
@@ -538,6 +574,15 @@ get_active_validator_ref
 get_pending_validator_ref
 	public fun
 	0x3::validator_set
+get_active_validator_ref_inner
+	public(package) fun
+	0x3::validator_set
+get_committee_validator_ref_inner
+	public(package) fun
+	0x3::validator_set
+get_pending_validator_ref_inner
+	public(package) fun
+	0x3::validator_set
 verify_cap
 	public(package) fun
 	0x3::validator_set
@@ -559,10 +604,13 @@ sort_removal_list
 process_pending_stakes_and_withdraws
 	fun
 	0x3::validator_set
-calculate_total_stakes
+calculate_total_active_stakes
 	fun
 	0x3::validator_set
-adjust_stake_and_gas_price
+calculate_total_committee_stakes
+	fun
+	0x3::validator_set
+adjust_next_epoch_commission_rate
 	fun
 	0x3::validator_set
 compute_slashed_validators
@@ -583,6 +631,9 @@ emit_validator_epoch_events
 sum_voting_power_by_addresses
 	public fun
 	0x3::validator_set
+sum_committee_voting_power_by_addresses
+	public(package) fun
+	0x3::validator_set
 active_validators
 	public fun
 	0x3::validator_set
@@ -592,7 +643,25 @@ is_validator_candidate
 is_inactive_validator
 	public fun
 	0x3::validator_set
+active_validators_inner
+	public(package) fun
+	0x3::validator_set
+is_validator_candidate_inner
+	public(package) fun
+	0x3::validator_set
+is_inactive_validator_inner
+	public(package) fun
+	0x3::validator_set
 active_validator_addresses
+	public(package) fun
+	0x3::validator_set
+committee_validator_addresses
+	public(package) fun
+	0x3::validator_set
+select_committee_members_top_n_stakers
+	public(package) fun
+	0x3::validator_set
+process_new_committee
 	public(package) fun
 	0x3::validator_set
 StorageFundV1
@@ -616,13 +685,22 @@ SystemParametersV1
 IotaSystemStateV1
 	public struct
 	0x3::iota_system_state_inner
+IotaSystemStateV2
+	public struct
+	0x3::iota_system_state_inner
 SystemEpochInfoEventV1
+	public struct
+	0x3::iota_system_state_inner
+SystemEpochInfoEventV2
 	public struct
 	0x3::iota_system_state_inner
 create
 	public(package) fun
 	0x3::iota_system_state_inner
 create_system_parameters
+	public(package) fun
+	0x3::iota_system_state_inner
+v1_to_v2
 	public(package) fun
 	0x3::iota_system_state_inner
 request_add_validator_candidate
@@ -635,12 +713,6 @@ request_add_validator
 	public(package) fun
 	0x3::iota_system_state_inner
 request_remove_validator
-	public(package) fun
-	0x3::iota_system_state_inner
-request_set_gas_price
-	public(package) fun
-	0x3::iota_system_state_inner
-set_candidate_validator_gas_price
 	public(package) fun
 	0x3::iota_system_state_inner
 request_set_commission_rate
@@ -724,7 +796,7 @@ update_candidate_validator_network_pubkey
 advance_epoch
 	public(package) fun
 	0x3::iota_system_state_inner
-match_computation_reward_to_target_reward
+match_computation_charge_burned_to_validator_subsidy
 	fun
 	0x3::iota_system_state_inner
 epoch
@@ -748,7 +820,7 @@ epoch_start_timestamp_ms
 validator_stake_amount
 	public(package) fun
 	0x3::iota_system_state_inner
-active_validator_voting_powers
+committee_validator_voting_powers
 	public(package) fun
 	0x3::iota_system_state_inner
 validator_staking_pool_id
@@ -769,10 +841,16 @@ get_storage_fund_total_balance
 get_storage_fund_object_rebates
 	public(package) fun
 	0x3::iota_system_state_inner
+validator_address_by_pool_id
+	public(package) fun
+	0x3::iota_system_state_inner
 pool_exchange_rates
 	public(package) fun
 	0x3::iota_system_state_inner
 active_validator_addresses
+	public(package) fun
+	0x3::iota_system_state_inner
+committee_validator_addresses
 	public(package) fun
 	0x3::iota_system_state_inner
 extract_coin_balance
@@ -880,10 +958,16 @@ update_validator_next_epoch_network_pubkey
 update_candidate_validator_network_pubkey
 	public entry fun
 	0x3::iota_system
+validator_address_by_pool_id
+	public fun
+	0x3::iota_system
 pool_exchange_rates
 	public fun
 	0x3::iota_system
 active_validator_addresses
+	public fun
+	0x3::iota_system
+committee_validator_addresses
 	public fun
 	0x3::iota_system
 load_iota_system_admin_cap
@@ -1018,48 +1102,6 @@ ecvrf_verify
 ed25519_verify
 	public fun
 	0x2::ed25519
-Curve
-	public struct
-	0x2::groth16
-PreparedVerifyingKey
-	public struct
-	0x2::groth16
-PublicProofInputs
-	public struct
-	0x2::groth16
-ProofPoints
-	public struct
-	0x2::groth16
-bls12381
-	public fun
-	0x2::groth16
-bn254
-	public fun
-	0x2::groth16
-pvk_from_bytes
-	public fun
-	0x2::groth16
-pvk_to_bytes
-	public fun
-	0x2::groth16
-public_proof_inputs_from_bytes
-	public fun
-	0x2::groth16
-proof_points_from_bytes
-	public fun
-	0x2::groth16
-prepare_verifying_key
-	public fun
-	0x2::groth16
-prepare_verifying_key_internal
-	fun
-	0x2::groth16
-verify_groth16_proof
-	public fun
-	0x2::groth16
-verify_groth16_proof_internal
-	fun
-	0x2::groth16
 blake2b256
 	public fun
 	0x2::hash
@@ -1513,6 +1555,9 @@ peel_vec_u128
 peel_vec_u256
 	public fun
 	0x2::bcs
+peel_enum_tag
+	public fun
+	0x2::bcs
 peel_option_address
 	public fun
 	0x2::bcs
@@ -1570,6 +1615,12 @@ multi_scalar_multiplication
 pairing
 	public(package) fun
 	0x2::group_ops
+convert
+	public(package) fun
+	0x2::group_ops
+sum
+	public(package) fun
+	0x2::group_ops
 internal_validate
 	fun
 	0x2::group_ops
@@ -1594,6 +1645,12 @@ internal_multi_scalar_mul
 internal_pairing
 	fun
 	0x2::group_ops
+internal_convert
+	fun
+	0x2::group_ops
+internal_sum
+	fun
+	0x2::group_ops
 set_as_prefix
 	public(package) fun
 	0x2::group_ops
@@ -1607,6 +1664,9 @@ G2
 	public struct
 	0x2::bls12381
 GT
+	public struct
+	0x2::bls12381
+UncompressedG1
 	public struct
 	0x2::bls12381
 bls12381_min_sig_verify
@@ -1675,6 +1735,9 @@ hash_to_g1
 g1_multi_scalar_multiplication
 	public fun
 	0x2::bls12381
+g1_to_uncompressed_g1
+	public fun
+	0x2::bls12381
 g2_from_bytes
 	public fun
 	0x2::bls12381
@@ -1727,6 +1790,12 @@ gt_neg
 	public fun
 	0x2::bls12381
 pairing
+	public fun
+	0x2::bls12381
+uncompressed_g1_to_g1
+	public fun
+	0x2::bls12381
+uncompressed_g1_sum
 	public fun
 	0x2::bls12381
 Referent
@@ -2089,6 +2158,9 @@ replace_additional_metadata
 additional_metadata
 	public fun
 	0x2::coin_manager
+get_additional_metadata
+	public fun
+	0x2::coin_manager
 enforce_maximum_supply
 	public fun
 	0x2::coin_manager
@@ -2359,6 +2431,48 @@ create_internal
 add_internal
 	fun
 	0x2::display
+Curve
+	public struct
+	0x2::groth16
+PreparedVerifyingKey
+	public struct
+	0x2::groth16
+PublicProofInputs
+	public struct
+	0x2::groth16
+ProofPoints
+	public struct
+	0x2::groth16
+bls12381
+	public fun
+	0x2::groth16
+bn254
+	public fun
+	0x2::groth16
+pvk_from_bytes
+	public fun
+	0x2::groth16
+pvk_to_bytes
+	public fun
+	0x2::groth16
+public_proof_inputs_from_bytes
+	public fun
+	0x2::groth16
+proof_points_from_bytes
+	public fun
+	0x2::groth16
+prepare_verifying_key
+	public fun
+	0x2::groth16
+prepare_verifying_key_internal
+	fun
+	0x2::groth16
+verify_groth16_proof
+	public fun
+	0x2::groth16
+verify_groth16_proof_internal
+	fun
+	0x2::groth16
 IOTA
 	public struct
 	0x2::iota
@@ -3817,111 +3931,102 @@ sha2_256
 sha3_256
 	public fun
 	0x1::hash
-max
+UQ32_32
+	public struct
+	0x1::uq32_32
+from_quotient
 	public fun
-	0x1::u128
-min
+	0x1::uq32_32
+from_int
 	public fun
-	0x1::u128
-diff
+	0x1::uq32_32
+add
 	public fun
-	0x1::u128
-divide_and_round_up
+	0x1::uq32_32
+sub
 	public fun
-	0x1::u128
-pow
+	0x1::uq32_32
+mul
 	public fun
-	0x1::u128
-sqrt
+	0x1::uq32_32
+div
 	public fun
-	0x1::u128
-max
+	0x1::uq32_32
+to_int
 	public fun
-	0x1::u16
-min
+	0x1::uq32_32
+int_mul
 	public fun
-	0x1::u16
-diff
+	0x1::uq32_32
+int_div
 	public fun
-	0x1::u16
-divide_and_round_up
+	0x1::uq32_32
+le
 	public fun
-	0x1::u16
-pow
+	0x1::uq32_32
+lt
 	public fun
-	0x1::u16
-sqrt
+	0x1::uq32_32
+ge
 	public fun
-	0x1::u16
-max
+	0x1::uq32_32
+gt
 	public fun
-	0x1::u256
-min
+	0x1::uq32_32
+to_raw
 	public fun
-	0x1::u256
-diff
+	0x1::uq32_32
+from_raw
 	public fun
-	0x1::u256
-divide_and_round_up
+	0x1::uq32_32
+UQ64_64
+	public struct
+	0x1::uq64_64
+from_quotient
 	public fun
-	0x1::u256
-pow
+	0x1::uq64_64
+from_int
 	public fun
-	0x1::u256
-max
+	0x1::uq64_64
+add
 	public fun
-	0x1::u32
-min
+	0x1::uq64_64
+sub
 	public fun
-	0x1::u32
-diff
+	0x1::uq64_64
+mul
 	public fun
-	0x1::u32
-divide_and_round_up
+	0x1::uq64_64
+div
 	public fun
-	0x1::u32
-pow
+	0x1::uq64_64
+to_int
 	public fun
-	0x1::u32
-sqrt
+	0x1::uq64_64
+int_mul
 	public fun
-	0x1::u32
-max
+	0x1::uq64_64
+int_div
 	public fun
-	0x1::u64
-min
+	0x1::uq64_64
+le
 	public fun
-	0x1::u64
-diff
+	0x1::uq64_64
+lt
 	public fun
-	0x1::u64
-divide_and_round_up
+	0x1::uq64_64
+ge
 	public fun
-	0x1::u64
-pow
+	0x1::uq64_64
+gt
 	public fun
-	0x1::u64
-sqrt
+	0x1::uq64_64
+to_raw
 	public fun
-	0x1::u64
-max
+	0x1::uq64_64
+from_raw
 	public fun
-	0x1::u8
-min
-	public fun
-	0x1::u8
-diff
-	public fun
-	0x1::u8
-divide_and_round_up
-	public fun
-	0x1::u8
-pow
-	public fun
-	0x1::u8
-sqrt
-	public fun
-	0x1::u8
+	0x1::uq64_64
 empty
 	public fun
 	0x1::vector
@@ -3971,6 +4076,9 @@ insert
 	public fun
 	0x1::vector
 swap_remove
+	public fun
+	0x1::vector
+flatten
 	public fun
 	0x1::vector
 Option
@@ -4207,6 +4315,192 @@ get_module
 into_string
 	public fun
 	0x1::type_name
+bitwise_not
+	public fun
+	0x1::u128
+max
+	public fun
+	0x1::u128
+min
+	public fun
+	0x1::u128
+diff
+	public fun
+	0x1::u128
+divide_and_round_up
+	public fun
+	0x1::u128
+pow
+	public fun
+	0x1::u128
+sqrt
+	public fun
+	0x1::u128
+try_as_u8
+	public fun
+	0x1::u128
+try_as_u16
+	public fun
+	0x1::u128
+try_as_u32
+	public fun
+	0x1::u128
+try_as_u64
+	public fun
+	0x1::u128
+to_string
+	public fun
+	0x1::u128
+bitwise_not
+	public fun
+	0x1::u16
+max
+	public fun
+	0x1::u16
+min
+	public fun
+	0x1::u16
+diff
+	public fun
+	0x1::u16
+divide_and_round_up
+	public fun
+	0x1::u16
+pow
+	public fun
+	0x1::u16
+sqrt
+	public fun
+	0x1::u16
+try_as_u8
+	public fun
+	0x1::u16
+to_string
+	public fun
+	0x1::u16
+bitwise_not
+	public fun
+	0x1::u256
+max
+	public fun
+	0x1::u256
+min
+	public fun
+	0x1::u256
+diff
+	public fun
+	0x1::u256
+divide_and_round_up
+	public fun
+	0x1::u256
+pow
+	public fun
+	0x1::u256
+try_as_u8
+	public fun
+	0x1::u256
+try_as_u16
+	public fun
+	0x1::u256
+try_as_u32
+	public fun
+	0x1::u256
+try_as_u64
+	public fun
+	0x1::u256
+try_as_u128
+	public fun
+	0x1::u256
+to_string
+	public fun
+	0x1::u256
+bitwise_not
+	public fun
+	0x1::u32
+max
+	public fun
+	0x1::u32
+min
+	public fun
+	0x1::u32
+diff
+	public fun
+	0x1::u32
+divide_and_round_up
+	public fun
+	0x1::u32
+pow
+	public fun
+	0x1::u32
+sqrt
+	public fun
+	0x1::u32
+try_as_u8
+	public fun
+	0x1::u32
+try_as_u16
+	public fun
+	0x1::u32
+to_string
+	public fun
+	0x1::u32
+bitwise_not
+	public fun
+	0x1::u64
+max
+	public fun
+	0x1::u64
+min
+	public fun
+	0x1::u64
+diff
+	public fun
+	0x1::u64
+divide_and_round_up
+	public fun
+	0x1::u64
+pow
+	public fun
+	0x1::u64
+sqrt
+	public fun
+	0x1::u64
+try_as_u8
+	public fun
+	0x1::u64
+try_as_u16
+	public fun
+	0x1::u64
+try_as_u32
+	public fun
+	0x1::u64
+to_string
+	public fun
+	0x1::u64
+bitwise_not
+	public fun
+	0x1::u8
+max
+	public fun
+	0x1::u8
+min
+	public fun
+	0x1::u8
+diff
+	public fun
+	0x1::u8
+divide_and_round_up
+	public fun
+	0x1::u8
+pow
+	public fun
+	0x1::u8
+sqrt
+	public fun
+	0x1::u8
+to_string
+	public fun
+	0x1::u8
 STARDUST_UPGRADE_LABEL
 	public struct
 	0x107a::stardust_upgrade_label

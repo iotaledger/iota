@@ -116,11 +116,11 @@ export function getSupplyIncreaseVestingUserType(
 
 export function buildSupplyIncreaseVestingSchedule(
     referencePayout: SupplyIncreaseVestingPayout,
-    currentEpochTimestamp: number,
+    timestampMs: number,
 ): SupplyIncreaseVestingPortfolio {
     const userType = getSupplyIncreaseVestingUserType([referencePayout]);
 
-    if (!userType || currentEpochTimestamp >= referencePayout.expirationTimestampMs) {
+    if (!userType || timestampMs >= referencePayout.expirationTimestampMs) {
         // if the latest payout has already been unlocked, we cant build a vesting schedule
         return [];
     }
@@ -139,12 +139,12 @@ export function buildSupplyIncreaseVestingSchedule(
 
 export function getVestingOverview(
     objects: (TimelockedObject | ExtendedDelegatedTimelockedStake)[],
-    currentEpochTimestamp: number,
+    timestampMs: number,
 ): VestingOverview {
     const vestingObjects = objects.filter(isSupplyIncreaseVestingObject);
     const latestPayout = getLatestOrEarliestSupplyIncreaseVestingPayout(
         vestingObjects,
-        currentEpochTimestamp,
+        timestampMs,
     );
 
     if (vestingObjects.length === 0 || !latestPayout) {
@@ -163,15 +163,10 @@ export function getVestingOverview(
     const vestingPayoutsCount = getSupplyIncreaseVestingPayoutsCount(userType!);
     // Note: we add the initial payout to the total rewards, 10% of the total rewards are paid out immediately
     const totalVestedAmount = (BigInt(vestingPayoutsCount) * latestPayout.amount * 10n) / 9n;
-    const vestingPortfolio = buildSupplyIncreaseVestingSchedule(
-        latestPayout,
-        currentEpochTimestamp,
-    );
+    const vestingPortfolio = buildSupplyIncreaseVestingSchedule(latestPayout, timestampMs);
     const totalLockedAmount = vestingPortfolio.reduce(
         (acc, current) =>
-            current.expirationTimestampMs > currentEpochTimestamp
-                ? acc + BigInt(current.amount)
-                : acc,
+            current.expirationTimestampMs > timestampMs ? acc + BigInt(current.amount) : acc,
         0n,
     );
     const totalUnlockedVestedAmount = totalVestedAmount - totalLockedAmount;
@@ -192,14 +187,12 @@ export function getVestingOverview(
 
     const totalAvailableClaimingAmount = timelockedObjects.reduce(
         (acc, current) =>
-            current.expirationTimestampMs <= currentEpochTimestamp
-                ? acc + BigInt(current.locked.value)
-                : acc,
+            current.expirationTimestampMs <= timestampMs ? acc + BigInt(current.locked.value) : acc,
         0n,
     );
     const totalAvailableStakingAmount = timelockedObjects.reduce(
         (acc, current) =>
-            current.expirationTimestampMs > currentEpochTimestamp &&
+            current.expirationTimestampMs > timestampMs &&
             current.locked.value >= MIN_STAKING_THRESHOLD
                 ? acc + BigInt(current.locked.value)
                 : acc,
@@ -318,13 +311,13 @@ export function adjustSplitAmountsInGroupedTimelockObjects(
  *
  * @param timelockedObjects - An array of timelocked objects.
  * @param amount - The amount to stake.
- * @param currentEpochMs - The current epoch in milliseconds.
+ * @param timestampMs - The current clockTimestamp in milliseconds.
  * @returns An array of timelocked objects that meet the stake amount.
  */
 export function prepareObjectsForTimelockedStakingTransaction(
     timelockedObjects: IotaObjectData[],
     targetAmount: bigint,
-    currentEpochMs: string,
+    timestampMs: number,
 ): GroupedTimelockObject[] {
     if (targetAmount === 0n) {
         return [];
@@ -333,7 +326,7 @@ export function prepareObjectsForTimelockedStakingTransaction(
     const stakingEligibleTimelockedObjects = timelockedMapped
         ?.filter(isSupplyIncreaseVestingObject)
         .filter((obj: TimelockedObject) => {
-            return Number(obj.expirationTimestampMs) > Number(currentEpochMs);
+            return Number(obj.expirationTimestampMs) > timestampMs;
         });
 
     const groupedTimelockObjects: GroupedTimelockObject[] = groupTimelockedObjects(

@@ -3,54 +3,58 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { Accordion, AccordionContent, Title, Divider } from '@iota/apps-ui-kit';
-import {
-    CoinFormat,
-    type TransactionSummaryType,
-    useCopyToClipboard,
-    useFormatCoin,
-} from '@iota/core';
-import { Copy } from '@iota/apps-ui-icons';
-import toast from 'react-hot-toast';
+import { CoinFormat, type TransactionSummaryType, useFormatCoin } from '@iota/core';
 import { AddressLink, CollapsibleCard, ObjectLink } from '~/components/ui';
+import { Fragment } from 'react';
+import { onCopySuccess } from '~/lib/utils';
 
 interface GasProps {
     amount?: bigint | number | string;
+    burnedAmount?: bigint | number | string | undefined;
 }
 
-function GasAmount({ amount }: GasProps): JSX.Element | null {
+function GasAmount({ amount, burnedAmount }: GasProps): JSX.Element | null {
     const [formattedAmount, symbol] = useFormatCoin({ balance: amount, format: CoinFormat.FULL });
+    const [formattedBurnedAmount, burnedSymbol] = useFormatCoin({
+        balance: burnedAmount,
+        format: CoinFormat.FULL,
+    });
 
     if (!amount) {
         return null;
     }
 
     return (
-        <div className="flex flex-wrap gap-xxs">
+        <div className="flex flex-wrap items-center gap-xxs">
             <span className="text-label-lg text-neutral-40 dark:text-neutral-60">
                 {formattedAmount} {symbol}
             </span>
             <span className="flex flex-wrap items-center text-body-md font-medium text-neutral-70">
                 {BigInt(amount)?.toLocaleString()} (nano)
             </span>
+            {!!burnedAmount && (
+                <>
+                    <span className="text-label-md text-neutral-40 dark:text-neutral-60">
+                        Burnt: {formattedBurnedAmount} {burnedSymbol}
+                    </span>
+                    <span className="flex flex-wrap items-center text-body-sm font-medium text-neutral-70">
+                        {BigInt(burnedAmount)?.toLocaleString()} (nano)
+                    </span>
+                </>
+            )}
         </div>
     );
 }
 
 function GasPaymentLinks({ objectIds }: { objectIds: string[] }): JSX.Element {
-    const copyToClipBoard = useCopyToClipboard(() => toast.success('Copied'));
-
-    const handleCopy = async (objectId: string) => {
-        await copyToClipBoard(objectId);
-    };
-
     return (
         <div className="flex max-h-20 min-h-[20px] flex-wrap items-center gap-x-4 gap-y-2 overflow-y-auto">
             {objectIds.map((objectId, index) => (
                 <div key={index} className="flex items-center gap-x-1.5">
-                    <ObjectLink objectId={objectId} />
-                    <Copy
-                        className="shrink-0 cursor-pointer text-neutral-70"
-                        onClick={() => handleCopy(objectId)}
+                    <ObjectLink
+                        objectId={objectId}
+                        copyText={objectId}
+                        onCopySuccess={onCopySuccess}
                     />
                 </div>
             ))}
@@ -79,6 +83,12 @@ interface GasBreakdownProps {
     summary?: TransactionSummaryType | null;
 }
 
+interface GasData {
+    label: string;
+    info: React.ReactNode;
+    divider?: true;
+}
+
 export function GasBreakdown({ summary }: GasBreakdownProps): JSX.Element | null {
     const gasData = summary?.gas;
 
@@ -93,6 +103,48 @@ export function GasBreakdown({ summary }: GasBreakdownProps): JSX.Element | null
     const totalGas = gasData.totalGas;
     const owner = gasData.owner;
     const isSponsored = gasData.isSponsored;
+
+    const GAS_SECTIONS: GasData[] = [
+        {
+            label: 'Gas Payment',
+            info: gasPayment?.length && (
+                <GasPaymentLinks objectIds={gasPayment.map((gas) => gas.objectId)} />
+            ),
+            divider: true,
+        },
+        {
+            label: 'Gas Budget',
+            info: gasBudget && <GasAmount amount={BigInt(gasBudget)} />,
+            divider: true,
+        },
+        {
+            label: 'Gas Price',
+            info: gasPrice && <GasAmount amount={BigInt(gasPrice)} />,
+            divider: true,
+        },
+        {
+            label: 'Computation Fee',
+            info: gasUsed?.computationCost && (
+                <GasAmount
+                    amount={Number(gasUsed.computationCost)}
+                    burnedAmount={Number(gasUsed.computationCostBurned)}
+                />
+            ),
+        },
+        {
+            label: 'Storage Fee',
+            info: gasUsed?.storageCost && <GasAmount amount={Number(gasUsed.storageCost)} />,
+        },
+        {
+            label: 'Storage Rebate',
+            info: gasUsed?.storageRebate && <GasAmount amount={-Number(gasUsed.storageRebate)} />,
+            divider: true,
+        },
+        {
+            label: 'Total Gas Fee',
+            info: <GasAmount amount={totalGas} />,
+        },
+    ];
 
     return (
         <CollapsibleCard
@@ -112,57 +164,16 @@ export function GasBreakdown({ summary }: GasBreakdownProps): JSX.Element | null
                                     <AddressLink label={undefined} address={owner} />
                                 </div>
                             )}
-                            <div className="flex flex-col gap-3">
-                                <GasAmount amount={totalGas} />
-                                <Divider />
-                                <GasInfo
-                                    label="Gas Payment"
-                                    info={
-                                        gasPayment?.length && (
-                                            <GasPaymentLinks
-                                                objectIds={gasPayment.map((gas) => gas.objectId)}
-                                            />
-                                        )
-                                    }
-                                />
-                                <GasInfo
-                                    label="Gas Budget"
-                                    info={gasBudget && <GasAmount amount={BigInt(gasBudget)} />}
-                                />
-                            </div>
-                            <div className="mt-4 flex flex-col gap-3">
-                                <Divider />
-                                <GasInfo
-                                    label="Computation Fee"
-                                    info={
-                                        gasUsed?.computationCost && (
-                                            <GasAmount amount={Number(gasUsed?.computationCost)} />
-                                        )
-                                    }
-                                />
-                                <GasInfo
-                                    label="Storage Fee"
-                                    info={
-                                        gasUsed?.storageCost && (
-                                            <GasAmount amount={Number(gasUsed?.storageCost)} />
-                                        )
-                                    }
-                                />
-                                <GasInfo
-                                    label="Storage Rebate"
-                                    info={
-                                        gasUsed?.storageRebate && (
-                                            <GasAmount amount={-Number(gasUsed?.storageRebate)} />
-                                        )
-                                    }
-                                />
-                            </div>
-                            <div className="mt-6 flex flex-col gap-6">
-                                <Divider />
-                                <GasInfo
-                                    label="Gas Price"
-                                    info={gasPrice && <GasAmount amount={BigInt(gasPrice)} />}
-                                />
+
+                            <div className="flex flex-col gap-4 py-2">
+                                {GAS_SECTIONS.filter((section) => !!section.info).map(
+                                    (section, index) => (
+                                        <Fragment key={index}>
+                                            <GasInfo label={section.label} info={section.info} />
+                                            {section.divider && <Divider />}
+                                        </Fragment>
+                                    ),
+                                )}
                             </div>
                         </div>
                     </AccordionContent>

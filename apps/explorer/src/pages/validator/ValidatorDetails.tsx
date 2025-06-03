@@ -2,19 +2,18 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { useGetValidatorsApy, useGetValidatorsEvents } from '@iota/core';
-import { useIotaClientQuery } from '@iota/dapp-kit';
-import { type IotaSystemStateSummary } from '@iota/iota-sdk/client';
-import { useMemo } from 'react';
+import { useGetInactiveValidator, useGetValidatorsApy, useGetValidatorsEvents } from '@iota/core';
 import { useParams } from 'react-router-dom';
-import { PageLayout, ValidatorMeta, ValidatorStats } from '~/components';
+import { InactiveValidators, PageLayout, ValidatorMeta, ValidatorStats } from '~/components';
 import { VALIDATOR_LOW_STAKE_GRACE_PERIOD } from '~/lib/constants';
 import { getValidatorMoveEvent } from '~/lib/utils';
 import { InfoBox, InfoBoxStyle, InfoBoxType, LoadingIndicator } from '@iota/apps-ui-kit';
 import { Warning } from '@iota/apps-ui-icons';
+import type { LatestIotaSystemStateSummary } from '@iota/iota-sdk/client';
+import { useIotaClientQuery } from '@iota/dapp-kit';
 
 const getAtRiskRemainingEpochs = (
-    data: IotaSystemStateSummary | undefined,
+    data: LatestIotaSystemStateSummary | undefined,
     validatorId: string | undefined,
 ): number | null => {
     if (!data || !validatorId) return null;
@@ -24,41 +23,65 @@ const getAtRiskRemainingEpochs = (
 
 function ValidatorDetails(): JSX.Element {
     const { id } = useParams();
-    const { data, isPending } = useIotaClientQuery('getLatestIotaSystemState');
+    const { data: systemStateData, isLoading: isLoadingSystemState } = useIotaClientQuery(
+        'getLatestIotaSystemState',
+    );
 
-    const validatorData = useMemo(() => {
-        if (!data) return null;
-        return (
-            data.activeValidators.find(
-                ({ iotaAddress, stakingPoolId }) => iotaAddress === id || stakingPoolId === id,
-            ) || null
-        );
-    }, [id, data]);
+    const { data: inactiveValidatorData, isLoading: isInactiveValidatorLoading } =
+        useGetInactiveValidator(id || '');
 
-    const atRiskRemainingEpochs = getAtRiskRemainingEpochs(data, id);
-
-    const numberOfValidators = data?.activeValidators.length ?? null;
-    const { data: rollingAverageApys, isPending: validatorsApysLoading } = useGetValidatorsApy();
-
-    const { data: validatorEvents, isPending: validatorsEventsLoading } = useGetValidatorsEvents({
+    const numberOfValidators = systemStateData?.activeValidators.length ?? null;
+    const { data: rollingAverageApys, isLoading: isValidatorsApysLoading } = useGetValidatorsApy();
+    const { data: validatorEvents, isLoading: isValidatorsEventsLoading } = useGetValidatorsEvents({
         limit: numberOfValidators,
         order: 'descending',
     });
-
-    const validatorRewards = useMemo(() => {
-        if (!validatorEvents || !id) return 0;
+    const epochId = systemStateData?.epoch;
+    const validatorRewards = (() => {
+        if (!validatorEvents || !id || !epochId) return 0;
         const rewards = (
-            getValidatorMoveEvent(validatorEvents, id) as { pool_staking_reward: string }
+            getValidatorMoveEvent(validatorEvents, id, epochId) as { pool_staking_reward: string }
         )?.pool_staking_reward;
 
         return rewards ? Number(rewards) : null;
-    }, [id, validatorEvents]);
+    })();
 
-    if (isPending || validatorsEventsLoading || validatorsApysLoading) {
+    const activeValidatorData = systemStateData?.activeValidators.find(
+        ({ iotaAddress, stakingPoolId }) => iotaAddress === id || stakingPoolId === id,
+    );
+
+    const atRiskRemainingEpochs = getAtRiskRemainingEpochs(systemStateData, id);
+
+    if (
+        isLoadingSystemState ||
+        isValidatorsEventsLoading ||
+        isValidatorsApysLoading ||
+        isInactiveValidatorLoading
+    ) {
         return <PageLayout content={<LoadingIndicator />} />;
     }
 
-    if (!validatorData || !data || !validatorEvents || !id) {
+    if (inactiveValidatorData && !activeValidatorData) {
+        return (
+            <PageLayout
+                content={
+                    <div className="mb-10">
+                        <InfoBox
+                            title="Inactive validator"
+                            icon={<Warning />}
+                            type={InfoBoxType.Warning}
+                            style={InfoBoxStyle.Elevated}
+                        />
+                        {inactiveValidatorData && (
+                            <InactiveValidators validatorData={inactiveValidatorData} />
+                        )}
+                    </div>
+                }
+            />
+        );
+    }
+
+    if (!activeValidatorData || !systemStateData || !validatorEvents || !id) {
         return (
             <PageLayout
                 content={
@@ -89,10 +112,10 @@ function ValidatorDetails(): JSX.Element {
         <PageLayout
             content={
                 <div className="flex flex-col gap-2xl">
-                    <ValidatorMeta validatorData={validatorData} />
+                    <ValidatorMeta validatorData={activeValidatorData} />
                     <ValidatorStats
-                        validatorData={validatorData}
-                        epoch={data.epoch}
+                        validatorData={activeValidatorData}
+                        epoch={systemStateData.epoch}
                         epochRewards={validatorRewards}
                         apy={isApyApproxZero ? '~0' : apy}
                         tallyingScore={tallyingScore}
@@ -105,7 +128,7 @@ function ValidatorDetails(): JSX.Element {
                             supportingText="Staked IOTA is below the minimum IOTA stake threshold to remain
                                     a validator."
                             icon={<Warning />}
-                            type={InfoBoxType.Error}
+                            type={InfoBoxType.Warning}
                             style={InfoBoxStyle.Elevated}
                         />
                     )}

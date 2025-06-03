@@ -118,6 +118,15 @@ zk:
   label: Zero-Knowledge
   description: Zero-Knowledge.
 
+# Gas Station
+gas-station:
+  label: Gas Station
+  description: Gas Station Component.
+
+sponsored-transactions:
+  label: Sponsored Transactions
+  description: Sponsored Transactions.
+
 # ISC
 allowance:
   label: Allowance
@@ -279,6 +288,10 @@ rust-sdk:
 iota-wallet:
   label: IOTA Wallet
   description: IOTA Wallet Browser Extension
+
+iota-wallet-dashboard:
+  label: IOTA Wallet Dashboard
+  description: IOTA Wallet Dashboard dApp
 
 node-operation:
   label: Node Operation

@@ -1957,7 +1957,7 @@ async fn test_handle_overload_response() {
     )
     .await;
 
-    // Change one of the valdiators' errors to RPC error so the system is considered
+    // Change one of the validators' errors to RPC error so the system is considered
     // not overloaded now and a `RetryableTransaction` should be returned.
     clients
         .get_mut(&authority_keys[1].0)
@@ -2069,7 +2069,7 @@ async fn test_handle_overload_retry_response() {
     )
     .await;
 
-    // Change another valdiators' errors to RPC error so the system is considered
+    // Change another validators' errors to RPC error so the system is considered
     // not overloaded now and a `RetryableTransaction` should be returned.
     clients
         .get_mut(&authority_keys[1].0)

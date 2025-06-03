@@ -13,6 +13,7 @@ use iota_types::{
     base_types::ObjectID,
     crypto::{AccountKeyPair, get_key_pair},
     gas_coin::GAS,
+    iota_system_state::iota_system_state_summary::IotaSystemStateSummary,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     transaction::{CallArg, ObjectArg},
     utils::to_sender_signed_transaction,
@@ -31,7 +32,7 @@ fn test_staking() {
 
     runtime.block_on(async move {
         let (cluster, store, client) =
-            &start_test_cluster_with_read_write_indexer(Some("test_staking"), None).await;
+            &start_test_cluster_with_read_write_indexer(Some("test_staking"), None, None).await;
 
         indexer_wait_for_checkpoint(store, 1).await;
 
@@ -61,12 +62,12 @@ fn test_staking() {
         let staked_iota: Vec<DelegatedStake> = client.get_stakes(sender).await.unwrap();
         assert!(staked_iota.is_empty());
 
-        let validator = client
-            .get_latest_iota_system_state()
-            .await
-            .unwrap()
-            .active_validators[0]
-            .iota_address;
+        let iota_system_state = client.get_latest_iota_system_state_v2().await.unwrap();
+        let validator = match iota_system_state {
+            IotaSystemStateSummary::V1(v1) => v1.active_validators[0].iota_address,
+            IotaSystemStateSummary::V2(v2) => v2.active_validators[0].iota_address,
+            _ => panic!("unsupported IotaSystemStateSummary"),
+        };
 
         // Delegate some IOTA
         let transaction_bytes: TransactionBlockBytes = client
@@ -108,7 +109,7 @@ fn test_unstaking() {
 
     runtime.block_on(async move {
         let (cluster, store, client) =
-            &start_test_cluster_with_read_write_indexer(Some("test_unstaking"), None).await;
+            &start_test_cluster_with_read_write_indexer(Some("test_unstaking"), None, None).await;
 
         indexer_wait_for_checkpoint(store, 1).await;
 
@@ -138,12 +139,12 @@ fn test_unstaking() {
         let staked_iota: Vec<DelegatedStake> = client.get_stakes(sender).await.unwrap();
         assert!(staked_iota.is_empty());
 
-        let validator = client
-            .get_latest_iota_system_state()
-            .await
-            .unwrap()
-            .active_validators[0]
-            .iota_address;
+        let iota_system_state = client.get_latest_iota_system_state_v2().await.unwrap();
+        let validator = match iota_system_state {
+            IotaSystemStateSummary::V1(v1) => v1.active_validators[0].iota_address,
+            IotaSystemStateSummary::V2(v2) => v2.active_validators[0].iota_address,
+            _ => panic!("unsupported IotaSystemStateSummary"),
+        };
 
         // Delegate some IOTA
         let transaction_bytes: TransactionBlockBytes = client
@@ -211,9 +212,12 @@ fn test_timelocked_staking() {
     let ApiTestSetup { runtime, .. } = ApiTestSetup::get_or_init();
 
     runtime.block_on(async move {
-        let (cluster, store, client) =
-            &start_test_cluster_with_read_write_indexer(Some("test_timelocked_staking"), None)
-                .await;
+        let (cluster, store, client) = &start_test_cluster_with_read_write_indexer(
+            Some("test_timelocked_staking"),
+            None,
+            None,
+        )
+        .await;
 
         indexer_wait_for_checkpoint(store, 1).await;
 
@@ -266,12 +270,12 @@ fn test_timelocked_staking() {
             );
 
             // Step 3: Delegate the timelocked IOTA balance.
-            let validator = client
-                .get_latest_iota_system_state()
-                .await
-                .unwrap()
-                .active_validators[0]
-                .iota_address;
+            let iota_system_state = client.get_latest_iota_system_state_v2().await.unwrap();
+            let validator = match iota_system_state {
+                IotaSystemStateSummary::V1(v1) => v1.active_validators[0].iota_address,
+                IotaSystemStateSummary::V2(v2) => v2.active_validators[0].iota_address,
+                _ => panic!("unsupported IotaSystemStateSummary"),
+            };
 
             let validator = builder
                 .input(CallArg::Pure(bcs::to_bytes(&validator).unwrap()))
@@ -320,9 +324,12 @@ fn test_timelocked_unstaking() {
     let ApiTestSetup { runtime, .. } = ApiTestSetup::get_or_init();
 
     runtime.block_on(async move {
-        let (cluster, store, client) =
-            &start_test_cluster_with_read_write_indexer(Some("test_timelocked_unstaking"), None)
-                .await;
+        let (cluster, store, client) = &start_test_cluster_with_read_write_indexer(
+            Some("test_timelocked_unstaking"),
+            None,
+            None,
+        )
+        .await;
 
         indexer_wait_for_checkpoint(store, 1).await;
 
@@ -375,12 +382,12 @@ fn test_timelocked_unstaking() {
             );
 
             // Step 3: Delegate the timelocked IOTA balance.
-            let validator = client
-                .get_latest_iota_system_state()
-                .await
-                .unwrap()
-                .active_validators[0]
-                .iota_address;
+            let iota_system_state = client.get_latest_iota_system_state_v2().await.unwrap();
+            let validator = match iota_system_state {
+                IotaSystemStateSummary::V1(v1) => v1.active_validators[0].iota_address,
+                IotaSystemStateSummary::V2(v2) => v2.active_validators[0].iota_address,
+                _ => panic!("unsupported IotaSystemStateSummary"),
+            };
 
             let validator = builder
                 .input(CallArg::Pure(bcs::to_bytes(&validator).unwrap()))
@@ -473,20 +480,28 @@ fn test_timelocked_unstaking() {
 }
 
 #[test]
-fn get_latest_iota_system_state() {
+fn get_latest_iota_system_state_v2() {
     let ApiTestSetup {
         runtime,
         store,
         client,
-        ..
+        cluster,
     } = ApiTestSetup::get_or_init();
 
     runtime.block_on(async move {
         indexer_wait_for_checkpoint(store, 1).await;
 
-        let system_state = client.get_latest_iota_system_state().await.unwrap();
-        assert_eq!(system_state.protocol_version, ProtocolVersion::MAX.as_u64());
-        assert_eq!(system_state.system_state_version, 1);
+        // ensure that the system state is updated
+        cluster.force_new_epoch().await;
+        let system_state = client.get_latest_iota_system_state_v2().await.unwrap();
+        let IotaSystemStateSummary::V2(system_state_v2) = system_state else {
+            panic!("expected IotaSystemStateSummaryV2");
+        };
+        assert_eq!(
+            system_state_v2.protocol_version,
+            ProtocolVersion::MAX.as_u64()
+        );
+        assert_eq!(system_state_v2.system_state_version, 2);
     });
 }
 

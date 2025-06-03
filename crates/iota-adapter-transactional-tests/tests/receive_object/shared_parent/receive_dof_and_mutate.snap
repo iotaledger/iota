@@ -1,0 +1,139 @@
+---
+source: external-crates/move/crates/move-transactional-test-runner/src/framework.rs
+---
+processed 12 tasks
+
+init:
+A: object(0,0)
+
+task 1, lines 7-35:
+//# publish
+created: object(1,0)
+mutated: object(0,1)
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 7873600,  storage_rebate: 0, non_refundable_storage_fee: 0
+
+task 2, line 37:
+//# run tto::M1::start
+created: object(2,0), object(2,1), object(2,2), object(2,3)
+mutated: object(0,1)
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 7235200,  storage_rebate: 980400, non_refundable_storage_fee: 0
+
+task 3, line 39:
+//# view-object 2,0
+Owner: Object ID: ( fake(2,1) )
+Version: 3
+Contents: iota::dynamic_field::Field<iota::dynamic_object_field::Wrapper<u64>, iota::object::ID> {
+    id: iota::object::UID {
+        id: iota::object::ID {
+            bytes: fake(2,0),
+        },
+    },
+    name: iota::dynamic_object_field::Wrapper<u64> {
+        name: 0u64,
+    },
+    value: iota::object::ID {
+        bytes: fake(2,2),
+    },
+}
+
+task 4, line 41:
+//# view-object 2,1
+Owner: Account Address ( fake(2,3) )
+Version: 3
+Contents: tto::M1::A {
+    id: iota::object::UID {
+        id: iota::object::ID {
+            bytes: fake(2,1),
+        },
+    },
+    value: 0u64,
+}
+
+task 5, line 43:
+//# view-object 2,2
+Owner: Object ID: ( fake(2,0) )
+Version: 3
+Contents: tto::M1::A {
+    id: iota::object::UID {
+        id: iota::object::ID {
+            bytes: fake(2,2),
+        },
+    },
+    value: 0u64,
+}
+
+task 6, line 45:
+//# view-object 2,3
+Owner: Shared( 3 )
+Version: 3
+Contents: tto::M1::A {
+    id: iota::object::UID {
+        id: iota::object::ID {
+            bytes: fake(2,3),
+        },
+    },
+    value: 0u64,
+}
+
+task 7, line 47:
+//# run tto::M1::receive --args object(2,3) receiving(2,1)
+created: object(7,0)
+mutated: object(0,1), object(2,1), object(2,3)
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 5966000,  storage_rebate: 3518800, non_refundable_storage_fee: 0
+
+task 8, line 49:
+//# view-object 2,0
+Owner: Object ID: ( fake(2,1) )
+Version: 3
+Contents: iota::dynamic_field::Field<iota::dynamic_object_field::Wrapper<u64>, iota::object::ID> {
+    id: iota::object::UID {
+        id: iota::object::ID {
+            bytes: fake(2,0),
+        },
+    },
+    name: iota::dynamic_object_field::Wrapper<u64> {
+        name: 0u64,
+    },
+    value: iota::object::ID {
+        bytes: fake(2,2),
+    },
+}
+
+task 9, line 51:
+//# view-object 2,1
+Owner: Object ID: ( fake(7,0) )
+Version: 4
+Contents: tto::M1::A {
+    id: iota::object::UID {
+        id: iota::object::ID {
+            bytes: fake(2,1),
+        },
+    },
+    value: 100u64,
+}
+
+task 10, line 53:
+//# view-object 2,2
+Owner: Object ID: ( fake(2,0) )
+Version: 3
+Contents: tto::M1::A {
+    id: iota::object::UID {
+        id: iota::object::ID {
+            bytes: fake(2,2),
+        },
+    },
+    value: 0u64,
+}
+
+task 11, line 55:
+//# view-object 2,3
+Owner: Shared( 3 )
+Version: 4
+Contents: tto::M1::A {
+    id: iota::object::UID {
+        id: iota::object::ID {
+            bytes: fake(2,3),
+        },
+    },
+    value: 0u64,
+}

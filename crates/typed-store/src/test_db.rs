@@ -143,6 +143,8 @@ impl<'a, K: Serialize, V> TestDBIter<'a, K, V> {
     /// Seeks to the last key in the database (at this column family).
     pub fn skip_to_last(mut self) -> Self {
         self.with_mut(|fields| {
+            // `last` instead of `next_back` because we actually want to consume `iter`
+            #[expect(clippy::double_ended_iterator_last)]
             fields.iter.last();
         });
         self
@@ -264,6 +266,13 @@ where
     fn unsafe_clear(&self) -> Result<(), Self::Error> {
         let mut locked = self.rows.write().unwrap();
         locked.clear();
+        Ok(())
+    }
+
+    fn delete_file_in_range(&self, from: &K, to: &K) -> Result<(), TypedStoreError> {
+        let mut locked = self.rows.write().unwrap();
+        locked
+            .retain(|k, _| k < &be_fix_int_ser(from).unwrap() || k >= &be_fix_int_ser(to).unwrap());
         Ok(())
     }
 

@@ -14,6 +14,7 @@ import {
     Panel,
     LoadingIndicator,
 } from '@iota/apps-ui-kit';
+import { onCopySuccess } from '~/lib/utils';
 
 interface DynamicFieldRowProps {
     id: string;
@@ -35,7 +36,11 @@ function DynamicFieldRow({ id, result, defaultOpen }: DynamicFieldRowProps): JSX
                             String(result.name.value)
                         ) : null}
                     </div>
-                    <ObjectLink objectId={result.objectId} />
+                    <ObjectLink
+                        objectId={result.objectId}
+                        copyText={result.objectId}
+                        onCopySuccess={onCopySuccess}
+                    />
                 </div>
             </AccordionHeader>
             <AccordionContent isExpanded={open}>
@@ -52,7 +57,7 @@ function DynamicFieldRow({ id, result, defaultOpen }: DynamicFieldRowProps): JSX
 }
 
 export function DynamicFieldsCard({ id }: { id: string }) {
-    const { data, isInitialLoading, isFetchingNextPage, hasNextPage, fetchNextPage } =
+    const { data, isLoading, isFetchingNextPage, hasNextPage, fetchNextPage } =
         useGetDynamicFields(id);
 
     const observerElem = useRef<HTMLDivElement | null>(null);
@@ -66,7 +71,7 @@ export function DynamicFieldsCard({ id }: { id: string }) {
         }
     }, [isIntersecting, fetchNextPage, hasNextPage, isFetchingNextPage]);
 
-    if (isInitialLoading) {
+    if (isLoading) {
         return (
             <div className="mt-1 flex w-full justify-center">
                 <LoadingIndicator />

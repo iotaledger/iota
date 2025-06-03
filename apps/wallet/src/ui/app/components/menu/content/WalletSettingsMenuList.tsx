@@ -10,7 +10,6 @@ import {
     useBackgroundClient,
     useActiveAccount,
 } from '_hooks';
-import { FAQ_LINK, ToS_LINK } from '_src/shared/constants';
 import { FaucetRequestButton } from '_src/ui/app/shared/faucet/FaucetRequestButton';
 import { getNetwork, Network } from '@iota/iota-sdk/client';
 import Browser from 'webextension-polyfill';
@@ -19,7 +18,16 @@ import { useQueryClient, useMutation } from '@tanstack/react-query';
 import { persister } from '_src/ui/app/helpers/queryClient';
 import { useState } from 'react';
 import { ConfirmationModal } from '_src/ui/app/shared/ConfirmationModal';
-import { DarkMode, Globe, Info, LockLocked, LockUnlocked, Logout } from '@iota/apps-ui-icons';
+import {
+    DarkMode,
+    Globe,
+    Info,
+    LockLocked,
+    LockUnlocked,
+    Logout,
+    Expand,
+    Discord,
+} from '@iota/apps-ui-icons';
 import {
     ButtonType,
     Card,
@@ -31,7 +39,7 @@ import {
     ImageType,
 } from '@iota/apps-ui-kit';
 import { ampli } from '_src/shared/analytics/ampli';
-import { useTheme, getCustomNetwork } from '@iota/core';
+import { useTheme, getCustomNetwork, FAQ_LINK, ToS_LINK, DISCORD_SUPPORT_LINK } from '@iota/core';
 
 export function MenuList() {
     const { themePreference } = useTheme();
@@ -44,6 +52,7 @@ export function MenuList() {
     const networkConfig = network === Network.Custom ? getCustomNetwork() : getNetwork(network);
     const version = Browser.runtime.getManifest().version;
     const autoLockInterval = useAutoLockMinutes();
+    const isAppPopup = useAppSelector((state) => state.app.isAppViewPopup);
 
     // Logout
     const [isLogoutDialogOpen, setIsLogoutDialogOpen] = useState(false);
@@ -82,6 +91,10 @@ export function MenuList() {
         navigate(themeUrl);
     }
 
+    function onSupportClick() {
+        window.open(DISCORD_SUPPORT_LINK, '_blank', 'noopener noreferrer');
+    }
+
     function onFAQClick() {
         window.open(FAQ_LINK, '_blank', 'noopener noreferrer');
     }
@@ -102,15 +115,27 @@ export function MenuList() {
             onClick: onAutoLockClick,
         },
         {
-            title: 'FAQ',
-            icon: <Info />,
-            onClick: onFAQClick,
-        },
-        {
             title: 'Themes',
             icon: <DarkMode />,
             subtitle: themeSubtitle,
             onClick: onThemeClick,
+        },
+        {
+            title: 'Get Support',
+            icon: <Discord />,
+            onClick: onSupportClick,
+        },
+        {
+            title: 'Expand View',
+            icon: <Expand />,
+            onClick: () =>
+                window.open(window.location.href.split('?')[0], '_blank', 'noopener noreferrer'),
+            hidden: !isAppPopup,
+        },
+        {
+            title: 'FAQ',
+            icon: <Info />,
+            onClick: onFAQClick,
         },
         {
             title: 'Reset',
@@ -123,7 +148,7 @@ export function MenuList() {
         <Overlay showModal title="Settings" closeOverlay={() => navigate('/')}>
             <div className="flex h-full w-full flex-col justify-between">
                 <div className="flex flex-col">
-                    {MENU_ITEMS.map((item, index) => (
+                    {MENU_ITEMS.filter((item) => !item.hidden).map((item, index) => (
                         <Card key={index} type={CardType.Default} onClick={item.onClick}>
                             <CardImage type={ImageType.BgSolid}>
                                 <div className="flex h-10 w-10 items-center justify-center rounded-full  text-neutral-10 dark:text-neutral-92 [&_svg]:h-5 [&_svg]:w-5">
@@ -155,14 +180,14 @@ export function MenuList() {
                 <div className="flex flex-col gap-y-lg">
                     <FaucetRequestButton />
                     <div className="flex flex-row items-center justify-center gap-x-md">
-                        <span className="text-label-sm text-neutral-40">
+                        <span className="text-label-sm text-neutral-40 dark:text-neutral-60">
                             IOTA Wallet v{version}
                         </span>
                         <Link
                             to={ToS_LINK}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="text-label-sm text-primary-30"
+                            className="text-label-sm text-primary-30 dark:text-primary-80"
                         >
                             Terms of Service
                         </Link>

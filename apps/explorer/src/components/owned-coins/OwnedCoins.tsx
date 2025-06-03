@@ -2,10 +2,8 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { getCoinSymbol, useRecognizedPackages } from '@iota/core';
-import { useIotaClientQuery } from '@iota/dapp-kit';
-import { type CoinBalance, type Network } from '@iota/iota-sdk/client';
-import { useNetwork } from '~/hooks';
+import { getCoinSymbol, useGetAllBalances, useRecognizedPackages } from '@iota/core';
+import { type CoinBalance } from '@iota/iota-sdk/client';
 import { normalizeIotaAddress } from '@iota/iota-sdk/utils';
 import { FilterList, Warning } from '@iota/apps-ui-icons';
 import { useMemo, useState } from 'react';
@@ -44,11 +42,9 @@ export function OwnedCoins({ id }: OwnerCoinsProps): JSX.Element {
     const [currentSlice, setCurrentSlice] = useState(1);
     const [limit, setLimit] = useState(20);
     const [filterValue, setFilterValue] = useState(CoinFilter.All);
-    const { isPending, data, isError } = useIotaClientQuery('getAllBalances', {
-        owner: normalizeIotaAddress(id),
-    });
-    const [network] = useNetwork();
-    const recognizedPackages = useRecognizedPackages(network as Network);
+    const owner = normalizeIotaAddress(id);
+    const { isPending, data, isError } = useGetAllBalances(owner);
+    const recognizedPackages = useRecognizedPackages();
 
     const balances: Record<CoinFilter, CoinBalanceVerified[]> = useMemo(() => {
         const balanceData = data?.reduce(
@@ -170,7 +166,7 @@ export function OwnedCoins({ id }: OwnerCoinsProps): JSX.Element {
                                         <InfoBox
                                             icon={<Warning />}
                                             supportingText="These coins have not been recognized by the IOTA Foundation."
-                                            type={InfoBoxType.Default}
+                                            type={InfoBoxType.Warning}
                                             style={InfoBoxStyle.Default}
                                         />
                                     </div>

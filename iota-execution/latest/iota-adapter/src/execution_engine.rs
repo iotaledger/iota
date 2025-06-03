@@ -56,12 +56,14 @@ mod checked {
         storage::{BackingStore, Storage},
         transaction::{
             Argument, AuthenticatorStateExpire, AuthenticatorStateUpdateV1, CallArg, ChangeEpoch,
-            CheckedInputObjects, Command, EndOfEpochTransactionKind, GenesisTransaction, ObjectArg,
-            ProgrammableTransaction, RandomnessStateUpdate, TransactionKind,
+            ChangeEpochV2, CheckedInputObjects, Command, EndOfEpochTransactionKind,
+            GenesisTransaction, ObjectArg, ProgrammableTransaction, RandomnessStateUpdate,
+            TransactionKind,
         },
     };
     use move_binary_format::CompiledModule;
     use move_core_types::ident_str;
+    use move_trace_format::format::MoveTraceBuilder;
     use move_vm_runtime::move_vm::MoveVM;
     use tracing::{info, instrument, trace, warn};
 
@@ -101,6 +103,7 @@ mod checked {
         metrics: Arc<LimitsMetrics>,
         enable_expensive_checks: bool,
         certificate_deny_set: &HashSet<TransactionDigest>,
+        trace_builder_opt: &mut Option<MoveTraceBuilder>,
     ) -> (
         InnerTemporaryStore,
         IotaGasStatus,
@@ -153,6 +156,7 @@ mod checked {
             deny_cert,
             contains_deleted_input,
             cancelled_objects,
+            trace_builder_opt,
         );
 
         let status = if let Err(error) = &execution_result {
@@ -202,6 +206,7 @@ mod checked {
         trace!(
             tx_digest = ?transaction_digest,
             computation_gas_cost = gas_cost_summary.computation_cost,
+            computation_gas_cost_burned = gas_cost_summary.computation_cost_burned,
             storage_gas_cost = gas_cost_summary.storage_cost,
             storage_gas_rebate = gas_cost_summary.storage_rebate,
             "Finished execution of transaction with status {:?}",
@@ -275,6 +280,7 @@ mod checked {
             tx_context,
             &mut gas_charger,
             pt,
+            &mut None,
         )?;
         temporary_store.update_object_version_and_prev_tx();
         Ok(temporary_store.into_inner())
@@ -301,6 +307,7 @@ mod checked {
         deny_cert: bool,
         contains_deleted_input: bool,
         cancelled_objects: Option<(Vec<ObjectID>, SequenceNumber)>,
+        trace_builder_opt: &mut Option<MoveTraceBuilder>,
     ) -> (
         GasCostSummary,
         Result<Mode::ExecutionResults, ExecutionError>,
@@ -356,6 +363,7 @@ mod checked {
                     gas_charger,
                     protocol_config,
                     metrics.clone(),
+                    trace_builder_opt,
                 )
             };
 
@@ -603,6 +611,7 @@ mod checked {
         gas_charger: &mut GasCharger,
         protocol_config: &ProtocolConfig,
         metrics: Arc<LimitsMetrics>,
+        trace_builder_opt: &mut Option<MoveTraceBuilder>,
     ) -> Result<Mode::ExecutionResults, ExecutionError> {
         let result = match transaction_kind {
             TransactionKind::Genesis(GenesisTransaction { objects, events }) => {
@@ -642,6 +651,7 @@ mod checked {
                     gas_charger,
                     protocol_config,
                     metrics,
+                    trace_builder_opt,
                 )
                 .expect("ConsensusCommitPrologueV1 cannot fail");
                 Ok(Mode::empty_results())
@@ -655,6 +665,7 @@ mod checked {
                     tx_ctx,
                     gas_charger,
                     pt,
+                    trace_builder_opt,
                 )
             }
             TransactionKind::EndOfEpochTransaction(txns) => {
@@ -664,7 +675,7 @@ mod checked {
                     match tx {
                         EndOfEpochTransactionKind::ChangeEpoch(change_epoch) => {
                             assert_eq!(i, len - 1);
-                            advance_epoch(
+                            advance_epoch_v1(
                                 builder,
                                 change_epoch,
                                 temporary_store,
@@ -673,6 +684,22 @@ mod checked {
                                 gas_charger,
                                 protocol_config,
                                 metrics,
+                                trace_builder_opt,
+                            )?;
+                            return Ok(Mode::empty_results());
+                        }
+                        EndOfEpochTransactionKind::ChangeEpochV2(change_epoch_v2) => {
+                            assert_eq!(i, len - 1);
+                            advance_epoch_v2(
+                                builder,
+                                change_epoch_v2,
+                                temporary_store,
+                                tx_ctx,
+                                move_vm,
+                                gas_charger,
+                                protocol_config,
+                                metrics,
+                                trace_builder_opt,
                             )?;
                             return Ok(Mode::empty_results());
                         }
@@ -711,6 +738,7 @@ mod checked {
                     gas_charger,
                     protocol_config,
                     metrics,
+                    trace_builder_opt,
                 )?;
                 Ok(Mode::empty_results())
             }
@@ -723,6 +751,7 @@ mod checked {
                     gas_charger,
                     protocol_config,
                     metrics,
+                    trace_builder_opt,
                 )?;
                 Ok(Mode::empty_results())
             }
@@ -731,11 +760,11 @@ mod checked {
         Ok(result)
     }
 
-    /// Mints epoch rewards by creating both storage and computation rewards
+    /// Mints epoch rewards by creating both storage and computation charges
     /// using a `ProgrammableTransactionBuilder`. The function takes in the
     /// `AdvanceEpochParams`, serializes the storage and computation
     /// charges, and invokes the reward creation function within the IOTA
-    /// Prepares invocations for creating both storage and computation rewards
+    /// Prepares invocations for creating both storage and computation charges
     /// with a `ProgrammableTransactionBuilder` using the `AdvanceEpochParams`.
     /// The corresponding functions from the IOTA framework can be invoked later
     /// during execution of the programmable transaction.
@@ -757,56 +786,48 @@ mod checked {
             vec![storage_charge_arg],
         );
 
-        // Create computation rewards.
+        // Create computation charges.
         let computation_charge_arg = builder
             .input(CallArg::Pure(
                 bcs::to_bytes(&params.computation_charge).unwrap(),
             ))
             .unwrap();
-        let computation_rewards = builder.programmable_move_call(
+        let computation_charges = builder.programmable_move_call(
             IOTA_FRAMEWORK_PACKAGE_ID,
             BALANCE_MODULE_NAME.to_owned(),
             BALANCE_CREATE_REWARDS_FUNCTION_NAME.to_owned(),
             vec![GAS::type_tag()],
             vec![computation_charge_arg],
         );
-        (storage_charges, computation_rewards)
+        (storage_charges, computation_charges)
     }
 
     /// Constructs a `ProgrammableTransaction` to advance the epoch. It creates
-    /// storage charges and computation rewards by invoking
+    /// storage charges and computation charges by invoking
     /// `mint_epoch_rewards_in_pt`, advances the epoch by setting up the
     /// necessary arguments, such as epoch number, protocol version, storage
     /// rebate, and slashing rate, and executing the `advance_epoch` function
     /// within the IOTA system. Then, it destroys the storage rebates to
     /// complete the transaction.
-    pub fn construct_advance_epoch_pt(
+    pub fn construct_advance_epoch_pt_impl(
         mut builder: ProgrammableTransactionBuilder,
         params: &AdvanceEpochParams,
+        call_arg_vec: Vec<CallArg>,
     ) -> Result<ProgrammableTransaction, ExecutionError> {
-        // Step 1: Create storage charges and computation rewards.
-        let (storage_charges, computation_rewards) = mint_epoch_rewards_in_pt(&mut builder, params);
-
-        // Step 2: Advance the epoch.
+        // Create storage and computation charges and add them as arguments.
+        let (storage_charges, computation_charges) = mint_epoch_rewards_in_pt(&mut builder, params);
         let mut arguments = vec![
             builder
-                .pure(params.validator_target_reward)
+                .pure(params.validator_subsidy)
                 .expect("bcs encoding a u64 should not fail"),
             storage_charges,
-            computation_rewards,
+            computation_charges,
         ];
-        let call_arg_arguments = vec![
-            CallArg::IOTA_SYSTEM_MUT,
-            CallArg::Pure(bcs::to_bytes(&params.epoch).unwrap()),
-            CallArg::Pure(bcs::to_bytes(&params.next_protocol_version.as_u64()).unwrap()),
-            CallArg::Pure(bcs::to_bytes(&params.storage_rebate).unwrap()),
-            CallArg::Pure(bcs::to_bytes(&params.non_refundable_storage_fee).unwrap()),
-            CallArg::Pure(bcs::to_bytes(&params.reward_slashing_rate).unwrap()),
-            CallArg::Pure(bcs::to_bytes(&params.epoch_start_timestamp_ms).unwrap()),
-        ]
-        .into_iter()
-        .map(|a| builder.input(a))
-        .collect::<Result<_, _>>();
+
+        let call_arg_arguments = call_arg_vec
+            .into_iter()
+            .map(|a| builder.input(a))
+            .collect::<Result<_, _>>();
 
         assert_invariant!(
             call_arg_arguments.is_ok(),
@@ -836,35 +857,66 @@ mod checked {
         Ok(builder.finish())
     }
 
-    /// Advances the epoch by constructing a `ProgrammableTransaction` with
-    /// `construct_advance_epoch_pt` and executing it.
-    /// If the transaction fails, it switches to safe mode and retries the
-    /// epoch advancement in a more controlled environment. The function also
+    pub fn construct_advance_epoch_pt_v1(
+        builder: ProgrammableTransactionBuilder,
+        params: &AdvanceEpochParams,
+    ) -> Result<ProgrammableTransaction, ExecutionError> {
+        // the first three arguments to the advance_epoch function, namely
+        // validator_subsidy, storage_charges and computation_charges, are
+        // common to both v1 and v2 and are added in `construct_advance_epoch_pt_impl`.
+        // The remaining arguments are added here.
+        let call_arg_vec = vec![
+            CallArg::IOTA_SYSTEM_MUT, // wrapper: &mut IotaSystemState
+            CallArg::Pure(bcs::to_bytes(&params.epoch).unwrap()), // new_epoch: u64
+            CallArg::Pure(bcs::to_bytes(&params.next_protocol_version.as_u64()).unwrap()), /* next_protocol_version: u64 */
+            CallArg::Pure(bcs::to_bytes(&params.storage_rebate).unwrap()), // storage_rebate: u64
+            CallArg::Pure(bcs::to_bytes(&params.non_refundable_storage_fee).unwrap()), /* non_refundable_storage_fee: u64 */
+            CallArg::Pure(bcs::to_bytes(&params.reward_slashing_rate).unwrap()), /* reward_slashing_rate: u64 */
+            CallArg::Pure(bcs::to_bytes(&params.epoch_start_timestamp_ms).unwrap()), /* epoch_start_timestamp_ms: u64 */
+        ];
+        construct_advance_epoch_pt_impl(builder, params, call_arg_vec)
+    }
+
+    pub fn construct_advance_epoch_pt_v2(
+        builder: ProgrammableTransactionBuilder,
+        params: &AdvanceEpochParams,
+    ) -> Result<ProgrammableTransaction, ExecutionError> {
+        // the first three arguments to the advance_epoch function, namely
+        // validator_subsidy, storage_charges and computation_charges, are
+        // common to both v1 and v2 and are added in `construct_advance_epoch_pt_impl`.
+        // The remaining arguments are added here.
+        let call_arg_vec = vec![
+            CallArg::Pure(bcs::to_bytes(&params.computation_charge_burned).unwrap()), /* computation_charge_burned: u64 */
+            CallArg::IOTA_SYSTEM_MUT, // wrapper: &mut IotaSystemState
+            CallArg::Pure(bcs::to_bytes(&params.epoch).unwrap()), // new_epoch: u64
+            CallArg::Pure(bcs::to_bytes(&params.next_protocol_version.as_u64()).unwrap()), /* next_protocol_version: u64 */
+            CallArg::Pure(bcs::to_bytes(&params.storage_rebate).unwrap()), // storage_rebate: u64
+            CallArg::Pure(bcs::to_bytes(&params.non_refundable_storage_fee).unwrap()), /* non_refundable_storage_fee: u64 */
+            CallArg::Pure(bcs::to_bytes(&params.reward_slashing_rate).unwrap()), /* reward_slashing_rate: u64 */
+            CallArg::Pure(bcs::to_bytes(&params.epoch_start_timestamp_ms).unwrap()), /* epoch_start_timestamp_ms: u64 */
+            CallArg::Pure(bcs::to_bytes(&params.max_committee_members_count).unwrap()), /* max_committee_members_count: u64 */
+        ];
+        construct_advance_epoch_pt_impl(builder, params, call_arg_vec)
+    }
+
+    /// Advances the epoch by executing a `ProgrammableTransaction`. If the
+    /// transaction fails, it switches to safe mode and retries the epoch
+    /// advancement in a more controlled environment. The function also
     /// handles the publication and upgrade of system packages for the new
     /// epoch. If any system package is added or upgraded, it ensures the
     /// proper execution and storage of the changes.
-    fn advance_epoch(
-        builder: ProgrammableTransactionBuilder,
-        change_epoch: ChangeEpoch,
+    fn advance_epoch_impl(
+        advance_epoch_pt: ProgrammableTransaction,
+        params: AdvanceEpochParams,
+        system_packages: Vec<(SequenceNumber, Vec<Vec<u8>>, Vec<ObjectID>)>,
         temporary_store: &mut TemporaryStore<'_>,
         tx_ctx: &mut TxContext,
         move_vm: &Arc<MoveVM>,
         gas_charger: &mut GasCharger,
         protocol_config: &ProtocolConfig,
         metrics: Arc<LimitsMetrics>,
+        trace_builder_opt: &mut Option<MoveTraceBuilder>,
     ) -> Result<(), ExecutionError> {
-        let params = AdvanceEpochParams {
-            epoch: change_epoch.epoch,
-            next_protocol_version: change_epoch.protocol_version,
-            validator_target_reward: protocol_config.validator_target_reward(),
-            storage_charge: change_epoch.storage_charge,
-            computation_charge: change_epoch.computation_charge,
-            storage_rebate: change_epoch.storage_rebate,
-            non_refundable_storage_fee: change_epoch.non_refundable_storage_fee,
-            reward_slashing_rate: protocol_config.reward_slashing_rate(),
-            epoch_start_timestamp_ms: change_epoch.epoch_start_timestamp_ms,
-        };
-        let advance_epoch_pt = construct_advance_epoch_pt(builder, &params)?;
         let result = programmable_transactions::execution::execute::<execution_mode::System>(
             protocol_config,
             metrics.clone(),
@@ -873,17 +925,18 @@ mod checked {
             tx_ctx,
             gas_charger,
             advance_epoch_pt,
+            trace_builder_opt,
         );
 
         #[cfg(msim)]
-        let result = maybe_modify_result(result, change_epoch.epoch);
+        let result = maybe_modify_result(result, params.epoch);
 
         if result.is_err() {
             tracing::error!(
-                "Failed to execute advance epoch transaction. Switching to safe mode. Error: {:?}. Input objects: {:?}. Tx data: {:?}",
+                "Failed to execute advance epoch transaction. Switching to safe mode. Error: {:?}. Input objects: {:?}. Tx params: {:?}",
                 result.as_ref().err(),
                 temporary_store.objects(),
-                change_epoch,
+                params,
             );
             temporary_store.drop_writes();
             // Must reset the storage rebate since we are re-executing.
@@ -900,29 +953,118 @@ mod checked {
         )
         .expect("Failed to create new MoveVM");
         process_system_packages(
-            change_epoch,
+            system_packages,
             temporary_store,
             tx_ctx,
             &new_vm,
             gas_charger,
             protocol_config,
             metrics,
+            trace_builder_opt,
         );
 
         Ok(())
     }
 
-    fn process_system_packages(
+    /// Advances the epoch for the given `ChangeEpoch` transaction kind by
+    /// constructing a programmable transaction, executing it and processing the
+    /// system packages.
+    fn advance_epoch_v1(
+        builder: ProgrammableTransactionBuilder,
         change_epoch: ChangeEpoch,
+        temporary_store: &mut TemporaryStore<'_>,
+        tx_ctx: &mut TxContext,
+        move_vm: &Arc<MoveVM>,
+        gas_charger: &mut GasCharger,
+        protocol_config: &ProtocolConfig,
+        metrics: Arc<LimitsMetrics>,
+        trace_builder_opt: &mut Option<MoveTraceBuilder>,
+    ) -> Result<(), ExecutionError> {
+        let params = AdvanceEpochParams {
+            epoch: change_epoch.epoch,
+            next_protocol_version: change_epoch.protocol_version,
+            validator_subsidy: protocol_config.validator_target_reward(),
+            storage_charge: change_epoch.storage_charge,
+            computation_charge: change_epoch.computation_charge,
+            // all computation charge is burned in v1
+            computation_charge_burned: change_epoch.computation_charge,
+            storage_rebate: change_epoch.storage_rebate,
+            non_refundable_storage_fee: change_epoch.non_refundable_storage_fee,
+            reward_slashing_rate: protocol_config.reward_slashing_rate(),
+            epoch_start_timestamp_ms: change_epoch.epoch_start_timestamp_ms,
+            // AdvanceEpochV1 does not use this field, but keeping it to avoid creating a separate
+            // AdvanceEpochParams struct.
+            max_committee_members_count: 0,
+        };
+        let advance_epoch_pt = construct_advance_epoch_pt_v1(builder, &params)?;
+        advance_epoch_impl(
+            advance_epoch_pt,
+            params,
+            change_epoch.system_packages,
+            temporary_store,
+            tx_ctx,
+            move_vm,
+            gas_charger,
+            protocol_config,
+            metrics,
+            trace_builder_opt,
+        )
+    }
+
+    /// Advances the epoch for the given `ChangeEpochV2` transaction kind by
+    /// constructing a programmable transaction, executing it and processing the
+    /// system packages.
+    fn advance_epoch_v2(
+        builder: ProgrammableTransactionBuilder,
+        change_epoch_v2: ChangeEpochV2,
+        temporary_store: &mut TemporaryStore<'_>,
+        tx_ctx: &mut TxContext,
+        move_vm: &Arc<MoveVM>,
+        gas_charger: &mut GasCharger,
+        protocol_config: &ProtocolConfig,
+        metrics: Arc<LimitsMetrics>,
+        trace_builder_opt: &mut Option<MoveTraceBuilder>,
+    ) -> Result<(), ExecutionError> {
+        let params = AdvanceEpochParams {
+            epoch: change_epoch_v2.epoch,
+            next_protocol_version: change_epoch_v2.protocol_version,
+            validator_subsidy: protocol_config.validator_target_reward(),
+            storage_charge: change_epoch_v2.storage_charge,
+            computation_charge: change_epoch_v2.computation_charge,
+            computation_charge_burned: change_epoch_v2.computation_charge_burned,
+            storage_rebate: change_epoch_v2.storage_rebate,
+            non_refundable_storage_fee: change_epoch_v2.non_refundable_storage_fee,
+            reward_slashing_rate: protocol_config.reward_slashing_rate(),
+            epoch_start_timestamp_ms: change_epoch_v2.epoch_start_timestamp_ms,
+            max_committee_members_count: protocol_config.max_committee_members_count(),
+        };
+        let advance_epoch_pt = construct_advance_epoch_pt_v2(builder, &params)?;
+        advance_epoch_impl(
+            advance_epoch_pt,
+            params,
+            change_epoch_v2.system_packages,
+            temporary_store,
+            tx_ctx,
+            move_vm,
+            gas_charger,
+            protocol_config,
+            metrics,
+            trace_builder_opt,
+        )
+    }
+
+    fn process_system_packages(
+        system_packages: Vec<(SequenceNumber, Vec<Vec<u8>>, Vec<ObjectID>)>,
         temporary_store: &mut TemporaryStore<'_>,
         tx_ctx: &mut TxContext,
         move_vm: &MoveVM,
         gas_charger: &mut GasCharger,
         protocol_config: &ProtocolConfig,
         metrics: Arc<LimitsMetrics>,
+        trace_builder_opt: &mut Option<MoveTraceBuilder>,
     ) {
         let binary_config = to_binary_config(protocol_config);
-        for (version, modules, dependencies) in change_epoch.system_packages.into_iter() {
+        for (version, modules, dependencies) in system_packages.into_iter() {
             let deserialized_modules: Vec<_> = modules
                 .iter()
                 .map(|m| CompiledModule::deserialize_with_config(m, &binary_config).unwrap())
@@ -946,6 +1088,7 @@ mod checked {
                     tx_ctx,
                     gas_charger,
                     publish_pt,
+                    trace_builder_opt,
                 )
                 .expect("System Package Publish must succeed");
             } else {
@@ -988,6 +1131,7 @@ mod checked {
         gas_charger: &mut GasCharger,
         protocol_config: &ProtocolConfig,
         metrics: Arc<LimitsMetrics>,
+        trace_builder_opt: &mut Option<MoveTraceBuilder>,
     ) -> Result<(), ExecutionError> {
         let pt = {
             let mut builder = ProgrammableTransactionBuilder::new();
@@ -1015,6 +1159,7 @@ mod checked {
             tx_ctx,
             gas_charger,
             pt,
+            trace_builder_opt,
         )
     }
 
@@ -1124,6 +1269,7 @@ mod checked {
         gas_charger: &mut GasCharger,
         protocol_config: &ProtocolConfig,
         metrics: Arc<LimitsMetrics>,
+        trace_builder_opt: &mut Option<MoveTraceBuilder>,
     ) -> Result<(), ExecutionError> {
         let pt = {
             let mut builder = ProgrammableTransactionBuilder::new();
@@ -1155,6 +1301,7 @@ mod checked {
             tx_ctx,
             gas_charger,
             pt,
+            trace_builder_opt,
         )
     }
 
@@ -1198,6 +1345,7 @@ mod checked {
         gas_charger: &mut GasCharger,
         protocol_config: &ProtocolConfig,
         metrics: Arc<LimitsMetrics>,
+        trace_builder_opt: &mut Option<MoveTraceBuilder>,
     ) -> Result<(), ExecutionError> {
         let pt = {
             let mut builder = ProgrammableTransactionBuilder::new();
@@ -1230,6 +1378,7 @@ mod checked {
             tx_ctx,
             gas_charger,
             pt,
+            trace_builder_opt,
         )
     }
 }

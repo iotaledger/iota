@@ -17,13 +17,14 @@ use iota_json_rpc_types::{
 };
 use iota_macros::sim_test;
 use iota_move_build::BuildConfig;
-use iota_sdk::wallet_context::WalletContext;
+use iota_sdk::{PagedFn, wallet_context::WalletContext};
 use iota_swarm_config::genesis_config::{DEFAULT_GAS_AMOUNT, DEFAULT_NUMBER_OF_OBJECT_PER_ACCOUNT};
 use iota_types::{
     IOTA_FRAMEWORK_ADDRESS,
     balance::Supply,
     base_types::{IotaAddress, ObjectID},
     coin::{COIN_MODULE_NAME, TreasuryCap},
+    iota_system_state::iota_system_state_summary::IotaSystemStateSummary,
     parse_iota_struct_tag,
     quorum_driver_types::ExecuteTransactionRequestType,
 };
@@ -347,11 +348,13 @@ async fn staking_multiple_coins() -> Result<(), anyhow::Error> {
     let staked_iota: Vec<DelegatedStake> = http_client.get_stakes(address).await?;
     assert!(staked_iota.is_empty());
 
-    let validator = http_client
-        .get_latest_iota_system_state()
-        .await?
-        .active_validators[0]
-        .iota_address;
+    let iota_system_state = http_client.get_latest_iota_system_state_v2().await?;
+    let validator = match iota_system_state {
+        IotaSystemStateSummary::V1(v1) => v1.active_validators[0].iota_address,
+        IotaSystemStateSummary::V2(v2) => v2.active_validators[0].iota_address,
+        _ => panic!("unsupported IotaSystemStateSummary"),
+    };
+
     // Delegate some IOTA
     let transaction_bytes: TransactionBlockBytes = http_client
         .request_add_stake(
@@ -561,19 +564,11 @@ async fn get_all_coins_with_cursor_and_limit() {
         "Should not have next page when fetching all"
     );
 
-    let mut collected_coins = Vec::new();
-    let mut cursor = None;
-    loop {
-        let page: CoinPage = http_client
-            .get_all_coins(address, cursor, Some(2))
-            .await
-            .unwrap();
-        collected_coins.extend(page.data);
-        if !page.has_next_page {
-            break;
-        }
-        cursor = page.next_cursor;
-    }
+    let collected_coins = PagedFn::collect::<Vec<_>>(async |cursor| {
+        http_client.get_all_coins(address, cursor, Some(2)).await
+    })
+    .await
+    .unwrap();
 
     assert_eq!(
         rpc_all_coins.data.len(),

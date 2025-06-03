@@ -8,6 +8,11 @@ import {
     useFormatCoin,
     formatPercentageDisplay,
     useValidatorInfo,
+    toast,
+    useIsValidatorCommitteeMember,
+    useIsActiveValidator,
+    useGetNextEpochCommitteeMember,
+    useGetInactiveValidator,
 } from '@iota/core';
 import {
     Header,
@@ -23,10 +28,14 @@ import {
     BadgeType,
     Divider,
     LoadingIndicator,
+    InfoBox,
+    InfoBoxType,
+    InfoBoxStyle,
+    TooltipPosition,
 } from '@iota/apps-ui-kit';
 import { formatAddress } from '@iota/iota-sdk/utils';
 import { DialogLayout, DialogLayoutFooter, DialogLayoutBody } from '../../layout';
-import toast from 'react-hot-toast';
+import { Warning } from '@iota/apps-ui-icons';
 
 interface StakeDialogProps {
     handleClose: () => void;
@@ -46,6 +55,11 @@ export function DetailsView({
     const totalStake = BigInt(stakedDetails?.principal || 0n);
     const validatorAddress = stakedDetails?.validatorAddress;
     const {
+        isValidatorExpectedToBeInTheCommittee,
+        isLoading: isValidatorExpectedToBeInTheCommitteeLoading,
+    } = useGetNextEpochCommitteeMember(validatorAddress);
+
+    const {
         isAtRisk,
         isPendingValidators,
         errorValidators,
@@ -57,12 +71,18 @@ export function DetailsView({
     } = useValidatorInfo({
         validatorAddress,
     });
+    const { isCommitteeMember } = useIsValidatorCommitteeMember();
+    const { isActiveValidator } = useIsActiveValidator();
 
     const iotaEarned = BigInt(stakedDetails?.estimatedReward || 0n);
     const [iotaEarnedFormatted, iotaEarnedSymbol] = useFormatCoin({ balance: iotaEarned });
     const [totalStakeFormatted, totalStakeSymbol] = useFormatCoin({ balance: totalStake });
 
-    const validatorName = validatorSummary?.name || '--';
+    const { data: inactiveValidatorSummary } = useGetInactiveValidator(validatorAddress);
+    const validatorName =
+        validatorSummary?.name || inactiveValidatorSummary?.name || validatorAddress;
+    const validatorImageUrl =
+        validatorSummary?.imageUrl || inactiveValidatorSummary?.imageUrl || null;
 
     const subtitle = showActiveStatus ? (
         <div className="flex items-center gap-1">
@@ -73,7 +93,6 @@ export function DetailsView({
     ) : (
         formatAddress(validatorAddress)
     );
-
     if (isPendingValidators) {
         return (
             <div className="flex h-full w-full items-center justify-center p-2">
@@ -86,6 +105,10 @@ export function DetailsView({
         toast.error('An error occurred fetching validator information');
     }
 
+    const isValidatorCommitteeMember = isCommitteeMember(validatorAddress);
+    const isValidatorActive = isActiveValidator(validatorAddress);
+    const isActiveButNotInTheCommittee = isValidatorActive && !isValidatorCommitteeMember;
+
     return (
         <DialogLayout>
             <Header title="Validator" onClose={handleClose} onBack={handleClose} titleCentered />
@@ -94,7 +117,7 @@ export function DetailsView({
                     <Card type={CardType.Filled}>
                         <CardImage>
                             <ImageIcon
-                                src={validatorSummary?.imageUrl ?? null}
+                                src={validatorImageUrl}
                                 label={validatorName}
                                 fallback={validatorName}
                                 size={ImageIconSize.Large}
@@ -102,6 +125,23 @@ export function DetailsView({
                         </CardImage>
                         <CardBody title={validatorName} subtitle={subtitle} isTextTruncated />
                     </Card>
+                    {isActiveButNotInTheCommittee ? (
+                        <InfoBox
+                            type={InfoBoxType.Warning}
+                            title="Validator is not earning rewards."
+                            supportingText="Validator is active but not in the current committee, so not earning rewards this epoch. It may earn in future epochs. Stake at your discretion."
+                            icon={<Warning />}
+                            style={InfoBoxStyle.Elevated}
+                        />
+                    ) : !isValidatorActive ? (
+                        <InfoBox
+                            type={InfoBoxType.Error}
+                            title="Inactive Validator is not earning rewards"
+                            supportingText="This validator is inactive and will no longer earn rewards. Stake at your own risk."
+                            icon={<Warning />}
+                            style={InfoBoxStyle.Elevated}
+                        />
+                    ) : null}
                     <Panel hasBorder>
                         <div className="flex flex-col gap-y-sm p-md">
                             <KeyValueInfo
@@ -129,6 +169,20 @@ export function DetailsView({
                             />
                         </div>
                     </Panel>
+                    {!isValidatorExpectedToBeInTheCommittee &&
+                    !isValidatorExpectedToBeInTheCommitteeLoading ? (
+                        <Panel hasBorder>
+                            <div className="flex flex-col gap-y-sm p-md">
+                                <KeyValueInfo
+                                    keyText="Rewards next Epoch"
+                                    value={<Badge label="Not Earning" type={BadgeType.Warning} />}
+                                    fullwidth
+                                    tooltipPosition={TooltipPosition.Top}
+                                    tooltipText="Currently, the validator does not meet the criteria required to generate rewards in the next epoch, but this may change."
+                                />
+                            </div>
+                        </Panel>
+                    ) : null}
                 </div>
             </DialogLayoutBody>
             <DialogLayoutFooter>
@@ -139,12 +193,14 @@ export function DetailsView({
                         text="Unstake"
                         fullWidth
                     />
-                    <Button
-                        type={ButtonType.Primary}
-                        text="Stake"
-                        onClick={handleStake}
-                        fullWidth
-                    />
+                    {isValidatorActive ? (
+                        <Button
+                            type={ButtonType.Primary}
+                            text="Stake"
+                            onClick={handleStake}
+                            fullWidth
+                        />
+                    ) : null}
                 </div>
             </DialogLayoutFooter>
         </DialogLayout>

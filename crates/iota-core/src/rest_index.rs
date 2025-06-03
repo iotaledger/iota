@@ -187,14 +187,14 @@ impl IndexStoreTables {
 
         // Iterate through available, executed checkpoints that have yet to be pruned
         // to initialize checkpoint and transaction based indexes.
-        if let Some(highest_executed_checkpint) =
+        if let Some(highest_executed_checkpoint) =
             checkpoint_store.get_highest_executed_checkpoint_seq_number()?
         {
             let lowest_available_checkpoint = checkpoint_store
                 .get_highest_pruned_checkpoint_seq_number()?
                 .saturating_add(1);
 
-            let checkpoint_range = lowest_available_checkpoint..=highest_executed_checkpint;
+            let checkpoint_range = lowest_available_checkpoint..=highest_executed_checkpoint;
 
             info!(
                 "Indexing {} checkpoints in range {checkpoint_range:?}",
@@ -456,7 +456,9 @@ impl IndexStoreTables {
                         }
                         Owner::ObjectOwner(parent) => {
                             if let Some(field_info) =
-                                try_create_dynamic_field_info(object, resolver)?
+                                try_create_dynamic_field_info(object, resolver)
+                                    .ok()
+                                    .flatten()
                             {
                                 let field_key = DynamicFieldKey::new(*parent, object.id());
 

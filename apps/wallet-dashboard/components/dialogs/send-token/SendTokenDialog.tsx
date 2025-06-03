@@ -4,16 +4,21 @@
 import { useState } from 'react';
 import { EnterValuesFormView, ReviewValuesFormView, TransactionDetailsView } from './views';
 import { CoinBalance } from '@iota/iota-sdk/client';
-import { useSendCoinTransaction } from '@/hooks';
-import { CoinFormat, useFormatCoin, useGetAllCoins } from '@iota/core';
+import {
+    useGetAllCoins,
+    useSendCoinTransaction,
+    toast,
+    useCoinMetadata,
+    createValidationSchemaSendTokenForm,
+    sumCoinBalances,
+} from '@iota/core';
 import { Dialog, DialogContent, DialogPosition } from '@iota/apps-ui-kit';
-import { FormDataValues } from './interfaces';
 import { INITIAL_VALUES } from './constants';
-import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 import { useTransferTransactionMutation } from '@/hooks';
-import toast from 'react-hot-toast';
 import { ampli } from '@/lib/utils/analytics';
 import { useQueryClient } from '@tanstack/react-query';
+import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
+import { FormikProvider, useFormik } from 'formik';
 
 interface SendCoinDialogProps {
     coin: CoinBalance;
@@ -35,26 +40,49 @@ function SendTokenDialogBody({
 }: SendCoinDialogProps): React.JSX.Element {
     const [step, setStep] = useState<FormStep>(FormStep.EnterValues);
     const [selectedCoin, setSelectedCoin] = useState<CoinBalance>(coin);
-    const [formData, setFormData] = useState<FormDataValues>(INITIAL_VALUES);
-    const [fullAmount] = useFormatCoin({
-        balance: formData.amount,
-        coinType: selectedCoin.coinType,
-        format: CoinFormat.FULL,
-    });
-    const { data: coinsData } = useGetAllCoins(selectedCoin.coinType, activeAddress);
-    const queryClient = useQueryClient();
-
-    const isPayAllIota =
-        selectedCoin.totalBalance === formData.amount && selectedCoin.coinType === IOTA_TYPE_ARG;
-
-    const { data: transaction } = useSendCoinTransaction(
-        coinsData || [],
+    const { data: coins = [], isLoading: isLoadingCoins } = useGetAllCoins(
         selectedCoin.coinType,
         activeAddress,
-        formData.to,
-        formData.amount,
-        isPayAllIota,
     );
+    const { data: iotaCoins = [], isLoading: isLoadingIotaCoins } = useGetAllCoins(
+        IOTA_TYPE_ARG,
+        activeAddress,
+    );
+    const queryClient = useQueryClient();
+
+    const coinBalance = sumCoinBalances(coins);
+    const iotaBalance = sumCoinBalances(iotaCoins);
+    const selectedCoinMetadata = useCoinMetadata(selectedCoin.coinType);
+    const coinDecimals = selectedCoinMetadata.data?.decimals ?? 0;
+    const coinSymbol = selectedCoinMetadata.data?.symbol ?? '';
+
+    const validationSchemaStepOne = createValidationSchemaSendTokenForm(
+        coinBalance,
+        coinSymbol,
+        coinDecimals,
+    );
+
+    const formik = useFormik({
+        initialValues: INITIAL_VALUES,
+        validationSchema: validationSchemaStepOne,
+        enableReinitialize: true,
+        validateOnChange: false,
+        validateOnBlur: false,
+        onSubmit: () => {},
+    });
+
+    const sendCoinQuery = useSendCoinTransaction({
+        coins,
+        coinType: selectedCoin.coinType,
+        senderAddress: activeAddress,
+        recipientAddress: formik.values.to,
+        amount: formik.values.amount,
+    });
+    const { data: transactionData } = sendCoinQuery;
+
+    const isPayAllIota =
+        selectedCoin.totalBalance === formik.values.amount &&
+        selectedCoin.coinType === IOTA_TYPE_ARG;
 
     const {
         mutate: transfer,
@@ -63,12 +91,12 @@ function SendTokenDialogBody({
     } = useTransferTransactionMutation();
 
     async function handleTransfer() {
-        if (!transaction) {
+        if (!transactionData?.transaction) {
             toast.error('There was an error with the transaction');
             return;
         }
 
-        transfer(transaction, {
+        transfer(transactionData.transaction, {
             onSuccess: () => {
                 queryClient.invalidateQueries({ queryKey: [activeAddress] });
 
@@ -90,39 +118,45 @@ function SendTokenDialogBody({
     }
 
     function onBack(): void {
-        // The amount is formatted when submitting the enterValuesForm, so it is necessary to return to the previous value when backing out
-        setFormData({
-            ...formData,
-            amount: fullAmount,
-        });
         setStep(FormStep.EnterValues);
     }
 
     return (
         <>
-            {step === FormStep.EnterValues && (
-                <EnterValuesFormView
-                    coin={selectedCoin}
-                    activeAddress={activeAddress}
-                    setSelectedCoin={setSelectedCoin}
-                    onNext={onNext}
-                    onClose={() => setOpen(false)}
-                    setFormData={setFormData}
-                    initialFormValues={formData}
-                />
-            )}
-            {step === FormStep.ReviewValues && (
-                <ReviewValuesFormView
-                    formData={formData}
-                    executeTransfer={handleTransfer}
-                    senderAddress={activeAddress}
-                    isPending={isLoadingTransfer}
-                    coinType={selectedCoin.coinType}
-                    isPayAllIota={isPayAllIota}
-                    onClose={() => setOpen(false)}
-                    onBack={onBack}
-                />
-            )}
+            <FormikProvider value={formik}>
+                {step === FormStep.EnterValues && (
+                    <EnterValuesFormView
+                        coin={selectedCoin}
+                        activeAddress={activeAddress}
+                        onCoinSelect={(newCoin) => {
+                            if (newCoin !== selectedCoin) {
+                                setSelectedCoin(newCoin);
+                                formik.resetForm();
+                            }
+                        }}
+                        onNext={onNext}
+                        onClose={() => setOpen(false)}
+                        sendCoinTransactionQuery={sendCoinQuery}
+                        coinBalance={coinBalance}
+                        iotaBalance={iotaBalance}
+                        showLoading={isLoadingCoins || isLoadingIotaCoins}
+                    />
+                )}
+                {step === FormStep.ReviewValues && (
+                    <ReviewValuesFormView
+                        formData={formik.values}
+                        executeTransfer={handleTransfer}
+                        senderAddress={activeAddress}
+                        isPending={isLoadingTransfer}
+                        coinType={selectedCoin.coinType}
+                        isPayAllIota={isPayAllIota}
+                        onClose={() => setOpen(false)}
+                        onBack={onBack}
+                        totalGas={transactionData?.gasSummary?.totalGas}
+                    />
+                )}
+            </FormikProvider>
+
             {step === FormStep.TransactionDetails && data?.digest && (
                 <TransactionDetailsView
                     digest={data.digest}

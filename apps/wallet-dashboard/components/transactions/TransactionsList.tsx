@@ -2,12 +2,20 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { useCurrentAccount } from '@iota/dapp-kit';
-import { VirtualList, TransactionTile } from '@/components';
-import { useQueryTransactionsByAddress } from '@iota/core';
+import { TransactionTile } from '@/components';
+import { NoData, VirtualList, useQueryTransactionsByAddress } from '@iota/core';
 import { getExtendedTransaction } from '@/lib/utils/transaction';
 import { IotaTransactionBlockResponse } from '@iota/iota-sdk/client';
 
-export function TransactionsList() {
+interface TransactionsListProps {
+    heightClassName?: string;
+    displayImage?: boolean;
+}
+
+export function TransactionsList({
+    heightClassName,
+    displayImage,
+}: TransactionsListProps): JSX.Element {
     const currentAccount = useCurrentAccount();
     const { allTransactions, fetchNextPage, hasNextPage, isFetchingNextPage, error } =
         useQueryTransactionsByAddress(currentAccount?.address);
@@ -21,16 +29,25 @@ export function TransactionsList() {
         return <TransactionTile transaction={transaction} />;
     };
 
+    if (!allTransactions || allTransactions.length === 0) {
+        return (
+            <NoData
+                message="You can view your IOTA network transactions here once they are available."
+                displayImage={displayImage}
+            />
+        );
+    }
+
     return (
         <VirtualList
-            items={allTransactions || []}
+            items={allTransactions}
+            getItemKey={(tx) => tx?.digest}
             estimateSize={() => 60}
             render={virtualItem}
             fetchNextPage={fetchNextPage}
             hasNextPage={hasNextPage}
             isFetchingNextPage={isFetchingNextPage}
-            heightClassName="h-[400px] xl:h-[500px]"
-            overflowClassName="overflow-y-auto"
+            heightClassName={heightClassName}
         />
     );
 }

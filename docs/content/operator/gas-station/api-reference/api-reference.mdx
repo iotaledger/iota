@@ -1,0 +1,192 @@
+---
+title: API Reference
+description: Learn how to interact with the IOTA Gas Station API to manage gas reservations and execute transactions on the IOTA network.
+teams:
+  - iotaledger/identity
+tags:
+  - gas-station
+  - sponsored-transactions
+  - reference
+  - api
+---
+
+## Overview
+
+The **Gas Station API** provides a simple and secure interface to manage gas reservations and execute transactions on the IOTA network. This API is exposed via HTTP and uses **Bearer Token Authentication** for secured access. Below are the available endpoints, request and response formats, and example payloads.
+
+---
+
+## Authentication
+
+All API endpoints require a **Bearer Token** for authorization. Include the token in the `Authorization` header of your requests.
+
+```
+Authorization: Bearer YOUR_TOKEN_HERE
+```
+
+---
+
+## Endpoints
+
+### Health Check
+
+#### `GET /`
+
+Performs a basic health check of the Gas Station server.
+
+**Response:**
+
+```json
+"OK"
+```
+
+---
+
+### Version
+
+#### `GET /version`
+
+Retrieves the current version of the Gas Station server.
+
+**Response:**
+
+```json
+"1.0.0-abcdef123456"
+```
+
+---
+
+### Debug Health Check
+
+#### `POST /debug_health_check`
+
+Performs an in-depth health check, accessible only with valid authorization.
+
+**Headers:**
+
+```
+Authorization: Bearer YOUR_TOKEN_HERE
+```
+
+**Response:**
+
+```json
+"OK"
+```
+
+Or, if unauthorized:
+
+```json
+"Unauthorized"
+```
+
+---
+
+### Reserve Gas
+
+#### `POST /v1/reserve_gas`
+
+Reserves gas objects for a specified budget and duration.
+
+**Headers:**
+
+```
+Authorization: Bearer YOUR_TOKEN_HERE
+```
+
+**Request Body:**
+
+```json
+{
+  "gas_budget": 1000000,
+  "reserve_duration_secs": 600
+}
+```
+
+**Response (Success):**
+
+```json
+{
+  "result": {
+    "sponsor_address": "iota1qxyz...",
+    "reservation_id": 12345,
+    "gas_coins": [
+      { "id": "coin1", "amount": 500000 },
+      { "id": "coin2", "amount": 500000 }
+    ]
+  },
+}
+```
+
+**Response (Error):**
+
+```json
+{
+  "error": "Invalid authorization token"
+}
+```
+
+**Validation Rules:**
+
+* `gas_budget` must be positive and less than `2_000_000_000`.
+* `reserve_duration_secs` must be between 1 and 600 seconds.
+
+---
+
+### Execute Transaction
+
+#### `POST /v1/execute_tx`
+
+Executes a transaction using reserved gas objects.
+
+**Headers:**
+
+Authorization: Bearer YOUR_TOKEN_HERE
+```
+
+**Request Body:**
+
+```json
+{
+  "reservation_id": 12345,
+  "tx_bytes": "BASE64_ENCODED_TRANSACTION",
+  "user_sig": "BASE64_ENCODED_SIGNATURE"
+}
+```
+
+**Response (Success):**
+
+```json
+{
+  "effects": {
+    "transaction_digest": "0xabc123...",
+    "status": "success",
+    "details": {
+      "block_height": 56789,
+      "timestamp": "2024-02-17T12:34:56Z"
+    }
+  },
+}
+```
+
+**Response (Error):**
+
+```json
+{
+  "error": "Invalid transaction signature"
+}
+```
+
+---
+
+## Error Codes
+
+| **Status Code** | **Description** |
+| --------------- | --------------- |
+| 200 | Request succeeded |
+| 400 | Bad request (invalid payload) |
+| 401 | Unauthorized (invalid token) |
+| 403 | Forbidden (access denied) |
+| 500 | Internal server error |
+
+---

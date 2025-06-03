@@ -1,20 +1,12 @@
 {
-    "release_binaries": [
-        "iota",
-        "iota-node",
-        "iota-tool",
-        "iota-faucet",
-        "iota-data-ingestion",
-        "iota-bridge",
-        "iota-bridge-cli",
-        "iota-graphql-rpc",
-        "iota-indexer",
-        "move-analyzer"
-    ],
-    "internal_binaries": [
-        "stress",
-        "iota-metric-checker",
-        "iota-analytics-indexer",
-        "iotaop"
-	]
+  "release_binaries": {
+    "iota": ["indexer", "gen-completions", "tracing"],
+    "iota-node": [],
+    "iota-tool": [],
+    "iota-faucet": [],
+    "iota-data-ingestion": [],
+    "iota-graphql-rpc": [],
+    "iota-indexer": [],
+    "move-analyzer": []
+  }
 }

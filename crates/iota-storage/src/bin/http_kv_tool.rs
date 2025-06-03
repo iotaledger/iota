@@ -20,10 +20,8 @@ use iota_types::{
 // --digest <digest> - the digest of the key being fetched
 // --type <fx|tx|ev> - the type of key being fetched
 #[derive(Parser)]
-#[command(rename_all = "kebab-case")]
 struct Options {
-    // default value of 'https://transactions.iota.cafe/'
-    #[arg(short, long, default_value = "https://transactions.iota.cafe/mainnet")]
+    #[arg(short, long)]
     base_url: String,
 
     #[arg(short, long)]
@@ -46,7 +44,8 @@ async fn main() {
 
     let options = Options::parse();
 
-    let http_kv = Arc::new(HttpKVStore::new(&options.base_url).unwrap());
+    let metrics = KeyValueStoreMetrics::new_for_tests();
+    let http_kv = Arc::new(HttpKVStore::new(&options.base_url, 100, metrics).unwrap());
     let kv =
         TransactionKeyValueStore::new("http_kv", KeyValueStoreMetrics::new_for_tests(), http_kv);
 

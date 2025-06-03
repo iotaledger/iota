@@ -1,5 +1,61 @@
 # @iota/apps-ui-kit
 
+## 0.5.1
+
+### Patch Changes
+
+-   0524b61: add Tooltip to Badge in Account component
+-   a6d0c82: Add eslint config. Resolve eslint errors/warnings.
+-   a756bbc: add copy button to DisplayStats component
+-   9d01a25: Fix dialog to prevent closing popup when closing a toast
+-   0edfd4e: Update dependencies.
+-   be15d98: Update imports to avoid cycle dependencies
+
+## 0.5.0
+
+### Minor Changes
+
+-   a4b46bc: add more badge types
+
+### Patch Changes
+
+-   6d274df: make renderSuggestion prop optional in Search component
+-   976e7f8: Add heightFull configuration props to Table component
+-   bb45cb5: Add new type for CardImage component
+-   Updated dependencies [a4b46bc]
+    -   @iota/apps-ui-icons@0.3.0
+
+## 0.4.0
+
+### Minor Changes
+
+-   a3f08da: add toggle component
+
+### Patch Changes
+
+-   1ad39f9: Update dependencies
+-   4e4f710: replace supportingText from string to ReactNode in InfoBox component
+-   d0cb92e: manage unreachable images by displaying a placeholder instead in VisualAssetCard
+
+## 0.3.0
+
+### Minor Changes
+
+-   3b8b320: update input styles for darkmode
+-   b28a0be: Improve search input behavior:
+
+    -   Allow navigation through suggestions with arrow up/down keys
+    -   Select suggestion on Enter
+
+### Patch Changes
+
+-   b83b198: improve darkmode styles for destructive button
+-   b06e657: Improve styling for small screens
+-   9f4c5e4: Enhance snackbar and infobox with warning type. Update styles for default type.
+-   2bd31a2: fix tooltip max-width
+-   Updated dependencies [8f73b75]
+    -   @iota/apps-ui-icons@0.2.2
+
 ## 0.2.2
 
 ### Patch Changes

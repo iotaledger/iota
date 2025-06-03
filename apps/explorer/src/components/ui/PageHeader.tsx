@@ -12,8 +12,7 @@ import {
     Placeholder,
 } from '@iota/apps-ui-kit';
 import { Copy, Warning } from '@iota/apps-ui-icons';
-import { useCopyToClipboard } from '@iota/core';
-import toast from 'react-hot-toast';
+import { onCopySuccess } from '~/lib/utils';
 
 type PageHeaderType = 'Transaction' | 'Checkpoint' | 'Address' | 'Object' | 'Package';
 
@@ -36,12 +35,6 @@ export function PageHeader({
     after,
     status,
 }: PageHeaderProps): JSX.Element {
-    const copyToClipBoard = useCopyToClipboard(() => toast.success('Copied'));
-
-    const handleCopy = async () => {
-        await copyToClipBoard(title);
-    };
-
     return (
         <Panel>
             <div className="flex w-full items-center p-md--rs">
@@ -84,7 +77,7 @@ export function PageHeader({
                                             {title}
                                         </span>
                                         <Copy
-                                            onClick={handleCopy}
+                                            onClick={onCopySuccess}
                                             className="shrink-0 cursor-pointer"
                                         />
                                     </div>
@@ -107,7 +100,7 @@ export function PageHeader({
                             </>
                         )}
                     </div>
-                    {after && <div className="w-1/2 sm:w-1/4">{after}</div>}
+                    {after && <div className="w-full md:w-1/4">{after}</div>}
                 </div>
             </div>
         </Panel>

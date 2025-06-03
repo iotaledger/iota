@@ -5,35 +5,26 @@
 use std::path::Path;
 
 use clap::Parser;
-use iota_move_build::set_iota_flavor;
-#[cfg(feature = "unit_test")]
+use iota_move_build::{IotaPackageHooks, set_iota_flavor};
 use move_cli::base::test::UnitTestResult;
 use move_package::BuildConfig;
 
-#[cfg(feature = "build")]
 pub mod build;
-#[cfg(feature = "coverage")]
 pub mod coverage;
-#[cfg(feature = "disassemble")]
 pub mod disassemble;
 pub mod manage_package;
 pub mod migrate;
 pub mod new;
-#[cfg(feature = "unit_test")]
 pub mod unit_test;
 
 #[derive(Parser)]
 pub enum Command {
-    #[cfg(feature = "build")]
     Build(build::Build),
-    #[cfg(feature = "coverage")]
     Coverage(coverage::Coverage),
-    #[cfg(feature = "disassemble")]
     Disassemble(disassemble::Disassemble),
     ManagePackage(manage_package::ManagePackage),
     Migrate(migrate::Migrate),
     New(new::New),
-    #[cfg(feature = "unit_test")]
     Test(unit_test::Test),
 }
 #[derive(Parser)]
@@ -52,18 +43,15 @@ pub fn execute_move_command(
     if let Some(err_msg) = set_iota_flavor(&mut build_config) {
         anyhow::bail!(err_msg);
     }
+    move_package::package_hooks::register_package_hooks(Box::new(IotaPackageHooks));
     match command {
-        #[cfg(feature = "build")]
         Command::Build(c) => c.execute(package_path, build_config),
-        #[cfg(feature = "coverage")]
         Command::Coverage(c) => c.execute(package_path, build_config),
-        #[cfg(feature = "disassemble")]
         Command::Disassemble(c) => c.execute(package_path, build_config),
         Command::ManagePackage(c) => c.execute(package_path, build_config),
         Command::Migrate(c) => c.execute(package_path, build_config),
         Command::New(c) => c.execute(package_path),
 
-        #[cfg(feature = "unit_test")]
         Command::Test(c) => {
             let result = c.execute(package_path, build_config)?;
 

@@ -537,9 +537,9 @@ impl Builder {
         } = self.parameters.to_genesis_chain_parameters();
 
         // In non-testing code, genesis type must always be V1.
-        #[expect(clippy::infallible_destructuring_match)]
         let system_state = match unsigned_genesis.iota_system_object() {
             IotaSystemState::V1(inner) => inner,
+            IotaSystemState::V2(_) => unreachable!(),
             #[cfg(msim)]
             _ => {
                 // Types other than V1 used in simtests do not need to be validated.
@@ -1036,7 +1036,7 @@ fn create_genesis_context(
     hasher.update(bcs::to_bytes(genesis_validators).unwrap());
     hasher.update(bcs::to_bytes(token_distribution_schedule).unwrap());
     for system_package in system_packages {
-        hasher.update(bcs::to_bytes(system_package.bytes()).unwrap());
+        hasher.update(bcs::to_bytes(&system_package.bytes).unwrap());
     }
 
     let hash = hasher.finalize();
@@ -1374,7 +1374,7 @@ fn create_genesis_objects(
             executor.as_ref(),
             genesis_ctx,
             &system_package.modules(),
-            system_package.dependencies().to_vec(),
+            system_package.dependencies,
             &protocol_config,
             metrics.clone(),
         )

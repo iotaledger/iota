@@ -3,7 +3,7 @@
 
 import cx from 'classnames';
 import { Copy, ArrowTopRight } from '@iota/apps-ui-icons';
-import { ButtonUnstyled } from '../../atoms/button';
+import { ButtonUnstyled } from '@/components/atoms/button';
 
 interface AddressProps {
     /**
@@ -70,7 +70,7 @@ export function Address({
     function handleOpenClick(event: React.MouseEvent<HTMLButtonElement>) {
         event?.stopPropagation();
         if (externalLink) {
-            const newWindow = window.open(externalLink, '_blank', 'noopener,noreferrer');
+            const newWindow = window.open(externalLink, '_blank', 'noopener noreferrer');
             if (newWindow) newWindow.opener = null;
         } else {
             onOpen?.(event);

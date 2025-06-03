@@ -40,12 +40,13 @@ use consensus_config::AuthorityIndex;
 use futures::{StreamExt as _, stream::FuturesOrdered};
 use iota_metrics::spawn_logged_monitored_task;
 use itertools::Itertools as _;
-use parking_lot::{Mutex, RwLock};
-use rand::prelude::SliceRandom as _;
+use parking_lot::RwLock;
+use rand::{prelude::SliceRandom as _, rngs::ThreadRng};
 use tokio::{
+    runtime::Handle,
     sync::oneshot,
     task::{JoinHandle, JoinSet},
-    time::{Instant, MissedTickBehavior, sleep},
+    time::{MissedTickBehavior, sleep},
 };
 use tracing::{debug, info, warn};
 
@@ -53,7 +54,10 @@ use crate::{
     CommitConsumerMonitor, CommitIndex,
     block::{BlockAPI, BlockRef, SignedBlock, VerifiedBlock},
     block_verifier::BlockVerifier,
-    commit::{Commit, CommitAPI as _, CommitDigest, CommitRange, CommitRef, TrustedCommit},
+    commit::{
+        CertifiedCommit, CertifiedCommits, Commit, CommitAPI as _, CommitDigest, CommitRange,
+        CommitRef, TrustedCommit,
+    },
     commit_vote_monitor::CommitVoteMonitor,
     context::Context,
     core_thread::CoreThreadDispatcher,
@@ -86,17 +90,15 @@ pub(crate) struct CommitSyncer<C: NetworkClient> {
 
     // Shared components wrapper.
     inner: Arc<Inner<C>>,
-    // State of peers shared by fetch tasks, to determine the next peer to fetch against.
-    peer_state: Arc<Mutex<PeerState>>,
 
     // States only used by the scheduler.
 
     // Inflight requests to fetch commits from different authorities.
-    inflight_fetches: JoinSet<(u32, Vec<TrustedCommit>, Vec<VerifiedBlock>)>,
+    inflight_fetches: JoinSet<(u32, CertifiedCommits)>,
     // Additional ranges of commits to fetch.
     pending_fetches: BTreeSet<CommitRange>,
     // Fetched commits and blocks by commit range.
-    fetched_ranges: BTreeMap<CommitRange, Vec<VerifiedBlock>>,
+    fetched_ranges: BTreeMap<CommitRange, CertifiedCommits>,
     // Highest commit index among inflight and pending fetches.
     // Used to determine the start of new ranges to be fetched.
     highest_scheduled_index: Option<CommitIndex>,
@@ -118,7 +120,6 @@ impl<C: NetworkClient> CommitSyncer<C> {
         block_verifier: Arc<dyn BlockVerifier>,
         dag_state: Arc<RwLock<DagState>>,
     ) -> Self {
-        let peer_state = Arc::new(Mutex::new(PeerState::new(&context)));
         let inner = Arc::new(Inner {
             context,
             core_thread_dispatcher,
@@ -131,7 +132,6 @@ impl<C: NetworkClient> CommitSyncer<C> {
         let synced_commit_index = inner.dag_state.read().last_commit_index();
         CommitSyncer {
             inner,
-            peer_state,
             inflight_fetches: JoinSet::new(),
             pending_fetches: BTreeSet::new(),
             fetched_ranges: BTreeMap::new(),
@@ -171,8 +171,8 @@ impl<C: NetworkClient> CommitSyncer<C> {
                         self.inflight_fetches.shutdown().await;
                         return;
                     }
-                    let (target_end, commits, blocks) = result.unwrap();
-                    self.handle_fetch_result(target_end, commits, blocks).await;
+                    let (target_end, commits) = result.unwrap();
+                    self.handle_fetch_result(target_end, commits).await;
                 }
                 _ = &mut rx_shutdown => {
                     // Shutdown requested.
@@ -249,27 +249,38 @@ impl<C: NetworkClient> CommitSyncer<C> {
     async fn handle_fetch_result(
         &mut self,
         target_end: CommitIndex,
-        commits: Vec<TrustedCommit>,
-        blocks: Vec<VerifiedBlock>,
+        certified_commits: CertifiedCommits,
     ) {
-        assert!(!commits.is_empty());
+        assert!(!certified_commits.commits().is_empty());
+
+        let (total_blocks_fetched, total_blocks_size_bytes) = certified_commits
+            .commits()
+            .iter()
+            .fold((0, 0), |(blocks, bytes), c| {
+                (
+                    blocks + c.blocks().len(),
+                    bytes
+                        + c.blocks()
+                            .iter()
+                            .map(|b| b.serialized().len())
+                            .sum::<usize>() as u64,
+                )
+            });
+
         let metrics = &self.inner.context.metrics.node_metrics;
         metrics
             .commit_sync_fetched_commits
-            .inc_by(commits.len() as u64);
+            .inc_by(certified_commits.commits().len() as u64);
         metrics
             .commit_sync_fetched_blocks
-            .inc_by(blocks.len() as u64);
-        metrics.commit_sync_total_fetched_blocks_size.inc_by(
-            blocks
-                .iter()
-                .map(|b| b.serialized().len() as u64)
-                .sum::<u64>(),
-        );
+            .inc_by(total_blocks_fetched as u64);
+        metrics
+            .commit_sync_total_fetched_blocks_size
+            .inc_by(total_blocks_size_bytes);
 
         let (commit_start, commit_end) = (
-            commits.first().unwrap().index(),
-            commits.last().unwrap().index(),
+            certified_commits.commits().first().unwrap().index(),
+            certified_commits.commits().last().unwrap().index(),
         );
         self.highest_fetched_commit_index = self.highest_fetched_commit_index.max(commit_end);
         metrics
@@ -288,13 +299,13 @@ impl<C: NetworkClient> CommitSyncer<C> {
         // Only add new blocks if at least some of them are not already synced.
         if self.synced_commit_index < commit_end {
             self.fetched_ranges
-                .insert((commit_start..=commit_end).into(), blocks);
+                .insert((commit_start..=commit_end).into(), certified_commits);
         }
         // Try to process as many fetched blocks as possible.
-        while let Some((fetched_commit_range, _blocks)) = self.fetched_ranges.first_key_value() {
+        while let Some((fetched_commit_range, _commits)) = self.fetched_ranges.first_key_value() {
             // Only pop fetched_ranges if there is no gap with blocks already synced.
             // Note: start, end and synced_commit_index are all inclusive.
-            let (fetched_commit_range, blocks) =
+            let (fetched_commit_range, commits) =
                 if fetched_commit_range.start() <= self.synced_commit_index + 1 {
                     self.fetched_ranges.pop_first().unwrap()
                 } else {
@@ -311,14 +322,25 @@ impl<C: NetworkClient> CommitSyncer<C> {
             debug!(
                 "Fetched certified blocks for commit range {:?}: {}",
                 fetched_commit_range,
-                blocks.iter().map(|b| b.reference().to_string()).join(","),
+                commits
+                    .commits()
+                    .iter()
+                    .flat_map(|c| c.blocks())
+                    .map(|b| b.reference().to_string())
+                    .join(","),
             );
+
             // If core thread cannot handle the incoming blocks, it is ok to block here.
             // Also it is possible to have missing ancestors because an equivocating
             // validator may produce blocks that are not included in commits but
             // are ancestors to other blocks. Synchronizer is needed to fill in
             // the missing ancestors in this case.
-            match self.inner.core_thread_dispatcher.add_blocks(blocks).await {
+            match self
+                .inner
+                .core_thread_dispatcher
+                .add_certified_commits(commits)
+                .await
+            {
                 Ok(missing) => {
                     if !missing.is_empty() {
                         warn!(
@@ -326,12 +348,25 @@ impl<C: NetworkClient> CommitSyncer<C> {
                             missing, fetched_commit_range
                         );
                     }
+                    for block_ref in missing {
+                        let hostname = &self
+                            .inner
+                            .context
+                            .committee
+                            .authority(block_ref.author)
+                            .hostname;
+                        metrics
+                            .commit_sync_fetch_missing_blocks
+                            .with_label_values(&[hostname])
+                            .inc();
+                    }
                 }
                 Err(e) => {
                     info!("Failed to add blocks, shutting down: {}", e);
                     return;
                 }
             };
+
             // Once commits and blocks are sent to Core, ratchet up synced_commit_index
             self.synced_commit_index = self.synced_commit_index.max(fetched_commit_range.end());
         }
@@ -375,11 +410,8 @@ impl<C: NetworkClient> CommitSyncer<C> {
             let Some(commit_range) = self.pending_fetches.pop_first() else {
                 break;
             };
-            self.inflight_fetches.spawn(Self::fetch_loop(
-                self.inner.clone(),
-                self.peer_state.clone(),
-                commit_range,
-            ));
+            self.inflight_fetches
+                .spawn(Self::fetch_loop(self.inner.clone(), commit_range));
         }
 
         let metrics = &self.inner.context.metrics.node_metrics;
@@ -399,9 +431,19 @@ impl<C: NetworkClient> CommitSyncer<C> {
     // Returns the fetched commits and blocks referenced by the commits.
     async fn fetch_loop(
         inner: Arc<Inner<C>>,
-        peer_state: Arc<Mutex<PeerState>>,
         commit_range: CommitRange,
-    ) -> (CommitIndex, Vec<TrustedCommit>, Vec<VerifiedBlock>) {
+    ) -> (CommitIndex, CertifiedCommits) {
+        // Individual request base timeout.
+        const TIMEOUT: Duration = Duration::from_secs(10);
+        // Max per-request timeout will be base timeout times a multiplier.
+        // At the extreme, this means there will be 120s timeout to fetch
+        // max_blocks_per_fetch blocks.
+        const MAX_TIMEOUT_MULTIPLIER: u32 = 12;
+        // timeout * max number of targets should be reasonably small, so the
+        // system can adjust to slow network or large data sizes quickly.
+        const MAX_NUM_TARGETS: usize = 24;
+        let mut timeout_multiplier = 0;
+
         let _timer = inner
             .context
             .metrics
@@ -410,23 +452,85 @@ impl<C: NetworkClient> CommitSyncer<C> {
             .start_timer();
         info!("Starting to fetch commits in {commit_range:?} ...",);
         loop {
-            match Self::fetch_once(inner.clone(), peer_state.clone(), commit_range.clone()).await {
-                Ok((commits, blocks)) => {
-                    info!("Finished fetching commits in {commit_range:?}",);
-                    return (commit_range.end(), commits, blocks);
-                }
-                Err(e) => {
-                    warn!("Failed to fetch: {}", e);
-                    let error: &'static str = e.into();
-                    inner
-                        .context
-                        .metrics
-                        .node_metrics
-                        .commit_sync_fetch_once_errors
-                        .with_label_values(&[error])
-                        .inc();
+            // Attempt to fetch commits and blocks through min(committee size,
+            // MAX_NUM_TARGETS) peers.
+            let mut target_authorities = inner
+                .context
+                .committee
+                .authorities()
+                .filter_map(|(i, _)| {
+                    if i != inner.context.own_index {
+                        Some(i)
+                    } else {
+                        None
+                    }
+                })
+                .collect_vec();
+            target_authorities.shuffle(&mut ThreadRng::default());
+            target_authorities.truncate(MAX_NUM_TARGETS);
+            // Increase timeout multiplier for each loop until MAX_TIMEOUT_MULTIPLIER.
+            timeout_multiplier = (timeout_multiplier + 1).min(MAX_TIMEOUT_MULTIPLIER);
+            let request_timeout = TIMEOUT * timeout_multiplier;
+            // Give enough overall timeout for fetching commits and blocks.
+            // - Timeout for fetching commits and commit certifying blocks.
+            // - Timeout for fetching blocks referenced by the commits.
+            // - Time spent on pipelining requests to fetch blocks.
+            // - Another headroom to allow fetch_once() to timeout gracefully if possible.
+            let fetch_timeout = request_timeout * 4;
+            // Try fetching from selected target authority.
+            for authority in target_authorities {
+                match tokio::time::timeout(
+                    fetch_timeout,
+                    Self::fetch_once(
+                        inner.clone(),
+                        authority,
+                        commit_range.clone(),
+                        request_timeout,
+                    ),
+                )
+                .await
+                {
+                    Ok(Ok(commits)) => {
+                        info!("Finished fetching commits in {commit_range:?}",);
+                        return (commit_range.end(), commits);
+                    }
+                    Ok(Err(e)) => {
+                        let hostname = inner
+                            .context
+                            .committee
+                            .authority(authority)
+                            .hostname
+                            .clone();
+                        warn!("Failed to fetch {commit_range:?} from {hostname}: {}", e);
+                        let error: &'static str = e.into();
+                        inner
+                            .context
+                            .metrics
+                            .node_metrics
+                            .commit_sync_fetch_once_errors
+                            .with_label_values(&[hostname.as_str(), error])
+                            .inc();
+                    }
+                    Err(_) => {
+                        let hostname = inner
+                            .context
+                            .committee
+                            .authority(authority)
+                            .hostname
+                            .clone();
+                        warn!("Timed out fetching {commit_range:?} from {authority}",);
+                        inner
+                            .context
+                            .metrics
+                            .node_metrics
+                            .commit_sync_fetch_once_errors
+                            .with_label_values(&[hostname.as_str(), "FetchTimeout"])
+                            .inc();
+                    }
                 }
             }
+            // Avoid busy looping, by waiting for a while before retrying.
+            sleep(TIMEOUT).await;
         }
     }
 
@@ -435,15 +539,10 @@ impl<C: NetworkClient> CommitSyncer<C> {
     // the certified commits are fetched and sent to Core for processing.
     async fn fetch_once(
         inner: Arc<Inner<C>>,
-        peer_state: Arc<Mutex<PeerState>>,
+        target_authority: AuthorityIndex,
         commit_range: CommitRange,
-    ) -> ConsensusResult<(Vec<TrustedCommit>, Vec<VerifiedBlock>)> {
-        const FETCH_COMMITS_TIMEOUT: Duration = Duration::from_secs(30);
-        const FETCH_BLOCKS_TIMEOUT: Duration = Duration::from_secs(120);
-        const FETCH_RETRY_BASE_INTERVAL: Duration = Duration::from_secs(1);
-        const FETCH_RETRY_INTERVAL_LIMIT: u32 = 30;
-        const MAX_RETRY_INTERVAL: Duration = Duration::from_secs(1);
-
+        timeout: Duration,
+    ) -> ConsensusResult<CertifiedCommits> {
         let _timer = inner
             .context
             .metrics
@@ -451,71 +550,46 @@ impl<C: NetworkClient> CommitSyncer<C> {
             .commit_sync_fetch_once_latency
             .start_timer();
 
-        // 1. Find an available authority to fetch commits and blocks from, and wait
-        // if it is not yet ready.
-        let Some((available_time, retries, target_authority)) =
-            peer_state.lock().available_authorities.pop_first()
-        else {
-            sleep(MAX_RETRY_INTERVAL).await;
-            return Err(ConsensusError::NoAvailableAuthorityToFetchCommits);
-        };
-        let now = Instant::now();
-        if now < available_time {
-            sleep(available_time - now).await;
-        }
-
-        // 2. Fetch commits in the commit range from the selected authority.
-        let (serialized_commits, serialized_blocks) = match inner
+        // 1. Fetch commits in the commit range from the target authority.
+        let (serialized_commits, serialized_blocks) = inner
             .network_client
-            .fetch_commits(
-                target_authority,
-                commit_range.clone(),
-                FETCH_COMMITS_TIMEOUT,
-            )
-            .await
-        {
-            Ok(result) => {
-                let mut peer_state = peer_state.lock();
-                let now = Instant::now();
-                peer_state
-                    .available_authorities
-                    .insert((now, 0, target_authority));
-                result
-            }
-            Err(e) => {
-                let mut peer_state = peer_state.lock();
-                let now = Instant::now();
-                peer_state.available_authorities.insert((
-                    now + FETCH_RETRY_BASE_INTERVAL * retries.min(FETCH_RETRY_INTERVAL_LIMIT),
-                    retries.saturating_add(1),
-                    target_authority,
-                ));
-                return Err(e);
-            }
-        };
+            .fetch_commits(target_authority, commit_range.clone(), timeout)
+            .await?;
 
-        // 3. Verify the response contains blocks that can certify the last returned
+        // 2. Verify the response contains blocks that can certify the last returned
         //    commit,
         // and the returned commits are chained by digest, so earlier commits are
         // certified as well.
-        let commits = inner.verify_commits(
-            target_authority,
-            commit_range,
-            serialized_commits,
-            serialized_blocks,
-        )?;
+        let (commits, vote_blocks) = Handle::current()
+            .spawn_blocking({
+                let inner = inner.clone();
+                move || {
+                    inner.verify_commits(
+                        target_authority,
+                        commit_range,
+                        serialized_commits,
+                        serialized_blocks,
+                    )
+                }
+            })
+            .await
+            .expect("Spawn blocking should not fail")?;
 
-        // 4. Fetch blocks referenced by the commits, from the same authority.
+        // 3. Fetch blocks referenced by the commits, from the same authority.
         let block_refs: Vec<_> = commits.iter().flat_map(|c| c.blocks()).cloned().collect();
+        let num_chunks = block_refs
+            .len()
+            .div_ceil(inner.context.parameters.max_blocks_per_fetch)
+            as u32;
         let mut requests: FuturesOrdered<_> = block_refs
             .chunks(inner.context.parameters.max_blocks_per_fetch)
             .enumerate()
             .map(|(i, request_block_refs)| {
-                let i = i as u32;
                 let inner = inner.clone();
                 async move {
-                    // Pipeline the requests to avoid overloading the target.
-                    sleep(Duration::from_millis(200) * i).await;
+                    // 4. Send out pipelined fetch requests to avoid overloading the target
+                    //    authority.
+                    sleep(timeout * i as u32 / num_chunks).await;
                     // TODO: add some retries.
                     let serialized_blocks = inner
                         .network_client
@@ -523,7 +597,7 @@ impl<C: NetworkClient> CommitSyncer<C> {
                             target_authority,
                             request_block_refs.to_vec(),
                             vec![],
-                            FETCH_BLOCKS_TIMEOUT,
+                            timeout,
                         )
                         .await?;
                     // 5. Verify the same number of blocks are returned as requested.
@@ -571,13 +645,16 @@ impl<C: NetworkClient> CommitSyncer<C> {
             })
             .collect();
 
-        let mut fetched_blocks = Vec::new();
+        let mut fetched_blocks = BTreeMap::new();
         while let Some(result) = requests.next().await {
-            fetched_blocks.extend(result?);
+            for block in result? {
+                fetched_blocks.insert(block.reference(), block);
+            }
         }
 
-        // 8. Make sure fetched block timestamps are lower than current time.
-        for block in &fetched_blocks {
+        // 8. Make sure fetched block (and votes) timestamps are lower than current
+        //    time.
+        for block in fetched_blocks.values().chain(vote_blocks.iter()) {
             let now_ms = inner.context.clock.timestamp_utc_ms();
             let forward_drift = block.timestamp_ms().saturating_sub(now_ms);
             if forward_drift == 0 {
@@ -589,7 +666,7 @@ impl<C: NetworkClient> CommitSyncer<C> {
                 .metrics
                 .node_metrics
                 .block_timestamp_drift_wait_ms
-                .with_label_values(&[peer_hostname, "commit_syncer"])
+                .with_label_values(&[peer_hostname.as_str(), "commit_syncer"])
                 .inc_by(forward_drift);
             let forward_drift = Duration::from_millis(forward_drift);
             if forward_drift >= inner.context.parameters.max_forward_time_drift {
@@ -602,7 +679,23 @@ impl<C: NetworkClient> CommitSyncer<C> {
             sleep(forward_drift).await;
         }
 
-        Ok((commits, fetched_blocks))
+        // 9. Now create the Certified commits by assigning the blocks to each commit
+        //    and retaining the commit votes history.
+        let mut certified_commits = Vec::new();
+        for commit in &commits {
+            let blocks = commit
+                .blocks()
+                .iter()
+                .map(|block_ref| {
+                    fetched_blocks
+                        .remove(block_ref)
+                        .expect("Block should exist")
+                })
+                .collect::<Vec<_>>();
+            certified_commits.push(CertifiedCommit::new_certified(commit.clone(), blocks));
+        }
+
+        Ok(CertifiedCommits::new(certified_commits, vote_blocks))
     }
 
     fn unhandled_commits_threshold(&self) -> CommitIndex {
@@ -616,7 +709,7 @@ impl<C: NetworkClient> CommitSyncer<C> {
     }
 
     #[cfg(test)]
-    fn fetched_ranges(&self) -> BTreeMap<CommitRange, Vec<VerifiedBlock>> {
+    fn fetched_ranges(&self) -> BTreeMap<CommitRange, CertifiedCommits> {
         self.fetched_ranges.clone()
     }
 
@@ -647,13 +740,16 @@ struct Inner<C: NetworkClient> {
 }
 
 impl<C: NetworkClient> Inner<C> {
+    /// Verifies the commits and also certifies them using the provided vote
+    /// blocks for the last commit. The method returns the trusted commits
+    /// and the votes as verified blocks.
     fn verify_commits(
         &self,
         peer: AuthorityIndex,
         commit_range: CommitRange,
         serialized_commits: Vec<Bytes>,
-        serialized_blocks: Vec<Bytes>,
-    ) -> ConsensusResult<Vec<TrustedCommit>> {
+        serialized_vote_blocks: Vec<Bytes>,
+    ) -> ConsensusResult<(Vec<TrustedCommit>, Vec<VerifiedBlock>)> {
         // Parse and verify commits.
         let mut commits = Vec::new();
         for serialized in &serialized_commits {
@@ -696,7 +792,8 @@ impl<C: NetworkClient> Inner<C> {
         // Parse and verify blocks. Then accumulate votes on the end commit.
         let end_commit_ref = CommitRef::new(end_commit.index(), *end_commit_digest);
         let mut stake_aggregator = StakeAggregator::<QuorumThreshold>::new();
-        for serialized in serialized_blocks {
+        let mut vote_blocks = Vec::new();
+        for serialized in serialized_vote_blocks {
             let block: SignedBlock =
                 bcs::from_bytes(&serialized).map_err(ConsensusError::MalformedBlock)?;
             // The block signature needs to be verified.
@@ -706,6 +803,7 @@ impl<C: NetworkClient> Inner<C> {
                     stake_aggregator.add(block.author(), &self.context.committee);
                 }
             }
+            vote_blocks.push(VerifiedBlock::new_verified(block, serialized));
         }
 
         // Check if the end commit has enough votes.
@@ -717,45 +815,12 @@ impl<C: NetworkClient> Inner<C> {
             });
         }
 
-        Ok(commits
+        let trusted_commits = commits
             .into_iter()
             .zip(serialized_commits)
             .map(|((_d, c), s)| TrustedCommit::new_trusted(c, s))
-            .collect())
-    }
-}
-
-struct PeerState {
-    // The value is a tuple of
-    // - the next available time for the authority to fetch from,
-    // - count of current consecutive failures fetching from the authority, reset on success,
-    // - authority index.
-    // TODO: move this to a separate module, add load balancing, add throttling, and consider
-    // health of peer via previous request failures and leader scores.
-    available_authorities: BTreeSet<(Instant, u32, AuthorityIndex)>,
-}
-
-impl PeerState {
-    fn new(context: &Context) -> Self {
-        // Randomize the initial order of authorities.
-        let mut shuffled_authority_indices: Vec<_> = context
-            .committee
-            .authorities()
-            .filter_map(|(index, _)| {
-                if index != context.own_index {
-                    Some(index)
-                } else {
-                    None
-                }
-            })
             .collect();
-        shuffled_authority_indices.shuffle(&mut rand::thread_rng());
-        Self {
-            available_authorities: shuffled_authority_indices
-                .into_iter()
-                .map(|i| (Instant::now(), 0, i))
-                .collect(),
-        }
+        Ok((trusted_commits, vote_blocks))
     }
 }
 
@@ -832,6 +897,14 @@ mod tests {
             _authorities: Vec<AuthorityIndex>,
             _timeout: Duration,
         ) -> ConsensusResult<Vec<Bytes>> {
+            unimplemented!("Unimplemented")
+        }
+
+        async fn get_latest_rounds(
+            &self,
+            _peer: AuthorityIndex,
+            _timeout: Duration,
+        ) -> ConsensusResult<(Vec<Round>, Vec<Round>)> {
             unimplemented!("Unimplemented")
         }
     }

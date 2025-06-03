@@ -6,11 +6,12 @@ import { IotaLogoMark } from '@iota/apps-ui-icons';
 import { SidebarItem } from './SidebarItem';
 import { Feature } from '@iota/core';
 import { useFeature } from '@growthbook/growthbook-react';
+import { ProtectedRouteTitle } from '@/lib/enums';
 
 export function Sidebar() {
     const featureFlags = {
-        Migrations: useFeature<boolean>(Feature.StardustMigration).value,
-        Vesting: useFeature<boolean>(Feature.SupplyIncreaseVesting).value,
+        [ProtectedRouteTitle.Migration]: useFeature<boolean>(Feature.StardustMigration).value,
+        [ProtectedRouteTitle.Vesting]: useFeature<boolean>(Feature.SupplyIncreaseVesting).value,
     };
 
     const filteredRoutes = PROTECTED_ROUTES.filter(({ title }) => {
@@ -18,7 +19,10 @@ export function Sidebar() {
     });
 
     return (
-        <nav className="flex h-screen flex-col items-center gap-y-2xl bg-neutral-100 py-xl dark:bg-neutral-6">
+        <nav
+            data-testid="sidebar"
+            className="flex h-screen flex-col items-center gap-y-2xl bg-neutral-100 py-xl dark:bg-neutral-6"
+        >
             <IotaLogoMark className="h-10 w-10 text-neutral-10 dark:text-neutral-92" />
             <div className="flex flex-col gap-y-xs">
                 {filteredRoutes.map((route) => (

@@ -1,0 +1,115 @@
+---
+description: Learn how to set up an IOTA full node using docker.
+title: Docker Setup
+tags: [node-operation]
+teams:
+  - iotaledger/node
+---
+import Quiz from '@site/src/components/Quiz';
+import questions from '/json/node-operators/iota-full-node/node-setup.json';
+import WarningAdvanced from './../../_snippets/warning-advanced-instructions-node-setup.mdx'
+import Ports from './../../_snippets/operator/fullnode-ports.mdx'
+import FullnodeP2P from '../../_snippets/operator/fullnode-p2p.mdx'
+import FullnodeRequirements from '../../_snippets/operator/fullnode-requirements-tab.mdx'
+import TryRpcEndpoint from '../../_snippets/operator/try-rpc-endpoint.mdx'
+
+Use this guide to install and configure an full node locally using Docker.
+
+<WarningAdvanced/>
+
+## Hardware requirements
+
+<FullnodeRequirements/>
+
+## Software requirements
+
+Before you begin, ensure you have the following:
+
+- [Docker](https://docs.docker.com/get-docker/) installed.
+- [Docker Compose](https://docs.docker.com/compose/install/) installed.
+
+<Ports/>
+
+## Download the Full Node Docker Setup
+
+In a directory of your choice, run the following:
+
+<Tabs groupId="network" queryString>
+    <TabItem label="Mainnet" value="mainnet">
+        ```shell
+        mkdir iota-fullnode-docker-setup && cd iota-fullnode-docker-setup && curl -L https://fullnode-docker-setup.iota.org/mainnet | tar -zx
+        ```
+    </TabItem>
+
+    <TabItem label="Testnet" value="testnet">
+        ```shell
+        mkdir iota-fullnode-docker-setup && cd iota-fullnode-docker-setup && curl -L https://fullnode-docker-setup.iota.org/testnet | tar -zx
+        ```
+    </TabItem>
+    
+    <TabItem label="Devnet" value="devnet">
+        ```shell
+        mkdir iota-fullnode-docker-setup && cd iota-fullnode-docker-setup && curl -L https://fullnode-docker-setup.iota.org/devnet | tar -zx
+        ```
+    </TabItem>
+</Tabs>
+
+The command will perform the following steps:
+- creates and changes into the `iota-fullnode-docker-setup` directory
+- downloads the zipped configuration for the specific network, containing the docker-compose and node configuration files, and unzips them
+
+You can modify the node configuration file (`data/config/fullnode.yaml`) according to your needs.
+
+## Prepare your Full Node
+
+Run the following command in the same directory:
+
+```shell
+./prepare.sh
+```
+
+This script will perform the following steps:
+- download the latest docker images specified in the docker-compose.yaml
+- download the network specific snapshot files that are needed to sync the node from genesis
+
+## Configure P2P Settings
+
+<FullnodeP2P />
+
+## Start your Full Node
+
+In the same directory, start your node by running:  
+```shell
+docker compose up -d
+```
+
+You can check the logs of the full node by running:
+```shell
+docker compose logs -f
+```
+
+:::tip
+These commands assume you are using Docker Compose V2. In Docker Compose V1, the `docker compose` command uses a dash (`docker-compose`). If you use Docker Compose V1, replace the space in each `docker compose` command with a dash (`docker-compose`). For more information, see [Docker Compose V2](https://docs.docker.com/compose/#compose-v2-and-the-new-docker-compose-command).
+:::
+
+## Stop the Full Node
+
+Run the following command to stop the full node when you finish using it:
+
+```shell
+docker compose stop
+```
+
+## Check your Installation 
+
+### Check your Full Node Configuration
+
+By default, the configuration file `fullnode.yaml` is located at `<your-fullnode-install-path>/data/config/`.
+
+If you changed your local configuration you can always go back to the default [Full Node Configuration](https://docs.iota.org/operator/full-node/configuration).
+
+### Try reaching your Full Node on the RPC endpoint
+
+<TryRpcEndpoint/>
+
+<Quiz questions={questions} />

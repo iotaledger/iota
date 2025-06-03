@@ -121,13 +121,16 @@ impl StressTestRunner {
             .into_iota_system_state_summary()
     }
 
-    pub fn pick_random_active_validator(&mut self) -> IotaValidatorSummary {
+    // This is used by `fuzz_dynamic_committee` to pick a random committee member
+    pub fn pick_random_committee_member(&mut self) -> IotaValidatorSummary {
         let system_state = self.system_state();
-        system_state
-            .active_validators
-            .get(self.rng.gen_range(0..system_state.active_validators.len()))
+        let n = system_state.iter_committee_members().count();
+        let random_committee_member = system_state
+            .iter_committee_members()
+            .nth(self.rng.gen_range(0..n))
             .unwrap()
-            .clone()
+            .clone();
+        random_committee_member
     }
 
     pub async fn run(
@@ -217,13 +220,21 @@ impl StressTestRunner {
     }
 
     pub async fn change_epoch(&self) {
-        let pre_state_summary = self.system_state();
+        let pre_epoch = match self.system_state() {
+            IotaSystemStateSummary::V1(v1) => v1.epoch,
+            IotaSystemStateSummary::V2(v2) => v2.epoch,
+            _ => panic!("unsupported IotaSystemStateSummary"),
+        };
+
         self.test_cluster.force_new_epoch().await;
-        let post_state_summary = self.system_state();
-        info!(
-            "Changing epoch form {} to {}",
-            pre_state_summary.epoch, post_state_summary.epoch
-        );
+
+        let post_epoch = match self.system_state() {
+            IotaSystemStateSummary::V1(v1) => v1.epoch,
+            IotaSystemStateSummary::V2(v2) => v2.epoch,
+            _ => panic!("unsupported IotaSystemStateSummary"),
+        };
+
+        info!("Changing epoch from {} to {}", pre_epoch, post_epoch);
     }
 
     pub async fn get_created_object_of_type_name(
@@ -290,7 +301,7 @@ mod add_stake {
             let stake_amount = runner
                 .rng
                 .gen_range(MIN_DELEGATION_AMOUNT..=MAX_DELEGATION_AMOUNT);
-            let staked_with = runner.pick_random_active_validator().iota_address;
+            let staked_with = runner.pick_random_committee_member().iota_address;
             let sender = runner.pick_random_sender();
             RequestAddStake {
                 sender,

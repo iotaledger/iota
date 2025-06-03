@@ -1,0 +1,9 @@
+[package]
+name = "clt_tutorial"
+edition = "2024.beta"
+
+[dependencies]
+Iota = { git = "https://github.com/iotaledger/iota.git", subdir = "crates/iota-framework/packages/iota-framework", rev = "v0.2.0" }
+
+[addresses]
+clt_tutorial = "0x0"

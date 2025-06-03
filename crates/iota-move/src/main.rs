@@ -18,7 +18,6 @@ bin_version::bin_version!();
 #[command(
     name = env!("CARGO_BIN_NAME"),
     about = "IOTA Move CLI",
-    rename_all = "kebab-case",
     author,
     version = VERSION,
 )]
@@ -49,7 +48,7 @@ async fn main() {
     let bin_name = env!("CARGO_BIN_NAME");
     let args = Args::parse();
     // let _guard = match args.command {
-    //     IotaCommand::Console { .. } | IotaCommand::Client { .. } => {
+    //     IotaCommand::Client { .. } => {
     //         telemetry_subscribers::TelemetryConfig::new()
     //             .with_log_file(&format!("{bin_name}.log"))
     //             .with_env()

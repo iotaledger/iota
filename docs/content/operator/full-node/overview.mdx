@@ -1,0 +1,39 @@
+---
+title: Full Node Overview
+description: Operate an IOTA full node to validate blockchain activities, like transactions, checkpoints, and epoch changes.
+tags: [node-operation]
+teams:
+  - iotaledger/node
+---
+import Quiz from '@site/src/components/Quiz';
+import BSTInfo from '../../_snippets/info-BST-2f1.mdx';
+import questions from '/json/node-operators/iota-full-node/overview.json';
+import WarningAdvanced from './../../_snippets/warning-advanced-instructions-node-setup.mdx'
+
+<WarningAdvanced />
+
+## Introduction
+
+IOTA full nodes validate blockchain activities such as transactions, checkpoints, and epoch changes. They store and serve queries for the blockchain's state and history based on their configuration. While they cannot commit transactions like validator nodes, full nodes ensure the chain's integrity by re-executing transactions validated by a quorum of validators.
+
+### Features
+
+- Track and verify the state of the blockchain, independently and locally.
+- Serve read requests from clients.
+- State Synchronization:
+  - keep up with new transactions / checkpoints,
+  - these transactions / checkpoints are processed and finalized by validators, but can be relayed to the network by the full nodes
+  - verify these new transactions
+  - apply the new transactions' state changes to update the local database
+
+## Running IOTA Full Node
+
+### Setup & Configuration
+
+You can set up your IOTA full node [using Docker](docker.mdx) or [build it from source](source.mdx).
+
+### Monitoring & Troubleshooting
+
+Operators can monitor their node operation as explained in [Monitoring](./monitoring.mdx).
+
+<Quiz questions={questions} />

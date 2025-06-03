@@ -5,13 +5,7 @@ import { StakeRewardsPanel, ValidatorStakingData } from '@/components';
 import { DialogLayout, DialogLayoutBody, DialogLayoutFooter } from '../../layout';
 import { Validator } from '@iota/core';
 import { useNewUnstakeTimelockedTransaction } from '@/hooks';
-import {
-    Collapsible,
-    TimeUnit,
-    useFormatCoin,
-    useGetActiveValidatorsInfo,
-    useTimeAgo,
-} from '@iota/core';
+import { Collapsible, TimeUnit, useFormatCoin, useTimeAgo, toast } from '@iota/core';
 import {
     ExtendedDelegatedTimelockedStake,
     TimelockedStakedObjectsGrouped,
@@ -29,9 +23,12 @@ import {
     InfoBoxStyle,
     InfoBoxType,
 } from '@iota/apps-ui-kit';
-import { useCurrentAccount, useSignAndExecuteTransaction } from '@iota/dapp-kit';
+import {
+    useCurrentAccount,
+    useIotaClientQuery,
+    useSignAndExecuteTransaction,
+} from '@iota/dapp-kit';
 import { IotaSignAndExecuteTransactionOutput } from '@iota/wallet-standard';
-import toast from 'react-hot-toast';
 import { ampli } from '@/lib/utils/analytics';
 import { Warning } from '@iota/apps-ui-icons';
 import { useEffect, useRef, useState } from 'react';
@@ -54,7 +51,7 @@ export function UnstakeTimelockedObjectsView({
     const reductionSize = useRef(0);
     const [isMaxTransactionSizeError, setIsMaxTransactionSizeError] = useState(false);
     const activeAddress = useCurrentAccount()?.address ?? '';
-    const { data: activeValidators } = useGetActiveValidatorsInfo();
+    const { data: systemState } = useIotaClientQuery('getLatestIotaSystemState');
 
     const stakes = (() => {
         if (isMaxTransactionSizeError) {
@@ -75,7 +72,7 @@ export function UnstakeTimelockedObjectsView({
     const { mutateAsync: signAndExecuteTransaction, isPending: isTransactionPending } =
         useSignAndExecuteTransaction();
 
-    const validatorInfo = activeValidators?.find(
+    const validatorInfo = systemState?.activeValidators?.find(
         ({ iotaAddress: validatorAddress }) =>
             validatorAddress === groupedTimelockedObjects.validatorAddress,
     );
@@ -97,7 +94,7 @@ export function UnstakeTimelockedObjectsView({
     });
 
     function handleCopySuccess() {
-        toast.success('Copied to clipboard');
+        toast('Copied to clipboard');
     }
 
     async function handleUnstake(): Promise<void> {
@@ -191,7 +188,7 @@ export function UnstakeTimelockedObjectsView({
                             title="Partial unstake"
                             supportingText={`Due to the large number of objects, a partial unstake of ${totalStakedAmountFormatted} ${totalStakedAmountSymbol} will be attempted. After the operation is complete, you can unstake the remaining value.`}
                             style={InfoBoxStyle.Elevated}
-                            type={InfoBoxType.Error}
+                            type={InfoBoxType.Warning}
                             icon={<Warning />}
                         />
                     </div>

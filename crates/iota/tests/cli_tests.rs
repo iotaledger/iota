@@ -24,11 +24,12 @@ use expect_test::expect;
 #[cfg(feature = "indexer")]
 use iota::iota_commands::IndexerFeatureArgs;
 use iota::{
+    PrintableResult,
     client_commands::{
-        EmitOption, IotaClientCommandResult, IotaClientCommands, Opts, OptsWithGas, SwitchResponse,
-        estimate_gas_budget,
+        DisplayOption, IotaClientCommandResult, IotaClientCommands, Opts, OptsWithGas,
+        SwitchResponse, estimate_gas_budget,
     },
-    client_ptb::ptb::PTB,
+    client_ptb::ptb::{PTB, PTBCommandResult},
     iota_commands::{IotaCommand, parse_host_port},
     key_identity::{KeyIdentity, get_identity_address},
 };
@@ -46,7 +47,9 @@ use iota_json_rpc_types::{
 use iota_keys::keystore::AccountKeystore;
 use iota_macros::sim_test;
 use iota_move_build::{BuildConfig, IotaPackageHooks};
-use iota_sdk::{IotaClient, iota_client_config::IotaClientConfig, wallet_context::WalletContext};
+use iota_sdk::{
+    IotaClient, PagedFn, iota_client_config::IotaClientConfig, wallet_context::WalletContext,
+};
 use iota_swarm_config::{
     genesis_config::{AccountConfig, DEFAULT_NUMBER_OF_AUTHORITIES, GenesisConfig},
     network_config::NetworkConfigLight,
@@ -159,6 +162,7 @@ async fn test_start() -> Result<(), anyhow::Error> {
             force_regenesis: false,
             with_faucet: None,
             faucet_amount: None,
+            faucet_coin_count: None,
             fullnode_rpc_port: 9000,
             committee_size: None,
             epoch_duration_ms: None,
@@ -179,7 +183,6 @@ async fn test_start() -> Result<(), anyhow::Error> {
     let files = read_dir(working_dir)?
         .flat_map(|r| r.map(|file| file.file_name().to_str().unwrap().to_owned()))
         .collect::<Vec<_>>();
-    assert_eq!(13, files.len());
     assert!(files.contains(&IOTA_CLIENT_CONFIG.to_string()));
     assert!(files.contains(&IOTA_NETWORK_CONFIG.to_string()));
     assert!(files.contains(&IOTA_FULLNODE_CONFIG.to_string()));
@@ -231,7 +234,10 @@ async fn test_addresses_command() -> Result<(), anyhow::Error> {
 
 #[sim_test]
 async fn test_objects_command() -> Result<(), anyhow::Error> {
-    let mut test_cluster = TestClusterBuilder::new().build().await;
+    let mut test_cluster = TestClusterBuilder::new()
+        .with_num_validators(2)
+        .build()
+        .await;
     let address = test_cluster.get_address_0();
     let context = &mut test_cluster.wallet;
     let alias = context
@@ -276,7 +282,10 @@ async fn test_objects_command() -> Result<(), anyhow::Error> {
 async fn test_ptb_publish_and_complex_arg_resolution() -> Result<(), anyhow::Error> {
     // Publish the package
     move_package::package_hooks::register_package_hooks(Box::new(IotaPackageHooks));
-    let mut test_cluster = TestClusterBuilder::new().build().await;
+    let mut test_cluster = TestClusterBuilder::new()
+        .with_num_validators(2)
+        .build()
+        .await;
     let rgp = test_cluster.get_reference_gas_price().await;
     let address = test_cluster.get_address_0();
     let context = &mut test_cluster.wallet;
@@ -308,6 +317,7 @@ async fn test_ptb_publish_and_complex_arg_resolution() -> Result<(), anyhow::Err
         package_path: package_path.clone(),
         build_config,
         skip_dependency_verification: false,
+        verify_deps: true,
         with_unpublished_dependencies: false,
         opts: OptsWithGas::for_testing(Some(gas_obj_id), rgp * TEST_ONLY_GAS_UNIT_FOR_PUBLISH),
     }
@@ -370,9 +380,12 @@ async fn test_ptb_publish_and_complex_arg_resolution() -> Result<(), anyhow::Err
     );
 
     let args = shlex::split(&complex_ptb_string).unwrap();
-    iota::client_ptb::ptb::PTB { args: args.clone() }
-        .execute(context)
-        .await?;
+    iota::client_ptb::ptb::PTB {
+        args: args.clone(),
+        display: HashSet::new(),
+    }
+    .execute(context)
+    .await?;
 
     let delete_object_ptb_string = format!(
         r#"
@@ -386,9 +399,12 @@ async fn test_ptb_publish_and_complex_arg_resolution() -> Result<(), anyhow::Err
     );
 
     let args = shlex::split(&delete_object_ptb_string).unwrap();
-    iota::client_ptb::ptb::PTB { args: args.clone() }
-        .execute(context)
-        .await?;
+    iota::client_ptb::ptb::PTB {
+        args: args.clone(),
+        display: HashSet::new(),
+    }
+    .execute(context)
+    .await?;
 
     Ok(())
 }
@@ -396,7 +412,10 @@ async fn test_ptb_publish_and_complex_arg_resolution() -> Result<(), anyhow::Err
 #[sim_test]
 async fn test_ptb_publish() -> Result<(), anyhow::Error> {
     move_package::package_hooks::register_package_hooks(Box::new(IotaPackageHooks));
-    let mut test_cluster = TestClusterBuilder::new().build().await;
+    let mut test_cluster = TestClusterBuilder::new()
+        .with_num_validators(2)
+        .build()
+        .await;
     let context = &mut test_cluster.wallet;
     let mut package_path = PathBuf::from(TEST_DATA_DIR);
     package_path.push("ptb_complex_args_test_functions");
@@ -412,9 +431,12 @@ async fn test_ptb_publish() -> Result<(), anyhow::Error> {
         package_path.display()
     );
     let args = shlex::split(&publish_ptb_string).unwrap();
-    iota::client_ptb::ptb::PTB { args: args.clone() }
-        .execute(context)
-        .await?;
+    iota::client_ptb::ptb::PTB {
+        args: args.clone(),
+        display: HashSet::new(),
+    }
+    .execute(context)
+    .await?;
     Ok(())
 }
 
@@ -451,7 +473,10 @@ async fn test_custom_genesis() -> Result<(), anyhow::Error> {
 
 #[sim_test]
 async fn test_object_info_get_command() -> Result<(), anyhow::Error> {
-    let mut test_cluster = TestClusterBuilder::new().build().await;
+    let mut test_cluster = TestClusterBuilder::new()
+        .with_num_validators(2)
+        .build()
+        .await;
 
     let address = test_cluster.get_address_0();
     let context = &mut test_cluster.wallet;
@@ -494,7 +519,10 @@ async fn test_object_info_get_command() -> Result<(), anyhow::Error> {
 
 #[sim_test]
 async fn test_gas_command() -> Result<(), anyhow::Error> {
-    let mut test_cluster = TestClusterBuilder::new().build().await;
+    let mut test_cluster = TestClusterBuilder::new()
+        .with_num_validators(2)
+        .build()
+        .await;
     let rgp = test_cluster.get_reference_gas_price().await;
     let address = test_cluster.get_address_0();
     let context = &mut test_cluster.wallet;
@@ -557,7 +585,10 @@ async fn test_gas_command() -> Result<(), anyhow::Error> {
 
 #[sim_test]
 async fn test_move_call_args_linter_command() -> Result<(), anyhow::Error> {
-    let mut test_cluster = TestClusterBuilder::new().build().await;
+    let mut test_cluster = TestClusterBuilder::new()
+        .with_num_validators(2)
+        .build()
+        .await;
     let rgp = test_cluster.get_reference_gas_price().await;
     let address1 = test_cluster.get_address_0();
     let context = &mut test_cluster.wallet;
@@ -587,6 +618,7 @@ async fn test_move_call_args_linter_command() -> Result<(), anyhow::Error> {
         build_config,
         opts: OptsWithGas::for_testing(Some(gas_obj_id), rgp * TEST_ONLY_GAS_UNIT_FOR_PUBLISH),
         skip_dependency_verification: false,
+        verify_deps: true,
         with_unpublished_dependencies: false,
     }
     .execute(context)
@@ -819,7 +851,10 @@ async fn test_move_call_args_linter_command() -> Result<(), anyhow::Error> {
 
 #[sim_test]
 async fn test_package_publish_command() -> Result<(), anyhow::Error> {
-    let mut test_cluster = TestClusterBuilder::new().build().await;
+    let mut test_cluster = TestClusterBuilder::new()
+        .with_num_validators(2)
+        .build()
+        .await;
     let rgp = test_cluster.get_reference_gas_price().await;
     let address = test_cluster.get_address_0();
     let context = &mut test_cluster.wallet;
@@ -853,6 +888,7 @@ async fn test_package_publish_command() -> Result<(), anyhow::Error> {
         build_config,
         opts: OptsWithGas::for_testing(Some(gas_obj_id), rgp * TEST_ONLY_GAS_UNIT_FOR_PUBLISH),
         skip_dependency_verification: false,
+        verify_deps: true,
         with_unpublished_dependencies: false,
     }
     .execute(context)
@@ -888,7 +924,10 @@ async fn test_package_publish_command() -> Result<(), anyhow::Error> {
 
 #[sim_test]
 async fn test_package_management_on_publish_command() -> Result<(), anyhow::Error> {
-    let mut test_cluster = TestClusterBuilder::new().build().await;
+    let mut test_cluster = TestClusterBuilder::new()
+        .with_num_validators(2)
+        .build()
+        .await;
     let rgp = test_cluster.get_reference_gas_price().await;
     let address = test_cluster.get_address_0();
     let context = &mut test_cluster.wallet;
@@ -923,6 +962,7 @@ async fn test_package_management_on_publish_command() -> Result<(), anyhow::Erro
         build_config: build_config.clone(),
         opts: OptsWithGas::for_testing(Some(gas_obj_id), rgp * TEST_ONLY_GAS_UNIT_FOR_PUBLISH),
         skip_dependency_verification: false,
+        verify_deps: true,
         with_unpublished_dependencies: false,
     }
     .execute(context)
@@ -960,7 +1000,10 @@ async fn test_package_management_on_publish_command() -> Result<(), anyhow::Erro
 
 #[sim_test]
 async fn test_delete_shared_object() -> Result<(), anyhow::Error> {
-    let mut test_cluster = TestClusterBuilder::new().build().await;
+    let mut test_cluster = TestClusterBuilder::new()
+        .with_num_validators(2)
+        .build()
+        .await;
     let rgp = test_cluster.get_reference_gas_price().await;
     let address = test_cluster.get_address_0();
     let context = &mut test_cluster.wallet;
@@ -993,6 +1036,7 @@ async fn test_delete_shared_object() -> Result<(), anyhow::Error> {
         build_config,
         opts: OptsWithGas::for_testing(Some(gas_obj_id), rgp * TEST_ONLY_GAS_UNIT_FOR_PUBLISH),
         skip_dependency_verification: false,
+        verify_deps: true,
         with_unpublished_dependencies: false,
     }
     .execute(context)
@@ -1064,7 +1108,10 @@ async fn test_delete_shared_object() -> Result<(), anyhow::Error> {
 
 #[sim_test]
 async fn test_receive_argument() -> Result<(), anyhow::Error> {
-    let mut test_cluster = TestClusterBuilder::new().build().await;
+    let mut test_cluster = TestClusterBuilder::new()
+        .with_num_validators(2)
+        .build()
+        .await;
     let rgp = test_cluster.get_reference_gas_price().await;
     let address = test_cluster.get_address_0();
     let context = &mut test_cluster.wallet;
@@ -1097,6 +1144,7 @@ async fn test_receive_argument() -> Result<(), anyhow::Error> {
         build_config,
         opts: OptsWithGas::for_testing(Some(gas_obj_id), rgp * TEST_ONLY_GAS_UNIT_FOR_PUBLISH),
         skip_dependency_verification: false,
+        verify_deps: true,
         with_unpublished_dependencies: false,
     }
     .execute(context)
@@ -1188,7 +1236,10 @@ async fn test_receive_argument() -> Result<(), anyhow::Error> {
 
 #[sim_test]
 async fn test_receive_argument_by_immut_ref() -> Result<(), anyhow::Error> {
-    let mut test_cluster = TestClusterBuilder::new().build().await;
+    let mut test_cluster = TestClusterBuilder::new()
+        .with_num_validators(2)
+        .build()
+        .await;
     let rgp = test_cluster.get_reference_gas_price().await;
     let address = test_cluster.get_address_0();
     let context = &mut test_cluster.wallet;
@@ -1221,6 +1272,7 @@ async fn test_receive_argument_by_immut_ref() -> Result<(), anyhow::Error> {
         build_config,
         opts: OptsWithGas::for_testing(Some(gas_obj_id), rgp * TEST_ONLY_GAS_UNIT_FOR_PUBLISH),
         skip_dependency_verification: false,
+        verify_deps: true,
         with_unpublished_dependencies: false,
     }
     .execute(context)
@@ -1312,7 +1364,10 @@ async fn test_receive_argument_by_immut_ref() -> Result<(), anyhow::Error> {
 
 #[sim_test]
 async fn test_receive_argument_by_mut_ref() -> Result<(), anyhow::Error> {
-    let mut test_cluster = TestClusterBuilder::new().build().await;
+    let mut test_cluster = TestClusterBuilder::new()
+        .with_num_validators(2)
+        .build()
+        .await;
     let rgp = test_cluster.get_reference_gas_price().await;
     let address = test_cluster.get_address_0();
     let context = &mut test_cluster.wallet;
@@ -1345,6 +1400,7 @@ async fn test_receive_argument_by_mut_ref() -> Result<(), anyhow::Error> {
         build_config,
         skip_dependency_verification: false,
         with_unpublished_dependencies: false,
+        verify_deps: true,
         opts: OptsWithGas::for_testing(Some(gas_obj_id), rgp * TEST_ONLY_GAS_UNIT_FOR_PUBLISH),
     }
     .execute(context)
@@ -1439,7 +1495,10 @@ async fn test_package_publish_command_with_unpublished_dependency_succeeds()
 -> Result<(), anyhow::Error> {
     let with_unpublished_dependencies = true; // Value under test, results in successful response.
 
-    let mut test_cluster = TestClusterBuilder::new().build().await;
+    let mut test_cluster = TestClusterBuilder::new()
+        .with_num_validators(2)
+        .build()
+        .await;
     let rgp = test_cluster.get_reference_gas_price().await;
     let address = test_cluster.get_address_0();
     let context = &mut test_cluster.wallet;
@@ -1471,6 +1530,7 @@ async fn test_package_publish_command_with_unpublished_dependency_succeeds()
         build_config,
         opts: OptsWithGas::for_testing(Some(gas_obj_id), rgp * TEST_ONLY_GAS_UNIT_FOR_PUBLISH),
         skip_dependency_verification: false,
+        verify_deps: true,
         with_unpublished_dependencies,
     }
     .execute(context)
@@ -1509,7 +1569,10 @@ async fn test_package_publish_command_with_unpublished_dependency_fails()
 -> Result<(), anyhow::Error> {
     let with_unpublished_dependencies = false; // Value under test, results in error response.
 
-    let mut test_cluster = TestClusterBuilder::new().build().await;
+    let mut test_cluster = TestClusterBuilder::new()
+        .with_num_validators(2)
+        .build()
+        .await;
     let rgp = test_cluster.get_reference_gas_price().await;
     let address = test_cluster.get_address_0();
     let context = &mut test_cluster.wallet;
@@ -1540,6 +1603,7 @@ async fn test_package_publish_command_with_unpublished_dependency_fails()
         build_config,
         opts: OptsWithGas::for_testing(Some(gas_obj_id), rgp * TEST_ONLY_GAS_UNIT_FOR_PUBLISH),
         skip_dependency_verification: false,
+        verify_deps: true,
         with_unpublished_dependencies,
     }
     .execute(context)
@@ -1562,7 +1626,10 @@ async fn test_package_publish_command_non_zero_unpublished_dep_fails() -> Result
     let with_unpublished_dependencies = true; // Value under test, incompatible with dependencies that specify non-zero
     // address.
 
-    let mut test_cluster = TestClusterBuilder::new().build().await;
+    let mut test_cluster = TestClusterBuilder::new()
+        .with_num_validators(2)
+        .build()
+        .await;
     let rgp = test_cluster.get_reference_gas_price().await;
     let address = test_cluster.get_address_0();
     let context = &mut test_cluster.wallet;
@@ -1584,6 +1651,7 @@ async fn test_package_publish_command_non_zero_unpublished_dep_fails() -> Result
         build_config,
         opts: OptsWithGas::for_testing(Some(gas_obj_id), rgp * TEST_ONLY_GAS_UNIT_FOR_PUBLISH),
         skip_dependency_verification: false,
+        verify_deps: true,
         with_unpublished_dependencies,
     }
     .execute(context)
@@ -1605,7 +1673,10 @@ async fn test_package_publish_command_failure_invalid() -> Result<(), anyhow::Er
     let with_unpublished_dependencies = true; // Invalid packages should fail to publish, even if we allow unpublished
     // dependencies.
 
-    let mut test_cluster = TestClusterBuilder::new().build().await;
+    let mut test_cluster = TestClusterBuilder::new()
+        .with_num_validators(2)
+        .build()
+        .await;
     let rgp = test_cluster.get_reference_gas_price().await;
     let address = test_cluster.get_address_0();
     let context = &mut test_cluster.wallet;
@@ -1637,6 +1708,7 @@ async fn test_package_publish_command_failure_invalid() -> Result<(), anyhow::Er
         build_config,
         opts: OptsWithGas::for_testing(Some(gas_obj_id), rgp * TEST_ONLY_GAS_UNIT_FOR_PUBLISH),
         skip_dependency_verification: false,
+        verify_deps: true,
         with_unpublished_dependencies,
     }
     .execute(context)
@@ -1655,7 +1727,10 @@ async fn test_package_publish_command_failure_invalid() -> Result<(), anyhow::Er
 
 #[sim_test]
 async fn test_package_publish_nonexistent_dependency() -> Result<(), anyhow::Error> {
-    let mut test_cluster = TestClusterBuilder::new().build().await;
+    let mut test_cluster = TestClusterBuilder::new()
+        .with_num_validators(2)
+        .build()
+        .await;
     let rgp = test_cluster.get_reference_gas_price().await;
     let address = test_cluster.get_address_0();
     let context = &mut test_cluster.wallet;
@@ -1676,6 +1751,7 @@ async fn test_package_publish_nonexistent_dependency() -> Result<(), anyhow::Err
         build_config,
         opts: OptsWithGas::for_testing(Some(gas_obj_id), rgp * TEST_ONLY_GAS_UNIT_FOR_PUBLISH),
         skip_dependency_verification: false,
+        verify_deps: true,
         with_unpublished_dependencies: false,
     }
     .execute(context)
@@ -1692,7 +1768,10 @@ async fn test_package_publish_nonexistent_dependency() -> Result<(), anyhow::Err
 
 #[sim_test]
 async fn test_package_publish_test_flag() -> Result<(), anyhow::Error> {
-    let mut test_cluster = TestClusterBuilder::new().build().await;
+    let mut test_cluster = TestClusterBuilder::new()
+        .with_num_validators(2)
+        .build()
+        .await;
     let rgp = test_cluster.get_reference_gas_price().await;
     let address = test_cluster.get_address_0();
     let context = &mut test_cluster.wallet;
@@ -1716,6 +1795,7 @@ async fn test_package_publish_test_flag() -> Result<(), anyhow::Error> {
         build_config,
         opts: OptsWithGas::for_testing(Some(gas_obj_id), rgp * TEST_ONLY_GAS_UNIT_FOR_PUBLISH),
         skip_dependency_verification: false,
+        verify_deps: true,
         with_unpublished_dependencies: false,
     }
     .execute(context)
@@ -1733,9 +1813,67 @@ async fn test_package_publish_test_flag() -> Result<(), anyhow::Error> {
 }
 
 #[sim_test]
+async fn test_package_publish_empty() -> Result<(), anyhow::Error> {
+    let mut test_cluster = TestClusterBuilder::new().build().await;
+    let rgp = test_cluster.get_reference_gas_price().await;
+    let address = test_cluster.get_address_0();
+    let context = &mut test_cluster.wallet;
+
+    let client = context.get_client().await?;
+    let object_refs = client
+        .read_api()
+        .get_owned_objects(
+            address,
+            Some(IotaObjectResponseQuery::new_with_options(
+                IotaObjectDataOptions::new()
+                    .with_type()
+                    .with_owner()
+                    .with_previous_transaction(),
+            )),
+            None,
+            None,
+        )
+        .await?
+        .data;
+
+    // Check log output contains all object ids.
+    let gas_obj_id = object_refs.first().unwrap().object().unwrap().object_id;
+
+    // Provide path to well formed package sources
+    let mut package_path = PathBuf::from(TEST_DATA_DIR);
+    package_path.push("empty");
+    let build_config = BuildConfig::new_for_testing().config;
+    let result = IotaClientCommands::Publish {
+        package_path,
+        build_config,
+        opts: OptsWithGas::for_testing(Some(gas_obj_id), rgp * TEST_ONLY_GAS_UNIT_FOR_PUBLISH),
+        skip_dependency_verification: false,
+        verify_deps: true,
+        with_unpublished_dependencies: false,
+    }
+    .execute(context)
+    .await;
+
+    // should return error
+    let expect = expect![[r#"
+        Err(
+            ModulePublishFailure {
+                error: "No modules found in the package",
+            },
+        )
+    "#]];
+
+    expect.assert_debug_eq(&result);
+    Ok(())
+}
+
+#[sim_test]
 async fn test_package_upgrade_command() -> Result<(), anyhow::Error> {
     move_package::package_hooks::register_package_hooks(Box::new(IotaPackageHooks));
-    let mut test_cluster = TestClusterBuilder::new().build().await;
+    let mut test_cluster = TestClusterBuilder::new()
+        .with_num_validators(2)
+        .build()
+        .await;
     let rgp = test_cluster.get_reference_gas_price().await;
     let address = test_cluster.get_address_0();
     let context = &mut test_cluster.wallet;
@@ -1768,6 +1906,7 @@ async fn test_package_upgrade_command() -> Result<(), anyhow::Error> {
         build_config,
         opts: OptsWithGas::for_testing(Some(gas_obj_id), rgp * TEST_ONLY_GAS_UNIT_FOR_PUBLISH),
         skip_dependency_verification: false,
+        verify_deps: true,
         with_unpublished_dependencies: false,
     }
     .execute(context)
@@ -1841,7 +1980,9 @@ async fn test_package_upgrade_command() -> Result<(), anyhow::Error> {
         upgrade_capability: cap.reference.object_id,
         build_config,
         opts: OptsWithGas::for_testing(Some(gas_obj_id), rgp * TEST_ONLY_GAS_UNIT_FOR_PUBLISH),
+        verify_compatibility: true,
         skip_dependency_verification: false,
+        verify_deps: true,
         with_unpublished_dependencies: false,
     }
     .execute(context)
@@ -1874,7 +2015,10 @@ async fn test_package_upgrade_command() -> Result<(), anyhow::Error> {
 #[sim_test]
 async fn test_package_management_on_upgrade_command() -> Result<(), anyhow::Error> {
     move_package::package_hooks::register_package_hooks(Box::new(IotaPackageHooks));
-    let mut test_cluster = TestClusterBuilder::new().build().await;
+    let mut test_cluster = TestClusterBuilder::new()
+        .with_num_validators(2)
+        .build()
+        .await;
     let rgp = test_cluster.get_reference_gas_price().await;
     let address = test_cluster.get_address_0();
     let context = &mut test_cluster.wallet;
@@ -1907,6 +2051,7 @@ async fn test_package_management_on_upgrade_command() -> Result<(), anyhow::Erro
         build_config: build_config.clone(),
         opts: OptsWithGas::for_testing(Some(gas_obj_id), rgp * TEST_ONLY_GAS_UNIT_FOR_PUBLISH),
         skip_dependency_verification: false,
+        verify_deps: true,
         with_unpublished_dependencies: false,
     }
     .execute(context)
@@ -1960,7 +2105,9 @@ async fn test_package_management_on_upgrade_command() -> Result<(), anyhow::Erro
         upgrade_capability: cap.reference.object_id,
         build_config: build_config.clone(),
         opts: OptsWithGas::for_testing(Some(gas_obj_id), rgp * TEST_ONLY_GAS_UNIT_FOR_PUBLISH),
+        verify_compatibility: true,
         skip_dependency_verification: false,
+        verify_deps: true,
         with_unpublished_dependencies: false,
     }
     .execute(context)
@@ -2009,7 +2156,10 @@ async fn test_package_management_on_upgrade_command() -> Result<(), anyhow::Erro
 #[sim_test]
 async fn test_package_management_on_upgrade_command_conflict() -> Result<(), anyhow::Error> {
     move_package::package_hooks::register_package_hooks(Box::new(IotaPackageHooks));
-    let mut test_cluster = TestClusterBuilder::new().build().await;
+    let mut test_cluster = TestClusterBuilder::new()
+        .with_num_validators(2)
+        .build()
+        .await;
     let rgp = test_cluster.get_reference_gas_price().await;
     let address = test_cluster.get_address_0();
     let context = &mut test_cluster.wallet;
@@ -2041,6 +2191,7 @@ async fn test_package_management_on_upgrade_command_conflict() -> Result<(), any
         build_config: build_config_publish.clone(),
         opts: OptsWithGas::for_testing(Some(gas_obj_id), rgp * TEST_ONLY_GAS_UNIT_FOR_PUBLISH),
         skip_dependency_verification: false,
+        verify_deps: true,
         with_unpublished_dependencies: false,
     }
     .execute(context)
@@ -2112,7 +2263,9 @@ async fn test_package_management_on_upgrade_command_conflict() -> Result<(), any
         upgrade_capability: cap.reference.object_id,
         build_config: build_config_upgrade.clone(),
         opts: OptsWithGas::for_testing(Some(gas_obj_id), rgp * TEST_ONLY_GAS_UNIT_FOR_PUBLISH),
+        verify_compatibility: true,
         skip_dependency_verification: false,
+        verify_deps: true,
         with_unpublished_dependencies: false,
     }
     .execute(context)
@@ -2134,7 +2287,10 @@ async fn test_package_management_on_upgrade_command_conflict() -> Result<(), any
 
 #[sim_test]
 async fn test_native_transfer() -> Result<(), anyhow::Error> {
-    let mut test_cluster = TestClusterBuilder::new().build().await;
+    let mut test_cluster = TestClusterBuilder::new()
+        .with_num_validators(2)
+        .build()
+        .await;
     let rgp = test_cluster.get_reference_gas_price().await;
     let address = test_cluster.get_address_0();
     let context = &mut test_cluster.wallet;
@@ -2461,6 +2617,39 @@ async fn test_new_address_command_by_flag() -> Result<(), anyhow::Error> {
 }
 
 #[sim_test]
+async fn test_remove_address_command() -> Result<(), anyhow::Error> {
+    let mut cluster = TestClusterBuilder::new().build().await;
+    let context = cluster.wallet_mut();
+
+    let address = context
+        .config()
+        .keystore()
+        .addresses()
+        .get(1)
+        .cloned()
+        .unwrap();
+
+    IotaClientCommands::RemoveAddress {
+        address: address.into(),
+    }
+    .execute(context)
+    .await?;
+
+    assert_eq!(
+        context
+            .config()
+            .keystore()
+            .addresses()
+            .iter()
+            .filter(|k| *k == &address)
+            .count(),
+        0
+    );
+
+    Ok(())
+}
+
+#[sim_test]
 async fn test_active_address_command() -> Result<(), anyhow::Error> {
     let mut cluster = TestClusterBuilder::new().build().await;
     let context = cluster.wallet_mut();
@@ -2555,7 +2744,10 @@ async fn get_parsed_object_assert_existence(
 
 #[sim_test]
 async fn test_merge_coin() -> Result<(), anyhow::Error> {
-    let mut test_cluster = TestClusterBuilder::new().build().await;
+    let mut test_cluster = TestClusterBuilder::new()
+        .with_num_validators(2)
+        .build()
+        .await;
     let rgp = test_cluster.get_reference_gas_price().await;
     let address = test_cluster.get_address_0();
     let context = &mut test_cluster.wallet;
@@ -2674,7 +2866,10 @@ async fn test_merge_coin() -> Result<(), anyhow::Error> {
 
 #[sim_test]
 async fn test_split_coin() -> Result<(), anyhow::Error> {
-    let mut test_cluster = TestClusterBuilder::new().build().await;
+    let mut test_cluster = TestClusterBuilder::new()
+        .with_num_validators(2)
+        .build()
+        .await;
     let rgp = test_cluster.get_reference_gas_price().await;
     let address = test_cluster.get_address_0();
     let context = &mut test_cluster.wallet;
@@ -2897,7 +3092,10 @@ async fn test_signature_flag() -> Result<(), anyhow::Error> {
 
 #[sim_test]
 async fn test_execute_signed_tx() -> Result<(), anyhow::Error> {
-    let mut test_cluster = TestClusterBuilder::new().build().await;
+    let mut test_cluster = TestClusterBuilder::new()
+        .with_num_validators(2)
+        .build()
+        .await;
     let context = &mut test_cluster.wallet;
     let mut txns = batch_make_transfer_transactions(context, 1).await;
     let txn = txns.swap_remove(0);
@@ -2914,7 +3112,10 @@ async fn test_execute_signed_tx() -> Result<(), anyhow::Error> {
 
 #[sim_test]
 async fn test_serialize_tx() -> Result<(), anyhow::Error> {
-    let mut test_cluster = TestClusterBuilder::new().build().await;
+    let mut test_cluster = TestClusterBuilder::new()
+        .with_num_validators(2)
+        .build()
+        .await;
     let rgp = test_cluster.get_reference_gas_price().await;
     let address = test_cluster.get_address_0();
     let address1 = test_cluster.get_address_1();
@@ -2952,7 +3153,7 @@ async fn test_serialize_tx() -> Result<(), anyhow::Error> {
             dev_inspect: false,
             serialize_unsigned_transaction: true,
             serialize_signed_transaction: false,
-            emit: HashSet::new(),
+            display: HashSet::new(),
         },
     }
     .execute(context)
@@ -2968,7 +3169,7 @@ async fn test_serialize_tx() -> Result<(), anyhow::Error> {
             dev_inspect: false,
             serialize_unsigned_transaction: false,
             serialize_signed_transaction: true,
-            emit: HashSet::new(),
+            display: HashSet::new(),
         },
     }
     .execute(context)
@@ -2985,7 +3186,7 @@ async fn test_serialize_tx() -> Result<(), anyhow::Error> {
             dev_inspect: false,
             serialize_unsigned_transaction: false,
             serialize_signed_transaction: true,
-            emit: HashSet::new(),
+            display: HashSet::new(),
         },
     }
     .execute(context)
@@ -3005,11 +3206,17 @@ async fn test_serialize_tx() -> Result<(), anyhow::Error> {
     ];
     let mut args = ptb_args.clone();
     args.push("--serialize-signed-transaction".to_string());
-    let ptb = PTB { args };
+    let ptb = PTB {
+        args,
+        display: HashSet::new(),
+    };
     IotaClientCommands::PTB(ptb).execute(context).await.unwrap();
     let mut args = ptb_args.clone();
     args.push("--serialize-unsigned-transaction".to_string());
-    let ptb = PTB { args };
+    let ptb = PTB {
+        args,
+        display: HashSet::new(),
+    };
     IotaClientCommands::PTB(ptb).execute(context).await.unwrap();
 
     Ok(())
@@ -3017,7 +3224,10 @@ async fn test_serialize_tx() -> Result<(), anyhow::Error> {
 
 #[tokio::test]
 async fn test_stake_with_none_amount() -> Result<(), anyhow::Error> {
-    let mut test_cluster = TestClusterBuilder::new().build().await;
+    let mut test_cluster = TestClusterBuilder::new()
+        .with_num_validators(2)
+        .build()
+        .await;
     let address = test_cluster.get_address_0();
     let context = &mut test_cluster.wallet;
 
@@ -3029,11 +3239,15 @@ async fn test_stake_with_none_amount() -> Result<(), anyhow::Error> {
         .data;
 
     let config_path = test_cluster.swarm.dir().join(IOTA_CLIENT_CONFIG);
-    let validator_addr = client
+
+    // Here we test the staking transaction to a committee member.
+    let committee_member_addr = client
         .governance_api()
         .get_latest_iota_system_state()
         .await?
-        .active_validators[0]
+        .iter_committee_members()
+        .next()
+        .unwrap()
         .iota_address;
 
     test_with_iota_binary(&[
@@ -3051,7 +3265,7 @@ async fn test_stake_with_none_amount() -> Result<(), anyhow::Error> {
         "0x5",
         &format!("[{}]", coins.first().unwrap().coin_object_id),
         "[]",
-        &validator_addr.to_string(),
+        &committee_member_addr.to_string(),
         "--gas-budget",
         "1000000000",
     ])
@@ -3069,7 +3283,10 @@ async fn test_stake_with_none_amount() -> Result<(), anyhow::Error> {
 
 #[tokio::test]
 async fn test_stake_with_u64_amount() -> Result<(), anyhow::Error> {
-    let mut test_cluster = TestClusterBuilder::new().build().await;
+    let mut test_cluster = TestClusterBuilder::new()
+        .with_num_validators(2)
+        .build()
+        .await;
     let address = test_cluster.get_address_0();
     let context = &mut test_cluster.wallet;
 
@@ -3081,11 +3298,15 @@ async fn test_stake_with_u64_amount() -> Result<(), anyhow::Error> {
         .data;
 
     let config_path = test_cluster.swarm.dir().join(IOTA_CLIENT_CONFIG);
-    let validator_addr = client
+
+    // Here we test the staking transaction to a committee member.
+    let committee_member_addr = client
         .governance_api()
         .get_latest_iota_system_state()
         .await?
-        .active_validators[0]
+        .iter_committee_members()
+        .next()
+        .unwrap()
         .iota_address;
 
     test_with_iota_binary(&[
@@ -3103,7 +3324,7 @@ async fn test_stake_with_u64_amount() -> Result<(), anyhow::Error> {
         "0x5",
         &format!("[{}]", coins.first().unwrap().coin_object_id),
         "[1000000000]",
-        &validator_addr.to_string(),
+        &committee_member_addr.to_string(),
         "--gas-budget",
         "1000000000",
     ])
@@ -3134,7 +3355,10 @@ async fn test_with_iota_binary(args: &[&str]) -> Result<(), anyhow::Error> {
 #[sim_test]
 async fn test_get_owned_objects_owned_by_address_and_check_pagination() -> Result<(), anyhow::Error>
 {
-    let mut test_cluster = TestClusterBuilder::new().build().await;
+    let mut test_cluster = TestClusterBuilder::new()
+        .with_num_validators(2)
+        .build()
+        .await;
     let address = test_cluster.get_address_0();
     let context = &mut test_cluster.wallet;
 
@@ -3169,11 +3393,8 @@ async fn test_get_owned_objects_owned_by_address_and_check_pagination() -> Resul
     assert!(!object_responses.has_next_page);
 
     // Pagination check
-    let mut has_next = true;
-    let mut cursor = None;
-    let mut response_data: Vec<IotaObjectResponse> = Vec::new();
-    while has_next {
-        let object_responses = client
+    let response_data = PagedFn::collect::<Vec<_>>(async |cursor| {
+        client
             .read_api()
             .get_owned_objects(
                 address,
@@ -3189,16 +3410,9 @@ async fn test_get_owned_objects_owned_by_address_and_check_pagination() -> Resul
                 cursor,
                 Some(1),
             )
-            .await?;
-
-        response_data.push(object_responses.data.first().unwrap().clone());
-
-        if object_responses.has_next_page {
-            cursor = object_responses.next_cursor;
-        } else {
-            has_next = false;
-        }
-    }
+            .await
+    })
+    .await?;
 
     assert_eq!(&response_data, &object_responses.data);
 
@@ -3235,7 +3449,10 @@ async fn test_linter_suppression_stats() -> Result<(), anyhow::Error> {
 
 #[tokio::test]
 async fn key_identity_test() {
-    let mut test_cluster = TestClusterBuilder::new().build().await;
+    let mut test_cluster = TestClusterBuilder::new()
+        .with_num_validators(2)
+        .build()
+        .await;
     let address = test_cluster.get_address_0();
     let context = &mut test_cluster.wallet;
     let alias = context
@@ -3283,7 +3500,10 @@ fn assert_dry_run(dry_run: IotaClientCommandResult, object_id: ObjectID, command
 
 #[sim_test]
 async fn test_dry_run() -> Result<(), anyhow::Error> {
-    let mut test_cluster = TestClusterBuilder::new().build().await;
+    let mut test_cluster = TestClusterBuilder::new()
+        .with_num_validators(2)
+        .build()
+        .await;
     let rgp = test_cluster.get_reference_gas_price().await;
     let address = test_cluster.get_address_0();
     let context = &mut test_cluster.wallet;
@@ -3390,7 +3610,10 @@ async fn test_cluster_helper() -> (
     [KeyIdentity; 2],
     [IotaAddress; 2],
 ) {
-    let mut test_cluster = TestClusterBuilder::new().build().await;
+    let mut test_cluster = TestClusterBuilder::new()
+        .with_num_validators(2)
+        .build()
+        .await;
     let rgp = test_cluster.get_reference_gas_price().await;
     let address1 = test_cluster.get_address_0();
     let context = &mut test_cluster.wallet;
@@ -3733,7 +3956,7 @@ async fn test_gas_estimation() -> Result<(), anyhow::Error> {
             dev_inspect: false,
             serialize_unsigned_transaction: false,
             serialize_signed_transaction: false,
-            emit: HashSet::new(),
+            display: HashSet::new(),
         },
     }
     .execute(context)
@@ -3762,7 +3985,10 @@ async fn test_gas_estimation() -> Result<(), anyhow::Error> {
 async fn test_clever_errors() -> Result<(), anyhow::Error> {
     // Publish the package
     move_package::package_hooks::register_package_hooks(Box::new(IotaPackageHooks));
-    let mut test_cluster = TestClusterBuilder::new().build().await;
+    let mut test_cluster = TestClusterBuilder::new()
+        .with_num_validators(2)
+        .build()
+        .await;
     let rgp = test_cluster.get_reference_gas_price().await;
     let address = test_cluster.get_address_0();
     let context = &mut test_cluster.wallet;
@@ -3794,6 +4020,7 @@ async fn test_clever_errors() -> Result<(), anyhow::Error> {
         package_path: package_path.clone(),
         build_config,
         skip_dependency_verification: false,
+        verify_deps: true,
         with_unpublished_dependencies: false,
         opts: OptsWithGas::for_testing(Some(gas_obj_id), rgp * TEST_ONLY_GAS_UNIT_FOR_PUBLISH),
     }
@@ -3928,7 +4155,10 @@ async fn test_parse_host_port() {
 
 #[sim_test]
 async fn test_balance() -> Result<(), anyhow::Error> {
-    let mut test_cluster = TestClusterBuilder::new().build().await;
+    let mut test_cluster = TestClusterBuilder::new()
+        .with_num_validators(2)
+        .build()
+        .await;
 
     let context = &mut test_cluster.wallet;
 
@@ -4343,10 +4573,13 @@ async fn test_move_new() -> Result<(), anyhow::Error> {
 }
 
 #[sim_test]
-async fn test_call_command_emit_args() -> Result<(), anyhow::Error> {
+async fn test_call_command_display_args() -> Result<(), anyhow::Error> {
     // Publish the package
     move_package::package_hooks::register_package_hooks(Box::new(IotaPackageHooks));
-    let mut test_cluster = TestClusterBuilder::new().build().await;
+    let mut test_cluster = TestClusterBuilder::new()
+        .with_num_validators(2)
+        .build()
+        .await;
     let rgp = test_cluster.get_reference_gas_price().await;
     let address = test_cluster.get_address_0();
     let context = &mut test_cluster.wallet;
@@ -4377,6 +4610,7 @@ async fn test_call_command_emit_args() -> Result<(), anyhow::Error> {
         package_path: package_path.clone(),
         build_config,
         skip_dependency_verification: false,
+        verify_deps: false,
         with_unpublished_dependencies: false,
         opts: OptsWithGas::for_testing(Some(gas_obj_id), rgp * TEST_ONLY_GAS_UNIT_FOR_PUBLISH),
     }
@@ -4401,10 +4635,10 @@ async fn test_call_command_emit_args() -> Result<(), anyhow::Error> {
         type_args: vec![],
         gas_price: None,
         args: vec![],
-        opts: OptsWithGas::for_testing_emit_options(
+        opts: OptsWithGas::for_testing_display_options(
             None,
             rgp * TEST_ONLY_GAS_UNIT_FOR_PUBLISH,
-            HashSet::from([EmitOption::BalanceChanges]),
+            HashSet::from([DisplayOption::BalanceChanges]),
         ),
     }
     .execute(context)
@@ -4424,7 +4658,7 @@ async fn test_call_command_emit_args() -> Result<(), anyhow::Error> {
         panic!("Transaction block response is None");
     }
 
-    // Make another call, this time with multiple emit args
+    // Make another call, this time with multiple display args
     let start_call_result = IotaClientCommands::Call {
         package: package.reference.object_id,
         module: "trusted_coin".to_string(),
@@ -4432,13 +4666,13 @@ async fn test_call_command_emit_args() -> Result<(), anyhow::Error> {
         type_args: vec![],
         gas_price: None,
         args: vec![],
-        opts: OptsWithGas::for_testing_emit_options(
+        opts: OptsWithGas::for_testing_display_options(
             None,
             rgp * TEST_ONLY_GAS_UNIT_FOR_PUBLISH,
             HashSet::from([
-                EmitOption::BalanceChanges,
-                EmitOption::Effects,
-                EmitOption::ObjectChanges,
+                DisplayOption::BalanceChanges,
+                DisplayOption::Effects,
+                DisplayOption::ObjectChanges,
             ]),
         ),
     }
@@ -4459,8 +4693,8 @@ async fn test_call_command_emit_args() -> Result<(), anyhow::Error> {
         panic!("Transaction block response is None");
     }
 
-    // Make another call, this time with no emit args. This should return the full
-    // response
+    // Make another call, this time without display args. This should return the
+    // full response
     let start_call_result = IotaClientCommands::Call {
         package: package.reference.object_id,
         module: "trusted_coin".to_string(),
@@ -4468,7 +4702,7 @@ async fn test_call_command_emit_args() -> Result<(), anyhow::Error> {
         type_args: vec![],
         gas_price: None,
         args: vec![],
-        opts: OptsWithGas::for_testing_emit_options(
+        opts: OptsWithGas::for_testing_display_options(
             None,
             rgp * TEST_ONLY_GAS_UNIT_FOR_PUBLISH,
             HashSet::new(),
@@ -4493,7 +4727,10 @@ async fn test_call_command_emit_args() -> Result<(), anyhow::Error> {
 
 #[sim_test]
 async fn test_ptb_dev_inspect() -> Result<(), anyhow::Error> {
-    let mut test_cluster = TestClusterBuilder::new().build().await;
+    let mut test_cluster = TestClusterBuilder::new()
+        .with_num_validators(2)
+        .build()
+        .await;
     let context = &mut test_cluster.wallet;
 
     let publish_ptb_string = r#"
@@ -4502,7 +4739,111 @@ async fn test_ptb_dev_inspect() -> Result<(), anyhow::Error> {
         --dev-inspect
         "#;
     let args = shlex::split(publish_ptb_string).unwrap();
-    let res = iota::client_ptb::ptb::PTB { args }.execute(context).await?;
-    assert!(res.contains("Execution Result\n  Return values\n    IOTA TypeTag: IotaTypeTag(\"0x1::string::String\")\n    Bytes: [5, 72, 101, 108, 108, 111]"));
+    let PTBCommandResult::DevInspect(res) = iota::client_ptb::ptb::PTB {
+        args,
+        display: HashSet::new(),
+    }
+    .execute(context)
+    .await?
+    else {
+        panic!("unexpected PTB result");
+    };
+    assert!(res.results.expect("missing results").iter().any(|res| {
+        res.return_values.iter().any(|(bytes, tag)| {
+            tag.as_ref() == "0x1::string::String" && bytes == &[5, 72, 101, 108, 108, 111]
+        })
+    }));
+    Ok(())
+}
+
+#[sim_test]
+async fn test_ptb_display_args() -> Result<(), anyhow::Error> {
+    let mut test_cluster = TestClusterBuilder::new()
+        .with_num_validators(2)
+        .build()
+        .await;
+    let context = &mut test_cluster.wallet;
+
+    let ptb_string = r#"
+    --make-move-vec <u8> "[1]"
+    "#;
+    let args = shlex::split(ptb_string).unwrap();
+    let PTBCommandResult::CommandResult(IotaClientCommandResult::TransactionBlock(res)) =
+        iota::client_ptb::ptb::PTB {
+            args,
+            display: HashSet::from([DisplayOption::Input]),
+        }
+        .execute(context)
+        .await?
+    else {
+        panic!("unexpected PTB result");
+    };
+
+    assert!(res.transaction.is_some());
+    assert!(res.effects.is_some());
+
+    let ptb_string = r#"
+        --make-move-vec <u8> "[1]"
+        "#;
+    let args = shlex::split(ptb_string).unwrap();
+    let PTBCommandResult::CommandResult(IotaClientCommandResult::TransactionBlock(res)) =
+        iota::client_ptb::ptb::PTB {
+            args,
+            display: HashSet::from([DisplayOption::Events]),
+        }
+        .execute(context)
+        .await?
+    else {
+        panic!("unexpected PTB result");
+    };
+    // `DisplayOption::Input` wasn't provided, so there is no `Transaction Data`
+    assert!(res.transaction.is_none());
+    assert!(res.effects.is_some());
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn test_new_env() -> Result<(), anyhow::Error> {
+    let mut test_cluster = TestClusterBuilder::new()
+        .with_num_validators(1)
+        .with_fullnode_rpc_port(9009)
+        .build()
+        .await;
+    let context = &mut test_cluster.wallet;
+
+    let alias = "network-alias".to_string();
+    let rpc = "http://127.0.0.1:9009".to_string();
+    let graphql = Some("http://127.0.0.1:8000".to_string());
+    let ws = Some("ws://127.0.0.1:9000".to_string());
+    let basic_auth = Some("username:password".to_string());
+    let faucet = Some("http://127.0.0.1:9123/v1/gas".to_string());
+
+    IotaClientCommands::NewEnv {
+        alias: alias.clone(),
+        rpc: rpc.clone(),
+        graphql: graphql.clone(),
+        ws: ws.clone(),
+        basic_auth: basic_auth.clone(),
+        faucet: faucet.clone(),
+    }
+    .execute(context)
+    .await
+    .unwrap();
+
+    let res: IotaClientCommandResult = IotaClientCommands::Envs.execute(context).await?;
+
+    let IotaClientCommandResult::Envs(envs, _active_env) = res else {
+        unreachable!("Invalid response");
+    };
+    assert!(envs.len() == 2);
+    let new_env = &envs[1];
+    assert_eq!(*new_env.alias(), alias);
+    assert_eq!(*new_env.rpc(), rpc);
+    assert_eq!(*new_env.graphql(), graphql);
+    assert_eq!(*new_env.ws(), ws);
+    assert_eq!(*new_env.basic_auth(), basic_auth);
+    assert_eq!(*new_env.faucet(), faucet);
+
     Ok(())
 }

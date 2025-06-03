@@ -2,8 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { ToS_LINK } from '_src/shared/constants';
-import { useZodForm } from '@iota/core';
+import { ToS_LINK, useZodForm } from '@iota/core';
 import { useEffect } from 'react';
 import { type SubmitHandler } from 'react-hook-form';
 import { useNavigate } from 'react-router-dom';
@@ -79,6 +78,7 @@ export function ProtectAccountForm({
             acceptedTos: !!hideToS,
             autoLock: parseAutoLock(autoLock.data || null),
         },
+        shouldUnregister: true,
     });
     const {
         watch,
@@ -137,8 +137,9 @@ export function ProtectAccountForm({
                                 </span>
                                 <a
                                     href={ToS_LINK}
-                                    className="text-label-lg text-primary-30"
+                                    className="text-label-lg text-primary-30 dark:text-primary-80"
                                     target="_blank"
+                                    rel="noopener noreferrer"
                                 >
                                     Terms of Services
                                 </a>

@@ -2,67 +2,57 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { ButtonPill, Input, InputType } from '@iota/apps-ui-kit';
-import { CoinStruct } from '@iota/iota-sdk/client';
-import { CoinFormat, useFormatCoin, useGasBudgetEstimation } from '../../hooks';
-import { useEffect } from 'react';
+import { CoinMetadata, CoinStruct } from '@iota/iota-sdk/client';
+import { CoinFormat, IOTA_COIN_METADATA, useFormatCoin } from '../../hooks';
 import { useField, useFormikContext } from 'formik';
 import { TokenForm } from '../../forms';
+import { parseAmount } from '../../utils';
+import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 
 export interface SendTokenInputProps {
     coins: CoinStruct[];
-    symbol: string;
-    coinDecimals: number;
-    activeAddress: string;
-    to: string;
+    coinType: string;
     onActionClick: () => Promise<void>;
     isMaxActionDisabled?: boolean;
     name: string;
-    isPayAllIota: boolean;
+    totalGas?: string;
+    coinMetadata?: CoinMetadata | null;
 }
 
 export function SendTokenFormInput({
     coins,
-    to,
-    symbol,
-    coinDecimals,
-    activeAddress,
+    coinType,
     onActionClick,
     isMaxActionDisabled,
     name,
-    isPayAllIota,
+    totalGas,
+    coinMetadata,
 }: SendTokenInputProps) {
-    const { values, setFieldValue, isSubmitting, validateField } = useFormikContext<TokenForm>();
-    const { data: gasBudgetEstimation } = useGasBudgetEstimation({
-        coinDecimals,
-        coins: coins ?? [],
-        activeAddress,
-        to: to,
-        amount: values.amount,
-        isPayAllIota,
-    });
+    const { values, isSubmitting, validateField } = useFormikContext<TokenForm>();
+
+    const coinDecimals = coinMetadata?.decimals ?? 0;
+    const symbol = coinMetadata?.symbol ?? IOTA_COIN_METADATA.symbol;
+
     const [formattedGasBudgetEstimation, gasToken] = useFormatCoin({
-        balance: gasBudgetEstimation,
+        balance: totalGas,
         format: CoinFormat.FULL,
     });
 
     const [field, meta, helpers] = useField<string>(name);
-    const errorMessage = meta.error;
+    const errorMessage =
+        coinMetadata === null ? 'There was an error fetching the coin metadata' : meta.error;
     const isActionButtonDisabled = isSubmitting || isMaxActionDisabled;
-
-    const renderAction = () => (
-        <ButtonPill disabled={isActionButtonDisabled} onClick={onActionClick}>
-            Max
-        </ButtonPill>
-    );
 
     const gasAmount = formattedGasBudgetEstimation
         ? formattedGasBudgetEstimation + ' ' + gasToken
         : undefined;
 
-    // gasBudgetEstimation should change when the amount above changes
-    useEffect(() => {
-        setFieldValue('gasBudgetEst', gasBudgetEstimation, false);
-    }, [gasBudgetEstimation, setFieldValue, values.amount]);
+    const totalBalance = coins.reduce((acc, { balance }) => {
+        return BigInt(acc) + BigInt(balance);
+    }, BigInt(0));
+
+    const approximation =
+        parseAmount(values.amount, coinDecimals) === totalBalance && coinType === IOTA_TYPE_ARG;
 
     return (
         <Input
@@ -74,11 +64,15 @@ export function SendTokenFormInput({
             placeholder="0.00"
             label="Send Amount"
             suffix={` ${symbol}`}
-            prefix={isPayAllIota ? '~ ' : undefined}
+            prefix={approximation ? '~ ' : undefined}
             allowNegative={false}
             errorMessage={errorMessage}
             amountCounter={!errorMessage ? (coins ? gasAmount : '--') : undefined}
-            trailingElement={renderAction()}
+            trailingElement={
+                <ButtonPill disabled={isActionButtonDisabled} onClick={onActionClick}>
+                    Max
+                </ButtonPill>
+            }
             decimalScale={coinDecimals ? undefined : 0}
             thousandSeparator
             onValueChange={async (values) => {

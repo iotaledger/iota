@@ -1,7 +1,7 @@
 // Copyright (c) Mysten Labs, Inc.
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
-import { fromB58, toB64, toHEX } from '@iota/bcs';
+import { toB64 } from '@iota/bcs';
 
 import type { Signer } from '../cryptography/index.js';
 import type { Transaction } from '../transactions/index.js';
@@ -89,6 +89,11 @@ import type {
     GetTimelockedStakesParams,
     DelegatedTimelockedStake,
     GetTimelockedStakesByIdsParams,
+    IotaSystemStateSummaryV1,
+    LatestIotaSystemStateSummary,
+    ParticipationMetrics,
+    IotaCirculatingSupply,
+    GetDynamicFieldObjectV2Params,
 } from './types/index.js';
 
 export interface PaginationArguments<Cursor> {
@@ -222,6 +227,16 @@ export class IotaClient {
         return await this.transport.request({
             method: 'iotax_getTotalSupply',
             params: [input.coinType],
+        });
+    }
+
+    /**
+     *  Fetch circulating supply for a coin
+     */
+    async getCirculatingSupply(): Promise<IotaCirculatingSupply> {
+        return await this.transport.request({
+            method: 'iotax_getCirculatingSupply',
+            params: [],
         });
     }
 
@@ -536,13 +551,67 @@ export class IotaClient {
     }
 
     /**
-     * Return the latest system state content.
+     * Return the latest IOTA system state object on networks supporting protocol version `< 5`.
+     * These are networks with node software release version `< 0.11`.
+     * @deprecated Use `getLatestIotaSystemState` instead.
      */
-    async getLatestIotaSystemState(): Promise<IotaSystemStateSummary> {
+    async getLatestIotaSystemStateV1(): Promise<IotaSystemStateSummaryV1> {
         return await this.transport.request({
             method: 'iotax_getLatestIotaSystemState',
             params: [],
         });
+    }
+
+    /**
+     * Return the latest IOTA system state object on networks supporting protocol version `>= 5`.
+     * These are networks with node software release version `>= 0.11`.
+     *
+     * You probably want to use `getLatestIotaSystemState` instead to prevent issues with future deprecations
+     * or in case the node does not support protocol version `>= 5`.
+     */
+    async getLatestIotaSystemStateV2(): Promise<IotaSystemStateSummary> {
+        return await this.transport.request<IotaSystemStateSummary>({
+            method: 'iotax_getLatestIotaSystemStateV2',
+            params: [],
+        });
+    }
+
+    /**
+     * Return the latest supported IOTA system state object.
+     *
+     * This returns a backwards-compatible system state object that dynamically uses the V1 or V2
+     * depending on the protocol version supported by the node. This method will continue to be supported
+     * as more protocol versions are released with changes to the system state.
+     *
+     * This is quite useful in case your app does not know in advance what node is it going to be using,
+     * this way you as developer dont need to handle each possible system state variant,
+     * this is already handled by this method.
+     */
+    async getLatestIotaSystemState(): Promise<LatestIotaSystemStateSummary> {
+        const protocolConfig = await this.getProtocolConfig();
+        const isV2Supported = Number(protocolConfig.maxSupportedProtocolVersion) >= 5;
+
+        const iotaSystemStateSummary: IotaSystemStateSummary = isV2Supported
+            ? await this.getLatestIotaSystemStateV2()
+            : {
+                  V1: await this.getLatestIotaSystemStateV1(),
+              };
+
+        return 'V2' in iotaSystemStateSummary
+            ? {
+                  ...iotaSystemStateSummary.V2,
+                  committeeMembers: iotaSystemStateSummary.V2.committeeMembers.map(
+                      (committeeMemberIndex) =>
+                          iotaSystemStateSummary.V2.activeValidators[Number(committeeMemberIndex)],
+                  ),
+              }
+            : {
+                  ...iotaSystemStateSummary.V1,
+                  committeeMembers: iotaSystemStateSummary.V1.activeValidators,
+                  safeModeComputationCharges: iotaSystemStateSummary.V1.safeModeComputationRewards,
+                  safeModeComputationChargesBurned:
+                      iotaSystemStateSummary.V1.safeModeComputationRewards,
+              };
     }
 
     /**
@@ -667,6 +736,18 @@ export class IotaClient {
     }
 
     /**
+     * Return the dynamic field object information for a specified object with content options.
+     */
+    async getDynamicFieldObjectV2(
+        input: GetDynamicFieldObjectV2Params,
+    ): Promise<IotaObjectResponse> {
+        return await this.transport.request({
+            method: 'iotax_getDynamicFieldObjectV2',
+            params: [input.parentObjectId, input.name],
+        });
+    }
+
+    /**
      * Get the sequence number of the latest checkpoint that has been executed
      */
     async getLatestCheckpointSequenceNumber(): Promise<string> {
@@ -785,17 +866,27 @@ export class IotaClient {
         return await this.transport.request({ method: 'iotax_getValidatorsApy', params: [] });
     }
 
-    // TODO: Migrate this to `iota_getChainIdentifier` once it is widely available.
     async getChainIdentifier(): Promise<string> {
-        const checkpoint = await this.getCheckpoint({ id: '0' });
-        const bytes = fromB58(checkpoint.digest);
-        return toHEX(bytes.slice(0, 4));
+        return await this.transport.request({
+            method: 'iota_getChainIdentifier',
+            params: [],
+        });
     }
 
     async getProtocolConfig(input?: GetProtocolConfigParams): Promise<ProtocolConfig> {
         return await this.transport.request({
             method: 'iota_getProtocolConfig',
             params: [input?.version],
+        });
+    }
+
+    /**
+     * Returns the participation metrics (total unique addresses with delegated stake in the current epoch).
+     */
+    async getParticipationMetrics(): Promise<ParticipationMetrics> {
+        return await this.transport.request({
+            method: 'iotax_getParticipationMetrics',
+            params: [],
         });
     }
 

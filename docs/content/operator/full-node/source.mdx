@@ -1,0 +1,125 @@
+---
+description: Learn how to set up an IOTA full node from source.
+title: Build From Source
+tags: [node-operation]
+teams:
+  - iotaledger/node
+---
+import Quiz from '@site/src/components/Quiz';
+import questions from '/json/node-operators/iota-full-node/node-setup.json';
+import {Networks} from '@site/src/components/constant'
+import WarningAdvanced from '../../_snippets/warning-advanced-instructions-node-setup.mdx'
+import FullnodeRequirements from '../../_snippets/operator/fullnode-requirements-tab.mdx'
+import FullnodeP2P from '../../_snippets/operator/fullnode-p2p.mdx'
+import TryRpcEndpoint from '../../_snippets/operator/try-rpc-endpoint.mdx'
+import Ports from '../../_snippets/operator/fullnode-ports.mdx'
+
+<WarningAdvanced/>
+
+## Hardware requirements
+
+<FullnodeRequirements/>
+
+## 1. Software requirements
+
+- Linux (recommended):
+  - For this installer to work, use a Linux distribution with `systemd` and `apt-get`.
+  - IOTA recommends and supports Ubuntu or Debian.
+  - Building from source also works on macOS (but systemd-related steps won't).
+- Rust/cargo stable (recent version, check [rust-toolchain.toml](https://github.com/iotaledger/iota/blob/develop/rust-toolchain.toml) for the specific version) . If needed, [update Rust](https://www.rust-lang.org/tools/install).
+
+<Ports/>
+
+## 2. Run the installer script
+
+In any directory, run:
+```shell
+NETWORK="testnet" bash -i <(curl -sSf https://raw.githubusercontent.com/iotaledger/iota/refs/heads/develop/setups/fullnode/systemd/setup.sh)
+```
+
+:::info
+Set the network environment variable to the network you want to connect to ("testnet", "mainnet", or "devnet")
+:::
+
+The installer will perform the following steps:
+1. Check your rust toolchain version
+2. Install system packages (libraries & other dependencies):  
+  `tzdata`, `libprotobuf-dev`, `ca-certificates`, `build-essential`, `libssl-dev`, `libclang-dev`, `libpq-dev`, `pkg-config`, `openssl`, `protobuf-compiler`, `git`, `clang`, `cmake`
+3. Clone the [iota repo](https://github.com/iotaledger/iota), set to the right branch for the [network](../../developer/getting-started/connect.mdx#iota-networks) you chose
+4. Build the iota-node binary  
+  The built binary is located at `/opt/iota/bin/iota-node` by default.
+5. Create a user called iota, make it own directories for service binary, config, data
+6. Create a node config file, download genesis/migration blobs  
+  The config and blob files are located at `/opt/iota/config` by default.
+6. Create a systemd service unit file  
+  The service definition file is located at `/etc/systemd/system/iota-node.service`.
+7. Start the service
+
+## 3. Check your installation
+
+Your IOTA node should now be running and connected to the network you chose.
+
+Check that the iota-node service is active and running:
+```shell
+sudo systemctl status iota-node
+```
+
+Check (and follow) the logs:
+```shell
+journalctl -u iota-node -f
+```
+
+If you need to stop the service, you can run `sudo systemctl stop iota-node`
+
+Your IOTA node should now be running and connected to the network you chose.
+
+### Check your node configuration
+
+By default, the configuration file `fullnode.yaml` is located at  `/opt/iota/config/fullnode.yaml`.
+
+If you changed your local configuration you can always go back to the default [Full Node Configuration](https://docs.iota.org/operator/full-node/configuration).
+
+#### Configure P2P Settings
+
+<FullnodeP2P />
+
+### Reach your node via the RPC endpoint
+
+<TryRpcEndpoint/>
+
+### Troubleshooting
+
+If you run into issues during the setup, or while checking your install, be sure to check common issues in the [troubleshooting section](./troubleshooting.mdx)
+
+## 4. Updating Your Full Node
+
+When IOTA releases a new version, you must update your full node with the release to ensure compatibility with the network it connects to.  
+Make sure your node stays on the same network (testnet, mainnet, devnet, ...) it was previously connected to.
+
+To upgrade your node, run the same script you used to install it:
+```shell
+NETWORK="testnet" bash -i <(curl -sSf https://raw.githubusercontent.com/iotaledger/iota/refs/heads/develop/setups/fullnode/systemd/setup.sh)
+```
+
+:::info
+Re-use the same network (`testnet`, `mainnet`, `devnet`) your node is already running on.
+:::
+
+Your full node restarts on: <code>{Networks.iota_localnet.rpc.json.core}</code>.
+
+:::info
+If your full node is configured to prune transactions, Archival nodes can help ensure lagging peer nodes don't lose any information. For more information, see [IOTA Archives](../common/archives.mdx).
+:::
+
+## 5. Customize your node's configuration
+
+:::warning
+Node logs can take a lot of space quickly. Make sure to configure your `iota-node` systemd service to rotate or prune logs to not run out of space.
+See [systemd docs](https://www.freedesktop.org/software/systemd/man/latest/journald.conf.html#SystemMaxUse=)
+
+You can also lower the log level by editing your service definition file (changing RUST_LOG in `/etc/systemd/system/iota-node.service`), in order to produce less logs.
+:::
+
+In the [next section](./configuration.mdx), we'll see which options are available to tune the node's configuration to your preferences.
+
+<Quiz questions={questions} />

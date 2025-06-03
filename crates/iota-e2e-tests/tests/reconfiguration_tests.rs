@@ -24,7 +24,7 @@ use iota_types::{
     governance::MIN_VALIDATOR_JOINING_STAKE_NANOS,
     iota_system_state::{
         IotaSystemStateTrait, get_validator_from_table,
-        iota_system_state_summary::get_validator_by_pool_id,
+        iota_system_state_summary::{IotaSystemStateSummary, get_validator_by_pool_id},
     },
     message_envelope::Message,
     messages_grpc::HandleCertificateRequestV1,
@@ -524,7 +524,11 @@ async fn test_validator_candidate_pool_read() {
         let system_state_summary = system_state.clone().into_iota_system_state_summary();
         let staking_pool_id = get_validator_from_table(
             node.state().get_object_store().as_ref(),
-            system_state_summary.validator_candidates_id,
+            match &system_state_summary {
+                IotaSystemStateSummary::V1(v1) => v1.validator_candidates_id,
+                IotaSystemStateSummary::V2(v2) => v2.validator_candidates_id,
+                _ => panic!("unsupported IotaSystemStateSummary"),
+            },
             &address,
         )
         .unwrap()
@@ -549,13 +553,15 @@ async fn test_inactive_validator_pool_read() {
     // Pick the first validator.
     let validator = test_cluster.swarm.validator_node_handles().pop().unwrap();
     let address = validator.with(|node| node.get_config().iota_address());
+
+    // Here we fetch the staking pool id of the committee members from the system
+    // state.
     let staking_pool_id = test_cluster.fullnode_handle.iota_node.with(|node| {
         node.state()
             .get_iota_system_state_object_for_testing()
             .unwrap()
             .into_iota_system_state_summary()
-            .active_validators
-            .iter()
+            .iter_committee_members()
             .find(|v| v.iota_address == address)
             .unwrap()
             .staking_pool_id
@@ -663,6 +669,105 @@ async fn test_reconfig_with_committee_change_basic() {
             4
         );
     });
+}
+
+#[sim_test]
+async fn test_reconfig_with_same_validator() {
+    use iota_swarm_config::genesis_config::{AccountConfig, DEFAULT_GAS_AMOUNT, GenesisConfig};
+    use iota_types::{
+        crypto::{AuthorityPublicKeyBytes, KeypairTraits},
+        governance::MIN_VALIDATOR_JOINING_STAKE_NANOS,
+    };
+    use rand::{SeedableRng, rngs::StdRng};
+
+    // ValidatorGenesisConfig doesn't impl Clone
+    // generate the same config with the same rng seed
+    let node_ip = iota_config::local_ip_utils::get_new_ip();
+    let build_node_config = || {
+        ValidatorGenesisConfigBuilder::new()
+            // the node_ip should always be the same value, otherwise the test will fail
+            .with_ip(node_ip.clone())
+            .build(&mut StdRng::seed_from_u64(0))
+    };
+
+    // the node that will re-join committee
+    let node_config = build_node_config();
+    let node_name: AuthorityPublicKeyBytes = node_config.authority_key_pair.public().into();
+    let node_address = (&node_config.account_key_pair.public()).into();
+    let mut node_handle = None;
+
+    // add coins to the node at the genesis to avoid dealing with faucet
+    let mut genesis_config = GenesisConfig::default();
+    genesis_config
+        .accounts
+        .extend(std::iter::once(AccountConfig {
+            address: Some(node_address),
+            gas_amounts: vec![
+                DEFAULT_GAS_AMOUNT,
+                MIN_VALIDATOR_JOINING_STAKE_NANOS,
+                DEFAULT_GAS_AMOUNT,
+                MIN_VALIDATOR_JOINING_STAKE_NANOS,
+            ],
+        }));
+
+    // create test cluster with 4 default validators
+    let mut test_cluster = TestClusterBuilder::new()
+        .with_num_validators(4)
+        .set_genesis_config(genesis_config)
+        .build()
+        .await;
+
+    // whether node is in committee in a corresponding epoch
+    // test a few join/leave/join cases
+    let node_schedule = [true, true, false, false, true, false, true];
+    // the node initially is not in the committee
+    let mut was_in_committee = false;
+
+    let mut epoch = 0;
+    for is_in_committee in node_schedule {
+        if !was_in_committee && is_in_committee {
+            // add node to committee
+            execute_add_validator_transactions(&test_cluster, &build_node_config()).await;
+        }
+        if was_in_committee && !is_in_committee {
+            // remove node from committee
+            execute_remove_validator_tx(&test_cluster, node_handle.as_ref().unwrap()).await;
+        }
+
+        // reconfiguration
+        test_cluster.force_new_epoch().await;
+        epoch += 1;
+
+        // check that node has joined or left the committee
+        test_cluster.fullnode_handle.iota_node.with(|node| {
+            assert_eq!(
+                is_in_committee,
+                node.state()
+                    .epoch_store_for_testing()
+                    .committee()
+                    .authority_exists(&node_name)
+            );
+        });
+
+        if node_handle.is_none() {
+            // spawn node if not already
+            node_handle = Some(test_cluster.spawn_new_validator(build_node_config()).await);
+        }
+
+        // sync nodes
+        test_cluster.wait_for_epoch_all_nodes(epoch).await;
+
+        // the running node acknowledges being or not being a committee member
+        node_handle.as_ref().unwrap().with(|node| {
+            assert_eq!(
+                is_in_committee,
+                node.state()
+                    .is_validator(&node.state().epoch_store_for_testing())
+            );
+        });
+
+        was_in_committee = is_in_committee;
+    }
 }
 
 #[sim_test]
@@ -832,22 +937,27 @@ async fn safe_mode_reconfig_test() {
         .build()
         .await;
 
-    let system_state = test_cluster
+    let (system_state_version, epoch) = match test_cluster
         .iota_client()
         .governance_api()
         .get_latest_iota_system_state()
         .await
-        .unwrap();
+        .unwrap()
+    {
+        IotaSystemStateSummary::V1(v1) => (v1.system_state_version, v1.epoch),
+        IotaSystemStateSummary::V2(v2) => (v2.system_state_version, v2.epoch),
+        _ => panic!("unsupported IotaSystemStateSummary"),
+    };
 
     // On startup, we should be at V1.
-    assert_eq!(system_state.system_state_version, 1);
-    assert_eq!(system_state.epoch, 0);
+    assert_eq!(system_state_version, 1);
+    assert_eq!(epoch, 0);
 
     // Wait for regular epoch change to happen once.
     let system_state = test_cluster.wait_for_epoch(Some(1)).await;
     assert!(!system_state.safe_mode());
     assert_eq!(system_state.epoch(), 1);
-    assert_eq!(system_state.system_state_version(), 1);
+    assert_eq!(system_state.system_state_version(), 2);
 
     let prev_epoch_start_timestamp = system_state.epoch_start_timestamp_ms();
 
@@ -861,12 +971,14 @@ async fn safe_mode_reconfig_test() {
     // Check that time is properly set even in safe mode.
     assert!(system_state.epoch_start_timestamp_ms() >= prev_epoch_start_timestamp + EPOCH_DURATION);
 
-    // Try a staking transaction.
-    let validator_address = system_state
+    // Try a staking transaction to a committee member.
+    let committee_member_address = system_state
         .into_iota_system_state_summary()
-        .active_validators[0]
+        .iter_committee_members()
+        .next()
+        .unwrap()
         .iota_address;
-    let txn = make_staking_transaction(&test_cluster.wallet, validator_address).await;
+    let txn = make_staking_transaction(&test_cluster.wallet, committee_member_address).await;
     test_cluster.execute_transaction(txn).await;
 
     // Now remove the override and check that in the next epoch we are no longer in
@@ -876,7 +988,7 @@ async fn safe_mode_reconfig_test() {
     let system_state = test_cluster.wait_for_epoch(Some(3)).await;
     assert!(!system_state.safe_mode());
     assert_eq!(system_state.epoch(), 3);
-    assert_eq!(system_state.system_state_version(), 1);
+    assert_eq!(system_state.system_state_version(), 2);
 }
 
 async fn add_validator_candidate(
@@ -884,11 +996,16 @@ async fn add_validator_candidate(
     new_validator: &ValidatorGenesisConfig,
 ) {
     let cur_validator_candidate_count = test_cluster.fullnode_handle.iota_node.with(|node| {
-        node.state()
+        match node
+            .state()
             .get_iota_system_state_object_for_testing()
             .unwrap()
             .into_iota_system_state_summary()
-            .validator_candidates_size
+        {
+            IotaSystemStateSummary::V1(v1) => v1.validator_candidates_size,
+            IotaSystemStateSummary::V2(v2) => v2.validator_candidates_size,
+            _ => panic!("unsupported IotaSystemStateSummary"),
+        }
     });
     let address = (&new_validator.account_key_pair.public()).into();
     let gas = test_cluster
@@ -913,21 +1030,28 @@ async fn add_validator_candidate(
             .get_iota_system_state_object_for_testing()
             .unwrap();
         let system_state_summary = system_state.into_iota_system_state_summary();
-        assert_eq!(
-            system_state_summary.validator_candidates_size,
-            cur_validator_candidate_count + 1
-        );
+        let validator_candidates_size = match system_state_summary {
+            IotaSystemStateSummary::V1(v1) => v1.validator_candidates_size,
+            IotaSystemStateSummary::V2(v2) => v2.validator_candidates_size,
+            _ => panic!("unsupported IotaSystemStateSummary"),
+        };
+        assert_eq!(validator_candidates_size, cur_validator_candidate_count + 1);
     });
 }
 
 async fn execute_remove_validator_tx(test_cluster: &TestCluster, handle: &IotaNodeHandle) {
     let cur_pending_removals = test_cluster.fullnode_handle.iota_node.with(|node| {
-        node.state()
+        match node
+            .state()
             .get_iota_system_state_object_for_testing()
             .unwrap()
             .into_iota_system_state_summary()
-            .pending_removals
-            .len()
+        {
+            IotaSystemStateSummary::V1(v1) => v1.pending_removals,
+            IotaSystemStateSummary::V2(v2) => v2.pending_removals,
+            _ => panic!("unsupported IotaSystemStateSummary"),
+        }
+        .len()
     });
 
     let address = handle.with(|node| node.get_config().iota_address());
@@ -952,12 +1076,12 @@ async fn execute_remove_validator_tx(test_cluster: &TestCluster, handle: &IotaNo
             .state()
             .get_iota_system_state_object_for_testing()
             .unwrap();
-        let system_state_summary = system_state.into_iota_system_state_summary();
-
-        assert_eq!(
-            system_state_summary.pending_removals.len(),
-            cur_pending_removals + 1
-        );
+        let pending_removals = match system_state.into_iota_system_state_summary() {
+            IotaSystemStateSummary::V1(v1) => v1.pending_removals,
+            IotaSystemStateSummary::V2(v2) => v2.pending_removals,
+            _ => panic!("unsupported IotaSystemStateSummary"),
+        };
+        assert_eq!(pending_removals.len(), cur_pending_removals + 1);
     });
 }
 

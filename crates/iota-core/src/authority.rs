@@ -68,7 +68,7 @@ use iota_types::{
         TransactionEvents, VerifiedCertifiedTransactionEffects, VerifiedSignedTransactionEffects,
     },
     error::{ExecutionError, IotaError, IotaResult, UserInputError},
-    event::{Event, EventID, SystemEpochInfoEventV1},
+    event::{Event, EventID, SystemEpochInfoEvent},
     executable_transaction::VerifiedExecutableTransaction,
     execution_config_utils::to_binary_config,
     execution_status::ExecutionStatus,
@@ -898,6 +898,7 @@ impl AuthorityState {
                 input_objects,
                 &receiving_objects,
                 &self.metrics.bytecode_verifier_metrics,
+                &self.config.verifier_signing_config,
             )?;
 
         check_coin_deny_list_v1_during_signing(
@@ -958,7 +959,7 @@ impl AuthorityState {
                         let cache_reader = self.get_transaction_cache_reader().clone();
                         let epoch_store = epoch_store.clone();
                         spawn_monitored_task!(epoch_store.within_alive_epoch(
-                            validator_tx_finalizer.track_signed_tx(cache_reader, tx)
+                            validator_tx_finalizer.track_signed_tx(cache_reader, &epoch_store, tx)
                         ));
                     }
                 }
@@ -1072,7 +1073,7 @@ impl AuthorityState {
 
         if transaction.contains_shared_object() {
             epoch_store
-                .acquire_shared_locks_from_effects(
+                .acquire_shared_version_assignments_from_effects(
                     transaction,
                     effects.data(),
                     self.get_object_cache_reader().as_ref(),
@@ -1220,7 +1221,7 @@ impl AuthorityState {
             .start_timer();
         let input_objects = &certificate.data().transaction_data().input_objects()?;
         self.input_loader.read_objects_for_execution(
-            epoch_store.as_ref(),
+            epoch_store,
             &certificate.key(),
             tx_lock,
             input_objects,
@@ -1630,6 +1631,7 @@ impl AuthorityState {
                 kind,
                 signer,
                 tx_digest,
+                &mut None,
             );
 
         fail_point_if!("cp_execution_nondeterminism", || {
@@ -1741,6 +1743,7 @@ impl AuthorityState {
 
         // make a gas object if one was not provided
         let mut gas_object_refs = transaction.gas().to_vec();
+        let reference_gas_price = epoch_store.reference_gas_price();
         let ((gas_status, checked_input_objects), mock_gas) = if transaction.gas().is_empty() {
             let sender = transaction.sender();
             // use a 1B iota coin
@@ -1758,12 +1761,13 @@ impl AuthorityState {
             (
                 iota_transaction_checks::check_transaction_input_with_given_gas(
                     epoch_store.protocol_config(),
-                    epoch_store.reference_gas_price(),
+                    reference_gas_price,
                     &transaction,
                     input_objects,
                     receiving_objects,
                     gas_object,
                     &self.metrics.bytecode_verifier_metrics,
+                    &self.config.verifier_signing_config,
                 )?,
                 Some(gas_object_id),
             )
@@ -1771,11 +1775,12 @@ impl AuthorityState {
             (
                 iota_transaction_checks::check_transaction_input(
                     epoch_store.protocol_config(),
-                    epoch_store.reference_gas_price(),
+                    reference_gas_price,
                     &transaction,
                     input_objects,
                     &receiving_objects,
                     &self.metrics.bytecode_verifier_metrics,
+                    &self.config.verifier_signing_config,
                 )?,
                 None,
             )
@@ -1807,6 +1812,7 @@ impl AuthorityState {
                 kind,
                 signer,
                 transaction_digest,
+                &mut None,
             );
         let tx_digest = *effects.transaction_digest();
 
@@ -1998,21 +2004,23 @@ impl AuthorityState {
             if transaction.gas().is_empty() {
                 iota_transaction_checks::check_transaction_input_with_given_gas(
                     epoch_store.protocol_config(),
-                    epoch_store.reference_gas_price(),
+                    reference_gas_price,
                     &transaction,
                     input_objects,
                     receiving_objects,
                     dummy_gas_object,
                     &self.metrics.bytecode_verifier_metrics,
+                    &self.config.verifier_signing_config,
                 )?
             } else {
                 iota_transaction_checks::check_transaction_input(
                     epoch_store.protocol_config(),
-                    epoch_store.reference_gas_price(),
+                    reference_gas_price,
                     &transaction,
                     input_objects,
                     &receiving_objects,
                     &self.metrics.bytecode_verifier_metrics,
+                    &self.config.verifier_signing_config,
                 )?
             }
         };
@@ -4240,20 +4248,20 @@ impl AuthorityState {
         #[cfg(msim)]
         let extra_packages = framework_injection::get_extra_packages(self.name);
         #[cfg(msim)]
-        let system_packages = system_packages.chain(&extra_packages);
+        let system_packages = system_packages.map(|p| p).chain(extra_packages.iter());
 
         for system_package in system_packages {
             let modules = system_package.modules().to_vec();
             // In simtests, we could override the current built-in framework packages.
             #[cfg(msim)]
-            let modules = framework_injection::get_override_modules(system_package.id(), self.name)
+            let modules = framework_injection::get_override_modules(&system_package.id, self.name)
                 .unwrap_or(modules);
 
             let Some(obj_ref) = iota_framework::compare_system_package(
                 &self.get_object_store(),
-                system_package.id(),
+                &system_package.id,
                 &modules,
-                system_package.dependencies().to_vec(),
+                system_package.dependencies.to_vec(),
                 binary_config,
             )
             .await
@@ -4411,7 +4419,7 @@ impl AuthorityState {
                 let f = committee.total_votes() - committee.quorum_threshold();
 
                 // multiple by buffer_stake_bps / 10000, rounded up.
-                let buffer_stake = (f * buffer_stake_bps + 9999) / 10000;
+                let buffer_stake = (f * buffer_stake_bps).div_ceil(10000);
                 let effective_threshold = quorum_threshold + buffer_stake;
 
                 info!(
@@ -4566,7 +4574,7 @@ impl AuthorityState {
         epoch_start_timestamp_ms: CheckpointTimestamp,
     ) -> anyhow::Result<(
         IotaSystemState,
-        Option<SystemEpochInfoEventV1>,
+        Option<SystemEpochInfoEvent>,
         TransactionEffects,
     )> {
         let mut txns = Vec::new();
@@ -4623,16 +4631,34 @@ impl AuthorityState {
             ));
         };
 
-        txns.push(EndOfEpochTransactionKind::new_change_epoch(
-            next_epoch,
-            next_epoch_protocol_version,
-            gas_cost_summary.storage_cost,
-            gas_cost_summary.computation_cost,
-            gas_cost_summary.storage_rebate,
-            gas_cost_summary.non_refundable_storage_fee,
-            epoch_start_timestamp_ms,
-            next_epoch_system_package_bytes,
-        ));
+        // ChangeEpochV2 requires that both options are set - ProtocolDefinedBaseFee and
+        // MaxCommitteeMembersCount.
+        if config.protocol_defined_base_fee()
+            && config.max_committee_members_count_as_option().is_some()
+        {
+            txns.push(EndOfEpochTransactionKind::new_change_epoch_v2(
+                next_epoch,
+                next_epoch_protocol_version,
+                gas_cost_summary.storage_cost,
+                gas_cost_summary.computation_cost,
+                gas_cost_summary.computation_cost_burned,
+                gas_cost_summary.storage_rebate,
+                gas_cost_summary.non_refundable_storage_fee,
+                epoch_start_timestamp_ms,
+                next_epoch_system_package_bytes,
+            ));
+        } else {
+            txns.push(EndOfEpochTransactionKind::new_change_epoch(
+                next_epoch,
+                next_epoch_protocol_version,
+                gas_cost_summary.storage_cost,
+                gas_cost_summary.computation_cost,
+                gas_cost_summary.storage_rebate,
+                gas_cost_summary.non_refundable_storage_fee,
+                epoch_start_timestamp_ms,
+                next_epoch_system_package_bytes,
+            ));
+        }
 
         let tx = VerifiedTransaction::new_end_of_epoch_transaction(txns);
 
@@ -4649,6 +4675,7 @@ impl AuthorityState {
             ?next_epoch_protocol_version,
             ?next_epoch_system_packages,
             computation_cost=?gas_cost_summary.computation_cost,
+            computation_cost_burned=?gas_cost_summary.computation_cost_burned,
             storage_cost=?gas_cost_summary.storage_cost,
             storage_rebate=?gas_cost_summary.storage_rebate,
             non_refundable_storage_fee=?gas_cost_summary.non_refundable_storage_fee,
@@ -4694,16 +4721,13 @@ impl AuthorityState {
             self.prepare_certificate(&execution_guard, &executable_tx, input_objects, epoch_store)?;
         let system_obj = get_iota_system_state(&temporary_store.written)
             .expect("change epoch tx must write to system object");
-        // Find the SystemEpochInfoEventV1 emitted by the advance_epoch transaction.
+        // Find the SystemEpochInfoEvent emitted by the advance_epoch transaction.
         let system_epoch_info_event = temporary_store
             .events
             .data
-            .iter()
+            .into_iter()
             .find(|event| event.is_system_epoch_info_event())
-            .map(|event| {
-                bcs::from_bytes::<SystemEpochInfoEventV1>(&event.contents)
-                    .expect("event deserialization should succeed as type was pre-validated")
-            });
+            .map(SystemEpochInfoEvent::from);
         // The system epoch info event can be `None` in case if the `advance_epoch`
         // Move function call failed and was executed in the safe mode.
         assert!(system_epoch_info_event.is_some() || system_obj.safe_mode());
@@ -5163,7 +5187,7 @@ pub mod framework_injection {
         let bytes = get_override_bytes(package_id, name)?;
         let dependencies = if is_system_package(*package_id) {
             BuiltInFramework::get_package_by_id(package_id)
-                .dependencies()
+                .dependencies
                 .to_vec()
         } else {
             // Assume that entirely new injected packages depend on all existing system

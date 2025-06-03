@@ -6,6 +6,7 @@
 //! IOTA adapter
 
 pub mod args;
+pub mod offchain_state;
 pub mod programmable_transaction_test_parser;
 mod simulator_persisted_store;
 pub mod test_adapter;
@@ -17,7 +18,7 @@ use iota_core::authority::{
     authority_test_utils::send_and_confirm_transaction_with_execution_error,
 };
 use iota_json_rpc::authority_state::StateRead;
-use iota_json_rpc_types::{DevInspectResults, EventFilter};
+use iota_json_rpc_types::{DevInspectResults, DryRunTransactionBlockResponse, EventFilter};
 use iota_storage::key_value_store::TransactionKeyValueStore;
 use iota_types::{
     base_types::{IotaAddress, ObjectID, VersionNumber},
@@ -29,13 +30,18 @@ use iota_types::{
     executable_transaction::{ExecutableTransaction, VerifiedExecutableTransaction},
     iota_system_state::{
         IotaSystemStateTrait, epoch_start_iota_system_state::EpochStartSystemStateTrait,
+        iota_system_state_summary::IotaSystemStateSummary,
     },
     messages_checkpoint::{CheckpointContentsDigest, VerifiedCheckpoint},
     object::Object,
     storage::{ObjectStore, ReadStore},
-    transaction::{InputObjects, Transaction, TransactionDataAPI, TransactionKind},
+    transaction::{
+        InputObjects, Transaction, TransactionData, TransactionDataAPI, TransactionKind,
+    },
 };
-pub use move_transactional_test_runner::framework::run_test_impl;
+pub use move_transactional_test_runner::framework::{
+    create_adapter, run_tasks_with_adapter, run_test_impl,
+};
 use rand::rngs::StdRng;
 use simulacrum::{Simulacrum, SimulatorStore};
 use simulator_persisted_store::PersistedStore;
@@ -87,6 +93,12 @@ pub trait TransactionalAdapter: Send + Sync + ReadStore {
         address: IotaAddress,
         amount: u64,
     ) -> anyhow::Result<TransactionEffects>;
+
+    async fn dry_run_transaction_block(
+        &self,
+        transaction_block: TransactionData,
+        transaction_digest: TransactionDigest,
+    ) -> IotaResult<DryRunTransactionBlockResponse>;
 
     async fn dev_inspect_transaction_block(
         &self,
@@ -161,6 +173,17 @@ impl TransactionalAdapter for ValidatorWithFullnode {
         Ok((effects, error))
     }
 
+    async fn dry_run_transaction_block(
+        &self,
+        transaction_block: TransactionData,
+        transaction_digest: TransactionDigest,
+    ) -> IotaResult<DryRunTransactionBlockResponse> {
+        self.fullnode
+            .dry_exec_transaction(transaction_block, transaction_digest)
+            .await
+            .map(|result| result.0)
+    }
+
     async fn dev_inspect_transaction_block(
         &self,
         sender: IotaAddress,
@@ -228,7 +251,7 @@ impl TransactionalAdapter for ValidatorWithFullnode {
     }
 
     async fn get_active_validator_addresses(&self) -> IotaResult<Vec<IotaAddress>> {
-        Ok(self
+        let system_state_summary = self
             .fullnode
             .get_system_state()
             .map_err(|e| {
@@ -237,8 +260,14 @@ impl TransactionalAdapter for ValidatorWithFullnode {
                     e
                 ))
             })?
-            .into_iota_system_state_summary()
-            .active_validators
+            .into_iota_system_state_summary();
+        let active_validators = match system_state_summary {
+            IotaSystemStateSummary::V1(inner) => inner.active_validators,
+            IotaSystemStateSummary::V2(inner) => inner.active_validators,
+            _ => unimplemented!(),
+        };
+
+        Ok(active_validators
             .iter()
             .map(|x| x.iota_address)
             .collect::<Vec<_>>())
@@ -420,6 +449,14 @@ impl TransactionalAdapter for Simulacrum<StdRng, PersistedStore> {
         _gas_price: Option<u64>,
     ) -> IotaResult<DevInspectResults> {
         unimplemented!("dev_inspect_transaction_block not supported in simulator mode")
+    }
+
+    async fn dry_run_transaction_block(
+        &self,
+        _transaction_block: TransactionData,
+        _transaction_digest: TransactionDigest,
+    ) -> IotaResult<DryRunTransactionBlockResponse> {
+        unimplemented!("dry_run_transaction_block not supported in simulator mode")
     }
 
     async fn query_tx_events_asc(

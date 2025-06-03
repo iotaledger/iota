@@ -4,30 +4,61 @@
 
 use std::{
     cell::RefCell,
+    cmp::min,
     sync::atomic::{AtomicBool, Ordering},
 };
 
 use clap::*;
-use iota_protocol_config_macros::{ProtocolConfigAccessors, ProtocolConfigFeatureFlagsGetters};
-use move_vm_config::verifier::{MeterConfig, VerifierConfig};
+use iota_protocol_config_macros::{
+    ProtocolConfigAccessors, ProtocolConfigFeatureFlagsGetters, ProtocolConfigOverride,
+};
+use move_vm_config::verifier::VerifierConfig;
 use serde::{Deserialize, Serialize};
 use serde_with::skip_serializing_none;
 use tracing::{info, warn};
 
 /// The minimum and maximum protocol versions supported by this build.
 const MIN_PROTOCOL_VERSION: u64 = 1;
-pub const MAX_PROTOCOL_VERSION: u64 = 4;
+pub const MAX_PROTOCOL_VERSION: u64 = 9;
 
 // Record history of protocol version allocations here:
 //
 // Version 1: Original version.
 // Version 2: Don't redistribute slashed staking rewards, fix computation of
-// SystemEpochInfoEventV1.
+//            SystemEpochInfoEventV1.
 // Version 3: Set the `relocate_event_module` to be true so that the module that
-// is associated as the "sending module" for an event is relocated by linkage.
-// Add `Clock` based unlock to `Timelock` objects.
+//            is associated as the "sending module" for an event is relocated by
+//            linkage.
+//            Add `Clock` based unlock to `Timelock` objects.
 // Version 4: Introduce the `max_type_to_layout_nodes` config that sets the
-// maximal nodes which are allowed when converting to a type layout.
+//            maximal nodes which are allowed when converting to a type layout.
+// Version 5: Introduce fixed protocol-defined base fee, IotaSystemStateV2 and
+//            SystemEpochInfoEventV2.
+//            Disallow adding new modules in `deps-only` packages.
+//            Improve gas/wall time efficiency of some Move stdlib vector
+//            functions.
+//            Add new gas model version to update charging of functions.
+//            Enable proper conversion of certain type argument errors in the
+//            execution layer.
+// Version 6: Bound size of values created in the adapter.
+// Version 7: Improve handling of stake withdrawal from candidate validators.
+// Version 8: Variants as type nodes.
+//            Enable smart ancestor selection for testnet.
+//            Enable probing for accepted rounds in round prober for testnet.
+//            Switch to distributed vote scoring in consensus in testnet.
+//            Enable zstd compression for consensus tonic network in testnet.
+//            Enable consensus garbage collection for testnet
+//            Enable the new consensus commit rule for testnet.
+//            Enable min_free_execution_slot for the shared object congestion
+//            tracker in devnet.
+// Version 9: Enable smart ancestor selection for mainnet.
+//            Enable probing for accepted rounds in round prober for mainnet.
+//            Switch to distributed vote scoring in consensus in mainnet.
+//            Enable zstd compression for consensus tonic network in mainnet.
+//            Enable consensus garbage collection for mainnet
+//            Enable the new consensus commit rule for mainnet.
+//            Increase the committee size to 80.
+//            Enable passkey auth in multisig for devnet.
 
 #[derive(Copy, Clone, Debug, Hash, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ProtocolVersion(u64);
@@ -45,7 +76,7 @@ impl ProtocolVersion {
     #[cfg(not(msim))]
     const MAX_ALLOWED: Self = Self::MAX;
 
-    // We create 1 additional "fake" version in simulator builds so that we can
+    // We create one additional "fake" version in simulator builds so that we can
     // test upgrades.
     #[cfg(msim)]
     pub const MAX_ALLOWED: Self = Self(MAX_PROTOCOL_VERSION + 1);
@@ -113,7 +144,7 @@ pub struct Error(pub String);
 // TODO: There are quite a few non boolean values in the feature flags. We
 // should move them out.
 /// Records on/off feature flags that may vary at each protocol version.
-#[derive(Default, Clone, Serialize, Debug, ProtocolConfigFeatureFlagsGetters)]
+#[derive(Default, Clone, Serialize, Deserialize, Debug, ProtocolConfigFeatureFlagsGetters)]
 struct FeatureFlags {
     // Add feature flags here, e.g.:
     // new_protocol_feature: bool,
@@ -192,6 +223,65 @@ struct FeatureFlags {
     // Makes the event's sending module version-aware.
     #[serde(skip_serializing_if = "is_false")]
     relocate_event_module: bool,
+
+    // Enable a protocol-defined base gas price for all transactions.
+    #[serde(skip_serializing_if = "is_false")]
+    protocol_defined_base_fee: bool,
+
+    // Enable uncompressed group elements in BLS123-81 G1
+    #[serde(skip_serializing_if = "is_false")]
+    uncompressed_g1_group_elements: bool,
+
+    // Disallow adding new modules in `deps-only` packages.
+    #[serde(skip_serializing_if = "is_false")]
+    disallow_new_modules_in_deps_only_packages: bool,
+
+    // Enable v2 native charging for natives.
+    #[serde(skip_serializing_if = "is_false")]
+    native_charging_v2: bool,
+
+    // Properly convert certain type argument errors in the execution layer.
+    #[serde(skip_serializing_if = "is_false")]
+    convert_type_argument_error: bool,
+
+    // Probe rounds received by peers from every authority.
+    #[serde(skip_serializing_if = "is_false")]
+    consensus_round_prober: bool,
+
+    // Use distributed vote leader scoring strategy in consensus.
+    #[serde(skip_serializing_if = "is_false")]
+    consensus_distributed_vote_scoring_strategy: bool,
+
+    // Enables the new logic for collecting the subdag in the consensus linearizer. The new logic
+    // does not stop the recursion at the highest committed round for each authority, but
+    // allows to commit uncommitted blocks up to gc round (excluded) for that authority.
+    #[serde(skip_serializing_if = "is_false")]
+    consensus_linearize_subdag_v2: bool,
+
+    // Variants count as nodes
+    #[serde(skip_serializing_if = "is_false")]
+    variant_nodes: bool,
+
+    // Use smart ancestor selection in consensus.
+    #[serde(skip_serializing_if = "is_false")]
+    consensus_smart_ancestor_selection: bool,
+
+    // Probe accepted rounds in round prober.
+    #[serde(skip_serializing_if = "is_false")]
+    consensus_round_prober_probe_accepted_rounds: bool,
+
+    // If true, enable zstd compression for consensus tonic network.
+    #[serde(skip_serializing_if = "is_false")]
+    consensus_zstd_compression: bool,
+
+    // Use the minimum free execution slot to schedule execution of a transaction in the shared
+    // object congestion tracker.
+    #[serde(skip_serializing_if = "is_false")]
+    congestion_control_min_free_execution_slot: bool,
+
+    // If true, multisig containing passkey sig is accepted.
+    #[serde(skip_serializing_if = "is_false")]
+    accept_passkey_in_multisig: bool,
 }
 
 fn is_true(b: &bool) -> bool {
@@ -203,7 +293,7 @@ fn is_false(b: &bool) -> bool {
 }
 
 /// Ordering mechanism for transactions in one consensus output.
-#[derive(Default, Copy, Clone, PartialEq, Eq, Serialize, Debug)]
+#[derive(Default, Copy, Clone, PartialEq, Eq, Serialize, Deserialize, Debug)]
 pub enum ConsensusTransactionOrdering {
     /// No ordering. Transactions are processed in the order they appear in the
     /// consensus output.
@@ -220,7 +310,7 @@ impl ConsensusTransactionOrdering {
 }
 
 // The config for per object congestion control in consensus handler.
-#[derive(Default, Copy, Clone, PartialEq, Eq, Serialize, Debug)]
+#[derive(Default, Copy, Clone, PartialEq, Eq, Serialize, Deserialize, Debug)]
 pub enum PerObjectCongestionControlMode {
     #[default]
     None, // No congestion control.
@@ -235,7 +325,7 @@ impl PerObjectCongestionControlMode {
 }
 
 // Configuration options for consensus algorithm.
-#[derive(Default, Copy, Clone, PartialEq, Eq, Serialize, Debug)]
+#[derive(Default, Copy, Clone, PartialEq, Eq, Serialize, Deserialize, Debug)]
 pub enum ConsensusChoice {
     #[default]
     Mysticeti,
@@ -248,7 +338,7 @@ impl ConsensusChoice {
 }
 
 // Configuration options for consensus network.
-#[derive(Default, Copy, Clone, PartialEq, Eq, Serialize, Debug)]
+#[derive(Default, Copy, Clone, PartialEq, Eq, Serialize, Deserialize, Debug)]
 pub enum ConsensusNetwork {
     #[default]
     Tonic,
@@ -294,7 +384,7 @@ impl ConsensusNetwork {
 /// version.
 /// - If you want a customized getter, you can add a method in the impl.
 #[skip_serializing_none]
-#[derive(Clone, Serialize, Debug, ProtocolConfigAccessors)]
+#[derive(Clone, Serialize, Debug, ProtocolConfigAccessors, ProtocolConfigOverride)]
 pub struct ProtocolConfig {
     pub version: ProtocolVersion,
 
@@ -581,6 +671,9 @@ pub struct ProtocolConfig {
     // Maximal nodes which are allowed when converting to a type layout.
     max_type_to_layout_nodes: Option<u64>,
 
+    // Maximal size in bytes that a PTB value can be
+    max_ptb_value_size: Option<u64>,
+
     // === Gas version. gas model ===
 
     //
@@ -610,11 +703,13 @@ pub struct ProtocolConfig {
     /// In basis point.
     reward_slashing_rate: Option<u64>,
 
-    /// Unit gas price, Nanos per internal gas unit.
+    /// Unit storage gas price, Nanos per internal gas unit.
     storage_gas_price: Option<u64>,
 
-    /// The number of tokens that the set of validators should receive per
-    /// epoch.
+    // Base gas price for computation gas, nanos per computation unit.
+    base_gas_price: Option<u64>,
+
+    /// The number of tokens minted as a validator subsidy per epoch.
     validator_target_reward: Option<u64>,
 
     // === Core Protocol ===
@@ -840,6 +935,11 @@ pub struct ProtocolConfig {
     group_ops_bls12381_g2_msm_base_cost_per_input: Option<u64>,
     group_ops_bls12381_msm_max_len: Option<u32>,
     group_ops_bls12381_pairing_cost: Option<u64>,
+    group_ops_bls12381_g1_to_uncompressed_g1_cost: Option<u64>,
+    group_ops_bls12381_uncompressed_g1_to_g1_cost: Option<u64>,
+    group_ops_bls12381_uncompressed_g1_sum_base_cost: Option<u64>,
+    group_ops_bls12381_uncompressed_g1_sum_cost_per_term: Option<u64>,
+    group_ops_bls12381_uncompressed_g1_sum_max_terms: Option<u64>,
 
     // hmac::hmac_sha3_256
     hmac_hmac_sha3_256_cost_base: Option<u64>,
@@ -955,8 +1055,17 @@ pub struct ProtocolConfig {
 
     /// The max accumulated txn execution cost per object in a mysticeti commit.
     /// Transactions in a commit will be deferred once their touch shared
-    /// objects hit this limit.    
+    /// objects hit this limit.
     max_accumulated_txn_cost_per_object_in_mysticeti_commit: Option<u64>,
+
+    /// Maximum number of committee (validators taking part in consensus)
+    /// validators at any moment. We do not allow the number of committee
+    /// validators in any epoch to go above this.
+    max_committee_members_count: Option<u64>,
+
+    /// Configures the garbage collection depth for consensus. When is unset or
+    /// `0` then the garbage collection is disabled.
+    consensus_gc_depth: Option<u32>,
 }
 
 // feature flags
@@ -1080,6 +1189,76 @@ impl ProtocolConfig {
     pub fn relocate_event_module(&self) -> bool {
         self.feature_flags.relocate_event_module
     }
+
+    pub fn protocol_defined_base_fee(&self) -> bool {
+        self.feature_flags.protocol_defined_base_fee
+    }
+
+    pub fn uncompressed_g1_group_elements(&self) -> bool {
+        self.feature_flags.uncompressed_g1_group_elements
+    }
+
+    pub fn disallow_new_modules_in_deps_only_packages(&self) -> bool {
+        self.feature_flags
+            .disallow_new_modules_in_deps_only_packages
+    }
+
+    pub fn native_charging_v2(&self) -> bool {
+        self.feature_flags.native_charging_v2
+    }
+
+    pub fn consensus_round_prober(&self) -> bool {
+        self.feature_flags.consensus_round_prober
+    }
+
+    pub fn consensus_distributed_vote_scoring_strategy(&self) -> bool {
+        self.feature_flags
+            .consensus_distributed_vote_scoring_strategy
+    }
+
+    pub fn gc_depth(&self) -> u32 {
+        if cfg!(msim) {
+            // exercise a very low gc_depth
+            min(5, self.consensus_gc_depth.unwrap_or(0))
+        } else {
+            self.consensus_gc_depth.unwrap_or(0)
+        }
+    }
+
+    pub fn consensus_linearize_subdag_v2(&self) -> bool {
+        let res = self.feature_flags.consensus_linearize_subdag_v2;
+        assert!(
+            !res || self.gc_depth() > 0,
+            "The consensus linearize sub dag V2 requires GC to be enabled"
+        );
+        res
+    }
+
+    pub fn variant_nodes(&self) -> bool {
+        self.feature_flags.variant_nodes
+    }
+
+    pub fn consensus_smart_ancestor_selection(&self) -> bool {
+        self.feature_flags.consensus_smart_ancestor_selection
+    }
+
+    pub fn consensus_round_prober_probe_accepted_rounds(&self) -> bool {
+        self.feature_flags
+            .consensus_round_prober_probe_accepted_rounds
+    }
+
+    pub fn consensus_zstd_compression(&self) -> bool {
+        self.feature_flags.consensus_zstd_compression
+    }
+
+    pub fn congestion_control_min_free_execution_slot(&self) -> bool {
+        self.feature_flags
+            .congestion_control_min_free_execution_slot
+    }
+
+    pub fn accept_passkey_in_multisig(&self) -> bool {
+        self.feature_flags.accept_passkey_in_multisig
+    }
 }
 
 #[cfg(not(msim))]
@@ -1113,7 +1292,7 @@ impl ProtocolConfig {
         let mut ret = Self::get_for_version_impl(version, chain);
         ret.version = version;
 
-        CONFIG_OVERRIDE.with(|ovr| {
+        ret = CONFIG_OVERRIDE.with(|ovr| {
             if let Some(override_fn) = &*ovr.borrow() {
                 warn!(
                     "overriding ProtocolConfig settings with custom settings (you should not see this log outside of tests)"
@@ -1122,7 +1301,19 @@ impl ProtocolConfig {
             } else {
                 ret
             }
-        })
+        });
+
+        if std::env::var("IOTA_PROTOCOL_CONFIG_OVERRIDE_ENABLE").is_ok() {
+            warn!(
+                "overriding ProtocolConfig settings with custom settings; this may break non-local networks"
+            );
+            let overrides: ProtocolConfigOptional =
+                serde_env::from_env_with_prefix("IOTA_PROTOCOL_CONFIG_OVERRIDE")
+                    .expect("failed to parse ProtocolConfig override env variables");
+            overrides.apply_to(&mut ret);
+        }
+
+        ret
     }
 
     /// Get the value ProtocolConfig that are in effect during the given
@@ -1155,6 +1346,10 @@ impl ProtocolConfig {
     #[cfg(msim)]
     fn load_poison_get_for_min_version() -> bool {
         POISON_VERSION_METHODS.with(|p| p.load(Ordering::Relaxed))
+    }
+
+    pub fn convert_type_argument_error(&self) -> bool {
+        self.feature_flags.convert_type_argument_error
     }
 
     /// Convenience to get the constants at the current minimum supported
@@ -1266,6 +1461,7 @@ impl ProtocolConfig {
             max_event_emit_size: Some(250 * 1024),
             max_move_vector_len: Some(256 * 1024),
             max_type_to_layout_nodes: None,
+            max_ptb_value_size: None,
 
             max_back_edges_per_function: Some(10_000),
             max_back_edges_per_module: Some(10_000),
@@ -1295,7 +1491,8 @@ impl ProtocolConfig {
             // Change reward slashing rate to 100%.
             reward_slashing_rate: Some(10000),
             storage_gas_price: Some(76),
-            // The initial target reward for validators per epoch.
+            base_gas_price: None,
+            // The initial subsidy (target reward) for validators per epoch.
             // Refer to the IOTA tokenomics for the origin of this value.
             validator_target_reward: Some(767_000 * 1_000_000_000),
             max_transactions_per_checkpoint: Some(10_000),
@@ -1508,6 +1705,11 @@ impl ProtocolConfig {
             group_ops_bls12381_g2_msm_base_cost_per_input: Some(52),
             group_ops_bls12381_msm_max_len: Some(32),
             group_ops_bls12381_pairing_cost: Some(52),
+            group_ops_bls12381_g1_to_uncompressed_g1_cost: None,
+            group_ops_bls12381_uncompressed_g1_to_g1_cost: None,
+            group_ops_bls12381_uncompressed_g1_sum_base_cost: None,
+            group_ops_bls12381_uncompressed_g1_sum_cost_per_term: None,
+            group_ops_bls12381_uncompressed_g1_sum_max_terms: None,
 
             // zklogin::check_zklogin_id
             check_zklogin_id_cost_base: Some(200),
@@ -1609,6 +1811,10 @@ impl ProtocolConfig {
             bridge_should_try_to_finalize_committee: None,
 
             max_accumulated_txn_cost_per_object_in_mysticeti_commit: Some(10),
+
+            max_committee_members_count: None,
+
+            consensus_gc_depth: None,
             // When adding a new constant, set it to None in the earliest version, like this:
             // new_constant: None,
         };
@@ -1626,10 +1832,7 @@ impl ProtocolConfig {
 
         // zkLogin related flags
         {
-            cfg.feature_flags.zklogin_auth = false;
-            cfg.feature_flags.enable_jwk_consensus_updates = false;
             cfg.feature_flags.zklogin_max_epoch_upper_bound_delta = Some(30);
-            cfg.feature_flags.accept_zklogin_in_multisig = false;
         }
 
         // Enable Mysticeti on mainnet.
@@ -1642,8 +1845,6 @@ impl ProtocolConfig {
 
         // Do not allow bridge committee to finalize on mainnet.
         cfg.bridge_should_try_to_finalize_committee = Some(chain != Chain::Mainnet);
-
-        cfg.feature_flags.bridge = false;
 
         // Devnet
         if chain != Chain::Mainnet && chain != Chain::Testnet {
@@ -1673,6 +1874,154 @@ impl ProtocolConfig {
                 4 => {
                     cfg.max_type_to_layout_nodes = Some(512);
                 }
+                5 => {
+                    cfg.feature_flags.protocol_defined_base_fee = true;
+                    cfg.base_gas_price = Some(1000);
+
+                    cfg.feature_flags.disallow_new_modules_in_deps_only_packages = true;
+                    cfg.feature_flags.convert_type_argument_error = true;
+                    cfg.feature_flags.native_charging_v2 = true;
+
+                    if chain != Chain::Mainnet && chain != Chain::Testnet {
+                        cfg.feature_flags.uncompressed_g1_group_elements = true;
+                    }
+
+                    cfg.gas_model_version = Some(2);
+
+                    cfg.poseidon_bn254_cost_per_block = Some(388);
+
+                    cfg.bls12381_bls12381_min_sig_verify_cost_base = Some(44064);
+                    cfg.bls12381_bls12381_min_pk_verify_cost_base = Some(49282);
+                    cfg.ecdsa_k1_secp256k1_verify_keccak256_cost_base = Some(1470);
+                    cfg.ecdsa_k1_secp256k1_verify_sha256_cost_base = Some(1470);
+                    cfg.ecdsa_r1_secp256r1_verify_sha256_cost_base = Some(4225);
+                    cfg.ecdsa_r1_secp256r1_verify_keccak256_cost_base = Some(4225);
+                    cfg.ecvrf_ecvrf_verify_cost_base = Some(4848);
+                    cfg.ed25519_ed25519_verify_cost_base = Some(1802);
+
+                    // Manually changed to be "under cost"
+                    cfg.ecdsa_r1_ecrecover_keccak256_cost_base = Some(1173);
+                    cfg.ecdsa_r1_ecrecover_sha256_cost_base = Some(1173);
+                    cfg.ecdsa_k1_ecrecover_keccak256_cost_base = Some(500);
+                    cfg.ecdsa_k1_ecrecover_sha256_cost_base = Some(500);
+
+                    cfg.groth16_prepare_verifying_key_bls12381_cost_base = Some(53838);
+                    cfg.groth16_prepare_verifying_key_bn254_cost_base = Some(82010);
+                    cfg.groth16_verify_groth16_proof_internal_bls12381_cost_base = Some(72090);
+                    cfg.groth16_verify_groth16_proof_internal_bls12381_cost_per_public_input =
+                        Some(8213);
+                    cfg.groth16_verify_groth16_proof_internal_bn254_cost_base = Some(115502);
+                    cfg.groth16_verify_groth16_proof_internal_bn254_cost_per_public_input =
+                        Some(9484);
+
+                    cfg.hash_keccak256_cost_base = Some(10);
+                    cfg.hash_blake2b256_cost_base = Some(10);
+
+                    // group ops
+                    cfg.group_ops_bls12381_decode_scalar_cost = Some(7);
+                    cfg.group_ops_bls12381_decode_g1_cost = Some(2848);
+                    cfg.group_ops_bls12381_decode_g2_cost = Some(3770);
+                    cfg.group_ops_bls12381_decode_gt_cost = Some(3068);
+
+                    cfg.group_ops_bls12381_scalar_add_cost = Some(10);
+                    cfg.group_ops_bls12381_g1_add_cost = Some(1556);
+                    cfg.group_ops_bls12381_g2_add_cost = Some(3048);
+                    cfg.group_ops_bls12381_gt_add_cost = Some(188);
+
+                    cfg.group_ops_bls12381_scalar_sub_cost = Some(10);
+                    cfg.group_ops_bls12381_g1_sub_cost = Some(1550);
+                    cfg.group_ops_bls12381_g2_sub_cost = Some(3019);
+                    cfg.group_ops_bls12381_gt_sub_cost = Some(497);
+
+                    cfg.group_ops_bls12381_scalar_mul_cost = Some(11);
+                    cfg.group_ops_bls12381_g1_mul_cost = Some(4842);
+                    cfg.group_ops_bls12381_g2_mul_cost = Some(9108);
+                    cfg.group_ops_bls12381_gt_mul_cost = Some(27490);
+
+                    cfg.group_ops_bls12381_scalar_div_cost = Some(91);
+                    cfg.group_ops_bls12381_g1_div_cost = Some(5091);
+                    cfg.group_ops_bls12381_g2_div_cost = Some(9206);
+                    cfg.group_ops_bls12381_gt_div_cost = Some(27804);
+
+                    cfg.group_ops_bls12381_g1_hash_to_base_cost = Some(2962);
+                    cfg.group_ops_bls12381_g2_hash_to_base_cost = Some(8688);
+
+                    cfg.group_ops_bls12381_g1_msm_base_cost = Some(62648);
+                    cfg.group_ops_bls12381_g2_msm_base_cost = Some(131192);
+                    cfg.group_ops_bls12381_g1_msm_base_cost_per_input = Some(1333);
+                    cfg.group_ops_bls12381_g2_msm_base_cost_per_input = Some(3216);
+
+                    cfg.group_ops_bls12381_uncompressed_g1_to_g1_cost = Some(677);
+                    cfg.group_ops_bls12381_g1_to_uncompressed_g1_cost = Some(2099);
+                    cfg.group_ops_bls12381_uncompressed_g1_sum_base_cost = Some(77);
+                    cfg.group_ops_bls12381_uncompressed_g1_sum_cost_per_term = Some(26);
+                    cfg.group_ops_bls12381_uncompressed_g1_sum_max_terms = Some(1200);
+
+                    cfg.group_ops_bls12381_pairing_cost = Some(26897);
+
+                    cfg.validator_validate_metadata_cost_base = Some(20000);
+
+                    cfg.max_committee_members_count = Some(50);
+                }
+                6 => {
+                    cfg.max_ptb_value_size = Some(1024 * 1024);
+                }
+                // version 7 is a new framework version but with no config changes
+                7 => {}
+                8 => {
+                    cfg.feature_flags.variant_nodes = true;
+
+                    if chain != Chain::Mainnet {
+                        // Enable round prober in consensus.
+                        cfg.feature_flags.consensus_round_prober = true;
+                        // Enable distributed vote scoring.
+                        cfg.feature_flags
+                            .consensus_distributed_vote_scoring_strategy = true;
+                        cfg.feature_flags.consensus_linearize_subdag_v2 = true;
+                        // Enable smart ancestor selection for testnet
+                        cfg.feature_flags.consensus_smart_ancestor_selection = true;
+                        // Enable probing for accepted rounds in round prober for testnet
+                        cfg.feature_flags
+                            .consensus_round_prober_probe_accepted_rounds = true;
+                        // Enable zstd compression for consensus in testnet
+                        cfg.feature_flags.consensus_zstd_compression = true;
+                        // Assuming a round rate of max 15/sec, then using a gc depth of 60 allow
+                        // blocks within a window of ~4 seconds
+                        // to be included before be considered garbage collected.
+                        cfg.consensus_gc_depth = Some(60);
+                    }
+                    // Enable min_free_execution_slot for the shared object congestion tracker in
+                    // devnet.
+                    if chain != Chain::Testnet && chain != Chain::Mainnet {
+                        cfg.feature_flags.congestion_control_min_free_execution_slot = true;
+                    }
+                }
+                9 => {
+                    // Enable round prober in consensus.
+                    cfg.feature_flags.consensus_round_prober = true;
+                    // Enable distributed vote scoring.
+                    cfg.feature_flags
+                        .consensus_distributed_vote_scoring_strategy = true;
+                    cfg.feature_flags.consensus_linearize_subdag_v2 = true;
+                    // Enable smart ancestor selection
+                    cfg.feature_flags.consensus_smart_ancestor_selection = true;
+                    // Enable probing for accepted rounds in round prober
+                    cfg.feature_flags
+                        .consensus_round_prober_probe_accepted_rounds = true;
+                    // Enable zstd compression for consensus
+                    cfg.feature_flags.consensus_zstd_compression = true;
+                    // Assuming a round rate of max 15/sec, then using a gc depth of 60 allow
+                    // blocks within a window of ~4 seconds
+                    // to be included before be considered garbage collected.
+                    cfg.consensus_gc_depth = Some(60);
+
+                    cfg.max_committee_members_count = Some(80);
+
+                    // Enable passkey in multisig in devnet.
+                    if chain != Chain::Testnet && chain != Chain::Mainnet {
+                        cfg.feature_flags.accept_passkey_in_multisig = true;
+                    }
+                }
                 // Use this template when making changes:
                 //
                 //     // modify an existing constant.
@@ -1692,11 +2041,15 @@ impl ProtocolConfig {
     // Extract the bytecode verifier config from this protocol config. `for_signing`
     // indicates whether this config is used for verification during signing or
     // execution.
-    pub fn verifier_config(&self, for_signing: bool) -> VerifierConfig {
-        let (max_back_edges_per_function, max_back_edges_per_module) = if for_signing {
+    pub fn verifier_config(&self, signing_limits: Option<(usize, usize)>) -> VerifierConfig {
+        let (max_back_edges_per_function, max_back_edges_per_module) = if let Some((
+            max_back_edges_per_function,
+            max_back_edges_per_module,
+        )) = signing_limits
+        {
             (
-                Some(self.max_back_edges_per_function() as usize),
-                Some(self.max_back_edges_per_module() as usize),
+                Some(max_back_edges_per_function),
+                Some(max_back_edges_per_module),
             )
         } else {
             (None, None)
@@ -1723,16 +2076,6 @@ impl ProtocolConfig {
                                                                            * no limit */
             bytecode_version: self.move_binary_format_version(),
             max_variants_in_enum: self.max_move_enum_variants_as_option(),
-        }
-    }
-
-    /// MeterConfig for metering packages during signing. It is NOT stable
-    /// between binaries and cannot used during execution.
-    pub fn meter_config_for_signing(&self) -> MeterConfig {
-        MeterConfig {
-            max_per_fun_meter_units: Some(2_200_000),
-            max_per_mod_meter_units: Some(2_200_000),
-            max_per_pkg_meter_units: Some(2_200_000),
         }
     }
 
@@ -1792,6 +2135,37 @@ impl ProtocolConfig {
 
     pub fn set_passkey_auth_for_testing(&mut self, val: bool) {
         self.feature_flags.passkey_auth = val
+    }
+
+    pub fn set_disallow_new_modules_in_deps_only_packages_for_testing(&mut self, val: bool) {
+        self.feature_flags
+            .disallow_new_modules_in_deps_only_packages = val;
+    }
+
+    pub fn set_consensus_round_prober_for_testing(&mut self, val: bool) {
+        self.feature_flags.consensus_round_prober = val;
+    }
+
+    pub fn set_consensus_distributed_vote_scoring_strategy_for_testing(&mut self, val: bool) {
+        self.feature_flags
+            .consensus_distributed_vote_scoring_strategy = val;
+    }
+
+    pub fn set_gc_depth_for_testing(&mut self, val: u32) {
+        self.consensus_gc_depth = Some(val);
+    }
+
+    pub fn set_consensus_linearize_subdag_v2_for_testing(&mut self, val: bool) {
+        self.feature_flags.consensus_linearize_subdag_v2 = val;
+    }
+
+    pub fn set_consensus_round_prober_probe_accepted_rounds(&mut self, val: bool) {
+        self.feature_flags
+            .consensus_round_prober_probe_accepted_rounds = val;
+    }
+
+    pub fn set_accept_passkey_in_multisig_for_testing(&mut self, val: bool) {
+        self.feature_flags.accept_passkey_in_multisig = val;
     }
 }
 

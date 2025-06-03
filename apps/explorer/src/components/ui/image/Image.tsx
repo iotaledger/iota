@@ -111,7 +111,9 @@ function BaseImage({
                     </div>
                 )
             ) : status === 'failed' ? (
-                <PlaceholderReplace />
+                <div className="flex h-full w-full items-center justify-center">
+                    <PlaceholderReplace className="h-8 w-8" />
+                </div>
             ) : null}
             {status === 'loaded' && (
                 <img

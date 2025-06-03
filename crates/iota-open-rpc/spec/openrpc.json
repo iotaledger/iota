@@ -12,7 +12,7 @@
       "name": "Apache-2.0",
       "url": "https://raw.githubusercontent.com/iotaledger/iota/main/LICENSE"
     },
-    "version": "0.10.0-alpha"
+    "version": "1.3.0-alpha"
   },
   "methods": [
     {
@@ -313,7 +313,7 @@
           "name": "Write API"
         }
       ],
-      "description": "Execute the transaction and wait for results if desired. Request types: 1. WaitForEffectsCert: waits for TransactionEffectsCert and then return to client.     This mode is a proxy for transaction finality. 2. WaitForLocalExecution: waits for TransactionEffectsCert and make sure the node     executed the transaction locally before returning the client. The local execution     makes sure this node is aware of this transaction when client fires subsequent queries.     However if the node fails to execute the transaction locally in a timely manner,     a bool type in the response is set to false to indicated the case. request_type is default to be `WaitForEffectsCert` unless options.show_events or options.show_effects is true",
+      "description": "Execute the transaction and wait for results if desired. Request types: 1. WaitForEffectsCert: waits for TransactionEffectsCert and then return to    client. This mode is a proxy for transaction finality. 2. WaitForLocalExecution: waits for TransactionEffectsCert and make sure the    node executed the transaction locally before returning the client. The    local execution makes sure this node is aware of this transaction when    client fires subsequent queries. However if the node fails to execute the    transaction locally in a timely manner, a bool type in the response is    set to false to indicated the case. request_type is default to be `WaitForEffectsCert` unless options.show_events or options.show_effects is true",
       "params": [
         {
           "name": "tx_bytes",
@@ -800,6 +800,7 @@
                   "parsedJson": {
                     "test": "example value"
                   },
+                  "bcsEncoding": "base64",
                   "bcs": ""
                 }
               ],
@@ -1300,21 +1301,35 @@
             "name": "Result",
             "value": {
               "minSupportedProtocolVersion": "1",
-              "maxSupportedProtocolVersion": "4",
-              "protocolVersion": "1",
+              "maxSupportedProtocolVersion": "9",
+              "protocolVersion": "6",
               "featureFlags": {
+                "accept_passkey_in_multisig": false,
                 "accept_zklogin_in_multisig": false,
                 "bridge": false,
+                "congestion_control_min_free_execution_slot": false,
+                "consensus_distributed_vote_scoring_strategy": false,
+                "consensus_linearize_subdag_v2": false,
+                "consensus_round_prober": false,
+                "consensus_round_prober_probe_accepted_rounds": false,
+                "consensus_smart_ancestor_selection": false,
+                "consensus_zstd_compression": false,
+                "convert_type_argument_error": true,
                 "disable_invariant_violation_check_in_swap_loc": true,
+                "disallow_new_modules_in_deps_only_packages": true,
                 "enable_group_ops_native_function_msm": true,
                 "enable_jwk_consensus_updates": false,
                 "enable_poseidon": true,
                 "enable_vdf": true,
                 "hardened_otw_check": true,
+                "native_charging_v2": true,
                 "no_extraneous_module_bytes": true,
                 "passkey_auth": true,
-                "relocate_event_module": false,
+                "protocol_defined_base_fee": true,
+                "relocate_event_module": true,
                 "rethrow_serialization_type_layout_errors": true,
+                "uncompressed_g1_group_elements": true,
+                "variant_nodes": false,
                 "zklogin_auth": false
               },
               "attributes": {
@@ -1326,6 +1341,9 @@
                 },
                 "address_to_u256_cost_base": {
                   "u64": "52"
+                },
+                "base_gas_price": {
+                  "u64": "1000"
                 },
                 "base_tx_cost_fixed": {
                   "u64": "1000"
@@ -1389,7 +1407,7 @@
                 "binary_variant_handles": null,
                 "binary_variant_instantiation_handles": null,
                 "bls12381_bls12381_min_pk_verify_cost_base": {
-                  "u64": "52"
+                  "u64": "49282"
                 },
                 "bls12381_bls12381_min_pk_verify_msg_cost_per_block": {
                   "u64": "2"
@@ -1398,7 +1416,7 @@
                   "u64": "2"
                 },
                 "bls12381_bls12381_min_sig_verify_cost_base": {
-                  "u64": "52"
+                  "u64": "44064"
                 },
                 "bls12381_bls12381_min_sig_verify_msg_cost_per_block": {
                   "u64": "2"
@@ -1430,6 +1448,7 @@
                 "consensus_bad_nodes_stake_threshold": {
                   "u64": "20"
                 },
+                "consensus_gc_depth": null,
                 "consensus_max_num_transactions_in_block": {
                   "u64": "512"
                 },
@@ -1506,7 +1525,7 @@
                   "u64": "52"
                 },
                 "ecdsa_k1_ecrecover_keccak256_cost_base": {
-                  "u64": "52"
+                  "u64": "500"
                 },
                 "ecdsa_k1_ecrecover_keccak256_msg_cost_per_block": {
                   "u64": "2"
@@ -1515,7 +1534,7 @@
                   "u64": "2"
                 },
                 "ecdsa_k1_ecrecover_sha256_cost_base": {
-                  "u64": "52"
+                  "u64": "500"
                 },
                 "ecdsa_k1_ecrecover_sha256_msg_cost_per_block": {
                   "u64": "2"
@@ -1524,7 +1543,7 @@
                   "u64": "2"
                 },
                 "ecdsa_k1_secp256k1_verify_keccak256_cost_base": {
-                  "u64": "52"
+                  "u64": "1470"
                 },
                 "ecdsa_k1_secp256k1_verify_keccak256_msg_cost_per_block": {
                   "u64": "2"
@@ -1533,7 +1552,7 @@
                   "u64": "2"
                 },
                 "ecdsa_k1_secp256k1_verify_sha256_cost_base": {
-                  "u64": "52"
+                  "u64": "1470"
                 },
                 "ecdsa_k1_secp256k1_verify_sha256_msg_cost_per_block": {
                   "u64": "2"
@@ -1542,7 +1561,7 @@
                   "u64": "2"
                 },
                 "ecdsa_r1_ecrecover_keccak256_cost_base": {
-                  "u64": "52"
+                  "u64": "1173"
                 },
                 "ecdsa_r1_ecrecover_keccak256_msg_cost_per_block": {
                   "u64": "2"
@@ -1551,7 +1570,7 @@
                   "u64": "2"
                 },
                 "ecdsa_r1_ecrecover_sha256_cost_base": {
-                  "u64": "52"
+                  "u64": "1173"
                 },
                 "ecdsa_r1_ecrecover_sha256_msg_cost_per_block": {
                   "u64": "2"
@@ -1560,7 +1579,7 @@
                   "u64": "2"
                 },
                 "ecdsa_r1_secp256r1_verify_keccak256_cost_base": {
-                  "u64": "52"
+                  "u64": "4225"
                 },
                 "ecdsa_r1_secp256r1_verify_keccak256_msg_cost_per_block": {
                   "u64": "2"
@@ -1569,7 +1588,7 @@
                   "u64": "2"
                 },
                 "ecdsa_r1_secp256r1_verify_sha256_cost_base": {
-                  "u64": "52"
+                  "u64": "4225"
                 },
                 "ecdsa_r1_secp256r1_verify_sha256_msg_cost_per_block": {
                   "u64": "2"
@@ -1584,10 +1603,10 @@
                   "u64": "2"
                 },
                 "ecvrf_ecvrf_verify_cost_base": {
-                  "u64": "52"
+                  "u64": "4848"
                 },
                 "ed25519_ed25519_verify_cost_base": {
-                  "u64": "52"
+                  "u64": "1802"
                 },
                 "ed25519_ed25519_verify_msg_cost_per_block": {
                   "u64": "2"
@@ -1611,124 +1630,139 @@
                   "u64": "1"
                 },
                 "gas_model_version": {
-                  "u64": "1"
+                  "u64": "2"
                 },
                 "gas_rounding_step": {
                   "u64": "1000"
                 },
                 "groth16_prepare_verifying_key_bls12381_cost_base": {
-                  "u64": "52"
+                  "u64": "53838"
                 },
                 "groth16_prepare_verifying_key_bn254_cost_base": {
-                  "u64": "52"
+                  "u64": "82010"
                 },
                 "groth16_verify_groth16_proof_internal_bls12381_cost_base": {
-                  "u64": "52"
+                  "u64": "72090"
                 },
                 "groth16_verify_groth16_proof_internal_bls12381_cost_per_public_input": {
-                  "u64": "2"
+                  "u64": "8213"
                 },
                 "groth16_verify_groth16_proof_internal_bn254_cost_base": {
-                  "u64": "52"
+                  "u64": "115502"
                 },
                 "groth16_verify_groth16_proof_internal_bn254_cost_per_public_input": {
-                  "u64": "2"
+                  "u64": "9484"
                 },
                 "groth16_verify_groth16_proof_internal_public_input_cost_per_byte": {
                   "u64": "2"
                 },
                 "group_ops_bls12381_decode_g1_cost": {
-                  "u64": "52"
+                  "u64": "2848"
                 },
                 "group_ops_bls12381_decode_g2_cost": {
-                  "u64": "52"
+                  "u64": "3770"
                 },
                 "group_ops_bls12381_decode_gt_cost": {
-                  "u64": "52"
+                  "u64": "3068"
                 },
                 "group_ops_bls12381_decode_scalar_cost": {
-                  "u64": "52"
+                  "u64": "7"
                 },
                 "group_ops_bls12381_g1_add_cost": {
-                  "u64": "52"
+                  "u64": "1556"
                 },
                 "group_ops_bls12381_g1_div_cost": {
-                  "u64": "52"
+                  "u64": "5091"
                 },
                 "group_ops_bls12381_g1_hash_to_base_cost": {
-                  "u64": "52"
+                  "u64": "2962"
                 },
                 "group_ops_bls12381_g1_hash_to_cost_per_byte": {
                   "u64": "2"
                 },
                 "group_ops_bls12381_g1_msm_base_cost": {
-                  "u64": "52"
+                  "u64": "62648"
                 },
                 "group_ops_bls12381_g1_msm_base_cost_per_input": {
-                  "u64": "52"
+                  "u64": "1333"
                 },
                 "group_ops_bls12381_g1_mul_cost": {
-                  "u64": "52"
+                  "u64": "4842"
                 },
                 "group_ops_bls12381_g1_sub_cost": {
-                  "u64": "52"
+                  "u64": "1550"
+                },
+                "group_ops_bls12381_g1_to_uncompressed_g1_cost": {
+                  "u64": "2099"
                 },
                 "group_ops_bls12381_g2_add_cost": {
-                  "u64": "52"
+                  "u64": "3048"
                 },
                 "group_ops_bls12381_g2_div_cost": {
-                  "u64": "52"
+                  "u64": "9206"
                 },
                 "group_ops_bls12381_g2_hash_to_base_cost": {
-                  "u64": "52"
+                  "u64": "8688"
                 },
                 "group_ops_bls12381_g2_hash_to_cost_per_byte": {
                   "u64": "2"
                 },
                 "group_ops_bls12381_g2_msm_base_cost": {
-                  "u64": "52"
+                  "u64": "131192"
                 },
                 "group_ops_bls12381_g2_msm_base_cost_per_input": {
-                  "u64": "52"
+                  "u64": "3216"
                 },
                 "group_ops_bls12381_g2_mul_cost": {
-                  "u64": "52"
+                  "u64": "9108"
                 },
                 "group_ops_bls12381_g2_sub_cost": {
-                  "u64": "52"
+                  "u64": "3019"
                 },
                 "group_ops_bls12381_gt_add_cost": {
-                  "u64": "52"
+                  "u64": "188"
                 },
                 "group_ops_bls12381_gt_div_cost": {
-                  "u64": "52"
+                  "u64": "27804"
                 },
                 "group_ops_bls12381_gt_mul_cost": {
-                  "u64": "52"
+                  "u64": "27490"
                 },
                 "group_ops_bls12381_gt_sub_cost": {
-                  "u64": "52"
+                  "u64": "497"
                 },
                 "group_ops_bls12381_msm_max_len": {
                   "u32": "32"
                 },
                 "group_ops_bls12381_pairing_cost": {
-                  "u64": "52"
+                  "u64": "26897"
                 },
                 "group_ops_bls12381_scalar_add_cost": {
-                  "u64": "52"
+                  "u64": "10"
                 },
                 "group_ops_bls12381_scalar_div_cost": {
-                  "u64": "52"
+                  "u64": "91"
                 },
                 "group_ops_bls12381_scalar_mul_cost": {
-                  "u64": "52"
+                  "u64": "11"
                 },
                 "group_ops_bls12381_scalar_sub_cost": {
-                  "u64": "52"
+                  "u64": "10"
+                },
+                "group_ops_bls12381_uncompressed_g1_sum_base_cost": {
+                  "u64": "77"
+                },
+                "group_ops_bls12381_uncompressed_g1_sum_cost_per_term": {
+                  "u64": "26"
+                },
+                "group_ops_bls12381_uncompressed_g1_sum_max_terms": {
+                  "u64": "1200"
+                },
+                "group_ops_bls12381_uncompressed_g1_to_g1_cost": {
+                  "u64": "677"
                 },
                 "hash_blake2b256_cost_base": {
-                  "u64": "52"
+                  "u64": "10"
                 },
                 "hash_blake2b256_data_cost_per_block": {
                   "u64": "2"
@@ -1737,7 +1771,7 @@
                   "u64": "2"
                 },
                 "hash_keccak256_cost_base": {
-                  "u64": "52"
+                  "u64": "10"
                 },
                 "hash_keccak256_data_cost_per_block": {
                   "u64": "2"
@@ -1792,6 +1826,9 @@
                 },
                 "max_checkpoint_size_bytes": {
                   "u64": "31457280"
+                },
+                "max_committee_members_count": {
+                  "u64": "50"
                 },
                 "max_deferral_rounds_for_congestion_control": {
                   "u64": "10"
@@ -1887,6 +1924,9 @@
                 "max_programmable_tx_commands": {
                   "u32": "1024"
                 },
+                "max_ptb_value_size": {
+                  "u64": "1048576"
+                },
                 "max_publish_or_upgrade_per_ptb": {
                   "u64": "5"
                 },
@@ -1932,7 +1972,9 @@
                 "max_type_nodes": {
                   "u64": "256"
                 },
-                "max_type_to_layout_nodes": null,
+                "max_type_to_layout_nodes": {
+                  "u64": "512"
+                },
                 "max_value_stack_size": {
                   "u64": "1024"
                 },
@@ -1997,7 +2039,7 @@
                   "u64": "260"
                 },
                 "poseidon_bn254_cost_per_block": {
-                  "u64": "10"
+                  "u64": "388"
                 },
                 "random_beacon_dkg_timeout_round": {
                   "u32": "3000"
@@ -2081,7 +2123,7 @@
                   "u64": "767000000000000"
                 },
                 "validator_validate_metadata_cost_base": {
-                  "u64": "52"
+                  "u64": "20000"
                 },
                 "validator_validate_metadata_data_cost_per_byte": {
                   "u64": "2"
@@ -3409,6 +3451,23 @@
       }
     },
     {
+      "name": "iotax_getCirculatingSupply",
+      "tags": [
+        {
+          "name": "Coin Query API"
+        }
+      ],
+      "description": "Return the circulating supply summary.",
+      "params": [],
+      "result": {
+        "name": "IotaCirculatingSupply",
+        "required": true,
+        "schema": {
+          "$ref": "#/components/schemas/IotaCirculatingSupply"
+        }
+      }
+    },
+    {
       "name": "iotax_getCoinMetadata",
       "tags": [
         {
@@ -3711,6 +3770,47 @@
       ]
     },
     {
+      "name": "iotax_getDynamicFieldObjectV2",
+      "tags": [
+        {
+          "name": "Extended API"
+        }
+      ],
+      "description": "Return the dynamic field object information for a specified object with content options.",
+      "params": [
+        {
+          "name": "parent_object_id",
+          "description": "The ID of the queried parent object",
+          "required": true,
+          "schema": {
+            "$ref": "#/components/schemas/ObjectID"
+          }
+        },
+        {
+          "name": "name",
+          "description": "The Name of the dynamic field",
+          "required": true,
+          "schema": {
+            "$ref": "#/components/schemas/DynamicFieldName"
+          }
+        },
+        {
+          "name": "options",
+          "description": "Options for specifying the content to be returned",
+          "schema": {
+            "$ref": "#/components/schemas/ObjectDataOptions"
+          }
+        }
+      ],
+      "result": {
+        "name": "IotaObjectResponse",
+        "required": true,
+        "schema": {
+          "$ref": "#/components/schemas/IotaObjectResponse"
+        }
+      }
+    },
+    {
       "name": "iotax_getDynamicFields",
       "tags": [
         {
@@ -3777,7 +3877,8 @@
                     "type": "0x0000000000000000000000000000000000000000000000000000000000000009::test::TestField",
                     "value": "some_value"
                   },
-                  "bcsName": "2F1KQ3miNpBx1RzoRr1MVYMraK7RV",
+                  "bcsEncoding": "base64",
+                  "bcsName": "FDB4OTo6dGVzdDo6VGVzdEZpZWxk",
                   "type": "DynamicField",
                   "objectType": "test",
                   "objectId": "0x82b2fd67344691abd0efc771941b948ad35360b08e449fbbc28b0641175bf60b",
@@ -3789,7 +3890,8 @@
                     "type": "0x0000000000000000000000000000000000000000000000000000000000000009::test::TestField",
                     "value": "some_value"
                   },
-                  "bcsName": "2F1KQ3miNpBx1RzoRr1MVYMraK7RV",
+                  "bcsEncoding": "base64",
+                  "bcsName": "FDB4OTo6dGVzdDo6VGVzdEZpZWxk",
                   "type": "DynamicField",
                   "objectType": "test",
                   "objectId": "0x21564fc5a68ace997461b098c1d1f3ccbde241d8fdf562db36bc1423ee10cecb",
@@ -3801,7 +3903,8 @@
                     "type": "0x0000000000000000000000000000000000000000000000000000000000000009::test::TestField",
                     "value": "some_value"
                   },
-                  "bcsName": "2F1KQ3miNpBx1RzoRr1MVYMraK7RV",
+                  "bcsEncoding": "base64",
+                  "bcsName": "FDB4OTo6dGVzdDo6VGVzdEZpZWxk",
                   "type": "DynamicField",
                   "objectType": "test",
                   "objectId": "0x7e00acf5386662fa062483ba507b1e9e3039750f0a270f2e12441ad7f611a5f7",
@@ -3922,13 +4025,13 @@
           "name": "Governance Read API"
         }
       ],
-      "description": "Return the latest IOTA system state object on-chain.",
+      "description": "Return the latest IOTA system state object on networks supporting protocol version `< 5`. These are networks with node software release version `< 0.11`.",
       "params": [],
       "result": {
-        "name": "IotaSystemStateSummary",
+        "name": "IotaSystemStateSummaryV1",
         "required": true,
         "schema": {
-          "$ref": "#/components/schemas/IotaSystemStateSummary"
+          "$ref": "#/components/schemas/IotaSystemStateSummaryV1"
         }
       },
       "examples": [
@@ -3941,6 +4044,23 @@
           }
         }
       ]
+    },
+    {
+      "name": "iotax_getLatestIotaSystemStateV2",
+      "tags": [
+        {
+          "name": "Governance Read API"
+        }
+      ],
+      "description": "Return the latest IOTA system state object on networks supporting protocol version `>= 5`. These are networks with node software release version `>= 0.11`.",
+      "params": [],
+      "result": {
+        "name": "IotaSystemStateSummary",
+        "required": true,
+        "schema": {
+          "$ref": "#/components/schemas/IotaSystemStateSummary"
+        }
+      }
     },
     {
       "name": "iotax_getMoveCallMetrics",
@@ -4118,6 +4238,23 @@
           }
         }
       ]
+    },
+    {
+      "name": "iotax_getParticipationMetrics",
+      "tags": [
+        {
+          "name": "Extended API"
+        }
+      ],
+      "description": "Returns the participation metrics. Participation is defined as the total number of unique addresses that have delegated stake in the current epoch. Includes both staked and timelocked staked IOTA. Exclusively served by the indexer.",
+      "params": [],
+      "result": {
+        "name": "ParticipationMetrics",
+        "required": true,
+        "schema": {
+          "$ref": "#/components/schemas/ParticipationMetrics"
+        }
+      }
     },
     {
       "name": "iotax_getReferenceGasPrice",
@@ -4456,6 +4593,101 @@
       ]
     },
     {
+      "name": "iotax_iotaNamesFindAllRegistrationNFTs",
+      "tags": [
+        {
+          "name": "Extended API"
+        }
+      ],
+      "description": "Find all registration NFTs for the given address.",
+      "params": [
+        {
+          "name": "address",
+          "required": true,
+          "schema": {
+            "$ref": "#/components/schemas/IotaAddress"
+          }
+        },
+        {
+          "name": "cursor",
+          "schema": {
+            "$ref": "#/components/schemas/ObjectID"
+          }
+        },
+        {
+          "name": "limit",
+          "schema": {
+            "type": "integer",
+            "format": "uint",
+            "minimum": 0.0
+          }
+        },
+        {
+          "name": "options",
+          "schema": {
+            "$ref": "#/components/schemas/ObjectDataOptions"
+          }
+        }
+      ],
+      "result": {
+        "name": "ObjectsPage",
+        "required": true,
+        "schema": {
+          "$ref": "#/components/schemas/Page_for_IotaObjectResponse_and_ObjectID"
+        }
+      }
+    },
+    {
+      "name": "iotax_iotaNamesLookup",
+      "tags": [
+        {
+          "name": "Extended API"
+        }
+      ],
+      "description": "Return the resolved record for the given name.",
+      "params": [
+        {
+          "name": "name",
+          "description": "The name to resolve",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "result": {
+        "name": "IotaNameRecord",
+        "schema": {
+          "$ref": "#/components/schemas/IotaNameRecord"
+        }
+      }
+    },
+    {
+      "name": "iotax_iotaNamesReverseLookup",
+      "tags": [
+        {
+          "name": "Extended API"
+        }
+      ],
+      "description": "Return the resolved name for the given address.",
+      "params": [
+        {
+          "name": "address",
+          "description": "The address to resolve.",
+          "required": true,
+          "schema": {
+            "$ref": "#/components/schemas/IotaAddress"
+          }
+        }
+      ],
+      "result": {
+        "name": "String",
+        "schema": {
+          "type": "string"
+        }
+      }
+    },
+    {
       "name": "iotax_queryEvents",
       "tags": [
         {
@@ -4546,6 +4778,7 @@
                   "sender": "0x84bd999f9ff7a1804872957fafa528628a24386298faa98850887f64da841b87",
                   "type": "0x3::test::Test<0x3::test::Test>",
                   "parsedJson": "some_value",
+                  "bcsEncoding": "base64",
                   "bcs": ""
                 },
                 {
@@ -4558,6 +4791,7 @@
                   "sender": "0x279efd098d59a66a3d9adc87cce81fe9ec69dc8105b2b60140589ec8be44c29f",
                   "type": "0x3::test::Test<0x3::test::Test>",
                   "parsedJson": "some_value",
+                  "bcsEncoding": "base64",
                   "bcs": ""
                 },
                 {
@@ -4570,6 +4804,7 @@
                   "sender": "0x289be027d2a94f744b4c59fda7b528f9c59f430eaba84b8bee9b43a30f9cc83f",
                   "type": "0x3::test::Test<0x3::test::Test>",
                   "parsedJson": "some_value",
+                  "bcsEncoding": "base64",
                   "bcs": ""
                 },
                 {
@@ -4582,6 +4817,7 @@
                   "sender": "0xa395759ca37c6e1ffc179184e98a6f9a2da5d78f6e34b0e5044ed52a6bc0a1bc",
                   "type": "0x3::test::Test<0x3::test::Test>",
                   "parsedJson": "some_value",
+                  "bcsEncoding": "base64",
                   "bcs": ""
                 }
               ],
@@ -5047,7 +5283,7 @@
           "name": "Transaction Builder API"
         }
       ],
-      "description": "Send all IOTA coins to one recipient. This is for IOTA coin only and does not require a separate gas coin object. Specifically, what pay_all_iota does are: 1. accumulate all IOTA from input coins and deposit all IOTA to the first input coin 2. transfer the updated first coin to the recipient and also use this first coin as gas coin object. 3. the balance of the first input coin after tx is sum(input_coins) - actual_gas_cost. 4. all other input coins other than the first are deleted.",
+      "description": "Send all IOTA coins to one recipient. This is for IOTA coin only and does not require a separate gas coin object. Specifically, what pay_all_iota does are: 1. accumulate all IOTA from input coins and deposit all IOTA to the first    input coin 2. transfer the updated first coin to the recipient and also use this first    coin as gas coin object. 3. the balance of the first input coin after tx is sum(input_coins) -    actual_gas_cost. 4. all other input coins other than the first are deleted.",
       "params": [
         {
           "name": "signer",
@@ -5100,7 +5336,7 @@
           "name": "Transaction Builder API"
         }
       ],
-      "description": "Send IOTA coins to a list of addresses, following a list of amounts. This is for IOTA coin only and does not require a separate gas coin object. Specifically, what pay_iota does are: 1. debit each input_coin to create new coin following the order of amounts and assign it to the corresponding recipient. 2. accumulate all residual IOTA from input coins left and deposit all IOTA to the first input coin, then use the first input coin as the gas coin object. 3. the balance of the first input coin after tx is sum(input_coins) - sum(amounts) - actual_gas_cost 4. all other input coints other than the first one are deleted.",
+      "description": "Send IOTA coins to a list of addresses, following a list of amounts. This is for IOTA coin only and does not require a separate gas coin object. Specifically, what pay_iota does are: 1. debit each input_coin to create new coin following the order of amounts and assign it to the corresponding recipient. 2. accumulate all residual IOTA from input coins left and deposit all IOTA    to the first input coin, then use the first input coin as the gas coin object. 3. the balance of the first input coin after tx is sum(input_coins) -    sum(amounts) - actual_gas_cost 4. all other input coints other than the first one are deleted.",
       "params": [
         {
           "name": "signer",
@@ -6085,6 +6321,18 @@
               }
             },
             "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "required": [
+              "Passkey"
+            ],
+            "properties": {
+              "Passkey": {
+                "$ref": "#/components/schemas/PasskeyAuthenticatorAsBytes"
+              }
+            },
+            "additionalProperties": false
           }
         ]
       },
@@ -6428,8 +6676,45 @@
       },
       "DynamicFieldInfo": {
         "type": "object",
+        "oneOf": [
+          {
+            "type": "object",
+            "required": [
+              "bcsEncoding",
+              "bcsName"
+            ],
+            "properties": {
+              "bcsEncoding": {
+                "type": "string",
+                "enum": [
+                  "base64"
+                ]
+              },
+              "bcsName": {
+                "$ref": "#/components/schemas/Base64"
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "bcsEncoding",
+              "bcsName"
+            ],
+            "properties": {
+              "bcsEncoding": {
+                "type": "string",
+                "enum": [
+                  "base58"
+                ]
+              },
+              "bcsName": {
+                "$ref": "#/components/schemas/Base58"
+              }
+            }
+          }
+        ],
         "required": [
-          "bcsName",
           "digest",
           "name",
           "objectId",
@@ -6438,9 +6723,6 @@
           "version"
         ],
         "properties": {
-          "bcsName": {
-            "$ref": "#/components/schemas/Base58"
-          },
           "digest": {
             "$ref": "#/components/schemas/ObjectDigest"
           },
@@ -6621,6 +6903,13 @@
           "validators"
         ],
         "properties": {
+          "committeeMembers": {
+            "description": "Committee validators. Each element is an index pointing to `validators`.",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BigInt_for_uint64"
+            }
+          },
           "endOfEpochInfo": {
             "description": "The end of epoch information.",
             "anyOf": [
@@ -6739,8 +7028,45 @@
       },
       "Event": {
         "type": "object",
+        "oneOf": [
+          {
+            "type": "object",
+            "required": [
+              "bcs",
+              "bcsEncoding"
+            ],
+            "properties": {
+              "bcs": {
+                "$ref": "#/components/schemas/Base64"
+              },
+              "bcsEncoding": {
+                "type": "string",
+                "enum": [
+                  "base64"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "bcs",
+              "bcsEncoding"
+            ],
+            "properties": {
+              "bcs": {
+                "$ref": "#/components/schemas/Base58"
+              },
+              "bcsEncoding": {
+                "type": "string",
+                "enum": [
+                  "base58"
+                ]
+              }
+            }
+          }
+        ],
         "required": [
-          "bcs",
           "id",
           "packageId",
           "parsedJson",
@@ -6749,14 +7075,6 @@
           "type"
         ],
         "properties": {
-          "bcs": {
-            "description": "Base 58 encoded bcs bytes of the move event",
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/Base58"
-              }
-            ]
-          },
           "id": {
             "description": "Sequential event ID, ie (transaction seq number, event seq number). 1) Serves as a unique event ID for each fullnode 2) Also serves to sequence events for the purposes of pagination and querying. A higher id is an event seen later by that fullnode. This ID is the \"cursor\" for event querying.",
             "allOf": [
@@ -7582,6 +7900,65 @@
           }
         }
       },
+      "IotaChangeEpochV2": {
+        "type": "object",
+        "required": [
+          "computation_charge",
+          "computation_charge_burned",
+          "epoch",
+          "epoch_start_timestamp_ms",
+          "storage_charge",
+          "storage_rebate"
+        ],
+        "properties": {
+          "computation_charge": {
+            "$ref": "#/components/schemas/BigInt_for_uint64"
+          },
+          "computation_charge_burned": {
+            "$ref": "#/components/schemas/BigInt_for_uint64"
+          },
+          "epoch": {
+            "$ref": "#/components/schemas/BigInt_for_uint64"
+          },
+          "epoch_start_timestamp_ms": {
+            "$ref": "#/components/schemas/BigInt_for_uint64"
+          },
+          "storage_charge": {
+            "$ref": "#/components/schemas/BigInt_for_uint64"
+          },
+          "storage_rebate": {
+            "$ref": "#/components/schemas/BigInt_for_uint64"
+          }
+        }
+      },
+      "IotaCirculatingSupply": {
+        "description": "Provides a summary of the circulating IOTA supply.",
+        "type": "object",
+        "required": [
+          "atCheckpoint",
+          "circulatingSupplyPercentage",
+          "value"
+        ],
+        "properties": {
+          "atCheckpoint": {
+            "description": "Timestamp (UTC) when the circulating supply was calculated.",
+            "type": "integer",
+            "format": "uint64",
+            "minimum": 0.0
+          },
+          "circulatingSupplyPercentage": {
+            "description": "Percentage of total supply that is currently circulating (range: 0.0 to 1.0).",
+            "type": "number",
+            "format": "double"
+          },
+          "value": {
+            "description": "Circulating supply in NANOS at the given timestamp.",
+            "type": "integer",
+            "format": "uint64",
+            "minimum": 0.0
+          }
+        }
+      },
       "IotaCoinMetadata": {
         "type": "object",
         "required": [
@@ -7645,6 +8022,18 @@
             "properties": {
               "ChangeEpoch": {
                 "$ref": "#/components/schemas/IotaChangeEpoch"
+              }
+            },
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "required": [
+              "ChangeEpochV2"
+            ],
+            "properties": {
+              "ChangeEpochV2": {
+                "$ref": "#/components/schemas/IotaChangeEpochV2"
               }
             },
             "additionalProperties": false
@@ -8060,6 +8449,49 @@
           "Friend"
         ]
       },
+      "IotaNameRecord": {
+        "description": "A single record in the registry.",
+        "type": "object",
+        "required": [
+          "data",
+          "expirationTimestampMs",
+          "nftId"
+        ],
+        "properties": {
+          "data": {
+            "description": "Additional data which may be stored in a record",
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            }
+          },
+          "expirationTimestampMs": {
+            "description": "Timestamp in milliseconds when the record expires.",
+            "type": "integer",
+            "format": "uint64",
+            "minimum": 0.0
+          },
+          "nftId": {
+            "description": "The ID of the registration NFT assigned to this record.\n\nThe owner of the corresponding NFT has the rights to be able to change and adjust the `target_address` of this domain.\n\nIt is possible that the ID changes if the record expires and is purchased by someone else.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ObjectID"
+              }
+            ]
+          },
+          "targetAddress": {
+            "description": "The target address that this domain points to",
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/IotaAddress"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        }
+      },
       "IotaObjectDataFilter": {
         "oneOf": [
           {
@@ -8296,7 +8728,36 @@
         }
       },
       "IotaSystemStateSummary": {
-        "description": "This is the JSON-RPC type for the IOTA system state object. It flattens all fields to make them top-level fields such that it as minimum dependencies to the internal data structures of the IOTA system state type.",
+        "description": "This is the JSON-RPC type for IOTA system state objects. It is an enum type that can represent either V1 or V2 system state objects.",
+        "oneOf": [
+          {
+            "type": "object",
+            "required": [
+              "V1"
+            ],
+            "properties": {
+              "V1": {
+                "$ref": "#/components/schemas/IotaSystemStateSummaryV1"
+              }
+            },
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "required": [
+              "V2"
+            ],
+            "properties": {
+              "V2": {
+                "$ref": "#/components/schemas/IotaSystemStateSummaryV2"
+              }
+            },
+            "additionalProperties": false
+          }
+        ]
+      },
+      "IotaSystemStateSummaryV1": {
+        "description": "This is the JSON-RPC type for the [`IotaSystemStateV1`](super::iota_system_state_inner_v1::IotaSystemStateV1) object. It flattens all fields to make them top-level fields such that it as minimum dependencies to the internal data structures of the IOTA system state type.",
         "type": "object",
         "required": [
           "activeValidators",
@@ -8624,6 +9085,352 @@
           }
         }
       },
+      "IotaSystemStateSummaryV2": {
+        "description": "This is the JSON-RPC type for the [`IotaSystemStateV2`](super::iota_system_state_inner_v2::IotaSystemStateV2) object. It flattens all fields to make them top-level fields such that it as minimum dependencies to the internal data structures of the IOTA system state type.",
+        "type": "object",
+        "required": [
+          "activeValidators",
+          "atRiskValidators",
+          "committeeMembers",
+          "epoch",
+          "epochDurationMs",
+          "epochStartTimestampMs",
+          "inactivePoolsId",
+          "inactivePoolsSize",
+          "iotaTotalSupply",
+          "iotaTreasuryCapId",
+          "maxValidatorCount",
+          "minValidatorCount",
+          "minValidatorJoiningStake",
+          "pendingActiveValidatorsId",
+          "pendingActiveValidatorsSize",
+          "pendingRemovals",
+          "protocolVersion",
+          "referenceGasPrice",
+          "safeMode",
+          "safeModeComputationCharges",
+          "safeModeComputationChargesBurned",
+          "safeModeNonRefundableStorageFee",
+          "safeModeStorageCharges",
+          "safeModeStorageRebates",
+          "stakingPoolMappingsId",
+          "stakingPoolMappingsSize",
+          "storageFundNonRefundableBalance",
+          "storageFundTotalObjectStorageRebates",
+          "systemStateVersion",
+          "totalStake",
+          "validatorCandidatesId",
+          "validatorCandidatesSize",
+          "validatorLowStakeGracePeriod",
+          "validatorLowStakeThreshold",
+          "validatorReportRecords",
+          "validatorVeryLowStakeThreshold"
+        ],
+        "properties": {
+          "activeValidators": {
+            "description": "The list of active validators in the current epoch.",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/IotaValidatorSummary"
+            }
+          },
+          "atRiskValidators": {
+            "description": "Map storing the number of epochs for which each validator has been below the low stake threshold.",
+            "type": "array",
+            "items": {
+              "type": "array",
+              "items": [
+                {
+                  "$ref": "#/components/schemas/IotaAddress"
+                },
+                {
+                  "$ref": "#/components/schemas/BigInt_for_uint64"
+                }
+              ],
+              "maxItems": 2,
+              "minItems": 2
+            }
+          },
+          "committeeMembers": {
+            "description": "List of committee validators in the current epoch. Each element is an index pointing to `active_validators`.",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BigInt_for_uint64"
+            }
+          },
+          "epoch": {
+            "description": "The current epoch ID, starting from 0.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/BigInt_for_uint64"
+              }
+            ]
+          },
+          "epochDurationMs": {
+            "description": "The duration of an epoch, in milliseconds.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/BigInt_for_uint64"
+              }
+            ]
+          },
+          "epochStartTimestampMs": {
+            "description": "Unix timestamp of the current epoch start",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/BigInt_for_uint64"
+              }
+            ]
+          },
+          "inactivePoolsId": {
+            "description": "ID of the object that maps from a staking pool ID to the inactive validator that has that pool as its staking pool.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ObjectID"
+              }
+            ]
+          },
+          "inactivePoolsSize": {
+            "description": "Number of inactive staking pools.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/BigInt_for_uint64"
+              }
+            ]
+          },
+          "iotaTotalSupply": {
+            "description": "The current IOTA supply.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/BigInt_for_uint64"
+              }
+            ]
+          },
+          "iotaTreasuryCapId": {
+            "description": "The `TreasuryCap<IOTA>` object ID.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ObjectID"
+              }
+            ]
+          },
+          "maxValidatorCount": {
+            "description": "Maximum number of active validators at any moment. We do not allow the number of validators in any epoch to go above this.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/BigInt_for_uint64"
+              }
+            ]
+          },
+          "minValidatorCount": {
+            "description": "Minimum number of active validators at any moment. We do not allow the number of validators in any epoch to go under this.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/BigInt_for_uint64"
+              }
+            ]
+          },
+          "minValidatorJoiningStake": {
+            "description": "Lower-bound on the amount of stake required to become a validator.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/BigInt_for_uint64"
+              }
+            ]
+          },
+          "pendingActiveValidatorsId": {
+            "description": "ID of the object that contains the list of new validators that will join at the end of the epoch.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ObjectID"
+              }
+            ]
+          },
+          "pendingActiveValidatorsSize": {
+            "description": "Number of new validators that will join at the end of the epoch.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/BigInt_for_uint64"
+              }
+            ]
+          },
+          "pendingRemovals": {
+            "description": "Removal requests from the validators. Each element is an index pointing to `active_validators`.",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BigInt_for_uint64"
+            }
+          },
+          "protocolVersion": {
+            "description": "The current protocol version, starting from 1.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/BigInt_for_uint64"
+              }
+            ]
+          },
+          "referenceGasPrice": {
+            "description": "The reference gas price for the current epoch.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/BigInt_for_uint64"
+              }
+            ]
+          },
+          "safeMode": {
+            "description": "Whether the system is running in a downgraded safe mode due to a non-recoverable bug. This is set whenever we failed to execute advance_epoch, and ended up executing advance_epoch_safe_mode. It can be reset once we are able to successfully execute advance_epoch.",
+            "type": "boolean"
+          },
+          "safeModeComputationCharges": {
+            "description": "Amount of computation charges accumulated (and not yet distributed) during safe mode.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/BigInt_for_uint64"
+              }
+            ]
+          },
+          "safeModeComputationChargesBurned": {
+            "description": "Amount of burned computation charges accumulated during safe mode.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/BigInt_for_uint64"
+              }
+            ]
+          },
+          "safeModeNonRefundableStorageFee": {
+            "description": "Amount of non-refundable storage fee accumulated during safe mode.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/BigInt_for_uint64"
+              }
+            ]
+          },
+          "safeModeStorageCharges": {
+            "description": "Amount of storage charges accumulated (and not yet distributed) during safe mode.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/BigInt_for_uint64"
+              }
+            ]
+          },
+          "safeModeStorageRebates": {
+            "description": "Amount of storage rebates accumulated (and not yet burned) during safe mode.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/BigInt_for_uint64"
+              }
+            ]
+          },
+          "stakingPoolMappingsId": {
+            "description": "ID of the object that maps from staking pool's ID to the iota address of a validator.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ObjectID"
+              }
+            ]
+          },
+          "stakingPoolMappingsSize": {
+            "description": "Number of staking pool mappings.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/BigInt_for_uint64"
+              }
+            ]
+          },
+          "storageFundNonRefundableBalance": {
+            "description": "The non-refundable portion of the storage fund coming from non-refundable storage rebates and any leftover staking rewards.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/BigInt_for_uint64"
+              }
+            ]
+          },
+          "storageFundTotalObjectStorageRebates": {
+            "description": "The storage rebates of all the objects on-chain stored in the storage fund.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/BigInt_for_uint64"
+              }
+            ]
+          },
+          "systemStateVersion": {
+            "description": "The current version of the system state data structure type.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/BigInt_for_uint64"
+              }
+            ]
+          },
+          "totalStake": {
+            "description": "Total amount of stake from all committee validators at the beginning of the epoch.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/BigInt_for_uint64"
+              }
+            ]
+          },
+          "validatorCandidatesId": {
+            "description": "ID of the object that stores preactive validators, mapping their addresses to their `Validator` structs.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ObjectID"
+              }
+            ]
+          },
+          "validatorCandidatesSize": {
+            "description": "Number of preactive validators.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/BigInt_for_uint64"
+              }
+            ]
+          },
+          "validatorLowStakeGracePeriod": {
+            "description": "A validator can have stake below `validator_low_stake_threshold` for this many epochs before being kicked out.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/BigInt_for_uint64"
+              }
+            ]
+          },
+          "validatorLowStakeThreshold": {
+            "description": "Validators with stake amount below `validator_low_stake_threshold` are considered to have low stake and will be escorted out of the validator set after being below this threshold for more than `validator_low_stake_grace_period` number of epochs.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/BigInt_for_uint64"
+              }
+            ]
+          },
+          "validatorReportRecords": {
+            "description": "A map storing the records of validator reporting each other.",
+            "type": "array",
+            "items": {
+              "type": "array",
+              "items": [
+                {
+                  "$ref": "#/components/schemas/IotaAddress"
+                },
+                {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/IotaAddress"
+                  }
+                }
+              ],
+              "maxItems": 2,
+              "minItems": 2
+            }
+          },
+          "validatorVeryLowStakeThreshold": {
+            "description": "Validators with stake below `validator_very_low_stake_threshold` will be removed immediately at epoch change, no grace period.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/BigInt_for_uint64"
+              }
+            ]
+          }
+        }
+      },
       "IotaTransaction": {
         "description": "A single transaction in a programmable transaction block.",
         "oneOf": [
@@ -8808,6 +9615,29 @@
             "type": "string",
             "enum": [
               "DevInspect"
+            ]
+          }
+        ]
+      },
+      "IotaTransactionKind": {
+        "description": "Represents the type of a transaction. All transactions except `ProgrammableTransaction` are considered system transactions.",
+        "oneOf": [
+          {
+            "type": "string",
+            "enum": [
+              "ProgrammableTransaction",
+              "Genesis",
+              "ConsensusCommitPrologueV1",
+              "AuthenticatorStateUpdateV1",
+              "RandomnessStateUpdate",
+              "EndOfEpochTransaction"
+            ]
+          },
+          {
+            "description": "The `SystemTransaction` variant can be used to filter for all types of system transactions.",
+            "type": "string",
+            "enum": [
+              "SystemTransaction"
             ]
           }
         ]
@@ -10428,6 +11258,21 @@
           }
         }
       },
+      "ParticipationMetrics": {
+        "description": "Provides metrics about the participation in the network.",
+        "type": "object",
+        "required": [
+          "totalAddresses"
+        ],
+        "properties": {
+          "totalAddresses": {
+            "description": "The count of distinct addresses with delegated stake.",
+            "type": "integer",
+            "format": "uint64",
+            "minimum": 0.0
+          }
+        }
+      },
       "PasskeyAuthenticator": {
         "description": "An passkey authenticator with parsed fields. See field definition below. Can be initialized from [struct RawPasskeyAuthenticator].",
         "type": "object",
@@ -10450,6 +11295,9 @@
             "type": "string"
           }
         }
+      },
+      "PasskeyAuthenticatorAsBytes": {
+        "$ref": "#/components/schemas/Base64"
       },
       "ProtocolConfig": {
         "type": "object",
@@ -11709,7 +12557,7 @@
             ],
             "properties": {
               "TransactionKind": {
-                "type": "string"
+                "$ref": "#/components/schemas/IotaTransactionKind"
               }
             },
             "additionalProperties": false
@@ -11724,7 +12572,7 @@
               "TransactionKindIn": {
                 "type": "array",
                 "items": {
-                  "type": "string"
+                  "$ref": "#/components/schemas/IotaTransactionKind"
                 }
               }
             },

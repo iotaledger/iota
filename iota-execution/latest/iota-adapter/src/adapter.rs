@@ -58,7 +58,7 @@ mod checked {
         MoveVM::new_with_config(
             natives,
             VMConfig {
-                verifier: protocol_config.verifier_config(/* for_signing */ false),
+                verifier: protocol_config.verifier_config(/* signing_limits */ None),
                 max_binary_format_version: protocol_config.move_binary_format_version(),
                 runtime_limits_config: VMRuntimeLimitsConfig {
                     vector_len_max: protocol_config.max_move_vector_len(),
@@ -76,6 +76,7 @@ mod checked {
                 rethrow_serialization_type_layout_errors: protocol_config
                     .rethrow_serialization_type_layout_errors(),
                 max_type_to_layout_nodes: protocol_config.max_type_to_layout_nodes_as_option(),
+                variant_nodes: protocol_config.variant_nodes(),
             },
         )
         .map_err(|_| IotaError::ExecutionInvariantViolation)
@@ -141,14 +142,6 @@ mod checked {
         }
 
         Ok(())
-    }
-
-    /// Returns an error message for a missing unwrapped object.
-    pub fn missing_unwrapped_msg(id: &ObjectID) -> String {
-        format!(
-            "Unable to unwrap object {}. Was unable to retrieve last known version in the parent sync",
-            id
-        )
     }
 
     /// Run the bytecode verifier with a meter limit

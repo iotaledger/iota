@@ -194,6 +194,7 @@ export interface GetAllCoinsParams {
     /** maximum number of items per page */
     limit?: number | null | undefined;
 }
+/** Address related metrics. Exclusively served by the indexer. */
 export interface GetAllEpochAddressMetricsParams {
     descendingOrder?: boolean | null | undefined;
 }
@@ -207,9 +208,12 @@ export interface GetBalanceParams {
      */
     coinType?: string | null | undefined;
 }
+/** Address related metrics. Exclusively served by the indexer. */
 export interface GetCheckpointAddressMetricsParams {
     checkpoint: string;
 }
+/** Return the circulating supply summary. */
+export interface GetCirculatingSupplyParams {}
 /** Return metadata (e.g., symbol, decimals) for a coin. */
 export interface GetCoinMetadataParams {
     /** type name for the coin (e.g., 0x168da5bf1f48dafc111b0a488fa454aca95e0b5e::usdc::USDC) */
@@ -234,7 +238,7 @@ export interface GetCommitteeInfoParams {
     /** The epoch of interest. If None, default to the latest epoch */
     epoch?: string | null | undefined;
 }
-/** Return current epoch info */
+/** Return current epoch info. Exclusively served by the indexer. */
 export interface GetCurrentEpochParams {}
 /** Return the dynamic field object information for a specified object */
 export interface GetDynamicFieldObjectParams {
@@ -242,6 +246,15 @@ export interface GetDynamicFieldObjectParams {
     parentId: string;
     /** The Name of the dynamic field */
     name: RpcTypes.DynamicFieldName;
+}
+/** Return the dynamic field object information for a specified object with content options. */
+export interface GetDynamicFieldObjectV2Params {
+    /** The ID of the queried parent object */
+    parentObjectId: string;
+    /** The Name of the dynamic field */
+    name: RpcTypes.DynamicFieldName;
+    /** Options for specifying the content to be returned */
+    options?: RpcTypes.IotaObjectDataOptions | null | undefined;
 }
 /** Return the list of dynamic field objects owned by an object. */
 export interface GetDynamicFieldsParams {
@@ -255,7 +268,7 @@ export interface GetDynamicFieldsParams {
     /** Maximum item returned per page, default to [QUERY_MAX_RESULT_LIMIT] if not specified. */
     limit?: number | null | undefined;
 }
-/** Return a list of epoch metrics, which is a subset of epoch info */
+/** Return a list of epoch metrics, which is a subset of epoch info. Exclusively served by the indexer. */
 export interface GetEpochMetricsParams {
     /** Optional paging cursor */
     cursor?: string | null | undefined;
@@ -264,7 +277,7 @@ export interface GetEpochMetricsParams {
     /** Flag to return results in descending order */
     descendingOrder?: boolean | null | undefined;
 }
-/** Return a list of epoch info */
+/** Return a list of epoch info. Exclusively served by the indexer. */
 export interface GetEpochsParams {
     /** Optional paging cursor */
     cursor?: string | null | undefined;
@@ -273,13 +286,21 @@ export interface GetEpochsParams {
     /** Flag to return results in descending order */
     descendingOrder?: boolean | null | undefined;
 }
-/** Address related metrics */
+/** Address related metrics. Exclusively served by the indexer. */
 export interface GetLatestAddressMetricsParams {}
-/** Return the latest IOTA system state object on-chain. */
+/**
+ * Return the latest IOTA system state object on networks supporting protocol version `< 5`. These are
+ * networks with node software release version `< 0.11`.
+ */
 export interface GetLatestIotaSystemStateParams {}
-/** Return move call metrics */
+/**
+ * Return the latest IOTA system state object on networks supporting protocol version `>= 5`. These are
+ * networks with node software release version `>= 0.11`.
+ */
+export interface GetLatestIotaSystemStateV2Params {}
+/** Return move call metrics. Exclusively served by the indexer. */
 export interface GetMoveCallMetricsParams {}
-/** Return Network metrics */
+/** Return Network metrics. Exclusively served by the indexer. */
 export interface GetNetworkMetricsParams {}
 /**
  * Return the list of objects owned by an address. Note that if the address owns more than
@@ -297,6 +318,12 @@ export type GetOwnedObjectsParams = {
     /** Max number of items returned per page, default to [QUERY_MAX_RESULT_LIMIT] if not specified. */
     limit?: number | null | undefined;
 } & RpcTypes.IotaObjectResponseQuery;
+/**
+ * Returns the participation metrics. Participation is defined as the total number of unique addresses
+ * that have delegated stake in the current epoch. Includes both staked and timelocked staked IOTA.
+ * Exclusively served by the indexer.
+ */
+export interface GetParticipationMetricsParams {}
 /** Return the reference gas price for the network */
 export interface GetReferenceGasPriceParams {}
 /** Return all [DelegatedStake]. */
@@ -320,9 +347,27 @@ export interface GetTotalSupplyParams {
     /** type name for the coin (e.g., 0x168da5bf1f48dafc111b0a488fa454aca95e0b5e::usdc::USDC) */
     coinType: string;
 }
+/** Return the total number of transactions. Exclusively served by the indexer. */
 export interface GetTotalTransactionsParams {}
 /** Return the validator APY */
 export interface GetValidatorsApyParams {}
+/** Find all registration NFTs for the given address. */
+export interface IotaNamesFindAllRegistrationNFTsParams {
+    address: string;
+    cursor?: string | null | undefined;
+    limit?: number | null | undefined;
+    options?: RpcTypes.IotaObjectDataOptions | null | undefined;
+}
+/** Return the resolved record for the given name. */
+export interface IotaNamesLookupParams {
+    /** The name to resolve */
+    name: string;
+}
+/** Return the resolved name for the given address. */
+export interface IotaNamesReverseLookupParams {
+    /** The address to resolve. */
+    address: string;
+}
 /** Return list of events for a specified query criteria. */
 export interface QueryEventsParams {
     /**

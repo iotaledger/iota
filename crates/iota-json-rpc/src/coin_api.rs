@@ -4,13 +4,17 @@
 
 use std::{collections::HashMap, sync::Arc};
 
+use anyhow::Result;
 use async_trait::async_trait;
 use cached::{SizedCache, proc_macro::cached};
+use chrono::DateTime;
 use iota_core::authority::AuthorityState;
 use iota_json_rpc_api::{CoinReadApiOpenRpc, CoinReadApiServer, JsonRpcMetrics, cap_page_limit};
-use iota_json_rpc_types::{Balance, CoinPage, IotaCoinMetadata};
+use iota_json_rpc_types::{Balance, CoinPage, IotaCirculatingSupply, IotaCoinMetadata};
+use iota_mainnet_unlocks::MainnetUnlocksStore;
 use iota_metrics::spawn_monitored_task;
 use iota_open_rpc::Module;
+use iota_protocol_config::Chain;
 use iota_storage::{indexes::TotalBalance, key_value_store::TransactionKeyValueStore};
 use iota_types::{
     balance::Supply,
@@ -18,7 +22,9 @@ use iota_types::{
     coin::{CoinMetadata, TreasuryCap},
     effects::TransactionEffectsAPI,
     gas_coin::GAS,
-    iota_system_state::IotaSystemStateTrait,
+    iota_system_state::{
+        IotaSystemStateTrait, iota_system_state_summary::IotaSystemStateSummaryV2,
+    },
     object::Object,
     parse_iota_struct_tag,
 };
@@ -51,6 +57,7 @@ pub fn parse_to_type_tag(coin_type: Option<String>) -> Result<TypeTag, IotaRpcIn
 pub struct CoinReadApi {
     // Trait object w/ Box as we do not need to share this across multiple threads
     internal: Box<dyn CoinReadInternal + Send + Sync>,
+    unlocks_store: MainnetUnlocksStore,
 }
 
 impl CoinReadApi {
@@ -58,14 +65,15 @@ impl CoinReadApi {
         state: Arc<AuthorityState>,
         transaction_kv_store: Arc<TransactionKeyValueStore>,
         metrics: Arc<JsonRpcMetrics>,
-    ) -> Self {
-        Self {
+    ) -> Result<Self> {
+        Ok(Self {
             internal: Box::new(CoinReadInternalImpl::new(
                 state,
                 transaction_kv_store,
                 metrics,
             )),
-        }
+            unlocks_store: MainnetUnlocksStore::new()?,
+        })
     }
 }
 
@@ -224,11 +232,12 @@ impl CoinReadApiServer for CoinReadApi {
         async move {
             let coin_struct = parse_to_struct_tag(&coin_type)?;
             Ok(if GAS::is_gas(&coin_struct) {
-                let system_state_summary = self
-                    .internal
-                    .get_state()
-                    .get_system_state()?
-                    .into_iota_system_state_summary();
+                let system_state_summary = IotaSystemStateSummaryV2::try_from(
+                    self.internal
+                        .get_state()
+                        .get_system_state()?
+                        .into_iota_system_state_summary(),
+                )?;
                 Supply {
                     value: system_state_summary.iota_total_supply,
                 }
@@ -249,6 +258,61 @@ impl CoinReadApiServer for CoinReadApi {
         }
         .trace()
         .await
+    }
+
+    #[instrument(skip(self))]
+    async fn get_circulating_supply(&self) -> RpcResult<IotaCirculatingSupply> {
+        let latest_cp_num = self
+            .internal
+            .get_state()
+            .get_latest_checkpoint_sequence_number()
+            .map_err(Error::from)?;
+        let latest_cp = self
+            .internal
+            .get_state()
+            .get_checkpoint_by_sequence_number(latest_cp_num)
+            .map_err(Error::from)?
+            .ok_or(Error::Unexpected("latest checkpoint not found".to_string()))?;
+        let cp_timestamp = latest_cp.timestamp_ms;
+
+        let system_state_summary = IotaSystemStateSummaryV2::try_from(
+            self.internal
+                .get_state()
+                .get_system_state()
+                .map_err(Error::from)?
+                .into_iota_system_state_summary(),
+        )
+        .map_err(Error::from)?;
+
+        let total_supply = system_state_summary.iota_total_supply;
+
+        let date_time = DateTime::from_timestamp_millis(
+            cp_timestamp
+                .try_into()
+                .map_err(|e| Error::Internal(anyhow::Error::from(e)))?,
+        )
+        .ok_or(Error::Unexpected(format!(
+            "failed to parse timestamp: {cp_timestamp}"
+        )))?;
+
+        let chain_identifier = self.internal.get_state().get_chain_identifier();
+        let chain = chain_identifier
+            .map(|c| c.chain())
+            .unwrap_or(Chain::Unknown);
+
+        let locked_supply = match chain {
+            Chain::Mainnet => self.unlocks_store.still_locked_tokens(date_time),
+            _ => 0,
+        };
+
+        let circulating_supply = total_supply - locked_supply;
+        let circulating_supply_percentage = circulating_supply as f64 / total_supply as f64;
+
+        Ok(IotaCirculatingSupply {
+            value: circulating_supply,
+            circulating_supply_percentage,
+            at_checkpoint: *latest_cp.sequence_number(),
+        })
     }
 }
 
@@ -385,7 +449,7 @@ impl CoinReadInternal for CoinReadInternalImpl {
         one_coin_type_only: bool,
     ) -> RpcInterimResult<CoinPage> {
         let limit = cap_page_limit(limit);
-        self.metrics.get_coins_limit.report(limit as u64);
+        self.metrics.get_coins_limit.observe(limit as f64);
         let state = self.get_state();
         let mut data = spawn_monitored_task!(async move {
             state.get_owned_coins(owner, cursor, limit + 1, one_coin_type_only)
@@ -395,7 +459,9 @@ impl CoinReadInternal for CoinReadInternalImpl {
         let has_next_page = data.len() > limit;
         data.truncate(limit);
 
-        self.metrics.get_coins_result_size.report(data.len() as u64);
+        self.metrics
+            .get_coins_result_size
+            .observe(data.len() as f64);
         self.metrics
             .get_coins_result_size_total
             .inc_by(data.len() as u64);
@@ -500,6 +566,7 @@ mod tests {
             let kv_store = kv_store.unwrap_or_else(|| Arc::new(MockKeyValueStore::new()));
             Self {
                 internal: Box::new(CoinReadInternalImpl::new_for_tests(state, Some(kv_store))),
+                unlocks_store: MainnetUnlocksStore::new().unwrap(),
             }
         }
     }
@@ -1213,6 +1280,7 @@ mod tests {
 
             let coin_read_api = CoinReadApi {
                 internal: Box::new(mock_internal),
+                unlocks_store: MainnetUnlocksStore::new().unwrap(),
             };
 
             let response = coin_read_api.get_coin_metadata(coin_name.clone()).await;
@@ -1271,6 +1339,7 @@ mod tests {
 
             let coin_read_api = CoinReadApi {
                 internal: Box::new(mock_internal),
+                unlocks_store: MainnetUnlocksStore::new().unwrap(),
             };
 
             let response = coin_read_api.get_coin_metadata(coin_name.clone()).await;
@@ -1287,9 +1356,8 @@ mod tests {
             id::UID,
             iota_system_state::{
                 IotaSystemState,
-                iota_system_state_inner_v1::{
-                    IotaSystemStateV1, StorageFundV1, SystemParametersV1, ValidatorSetV1,
-                },
+                iota_system_state_inner_v1::{StorageFundV1, SystemParametersV1},
+                iota_system_state_inner_v2::{IotaSystemStateV2, ValidatorSetV2},
             },
         };
         use mockall::predicate;
@@ -1305,7 +1373,7 @@ mod tests {
                 let mut state = default_system_state();
                 state.iota_treasury_cap.inner.total_supply.value = 42;
 
-                Ok(IotaSystemState::V1(state))
+                Ok(IotaSystemState::V2(state))
             });
 
             let coin_read_api = CoinReadApi::new_for_tests(Arc::new(mock_state), None);
@@ -1334,6 +1402,7 @@ mod tests {
                 });
             let coin_read_api = CoinReadApi {
                 internal: Box::new(mock_internal),
+                unlocks_store: MainnetUnlocksStore::new().unwrap(),
             };
 
             let response = coin_read_api.get_total_supply(coin_name.clone()).await;
@@ -1401,6 +1470,7 @@ mod tests {
 
             let coin_read_api = CoinReadApi {
                 internal: Box::new(mock_internal),
+                unlocks_store: MainnetUnlocksStore::new().unwrap(),
             };
 
             let response = coin_read_api.get_total_supply(coin_name.clone()).await;
@@ -1415,8 +1485,8 @@ mod tests {
             expected.assert_eq(error_result.message());
         }
 
-        fn default_system_state() -> IotaSystemStateV1 {
-            IotaSystemStateV1 {
+        fn default_system_state() -> IotaSystemStateV2 {
+            IotaSystemStateV2 {
                 epoch: Default::default(),
                 protocol_version: Default::default(),
                 system_state_version: Default::default(),
@@ -1428,9 +1498,10 @@ mod tests {
                         },
                     },
                 },
-                validators: ValidatorSetV1 {
+                validators: ValidatorSetV2 {
                     total_stake: Default::default(),
                     active_validators: Default::default(),
+                    committee_members: Default::default(),
                     pending_active_validators: Default::default(),
                     pending_removals: Default::default(),
                     staking_pool_mappings: Default::default(),
@@ -1464,7 +1535,8 @@ mod tests {
                 },
                 safe_mode: Default::default(),
                 safe_mode_storage_charges: iota_types::balance::Balance::new(Default::default()),
-                safe_mode_computation_rewards: iota_types::balance::Balance::new(Default::default()),
+                safe_mode_computation_charges: iota_types::balance::Balance::new(Default::default()),
+                safe_mode_computation_charges_burned: Default::default(),
                 safe_mode_storage_rebates: Default::default(),
                 safe_mode_non_refundable_storage_fee: Default::default(),
                 epoch_start_timestamp_ms: Default::default(),

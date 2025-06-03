@@ -28,6 +28,7 @@ const config = {
     amplitudeKey: process.env.AMPLITUDE_KEY,
   },
 
+  // TODO: Revert the changes when the docs are ready
   onBrokenLinks: "throw",
   onBrokenMarkdownLinks: "throw",
   onBrokenAnchors: "throw",
@@ -53,16 +54,48 @@ const config = {
     mermaid: true,
   },
   plugins: [
-    // ....
     [
       "@graphql-markdown/docusaurus",
+      /** @type {import('@graphql-markdown/types').ConfigOptions} */
       {
-        schema:
-          "../../crates/iota-graphql-rpc/schema.graphql",
+        id:'mainnet',
+        schema: "https://raw.githubusercontent.com/iotaledger/iota/refs/heads/mainnet/crates/iota-graphql-rpc/schema.graphql",
         rootPath: "../content", // docs will be generated under rootPath/baseURL
-        baseURL: "references/iota-api/iota-graphql/reference",
+        baseURL: "references/iota-api/iota-graphql/reference/",
         loaders: {
-          GraphQLFileLoader: "@graphql-tools/graphql-file-loader",
+          UrlLoader: {
+            module: "@graphql-tools/url-loader",
+          }
+        },
+      },
+    ],
+    [
+      "@graphql-markdown/docusaurus",
+      /** @type {import('@graphql-markdown/types').ConfigOptions} */
+      {
+        id:'testnet',
+        schema: "https://raw.githubusercontent.com/iotaledger/iota/refs/heads/testnet/crates/iota-graphql-rpc/schema.graphql",
+        rootPath: "../content", // docs will be generated under rootPath/baseURL
+        baseURL: "references/iota-api/iota-graphql/reference/testnet/",
+        loaders: {
+          UrlLoader: {
+            module: "@graphql-tools/url-loader",
+          }
+        },
+      },
+    ],
+    [
+      "@graphql-markdown/docusaurus",
+      /** @type {import('@graphql-markdown/types').ConfigOptions} */
+      {
+        id:'devnet',
+        schema: "https://raw.githubusercontent.com/iotaledger/iota/refs/heads/devnet/crates/iota-graphql-rpc/schema.graphql",
+        rootPath: "../content", // docs will be generated under rootPath/baseURL
+        baseURL: "references/iota-api/iota-graphql/reference/devnet/",
+        loaders: {
+          UrlLoader: {
+            module: "@graphql-tools/url-loader",
+          }
         },
       },
     ],
@@ -91,14 +124,14 @@ const config = {
           "../../sdk/typescript/src/graphql",
           "../../sdk/typescript/src/keypairs/ed25519",
           "../../sdk/typescript/src/keypairs/secp256k1",
-          "../../sdk/typescript/src/keypairs/secp256k1",
+          "../../sdk/typescript/src/keypairs/secp256r1",
           "../../sdk/typescript/src/multisig",
           "../../sdk/typescript/src/transactions",
           "../../sdk/typescript/src/utils",
           "../../sdk/typescript/src/verify"
         ],
         plugin: ["typedoc-plugin-markdown"],
-        out: "../../docs/content/references/ts-sdk/api/",
+        out: "../generated-docs/ts-sdk",
         githubPages: false,
         readme: "none",
         hideGenerator: true,
@@ -130,7 +163,25 @@ const config = {
         },
       },
     ],
-    'plugin-image-zoom'
+    'plugin-image-zoom',
+    [
+      'docusaurus-plugin-openapi-docs',
+      {
+        id: 'openapi',
+        docsPluginId: 'classic',
+        config: {
+          coreApiV2: {
+            specPath:
+              'https://raw.githubusercontent.com/iotaledger/wasp/refs/heads/develop/clients/apiclient/api/openapi.yaml',
+            outputDir: 
+              '../content/iota-evm/references/openapi',
+            sidebarOptions: {
+              groupPathsBy: 'tag',
+            }
+          }
+        }
+      }
+    ]
   ],
   presets: [
     [
@@ -141,6 +192,8 @@ const config = {
           path: "../content",
           routeBasePath: "/",
           sidebarPath: require.resolve("./sidebars.js"),
+          docItemComponent: "@theme/ApiItem", // Derived from docusaurus-theme-openapi
+          docRootComponent: "@theme/DocRoot", // add @theme/DocRoot
           async sidebarItemsGenerator({
             isCategoryIndex: defaultCategoryIndexMatcher, // The default matcher implementation, given below
             defaultSidebarItemsGenerator,
@@ -173,7 +226,7 @@ const config = {
             "1.0.0",
           ],*/
           remarkPlugins: [
-            math,
+            [math,{singleDollarTextMath:false}],
             [
               require("@docusaurus/remark-plugin-npm2yarn"),
               { sync: true, converters: ["yarn", "pnpm"] },
@@ -211,8 +264,12 @@ const config = {
       type: "text/css",
     },
   ],
-  themes: ["@docusaurus/theme-mermaid",
-    '@saucelabs/theme-github-codeblock', '@docusaurus/theme-live-codeblock'],
+  themes: [
+    '@docusaurus/theme-mermaid',
+    '@saucelabs/theme-github-codeblock', 
+    '@docusaurus/theme-live-codeblock',
+    'docusaurus-theme-openapi-docs',
+  ],
   themeConfig:
     /** @type {import('@docusaurus/preset-classic').ThemeConfig} */
     ({
@@ -266,12 +323,17 @@ const config = {
             to: "about-iota/iota-wallet/getting-started"
           },
           {
+            label: "IOTA EVM",
+            to: "iota-evm",
+          },
+          {
             type: 'custom-WalletConnectButton',
             position: 'right',
-          }
+          },
         ],
       },
       footer: {
+        style: "dark",
         logo: {
           alt: "IOTA Wiki Logo",
           src: "/logo/iota-logo.svg",

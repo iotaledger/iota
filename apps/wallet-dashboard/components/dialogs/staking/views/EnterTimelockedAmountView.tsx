@@ -8,19 +8,19 @@ import {
     useGetAllOwnedObjects,
     TIMELOCK_IOTA_TYPE,
     SIZE_LIMIT_EXCEEDED,
+    useGetClockTimestamp,
+    toast,
+    getGasBudgetErrorMessage,
 } from '@iota/core';
 import { NANOS_PER_IOTA } from '@iota/iota-sdk/utils';
 import { useFormikContext } from 'formik';
 import { useSignAndExecuteTransaction } from '@iota/dapp-kit';
-import {
-    getAmountFromGroupedTimelockObjects,
-    useGetCurrentEpochStartTimestamp,
-    useNewStakeTimelockedTransaction,
-} from '@/hooks';
+import { getAmountFromGroupedTimelockObjects, useNewStakeTimelockedTransaction } from '@/hooks';
 import { prepareObjectsForTimelockedStakingTransaction } from '@/lib/utils';
 import { EnterAmountDialogLayout } from './EnterAmountDialogLayout';
-import toast from 'react-hot-toast';
 import { ampli } from '@/lib/utils/analytics';
+import { InfoBox, InfoBoxStyle, InfoBoxType } from '@iota/apps-ui-kit';
+import { Exclamation } from '@iota/apps-ui-icons';
 
 interface FormValues {
     amount: string;
@@ -53,18 +53,18 @@ export function EnterTimelockedAmountView({
     const [possibleAmount, setPossibleAmount] = useState<bigint | null>(null);
     const [isSearchingProtocolMaxAmount, setSearchingProtocolMaxAmount] = useState(false);
 
-    const { data: currentEpochMs } = useGetCurrentEpochStartTimestamp();
+    const { data: clockTimestampMs } = useGetClockTimestamp();
     const { data: timelockedObjects } = useGetAllOwnedObjects(senderAddress, {
         StructType: TIMELOCK_IOTA_TYPE,
     });
     const groupedTimelockObjects = useMemo(() => {
-        if (!timelockedObjects || !currentEpochMs || possibleAmount === null) return [];
+        if (!timelockedObjects || possibleAmount === null) return [];
         return prepareObjectsForTimelockedStakingTransaction(
             timelockedObjects,
             possibleAmount,
-            currentEpochMs,
+            clockTimestampMs,
         );
-    }, [timelockedObjects, currentEpochMs, possibleAmount]);
+    }, [timelockedObjects, clockTimestampMs, possibleAmount]);
 
     const {
         data: newStakeData,
@@ -101,8 +101,7 @@ export function EnterTimelockedAmountView({
                 message: message,
             };
         }
-
-        if (!hasGroupedTimelockObjects) {
+        if (!hasGroupedTimelockObjects && possibleAmountFormatted) {
             return {
                 message:
                     'Combining timelocked objects to stake the entered amount is not possible. Please try a different amount.',
@@ -170,20 +169,37 @@ export function EnterTimelockedAmountView({
         }
     }, [isError, possibleAmount, stakeTransactionError]);
 
+    const errorMessage = useMemo(() => {
+        if (isError) {
+            return getGasBudgetErrorMessage(stakeTransactionError);
+        } else {
+            return undefined;
+        }
+    }, [stakeTransactionError, isError]);
+
     return (
         <EnterAmountDialogLayout
             selectedValidator={selectedValidator}
-            gasBudget={newStakeData?.gasBudget}
+            totalGas={newStakeData?.gasSummary?.totalGas}
             senderAddress={senderAddress}
             caption={caption}
-            showInfo={!!info.message}
-            infoTitle={info.title}
-            infoMessage={info.message}
+            renderInfo={
+                info.message ? (
+                    <InfoBox
+                        title={info.title}
+                        type={InfoBoxType.Error}
+                        supportingText={info.message}
+                        style={InfoBoxStyle.Elevated}
+                        icon={<Exclamation />}
+                    />
+                ) : undefined
+            }
             isLoading={isTransactionLoading}
             isStakeDisabled={!hasGroupedTimelockObjects || isSearchingProtocolMaxAmount}
             onBack={onBack}
             handleClose={handleClose}
             handleStake={handleStake}
+            errorMessage={errorMessage}
         />
     );
 }

@@ -64,7 +64,7 @@ Additionally, for custom string operations, the `as_bytes()` method can be used 
 
 ### Safe UTF-8 Operations
 
-The default `utf8` method may abort if the bytes passed into it are not valid UTF-8. If you're unsure whether the bytes are valid, you should use the [`try_utf8`](../../../references/framework/move-stdlib/string.mdx#function-try_utf8) method instead. It returns an [`Option<String>`](../../../references/framework/move-stdlib/option.mdx#0x1_option_Option), which contains no value if the bytes are not valid UTF-8, and a `String` otherwise.
+The default `utf8` method may abort if the bytes passed into it are not valid UTF-8. If you're unsure whether the bytes are valid, you should use the [`try_utf8`](../../../references/framework/move-stdlib/string.mdx#function-try_utf8) method instead. It returns an [`Option<String>`](../../../references/framework/move-stdlib/option.mdx#struct-option), which contains no value if the bytes are not valid UTF-8, and a `String` otherwise.
 
 :::tip Try
 

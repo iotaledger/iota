@@ -36,16 +36,16 @@ const PopIn = ({ status, description, title, setShowPopIn, digest }: PropTypes) 
                             <div>
                                 <button 
                                     type='button'
-                                    className="inline-flex cursor-pointer w-full border-none justify-center rounded-md bg-[#017195] px-4 py-2 text-sm my-2">
+                                    className="inline-flex cursor-pointer w-full border-none justify-center rounded-md bg-[#017195] px-4 py-2 text-sm my-2 hover:bg-[#015b78]">
                                         <a 
                                             target='blank' 
                                             href={`https://explorer.rebased.iota.org/txblock/${digest}?network=testnet`}
-                                            className='font-semibold text-white hover:text-black'
+                                            className='font-semibold text-white no-underline hover:no-underline hover:text-white'
                                         >Check transaction on explorer</a>
                                 </button>
                                 <button
                                     type="button"
-                                    className="inline-flex cursor-pointer w-full border-none justify-center rounded-md bg-[#017195] px-4 py-2 text-sm font-semibold text-white hover:text-black"
+                                    className="inline-flex cursor-pointer w-full border-none justify-center rounded-md bg-[#017195] px-4 py-2 text-sm font-semibold text-white hover:bg-[#015b78]"
                                     onClick={() => setShowPopIn(false)}
                                 >
                                     Close

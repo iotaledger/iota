@@ -21,6 +21,8 @@ use move_package::{
 };
 use move_symbol_pool::Symbol;
 
+pub mod system_package_versions;
+
 const PUBLISHED_AT_MANIFEST_FIELD: &str = "published-at";
 
 pub enum LockCommand {
@@ -80,7 +82,7 @@ pub async fn update_lock_file(
         )
     };
     let install_dir = install_dir.unwrap_or(PathBuf::from("."));
-    let env = context.config().get_active_env().context(
+    let env = context.active_env().context(
         "Could not resolve environment from active wallet context. \
          Try ensure `iota client active-env` is valid.",
     )?;

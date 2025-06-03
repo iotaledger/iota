@@ -397,7 +397,7 @@ impl<'a> PTBBuilder<'a> {
                     self.addresses.insert(ident, *addr);
                 }
             }
-            // If we encounter a dotted string e.g., "foo.0" or "iota.io" or something like that
+            // If we encounter a dotted string e.g., "foo.0" or "iota.org" or something like that
             // this see if we can find an address for it in the environment and bind to it.
             PTBArg::VariableAccess(ref head, ref fields) => {
                 let key = format!(
@@ -1051,7 +1051,7 @@ impl<'a> PTBBuilder<'a> {
                     )
                     .map_err(|e| err!(path_loc, "{e}"))?;
                 }
-                let (package_id, compiled_modules, dependencies, package_digest, upgrade_policy) =
+                let (package_id, compiled_modules, dependencies, package_digest, upgrade_policy, _) =
                     upgrade_result.map_err(|e| err!(path_loc, "{e}"))?;
 
                 let upgrade_arg = self

@@ -31,7 +31,7 @@ use rocksdb::{
     ColumnFamilyDescriptor, CompactOptions, DBPinnableSlice, DBWithThreadMode, Error, ErrorKind,
     IteratorMode, LiveFile, MultiThreaded, OptimisticTransactionDB, OptimisticTransactionOptions,
     ReadOptions, SnapshotWithThreadMode, Transaction, WriteBatch, WriteBatchWithTransaction,
-    WriteOptions, checkpoint::Checkpoint, properties,
+    WriteOptions, checkpoint::Checkpoint, properties, properties::num_files_at_level,
 };
 use serde::{Serialize, de::DeserializeOwned};
 use tap::TapFallible;
@@ -66,6 +66,7 @@ const DEFAULT_DB_WAL_SIZE: usize = 1024;
 // tables.
 const ENV_VAR_L0_NUM_FILES_COMPACTION_TRIGGER: &str = "L0_NUM_FILES_COMPACTION_TRIGGER";
 const DEFAULT_L0_NUM_FILES_COMPACTION_TRIGGER: usize = 4;
+const DEFAULT_UNIVERSAL_COMPACTION_L0_NUM_FILES_COMPACTION_TRIGGER: usize = 80;
 const ENV_VAR_MAX_WRITE_BUFFER_SIZE_MB: &str = "MAX_WRITE_BUFFER_SIZE_MB";
 const DEFAULT_MAX_WRITE_BUFFER_SIZE_MB: usize = 256;
 const ENV_VAR_MAX_WRITE_BUFFER_NUMBER: &str = "MAX_WRITE_BUFFER_NUMBER";
@@ -340,6 +341,15 @@ impl RocksDB {
 
     pub fn drop_cf(&self, name: &str) -> Result<(), rocksdb::Error> {
         delegate_call!(self.drop_cf(name))
+    }
+
+    pub fn delete_file_in_range<K: AsRef<[u8]>>(
+        &self,
+        cf: &impl AsColumnFamilyRef,
+        from: K,
+        to: K,
+    ) -> Result<(), rocksdb::Error> {
+        delegate_call!(self.delete_file_in_range_cf(cf, from, to))
     }
 
     pub fn delete_cf<K: AsRef<[u8]>>(
@@ -928,10 +938,10 @@ impl<K, V> DBMap<K, V> {
     fn get_int_property(
         rocksdb: &RocksDB,
         cf: &impl AsColumnFamilyRef,
-        property_name: &'static std::ffi::CStr,
+        property_name: &std::ffi::CStr,
     ) -> Result<i64, TypedStoreError> {
         match rocksdb.property_int_value_cf(cf, property_name) {
-            Ok(Some(value)) => Ok(value.try_into().unwrap()),
+            Ok(Some(value)) => Ok(value.min(i64::MAX as u64).try_into().unwrap_or_default()),
             Ok(None) => Ok(0),
             Err(e) => Err(TypedStoreError::RocksDB(e.into_string())),
         }
@@ -1008,6 +1018,28 @@ impl<K, V> DBMap<K, V> {
             .with_label_values(&[cf_name])
             .set(
                 Self::get_int_property(rocksdb, &cf, ROCKSDB_PROPERTY_TOTAL_BLOB_FILES_SIZE)
+                    .unwrap_or(METRICS_ERROR),
+            );
+        // 7 is the default number of levels in RocksDB. If we ever change the number of
+        // levels using `set_num_levels`, we need to update here as well. Note
+        // that there isn't an API to query the DB to get the number of levels (yet).
+        let total_num_files: i64 = (0..=6)
+            .map(|level| {
+                Self::get_int_property(rocksdb, &cf, &num_files_at_level(level))
+                    .unwrap_or(METRICS_ERROR)
+            })
+            .sum();
+        db_metrics
+            .cf_metrics
+            .rocksdb_total_num_files
+            .with_label_values(&[cf_name])
+            .set(total_num_files);
+        db_metrics
+            .cf_metrics
+            .rocksdb_num_level0_files
+            .with_label_values(&[cf_name])
+            .set(
+                Self::get_int_property(rocksdb, &cf, &num_files_at_level(0))
                     .unwrap_or(METRICS_ERROR),
             );
         db_metrics
@@ -2033,6 +2065,25 @@ where
         Ok(())
     }
 
+    /// Deletes a range of keys between `from` (inclusive) and `to`
+    /// (non-inclusive) by immediately deleting any sst files whose key
+    /// range overlaps with the range. Files whose range only partially
+    /// overlaps with the range are not deleted. This can be useful for
+    /// quickly removing a large amount of data without having
+    /// to delete individual keys. Only files at level 1 or higher are
+    /// considered ( Level 0 files are skipped). It doesn't guarantee that
+    /// all keys in the range are deleted, as there might be keys in files
+    /// that weren't entirely within the range.
+    #[instrument(level = "trace", skip_all, err)]
+    fn delete_file_in_range(&self, from: &K, to: &K) -> Result<(), TypedStoreError> {
+        let from_buf = be_fix_int_ser(from.borrow())?;
+        let to_buf = be_fix_int_ser(to.borrow())?;
+        self.rocksdb
+            .delete_file_in_range(&self.cf(), from_buf, to_buf)
+            .map_err(typed_store_err_from_rocks_err)?;
+        Ok(())
+    }
+
     /// This method first drops the existing column family and then creates a
     /// new one with the same name. The two operations are not atomic and
     /// hence it is possible to get into a race condition where the column
@@ -2440,7 +2491,7 @@ impl DBOptions {
     // Optimize tables with a mix of lookup and scan workloads.
     pub fn optimize_for_read(mut self, block_cache_size_mb: usize) -> DBOptions {
         self.options
-            .set_block_based_table_factory(&get_block_options(block_cache_size_mb));
+            .set_block_based_table_factory(&get_block_options(block_cache_size_mb, 16 << 10));
         self
     }
 
@@ -2494,6 +2545,74 @@ impl DBOptions {
         self.options
             .set_max_bytes_for_level_base((write_buffer_size * max_level_zero_file_num) as u64);
 
+        self
+    }
+
+    // Optimize tables receiving significant insertions, without any deletions.
+    // TODO: merge this function with optimize_for_write_throughput(), and use a
+    // flag to indicate if deletion is received.
+    pub fn optimize_for_write_throughput_no_deletion(mut self) -> DBOptions {
+        // Increase write buffer size to 256MiB.
+        let write_buffer_size = read_size_from_env(ENV_VAR_MAX_WRITE_BUFFER_SIZE_MB)
+            .unwrap_or(DEFAULT_MAX_WRITE_BUFFER_SIZE_MB)
+            * 1024
+            * 1024;
+        self.options.set_write_buffer_size(write_buffer_size);
+        // Increase write buffers to keep to 6 before slowing down writes.
+        let max_write_buffer_number = read_size_from_env(ENV_VAR_MAX_WRITE_BUFFER_NUMBER)
+            .unwrap_or(DEFAULT_MAX_WRITE_BUFFER_NUMBER);
+        self.options
+            .set_max_write_buffer_number(max_write_buffer_number.try_into().unwrap());
+        // Keep 1 write buffer so recent writes can be read from memory.
+        self.options
+            .set_max_write_buffer_size_to_maintain((write_buffer_size).try_into().unwrap());
+
+        // Switch to universal compactions.
+        self.options
+            .set_compaction_style(rocksdb::DBCompactionStyle::Universal);
+        let mut compaction_options = rocksdb::UniversalCompactOptions::default();
+        compaction_options.set_max_size_amplification_percent(10000);
+        compaction_options.set_stop_style(rocksdb::UniversalCompactionStopStyle::Similar);
+        self.options
+            .set_universal_compaction_options(&compaction_options);
+
+        let max_level_zero_file_num = read_size_from_env(ENV_VAR_L0_NUM_FILES_COMPACTION_TRIGGER)
+            .unwrap_or(DEFAULT_UNIVERSAL_COMPACTION_L0_NUM_FILES_COMPACTION_TRIGGER);
+        self.options.set_level_zero_file_num_compaction_trigger(
+            max_level_zero_file_num.try_into().unwrap(),
+        );
+        self.options.set_level_zero_slowdown_writes_trigger(
+            (max_level_zero_file_num * 12).try_into().unwrap(),
+        );
+        self.options
+            .set_level_zero_stop_writes_trigger((max_level_zero_file_num * 16).try_into().unwrap());
+
+        // Increase sst file size to 128MiB.
+        self.options.set_target_file_size_base(
+            read_size_from_env(ENV_VAR_TARGET_FILE_SIZE_BASE_MB)
+                .unwrap_or(DEFAULT_TARGET_FILE_SIZE_BASE_MB) as u64
+                * 1024
+                * 1024,
+        );
+
+        // This should be a no-op for universal compaction but increasing it to be safe.
+        self.options
+            .set_max_bytes_for_level_base((write_buffer_size * max_level_zero_file_num) as u64);
+
+        self
+    }
+
+    // Overrides the block options with different block cache size and block size.
+    pub fn set_block_options(
+        mut self,
+        block_cache_size_mb: usize,
+        block_size_bytes: usize,
+    ) -> DBOptions {
+        self.options
+            .set_block_based_table_factory(&get_block_options(
+                block_cache_size_mb,
+                block_size_bytes,
+            ));
         self
     }
 
@@ -2553,7 +2672,9 @@ pub fn default_db_options() -> DBOptions {
 
     opt.set_enable_pipelined_write(true);
 
-    opt.set_block_based_table_factory(&get_block_options(128));
+    // Increase block size to 16KiB.
+    // https://github.com/EighteenZi/rocksdb_wiki/blob/master/Memory-usage-in-RocksDB.md#indexes-and-filter-blocks
+    opt.set_block_based_table_factory(&get_block_options(128, 16 << 10));
 
     // Set memtable bloomfilter.
     opt.set_memtable_prefix_bloom_ratio(0.02);
@@ -2564,15 +2685,14 @@ pub fn default_db_options() -> DBOptions {
     }
 }
 
-fn get_block_options(block_cache_size_mb: usize) -> BlockBasedOptions {
+fn get_block_options(block_cache_size_mb: usize, block_size_bytes: usize) -> BlockBasedOptions {
     // Set options mostly similar to those used in optimize_for_point_lookup(),
     // except non-default binary and hash index, to hopefully reduce lookup
     // latencies without causing any regression for scanning, with slightly more
     // memory usages. https://github.com/facebook/rocksdb/blob/11cb6af6e5009c51794641905ca40ce5beec7fee/options/options.cc#L611-L621
     let mut block_options = BlockBasedOptions::default();
-    // Increase block size to 16KiB.
-    // https://github.com/EighteenZi/rocksdb_wiki/blob/master/Memory-usage-in-RocksDB.md#indexes-and-filter-blocks
-    block_options.set_block_size(16 * 1024);
+    // Overrides block size.
+    block_options.set_block_size(block_size_bytes);
     // Configure a block cache.
     block_options.set_block_cache(&Cache::new_lru_cache(block_cache_size_mb << 20));
     // Set a bloomfilter with 1% false positive rate.
@@ -2839,7 +2959,9 @@ fn is_max(v: &[u8]) -> bool {
     v.iter().all(|&x| x == u8::MAX)
 }
 
-#[expect(clippy::assign_op_pattern)]
+// `clippy::manual_div_ceil` is raised by code expanded by the
+// `uint::construct_uint!` macro so it needs to be fixed by `uint`
+#[expect(clippy::assign_op_pattern, clippy::manual_div_ceil)]
 #[test]
 fn test_helpers() {
     let v = vec![];

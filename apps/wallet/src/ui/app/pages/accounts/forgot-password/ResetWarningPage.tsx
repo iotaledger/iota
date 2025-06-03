@@ -42,7 +42,7 @@ export function ResetWarningPage() {
             showBackButton
         >
             <div className="flex h-full flex-col gap-lg overflow-auto">
-                <span className="text-center text-label-lg text-neutral-40">
+                <span className="text-center text-label-lg text-neutral-40 dark:text-neutral-60">
                     To protect the security of your wallet, the accounts listed will be deleted as
                     part of the password reset procedure. Please reconnect or reimport them once the
                     process is complete.

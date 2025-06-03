@@ -77,13 +77,15 @@ async fn test_get_staked_iota() {
         .await;
     assert_eq!(response.balances[0].value, 0);
 
-    // Stake some iota
-    let validator = client
+    // Stake some iota to a committee member.
+    let committee_member_address = client
         .governance_api()
         .get_latest_iota_system_state()
         .await
         .unwrap()
-        .active_validators[0]
+        .iter_committee_members()
+        .next()
+        .unwrap()
         .iota_address;
     let coins = client
         .coin_read_api()
@@ -97,7 +99,7 @@ async fn test_get_staked_iota() {
             address,
             vec![coins[0].coin_object_id],
             Some(1_000_000_000),
-            validator,
+            committee_member_address,
             None,
             1_000_000_000,
         )
@@ -136,12 +138,15 @@ async fn test_stake() {
 
     let (rosetta_client, _handle) = start_rosetta_test_server(client.clone()).await;
 
-    let validator = client
+    // Stake some iota to a committee member.
+    let committee_member_address = client
         .governance_api()
         .get_latest_iota_system_state()
         .await
         .unwrap()
-        .active_validators[0]
+        .iter_committee_members()
+        .next()
+        .unwrap()
         .iota_address;
 
     let ops = serde_json::from_value(json!(
@@ -150,7 +155,7 @@ async fn test_stake() {
             "type":"Stake",
             "account": { "address" : sender.to_string() },
             "amount" : { "value": "-1000000000" , "currency": { "symbol": "IOTA", "decimals": 9}},
-            "metadata": { "Stake" : {"validator": validator.to_string()} }
+            "metadata": { "Stake" : {"validator": committee_member_address.to_string()} }
         }]
     ))
     .unwrap();
@@ -197,12 +202,15 @@ async fn test_stake_all() {
 
     let (rosetta_client, _handle) = start_rosetta_test_server(client.clone()).await;
 
-    let validator = client
+    // Stake iota to a committee member.
+    let committee_member_address = client
         .governance_api()
         .get_latest_iota_system_state()
         .await
         .unwrap()
-        .active_validators[0]
+        .iter_committee_members()
+        .next()
+        .unwrap()
         .iota_address;
 
     let ops = serde_json::from_value(json!(
@@ -210,7 +218,7 @@ async fn test_stake_all() {
             "operation_identifier":{"index":0},
             "type":"Stake",
             "account": { "address" : sender.to_string() },
-            "metadata": { "Stake" : {"validator": validator.to_string()} }
+            "metadata": { "Stake" : {"validator": committee_member_address.to_string()} }
         }]
     ))
     .unwrap();
@@ -253,7 +261,7 @@ async fn test_withdraw_stake() {
     telemetry_subscribers::init_for_testing();
 
     let test_cluster = TestClusterBuilder::new()
-        .with_epoch_duration_ms(15000)
+        .with_epoch_duration_ms(60000)
         .build()
         .await;
     let sender = test_cluster.get_address_0();
@@ -262,13 +270,15 @@ async fn test_withdraw_stake() {
 
     let (rosetta_client, _handle) = start_rosetta_test_server(client.clone()).await;
 
-    // First add some stakes
-    let validator = client
+    // First add some stakes to a committee member.
+    let committee_member_address = client
         .governance_api()
         .get_latest_iota_system_state()
         .await
         .unwrap()
-        .active_validators[0]
+        .iter_committee_members()
+        .next()
+        .unwrap()
         .iota_address;
 
     let ops = serde_json::from_value(json!(
@@ -277,7 +287,7 @@ async fn test_withdraw_stake() {
             "type":"Stake",
             "account": { "address" : sender.to_string() },
             "amount" : { "value": "-1000000000" , "currency": { "symbol": "IOTA", "decimals": 9}},
-            "metadata": { "Stake" : {"validator": validator.to_string()} }
+            "metadata": { "Stake" : {"validator": committee_member_address.to_string()} }
         }]
     ))
     .unwrap();
@@ -319,8 +329,8 @@ async fn test_withdraw_stake() {
     assert_eq!(1, response.balances.len());
     assert_eq!(1000000000, response.balances[0].value);
 
-    // wait for epoch.
-    tokio::time::sleep(Duration::from_millis(15000)).await;
+    // Trigger epoch change.
+    test_cluster.force_new_epoch().await;
 
     // withdraw all stake
     let ops = serde_json::from_value(json!(

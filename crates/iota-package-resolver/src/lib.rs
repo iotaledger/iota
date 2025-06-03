@@ -43,7 +43,7 @@ pub mod error;
 
 // TODO Move to ServiceConfig
 
-const PACKAGE_CACHE_SIZE: NonZeroUsize = unsafe { NonZeroUsize::new_unchecked(1024) };
+const PACKAGE_CACHE_SIZE: NonZeroUsize = NonZeroUsize::new(1024).unwrap();
 
 pub type Result<T> = std::result::Result<T, Error>;
 
@@ -507,13 +507,16 @@ impl<S: PackageStore> Resolver<S> {
         for cmd in &tx.commands {
             match cmd {
                 Command::MoveCall(call) => {
-                    let params = self
+                    let Ok(params) = self
                         .function_parameters(
                             call.package.into(),
                             call.module.as_str(),
                             call.function.as_str(),
                         )
-                        .await?;
+                        .await
+                    else {
+                        continue;
+                    };
 
                     for (open_sig, arg) in params.iter().zip(call.arguments.iter()) {
                         let sig = open_sig.instantiate(&call.type_arguments)?;
@@ -1505,7 +1508,7 @@ impl<'l> ResolutionContext<'l> {
                 (
                     MoveTypeLayout::Struct(Box::new(MoveStructLayout {
                         type_,
-                        fields: Box::new(resolved_fields),
+                        fields: resolved_fields,
                     })),
                     field_depth + 1,
                 )

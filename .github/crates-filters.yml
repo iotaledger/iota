@@ -60,6 +60,8 @@ iota-graphql-rpc-client:
   - "crates/iota-graphql-rpc-client/**"
 iota-graphql-rpc-headers:
   - "crates/iota-graphql-rpc-headers/**"
+iota-http:
+  - "crates/iota-http/**"
 iota-indexer:
   - "crates/iota-indexer/**"
 iota-indexer-builder:
@@ -80,6 +82,8 @@ iota-light-client:
   - "crates/iota-light-client/**"
 iota-macros:
   - "crates/iota-macros/**"
+iota-mainnet-unlocks:
+  - "crates/iota-mainnet-unlocks/**"
 iota-metric-checker:
   - "crates/iota-metric-checker/**"
 iota-metrics:
@@ -90,6 +94,8 @@ iota-move-build:
   - "crates/iota-move-build/**"
 iota-move-lsp:
   - "crates/iota-move-lsp/**"
+iota-names:
+  - "crates/iota-names/**"
 iota-network:
   - "crates/iota-network/**"
 iota-network-stack:
@@ -160,10 +166,6 @@ iota-types:
   - "crates/iota-types/**"
 iota-upgrade-compatibility-transactional-tests:
   - "crates/iota-upgrade-compatibility-transactional-tests/**"
-iota-util-mem:
-  - "crates/iota-util-mem/**"
-iota-util-mem-derive:
-  - "crates/iota-util-mem-derive/**"
 iota-verifier-transactional-tests:
   - "crates/iota-verifier-transactional-tests/**"
 prometheus-closure-metric:

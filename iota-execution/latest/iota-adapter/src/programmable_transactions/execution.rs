@@ -53,6 +53,7 @@ mod checked {
         language_storage::{ModuleId, TypeTag},
         u256::U256,
     };
+    use move_trace_format::format::MoveTraceBuilder;
     use move_vm_runtime::{
         move_vm::MoveVM,
         session::{LoadedFunctionInstantiation, SerializedReturnValues},
@@ -66,6 +67,7 @@ mod checked {
         execution_mode::ExecutionMode,
         execution_value::{
             CommandKind, ExecutionState, ObjectContents, ObjectValue, RawValueType, Value,
+            ensure_serialized_size,
         },
         gas_charger::GasCharger,
         programmable_transactions::context::*,
@@ -86,6 +88,7 @@ mod checked {
         tx_context: &mut TxContext,
         gas_charger: &mut GasCharger,
         pt: ProgrammableTransaction,
+        trace_builder_opt: &mut Option<MoveTraceBuilder>,
     ) -> Result<Mode::ExecutionResults, ExecutionError> {
         let ProgrammableTransaction { inputs, commands } = pt;
         let mut context = ExecutionContext::new(
@@ -100,7 +103,9 @@ mod checked {
         // execute commands
         let mut mode_results = Mode::empty_results();
         for (idx, command) in commands.into_iter().enumerate() {
-            if let Err(err) = execute_command::<Mode>(&mut context, &mut mode_results, command) {
+            if let Err(err) =
+                execute_command::<Mode>(&mut context, &mut mode_results, command, trace_builder_opt)
+            {
                 let object_runtime: &ObjectRuntime = context.object_runtime();
                 // We still need to record the loaded child objects for replay
                 let loaded_runtime_objects = object_runtime.loaded_runtime_objects();
@@ -137,6 +142,7 @@ mod checked {
         context: &mut ExecutionContext<'_, '_, '_>,
         mode_results: &mut Mode::ExecutionResults,
         command: Command,
+        trace_builder_opt: &mut Option<MoveTraceBuilder>,
     ) -> Result<(), ExecutionError> {
         let mut argument_updates = Mode::empty_arguments();
         let results = match command {
@@ -146,9 +152,13 @@ mod checked {
                         "input checker ensures if args are empty, there is a type specified"
                     );
                 };
-                let elem_ty = context
-                    .load_type(&tag)
-                    .map_err(|e| context.convert_vm_error(e))?;
+                let elem_ty = context.load_type(&tag).map_err(|e| {
+                    if context.protocol_config.convert_type_argument_error() {
+                        context.convert_type_argument_error(0, e)
+                    } else {
+                        context.convert_vm_error(e)
+                    }
+                })?;
                 let ty = Type::Vector(Box::new(elem_ty));
                 let abilities = context
                     .vm
@@ -172,9 +182,13 @@ mod checked {
                 let mut arg_iter = args.into_iter().enumerate();
                 let (mut used_in_non_entry_move_call, elem_ty) = match tag_opt {
                     Some(tag) => {
-                        let elem_ty = context
-                            .load_type(&tag)
-                            .map_err(|e| context.convert_vm_error(e))?;
+                        let elem_ty = context.load_type(&tag).map_err(|e| {
+                            if context.protocol_config.convert_type_argument_error() {
+                                context.convert_type_argument_error(0, e)
+                            } else {
+                                context.convert_vm_error(e)
+                            }
+                        })?;
                         (false, elem_ty)
                     }
                     // If no tag specified, it _must_ be an object
@@ -183,7 +197,10 @@ mod checked {
                         let (idx, arg) = arg_iter.next().unwrap();
                         let obj: ObjectValue =
                             context.by_value_arg(CommandKind::MakeMoveVec, idx, arg)?;
-                        obj.write_bcs_bytes(&mut res);
+                        obj.write_bcs_bytes(
+                            &mut res,
+                            amplification_bound::<Mode>(context, &obj.type_)?,
+                        )?;
                         (obj.used_in_non_entry_move_call, obj.type_)
                     }
                 };
@@ -192,7 +209,10 @@ mod checked {
                     check_param_type::<Mode>(context, idx, &value, &elem_ty)?;
                     used_in_non_entry_move_call =
                         used_in_non_entry_move_call || value.was_used_in_non_entry_move_call();
-                    value.write_bcs_bytes(&mut res);
+                    value.write_bcs_bytes(
+                        &mut res,
+                        amplification_bound::<Mode>(context, &elem_ty)?,
+                    )?;
                 }
                 let ty = Type::Vector(Box::new(elem_ty));
                 let abilities = context
@@ -322,14 +342,19 @@ mod checked {
                     arguments,
                     // is_init
                     false,
+                    trace_builder_opt,
                 );
 
                 context.linkage_view.reset_linkage();
                 return_values?
             }
-            Command::Publish(modules, dep_ids) => {
-                execute_move_publish::<Mode>(context, &mut argument_updates, modules, dep_ids)?
-            }
+            Command::Publish(modules, dep_ids) => execute_move_publish::<Mode>(
+                context,
+                &mut argument_updates,
+                modules,
+                dep_ids,
+                trace_builder_opt,
+            )?,
             Command::Upgrade(modules, dep_ids, current_package_id, upgrade_ticket) => {
                 execute_move_upgrade::<Mode>(
                     context,
@@ -356,6 +381,7 @@ mod checked {
         type_arguments: Vec<Type>,
         arguments: Vec<Argument>,
         is_init: bool,
+        trace_builder_opt: &mut Option<MoveTraceBuilder>,
     ) -> Result<Vec<Value>, ExecutionError> {
         // check that the function is either an entry function or a valid public
         // function
@@ -386,6 +412,7 @@ mod checked {
             type_arguments,
             tx_context_kind,
             serialized_arguments,
+            trace_builder_opt,
         )?;
         assert_invariant!(
             by_mut_ref.len() == mutable_reference_outputs.len(),
@@ -493,6 +520,7 @@ mod checked {
         argument_updates: &mut Mode::ArgumentUpdates,
         module_bytes: Vec<Vec<u8>>,
         dep_ids: Vec<ObjectID>,
+        trace_builder_opt: &mut Option<MoveTraceBuilder>,
     ) -> Result<Vec<Value>, ExecutionError> {
         assert_invariant!(
             !module_bytes.is_empty(),
@@ -530,8 +558,9 @@ mod checked {
         // from
         context.linkage_view.set_linkage(&package)?;
         context.write_package(package);
-        let res = publish_and_verify_modules(context, runtime_id, &modules)
-            .and_then(|_| init_modules::<Mode>(context, argument_updates, &modules));
+        let res = publish_and_verify_modules(context, runtime_id, &modules).and_then(|_| {
+            init_modules::<Mode>(context, argument_updates, &modules, trace_builder_opt)
+        });
         context.linkage_view.reset_linkage();
         if res.is_err() {
             context.pop_package();
@@ -582,7 +611,10 @@ mod checked {
             let ticket_val: Value =
                 context.by_value_arg(CommandKind::Upgrade, 0, upgrade_ticket_arg)?;
             check_param_type::<Mode>(context, 0, &ticket_val, &upgrade_ticket_type)?;
-            ticket_val.write_bcs_bytes(&mut ticket_bytes);
+            ticket_val.write_bcs_bytes(
+                &mut ticket_bytes,
+                amplification_bound::<Mode>(context, &upgrade_ticket_type)?,
+            )?;
             bcs::from_bytes(&ticket_bytes).map_err(|_| {
                 ExecutionError::from_kind(ExecutionErrorKind::CommandArgumentError {
                     arg_idx: 0,
@@ -665,10 +697,10 @@ mod checked {
     /// function first validates the upgrade policy, then normalizes the
     /// existing and new modules to compare them. For each module, it verifies
     /// compatibility according to the policy.
-    fn check_compatibility<'a>(
+    fn check_compatibility(
         context: &ExecutionContext,
         existing_package: &MovePackage,
-        upgrading_modules: impl IntoIterator<Item = &'a CompiledModule>,
+        upgrading_modules: &[CompiledModule],
         policy: u8,
     ) -> Result<(), ExecutionError> {
         // Make sure this is a known upgrade policy.
@@ -685,7 +717,25 @@ mod checked {
             invariant_violation!("Tried to normalize modules in existing package but failed")
         };
 
-        let mut new_normalized = normalize_deserialized_modules(upgrading_modules.into_iter());
+        let existing_modules_len = current_normalized.len();
+        let upgrading_modules_len = upgrading_modules.len();
+        let disallow_new_modules = context
+            .protocol_config
+            .disallow_new_modules_in_deps_only_packages()
+            && policy as u8 == UpgradePolicy::DEP_ONLY;
+        if disallow_new_modules && existing_modules_len != upgrading_modules_len {
+            return Err(ExecutionError::new_with_source(
+                ExecutionErrorKind::PackageUpgradeError {
+                    upgrade_error: PackageUpgradeError::IncompatibleUpgrade,
+                },
+                format!(
+                    "Existing package has {existing_modules_len} modules, but new package has \
+                     {upgrading_modules_len}. Adding or removing a module to a deps only package is not allowed."
+                ),
+            ));
+        }
+        let mut new_normalized = normalize_deserialized_modules(upgrading_modules.iter());
+
         for (name, cur_module) in current_normalized {
             let Some(new_module) = new_normalized.remove(&name) else {
                 return Err(ExecutionError::new_with_source(
@@ -698,6 +748,10 @@ mod checked {
 
             check_module_compatibility(&policy, &cur_module, &new_module)?;
         }
+
+        // If we disallow new modules double check that there are no modules left in
+        // `new_normalized`.
+        debug_assert!(!disallow_new_modules || new_normalized.is_empty());
 
         Ok(())
     }
@@ -800,6 +854,7 @@ mod checked {
         type_arguments: Vec<Type>,
         tx_context_kind: TxContextKind,
         mut serialized_arguments: Vec<Vec<u8>>,
+        trace_builder_opt: &mut Option<MoveTraceBuilder>,
     ) -> Result<SerializedReturnValues, ExecutionError> {
         match tx_context_kind {
             TxContextKind::None => (),
@@ -814,6 +869,7 @@ mod checked {
                 function,
                 type_arguments,
                 serialized_arguments,
+                trace_builder_opt,
             )
             .map_err(|e| context.convert_vm_error(e))?;
 
@@ -913,6 +969,7 @@ mod checked {
         context: &mut ExecutionContext<'_, '_, '_>,
         argument_updates: &mut Mode::ArgumentUpdates,
         modules: &[CompiledModule],
+        trace_builder_opt: &mut Option<MoveTraceBuilder>,
     ) -> Result<(), ExecutionError> {
         let modules_to_init = modules.iter().filter_map(|module| {
             for fdef in &module.function_defs {
@@ -939,6 +996,7 @@ mod checked {
                 vec![],
                 // is_init
                 true,
+                trace_builder_opt,
             )?;
 
             assert_invariant!(
@@ -1324,7 +1382,7 @@ mod checked {
             check_param_type::<Mode>(context, idx, &value, non_ref_param_ty)?;
             let bytes = {
                 let mut v = vec![];
-                value.write_bcs_bytes(&mut v);
+                value.write_bcs_bytes(&mut v, None)?;
                 v
             };
             serialized_args.push(bytes);
@@ -1342,7 +1400,13 @@ mod checked {
         match value {
             // For dev-spect, allow any BCS bytes. This does mean internal invariants for types can
             // be violated (like for string or Option)
-            Value::Raw(RawValueType::Any, _) if Mode::allow_arbitrary_values() => return Ok(()),
+            Value::Raw(RawValueType::Any, bytes) if Mode::allow_arbitrary_values() => {
+                if let Some(bound) = amplification_bound::<Mode>(context, param_ty)? {
+                    return ensure_serialized_size(bytes.len() as u64, bound);
+                } else {
+                    return Ok(());
+                }
+            }
             // Any means this was just some bytes passed in as an argument (as opposed to being
             // generated from a Move function). Meaning we only allow "primitive" values
             // and might need to run validation in addition to the BCS layout
@@ -1518,6 +1582,52 @@ mod checked {
                 }
             }
         })
+    }
+
+    fn amplification_bound<Mode: ExecutionMode>(
+        context: &mut ExecutionContext<'_, '_, '_>,
+        param_ty: &Type,
+    ) -> Result<Option<u64>, ExecutionError> {
+        // Do not cap size for epoch change/genesis
+        if Mode::packages_are_predefined() {
+            return Ok(None);
+        }
+
+        let Some(bound) = context.protocol_config.max_ptb_value_size_as_option() else {
+            return Ok(None);
+        };
+
+        fn amplification(prim_layout: &PrimitiveArgumentLayout) -> Result<u64, ExecutionError> {
+            use PrimitiveArgumentLayout as PAL;
+            Ok(match prim_layout {
+                PAL::Option(inner_layout) => 1u64 + amplification(inner_layout)?,
+                PAL::Vector(inner_layout) => amplification(inner_layout)?,
+                PAL::Ascii | PAL::UTF8 => 2,
+                PAL::Bool | PAL::U8 | PAL::U16 | PAL::U32 | PAL::U64 => 1,
+                PAL::U128 | PAL::U256 | PAL::Address => 2,
+            })
+        }
+
+        let mut amplification = match primitive_serialization_layout(context, param_ty)? {
+            // No primitive type layout was able to be determined for the type. Assume the worst
+            // and the value is of maximal depth.
+            None => context.protocol_config.max_move_value_depth(),
+            Some(layout) => amplification(&layout)?,
+        };
+
+        // Computed amplification should never be zero
+        debug_assert!(amplification != 0);
+        // We assume here that any value that can be created must be bounded by the max
+        // move value depth so assert that this invariant holds.
+        debug_assert!(
+            context.protocol_config.max_move_value_depth()
+                >= context.protocol_config.max_type_argument_depth() as u64
+        );
+        assert_ne!(context.protocol_config.max_move_value_depth(), 0);
+        if amplification == 0 {
+            amplification = context.protocol_config.max_move_value_depth();
+        }
+        Ok(Some(bound / amplification))
     }
 
     // ************************************************************************

@@ -1,3 +1,0 @@
-full_node_url: "http://0.0.0.0:9000"
-checkpoint_summary_dir: "example_config"
-genesis_filename: "genesis.blob"
