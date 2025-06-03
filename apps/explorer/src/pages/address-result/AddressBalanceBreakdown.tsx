@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import {
+    Collapsible,
     formatDelegatedStake,
     formatDelegatedTimelockedStake,
     mapTimelockObjects,
@@ -13,8 +14,10 @@ import {
     useGetTimelockedStakedObjects,
     useTotalDelegatedStake,
 } from '@iota/core';
-import { KeyValueInfo, Skeleton } from '@iota/apps-ui-kit';
+import { Divider, KeyValueInfo, Panel, Skeleton, Title, TitleSize } from '@iota/apps-ui-kit';
+import { useState } from 'react';
 
+const TOOLTIP_TEXT = 'This balance breakdown does not include unmigrated stardust funds.';
 interface BalanceBreakdownElement {
     keyText: string;
     value: string;
@@ -24,6 +27,7 @@ interface BalanceBreakdownElement {
 }
 
 export function AddressBalanceBreakdown({ address }: { address: string }): React.JSX.Element {
+    const [open, setOpen] = useState(false);
     const {
         data: balance,
         isLoading: isLoadingBalance,
@@ -136,32 +140,59 @@ export function AddressBalanceBreakdown({ address }: { address: string }): React
             isLoading: isTimelockedObjectsLoading,
             isError: isTimelockedObjectsError,
         },
-        {
-            keyText: 'Total',
-            value: formattedTotalBalance,
-            supportingLabel: symbol,
-            isLoading: isLoadingTotalBalance,
-            isError: isTotalBalanceErrored,
-        },
     ];
     return (
-        <>
-            {BALANCE_BREAKDOWN.map((item) => (
-                <KeyValueInfo
-                    key={item.keyText}
-                    keyText={item.keyText}
-                    fullwidth
-                    value={
-                        <RenderBalanceValue
-                            value={item.value}
-                            isLoading={item.isLoading}
-                            isError={item.isError}
-                        />
-                    }
-                    supportingLabel={item.supportingLabel}
-                />
-            ))}
-        </>
+        <Panel>
+            <div className="relative overflow-visible">
+                <Collapsible
+                    hideBorder
+                    isOpen={open}
+                    onOpenChange={(isOpen) => setOpen(isOpen)}
+                    render={() => (
+                        <div className="flex w-full flex-row items-center justify-between">
+                            <Title
+                                size={TitleSize.Small}
+                                title="Balance Breakdown"
+                                tooltipText={TOOLTIP_TEXT}
+                            />
+                        </div>
+                    )}
+                >
+                    <div className="flex flex-col gap-y-sm p-md--rs">
+                        {BALANCE_BREAKDOWN.map((item) => (
+                            <KeyValueInfo
+                                key={item.keyText}
+                                keyText={item.keyText}
+                                fullwidth
+                                value={
+                                    <RenderBalanceValue
+                                        value={item.value}
+                                        isLoading={item.isLoading}
+                                        isError={item.isError}
+                                    />
+                                }
+                                supportingLabel={item.supportingLabel}
+                            />
+                        ))}
+                    </div>
+                </Collapsible>
+                <div className="flex flex-col gap-y-sm px-md pb-md">
+                    <Divider />
+                    <KeyValueInfo
+                        keyText="Total"
+                        value={
+                            <RenderBalanceValue
+                                value={formattedTotalBalance}
+                                isLoading={isLoadingTotalBalance}
+                                isError={isTotalBalanceErrored}
+                            />
+                        }
+                        fullwidth
+                        supportingLabel={symbol}
+                    />
+                </div>
+            </div>
+        </Panel>
     );
 }
 

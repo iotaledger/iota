@@ -55,7 +55,7 @@ export function AddressResultPage(): JSX.Element {
             content={
                 <div className="flex flex-col gap-2xl">
                     <AddressResultPageHeader address={id!} />
-                    <BalanceBreakdownPanel address={id!} />
+                    <AddressBalanceBreakdown address={id!} />
                     <AddressResult address={id!} />
                 </div>
             }
@@ -97,18 +97,6 @@ function OwnedObjectsPanel({ address }: { address: string }) {
                 )}
             </ErrorBoundary>
         </div>
-    );
-}
-
-function BalanceBreakdownPanel({ address }: { address: string }): JSX.Element {
-    const TOOLTIP_TEXT = 'This balance breakdown does not include unmigrated stardust funds.';
-    return (
-        <Panel>
-            <Title title="Balance Breakdown" tooltipText={TOOLTIP_TEXT} />
-            <div className="flex max-w-[400px] flex-col gap-xxxs px-md--rs py-sm--rs">
-                <AddressBalanceBreakdown address={address!} />
-            </div>
-        </Panel>
     );
 }
 
