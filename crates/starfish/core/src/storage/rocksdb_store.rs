@@ -7,6 +7,7 @@ use std::{ops::Bound::Included, time::Duration};
 use bytes::Bytes;
 use iota_macros::fail_point;
 use starfish_config::AuthorityIndex;
+use tracing::info;
 use typed_store::{
     Map as _,
     metrics::SamplingInterval,
@@ -17,17 +18,22 @@ use typed_store::{
 use super::{CommitInfo, Store, WriteBatch};
 use crate::{
     block_header::{
-        BlockHeaderAPI as _, BlockHeaderDigest, BlockRef, Round, SignedBlockHeader,
-        VerifiedBlockHeader,
+        BlockHeaderAPI as _, BlockHeaderDigest, BlockRef, Round, VerifiedBlock, VerifiedBlockHeader,
     },
     commit::{CommitAPI as _, CommitDigest, CommitIndex, CommitRange, CommitRef, TrustedCommit},
     error::{ConsensusError, ConsensusResult},
+    network::SerializedHeaderAndTransactions,
 };
 
 /// Persistent storage with RocksDB.
+// TODO: Store block_headers and separately transaction data (not blocks). When
+// trying to read a block, assemble a full block by reading from two column
+// families.
 pub(crate) struct RocksDBStore {
     /// Stores SignedBlock by refs.
-    blocks: DBMap<(Round, AuthorityIndex, BlockHeaderDigest), Bytes>,
+    transactions: DBMap<(Round, AuthorityIndex, BlockHeaderDigest), Bytes>,
+    /// Stores SignedBlockHeader by refs.
+    block_headers: DBMap<(Round, AuthorityIndex, BlockHeaderDigest), Bytes>,
     /// A secondary index that orders refs first by authors.
     digests_by_authorities: DBMap<(AuthorityIndex, Round, BlockHeaderDigest), ()>,
     /// Maps commit index to Commit.
@@ -40,7 +46,8 @@ pub(crate) struct RocksDBStore {
 }
 
 impl RocksDBStore {
-    const BLOCKS_CF: &'static str = "blocks";
+    const TRANSACTIONS_CF: &'static str = "transactions";
+    const BLOCK_HEADERS_CF: &'static str = "block_headers";
     const DIGESTS_BY_AUTHORITIES_CF: &'static str = "digests";
     const COMMITS_CF: &'static str = "commits";
     const COMMIT_VOTES_CF: &'static str = "commit_votes";
@@ -56,10 +63,18 @@ impl RocksDBStore {
         let cf_options = default_db_options().optimize_for_write_throughput().options;
         let column_family_options = vec![
             (
-                Self::BLOCKS_CF,
+                Self::TRANSACTIONS_CF,
                 default_db_options()
                     .optimize_for_write_throughput_no_deletion()
                     // Using larger block is ok since there is not much point reads on the cf.
+                    .set_block_options(512, 128 << 10)
+                    .options,
+            ),
+            (
+                Self::BLOCK_HEADERS_CF,
+                default_db_options()
+                    .optimize_for_write_throughput_no_deletion()
+                    // TODO:think about these constants, for now it is a copy from blocks
                     .set_block_options(512, 128 << 10)
                     .options,
             ),
@@ -76,8 +91,9 @@ impl RocksDBStore {
         )
         .expect("Cannot open database");
 
-        let (blocks, digests_by_authorities, commits, commit_votes, commit_info) = reopen!(&rocksdb,
-            Self::BLOCKS_CF;<(Round, AuthorityIndex, BlockHeaderDigest), bytes::Bytes>,
+        let (blocks, block_headers, digests_by_authorities, commits, commit_votes, commit_info) = reopen!(&rocksdb,
+            Self::TRANSACTIONS_CF;<(Round, AuthorityIndex, BlockHeaderDigest), bytes::Bytes>,
+            Self::BLOCK_HEADERS_CF;<(Round, AuthorityIndex, BlockHeaderDigest), bytes::Bytes>,
             Self::DIGESTS_BY_AUTHORITIES_CF;<(AuthorityIndex, Round, BlockHeaderDigest), ()>,
             Self::COMMITS_CF;<(CommitIndex, CommitDigest), Bytes>,
             Self::COMMIT_VOTES_CF;<(CommitIndex, CommitDigest, BlockRef), ()>,
@@ -85,7 +101,8 @@ impl RocksDBStore {
         );
 
         Self {
-            blocks,
+            transactions: blocks,
+            block_headers,
             digests_by_authorities,
             commits,
             commit_votes,
@@ -98,15 +115,25 @@ impl Store for RocksDBStore {
     fn write(&self, write_batch: WriteBatch) -> ConsensusResult<()> {
         fail_point!("consensus-store-before-write");
 
-        let mut batch = self.blocks.batch();
+        let mut batch = self.transactions.batch();
         for block in write_batch.blocks {
             let block_ref = block.reference();
+            let (serialized_block_header, serialized_transactions) = block.serialized();
             batch
                 .insert_batch(
-                    &self.blocks,
+                    &self.transactions,
                     [(
                         (block_ref.round, block_ref.author, block_ref.digest),
-                        block.serialized(),
+                        serialized_transactions,
+                    )],
+                )
+                .map_err(ConsensusError::RocksDBFailure)?;
+            batch
+                .insert_batch(
+                    &self.block_headers,
+                    [(
+                        (block_ref.round, block_ref.author, block_ref.digest),
+                        serialized_block_header,
                     )],
                 )
                 .map_err(ConsensusError::RocksDBFailure)?;
@@ -117,6 +144,34 @@ impl Store for RocksDBStore {
                 )
                 .map_err(ConsensusError::RocksDBFailure)?;
             for vote in block.commit_votes() {
+                batch
+                    .insert_batch(
+                        &self.commit_votes,
+                        [((vote.index, vote.digest, block_ref), ())],
+                    )
+                    .map_err(ConsensusError::RocksDBFailure)?;
+            }
+        }
+
+        for block_header in write_batch.block_headers {
+            let block_ref = block_header.reference();
+            info!("block header {} pushed to store", block_header);
+            batch
+                .insert_batch(
+                    &self.block_headers,
+                    [(
+                        (block_ref.round, block_ref.author, block_ref.digest),
+                        block_header.serialized(),
+                    )],
+                )
+                .map_err(ConsensusError::RocksDBFailure)?;
+            batch
+                .insert_batch(
+                    &self.digests_by_authorities,
+                    [((block_ref.author, block_ref.round, block_ref.digest), ())],
+                )
+                .map_err(ConsensusError::RocksDBFailure)?;
+            for vote in block_header.commit_votes() {
                 batch
                     .insert_batch(
                         &self.commit_votes,
@@ -149,19 +204,27 @@ impl Store for RocksDBStore {
         Ok(())
     }
 
-    fn read_blocks(&self, refs: &[BlockRef]) -> ConsensusResult<Vec<Option<VerifiedBlockHeader>>> {
+    fn read_blocks(&self, refs: &[BlockRef]) -> ConsensusResult<Vec<Option<VerifiedBlock>>> {
         let keys = refs
             .iter()
             .map(|r| (r.round, r.author, r.digest))
             .collect::<Vec<_>>();
-        let serialized = self.blocks.multi_get(keys)?;
+        let serialized_vec_transactions = self.transactions.multi_get(keys.clone())?;
+        let serialized_block_headers = self.block_headers.multi_get(keys)?;
         let mut blocks = vec![];
-        for (key, serialized) in refs.iter().zip(serialized) {
-            if let Some(serialized) = serialized {
-                let signed_block: SignedBlockHeader =
-                    bcs::from_bytes(&serialized).map_err(ConsensusError::MalformedBlock)?;
-                // Only accepted blocks should have been written to storage.
-                let block = VerifiedBlockHeader::new_verified(signed_block, serialized);
+        for ((key, serialized_block_header), serialized_transactions) in refs
+            .iter()
+            .zip(serialized_block_headers)
+            .zip(serialized_vec_transactions)
+        {
+            if let (Some(serialized_block_header), Some(serialized_transactions)) =
+                (serialized_block_header, serialized_transactions)
+            {
+                let block = VerifiedBlock::try_from(SerializedHeaderAndTransactions {
+                    serialized_block_header,
+                    serialized_transactions,
+                })?;
+
                 // Makes sure block data is not corrupted, by comparing digests.
                 assert_eq!(*key, block.reference());
                 blocks.push(Some(block));
@@ -172,12 +235,45 @@ impl Store for RocksDBStore {
         Ok(blocks)
     }
 
+    fn read_block_headers(
+        &self,
+        refs: &[BlockRef],
+    ) -> ConsensusResult<Vec<Option<VerifiedBlockHeader>>> {
+        let keys = refs
+            .iter()
+            .map(|r| (r.round, r.author, r.digest))
+            .collect::<Vec<_>>();
+        let serialized_block_headers = self.block_headers.multi_get(keys)?;
+        let mut block_headers = vec![];
+        for (key, serialized_block_header) in refs.iter().zip(serialized_block_headers) {
+            if let Some(serialized_block_header) = serialized_block_header {
+                let block_header = VerifiedBlockHeader::new_from_bytes(serialized_block_header)?;
+
+                // Makes sure block data is not corrupted, by comparing digests.
+                assert_eq!(*key, block_header.reference());
+                block_headers.push(Some(block_header));
+            } else {
+                block_headers.push(None);
+            }
+        }
+        Ok(block_headers)
+    }
+
     fn contains_blocks(&self, refs: &[BlockRef]) -> ConsensusResult<Vec<bool>> {
         let refs = refs
             .iter()
             .map(|r| (r.round, r.author, r.digest))
             .collect::<Vec<_>>();
-        let exist = self.blocks.multi_contains_keys(refs)?;
+        let exist = self.transactions.multi_contains_keys(refs)?;
+        Ok(exist)
+    }
+
+    fn contains_block_headers(&self, refs: &[BlockRef]) -> ConsensusResult<Vec<bool>> {
+        let refs = refs
+            .iter()
+            .map(|r| (r.round, r.author, r.digest))
+            .collect::<Vec<_>>();
+        let exist = self.block_headers.multi_contains_keys(refs)?;
         Ok(exist)
     }
 
@@ -193,11 +289,34 @@ impl Store for RocksDBStore {
         Ok(found)
     }
 
-    fn scan_blocks_by_author(
+    fn scan_block_headers_by_author(
         &self,
         author: AuthorityIndex,
         start_round: Round,
     ) -> ConsensusResult<Vec<VerifiedBlockHeader>> {
+        let mut refs = vec![];
+        for kv in self.digests_by_authorities.safe_range_iter((
+            Included((author, start_round, BlockHeaderDigest::MIN)),
+            Included((author, Round::MAX, BlockHeaderDigest::MAX)),
+        )) {
+            let ((author, round, digest), _) = kv?;
+            refs.push(BlockRef::new(round, author, digest));
+        }
+        let results = self.read_block_headers(refs.as_slice())?;
+        let mut block_headers = Vec::with_capacity(refs.len());
+        for (r, block) in refs.into_iter().zip(results.into_iter()) {
+            block_headers.push(
+                block.unwrap_or_else(|| panic!("Storage inconsistency: block {:?} not found!", r)),
+            );
+        }
+        Ok(block_headers)
+    }
+
+    fn scan_blocks_by_author(
+        &self,
+        author: AuthorityIndex,
+        start_round: Round,
+    ) -> ConsensusResult<Vec<VerifiedBlock>> {
         let mut refs = vec![];
         for kv in self.digests_by_authorities.safe_range_iter((
             Included((author, start_round, BlockHeaderDigest::MIN)),
@@ -225,7 +344,7 @@ impl Store for RocksDBStore {
         author: AuthorityIndex,
         num_of_rounds: u64,
         before_round: Option<Round>,
-    ) -> ConsensusResult<Vec<VerifiedBlockHeader>> {
+    ) -> ConsensusResult<Vec<VerifiedBlock>> {
         let before_round = before_round.unwrap_or(Round::MAX);
         let mut refs = std::collections::VecDeque::new();
         for kv in self

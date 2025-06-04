@@ -30,7 +30,7 @@ use crate::{
     CommittedSubDag, Transaction,
     block_header::{
         BlockHeader, BlockHeaderAPI, BlockHeaderV1, BlockRef, BlockTimestampMs, GENESIS_ROUND,
-        Round, SignedBlockHeader, Slot, TransactionsCommitment, VerifiedBlockHeader,
+        Round, SignedBlockHeader, Slot, TransactionsCommitment, VerifiedBlock, VerifiedBlockHeader,
         VerifiedTransactions,
     },
     block_manager::BlockManager,
@@ -142,9 +142,9 @@ impl Core {
         .build();
 
         // Recover the last proposed block
-        let last_proposed_block = dag_state.read().get_last_proposed_block();
+        let last_proposed_block_header = dag_state.read().get_last_proposed_block_header();
 
-        let last_signaled_round = last_proposed_block.round();
+        let last_signaled_round = last_proposed_block_header.round();
 
         // Recover the last included ancestor rounds based on the last proposed block.
         // That will allow to perform the next block proposal by using ancestor
@@ -157,7 +157,7 @@ impl Core {
         // and it mostly matters just for this next proposal without any actual
         // penalties in performance or block proposal.
         let mut last_included_ancestors = vec![None; context.committee.size()];
-        for ancestor in last_proposed_block.ancestors() {
+        for ancestor in last_proposed_block_header.ancestors() {
             last_included_ancestors[ancestor.author] = Some(*ancestor);
         }
 
@@ -198,11 +198,11 @@ impl Core {
             .with_label_values(&["Core::recover"])
             .start_timer();
         // Ensure local time is after max ancestor timestamp.
-        let ancestor_blocks = self
+        let ancestor_block_headers = self
             .dag_state
             .read()
-            .get_last_cached_block_per_authority(Round::MAX);
-        let max_ancestor_timestamp = ancestor_blocks
+            .get_last_cached_block_header_per_authority(Round::MAX);
+        let max_ancestor_timestamp = ancestor_block_headers
             .iter()
             .fold(0, |ts, (b, _)| ts.max(b.timestamp_ms()));
         let wait_ms = max_ancestor_timestamp.saturating_sub(self.context.clock.timestamp_utc_ms());
@@ -219,20 +219,23 @@ impl Core {
         self.try_commit().unwrap();
         let last_proposed_block = if let Some(last_proposed_block) = self.try_propose(true).unwrap()
         {
-            last_proposed_block
+            Some(last_proposed_block)
         } else {
             let last_proposed_block = self.dag_state.read().get_last_proposed_block();
             if self.should_propose() {
                 assert!(
-                    last_proposed_block.round() > GENESIS_ROUND,
+                    last_proposed_block.round() != GENESIS_ROUND,
                     "At minimum a block of round higher than genesis should have been produced during recovery"
                 );
             }
-
-            // if no new block proposed then just re-broadcast the last proposed one to
-            // ensure liveness.
-            self.signals.new_block(last_proposed_block.clone()).unwrap();
-            last_proposed_block
+            if last_proposed_block.round() != GENESIS_ROUND {
+                // if no new block proposed then just re-broadcast the last proposed one to
+                // ensure liveness.
+                self.signals.new_block(last_proposed_block.clone()).unwrap();
+                Some(last_proposed_block)
+            } else {
+                None
+            }
         };
 
         // Try to set up leader timeout if needed.
@@ -248,13 +251,14 @@ impl Core {
         self
     }
 
+    // TODO: modify to deal with transaction data
     /// Processes the provided blocks and accepts them if possible when their
     /// causal history exists. The method returns:
     /// - The references of ancestors missing their block
     #[tracing::instrument(skip_all)]
     pub(crate) fn add_blocks(
         &mut self,
-        blocks: Vec<VerifiedBlockHeader>,
+        blocks: Vec<VerifiedBlock>,
     ) -> ConsensusResult<BTreeSet<BlockRef>> {
         let _scope = monitored_scope("Core::add_blocks");
         let _s = self
@@ -269,13 +273,66 @@ impl Core {
             .node_metrics
             .core_add_blocks_batch_size
             .observe(blocks.len() as f64);
-
         let (accepted_blocks, missing_block_refs) = self.block_manager.try_accept_blocks(blocks);
 
         if !accepted_blocks.is_empty() {
             debug!(
                 "Accepted blocks: {}",
                 accepted_blocks
+                    .iter()
+                    .map(|b| b.reference().to_string())
+                    .join(",")
+            );
+
+            // Try to commit the new blocks if possible.
+            self.try_commit()?;
+
+            // Try to propose now since there are new blocks accepted.
+            self.try_propose(false)?;
+
+            // Now set up leader timeout if needed.
+            // This needs to be called after try_commit() and try_propose(), which may
+            // have advanced the threshold clock round.
+            self.try_signal_new_round();
+        }
+
+        if !missing_block_refs.is_empty() {
+            trace!(
+                "Missing block refs: {}",
+                missing_block_refs.iter().map(|b| b.to_string()).join(", ")
+            );
+        }
+        Ok(missing_block_refs)
+    }
+
+    /// Processes the provided block headers and accepts them if possible when
+    /// their causal history exists. The method returns:
+    /// - The references of ancestors missing their block header
+    #[tracing::instrument(skip_all)]
+    pub(crate) fn add_block_headers(
+        &mut self,
+        block_headers: Vec<VerifiedBlockHeader>,
+    ) -> ConsensusResult<BTreeSet<BlockRef>> {
+        let _scope = monitored_scope("Core::add_block_header");
+        let _s = self
+            .context
+            .metrics
+            .node_metrics
+            .scope_processing_time
+            .with_label_values(&["Core::add_block_header"])
+            .start_timer();
+        self.context
+            .metrics
+            .node_metrics
+            .core_add_blocks_batch_size
+            .observe(block_headers.len() as f64);
+        let (accepted_block_headers, missing_block_refs) =
+            self.block_manager.try_accept_block_headers(block_headers);
+
+        if !accepted_block_headers.is_empty() {
+            debug!(
+                "Accepted block headers: {}",
+                accepted_block_headers
                     .iter()
                     .map(|b| b.reference().to_string())
                     .join(",")
@@ -356,7 +413,7 @@ impl Core {
         &mut self,
         round: Round,
         force: bool,
-    ) -> ConsensusResult<Option<VerifiedBlockHeader>> {
+    ) -> ConsensusResult<Option<VerifiedBlock>> {
         let _scope = monitored_scope("Core::new_block");
         if self.last_proposed_round() < round {
             self.context
@@ -376,7 +433,7 @@ impl Core {
     // Attempts to create a new block, persist and propose it to all peers.
     // When force is true, ignore if leader from the last round exists among
     // ancestors and if the minimum round delay has passed.
-    fn try_propose(&mut self, force: bool) -> ConsensusResult<Option<VerifiedBlockHeader>> {
+    fn try_propose(&mut self, force: bool) -> ConsensusResult<Option<VerifiedBlock>> {
         if !self.should_propose() {
             return Ok(None);
         }
@@ -395,7 +452,7 @@ impl Core {
     /// Attempts to propose a new block for the next round. If a block has
     /// already proposed for latest or earlier round, then no block is
     /// created and None is returned.
-    fn try_new_block(&mut self, force: bool) -> Option<VerifiedBlockHeader> {
+    fn try_new_block(&mut self, force: bool) -> Option<VerifiedBlock> {
         let _s = self
             .context
             .metrics
@@ -408,7 +465,7 @@ impl Core {
         let clock_round = {
             let dag_state = self.dag_state.read();
             let clock_round = dag_state.threshold_clock_round();
-            if clock_round <= dag_state.get_last_proposed_block().round() {
+            if clock_round <= dag_state.get_last_proposed_block_header().round() {
                 return None;
             }
             clock_round
@@ -565,8 +622,7 @@ impl Core {
             VerifiedBlockHeader::new_verified(signed_block_header, serialized_signed_block_header);
 
         // Record the interval from last proposal, before accepting the proposed block.
-        let last_proposed_block = self.last_proposed_block();
-        if last_proposed_block.round() > 0 {
+        if self.last_proposed_round() > 0 {
             self.context
                 .metrics
                 .node_metrics
@@ -575,35 +631,37 @@ impl Core {
                     Duration::from_millis(
                         verified_block_header
                             .timestamp_ms()
-                            .saturating_sub(last_proposed_block.timestamp_ms()),
+                            .saturating_sub(self.last_proposed_timestamp_ms()),
                     )
                     .as_secs_f64(),
                 );
         }
 
-        // Accept the block into BlockManager and DagState.
-        let (accepted_blocks, missing) = self
-            .block_manager
-            .try_accept_blocks(vec![verified_block_header.clone()]);
-        assert_eq!(accepted_blocks.len(), 1);
-        assert!(missing.is_empty());
-
         // Construct verified transactions to be used for storing and broadcasting
         // TODO: consume this transactions in the data manager and for broadcasting
-        let _verified_transactions = VerifiedTransactions::new(
+        let verified_transactions = VerifiedTransactions::new(
             transactions,
             verified_block_header.reference(),
             transactions_commitment,
             serialized_transactions,
         );
-
+        let verified_block = VerifiedBlock {
+            verified_block_header,
+            verified_transactions,
+        };
+        // Accept the block into BlockManager and DagState.
+        let (accepted_blocks, missing) = self
+            .block_manager
+            .try_accept_blocks(vec![verified_block.clone()]);
+        assert_eq!(accepted_blocks.len(), 1);
+        assert!(missing.is_empty());
         // Ensure the new block and its ancestors are persisted, before broadcasting it.
         self.dag_state.write().flush();
 
         // Now acknowledge the transactions for their inclusion to block
-        ack_transactions(verified_block_header.reference());
+        ack_transactions(verified_block.reference());
 
-        debug!("Created block {verified_block_header:?} for round {clock_round}");
+        debug!("Created block {verified_block:?} for round {clock_round}");
 
         self.context
             .metrics
@@ -612,7 +670,7 @@ impl Core {
             .with_label_values(&[&force.to_string()])
             .inc();
 
-        Some(verified_block_header)
+        Some(verified_block)
     }
 
     /// Runs commit rule to attempt to commit additional blocks from the DAG. If
@@ -834,7 +892,7 @@ impl Core {
         let all_ancestors = self
             .dag_state
             .read()
-            .get_last_cached_block_per_authority(clock_round);
+            .get_last_cached_block_header_per_authority(clock_round);
 
         assert_eq!(
             all_ancestors.len(),
@@ -846,7 +904,7 @@ impl Core {
 
         // Propose only ancestors of higher rounds than what has already been proposed.
         // And always include own last proposed block first among ancestors.
-        let included_ancestors = iter::once(self.last_proposed_block().clone())
+        let included_ancestors = iter::once(self.last_proposed_block_header().clone())
             .chain(all_ancestors.into_iter().flat_map(|(ancestor, _)| {
                 if ancestor.author() == self.context.own_index {
                     return None;
@@ -898,7 +956,7 @@ impl Core {
             // A linear search should be fine here as the set of elements is not expected to
             // be small enough and more sophisticated data structures might not
             // give us much here.
-            if !dag_state.contains_cached_block_at_slot(leader) {
+            if !dag_state.contains_cached_block_header_at_slot(leader) {
                 return false;
             }
         }
@@ -921,22 +979,27 @@ impl Core {
     }
 
     fn last_proposed_timestamp_ms(&self) -> BlockTimestampMs {
-        self.last_proposed_block().timestamp_ms()
+        self.last_proposed_block_header().timestamp_ms()
     }
 
     fn last_proposed_round(&self) -> Round {
-        self.last_proposed_block().round()
+        self.last_proposed_block_header().round()
     }
 
-    fn last_proposed_block(&self) -> VerifiedBlockHeader {
+    #[expect(dead_code)]
+    fn last_proposed_block(&self) -> VerifiedBlock {
         self.dag_state.read().get_last_proposed_block()
+    }
+
+    fn last_proposed_block_header(&self) -> VerifiedBlockHeader {
+        self.dag_state.read().get_last_proposed_block_header()
     }
 }
 
 /// Senders of signals from Core, for outputs and events (ex new block
 /// produced).
 pub(crate) struct CoreSignals {
-    tx_block_broadcast: broadcast::Sender<VerifiedBlockHeader>,
+    tx_block_broadcast: broadcast::Sender<VerifiedBlock>,
     new_round_sender: watch::Sender<Round>,
     context: Arc<Context>,
 }
@@ -946,7 +1009,7 @@ impl CoreSignals {
         // Blocks buffered in broadcast channel should be roughly equal to thosed cached
         // in dag state, since the underlying blocks are ref counted so a lower
         // buffer here will not reduce memory usage significantly.
-        let (tx_block_broadcast, rx_block_broadcast) = broadcast::channel::<VerifiedBlockHeader>(
+        let (tx_block_broadcast, rx_block_broadcast) = broadcast::channel::<VerifiedBlock>(
             context.parameters.dag_state_cached_rounds as usize,
         );
         let (new_round_sender, new_round_receiver) = watch::channel(0);
@@ -968,7 +1031,7 @@ impl CoreSignals {
     /// Sends a signal to all the waiters that a new block has been produced.
     /// The method will return true if block has reached even one
     /// subscriber, false otherwise.
-    pub(crate) fn new_block(&self, verified_block: VerifiedBlockHeader) -> ConsensusResult<()> {
+    pub(crate) fn new_block(&self, verified_block: VerifiedBlock) -> ConsensusResult<()> {
         // When there is only one authority in committee, it is unnecessary to broadcast
         // the block which will fail anyway without subscribers to the signal.
         if self.context.committee.size() > 1 {
@@ -1001,12 +1064,12 @@ impl CoreSignals {
 /// Intentionally un-cloneable. Components should only subscribe to channels
 /// they need.
 pub(crate) struct CoreSignalsReceivers {
-    rx_block_broadcast: broadcast::Receiver<VerifiedBlockHeader>,
+    rx_block_broadcast: broadcast::Receiver<VerifiedBlock>,
     new_round_receiver: watch::Receiver<Round>,
 }
 
 impl CoreSignalsReceivers {
-    pub(crate) fn block_broadcast_receiver(&self) -> broadcast::Receiver<VerifiedBlockHeader> {
+    pub(crate) fn block_broadcast_receiver(&self) -> broadcast::Receiver<VerifiedBlock> {
         self.rx_block_broadcast.resubscribe()
     }
 
@@ -1034,7 +1097,7 @@ pub(crate) fn create_cores(context: Context, authorities: Vec<Stake>) -> Vec<Cor
 pub(crate) struct CoreTextFixture {
     pub core: Core,
     pub signal_receivers: CoreSignalsReceivers,
-    pub block_receiver: broadcast::Receiver<VerifiedBlockHeader>,
+    pub block_receiver: broadcast::Receiver<VerifiedBlock>,
     #[expect(unused)]
     pub commit_receiver: UnboundedReceiver<CommittedSubDag>,
     pub store: Arc<MemStore>,
@@ -1126,6 +1189,7 @@ mod test {
         CommitConsumer, CommitIndex, Transaction,
         block_header::{
             BlockHeaderDigest, TestBlockHeader, TransactionsCommitment, genesis_block_headers,
+            genesis_blocks,
         },
         block_verifier::NoopBlockVerifier,
         commit::CommitAPI,
@@ -1150,12 +1214,12 @@ mod test {
 
         // Create test blocks for all the authorities for 4 rounds and populate them in
         // store
-        let mut last_round_blocks = genesis_block_headers(context.clone());
-        let mut all_blocks: Vec<VerifiedBlockHeader> = last_round_blocks.clone();
+        let mut last_round_blocks = genesis_blocks(context.clone());
+        let mut all_blocks: Vec<VerifiedBlock> = last_round_blocks.clone();
         for round in 1..=4 {
             let mut this_round_blocks = Vec::new();
             for (index, _authority) in context.committee.authorities() {
-                let block = VerifiedBlockHeader::new_for_test(
+                let block = VerifiedBlock::new_for_test(
                     TestBlockHeader::new(round, index.value() as u32)
                         .set_ancestors(last_round_blocks.iter().map(|b| b.reference()).collect())
                         .build(),
@@ -1274,7 +1338,7 @@ mod test {
         let transaction_consumer = TransactionConsumer::new(tx_receiver, context.clone());
 
         // Create test blocks for all authorities except our's (index = 0).
-        let mut last_round_blocks = genesis_block_headers(context.clone());
+        let mut last_round_blocks = genesis_blocks(context.clone());
         let mut all_blocks = last_round_blocks.clone();
         for round in 1..=4 {
             let mut this_round_blocks = Vec::new();
@@ -1292,7 +1356,7 @@ mod test {
                 let block = TestBlockHeader::new(round, index.value() as u32)
                     .set_ancestors(last_round_blocks.iter().map(|b| b.reference()).collect())
                     .build();
-                this_round_blocks.push(VerifiedBlockHeader::new_for_test(block));
+                this_round_blocks.push(VerifiedBlock::new_for_test(block));
             }
             all_blocks.extend(this_round_blocks.clone());
             last_round_blocks = this_round_blocks;
@@ -1588,21 +1652,21 @@ mod test {
         let mut expected_ancestors = BTreeSet::new();
 
         // Adding one block now will trigger the creation of new block for round 1
-        let block_1 = VerifiedBlockHeader::new_for_test(TestBlockHeader::new(1, 1).build());
-        expected_ancestors.insert(block_1.reference());
+        let verified_block = VerifiedBlock::new_for_test(TestBlockHeader::new(1, 1).build());
+        expected_ancestors.insert(verified_block.reference());
         // Wait for min round delay to allow blocks to be proposed.
         sleep(context.parameters.min_round_delay).await;
         // add blocks to trigger proposal.
-        _ = core.add_blocks(vec![block_1]);
+        _ = core.add_blocks(vec![verified_block]);
 
         assert_eq!(core.last_proposed_round(), 1);
-        expected_ancestors.insert(core.last_proposed_block().reference());
+        expected_ancestors.insert(core.last_proposed_block_header().reference());
         // attempt to create a block - none will be produced.
         assert!(core.try_propose(false).unwrap().is_none());
 
         // Adding another block now forms a quorum for round 1, so block at round 2 will
         // proposed
-        let block_3 = VerifiedBlockHeader::new_for_test(TestBlockHeader::new(1, 2).build());
+        let block_3 = VerifiedBlock::new_for_test(TestBlockHeader::new(1, 2).build());
         expected_ancestors.insert(block_3.reference());
         // Wait for min round delay to allow blocks to be proposed.
         sleep(context.parameters.min_round_delay).await;
@@ -1611,7 +1675,7 @@ mod test {
 
         assert_eq!(core.last_proposed_round(), 2);
 
-        let proposed_block = core.last_proposed_block();
+        let proposed_block = core.last_proposed_block_header();
         assert_eq!(proposed_block.round(), 2);
         assert_eq!(proposed_block.author(), context.own_index);
         assert_eq!(proposed_block.ancestors().len(), 3);
@@ -1690,10 +1754,10 @@ mod test {
         let mut builder = DagBuilder::new(context.clone());
         builder.layers(1..=10).build();
 
-        let blocks = builder.blocks.values().cloned().collect::<Vec<_>>();
+        let block_headers = builder.block_headers.values().cloned().collect::<Vec<_>>();
 
         // Process all the blocks
-        assert!(core.add_blocks(blocks).unwrap().is_empty());
+        assert!(core.add_block_headers(block_headers).unwrap().is_empty());
 
         // Try to propose - no block should be produced.
         assert!(core.try_propose(true).unwrap().is_none());
@@ -1759,7 +1823,7 @@ mod test {
 
                 core_fixture
                     .core
-                    .add_blocks(last_round_blocks.clone())
+                    .add_block_headers(last_round_blocks.clone())
                     .unwrap();
 
                 // Only when round > 1 and using non-genesis parents.
@@ -1779,7 +1843,7 @@ mod test {
 
                 assert_eq!(core_fixture.core.last_proposed_round(), round);
 
-                this_round_blocks.push(core_fixture.core.last_proposed_block());
+                this_round_blocks.push(core_fixture.core.last_proposed_block_header());
             }
 
             last_round_blocks = this_round_blocks;
@@ -1793,7 +1857,7 @@ mod test {
 
             core_fixture
                 .core
-                .add_blocks(last_round_blocks.clone())
+                .add_block_headers(last_round_blocks.clone())
                 .unwrap();
             assert!(core_fixture.core.try_propose(false).unwrap().is_none());
         }
@@ -1896,9 +1960,9 @@ mod test {
 
         // Now iterate over a few rounds and ensure the corresponding signals are
         // created while network advances
-        let mut last_round_blocks = Vec::new();
+        let mut last_round_block_headers = Vec::new();
         for round in 1..=30 {
-            let mut this_round_blocks = Vec::new();
+            let mut this_round_block_headers = Vec::new();
 
             // Wait for min round delay to allow blocks to be proposed.
             sleep(default_params.min_round_delay).await;
@@ -1909,7 +1973,7 @@ mod test {
                 // emitted
                 core_fixture
                     .core
-                    .add_blocks(last_round_blocks.clone())
+                    .add_block_headers(last_round_block_headers.clone())
                     .unwrap();
 
                 // A "new round" signal should be received given that all the blocks of previous
@@ -1933,29 +1997,30 @@ mod test {
                 assert_eq!(verified_block.author(), core_fixture.core.context.own_index);
 
                 // append the new block to this round blocks
-                this_round_blocks.push(core_fixture.core.last_proposed_block().clone());
+                this_round_block_headers
+                    .push(core_fixture.core.last_proposed_block_header().clone());
 
-                let block = core_fixture.core.last_proposed_block();
+                let block_header = core_fixture.core.last_proposed_block_header();
 
                 // ensure that produced block is referring to the blocks of last_round
                 assert_eq!(
-                    block.ancestors().len(),
+                    block_header.ancestors().len(),
                     core_fixture.core.context.committee.size()
                 );
-                for ancestor in block.ancestors() {
-                    if block.round() > 1 {
+                for ancestor in block_header.ancestors() {
+                    if block_header.round() > 1 {
                         // don't bother with round 1 block which just contains the genesis blocks.
                         assert!(
-                            last_round_blocks
+                            last_round_block_headers
                                 .iter()
-                                .any(|block| block.reference() == *ancestor),
+                                .any(|block_header| block_header.reference() == *ancestor),
                             "Reference from previous round should be added"
                         );
                     }
                 }
             }
 
-            last_round_blocks = this_round_blocks;
+            last_round_block_headers = this_round_block_headers;
         }
 
         for core_fixture in cores {
@@ -2037,10 +2102,10 @@ mod test {
         // Store all blocks up to round 6 which should be enough to decide up to leader
         // 4
         dag_builder.print();
-        let blocks = dag_builder.blocks(1..=6);
+        let block_headers = dag_builder.block_headers(1..=6);
 
-        for block in blocks {
-            core.dag_state.write().accept_block(block);
+        for block_header in block_headers {
+            core.dag_state.write().accept_block_header(block_header);
         }
 
         // Get all the committed sub dags up to round 10
@@ -2082,9 +2147,9 @@ mod test {
 
         // Now only add the blocks of rounds 8..=12. The blocks up to round 7 should be
         // accepted via the certified commits processing.
-        let blocks = dag_builder.blocks(8..=12);
-        for block in blocks {
-            core.dag_state.write().accept_block(block);
+        let block_headers = dag_builder.block_headers(8..=12);
+        for block_header in block_headers {
+            core.dag_state.write().accept_block_header(block_header);
         }
 
         // The corresponding blocks of the certified commits should be accepted and
@@ -2115,9 +2180,9 @@ mod test {
 
         // Now iterate over a few rounds and ensure the corresponding signals are
         // created while network advances
-        let mut last_round_blocks = Vec::new();
+        let mut last_round_block_headers = Vec::new();
         for round in 1..=33 {
-            let mut this_round_blocks = Vec::new();
+            let mut this_round_block_headers = Vec::new();
             // Wait for min round delay to allow blocks to be proposed.
             sleep(default_params.min_round_delay).await;
             for core_fixture in &mut cores {
@@ -2126,7 +2191,7 @@ mod test {
                 // emitted
                 core_fixture
                     .core
-                    .add_blocks(last_round_blocks.clone())
+                    .add_block_headers(last_round_block_headers.clone())
                     .unwrap();
                 // A "new round" signal should be received given that all the blocks of previous
                 // round have been processed
@@ -2148,18 +2213,19 @@ mod test {
                 assert_eq!(verified_block.author(), core_fixture.core.context.own_index);
 
                 // append the new block to this round blocks
-                this_round_blocks.push(core_fixture.core.last_proposed_block().clone());
-                let block = core_fixture.core.last_proposed_block();
+                this_round_block_headers
+                    .push(core_fixture.core.last_proposed_block_header().clone());
+                let block_header = core_fixture.core.last_proposed_block_header();
                 // ensure that produced block is referring to the blocks of last_round
                 assert_eq!(
-                    block.ancestors().len(),
+                    block_header.ancestors().len(),
                     core_fixture.core.context.committee.size()
                 );
-                for ancestor in block.ancestors() {
-                    if block.round() > 1 {
+                for ancestor in block_header.ancestors() {
+                    if block_header.round() > 1 {
                         // don't bother with round 1 block which just contains the genesis blocks.
                         assert!(
-                            last_round_blocks
+                            last_round_block_headers
                                 .iter()
                                 .any(|block| block.reference() == *ancestor),
                             "Reference from previous round should be added"
@@ -2167,7 +2233,7 @@ mod test {
                     }
                 }
             }
-            last_round_blocks = this_round_blocks;
+            last_round_block_headers = this_round_block_headers;
         }
         for core_fixture in cores {
             // Check commits have been persisted to store
@@ -2244,9 +2310,9 @@ mod test {
 
         // Now iterate over a few rounds and ensure the corresponding signals are
         // created while network advances
-        let mut last_round_blocks = Vec::new();
+        let mut last_round_block_headers = Vec::new();
         for round in 1..=10 {
-            let mut this_round_blocks = Vec::new();
+            let mut this_round_block_headers = Vec::new();
 
             // Wait for min round delay to allow blocks to be proposed.
             sleep(default_params.min_round_delay).await;
@@ -2257,7 +2323,7 @@ mod test {
                 // emitted
                 core_fixture
                     .core
-                    .add_blocks(last_round_blocks.clone())
+                    .add_block_headers(last_round_block_headers.clone())
                     .unwrap();
 
                 // A "new round" signal should be received given that all the blocks of previous
@@ -2281,29 +2347,30 @@ mod test {
                 assert_eq!(verified_block.author(), core_fixture.core.context.own_index);
 
                 // append the new block to this round blocks
-                this_round_blocks.push(core_fixture.core.last_proposed_block().clone());
+                this_round_block_headers
+                    .push(core_fixture.core.last_proposed_block_header().clone());
 
-                let block = core_fixture.core.last_proposed_block();
+                let block_header = core_fixture.core.last_proposed_block_header();
 
                 // ensure that produced block is referring to the blocks of last_round
                 assert_eq!(
-                    block.ancestors().len(),
+                    block_header.ancestors().len(),
                     core_fixture.core.context.committee.size()
                 );
-                for ancestor in block.ancestors() {
-                    if block.round() > 1 {
+                for ancestor in block_header.ancestors() {
+                    if block_header.round() > 1 {
                         // don't bother with round 1 block which just contains the genesis blocks.
                         assert!(
-                            last_round_blocks
+                            last_round_block_headers
                                 .iter()
-                                .any(|block| block.reference() == *ancestor),
+                                .any(|block_header| block_header.reference() == *ancestor),
                             "Reference from previous round should be added"
                         );
                     }
                 }
             }
 
-            last_round_blocks = this_round_blocks;
+            last_round_block_headers = this_round_block_headers;
         }
 
         for core_fixture in cores {
@@ -2334,13 +2401,13 @@ mod test {
         // create the cores and their signals for all the authorities
         let mut cores = create_cores(context, vec![1, 1, 1, 1]);
 
-        let mut last_round_blocks = Vec::new();
-        let mut all_blocks = Vec::new();
+        let mut last_round_block_headers = Vec::new();
+        let mut all_block_headers = Vec::new();
 
         let excluded_authority = AuthorityIndex::new_for_test(3);
 
         for round in 1..=10 {
-            let mut this_round_blocks = Vec::new();
+            let mut this_round_block_headers = Vec::new();
 
             for core_fixture in &mut cores {
                 // do not produce any block for authority 3
@@ -2352,19 +2419,19 @@ mod test {
                 // leader authority 3
                 core_fixture
                     .core
-                    .add_blocks(last_round_blocks.clone())
+                    .add_block_headers(last_round_block_headers.clone())
                     .unwrap();
                 core_fixture.core.new_block(round, true).unwrap();
 
-                let block = core_fixture.core.last_proposed_block();
-                assert_eq!(block.round(), round);
+                let block_header = core_fixture.core.last_proposed_block_header();
+                assert_eq!(block_header.round(), round);
 
                 // append the new block to this round blocks
-                this_round_blocks.push(block.clone());
+                this_round_block_headers.push(block_header.clone());
             }
 
-            last_round_blocks = this_round_blocks.clone();
-            all_blocks.extend(this_round_blocks);
+            last_round_block_headers = this_round_block_headers.clone();
+            all_block_headers.extend(this_round_block_headers);
         }
 
         // Now send all the produced blocks to core of authority 3. It should produce a
@@ -2376,15 +2443,18 @@ mod test {
         // Wait for min round delay to allow blocks to be proposed.
         sleep(default_params.min_round_delay).await;
         // add blocks to trigger proposal.
-        core_fixture.core.add_blocks(all_blocks).unwrap();
+        core_fixture
+            .core
+            .add_block_headers(all_block_headers)
+            .unwrap();
 
         // Assert that a block has been created for round 11 and it references to blocks
         // of round 10 for the other peers, and to round 1 for its own block
         // (created after recovery).
-        let block = core_fixture.core.last_proposed_block();
-        assert_eq!(block.round(), 11);
-        assert_eq!(block.ancestors().len(), 4);
-        for block_ref in block.ancestors() {
+        let block_header = core_fixture.core.last_proposed_block_header();
+        assert_eq!(block_header.round(), 11);
+        assert_eq!(block_header.ancestors().len(), 4);
+        for block_ref in block_header.ancestors() {
             if block_ref.author == excluded_authority {
                 assert_eq!(block_ref.round, 1);
             } else {
@@ -2461,7 +2531,7 @@ mod test {
 
         // Subscribe to all created "own" blocks. We know that for our node (A) we'll be
         // able to commit up to round 5.
-        for block in dag_builder.blocks(1..=5) {
+        for block in dag_builder.block_headers(1..=5) {
             if block.author() == context.own_index {
                 let subscription =
                     transaction_consumer.subscribe_for_block_status_testing(block.reference());
@@ -2471,7 +2541,7 @@ mod test {
 
         // write them in store
         store
-            .write(WriteBatch::default().blocks(dag_builder.blocks(1..=8)))
+            .write(WriteBatch::default().block_headers(dag_builder.block_headers(1..=8)))
             .expect("Storage error");
 
         // create dag state after all blocks have been written to store

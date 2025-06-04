@@ -27,7 +27,7 @@ use tower_http::trace::{DefaultMakeSpan, DefaultOnFailure, TraceLayer};
 use tracing::{debug, error, info, trace, warn};
 
 use super::{
-    BlockStream, NetworkClient, NetworkService,
+    BlockStream, NetworkClient, NetworkService, SerializedBlock,
     metrics_layer::{MetricsCallbackMaker, MetricsResponseCallback, SizedRequest, SizedResponse},
     tonic_gen::{
         consensus_service_client::ConsensusServiceClient,
@@ -37,7 +37,7 @@ use super::{
 };
 use crate::{
     CommitIndex, Round,
-    block_header::{BlockRef, VerifiedBlockHeader},
+    block_header::BlockRef,
     commit::CommitRange,
     context::Context,
     error::{ConsensusError, ConsensusResult},
@@ -98,24 +98,6 @@ impl TonicClient {
 // otherwise.
 #[async_trait]
 impl NetworkClient for TonicClient {
-    async fn send_block(
-        &self,
-        peer: AuthorityIndex,
-        block: &VerifiedBlockHeader,
-        timeout: Duration,
-    ) -> ConsensusResult<()> {
-        let mut client = self.get_client(peer, timeout).await?;
-        let mut request = Request::new(SendBlockRequest {
-            block: block.serialized().clone(),
-        });
-        request.set_timeout(timeout);
-        client
-            .send_block(request)
-            .await
-            .map_err(|e| ConsensusError::NetworkRequest(format!("send_block failed: {e:?}")))?;
-        Ok(())
-    }
-
     async fn subscribe_blocks(
         &self,
         peer: AuthorityIndex,
@@ -137,7 +119,9 @@ impl NetworkClient for TonicClient {
             .take_while(|b| futures::future::ready(b.is_ok()))
             .filter_map(move |b| async move {
                 match b {
-                    Ok(response) => Some(response.block),
+                    Ok(response) => Some(SerializedBlock {
+                        serialized_block: response.vec_serialized_blocks,
+                    }),
                     Err(e) => {
                         debug!("Network error received from {}: {e:?}", peer);
                         None
@@ -150,6 +134,7 @@ impl NetworkClient for TonicClient {
         Ok(rate_limited_stream)
     }
 
+    // Returns a vector of serialized blocks. Used by commit synchronizer
     async fn fetch_blocks(
         &self,
         peer: AuthorityIndex,
@@ -183,15 +168,14 @@ impl NetworkClient for TonicClient {
                 }
             })?
             .into_inner();
-        let mut blocks = vec![];
         let mut total_fetched_bytes = 0;
+        let mut vec_serialized_blocks = vec![];
         loop {
             match stream.message().await {
                 Ok(Some(response)) => {
-                    for b in &response.blocks {
+                    for b in &response.vec_serialized_blocks {
                         total_fetched_bytes += b.len();
                     }
-                    blocks.extend(response.blocks);
                     if total_fetched_bytes > MAX_TOTAL_FETCHED_BYTES {
                         info!(
                             "fetch_blocks() fetched bytes exceeded limit: {} > {}, terminating stream.",
@@ -199,12 +183,13 @@ impl NetworkClient for TonicClient {
                         );
                         break;
                     }
+                    vec_serialized_blocks.extend(response.vec_serialized_blocks);
                 }
                 Ok(None) => {
                     break;
                 }
                 Err(e) => {
-                    if blocks.is_empty() {
+                    if total_fetched_bytes == 0 {
                         if e.code() == tonic::Code::DeadlineExceeded {
                             return Err(ConsensusError::NetworkRequestTimeout(format!(
                                 "fetch_blocks failed mid-stream: {e:?}"
@@ -220,7 +205,81 @@ impl NetworkClient for TonicClient {
                 }
             }
         }
-        Ok(blocks)
+        Ok(vec_serialized_blocks)
+    }
+
+    // Returns a vector of serialized block headers
+    async fn fetch_block_headers(
+        &self,
+        peer: AuthorityIndex,
+        block_refs: Vec<BlockRef>,
+        highest_accepted_rounds: Vec<Round>,
+        timeout: Duration,
+    ) -> ConsensusResult<Vec<Bytes>> {
+        let mut client = self.get_client(peer, timeout).await?;
+        let mut request = Request::new(FetchBlockHeadersRequest {
+            block_refs: block_refs
+                .iter()
+                .filter_map(|r| match bcs::to_bytes(r) {
+                    Ok(serialized) => Some(serialized),
+                    Err(e) => {
+                        debug!("Failed to serialize block ref {:?}: {e:?}", r);
+                        None
+                    }
+                })
+                .collect(),
+            highest_accepted_rounds,
+        });
+        request.set_timeout(timeout);
+        let mut stream = client
+            .fetch_block_headers(request)
+            .await
+            .map_err(|e| {
+                if e.code() == tonic::Code::DeadlineExceeded {
+                    ConsensusError::NetworkRequestTimeout(format!("fetch_blocks failed: {e:?}"))
+                } else {
+                    ConsensusError::NetworkRequest(format!("fetch_blocks failed: {e:?}"))
+                }
+            })?
+            .into_inner();
+        let mut vec_serialized_block_header = vec![];
+        let mut total_fetched_bytes = 0;
+        loop {
+            match stream.message().await {
+                Ok(Some(response)) => {
+                    for b in &response.vec_serialized_block_header {
+                        total_fetched_bytes += b.len();
+                    }
+                    vec_serialized_block_header.extend(response.vec_serialized_block_header);
+                    if total_fetched_bytes > MAX_TOTAL_FETCHED_BYTES {
+                        info!(
+                            "fetch_blocks() fetched bytes exceeded limit: {} > {}, terminating stream.",
+                            total_fetched_bytes, MAX_TOTAL_FETCHED_BYTES,
+                        );
+                        break;
+                    }
+                }
+                Ok(None) => {
+                    break;
+                }
+                Err(e) => {
+                    if vec_serialized_block_header.is_empty() {
+                        if e.code() == tonic::Code::DeadlineExceeded {
+                            return Err(ConsensusError::NetworkRequestTimeout(format!(
+                                "fetch_block_headers failed mid-stream: {e:?}"
+                            )));
+                        }
+                        return Err(ConsensusError::NetworkRequest(format!(
+                            "fetch_block_headers failed mid-stream: {e:?}"
+                        )));
+                    } else {
+                        warn!("fetch_block_headers failed mid-stream: {e:?}");
+                        break;
+                    }
+                }
+            }
+        }
+        Ok(vec_serialized_block_header)
     }
 
     async fn fetch_commits(
@@ -240,17 +299,17 @@ impl NetworkClient for TonicClient {
             .await
             .map_err(|e| ConsensusError::NetworkRequest(format!("fetch_commits failed: {e:?}")))?;
         let response = response.into_inner();
-        Ok((response.commits, response.certifier_blocks))
+        Ok((response.commits, response.certifier_block_headers))
     }
 
-    async fn fetch_latest_blocks(
+    async fn fetch_latest_block_headers(
         &self,
         peer: AuthorityIndex,
         authorities: Vec<AuthorityIndex>,
         timeout: Duration,
     ) -> ConsensusResult<Vec<Bytes>> {
         let mut client = self.get_client(peer, timeout).await?;
-        let mut request = Request::new(FetchLatestBlocksRequest {
+        let mut request = Request::new(FetchLatestBlockHeadersRequest {
             authorities: authorities
                 .iter()
                 .map(|authority| authority.value() as u32)
@@ -258,13 +317,17 @@ impl NetworkClient for TonicClient {
         });
         request.set_timeout(timeout);
         let mut stream = client
-            .fetch_latest_blocks(request)
+            .fetch_latest_block_headers(request)
             .await
             .map_err(|e| {
                 if e.code() == tonic::Code::DeadlineExceeded {
-                    ConsensusError::NetworkRequestTimeout(format!("fetch_blocks failed: {e:?}"))
+                    ConsensusError::NetworkRequestTimeout(format!(
+                        "fetch_latest_block_headers failed: {e:?}"
+                    ))
                 } else {
-                    ConsensusError::NetworkRequest(format!("fetch_blocks failed: {e:?}"))
+                    ConsensusError::NetworkRequest(format!(
+                        "fetch_latest_block_headers failed: {e:?}"
+                    ))
                 }
             })?
             .into_inner();
@@ -273,10 +336,11 @@ impl NetworkClient for TonicClient {
         loop {
             match stream.message().await {
                 Ok(Some(response)) => {
-                    for b in &response.blocks {
+                    let vec_serialized_block_headers = response.vec_serialized_block_header;
+                    for b in &vec_serialized_block_headers {
                         total_fetched_bytes += b.len();
                     }
-                    blocks.extend(response.blocks);
+                    blocks.extend(vec_serialized_block_headers);
                     if total_fetched_bytes > MAX_TOTAL_FETCHED_BYTES {
                         info!(
                             "fetch_blocks() fetched bytes exceeded limit: {} > {}, terminating stream.",
@@ -420,25 +484,6 @@ impl<S: NetworkService> TonicServiceProxy<S> {
 
 #[async_trait]
 impl<S: NetworkService> ConsensusService for TonicServiceProxy<S> {
-    async fn send_block(
-        &self,
-        request: Request<SendBlockRequest>,
-    ) -> Result<Response<SendBlockResponse>, tonic::Status> {
-        let Some(peer_index) = request
-            .extensions()
-            .get::<PeerInfo>()
-            .map(|p| p.authority_index)
-        else {
-            return Err(tonic::Status::internal("PeerInfo not found"));
-        };
-        let block = request.into_inner().block;
-        self.service
-            .handle_send_block(peer_index, block)
-            .await
-            .map_err(|e| tonic::Status::invalid_argument(format!("{e:?}")))?;
-        Ok(Response::new(SendBlockResponse {}))
-    }
-
     type SubscribeBlocksStream =
         Pin<Box<dyn Stream<Item = Result<SubscribeBlocksResponse, tonic::Status>> + Send>>;
 
@@ -472,11 +517,61 @@ impl<S: NetworkService> ConsensusService for TonicServiceProxy<S> {
             .handle_subscribe_blocks(peer_index, first_request.last_received_round)
             .await
             .map_err(|e| tonic::Status::internal(format!("{e:?}")))?
-            .map(|block| Ok(SubscribeBlocksResponse { block }));
+            .map(|serialized_block| {
+                Ok(SubscribeBlocksResponse {
+                    vec_serialized_blocks: serialized_block.serialized_block,
+                })
+            });
         let rate_limited_stream =
             tokio_stream::StreamExt::throttle(stream, self.context.parameters.min_round_delay / 2)
                 .boxed();
         Ok(Response::new(rate_limited_stream))
+    }
+
+    type FetchBlockHeadersStream =
+        Iter<std::vec::IntoIter<Result<FetchBlockHeadersResponse, tonic::Status>>>;
+
+    async fn fetch_block_headers(
+        &self,
+        request: Request<FetchBlockHeadersRequest>,
+    ) -> Result<Response<Self::FetchBlockHeadersStream>, tonic::Status> {
+        let Some(peer_index) = request
+            .extensions()
+            .get::<PeerInfo>()
+            .map(|p| p.authority_index)
+        else {
+            return Err(tonic::Status::internal("PeerInfo not found"));
+        };
+        let inner = request.into_inner();
+        let block_refs = inner
+            .block_refs
+            .into_iter()
+            .filter_map(|serialized| match bcs::from_bytes(&serialized) {
+                Ok(r) => Some(r),
+                Err(e) => {
+                    debug!("Failed to deserialize block ref {:?}: {e:?}", serialized);
+                    None
+                }
+            })
+            .collect();
+        let highest_accepted_rounds = inner.highest_accepted_rounds;
+        let blocks = self
+            .service
+            .handle_fetch_block_headers(peer_index, block_refs, highest_accepted_rounds)
+            .await
+            .map_err(|e| tonic::Status::internal(format!("{e:?}")))?;
+        let responses: std::vec::IntoIter<Result<FetchBlockHeadersResponse, tonic::Status>> =
+            chunk_data(blocks, MAX_FETCH_RESPONSE_BYTES)
+                .into_iter()
+                .map(|block_headers| {
+                    Ok(FetchBlockHeadersResponse {
+                        vec_serialized_block_header: block_headers,
+                    })
+                })
+                .collect::<Vec<_>>()
+                .into_iter();
+        let stream = iter(responses);
+        Ok(Response::new(stream))
     }
 
     type FetchBlocksStream = Iter<std::vec::IntoIter<Result<FetchBlocksResponse, tonic::Status>>>;
@@ -511,9 +606,13 @@ impl<S: NetworkService> ConsensusService for TonicServiceProxy<S> {
             .await
             .map_err(|e| tonic::Status::internal(format!("{e:?}")))?;
         let responses: std::vec::IntoIter<Result<FetchBlocksResponse, tonic::Status>> =
-            chunk_blocks(blocks, MAX_FETCH_RESPONSE_BYTES)
+            chunk_data(blocks, MAX_FETCH_RESPONSE_BYTES)
                 .into_iter()
-                .map(|blocks| Ok(FetchBlocksResponse { blocks }))
+                .map(|serialized_block| {
+                    Ok(FetchBlocksResponse {
+                        vec_serialized_blocks: serialized_block,
+                    })
+                })
                 .collect::<Vec<_>>()
                 .into_iter();
         let stream = iter(responses);
@@ -532,7 +631,7 @@ impl<S: NetworkService> ConsensusService for TonicServiceProxy<S> {
             return Err(tonic::Status::internal("PeerInfo not found"));
         };
         let request = request.into_inner();
-        let (commits, certifier_blocks) = self
+        let (commits, certifier_block_headers) = self
             .service
             .handle_fetch_commits(peer_index, (request.start..=request.end).into())
             .await
@@ -541,23 +640,23 @@ impl<S: NetworkService> ConsensusService for TonicServiceProxy<S> {
             .into_iter()
             .map(|c| c.serialized().clone())
             .collect();
-        let certifier_blocks = certifier_blocks
+        let certifier_block_headers = certifier_block_headers
             .into_iter()
-            .map(|b| b.serialized().clone())
+            .map(|bh| bh.serialized().clone())
             .collect();
         Ok(Response::new(FetchCommitsResponse {
             commits,
-            certifier_blocks,
+            certifier_block_headers,
         }))
     }
 
-    type FetchLatestBlocksStream =
-        Iter<std::vec::IntoIter<Result<FetchLatestBlocksResponse, tonic::Status>>>;
+    type FetchLatestBlockHeadersStream =
+        Iter<std::vec::IntoIter<Result<FetchLatestBlockHeadersResponse, tonic::Status>>>;
 
-    async fn fetch_latest_blocks(
+    async fn fetch_latest_block_headers(
         &self,
-        request: Request<FetchLatestBlocksRequest>,
-    ) -> Result<Response<Self::FetchLatestBlocksStream>, tonic::Status> {
+        request: Request<FetchLatestBlockHeadersRequest>,
+    ) -> Result<Response<Self::FetchLatestBlockHeadersStream>, tonic::Status> {
         let Some(peer_index) = request
             .extensions()
             .get::<PeerInfo>()
@@ -587,10 +686,14 @@ impl<S: NetworkService> ConsensusService for TonicServiceProxy<S> {
             .handle_fetch_latest_blocks(peer_index, authorities)
             .await
             .map_err(|e| tonic::Status::internal(format!("{e:?}")))?;
-        let responses: std::vec::IntoIter<Result<FetchLatestBlocksResponse, tonic::Status>> =
-            chunk_blocks(blocks, MAX_FETCH_RESPONSE_BYTES)
+        let responses: std::vec::IntoIter<Result<FetchLatestBlockHeadersResponse, tonic::Status>> =
+            chunk_data(blocks, MAX_FETCH_RESPONSE_BYTES)
                 .into_iter()
-                .map(|blocks| Ok(FetchLatestBlocksResponse { blocks }))
+                .map(|block_headers| {
+                    Ok(FetchLatestBlockHeadersResponse {
+                        vec_serialized_block_header: block_headers,
+                    })
+                })
                 .collect::<Vec<_>>()
                 .into_iter();
         let stream = iter(responses);
@@ -990,9 +1093,8 @@ impl ResponseHandler for MetricsResponseCallback {
 /// Network message types.
 #[derive(Clone, prost::Message)]
 pub(crate) struct SendBlockRequest {
-    // Serialized SignedBlock.
-    #[prost(bytes = "bytes", tag = "1")]
-    block: Bytes,
+    #[prost(bytes = "bytes", repeated, tag = "1")]
+    vec_serialized_blocks: Vec<Bytes>,
 }
 
 #[derive(Clone, prost::Message)]
@@ -1007,7 +1109,23 @@ pub(crate) struct SubscribeBlocksRequest {
 #[derive(Clone, prost::Message)]
 pub(crate) struct SubscribeBlocksResponse {
     #[prost(bytes = "bytes", tag = "1")]
-    block: Bytes,
+    vec_serialized_blocks: Bytes,
+}
+
+#[derive(Clone, prost::Message)]
+pub(crate) struct FetchBlockHeadersRequest {
+    #[prost(bytes = "vec", repeated, tag = "1")]
+    block_refs: Vec<Vec<u8>>,
+    // The highest accepted round per authority. The vector represents the round for each authority
+    // and its length should be the same as the committee size.
+    #[prost(uint32, repeated, tag = "2")]
+    highest_accepted_rounds: Vec<Round>,
+}
+
+#[derive(Clone, prost::Message)]
+pub(crate) struct FetchBlockHeadersResponse {
+    #[prost(bytes = "bytes", repeated, tag = "1")]
+    vec_serialized_block_header: Vec<Bytes>,
 }
 
 #[derive(Clone, prost::Message)]
@@ -1022,9 +1140,8 @@ pub(crate) struct FetchBlocksRequest {
 
 #[derive(Clone, prost::Message)]
 pub(crate) struct FetchBlocksResponse {
-    // The response of the requested blocks as Serialized SignedBlock.
     #[prost(bytes = "bytes", repeated, tag = "1")]
-    blocks: Vec<Bytes>,
+    vec_serialized_blocks: Vec<Bytes>,
 }
 
 #[derive(Clone, prost::Message)]
@@ -1040,22 +1157,21 @@ pub(crate) struct FetchCommitsResponse {
     // Serialized consecutive Commit.
     #[prost(bytes = "bytes", repeated, tag = "1")]
     commits: Vec<Bytes>,
-    // Serialized SignedBlock that certify the last commit from above.
+    // Serialized SignedBlockHeader that certify the last commit from above.
     #[prost(bytes = "bytes", repeated, tag = "2")]
-    certifier_blocks: Vec<Bytes>,
+    certifier_block_headers: Vec<Bytes>,
 }
 
 #[derive(Clone, prost::Message)]
-pub(crate) struct FetchLatestBlocksRequest {
+pub(crate) struct FetchLatestBlockHeadersRequest {
     #[prost(uint32, repeated, tag = "1")]
     authorities: Vec<u32>,
 }
 
 #[derive(Clone, prost::Message)]
-pub(crate) struct FetchLatestBlocksResponse {
-    // The response of the requested blocks as Serialized SignedBlock.
+pub(crate) struct FetchLatestBlockHeadersResponse {
     #[prost(bytes = "bytes", repeated, tag = "1")]
-    blocks: Vec<Bytes>,
+    vec_serialized_block_header: Vec<Bytes>,
 }
 
 #[derive(Clone, prost::Message)]
@@ -1071,19 +1187,22 @@ pub(crate) struct GetLatestRoundsResponse {
     highest_accepted: Vec<u32>,
 }
 
-fn chunk_blocks(blocks: Vec<Bytes>, chunk_limit: usize) -> Vec<Vec<Bytes>> {
+// Splits a list of byte sequences into chunks where each chunk's total size
+// does not exceed the specified `chunk_limit`.
+// Returns a vector of chunks, each being a vector of `Bytes`.
+fn chunk_data(data: Vec<Bytes>, chunk_limit: usize) -> Vec<Vec<Bytes>> {
     let mut chunks = vec![];
     let mut chunk = vec![];
     let mut chunk_size = 0;
-    for block in blocks {
-        let block_size = block.len();
-        if !chunk.is_empty() && chunk_size + block_size > chunk_limit {
+    for piece in data.into_iter() {
+        let piece_size = piece.len();
+        if !chunk.is_empty() && chunk_size + piece_size > chunk_limit {
             chunks.push(chunk);
             chunk = vec![];
             chunk_size = 0;
         }
-        chunk.push(block);
-        chunk_size += block_size;
+        chunk.push(piece);
+        chunk_size += piece_size;
     }
     if !chunk.is_empty() {
         chunks.push(chunk);

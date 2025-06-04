@@ -20,6 +20,12 @@ pub(crate) enum ConsensusError {
     #[error("Error deserializing block: {0}")]
     MalformedBlock(bcs::Error),
 
+    #[error("Error deserializing block header: {0}")]
+    MalformedBlockHeader(bcs::Error),
+
+    #[error("Error deserializing block transactions: {0}")]
+    MalformedTransactions(bcs::Error),
+
     #[error("Error deserializing commit: {0}")]
     MalformedCommit(bcs::Error),
 
@@ -50,13 +56,16 @@ pub(crate) enum ConsensusError {
     #[error("Genesis blocks should not be queried!")]
     UnexpectedGenesisBlockRequested,
 
+    #[error("Genesis block headers should not be queried!")]
+    UnexpectedGenesisBlockHeaderRequested,
+
     #[error(
-        "Expected {requested} but received {received} blocks returned from authority {authority}"
+        "Expected {requested} but received {received_blocks} blocks from authority {authority}"
     )]
     UnexpectedNumberOfBlocksFetched {
         authority: AuthorityIndex,
         requested: usize,
-        received: usize,
+        received_blocks: usize,
     },
 
     #[error("Unexpected block returned while fetching missing blocks")]
@@ -81,6 +90,9 @@ pub(crate) enum ConsensusError {
     #[error("Too many blocks have been requested from authority {0}")]
     TooManyFetchBlocksRequested(AuthorityIndex),
 
+    #[error("Too many block headers have been requested from authority {0}")]
+    TooManyFetchBlockHeadersRequested(AuthorityIndex),
+
     #[error("Too many authorities have been provided from authority {0}")]
     TooManyAuthoritiesProvided(AuthorityIndex),
 
@@ -97,6 +109,13 @@ pub(crate) enum ConsensusError {
 
     #[error("Failed to verify the block's signature: {0}")]
     SignatureVerificationFailure(FastCryptoError),
+
+    #[error("Wrong transaction commitment in B{round} by {author} received from {peer}")]
+    TransactionCommitmentFailure {
+        round: Round,
+        author: AuthorityIndex,
+        peer: AuthorityIndex,
+    },
 
     #[error("Synchronizer for fetching blocks directly from {0} is saturated")]
     SynchronizerSaturated(AuthorityIndex),

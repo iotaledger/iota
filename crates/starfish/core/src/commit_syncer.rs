@@ -31,6 +31,7 @@
 
 use std::{
     collections::{BTreeMap, BTreeSet},
+    ops::Deref,
     sync::Arc,
     time::Duration,
 };
@@ -51,8 +52,8 @@ use tokio::{
 use tracing::{debug, info, warn};
 
 use crate::{
-    CommitConsumerMonitor, CommitIndex,
-    block_header::{BlockHeaderAPI, BlockRef, SignedBlockHeader, VerifiedBlockHeader},
+    CommitConsumerMonitor, CommitIndex, VerifiedBlockHeader,
+    block_header::{BlockHeaderAPI, SignedBlockHeader, VerifiedBlock},
     block_verifier::BlockVerifier,
     commit::{
         CertifiedCommit, CertifiedCommits, Commit, CommitAPI as _, CommitDigest, CommitRange,
@@ -63,7 +64,7 @@ use crate::{
     core_thread::CoreThreadDispatcher,
     dag_state::DagState,
     error::{ConsensusError, ConsensusResult},
-    network::NetworkClient,
+    network::{NetworkClient, SerializedBlock, SerializedHeaderAndTransactions},
     stake_aggregator::{QuorumThreshold, StakeAggregator},
 };
 
@@ -262,7 +263,7 @@ impl<C: NetworkClient> CommitSyncer<C> {
                     bytes
                         + c.blocks()
                             .iter()
-                            .map(|b| b.serialized().len())
+                            .map(|b| b.serialized().0.len() + b.serialized().1.len())
                             .sum::<usize>() as u64,
                 )
             });
@@ -551,7 +552,7 @@ impl<C: NetworkClient> CommitSyncer<C> {
             .start_timer();
 
         // 1. Fetch commits in the commit range from the target authority.
-        let (serialized_commits, serialized_blocks) = inner
+        let (serialized_commits, serialized_block_headers) = inner
             .network_client
             .fetch_commits(target_authority, commit_range.clone(), timeout)
             .await?;
@@ -568,7 +569,7 @@ impl<C: NetworkClient> CommitSyncer<C> {
                         target_authority,
                         commit_range,
                         serialized_commits,
-                        serialized_blocks,
+                        serialized_block_headers,
                     )
                 }
             })
@@ -605,42 +606,37 @@ impl<C: NetworkClient> CommitSyncer<C> {
                         return Err(ConsensusError::UnexpectedNumberOfBlocksFetched {
                             authority: target_authority,
                             requested: request_block_refs.len(),
-                            received: serialized_blocks.len(),
+                            received_blocks: serialized_blocks.len(),
                         });
                     }
                     // 6. Verify returned blocks have valid formats.
-                    let signed_blocks = serialized_blocks
+                    let verified_blocks = serialized_blocks
                         .iter()
-                        .map(|serialized| {
-                            let block: SignedBlockHeader = bcs::from_bytes(serialized)
-                                .map_err(ConsensusError::MalformedBlock)?;
+                        .cloned()
+                        .zip(request_block_refs)
+                        .map(|(serialized_block, requested_block_ref)| {
+                            let block = VerifiedBlock::try_from(
+                                SerializedHeaderAndTransactions::try_from(SerializedBlock {
+                                    serialized_block,
+                                })?,
+                            )?;
+
+                            // 7. Verify the returned blocks match the requested block refs.
+                            // If they do match, the returned blocks can be considered verified
+                            // as well.
+                            if *requested_block_ref != block.reference() {
+                                return Err(ConsensusError::UnexpectedBlockForCommit {
+                                    peer: target_authority,
+                                    requested: *requested_block_ref,
+                                    received: block.reference(),
+                                });
+                            }
+
                             Ok(block)
                         })
                         .collect::<ConsensusResult<Vec<_>>>()?;
-                    // 7. Verify the returned blocks match the requested block refs.
-                    // If they do match, the returned blocks can be considered verified as well.
-                    let mut blocks = Vec::new();
-                    for ((requested_block_ref, signed_block), serialized) in request_block_refs
-                        .iter()
-                        .zip(signed_blocks.into_iter())
-                        .zip(serialized_blocks.into_iter())
-                    {
-                        let signed_block_digest = VerifiedBlockHeader::compute_digest(&serialized);
-                        let received_block_ref = BlockRef::new(
-                            signed_block.round(),
-                            signed_block.author(),
-                            signed_block_digest,
-                        );
-                        if *requested_block_ref != received_block_ref {
-                            return Err(ConsensusError::UnexpectedBlockForCommit {
-                                peer: target_authority,
-                                requested: *requested_block_ref,
-                                received: received_block_ref,
-                            });
-                        }
-                        blocks.push(VerifiedBlockHeader::new_verified(signed_block, serialized));
-                    }
-                    Ok(blocks)
+
+                    Ok(verified_blocks)
                 }
             })
             .collect();
@@ -654,7 +650,10 @@ impl<C: NetworkClient> CommitSyncer<C> {
 
         // 8. Make sure fetched block (and votes) timestamps are lower than current
         //    time.
-        for block in fetched_blocks.values().chain(vote_blocks.iter()) {
+        for block in vote_blocks
+            .iter()
+            .chain(fetched_blocks.values().map(Deref::deref))
+        {
             let now_ms = inner.context.clock.timestamp_utc_ms();
             let forward_drift = block.timestamp_ms().saturating_sub(now_ms);
             if forward_drift == 0 {
@@ -748,7 +747,7 @@ impl<C: NetworkClient> Inner<C> {
         peer: AuthorityIndex,
         commit_range: CommitRange,
         serialized_commits: Vec<Bytes>,
-        serialized_vote_blocks: Vec<Bytes>,
+        serialized_vote_blocks_headers: Vec<Bytes>,
     ) -> ConsensusResult<(Vec<TrustedCommit>, Vec<VerifiedBlockHeader>)> {
         // Parse and verify commits.
         let mut commits = Vec::new();
@@ -792,18 +791,21 @@ impl<C: NetworkClient> Inner<C> {
         // Parse and verify blocks. Then accumulate votes on the end commit.
         let end_commit_ref = CommitRef::new(end_commit.index(), *end_commit_digest);
         let mut stake_aggregator = StakeAggregator::<QuorumThreshold>::new();
-        let mut vote_blocks = Vec::new();
-        for serialized in serialized_vote_blocks {
-            let block: SignedBlockHeader =
-                bcs::from_bytes(&serialized).map_err(ConsensusError::MalformedBlock)?;
+        let mut vote_block_headers = Vec::new();
+        for serialized_block_header in serialized_vote_blocks_headers.into_iter() {
+            let signed_block_header: SignedBlockHeader = bcs::from_bytes(&serialized_block_header)
+                .map_err(ConsensusError::MalformedBlock)?;
             // The block signature needs to be verified.
-            self.block_verifier.verify(&block)?;
-            for vote in block.commit_votes() {
+            self.block_verifier.verify(&signed_block_header)?;
+            for vote in signed_block_header.commit_votes() {
                 if *vote == end_commit_ref {
-                    stake_aggregator.add(block.author(), &self.context.committee);
+                    stake_aggregator.add(signed_block_header.author(), &self.context.committee);
                 }
             }
-            vote_blocks.push(VerifiedBlockHeader::new_verified(block, serialized));
+            vote_block_headers.push(VerifiedBlockHeader::new_verified(
+                signed_block_header,
+                serialized_block_header,
+            ));
         }
 
         // Check if the end commit has enough votes.
@@ -820,7 +822,7 @@ impl<C: NetworkClient> Inner<C> {
             .zip(serialized_commits)
             .map(|((_d, c), s)| TrustedCommit::new_trusted(c, s))
             .collect();
-        Ok((trusted_commits, vote_blocks))
+        Ok((trusted_commits, vote_block_headers))
     }
 }
 
@@ -852,15 +854,6 @@ mod tests {
 
     #[async_trait::async_trait]
     impl NetworkClient for FakeNetworkClient {
-        async fn send_block(
-            &self,
-            _peer: AuthorityIndex,
-            _serialized_block: &VerifiedBlockHeader,
-            _timeout: Duration,
-        ) -> ConsensusResult<()> {
-            unimplemented!("Unimplemented")
-        }
-
         async fn subscribe_blocks(
             &self,
             _peer: AuthorityIndex,
@@ -880,6 +873,17 @@ mod tests {
             unimplemented!("Unimplemented")
         }
 
+        // Returns a vector of serialized block headers
+        async fn fetch_block_headers(
+            &self,
+            _peer: AuthorityIndex,
+            _block_refs: Vec<BlockRef>,
+            _highest_accepted_rounds: Vec<Round>,
+            _timeout: Duration,
+        ) -> ConsensusResult<Vec<Bytes>> {
+            unimplemented!();
+        }
+
         async fn fetch_commits(
             &self,
             _peer: AuthorityIndex,
@@ -889,7 +893,7 @@ mod tests {
             unimplemented!("Unimplemented")
         }
 
-        async fn fetch_latest_blocks(
+        async fn fetch_latest_block_headers(
             &self,
             _peer: AuthorityIndex,
             _authorities: Vec<AuthorityIndex>,

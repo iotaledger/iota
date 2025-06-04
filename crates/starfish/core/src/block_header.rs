@@ -23,6 +23,7 @@ use crate::{
     context::Context,
     ensure,
     error::{ConsensusError, ConsensusResult},
+    network::SerializedHeaderAndTransactions,
 };
 
 /// Round number of a block.
@@ -133,7 +134,7 @@ impl BlockHeaderV1 {
         }
     }
 
-    fn genesis_block(epoch: Epoch, author: AuthorityIndex) -> Self {
+    fn genesis_block_header(epoch: Epoch, author: AuthorityIndex) -> Self {
         Self {
             epoch,
             round: GENESIS_ROUND,
@@ -544,6 +545,17 @@ impl VerifiedBlockHeader {
         }
     }
 
+    pub(crate) fn new_from_bytes(serialized_block_header: Bytes) -> ConsensusResult<Self> {
+        let signed_block_header: SignedBlockHeader = bcs::from_bytes(&serialized_block_header)
+            .map_err(ConsensusError::MalformedBlockHeader)?;
+
+        // Only accepted blocks should have been written to storage.
+        Ok(VerifiedBlockHeader::new_verified(
+            signed_block_header,
+            serialized_block_header,
+        ))
+    }
+
     /// This method is public for testing in other crates.
     pub fn new_for_test(block_header: BlockHeader) -> Self {
         let signed_block_header = SignedBlockHeader {
@@ -574,7 +586,6 @@ impl VerifiedBlockHeader {
         self.digest
     }
 
-    #[cfg_attr(not(test), expect(unused))]
     pub(crate) fn transactions_commitment(&self) -> TransactionsCommitment {
         self.signed_block_header.inner.transactions_commitment()
     }
@@ -630,7 +641,8 @@ impl fmt::Debug for VerifiedBlockHeader {
 }
 
 /// VerifiedTransactions are transactions that correspond to an existing block
-#[derive(Clone)]
+// TODO: make a custom Debug implementation for more control over printed data
+#[derive(Clone, Debug)]
 pub struct VerifiedTransactions {
     #[expect(dead_code)]
     transactions: Vec<Transaction>,
@@ -642,7 +654,6 @@ pub struct VerifiedTransactions {
     transactions_commitment: TransactionsCommitment,
 
     /// The serialized bytes of the transactions.
-    #[expect(dead_code)]
     serialized: Bytes,
 }
 
@@ -674,17 +685,140 @@ impl VerifiedTransactions {
     pub fn block_ref(&self) -> BlockRef {
         self.block_ref
     }
+
+    pub fn serialized(&self) -> &Bytes {
+        &self.serialized
+    }
+}
+
+/// VerifiedBlock is a pair of verified block header and transactions. It is
+/// used for streaming and storing
+#[derive(Clone, Debug, PartialEq)]
+pub struct VerifiedBlock {
+    /// The block header.
+    pub verified_block_header: VerifiedBlockHeader,
+
+    /// The transactions in the block.
+    pub verified_transactions: VerifiedTransactions,
+}
+
+impl VerifiedBlock {
+    pub fn new(
+        verified_block_header: VerifiedBlockHeader,
+        verified_transactions: VerifiedTransactions,
+    ) -> Self {
+        Self {
+            verified_block_header,
+            verified_transactions,
+        }
+    }
+
+    #[cfg(test)]
+    pub fn new_for_test(block_header: BlockHeader) -> Self {
+        let verified_block_header = VerifiedBlockHeader::new_for_test(block_header);
+        let verified_transactions = VerifiedTransactions::new(
+            vec![],
+            BlockRef::new(
+                verified_block_header.round(),
+                verified_block_header.author(),
+                verified_block_header.digest(),
+            ),
+            verified_block_header.transactions_commitment(),
+            Bytes::from(bcs::to_bytes::<Vec<Transaction>>(&vec![]).unwrap()),
+        );
+        Self {
+            verified_block_header,
+            verified_transactions,
+        }
+    }
+
+    // This function returns a pair of serialized block header and serialized
+    // transactions
+    pub fn serialized(&self) -> (&Bytes, &Bytes) {
+        (
+            &self.verified_block_header.serialized,
+            &self.verified_transactions.serialized,
+        )
+    }
+}
+
+/// Allow quick access to the underlying BlockHeader without having to always
+/// refer to the inner block ref.
+impl Deref for VerifiedBlock {
+    type Target = VerifiedBlockHeader;
+
+    fn deref(&self) -> &Self::Target {
+        &self.verified_block_header
+    }
+}
+
+impl TryFrom<SerializedHeaderAndTransactions> for VerifiedBlock {
+    type Error = ConsensusError;
+
+    fn try_from(serialized_block: SerializedHeaderAndTransactions) -> ConsensusResult<Self> {
+        let signed_block_header: SignedBlockHeader =
+            bcs::from_bytes(&serialized_block.serialized_block_header)
+                .map_err(ConsensusError::MalformedBlockHeader)?;
+        let transactions: Vec<Transaction> =
+            bcs::from_bytes(&serialized_block.serialized_transactions)
+                .map_err(ConsensusError::MalformedTransactions)?;
+        // TODO: do we need to check the signature here?
+        let verified_block_header = VerifiedBlockHeader::new_verified(
+            signed_block_header,
+            serialized_block.serialized_block_header,
+        );
+
+        // TODO: we might need to check whether transaction commitment is consistent
+        // with the one in header
+        let verified_transactions = VerifiedTransactions::new(
+            transactions,
+            verified_block_header.reference(),
+            verified_block_header.transactions_commitment(),
+            serialized_block.serialized_transactions,
+        );
+        // Assemble the block from the header and transactions
+        Ok(VerifiedBlock::new(
+            verified_block_header,
+            verified_transactions,
+        ))
+    }
 }
 
 /// Generates the genesis blocks for the current Committee.
 /// The blocks are returned in authority index order.
+pub(crate) fn genesis_blocks(context: Arc<Context>) -> Vec<VerifiedBlock> {
+    context
+        .committee
+        .authorities()
+        .map(|(authority_index, _)| {
+            let signed_block = SignedBlockHeader::new_genesis(BlockHeader::V1(
+                BlockHeaderV1::genesis_block_header(context.committee.epoch(), authority_index),
+            ));
+            let serialized = signed_block
+                .serialize()
+                .expect("Genesis block serialization failed.");
+            // Unnecessary to verify genesis block headers.
+            let verified_block_header = VerifiedBlockHeader::new_verified(signed_block, serialized);
+            VerifiedBlock {
+                verified_block_header: verified_block_header.clone(),
+                verified_transactions: VerifiedTransactions {
+                    transactions: vec![],
+                    block_ref: verified_block_header.reference(),
+                    transactions_commitment: verified_block_header.transactions_commitment(),
+                    serialized: Bytes::from(bcs::to_bytes::<Vec<Transaction>>(&vec![]).unwrap()),
+                },
+            }
+        })
+        .collect::<Vec<VerifiedBlock>>()
+}
+
 pub(crate) fn genesis_block_headers(context: Arc<Context>) -> Vec<VerifiedBlockHeader> {
     context
         .committee
         .authorities()
         .map(|(authority_index, _)| {
             let signed_block = SignedBlockHeader::new_genesis(BlockHeader::V1(
-                BlockHeaderV1::genesis_block(context.committee.epoch(), authority_index),
+                BlockHeaderV1::genesis_block_header(context.committee.epoch(), authority_index),
             ));
             let serialized = signed_block
                 .serialize()
@@ -707,6 +841,10 @@ impl TestBlockHeader {
             block_header: BlockHeaderV1 {
                 round,
                 author: AuthorityIndex::new_for_test(author),
+                transactions_commitment: TransactionsCommitment::compute_transactions_commitment(
+                    &Bytes::from(bcs::to_bytes::<Vec<Transaction>>(&vec![]).unwrap()),
+                )
+                .unwrap(),
                 ..Default::default()
             },
         }
