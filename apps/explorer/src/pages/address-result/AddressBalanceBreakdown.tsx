@@ -62,11 +62,7 @@ export function AddressBalanceBreakdown({ address }: { address: string }): React
         timelockedStakedObjects || [],
     );
 
-    const totalTimelockedStaked = extendedDelegatedTimelockedStakes?.reduce(
-        (acc, extendedStake) => acc + BigInt(extendedStake.principal),
-        0n,
-    );
-
+    const totalTimelockedStaked = useTotalDelegatedStake(extendedDelegatedTimelockedStakes);
     const [formattedTimelockedStake] = useFormatCoin({
         balance: totalTimelockedStaked,
     });
