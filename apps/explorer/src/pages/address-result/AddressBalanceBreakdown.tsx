@@ -114,12 +114,12 @@ export function AddressBalanceBreakdown({ address }: { address: string }): React
 
     const BALANCE_BREAKDOWN: BalanceBreakdownElement[] = [
         {
-            keyText: 'Available',
+            keyText: 'Available IOTA',
             value: totalAvailableBalance,
             supportingLabel: symbol,
             isLoading: isLoadingBalance,
             isError: isBalanceErrored,
-            tooltipText: 'IOTA that can be used or transferred immediately.',
+            tooltipText: 'Funds that can be used.',
         },
         {
             keyText: 'Staked',
@@ -145,7 +145,7 @@ export function AddressBalanceBreakdown({ address }: { address: string }): React
             isLoading: isTimelockedObjectsLoading,
             isError: isTimelockedObjectsError,
             tooltipText:
-                "IOTA locked until a specific time. Depending on the lock's expiration, these funds can either be used for staking or collected (unwrapped) when the timelock allows it.",
+                "IOTA locked until a specific time. Depending on the lock's expiration, these funds can either be used for staking or collected when the timelock allows it.",
         },
     ];
     return (
