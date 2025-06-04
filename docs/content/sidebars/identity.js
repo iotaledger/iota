@@ -60,7 +60,7 @@ const identity = [
     },
     {
         type: 'category',
-        label: 'How-To',
+        label: 'How To',
         items: [
             {
                 type: 'category',
