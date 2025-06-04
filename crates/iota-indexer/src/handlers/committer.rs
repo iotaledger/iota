@@ -13,6 +13,7 @@ use super::{CheckpointDataToCommitV2, EpochToCommit};
 use crate::{
     handlers::CheckpointDataToCommit,
     metrics::IndexerMetrics,
+    models::transactions::TxGlobalOrder,
     store::{IndexerStore, IndexerStoreExt},
     types::IndexerResult,
 };
@@ -176,6 +177,11 @@ async fn commit_checkpoints<S>(
 
     let guard = metrics.checkpoint_db_commit_latency.start_timer();
     let tx_batch = tx_batch.into_iter().flatten().collect::<Vec<_>>();
+
+    let tx_global_order_batch = tx_batch
+        .iter()
+        .map(Into::into)
+        .collect::<Vec<TxGlobalOrder>>();
     let tx_indices_batch = tx_indices_batch.into_iter().flatten().collect::<Vec<_>>();
     let events_batch = events_batch.into_iter().flatten().collect::<Vec<_>>();
     let event_indices_batch = event_indices_batch
@@ -195,6 +201,7 @@ async fn commit_checkpoints<S>(
         let mut persist_tasks = vec![
             state.persist_transactions(tx_batch),
             state.persist_tx_indices(tx_indices_batch),
+            state.persist_tx_global_order(tx_global_order_batch),
             state.persist_events(events_batch),
             state.persist_event_indices(event_indices_batch),
             state.persist_displays(display_updates_batch),
@@ -347,6 +354,12 @@ async fn commit_checkpoints_v2<S>(
     let guard = metrics.checkpoint_db_commit_latency.start_timer();
     let tx_batch = tx_batch.into_iter().flatten().collect::<Vec<_>>();
     let tx_indices_batch = tx_indices_batch.into_iter().flatten().collect::<Vec<_>>();
+
+    let tx_global_order_batch = tx_batch
+        .iter()
+        .map(Into::into)
+        .collect::<Vec<TxGlobalOrder>>();
+
     let events_batch = events_batch.into_iter().flatten().collect::<Vec<_>>();
     let event_indices_batch = event_indices_batch
         .into_iter()
@@ -365,6 +378,7 @@ async fn commit_checkpoints_v2<S>(
         let mut persist_tasks = vec![
             state.persist_transactions(tx_batch),
             state.persist_tx_indices_v2(tx_indices_batch),
+            state.persist_tx_global_order(tx_global_order_batch),
             state.persist_events(events_batch),
             state.persist_event_indices(event_indices_batch),
             state.persist_displays(display_updates_batch),
