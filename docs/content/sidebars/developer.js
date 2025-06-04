@@ -120,7 +120,7 @@ const developer = [
     },
         {
         type: 'category',
-        label: 'Explanation',
+        label: 'Explanations',
         items: [
             {
                 type: 'category',
