@@ -348,7 +348,7 @@ mod tests {
 
         let (_, dag_builder) = result.unwrap();
         assert_eq!(dag_builder.genesis.len(), 4);
-        assert_eq!(dag_builder.blocks.len(), 23);
+        assert_eq!(dag_builder.block_headers.len(), 23);
 
         // Check the blocks were correctly parsed in Round 6
         let blocks_a6 = dag_builder

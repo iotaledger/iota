@@ -15,8 +15,11 @@ use tokio_util::sync::ReusableBoxFuture;
 use tracing::{debug, info, warn};
 
 use crate::{
-    BlockHeaderAPI, CommitIndex, Round, VerifiedBlockHeader,
-    block_header::{BlockRef, GENESIS_ROUND, SignedBlockHeader},
+    BlockHeaderAPI, CommitIndex, Round, Transaction, VerifiedBlockHeader,
+    block_header::{
+        BlockRef, GENESIS_ROUND, SignedBlockHeader, TransactionsCommitment, VerifiedBlock,
+        VerifiedTransactions,
+    },
     block_verifier::BlockVerifier,
     commit::{CommitAPI as _, CommitRange, TrustedCommit},
     commit_vote_monitor::CommitVoteMonitor,
@@ -24,7 +27,7 @@ use crate::{
     core_thread::CoreThreadDispatcher,
     dag_state::DagState,
     error::{ConsensusError, ConsensusResult},
-    network::{BlockStream, NetworkService},
+    network::{BlockStream, NetworkService, SerializedBlock, SerializedHeaderAndTransactions},
     stake_aggregator::{QuorumThreshold, StakeAggregator},
     storage::Store,
     synchronizer::SynchronizerHandle,
@@ -40,7 +43,7 @@ pub(crate) struct AuthorityService<C: CoreThreadDispatcher> {
     block_verifier: Arc<dyn BlockVerifier>,
     synchronizer: Arc<SynchronizerHandle>,
     core_dispatcher: Arc<C>,
-    rx_block_broadcaster: broadcast::Receiver<VerifiedBlockHeader>,
+    rx_block_broadcaster: broadcast::Receiver<VerifiedBlock>,
     subscription_counter: Arc<SubscriptionCounter>,
     dag_state: Arc<RwLock<DagState>>,
     store: Arc<dyn Store>,
@@ -53,7 +56,7 @@ impl<C: CoreThreadDispatcher> AuthorityService<C> {
         commit_vote_monitor: Arc<CommitVoteMonitor>,
         synchronizer: Arc<SynchronizerHandle>,
         core_dispatcher: Arc<C>,
-        rx_block_broadcaster: broadcast::Receiver<VerifiedBlockHeader>,
+        rx_block_broadcaster: broadcast::Receiver<VerifiedBlock>,
         dag_state: Arc<RwLock<DagState>>,
         store: Arc<dyn Store>,
     ) -> Self {
@@ -77,21 +80,22 @@ impl<C: CoreThreadDispatcher> AuthorityService<C> {
 
 #[async_trait]
 impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
-    async fn handle_send_block(
+    async fn handle_subscribed_block(
         &self,
         peer: AuthorityIndex,
-        serialized_block: Bytes,
+        serialized_block: SerializedBlock,
     ) -> ConsensusResult<()> {
         fail_point_async!("consensus-rpc-response");
 
         let peer_hostname = &self.context.committee.authority(peer).hostname;
-
-        // TODO: dedup block verifications, here and with fetched blocks.
-        let signed_block: SignedBlockHeader =
-            bcs::from_bytes(&serialized_block).map_err(ConsensusError::MalformedBlock)?;
+        let serialized_block_and_transactions =
+            SerializedHeaderAndTransactions::try_from(serialized_block)?;
+        let signed_block_header: SignedBlockHeader =
+            bcs::from_bytes(&serialized_block_and_transactions.serialized_block_header)
+                .map_err(ConsensusError::MalformedBlockHeader)?;
 
         // Reject blocks not produced by the peer.
-        if peer != signed_block.author() {
+        if peer != signed_block_header.author() {
             self.context
                 .metrics
                 .node_metrics
@@ -102,14 +106,12 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
                     "UnexpectedAuthority",
                 ])
                 .inc();
-            let e = ConsensusError::UnexpectedAuthority(signed_block.author(), peer);
+            let e = ConsensusError::UnexpectedAuthority(signed_block_header.author(), peer);
             info!("Block with wrong authority from {}: {}", peer, e);
             return Err(e);
         }
-        let peer_hostname = &self.context.committee.authority(peer).hostname;
 
-        // Reject blocks failing validations.
-        if let Err(e) = self.block_verifier.verify(&signed_block) {
+        if let Err(e) = self.block_verifier.verify(&signed_block_header) {
             self.context
                 .metrics
                 .node_metrics
@@ -123,7 +125,35 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
             info!("Invalid block from {}: {}", peer, e);
             return Err(e);
         }
-        let verified_block = VerifiedBlockHeader::new_verified(signed_block, serialized_block);
+
+        if signed_block_header.transactions_commitment()
+            != TransactionsCommitment::compute_transactions_commitment(
+                &serialized_block_and_transactions.serialized_transactions,
+            )
+            .expect("we should expect correct computation of the transactions commitment")
+        {
+            return Err(ConsensusError::TransactionCommitmentFailure {
+                round: signed_block_header.round(),
+                author: signed_block_header.author(),
+                peer,
+            });
+        }
+
+        let verified_block_header = VerifiedBlockHeader::new_verified(
+            signed_block_header,
+            serialized_block_and_transactions.serialized_block_header,
+        );
+        let transactions: Vec<Transaction> =
+            bcs::from_bytes(&serialized_block_and_transactions.serialized_transactions)
+                .map_err(ConsensusError::MalformedTransactions)?;
+        let verified_transactions = VerifiedTransactions::new(
+            transactions,
+            verified_block_header.reference(),
+            verified_block_header.transactions_commitment(),
+            serialized_block_and_transactions.serialized_transactions,
+        );
+        let verified_block = VerifiedBlock::new(verified_block_header, verified_transactions);
+
         let block_ref = verified_block.reference();
         debug!("Received block {} via send block.", block_ref);
 
@@ -227,7 +257,7 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
             // schedule the fetching of them from this peer
             if let Err(err) = self
                 .synchronizer
-                .fetch_blocks(missing_ancestors, peer)
+                .fetch_block_headers(missing_ancestors, peer)
                 .await
             {
                 warn!("Errored while trying to fetch missing ancestors via synchronizer: {err}");
@@ -252,7 +282,8 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
             dag_state
                 .get_cached_blocks(self.context.own_index, last_received + 1)
                 .into_iter()
-                .map(|block| block.serialized().clone()),
+                // TODO::deal with possible error in try_from
+                .map(|block| SerializedBlock::try_from(block).unwrap()),
         );
 
         let broadcasted_blocks = BroadcastedBlockStream::new(
@@ -263,9 +294,76 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
 
         // Return a stream of blocks that first yields missed blocks as requested, then
         // new blocks.
+        // TODO::deal with possible error in try_from
         Ok(Box::pin(missed_blocks.chain(
-            broadcasted_blocks.map(|block| block.serialized().clone()),
+            broadcasted_blocks.map(|block| SerializedBlock::try_from(block).unwrap()),
         )))
+    }
+
+    async fn handle_fetch_block_headers(
+        &self,
+        peer: AuthorityIndex,
+        block_refs: Vec<BlockRef>,
+        highest_accepted_rounds: Vec<Round>,
+    ) -> ConsensusResult<Vec<Bytes>> {
+        fail_point_async!("consensus-rpc-response");
+
+        const MAX_ADDITIONAL_BLOCKS: usize = 10;
+        if block_refs.len() > self.context.parameters.max_blocks_per_fetch {
+            return Err(ConsensusError::TooManyFetchBlockHeadersRequested(peer));
+        }
+
+        if !highest_accepted_rounds.is_empty()
+            && highest_accepted_rounds.len() != self.context.committee.size()
+        {
+            return Err(ConsensusError::InvalidSizeOfHighestAcceptedRounds(
+                highest_accepted_rounds.len(),
+                self.context.committee.size(),
+            ));
+        }
+
+        // Some quick validation of the requested block refs
+        for block in &block_refs {
+            if !self.context.committee.is_valid_index(block.author) {
+                return Err(ConsensusError::InvalidAuthorityIndex {
+                    index: block.author,
+                    max: self.context.committee.size(),
+                });
+            }
+            if block.round == GENESIS_ROUND {
+                return Err(ConsensusError::UnexpectedGenesisBlockHeaderRequested);
+            }
+        }
+
+        // For now ask dag state directly
+        let block_headers = self.dag_state.read().get_block_headers(&block_refs);
+
+        // Now check if an ancestor's round is higher than the one that the peer has. If
+        // yes, then serve that ancestor blocks up to `MAX_ADDITIONAL_BLOCKS`.
+        let mut ancestor_block_headers = vec![];
+        if !highest_accepted_rounds.is_empty() {
+            let all_ancestors = block_headers
+                .iter()
+                .flatten()
+                .flat_map(|block| block.ancestors().to_vec())
+                .filter(|block_ref| highest_accepted_rounds[block_ref.author] < block_ref.round)
+                .take(MAX_ADDITIONAL_BLOCKS)
+                .collect::<Vec<_>>();
+
+            if !all_ancestors.is_empty() {
+                ancestor_block_headers = self.dag_state.read().get_block_headers(&all_ancestors);
+            }
+        }
+
+        // Return the serialised blocks & the ancestor blocks
+        let result = block_headers
+            .into_iter()
+            .chain(ancestor_block_headers)
+            .flatten()
+            .map(|block_header| block_header.serialized().clone())
+            .collect();
+
+        Ok(result)
     }
 
     async fn handle_fetch_blocks(
@@ -323,13 +421,16 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
             }
         }
 
-        // Return the serialised blocks & the ancestor blocks
+        // Return the serialised headers and transactions for blocks & their ancestors
         let result = blocks
             .into_iter()
             .chain(ancestor_blocks)
             .flatten()
-            .map(|block| block.serialized().clone())
-            .collect::<Vec<_>>();
+            .map(|block| {
+                // TODO::propagate error correctly
+                SerializedBlock::try_from(block).unwrap().serialized_block
+            })
+            .collect();
 
         Ok(result)
     }
@@ -376,13 +477,13 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
                 commits.pop();
             }
         }
-        let certifier_blocks = self
+        let certifier_block_headers = self
             .store
-            .read_blocks(&certifier_block_refs)?
+            .read_block_headers(&certifier_block_refs)?
             .into_iter()
             .flatten()
             .collect();
-        Ok((commits, certifier_blocks))
+        Ok((commits, certifier_block_headers))
     }
 
     async fn handle_fetch_latest_blocks(
@@ -413,7 +514,7 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
         let mut blocks = vec![];
         let dag_state = self.dag_state.read();
         for authority in authorities {
-            let block = dag_state.get_last_block_for_authority(authority);
+            let block = dag_state.get_last_block_header_for_authority(authority);
 
             debug!("Latest block for {authority}: {block:?} as requested from {peer}");
 
@@ -441,13 +542,13 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
 
         let mut highest_received_rounds = self.core_dispatcher.highest_received_rounds();
 
-        let blocks = self
+        let block_headers = self
             .dag_state
             .read()
-            .get_last_cached_block_per_authority(Round::MAX);
-        let highest_accepted_rounds = blocks
+            .get_last_cached_block_header_per_authority(Round::MAX);
+        let highest_accepted_rounds = block_headers
             .into_iter()
-            .map(|(block, _)| block.round())
+            .map(|(block_headers, _)| block_headers.round())
             .collect::<Vec<_>>();
 
         // Own blocks do not go through the core dispatcher, so they need to be set
@@ -541,7 +642,7 @@ impl SubscriptionCounter {
 
 /// Each broadcasted block stream wraps a broadcast receiver for blocks.
 /// It yields blocks that are broadcasted after the stream is created.
-type BroadcastedBlockStream = BroadcastStream<VerifiedBlockHeader>;
+type BroadcastedBlockStream = BroadcastStream<VerifiedBlock>;
 
 /// Adapted from `tokio_stream::wrappers::BroadcastStream`. The main difference
 /// is that this tolerates lags with only logging, without yielding errors.
@@ -635,11 +736,11 @@ async fn make_recv_future<T: Clone>(
 
 #[cfg(test)]
 mod tests {
-    use std::{collections::BTreeSet, sync::Arc, time::Duration};
+    use std::{sync::Arc, time::Duration};
 
     use async_trait::async_trait;
     use bytes::Bytes;
-    use parking_lot::{Mutex, RwLock};
+    use parking_lot::RwLock;
     use starfish_config::AuthorityIndex;
     use tokio::{sync::broadcast, time::sleep};
 
@@ -647,101 +748,26 @@ mod tests {
         Round,
         authority_service::AuthorityService,
         block_header::{
-            BlockHeaderAPI, BlockRef, SignedBlockHeader, TestBlockHeader, VerifiedBlockHeader,
-            VerifiedTransactions,
+            BlockHeaderAPI, BlockRef, SignedBlockHeader, TestBlockHeader, VerifiedBlock,
+            VerifiedBlockHeader,
         },
-        commit::{CertifiedCommits, CommitRange},
+        commit::CommitRange,
         commit_vote_monitor::CommitVoteMonitor,
         context::Context,
-        core_thread::{CoreError, CoreThreadDispatcher},
+        core_thread::tests::MockCoreThreadDispatcher,
         dag_state::DagState,
         error::ConsensusResult,
-        network::{BlockStream, NetworkClient, NetworkService},
+        network::{BlockStream, NetworkClient, NetworkService, SerializedBlock},
         storage::mem_store::MemStore,
         synchronizer::Synchronizer,
         test_dag_builder::DagBuilder,
     };
-
-    struct FakeCoreThreadDispatcher {
-        blocks: Mutex<Vec<VerifiedBlockHeader>>,
-    }
-
-    impl FakeCoreThreadDispatcher {
-        fn new() -> Self {
-            Self {
-                blocks: Mutex::new(vec![]),
-            }
-        }
-
-        fn get_blocks(&self) -> Vec<VerifiedBlockHeader> {
-            self.blocks.lock().clone()
-        }
-    }
-
-    #[async_trait]
-    impl CoreThreadDispatcher for FakeCoreThreadDispatcher {
-        async fn add_blocks(
-            &self,
-            blocks: Vec<VerifiedBlockHeader>,
-        ) -> Result<BTreeSet<BlockRef>, CoreError> {
-            let block_refs = blocks.iter().map(|b| b.reference()).collect();
-            self.blocks.lock().extend(blocks);
-            Ok(block_refs)
-        }
-
-        async fn add_data(
-            &self,
-            _data: Vec<VerifiedTransactions>,
-        ) -> Result<BTreeSet<BlockRef>, CoreError> {
-            todo!()
-        }
-
-        async fn get_missing_data(&self) -> Result<BTreeSet<BlockRef>, CoreError> {
-            todo!()
-        }
-
-        async fn add_certified_commits(
-            &self,
-            _commits: CertifiedCommits,
-        ) -> Result<BTreeSet<BlockRef>, CoreError> {
-            todo!()
-        }
-
-        async fn new_block(&self, _round: Round, _force: bool) -> Result<(), CoreError> {
-            Ok(())
-        }
-
-        async fn get_missing_blocks(&self) -> Result<BTreeSet<BlockRef>, CoreError> {
-            Ok(Default::default())
-        }
-
-        fn set_subscriber_exists(&self, _exists: bool) -> Result<(), CoreError> {
-            todo!()
-        }
-
-        fn set_last_known_proposed_round(&self, _round: Round) -> Result<(), CoreError> {
-            todo!()
-        }
-
-        fn highest_received_rounds(&self) -> Vec<Round> {
-            todo!()
-        }
-    }
 
     #[derive(Default)]
     struct FakeNetworkClient {}
 
     #[async_trait]
     impl NetworkClient for FakeNetworkClient {
-        async fn send_block(
-            &self,
-            _peer: AuthorityIndex,
-            _block: &VerifiedBlockHeader,
-            _timeout: Duration,
-        ) -> ConsensusResult<()> {
-            unimplemented!("Unimplemented")
-        }
-
         async fn subscribe_blocks(
             &self,
             _peer: AuthorityIndex,
@@ -761,6 +787,17 @@ mod tests {
             unimplemented!("Unimplemented")
         }
 
+        // Returns a vector of serialized block headers
+        async fn fetch_block_headers(
+            &self,
+            _peer: AuthorityIndex,
+            _block_refs: Vec<BlockRef>,
+            _highest_accepted_rounds: Vec<Round>,
+            _timeout: Duration,
+        ) -> ConsensusResult<Vec<Bytes>> {
+            unimplemented!("Unimplemented")
+        }
+
         async fn fetch_commits(
             &self,
             _peer: AuthorityIndex,
@@ -770,7 +807,7 @@ mod tests {
             unimplemented!("Unimplemented")
         }
 
-        async fn fetch_latest_blocks(
+        async fn fetch_latest_block_headers(
             &self,
             _peer: AuthorityIndex,
             _authorities: Vec<AuthorityIndex>,
@@ -781,12 +818,12 @@ mod tests {
     }
 
     #[tokio::test(flavor = "current_thread", start_paused = true)]
-    async fn test_handle_send_block() {
+    async fn test_handle_subscribed_block() {
         let (context, _keys) = Context::new_for_test(4);
         let context = Arc::new(context);
         let block_verifier = Arc::new(crate::block_verifier::NoopBlockVerifier {});
         let commit_vote_monitor = Arc::new(CommitVoteMonitor::new(context.clone()));
-        let core_dispatcher = Arc::new(FakeCoreThreadDispatcher::new());
+        let core_dispatcher = Arc::new(MockCoreThreadDispatcher::default());
         let (_tx_block_broadcast, rx_block_broadcast) = broadcast::channel(100);
         let network_client = Arc::new(FakeNetworkClient::default());
         let store = Arc::new(MemStore::new());
@@ -814,18 +851,21 @@ mod tests {
         // Test delaying blocks with time drift.
         let now = context.clock.timestamp_utc_ms();
         let max_drift = context.parameters.max_forward_time_drift;
-        let input_block = VerifiedBlockHeader::new_for_test(
+        let input_block = VerifiedBlock::new_for_test(
             TestBlockHeader::new(9, 0)
                 .set_timestamp_ms(now + max_drift.as_millis() as u64)
                 .build(),
         );
 
         let service = authority_service.clone();
-        let serialized = input_block.serialized().clone();
+        let serialized_block = SerializedBlock::try_from(input_block.clone()).unwrap();
 
         tokio::spawn(async move {
             service
-                .handle_send_block(context.committee.to_authority_index(0).unwrap(), serialized)
+                .handle_subscribed_block(
+                    context.committee.to_authority_index(0).unwrap(),
+                    serialized_block,
+                )
                 .await
                 .unwrap();
         });
@@ -846,7 +886,7 @@ mod tests {
         let context = Arc::new(context);
         let block_verifier = Arc::new(crate::block_verifier::NoopBlockVerifier {});
         let commit_vote_monitor = Arc::new(CommitVoteMonitor::new(context.clone()));
-        let core_dispatcher = Arc::new(FakeCoreThreadDispatcher::new());
+        let core_dispatcher = Arc::new(MockCoreThreadDispatcher::default());
         let (_tx_block_broadcast, rx_block_broadcast) = broadcast::channel(100);
         let network_client = Arc::new(FakeNetworkClient::default());
         let store = Arc::new(MemStore::new());
