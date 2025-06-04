@@ -2261,14 +2261,20 @@ impl CheckpointService {
         max_transactions_per_checkpoint: usize,
         max_checkpoint_size_bytes: usize,
     ) -> Arc<Self> {
+        info!(
+            "Starting checkpoint service with {max_transactions_per_checkpoint} max_transactions_per_checkpoint and {max_checkpoint_size_bytes} max_checkpoint_size_bytes"
+        );
         let notify_builder = Arc::new(Notify::new());
         let notify_aggregator = Arc::new(Notify::new());
+
         let highest_previously_built_seq = epoch_store
             .last_built_checkpoint_builder_summary()
             .expect("epoch should not have ended")
             .map(|s| s.summary.sequence_number)
             .unwrap_or(0);
+
         let (highest_currently_built_seq_tx, _) = watch::channel(highest_previously_built_seq);
+
         let aggregator = CheckpointAggregator::new(
             checkpoint_store.clone(),
             epoch_store.clone(),
