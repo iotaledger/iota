@@ -162,7 +162,7 @@ const iotaEvm = [
     },
      {
         type: 'category',
-        label: 'How-To',
+        label: 'How To',
         items: [
             'iota-evm/how-tos/introduction',
             {
