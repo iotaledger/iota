@@ -9,16 +9,19 @@ mod common;
 mod ingestion_tests {
     use std::{sync::Arc, time::Duration};
 
-    use diesel::{ExpressionMethods, QueryDsl, RunQueryDsl, connection::BoxableConnection};
+    use diesel::{
+        ExpressionMethods, QueryDsl, RunQueryDsl, SelectableHelper, connection::BoxableConnection,
+    };
     use iota_indexer::{
         db::get_pool_connection,
         errors::{Context, IndexerError},
         insert_or_ignore_into,
         models::{
             objects::{StoredObject, StoredObjectSnapshot},
-            transactions::StoredTransaction,
+            transactions::{StoredTransaction, TxGlobalOrder},
+            tx_indices::StoredTxDigest,
         },
-        schema::{objects, objects_snapshot, transactions, tx_insertion_order},
+        schema::{objects, objects_snapshot, transactions, tx_digests, tx_global_order},
         store::PgIndexerStore,
         transactional_blocking_with_retry,
     };
@@ -46,7 +49,7 @@ mod ingestion_tests {
     }
 
     #[tokio::test]
-    pub async fn test_transaction_table() -> Result<(), IndexerError> {
+    pub async fn transaction_table() -> Result<(), IndexerError> {
         let mut sim = Simulacrum::new();
         let data_ingestion_path = tempdir().unwrap().into_path();
         sim.set_data_ingestion_path(data_ingestion_path.clone());
@@ -97,7 +100,7 @@ mod ingestion_tests {
     }
 
     #[tokio::test]
-    pub async fn test_object_type() -> Result<(), IndexerError> {
+    pub async fn object_type() -> Result<(), IndexerError> {
         let mut sim = Simulacrum::new();
         let data_ingestion_path = tempdir().unwrap().into_path();
         sim.set_data_ingestion_path(data_ingestion_path.clone());
@@ -149,7 +152,7 @@ mod ingestion_tests {
     }
 
     #[tokio::test]
-    pub async fn test_objects_snapshot() -> Result<(), IndexerError> {
+    pub async fn objects_snapshot() -> Result<(), IndexerError> {
         let tempdir = tempdir().unwrap();
         let mut sim = Simulacrum::new();
         let data_ingestion_path = tempdir.path().to_path_buf();
@@ -226,8 +229,7 @@ mod ingestion_tests {
     }
 
     #[tokio::test]
-    #[ignore = "https://github.com/iotaledger/iota/issues/6668"]
-    pub async fn test_tx_insertion_order_table() -> Result<(), IndexerError> {
+    pub async fn tx_global_order_table() -> Result<(), IndexerError> {
         let mut sim = Simulacrum::new();
         let data_ingestion_path = tempdir().unwrap().into_path();
         sim.set_data_ingestion_path(data_ingestion_path.clone());
@@ -254,22 +256,36 @@ mod ingestion_tests {
 
         let digest = effects.transaction_digest();
 
-        // Read the transaction from the database directly.
-        let actual_insertion_order = read_only_blocking!(&pg_store.blocking_cp(), |conn| {
-            tx_insertion_order::table
-                .filter(tx_insertion_order::tx_digest.eq(digest.inner().to_vec()))
-                .select(tx_insertion_order::insertion_order)
-                .first::<i64>(conn)
+        let stored_tx_digest = read_only_blocking!(&pg_store.blocking_cp(), |conn| {
+            tx_digests::table
+                .filter(tx_digests::tx_digest.eq(digest.inner().to_vec()))
+                .select(StoredTxDigest::as_select())
+                .first::<StoredTxDigest>(conn)
         })
-        .context("Failed reading tx insertion order from PostgresDB")?;
+        .context("Failed reading `tx_global_order` from PostgresDB")?;
 
-        assert_eq!(actual_insertion_order, 2);
+        let stored_global_order = read_only_blocking!(&pg_store.blocking_cp(), |conn| {
+            tx_global_order::table
+                .filter(tx_global_order::tx_digest.eq(digest.inner().to_vec()))
+                .select(TxGlobalOrder::as_select())
+                .first::<TxGlobalOrder>(conn)
+        })
+        .context("Failed reading `tx_global_order` from PostgresDB")?;
+
+        assert_eq!(
+            stored_global_order.global_sequence_number,
+            stored_tx_digest.tx_sequence_number
+        );
+        let expected_optimistic_sequence_number = 0;
+        assert_eq!(
+            stored_global_order.optimistic_sequence_number,
+            Some(expected_optimistic_sequence_number)
+        );
         Ok(())
     }
 
     #[tokio::test]
-    #[ignore = "https://github.com/iotaledger/iota/issues/6668"]
-    pub async fn test_tx_insertion_order_table_for_existing_digest() -> Result<(), IndexerError> {
+    pub async fn tx_global_order_table_on_conflict_do_nothing() -> Result<(), IndexerError> {
         let mut sim = Simulacrum::new();
         let data_ingestion_path = tempdir().unwrap().into_path();
         sim.set_data_ingestion_path(data_ingestion_path.clone());
@@ -283,21 +299,18 @@ mod ingestion_tests {
         sim.create_checkpoint();
         let digest = *effects.transaction_digest();
 
-        let pre_existing_insertion_order = 123;
+        let global_sequence_number = 123;
         let emulate_insertion_order_set_earlier_by_optimistic_indexing =
             move |pg_store: &PgIndexerStore| {
                 transactional_blocking_with_retry!(
                     &pg_store.blocking_cp(),
                     |conn| {
-                        insert_or_ignore_into!(
-                            tx_insertion_order::table,
-                            (
-                                tx_insertion_order::dsl::tx_digest.eq(digest.inner().to_vec()),
-                                tx_insertion_order::dsl::insertion_order
-                                    .eq(pre_existing_insertion_order),
-                            ),
-                            conn
-                        );
+                        let insertable = TxGlobalOrder {
+                            tx_digest: digest.inner().to_vec(),
+                            global_sequence_number,
+                            optimistic_sequence_number: None,
+                        };
+                        insert_or_ignore_into!(tx_global_order::table, insertable, conn);
                         Ok::<(), IndexerError>(())
                     },
                     Duration::from_secs(60)
@@ -318,15 +331,20 @@ mod ingestion_tests {
         indexer_wait_for_checkpoint(&pg_store, 1).await;
 
         // Read the transaction from the database directly.
-        let actual_insertion_order = read_only_blocking!(&pg_store.blocking_cp(), |conn| {
-            tx_insertion_order::table
-                .filter(tx_insertion_order::tx_digest.eq(digest.inner().to_vec()))
-                .select(tx_insertion_order::insertion_order)
-                .first::<i64>(conn)
+        let stored = read_only_blocking!(&pg_store.blocking_cp(), |conn| {
+            tx_global_order::table
+                .filter(tx_global_order::tx_digest.eq(digest.inner().to_vec()))
+                .select(TxGlobalOrder::as_select())
+                .first::<TxGlobalOrder>(conn)
         })
-        .context("Failed reading tx insertion order from PostgresDB")?;
+        .context("Failed reading `tx_global_order` from PostgresDB")?;
 
-        assert_eq!(actual_insertion_order, pre_existing_insertion_order);
+        assert_eq!(stored.global_sequence_number, global_sequence_number);
+        let expected_optimistic_sequence_number = 1;
+        assert_eq!(
+            stored.optimistic_sequence_number,
+            Some(expected_optimistic_sequence_number)
+        );
         Ok(())
     }
 }
