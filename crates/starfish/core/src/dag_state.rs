@@ -308,6 +308,13 @@ impl DagState {
         self.transactions_to_write.push(transactions);
     }
 
+    /// Adds a block to DagState by accepting its header and adding its
+    /// transactions.
+    pub(crate) fn add_block(&mut self, block: VerifiedBlock) {
+        self.accept_block_header(block.verified_block_header);
+        self.add_transactions(block.verified_transactions);
+    }
+
     /// Updates internal metadata for a block.
     fn update_block_metadata(&mut self, block_header: &VerifiedBlockHeader) {
         let block_ref = block_header.reference();
