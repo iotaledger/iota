@@ -947,6 +947,11 @@ pub const RESOLVED_UTF8_STR: (&AccountAddress, &IdentStr, &IdentStr) = (
 
 pub const TX_CONTEXT_MODULE_NAME: &IdentStr = ident_str!("tx_context");
 pub const TX_CONTEXT_STRUCT_NAME: &IdentStr = ident_str!("TxContext");
+pub const RESOLVED_TX_CONTEXT: (&AccountAddress, &IdentStr, &IdentStr) = (
+    &SUI_FRAMEWORK_ADDRESS,
+    TX_CONTEXT_MODULE_NAME,
+    TX_CONTEXT_STRUCT_NAME,
+);
 
 pub const URL_MODULE_NAME: &IdentStr = ident_str!("url");
 pub const URL_STRUCT_NAME: &IdentStr = ident_str!("Url");
