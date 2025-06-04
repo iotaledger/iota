@@ -15,7 +15,7 @@ use crate::{
         events::OptimisticEvent,
         obj_indices::StoredObjectVersion,
         objects::{StoredDeletedObject, StoredObject},
-        transactions::{OptimisticTransaction, TxInsertionOrder},
+        transactions::{OptimisticTransaction, TxGlobalOrder},
         tx_indices::OptimisticTxIndices,
     },
     types::{
@@ -84,9 +84,9 @@ pub trait IndexerStore: Any + Clone + Sync + Send + 'static {
         transaction: OptimisticTransaction,
     ) -> Result<(), IndexerError>;
 
-    async fn persist_tx_insertion_order(
+    async fn persist_tx_global_order(
         &self,
-        tx_order: Vec<TxInsertionOrder>,
+        tx_order: Vec<TxGlobalOrder>,
     ) -> Result<(), IndexerError>;
 
     async fn persist_tx_indices(&self, indices: Vec<TxIndex>) -> Result<(), IndexerError>;
