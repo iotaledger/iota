@@ -16,7 +16,7 @@ export function useGetAddressAlias() {
     });
 
     return useCallback(
-        ({ address, truncateUnknown }: { address: string; truncateUnknown: boolean }) => {
+        ({ address, truncateUnknown }: { address: string; truncateUnknown?: boolean }) => {
             const formattedAddress = trimOrFormatAddress(address);
 
             if (!knownAddressesFeature.enabled) {
