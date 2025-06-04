@@ -15,14 +15,14 @@ export interface TimelockedObject {
     id: UID;
     locked: Balance; // TODO: extend to support other types of locked assets
     expirationTimestampMs: number;
-    label?: string;
+    label?: string | null;
 }
 
 export interface TimelockedIotaResponse {
     id: UID;
     locked: string;
     expiration_timestamp_ms: string;
-    label?: string;
+    label?: string | null;
 }
 
 export type ExtendedDelegatedTimelockedStake = TimelockedStake & {
