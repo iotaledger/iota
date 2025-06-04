@@ -31,3 +31,26 @@ export function formatType(type: string) {
     }
     return type;
 }
+
+const ADDRESS_TRIM_MAX_LENGTH = 8;
+
+export function trimAddress(address: string): string {
+    const addr = address.toLowerCase().replace(/^0x/, '');
+    const shortened = addr.replace(/^0+/, '') || '0';
+    return `0x${shortened}`;
+}
+
+export function trimOrFormatAddress(address: string): string {
+    if (address.length <= 6) {
+        return address;
+    }
+
+    const offset = address.startsWith('0x') ? 2 : 0;
+    const trimmedAddress = `0x${address.slice(offset).replace(/^0+/, '') || '0'}`;
+
+    if (trimmedAddress.length <= ADDRESS_TRIM_MAX_LENGTH) {
+        return trimmedAddress;
+    }
+
+    return formatAddress(address);
+}

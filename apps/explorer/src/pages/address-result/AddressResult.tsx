@@ -15,6 +15,7 @@ import { useBreakpoint } from '~/hooks/useBreakpoint';
 import { LocalStorageSplitPaneKey } from '~/lib/enums';
 import { Panel, Title, Divider } from '@iota/apps-ui-kit';
 import { TotalStaked } from './TotalStaked';
+import { useGetAddressAlias } from '@iota/core';
 
 const LEFT_RIGHT_PANEL_MIN_SIZE = 30;
 
@@ -23,7 +24,19 @@ interface AddressResultPageHeaderProps {
 }
 
 function AddressResultPageHeader({ address }: AddressResultPageHeaderProps): JSX.Element {
-    return <PageHeader type="Address" title={address} after={<TotalStaked address={address} />} />;
+    const getAddressAlias = useGetAddressAlias();
+
+    const { address: formattedAddress, alias } = getAddressAlias({
+        address,
+    });
+    return (
+        <PageHeader
+            type="Address"
+            title={formattedAddress}
+            subtitle={alias}
+            after={<TotalStaked address={address} />}
+        />
+    );
 }
 
 function AddressResult({ address }: { address: string }): JSX.Element {

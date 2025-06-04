@@ -16,7 +16,7 @@ import {
     type IotaObjectChange,
     type IotaObjectChangePublished,
 } from '@iota/iota-sdk/client';
-import { formatAddress, parseStructTag } from '@iota/iota-sdk/utils';
+import { parseStructTag } from '@iota/iota-sdk/utils';
 import clsx from 'clsx';
 import { useState, type ReactNode } from 'react';
 import {
@@ -39,7 +39,6 @@ import {
     LoadingIndicator,
 } from '@iota/apps-ui-kit';
 import { TriangleDown } from '@iota/apps-ui-icons';
-import { onCopySuccess } from '~/lib/utils';
 
 interface ItemProps {
     label: string;
@@ -62,14 +61,7 @@ function Item({ label, packageId, moduleName, typeName }: ItemProps): JSX.Elemen
             return (
                 <KeyValueInfo
                     keyText={label}
-                    value={
-                        <ObjectLink
-                            objectId={packageId || ''}
-                            label={formatAddress(packageId || '')}
-                            copyText={packageId || ''}
-                            onCopySuccess={onCopySuccess}
-                        />
-                    }
+                    value={<ObjectLink objectId={packageId || ''} copyText={packageId} />}
                 />
             );
         case ItemLabel.Module:
@@ -169,9 +161,13 @@ function ObjectDetail({ objectType, objectId, display }: ObjectDetailProps): JSX
     return (
         <ObjectDetailPanel
             headerContent={
-                <div className="flex shrink-0 items-center gap-xxs">
+                <div className="flex shrink-0 items-center gap-sm">
                     <Badge type={BadgeType.Neutral} label={name} />
-                    {objectId && <ObjectLink objectId={objectId} />}
+                    {objectId && (
+                        <div className="flex flex-col items-end gap-xxxs">
+                            <ObjectLink objectId={objectId} />
+                        </div>
+                    )}
                 </div>
             }
             panelContent={
@@ -278,22 +274,17 @@ function ObjectChangeEntriesCardFooter({
     return (
         <div className="flex flex-wrap justify-between px-md--rs py-sm--rs">
             <span className="text-body-md text-neutral-40 dark:text-neutral-60">Owner</span>
-            {ownerType === 'AddressOwner' && (
-                <AddressLink
-                    label={undefined}
-                    address={ownerAddress}
-                    copyText={ownerAddress}
-                    onCopySuccess={onCopySuccess}
-                />
+            <div className="flex flex-col gap-xxs">
+                {ownerType === 'AddressOwner' && (
+                    <AddressLink address={ownerAddress} copyText={ownerAddress} />
+                )}
+                {ownerType === 'ObjectOwner' && (
+                    <ObjectLink objectId={ownerAddress} copyText={ownerAddress} />
+                )}
+            </div>
+            {ownerType === 'Shared' && (
+                <ObjectLink objectId={ownerAddress} label="Shared" showAddressAlias={false} />
             )}
-            {ownerType === 'ObjectOwner' && (
-                <ObjectLink
-                    objectId={ownerAddress}
-                    copyText={ownerAddress}
-                    onCopySuccess={onCopySuccess}
-                />
-            )}
-            {ownerType === 'Shared' && <ObjectLink objectId={ownerAddress} label="Shared" />}
         </div>
     );
 }

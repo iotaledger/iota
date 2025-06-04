@@ -6,7 +6,6 @@ import { type IotaMoveNormalizedType } from '@iota/iota-sdk/client';
 import { SyntaxHighlighter } from '~/components';
 import { AddressLink, Link, ObjectLink } from '~/components/ui';
 import { getFieldTypeValue } from '~/lib/ui';
-import { onCopySuccess } from '~/lib/utils';
 
 interface FieldItemProps {
     value: string | number | object | boolean;
@@ -39,7 +38,6 @@ export function FieldItem({
                     address={value.toString()}
                     noTruncate={!truncate}
                     copyText={value.toString()}
-                    onCopySuccess={onCopySuccess}
                 />
             </div>
         );
@@ -52,7 +50,6 @@ export function FieldItem({
                     objectId={value.toString()}
                     noTruncate={!truncate}
                     copyText={value.toString()}
-                    onCopySuccess={onCopySuccess}
                 />
             </div>
         );

@@ -9,7 +9,11 @@ import uiKitResponsivePreset from '../../apps/ui-kit/src/lib/tailwind/responsive
 
 export default {
     presets: [uiKitResponsivePreset],
-    content: ['./src/**/*.{js,jsx,ts,tsx}', './../ui-kit/src/lib/**/*.{js,jsx,ts,tsx}'],
+    content: [
+        './src/**/*.{js,jsx,ts,tsx}',
+        './../ui-kit/src/lib/**/*.{js,jsx,ts,tsx}',
+        './../core/src/components/**/*.{ts,jsx,tsx}',
+    ],
     darkMode: 'selector',
     theme: {
         extend: {

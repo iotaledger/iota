@@ -6,7 +6,6 @@ import { TableCellBase, TableCellText } from '@iota/apps-ui-kit';
 import type { Checkpoint } from '@iota/iota-sdk/client';
 import type { ColumnDef } from '@tanstack/react-table';
 import { CheckpointSequenceLink, CheckpointLink } from '~/components';
-import { onCopySuccess } from '~/lib/utils';
 import { getElapsedTime } from '~/pages/epochs/utils';
 
 /**
@@ -25,7 +24,6 @@ export function generateCheckpointsTableColumns(): ColumnDef<Checkpoint>[] {
                             digest={digest}
                             label={<TableCellText>{digest}</TableCellText>}
                             copyText={digest}
-                            onCopySuccess={onCopySuccess}
                         />
                     </TableCellBase>
                 );

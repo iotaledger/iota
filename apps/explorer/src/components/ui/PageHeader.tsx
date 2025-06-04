@@ -13,17 +13,20 @@ import {
 } from '@iota/apps-ui-kit';
 import { Copy, Warning } from '@iota/apps-ui-icons';
 import { onCopySuccess } from '~/lib/utils';
+import { useCopyToClipboard } from '@iota/core';
+import clsx from 'clsx';
 
 type PageHeaderType = 'Transaction' | 'Checkpoint' | 'Address' | 'Object' | 'Package';
 
 export interface PageHeaderProps {
-    title: string;
+    title: string | React.JSX.Element;
     subtitle?: string | null;
     type: PageHeaderType;
     status?: 'success' | 'failure';
     after?: React.ReactNode;
     error?: string;
     loading?: boolean;
+    showCopyButton?: boolean;
 }
 
 export function PageHeader({
@@ -34,12 +37,19 @@ export function PageHeader({
     loading,
     after,
     status,
+    showCopyButton = true,
 }: PageHeaderProps): JSX.Element {
+    const copyToClipboard = useCopyToClipboard(onCopySuccess);
     return (
         <Panel>
             <div className="flex w-full items-center p-md--rs">
                 <div className="flex w-full flex-col items-start justify-between gap-sm md:flex-row md:items-center">
-                    <div className="flex w-full flex-col gap-xxs md:w-3/4">
+                    <div
+                        className={clsx(
+                            'flex w-full flex-col md:w-3/4',
+                            subtitle ? 'gap-sm' : 'gap-xs',
+                        )}
+                    >
                         {loading ? (
                             <div className="flex w-full flex-col gap-xs">
                                 {new Array(2).fill(0).map((_, index) => (
@@ -76,14 +86,20 @@ export function PageHeader({
                                         >
                                             {title}
                                         </span>
-                                        <Copy
-                                            onClick={onCopySuccess}
-                                            className="shrink-0 cursor-pointer"
-                                        />
+                                        {showCopyButton && (
+                                            <Copy
+                                                onClick={() =>
+                                                    typeof title === 'string'
+                                                        ? copyToClipboard(title)
+                                                        : undefined
+                                                }
+                                                className="shrink-0 cursor-pointer"
+                                            />
+                                        )}
                                     </div>
                                 )}
                                 {subtitle && (
-                                    <span className="pt-sm text-body-md text-neutral-40 dark:text-neutral-60">
+                                    <span className="text-body-md text-neutral-40 dark:text-neutral-60">
                                         {subtitle}
                                     </span>
                                 )}

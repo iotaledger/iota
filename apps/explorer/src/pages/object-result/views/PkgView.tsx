@@ -13,7 +13,7 @@ import {
     PkgModulesWrapper,
     TransactionBlocksForAddress,
 } from '~/components';
-import { getOwnerStr, onCopySuccess, trimStdLibPrefix } from '~/lib/utils';
+import { getOwnerStr, trimStdLibPrefix } from '~/lib/utils';
 import { type DataType } from '../ObjectResultType';
 
 import { ObjectFilterValue } from '~/lib/enums';
@@ -75,6 +75,8 @@ export function PkgView({ data }: PkgViewProps): JSX.Element {
         .filter(filterProperties)
         .map(mapProperties);
 
+    const publisherAddress = viewedData.publisherAddress;
+
     return (
         <div>
             <div className="flex flex-col gap-2xl">
@@ -83,23 +85,25 @@ export function PkgView({ data }: PkgViewProps): JSX.Element {
                     <div className="flex flex-col gap-lg p-md--rs">
                         <KeyValueInfo
                             keyText="Object ID"
-                            value={<ObjectLink objectId={viewedData.id} label={viewedData.id} />}
-                            copyText={viewedData.id}
-                            onCopySuccess={onCopySuccess}
+                            value={
+                                <div className="flex flex-col gap-xxs">
+                                    <ObjectLink objectId={viewedData.id} copyText={viewedData.id} />
+                                </div>
+                            }
                         />
 
                         <KeyValueInfo keyText="Version" value={viewedData.version} />
-                        {viewedData?.publisherAddress && (
+                        {publisherAddress && (
                             <KeyValueInfo
                                 keyText="Publisher"
                                 value={
-                                    <AddressLink
-                                        address={viewedData.publisherAddress}
-                                        label={viewedData.publisherAddress}
-                                    />
+                                    <div className="flex flex-col gap-xxs">
+                                        <AddressLink
+                                            address={publisherAddress}
+                                            copyText={publisherAddress}
+                                        />
+                                    </div>
                                 }
-                                copyText={viewedData.publisherAddress}
-                                onCopySuccess={onCopySuccess}
                             />
                         )}
                     </div>

@@ -15,7 +15,7 @@ import {
 import { SortByDefault } from '@iota/apps-ui-icons';
 import { useQuery } from '@tanstack/react-query';
 import clsx from 'clsx';
-import { type PropsWithChildren, type ReactNode, useState } from 'react';
+import { type ReactNode, useState } from 'react';
 import { AddressLink, Link, ObjectLink, ObjectVideoImage, TransactionLink } from '~/components/ui';
 import { useResolveVideo } from '~/hooks/useResolveVideo';
 import {
@@ -89,9 +89,11 @@ function ObjectIdCard({ objectId }: ObjectIdCardProps): JSX.Element {
     return (
         <DisplayStats
             label="Object ID"
-            value={<ObjectLink objectId={objectId}>{formatAddress(objectId)}</ObjectLink>}
-            copyText={objectId}
-            onCopySuccess={onCopySuccess}
+            value={
+                <div className="flex flex-col gap-xs">
+                    <ObjectLink objectId={objectId} copyText={objectId} />
+                </div>
+            }
         />
     );
 }
@@ -161,55 +163,43 @@ function LastTxBlockCard({ digest }: LastTxBlockCardProps): JSX.Element {
     );
 }
 
+function getOwnerDisplay(objOwner: ObjectOwner): 'Shared' | 'Immutable' | string {
+    if (objOwner === 'Immutable') {
+        return 'Immutable';
+    } else if ('Shared' in objOwner) {
+        return 'Shared';
+    }
+    return 'ObjectOwner' in objOwner ? objOwner.ObjectOwner : objOwner.AddressOwner;
+}
+
 interface OwnerCardProps {
     objOwner: ObjectOwner;
 }
 
 function OwnerCard({ objOwner }: OwnerCardProps): JSX.Element | null {
-    function getOwner(objOwner: ObjectOwner): string {
-        if (objOwner === 'Immutable') {
-            return 'Immutable';
-        } else if ('Shared' in objOwner) {
-            return 'Shared';
-        }
-        return 'ObjectOwner' in objOwner
-            ? formatAddress(objOwner.ObjectOwner)
-            : formatAddress(objOwner.AddressOwner);
-    }
-
-    let copyValue: string | undefined;
-
-    if (typeof objOwner === 'string') {
-        copyValue = objOwner;
-    } else if ('AddressOwner' in objOwner) {
-        copyValue = objOwner.AddressOwner;
-    } else if ('ObjectOwner' in objOwner) {
-        copyValue = objOwner.ObjectOwner;
-    } else if ('Shared' in objOwner) {
-        copyValue = objOwner.Shared.initial_shared_version;
-    }
     return (
         <DisplayStats
             label="Owner"
-            value={<OwnerLink objOwner={objOwner}>{getOwner(objOwner)}</OwnerLink>}
-            copyText={copyValue}
-            onCopySuccess={onCopySuccess}
+            value={
+                <div className="flex flex-col gap-xs">
+                    <OwnerDisplay objOwner={objOwner} />
+                </div>
+            }
         />
     );
 }
 
-function OwnerLink({
-    children,
-    objOwner,
-}: PropsWithChildren<{ objOwner: ObjectOwner }>): ReactNode {
+function OwnerDisplay({ objOwner }: { objOwner: ObjectOwner }): ReactNode {
+    const owner = getOwnerDisplay(objOwner);
     if (objOwner !== 'Immutable' && !('Shared' in objOwner)) {
         if ('ObjectOwner' in objOwner) {
-            return <ObjectLink objectId={objOwner.ObjectOwner}>{children}</ObjectLink>;
+            return <ObjectLink objectId={objOwner.ObjectOwner} copyText={objOwner.ObjectOwner} />;
         } else {
-            return <AddressLink address={objOwner.AddressOwner}>{children}</AddressLink>;
+            return <AddressLink address={objOwner.AddressOwner} copyText={objOwner.AddressOwner} />;
         }
     }
-    return null;
+
+    return <span className="text-neutral-10 dark:text-neutral-92">{owner}</span>;
 }
 
 interface StorageRebateCardProps {
