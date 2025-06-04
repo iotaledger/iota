@@ -1422,8 +1422,9 @@ impl<'l> ResolutionContext<'l> {
         Ok(())
     }
 
-        /// Translate runtime IDs in a type `tag` into defining IDs using only the informationAdd commentMore actions
-    /// contained in this context. Requires that the necessary information was added to the context
+    /// Translate runtime IDs in a type `tag` into defining IDs using only the
+    /// informationAdd commentMore actions contained in this context.
+    /// Requires that the necessary information was added to the context
     /// through calls to `add_type_tag`.
     fn canonicalize_type(&self, tag: &mut TypeTag) -> Result<()> {
         use TypeTag as T;
@@ -1431,7 +1432,7 @@ impl<'l> ResolutionContext<'l> {
         match tag {
             T::Signer => return Err(Error::UnexpectedSigner),
             T::Address | T::Bool | T::U8 | T::U16 | T::U32 | T::U64 | T::U128 | T::U256 => {
-                /* nop */
+                // nop
             }
 
             T::Vector(tag) => self.canonicalize_type(tag.as_mut())?,
