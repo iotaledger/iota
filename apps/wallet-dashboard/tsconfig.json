@@ -26,7 +26,8 @@
             "@/hooks/*": ["./hooks/*"],
             "@/stores/*": ["./stores/*"],
             "@iota/core/constants/*": ["./../core/src/constants/*"],
-            "@iota/core/utils/*": ["./../core/src/utils/*"]
+            "@iota/core/utils/*": ["./../core/src/utils/*"],
+            "@iota/core/interfaces/*": ["./../core/src/interfaces/*"]
         }
     },
     "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts"],

@@ -2,66 +2,41 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use fastcrypto::encoding::Base64;
-use iota_json_rpc_api::{ReadApiClient, TransactionBuilderClient, WriteApiClient};
+use iota_json_rpc_api::{ReadApiClient, WriteApiClient};
 use iota_json_rpc_types::{
     IotaExecutionStatus, IotaObjectDataOptions, IotaTransactionBlockEffectsAPI,
     IotaTransactionBlockResponseOptions,
 };
+use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
-    base_types::{IotaAddress, ObjectID},
+    base_types::{IotaAddress, ObjectRef},
     crypto::{AccountKeyPair, get_key_pair},
+    gas_coin::NANOS_PER_IOTA,
     object::Owner,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     quorum_driver_types::ExecuteTransactionRequestType,
     transaction::TransactionKind,
+    utils::to_sender_signed_transaction,
 };
-use jsonrpsee::http_client::HttpClient;
-use test_cluster::TestCluster;
 
 use crate::common::{ApiTestSetup, indexer_wait_for_checkpoint, indexer_wait_for_object};
 
 type TxBytes = Base64;
 type Signatures = Vec<Base64>;
 
-async fn prepare_and_sign_tx(
+async fn prepare_and_sign_object_transfer_tx(
     sender: IotaAddress,
+    sender_key_pair: AccountKeyPair,
     receiver: IotaAddress,
-    cluster: &TestCluster,
-    client: &HttpClient,
-    obj_id: ObjectID,
-    gas: ObjectID,
+    object_to_transfer: ObjectRef,
+    gas: ObjectRef,
 ) -> (TxBytes, Signatures) {
-    let transaction_bytes = client
-        .transfer_object(sender, obj_id, Some(gas), 10_000_000.into(), receiver)
-        .await
-        .unwrap();
-
-    let (tx_bytes, signatures) = cluster
-        .wallet
-        .sign_transaction(&transaction_bytes.to_data().unwrap())
-        .to_tx_bytes_and_signatures();
-
-    (tx_bytes, signatures)
+    let tx_builder = TestTransactionBuilder::new(sender, gas, 1000);
+    let tx_data = tx_builder.transfer(object_to_transfer, receiver).build();
+    let signed_transaction = to_sender_signed_transaction(tx_data, &sender_key_pair);
+    signed_transaction.to_tx_bytes_and_signatures()
 }
 
-async fn get_objects_to_mutate(
-    cluster: &TestCluster,
-    address: IotaAddress,
-) -> (Vec<ObjectID>, ObjectID) {
-    let owned_objects = cluster.get_owned_objects(address, None).await.unwrap();
-
-    let gas = owned_objects.last().unwrap().object_id().unwrap();
-
-    let object_ids = owned_objects
-        .iter()
-        .take(owned_objects.len() - 1)
-        .map(|obj| obj.object_id().unwrap())
-        .collect();
-
-    (object_ids, gas)
-}
-
-#[ignore = "https://github.com/iotaledger/iota/issues/6120"]
 #[test]
 fn dry_run_transaction_block() {
     let ApiTestSetup {
@@ -74,13 +49,35 @@ fn dry_run_transaction_block() {
     runtime.block_on(async {
         indexer_wait_for_checkpoint(store, 1).await;
 
-        let sender = cluster.get_address_0();
-        let receiver = cluster.get_address_1();
+        let (sender, key_pair): (_, AccountKeyPair) = get_key_pair();
+        let (receiver, _): (_, AccountKeyPair) = get_key_pair();
 
-        let (objects, gas) = get_objects_to_mutate(cluster, sender).await;
+        let gas = cluster
+            .fund_address_and_return_gas(
+                cluster.get_reference_gas_price().await,
+                Some(NANOS_PER_IOTA),
+                sender,
+            )
+            .await;
+        indexer_wait_for_object(client, gas.0, gas.1).await;
 
-        let (tx_bytes, signatures) =
-            prepare_and_sign_tx(sender, receiver, cluster, client, objects[0], gas).await;
+        let object_to_transfer = cluster
+            .fund_address_and_return_gas(
+                cluster.get_reference_gas_price().await,
+                Some(NANOS_PER_IOTA),
+                sender,
+            )
+            .await;
+        indexer_wait_for_object(client, object_to_transfer.0, object_to_transfer.1).await;
+
+        let (tx_bytes, signatures) = prepare_and_sign_object_transfer_tx(
+            sender,
+            key_pair,
+            receiver,
+            object_to_transfer,
+            gas,
+        )
+        .await;
 
         let dry_run_tx_block_resp = client
             .dry_run_transaction_block(tx_bytes.clone())
@@ -109,7 +106,15 @@ fn dry_run_transaction_block() {
         assert_eq!(
             indexer_tx_response.object_changes.unwrap(),
             dry_run_tx_block_resp.object_changes
-        )
+        );
+
+        assert!(
+            dry_run_tx_block_resp
+                .effects
+                .mutated()
+                .iter()
+                .any(|obj| obj.reference.object_id == object_to_transfer.0)
+        );
     });
 }
 
@@ -219,16 +224,37 @@ fn execute_transaction_block() {
     runtime.block_on(async {
         indexer_wait_for_checkpoint(store, 1).await;
 
-        let addresses = cluster.get_addresses();
-        let sender = addresses[2];
-        let receiver = addresses[3];
+        let (sender, key_pair): (_, AccountKeyPair) = get_key_pair();
+        let (receiver, _): (_, AccountKeyPair) = get_key_pair();
 
-        let (objects, gas) = get_objects_to_mutate(cluster, sender).await;
+        let gas = cluster
+            .fund_address_and_return_gas(
+                cluster.get_reference_gas_price().await,
+                Some(NANOS_PER_IOTA),
+                sender,
+            )
+            .await;
+        indexer_wait_for_object(client, gas.0, gas.1).await;
 
-        let obj_id = objects[0];
+        let object_to_transfer = cluster
+            .fund_address_and_return_gas(
+                cluster.get_reference_gas_price().await,
+                Some(NANOS_PER_IOTA),
+                sender,
+            )
+            .await;
+        indexer_wait_for_object(client, object_to_transfer.0, object_to_transfer.1).await;
 
-        let (tx_bytes, signatures) =
-            prepare_and_sign_tx(sender, receiver, cluster, client, obj_id, gas).await;
+        let object_to_transfer_id = object_to_transfer.0;
+
+        let (tx_bytes, signatures) = prepare_and_sign_object_transfer_tx(
+            sender,
+            key_pair,
+            receiver,
+            object_to_transfer,
+            gas,
+        )
+        .await;
 
         let indexer_tx_response = client
             .execute_transaction_block(
@@ -251,16 +277,20 @@ fn execute_transaction_block() {
             .mutated()
             .iter()
             .find_map(|obj| {
-                (obj.reference.object_id == obj_id).then_some((obj.reference.version, obj.owner))
+                (obj.reference.object_id == object_to_transfer_id)
+                    .then_some((obj.reference.version, obj.owner))
             })
             .unwrap();
 
         assert_eq!(owner, Owner::AddressOwner(receiver));
 
-        indexer_wait_for_object(client, obj_id, seq_num).await;
+        indexer_wait_for_object(client, object_to_transfer_id, seq_num).await;
 
         let actual_object_info = client
-            .get_object(obj_id, Some(IotaObjectDataOptions::new().with_owner()))
+            .get_object(
+                object_to_transfer_id,
+                Some(IotaObjectDataOptions::new().with_owner()),
+            )
             .await
             .unwrap();
 
