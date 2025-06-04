@@ -115,7 +115,7 @@ export function AddressBalanceBreakdown({ address }: { address: string }): React
             supportingLabel: symbol,
             isLoading: isLoadingBalance,
             isError: isBalanceErrored,
-            tooltipText: 'Funds that can be used.',
+            tooltipText: 'IOTA that can be used or transferred immediately.',
         },
         {
             keyText: 'Staked',
@@ -123,8 +123,7 @@ export function AddressBalanceBreakdown({ address }: { address: string }): React
             supportingLabel: symbol,
             isLoading: isLoadingDelegatedStakes,
             isError: isDelegatedStakeErrored,
-            tooltipText:
-                "IOTA that's currently staked and earning rewards. These funds cannot be used until they are unstaked.",
+            tooltipText: 'IOTA currently locked in staking. Cannot be used until unstaked.',
         },
         {
             keyText: 'Timelocked Staked',
