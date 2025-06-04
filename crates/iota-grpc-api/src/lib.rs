@@ -67,11 +67,7 @@ impl FullCheckpointDataExt for std::sync::Arc<dyn RestStateReader> {
         let contents = self
             .get_checkpoint_contents_by_sequence_number(seq)
             .ok()??;
-        Some(CheckpointData {
-            checkpoint_summary: summary.into_inner(),
-            checkpoint_contents: contents,
-            transactions: vec![], // Fill if available
-        })
+        self.get_checkpoint_data(summary, contents).ok()
     }
 }
 
