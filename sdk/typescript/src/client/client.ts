@@ -944,10 +944,10 @@ export class IotaClient {
     /**
      * Return the resolved record for the given name.
      */
-    async iotaNamesLookup(input?: IotaNamesLookupParams): Promise<IotaNameRecord | undefined> {
+    async iotaNamesLookup(input: IotaNamesLookupParams): Promise<IotaNameRecord | undefined> {
         return await this.transport.request({
             method: 'iotax_iotaNamesLookup',
-            params: [input?.name],
+            params: [input.name],
         });
     }
 
@@ -955,11 +955,11 @@ export class IotaClient {
      * Return the resolved name for the given address.
      */
     async iotaNamesReverseLookup(
-        input?: IotaNamesReverseLookupParams,
+        input: IotaNamesReverseLookupParams,
     ): Promise<string | undefined> {
         return await this.transport.request({
             method: 'iotax_iotaNamesReverseLookup',
-            params: [input?.address],
+            params: [input.address],
         });
     }
 
@@ -967,11 +967,11 @@ export class IotaClient {
      * Find all registration NFTs for the given address.
      */
     async iotaNamesFindAllRegistrationNFTs(
-        input?: IotaNamesFindAllRegistrationNFTsParams,
+        input: IotaNamesFindAllRegistrationNFTsParams,
     ): Promise<PaginatedObjectsResponse> {
         return await this.transport.request({
             method: 'iotax_iotaNamesFindAllRegistrationNFTs',
-            params: [input?.address, input?.cursor, input?.limit, input?.options],
+            params: [input.address, input.cursor, input.limit, input.options],
         });
     }
 }
