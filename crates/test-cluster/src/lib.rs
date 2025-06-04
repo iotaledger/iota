@@ -997,7 +997,6 @@ pub struct TestClusterBuilder {
     fullnode_policy_config: Option<PolicyConfig>,
     fullnode_fw_config: Option<RemoteFirewallConfig>,
     fullnode_grpc_api_address: Option<String>,
-
     max_submit_position: Option<usize>,
     submit_delay_step_override_millis: Option<u64>,
     validator_state_accumulator_config: StateAccumulatorV1EnabledConfig,
@@ -1342,6 +1341,10 @@ impl TestClusterBuilder {
             .with_fullnode_run_with_range(self.fullnode_run_with_range)
             .with_fullnode_policy_config(self.fullnode_policy_config.clone())
             .with_fullnode_fw_config(self.fullnode_fw_config.clone());
+
+        if let Some(addr) = &self.fullnode_grpc_api_address {
+            builder = builder.with_fullnode_grpc_api_address(addr.clone());
+        }
 
         if let Some(genesis_config) = self.genesis_config.take() {
             builder = builder.with_genesis_config(genesis_config);

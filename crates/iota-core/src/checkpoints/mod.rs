@@ -1811,24 +1811,6 @@ impl CheckpointAggregator {
         let summaries = self.run_inner()?;
         for summary in summaries {
             self.output.certified_checkpoint_created(&summary).await?;
-            if let Some(service) = self.service_weak.as_ref().and_then(|w| w.upgrade()) {
-                let arc_summary = Arc::new(summary.clone());
-                // --- Update the buffer ---
-                {
-                    let mut buf = service.buffer.lock().await;
-                    buf.push_back(arc_summary.clone());
-                    if buf.len() > 100 {
-                        buf.pop_front();
-                    }
-                    println!("[gRPC DEBUG] Buffer updated, new length: {}", buf.len());
-                }
-                // --- Send to broadcast channel ---
-                println!(
-                    "[gRPC DEBUG] Sending checkpoint to broadcast channel: seq={}, epoch={}",
-                    arc_summary.sequence_number, arc_summary.epoch
-                );
-                let _ = service.checkpoint_summary_tx.send(arc_summary);
-            }
         }
         Ok(())
     }

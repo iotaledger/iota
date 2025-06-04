@@ -17,10 +17,7 @@ async fn e2e_stream_checkpoints() {
     let grpc_addr = format!("127.0.0.1:{}", grpc_port);
 
     // Start a test cluster with gRPC enabled and pruning disabled
-    // Note that the validator gRPC API can be also used for getting the checkpoint
-    // stream. In this PoC we also implemented this.
     let cluster = TestClusterBuilder::new()
-        // .with_validator_grpc_api_address(grpc_addr.clone())
         .with_fullnode_grpc_api_address(grpc_addr.clone())
         .with_num_validators(1)
         .build()
