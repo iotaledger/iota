@@ -438,8 +438,6 @@ impl<S: PackageStore> Resolver<S> {
             ));
         };
 
-        let mut sigs = def.parameters.clone();
-
         // (1). Fetch all the information from this store that is necessary to resolve
         // types referenced by this tag.
         for sig in def.parameters.iter().chain(def.return_.iter()) {
