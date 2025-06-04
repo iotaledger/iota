@@ -45,7 +45,7 @@ use crate::{
         obj_indices::StoredObjectVersion,
         objects::{StoredDeletedObject, StoredHistoryObject, StoredObject, StoredObjectSnapshot},
         packages::StoredPackage,
-        transactions::{OptimisticTransaction, StoredTransaction, TxInsertionOrder},
+        transactions::{OptimisticTransaction, StoredTransaction, TxGlobalOrder},
         tx_indices::OptimisticTxIndices,
     },
     on_conflict_do_update, persist_chunk_into_table, read_only_blocking,
@@ -61,8 +61,8 @@ use crate::{
         optimistic_tx_changed_objects, optimistic_tx_input_objects, optimistic_tx_kinds,
         optimistic_tx_recipients, optimistic_tx_senders, packages, protocol_configs,
         pruner_cp_watermark, transactions, tx_calls_fun, tx_calls_mod, tx_calls_pkg,
-        tx_changed_objects, tx_digests, tx_input_objects, tx_insertion_order, tx_kinds,
-        tx_recipients, tx_senders,
+        tx_changed_objects, tx_digests, tx_global_order, tx_input_objects, tx_kinds, tx_recipients,
+        tx_senders,
     },
     transactional_blocking_with_retry,
     types::{
@@ -668,9 +668,9 @@ impl PgIndexerStore {
         })
     }
 
-    fn persist_tx_insertion_order_chunk(
+    fn persist_tx_global_order_chunk(
         &self,
-        tx_order: Vec<TxInsertionOrder>,
+        tx_order: Vec<TxGlobalOrder>,
     ) -> Result<(), IndexerError> {
         let guard = self
             .metrics
@@ -681,7 +681,7 @@ impl PgIndexerStore {
             &self.blocking_cp,
             |conn| {
                 for tx_order_chunk in tx_order.chunks(PG_COMMIT_CHUNK_SIZE_INTRA_DB_TX) {
-                    insert_or_ignore_into!(tx_insertion_order::table, tx_order_chunk, conn);
+                    insert_or_ignore_into!(tx_global_order::table, tx_order_chunk, conn);
                 }
                 Ok::<(), IndexerError>(())
             },
@@ -1599,7 +1599,7 @@ impl IndexerStore for PgIndexerStore {
         &self,
         transaction: OptimisticTransaction,
     ) -> Result<(), IndexerError> {
-        let insertion_order = transaction.insertion_order;
+        let sequence_number = transaction.sequence_number;
 
         self.spawn_blocking_task(move |this| {
             transactional_blocking_with_retry!(
@@ -1619,13 +1619,13 @@ impl IndexerStore for PgIndexerStore {
             IndexerError::PostgresWrite(format!("Failed to persist optimistic transaction: {e:?}"))
         })??;
 
-        info!("Persisted optimistic transaction {insertion_order}");
+        info!("Persisted optimistic transaction {sequence_number}");
         Ok(())
     }
 
-    async fn persist_tx_insertion_order(
+    async fn persist_tx_global_order(
         &self,
-        tx_order: Vec<TxInsertionOrder>,
+        tx_order: Vec<TxGlobalOrder>,
     ) -> Result<(), IndexerError> {
         let guard = self
             .metrics
@@ -1634,9 +1634,9 @@ impl IndexerStore for PgIndexerStore {
         let len = tx_order.len();
 
         let chunks = chunk!(tx_order, self.config.parallel_chunk_size);
-        let futures = chunks.into_iter().map(|c| {
-            self.spawn_blocking_task(move |this| this.persist_tx_insertion_order_chunk(c))
-        });
+        let futures = chunks
+            .into_iter()
+            .map(|c| self.spawn_blocking_task(move |this| this.persist_tx_global_order_chunk(c)));
 
         futures::future::try_join_all(futures)
             .await

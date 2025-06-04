@@ -71,7 +71,7 @@ use crate::{
     schema::{
         address_metrics, addresses, chain_identifier, checkpoints, display, epochs, events,
         objects, objects_history, objects_snapshot, objects_version, optimistic_transactions,
-        packages, pruner_cp_watermark, transactions, tx_digests, tx_insertion_order,
+        packages, pruner_cp_watermark, transactions, tx_digests, tx_global_order,
     },
     store::{diesel_macro::*, package_resolver::IndexerStorePackageResolver},
     types::{IndexerResult, OwnerType},
@@ -623,12 +623,12 @@ impl IndexerReader {
         let optimistic_txs = run_query!(&self.pool, |conn| {
             optimistic_transactions::table
                 .inner_join(
-                    tx_insertion_order::table.on(optimistic_transactions::insertion_order
-                        .eq(tx_insertion_order::insertion_order)),
+                    tx_global_order::table.on(optimistic_transactions::sequence_number
+                        .eq(tx_global_order::optimistic_sequence_number)),
                 )
-                // we filter the tx_insertion_order table because it is indexed by digest,
+                // we filter the `tx_global_order` table because it is indexed by digest,
                 // optimistic_transactions table is not
-                .filter(tx_insertion_order::tx_digest.eq_any(missing_digests))
+                .filter(tx_global_order::tx_digest.eq_any(missing_digests))
                 .select(OptimisticTransaction::as_select())
                 .load::<OptimisticTransaction>(conn)
         })?;
