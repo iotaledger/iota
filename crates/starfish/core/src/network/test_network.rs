@@ -13,21 +13,23 @@ use crate::{
     block_header::{BlockRef, VerifiedBlockHeader},
     commit::{CommitRange, TrustedCommit},
     error::ConsensusResult,
-    network::{BlockStream, NetworkService},
+    network::{BlockStream, NetworkService, SerializedBlock},
 };
 
 pub(crate) struct TestService {
-    pub(crate) handle_send_block: Vec<(AuthorityIndex, Bytes)>,
+    pub(crate) handle_subscribed_block: Vec<(AuthorityIndex, SerializedBlock)>,
+    pub(crate) handle_fetch_block_headers: Vec<(AuthorityIndex, Vec<BlockRef>)>,
     pub(crate) handle_fetch_blocks: Vec<(AuthorityIndex, Vec<BlockRef>)>,
     pub(crate) handle_subscribe_blocks: Vec<(AuthorityIndex, Round)>,
     pub(crate) handle_fetch_commits: Vec<(AuthorityIndex, CommitRange)>,
-    pub(crate) own_blocks: Vec<Bytes>,
+    pub(crate) own_blocks: Vec<SerializedBlock>,
 }
 
 impl TestService {
     pub(crate) fn new() -> Self {
         Self {
-            handle_send_block: Vec::new(),
+            handle_subscribed_block: Vec::new(),
+            handle_fetch_block_headers: Vec::new(),
             handle_fetch_blocks: Vec::new(),
             handle_subscribe_blocks: Vec::new(),
             handle_fetch_commits: Vec::new(),
@@ -36,16 +38,20 @@ impl TestService {
     }
 
     #[cfg_attr(msim, allow(dead_code))]
-    pub(crate) fn add_own_blocks(&mut self, blocks: Vec<Bytes>) {
+    pub(crate) fn add_own_blocks(&mut self, blocks: Vec<SerializedBlock>) {
         self.own_blocks.extend(blocks);
     }
 }
 
 #[async_trait]
 impl NetworkService for Mutex<TestService> {
-    async fn handle_send_block(&self, peer: AuthorityIndex, block: Bytes) -> ConsensusResult<()> {
+    async fn handle_subscribed_block(
+        &self,
+        peer: AuthorityIndex,
+        serialized_block: SerializedBlock,
+    ) -> ConsensusResult<()> {
         let mut state = self.lock();
-        state.handle_send_block.push((peer, block));
+        state.handle_subscribed_block.push((peer, serialized_block));
         Ok(())
     }
 
@@ -64,6 +70,18 @@ impl NetworkService for Mutex<TestService> {
             .cloned()
             .collect::<Vec<_>>();
         Ok(Box::pin(stream::iter(own_blocks)))
+    }
+
+    async fn handle_fetch_block_headers(
+        &self,
+        peer: AuthorityIndex,
+        block_refs: Vec<BlockRef>,
+        _highest_accepted_rounds: Vec<Round>,
+    ) -> ConsensusResult<Vec<Bytes>> {
+        self.lock()
+            .handle_fetch_block_headers
+            .push((peer, block_refs));
+        Ok(vec![])
     }
 
     async fn handle_fetch_blocks(

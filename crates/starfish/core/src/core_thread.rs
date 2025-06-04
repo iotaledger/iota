@@ -22,8 +22,8 @@ use tokio::sync::{oneshot, watch};
 use tracing::warn;
 
 use crate::{
-    BlockHeaderAPI as _,
-    block_header::{BlockRef, Round, VerifiedBlockHeader, VerifiedTransactions},
+    BlockHeaderAPI as _, VerifiedBlockHeader,
+    block_header::{BlockRef, Round, VerifiedBlock, VerifiedTransactions},
     commit::CertifiedCommits,
     context::Context,
     core::Core,
@@ -36,7 +36,9 @@ const CORE_THREAD_COMMANDS_CHANNEL_SIZE: usize = 2000;
 
 enum CoreThreadCommand {
     /// Add blocks to be processed and accepted
-    AddBlocks(
+    AddBlocks(Vec<VerifiedBlock>, oneshot::Sender<BTreeSet<BlockRef>>),
+    /// Add block headers to be processed and accepted
+    AddBlockHeaders(
         Vec<VerifiedBlockHeader>,
         oneshot::Sender<BTreeSet<BlockRef>>,
     ),
@@ -62,7 +64,10 @@ pub enum CoreError {
 /// Also this allows the easier mocking during unit tests.
 #[async_trait]
 pub trait CoreThreadDispatcher: Sync + Send + 'static {
-    async fn add_blocks(
+    async fn add_blocks(&self, blocks: Vec<VerifiedBlock>)
+    -> Result<BTreeSet<BlockRef>, CoreError>;
+
+    async fn add_block_headers(
         &self,
         blocks: Vec<VerifiedBlockHeader>,
     ) -> Result<BTreeSet<BlockRef>, CoreError>;
@@ -140,6 +145,11 @@ impl CoreThread {
                             let missing_block_refs = self.core.add_blocks(blocks)?;
                             sender.send(missing_block_refs).ok();
                         }
+                        CoreThreadCommand::AddBlockHeaders(block_headers, sender) => {
+                            let _scope = monitored_scope("CoreThread::loop::add_block_headers");
+                            let missing_block_refs = self.core.add_block_headers(block_headers)?;
+                            sender.send(missing_block_refs).ok();
+                        }
                         CoreThreadCommand::AddCertifiedCommits(commits, sender) => {
                             let _scope = monitored_scope("CoreThread::loop::add_certified_commits");
                             let missing_block_refs = self.core.add_certified_commits(commits)?;
@@ -204,7 +214,7 @@ impl ChannelCoreThreadDispatcher {
                 .committee
                 .authorities()
                 .map(|(index, _)| {
-                    AtomicU32::new(dag_state.get_last_block_for_authority(index).round())
+                    AtomicU32::new(dag_state.get_last_block_header_for_authority(index).round())
                 })
                 .collect();
 
@@ -269,13 +279,25 @@ impl ChannelCoreThreadDispatcher {
 impl CoreThreadDispatcher for ChannelCoreThreadDispatcher {
     async fn add_blocks(
         &self,
-        blocks: Vec<VerifiedBlockHeader>,
+        blocks: Vec<VerifiedBlock>,
     ) -> Result<BTreeSet<BlockRef>, CoreError> {
         for block in &blocks {
             self.highest_received_rounds[block.author()].fetch_max(block.round(), Ordering::AcqRel);
         }
         let (sender, receiver) = oneshot::channel();
-        self.send(CoreThreadCommand::AddBlocks(blocks.clone(), sender))
+        self.send(CoreThreadCommand::AddBlocks(blocks, sender))
+            .await;
+        let missing_block_refs = receiver.await.map_err(|e| Shutdown(e.to_string()))?;
+
+        Ok(missing_block_refs)
+    }
+
+    async fn add_block_headers(
+        &self,
+        block_headers: Vec<VerifiedBlockHeader>,
+    ) -> Result<BTreeSet<BlockRef>, CoreError> {
+        let (sender, receiver) = oneshot::channel();
+        self.send(CoreThreadCommand::AddBlockHeaders(block_headers, sender))
             .await;
         let missing_block_refs = receiver.await.map_err(|e| Shutdown(e.to_string()))?;
 
@@ -346,11 +368,12 @@ impl CoreThreadDispatcher for ChannelCoreThreadDispatcher {
 #[cfg(test)]
 pub(crate) mod tests {
     use iota_metrics::monitored_mpsc::unbounded_channel;
-    use parking_lot::RwLock;
+    use parking_lot::{Mutex, RwLock};
+    use tokio::time::Instant;
 
     use super::*;
     use crate::{
-        CommitConsumer,
+        CommitConsumer, VerifiedBlockHeader,
         block_manager::BlockManager,
         block_verifier::NoopBlockVerifier,
         commit_observer::CommitObserver,
@@ -365,15 +388,31 @@ pub(crate) mod tests {
     // TODO: complete the Mock for thread dispatcher to be used from several tests
     #[derive(Default)]
     pub(crate) struct MockCoreThreadDispatcher {
-        add_blocks: parking_lot::Mutex<Vec<VerifiedBlockHeader>>,
-        missing_blocks: parking_lot::Mutex<BTreeSet<BlockRef>>,
-        last_known_proposed_round: parking_lot::Mutex<Vec<Round>>,
+        blocks: Mutex<Vec<VerifiedBlock>>,
+        block_headers: Mutex<Vec<VerifiedBlockHeader>>,
+        missing_blocks: Mutex<BTreeSet<BlockRef>>,
+        last_known_proposed_round: Mutex<Vec<Round>>,
+        new_block_calls: Arc<Mutex<Vec<(Round, bool, Instant)>>>,
     }
 
     impl MockCoreThreadDispatcher {
-        pub(crate) async fn get_add_blocks(&self) -> Vec<VerifiedBlockHeader> {
-            let mut add_blocks = self.add_blocks.lock();
-            add_blocks.drain(0..).collect()
+        pub(crate) async fn get_and_drain_blocks(&self) -> Vec<VerifiedBlock> {
+            let mut blocks = self.blocks.lock();
+            blocks.drain(0..).collect()
+        }
+
+        pub(crate) async fn get_and_drain_block_headers(&self) -> Vec<VerifiedBlockHeader> {
+            let mut block_headers = self.block_headers.lock();
+            block_headers.drain(0..).collect()
+        }
+
+        pub(crate) fn get_blocks(&self) -> Vec<VerifiedBlock> {
+            self.blocks.lock().clone()
+        }
+
+        #[expect(dead_code)]
+        pub(crate) fn get_block_headers(&self) -> Vec<VerifiedBlockHeader> {
+            self.block_headers.lock().clone()
         }
 
         pub(crate) async fn stub_missing_blocks(&self, block_refs: BTreeSet<BlockRef>) {
@@ -385,17 +424,32 @@ pub(crate) mod tests {
             let last_known_proposed_round = self.last_known_proposed_round.lock();
             last_known_proposed_round.clone()
         }
+
+        pub(crate) async fn get_new_block_calls(&self) -> Vec<(Round, bool, Instant)> {
+            let mut binding = self.new_block_calls.lock();
+            let all_calls = binding.drain(0..);
+            all_calls.into_iter().collect()
+        }
     }
 
     #[async_trait]
     impl CoreThreadDispatcher for MockCoreThreadDispatcher {
         async fn add_blocks(
             &self,
-            blocks: Vec<VerifiedBlockHeader>,
+            blocks: Vec<VerifiedBlock>,
         ) -> Result<BTreeSet<BlockRef>, CoreError> {
-            let mut add_blocks = self.add_blocks.lock();
-            add_blocks.extend(blocks);
-            Ok(BTreeSet::new())
+            let block_refs = blocks.iter().map(|b| b.reference()).collect();
+            self.blocks.lock().extend(blocks);
+            Ok(block_refs)
+        }
+
+        async fn add_block_headers(
+            &self,
+            block_headers: Vec<VerifiedBlockHeader>,
+        ) -> Result<BTreeSet<BlockRef>, CoreError> {
+            let block_refs = block_headers.iter().map(|b| b.reference()).collect();
+            self.block_headers.lock().extend(block_headers);
+            Ok(block_refs)
         }
 
         async fn add_data(
@@ -416,7 +470,10 @@ pub(crate) mod tests {
             todo!()
         }
 
-        async fn new_block(&self, _round: Round, _force: bool) -> Result<(), CoreError> {
+        async fn new_block(&self, round: Round, force: bool) -> Result<(), CoreError> {
+            self.new_block_calls
+                .lock()
+                .push((round, force, Instant::now()));
             Ok(())
         }
 
@@ -498,11 +555,16 @@ pub(crate) mod tests {
         assert!(dispatcher_1.add_blocks(vec![]).await.is_ok());
         assert!(dispatcher_2.add_blocks(vec![]).await.is_ok());
 
+        assert!(dispatcher_1.add_block_headers(vec![]).await.is_ok());
+        assert!(dispatcher_2.add_block_headers(vec![]).await.is_ok());
+
         // Now shutdown the dispatcher
         handle.stop().await;
 
         // Try to send some commands
         assert!(dispatcher_1.add_blocks(vec![]).await.is_err());
         assert!(dispatcher_2.add_blocks(vec![]).await.is_err());
+        assert!(dispatcher_1.add_block_headers(vec![]).await.is_err());
+        assert!(dispatcher_2.add_block_headers(vec![]).await.is_err());
     }
 }

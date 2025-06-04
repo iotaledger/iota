@@ -512,11 +512,11 @@ mod tests {
         let mut subdags = vec![];
         let mut expected_commits = vec![];
 
-        let mut blocks_to_write = vec![];
+        let mut block_headers_to_write = vec![];
 
         for (sub_dag, commit) in dag_builder.get_sub_dag_and_commits(1..=11) {
-            for block in sub_dag.blocks.iter() {
-                blocks_to_write.push(block.clone());
+            for block_headers in sub_dag.blocks.iter() {
+                block_headers_to_write.push(block_headers.clone());
             }
 
             expected_commits.push(commit);
@@ -541,7 +541,7 @@ mod tests {
             .write(
                 WriteBatch::default()
                     .commit_info(vec![(commit_ref, commit_info)])
-                    .blocks(blocks_to_write)
+                    .block_headers(block_headers_to_write)
                     .commits(expected_commits),
             )
             .unwrap();
@@ -641,7 +641,7 @@ mod tests {
         store
             .write(
                 WriteBatch::default()
-                    .blocks(blocks_to_write)
+                    .block_headers(blocks_to_write)
                     .commits(expected_commits),
             )
             .unwrap();
