@@ -256,13 +256,26 @@ pub mod setup_postgres {
         Ok(())
     }
 
-    /// Checks that the local migration scripts is a prefix of the records in
-    /// the database. This allows us run migration scripts against a DB at
-    /// anytime, without worrying about existing readers fail over.
-    /// We do however need to make sure that whenever we are deploying a new
-    /// version of either reader or writer, we must first run migration
-    /// scripts to ensure that there is not more local scripts than in the DB
-    /// record.
+    /// Checks that the local migration scripts are a prefix of the records in
+    /// the database. This allows to run migration scripts against a DB at
+    /// any time, without worrying about existing readers failing over.
+    ///
+    /// # Deployment Requirement
+    /// Whenever deploying a new version of either the reader or writer,
+    /// migration scripts **must** be run first. This ensures that there are
+    /// never more local migration scripts than those recorded in the database.
+    ///
+    /// # Backward Compatibility
+    /// All new migrations must be **backward compatible** with the previous
+    /// data model. Do **not** remove or rename columns, tables, or change types
+    /// in a way that would break older versions of the reader or writer.
+    ///
+    /// Only after all services are running the new code and no old versions
+    /// are in use, can you safely remove deprecated fields or make breaking
+    /// changes.
+    ///
+    /// This approach supports rolling upgrades and prevents unnecessary
+    /// failures during deployment.
     pub fn check_db_migration_consistency(conn: &mut PoolConnection) -> Result<(), IndexerError> {
         info!("Starting compatibility check");
         let migrations: Vec<Box<dyn Migration<Pg>>> = MIGRATIONS.migrations().map_err(|err| {
@@ -372,7 +385,7 @@ pub mod setup_postgres {
         Ok(())
     }
 
-    #[cfg(feature = "pg_integration")]
+    // #[cfg(feature = "pg_integration")]
     #[cfg(test)]
     mod tests {
         use diesel::{
@@ -400,10 +413,13 @@ pub mod setup_postgres {
             let mut database =
                 TestDatabase::new(database_url("db_migration_consistency_smoke_test"));
             database.recreate();
-            let pool = database.to_connection_pool();
-            let mut conn = pool.get().unwrap();
-            setup_postgres::reset_database(&mut conn).unwrap();
-            setup_postgres::check_db_migration_consistency(&mut conn).unwrap();
+            database.reset_db();
+            {
+                let pool = database.to_connection_pool();
+                let mut conn = pool.get().unwrap();
+                setup_postgres::check_db_migration_consistency(&mut conn).unwrap();
+            }
+            database.drop_if_exists();
         }
 
         #[test]
@@ -411,19 +427,21 @@ pub mod setup_postgres {
             let mut database =
                 TestDatabase::new(database_url("db_migration_consistency_non_prefix_test"));
             database.recreate();
-            let pool = database.to_connection_pool();
-            let mut conn = pool.get().unwrap();
-            setup_postgres::reset_database(&mut conn).unwrap();
+            database.reset_db();
+            {
+                let pool = database.to_connection_pool();
+                let mut conn = pool.get().unwrap();
+                conn.revert_migration(MIGRATIONS.migrations().unwrap().last().unwrap())
+                    .unwrap();
+                // Local migrations is one record more than the applied migrations.
+                // This will fail the consistency check since it's not a prefix.
+                assert!(setup_postgres::check_db_migration_consistency(&mut conn).is_err());
 
-            conn.revert_migration(MIGRATIONS.migrations().unwrap().last().unwrap())
-                .unwrap();
-            // Local migrations is one record more than the applied migrations.
-            // This will fail the consistency check since it's not a prefix.
-            assert!(setup_postgres::check_db_migration_consistency(&mut conn).is_err());
-
-            conn.run_pending_migrations(MIGRATIONS).unwrap();
-            // After running pending migrations they should be consistent.
-            setup_postgres::check_db_migration_consistency(&mut conn).unwrap();
+                conn.run_pending_migrations(MIGRATIONS).unwrap();
+                // After running pending migrations they should be consistent.
+                setup_postgres::check_db_migration_consistency(&mut conn).unwrap();
+            }
+            database.drop_if_exists();
         }
 
         #[test]
@@ -431,18 +449,21 @@ pub mod setup_postgres {
             let mut database =
                 TestDatabase::new(database_url("db_migration_consistency_prefix_test"));
             database.recreate();
-            let pool = database.to_connection_pool();
-            let mut conn = pool.get().unwrap();
-            setup_postgres::reset_database(&mut conn).unwrap();
+            database.reset_db();
+            {
+                let pool = database.to_connection_pool();
+                let mut conn = pool.get().unwrap();
 
-            let migrations: Vec<Box<dyn Migration<Pg>>> = MIGRATIONS.migrations().unwrap();
-            let mut local_migrations: Vec<_> =
-                migrations.iter().map(|m| m.name().version()).collect();
-            local_migrations.pop();
-            // Local migrations is one record less than the applied migrations.
-            // This should pass the consistency check since it's still a prefix.
-            setup_postgres::check_db_migration_consistency_impl(&mut conn, local_migrations)
-                .unwrap();
+                let migrations: Vec<Box<dyn Migration<Pg>>> = MIGRATIONS.migrations().unwrap();
+                let mut local_migrations: Vec<_> =
+                    migrations.iter().map(|m| m.name().version()).collect();
+                local_migrations.pop();
+                // Local migrations is one record less than the applied migrations.
+                // This should pass the consistency check since it's still a prefix.
+                setup_postgres::check_db_migration_consistency_impl(&mut conn, local_migrations)
+                    .unwrap();
+            }
+            database.drop_if_exists();
         }
     }
 }
