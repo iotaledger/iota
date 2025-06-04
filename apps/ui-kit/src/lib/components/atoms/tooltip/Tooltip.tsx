@@ -106,6 +106,7 @@ export function Tooltip({
                 ref={triggerRef}
                 className="inline-block cursor-pointer"
                 onMouseEnter={open}
+                onFocus={open}
                 onMouseLeave={close}
                 onBlur={close}
             >
