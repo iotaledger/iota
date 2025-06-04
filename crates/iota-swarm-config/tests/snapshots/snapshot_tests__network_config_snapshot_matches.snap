@@ -122,7 +122,9 @@ validator_configs:
       check-system-overload-at-signing: true
       max-transaction-manager-queue-length: 100000
       max-transaction-manager-per-object-queue-length: 100
-    execution-cache: passthrough-cache
+    execution-cache:
+      writeback-cache:
+        max_cache_size: ~
     enable-validator-tx-finalizer: true
     verifier-signing-config:
       max-per-fun-meter-units: ~
@@ -249,7 +251,9 @@ validator_configs:
       check-system-overload-at-signing: true
       max-transaction-manager-queue-length: 100000
       max-transaction-manager-per-object-queue-length: 100
-    execution-cache: passthrough-cache
+    execution-cache:
+      writeback-cache:
+        max_cache_size: ~
     enable-validator-tx-finalizer: true
     verifier-signing-config:
       max-per-fun-meter-units: ~
@@ -376,7 +380,9 @@ validator_configs:
       check-system-overload-at-signing: true
       max-transaction-manager-queue-length: 100000
       max-transaction-manager-per-object-queue-length: 100
-    execution-cache: passthrough-cache
+    execution-cache:
+      writeback-cache:
+        max_cache_size: ~
     enable-validator-tx-finalizer: true
     verifier-signing-config:
       max-per-fun-meter-units: ~
@@ -503,7 +509,9 @@ validator_configs:
       check-system-overload-at-signing: true
       max-transaction-manager-queue-length: 100000
       max-transaction-manager-per-object-queue-length: 100
-    execution-cache: passthrough-cache
+    execution-cache:
+      writeback-cache:
+        max_cache_size: ~
     enable-validator-tx-finalizer: true
     verifier-signing-config:
       max-per-fun-meter-units: ~
@@ -630,7 +638,9 @@ validator_configs:
       check-system-overload-at-signing: true
       max-transaction-manager-queue-length: 100000
       max-transaction-manager-per-object-queue-length: 100
-    execution-cache: passthrough-cache
+    execution-cache:
+      writeback-cache:
+        max_cache_size: ~
     enable-validator-tx-finalizer: true
     verifier-signing-config:
       max-per-fun-meter-units: ~
@@ -757,7 +767,9 @@ validator_configs:
       check-system-overload-at-signing: true
       max-transaction-manager-queue-length: 100000
       max-transaction-manager-per-object-queue-length: 100
-    execution-cache: passthrough-cache
+    execution-cache:
+      writeback-cache:
+        max_cache_size: ~
     enable-validator-tx-finalizer: true
     verifier-signing-config:
       max-per-fun-meter-units: ~
@@ -884,7 +896,9 @@ validator_configs:
       check-system-overload-at-signing: true
       max-transaction-manager-queue-length: 100000
       max-transaction-manager-per-object-queue-length: 100
-    execution-cache: passthrough-cache
+    execution-cache:
+      writeback-cache:
+        max_cache_size: ~
     enable-validator-tx-finalizer: true
     verifier-signing-config:
       max-per-fun-meter-units: ~
