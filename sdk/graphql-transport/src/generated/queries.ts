@@ -5990,14 +5990,14 @@ export type ResolveNameServiceAddressQueryVariables = Exact<{
 
 export type ResolveNameServiceAddressQuery = { __typename?: 'Query', resolveIotaNamesAddress?: { __typename?: 'Address', address: any } | null };
 
-export type ResolveNameServiceNamesQueryVariables = Exact<{
+export type ResolveNameServiceNameQueryVariables = Exact<{
   address: Scalars['IotaAddress']['input'];
   limit?: InputMaybe<Scalars['Int']['input']>;
   cursor?: InputMaybe<Scalars['String']['input']>;
 }>;
 
 
-export type ResolveNameServiceNamesQuery = { __typename?: 'Query', address?: { __typename?: 'Address', iotaNamesRegistrations: { __typename?: 'IotaNamesRegistrationConnection', pageInfo: { __typename?: 'PageInfo', hasNextPage: boolean, endCursor?: string | null }, nodes: Array<{ __typename?: 'IotaNamesRegistration', domain: string }> } } | null };
+export type ResolveNameServiceNameQuery = { __typename?: 'Query', address?: { __typename?: 'Address', iotaNamesRegistrations: { __typename?: 'IotaNamesRegistrationConnection', pageInfo: { __typename?: 'PageInfo', hasNextPage: boolean, endCursor?: string | null }, nodes: Array<{ __typename?: 'IotaNamesRegistration', domain: string }> } } | null };
 
 export type GetOwnedObjectsQueryVariables = Exact<{
   owner: Scalars['IotaAddress']['input'];
@@ -8173,8 +8173,8 @@ export const ResolveNameServiceAddressDocument = new TypedDocumentString(`
   }
 }
     `) as unknown as TypedDocumentString<ResolveNameServiceAddressQuery, ResolveNameServiceAddressQueryVariables>;
-export const ResolveNameServiceNamesDocument = new TypedDocumentString(`
-    query resolveNameServiceNames($address: IotaAddress!, $limit: Int, $cursor: String) {
+export const ResolveNameServiceNameDocument = new TypedDocumentString(`
+    query resolveNameServiceName($address: IotaAddress!, $limit: Int, $cursor: String) {
   address(address: $address) {
     iotaNamesRegistrations(first: $limit, after: $cursor) {
       pageInfo {
@@ -8187,7 +8187,7 @@ export const ResolveNameServiceNamesDocument = new TypedDocumentString(`
     }
   }
 }
-    `) as unknown as TypedDocumentString<ResolveNameServiceNamesQuery, ResolveNameServiceNamesQueryVariables>;
+    `) as unknown as TypedDocumentString<ResolveNameServiceNameQuery, ResolveNameServiceNameQueryVariables>;
 export const GetOwnedObjectsDocument = new TypedDocumentString(`
     query getOwnedObjects($owner: IotaAddress!, $limit: Int, $cursor: String, $showBcs: Boolean = false, $showContent: Boolean = false, $showDisplay: Boolean = false, $showType: Boolean = false, $showOwner: Boolean = false, $showPreviousTransaction: Boolean = false, $showStorageRebate: Boolean = false, $filter: ObjectFilter) {
   address(address: $owner) {

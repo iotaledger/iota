@@ -8,7 +8,7 @@ query resolveNameServiceAddress($domain: String!) {
     }
 }
 
-query resolveNameServiceNames($address: IotaAddress!, $limit: Int, $cursor: String) {
+query resolveNameServiceName($address: IotaAddress!, $limit: Int, $cursor: String) {
     address(address: $address) {
         iotaNamesRegistrations(first: $limit, after: $cursor) {
             pageInfo {
