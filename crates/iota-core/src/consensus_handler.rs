@@ -165,6 +165,8 @@ impl<C> ConsensusHandler<C> {
 impl<C: CheckpointServiceNotify + Send + Sync> ConsensusHandler<C> {
     #[instrument(level = "debug", skip_all)]
     async fn handle_consensus_output(&mut self, consensus_output: impl ConsensusOutputAPI) {
+        let _scope = monitored_scope("HandleConsensusOutput");
+
         let last_committed_round = self.last_consensus_stats.index.last_committed_round;
 
         let round = consensus_output.leader_round();
@@ -276,13 +278,12 @@ impl<C: CheckpointServiceNotify + Send + Sync> ConsensusHandler<C> {
                         .observe(serialized_len as f64);
                     if matches!(
                         &transaction.kind,
-                        ConsensusTransactionKind::UserTransaction(_)
+                        ConsensusTransactionKind::CertifiedTransaction(_)
                     ) {
                         self.last_consensus_stats
                             .stats
                             .inc_num_user_transactions(authority_index as usize);
                     }
-
                     let transaction = SequencedConsensusTransactionKind::External(transaction);
                     transactions.push((transaction, authority_index));
                 }
@@ -487,7 +488,7 @@ impl<C> ConsensusHandler<C> {
 
 pub(crate) fn classify(transaction: &ConsensusTransaction) -> &'static str {
     match &transaction.kind {
-        ConsensusTransactionKind::UserTransaction(certificate) => {
+        ConsensusTransactionKind::CertifiedTransaction(certificate) => {
             if certificate.contains_shared_object() {
                 "shared_certificate"
             } else {
@@ -602,7 +603,7 @@ impl SequencedConsensusTransactionKind {
     pub fn executable_transaction_digest(&self) -> Option<TransactionDigest> {
         match self {
             SequencedConsensusTransactionKind::External(ext) => {
-                if let ConsensusTransactionKind::UserTransaction(txn) = &ext.kind {
+                if let ConsensusTransactionKind::CertifiedTransaction(txn) = &ext.kind {
                     Some(*txn.digest())
                 } else {
                     None
@@ -648,7 +649,7 @@ impl SequencedConsensusTransaction {
 
     pub fn is_user_tx_with_randomness(&self) -> bool {
         let SequencedConsensusTransactionKind::External(ConsensusTransaction {
-            kind: ConsensusTransactionKind::UserTransaction(certificate),
+            kind: ConsensusTransactionKind::CertifiedTransaction(certificate),
             ..
         }) = &self.transaction
         else {
@@ -660,7 +661,7 @@ impl SequencedConsensusTransaction {
     pub fn as_shared_object_txn(&self) -> Option<&SenderSignedData> {
         match &self.transaction {
             SequencedConsensusTransactionKind::External(ConsensusTransaction {
-                kind: ConsensusTransactionKind::UserTransaction(certificate),
+                kind: ConsensusTransactionKind::CertifiedTransaction(certificate),
                 ..
             }) if certificate.contains_shared_object() => Some(certificate.data()),
             SequencedConsensusTransactionKind::System(txn) if txn.contains_shared_object() => {
@@ -969,7 +970,7 @@ mod tests {
                 ConsensusTransactionKind::CapabilityNotificationV1(cap) => {
                     format!("cap({})", cap.generation)
                 }
-                ConsensusTransactionKind::UserTransaction(txn) => {
+                ConsensusTransactionKind::CertifiedTransaction(txn) => {
                     format!("user({})", txn.transaction_data().gas_price())
                 }
                 _ => unreachable!(),
@@ -1013,7 +1014,7 @@ mod tests {
             ),
             vec![],
         );
-        txn(ConsensusTransactionKind::UserTransaction(Box::new(
+        txn(ConsensusTransactionKind::CertifiedTransaction(Box::new(
             CertifiedTransaction::new_from_keypairs_for_testing(data, &keypairs, &committee),
         )))
     }

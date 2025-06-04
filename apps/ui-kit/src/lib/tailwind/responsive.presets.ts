@@ -24,7 +24,7 @@ const responsivePreset: Config = merge({}, BASE_CONFIG, {
             center: true,
             screens,
             padding: {
-                DEFAULT: pxToRem(24),
+                DEFAULT: pxToRem(20),
                 md: pxToRem(48),
                 lg: pxToRem(120),
                 xl: pxToRem(240),

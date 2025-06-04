@@ -12,8 +12,10 @@ pub enum IotaNamesError {
     InvalidLabelLength(usize, usize, usize),
     #[error("Hyphens are not allowed as first or last character of a label")]
     HyphensAsFirstOrLastLabelChar,
-    #[error("Only lowercase letters, numbers, and hyphens are allowed as label characters")]
-    InvalidLabelChar,
+    #[error(
+        "Only lowercase letters, numbers, and hyphens are allowed as label characters. Got \'{0}\' at position {1}"
+    )]
+    InvalidLabelChar(char, usize),
     #[error("Domain must contain at least two labels, TLD and SLD")]
     NotEnoughLabels,
     #[error("Domain must include only one separator")]

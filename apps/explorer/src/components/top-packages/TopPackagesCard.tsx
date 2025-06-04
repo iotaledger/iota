@@ -32,19 +32,21 @@ export function TopPackagesCard(): JSX.Element {
 
     return (
         <Panel>
-            <div className="relative">
-                <div className="absolute right-0 mr-2 mt-2">
-                    <FilterList
-                        options={Object.keys(FILTER_TO_API_FILTER) as DateFilter[]}
-                        selected={selectedFilter}
-                        onSelected={(val) => setSelectedFilter(val)}
-                        filtersAsChip
+            <div className="flex flex-col">
+                <div className="flex w-full flex-row flex-wrap items-center justify-between">
+                    <Title
+                        title="Popular Packages"
+                        tooltipText="Popular packages is recomputed on epoch changes."
                     />
+                    <div className="inline-flex px-md--rs py-xxs">
+                        <FilterList
+                            options={Object.keys(FILTER_TO_API_FILTER) as DateFilter[]}
+                            selected={selectedFilter}
+                            onSelected={(val) => setSelectedFilter(val)}
+                            filtersAsChip
+                        />
+                    </div>
                 </div>
-                <Title
-                    title="Popular Packages"
-                    tooltipText="Popular packages is recomputed on epoch changes."
-                />
                 <ErrorBoundary>
                     <div className="p-md--rs">
                         <TopPackagesTable data={filteredData} isLoading={isPending} />
