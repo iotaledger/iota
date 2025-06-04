@@ -25,6 +25,7 @@ pub(crate) trait Store: Send + Sync {
 
     /// Reads complete blocks by combining transactions and headers for the
     /// given refs.
+    #[expect(dead_code)]
     fn read_blocks(&self, refs: &[BlockRef]) -> ConsensusResult<Vec<Option<VerifiedBlock>>>;
 
     /// Reads block headers for the given refs.
