@@ -79,9 +79,9 @@ pub async fn send_and_confirm_transaction(
     // We also check the incremental effects of the transaction on the live object
     // set against StateAccumulator for testing and regression detection
     let state_acc = StateAccumulator::new_for_tests(authority.get_accumulator_store().clone());
-    let mut state = state_acc.accumulate_live_object_set();
+    let mut state = state_acc.accumulate_cached_live_object_set_for_testing();
     let (result, _execution_error_opt) = authority.try_execute_for_test(&certificate).await?;
-    let state_after = state_acc.accumulate_live_object_set();
+    let state_after = state_acc.accumulate_cached_live_object_set_for_testing();
     let effects_acc = state_acc.accumulate_effects(vec![result.inner().data().clone()]);
     state.union(&effects_acc);
 

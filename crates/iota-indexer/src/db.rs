@@ -271,21 +271,6 @@ pub mod setup_postgres {
             );
             e
         })?;
-        if indexer_config.reset_db {
-            reset_database(&mut conn).map_err(|e| {
-                let db_err_msg = format!(
-                    "Failed resetting database with url: {:?} and error: {:?}",
-                    db_url, e
-                );
-                error!("{}", db_err_msg);
-                IndexerError::PostgresReset(db_err_msg)
-            })?;
-            info!("Reset Postgres database complete.");
-        } else {
-            conn.run_pending_migrations(MIGRATIONS)
-                .map_err(|e| anyhow!("Failed to run pending migrations {e}"))?;
-            info!("Database migrations are up to date.");
-        }
         let indexer_metrics = IndexerMetrics::new(&registry);
         iota_metrics::init_metrics(&registry);
 
@@ -309,6 +294,21 @@ pub mod setup_postgres {
         });
         if indexer_config.fullnode_sync_worker {
             let store = PgIndexerStore::new(blocking_cp, indexer_metrics.clone());
+            if indexer_config.reset_db {
+                reset_database(&mut conn).map_err(|e| {
+                    let db_err_msg = format!(
+                        "Failed resetting database with url: {:?} and error: {:?}",
+                        db_url, e
+                    );
+                    error!("{}", db_err_msg);
+                    IndexerError::PostgresReset(db_err_msg)
+                })?;
+                info!("Reset Postgres database complete.");
+            } else {
+                conn.run_pending_migrations(MIGRATIONS)
+                    .map_err(|e| anyhow!("Failed to run pending migrations {e}"))?;
+                info!("Database migrations are up to date.");
+            }
             return Indexer::start_writer(&indexer_config, store, indexer_metrics).await;
         } else if indexer_config.rpc_server_worker {
             return Indexer::start_reader(&indexer_config, &registry, db_url.to_string()).await;
