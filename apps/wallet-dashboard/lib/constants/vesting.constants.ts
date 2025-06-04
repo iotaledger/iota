@@ -6,13 +6,13 @@ import {
     MILLISECONDS_PER_DAY,
     DAYS_PER_YEAR,
 } from '@iota/core/constants/time.constants';
-import { TimelockedObject } from '../interfaces';
 import {
     getMockedSupplyIncreaseVestingTimelockedObjectsWithDynamicDate,
     getMockedVestingTimelockedStakedObjectsWithDynamicDate,
 } from '../utils/vesting/buildMockedObjectsWithDynamicDateUtils';
 import { DelegatedTimelockedStake } from '@iota/iota-sdk/client';
 import { SUPPLY_INCREASE_VESTING_LABEL } from '@iota/core/constants/vesting.constants';
+import { TimelockedObject } from '@iota/core/interfaces/timelock.interfaces';
 
 export const SUPPLY_INCREASE_VESTING_PAYOUT_SCHEDULE = 2 * DAYS_PER_WEEK;
 export const SUPPLY_INCREASE_VESTING_PAYOUT_SCHEDULE_MILLISECONDS =
