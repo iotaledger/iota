@@ -217,14 +217,14 @@ impl TxIndex {
 #[derive(Queryable, Insertable, Selectable, Debug, Clone, Default)]
 #[diesel(table_name = optimistic_tx_senders)]
 pub struct OptimisticTxSenders {
-    pub tx_insertion_order: i64,
+    pub sequence_number: i64,
     pub sender: Vec<u8>,
 }
 
 #[derive(Queryable, Insertable, Selectable, Debug, Clone, Default)]
 #[diesel(table_name = optimistic_tx_recipients)]
 pub struct OptimisticTxRecipients {
-    pub tx_insertion_order: i64,
+    pub sequence_number: i64,
     pub recipient: Vec<u8>,
     pub sender: Vec<u8>,
 }
@@ -232,7 +232,7 @@ pub struct OptimisticTxRecipients {
 #[derive(Queryable, Insertable, Selectable, Debug, Clone, Default)]
 #[diesel(table_name = optimistic_tx_input_objects)]
 pub struct OptimisticTxInputObject {
-    pub tx_insertion_order: i64,
+    pub sequence_number: i64,
     pub object_id: Vec<u8>,
     pub sender: Vec<u8>,
 }
@@ -240,7 +240,7 @@ pub struct OptimisticTxInputObject {
 #[derive(Queryable, Insertable, Selectable, Debug, Clone, Default)]
 #[diesel(table_name = optimistic_tx_changed_objects)]
 pub struct OptimisticTxChangedObject {
-    pub tx_insertion_order: i64,
+    pub sequence_number: i64,
     pub object_id: Vec<u8>,
     pub sender: Vec<u8>,
 }
@@ -248,7 +248,7 @@ pub struct OptimisticTxChangedObject {
 #[derive(Queryable, Insertable, Selectable, Debug, Clone, Default)]
 #[diesel(table_name = optimistic_tx_calls_pkg)]
 pub struct OptimisticTxPkg {
-    pub tx_insertion_order: i64,
+    pub sequence_number: i64,
     pub package: Vec<u8>,
     pub sender: Vec<u8>,
 }
@@ -256,7 +256,7 @@ pub struct OptimisticTxPkg {
 #[derive(Queryable, Insertable, Selectable, Debug, Clone, Default)]
 #[diesel(table_name = optimistic_tx_calls_mod)]
 pub struct OptimisticTxMod {
-    pub tx_insertion_order: i64,
+    pub sequence_number: i64,
     pub package: Vec<u8>,
     pub module: String,
     pub sender: Vec<u8>,
@@ -265,7 +265,7 @@ pub struct OptimisticTxMod {
 #[derive(Queryable, Insertable, Selectable, Debug, Clone, Default)]
 #[diesel(table_name = optimistic_tx_calls_fun)]
 pub struct OptimisticTxFun {
-    pub tx_insertion_order: i64,
+    pub sequence_number: i64,
     pub package: Vec<u8>,
     pub module: String,
     pub func: String,
@@ -276,7 +276,7 @@ pub struct OptimisticTxFun {
 #[diesel(table_name = optimistic_tx_kinds)]
 pub struct OptimisticTxKind {
     pub tx_kind: i16,
-    pub tx_insertion_order: i64,
+    pub sequence_number: i64,
 }
 
 optimistic_from_into_checkpoint!(OptimisticTxSenders, StoredTxSenders, { sender });
