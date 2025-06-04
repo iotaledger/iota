@@ -114,7 +114,7 @@ export function AddressBalanceBreakdown({ address }: { address: string }): React
 
     const BALANCE_BREAKDOWN: BalanceBreakdownElement[] = [
         {
-            keyText: 'Available IOTA',
+            keyText: 'Available',
             value: totalAvailableBalance,
             supportingLabel: symbol,
             isLoading: isLoadingBalance,
@@ -127,7 +127,8 @@ export function AddressBalanceBreakdown({ address }: { address: string }): React
             supportingLabel: symbol,
             isLoading: isLoadingDelegatedStakes,
             isError: isDelegatedStakeErrored,
-            tooltipText: 'IOTA currently locked in staking. Cannot be used until unstaked.',
+            tooltipText:
+                "IOTA that's currently staked and earning rewards. These funds cannot be used until they are unstaked.",
         },
         {
             keyText: 'Timelocked Staked',
