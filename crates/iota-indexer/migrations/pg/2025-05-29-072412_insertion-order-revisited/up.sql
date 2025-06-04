@@ -13,7 +13,7 @@ DROP TABLE IF EXISTS tx_insertion_order;
 -- `optimistic_sequence_number` is the monotically increasing number
 -- that represents the order of execution for optimistic transactions.
 --
--- In case of missing digests, the `tx_digests` table is used a fallback
+-- In case of missing digests, the `tx_digests` table is used as a fallback
 -- to resolve the transaction order. This is ok because optimistic transactions
 -- will be inserted only after creation of this table.
 CREATE TABLE tx_global_order (
