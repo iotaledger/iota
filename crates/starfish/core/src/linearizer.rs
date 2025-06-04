@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use std::{
-    collections::{HashMap, HashSet},
+    collections::{BTreeMap, HashSet},
     sync::Arc,
 };
 
@@ -12,13 +12,19 @@ use parking_lot::RwLock;
 use starfish_config::AuthorityIndex;
 
 use crate::{
-    block_header::{BlockHeaderAPI, BlockRef, VerifiedBlockHeader},
+    Round,
+    block_header::{BlockHeaderAPI, BlockHeaderDigest, BlockRef, VerifiedBlockHeader},
     commit::{Commit, CommitAPI, PendingSubDag, TrustedCommit, sort_sub_dag_blocks},
     context::Context,
-    dag_state::DagState,
+    dag_state::{DagState, MAX_TRANSACTIONS_ACK_DEPTH},
     leader_schedule::LeaderSchedule,
     stake_aggregator::{QuorumThreshold, StakeAggregator},
 };
+
+/// The maximum depth of the linearizer, i.e. how many rounds back it will
+/// traverse the DAG from a committed leader block
+// TODO: make it derivable from the protocol parameters
+pub(crate) const MAX_LINEARIZER_DEPTH: Round = 10;
 
 /// The `StorageAPI` trait provides an interface for the block store and has
 /// been mostly introduced for allowing to inject the test store in
@@ -46,7 +52,7 @@ pub(crate) struct Linearizer {
     //  max_linearizer_depth should be removed
     // TODO: should this be part of the Linearizer or
     //  its own component?
-    transactions_ack_tracker: HashMap<BlockRef, StakeAggregator<QuorumThreshold>>,
+    transactions_ack_tracker: BTreeMap<BlockRef, StakeAggregator<QuorumThreshold>>,
 }
 
 impl Linearizer {
@@ -59,7 +65,7 @@ impl Linearizer {
             dag_state,
             leader_schedule,
             context,
-            transactions_ack_tracker: HashMap::new(),
+            transactions_ack_tracker: BTreeMap::new(),
         }
     }
 
@@ -101,6 +107,7 @@ impl Linearizer {
             // using flat_map here to avoid nested vectors.
             .flat_map(|block| {
                 self.add_committed_transaction_acks(
+                    block.round(),
                     block.author(),
                     block.acknowledgments().to_vec(),
                 )
@@ -145,6 +152,7 @@ impl Linearizer {
         dag_state: &mut impl BlockStoreAPI,
     ) -> Vec<VerifiedBlockHeader> {
         let leader_block_ref = leader_block.reference();
+        let leader_round = leader_block.round();
         let mut buffer = vec![leader_block];
 
         let mut to_commit = Vec::new();
@@ -161,10 +169,13 @@ impl Linearizer {
                         .iter()
                         .copied()
                         .filter(|ancestor| {
-                            // We skip the block if we already committed it or we reached a
-                            // round that we already committed.
+                            // We skip the block if we already committed it or
+                            // we reached a round that we already committed or
+                            // we traverse too far back in the past
                             !committed.contains(ancestor)
                                 && last_committed_rounds[ancestor.author] < ancestor.round
+                                && ancestor.round
+                                    >= leader_round.saturating_sub(MAX_LINEARIZER_DEPTH)
                         })
                         .collect::<Vec<_>>(),
                 )
@@ -204,6 +215,13 @@ impl Linearizer {
             .leader_schedule_updated(&self.dag_state);
 
         let mut pending_sub_dags = vec![];
+
+        let max_round_committed_leader = committed_leaders
+            .iter()
+            .map(|block| block.round())
+            .max()
+            .expect("We should expect at least one leader block");
+
         for (i, leader_block) in committed_leaders.into_iter().enumerate() {
             let reputation_scores_desc = if schedule_updated && i == 0 {
                 self.leader_schedule
@@ -233,25 +251,46 @@ impl Linearizer {
         // storage.
         self.dag_state.write().flush();
 
+        // Evict old acknowledgments from the tracker of the linearizer.
+        self.evict_old_acknowledgments(max_round_committed_leader);
+
+        // TODO: we should resubmit transactions from own blocks that are not sequenced
+        // and below certain round
+
         pending_sub_dags
     }
 
-    // This function is called to add the transaction acknowledgments to the tracker
-    // and returns the vector of block refs to transactions that reached the quorum
-    // threshold after adding the acknowledgments.
+    /// This function evicts old acknowledgments from the tracker.
+    fn evict_old_acknowledgments(&mut self, committed_leader_round: Round) {
+        let lower_bound_round = committed_leader_round
+            .saturating_sub(MAX_LINEARIZER_DEPTH + MAX_TRANSACTIONS_ACK_DEPTH);
+        let lower_bound = BlockRef::new(
+            lower_bound_round + 1,
+            AuthorityIndex::ZERO,
+            BlockHeaderDigest::MIN,
+        );
+        self.transactions_ack_tracker = self.transactions_ack_tracker.split_off(&lower_bound);
+    }
+
+    /// This function is called to add the transaction acknowledgments to the
+    /// tracker and returns the vector of block refs to transactions that
+    /// reached the quorum threshold after adding the acknowledgments.
     pub(crate) fn add_committed_transaction_acks(
         &mut self,
+        round: Round,
         authority: AuthorityIndex,
         acknowledgments: Vec<BlockRef>,
     ) -> Vec<BlockRef> {
         let mut acknowledged_data = Vec::new();
         for block_ref in acknowledgments {
+            if block_ref.round < round.saturating_sub(MAX_TRANSACTIONS_ACK_DEPTH) {
+                continue; // Ignore acknowledgments for blocks that are too old
+            }
             let votes_collector = self
                 .transactions_ack_tracker
                 .entry(block_ref)
                 .or_insert_with(StakeAggregator::<QuorumThreshold>::new);
 
-            // TODO: check that the acknowlement is not too far in the past?
             if !votes_collector.reached_threshold(&self.context.committee)
                 && votes_collector.add(authority, &self.context.committee)
             {

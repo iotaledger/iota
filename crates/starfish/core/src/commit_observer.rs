@@ -14,11 +14,11 @@ use crate::{
     block_header::{BlockHeaderAPI, VerifiedBlockHeader},
     commit::{CommitAPI, CommitIndex, PendingSubDag, load_pending_subdag_from_store},
     context::Context,
-    dag_state::DagState,
+    dag_state::{DagState, MAX_TRANSACTIONS_ACK_DEPTH},
     data_manager::DataManager,
     error::{ConsensusError, ConsensusResult},
     leader_schedule::LeaderSchedule,
-    linearizer::Linearizer,
+    linearizer::{Linearizer, MAX_LINEARIZER_DEPTH},
     storage::Store,
 };
 
@@ -50,11 +50,6 @@ pub(crate) struct CommitObserver {
     store: Arc<dyn Store>,
     leader_schedule: Arc<LeaderSchedule>,
 }
-
-// TODO: move those to protocol config
-// TODO: set sensible values
-const MAX_TRANSACTIONS_ACK_CHECK: u32 = 10;
-const MAX_LINEARIZER_DEPTH: u32 = 10;
 
 impl CommitObserver {
     pub(crate) fn new(
@@ -151,8 +146,11 @@ impl CommitObserver {
             // transactions that still have a chance of being committed is no higher than
             // `last_pending_commit_index - MAX_TRANSACTIONS_ACK_CHECK -
             // MAX_LINEARIZER_DEPTH`.
-            recovery_lower_bound = recovery_lower_bound
-                .min(last_commit_index - MAX_TRANSACTIONS_ACK_CHECK - MAX_LINEARIZER_DEPTH);
+
+            let commit_index_to_recover_acks =
+                last_commit_index.saturating_sub(MAX_TRANSACTIONS_ACK_DEPTH + MAX_LINEARIZER_DEPTH);
+
+            recovery_lower_bound = recovery_lower_bound.min(commit_index_to_recover_acks);
             assert!(last_commit_index >= last_processed_commit_index);
             if last_commit_index == last_processed_commit_index {
                 debug!(
@@ -205,11 +203,14 @@ impl CommitObserver {
             // Recover transaction acknowledgments tracker state by adding transaction
             // acknowledgments from all pending sub-dags that still might
             // correctly acknowledge transactions.
-            for (authority_idx, transaction_acknowledgments) in
+            for ((round, authority_idx), transaction_acknowledgments) in
                 pending_sub_dag.transaction_acknowledgments().into_iter()
             {
-                self.commit_interpreter
-                    .add_committed_transaction_acks(authority_idx, transaction_acknowledgments);
+                self.commit_interpreter.add_committed_transaction_acks(
+                    round,
+                    authority_idx,
+                    transaction_acknowledgments,
+                );
             }
             // Put all the pending sub-dags into the commit solidifier to make sure that
             // they are tracked there. The commit will be sent to IOTA here if all the

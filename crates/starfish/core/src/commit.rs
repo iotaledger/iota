@@ -378,19 +378,27 @@ pub struct SubDagBase {
 impl SubDagBase {
     /// Helper method to retrieve transaction acknowledgment references for each
     /// AuthorityIndex from the committed block headers.
-    pub(crate) fn transaction_acknowledgments(&self) -> HashMap<AuthorityIndex, Vec<BlockRef>> {
+    pub(crate) fn transaction_acknowledgments(
+        &self,
+    ) -> HashMap<(Round, AuthorityIndex), Vec<BlockRef>> {
         self.blocks
             .iter()
-            .map(|block| (block.author(), block.acknowledgments().to_vec()))
+            .map(|block| {
+                (
+                    (block.round(), block.author()),
+                    block.acknowledgments().to_vec(),
+                )
+            })
             .fold(
                 HashMap::new(),
-                |mut acc: HashMap<AuthorityIndex, HashSet<BlockRef>>, (auth, vec)| {
-                    acc.entry(auth).or_default().extend(vec);
+                |mut acc: HashMap<(Round, AuthorityIndex), HashSet<BlockRef>>,
+                 ((round, auth), vec)| {
+                    acc.entry((round, auth)).or_default().extend(vec);
                     acc
                 },
             )
             .into_iter()
-            .map(|(auth, set)| (auth, set.into_iter().collect()))
+            .map(|(round_auth, set)| (round_auth, set.into_iter().collect()))
             .collect()
     }
 
