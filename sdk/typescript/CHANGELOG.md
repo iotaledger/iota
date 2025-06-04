@@ -1,5 +1,11 @@
 # @iota/iota-sdk
 
+## 1.2.0
+
+### Minor Changes
+
+-   53d5058: Added iota names rpc methods to IotaClient and also GraphQL queries.
+
 ## 1.1.0
 
 ### Minor Changes
