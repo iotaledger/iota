@@ -26,32 +26,32 @@ use tokio_stream::wrappers::BroadcastStream;
 
 pub struct CheckpointGrpcService {
     pub state_reader: Arc<dyn RestStateReader>,
-    pub checkpoint_summary_tx: tokio::sync::broadcast::Sender<Arc<CertifiedCheckpointSummary>>,
-    pub buffer:
+    pub grpc_checkpoint_summary_tx: tokio::sync::broadcast::Sender<Arc<CertifiedCheckpointSummary>>,
+    pub grpc_checkpoint_summary_buffer:
         Arc<tokio::sync::Mutex<std::collections::VecDeque<Arc<CertifiedCheckpointSummary>>>>,
-    pub checkpoint_data_tx: tokio::sync::broadcast::Sender<Arc<CheckpointData>>,
-    pub checkpoint_data_buffer:
+    pub grpc_checkpoint_data_tx: tokio::sync::broadcast::Sender<Arc<CheckpointData>>,
+    pub grpc_checkpoint_data_buffer:
         Arc<tokio::sync::Mutex<std::collections::VecDeque<Arc<CheckpointData>>>>,
 }
 
 impl CheckpointGrpcService {
     pub fn new(
         state_reader: Arc<dyn RestStateReader>,
-        checkpoint_summary_tx: tokio::sync::broadcast::Sender<Arc<CertifiedCheckpointSummary>>,
-        buffer: Arc<
+        grpc_checkpoint_summary_tx: tokio::sync::broadcast::Sender<Arc<CertifiedCheckpointSummary>>,
+        grpc_checkpoint_summary_buffer: Arc<
             tokio::sync::Mutex<std::collections::VecDeque<Arc<CertifiedCheckpointSummary>>>,
         >,
-        checkpoint_data_tx: tokio::sync::broadcast::Sender<Arc<CheckpointData>>,
-        checkpoint_data_buffer: Arc<
+        grpc_checkpoint_data_tx: tokio::sync::broadcast::Sender<Arc<CheckpointData>>,
+        grpc_checkpoint_data_buffer: Arc<
             tokio::sync::Mutex<std::collections::VecDeque<Arc<CheckpointData>>>,
         >,
     ) -> Self {
         Self {
             state_reader,
-            checkpoint_summary_tx,
-            buffer,
-            checkpoint_data_tx,
-            checkpoint_data_buffer,
+            grpc_checkpoint_summary_tx,
+            grpc_checkpoint_summary_buffer,
+            grpc_checkpoint_data_tx,
+            grpc_checkpoint_data_buffer,
         }
     }
 }
@@ -207,9 +207,9 @@ impl CheckpointService for CheckpointGrpcService {
             match (start, end) {
                 (None, None) => {
                     // Subscribe first to avoid gap
-                    let tx = self.checkpoint_data_tx.clone();
+                    let tx = self.grpc_checkpoint_data_tx.clone();
                     let rx = tx.subscribe();
-                    let buffer = self.checkpoint_data_buffer.clone();
+                    let buffer = self.grpc_checkpoint_data_buffer.clone();
                     let last = buffer.lock().await.back().cloned();
                     let initial: Pin<
                         Box<
@@ -240,8 +240,8 @@ impl CheckpointService for CheckpointGrpcService {
                 }
                 (Some(start_index), None) => Box::pin(
                     buffered_and_live_stream(
-                        self.checkpoint_data_buffer.clone(),
-                        self.checkpoint_data_tx.clone(),
+                        self.grpc_checkpoint_data_buffer.clone(),
+                        self.grpc_checkpoint_data_tx.clone(),
                         Some(start_index),
                         |d| bcs::to_bytes(d),
                         |d| d.checkpoint_summary.sequence_number,
@@ -273,9 +273,9 @@ impl CheckpointService for CheckpointGrpcService {
             match (start, end) {
                 (None, None) => {
                     // Subscribe first to avoid gap
-                    let tx = self.checkpoint_summary_tx.clone();
+                    let tx = self.grpc_checkpoint_summary_tx.clone();
                     let rx = tx.subscribe();
-                    let buffer = self.buffer.clone();
+                    let buffer = self.grpc_checkpoint_summary_buffer.clone();
                     let last = buffer.lock().await.back().cloned();
                     let initial: Pin<
                         Box<
@@ -306,8 +306,8 @@ impl CheckpointService for CheckpointGrpcService {
                 }
                 (Some(start_index), None) => Box::pin(
                     buffered_and_live_stream(
-                        self.buffer.clone(),
-                        self.checkpoint_summary_tx.clone(),
+                        self.grpc_checkpoint_summary_buffer.clone(),
+                        self.grpc_checkpoint_summary_tx.clone(),
                         Some(start_index),
                         |d| bcs::to_bytes(&d.data()),
                         |d| d.data().sequence_number,

@@ -33,8 +33,6 @@ pub fn checkpoint_service_for_testing(state: Arc<AuthorityState>) -> Arc<Checkpo
         state.get_accumulator_store().clone(),
     ));
     let (certified_output, _certified_result) = mpsc::channel::<CertifiedCheckpointSummary>(10);
-    let buffer = Arc::new(tokio::sync::Mutex::new(std::collections::VecDeque::new()));
-    let (checkpoint_summary_tx, _) = tokio::sync::broadcast::channel(100);
     let checkpoint_service = CheckpointService::build(
         state.clone(),
         state.get_checkpoint_store().clone(),
@@ -46,8 +44,6 @@ pub fn checkpoint_service_for_testing(state: Arc<AuthorityState>) -> Arc<Checkpo
         CheckpointMetrics::new_for_tests(),
         3,
         100_000,
-        buffer,
-        checkpoint_summary_tx,
     );
     checkpoint_service.spawn().now_or_never().unwrap();
     checkpoint_service

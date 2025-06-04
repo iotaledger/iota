@@ -272,18 +272,18 @@ async fn test_service() -> CheckpointGrpcService {
     let mock = std::sync::Arc::new(MockRestStateReader {
         checkpoints: checkpoints.clone(),
     });
-    let (checkpoint_summary_tx, _) = tokio::sync::broadcast::channel(100);
-    let buffer = std::sync::Arc::new(tokio::sync::Mutex::new(
+    let (grpc_checkpoint_summary_tx, _) = tokio::sync::broadcast::channel(100);
+    let grpc_checkpoint_summary_buffer = std::sync::Arc::new(tokio::sync::Mutex::new(
         std::collections::VecDeque::with_capacity(100),
     ));
     // For full CheckpointData
-    let (checkpoint_data_tx, _) = tokio::sync::broadcast::channel(100);
-    let checkpoint_data_buffer = std::sync::Arc::new(tokio::sync::Mutex::new(
+    let (grpc_checkpoint_data_tx, _) = tokio::sync::broadcast::channel(100);
+    let grpc_checkpoint_data_buffer = std::sync::Arc::new(tokio::sync::Mutex::new(
         std::collections::VecDeque::with_capacity(100),
     ));
     // Fill the summary buffer
     {
-        let mut buf = buffer.lock().await;
+        let mut buf = grpc_checkpoint_summary_buffer.lock().await;
         for i in 0..=10 {
             let cert = checkpoints.get(&i).unwrap().0.clone();
             buf.push_back(std::sync::Arc::new(cert));
@@ -291,7 +291,7 @@ async fn test_service() -> CheckpointGrpcService {
     }
     // Fill the data buffer
     {
-        let mut buf = checkpoint_data_buffer.lock().await;
+        let mut buf = grpc_checkpoint_data_buffer.lock().await;
         for i in 0..=10 {
             let (cert, contents) = checkpoints.get(&i).unwrap();
             let data = iota_types::full_checkpoint_content::CheckpointData {
@@ -304,10 +304,10 @@ async fn test_service() -> CheckpointGrpcService {
     }
     CheckpointGrpcService::new(
         mock,
-        checkpoint_summary_tx,
-        buffer,
-        checkpoint_data_tx,
-        checkpoint_data_buffer,
+        grpc_checkpoint_summary_tx,
+        grpc_checkpoint_summary_buffer,
+        grpc_checkpoint_data_tx,
+        grpc_checkpoint_data_buffer,
     )
 }
 
@@ -373,9 +373,9 @@ async fn test_start_index_only() {
     let svc = test_service().await;
 
     spawn_checkpoint_sender(
-        svc.checkpoint_summary_tx.clone(),
-        svc.checkpoint_data_tx.clone(),
-        svc.checkpoint_data_buffer.clone(),
+        svc.grpc_checkpoint_summary_tx.clone(),
+        svc.grpc_checkpoint_data_tx.clone(),
+        svc.grpc_checkpoint_data_buffer.clone(),
         11,
     );
     let req = StreamRequest {
@@ -412,9 +412,9 @@ async fn test_start_and_end_index() {
     let svc = test_service().await;
 
     spawn_checkpoint_sender(
-        svc.checkpoint_summary_tx.clone(),
-        svc.checkpoint_data_tx.clone(),
-        svc.checkpoint_data_buffer.clone(),
+        svc.grpc_checkpoint_summary_tx.clone(),
+        svc.grpc_checkpoint_data_tx.clone(),
+        svc.grpc_checkpoint_data_buffer.clone(),
         100,
     );
     let req = StreamRequest {
@@ -451,9 +451,9 @@ async fn test_end_index_only() {
     let svc = test_service().await;
 
     spawn_checkpoint_sender(
-        svc.checkpoint_summary_tx.clone(),
-        svc.checkpoint_data_tx.clone(),
-        svc.checkpoint_data_buffer.clone(),
+        svc.grpc_checkpoint_summary_tx.clone(),
+        svc.grpc_checkpoint_data_tx.clone(),
+        svc.grpc_checkpoint_data_buffer.clone(),
         100,
     );
     let req = StreamRequest {
@@ -529,9 +529,9 @@ async fn test_both_indices_omitted() {
 
     // Now send new checkpoints (live) after subscribing
     spawn_checkpoint_sender(
-        svc.checkpoint_summary_tx.clone(),
-        svc.checkpoint_data_tx.clone(),
-        svc.checkpoint_data_buffer.clone(),
+        svc.grpc_checkpoint_summary_tx.clone(),
+        svc.grpc_checkpoint_data_tx.clone(),
+        svc.grpc_checkpoint_data_buffer.clone(),
         11,
     );
 
