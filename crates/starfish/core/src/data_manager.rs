@@ -8,9 +8,7 @@ use std::{
 
 use parking_lot::RwLock;
 
-use crate::{
-    BlockRef, CommittedSubDag, commit::PendingSubDag, context::Context, dag_state::DagState,
-};
+use crate::{BlockRef, CommittedSubDag, commit::PendingSubDag, dag_state::DagState};
 
 /// The `DataManager` is responsible for managing and handling
 /// the commit process for newly committed sub-dags. It ensures that sub-dags
@@ -21,7 +19,6 @@ use crate::{
 /// are missing transactions and have not been output yet.
 ///
 /// # Fields
-/// - `context`: Shared context for the DAG.
 /// - `dag_state`: Shared state of the DAG.
 /// - `pending_subdags`: Buffer for sub-dags waiting to be committed.
 /// - `last_committed_index`: Tracks the highest committed sub-dag index.
@@ -30,32 +27,29 @@ use crate::{
 /// The `DataManager` is used to process newly committed sub-dags by retrieving
 /// information about potentially missing blocks.
 pub(crate) struct DataManager {
-    context: Arc<Context>,
     dag_state: Arc<RwLock<DagState>>,
     // Buffer for pending subdags, keyed by commit_ref.index for order
-    pending_subdags: RwLock<BTreeMap<u32, PendingSubDag>>,
+    pending_subdags: BTreeMap<u32, PendingSubDag>,
     // The highest committed commit_ref.index
-    last_committed_index: RwLock<u32>,
+    last_committed_index: u32,
 }
 
 impl DataManager {
     /// Creates a new instance of `DataManager`.
     ///
     /// # Arguments
-    /// - `context`: Shared context for the DAG.
     /// - `dag_state`: Shared state of the DAG.
     ///
     /// # Returns
     /// A new `DataManager` instance.
-    pub(crate) fn new(context: Arc<Context>, dag_state: Arc<RwLock<DagState>>) -> Self {
+    pub(crate) fn new(dag_state: Arc<RwLock<DagState>>) -> Self {
         // TODO: last_committed_index should be initialized from the latest committed
         // subdag, not always zero.
         let last_committed_index = 0;
         Self {
-            context,
             dag_state,
-            pending_subdags: RwLock::new(BTreeMap::new()),
-            last_committed_index: RwLock::new(last_committed_index),
+            pending_subdags: BTreeMap::new(),
+            last_committed_index,
         }
     }
 
@@ -69,25 +63,20 @@ impl DataManager {
     /// # Returns
     /// A tuple containing:
     /// - `Vec<CommittedSubDag>`: Successfully committed sub-dags.
-    /// - `Vec<BlockRef>`: References to missing blocks preventing further
-    ///   commits.
+    /// - `Vec<BlockRef>`: References to missing blocks with missing
+    ///   transactions preventing further commits.
     pub(crate) fn try_commit(
-        &self,
+        &mut self,
         subdags: &[PendingSubDag],
     ) -> (Vec<CommittedSubDag>, Vec<BlockRef>) {
         // Add new subdags to the buffer
-        {
-            let mut buffer = self.pending_subdags.write();
-            for subdag in subdags {
-                buffer
-                    .entry(subdag.commit_ref.index)
-                    .or_insert_with(|| subdag.clone());
-            }
+        for subdag in subdags {
+            self.pending_subdags
+                .entry(subdag.commit_ref.index)
+                .or_insert_with(|| subdag.clone());
         }
         let mut committed = Vec::new();
-        let mut to_remove = Vec::new();
-        let mut buffer = self.pending_subdags.write();
-        let mut last_committed = *self.last_committed_index.read();
+        let mut last_committed = self.last_committed_index;
         let mut missing = BTreeSet::new();
         let mut first_uncommitted_index: Option<u32> = None;
         // Try to commit in order
@@ -95,13 +84,13 @@ impl DataManager {
             let next_index = last_committed + 1;
             // If the next expected subdag is not in the buffer, we cannot commit anything
             // further
-            let Some(subdag) = buffer.get(&next_index) else {
+            let Some(subdag) = self.pending_subdags.get(&next_index) else {
                 break;
             };
             match self.try_commit_one_internal(subdag) {
                 Ok(committed_subdag) => {
                     committed.push(committed_subdag);
-                    to_remove.push(next_index);
+                    self.pending_subdags.remove(&next_index);
                     last_committed = next_index;
                 }
                 Err(missing_refs) => {
@@ -115,24 +104,20 @@ impl DataManager {
                 }
             }
         }
-        // Remove committed subdags from buffer
-        for idx in to_remove {
-            buffer.remove(&idx);
-        }
         // Update last_committed_index
-        *self.last_committed_index.write() = last_committed;
+        self.last_committed_index = last_committed;
 
         // Collect all missing blockrefs from all remaining pending subdags, skipping
         // the first uncommitted (already processed)
-        let mut skipped_first = false;
-        for (idx, subdag) in buffer.iter() {
-            if Some(*idx) == first_uncommitted_index && !skipped_first {
-                skipped_first = true;
+        for (idx, subdag) in self.pending_subdags.iter() {
+            if Some(*idx) == first_uncommitted_index {
                 continue;
             }
             // Query dag_state directly for missing blocks
             let dag_state = self.dag_state.read();
-            let exists = dag_state.contains_blocks(subdag.committed_transaction_refs.clone());
+            // TODO: this needs to check for missing transactions, not block headers
+            let exists =
+                dag_state.contains_block_headers(subdag.committed_transaction_refs.clone());
             for (i, exists) in exists.iter().enumerate() {
                 if !exists {
                     let block_ref = subdag.committed_transaction_refs[i];
@@ -159,7 +144,8 @@ impl DataManager {
         subdag: &PendingSubDag,
     ) -> Result<CommittedSubDag, Vec<BlockRef>> {
         let dag_state = self.dag_state.read();
-        let exists = dag_state.contains_blocks(subdag.committed_transaction_refs.clone());
+        // TODO: this needs to check for missing transactions, not block headers
+        let exists = dag_state.contains_block_headers(subdag.committed_transaction_refs.clone());
         let mut missing = Vec::new();
         for (i, exists) in exists.iter().enumerate() {
             if !exists {
@@ -207,32 +193,12 @@ mod tests {
 
     use super::*;
     use crate::{
-        block_header::{BlockHeaderDigest, BlockRef, VerifiedBlockHeader},
+        block_header::{BlockRef, VerifiedBlockHeader},
         commit::{CommitRef, PendingSubDag},
         context::Context,
         dag_state::DagState,
         test_dag_builder::DagBuilder,
     };
-
-    fn make_block_ref(round: u32, author: u32) -> BlockRef {
-        BlockRef::new(
-            round,
-            starfish_config::AuthorityIndex::new_for_test(author),
-            BlockHeaderDigest::default(),
-        )
-    }
-
-    fn make_verified_block(
-        round: u32,
-        author: u32,
-        ancestors: Vec<BlockRef>,
-    ) -> VerifiedBlockHeader {
-        VerifiedBlockHeader::new_for_test(
-            crate::block_header::TestBlockHeader::new(round, author)
-                .set_ancestors(ancestors)
-                .build(),
-        )
-    }
 
     fn make_pending_subdag(
         index: u32,
@@ -266,17 +232,17 @@ mod tests {
             .layers(1..=num_rounds)
             .build()
             .persist_layers(dag_state.clone());
-        let manager = DataManager::new(context, dag_state.clone());
+        let manager = DataManager::new(dag_state.clone());
         (manager, dag_state, dag_builder)
     }
 
     /// Tests the happy path where a single sub-dag is successfully committed.
     #[test]
     fn test_happy_path_commit_with_dag_builder() {
-        let (manager, dag_state, dag_builder) = setup_manager_and_dag_with_builder(2);
+        let (mut manager, _dag_state, dag_builder) = setup_manager_and_dag_with_builder(2);
         // Use blocks from round 0 and 2
-        let block0s = dag_builder.blocks(0..=0);
-        let block2s = dag_builder.blocks(2..=2);
+        let block0s = dag_builder.block_headers(0..=0);
+        let block2s = dag_builder.block_headers(2..=2);
         let leader = block2s[0].reference();
         // committed_refs from round 0 (R-2)
         let committed_refs = block0s.iter().map(|b| b.reference()).collect::<Vec<_>>();
@@ -286,16 +252,16 @@ mod tests {
         let (committed, missing) = manager.try_commit(&[subdag]);
         assert_eq!(committed.len(), 1);
         assert!(missing.is_empty());
-        assert_eq!(*manager.last_committed_index.read(), 1);
-        assert!(manager.pending_subdags.read().is_empty());
+        assert_eq!(manager.last_committed_index, 1);
+        assert!(manager.pending_subdags.is_empty());
     }
 
     #[test]
     #[ignore = "This test is ignored until transaction storage is implemented in DAG state"]
     fn test_missing_blocks_with_dag_builder() {
-        let (manager, dag_state, mut dag_builder) = setup_manager_and_dag_with_builder(2);
-        let block0s = dag_builder.blocks(0..=0);
-        let block2s = dag_builder.blocks(2..=2);
+        let (mut manager, dag_state, mut dag_builder) = setup_manager_and_dag_with_builder(2);
+        let block0s = dag_builder.block_headers(0..=0);
+        let block2s = dag_builder.block_headers(2..=2);
         let leader = block2s[0].reference();
         // Remove one block from dag_state to simulate missing
         // dag_state
@@ -309,16 +275,16 @@ mod tests {
         let (committed, missing) = manager.try_commit(&[subdag]);
         assert!(committed.is_empty());
         assert_eq!(missing, vec![block0s[0].reference()]);
-        assert!(manager.pending_subdags.read().contains_key(&1));
-        assert_eq!(*manager.last_committed_index.read(), 0);
+        assert!(manager.pending_subdags.contains_key(&1));
+        assert_eq!(manager.last_committed_index, 0);
     }
 
     #[test]
     #[ignore = "This test is ignored until transaction storage is implemented in DAG state"]
     fn test_commit_after_missing_blocks_arrive_with_dag_builder() {
-        let (manager, dag_state, mut dag_builder) = setup_manager_and_dag_with_builder(2);
-        let block0s = dag_builder.blocks(0..=0);
-        let block2s = dag_builder.blocks(2..=2);
+        let (mut manager, dag_state, mut dag_builder) = setup_manager_and_dag_with_builder(2);
+        let block0s = dag_builder.block_headers(0..=0);
+        let block2s = dag_builder.block_headers(2..=2);
         let leader = block2s[0].reference();
 
         let committed_refs = block0s.iter().map(|b| b.reference()).collect::<Vec<_>>();
@@ -329,21 +295,21 @@ mod tests {
         assert!(committed.is_empty());
         assert_eq!(missing, vec![block0s[0].reference()]);
         // Add the missing block back
-        dag_state.write().accept_block(block0s[0].clone());
+        dag_state.write().accept_block_header(block0s[0].clone());
         let (committed, missing) = manager.try_commit(&[]);
         assert_eq!(committed.len(), 1);
         assert!(missing.is_empty());
-        assert!(manager.pending_subdags.read().is_empty());
-        assert_eq!(*manager.last_committed_index.read(), 1);
+        assert!(manager.pending_subdags.is_empty());
+        assert_eq!(manager.last_committed_index, 1);
     }
 
     #[test]
     fn test_multiple_subdags_in_order_with_dag_builder() {
-        let (manager, dag_state, dag_builder) = setup_manager_and_dag_with_builder(3);
-        let block0s = dag_builder.blocks(0..=0);
-        let block1s = dag_builder.blocks(1..=1);
-        let block2s = dag_builder.blocks(2..=2);
-        let block3s = dag_builder.blocks(3..=3);
+        let (mut manager, _dag_state, dag_builder) = setup_manager_and_dag_with_builder(3);
+        let block0s = dag_builder.block_headers(0..=0);
+        let block1s = dag_builder.block_headers(1..=1);
+        let block2s = dag_builder.block_headers(2..=2);
+        let block3s = dag_builder.block_headers(3..=3);
         // subdag1: leader in round 2, committed_refs from round 0
         let subdag1 = make_pending_subdag(
             1,
@@ -373,16 +339,16 @@ mod tests {
         let (committed, missing) = manager.try_commit(&[subdag1, subdag2]);
         assert_eq!(committed.len(), 2);
         assert!(missing.is_empty());
-        assert!(manager.pending_subdags.read().is_empty());
-        assert_eq!(*manager.last_committed_index.read(), 2);
+        assert!(manager.pending_subdags.is_empty());
+        assert_eq!(manager.last_committed_index, 2);
     }
 
     #[test]
     fn test_out_of_order_subdags_with_dag_builder() {
-        let (manager, dag_state, dag_builder) = setup_manager_and_dag_with_builder(2);
-        let block0s = dag_builder.blocks(0..=0);
-        let block1s = dag_builder.blocks(1..=1);
-        let block2s = dag_builder.blocks(2..=2);
+        let (mut manager, _dag_state, dag_builder) = setup_manager_and_dag_with_builder(2);
+        let block0s = dag_builder.block_headers(0..=0);
+        let block1s = dag_builder.block_headers(1..=1);
+        let block2s = dag_builder.block_headers(2..=2);
         // subdag2: leader in round 2, committed_refs from round 0
         let subdag2 = make_pending_subdag(
             2,
@@ -408,31 +374,31 @@ mod tests {
         let (committed, missing) = manager.try_commit(&[subdag2.clone(), subdag1.clone()]);
         assert_eq!(committed.len(), 2);
         assert!(missing.is_empty());
-        assert!(manager.pending_subdags.read().is_empty());
-        assert_eq!(*manager.last_committed_index.read(), 2);
+        assert!(manager.pending_subdags.is_empty());
+        assert_eq!(manager.last_committed_index, 2);
         let (committed, missing) = manager.try_commit(&[]);
         assert!(committed.is_empty());
         assert!(missing.is_empty());
-        assert!(manager.pending_subdags.read().is_empty());
-        assert_eq!(*manager.last_committed_index.read(), 2);
+        assert!(manager.pending_subdags.is_empty());
+        assert_eq!(manager.last_committed_index, 2);
     }
 
     #[test]
     fn test_empty_subdag_commit() {
-        let (manager, _dag_state, _dag_builder) = setup_manager_and_dag_with_builder(2);
+        let (mut manager, _dag_state, _dag_builder) = setup_manager_and_dag_with_builder(2);
         let (committed, missing) = manager.try_commit(&[]);
         assert!(committed.is_empty());
         assert!(missing.is_empty());
-        assert!(manager.pending_subdags.read().is_empty());
-        assert_eq!(*manager.last_committed_index.read(), 0);
+        assert!(manager.pending_subdags.is_empty());
+        assert_eq!(manager.last_committed_index, 0);
     }
 
     #[test]
     fn test_duplicate_subdag_commit() {
-        let (manager, _dag_state, dag_builder) = setup_manager_and_dag_with_builder(2); // Adjusted to 3 rounds
-        let block0s = dag_builder.blocks(0..=0);
-        let block1s = dag_builder.blocks(1..=1);
-        let block2s = dag_builder.blocks(2..=2);
+        let (mut manager, _dag_state, dag_builder) = setup_manager_and_dag_with_builder(2); // Adjusted to 3 rounds
+        let block0s = dag_builder.block_headers(0..=0);
+        let block1s = dag_builder.block_headers(1..=1);
+        let block2s = dag_builder.block_headers(2..=2);
 
         let subdag1 = make_pending_subdag(
             1,
@@ -449,17 +415,17 @@ mod tests {
         let (committed, missing) = manager.try_commit(&[subdag1.clone(), subdag1.clone()]);
         assert_eq!(committed.len(), 1);
         assert!(missing.is_empty());
-        assert!(manager.pending_subdags.read().is_empty());
-        assert_eq!(*manager.last_committed_index.read(), 1);
+        assert!(manager.pending_subdags.is_empty());
+        assert_eq!(manager.last_committed_index, 1);
     }
 
     #[test]
     fn test_out_of_order_commit_calls() {
-        let (manager, _dag_state, dag_builder) = setup_manager_and_dag_with_builder(3); // Adjusted to 3 rounds
-        let block0s = dag_builder.blocks(0..=0);
-        let block1s = dag_builder.blocks(1..=1);
-        let block2s = dag_builder.blocks(2..=2);
-        let block3s = dag_builder.blocks(3..=3);
+        let (mut manager, _dag_state, dag_builder) = setup_manager_and_dag_with_builder(3); // Adjusted to 3 rounds
+        let block0s = dag_builder.block_headers(0..=0);
+        let block1s = dag_builder.block_headers(1..=1);
+        let block2s = dag_builder.block_headers(2..=2);
+        let block3s = dag_builder.block_headers(3..=3);
 
         let subdag2 = make_pending_subdag(
             2,
@@ -487,25 +453,25 @@ mod tests {
         let (committed, missing) = manager.try_commit(&[subdag2.clone()]);
         assert!(committed.is_empty());
         assert!(missing.is_empty());
-        assert!(manager.pending_subdags.read().contains_key(&2));
-        assert_eq!(*manager.last_committed_index.read(), 0);
+        assert!(manager.pending_subdags.contains_key(&2));
+        assert_eq!(manager.last_committed_index, 0);
 
         let (committed, missing) = manager.try_commit(&[subdag1.clone()]);
         assert_eq!(committed.len(), 2);
         assert!(missing.is_empty());
-        assert!(manager.pending_subdags.read().is_empty());
-        assert_eq!(*manager.last_committed_index.read(), 2);
+        assert!(manager.pending_subdags.is_empty());
+        assert_eq!(manager.last_committed_index, 2);
     }
 
     #[test]
     #[ignore = "This test is ignored until transaction storage is implemented in DAG state"]
     fn test_all_missing_refs_are_collected() {
-        let (manager, dag_state, dag_builder) = setup_manager_and_dag_with_builder(4);
-        let block0s = dag_builder.blocks(0..=0);
-        let block1s = dag_builder.blocks(1..=1);
-        let block2s = dag_builder.blocks(2..=2);
-        let block3s = dag_builder.blocks(3..=3);
-        let block4s = dag_builder.blocks(4..=4);
+        let (mut manager, dag_state, dag_builder) = setup_manager_and_dag_with_builder(4);
+        let block0s = dag_builder.block_headers(0..=0);
+        let block1s = dag_builder.block_headers(1..=1);
+        let block2s = dag_builder.block_headers(2..=2);
+        let block3s = dag_builder.block_headers(3..=3);
+        let block4s = dag_builder.block_headers(4..=4);
 
         // Remove some blocks to simulate missing ones
         // let mut state = dag_state.write();
@@ -541,7 +507,7 @@ mod tests {
         assert!(committed.is_empty());
         assert_eq!(missing.len(), 1);
         assert!(missing.contains(&block2s[0].reference()));
-        assert_eq!(manager.pending_subdags.read().len(), 1);
+        assert_eq!(manager.pending_subdags.len(), 1);
 
         // Add subdag2
         let (committed, missing) = manager.try_commit(&[subdag2.clone()]);
@@ -549,7 +515,7 @@ mod tests {
         assert_eq!(missing.len(), 2);
         assert!(missing.contains(&block1s[0].reference()));
         assert!(missing.contains(&block2s[0].reference()));
-        assert_eq!(manager.pending_subdags.read().len(), 2);
+        assert_eq!(manager.pending_subdags.len(), 2);
 
         // Add subdag1 - now all missing refs should be collected
         let (committed, missing) = manager.try_commit(&[subdag1.clone()]);
@@ -558,32 +524,32 @@ mod tests {
         assert!(missing.contains(&block0s[0].reference()));
         assert!(missing.contains(&block1s[0].reference()));
         assert!(missing.contains(&block2s[0].reference()));
-        assert_eq!(manager.pending_subdags.read().len(), 3);
+        assert_eq!(manager.pending_subdags.len(), 3);
 
         // Add all missing blocks back
         let mut state = dag_state.write();
-        state.accept_block(block0s[0].clone());
-        state.accept_block(block1s[0].clone());
-        state.accept_block(block2s[0].clone());
+        state.accept_block_header(block0s[0].clone());
+        state.accept_block_header(block1s[0].clone());
+        state.accept_block_header(block2s[0].clone());
         drop(state);
 
         // Second attempt: all blocks should be committed in order
         let (committed, missing) = manager.try_commit(&[]);
         assert_eq!(committed.len(), 3);
         assert!(missing.is_empty());
-        assert!(manager.pending_subdags.read().is_empty());
-        assert_eq!(*manager.last_committed_index.read(), 3);
+        assert!(manager.pending_subdags.is_empty());
+        assert_eq!(manager.last_committed_index, 3);
     }
 
     #[test]
     #[should_panic(expected = "Duplicate missing blockref detected")]
     #[ignore = "This test is ignored until transaction storage is implemented in DAG state"]
     fn test_duplicate_missing_refs_panic() {
-        let (manager, dag_state, dag_builder) = setup_manager_and_dag_with_builder(3);
-        let block0s = dag_builder.blocks(0..=0);
-        let block1s = dag_builder.blocks(1..=1);
-        let block2s = dag_builder.blocks(2..=2);
-        let block3s = dag_builder.blocks(3..=3);
+        let (mut manager, dag_state, dag_builder) = setup_manager_and_dag_with_builder(3);
+        let block0s = dag_builder.block_headers(0..=0);
+        let block1s = dag_builder.block_headers(1..=1);
+        let block2s = dag_builder.block_headers(2..=2);
+        let block3s = dag_builder.block_headers(3..=3);
 
         // Remove a block that will be referenced by multiple subdags
         // let mut state = dag_state.write();
@@ -616,12 +582,12 @@ mod tests {
     #[test]
     #[ignore = "This test is ignored until transaction storage is implemented in DAG state"]
     fn test_gaps_in_subdags_sequence() {
-        let (manager, dag_state, dag_builder) = setup_manager_and_dag_with_builder(4);
-        let block0s = dag_builder.blocks(0..=0);
-        let block1s = dag_builder.blocks(1..=1);
-        let block2s = dag_builder.blocks(2..=2);
-        let block3s = dag_builder.blocks(3..=3);
-        let block4s = dag_builder.blocks(4..=4);
+        let (mut manager, dag_state, dag_builder) = setup_manager_and_dag_with_builder(4);
+        let block0s = dag_builder.block_headers(0..=0);
+        let block1s = dag_builder.block_headers(1..=1);
+        let block2s = dag_builder.block_headers(2..=2);
+        let block3s = dag_builder.block_headers(3..=3);
+        let block4s = dag_builder.block_headers(4..=4);
 
         // Remove some blocks to simulate missing ones
         // let mut state = dag_state.write();
@@ -658,25 +624,25 @@ mod tests {
         assert!(committed.is_empty());
         assert_eq!(missing.len(), 2);
         assert!(missing.contains(&block1s[0].reference()));
-        assert_eq!(manager.pending_subdags.read().len(), 3);
-        assert_eq!(*manager.last_committed_index.read(), 0);
+        assert_eq!(manager.pending_subdags.len(), 3);
+        assert_eq!(manager.last_committed_index, 0);
 
         // Add missing block from subdag1 and try again - should commit subdags 1 and 2
-        dag_state.write().accept_block(block0s[0].clone());
+        dag_state.write().accept_block_header(block0s[0].clone());
         let (committed, missing) = manager.try_commit(&[]);
         assert_eq!(committed.len(), 2); // Should commit subdags 1 and 2
         assert_eq!(missing.len(), 1); // Missing transaction from subdag4
         assert!(missing.contains(&block3s[0].reference()));
-        assert_eq!(manager.pending_subdags.read().len(), 1); // subdag4 should still be pending
-        assert_eq!(*manager.last_committed_index.read(), 2); // Should stop at 2 due to missing subdag3
+        assert_eq!(manager.pending_subdags.len(), 1); // subdag4 should still be pending
+        assert_eq!(manager.last_committed_index, 2); // Should stop at 2 due to missing subdag3
 
         // Try to commit again - should not commit subdag4 due to missing with
         // commit_ref.index=3
         let (committed, missing) = manager.try_commit(&[]);
         assert!(committed.is_empty()); // Nothing should commit
         assert!(missing.is_empty()); // No missing blocks, but still can't commit due to gap
-        assert_eq!(manager.pending_subdags.read().len(), 1); // subdag4 should still be pending
-        assert_eq!(*manager.last_committed_index.read(), 2); // Should remain at 2
+        assert_eq!(manager.pending_subdags.len(), 1); // subdag4 should still be pending
+        assert_eq!(manager.last_committed_index, 2); // Should remain at 2
 
         // subdag4 should remain pending indefinitely until subdag with
         // commit_ref.index=3 arrives

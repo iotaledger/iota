@@ -70,7 +70,7 @@ impl CommitObserver {
                 dag_state.clone(),
                 leader_schedule.clone(),
             ),
-            commit_solidifier: DataManager::new(context.clone(), dag_state.clone()),
+            commit_solidifier: DataManager::new(dag_state.clone()),
             context,
             sender: commit_consumer.sender,
             store,
