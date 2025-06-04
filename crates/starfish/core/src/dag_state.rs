@@ -19,7 +19,7 @@ use tracing::{debug, error, info};
 use crate::{
     block_header::{
         BlockHeaderAPI, BlockHeaderDigest, BlockRef, BlockTimestampMs, GENESIS_ROUND, Round, Slot,
-        VerifiedBlockHeader, genesis_block_headers,
+        VerifiedBlock, VerifiedBlockHeader, genesis_blocks,
     },
     commit::{
         CommitAPI as _, CommitDigest, CommitIndex, CommitInfo, CommitRef, CommitVote,
@@ -43,15 +43,26 @@ pub(crate) struct DagState {
     context: Arc<Context>,
 
     // The genesis blocks
-    genesis: BTreeMap<BlockRef, VerifiedBlockHeader>,
+    genesis: BTreeMap<BlockRef, VerifiedBlock>,
 
-    // Contains recent blocks within CACHED_ROUNDS from the last committed round per authority.
-    // Note: all uncommitted blocks are kept in memory.
-    recent_blocks: BTreeMap<BlockRef, VerifiedBlockHeader>,
+    // Contains recent block headers within CACHED_ROUNDS from the last committed round per
+    // authority. Note: all uncommitted block headers are kept in memory.
+    recent_block_headers: BTreeMap<BlockRef, VerifiedBlockHeader>,
 
-    // Indexes recent block refs by their authorities.
+    // Contains recent blocks (together with transactions) within CACHED_ROUNDS from the last
+    // committed round per authority. Note: all uncommitted blocks are kept in memory.
+    // TODO: should we relocate it to data manager?
+    // TODO: consider possibility to store only transactions to avoid duplication with
+    // recent_block_headers
+    recent_blocks: BTreeMap<BlockRef, VerifiedBlock>,
+
+    // Indexes recent block headers refs by their authorities.
     // Vec position corresponds to the authority index.
-    recent_refs_by_authority: Vec<BTreeSet<BlockRef>>,
+    recent_headers_refs_by_authority: Vec<BTreeSet<BlockRef>>,
+
+    // Indexes recent block headers refs by their authorities.
+    // Vec position corresponds to the authority index.
+    recent_blocks_refs_by_authority: Vec<BTreeSet<BlockRef>>,
 
     // Keeps track of the threshold clock for proposing blocks.
     threshold_clock: ThresholdClock,
@@ -89,7 +100,8 @@ pub(crate) struct DagState {
     pending_acknowledgments: Vec<BlockRef>,
 
     // Data to be flushed to storage.
-    blocks_to_write: Vec<VerifiedBlockHeader>,
+    blocks_to_write: Vec<VerifiedBlock>,
+    block_headers_to_write: Vec<VerifiedBlockHeader>,
     commits_to_write: Vec<TrustedCommit>,
 
     // Buffer the reputation scores & last_committed_rounds to be flushed with the
@@ -110,7 +122,7 @@ impl DagState {
         let cached_rounds = context.parameters.dag_state_cached_rounds as Round;
         let num_authorities = context.committee.size();
 
-        let genesis = genesis_block_headers(context.clone())
+        let genesis = genesis_blocks(context.clone())
             .into_iter()
             .map(|block| (block.reference(), block))
             .collect();
@@ -164,8 +176,10 @@ impl DagState {
         let mut state = Self {
             context,
             genesis,
+            recent_block_headers: BTreeMap::new(),
             recent_blocks: BTreeMap::new(),
-            recent_refs_by_authority: vec![BTreeSet::new(); num_authorities],
+            recent_headers_refs_by_authority: vec![BTreeSet::new(); num_authorities],
+            recent_blocks_refs_by_authority: vec![BTreeSet::new(); num_authorities],
             threshold_clock,
             highest_accepted_round: 0,
             last_commit: last_commit.clone(),
@@ -173,6 +187,7 @@ impl DagState {
             last_committed_rounds: last_committed_rounds.clone(),
             pending_commit_votes: VecDeque::new(),
             blocks_to_write: vec![],
+            block_headers_to_write: vec![],
             commits_to_write: vec![],
             commit_info_to_write: vec![],
             pending_acknowledgments: vec![],
@@ -184,26 +199,27 @@ impl DagState {
 
         for (i, round) in last_committed_rounds.into_iter().enumerate() {
             let authority_index = state.context.committee.to_authority_index(i).unwrap();
-            let (blocks, eviction_round) = {
+            let (block_headers, eviction_round) = {
                 let eviction_round = Self::eviction_round(round, cached_rounds);
-                let blocks = state
+                // TODO: scan for blocks?
+                let block_headers = state
                     .store
-                    .scan_blocks_by_author(authority_index, eviction_round + 1)
+                    .scan_block_headers_by_author(authority_index, eviction_round + 1)
                     .expect("Database error");
-                (blocks, eviction_round)
+                (block_headers, eviction_round)
             };
 
             state.evicted_rounds[authority_index] = eviction_round;
 
             // Update the block metadata for the authority.
-            for block in &blocks {
-                state.update_block_metadata(block);
+            for block_header in &block_headers {
+                state.update_block_metadata(block_header);
             }
 
             info!(
-                "Recovered blocks {}: {:?}",
+                "Recovered block headers {}: {:?}",
                 authority_index,
-                blocks
+                block_headers
                     .iter()
                     .map(|b| b.reference())
                     .collect::<Vec<BlockRef>>()
@@ -212,25 +228,25 @@ impl DagState {
         state
     }
 
-    /// Accepts a block into DagState and keeps it in memory.
-    pub(crate) fn accept_block(&mut self, block: VerifiedBlockHeader) {
+    /// Accepts a block header into DagState and keeps it in memory.
+    pub(crate) fn accept_block_header(&mut self, block_header: VerifiedBlockHeader) {
         assert_ne!(
-            block.round(),
+            block_header.round(),
             0,
             "Genesis block should not be accepted into DAG."
         );
 
-        let block_ref = block.reference();
-        if self.contains_block(&block_ref) {
+        let block_ref = block_header.reference();
+        if self.contains_block_header(&block_ref) {
             return;
         }
 
         let now = self.context.clock.timestamp_utc_ms();
-        if block.timestamp_ms() > now {
+        if block_header.timestamp_ms() > now {
             panic!(
                 "Block {:?} cannot be accepted! Block timestamp {} is greater than local timestamp {}.",
-                block,
-                block.timestamp_ms(),
+                block_header,
+                block_header.timestamp_ms(),
                 now,
             );
         }
@@ -241,17 +257,22 @@ impl DagState {
             let existing_blocks = self.get_uncommitted_blocks_at_slot(block_ref.into());
             assert!(
                 existing_blocks.is_empty(),
-                "Block Rejected! Attempted to add block {block:#?} to own slot where \
+                "Block Rejected! Attempted to add block header {block_header:#?} to own slot where \
                 block(s) {existing_blocks:#?} already exists."
             );
         }
-        self.update_block_metadata(&block);
-        self.blocks_to_write.push(block);
+        self.update_block_metadata(&block_header);
+        info!(
+            "block header {} pushed to write to store batch by {}",
+            block_header, self.context.own_index
+        );
+        self.block_headers_to_write.push(block_header);
         let source = if self.context.own_index == block_ref.author {
             "own"
         } else {
             "others"
         };
+        // TODO: rename to accepted block headers?
         self.context
             .metrics
             .node_metrics
@@ -260,20 +281,29 @@ impl DagState {
             .inc();
     }
 
-    /// Updates internal metadata for a block.
-    fn update_block_metadata(&mut self, block: &VerifiedBlockHeader) {
+    pub(crate) fn add_block(&mut self, block: VerifiedBlock) {
         let block_ref = block.reference();
         self.recent_blocks.insert(block_ref, block.clone());
-        self.recent_refs_by_authority[block_ref.author].insert(block_ref);
+        self.recent_blocks_refs_by_authority[block_ref.author].insert(block_ref);
+        self.blocks_to_write.push(block);
+    }
+
+    /// Updates internal metadata for a block.
+    fn update_block_metadata(&mut self, block_header: &VerifiedBlockHeader) {
+        let block_ref = block_header.reference();
+        self.recent_block_headers
+            .insert(block_ref, block_header.clone());
+        self.recent_headers_refs_by_authority[block_ref.author].insert(block_ref);
         self.threshold_clock.add_block(block_ref);
-        self.highest_accepted_round = max(self.highest_accepted_round, block.round());
+        self.highest_accepted_round = max(self.highest_accepted_round, block_header.round());
         self.context
             .metrics
             .node_metrics
             .highest_accepted_round
             .set(self.highest_accepted_round as i64);
 
-        let highest_accepted_round_for_author = self.recent_refs_by_authority[block_ref.author]
+        let highest_accepted_round_for_author = self.recent_headers_refs_by_authority
+            [block_ref.author]
             .last()
             .map(|block_ref| block_ref.round)
             .expect("There should be by now at least one block ref");
@@ -286,21 +316,29 @@ impl DagState {
             .set(highest_accepted_round_for_author as i64);
     }
 
-    /// Accepts a blocks into DagState and keeps it in memory.
-    pub(crate) fn accept_blocks(&mut self, blocks: Vec<VerifiedBlockHeader>) {
+    /// Accepts a block header into DagState and keeps it in memory.
+    pub(crate) fn accept_block_headers(&mut self, blocks: Vec<VerifiedBlockHeader>) {
         debug!(
             "Accepting blocks: {}",
             blocks.iter().map(|b| b.reference().to_string()).join(",")
         );
         for block in blocks {
-            self.accept_block(block);
+            self.accept_block_header(block);
         }
     }
 
     /// Gets a block by checking cached recent blocks then storage.
     /// Returns None when the block is not found.
-    pub(crate) fn get_block(&self, reference: &BlockRef) -> Option<VerifiedBlockHeader> {
+    pub(crate) fn get_block(&self, reference: &BlockRef) -> Option<VerifiedBlock> {
         self.get_blocks(&[*reference])
+            .pop()
+            .expect("Exactly one element should be returned")
+    }
+
+    /// Gets a block header by checking cached recent blocks then storage.
+    /// Returns None when the block is not found.
+    pub(crate) fn get_block_header(&self, reference: &BlockRef) -> Option<VerifiedBlockHeader> {
+        self.get_block_headers(&[*reference])
             .pop()
             .expect("Exactly one element should be returned")
     }
@@ -308,7 +346,7 @@ impl DagState {
     /// Gets blocks by checking genesis, cached recent blocks in memory, then
     /// storage. An element is None when the corresponding block is not
     /// found.
-    pub(crate) fn get_blocks(&self, block_refs: &[BlockRef]) -> Vec<Option<VerifiedBlockHeader>> {
+    pub(crate) fn get_blocks(&self, block_refs: &[BlockRef]) -> Vec<Option<VerifiedBlock>> {
         let mut blocks = vec![None; block_refs.len()];
         let mut missing = Vec::new();
 
@@ -353,6 +391,57 @@ impl DagState {
         blocks
     }
 
+    /// Gets block headers by checking genesis, cached recent block headers in
+    /// memory, then storage. An element is None when the corresponding
+    /// block header is not found.
+    pub(crate) fn get_block_headers(
+        &self,
+        block_refs: &[BlockRef],
+    ) -> Vec<Option<VerifiedBlockHeader>> {
+        let mut block_headers: Vec<Option<VerifiedBlockHeader>> = vec![None; block_refs.len()];
+        let mut missing_headers = Vec::new();
+        for (index, block_ref) in block_refs.iter().enumerate() {
+            if block_ref.round == GENESIS_ROUND {
+                // Allow the caller to handle the invalid genesis ancestor error.
+                if let Some(block) = self.genesis.get(block_ref) {
+                    block_headers[index] = Some((**block).clone());
+                }
+                continue;
+            }
+            if let Some(block) = self.recent_block_headers.get(block_ref) {
+                block_headers[index] = Some(block.clone());
+                continue;
+            }
+            missing_headers.push((index, block_ref));
+        }
+
+        if missing_headers.is_empty() {
+            return block_headers;
+        }
+
+        let missing_refs = missing_headers
+            .iter()
+            .map(|(_, block_ref)| **block_ref)
+            .collect::<Vec<_>>();
+        let store_results = self
+            .store
+            .read_block_headers(&missing_refs)
+            .unwrap_or_else(|e| panic!("Failed to read from storage: {:?}", e));
+        // TODO:similar metric for header reads count
+        // self.context
+        // .metrics
+        // .node_metrics
+        // .dag_state_store_read_count
+        // .with_label_values(&["get_blocks"])
+        // .inc();
+
+        for ((index, _), result) in missing_headers.into_iter().zip(store_results.into_iter()) {
+            block_headers[index] = result;
+        }
+
+        block_headers
+    }
+
     /// Gets all uncommitted blocks in a slot.
     /// Uncommitted blocks must exist in memory, so only in-memory blocks are
     /// checked.
@@ -362,7 +451,7 @@ impl DagState {
         // to edge cases.
 
         let mut blocks = vec![];
-        for (_block_ref, block) in self.recent_blocks.range((
+        for (_block_ref, block) in self.recent_block_headers.range((
             Included(BlockRef::new(
                 slot.round,
                 slot.authority,
@@ -388,7 +477,7 @@ impl DagState {
         }
 
         let mut blocks = vec![];
-        for (_block_ref, block) in self.recent_blocks.range((
+        for (_block_ref, block) in self.recent_block_headers.range((
             Included(BlockRef::new(
                 round,
                 AuthorityIndex::ZERO,
@@ -420,8 +509,8 @@ impl DagState {
                 break;
             }
             let block_ref = linked.pop_last().unwrap();
-            let Some(block) = self.get_block(&block_ref) else {
-                panic!("Block {:?} should exist in DAG!", block_ref);
+            let Some(block) = self.get_block_header(&block_ref) else {
+                panic!("Block Header {:?} should exist in DAG!", block_ref);
             };
             linked.extend(block.ancestors().iter().cloned());
         }
@@ -435,7 +524,7 @@ impl DagState {
                 Unbounded,
             ))
             .map(|r| {
-                self.get_block(r)
+                self.get_block_header(r)
                     .unwrap_or_else(|| panic!("Block {:?} should exist in DAG!", r))
                     .clone()
             })
@@ -443,21 +532,40 @@ impl DagState {
     }
 
     /// Gets the last proposed block from this authority.
-    /// If no block is proposed yet, returns the genesis block.
-    pub(crate) fn get_last_proposed_block(&self) -> VerifiedBlockHeader {
-        self.get_last_block_for_authority(self.context.own_index)
+    /// If no block is proposed yet, returns Genesis block.
+    pub(crate) fn get_last_proposed_block(&self) -> VerifiedBlock {
+        if let Some(last) = self.recent_blocks_refs_by_authority[self.context.own_index].last() {
+            return self
+                .recent_blocks
+                .get(last)
+                .expect("Block should be found in recent blocks")
+                .clone();
+        }
+
+        let (_, genesis_block) = self
+            .genesis
+            .iter()
+            .find(|(block_ref, _)| block_ref.author == self.context.own_index)
+            .expect("Genesis should be found for authority {authority_index}");
+        genesis_block.clone()
+    }
+
+    /// Gets the last proposed block header from this authority.
+    /// If no block is proposed yet, returns the genesis block header.
+    pub(crate) fn get_last_proposed_block_header(&self) -> VerifiedBlockHeader {
+        self.get_last_block_header_for_authority(self.context.own_index)
     }
 
     /// Retrieves the last accepted block from the specified `authority`. If no
     /// block is found in cache then the genesis block is returned as no other
     /// block has been received from that authority.
-    pub(crate) fn get_last_block_for_authority(
+    pub(crate) fn get_last_block_header_for_authority(
         &self,
         authority: AuthorityIndex,
     ) -> VerifiedBlockHeader {
-        if let Some(last) = self.recent_refs_by_authority[authority].last() {
+        if let Some(last) = self.recent_headers_refs_by_authority[authority].last() {
             return self
-                .recent_blocks
+                .recent_block_headers
                 .get(last)
                 .expect("Block should be found in recent blocks")
                 .clone();
@@ -469,7 +577,7 @@ impl DagState {
             .iter()
             .find(|(block_ref, _)| block_ref.author == authority)
             .expect("Genesis should be found for authority {authority_index}");
-        genesis_block.clone()
+        genesis_block.verified_block_header.clone()
     }
 
     /// Returns cached recent blocks from the specified authority.
@@ -481,9 +589,9 @@ impl DagState {
         &self,
         authority: AuthorityIndex,
         start: Round,
-    ) -> Vec<VerifiedBlockHeader> {
+    ) -> Vec<VerifiedBlock> {
         let mut blocks = vec![];
-        for block_ref in self.recent_refs_by_authority[authority].range((
+        for block_ref in self.recent_blocks_refs_by_authority[authority].range((
             Included(BlockRef::new(start, authority, BlockHeaderDigest::MIN)),
             Unbounded,
         )) {
@@ -496,10 +604,37 @@ impl DagState {
         blocks
     }
 
-    // Retrieves the cached block within the range [start_round, end_round) from a
-    // given authority. NOTE: end_round must be greater than GENESIS_ROUND.
+    /// Returns cached recent block headers from the specified authority.
+    /// Block headers returned are limited to round >= `start`, and cached.
+    /// NOTE: caller should not assume returned block headers are always
+    /// chained. "Disconnected" block headers can be returned when there are
+    /// byzantine block headers, or when received block headers are not
+    /// deduped.
+    #[cfg_attr(not(test), expect(dead_code))]
+    pub(crate) fn get_cached_block_headers(
+        &self,
+        authority: AuthorityIndex,
+        start: Round,
+    ) -> Vec<VerifiedBlockHeader> {
+        let mut block_headers = vec![];
+        for block_ref in self.recent_headers_refs_by_authority[authority].range((
+            Included(BlockRef::new(start, authority, BlockHeaderDigest::MIN)),
+            Unbounded,
+        )) {
+            let block_header = self
+                .recent_block_headers
+                .get(block_ref)
+                .expect("Block Header should exist in recent blocks headers");
+            block_headers.push(block_header.clone());
+        }
+        block_headers
+    }
+
+    // Retrieves the cached block header within the range [start_round, end_round)
+    // from a given authority. NOTE: end_round must be greater than
+    // GENESIS_ROUND.
     #[cfg(test)]
-    pub(crate) fn get_last_cached_block_in_range(
+    pub(crate) fn get_last_cached_block_header_in_range(
         &self,
         authority: AuthorityIndex,
         start_round: Round,
@@ -511,7 +646,7 @@ impl DagState {
             );
         }
 
-        let block_ref = self.recent_refs_by_authority[authority]
+        let block_ref = self.recent_headers_refs_by_authority[authority]
             .range((
                 Included(BlockRef::new(
                     start_round,
@@ -526,7 +661,7 @@ impl DagState {
             ))
             .last()?;
 
-        self.recent_blocks.get(block_ref).cloned()
+        self.recent_block_headers.get(block_ref).cloned()
     }
 
     /// Returns the last block proposed per authority with `evicted round <
@@ -537,12 +672,16 @@ impl DagState {
     /// earlier rounds. In case of equivocation for an authority's last
     /// slot, one block will be returned (the last in order) and the other
     /// equivocating blocks will be returned.
-    pub(crate) fn get_last_cached_block_per_authority(
+    pub(crate) fn get_last_cached_block_header_per_authority(
         &self,
         end_round: Round,
     ) -> Vec<(VerifiedBlockHeader, Vec<BlockRef>)> {
         // Initialize with the genesis blocks as fallback
-        let mut blocks = self.genesis.values().cloned().collect::<Vec<_>>();
+        let mut block_headers = self
+            .genesis
+            .values()
+            .map(|b| (**b).clone())
+            .collect::<Vec<VerifiedBlockHeader>>();
         let mut equivocating_blocks = vec![vec![]; self.context.committee.size()];
 
         if end_round == GENESIS_ROUND {
@@ -552,10 +691,12 @@ impl DagState {
         }
 
         if end_round == GENESIS_ROUND + 1 {
-            return blocks.into_iter().map(|b| (b, vec![])).collect();
+            return block_headers.into_iter().map(|b| (b, vec![])).collect();
         }
 
-        for (authority_index, block_refs) in self.recent_refs_by_authority.iter().enumerate() {
+        for (authority_index, block_refs) in
+            self.recent_headers_refs_by_authority.iter().enumerate()
+        {
             let authority_index = self
                 .context
                 .committee
@@ -588,11 +729,11 @@ impl DagState {
             for block_ref in block_ref_iter {
                 if last_round == 0 {
                     last_round = block_ref.round;
-                    let block = self
-                        .recent_blocks
+                    let block_header = self
+                        .recent_block_headers
                         .get(block_ref)
                         .expect("Block should exist in recent blocks");
-                    blocks[authority_index] = block.clone();
+                    block_headers[authority_index] = block_header.clone();
                     continue;
                 }
                 if block_ref.round < last_round {
@@ -602,13 +743,13 @@ impl DagState {
             }
         }
 
-        blocks.into_iter().zip(equivocating_blocks).collect()
+        block_headers.into_iter().zip(equivocating_blocks).collect()
     }
 
-    /// Checks whether a block exists in the slot. The method checks only
+    /// Checks whether a block header exists in the slot. The method checks only
     /// against the cached data. If the user asks for a slot that is not
     /// within the cached data then a panic is thrown.
-    pub(crate) fn contains_cached_block_at_slot(&self, slot: Slot) -> bool {
+    pub(crate) fn contains_cached_block_header_at_slot(&self, slot: Slot) -> bool {
         // Always return true for genesis slots.
         if slot.round == GENESIS_ROUND {
             return true;
@@ -624,7 +765,7 @@ impl DagState {
             );
         }
 
-        let mut result = self.recent_refs_by_authority[slot.authority].range((
+        let mut result = self.recent_headers_refs_by_authority[slot.authority].range((
             Included(BlockRef::new(
                 slot.round,
                 slot.authority,
@@ -639,15 +780,17 @@ impl DagState {
         result.next().is_some()
     }
 
-    /// Checks whether the required blocks are in cache, if exist, or otherwise
-    /// will check in store. The method is not caching back the results, so
-    /// its expensive if keep asking for cache missing blocks.
-    pub(crate) fn contains_blocks(&self, block_refs: Vec<BlockRef>) -> Vec<bool> {
+    // TODO: implement for blocks as well
+    /// Checks whether the required block headers are in cache, if exist, or
+    /// otherwise will check in store. The method is not caching back the
+    /// results, so its expensive if keep asking for cache missing block
+    /// headers.
+    pub(crate) fn contains_block_headers(&self, block_refs: Vec<BlockRef>) -> Vec<bool> {
         let mut exist = vec![false; block_refs.len()];
         let mut missing = Vec::new();
 
         for (index, block_ref) in block_refs.into_iter().enumerate() {
-            let recent_refs = &self.recent_refs_by_authority[block_ref.author];
+            let recent_refs = &self.recent_headers_refs_by_authority[block_ref.author];
             if recent_refs.contains(&block_ref) || self.genesis.contains_key(&block_ref) {
                 exist[index] = true;
             } else if recent_refs.is_empty() || recent_refs.last().unwrap().round < block_ref.round
@@ -672,13 +815,13 @@ impl DagState {
             .collect::<Vec<_>>();
         let store_results = self
             .store
-            .contains_blocks(&missing_refs)
+            .contains_block_headers(&missing_refs)
             .unwrap_or_else(|e| panic!("Failed to read from storage: {:?}", e));
         self.context
             .metrics
             .node_metrics
             .dag_state_store_read_count
-            .with_label_values(&["contains_blocks"])
+            .with_label_values(&["contains_block_headers"])
             .inc();
 
         for ((index, _), result) in missing.into_iter().zip(store_results.into_iter()) {
@@ -688,8 +831,8 @@ impl DagState {
         exist
     }
 
-    pub(crate) fn contains_block(&self, block_ref: &BlockRef) -> bool {
-        let blocks = self.contains_blocks(vec![*block_ref]);
+    pub(crate) fn contains_block_header(&self, block_ref: &BlockRef) -> bool {
+        let blocks = self.contains_block_headers(vec![*block_ref]);
         blocks.first().cloned().unwrap()
     }
 
@@ -811,13 +954,13 @@ impl DagState {
             .partition(|x| x.round < clock_round);
 
         // Split below_clock_round into taken and leftover
-        let acknowlegments = below_clock_round.drain(..).take(limit).collect::<Vec<_>>();
+        let acknowledgments = below_clock_round.drain(..).take(limit).collect::<Vec<_>>();
 
         // Remaining acknowledgments go back to the queue
         below_clock_round.extend(at_least_clock_round);
         self.pending_acknowledgments = below_clock_round;
 
-        acknowlegments
+        acknowledgments
     }
 
     /// Index of the last commit.
@@ -884,16 +1027,22 @@ impl DagState {
             .start_timer();
         // Flush buffered data to storage.
         let blocks = std::mem::take(&mut self.blocks_to_write);
+        let block_headers = std::mem::take(&mut self.block_headers_to_write);
         let commits = std::mem::take(&mut self.commits_to_write);
         let commit_info_to_write = std::mem::take(&mut self.commit_info_to_write);
 
-        if blocks.is_empty() && commits.is_empty() {
+        if blocks.is_empty() && commits.is_empty() && block_headers.is_empty() {
             return;
         }
         debug!(
-            "Flushing {} blocks ({}), {} commits ({}) and {} commit info ({}) to storage.",
+            "Flushing {} blocks ({}), {} block headers ({}), {} commits ({}) and {} commit info ({}) to storage.",
             blocks.len(),
             blocks.iter().map(|b| b.reference().to_string()).join(","),
+            block_headers.len(),
+            block_headers
+                .iter()
+                .map(|b| b.reference().to_string())
+                .join(","),
             commits.len(),
             commits.iter().map(|c| c.reference().to_string()).join(","),
             commit_info_to_write.len(),
@@ -903,7 +1052,12 @@ impl DagState {
                 .join(","),
         );
         self.store
-            .write(WriteBatch::new(blocks, commits, commit_info_to_write))
+            .write(WriteBatch::new(
+                blocks,
+                block_headers,
+                commits,
+                commit_info_to_write,
+            ))
             .unwrap_or_else(|e| panic!("Failed to write to storage: {:?}", e));
         self.context
             .metrics
@@ -915,10 +1069,22 @@ impl DagState {
         // be persisted.
         for (authority_index, _) in self.context.committee.authorities() {
             let eviction_round = self.calculate_authority_eviction_round(authority_index);
-            while let Some(block_ref) = self.recent_refs_by_authority[authority_index].first() {
+            while let Some(block_ref) =
+                self.recent_headers_refs_by_authority[authority_index].first()
+            {
+                if block_ref.round <= eviction_round {
+                    self.recent_block_headers.remove(block_ref);
+                    self.recent_headers_refs_by_authority[authority_index].pop_first();
+                } else {
+                    break;
+                }
+            }
+            while let Some(block_ref) =
+                self.recent_blocks_refs_by_authority[authority_index].first()
+            {
                 if block_ref.round <= eviction_round {
                     self.recent_blocks.remove(block_ref);
-                    self.recent_refs_by_authority[authority_index].pop_first();
+                    self.recent_blocks_refs_by_authority[authority_index].pop_first();
                 } else {
                     break;
                 }
@@ -927,11 +1093,12 @@ impl DagState {
         }
 
         let metrics = &self.context.metrics.node_metrics;
+        // TODO: create similar metric for headers?
         metrics
             .dag_state_recent_blocks
             .set(self.recent_blocks.len() as i64);
         metrics.dag_state_recent_refs.set(
-            self.recent_refs_by_authority
+            self.recent_blocks_refs_by_authority
                 .iter()
                 .map(BTreeSet::len)
                 .sum::<usize>() as i64,
@@ -998,7 +1165,7 @@ impl DagState {
             (self.highest_accepted_round.saturating_sub(1)..=self.highest_accepted_round).rev()
         {
             if round == GENESIS_ROUND {
-                return self.genesis_blocks();
+                return self.genesis_block_headers();
             }
             use crate::stake_aggregator::{QuorumThreshold, StakeAggregator};
             let mut quorum = StakeAggregator::<QuorumThreshold>::new();
@@ -1016,9 +1183,17 @@ impl DagState {
         panic!("Fatal error, no quorum has been detected in our DAG on the last two rounds.");
     }
 
-    #[cfg(test)]
-    pub(crate) fn genesis_blocks(&self) -> Vec<VerifiedBlockHeader> {
+    #[expect(dead_code)]
+    pub(crate) fn genesis_blocks(&self) -> Vec<VerifiedBlock> {
         self.genesis.values().cloned().collect()
+    }
+
+    #[cfg(test)]
+    pub(crate) fn genesis_block_headers(&self) -> Vec<VerifiedBlockHeader> {
+        self.genesis
+            .values()
+            .map(|b| (**b).clone())
+            .collect::<Vec<VerifiedBlockHeader>>()
     }
 
     #[cfg(test)]
@@ -1042,14 +1217,16 @@ mod test {
     use crate::{
         block_header::{
             BlockHeaderDigest, BlockRef, BlockTimestampMs, TestBlockHeader, VerifiedBlockHeader,
+            genesis_block_headers,
         },
         storage::{WriteBatch, mem_store::MemStore},
         test_dag_builder::DagBuilder,
         test_dag_parser::parse_dag,
     };
 
+    // TODO: create similar test for get_block
     #[tokio::test]
-    async fn test_get_blocks() {
+    async fn test_get_block_header() {
         let (context, _) = Context::new_for_test(4);
         let context = Arc::new(context);
         let store = Arc::new(MemStore::new());
@@ -1072,7 +1249,7 @@ mod test {
                             .set_timestamp_ms(timestamp)
                             .build(),
                     );
-                    dag_state.accept_block(block.clone());
+                    dag_state.accept_block_header(block.clone());
                     blocks.insert(block.reference(), block);
 
                     // Only write one block per slot for own index
@@ -1085,7 +1262,7 @@ mod test {
 
         // Check uncommitted blocks that exist.
         for (r, block) in &blocks {
-            assert_eq!(&dag_state.get_block(r).unwrap(), block);
+            assert_eq!(&dag_state.get_block_header(r).unwrap(), block);
         }
 
         // Check uncommitted blocks that do not exist.
@@ -1296,7 +1473,7 @@ mod test {
             .chain(round_13.iter())
             .chain([anchor.clone()].iter())
         {
-            dag_state.accept_block(b.clone());
+            dag_state.accept_block_header(b.clone());
         }
 
         // Check ancestors connected to anchor.
@@ -1318,8 +1495,9 @@ mod test {
         );
     }
 
+    // TODO: make similar test for blocks
     #[tokio::test]
-    async fn test_contains_blocks_in_cache_or_store() {
+    async fn test_contains_block_headers_in_cache_or_store() {
         /// Only keep elements up to 2 rounds before the last committed round
         const CACHED_ROUNDS: Round = 2;
 
@@ -1333,36 +1511,36 @@ mod test {
         // Create test blocks for round 1 ~ 10
         let num_rounds: u32 = 10;
         let num_authorities: u32 = 4;
-        let mut blocks = Vec::new();
+        let mut block_headers = Vec::new();
 
         for round in 1..=num_rounds {
             for author in 0..num_authorities {
-                let block =
+                let block_header =
                     VerifiedBlockHeader::new_for_test(TestBlockHeader::new(round, author).build());
-                blocks.push(block);
+                block_headers.push(block_header);
             }
         }
 
-        // Now write in store the blocks from first 4 rounds and the rest to the dag
-        // state
-        blocks.clone().into_iter().for_each(|block| {
-            if block.round() <= 4 {
+        // Now write in store the block headers from first 4 rounds and the rest to the
+        // dag state
+        block_headers.clone().into_iter().for_each(|block_header| {
+            if block_header.round() <= 4 {
                 store
-                    .write(WriteBatch::default().blocks(vec![block]))
+                    .write(WriteBatch::default().block_headers(vec![block_header]))
                     .unwrap();
             } else {
-                dag_state.accept_blocks(vec![block]);
+                dag_state.accept_block_headers(vec![block_header]);
             }
         });
 
         // Now when trying to query whether we have all the blocks, we should
         // successfully retrieve a positive answer where the blocks of first 4
         // round should be found in DagState and the rest in store.
-        let mut block_refs = blocks
+        let mut block_refs = block_headers
             .iter()
             .map(|block| block.reference())
             .collect::<Vec<_>>();
-        let result = dag_state.contains_blocks(block_refs.clone());
+        let result = dag_state.contains_block_headers(block_refs.clone());
 
         // Ensure everything is found
         let mut expected = vec![true; (num_rounds * num_authorities) as usize];
@@ -1377,7 +1555,7 @@ mod test {
                 BlockHeaderDigest::default(),
             ),
         );
-        let result = dag_state.contains_blocks(block_refs.clone());
+        let result = dag_state.contains_block_headers(block_refs.clone());
 
         // Then all should be found apart from the last one
         expected.insert(3, false);
@@ -1385,7 +1563,7 @@ mod test {
     }
 
     #[tokio::test]
-    async fn test_contains_cached_block_at_slot() {
+    async fn test_contains_cached_block_header_at_slot() {
         /// Only keep elements up to 2 rounds before the last committed round
         const CACHED_ROUNDS: Round = 2;
 
@@ -1406,14 +1584,14 @@ mod test {
                 let block =
                     VerifiedBlockHeader::new_for_test(TestBlockHeader::new(round, author).build());
                 blocks.push(block.clone());
-                dag_state.accept_block(block);
+                dag_state.accept_block_header(block);
             }
         }
 
         // Query for genesis round 0, genesis blocks should be returned
         for (author, _) in context.committee.authorities() {
             assert!(
-                dag_state.contains_cached_block_at_slot(Slot::new(GENESIS_ROUND, author)),
+                dag_state.contains_cached_block_header_at_slot(Slot::new(GENESIS_ROUND, author)),
                 "Genesis should always be found"
             );
         }
@@ -1428,7 +1606,7 @@ mod test {
 
         for block_ref in block_refs.clone() {
             let slot = block_ref.into();
-            let found = dag_state.contains_cached_block_at_slot(slot);
+            let found = dag_state.contains_cached_block_header_at_slot(slot);
             assert!(found, "A block should be found at slot {}", slot);
         }
 
@@ -1448,7 +1626,7 @@ mod test {
         // Attempt to check the same for via the contains slot method
         for block_ref in block_refs {
             let slot = block_ref.into();
-            let found = dag_state.contains_cached_block_at_slot(slot);
+            let found = dag_state.contains_cached_block_header_at_slot(slot);
 
             assert_eq!(expected.remove(0), found);
         }
@@ -1474,7 +1652,7 @@ mod test {
         for round in 1..=10 {
             let block = VerifiedBlockHeader::new_for_test(TestBlockHeader::new(round, 0).build());
             blocks.push(block.clone());
-            dag_state.accept_block(block);
+            dag_state.accept_block_header(block);
         }
 
         // Now add a commit to trigger an eviction
@@ -1495,8 +1673,8 @@ mod test {
         // When trying to request for authority 0 at block slot 8 it should panic, as
         // anything that is <= commit_round - cached_rounds = 10 - 2 = 8 should
         // be evicted
-        let _ =
-            dag_state.contains_cached_block_at_slot(Slot::new(8, AuthorityIndex::new_for_test(0)));
+        let _ = dag_state
+            .contains_cached_block_header_at_slot(Slot::new(8, AuthorityIndex::new_for_test(0)));
     }
 
     #[tokio::test]
@@ -1509,38 +1687,38 @@ mod test {
         // Create test blocks for round 1 ~ 10
         let num_rounds: u32 = 10;
         let num_authorities: u32 = 4;
-        let mut blocks = Vec::new();
+        let mut block_headers = Vec::new();
 
         for round in 1..=num_rounds {
             for author in 0..num_authorities {
                 let block =
                     VerifiedBlockHeader::new_for_test(TestBlockHeader::new(round, author).build());
-                blocks.push(block);
+                block_headers.push(block);
             }
         }
 
         // Now write in store the blocks from first 4 rounds and the rest to the dag
         // state
-        blocks.clone().into_iter().for_each(|block| {
-            if block.round() <= 4 {
+        block_headers.clone().into_iter().for_each(|block_header| {
+            if block_header.round() <= 4 {
                 store
-                    .write(WriteBatch::default().blocks(vec![block]))
+                    .write(WriteBatch::default().block_headers(vec![block_header]))
                     .unwrap();
             } else {
-                dag_state.accept_blocks(vec![block]);
+                dag_state.accept_block_headers(vec![block_header]);
             }
         });
 
         // Now when trying to query whether we have all the blocks, we should
         // successfully retrieve a positive answer where the blocks of first 4
         // round should be found in DagState and the rest in store.
-        let mut block_refs = blocks
+        let mut block_refs = block_headers
             .iter()
             .map(|block| block.reference())
             .collect::<Vec<_>>();
-        let result = dag_state.get_blocks(&block_refs);
+        let result = dag_state.get_block_headers(&block_refs);
 
-        let mut expected = blocks
+        let mut expected = block_headers
             .into_iter()
             .map(Some)
             .collect::<Vec<Option<VerifiedBlockHeader>>>();
@@ -1557,7 +1735,7 @@ mod test {
                 BlockHeaderDigest::default(),
             ),
         );
-        let result = dag_state.get_blocks(&block_refs);
+        let result = dag_state.get_block_headers(&block_refs);
 
         // Then all should be found apart from the last one
         expected.insert(3, None);
@@ -1584,7 +1762,7 @@ mod test {
 
         // Add the blocks from first 5 rounds and first 5 commits to the dag state
         let temp_commits = commits.split_off(5);
-        dag_state.accept_blocks(dag_builder.blocks(1..=5));
+        dag_state.accept_block_headers(dag_builder.block_headers(1..=5));
         for commit in commits.clone() {
             dag_state.add_commit(commit);
         }
@@ -1593,23 +1771,23 @@ mod test {
         dag_state.flush();
 
         // Add the rest of the blocks and commits to the dag state
-        dag_state.accept_blocks(dag_builder.blocks(6..=num_rounds));
+        dag_state.accept_block_headers(dag_builder.block_headers(6..=num_rounds));
         for commit in temp_commits.clone() {
             dag_state.add_commit(commit);
         }
 
         // All blocks should be found in DagState.
-        let all_blocks = dag_builder.blocks(6..=num_rounds);
-        let block_refs = all_blocks
+        let all_block_headers = dag_builder.block_headers(6..=num_rounds);
+        let block_refs = all_block_headers
             .iter()
             .map(|block| block.reference())
             .collect::<Vec<_>>();
         let result = dag_state
-            .get_blocks(&block_refs)
+            .get_block_headers(&block_refs)
             .into_iter()
             .map(|b| b.unwrap())
             .collect::<Vec<_>>();
-        assert_eq!(result, all_blocks);
+        assert_eq!(result, all_block_headers);
 
         // Last commit index should be 10.
         assert_eq!(dag_state.last_commit_index(), 10);
@@ -1625,26 +1803,26 @@ mod test {
         let dag_state = DagState::new(context.clone(), store.clone());
 
         // Blocks of first 5 rounds should be found in DagState.
-        let blocks = dag_builder.blocks(1..=5);
-        let block_refs = blocks
+        let block_headers = dag_builder.block_headers(1..=5);
+        let block_refs = block_headers
             .iter()
-            .map(|block| block.reference())
+            .map(|block_header| block_header.reference())
             .collect::<Vec<_>>();
         let result = dag_state
-            .get_blocks(&block_refs)
+            .get_block_headers(&block_refs)
             .into_iter()
             .map(|b| b.unwrap())
             .collect::<Vec<_>>();
-        assert_eq!(result, blocks);
+        assert_eq!(result, block_headers);
 
         // Blocks above round 5 should not be in DagState, because they are not flushed.
-        let missing_blocks = dag_builder.blocks(6..=num_rounds);
+        let missing_blocks = dag_builder.block_headers(6..=num_rounds);
         let block_refs = missing_blocks
             .iter()
             .map(|block| block.reference())
             .collect::<Vec<_>>();
         let retrieved_blocks = dag_state
-            .get_blocks(&block_refs)
+            .get_block_headers(&block_refs)
             .into_iter()
             .flatten()
             .collect::<Vec<_>>();
@@ -1665,7 +1843,7 @@ mod test {
     }
 
     #[tokio::test]
-    async fn test_get_cached_blocks() {
+    async fn test_get_cached_block_headers() {
         let (mut context, _) = Context::new_for_test(4);
         context.parameters.dag_state_cached_rounds = 5;
 
@@ -1683,41 +1861,41 @@ mod test {
                 let block =
                     VerifiedBlockHeader::new_for_test(TestBlockHeader::new(round, author).build());
                 all_blocks.push(block.clone());
-                dag_state.accept_block(block);
+                dag_state.accept_block_header(block);
             }
         }
 
-        let cached_blocks =
-            dag_state.get_cached_blocks(context.committee.to_authority_index(0).unwrap(), 0);
-        assert!(cached_blocks.is_empty());
+        let cached_block_headers =
+            dag_state.get_cached_block_headers(context.committee.to_authority_index(0).unwrap(), 0);
+        assert!(cached_block_headers.is_empty());
 
-        let cached_blocks =
-            dag_state.get_cached_blocks(context.committee.to_authority_index(1).unwrap(), 10);
-        assert_eq!(cached_blocks.len(), 1);
-        assert_eq!(cached_blocks[0].round(), 10);
+        let cached_block_headers = dag_state
+            .get_cached_block_headers(context.committee.to_authority_index(1).unwrap(), 10);
+        assert_eq!(cached_block_headers.len(), 1);
+        assert_eq!(cached_block_headers[0].round(), 10);
 
-        let cached_blocks =
-            dag_state.get_cached_blocks(context.committee.to_authority_index(2).unwrap(), 10);
-        assert_eq!(cached_blocks.len(), 2);
-        assert_eq!(cached_blocks[0].round(), 10);
-        assert_eq!(cached_blocks[1].round(), 11);
+        let cached_block_headers = dag_state
+            .get_cached_block_headers(context.committee.to_authority_index(2).unwrap(), 10);
+        assert_eq!(cached_block_headers.len(), 2);
+        assert_eq!(cached_block_headers[0].round(), 10);
+        assert_eq!(cached_block_headers[1].round(), 11);
 
-        let cached_blocks =
-            dag_state.get_cached_blocks(context.committee.to_authority_index(2).unwrap(), 11);
-        assert_eq!(cached_blocks.len(), 1);
-        assert_eq!(cached_blocks[0].round(), 11);
+        let cached_block_headers = dag_state
+            .get_cached_block_headers(context.committee.to_authority_index(2).unwrap(), 11);
+        assert_eq!(cached_block_headers.len(), 1);
+        assert_eq!(cached_block_headers[0].round(), 11);
 
-        let cached_blocks =
-            dag_state.get_cached_blocks(context.committee.to_authority_index(3).unwrap(), 10);
-        assert_eq!(cached_blocks.len(), 3);
-        assert_eq!(cached_blocks[0].round(), 10);
-        assert_eq!(cached_blocks[1].round(), 11);
-        assert_eq!(cached_blocks[2].round(), 12);
+        let cached_block_headers = dag_state
+            .get_cached_block_headers(context.committee.to_authority_index(3).unwrap(), 10);
+        assert_eq!(cached_block_headers.len(), 3);
+        assert_eq!(cached_block_headers[0].round(), 10);
+        assert_eq!(cached_block_headers[1].round(), 11);
+        assert_eq!(cached_block_headers[2].round(), 12);
 
-        let cached_blocks =
-            dag_state.get_cached_blocks(context.committee.to_authority_index(3).unwrap(), 12);
-        assert_eq!(cached_blocks.len(), 1);
-        assert_eq!(cached_blocks[0].round(), 12);
+        let cached_block_headers = dag_state
+            .get_cached_block_headers(context.committee.to_authority_index(3).unwrap(), 12);
+        assert_eq!(cached_block_headers.len(), 1);
+        assert_eq!(cached_block_headers[0].round(), 12);
     }
 
     #[rstest]
@@ -1758,12 +1936,12 @@ mod test {
         let block = VerifiedBlockHeader::new_for_test(TestBlockHeader::new(2, 2).build());
 
         // Accept all blocks
-        for block in dag_builder
-            .all_blocks()
+        for block_header in dag_builder
+            .all_block_headers()
             .into_iter()
             .chain(std::iter::once(block))
         {
-            dag_state.accept_block(block);
+            dag_state.accept_block_header(block_header);
         }
 
         dag_state.add_commit(TrustedCommit::new_for_test(
@@ -1780,20 +1958,26 @@ mod test {
         let expected_rounds = vec![0, 1, 2, 3];
         let expected_excluded_and_equivocating_blocks = vec![0, 0, 1, 0];
         // THEN
-        let last_blocks = dag_state.get_last_cached_block_per_authority(end_round);
+        let last_block_headers = dag_state.get_last_cached_block_header_per_authority(end_round);
         assert_eq!(
-            last_blocks.iter().map(|b| b.0.round()).collect::<Vec<_>>(),
+            last_block_headers
+                .iter()
+                .map(|b| b.0.round())
+                .collect::<Vec<_>>(),
             expected_rounds
         );
         assert_eq!(
-            last_blocks.iter().map(|b| b.1.len()).collect::<Vec<_>>(),
+            last_block_headers
+                .iter()
+                .map(|b| b.1.len())
+                .collect::<Vec<_>>(),
             expected_excluded_and_equivocating_blocks
         );
 
         // THEN
         for (i, expected_round) in expected_rounds.iter().enumerate() {
             let round = dag_state
-                .get_last_cached_block_in_range(
+                .get_last_cached_block_header_in_range(
                     context.committee.to_authority_index(i).unwrap(),
                     0,
                     end_round,
@@ -1810,7 +1994,7 @@ mod test {
         // THEN
         for (i, expected_round) in expected_rounds.iter().enumerate() {
             let round = dag_state
-                .get_last_cached_block_in_range(
+                .get_last_cached_block_header_in_range(
                     context.committee.to_authority_index(i).unwrap(),
                     start_round,
                     end_round,
@@ -1831,16 +2015,19 @@ mod test {
         let expected_rounds = vec![0, 1, 2, 2];
 
         // THEN
-        let last_blocks = dag_state.get_last_cached_block_per_authority(end_round);
+        let last_block_headers = dag_state.get_last_cached_block_header_per_authority(end_round);
         assert_eq!(
-            last_blocks.iter().map(|b| b.0.round()).collect::<Vec<_>>(),
+            last_block_headers
+                .iter()
+                .map(|b| b.0.round())
+                .collect::<Vec<_>>(),
             expected_rounds
         );
 
         // THEN
         for (i, expected_round) in expected_rounds.iter().enumerate() {
             let round = dag_state
-                .get_last_cached_block_in_range(
+                .get_last_cached_block_header_in_range(
                     context.committee.to_authority_index(i).unwrap(),
                     0,
                     end_round,
@@ -1875,7 +2062,7 @@ mod test {
                 let block =
                     VerifiedBlockHeader::new_for_test(TestBlockHeader::new(round, author).build());
                 all_blocks.push(block.clone());
-                dag_state.accept_block(block);
+                dag_state.accept_block_header(block);
             }
         }
 
@@ -1898,7 +2085,7 @@ mod test {
         // THEN the method should panic, as some authorities have already evicted rounds
         // <= round 2
         let end_round = 2;
-        dag_state.get_last_cached_block_per_authority(end_round);
+        dag_state.get_last_cached_block_header_per_authority(end_round);
     }
 
     #[tokio::test]
@@ -1924,8 +2111,8 @@ mod test {
                 .layers(1..=4)
                 .build()
                 .persist_layers(dag_state.clone());
-            let round_4_blocks: Vec<_> = dag_builder
-                .blocks(4..=4)
+            let round_4_block_headers: Vec<_> = dag_builder
+                .block_headers(4..=4)
                 .into_iter()
                 .map(|block| block.reference())
                 .collect();
@@ -1935,23 +2122,24 @@ mod test {
             assert_eq!(
                 last_quorum
                     .into_iter()
-                    .map(|block| block.reference())
+                    .map(|block_header| block_header.reference())
                     .collect::<Vec<_>>(),
-                round_4_blocks
+                round_4_block_headers
             );
         }
 
         // WHEN adding one more block at round 5, still round 4 should be returned as
         // quorum
         {
-            let block = VerifiedBlockHeader::new_for_test(TestBlockHeader::new(5, 0).build());
-            dag_state.write().accept_block(block);
+            let block_header =
+                VerifiedBlockHeader::new_for_test(TestBlockHeader::new(5, 0).build());
+            dag_state.write().accept_block_header(block_header);
 
-            let round_4_blocks = dag_state.read().get_uncommitted_blocks_at_round(4);
+            let round_4_block_headers = dag_state.read().get_uncommitted_blocks_at_round(4);
 
             let last_quorum = dag_state.read().last_quorum();
 
-            assert_eq!(last_quorum, round_4_blocks);
+            assert_eq!(last_quorum, round_4_block_headers);
         }
     }
 
@@ -1971,7 +2159,10 @@ mod test {
                 .find(|block| block.author() == context.own_index)
                 .unwrap();
 
-            assert_eq!(dag_state.read().get_last_proposed_block(), my_genesis);
+            assert_eq!(
+                dag_state.read().get_last_proposed_block_header(),
+                my_genesis
+            );
         }
 
         // WHEN adding some blocks for authorities, only the last ones should be
@@ -1986,17 +2177,17 @@ mod test {
 
             // add block 5 for authority 0
             let block = VerifiedBlockHeader::new_for_test(TestBlockHeader::new(5, 0).build());
-            dag_state.write().accept_block(block);
+            dag_state.write().accept_block_header(block);
 
             let block = dag_state
                 .read()
-                .get_last_block_for_authority(AuthorityIndex::new_for_test(0));
+                .get_last_block_header_for_authority(AuthorityIndex::new_for_test(0));
             assert_eq!(block.round(), 5);
 
             for (authority_index, _) in context.committee.authorities() {
                 let block = dag_state
                     .read()
-                    .get_last_block_for_authority(authority_index);
+                    .get_last_block_header_for_authority(authority_index);
 
                 if authority_index.value() == 0 {
                     assert_eq!(block.round(), 5);

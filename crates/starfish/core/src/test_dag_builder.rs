@@ -16,7 +16,7 @@ use crate::{
     CommitRef, CommittedSubDag,
     block_header::{
         BlockHeaderAPI, BlockHeaderDigest, BlockRef, BlockTimestampMs, Round, Slot,
-        TestBlockHeader, VerifiedBlockHeader, genesis_block_headers,
+        TestBlockHeader, VerifiedBlock, VerifiedBlockHeader, genesis_block_headers,
     },
     commit::{CertifiedCommit, CommitDigest, TrustedCommit, WAVE_LENGTH},
     context::Context,
@@ -86,7 +86,7 @@ pub(crate) struct DagBuilder {
     pub(crate) last_ancestors: Vec<BlockRef>,
     // All blocks created by dag builder. Will be used to pretty print or to be
     // retrieved for testing/persiting to dag state.
-    pub(crate) blocks: BTreeMap<BlockRef, VerifiedBlockHeader>,
+    pub(crate) block_headers: BTreeMap<BlockRef, VerifiedBlockHeader>,
     // All the committed sub dags created by the dag builder.
     pub(crate) committed_sub_dags: Vec<(CommittedSubDag, TrustedCommit)>,
     pub(crate) last_committed_rounds: Vec<Round>,
@@ -114,29 +114,31 @@ impl DagBuilder {
             pipeline: false,
             genesis,
             last_ancestors,
-            blocks: BTreeMap::new(),
+            block_headers: BTreeMap::new(),
             committed_sub_dags: vec![],
         }
     }
 
-    pub(crate) fn blocks(&self, rounds: RangeInclusive<Round>) -> Vec<VerifiedBlockHeader> {
+    pub(crate) fn block_headers(&self, rounds: RangeInclusive<Round>) -> Vec<VerifiedBlockHeader> {
         assert!(
-            !self.blocks.is_empty(),
+            !self.block_headers.is_empty(),
             "No blocks have been created, please make sure that you have called build method"
         );
-        self.blocks
+        self.block_headers
             .iter()
-            .filter_map(|(block_ref, block)| rounds.contains(&block_ref.round).then_some(block))
+            .filter_map(|(block_ref, block_header)| {
+                rounds.contains(&block_ref.round).then_some(block_header)
+            })
             .cloned()
             .collect::<Vec<VerifiedBlockHeader>>()
     }
 
-    pub(crate) fn all_blocks(&self) -> Vec<VerifiedBlockHeader> {
+    pub(crate) fn all_block_headers(&self) -> Vec<VerifiedBlockHeader> {
         assert!(
-            !self.blocks.is_empty(),
-            "No blocks have been created, please make sure that you have called build method"
+            !self.block_headers.is_empty(),
+            "No block headers have been created, please make sure that you have called build method"
         );
-        self.blocks.values().cloned().collect()
+        self.block_headers.values().cloned().collect()
     }
 
     pub(crate) fn get_sub_dag_and_commits(
@@ -155,16 +157,15 @@ impl DagBuilder {
             };
 
         struct BlockStorage {
-            blocks: BTreeMap<BlockRef, (VerifiedBlockHeader, bool)>, /* the tuple represents the
-                                                                      * block
-                                                                      * and whether it is
-                                                                      * committed */
+            // the tuple represents the block and whether it is committed
+            // blocks: BTreeMap<BlockRef, (VerifiedBlock, bool)>,
+            block_headers: BTreeMap<BlockRef, (VerifiedBlockHeader, bool)>,
         }
         impl BlockStoreAPI for BlockStorage {
-            fn get_blocks(&self, refs: &[BlockRef]) -> Vec<Option<VerifiedBlockHeader>> {
+            fn get_block_headers(&self, refs: &[BlockRef]) -> Vec<Option<VerifiedBlockHeader>> {
                 refs.iter()
                     .map(|block_ref| {
-                        self.blocks
+                        self.block_headers
                             .get(block_ref)
                             .map(|(block, _committed)| block.clone())
                     })
@@ -172,8 +173,8 @@ impl DagBuilder {
             }
         }
         let mut storage = BlockStorage {
-            blocks: self
-                .blocks
+            block_headers: self
+                .block_headers
                 .clone()
                 .into_iter()
                 .map(|(k, v)| (k, (v, false)))
@@ -238,7 +239,7 @@ impl DagBuilder {
         rounds: RangeInclusive<Round>,
     ) -> Vec<Option<VerifiedBlockHeader>> {
         assert!(
-            !self.blocks.is_empty(),
+            !self.block_headers.is_empty(),
             "No blocks have been created, please make sure that you have called build method"
         );
         rounds
@@ -255,8 +256,14 @@ impl DagBuilder {
         commits
             .into_iter()
             .map(|(sub_dag, commit)| {
-                let certified_commit =
-                    CertifiedCommit::new_certified(commit, sub_dag.blocks.clone());
+                // TODO: we need to request real blocks from sub_dag after we add the
+                // corresponding field and logic in sub_dag
+                let mut blocks = vec![];
+                for block_header in sub_dag.blocks.iter() {
+                    blocks.push(VerifiedBlock::new_for_test((**block_header).clone()));
+                }
+
+                let certified_commit = CertifiedCommit::new_certified(commit, blocks);
                 (sub_dag, certified_commit)
             })
             .collect()
@@ -264,10 +271,10 @@ impl DagBuilder {
 
     pub(crate) fn leader_block(&self, round: Round) -> Option<VerifiedBlockHeader> {
         assert!(
-            !self.blocks.is_empty(),
+            !self.block_headers.is_empty(),
             "No blocks have been created, please make sure that you have called build method"
         );
-        self.blocks.iter().find_map(|(block_ref, block)| {
+        self.block_headers.iter().find_map(|(block_ref, block)| {
             (block_ref.round == round
                 && block_ref.author == self.leader_schedule.elect_leader(round, 0))
             .then_some(block.clone())
@@ -305,14 +312,14 @@ impl DagBuilder {
     pub(crate) fn persist_all_blocks(&self, dag_state: Arc<RwLock<DagState>>) {
         dag_state
             .write()
-            .accept_blocks(self.blocks.values().cloned().collect());
+            .accept_block_headers(self.block_headers.values().cloned().collect());
     }
 
     pub(crate) fn print(&self) {
         let mut dag_str = "DAG {\n".to_string();
 
         let mut round = 0;
-        for block in self.blocks.values() {
+        for block in self.block_headers.values() {
             if block.round() > round {
                 round = block.round();
                 dag_str.push_str(&format!("Round {round} : \n"));
@@ -352,7 +359,7 @@ impl DagBuilder {
                     .build(),
             );
             references.push(block.reference());
-            self.blocks.insert(block.reference(), block.clone());
+            self.block_headers.insert(block.reference(), block.clone());
         }
         self.last_ancestors = references;
     }
@@ -360,7 +367,7 @@ impl DagBuilder {
     /// Gets all uncommitted blocks in a slot.
     pub(crate) fn get_uncommitted_blocks_at_slot(&self, slot: Slot) -> Vec<VerifiedBlockHeader> {
         let mut blocks = vec![];
-        for (_block_ref, block) in self.blocks.range((
+        for (_block_ref, block) in self.block_headers.range((
             Included(BlockRef::new(
                 slot.round,
                 slot.authority,
@@ -423,7 +430,7 @@ pub struct LayerBuilder<'a> {
     ancestors: Vec<BlockRef>,
 
     // Accumulated blocks to write to dag state
-    blocks: Vec<VerifiedBlockHeader>,
+    block_headers: Vec<VerifiedBlockHeader>,
 }
 
 #[expect(unused)]
@@ -452,7 +459,7 @@ impl<'a> LayerBuilder<'a> {
             fully_linked_acknowledgments: true,
             // TODO: add more variations of transaction acknowledgment links
             ancestors,
-            blocks: vec![],
+            block_headers: vec![],
         }
     }
 
@@ -595,10 +602,12 @@ impl<'a> LayerBuilder<'a> {
 
     pub fn persist_layers(&self, dag_state: Arc<RwLock<DagState>>) {
         assert!(
-            !self.blocks.is_empty(),
+            !self.block_headers.is_empty(),
             "Called to persist layers although no blocks have been created. Make sure you have called build before."
         );
-        dag_state.write().accept_blocks(self.blocks.clone());
+        dag_state
+            .write()
+            .accept_block_headers(self.block_headers.clone());
     }
 
     // Layer round is minimally and randomly connected with ancestors.
@@ -761,9 +770,9 @@ impl<'a> LayerBuilder<'a> {
                 );
                 references.push(block.reference());
                 self.dag_builder
-                    .blocks
+                    .block_headers
                     .insert(block.reference(), block.clone());
-                self.blocks.push(block);
+                self.block_headers.push(block);
             }
         }
         self.ancestors = references;

@@ -28,15 +28,6 @@ fn build_tonic_services(out_dir: &Path) {
         .comment("Consensus authority interface")
         .method(
             tonic_build::manual::Method::builder()
-                .name("send_block")
-                .route_name("SendBlock")
-                .input_type("crate::network::tonic_network::SendBlockRequest")
-                .output_type("crate::network::tonic_network::SendBlockResponse")
-                .codec_path(codec_path)
-                .build(),
-        )
-        .method(
-            tonic_build::manual::Method::builder()
                 .name("subscribe_blocks")
                 .route_name("SubscribeBlocks")
                 .input_type("crate::network::tonic_network::SubscribeBlocksRequest")
@@ -44,6 +35,16 @@ fn build_tonic_services(out_dir: &Path) {
                 .codec_path(codec_path)
                 .server_streaming()
                 .client_streaming()
+                .build(),
+        )
+        .method(
+            tonic_build::manual::Method::builder()
+                .name("fetch_block_headers")
+                .route_name("FetchBlockHeaders")
+                .input_type("crate::network::tonic_network::FetchBlockHeadersRequest")
+                .output_type("crate::network::tonic_network::FetchBlockHeadersResponse")
+                .codec_path(codec_path)
+                .server_streaming()
                 .build(),
         )
         .method(
@@ -67,10 +68,10 @@ fn build_tonic_services(out_dir: &Path) {
         )
         .method(
             tonic_build::manual::Method::builder()
-                .name("fetch_latest_blocks")
-                .route_name("FetchLatestBlocks")
-                .input_type("crate::network::tonic_network::FetchLatestBlocksRequest")
-                .output_type("crate::network::tonic_network::FetchLatestBlocksResponse")
+                .name("fetch_latest_block_headers")
+                .route_name("FetchLatestBlockHeaders")
+                .input_type("crate::network::tonic_network::FetchLatestBlockHeadersRequest")
+                .output_type("crate::network::tonic_network::FetchLatestBlockHeadersResponse")
                 .codec_path(codec_path)
                 .server_streaming()
                 .build(),

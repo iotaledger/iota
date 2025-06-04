@@ -110,7 +110,11 @@ async fn test_randomized_dag_and_decision_sequence() {
             "Running test with committee size {num_authorities} & {NUM_ROUNDS} rounds in the DAG..."
         );
 
-        let mut all_blocks = dag_builder.blocks.values().cloned().collect::<Vec<_>>();
+        let mut all_blocks = dag_builder
+            .block_headers
+            .values()
+            .cloned()
+            .collect::<Vec<_>>();
         all_blocks.shuffle(&mut random_test_setup.seeded_rng);
 
         let mut sequenced_leaders_1 = vec![];
@@ -122,7 +126,9 @@ async fn test_randomized_dag_and_decision_sequence() {
                 .gen_range(1..=(all_blocks.len() - i));
             let chunk = &all_blocks[i..i + chunk_size];
 
-            let _ = authority_1.block_manager.try_accept_blocks(chunk.to_vec());
+            let _ = authority_1
+                .block_manager
+                .try_accept_block_headers(chunk.to_vec());
             let sequence = authority_1.committer.try_decide(last_decided);
 
             if !sequence.is_empty() {
@@ -139,7 +145,11 @@ async fn test_randomized_dag_and_decision_sequence() {
         // Setup for Authority 2
         let mut authority_2 = authority_setup(num_authorities, 2);
 
-        let mut all_blocks = dag_builder.blocks.values().cloned().collect::<Vec<_>>();
+        let mut all_blocks = dag_builder
+            .block_headers
+            .values()
+            .cloned()
+            .collect::<Vec<_>>();
         all_blocks.shuffle(&mut random_test_setup.seeded_rng);
 
         let mut sequenced_leaders_2 = vec![];
@@ -151,7 +161,9 @@ async fn test_randomized_dag_and_decision_sequence() {
                 .gen_range(1..=(all_blocks.len() - i));
             let chunk = &all_blocks[i..i + chunk_size];
 
-            let _ = authority_2.block_manager.try_accept_blocks(chunk.to_vec());
+            let _ = authority_2
+                .block_manager
+                .try_accept_block_headers(chunk.to_vec());
             let sequence = authority_2.committer.try_decide(last_decided);
 
             if !sequence.is_empty() {

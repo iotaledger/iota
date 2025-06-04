@@ -19,8 +19,8 @@ use starfish_config::{AuthorityIndex, DIGEST_LENGTH, DefaultHashFunction};
 
 use crate::{
     block_header::{
-        BlockHeaderAPI, BlockRef, BlockTimestampMs, Round, Slot, VerifiedBlockHeader,
-        VerifiedTransactions,
+        BlockHeaderAPI, BlockRef, BlockTimestampMs, Round, Slot, VerifiedBlock,
+        VerifiedBlockHeader, VerifiedTransactions,
     },
     leader_scoring::ReputationScores,
     storage::Store,
@@ -251,19 +251,22 @@ impl CertifiedCommits {
 #[derive(Clone, Debug)]
 pub(crate) struct CertifiedCommit {
     commit: Arc<TrustedCommit>,
-    blocks: Vec<VerifiedBlockHeader>,
+    verifier_blocks: Vec<VerifiedBlock>,
 }
 
 impl CertifiedCommit {
-    pub(crate) fn new_certified(commit: TrustedCommit, blocks: Vec<VerifiedBlockHeader>) -> Self {
+    pub(crate) fn new_certified(
+        commit: TrustedCommit,
+        verified_blocks: Vec<VerifiedBlock>,
+    ) -> Self {
         Self {
             commit: Arc::new(commit),
-            blocks,
+            verifier_blocks: verified_blocks,
         }
     }
 
-    pub fn blocks(&self) -> &[VerifiedBlockHeader] {
-        &self.blocks
+    pub fn blocks(&self) -> &[VerifiedBlock] {
+        &self.verifier_blocks
     }
 }
 
@@ -604,7 +607,7 @@ pub fn load_pending_subdag_from_store(
 ) -> PendingSubDag {
     let mut leader_block_idx = None;
     let commit_block_headers = store
-        .read_blocks(commit.blocks())
+        .read_block_headers(commit.blocks())
         .expect("We should have the block referenced in the commit data");
     let block_headers = commit_block_headers
         .into_iter()
@@ -839,7 +842,7 @@ mod tests {
 
     use super::*;
     use crate::{
-        block_header::TestBlockHeader,
+        block_header::{TestBlockHeader, VerifiedBlock},
         context::Context,
         storage::{WriteBatch, mem_store::MemStore},
     };
@@ -861,7 +864,7 @@ mod tests {
             .map(|index| {
                 let author_idx = index.0.value() as u32;
                 let block = TestBlockHeader::new(0, author_idx).build();
-                VerifiedBlockHeader::new_for_test(block)
+                VerifiedBlock::new_for_test(block)
             })
             .map(|block| (block.reference(), block))
             .unzip();
@@ -877,7 +880,7 @@ mod tests {
             let mut new_ancestors = vec![];
             for author in 0..num_authorities {
                 let base_ts = round as BlockTimestampMs * 1000;
-                let block = VerifiedBlockHeader::new_for_test(
+                let block = VerifiedBlock::new_for_test(
                     TestBlockHeader::new(round, author)
                         .set_timestamp_ms(base_ts + (author + round) as u64)
                         .set_ancestors(ancestors.clone())
@@ -945,7 +948,7 @@ mod tests {
             .map(|block| (block.reference(), block))
             .unzip();
         store
-            .write(WriteBatch::default().blocks(first_round_headers))
+            .write(WriteBatch::default().block_headers(first_round_headers))
             .unwrap();
         blocks.append(&mut first_round_references.clone());
 
@@ -963,7 +966,7 @@ mod tests {
                         .build(),
                 );
                 store
-                    .write(WriteBatch::default().blocks(vec![block.clone()]))
+                    .write(WriteBatch::default().block_headers(vec![block.clone()]))
                     .unwrap();
                 new_ancestors.push(block.reference());
                 blocks.push(block.reference());

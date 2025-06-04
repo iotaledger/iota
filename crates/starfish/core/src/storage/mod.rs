@@ -13,7 +13,7 @@ use starfish_config::AuthorityIndex;
 
 use crate::{
     CommitIndex,
-    block_header::{BlockRef, Round, VerifiedBlockHeader},
+    block_header::{BlockRef, Round, VerifiedBlock, VerifiedBlockHeader},
     commit::{CommitInfo, CommitRange, CommitRef, TrustedCommit},
     error::ConsensusResult,
 };
@@ -24,21 +24,32 @@ pub(crate) trait Store: Send + Sync {
     fn write(&self, write_batch: WriteBatch) -> ConsensusResult<()>;
 
     /// Reads blocks for the given refs.
-    fn read_blocks(&self, refs: &[BlockRef]) -> ConsensusResult<Vec<Option<VerifiedBlockHeader>>>;
+    fn read_blocks(&self, refs: &[BlockRef]) -> ConsensusResult<Vec<Option<VerifiedBlock>>>;
+
+    /// Reads block headers for the given refs.
+    fn read_block_headers(
+        &self,
+        refs: &[BlockRef],
+    ) -> ConsensusResult<Vec<Option<VerifiedBlockHeader>>>;
 
     /// Checks if blocks exist in the store.
+    #[cfg_attr(not(test), expect(dead_code))]
     fn contains_blocks(&self, refs: &[BlockRef]) -> ConsensusResult<Vec<bool>>;
+
+    /// Checks if block headers exist in the store.
+    fn contains_block_headers(&self, refs: &[BlockRef]) -> ConsensusResult<Vec<bool>>;
 
     /// Checks whether there is any block at the given slot
     #[allow(dead_code)]
     fn contains_block_at_slot(&self, slot: crate::block_header::Slot) -> ConsensusResult<bool>;
 
     /// Reads blocks for an authority, from start_round.
+    #[cfg_attr(not(test), expect(dead_code))]
     fn scan_blocks_by_author(
         &self,
         authority: AuthorityIndex,
         start_round: Round,
-    ) -> ConsensusResult<Vec<VerifiedBlockHeader>>;
+    ) -> ConsensusResult<Vec<VerifiedBlock>>;
 
     // The method returns the last `num_of_rounds` rounds blocks by author in round
     // ascending order. When a `before_round` is defined then the blocks of
@@ -50,6 +61,12 @@ pub(crate) trait Store: Send + Sync {
         author: AuthorityIndex,
         num_of_rounds: u64,
         before_round: Option<Round>,
+    ) -> ConsensusResult<Vec<VerifiedBlock>>;
+
+    fn scan_block_headers_by_author(
+        &self,
+        author: AuthorityIndex,
+        start_round: Round,
     ) -> ConsensusResult<Vec<VerifiedBlockHeader>>;
 
     /// Reads the last commit.
@@ -68,19 +85,22 @@ pub(crate) trait Store: Send + Sync {
 /// Represents data to be written to the store together atomically.
 #[derive(Debug, Default)]
 pub(crate) struct WriteBatch {
-    pub(crate) blocks: Vec<VerifiedBlockHeader>,
+    pub(crate) blocks: Vec<VerifiedBlock>,
+    pub(crate) block_headers: Vec<VerifiedBlockHeader>,
     pub(crate) commits: Vec<TrustedCommit>,
     pub(crate) commit_info: Vec<(CommitRef, CommitInfo)>,
 }
 
 impl WriteBatch {
     pub(crate) fn new(
-        blocks: Vec<VerifiedBlockHeader>,
+        blocks: Vec<VerifiedBlock>,
+        block_headers: Vec<VerifiedBlockHeader>,
         commits: Vec<TrustedCommit>,
         commit_info: Vec<(CommitRef, CommitInfo)>,
     ) -> Self {
         WriteBatch {
             blocks,
+            block_headers,
             commits,
             commit_info,
         }
@@ -89,8 +109,14 @@ impl WriteBatch {
     // Test setters.
 
     #[cfg(test)]
-    pub(crate) fn blocks(mut self, blocks: Vec<VerifiedBlockHeader>) -> Self {
+    pub(crate) fn blocks(mut self, blocks: Vec<VerifiedBlock>) -> Self {
         self.blocks = blocks;
+        self
+    }
+
+    #[cfg(test)]
+    pub(crate) fn block_headers(mut self, block_headers: Vec<VerifiedBlockHeader>) -> Self {
+        self.block_headers = block_headers;
         self
     }
 

@@ -134,85 +134,15 @@ impl<D: CoreThreadDispatcher> LeaderTimeoutTask<D> {
 
 #[cfg(test)]
 mod tests {
-    use std::{collections::BTreeSet, sync::Arc, time::Duration};
+    use std::{sync::Arc, time::Duration};
 
-    use async_trait::async_trait;
-    use parking_lot::Mutex;
     use starfish_config::Parameters;
     use tokio::time::{Instant, sleep};
 
     use crate::{
-        block_header::{BlockRef, Round, VerifiedBlockHeader, VerifiedTransactions},
-        commit::CertifiedCommits,
-        context::Context,
-        core::CoreSignals,
-        core_thread::{CoreError, CoreThreadDispatcher},
+        context::Context, core::CoreSignals, core_thread::tests::MockCoreThreadDispatcher,
         leader_timeout::LeaderTimeoutTask,
     };
-
-    #[derive(Clone, Default)]
-    struct MockCoreThreadDispatcher {
-        new_block_calls: Arc<Mutex<Vec<(Round, bool, Instant)>>>,
-    }
-
-    impl MockCoreThreadDispatcher {
-        async fn get_new_block_calls(&self) -> Vec<(Round, bool, Instant)> {
-            let mut binding = self.new_block_calls.lock();
-            let all_calls = binding.drain(0..);
-            all_calls.into_iter().collect()
-        }
-    }
-
-    #[async_trait]
-    impl CoreThreadDispatcher for MockCoreThreadDispatcher {
-        async fn add_blocks(
-            &self,
-            _blocks: Vec<VerifiedBlockHeader>,
-        ) -> Result<BTreeSet<BlockRef>, CoreError> {
-            todo!()
-        }
-
-        async fn add_data(
-            &self,
-            _data: Vec<VerifiedTransactions>,
-        ) -> Result<BTreeSet<BlockRef>, CoreError> {
-            todo!()
-        }
-
-        async fn get_missing_data(&self) -> Result<BTreeSet<BlockRef>, CoreError> {
-            todo!()
-        }
-
-        async fn add_certified_commits(
-            &self,
-            _commits: CertifiedCommits,
-        ) -> Result<BTreeSet<BlockRef>, CoreError> {
-            todo!()
-        }
-
-        async fn new_block(&self, round: Round, force: bool) -> Result<(), CoreError> {
-            self.new_block_calls
-                .lock()
-                .push((round, force, Instant::now()));
-            Ok(())
-        }
-
-        async fn get_missing_blocks(&self) -> Result<BTreeSet<BlockRef>, CoreError> {
-            todo!()
-        }
-
-        fn set_subscriber_exists(&self, _exists: bool) -> Result<(), CoreError> {
-            todo!()
-        }
-
-        fn set_last_known_proposed_round(&self, _round: Round) -> Result<(), CoreError> {
-            todo!()
-        }
-
-        fn highest_received_rounds(&self) -> Vec<Round> {
-            todo!()
-        }
-    }
 
     #[tokio::test(flavor = "current_thread", start_paused = true)]
     async fn basic_leader_timeout() {

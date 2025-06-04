@@ -24,14 +24,14 @@ use crate::{
 /// been mostly introduced for allowing to inject the test store in
 /// `DagBuilder`.
 pub(crate) trait BlockStoreAPI {
-    fn get_blocks(&self, refs: &[BlockRef]) -> Vec<Option<VerifiedBlockHeader>>;
+    fn get_block_headers(&self, refs: &[BlockRef]) -> Vec<Option<VerifiedBlockHeader>>;
 }
 
 impl BlockStoreAPI
     for parking_lot::lock_api::RwLockWriteGuard<'_, parking_lot::RawRwLock, DagState>
 {
-    fn get_blocks(&self, refs: &[BlockRef]) -> Vec<Option<VerifiedBlockHeader>> {
-        DagState::get_blocks(self, refs)
+    fn get_block_headers(&self, refs: &[BlockRef]) -> Vec<Option<VerifiedBlockHeader>> {
+        DagState::get_block_headers(self, refs)
     }
 }
 
@@ -156,7 +156,7 @@ impl Linearizer {
             to_commit.push(x.clone());
 
             let ancestors: Vec<VerifiedBlockHeader> = dag_state
-                .get_blocks(
+                .get_block_headers(
                     &x.ancestors()
                         .iter()
                         .copied()
@@ -437,13 +437,13 @@ mod tests {
         // Now retrieve all the blocks up to round leader_round_wave_1 - 1
         // And then only the leader of round leader_round_wave_1
         // Also store those to DagState
-        let mut blocks = dag_builder.blocks(0..=leader_round_wave_1 - 1);
+        let mut blocks = dag_builder.block_headers(0..=leader_round_wave_1 - 1);
         blocks.push(
             dag_builder
                 .leader_block(leader_round_wave_1)
                 .expect("Leader block should have been found"),
         );
-        dag_state.write().accept_blocks(blocks.clone());
+        dag_state.write().accept_block_headers(blocks.clone());
 
         let first_leader = dag_builder
             .leader_block(leader_round_wave_1)
@@ -461,7 +461,7 @@ mod tests {
 
         // Now take all the blocks from round `leader_round_wave_1` up to round
         // `leader_round_wave_2-1`
-        let mut blocks = dag_builder.blocks(leader_round_wave_1..=leader_round_wave_2 - 1);
+        let mut blocks = dag_builder.block_headers(leader_round_wave_1..=leader_round_wave_2 - 1);
         // Filter out leader block of round `leader_round_wave_1`
         blocks.retain(|block| {
             !(block.round() == leader_round_wave_1
@@ -474,7 +474,7 @@ mod tests {
                 .expect("Leader block should have been found"),
         );
         // Write them in dag state
-        dag_state.write().accept_blocks(blocks.clone());
+        dag_state.write().accept_block_headers(blocks.clone());
 
         let mut blocks: Vec<_> = blocks.into_iter().map(|block| block.reference()).collect();
 
