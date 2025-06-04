@@ -954,9 +954,7 @@ export class IotaClient {
     /**
      * Return the resolved name for the given address.
      */
-    async iotaNamesReverseLookup(
-        input: IotaNamesReverseLookupParams,
-    ): Promise<string | undefined> {
+    async iotaNamesReverseLookup(input: IotaNamesReverseLookupParams): Promise<string | undefined> {
         return await this.transport.request({
             method: 'iotax_iotaNamesReverseLookup',
             params: [input.address],
