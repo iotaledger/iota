@@ -1,5 +1,16 @@
 # @iota/graphql-transport
 
+## 0.6.0
+
+### Minor Changes
+
+-   53d5058: Added iota names rpc methods to IotaClient and also GraphQL queries.
+
+### Patch Changes
+
+-   Updated dependencies [53d5058]
+    -   @iota/iota-sdk@1.2.0
+
 ## 0.5.2
 
 ### Patch Changes
