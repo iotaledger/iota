@@ -407,6 +407,7 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
         // Now check if an ancestor's round is higher than the one that the peer has. If
         // yes, then serve that ancestor blocks up to `MAX_ADDITIONAL_BLOCKS`.
         let mut ancestor_blocks = vec![];
+        // TODO: remove additional blocks and highest_accepted_rounds
         if !highest_accepted_rounds.is_empty() {
             let all_ancestors = blocks
                 .iter()

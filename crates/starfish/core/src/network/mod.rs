@@ -156,7 +156,7 @@ pub(crate) trait NetworkService: Send + Sync + 'static {
 
     /// Handles the request to fetch blocks by references from the peer.
     /// The function returns Vec<Bytes>. Each element is a serialization of
-    /// header and transactions of a block.
+    /// header and transactions of a block. Used only in commit syncer.
     async fn handle_fetch_blocks(
         &self,
         peer: AuthorityIndex,
