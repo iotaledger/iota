@@ -22,7 +22,7 @@
 //! a signal for reconfig.
 
 use std::{
-    collections::{HashMap, VecDeque},
+    collections::HashMap,
     path::PathBuf,
     sync::Arc,
     time::{Duration, Instant},
@@ -51,7 +51,7 @@ use iota_types::{
 use itertools::izip;
 use tap::{TapFallible, TapOptional};
 use tokio::{
-    sync::{Mutex, broadcast, broadcast::error::RecvError},
+    sync::{broadcast, broadcast::error::RecvError},
     task::JoinHandle,
     time::timeout,
 };
@@ -154,9 +154,7 @@ pub struct CheckpointExecutor {
     accumulator: Arc<StateAccumulator>,
     config: CheckpointExecutorConfig,
     metrics: Arc<CheckpointExecutorMetrics>,
-    grpc_checkpoint_summary_buffer: Option<Arc<Mutex<VecDeque<Arc<CertifiedCheckpointSummary>>>>>,
     grpc_checkpoint_summary_tx: Option<broadcast::Sender<Arc<CertifiedCheckpointSummary>>>,
-    grpc_checkpoint_data_buffer: Option<Arc<Mutex<VecDeque<Arc<CheckpointData>>>>>,
     grpc_checkpoint_data_tx: Option<broadcast::Sender<Arc<CheckpointData>>>,
 }
 
@@ -168,11 +166,7 @@ impl CheckpointExecutor {
         accumulator: Arc<StateAccumulator>,
         config: CheckpointExecutorConfig,
         metrics: Arc<CheckpointExecutorMetrics>,
-        grpc_checkpoint_summary_buffer: Option<
-            Arc<Mutex<VecDeque<Arc<CertifiedCheckpointSummary>>>>,
-        >,
         grpc_checkpoint_summary_tx: Option<broadcast::Sender<Arc<CertifiedCheckpointSummary>>>,
-        grpc_checkpoint_data_buffer: Option<Arc<Mutex<VecDeque<Arc<CheckpointData>>>>>,
         grpc_checkpoint_data_tx: Option<broadcast::Sender<Arc<CheckpointData>>>,
     ) -> Self {
         Self {
@@ -185,9 +179,7 @@ impl CheckpointExecutor {
             accumulator,
             config,
             metrics,
-            grpc_checkpoint_summary_buffer,
             grpc_checkpoint_summary_tx,
-            grpc_checkpoint_data_buffer,
             grpc_checkpoint_data_tx,
         }
     }
@@ -205,8 +197,6 @@ impl CheckpointExecutor {
             accumulator,
             Default::default(),
             CheckpointExecutorMetrics::new_for_tests(),
-            None,
-            None,
             None,
             None,
         )
@@ -479,36 +469,16 @@ impl CheckpointExecutor {
                 .await
                 .expect("Failed to accumulate running root");
             self.bump_highest_executed_checkpoint(checkpoint);
-            if let (Some(buffer), Some(tx)) = (
-                &self.grpc_checkpoint_summary_buffer,
-                &self.grpc_checkpoint_summary_tx,
-            ) {
+            if let Some(tx) = &self.grpc_checkpoint_summary_tx {
                 let summary = CertifiedCheckpointSummary::from(checkpoint.clone());
                 let arc_summary = Arc::new(summary);
-                {
-                    let mut buf = buffer.lock().await;
-                    buf.push_back(arc_summary.clone());
-                    if buf.len() > 100 {
-                        buf.pop_front();
-                    }
-                    println!(
-                        "[gRPC][Fullnode] Buffer updated, new length: {} (seq={})",
-                        buf.len(),
-                        arc_summary.sequence_number
-                    );
-                }
                 println!(
                     "[gRPC][Fullnode] Broadcasting checkpoint: seq={}, epoch={}",
                     arc_summary.sequence_number, arc_summary.epoch
                 );
                 let _ = tx.send(arc_summary);
             }
-            // Broadcast full CheckpointData to checkpoint_data_tx and buffer
-            if let (Some(data_buffer), Some(data_tx)) = (
-                &self.grpc_checkpoint_data_buffer,
-                &self.grpc_checkpoint_data_tx,
-            ) {
-                // Use load_checkpoint_data to build CheckpointData
+            if let Some(data_tx) = &self.grpc_checkpoint_data_tx {
                 let full_data = Arc::new(
                     crate::checkpoints::checkpoint_executor::data_ingestion_handler::load_checkpoint_data(
                         checkpoint.clone(),
@@ -518,18 +488,6 @@ impl CheckpointExecutor {
                         &all_tx_digests,
                     ).expect("Failed to load full CheckpointData")
                 );
-                {
-                    let mut buf = data_buffer.lock().await;
-                    buf.push_back(full_data.clone());
-                    if buf.len() > 100 {
-                        buf.pop_front();
-                    }
-                    println!(
-                        "[gRPC][Fullnode] Data buffer updated, new length: {} (seq={})",
-                        buf.len(),
-                        full_data.checkpoint_summary.sequence_number
-                    );
-                }
                 println!(
                     "[gRPC][Fullnode] Broadcasting full CheckpointData: seq={}",
                     full_data.checkpoint_summary.sequence_number

@@ -273,42 +273,8 @@ async fn test_service() -> CheckpointGrpcService {
         checkpoints: checkpoints.clone(),
     });
     let (grpc_checkpoint_summary_tx, _) = tokio::sync::broadcast::channel(100);
-    let grpc_checkpoint_summary_buffer = std::sync::Arc::new(tokio::sync::Mutex::new(
-        std::collections::VecDeque::with_capacity(100),
-    ));
-    // For full CheckpointData
     let (grpc_checkpoint_data_tx, _) = tokio::sync::broadcast::channel(100);
-    let grpc_checkpoint_data_buffer = std::sync::Arc::new(tokio::sync::Mutex::new(
-        std::collections::VecDeque::with_capacity(100),
-    ));
-    // Fill the summary buffer
-    {
-        let mut buf = grpc_checkpoint_summary_buffer.lock().await;
-        for i in 0..=10 {
-            let cert = checkpoints.get(&i).unwrap().0.clone();
-            buf.push_back(std::sync::Arc::new(cert));
-        }
-    }
-    // Fill the data buffer
-    {
-        let mut buf = grpc_checkpoint_data_buffer.lock().await;
-        for i in 0..=10 {
-            let (cert, contents) = checkpoints.get(&i).unwrap();
-            let data = iota_types::full_checkpoint_content::CheckpointData {
-                checkpoint_summary: cert.clone(),
-                checkpoint_contents: contents.clone().into(),
-                transactions: vec![],
-            };
-            buf.push_back(std::sync::Arc::new(data));
-        }
-    }
-    CheckpointGrpcService::new(
-        mock,
-        grpc_checkpoint_summary_tx,
-        grpc_checkpoint_summary_buffer,
-        grpc_checkpoint_data_tx,
-        grpc_checkpoint_data_buffer,
-    )
+    CheckpointGrpcService::new(mock, grpc_checkpoint_summary_tx, grpc_checkpoint_data_tx)
 }
 
 // Helper function to spawn a background checkpoint sender for summaries and
@@ -317,11 +283,6 @@ fn spawn_checkpoint_sender(
     summary_tx: tokio::sync::broadcast::Sender<Arc<CertifiedCheckpointSummary>>,
     data_tx: tokio::sync::broadcast::Sender<
         Arc<iota_types::full_checkpoint_content::CheckpointData>,
-    >,
-    data_buffer: std::sync::Arc<
-        tokio::sync::Mutex<
-            std::collections::VecDeque<Arc<iota_types::full_checkpoint_content::CheckpointData>>,
-        >,
     >,
     start_seq: u64,
 ) {
@@ -353,15 +314,7 @@ fn spawn_checkpoint_sender(
                 transactions: vec![],
             };
             let _ = summary_tx.send(Arc::new(cert));
-            let _ = data_tx.send(Arc::new(data.clone()));
-            // Also push to buffer for late joiners
-            {
-                let mut buf = data_buffer.lock().await;
-                buf.push_back(Arc::new(data));
-                if buf.len() > 100 {
-                    buf.pop_front();
-                }
-            }
+            let _ = data_tx.send(Arc::new(data));
             seq += 1;
             tokio::time::sleep(std::time::Duration::from_millis(100)).await;
         }
@@ -375,7 +328,6 @@ async fn test_start_index_only() {
     spawn_checkpoint_sender(
         svc.grpc_checkpoint_summary_tx.clone(),
         svc.grpc_checkpoint_data_tx.clone(),
-        svc.grpc_checkpoint_data_buffer.clone(),
         11,
     );
     let req = StreamRequest {
@@ -414,7 +366,6 @@ async fn test_start_and_end_index() {
     spawn_checkpoint_sender(
         svc.grpc_checkpoint_summary_tx.clone(),
         svc.grpc_checkpoint_data_tx.clone(),
-        svc.grpc_checkpoint_data_buffer.clone(),
         100,
     );
     let req = StreamRequest {
@@ -453,7 +404,6 @@ async fn test_end_index_only() {
     spawn_checkpoint_sender(
         svc.grpc_checkpoint_summary_tx.clone(),
         svc.grpc_checkpoint_data_tx.clone(),
-        svc.grpc_checkpoint_data_buffer.clone(),
         100,
     );
     let req = StreamRequest {
@@ -480,11 +430,17 @@ async fn test_end_index_only() {
 }
 
 #[tokio::test]
-async fn test_end_index_only_full() {
+async fn test_future_end_index_only_full() {
     let svc = test_service().await;
+    spawn_checkpoint_sender(
+        svc.grpc_checkpoint_summary_tx.clone(),
+        svc.grpc_checkpoint_data_tx.clone(),
+        11,
+    );
+
     let req = StreamRequest {
         start_index: None,
-        end_index: Some(4),
+        end_index: Some(14),
         full: Some(true),
     };
     let mut stream = svc
@@ -500,13 +456,14 @@ async fn test_end_index_only_full() {
                 let checkpoint_data: iota_types::full_checkpoint_content::CheckpointData =
                     bcs::from_bytes(&cp.data).expect("bcs decode");
                 result.push(checkpoint_data.checkpoint_summary.sequence_number);
+                break;
             }
             Err(status) if status.code() == tonic::Code::NotFound => break,
             Err(e) => panic!("Unexpected error: {:?}", e),
         }
     }
     println!("Result: {:?}", result);
-    assert_eq!(result, vec![4]);
+    assert_eq!(result, vec![14]);
 }
 
 #[tokio::test]
@@ -531,7 +488,6 @@ async fn test_both_indices_omitted() {
     spawn_checkpoint_sender(
         svc.grpc_checkpoint_summary_tx.clone(),
         svc.grpc_checkpoint_data_tx.clone(),
-        svc.grpc_checkpoint_data_buffer.clone(),
         11,
     );
 

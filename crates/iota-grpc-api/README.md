@@ -52,9 +52,9 @@ The four supported range patterns:
 - **Only `start_index` provided:**
   - Streams from `start_index` and keeps streaming new ones as they arrive.
 - **Only `end_index` provided:**
-  - Streams only the checkpoint at `end_index`.
+  - Streams only the checkpoint at `end_index`. Note that the end_index can be a future checkpoint, which is not streamed yet.
 - **Both `start_index` and `end_index` provided:**
-  - Streams from `start_index` to `end_index` (inclusive).
+  - Streams from `start_index` to `end_index` (inclusive). Note that the end_index can be a future checkpoint, which is not streamed yet.
 
 The service does not attempt to compute a "latest" checkpoint index, making it robust to on-the-fly checkpoint generation.
 
