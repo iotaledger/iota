@@ -2,7 +2,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use std::{
-    marker::PhantomData,
     time::{Duration, SystemTime, UNIX_EPOCH},
 };
 
@@ -21,25 +20,19 @@ use crate::{
 
 /// Rust version of the Move `iota::table::Table` type.
 #[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
-pub struct Table<K, V> {
+pub struct Table {
     pub id: ObjectID,
     pub size: u64,
-
-    // TODO: Are K & V actually necessary https://github.com/iotaledger/iota/issues/6529 ?
-    #[serde(skip)]
-    _key: PhantomData<K>,
-    #[serde(skip)]
-    _value: PhantomData<V>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Registry {
     /// The `registry` table maps `Domain` to `NameRecord`.
     /// Added / replaced in the `add_record` function.
-    registry: Table<Domain, NameRecord>,
+    registry: Table,
     /// The `reverse_registry` table maps `IotaAddress` to `Domain`.
     /// Updated in the `set_reverse_lookup` function.
-    reverse_registry: Table<IotaAddress, Domain>,
+    reverse_registry: Table,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
