@@ -388,7 +388,7 @@ pub mod setup_postgres {
         Ok(())
     }
 
-    // #[cfg(feature = "pg_integration")]
+    #[cfg(feature = "pg_integration")]
     #[cfg(test)]
     mod tests {
         use diesel::{
