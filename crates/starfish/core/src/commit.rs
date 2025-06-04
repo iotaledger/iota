@@ -251,7 +251,7 @@ impl CertifiedCommits {
 #[derive(Clone, Debug)]
 pub(crate) struct CertifiedCommit {
     commit: Arc<TrustedCommit>,
-    verified_blocks: Vec<VerifiedBlock>,
+    verifier_blocks: Vec<VerifiedBlock>,
 }
 
 impl CertifiedCommit {
@@ -261,12 +261,12 @@ impl CertifiedCommit {
     ) -> Self {
         Self {
             commit: Arc::new(commit),
-            verified_blocks,
+            verifier_blocks: verified_blocks,
         }
     }
 
     pub fn blocks(&self) -> &[VerifiedBlock] {
-        &self.verified_blocks
+        &self.verifier_blocks
     }
 }
 

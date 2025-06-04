@@ -641,6 +641,7 @@ impl fmt::Debug for VerifiedBlockHeader {
 }
 
 /// VerifiedTransactions are transactions that correspond to an existing block
+// TODO: make a custom Debug implementation for more control over printed data
 #[derive(Clone, Debug)]
 pub struct VerifiedTransactions {
     #[expect(dead_code)]
