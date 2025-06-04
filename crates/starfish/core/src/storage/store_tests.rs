@@ -148,6 +148,7 @@ async fn read_and_contain_block_headers(
     assert!(!found);
 }
 
+// TODO:make test a similar test for headers
 #[rstest]
 #[tokio::test]
 async fn scan_block_headers(
