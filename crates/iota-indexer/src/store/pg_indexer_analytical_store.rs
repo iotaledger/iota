@@ -277,40 +277,29 @@ impl IndexerAnalyticalStore for PgIndexerAnalyticalStore {
         Ok(last_processed_tx_seq)
     }
 
+    /// Calls the stored procedure `persist_address_analytics`.
+    ///
+    /// This updates both the `addresses` and `active_addresses` tables.
+    ///
+    /// See more in the respective migration:
+    /// `2025-06-05-054854_persist_address_analytics`
     fn persist_addresses_in_tx_range(
         &self,
         start_tx_seq: i64,
         end_tx_seq: i64,
     ) -> IndexerResult<()> {
-        let address_persist_query = construct_address_persisting_query(start_tx_seq, end_tx_seq);
         transactional_blocking_with_retry!(
             &self.blocking_cp,
             |conn| {
-                diesel::sql_query(address_persist_query.clone()).execute(conn)?;
+                diesel::sql_query("CALL persist_address_analytics($1, $2)")
+                    .bind::<BigInt, _>(start_tx_seq)
+                    .bind::<BigInt, _>(end_tx_seq)
+                    .execute(conn)?;
                 Ok::<(), IndexerError>(())
             },
             Duration::from_secs(10)
         )
-        .context("Failed persisting addresses to PostgresDB")?;
-        Ok(())
-    }
-
-    fn persist_active_addresses_in_tx_range(
-        &self,
-        start_tx_seq: i64,
-        end_tx_seq: i64,
-    ) -> IndexerResult<()> {
-        let active_address_persist_query =
-            construct_active_address_persisting_query(start_tx_seq, end_tx_seq);
-        transactional_blocking_with_retry!(
-            &self.blocking_cp,
-            |conn| {
-                diesel::sql_query(active_address_persist_query.clone()).execute(conn)?;
-                Ok::<(), IndexerError>(())
-            },
-            Duration::from_secs(10)
-        )
-        .context("Failed persisting active addresses to PostgresDB")?;
+        .context("Failed persisting address analytics to PostgresDB")?;
         Ok(())
     }
 
@@ -521,78 +510,6 @@ fn construct_peak_tps_query(epoch: i64, offset: i64) -> String {
             time_diff IS NOT NULL;
         ",
         epoch, offset, epoch
-    )
-}
-
-fn construct_address_persisting_query(start_tx_seq: i64, end_tx_seq: i64) -> String {
-    format!(
-        "INSERT INTO addresses (
-            address,
-            first_appearance_tx,
-            first_appearance_time,
-            last_appearance_tx,
-            last_appearance_time
-        )
-        SELECT
-            address,
-            MIN(all_addresses.tx_sequence_number) AS first_appearance_tx,
-            MIN(timestamp_ms)       AS first_appearance_time,
-            MAX(all_addresses.tx_sequence_number) AS last_appearance_tx,
-            MAX(timestamp_ms)       AS last_appearance_time
-        FROM (
-            SELECT
-                sender AS address,
-                tx_sequence_number
-            FROM tx_senders
-            WHERE tx_sequence_number BETWEEN {} AND {}
-
-            UNION ALL
-
-            SELECT
-                recipient AS address,
-                tx_sequence_number
-            FROM tx_recipients
-            WHERE tx_sequence_number BETWEEN {} AND {}
-        ) AS all_addresses
-        JOIN transactions t
-          ON t.tx_sequence_number = all_addresses.tx_sequence_number
-          WHERE t.tx_sequence_number BETWEEN {} AND {}
-        GROUP BY address
-        ON CONFLICT (address) DO UPDATE
-        SET
-            last_appearance_tx = GREATEST(EXCLUDED.last_appearance_tx, addresses.last_appearance_tx),
-            last_appearance_time = GREATEST(EXCLUDED.last_appearance_time, addresses.last_appearance_time);
-        ",
-        start_tx_seq, end_tx_seq, start_tx_seq, end_tx_seq, start_tx_seq, end_tx_seq
-    )
-}
-
-fn construct_active_address_persisting_query(start_tx_seq: i64, end_tx_seq: i64) -> String {
-    format!(
-        "INSERT INTO active_addresses (
-           address,
-           first_appearance_tx,
-           first_appearance_time,
-           last_appearance_tx,
-           last_appearance_time
-         )
-         SELECT
-           s.sender as address,
-           MIN(s.tx_sequence_number) AS first_appearance_tx,
-           MIN(t.timestamp_ms) AS first_appearance_time,
-           MAX(s.tx_sequence_number) AS last_appearance_tx,
-           MAX(t.timestamp_ms) AS last_appearance_time
-         FROM tx_senders s
-         JOIN transactions t
-           ON s.tx_sequence_number = t.tx_sequence_number
-         WHERE t.tx_sequence_number >= {} AND t.tx_sequence_number < {}
-         GROUP BY address
-         ON CONFLICT (address) DO UPDATE
-         SET
-           last_appearance_tx = GREATEST(EXCLUDED.last_appearance_tx, active_addresses.last_appearance_tx),
-           last_appearance_time = GREATEST(EXCLUDED.last_appearance_time, active_addresses.last_appearance_time);
-    ",
-        start_tx_seq, end_tx_seq
     )
 }
 

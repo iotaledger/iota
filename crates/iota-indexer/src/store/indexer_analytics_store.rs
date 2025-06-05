@@ -64,11 +64,6 @@ pub trait IndexerAnalyticalStore {
         start_tx_seq: i64,
         end_tx_seq: i64,
     ) -> IndexerResult<()>;
-    fn persist_active_addresses_in_tx_range(
-        &self,
-        start_tx_seq: i64,
-        end_tx_seq: i64,
-    ) -> IndexerResult<()>;
     async fn calculate_and_persist_address_metrics(&self, checkpoint: i64) -> IndexerResult<()>;
 
     // for move call metrics
