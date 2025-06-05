@@ -1793,6 +1793,7 @@ fn ident(s: &str) -> Result<Identifier> {
 }
 
 pub fn as_type_tag(type_input: &TypeInput) -> Result<TypeTag> {
+    // Keep this in sync with implementation in: crates/iota-types/src/type_input.rs
     use TypeInput as I;
     use TypeTag as T;
     Ok(match type_input {

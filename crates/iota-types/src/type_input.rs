@@ -156,43 +156,14 @@ impl TypeInput {
     /// Convert to a `TypeTag` consuming `self`. This can fail if this value
     /// includes invalid identifiers.
     pub fn into_type_tag(self) -> Result<TypeTag> {
-        use TypeInput as I;
-        use TypeTag as T;
-        Ok(match self {
-            I::Bool => T::Bool,
-            I::U8 => T::U8,
-            I::U16 => T::U16,
-            I::U32 => T::U32,
-            I::U64 => T::U64,
-            I::U128 => T::U128,
-            I::U256 => T::U256,
-            I::Address => T::Address,
-            I::Signer => T::Signer,
-            I::Vector(t) => T::Vector(Box::new(t.into_type_tag()?)),
-            I::Struct(s) => {
-                let StructInput {
-                    address,
-                    module,
-                    name,
-                    type_params,
-                } = *s;
-                let type_params = type_params
-                    .into_iter()
-                    .map(|t| t.into_type_tag())
-                    .collect::<Result<_>>()?;
-                T::Struct(Box::new(StructTag {
-                    address,
-                    module: Identifier::new(module)?,
-                    name: Identifier::new(name)?,
-                    type_params,
-                }))
-            }
-        })
+        self.as_type_tag()
     }
 
     /// Conversion to a `TypeTag`, which can fail if this value includes invalid
     /// identifiers.
     pub fn as_type_tag(&self) -> Result<TypeTag> {
+        // Keep this in sync with implementation in:
+        // crates/iota-package-resolver/src/lib.rs
         use TypeInput as I;
         use TypeTag as T;
         Ok(match self {
