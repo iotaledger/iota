@@ -255,6 +255,15 @@ impl BlockHeaderDigest {
     pub const MAX: Self = Self([u8::MAX; starfish_config::DIGEST_LENGTH]);
 }
 
+impl BlockHeaderDigest {
+    #[cfg(test)]
+    pub fn random<R: rand::RngCore + rand::CryptoRng>(mut rng: R) -> Self {
+        let mut bytes = [0; DIGEST_LENGTH];
+        rng.fill_bytes(&mut bytes);
+        Self(bytes)
+    }
+}
+
 impl Hash for BlockHeaderDigest {
     fn hash<H: Hasher>(&self, state: &mut H) {
         state.write(&self.0[..8]);

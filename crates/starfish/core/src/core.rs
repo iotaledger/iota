@@ -253,12 +253,14 @@ impl Core {
 
     // TODO: modify to deal with transaction data
     /// Processes the provided blocks and accepts them if possible when their
-    /// causal history exists. The method returns:
+    /// causal history exists. The method also uses the input bool variable if
+    /// this call is known to be about not old blocks. The method returns:
     /// - The references of ancestors missing their block
     #[tracing::instrument(skip_all)]
     pub(crate) fn add_blocks(
         &mut self,
         blocks: Vec<VerifiedBlock>,
+        live: bool,
     ) -> ConsensusResult<BTreeSet<BlockRef>> {
         let _scope = monitored_scope("Core::add_blocks");
         let _s = self
@@ -273,7 +275,8 @@ impl Core {
             .node_metrics
             .core_add_blocks_batch_size
             .observe(blocks.len() as f64);
-        let (accepted_blocks, missing_block_refs) = self.block_manager.try_accept_blocks(blocks);
+        let (accepted_blocks, missing_block_refs) =
+            self.block_manager.try_accept_blocks(blocks, live);
 
         if !accepted_blocks.is_empty() {
             debug!(
@@ -379,7 +382,8 @@ impl Core {
             .cloned()
             .collect::<Vec<_>>();
 
-        self.add_blocks(blocks)
+        // Add blocks in certified commits to the block manager.
+        self.add_blocks(blocks, false)
     }
 
     /// If needed, signals a new clock round and sets up leader timeout.
@@ -585,7 +589,7 @@ impl Core {
         let acknowledgments = self
             .dag_state
             .write()
-            .take_acknowledgments(MAX_ACKNOWLEDGMENTS_PER_BLOCK, clock_round);
+            .take_acknowledgments(MAX_ACKNOWLEDGMENTS_PER_BLOCK);
 
         // Consume the commit votes to be included.
         let commit_votes = self
@@ -652,7 +656,7 @@ impl Core {
         // Accept the block into BlockManager and DagState.
         let (accepted_blocks, missing) = self
             .block_manager
-            .try_accept_blocks(vec![verified_block.clone()]);
+            .try_accept_blocks(vec![verified_block.clone()], true);
         assert_eq!(accepted_blocks.len(), 1);
         assert!(missing.is_empty());
         // Ensure the new block and its ancestors are persisted, before broadcasting it.
@@ -1514,11 +1518,12 @@ mod test {
         let mut acknowledgments = vec![];
         let num_acks = 200;
         let mut num_pending_acks = 0;
+        let mut rng = &mut rand::thread_rng();
         loop {
             acknowledgments.push(BlockRef::new(
                 0,
                 AuthorityIndex::new_for_test(2),
-                BlockHeaderDigest::default(),
+                BlockHeaderDigest::random(&mut rng),
             ));
             num_pending_acks += 1;
             if num_pending_acks >= num_acks {
@@ -1530,7 +1535,7 @@ mod test {
             acknowledgments.push(BlockRef::new(
                 1,
                 AuthorityIndex::new_for_test(3),
-                BlockHeaderDigest::default(),
+                BlockHeaderDigest::random(&mut rng),
             ));
             num_pending_acks += 1;
             if num_pending_acks >= 500 {
@@ -1657,7 +1662,7 @@ mod test {
         // Wait for min round delay to allow blocks to be proposed.
         sleep(context.parameters.min_round_delay).await;
         // add blocks to trigger proposal.
-        _ = core.add_blocks(vec![verified_block]);
+        _ = core.add_blocks(vec![verified_block], true);
 
         assert_eq!(core.last_proposed_round(), 1);
         expected_ancestors.insert(core.last_proposed_block_header().reference());
@@ -1671,7 +1676,7 @@ mod test {
         // Wait for min round delay to allow blocks to be proposed.
         sleep(context.parameters.min_round_delay).await;
         // add blocks to trigger proposal.
-        _ = core.add_blocks(vec![block_3]);
+        _ = core.add_blocks(vec![block_3], true);
 
         assert_eq!(core.last_proposed_round(), 2);
 
