@@ -63,7 +63,7 @@ function createInternalLink<T extends string>(
             return (
                 <AddressAlias
                     address={id}
-                    noTruncate={noTruncate}
+                    noFormatAddress={noTruncate}
                     onCopy={copyText ? handleCopyClick : undefined}
                     renderAddress={(address) => (
                         <Link
