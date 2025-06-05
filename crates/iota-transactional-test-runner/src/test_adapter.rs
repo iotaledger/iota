@@ -14,6 +14,7 @@ use std::{
 };
 
 use anyhow::{Context, anyhow, bail};
+use anyhow::{Context, anyhow, bail};
 use async_trait::async_trait;
 use bimap::btree::BiBTreeMap;
 use criterion::Criterion;
@@ -1240,6 +1241,7 @@ impl IotaTestAdapter {
     }
 
     fn named_variables(&self) -> BTreeMap<String, String> {
+    fn named_variables(&self) -> BTreeMap<String, String> {
         let mut variables = BTreeMap::new();
 
         let named_addrs = self
@@ -1289,10 +1291,50 @@ impl IotaTestAdapter {
         for var_name in unique_vars {
             let Some(value) = variables.get(&var_name) else {
                 bail!(
-                    "Unknown variable: {var_name}\nAllowed variable mappings are {variables:#?}"
+                    "Unknown object lookup: {obj_lookup}\nAllowed variable mappings are {variables:#?}"
                 );
             };
 
+            let pattern = format!("@{{{var_name}}}");
+            interpolated_contents = interpolated_contents.replace(&pattern, value);
+        }
+
+        Ok(interpolated_contents)
+    }
+
+    fn encode_cursor(&self, cursor: &str) -> anyhow::Result<String> {
+        // Cursor format is either bcs(object_id,n1,n2,...) or a json value,
+        // in which case we just return its base64 encoding.
+        let Some(args) = cursor
+            .strip_prefix("bcs(")
+            .and_then(|c| c.strip_suffix(")"))
+        else {
+            // To comply with how `iota-graphql-rpc` decodes the json cursor
+            // (see `iota_graphql_rpc::types::cursor::JsonCursor`).
+            //
+            // This traces back to `async_graphql = 7.0.7` that uses no padding for
+            // encoding/decoding.
+            return Ok(base64::Engine::encode(
+                &base64::engine::general_purpose::URL_SAFE_NO_PAD,
+                cursor,
+            ));
+        };
+
+        let mut parts = args.split(",");
+
+        let id: ObjectID = parts
+            .next()
+            .context("bcs(...) cursors must have at least one argument")?
+            .trim()
+            .parse()?;
+
+        let mut bytes = bcs::to_bytes(&id.to_vec())?;
+        for part in parts {
+            let n: u64 = part.trim().parse()?;
+            bytes.extend(bcs::to_bytes(&n)?);
+        }
+
+        Ok(Base64::encode(bytes))
             let pattern = format!("@{{{var_name}}}");
             interpolated_contents = interpolated_contents.replace(&pattern, value);
         }
@@ -1356,7 +1398,23 @@ impl IotaTestAdapter {
             // Add the encoded cursor to the variables map because they may get used in the
             // query.
             variables.insert(format!("cursor_{idx}"), encoded_cursor);
+        // First collect all the variable mappings
+        let mut variables = self.named_variables();
+        variables.insert(
+            "highest_checkpoint".to_string(),
+            highest_checkpoint.to_string(),
+        );
+
+        // Then interpolate the cursors which may reference objects
+        for (idx, s) in cursors.iter().enumerate() {
+            let interpolated_cursor = self.interpolate_contents(s, &variables)?;
+            let encoded_cursor = self.encode_cursor(&interpolated_cursor)?;
+
+            // Add the encoded cursor to the variables map because they may get used in the
+            // query.
+            variables.insert(format!("cursor_{idx}"), encoded_cursor);
         }
+        self.interpolate_contents(contents, &variables)
         self.interpolate_contents(contents, &variables)
     }
 
