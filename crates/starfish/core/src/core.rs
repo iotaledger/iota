@@ -1243,8 +1243,16 @@ mod test {
             last_round_blocks = this_round_blocks;
         }
         // write them in store
+        let (block_headers, block_transactions) = all_blocks
+            .into_iter()
+            .map(|b| (b.verified_block_header, b.verified_transactions))
+            .unzip();
         store
-            .write(WriteBatch::default().transactions(all_blocks))
+            .write(
+                WriteBatch::default()
+                    .block_headers(block_headers)
+                    .transactions(block_transactions),
+            )
             .expect("Storage error");
 
         // create dag state after all blocks have been written to store
@@ -1367,8 +1375,16 @@ mod test {
         }
 
         // write them in store
+        let (block_headers, block_transactions) = all_blocks
+            .into_iter()
+            .map(|b| (b.verified_block_header, b.verified_transactions))
+            .unzip();
         store
-            .write(WriteBatch::default().transactions(all_blocks))
+            .write(
+                WriteBatch::default()
+                    .block_headers(block_headers)
+                    .transactions(block_transactions),
+            )
             .expect("Storage error");
 
         // create dag state after all blocks have been written to store

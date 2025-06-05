@@ -107,7 +107,7 @@ impl BlockManager {
             .map(|b| b.verified_block_header.clone())
             .collect();
         let (accepted_block_headers, missing_block_headers) =
-            self.try_accept_block_headers_internal(block_headers);
+            self.try_accept_block_headers_internal(block_headers, live);
 
         let block_refs = blocks
             .iter()
@@ -139,13 +139,17 @@ impl BlockManager {
         block_headers: Vec<VerifiedBlockHeader>,
     ) -> (Vec<VerifiedBlockHeader>, BTreeSet<BlockRef>) {
         let _s = monitored_scope("BlockManager::try_accept_block_headers");
-        self.try_accept_block_headers_internal(block_headers)
+        // Headers are only added through synchronizer and cordial dissemination. This
+        // means that any transactions that were suspended were also added during live
+        // processing, and we will need to acknowledge them.
+        self.try_accept_block_headers_internal(block_headers, true)
     }
 
     /// Attempts to accept the provided blocks.
     fn try_accept_block_headers_internal(
         &mut self,
         mut block_headers: Vec<VerifiedBlockHeader>,
+        live: bool,
     ) -> (Vec<VerifiedBlockHeader>, BTreeSet<BlockRef>) {
         let _s = monitored_scope("BlockManager::try_accept_block_headers_internal");
 
@@ -204,7 +208,7 @@ impl BlockManager {
                 // for this accepted header we already have a block, so we add it to dag_state
                 self.dag_state
                     .write()
-                    .add_transactions(block.verified_transactions);
+                    .add_transactions(block.verified_transactions, live);
             }
         }
 
