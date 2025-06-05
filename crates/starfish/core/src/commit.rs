@@ -877,7 +877,7 @@ mod tests {
             .map(|block| (block.reference(), block))
             .unzip();
         store
-            .write(WriteBatch::default().blocks(first_round_headers))
+            .write(WriteBatch::default().transactions(first_round_headers))
             .unwrap();
         blocks.append(&mut first_round_references.clone());
         // TODO: create some data for blocks in the first round
@@ -896,7 +896,7 @@ mod tests {
                         .build(),
                 );
                 store
-                    .write(WriteBatch::default().blocks(vec![block.clone()]))
+                    .write(WriteBatch::default().transactions(vec![block.clone()]))
                     .unwrap();
                 new_ancestors.push(block.reference());
                 blocks.push(block.reference());
