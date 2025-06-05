@@ -2738,7 +2738,7 @@ pub struct ObjectReadResult {
     pub object: ObjectReadResultKind,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub enum ObjectReadResultKind {
     Object(Object),
     // The version of the object that the transaction intended to read, and the digest of the tx
@@ -2746,6 +2746,22 @@ pub enum ObjectReadResultKind {
     DeletedSharedObject(SequenceNumber, TransactionDigest),
     // A shared object in a cancelled transaction. The sequence number embeds cancellation reason.
     CancelledTransactionSharedObject(SequenceNumber),
+}
+
+impl std::fmt::Debug for ObjectReadResultKind {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            ObjectReadResultKind::Object(obj) => {
+                write!(f, "Object({:?})", obj.compute_object_reference())
+            }
+            ObjectReadResultKind::DeletedSharedObject(seq, digest) => {
+                write!(f, "DeletedSharedObject({}, {:?})", seq, digest)
+            }
+            ObjectReadResultKind::CancelledTransactionSharedObject(seq) => {
+                write!(f, "CancelledTransactionSharedObject({})", seq)
+            }
+        }
+    }
 }
 
 impl From<Object> for ObjectReadResultKind {
@@ -2892,6 +2908,12 @@ impl ObjectReadResult {
 #[derive(Clone)]
 pub struct InputObjects {
     objects: Vec<ObjectReadResult>,
+}
+
+impl std::fmt::Debug for InputObjects {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_list().entries(self.objects.iter()).finish()
+    }
 }
 
 // An InputObjects new-type that has been verified by iota-transaction-checks,

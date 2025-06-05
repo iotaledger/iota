@@ -5983,6 +5983,22 @@ export type GetValidatorsApyQueryVariables = Exact<{ [key: string]: never; }>;
 
 export type GetValidatorsApyQuery = { __typename?: 'Query', epoch?: { __typename?: 'Epoch', epochId: any, validatorSet?: { __typename?: 'ValidatorSet', activeValidators: { __typename?: 'ValidatorConnection', pageInfo: { __typename?: 'PageInfo', hasNextPage: boolean, endCursor?: string | null }, nodes: Array<{ __typename?: 'Validator', apy?: number | null, address: { __typename?: 'Address', address: any } }> } } | null } | null };
 
+export type ResolveNameServiceAddressQueryVariables = Exact<{
+  domain: Scalars['String']['input'];
+}>;
+
+
+export type ResolveNameServiceAddressQuery = { __typename?: 'Query', resolveIotaNamesAddress?: { __typename?: 'Address', address: any } | null };
+
+export type ResolveNameServiceNamesQueryVariables = Exact<{
+  address: Scalars['IotaAddress']['input'];
+  limit?: InputMaybe<Scalars['Int']['input']>;
+  cursor?: InputMaybe<Scalars['String']['input']>;
+}>;
+
+
+export type ResolveNameServiceNamesQuery = { __typename?: 'Query', address?: { __typename?: 'Address', iotaNamesRegistrations: { __typename?: 'IotaNamesRegistrationConnection', pageInfo: { __typename?: 'PageInfo', hasNextPage: boolean, endCursor?: string | null }, nodes: Array<{ __typename?: 'IotaNamesRegistration', domain: string }> } } | null };
+
 export type GetOwnedObjectsQueryVariables = Exact<{
   owner: Scalars['IotaAddress']['input'];
   limit?: InputMaybe<Scalars['Int']['input']>;
@@ -8150,6 +8166,28 @@ export const GetValidatorsApyDocument = new TypedDocumentString(`
   }
 }
     `) as unknown as TypedDocumentString<GetValidatorsApyQuery, GetValidatorsApyQueryVariables>;
+export const ResolveNameServiceAddressDocument = new TypedDocumentString(`
+    query resolveNameServiceAddress($domain: String!) {
+  resolveIotaNamesAddress(domain: $domain) {
+    address
+  }
+}
+    `) as unknown as TypedDocumentString<ResolveNameServiceAddressQuery, ResolveNameServiceAddressQueryVariables>;
+export const ResolveNameServiceNamesDocument = new TypedDocumentString(`
+    query resolveNameServiceNames($address: IotaAddress!, $limit: Int, $cursor: String) {
+  address(address: $address) {
+    iotaNamesRegistrations(first: $limit, after: $cursor) {
+      pageInfo {
+        hasNextPage
+        endCursor
+      }
+      nodes {
+        domain
+      }
+    }
+  }
+}
+    `) as unknown as TypedDocumentString<ResolveNameServiceNamesQuery, ResolveNameServiceNamesQueryVariables>;
 export const GetOwnedObjectsDocument = new TypedDocumentString(`
     query getOwnedObjects($owner: IotaAddress!, $limit: Int, $cursor: String, $showBcs: Boolean = false, $showContent: Boolean = false, $showDisplay: Boolean = false, $showType: Boolean = false, $showOwner: Boolean = false, $showPreviousTransaction: Boolean = false, $showStorageRebate: Boolean = false, $filter: ObjectFilter) {
   address(address: $owner) {
