@@ -94,7 +94,7 @@ pub(crate) struct CommitSyncer<C: NetworkClient> {
     // States only used by the scheduler.
 
     // Inflight requests to fetch commits from different authorities.
-    inflight_fetches: JoinSet<(u32, CertifiedCommits)>,
+    inflight_fetches: JoinSet<(AuthorityIndex, u32, CertifiedCommits)>,
     // Additional ranges of commits to fetch.
     pending_fetches: BTreeSet<CommitRange>,
     // Fetched commits and blocks by commit range.
@@ -171,8 +171,8 @@ impl<C: NetworkClient> CommitSyncer<C> {
                         self.inflight_fetches.shutdown().await;
                         return;
                     }
-                    let (target_end, commits) = result.unwrap();
-                    self.handle_fetch_result(target_end, commits).await;
+                    let (authority, target_end, commits) = result.unwrap();
+                    self.handle_fetch_result(authority, target_end, commits).await;
                 }
                 _ = &mut rx_shutdown => {
                     // Shutdown requested.
@@ -248,6 +248,7 @@ impl<C: NetworkClient> CommitSyncer<C> {
 
     async fn handle_fetch_result(
         &mut self,
+        authority_index: AuthorityIndex,
         target_end: CommitIndex,
         certified_commits: CertifiedCommits,
     ) {
@@ -266,16 +267,24 @@ impl<C: NetworkClient> CommitSyncer<C> {
                             .sum::<usize>() as u64,
                 )
             });
-
+        let hostname = &self
+            .inner
+            .context
+            .committee
+            .authority(authority_index)
+            .hostname;
         let metrics = &self.inner.context.metrics.node_metrics;
         metrics
             .commit_sync_fetched_commits
+            .with_label_values(&[&hostname.as_str()])
             .inc_by(certified_commits.commits().len() as u64);
         metrics
             .commit_sync_fetched_blocks
+            .with_label_values(&[&hostname.as_str()])
             .inc_by(total_blocks_fetched as u64);
         metrics
             .commit_sync_total_fetched_blocks_size
+            .with_label_values(&[&hostname.as_str()])
             .inc_by(total_blocks_size_bytes);
 
         let (commit_start, commit_end) = (
@@ -432,7 +441,7 @@ impl<C: NetworkClient> CommitSyncer<C> {
     async fn fetch_loop(
         inner: Arc<Inner<C>>,
         commit_range: CommitRange,
-    ) -> (CommitIndex, CertifiedCommits) {
+    ) -> (AuthorityIndex, CommitIndex, CertifiedCommits) {
         // Individual request base timeout.
         const TIMEOUT: Duration = Duration::from_secs(10);
         // Max per-request timeout will be base timeout times a multiplier.
@@ -492,7 +501,7 @@ impl<C: NetworkClient> CommitSyncer<C> {
                 {
                     Ok(Ok(commits)) => {
                         info!("Finished fetching commits in {commit_range:?}",);
-                        return (commit_range.end(), commits);
+                        return (authority, commit_range.end(), commits);
                     }
                     Ok(Err(e)) => {
                         let hostname = inner
@@ -543,11 +552,18 @@ impl<C: NetworkClient> CommitSyncer<C> {
         commit_range: CommitRange,
         timeout: Duration,
     ) -> ConsensusResult<CertifiedCommits> {
+        let hostname = inner
+            .context
+            .committee
+            .authority(target_authority)
+            .hostname
+            .clone();
         let _timer = inner
             .context
             .metrics
             .node_metrics
             .commit_sync_fetch_once_latency
+            .with_label_values(&[hostname.as_str()])
             .start_timer();
 
         // 1. Fetch commits in the commit range from the target authority.
