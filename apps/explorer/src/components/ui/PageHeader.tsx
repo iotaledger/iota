@@ -5,6 +5,7 @@
 import {
     Badge,
     BadgeType,
+    ButtonUnstyled,
     InfoBox,
     InfoBoxStyle,
     InfoBoxType,
@@ -13,7 +14,6 @@ import {
 } from '@iota/apps-ui-kit';
 import { Copy, Warning } from '@iota/apps-ui-icons';
 import { onCopySuccess } from '~/lib/utils';
-import { useCopyToClipboard } from '@iota/core';
 import clsx from 'clsx';
 
 type PageHeaderType = 'Transaction' | 'Checkpoint' | 'Address' | 'Object' | 'Package';
@@ -39,7 +39,21 @@ export function PageHeader({
     status,
     showCopyButton = true,
 }: PageHeaderProps): JSX.Element {
-    const copyToClipboard = useCopyToClipboard(onCopySuccess);
+    async function handleCopyClick(event: React.MouseEvent<HTMLButtonElement>) {
+        event.stopPropagation();
+        if (!navigator.clipboard) {
+            return;
+        }
+        if (title && typeof title === 'string') {
+            try {
+                await navigator.clipboard.writeText(title);
+                onCopySuccess();
+            } catch (error) {
+                console.error('Failed to copy:', error);
+            }
+        }
+    }
+
     return (
         <Panel>
             <div className="flex w-full items-center p-md--rs">
@@ -86,16 +100,9 @@ export function PageHeader({
                                         >
                                             {title}
                                         </span>
-                                        {showCopyButton && (
-                                            <Copy
-                                                onClick={() =>
-                                                    typeof title === 'string'
-                                                        ? copyToClipboard(title)
-                                                        : undefined
-                                                }
-                                                className="shrink-0 cursor-pointer"
-                                            />
-                                        )}
+                                        <ButtonUnstyled onClick={handleCopyClick}>
+                                            <Copy className="shrink-0 cursor-pointer" />
+                                        </ButtonUnstyled>
                                     </div>
                                 )}
                                 {subtitle && (

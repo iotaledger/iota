@@ -169,7 +169,12 @@ pub fn reset_database(conn: &mut PoolConnection) -> Result<(), anyhow::Error> {
 
 pub mod setup_postgres {
     use anyhow::anyhow;
-    use diesel::{RunQueryDsl, migration::MigrationSource};
+    use diesel::{
+        RunQueryDsl,
+        migration::{Migration, MigrationConnection, MigrationSource, MigrationVersion},
+        pg::Pg,
+        prelude::*,
+    };
     use diesel_migrations::{EmbeddedMigrations, MigrationHarness, embed_migrations};
     use prometheus::Registry;
     use secrecy::ExposeSecret;
@@ -183,6 +188,13 @@ pub mod setup_postgres {
         metrics::IndexerMetrics,
         store::{PgIndexerAnalyticalStore, PgIndexerStore},
     };
+
+    table! {
+        __diesel_schema_migrations (version) {
+            version -> VarChar,
+            run_on -> Timestamp,
+        }
+    }
 
     const MIGRATIONS: EmbeddedMigrations = embed_migrations!("migrations/pg");
 
@@ -229,19 +241,86 @@ pub mod setup_postgres {
         diesel::sql_query(drop_all_functions).execute(conn)?;
         info!("Dropped all functions.");
 
-        diesel::sql_query(
-            "
-        CREATE TABLE IF NOT EXISTS __diesel_schema_migrations (
-            version VARCHAR(50) PRIMARY KEY,
-            run_on TIMESTAMP NOT NULL DEFAULT NOW()
-        )",
-        )
-        .execute(conn)?;
+        conn.setup()?;
         info!("Created __diesel_schema_migrations table.");
 
-        conn.run_migrations(&MIGRATIONS.migrations().unwrap())
-            .map_err(|e| anyhow!("Failed to run migrations {e}"))?;
+        run_migrations(conn)?;
         info!("Reset database complete.");
+        Ok(())
+    }
+
+    /// Execute all unapplied migrations.
+    pub fn run_migrations(conn: &mut PoolConnection) -> Result<(), anyhow::Error> {
+        conn.run_pending_migrations(MIGRATIONS)
+            .map_err(|e| anyhow!("Failed to run migrations {e}"))?;
+        Ok(())
+    }
+
+    /// Checks that the local migration scripts are a prefix of the records in
+    /// the database. This allows to run migration scripts against a DB at
+    /// any time, without worrying about existing readers failing over.
+    ///
+    /// # Deployment Requirement
+    /// Whenever deploying a new version of either the reader or writer,
+    /// migration scripts **must** be run first. This ensures that there are
+    /// never more local migration scripts than those recorded in the database.
+    ///
+    /// # Backward Compatibility
+    /// All new migrations must be **backward compatible** with the previous
+    /// data model. Do **not** remove or rename columns, tables, or change types
+    /// in a way that would break older versions of the reader or writer.
+    ///
+    /// Only after all services are running the new code and no old versions
+    /// are in use, can you safely remove deprecated fields or make breaking
+    /// changes.
+    ///
+    /// This approach supports rolling upgrades and prevents unnecessary
+    /// failures during deployment.
+    pub fn check_db_migration_consistency(conn: &mut PoolConnection) -> Result<(), IndexerError> {
+        info!("Starting compatibility check");
+        let migrations: Vec<Box<dyn Migration<Pg>>> = MIGRATIONS.migrations().map_err(|err| {
+            IndexerError::DbMigration(format!(
+                "Failed to fetch local migrations from schema: {err}"
+            ))
+        })?;
+
+        let local_migrations = migrations
+            .iter()
+            .map(|m| m.name().version())
+            .collect::<Vec<_>>();
+
+        check_db_migration_consistency_impl(conn, local_migrations)?;
+        info!("Compatibility check passed");
+        Ok(())
+    }
+
+    fn check_db_migration_consistency_impl(
+        conn: &mut PoolConnection,
+        local_migrations: Vec<MigrationVersion>,
+    ) -> Result<(), IndexerError> {
+        // Unfortunately we cannot call applied_migrations() directly on the connection,
+        // since it implicitly creates the __diesel_schema_migrations table if it
+        // doesn't exist, which is a write operation that we don't want to do in
+        // this function.
+        let applied_migrations: Vec<MigrationVersion> = __diesel_schema_migrations::table
+            .select(__diesel_schema_migrations::version)
+            .order(__diesel_schema_migrations::version.asc())
+            .load(conn)?;
+
+        // We check that the local migrations is a prefix of the applied migrations.
+        if local_migrations.len() > applied_migrations.len() {
+            return Err(IndexerError::DbMigration(format!(
+                "The number of local migrations is greater than the number of applied migrations. Local migrations: {local_migrations:?}, Applied migrations: {applied_migrations:?}",
+            )));
+        }
+        for (local_migration, applied_migration) in local_migrations.iter().zip(&applied_migrations)
+        {
+            if local_migration != applied_migration {
+                return Err(IndexerError::DbMigration(format!(
+                    "The next applied migration `{applied_migration:?}` diverges from the local migration `{local_migration:?}`",
+                )));
+            }
+        }
         Ok(())
     }
 
@@ -250,26 +329,15 @@ pub mod setup_postgres {
         registry: Registry,
     ) -> Result<(), IndexerError> {
         let db_url_secret = indexer_config.get_db_url().map_err(|e| {
-            IndexerError::PgPoolConnection(format!(
-                "Failed parsing database url with error {:?}",
-                e
-            ))
+            IndexerError::PgPoolConnection(format!("Failed parsing database url with error {e:?}"))
         })?;
         let db_url = db_url_secret.expose_secret();
-        let blocking_cp = new_connection_pool(db_url, None).map_err(|e| {
-            error!(
-                "Failed creating Postgres connection pool with error {:?}",
-                e
-            );
-            e
+        let blocking_cp = new_connection_pool(db_url, None).inspect_err(|e| {
+            error!("Failed creating Postgres connection pool with error {e:?}");
         })?;
-        info!("Postgres database connection pool is created at {}", db_url);
-        let mut conn = get_pool_connection(&blocking_cp).map_err(|e| {
-            error!(
-                "Failed getting Postgres connection from connection pool with error {:?}",
-                e
-            );
-            e
+        info!("Postgres database connection pool is created at {db_url}");
+        let mut conn = get_pool_connection(&blocking_cp).inspect_err(|e| {
+            error!("Failed getting Postgres connection from connection pool with error {e:?}");
         })?;
         let indexer_metrics = IndexerMetrics::new(&registry);
         iota_metrics::init_metrics(&registry);
@@ -311,11 +379,94 @@ pub mod setup_postgres {
             }
             return Indexer::start_writer(&indexer_config, store, indexer_metrics).await;
         } else if indexer_config.rpc_server_worker {
+            check_db_migration_consistency(&mut conn)?;
             return Indexer::start_reader(&indexer_config, &registry, db_url.to_string()).await;
         } else if indexer_config.analytical_worker {
             let store = PgIndexerAnalyticalStore::new(blocking_cp);
             return Indexer::start_analytical_worker(store, indexer_metrics.clone()).await;
         }
         Ok(())
+    }
+
+    #[cfg(feature = "pg_integration")]
+    #[cfg(test)]
+    mod tests {
+        use diesel::{
+            migration::{Migration, MigrationSource},
+            pg::Pg,
+        };
+        use diesel_migrations::MigrationHarness;
+        use secrecy::Secret;
+
+        use crate::{
+            db::setup_postgres::{self, MIGRATIONS},
+            test_utils::TestDatabase,
+        };
+
+        fn database_url(db_name: &str) -> Secret<String> {
+            secrecy::Secret::new(format!(
+                "postgres://postgres:postgrespw@localhost:5432/{db_name}"
+            ))
+        }
+
+        // Check that the migration records in the database created from the local
+        // schema pass the consistency check.
+        #[test]
+        fn db_migration_consistency_smoke_test() {
+            let mut database =
+                TestDatabase::new(database_url("db_migration_consistency_smoke_test"));
+            database.recreate();
+            database.reset_db();
+            {
+                let pool = database.to_connection_pool();
+                let mut conn = pool.get().unwrap();
+                setup_postgres::check_db_migration_consistency(&mut conn).unwrap();
+            }
+            database.drop_if_exists();
+        }
+
+        #[test]
+        fn db_migration_consistency_non_prefix_test() {
+            let mut database =
+                TestDatabase::new(database_url("db_migration_consistency_non_prefix_test"));
+            database.recreate();
+            database.reset_db();
+            {
+                let pool = database.to_connection_pool();
+                let mut conn = pool.get().unwrap();
+                conn.revert_migration(MIGRATIONS.migrations().unwrap().last().unwrap())
+                    .unwrap();
+                // Local migrations is one record more than the applied migrations.
+                // This will fail the consistency check since it's not a prefix.
+                assert!(setup_postgres::check_db_migration_consistency(&mut conn).is_err());
+
+                conn.run_pending_migrations(MIGRATIONS).unwrap();
+                // After running pending migrations they should be consistent.
+                setup_postgres::check_db_migration_consistency(&mut conn).unwrap();
+            }
+            database.drop_if_exists();
+        }
+
+        #[test]
+        fn db_migration_consistency_prefix_test() {
+            let mut database =
+                TestDatabase::new(database_url("db_migration_consistency_prefix_test"));
+            database.recreate();
+            database.reset_db();
+            {
+                let pool = database.to_connection_pool();
+                let mut conn = pool.get().unwrap();
+
+                let migrations: Vec<Box<dyn Migration<Pg>>> = MIGRATIONS.migrations().unwrap();
+                let mut local_migrations: Vec<_> =
+                    migrations.iter().map(|m| m.name().version()).collect();
+                local_migrations.pop();
+                // Local migrations is one record less than the applied migrations.
+                // This should pass the consistency check since it's still a prefix.
+                setup_postgres::check_db_migration_consistency_impl(&mut conn, local_migrations)
+                    .unwrap();
+            }
+            database.drop_if_exists();
+        }
     }
 }
