@@ -15,14 +15,14 @@ export const TimelockedObjectSchema = z.object({
     id: UidSchema,
     locked: BalanceSchema,
     expirationTimestampMs: z.number(),
-    label: z.string().optional(),
+    label: z.string().nullable().optional(),
 });
 
 export const TimelockedObjectFieldsSchema = z.object({
     id: UidSchema,
     locked: z.string(),
     expiration_timestamp_ms: z.string(),
-    label: z.string().optional(),
+    label: z.string().nullable().optional(),
 });
 
 const TimelockedObjectContentSchema = z.object({
