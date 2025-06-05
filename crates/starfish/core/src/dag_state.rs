@@ -31,6 +31,9 @@ use crate::{
     threshold_clock::ThresholdClock,
 };
 
+/// Acknowledgment depth is the maximum number of rounds from current round
+/// for which acknowledgments are kept in memory and can be injected in a new
+/// block.
 // TODO: make it derivable from the protocol parameters
 pub(crate) const MAX_TRANSACTIONS_ACK_DEPTH: Round = 50;
 
@@ -96,11 +99,9 @@ pub(crate) struct DagState {
     // TODO: limit to 1st commit per round with multi-leader.
     pending_commit_votes: VecDeque<CommitVote>,
 
-    // TODO: during startup recover pending acknowledgements based on own blocks that are loaded to
-    //  memory upon startup Acknowledgments pending to be included in new blocks. These
-    //  represent votes indicating availability of transaction data from the corresponding
-    //  blocks
-    pending_acknowledgments: Vec<BlockRef>,
+    // Acknowledgments pending to be included in new blocks. These represent votes indicating
+    // availability of transaction data from the corresponding blocks
+    pending_acknowledgments: BTreeSet<BlockRef>,
 
     // Data to be flushed to storage.
     blocks_to_write: Vec<VerifiedBlock>,
@@ -193,7 +194,7 @@ impl DagState {
             block_headers_to_write: vec![],
             commits_to_write: vec![],
             commit_info_to_write: vec![],
-            pending_acknowledgments: vec![],
+            pending_acknowledgments: BTreeSet::new(),
             scoring_subdag,
             store: store.clone(),
             cached_rounds,
@@ -284,10 +285,18 @@ impl DagState {
             .inc();
     }
 
-    pub(crate) fn add_block(&mut self, block: VerifiedBlock) {
+    pub(crate) fn add_block(&mut self, block: VerifiedBlock, live: bool) {
         let block_ref = block.reference();
         self.recent_blocks.insert(block_ref, block.clone());
         self.recent_blocks_refs_by_authority[block_ref.author].insert(block_ref);
+
+        // If a block is not very old, add it to pending acknowledgments
+        let clock_round = self.threshold_clock_round();
+        let min_round: Round = clock_round.saturating_sub(MAX_TRANSACTIONS_ACK_DEPTH);
+
+        if live && block_ref.round >= min_round {
+            self.add_pending_acknowledgment(block_ref);
+        }
         self.blocks_to_write.push(block);
     }
 
@@ -943,27 +952,46 @@ impl DagState {
         votes
     }
 
+    /// Function removes stalled pending acknowledgments that are older than
+    /// "current clock round minus MAX_TRANSACTIONS_ACK_DEPTH"
+    pub(crate) fn evict_pending_acknowledgments(&mut self) {
+        let clock_round = self.threshold_clock_round();
+        let min_round: Round = clock_round.saturating_sub(MAX_TRANSACTIONS_ACK_DEPTH);
+
+        // Construct a dummy BlockRef with the minimum round to split on.
+        // All entries < dummy will be removed.
+        let lower_bound = BlockRef::new(min_round, AuthorityIndex::ZERO, BlockHeaderDigest::MIN);
+
+        // Remove entries with round < min_round
+        self.pending_acknowledgments = self.pending_acknowledgments.split_off(&lower_bound);
+    }
+
+    /// Adds a block reference to pending acknowledgments.
+    pub(crate) fn add_pending_acknowledgment(&mut self, block_ref: BlockRef) {
+        self.pending_acknowledgments.insert(block_ref);
+    }
+
     /// Takes at most `limit` acknowledgments from `pending_acknowledgments`,
     /// ensuring they are from rounds below `clock_round`.
-    pub(crate) fn take_acknowledgments(
-        &mut self,
-        limit: usize,
-        clock_round: Round,
-    ) -> Vec<BlockRef> {
-        // Partition based on round
-        let (mut below_clock_round, at_least_clock_round): (Vec<_>, Vec<_>) = self
-            .pending_acknowledgments
-            .drain(..)
-            .partition(|x| x.round < clock_round);
+    pub(crate) fn take_acknowledgments(&mut self, limit: usize) -> Vec<BlockRef> {
+        self.evict_pending_acknowledgments();
+        let clock_round = self.threshold_clock_round();
+        let mut taken = Vec::with_capacity(limit);
+        let mut last_ack = None;
 
-        // Split below_clock_round into taken and leftover
-        let acknowledgments = below_clock_round.drain(..).take(limit).collect::<Vec<_>>();
+        for ack in self.pending_acknowledgments.iter() {
+            if taken.len() >= limit || ack.round >= clock_round {
+                last_ack = Some(*ack);
+                break;
+            }
+            taken.push(*ack);
+        }
 
-        // Remaining acknowledgments go back to the queue
-        below_clock_round.extend(at_least_clock_round);
-        self.pending_acknowledgments = below_clock_round;
+        if let Some(last_ack) = last_ack {
+            self.pending_acknowledgments = self.pending_acknowledgments.split_off(&last_ack);
+        }
 
-        acknowledgments
+        taken
     }
 
     /// Index of the last commit.
@@ -1095,6 +1123,9 @@ impl DagState {
             self.evicted_rounds[authority_index] = eviction_round;
         }
 
+        // Clean up old acknowledgments.
+        self.evict_pending_acknowledgments();
+
         let metrics = &self.context.metrics.node_metrics;
         // TODO: create similar metric for headers?
         metrics
@@ -1206,7 +1237,7 @@ impl DagState {
 
     #[cfg(test)]
     pub(crate) fn set_pending_acknowledgments(&mut self, acknowledgments: Vec<BlockRef>) {
-        self.pending_acknowledgments = acknowledgments;
+        self.pending_acknowledgments = acknowledgments.into_iter().collect::<BTreeSet<_>>();
     }
 }
 #[cfg(test)]
