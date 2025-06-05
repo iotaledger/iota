@@ -35,6 +35,7 @@ impl GrpcNodeClient {
         Ok(response.into_inner())
     }
 
+    // TODO: remove this?
     pub async fn get_epoch_first_checkpoint_sequence_number(
         &mut self,
         epoch: u64,

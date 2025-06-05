@@ -482,7 +482,7 @@ impl CheckpointService for CheckpointGrpcService {
             let get_item = move |idx| state_reader.get_full_checkpoint_data(idx).map(Arc::new);
             let latest = self
                 .state_reader
-                .get_latest_checkpoint_sequence_number()
+                .get_latest_checkpoint_sequence_number() // TODO: use get_highest_synced_checkpoint?
                 .ok();
             let stream = stream_checkpoints_helper(
                 tx,
@@ -508,7 +508,7 @@ impl CheckpointService for CheckpointGrpcService {
             };
             let latest = self
                 .state_reader
-                .get_latest_checkpoint_sequence_number()
+                .get_latest_checkpoint_sequence_number() // TODO: use get_highest_synced_checkpoint?
                 .ok();
             let stream = stream_checkpoints_helper(
                 tx,
@@ -523,6 +523,7 @@ impl CheckpointService for CheckpointGrpcService {
         }
     }
 
+    // TODO: remove this?
     async fn get_epoch_first_checkpoint_sequence_number(
         &self,
         request: Request<checkpoint::EpochRequest>,
@@ -535,7 +536,7 @@ impl CheckpointService for CheckpointGrpcService {
 
         let latest_seq_opt = self
             .state_reader
-            .get_latest_checkpoint_sequence_number()
+            .get_latest_checkpoint_sequence_number() // TODO: use get_highest_synced_checkpoint?
             .ok();
 
         if latest_seq_opt.is_none() {
