@@ -65,7 +65,7 @@ impl CommitObserver {
                 dag_state.clone(),
                 leader_schedule.clone(),
             ),
-            commit_solidifier: DataManager::new(context.clone(), dag_state.clone()),
+            commit_solidifier: DataManager::new(dag_state.clone()),
             context,
             sender: commit_consumer.sender,
             store,
@@ -216,9 +216,9 @@ impl CommitObserver {
             // they are tracked there. The commit will be sent to IOTA here if all the
             // transactions are available, or will be kept in the buffer and sent later when
             // the transactions become available.
-            let solid_sub_dag = self.commit_solidifier.try_commit_one(&pending_sub_dag);
+            let (solid_sub_dags, _missing) = self.commit_solidifier.try_commit(&[pending_sub_dag]);
             // Only submit unprocessed commits to IOTA
-            if let Some(solid_sub_dag) = solid_sub_dag {
+            for solid_sub_dag in solid_sub_dags {
                 if solid_sub_dag.commit_ref.index > last_processed_commit_index {
                     info!(
                         "Sending solid commit {} during recovery",
