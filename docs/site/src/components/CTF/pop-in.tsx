@@ -39,7 +39,7 @@ const PopIn = ({ status, description, title, setShowPopIn, digest }: PropTypes) 
                                     className="inline-flex cursor-pointer w-full border-none justify-center rounded-md bg-[#017195] px-4 py-2 text-sm my-2 hover:bg-[#015b78]">
                                         <a 
                                             target='blank' 
-                                            href={`https://explorer.rebased.iota.org/txblock/${digest}?network=testnet`}
+                                            href={`https://explorer.iota.org/txblock/${digest}?network=testnet`}
                                             className='font-semibold text-white no-underline hover:no-underline hover:text-white'
                                         >Check transaction on explorer</a>
                                 </button>
