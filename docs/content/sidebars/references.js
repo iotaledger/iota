@@ -45,6 +45,12 @@ const references = [
         ],
     },
     {
+        type: 'link',
+        label: 'Third-Party Blockberry API',
+        href: 'https://docs.blockberry.one/reference/iota-testnet-quickstart',
+        description: 'Third-Party Blockberry API Reference',
+    },
+    {
         type: 'category',
         label: 'Move',
         link: {
