@@ -534,6 +534,8 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> Synchronizer<C
             return Err(ConsensusError::TooManyFetchedBlocksReturned(peer_index));
         }
 
+        // TODO : check if header is already accepted or suspended
+
         // Verify all the fetched blocks
         let blocks = Handle::current()
             .spawn_blocking({
