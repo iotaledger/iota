@@ -259,7 +259,7 @@ mod tests {
     #[test]
     #[ignore = "This test is ignored until transaction storage is implemented in DAG state"]
     fn test_missing_blocks_with_dag_builder() {
-        let (mut manager, dag_state, mut dag_builder) = setup_manager_and_dag_with_builder(2);
+        let (mut manager, _dag_state, dag_builder) = setup_manager_and_dag_with_builder(2);
         let block0s = dag_builder.block_headers(0..=0);
         let block2s = dag_builder.block_headers(2..=2);
         let leader = block2s[0].reference();
@@ -282,7 +282,7 @@ mod tests {
     #[test]
     #[ignore = "This test is ignored until transaction storage is implemented in DAG state"]
     fn test_commit_after_missing_blocks_arrive_with_dag_builder() {
-        let (mut manager, dag_state, mut dag_builder) = setup_manager_and_dag_with_builder(2);
+        let (mut manager, dag_state, dag_builder) = setup_manager_and_dag_with_builder(2);
         let block0s = dag_builder.block_headers(0..=0);
         let block2s = dag_builder.block_headers(2..=2);
         let leader = block2s[0].reference();
@@ -545,7 +545,7 @@ mod tests {
     #[should_panic(expected = "Duplicate missing blockref detected")]
     #[ignore = "This test is ignored until transaction storage is implemented in DAG state"]
     fn test_duplicate_missing_refs_panic() {
-        let (mut manager, dag_state, dag_builder) = setup_manager_and_dag_with_builder(3);
+        let (mut manager, _dag_state, dag_builder) = setup_manager_and_dag_with_builder(3);
         let block0s = dag_builder.block_headers(0..=0);
         let block1s = dag_builder.block_headers(1..=1);
         let block2s = dag_builder.block_headers(2..=2);
