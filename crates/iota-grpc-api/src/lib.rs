@@ -16,8 +16,8 @@ use checkpoint::checkpoint_service_server::CheckpointService;
 use iota_rest_api::{Direction, stream_checkpoints_public};
 use iota_types::storage::RestStateReader;
 pub mod client;
-
 use bcs;
+use futures::stream::unfold;
 use iota_types::{
     full_checkpoint_content::CheckpointData, messages_checkpoint::CertifiedCheckpointSummary,
 };
@@ -58,63 +58,148 @@ impl FullCheckpointDataExt for std::sync::Arc<dyn RestStateReader> {
 }
 
 // Add a generic helper function for streaming checkpoints
-fn stream_checkpoints_helper<T, FGetIndex, FSer, FGetItem>(
+type CheckpointStreamResult = Result<checkpoint::Checkpoint, Status>;
+fn stream_checkpoints_helper<T, FGetIndex, FSer, FGetItem, FGetLatest>(
     tx: tokio::sync::broadcast::Sender<Arc<T>>,
     get_index: FGetIndex,
     ser: FSer,
     get_item: FGetItem,
+    get_latest: FGetLatest,
     start: Option<u64>,
     end: Option<u64>,
-    latest: Option<u64>,
-) -> Result<
-    Pin<Box<dyn futures::Stream<Item = Result<checkpoint::Checkpoint, Status>> + Send>>,
-    Status,
->
+) -> Result<Pin<Box<dyn futures::Stream<Item = CheckpointStreamResult> + Send>>, Status>
 where
     T: Send + Sync + 'static,
     FGetIndex: Fn(&Arc<T>) -> u64 + Send + Sync + 'static,
     FSer: Fn(&Arc<T>) -> Result<Vec<u8>, bcs::Error> + Send + Sync + 'static,
     FGetItem: Fn(u64) -> Option<Arc<T>> + Send + Sync + 'static,
+    FGetLatest: Fn() -> Option<u64> + Send + Sync + 'static,
 {
-    use std::collections::VecDeque;
+    let latest_idx = get_latest();
+    let start_idx = match (start, end) {
+        (None, None) => latest_idx.unwrap_or(0),
+        _ => start.unwrap_or(0),
+    };
+    let end_idx = end;
 
-    use futures::stream::unfold;
-    let mut last_sent: Option<u64> = None;
-    let stream_range = (start, end);
-    let mut items = VecDeque::new();
-    let start_idx = start.unwrap_or(0);
-    let end_idx = end.or(latest);
-
-    // Special logic: if only end_index is provided, only stream that checkpoint
-    if start.is_none() && end.is_some() {
-        let idx = end.unwrap();
-        if let Some(item) = get_item(idx) {
-            let data = ser(&item)
-                .map_err(|e| Status::internal(format!("BCS serialization error: {e}")))?;
-            items.push_back(Ok(checkpoint::Checkpoint {
-                index: get_index(&item),
-                data,
-            }));
-            last_sent = Some(idx);
-        } else {
-            let rx = tx.subscribe();
-            let stream = unfold(
-                (rx, get_index, ser, idx),
-                |(mut rx, get_index, ser, idx)| async move {
+    let stream = unfold(
+        (
+            start_idx,
+            tx.subscribe(),
+            get_index,
+            ser,
+            get_item,
+            get_latest,
+            end_idx,
+            false,
+            None,
+            start,
+            end,
+        ),
+        |(
+            current,
+            mut rx,
+            get_index,
+            ser,
+            get_item,
+            get_latest,
+            end_idx,
+            mut in_live_stream,
+            mut last_sent,
+            start,
+            end,
+        )| async move {
+            // Special case: only end_index is provided, stream only that checkpoint
+            if start.is_none() && end.is_some() && !in_live_stream {
+                let idx = end.unwrap();
+                if let Some(item) = get_item(idx) {
+                    let data = match ser(&item) {
+                        Ok(d) => d,
+                        Err(e) => {
+                            return Some((
+                                Err(Status::internal(format!("BCS serialization error: {e}"))),
+                                (
+                                    current,
+                                    rx,
+                                    get_index,
+                                    ser,
+                                    get_item,
+                                    get_latest,
+                                    end_idx,
+                                    true,
+                                    Some(idx),
+                                    start,
+                                    end,
+                                ),
+                            ));
+                        }
+                    };
+                    return Some((
+                        Ok(checkpoint::Checkpoint {
+                            index: get_index(&item),
+                            data,
+                        }),
+                        (
+                            current,
+                            rx,
+                            get_index,
+                            ser,
+                            get_item,
+                            get_latest,
+                            end_idx,
+                            true,
+                            Some(idx),
+                            start,
+                            end,
+                        ),
+                    ));
+                } else {
+                    // Not found in storage, wait for it to appear on the broadcast channel
                     loop {
                         match rx.recv().await {
                             Ok(item) => {
                                 if get_index(&item) == idx {
-                                    let data = ser(&item)
-                                        .map_err(|e| {
-                                            Status::internal(format!(
-                                                "BCS serialization error: {e}"
-                                            ))
-                                        })
-                                        .unwrap();
+                                    let data = match ser(&item) {
+                                        Ok(d) => d,
+                                        Err(e) => {
+                                            return Some((
+                                                Err(Status::internal(format!(
+                                                    "BCS serialization error: {e}"
+                                                ))),
+                                                (
+                                                    current,
+                                                    rx,
+                                                    get_index,
+                                                    ser,
+                                                    get_item,
+                                                    get_latest,
+                                                    end_idx,
+                                                    true,
+                                                    Some(idx),
+                                                    start,
+                                                    end,
+                                                ),
+                                            ));
+                                        }
+                                    };
                                     return Some((
-                                        Ok(checkpoint::Checkpoint { index: idx, data }),
-                                        (rx, get_index, ser, idx),
+                                        Ok(checkpoint::Checkpoint {
+                                            index: get_index(&item),
+                                            data,
+                                        }),
+                                        (
+                                            current,
+                                            rx,
+                                            get_index,
+                                            ser,
+                                            get_item,
+                                            get_latest,
+                                            end_idx,
+                                            true,
+                                            Some(idx),
+                                            start,
+                                            end,
+                                        ),
                                     ));
                                 }
                             }
@@ -122,153 +207,251 @@ where
                             Err(_) => return None,
                         }
                     }
-                },
-            );
-            return Ok(Box::pin(stream));
-        }
-    } else if start.is_none() && end.is_none() {
-        if let Some(latest_idx) = latest {
-            if let Some(item) = get_item(latest_idx) {
-                let data = ser(&item)
-                    .map_err(|e| Status::internal(format!("BCS serialization error: {e}")))?;
-                items.push_back(Ok(checkpoint::Checkpoint {
-                    index: get_index(&item),
-                    data,
-                }));
-                last_sent = Some(latest_idx);
-            }
-        }
-    } else if let Some(latest_idx) = latest {
-        let hist_end = match end_idx {
-            Some(e) if e <= latest_idx => Some(e),
-            _ => Some(latest_idx),
-        };
-        if start_idx <= latest_idx {
-            for idx in start_idx..=hist_end.unwrap() {
-                if let Some(item) = get_item(idx) {
-                    let data = ser(&item)
-                        .map_err(|e| Status::internal(format!("BCS serialization error: {e}")))?;
-                    items.push_back(Ok(checkpoint::Checkpoint {
-                        index: get_index(&item),
-                        data,
-                    }));
-                    last_sent = Some(idx);
                 }
             }
-        }
-    }
-    let rx = tx.subscribe();
-    let stream = unfold(
-        (
-            items,
-            last_sent,
-            stream_range,
-            rx,
-            get_item,
-            ser,
-            get_index,
-            end_idx,
-        ),
-        |(mut items, last_sent, stream_range, mut rx, get_item, ser, get_index, end_idx)| async move {
-            if let Some(item) = items.pop_front() {
-                return Some((
-                    item,
-                    (
-                        items,
-                        last_sent,
-                        stream_range,
-                        rx,
-                        get_item,
-                        ser,
-                        get_index,
-                        end_idx,
-                    ),
-                ));
+            if !in_live_stream {
+                let latest = get_latest().unwrap_or(current);
+                let mut stop_at = end_idx.unwrap_or(latest);
+                if stop_at > latest {
+                    stop_at = latest;
+                }
+                if current <= stop_at {
+                    if let Some(item) = get_item(current) {
+                        let data = match ser(&item) {
+                            Ok(d) => d,
+                            Err(e) => {
+                                return Some((
+                                    Err(Status::internal(format!("BCS serialization error: {e}"))),
+                                    (
+                                        current,
+                                        rx,
+                                        get_index,
+                                        ser,
+                                        get_item,
+                                        get_latest,
+                                        end_idx,
+                                        in_live_stream,
+                                        last_sent,
+                                        start,
+                                        end,
+                                    ),
+                                ));
+                            }
+                        };
+                        let next_current = current + 1;
+                        let is_last = next_current > stop_at;
+                        let item_index = get_index(&item);
+                        return Some((
+                            Ok(checkpoint::Checkpoint {
+                                index: item_index,
+                                data,
+                            }),
+                            (
+                                next_current,
+                                rx,
+                                get_index,
+                                ser,
+                                get_item,
+                                get_latest,
+                                end_idx,
+                                is_last,
+                                Some(item_index),
+                                start,
+                                end,
+                            ),
+                        ));
+                    } else {
+                        in_live_stream = true;
+                        last_sent = Some(current.saturating_sub(1));
+                    }
+                } else {
+                    in_live_stream = true;
+                    last_sent = Some(stop_at);
+                }
             }
+            let last_sent = last_sent.unwrap_or(current.saturating_sub(1));
             loop {
+                // If this is the special end_index only case and in_live_stream is true, end
+                // the stream
+                if start.is_none() && end.is_some() && in_live_stream {
+                    return None;
+                }
+                // Always try to fill the next expected checkpoint from DB first
+                if let Some(missing_item) = get_item(last_sent + 1) {
+                    let data = match ser(&missing_item) {
+                        Ok(d) => d,
+                        Err(e) => {
+                            println!(
+                                "[GAP FILL ERROR] BCS serialization error for checkpoint {}: {}",
+                                last_sent + 1,
+                                e
+                            );
+                            return Some((
+                                Err(Status::internal(format!("BCS serialization error: {e}"))),
+                                (
+                                    current,
+                                    rx,
+                                    get_index,
+                                    ser,
+                                    get_item,
+                                    get_latest,
+                                    end_idx,
+                                    in_live_stream,
+                                    Some(last_sent),
+                                    start,
+                                    end,
+                                ),
+                            ));
+                        }
+                    };
+                    let item_index = get_index(&missing_item);
+                    println!(
+                        "[GAP FILL] Sent missing checkpoint {} from DB (prev last_sent: {})",
+                        item_index, last_sent
+                    );
+                    return Some((
+                        Ok(checkpoint::Checkpoint {
+                            index: item_index,
+                            data,
+                        }),
+                        (
+                            current,
+                            rx,
+                            get_index,
+                            ser,
+                            get_item,
+                            get_latest,
+                            end_idx,
+                            in_live_stream,
+                            Some(item_index),
+                            start,
+                            end,
+                        ),
+                    ));
+                }
+                // If not found in DB, wait for broadcast
                 match rx.recv().await {
                     Ok(item) => {
                         let idx = get_index(&item);
-                        if let Some(start) = stream_range.0 {
-                            if idx < start {
-                                continue;
-                            }
-                        }
-                        if let Some(end) = stream_range.1 {
+                        if let Some(end) = end_idx {
                             if idx > end {
                                 return None;
                             }
                         }
-                        if let Some(last) = last_sent {
-                            if idx > last + 1 {
-                                for missed in (last + 1)..idx {
-                                    if let Some(missed_item) = get_item(missed) {
-                                        let data = ser(&missed_item)
-                                            .map_err(|e| {
-                                                Status::internal(format!(
-                                                    "BCS serialization error: {e}"
-                                                ))
-                                            })
-                                            .unwrap();
+                        if idx == last_sent + 1 {
+                            let data = match ser(&item) {
+                                Ok(d) => d,
+                                Err(e) => {
+                                    return Some((
+                                        Err(Status::internal(format!(
+                                            "BCS serialization error: {e}"
+                                        ))),
+                                        (
+                                            current,
+                                            rx,
+                                            get_index,
+                                            ser,
+                                            get_item,
+                                            get_latest,
+                                            end_idx,
+                                            in_live_stream,
+                                            Some(last_sent),
+                                            start,
+                                            end,
+                                        ),
+                                    ));
+                                }
+                            };
+                            let item_index = get_index(&item);
+                            return Some((
+                                Ok(checkpoint::Checkpoint {
+                                    index: item_index,
+                                    data,
+                                }),
+                                (
+                                    current,
+                                    rx,
+                                    get_index,
+                                    ser,
+                                    get_item,
+                                    get_latest,
+                                    end_idx,
+                                    in_live_stream,
+                                    Some(item_index),
+                                    start,
+                                    end,
+                                ),
+                            ));
+                        } else if idx > last_sent + 1 {
+                            // If a gap is detected, continue the loop to try to fill from DB
+                            continue;
+                        } else {
+                            // Duplicate or out-of-order, skip
+                            continue;
+                        }
+                    }
+                    Err(tokio::sync::broadcast::error::RecvError::Lagged(_)) => {
+                        let latest = get_latest().unwrap_or(last_sent);
+                        let mut stop_at = end_idx.unwrap_or(latest);
+                        if stop_at > latest {
+                            stop_at = latest;
+                        }
+                        while last_sent < stop_at {
+                            let next = last_sent + 1;
+                            if let Some(item) = get_item(next) {
+                                let data = match ser(&item) {
+                                    Ok(d) => d,
+                                    Err(e) => {
                                         return Some((
-                                            Ok(checkpoint::Checkpoint {
-                                                index: get_index(&missed_item),
-                                                data,
-                                            }),
+                                            Err(Status::internal(format!(
+                                                "BCS serialization error: {e}"
+                                            ))),
                                             (
-                                                items,
-                                                Some(missed),
-                                                stream_range,
+                                                current,
                                                 rx,
-                                                get_item,
-                                                ser,
                                                 get_index,
+                                                ser,
+                                                get_item,
+                                                get_latest,
                                                 end_idx,
+                                                in_live_stream,
+                                                Some(last_sent),
+                                                start,
+                                                end,
                                             ),
                                         ));
                                     }
-                                }
+                                };
+                                let item_index = get_index(&item);
+                                println!(
+                                    "[GAP FILL] Sent missing checkpoint {} from DB (prev last_sent: {})",
+                                    item_index, last_sent
+                                );
+                                return Some((
+                                    Ok(checkpoint::Checkpoint {
+                                        index: item_index,
+                                        data,
+                                    }),
+                                    (
+                                        current,
+                                        rx,
+                                        get_index,
+                                        ser,
+                                        get_item,
+                                        get_latest,
+                                        end_idx,
+                                        in_live_stream,
+                                        Some(item_index),
+                                        start,
+                                        end,
+                                    ),
+                                ));
+                            } else {
+                                break;
                             }
                         }
-                        let data = ser(&item)
-                            .map_err(|e| Status::internal(format!("BCS serialization error: {e}")))
-                            .unwrap();
-                        let done = if let Some(end) = end_idx {
-                            idx >= end
-                        } else {
-                            false
-                        };
-                        let next_last = Some(idx);
-                        if done {
-                            return Some((
-                                Ok(checkpoint::Checkpoint { index: idx, data }),
-                                (
-                                    VecDeque::new(),
-                                    next_last,
-                                    stream_range,
-                                    rx,
-                                    get_item,
-                                    ser,
-                                    get_index,
-                                    end_idx,
-                                ),
-                            ));
-                        }
-                        return Some((
-                            Ok(checkpoint::Checkpoint { index: idx, data }),
-                            (
-                                VecDeque::new(),
-                                next_last,
-                                stream_range,
-                                rx,
-                                get_item,
-                                ser,
-                                get_index,
-                                end_idx,
-                            ),
-                        ));
+                        continue;
                     }
-                    Err(tokio::sync::broadcast::error::RecvError::Lagged(_)) => continue,
                     Err(_) => return None,
                 }
             }
@@ -301,8 +484,15 @@ impl CheckpointService for CheckpointGrpcService {
                 .state_reader
                 .get_latest_checkpoint_sequence_number()
                 .ok();
-            let stream =
-                stream_checkpoints_helper(tx, get_index, ser, get_item, start, end, latest)?;
+            let stream = stream_checkpoints_helper(
+                tx,
+                get_index,
+                ser,
+                get_item,
+                move || latest,
+                start,
+                end,
+            )?;
             Ok(Response::new(stream))
         } else {
             let tx = self.grpc_checkpoint_summary_tx.clone();
@@ -320,8 +510,15 @@ impl CheckpointService for CheckpointGrpcService {
                 .state_reader
                 .get_latest_checkpoint_sequence_number()
                 .ok();
-            let stream =
-                stream_checkpoints_helper(tx, get_index, ser, get_item, start, end, latest)?;
+            let stream = stream_checkpoints_helper(
+                tx,
+                get_index,
+                ser,
+                get_item,
+                move || latest,
+                start,
+                end,
+            )?;
             Ok(Response::new(stream))
         }
     }
@@ -332,7 +529,7 @@ impl CheckpointService for CheckpointGrpcService {
     ) -> Result<Response<checkpoint::CheckpointSequenceNumberResponse>, Status> {
         let epoch = request.into_inner().epoch;
         println!(
-            "[gRPC DEBUG] get_epoch_first_checkpoint_sequence_number called for epoch {}",
+            "[gRPC] get_epoch_first_checkpoint_sequence_number called for epoch {}",
             epoch
         );
         // Iterate over checkpoints in ascending order to find the first in the
@@ -342,20 +539,20 @@ impl CheckpointService for CheckpointGrpcService {
         let mut found = 0u64;
         while let Some(Ok((summary, _))) = iter.next() {
             println!(
-                "[gRPC DEBUG] Inspecting checkpoint: seq={}, epoch={}",
+                "[gRPC] Inspecting checkpoint: seq={}, epoch={}",
                 summary.sequence_number, summary.epoch
             );
             if summary.epoch == epoch {
                 found = summary.sequence_number;
                 println!(
-                    "[gRPC DEBUG] Found first checkpoint for epoch {}: seq={}",
+                    "[gRPC] Found first checkpoint for epoch {}: seq={}",
                     epoch, found
                 );
                 break;
             }
         }
         if found == 0 {
-            println!("[gRPC DEBUG] No checkpoint found for epoch {}", epoch);
+            println!("[gRPC] No checkpoint found for epoch {}", epoch);
         }
         Ok(Response::new(
             checkpoint::CheckpointSequenceNumberResponse {

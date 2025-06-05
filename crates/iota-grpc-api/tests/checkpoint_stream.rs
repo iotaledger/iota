@@ -21,8 +21,11 @@ use tokio_stream::StreamExt;
 use tonic::Request;
 
 struct MockRestStateReader {
-    checkpoints:
-        HashMap<CheckpointSequenceNumber, (CertifiedCheckpointSummary, CheckpointContents)>,
+    checkpoints: Arc<
+        std::sync::Mutex<
+            HashMap<CheckpointSequenceNumber, (CertifiedCheckpointSummary, CheckpointContents)>,
+        >,
+    >,
 }
 
 // Minimal empty trait impls to satisfy RestStateReader supertraits
@@ -58,8 +61,9 @@ impl iota_types::storage::ReadStore for MockRestStateReader {
         >,
     > {
         // Return the checkpoint with the highest sequence number
-        if let Some(max_seq) = self.checkpoints.keys().max().cloned() {
-            let (summary, _) = self.checkpoints.get(&max_seq).unwrap();
+        let guard = self.checkpoints.lock().unwrap();
+        if let Some(max_seq) = guard.keys().max().cloned() {
+            let (summary, _) = guard.get(&max_seq).unwrap();
             Ok(iota_types::message_envelope::VerifiedEnvelope::new_unchecked(summary.clone()))
         } else {
             // Use the missing error constructor
@@ -119,20 +123,23 @@ impl iota_types::storage::ReadStore for MockRestStateReader {
             "Mock get_checkpoint_by_sequence_number called for seq: {}",
             seq
         );
+        let guard = self.checkpoints.lock().unwrap();
         if seq == u64::MAX {
             // Return the highest checkpoint
-            if let Some(max_seq) = self.checkpoints.keys().max().cloned() {
-                return Ok(self.checkpoints.get(&max_seq).map(|(c, _)| {
+            if let Some(max_seq) = guard.keys().max().cloned() {
+                println!("[READER] Returning highest checkpoint {}", max_seq);
+                return Ok(guard.get(&max_seq).map(|(c, _)| {
                     iota_types::message_envelope::VerifiedEnvelope::new_unchecked(c.clone())
                 }));
             } else {
                 return Ok(None);
             }
         }
-        Ok(self
-            .checkpoints
-            .get(&seq)
-            .map(|(c, _)| iota_types::message_envelope::VerifiedEnvelope::new_unchecked(c.clone())))
+        let found = guard.get(&seq).map(|(c, _)| {
+            println!("[READER] Returning checkpoint {}", seq);
+            iota_types::message_envelope::VerifiedEnvelope::new_unchecked(c.clone())
+        });
+        Ok(found)
     }
     fn get_checkpoint_contents_by_digest(
         &self,
@@ -144,10 +151,8 @@ impl iota_types::storage::ReadStore for MockRestStateReader {
         &self,
         seq: CheckpointSequenceNumber,
     ) -> iota_types::storage::error::Result<Option<CheckpointContents>> {
-        Ok(self
-            .checkpoints
-            .get(&seq)
-            .map(|(_, contents)| contents.clone()))
+        let guard = self.checkpoints.lock().unwrap();
+        Ok(guard.get(&seq).map(|(_, contents)| contents.clone()))
     }
     fn get_transaction(
         &self,
@@ -269,8 +274,8 @@ async fn test_service() -> CheckpointGrpcService {
             (i, (cert, contents))
         })
         .collect::<HashMap<_, _>>();
-    let mock = std::sync::Arc::new(MockRestStateReader {
-        checkpoints: checkpoints.clone(),
+    let mock = Arc::new(MockRestStateReader {
+        checkpoints: Arc::new(std::sync::Mutex::new(checkpoints.clone())),
     });
     let (grpc_checkpoint_summary_tx, _) = tokio::sync::broadcast::channel(100);
     let (grpc_checkpoint_data_tx, _) = tokio::sync::broadcast::channel(100);
@@ -346,7 +351,7 @@ async fn test_start_index_only() {
         match res {
             Ok(cp) => {
                 // Only collect the expected range
-                if cp.index > 15 {
+                if cp.index > 30 {
                     break;
                 }
                 result.push(cp.index)
@@ -356,7 +361,7 @@ async fn test_start_index_only() {
         }
     }
     println!("Result: {:?}", result);
-    assert_eq!(result, (5..=15).collect::<Vec<_>>());
+    assert_eq!(result, (5..=30).collect::<Vec<_>>());
 }
 
 #[tokio::test]
@@ -440,7 +445,7 @@ async fn test_future_end_index_only_full() {
 
     let req = StreamRequest {
         start_index: None,
-        end_index: Some(14),
+        end_index: Some(100),
         full: Some(true),
     };
     let mut stream = svc
@@ -463,7 +468,7 @@ async fn test_future_end_index_only_full() {
         }
     }
     println!("Result: {:?}", result);
-    assert_eq!(result, vec![14]);
+    assert_eq!(result, vec![100]);
 }
 
 #[tokio::test]
@@ -504,4 +509,203 @@ async fn test_both_indices_omitted() {
     println!("Result: {:?}", result);
     // The first 11 should be 0..=10 (buffered), then live ones (11, 12, ...)
     assert_eq!(&result[..], &(10..=24).collect::<Vec<_>>()[..]);
+}
+
+#[tokio::test]
+async fn test_historical_to_live_gap_fill() {
+    use std::sync::Arc;
+
+    use iota_types::{
+        full_checkpoint_content::CheckpointData, messages_checkpoint::CertifiedCheckpointSummary,
+    };
+    use tokio::sync::broadcast;
+
+    // Simulate storage with checkpoints 0..=150
+    let mut checkpoints = std::collections::HashMap::new();
+    for i in 0..=150u64 {
+        let contents = CheckpointContents::new_with_digests_only_for_tests(vec![]);
+        let summary = CheckpointSummary {
+            epoch: 0,
+            sequence_number: i,
+            network_total_transactions: 0,
+            content_digest: *contents.digest(),
+            previous_digest: None,
+            epoch_rolling_gas_cost_summary: Default::default(),
+            timestamp_ms: 0,
+            checkpoint_commitments: vec![],
+            end_of_epoch_data: None,
+            version_specific_data: vec![],
+        };
+        let sig = AuthorityStrongQuorumSignInfo {
+            epoch: 0,
+            signature: Default::default(),
+            signers_map: Default::default(),
+        };
+        let cert = CertifiedCheckpointSummary::new_from_data_and_sig(summary, sig);
+        checkpoints.insert(i, (cert, contents));
+    }
+    let mock = Arc::new(MockRestStateReader {
+        checkpoints: Arc::new(std::sync::Mutex::new(checkpoints.clone())),
+    });
+    let (grpc_checkpoint_summary_tx, _) = broadcast::channel(10);
+    let (grpc_checkpoint_data_tx, _) = broadcast::channel(10);
+    let svc = CheckpointGrpcService::new(
+        mock.clone(),
+        grpc_checkpoint_summary_tx.clone(),
+        grpc_checkpoint_data_tx.clone(),
+    );
+
+    // Simulate broadcast channel at 150
+    let (summary_150, contents_150) = checkpoints.get(&150).unwrap();
+    let data_150 = CheckpointData {
+        checkpoint_summary: summary_150.clone(),
+        checkpoint_contents: contents_150.clone().into(),
+        transactions: vec![],
+    };
+    let _ = grpc_checkpoint_summary_tx.send(Arc::new(summary_150.clone()));
+    let _ = grpc_checkpoint_data_tx.send(Arc::new(data_150));
+
+    // Client requests from 0 (historical)
+    let req = StreamRequest {
+        start_index: Some(0),
+        end_index: None,
+        full: Some(true),
+    };
+    let mut stream = svc
+        .stream_checkpoints(Request::new(req))
+        .await
+        .unwrap()
+        .into_inner();
+    let mut received = Vec::new();
+    // Collect up to 151 checkpoints
+    while let Some(Ok(cp)) = stream.next().await {
+        let checkpoint_data: CheckpointData = bcs::from_bytes(&cp.data).expect("bcs decode");
+        received.push(checkpoint_data.checkpoint_summary.sequence_number);
+        if checkpoint_data.checkpoint_summary.sequence_number == 150 {
+            break;
+        }
+    }
+    // Assert we got all checkpoints 0..=150
+    assert_eq!(received, (0..=150u64).collect::<Vec<_>>());
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn test_gap_fill_with_slow_client() {
+    use std::{sync::Arc, time::Duration};
+
+    use iota_types::{
+        crypto::AuthorityStrongQuorumSignInfo,
+        full_checkpoint_content::CheckpointData,
+        messages_checkpoint::{CertifiedCheckpointSummary, CheckpointContents, CheckpointSummary},
+    };
+    use tokio::sync::broadcast;
+
+    let checkpoints = Arc::new(std::sync::Mutex::new(HashMap::new()));
+    let mock = Arc::new(MockRestStateReader {
+        checkpoints: checkpoints.clone(),
+    });
+    let (grpc_checkpoint_summary_tx, _) = broadcast::channel(5);
+    let (grpc_checkpoint_data_tx, _) = broadcast::channel(5);
+    let svc = CheckpointGrpcService::new(
+        mock.clone(),
+        grpc_checkpoint_summary_tx.clone(),
+        grpc_checkpoint_data_tx.clone(),
+    );
+
+    // Pre-populate storage with checkpoints 0..=10 before spawning the producer and
+    // client
+    for i in 0..=10u64 {
+        let contents = CheckpointContents::new_with_digests_only_for_tests(vec![]);
+        let summary = CheckpointSummary {
+            epoch: 0,
+            sequence_number: i,
+            network_total_transactions: 0,
+            content_digest: *contents.digest(),
+            previous_digest: None,
+            epoch_rolling_gas_cost_summary: Default::default(),
+            timestamp_ms: 0,
+            checkpoint_commitments: vec![],
+            end_of_epoch_data: None,
+            version_specific_data: vec![],
+        };
+        let sig = AuthorityStrongQuorumSignInfo {
+            epoch: 0,
+            signature: Default::default(),
+            signers_map: Default::default(),
+        };
+        let cert = CertifiedCheckpointSummary::new_from_data_and_sig(summary, sig);
+        checkpoints
+            .lock()
+            .unwrap()
+            .insert(i, (cert.clone(), contents.clone()));
+    }
+
+    // Producer: generates checkpoints 0..=20, one every 100ms
+    tokio::spawn({
+        let checkpoints = checkpoints.clone();
+        let grpc_checkpoint_summary_tx = grpc_checkpoint_summary_tx.clone();
+        let grpc_checkpoint_data_tx = grpc_checkpoint_data_tx.clone();
+        async move {
+            for i in 11..=200u64 {
+                let contents = CheckpointContents::new_with_digests_only_for_tests(vec![]);
+                let summary = CheckpointSummary {
+                    epoch: 0,
+                    sequence_number: i,
+                    network_total_transactions: 0,
+                    content_digest: *contents.digest(),
+                    previous_digest: None,
+                    epoch_rolling_gas_cost_summary: Default::default(),
+                    timestamp_ms: 0,
+                    checkpoint_commitments: vec![],
+                    end_of_epoch_data: None,
+                    version_specific_data: vec![],
+                };
+                let sig = AuthorityStrongQuorumSignInfo {
+                    epoch: 0,
+                    signature: Default::default(),
+                    signers_map: Default::default(),
+                };
+                let cert = CertifiedCheckpointSummary::new_from_data_and_sig(summary, sig);
+                checkpoints
+                    .lock()
+                    .unwrap()
+                    .insert(i, (cert.clone(), contents.clone()));
+                println!("[gRPC] Producer inserted checkpoint {}", i);
+                let data = CheckpointData {
+                    checkpoint_summary: cert.clone(),
+                    checkpoint_contents: contents.clone().into(),
+                    transactions: vec![],
+                };
+                let _ = grpc_checkpoint_summary_tx.send(Arc::new(cert.clone()));
+                let _ = grpc_checkpoint_data_tx.send(Arc::new(data));
+                tokio::time::sleep(Duration::from_millis(100)).await;
+            }
+        }
+    });
+
+    // Client: slow consumer
+    let req = StreamRequest {
+        start_index: Some(0),
+        end_index: None,
+        full: Some(true),
+    };
+    let mut stream = svc
+        .stream_checkpoints(Request::new(req))
+        .await
+        .unwrap()
+        .into_inner();
+    let mut received = Vec::new();
+    while let Some(Ok(cp)) = stream.next().await {
+        let checkpoint_data: CheckpointData = bcs::from_bytes(&cp.data).expect("bcs decode");
+        received.push(checkpoint_data.checkpoint_summary.sequence_number);
+        tokio::time::sleep(Duration::from_millis(500)).await; // slow down the client
+        println!(
+            "[gRPC] Client gets Checkpoint {:?}",
+            checkpoint_data.checkpoint_summary.sequence_number
+        );
+        if checkpoint_data.checkpoint_summary.sequence_number == 20 {
+            break;
+        }
+    }
+    assert_eq!(received, (0..=20u64).collect::<Vec<_>>());
 }

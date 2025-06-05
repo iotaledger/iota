@@ -55,7 +55,7 @@ async fn e2e_stream_checkpoints() {
     while let Some(res) = stream.next().await {
         match res {
             Ok(cp) => {
-                println!("[gRPC DEBUG] Received checkpoint: {:?}", cp);
+                println!("[gRPC] Received checkpoint: {:?}", cp);
                 indices.push(cp.index);
                 count += 1;
                 if count >= 2 {
@@ -63,7 +63,7 @@ async fn e2e_stream_checkpoints() {
                 }
             }
             Err(e) => {
-                println!("[gRPC DEBUG] Error streaming checkpoint: {:?}", e);
+                println!("[gRPC] Error streaming checkpoint: {:?}", e);
                 break;
             }
         }
@@ -121,7 +121,7 @@ async fn test_get_epoch_first_checkpoint_sequence_number() {
         .expect("connect gRPC");
 
     // List all checkpoints and their epochs using the gRPC stream
-    println!("[gRPC DEBUG] Listing all checkpoints and their epochs via gRPC stream");
+    println!("[gRPC] Listing all checkpoints and their epochs via gRPC stream");
     let mut stream = client
         .stream_checkpoints(Some(0), None, None)
         .await
@@ -142,16 +142,16 @@ async fn test_get_epoch_first_checkpoint_sequence_number() {
                     }
                     Err(e) => {
                         println!(
-                            "[gRPC DEBUG] Failed to deserialize checkpoint summary at index {}: {:?}",
+                            "[gRPC] Failed to deserialize checkpoint summary at index {}: {:?}",
                             cp.index, e
                         );
-                        println!("[gRPC DEBUG] Raw checkpoint data: {:?}", cp.data);
+                        println!("[gRPC] Raw checkpoint data: {:?}", cp.data);
                         break;
                     }
                 }
             }
             Err(e) => {
-                println!("[gRPC DEBUG] Stream error: {:?}", e);
+                println!("[gRPC] Stream error: {:?}", e);
                 break;
             }
         }
@@ -162,7 +162,7 @@ async fn test_get_epoch_first_checkpoint_sequence_number() {
         .get_epoch_first_checkpoint_sequence_number(0)
         .await
         .expect("gRPC call");
-    println!("[gRPC DEBUG] First checkpoint of epoch 0: {}", first_0);
+    println!("[gRPC] First checkpoint of epoch 0: {}", first_0);
     assert_eq!(first_0, 0, "First checkpoint of epoch 0 should be 0");
 
     // Query for the first checkpoint of epoch 1 (should be >= 2)
@@ -170,7 +170,7 @@ async fn test_get_epoch_first_checkpoint_sequence_number() {
         .get_epoch_first_checkpoint_sequence_number(1)
         .await
         .expect("gRPC call");
-    println!("[gRPC DEBUG] First checkpoint of epoch 1: {}", first_1);
+    println!("[gRPC] First checkpoint of epoch 1: {}", first_1);
     assert!(
         first_1 >= 2,
         "First checkpoint of epoch 1 should be >= 2, got {}",
