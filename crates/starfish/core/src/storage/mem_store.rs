@@ -117,7 +117,7 @@ impl Store for MemStore {
     }
 
     // TODO: Do we need this method or will DAGState always try to read both headers
-    // and transactions seaprately?
+    // and transactions separately?
     fn read_blocks(&self, refs: &[BlockRef]) -> ConsensusResult<Vec<Option<VerifiedBlock>>> {
         // Ensure we have a read lock on the inner state across reading both headers and
         // transactions reads

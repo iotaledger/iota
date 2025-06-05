@@ -55,8 +55,8 @@ pub(crate) struct DagState {
     // authority. Note: all uncommitted block headers are kept in memory.
     recent_block_headers: BTreeMap<BlockRef, VerifiedBlockHeader>,
 
-    // Contains recent blocks (together with transactions) within CACHED_ROUNDS from the last
-    // committed round per authority. Note: all uncommitted blocks are kept in memory.
+    // Contains recent transactions within CACHED_ROUNDS from the last
+    // committed round per authority. Note: all uncommitted transactions are kept in memory.
     recent_transactions: BTreeMap<BlockRef, VerifiedTransactions>,
 
     // Indexes recent block headers refs by their authorities.
