@@ -181,13 +181,13 @@ async fn scan_block_headers(
     let scanned_headers = store
         .scan_block_headers_by_author(AuthorityIndex::new_for_test(4), 20)
         .expect("Scan headers should not fail");
-    assert!(scanned_headers.is_empty(), "{:?}", scanned_blocks);
+    assert!(scanned_headers.is_empty(), "{:?}", scanned_headers);
 
     // Test scanning with specific start round
     let scanned_headers = store
         .scan_block_headers_by_author(AuthorityIndex::new_for_test(1), 12)
         .expect("Scan headers should not fail");
-    assert_eq!(scanned_headers.len(), 2, "{:?}", scanned_blocks);
+    assert_eq!(scanned_headers.len(), 2, "{:?}", scanned_headers);
     assert_eq!(
         scanned_headers,
         vec![
@@ -234,7 +234,7 @@ async fn scan_block_headers(
 
     {
         let scanned_blocks = store
-            .scan_block_headers_by_author(AuthorityIndex::new_for_test(1), 2, None)
+            .scan_last_blocks_by_author(AuthorityIndex::new_for_test(1), 2, None)
             .expect("Scan blocks should not fail");
         assert_eq!(scanned_blocks.len(), 2, "{:?}", scanned_blocks);
         assert_eq!(
@@ -243,7 +243,7 @@ async fn scan_block_headers(
         );
 
         let scanned_blocks = store
-            .scan_block_headers_by_author(AuthorityIndex::new_for_test(1), 0, None)
+            .scan_last_blocks_by_author(AuthorityIndex::new_for_test(1), 0, None)
             .expect("Scan blocks should not fail");
         assert_eq!(scanned_blocks.len(), 0);
     }

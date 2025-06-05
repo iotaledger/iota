@@ -96,10 +96,11 @@ pub(crate) struct DagState {
     // availability of transaction data from the corresponding blocks
     pending_acknowledgments: BTreeSet<BlockRef>,
 
-    // Keeps track of the most recent BlockHeaderDAG cordial knowledge (who knows which blocks)
-    // for each authority. This is a helper structure that is used primarily for traversing the
-    // recent DAG. This struct is evicted after flushing the dag state to storage and is not
-    // persisted.
+    // TODO: add metrics for recent_dag_cordial_knowledge and block_headers_not_known_by_authority
+    // and pending_acknowledgments Keeps track of the most recent BlockHeaderDAG cordial
+    // knowledge (who knows which blocks) for each authority. This is a helper structure that
+    // is used primarily for traversing the recent DAG. This struct is evicted after flushing
+    // the dag state to storage and is not persisted.
     // To access the cordial knowledge of a given block_ref, one shall retrieve it from
     // `recent_dag_cordial_knowledge[block_ref.author][(block_ref.round, block_ref.digest)]`.
     // The value is a tuple of (parents, who knows the block header).
@@ -505,7 +506,7 @@ impl DagState {
 
         headers
             .into_iter()
-            .zip(transactions.into_iter())
+            .zip(transactions)
             .map(|(header, transaction)| match (header, transaction) {
                 (Some(header), Some(transaction)) => Some(VerifiedBlock::new(header, transaction)),
                 _ => None,
@@ -1336,8 +1337,11 @@ impl DagState {
         // Update metrics
         let metrics = &self.context.metrics.node_metrics;
         metrics
-            .dag_state_recent_blocks
-            .set(self.recent_blocks.len() as i64);
+            .dag_state_recent_headers
+            .set(self.recent_block_headers.len() as i64);
+        metrics
+            .dag_state_recent_transactions
+            .set(self.recent_transactions.len() as i64);
         metrics.dag_state_recent_refs.set(
             self.recent_headers_refs_by_authority
                 .iter()

@@ -25,6 +25,7 @@ pub(crate) trait Store: Send + Sync {
 
     /// Reads complete blocks by combining transactions and headers for the
     /// given refs.
+    #[cfg_attr(not(test), expect(dead_code))]
     fn read_blocks(&self, refs: &[BlockRef]) -> ConsensusResult<Vec<Option<VerifiedBlock>>>;
 
     /// Reads block headers for the given refs.
@@ -51,7 +52,7 @@ pub(crate) trait Store: Send + Sync {
     fn contains_block_at_slot(&self, slot: crate::block_header::Slot) -> ConsensusResult<bool>;
 
     /// Reads blocks for an authority, from start_round.
-    #[cfg_attr(not(test), expect(dead_code))]
+    #[expect(dead_code)]
     fn scan_blocks_by_author(
         &self,
         authority: AuthorityIndex,
@@ -62,7 +63,7 @@ pub(crate) trait Store: Send + Sync {
     // ascending order. When a `before_round` is defined then the blocks of
     // round `<=before_round` are returned. If not then the max value for round
     // will be used as cut off.
-    #[allow(dead_code)]
+    #[cfg_attr(not(test), expect(dead_code))]
     fn scan_last_blocks_by_author(
         &self,
         author: AuthorityIndex,

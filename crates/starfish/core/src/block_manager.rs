@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use std::{
-    collections::{BTreeMap, BTreeSet, HashSet},
+    collections::{BTreeMap, BTreeSet},
     sync::Arc,
     time::Instant,
 };
@@ -22,7 +22,7 @@ use crate::{
 };
 
 struct SuspendedBlockHeader {
-    block: VerifiedBlockHeader,
+    block_header: VerifiedBlockHeader,
     missing_ancestors: BTreeSet<BlockRef>,
     timestamp: Instant,
 }
@@ -30,7 +30,7 @@ struct SuspendedBlockHeader {
 impl SuspendedBlockHeader {
     fn new(block: VerifiedBlockHeader, missing_ancestors: BTreeSet<BlockRef>) -> Self {
         Self {
-            block,
+            block_header: block,
             missing_ancestors,
             timestamp: Instant::now(),
         }
@@ -107,23 +107,18 @@ impl BlockManager {
             .map(|b| b.verified_block_header.clone())
             .collect();
         let (accepted_block_headers, missing_block_headers) =
-            self.try_accept_block_headers_internal(block_headers);
-        // TODO: logic below should be applied also when headers are accepted. Need to
-        // move it to internal function.
+            self.try_accept_block_headers_internal(block_headers, live);
 
-        let mut accepted_block_header_refs: HashSet<BlockRef> = HashSet::new();
-        for block_header in accepted_block_headers.iter() {
-            if let Some(block) = self.suspended_blocks.remove(&block_header.reference()) {
-                // for this accepted header we already have a block, so we add it to dag_state
-                self.dag_state.write().add_transactions(block, live);
-            } else {
-                accepted_block_header_refs.insert(block_header.reference());
-            }
-        }
-        for block in blocks {
-            let block_ref = &block.reference();
-            if accepted_block_header_refs.remove(block_ref) {
-                self.dag_state.write().add_transactions(block, live);
+        let block_refs = blocks
+            .iter()
+            .map(|b| b.verified_block_header.reference())
+            .collect();
+        let exists = self.dag_state.read().contains_block_headers(block_refs);
+        for (i, block) in blocks.into_iter().enumerate() {
+            if exists[i] {
+                self.dag_state
+                    .write()
+                    .add_transactions(block.verified_transactions, live);
             } else {
                 self.suspended_blocks.insert(block.reference(), block);
             }
@@ -144,13 +139,17 @@ impl BlockManager {
         block_headers: Vec<VerifiedBlockHeader>,
     ) -> (Vec<VerifiedBlockHeader>, BTreeSet<BlockRef>) {
         let _s = monitored_scope("BlockManager::try_accept_block_headers");
-        self.try_accept_block_headers_internal(block_headers)
+        // Headers are only added through synchronizer and cordial dissemination. This
+        // means that any transactions that were suspended were also added during live
+        // processing, and we will need to acknowledge them.
+        self.try_accept_block_headers_internal(block_headers, true)
     }
 
     /// Attempts to accept the provided blocks.
     fn try_accept_block_headers_internal(
         &mut self,
         mut block_headers: Vec<VerifiedBlockHeader>,
+        live: bool,
     ) -> (Vec<VerifiedBlockHeader>, BTreeSet<BlockRef>) {
         let _s = monitored_scope("BlockManager::try_accept_block_headers_internal");
 
@@ -163,8 +162,8 @@ impl BlockManager {
                 .join(",")
         );
 
-        let mut accepted_blocks = vec![];
-        let mut missing_blocks = BTreeSet::new();
+        let mut accepted_block_headers = vec![];
+        let mut missing_block_headers = BTreeSet::new();
 
         for block_header in block_headers {
             self.update_block_received_metrics(&block_header);
@@ -175,15 +174,15 @@ impl BlockManager {
             let mut to_verify_timestamps_and_accept = vec![];
 
             match self.try_accept_one_block_header(block_header) {
-                TryAcceptResult::Accepted(block) => {
-                    to_verify_timestamps_and_accept.push(block);
+                TryAcceptResult::Accepted(block_header) => {
+                    to_verify_timestamps_and_accept.push(block_header);
                 }
                 TryAcceptResult::Suspended(ancestors_to_fetch) => {
                     debug!(
                         "Missing ancestors to fetch for block {block_ref}: {}",
                         ancestors_to_fetch.iter().map(|b| b.to_string()).join(",")
                     );
-                    missing_blocks.extend(ancestors_to_fetch);
+                    missing_block_headers.extend(ancestors_to_fetch);
                     continue;
                 }
                 TryAcceptResult::Processed => continue,
@@ -196,13 +195,25 @@ impl BlockManager {
             // Verify block timestamps
             let blocks_to_accept =
                 self.verify_block_timestamps_and_accept(to_verify_timestamps_and_accept);
-            accepted_blocks.extend(blocks_to_accept);
+            accepted_block_headers.extend(blocks_to_accept);
         }
 
-        self.update_stats(missing_blocks.len() as u64);
+        self.update_stats(missing_block_headers.len() as u64);
+
+        // check if we already have blocks for this accepted header. If yes, add them to
+        // dag
+
+        for block_header in accepted_block_headers.iter() {
+            if let Some(block) = self.suspended_blocks.remove(&block_header.reference()) {
+                // for this accepted header we already have a block, so we add it to dag_state
+                self.dag_state
+                    .write()
+                    .add_transactions(block.verified_transactions, live);
+            }
+        }
 
         // Figure out the new missing blocks
-        (accepted_blocks, missing_blocks)
+        (accepted_block_headers, missing_block_headers)
     }
 
     /// Tries to find the provided block_refs in DagState and BlockManager,
@@ -352,8 +363,11 @@ impl BlockManager {
     /// have been already successfully accepted. If block is accepted then
     /// Some result is returned. None is returned when either the block is
     /// suspended or the block has been already accepted before.
-    fn try_accept_one_block_header(&mut self, block: VerifiedBlockHeader) -> TryAcceptResult {
-        let block_ref = block.reference();
+    fn try_accept_one_block_header(
+        &mut self,
+        block_header: VerifiedBlockHeader,
+    ) -> TryAcceptResult {
+        let block_ref = block_header.reference();
         let mut missing_ancestors = BTreeSet::new();
         let mut ancestors_to_fetch = BTreeSet::new();
         let dag_state = self.dag_state.read();
@@ -366,7 +380,7 @@ impl BlockManager {
             return TryAcceptResult::Processed;
         }
 
-        let ancestors = block.ancestors().to_vec();
+        let ancestors = block_header.ancestors().to_vec();
 
         // make sure that we have all the required ancestors in store
         for (found, ancestor) in dag_state
@@ -412,13 +426,13 @@ impl BlockManager {
         // Remove the block ref from the `missing_blocks` - if exists - since we now
         // have received the block. The block might still get suspended, but we
         // won't report it as missing in order to not re-fetch.
-        self.missing_blocks.remove(&block.reference());
+        self.missing_blocks.remove(&block_header.reference());
 
         if !missing_ancestors.is_empty() {
             let hostname = self
                 .context
                 .committee
-                .authority(block.author())
+                .authority(block_header.author())
                 .hostname
                 .as_str();
             self.context
@@ -429,12 +443,12 @@ impl BlockManager {
                 .inc();
             self.suspended_block_headers.insert(
                 block_ref,
-                SuspendedBlockHeader::new(block, missing_ancestors),
+                SuspendedBlockHeader::new(block_header, missing_ancestors),
             );
             return TryAcceptResult::Suspended(ancestors_to_fetch);
         }
 
-        TryAcceptResult::Accepted(block)
+        TryAcceptResult::Accepted(block_header)
     }
 
     /// Given an accepted block `accepted_block` it attempts to accept all the
@@ -455,7 +469,7 @@ impl BlockManager {
                     // to the queue so we can recursively try to unsuspend its
                     // children.
                     if let Some(block) = self.try_unsuspend_block(&r, &block_ref) {
-                        to_process_blocks.push(block.block.reference());
+                        to_process_blocks.push(block.block_header.reference());
                         unsuspended_blocks.push(block);
                     }
                 }
@@ -469,7 +483,7 @@ impl BlockManager {
             let hostname = self
                 .context
                 .committee
-                .authority(block.block.author())
+                .authority(block.block_header.author())
                 .hostname
                 .as_str();
             self.context
@@ -488,7 +502,7 @@ impl BlockManager {
 
         unsuspended_blocks
             .into_iter()
-            .map(|block| block.block)
+            .map(|block| block.block_header)
             .collect()
     }
 
@@ -510,7 +524,7 @@ impl BlockManager {
             block.missing_ancestors.remove(accepted_dependency),
             "Block reference {} should be present in missing dependencies of {:?}",
             block_ref,
-            block.block
+            block.block_header
         );
 
         if block.missing_ancestors.is_empty() {

@@ -866,7 +866,7 @@ mod tests {
         let num_authorities: u32 = 4;
 
         let mut blocks = Vec::new();
-        let (first_round_references, first_round_headers): (Vec<_>, Vec<_>) = context
+        let (first_round_references, first_round_blocks): (Vec<_>, Vec<_>) = context
             .committee
             .authorities()
             .map(|index| {
@@ -874,10 +874,22 @@ mod tests {
                 let block = TestBlockHeader::new(0, author_idx).build();
                 VerifiedBlock::new_for_test(block)
             })
-            .map(|block| (block.reference(), block))
+            .map(|block| {
+                (
+                    block.reference(),
+                    (block.verified_block_header, block.verified_transactions),
+                )
+            })
             .unzip();
+
+        let (first_round_headers, first_round_transactions) =
+            first_round_blocks.into_iter().unzip();
         store
-            .write(WriteBatch::default().transactions(first_round_headers))
+            .write(
+                WriteBatch::default()
+                    .block_headers(first_round_headers)
+                    .transactions(first_round_transactions),
+            )
             .unwrap();
         blocks.append(&mut first_round_references.clone());
         // TODO: create some data for blocks in the first round
@@ -896,7 +908,11 @@ mod tests {
                         .build(),
                 );
                 store
-                    .write(WriteBatch::default().transactions(vec![block.clone()]))
+                    .write(
+                        WriteBatch::default()
+                            .block_headers(vec![block.verified_block_header.clone()])
+                            .transactions(vec![block.verified_transactions.clone()]),
+                    )
                     .unwrap();
                 new_ancestors.push(block.reference());
                 blocks.push(block.reference());
