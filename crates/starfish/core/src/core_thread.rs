@@ -142,7 +142,7 @@ impl CoreThread {
                     match command {
                         CoreThreadCommand::AddBlocks(blocks, sender) => {
                             let _scope = monitored_scope("CoreThread::loop::add_blocks");
-                            let missing_block_refs = self.core.add_blocks(blocks)?;
+                            let missing_block_refs = self.core.add_blocks(blocks, true)?;
                             sender.send(missing_block_refs).ok();
                         }
                         CoreThreadCommand::AddBlockHeaders(block_headers, sender) => {
