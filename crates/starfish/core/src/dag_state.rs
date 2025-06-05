@@ -981,7 +981,7 @@ impl DagState {
 
         for ack in self.pending_acknowledgments.iter() {
             if taken.len() >= limit || ack.round >= clock_round {
-                last_ack = Some(ack.clone());
+                last_ack = Some(*ack);
                 break;
             }
             taken.push(*ack);
