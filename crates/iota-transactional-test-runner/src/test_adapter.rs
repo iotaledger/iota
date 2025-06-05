@@ -1288,7 +1288,9 @@ impl IotaTestAdapter {
 
         for var_name in unique_vars {
             let Some(value) = variables.get(&var_name) else {
-                bail!("Unknown variable: {var_name}\nAllowed variable mappings are {variables:#?}");
+                bail!(
+                    "Unknown variable: {var_name}\nAllowed variable mappings are {variables:#?}"
+                );
             };
 
             let pattern = format!("@{{{var_name}}}");
