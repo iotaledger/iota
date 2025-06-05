@@ -452,16 +452,16 @@ impl<S: PackageStore> Resolver<S> {
 
     /// Returns the signatures of parameters to function `pkg::module::function`
     /// in the package store, assuming the function exists.
-    pub async fn function_parameters(
+    pub async fn function_signature(
         &self,
         pkg: AccountAddress,
         module: &str,
         function: &str,
-    ) -> Result<Vec<OpenSignature>> {
+    ) -> Result<FunctionDef> {
         let mut context = ResolutionContext::new(self.limits.as_ref());
 
         let package = self.package_store.fetch(pkg).await?;
-        let Some(def) = package.module(module)?.function_def(function)? else {
+        let Some(mut def) = package.module(module)?.function_def(function)? else {
             return Err(Error::FunctionNotFound(
                 pkg,
                 module.to_string(),
@@ -469,11 +469,9 @@ impl<S: PackageStore> Resolver<S> {
             ));
         };
 
-        let mut sigs = def.parameters.clone();
-
         // (1). Fetch all the information from this store that is necessary to resolve
         // types referenced by this tag.
-        for sig in &sigs {
+        for sig in def.parameters.iter().chain(def.return_.iter()) {
             context
                 .add_signature(
                     sig.body.clone(),
@@ -486,11 +484,11 @@ impl<S: PackageStore> Resolver<S> {
         }
 
         // (2). Use that information to relocate package IDs in the signature.
-        for sig in &mut sigs {
+        for sig in def.parameters.iter_mut().chain(def.return_.iter_mut()) {
             context.relocate_signature(&mut sig.body)?;
         }
 
-        Ok(sigs)
+        Ok(def)
     }
 
     /// Attempts to infer the type layouts for pure inputs to the programmable
@@ -538,8 +536,8 @@ impl<S: PackageStore> Resolver<S> {
         for cmd in &tx.commands {
             match cmd {
                 Command::MoveCall(call) => {
-                    let Ok(params) = self
-                        .function_parameters(
+                    let Ok(signature) = self
+                        .function_signature(
                             call.package.into(),
                             call.module.as_str(),
                             call.function.as_str(),
@@ -549,7 +547,7 @@ impl<S: PackageStore> Resolver<S> {
                         continue;
                     };
 
-                    for (open_sig, arg) in params.iter().zip(call.arguments.iter()) {
+                    for (open_sig, arg) in signature.parameters.iter().zip(call.arguments.iter()) {
                         let sig = open_sig.instantiate(&call.type_arguments)?;
                         register_type(arg, &sig.body)?;
                     }
@@ -2454,9 +2452,9 @@ mod tests {
         let resolver = Resolver::new(cache);
         let c0 = addr("0xc0");
 
-        let foo = resolver.function_parameters(c0, "m", "foo").await.unwrap();
-        let bar = resolver.function_parameters(c0, "m", "bar").await.unwrap();
-        let baz = resolver.function_parameters(c0, "m", "baz").await.unwrap();
+        let foo = resolver.function_signature(c0, "m", "foo").await.unwrap();
+        let bar = resolver.function_signature(c0, "m", "bar").await.unwrap();
+        let baz = resolver.function_signature(c0, "m", "baz").await.unwrap();
 
         insta::assert_snapshot!(format!(
             "c0::m::foo: {foo:#?}\n\
