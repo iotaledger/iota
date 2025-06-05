@@ -1237,7 +1237,7 @@ impl DagState {
 
     #[cfg(test)]
     pub(crate) fn set_pending_acknowledgments(&mut self, acknowledgments: Vec<BlockRef>) {
-        self.pending_acknowledgments = BTreeSet::from(acknowledgments);
+        self.pending_acknowledgments = acknowledgments.into_iter().collect::<BTreeSet<_>>();
     }
 }
 #[cfg(test)]
