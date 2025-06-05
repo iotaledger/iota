@@ -14,7 +14,7 @@ import { PageHeader, SplitPanes } from '~/components/ui';
 import { useBreakpoint } from '~/hooks/useBreakpoint';
 import { LocalStorageSplitPaneKey } from '~/lib/enums';
 import { Panel, Title, Divider } from '@iota/apps-ui-kit';
-import { useGetAddressAlias } from '@iota/core';
+import { useAddressAliasLookup } from '@iota/core';
 import { AddressBalanceBreakdown } from './AddressBalanceBreakdown';
 
 const LEFT_RIGHT_PANEL_MIN_SIZE = 30;
@@ -24,7 +24,7 @@ interface AddressResultPageHeaderProps {
 }
 
 function AddressResultPageHeader({ address }: AddressResultPageHeaderProps): JSX.Element {
-    const getAddressAlias = useGetAddressAlias();
+    const getAddressAlias = useAddressAliasLookup();
 
     const { address: formattedAddress, alias } = getAddressAlias({
         address,

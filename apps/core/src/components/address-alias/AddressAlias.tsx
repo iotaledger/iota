@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { Copy, IotaLogoMark } from '@iota/apps-ui-icons';
-import { useGetAddressAlias, type GetAddressAliasParams } from '../../hooks';
+import { useAddressAliasLookup, type GetAddressAliasParams } from '../../hooks';
 import cx from 'clsx';
 import { ButtonUnstyled } from '@iota/apps-ui-kit';
 
@@ -21,7 +21,7 @@ export function AddressAlias({
     renderAddress,
     renderAlias,
 }: AddressAliasProps): React.JSX.Element {
-    const getAddressAlias = useGetAddressAlias();
+    const getAddressAlias = useAddressAliasLookup();
 
     const { address: formattedAddress, alias } = getAddressAlias({
         address,
