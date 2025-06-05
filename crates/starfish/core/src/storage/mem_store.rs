@@ -14,7 +14,7 @@ use super::{Store, WriteBatch};
 use crate::{
     block_header::{
         BlockHeaderAPI as _, BlockHeaderDigest, BlockRef, Round, Slot, VerifiedBlock,
-        VerifiedBlockHeader,
+        VerifiedBlockHeader, VerifiedTransactions,
     },
     commit::{
         CommitAPI as _, CommitDigest, CommitIndex, CommitInfo, CommitRange, CommitRef,
@@ -29,7 +29,7 @@ pub(crate) struct MemStore {
 }
 
 struct Inner {
-    blocks: BTreeMap<(Round, AuthorityIndex, BlockHeaderDigest), VerifiedBlock>,
+    transactions: BTreeMap<(Round, AuthorityIndex, BlockHeaderDigest), VerifiedTransactions>,
     block_headers: BTreeMap<(Round, AuthorityIndex, BlockHeaderDigest), VerifiedBlockHeader>,
     digests_by_authorities: BTreeSet<(AuthorityIndex, Round, BlockHeaderDigest)>,
     commits: BTreeMap<(CommitIndex, CommitDigest), TrustedCommit>,
@@ -41,7 +41,7 @@ impl MemStore {
     pub(crate) fn new() -> Self {
         MemStore {
             inner: RwLock::new(Inner {
-                blocks: BTreeMap::new(),
+                transactions: BTreeMap::new(),
                 block_headers: BTreeMap::new(),
                 digests_by_authorities: BTreeSet::new(),
                 commits: BTreeMap::new(),
@@ -56,28 +56,7 @@ impl Store for MemStore {
     fn write(&self, write_batch: WriteBatch) -> ConsensusResult<()> {
         let mut inner = self.inner.write();
 
-        for block in write_batch.blocks {
-            let block_ref = block.reference();
-            inner.blocks.insert(
-                (block_ref.round, block_ref.author, block_ref.digest),
-                block.clone(),
-            );
-            inner.block_headers.insert(
-                (block_ref.round, block_ref.author, block_ref.digest),
-                block.verified_block_header.clone(),
-            );
-            inner.digests_by_authorities.insert((
-                block_ref.author,
-                block_ref.round,
-                block_ref.digest,
-            ));
-            for vote in block.commit_votes() {
-                inner
-                    .commit_votes
-                    .insert((vote.index, vote.digest, block_ref));
-            }
-        }
-
+        // Store block headers
         for block_header in write_batch.block_headers {
             let block_ref = block_header.reference();
             inner.block_headers.insert(
@@ -96,6 +75,15 @@ impl Store for MemStore {
             }
         }
 
+        // Store transactions data separately
+        for transaction in write_batch.transactions {
+            let block_ref = transaction.block_ref();
+            inner.transactions.insert(
+                (block_ref.round, block_ref.author, block_ref.digest),
+                transaction,
+            );
+        }
+
         for commit in write_batch.commits {
             inner
                 .commits
@@ -111,48 +99,54 @@ impl Store for MemStore {
         Ok(())
     }
 
-    fn read_blocks(&self, refs: &[BlockRef]) -> ConsensusResult<Vec<Option<VerifiedBlock>>> {
-        let inner = self.inner.read();
-        let blocks = refs
-            .iter()
-            .map(|r| inner.blocks.get(&(r.round, r.author, r.digest)).cloned())
-            .collect();
-        Ok(blocks)
-    }
-
-    fn read_block_headers(
+    fn read_transactions(
         &self,
         refs: &[BlockRef],
-    ) -> ConsensusResult<Vec<Option<VerifiedBlockHeader>>> {
+    ) -> ConsensusResult<Vec<Option<VerifiedTransactions>>> {
         let inner = self.inner.read();
-        let block_headers = refs
+        let transactions = refs
             .iter()
             .map(|r| {
                 inner
-                    .block_headers
+                    .transactions
                     .get(&(r.round, r.author, r.digest))
                     .cloned()
             })
             .collect();
-        Ok(block_headers)
+        Ok(transactions)
     }
 
-    fn contains_blocks(&self, refs: &[BlockRef]) -> ConsensusResult<Vec<bool>> {
+    // TODO: Do we need this method or will DAGState always try to read both headers
+    // and transactions separately?
+    fn read_blocks(&self, refs: &[BlockRef]) -> ConsensusResult<Vec<Option<VerifiedBlock>>> {
+        // Ensure we have a read lock on the inner state across reading both headers and
+        // transactions reads
         let inner = self.inner.read();
-        let exist = refs
-            .iter()
-            .map(|r| inner.blocks.contains_key(&(r.round, r.author, r.digest)))
-            .collect();
-        Ok(exist)
+        // Get both headers and transactions for the given references
+        let headers = self.read_block_headers(refs)?;
+        let transactions = self.read_transactions(refs)?;
+        drop(inner); // Explicitly drop the read lock before combining results
+
+        // Combine them into blocks if both parts exist
+        let mut blocks = Vec::with_capacity(refs.len());
+        for (header, transactions) in headers.into_iter().zip(transactions) {
+            match (header, transactions) {
+                (Some(hdr), Some(txs)) => {
+                    blocks.push(Some(VerifiedBlock::new(hdr, txs)));
+                }
+                _ => blocks.push(None),
+            }
+        }
+        Ok(blocks)
     }
 
-    fn contains_block_headers(&self, refs: &[BlockRef]) -> ConsensusResult<Vec<bool>> {
+    fn contains_transactions(&self, refs: &[BlockRef]) -> ConsensusResult<Vec<bool>> {
         let inner = self.inner.read();
         let exist = refs
             .iter()
             .map(|r| {
                 inner
-                    .block_headers
+                    .transactions
                     .contains_key(&(r.round, r.author, r.digest))
             })
             .collect();
@@ -173,28 +167,13 @@ impl Store for MemStore {
             refs.push(BlockRef::new(round, author, digest));
         }
         let results = self.read_blocks(refs.as_slice())?;
-        let mut blocks = vec![];
+        let mut blocks = Vec::with_capacity(refs.len());
         for (r, block) in refs.into_iter().zip(results.into_iter()) {
-            if let Some(block) = block {
-                blocks.push(block);
-            } else {
-                panic!("Block {:?} not found!", r);
-            }
+            blocks.push(
+                block.unwrap_or_else(|| panic!("Storage inconsistency: block {:?} not found!", r)),
+            );
         }
         Ok(blocks)
-    }
-
-    fn contains_block_at_slot(&self, slot: Slot) -> ConsensusResult<bool> {
-        let inner = self.inner.read();
-        let found = inner
-            .digests_by_authorities
-            .range((
-                Included((slot.authority, slot.round, BlockHeaderDigest::MIN)),
-                Included((slot.authority, slot.round, BlockHeaderDigest::MAX)),
-            ))
-            .next()
-            .is_some();
-        Ok(found)
     }
 
     fn scan_last_blocks_by_author(
@@ -205,6 +184,8 @@ impl Store for MemStore {
     ) -> ConsensusResult<Vec<VerifiedBlock>> {
         let before_round = before_round.unwrap_or(Round::MAX);
         let mut refs = VecDeque::new();
+
+        // Collect block references
         for &(author, round, digest) in self
             .inner
             .read()
@@ -218,6 +199,8 @@ impl Store for MemStore {
         {
             refs.push_front(BlockRef::new(round, author, digest));
         }
+
+        // Read and combine transactions and headers
         let results = self.read_blocks(refs.as_slices().0)?;
         let mut blocks = vec![];
         for (r, block) in refs.into_iter().zip(results.into_iter()) {
@@ -226,6 +209,36 @@ impl Store for MemStore {
             );
         }
         Ok(blocks)
+    }
+
+    fn read_block_headers(
+        &self,
+        refs: &[BlockRef],
+    ) -> ConsensusResult<Vec<Option<VerifiedBlockHeader>>> {
+        let inner = self.inner.read();
+        let block_headers = refs
+            .iter()
+            .map(|r| {
+                inner
+                    .block_headers
+                    .get(&(r.round, r.author, r.digest))
+                    .cloned()
+            })
+            .collect();
+        Ok(block_headers)
+    }
+
+    fn contains_block_at_slot(&self, slot: Slot) -> ConsensusResult<bool> {
+        let inner = self.inner.read();
+        let found = inner
+            .digests_by_authorities
+            .range((
+                Included((slot.authority, slot.round, BlockHeaderDigest::MIN)),
+                Included((slot.authority, slot.round, BlockHeaderDigest::MAX)),
+            ))
+            .next()
+            .is_some();
+        Ok(found)
     }
 
     fn scan_block_headers_by_author(
@@ -242,13 +255,11 @@ impl Store for MemStore {
             refs.push(BlockRef::new(round, author, digest));
         }
         let results = self.read_block_headers(refs.as_slice())?;
-        let mut block_headers = vec![];
+        let mut block_headers = Vec::with_capacity(refs.len());
         for (r, block_header) in refs.into_iter().zip(results.into_iter()) {
-            if let Some(block) = block_header {
-                block_headers.push(block);
-            } else {
-                panic!("Block Header {:?} not found!", r);
-            }
+            block_headers.push(block_header.unwrap_or_else(|| {
+                panic!("Storage inconsistency: block header {:?} not found!", r)
+            }));
         }
         Ok(block_headers)
     }
@@ -257,7 +268,8 @@ impl Store for MemStore {
         let inner = self.inner.read();
         Ok(inner
             .commits
-            .last_key_value()
+            .iter()
+            .next_back()
             .map(|(_, commit)| commit.clone()))
     }
 
@@ -290,7 +302,21 @@ impl Store for MemStore {
         let inner = self.inner.read();
         Ok(inner
             .commit_info
-            .last_key_value()
-            .map(|(k, v)| (CommitRef::new(k.0, k.1), v.clone())))
+            .iter()
+            .next_back()
+            .map(|((index, digest), info)| (CommitRef::new(*index, *digest), info.clone())))
+    }
+
+    fn contains_block_headers(&self, refs: &[BlockRef]) -> ConsensusResult<Vec<bool>> {
+        let inner = self.inner.read();
+        let exist = refs
+            .iter()
+            .map(|r| {
+                inner
+                    .block_headers
+                    .contains_key(&(r.round, r.author, r.digest))
+            })
+            .collect();
+        Ok(exist)
     }
 }

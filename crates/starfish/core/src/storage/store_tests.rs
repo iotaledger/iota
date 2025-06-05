@@ -43,7 +43,7 @@ fn new_mem_teststore() -> TestStore {
 
 #[rstest]
 #[tokio::test]
-async fn read_and_contain_blocks(
+async fn read_and_contain_block_headers(
     #[values(new_rocksdb_teststore(), new_mem_teststore())] test_store: TestStore,
 ) {
     let store = test_store.store();
@@ -54,80 +54,102 @@ async fn read_and_contain_blocks(
         VerifiedBlock::new_for_test(TestBlockHeader::new(1, 2).build()),
         VerifiedBlock::new_for_test(TestBlockHeader::new(2, 3).build()),
     ];
+
+    // Write only headers
     store
-        .write(WriteBatch::default().blocks(written_blocks.clone()))
+        .write(
+            WriteBatch::default().block_headers(
+                written_blocks
+                    .iter()
+                    .map(|b| b.verified_block_header.clone())
+                    .collect(),
+            ),
+        )
         .unwrap();
 
-    {
-        let refs = vec![written_blocks[0].reference()];
-        let read_blocks = store
-            .read_blocks(&refs)
-            .expect("Read blocks should not fail");
-        assert_eq!(read_blocks.len(), 1);
-        assert_eq!(read_blocks[0].as_ref().unwrap(), &written_blocks[0]);
-    }
+    // Test basic header read
+    let refs = vec![written_blocks[0].reference()];
+    let read_headers = store
+        .read_block_headers(&refs)
+        .expect("Read headers should not fail");
+    assert_eq!(read_headers.len(), 1);
+    assert_eq!(
+        read_headers[0].as_ref().unwrap(),
+        &written_blocks[0].verified_block_header
+    );
 
-    {
-        let refs = vec![
-            written_blocks[2].reference(),
-            written_blocks[1].reference(),
-            written_blocks[1].reference(),
-        ];
-        let read_blocks = store
-            .read_blocks(&refs)
-            .expect("Read blocks should not fail");
-        assert_eq!(read_blocks.len(), 3);
-        assert_eq!(read_blocks[0].as_ref().unwrap(), &written_blocks[2]);
-        assert_eq!(read_blocks[1].as_ref().unwrap(), &written_blocks[1]);
-        assert_eq!(read_blocks[2].as_ref().unwrap(), &written_blocks[1]);
-    }
+    // Test multiple references including duplicates
+    let refs = vec![
+        written_blocks[2].reference(),
+        written_blocks[1].reference(),
+        written_blocks[1].reference(),
+    ];
+    let read_headers = store
+        .read_block_headers(&refs)
+        .expect("Read headers should not fail");
+    assert_eq!(read_headers.len(), 3);
+    assert_eq!(
+        read_headers[0].as_ref().unwrap(),
+        &written_blocks[2].verified_block_header
+    );
+    assert_eq!(
+        read_headers[1].as_ref().unwrap(),
+        &written_blocks[1].verified_block_header
+    );
+    assert_eq!(
+        read_headers[2].as_ref().unwrap(),
+        &written_blocks[1].verified_block_header
+    );
 
-    {
-        let refs = vec![
-            written_blocks[3].reference(),
-            BlockRef::new(
-                1,
-                AuthorityIndex::new_for_test(3),
-                BlockHeaderDigest::default(),
-            ),
-            written_blocks[2].reference(),
-        ];
-        let read_blocks = store
-            .read_blocks(&refs)
-            .expect("Read blocks should not fail");
-        assert_eq!(read_blocks.len(), 3);
-        assert_eq!(read_blocks[0].as_ref().unwrap(), &written_blocks[3]);
-        assert!(read_blocks[1].is_none());
-        assert_eq!(read_blocks[2].as_ref().unwrap(), &written_blocks[2]);
+    // Test with missing references
+    let refs = vec![
+        written_blocks[3].reference(),
+        BlockRef::new(
+            1,
+            AuthorityIndex::new_for_test(3),
+            BlockHeaderDigest::default(),
+        ),
+        written_blocks[2].reference(),
+    ];
+    let read_headers = store
+        .read_block_headers(&refs)
+        .expect("Read headers should not fail");
+    assert_eq!(read_headers.len(), 3);
+    assert_eq!(
+        read_headers[0].as_ref().unwrap(),
+        &written_blocks[3].verified_block_header
+    );
+    assert!(read_headers[1].is_none());
+    assert_eq!(
+        read_headers[2].as_ref().unwrap(),
+        &written_blocks[2].verified_block_header
+    );
 
-        let contain_blocks = store
-            .contains_blocks(&refs)
-            .expect("Contain blocks should not fail");
-        assert_eq!(contain_blocks.len(), 3);
-        assert!(contain_blocks[0]);
-        assert!(!contain_blocks[1]);
-        assert!(contain_blocks[2]);
-    }
+    let contains = store
+        .contains_block_headers(&refs)
+        .expect("Contains headers should not fail");
+    assert_eq!(contains.len(), 3);
+    assert!(contains[0]);
+    assert!(!contains[1]);
+    assert!(contains[2]);
 
-    {
-        for block in &written_blocks {
-            let found = store
-                .contains_block_at_slot(block.slot())
-                .expect("Read blocks should not fail");
-            assert!(found);
-        }
-
+    // Test slot existence
+    for block in &written_blocks {
         let found = store
-            .contains_block_at_slot(Slot::new(10, AuthorityIndex::new_for_test(0)))
-            .expect("Read blocks should not fail");
-        assert!(!found);
+            .contains_block_at_slot(block.slot())
+            .expect("Check slot should not fail");
+        assert!(found);
     }
+
+    let found = store
+        .contains_block_at_slot(Slot::new(10, AuthorityIndex::new_for_test(0)))
+        .expect("Check slot should not fail");
+    assert!(!found);
 }
 
-// TODO:make test a similar test for headers
 #[rstest]
 #[tokio::test]
-async fn scan_blocks(
+async fn scan_block_headers(
     #[values(new_rocksdb_teststore(), new_mem_teststore())] test_store: TestStore,
 ) {
     let store = test_store.store();
@@ -142,58 +164,77 @@ async fn scan_blocks(
         VerifiedBlock::new_for_test(TestBlockHeader::new(13, 2).build()),
         VerifiedBlock::new_for_test(TestBlockHeader::new(13, 1).build()),
     ];
+
+    // Write block headers
     store
-        .write(WriteBatch::default().blocks(written_blocks.clone()))
+        .write(
+            WriteBatch::default().block_headers(
+                written_blocks
+                    .iter()
+                    .map(|b| b.verified_block_header.clone())
+                    .collect(),
+            ),
+        )
         .unwrap();
 
-    {
-        let scanned_blocks = store
-            .scan_blocks_by_author(AuthorityIndex::new_for_test(1), 20)
-            .expect("Scan blocks should not fail");
-        assert!(scanned_blocks.is_empty(), "{:?}", scanned_blocks);
-    }
+    // Test scanning with no results
+    let scanned_headers = store
+        .scan_block_headers_by_author(AuthorityIndex::new_for_test(4), 20)
+        .expect("Scan headers should not fail");
+    assert!(scanned_headers.is_empty(), "{:?}", scanned_blocks);
 
-    {
-        let scanned_blocks = store
-            .scan_blocks_by_author(AuthorityIndex::new_for_test(1), 12)
-            .expect("Scan blocks should not fail");
-        assert_eq!(scanned_blocks.len(), 2, "{:?}", scanned_blocks);
-        assert_eq!(
-            scanned_blocks,
-            vec![written_blocks[5].clone(), written_blocks[7].clone()]
-        );
-    }
+    // Test scanning with specific start round
+    let scanned_headers = store
+        .scan_block_headers_by_author(AuthorityIndex::new_for_test(1), 12)
+        .expect("Scan headers should not fail");
+    assert_eq!(scanned_headers.len(), 2, "{:?}", scanned_blocks);
+    assert_eq!(
+        scanned_headers,
+        vec![
+            written_blocks[5].verified_block_header.clone(),
+            written_blocks[7].verified_block_header.clone()
+        ]
+    );
 
+    // Add more headers and test scanning
     let additional_blocks = vec![
         VerifiedBlock::new_for_test(TestBlockHeader::new(14, 2).build()),
         VerifiedBlock::new_for_test(TestBlockHeader::new(15, 0).build()),
         VerifiedBlock::new_for_test(TestBlockHeader::new(15, 1).build()),
         VerifiedBlock::new_for_test(TestBlockHeader::new(16, 3).build()),
     ];
-    store
-        .write(WriteBatch::default().blocks(additional_blocks.clone()))
-        .unwrap();
 
+    // Write additional block headers
+    store
+        .write(
+            WriteBatch::default().block_headers(
+                additional_blocks
+                    .iter()
+                    .map(|b| b.verified_block_header.clone())
+                    .collect(),
+            ),
+        )
+        .unwrap();
     {
-        let scanned_blocks = store
-            .scan_blocks_by_author(AuthorityIndex::new_for_test(1), 10)
-            .expect("Scan blocks should not fail");
-        assert_eq!(scanned_blocks.len(), 5, "{:?}", scanned_blocks);
+        let scanned_headers = store
+            .scan_block_headers_by_author(AuthorityIndex::new_for_test(1), 10)
+            .expect("Scan headers should not fail");
+        assert_eq!(scanned_headers.len(), 5);
         assert_eq!(
-            scanned_blocks,
+            scanned_headers,
             vec![
-                written_blocks[2].clone(),
-                written_blocks[3].clone(),
-                written_blocks[5].clone(),
-                written_blocks[7].clone(),
-                additional_blocks[2].clone(),
+                written_blocks[2].verified_block_header.clone(),
+                written_blocks[3].verified_block_header.clone(),
+                written_blocks[5].verified_block_header.clone(),
+                written_blocks[7].verified_block_header.clone(),
+                additional_blocks[2].verified_block_header.clone(),
             ]
         );
     }
 
     {
         let scanned_blocks = store
-            .scan_last_blocks_by_author(AuthorityIndex::new_for_test(1), 2, None)
+            .scan_block_headers_by_author(AuthorityIndex::new_for_test(1), 2, None)
             .expect("Scan blocks should not fail");
         assert_eq!(scanned_blocks.len(), 2, "{:?}", scanned_blocks);
         assert_eq!(
@@ -202,10 +243,96 @@ async fn scan_blocks(
         );
 
         let scanned_blocks = store
-            .scan_last_blocks_by_author(AuthorityIndex::new_for_test(1), 0, None)
+            .scan_block_headers_by_author(AuthorityIndex::new_for_test(1), 0, None)
             .expect("Scan blocks should not fail");
         assert_eq!(scanned_blocks.len(), 0);
     }
+}
+
+#[rstest]
+#[tokio::test]
+async fn read_and_contain_transactions(
+    #[values(new_rocksdb_teststore(), new_mem_teststore())] test_store: TestStore,
+) {
+    let store = test_store.store();
+
+    let written_blocks = vec![
+        VerifiedBlock::new_for_test(TestBlockHeader::new(9, 0).build()),
+        VerifiedBlock::new_for_test(TestBlockHeader::new(10, 0).build()),
+        VerifiedBlock::new_for_test(TestBlockHeader::new(10, 1).build()),
+        VerifiedBlock::new_for_test(TestBlockHeader::new(11, 1).build()),
+        VerifiedBlock::new_for_test(TestBlockHeader::new(11, 3).build()),
+        VerifiedBlock::new_for_test(TestBlockHeader::new(12, 1).build()),
+    ];
+
+    let written_transactions: Vec<_> = written_blocks
+        .iter()
+        .map(|b| b.verified_transactions.clone())
+        .collect();
+    store
+        .write(WriteBatch::default().transactions(written_transactions))
+        .unwrap();
+
+    // Test reading all transactions
+    let refs: Vec<_> = written_blocks.iter().map(|b| b.reference()).collect();
+    let read_txs = store
+        .read_transactions(&refs)
+        .expect("Read txs should not fail");
+
+    assert_eq!(read_txs.len(), written_blocks.len());
+    for (i, tx_opt) in read_txs.iter().enumerate() {
+        let expected = &written_blocks[i].verified_transactions;
+        let actual = tx_opt.as_ref().unwrap();
+        assert_eq!(actual, expected);
+
+        // Verify block reference matches
+        assert_eq!(
+            tx_opt.as_ref().unwrap().block_ref(),
+            written_blocks[i].reference()
+        );
+    }
+
+    // Test reading subset of transactions
+    let subset_refs = vec![refs[1], refs[3], refs[5]];
+    let read_subset = store
+        .read_transactions(&subset_refs)
+        .expect("Read subset should not fail");
+    assert_eq!(read_subset.len(), 3);
+    assert_eq!(
+        read_subset[0].as_ref().unwrap(),
+        &written_blocks[1].verified_transactions
+    );
+    assert_eq!(
+        read_subset[1].as_ref().unwrap(),
+        &written_blocks[3].verified_transactions
+    );
+    assert_eq!(
+        read_subset[2].as_ref().unwrap(),
+        &written_blocks[5].verified_transactions
+    );
+
+    // Test existence checks
+    let contains = store
+        .contains_transactions(&refs)
+        .expect("Contains txs should not fail");
+    assert_eq!(contains, vec![true; refs.len()]);
+
+    // Test with missing reference
+    let missing_ref = BlockRef::new(
+        99,
+        AuthorityIndex::new_for_test(99),
+        BlockHeaderDigest::default(),
+    );
+    let read_missing = store
+        .read_transactions(&[missing_ref])
+        .expect("Read missing should not fail");
+    assert_eq!(read_missing.len(), 1);
+    assert!(read_missing[0].is_none());
+
+    let contains_missing = store
+        .contains_transactions(&[missing_ref])
+        .expect("Contains missing should not fail");
+    assert_eq!(contains_missing, vec![false]);
 }
 
 #[rstest]
