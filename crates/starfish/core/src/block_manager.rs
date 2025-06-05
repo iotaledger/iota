@@ -115,7 +115,7 @@ impl BlockManager {
         for block_header in accepted_block_headers.iter() {
             if let Some(block) = self.suspended_blocks.remove(&block_header.reference()) {
                 // for this accepted header we already have a block, so we add it to dag_state
-                self.dag_state.write().add_block(block, live);
+                self.dag_state.write().add_transactions(block, live);
             } else {
                 accepted_block_header_refs.insert(block_header.reference());
             }
@@ -123,7 +123,7 @@ impl BlockManager {
         for block in blocks {
             let block_ref = &block.reference();
             if accepted_block_header_refs.remove(block_ref) {
-                self.dag_state.write().add_block(block, live);
+                self.dag_state.write().add_transactions(block, live);
             } else {
                 self.suspended_blocks.insert(block.reference(), block);
             }

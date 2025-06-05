@@ -118,7 +118,8 @@ pub(crate) struct NodeMetrics {
     pub(crate) highest_accepted_authority_round: IntGaugeVec,
     pub(crate) highest_accepted_round: IntGauge,
     pub(crate) accepted_blocks: IntCounterVec,
-    pub(crate) dag_state_recent_blocks: IntGauge,
+    pub(crate) dag_state_recent_transactions: IntGauge,
+    pub(crate) dag_state_recent_headers: IntGauge,
     pub(crate) dag_state_recent_refs: IntGauge,
     pub(crate) dag_state_store_read_count: IntCounterVec,
     pub(crate) dag_state_store_write_count: IntCounter,
@@ -301,9 +302,14 @@ impl NodeMetrics {
                 &["source"],
                 registry,
             ).unwrap(),
-            dag_state_recent_blocks: register_int_gauge_with_registry!(
-                "dag_state_recent_blocks",
-                "Number of recent blocks cached in the DagState",
+            dag_state_recent_transactions: register_int_gauge_with_registry!(
+                "dag_state_recent_transactions",
+                "Number of recent transactions cached in the DagState",
+                registry,
+            ).unwrap(),
+            dag_state_recent_headers: register_int_gauge_with_registry!(
+                "dag_state_recent_headers",
+                "Number of recent block headers cached in the DagState",
                 registry,
             ).unwrap(),
             dag_state_recent_refs: register_int_gauge_with_registry!(
