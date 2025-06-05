@@ -2,23 +2,21 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { Copy, IotaLogoMark } from '@iota/apps-ui-icons';
-import { useGetAddressAlias } from '../../hooks';
+import { useGetAddressAlias, type GetAddressAliasParams } from '../../hooks';
 import cx from 'clsx';
 import { ButtonUnstyled } from '@iota/apps-ui-kit';
 
-interface AddressAliasProps {
-    address: string;
+interface AddressAliasProps extends GetAddressAliasParams {
+    noFormatAddress?: boolean;
     onCopy?: (e: React.MouseEvent<HTMLButtonElement>) => void;
-    noTruncate?: boolean;
-    truncateUnknown?: boolean;
     renderAddress?: (formattedAddress: string) => React.ReactNode;
     renderAlias?: (addressAlias: string) => React.ReactNode;
 }
 
 export function AddressAlias({
     address,
-    noTruncate,
-    truncateUnknown = true,
+    formatUnknownAddress = true,
+    noFormatAddress,
     onCopy,
     renderAddress,
     renderAlias,
@@ -27,10 +25,10 @@ export function AddressAlias({
 
     const { address: formattedAddress, alias } = getAddressAlias({
         address,
-        truncateUnknown,
+        formatUnknownAddress,
     });
 
-    const displayAddress = noTruncate ? address : formattedAddress;
+    const displayAddress = noFormatAddress ? address : formattedAddress;
     return (
         <>
             {alias && (
