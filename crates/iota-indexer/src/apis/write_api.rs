@@ -188,8 +188,9 @@ impl WriteApi {
         &self,
         full_tx_data: &CheckpointTransaction,
     ) -> Result<(), IndexerError> {
+        let tx_digest = full_tx_data.transaction.digest();
         let assigned_global_order = self
-            .get_or_assign_optimistic_tx_global_order(full_tx_data.transaction.digest())
+            .get_or_assign_optimistic_tx_global_order(tx_digest)
             .await?;
 
         let (
@@ -203,15 +204,39 @@ impl WriteApi {
             .full_optimistic_tx_data_to_indexed_data(full_tx_data, &assigned_global_order)
             .await?;
 
-        self.persist_optimistic_tx(
-            indexed_tx,
-            tx_indices,
-            indexed_events,
-            events_indices,
-            indexed_displays,
-            object_changes,
-        )
-        .await
+        println!("about to hold execution lock: {tx_digest}");
+
+        let conn_with_locked_tx = self
+            .store
+            .hold_execution_lock_for_transactions(&[tx_digest.inner().to_vec()])
+            .await?;
+
+        println!("about to hold execution lock: {tx_digest}");
+
+        let tx_status = self
+            .store
+            .get_execution_status_of_transactions(&[tx_digest.inner().to_vec()])
+            .await?
+            .pop()
+            .expect("Execution status should always be present since it was just added");
+
+        if !tx_status.indexing_completed {
+            self.persist_optimistic_tx(
+                indexed_tx,
+                tx_indices,
+                indexed_events,
+                events_indices,
+                indexed_displays,
+                object_changes,
+            )
+            .await?;
+
+            self.store
+                .mark_transactions_as_indexed(&[tx_digest.inner().to_vec()], conn_with_locked_tx)
+                .await?;
+        }
+
+        Ok(())
     }
 
     async fn get_or_assign_optimistic_tx_global_order(

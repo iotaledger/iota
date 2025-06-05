@@ -26,7 +26,7 @@ use serde::Deserialize;
 
 use crate::{
     errors::IndexerError,
-    schema::{optimistic_transactions, transactions, tx_global_order},
+    schema::{optimistic_transactions, transaction_indexing_status, transactions, tx_global_order},
     types::{IndexedObjectChange, IndexedTransaction, IndexerResult},
 };
 
@@ -52,6 +52,13 @@ pub struct TxGlobalOrder {
     /// so that it is auto-generated on the database.
     #[diesel(deserialize_as = i64)]
     pub optimistic_sequence_number: Option<i64>,
+}
+
+#[derive(Queryable, Insertable, Clone, Debug, Selectable)]
+#[diesel(table_name = transaction_indexing_status)]
+pub struct TransactionIndexingStatus {
+    pub tx_digest: Vec<u8>,
+    pub indexing_completed: bool,
 }
 
 impl From<&IndexedTransaction> for TxGlobalOrder {

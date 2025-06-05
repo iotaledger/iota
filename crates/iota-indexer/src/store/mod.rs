@@ -96,6 +96,56 @@ pub mod diesel_macro {
     }
 
     #[macro_export]
+    macro_rules! start_transaction_with_query_with_retry {
+        ($pool:expr, $query:expr, $max_elapsed:expr) => {{
+            use $crate::{
+                db::{PoolConnection, get_pool_connection},
+                errors::IndexerError,
+            };
+            let mut backoff = backoff::ExponentialBackoff::default();
+            backoff.max_elapsed_time = Some($max_elapsed);
+
+            let result = match backoff::retry(backoff, || {
+                let mut pool_conn: PoolConnection =
+                    get_pool_connection($pool).map_err(|e| backoff::Error::Transient {
+                        err: IndexerError::PostgresWrite(e.to_string()),
+                        retry_after: None,
+                    })?;
+
+                if let Err(e) = diesel::sql_query("BEGIN TRANSACTION").execute(&mut pool_conn) {
+                    tracing::error!("Error starting transaction: {:?}, retrying...", e);
+                    println!("Retry on tx start: {e}");
+                    return Err(backoff::Error::Transient {
+                        err: IndexerError::PostgresWrite(e.to_string()),
+                        retry_after: None,
+                    });
+                }
+
+                // Run user-provided query block
+                if let Err(e) = $query.clone().execute(&mut pool_conn) {
+                    tracing::error!(
+                        "Error while executing query in transaction: {:?}, retrying...",
+                        e
+                    );
+                    println!("Retry on query: {e}");
+                    return Err(backoff::Error::Transient {
+                        err: IndexerError::PostgresWrite(e.to_string()),
+                        retry_after: None,
+                    });
+                }
+
+                Ok(pool_conn)
+            }) {
+                Ok(pool_conn) => Ok(pool_conn),
+                Err(backoff::Error::Transient { err, .. }) => Err(err),
+                Err(backoff::Error::Permanent(err)) => Err(err),
+            };
+
+            result
+        }};
+    }
+
+    #[macro_export]
     macro_rules! spawn_read_only_blocking {
         ($pool:expr, $query:expr, $repeatable_read:expr) => {{
             use downcast::Any;
@@ -162,6 +212,21 @@ pub mod diesel_macro {
                 .on_conflict($target)
                 .do_update()
                 .set($pg_columns)
+                .execute($conn)?;
+        }};
+    }
+
+    #[macro_export]
+    macro_rules! on_conflict_do_update_with_condition {
+        ($table:expr, $values:expr, $target:expr, $pg_columns:expr, $condition:expr, $conn:expr) => {{
+            use diesel::{ExpressionMethods, RunQueryDsl, query_dsl::methods::FilterDsl};
+
+            diesel::insert_into($table)
+                .values($values)
+                .on_conflict($target)
+                .do_update()
+                .set($pg_columns)
+                .filter($condition)
                 .execute($conn)?;
         }};
     }

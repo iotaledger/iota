@@ -470,6 +470,13 @@ diesel::table! {
 }
 
 diesel::table! {
+    transaction_indexing_status (tx_digest) {
+        tx_digest -> Bytea,
+        indexing_completed -> Bool,
+    }
+}
+
+diesel::table! {
     transactions (tx_sequence_number) {
         tx_sequence_number -> Int8,
         transaction_digest -> Bytea,
@@ -640,6 +647,7 @@ macro_rules! for_all_tables {
             packages,
             protocol_configs,
             pruner_cp_watermark,
+            transaction_indexing_status,
             transactions,
             tx_calls_fun,
             tx_calls_mod,
