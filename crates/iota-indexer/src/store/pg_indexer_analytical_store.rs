@@ -528,7 +528,8 @@ fn construct_move_call_persist_query(start_tx_seq: i64, end_tx_seq: i64) -> Stri
         ON m.tx_sequence_number = t.tx_sequence_number
     INNER JOIN checkpoints c
         ON t.checkpoint_sequence_number = c.sequence_number
-    WHERE m.tx_sequence_number >= {} AND m.tx_sequence_number < {}
+    -- Ensure partition pruning
+    WHERE t.tx_sequence_number >= {} AND t.tx_sequence_number < {}
     ON CONFLICT (transaction_sequence_number, move_package, move_module, move_function) DO NOTHING;
     ",
         start_tx_seq, end_tx_seq
