@@ -5,6 +5,7 @@
 import {
     Badge,
     BadgeType,
+    ButtonUnstyled,
     InfoBox,
     InfoBoxStyle,
     InfoBoxType,
@@ -35,6 +36,21 @@ export function PageHeader({
     after,
     status,
 }: PageHeaderProps): JSX.Element {
+    async function handleCopyClick(event: React.MouseEvent<HTMLButtonElement>) {
+        event.stopPropagation();
+        if (!navigator.clipboard) {
+            return;
+        }
+        if (title) {
+            try {
+                await navigator.clipboard.writeText(title);
+                onCopySuccess();
+            } catch (error) {
+                console.error('Failed to copy:', error);
+            }
+        }
+    }
+
     return (
         <Panel>
             <div className="flex w-full items-center p-md--rs">
@@ -76,10 +92,9 @@ export function PageHeader({
                                         >
                                             {title}
                                         </span>
-                                        <Copy
-                                            onClick={onCopySuccess}
-                                            className="shrink-0 cursor-pointer"
-                                        />
+                                        <ButtonUnstyled onClick={handleCopyClick}>
+                                            <Copy className="shrink-0 cursor-pointer" />
+                                        </ButtonUnstyled>
                                     </div>
                                 )}
                                 {subtitle && (

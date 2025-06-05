@@ -4,16 +4,17 @@
 
 use std::{env, net::SocketAddr, time::Duration};
 
-use anyhow::anyhow;
 use clap::{CommandFactory, FromArgMatches, Parser};
-use diesel_migrations::MigrationHarness;
 use iota_indexer::{
     OldIndexerConfig,
     config::{
         Command, IngestionConfig, IngestionSources, JsonRpcConfig, PruningOptions,
         SnapshotLagConfig,
     },
-    db::{ConnectionPoolConfig, get_pool_connection, new_connection_pool, reset_database},
+    db::{
+        ConnectionPoolConfig, get_pool_connection, new_connection_pool, reset_database,
+        setup_postgres::{check_db_migration_consistency, run_migrations},
+    },
     errors::IndexerError,
     indexer::Indexer,
     metrics::{IndexerMetrics, spawn_connection_pool_metric_collector, start_prometheus_server},
@@ -21,7 +22,7 @@ use iota_indexer::{
 };
 use secrecy::ExposeSecret;
 use tokio_util::sync::CancellationToken;
-use tracing::{info, warn};
+use tracing::warn;
 
 // Define the `GIT_REVISION` and `VERSION` consts
 bin_version::bin_version!();
@@ -184,20 +185,19 @@ async fn main() -> Result<(), IndexerError> {
         new_connection_pool(opts.database_url.as_str(), &opts.connection_pool_config)?;
     spawn_connection_pool_metric_collector(indexer_metrics.clone(), connection_pool.clone());
 
-    if !matches!(opts.command, Command::ResetDatabase { .. }) {
-        let mut pool_conn = get_pool_connection(&connection_pool)?;
-        pool_conn
-            .run_pending_migrations(iota_indexer::db::setup_postgres::MIGRATIONS)
-            .map_err(|e| anyhow!("Failed to run pending migrations {e}"))?;
-        info!("Database migrations are up to date.");
-    }
-
     match opts.command {
         Command::Indexer {
             ingestion_config,
             snapshot_config,
             pruning_options,
         } => {
+            {
+                // Make sure to run all migrations on startup, and also serve as a compatibility
+                // check.
+                let mut pool_conn = get_pool_connection(&connection_pool)?;
+                run_migrations(&mut pool_conn)?;
+            }
+
             let store = PgIndexerStore::new(connection_pool, indexer_metrics.clone());
             Indexer::start_writer_with_config(
                 &ingestion_config,
@@ -210,6 +210,12 @@ async fn main() -> Result<(), IndexerError> {
             .await?;
         }
         Command::JsonRpcService(json_rpc_config) => {
+            {
+                // Run compatibility check
+                let mut pool_conn = get_pool_connection(&connection_pool)?;
+                check_db_migration_consistency(&mut pool_conn)?;
+            }
+
             Indexer::start_reader(&json_rpc_config, &registry, connection_pool).await?;
         }
         Command::ResetDatabase { force } => {
@@ -227,6 +233,5 @@ async fn main() -> Result<(), IndexerError> {
             return Indexer::start_analytical_worker(store, indexer_metrics.clone()).await;
         }
     }
-
     Ok(())
 }

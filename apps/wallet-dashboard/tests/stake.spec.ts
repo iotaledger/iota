@@ -21,6 +21,12 @@ test.describe('Wallet staking', () => {
         await connectWallet(dashboardPage, context, extensionName);
 
         await dashboardPage.getByTestId('sidebar-staking').click();
+        // Move mouse to avoid keeping tooltip open
+        await dashboardPage.mouse.move(200, 0);
+        // Wait for tooltip to disappear
+        await expect(dashboardPage.getByRole('tooltip', { name: 'Staking' })).not.toBeVisible({
+            timeout: 5_000,
+        });
         await dashboardPage.getByRole('button', { name: 'Stake' }).click();
 
         await dashboardPage.getByText('validator-1').click();

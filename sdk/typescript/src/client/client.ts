@@ -94,6 +94,10 @@ import type {
     ParticipationMetrics,
     IotaCirculatingSupply,
     GetDynamicFieldObjectV2Params,
+    IotaNamesLookupParams,
+    IotaNameRecord,
+    IotaNamesReverseLookupParams,
+    IotaNamesFindAllRegistrationNFTsParams,
 } from './types/index.js';
 
 export interface PaginationArguments<Cursor> {
@@ -935,5 +939,37 @@ export class IotaClient {
 
         // This should never happen, because the above case should always throw, but just adding it in the event that something goes horribly wrong.
         throw new Error('Unexpected error while waiting for transaction block.');
+    }
+
+    /**
+     * Return the resolved record for the given name.
+     */
+    async iotaNamesLookup(input: IotaNamesLookupParams): Promise<IotaNameRecord | undefined> {
+        return await this.transport.request({
+            method: 'iotax_iotaNamesLookup',
+            params: [input.name],
+        });
+    }
+
+    /**
+     * Return the resolved name for the given address.
+     */
+    async iotaNamesReverseLookup(input: IotaNamesReverseLookupParams): Promise<string | undefined> {
+        return await this.transport.request({
+            method: 'iotax_iotaNamesReverseLookup',
+            params: [input.address],
+        });
+    }
+
+    /**
+     * Find all registration NFTs for the given address.
+     */
+    async iotaNamesFindAllRegistrationNFTs(
+        input: IotaNamesFindAllRegistrationNFTsParams,
+    ): Promise<PaginatedObjectsResponse> {
+        return await this.transport.request({
+            method: 'iotax_iotaNamesFindAllRegistrationNFTs',
+            params: [input.address, input.cursor, input.limit, input.options],
+        });
     }
 }

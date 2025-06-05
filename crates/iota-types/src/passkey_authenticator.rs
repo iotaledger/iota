@@ -18,7 +18,7 @@ use once_cell::sync::OnceCell;
 use passkey_types::webauthn::{ClientDataType, CollectedClientData};
 use schemars::JsonSchema;
 use serde::{Deserialize, Deserializer, Serialize};
-use shared_crypto::intent::{INTENT_PREFIX_LENGTH, Intent, IntentMessage};
+use shared_crypto::intent::IntentMessage;
 
 use crate::{
     base_types::{EpochId, IotaAddress},
@@ -62,15 +62,10 @@ pub struct PasskeyAuthenticator {
     #[serde(skip)]
     pk: Secp256r1PublicKey,
 
-    /// Valid intent parsed from the first 3 bytes of
-    /// `client_data_json.challenge`.
+    /// Decoded `client_data_json.challenge` which is expected to be the signing
+    /// message `hash(Intent | bcs_message)`
     #[serde(skip)]
-    intent: Intent,
-
-    /// Valid digest parsed from the last 32 bytes of
-    /// `client_data_json.challenge`.
-    #[serde(skip)]
-    digest: [u8; DefaultHash::OUTPUT_SIZE],
+    challenge: [u8; DefaultHash::OUTPUT_SIZE],
 
     /// Initialization of bytes for passkey in serialized form.
     #[serde(skip)]
@@ -105,22 +100,13 @@ impl TryFrom<RawPasskeyAuthenticator> for PasskeyAuthenticator {
             });
         };
 
-        let parsed_challenge = Base64UrlUnpadded::decode_vec(&client_data_json_parsed.challenge)
+        let challenge = Base64UrlUnpadded::decode_vec(&client_data_json_parsed.challenge)
             .map_err(|_| IotaError::InvalidSignature {
                 error: "Invalid encoded challenge".to_string(),
-            })?;
-
-        let intent =
-            Intent::from_bytes(&parsed_challenge[..INTENT_PREFIX_LENGTH]).map_err(|_| {
-                IotaError::InvalidSignature {
-                    error: "Invalid intent from challenge".to_string(),
-                }
-            })?;
-
-        let digest = parsed_challenge[INTENT_PREFIX_LENGTH..]
+            })?
             .try_into()
             .map_err(|_| IotaError::InvalidSignature {
-                error: "Invalid digest from challenge".to_string(),
+                error: "Invalid encoded challenge".to_string(),
             })?;
 
         if raw.user_signature.scheme() != SignatureScheme::Secp256r1 {
@@ -145,8 +131,7 @@ impl TryFrom<RawPasskeyAuthenticator> for PasskeyAuthenticator {
             client_data_json: raw.client_data_json,
             signature,
             pk,
-            intent,
-            digest,
+            challenge,
             bytes: OnceCell::new(),
         })
     }
@@ -247,7 +232,7 @@ impl AuthenticatorTrait for PasskeyAuthenticator {
     {
         // Check the intent and signing is consisted from what's parsed from
         // client_data_json.challenge
-        if intent_msg.intent != self.intent || to_signing_digest(intent_msg) != self.digest {
+        if self.challenge != to_signing_message(intent_msg) {
             return Err(IotaError::InvalidSignature {
                 error: "Invalid challenge".to_string(),
             });
@@ -301,27 +286,13 @@ impl AsRef<[u8]> for PasskeyAuthenticator {
             .expect("OnceCell invariant violated")
     }
 }
-/// Compute the digest that the signature committed over as `intent ||
-/// hash(tx_data)`, total of 3 + 32 = 35 bytes.
-pub fn to_signing_message<T: Serialize>(
-    intent_msg: &IntentMessage<T>,
-) -> [u8; INTENT_PREFIX_LENGTH + DefaultHash::OUTPUT_SIZE] {
-    let mut extended = [0; INTENT_PREFIX_LENGTH + DefaultHash::OUTPUT_SIZE];
-    extended[..INTENT_PREFIX_LENGTH].copy_from_slice(&intent_msg.intent.to_bytes());
-    extended[INTENT_PREFIX_LENGTH..].copy_from_slice(&to_signing_digest(intent_msg));
-    extended
-}
 
-/// Compute the BCS hash of the value in intent message. In the case of
-/// transaction data, this is the BCS hash of `struct TransactionData`,
-/// different from the transaction digest itself that computes the BCS hash of
-/// the Rust type prefix and `struct TransactionData`. (See `fn digest` in `impl
-/// Message for SenderSignedData`).
-pub fn to_signing_digest<T: Serialize>(
+/// Compute the signing digest that the signature committed over as `hash(intent
+/// || tx_data)`
+pub fn to_signing_message<T: Serialize>(
     intent_msg: &IntentMessage<T>,
 ) -> [u8; DefaultHash::OUTPUT_SIZE] {
     let mut hasher = DefaultHash::default();
-    bcs::serialize_into(&mut hasher, &intent_msg.value)
-        .expect("Message serialization should not fail");
+    bcs::serialize_into(&mut hasher, intent_msg).expect("Message serialization should not fail");
     hasher.finalize().digest
 }
