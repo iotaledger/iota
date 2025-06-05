@@ -5,7 +5,7 @@
 use std::{collections::HashMap, num::NonZeroUsize, time::Duration};
 
 use anemo::{PeerId, Request};
-use anyhow::anyhow;
+use anyhow::bail;
 use iota_archival::{reader::ArchiveReaderBalancer, writer::ArchiveWriter};
 use iota_config::{
     node::ArchiveReaderConfig,
@@ -445,7 +445,7 @@ async fn test_state_sync_using_archive() -> anyhow::Result<()> {
             }
         }
         if total_time.elapsed() > Duration::from_secs(120) {
-            return Err(anyhow!("Test timed out"));
+            bail!("Test timed out");
         }
         tokio::time::sleep(Duration::from_secs(1)).await;
     }

@@ -13,7 +13,7 @@ use std::{
     time::Duration,
 };
 
-use anyhow::{Context, Result, anyhow};
+use anyhow::{Context, Result, bail};
 use async_trait::async_trait;
 use futures::{
     FutureExt, StreamExt,
@@ -356,7 +356,7 @@ impl Driver<(BenchmarkStats, StressStats)> for BenchDriver {
         }
 
         if bench_workers.is_empty() {
-            return Err(anyhow!("No workers to run benchmark!"));
+            bail!("No workers to run benchmark!");
         }
         let stat_delay_micros = 1_000_000 * self.stat_collection_interval;
         let metrics = Arc::new(BenchMetrics::new(registry));

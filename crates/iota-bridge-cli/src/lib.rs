@@ -4,7 +4,7 @@
 
 use std::{path::PathBuf, str::FromStr, sync::Arc};
 
-use anyhow::anyhow;
+use anyhow::{anyhow, bail};
 use clap::*;
 use ethers::{
     providers::Middleware,
@@ -405,9 +405,7 @@ pub struct LoadedBridgeCliConfig {
 impl LoadedBridgeCliConfig {
     pub async fn load(cli_config: BridgeCliConfig) -> anyhow::Result<Self> {
         if cli_config.eth_key_path.is_none() && cli_config.iota_key_path.is_none() {
-            return Err(anyhow!(
-                "At least one of `iota_key_path` or `eth_key_path` must be provided"
-            ));
+            bail!("At least one of `iota_key_path` or `eth_key_path` must be provided");
         }
         let iota_key = if let Some(iota_key_path) = &cli_config.iota_key_path {
             Some(read_key(iota_key_path, false)?)
@@ -424,7 +422,7 @@ impl LoadedBridgeCliConfig {
             if eth_key.is_none() {
                 let iota_key = iota_key.unwrap();
                 if !matches!(iota_key, IotaKeyPair::Secp256k1(_)) {
-                    return Err(anyhow!("Eth key must be an ECDSA key"));
+                    bail!("Eth key must be an ECDSA key");
                 }
                 (iota_key.copy(), iota_key)
             } else if iota_key.is_none() {
@@ -651,7 +649,7 @@ async fn deposit_on_iota(
         .await
         .expect("Failed to execute transaction block");
     if !resp.status_ok().unwrap() {
-        return Err(anyhow!("Transaction {:?} failed: {:?}", tx_digest, resp));
+        bail!("Transaction {:?} failed: {:?}", tx_digest, resp);
     }
     let events = resp.events.unwrap();
     info!(

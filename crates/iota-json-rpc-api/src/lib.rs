@@ -6,7 +6,7 @@
 //! It includes methods for querying data, building and executing transactions,
 //! managing governance-related data, and more.
 
-use anyhow::anyhow;
+use anyhow::bail;
 pub use bridge::{BridgeReadApiClient, BridgeReadApiOpenRpc, BridgeReadApiServer};
 pub use coin::{CoinReadApiClient, CoinReadApiOpenRpc, CoinReadApiServer};
 pub use extended::{ExtendedApiClient, ExtendedApiOpenRpc, ExtendedApiServer};
@@ -62,12 +62,12 @@ pub fn cap_page_limit(limit: Option<usize>) -> usize {
 }
 
 pub fn validate_limit(limit: Option<usize>, max: usize) -> Result<usize, anyhow::Error> {
-    match limit {
-        Some(l) if l > max => Err(anyhow!("Page size limit {l} exceeds max limit {max}")),
-        Some(0) => Err(anyhow!("Page size limit cannot be smaller than 1")),
-        Some(l) => Ok(l),
-        None => Ok(max),
-    }
+    Ok(match limit {
+        Some(l) if l > max => bail!("Page size limit {l} exceeds max limit {max}"),
+        Some(0) => bail!("Page size limit cannot be smaller than 1"),
+        Some(l) => l,
+        None => max,
+    })
 }
 
 #[derive(Clone)]
