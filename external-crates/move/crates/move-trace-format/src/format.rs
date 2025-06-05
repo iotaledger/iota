@@ -392,9 +392,9 @@ impl MoveTraceBuilder {
         self.push_event(TraceEvent::Effect(Box::new(effect)));
     }
 
-    // All events pushed to the trace are first pushed, and then the tracer is
-    // notified of the event.
-    fn push_event(&mut self, event: TraceEvent) {
+    // All events pushed to the trace are first pushed, and then the tracer is notified of the
+    // event.
+    pub fn push_event(&mut self, event: TraceEvent) {
         self.trace.push_event(event.clone());
         self.tracer.notify(&event, Writer(&mut self.trace));
     }

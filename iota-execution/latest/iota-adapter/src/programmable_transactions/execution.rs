@@ -80,7 +80,14 @@ mod checked {
             ensure_serialized_size,
         },
         gas_charger::GasCharger,
-        programmable_transactions::context::*,
+        programmable_transactions::{
+            context::*,
+            trace_utils::{
+                trace_move_call_end, trace_move_call_start, trace_ptb_summary, trace_split_coins,
+                trace_transfer,
+            },
+        },
+        type_resolver::TypeTagResolver,
     };
 
     /// Executes a `ProgrammableTransaction` in the specified `ExecutionMode`,
@@ -110,6 +117,9 @@ mod checked {
             gas_charger,
             inputs,
         )?;
+
+        trace_ptb_summary(trace_builder_opt, &commands)?;
+
         // execute commands
         let mut mode_results = Mode::empty_results();
         for (idx, command) in commands.into_iter().enumerate() {
@@ -255,6 +265,9 @@ mod checked {
                     .collect::<Result<_, _>>()?;
                 let addr: IotaAddress =
                     context.by_value_arg(CommandKind::TransferObjects, objs.len(), addr_arg)?;
+
+                trace_transfer(context, trace_builder_opt, &objs)?;
+
                 for obj in objs {
                     obj.ensure_public_transfer_eligible()?;
                     context.transfer_object(obj, addr)?;
@@ -273,7 +286,7 @@ mod checked {
                     let msg = "Expected a coin but got an non coin object".to_owned();
                     return Err(ExecutionError::new_with_source(e, msg));
                 };
-                let split_coins = amount_args
+                let split_coins: Vec<Value> = amount_args
                     .into_iter()
                     .map(|amount_arg| {
                         let amount: u64 =
@@ -288,6 +301,9 @@ mod checked {
                         Ok(Value::Object(new_coin))
                     })
                     .collect::<Result<_, ExecutionError>>()?;
+
+                trace_split_coins(context, trace_builder_opt, &obj.type_, coin, &split_coins)?;
+
                 context.restore_arg::<Mode>(&mut argument_updates, coin_arg, Value::Object(obj))?;
                 split_coins
             }
@@ -341,6 +357,8 @@ mod checked {
                     type_arguments,
                     arguments,
                 } = *move_call;
+                trace_move_call_start(trace_builder_opt);
+
                 let arguments = context.splat_args(0, arguments)?;
 
                 let module = to_identifier(context, module)?;
@@ -371,6 +389,8 @@ mod checked {
                     false,
                     trace_builder_opt,
                 );
+
+                trace_move_call_end(trace_builder_opt);
 
                 context.linkage_view.reset_linkage();
                 return_values?
