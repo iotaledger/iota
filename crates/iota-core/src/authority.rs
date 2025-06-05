@@ -15,7 +15,7 @@ use std::{
     vec,
 };
 
-use anyhow::anyhow;
+use anyhow::bail;
 use arc_swap::{ArcSwap, Guard};
 use async_trait::async_trait;
 use authority_per_epoch_store::CertLockGuard;
@@ -4626,9 +4626,7 @@ impl AuthorityState {
             //   packages, reconfigure, and most likely shut down in the new epoch (this
             //   validator likely doesn't support the new protocol version, or else it
             //   should have had the packages.)
-            return Err(anyhow!(
-                "missing system packages: cannot form ChangeEpochTx"
-            ));
+            bail!("missing system packages: cannot form ChangeEpochTx");
         };
 
         // ChangeEpochV2 requires that both options are set - ProtocolDefinedBaseFee and
@@ -4695,9 +4693,7 @@ impl AuthorityState {
             .expect("read cannot fail")
         {
             warn!("change epoch tx has already been executed via state sync");
-            return Err(anyhow::anyhow!(
-                "change epoch tx has already been executed via state sync",
-            ));
+            bail!("change epoch tx has already been executed via state sync",);
         }
 
         let execution_guard = self

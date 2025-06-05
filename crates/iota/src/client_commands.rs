@@ -1594,15 +1594,13 @@ impl IotaClientCommands {
                 let mut addr = None;
 
                 if address.is_none() && env.is_none() {
-                    return Err(anyhow!(
-                        "No address, an alias, or env specified. Please specify one."
-                    ));
+                    bail!("No address, an alias, or env specified. Please specify one.");
                 }
 
                 if let Some(address) = address {
                     let address = get_identity_address(Some(address), context)?;
                     if !context.config().keystore().addresses().contains(&address) {
-                        return Err(anyhow!("Address {} not managed by wallet", address));
+                        bail!("Address {} not managed by wallet", address);
                     }
                     context.config_mut().set_active_address(address);
                     addr = Some(address.to_string());
@@ -1665,9 +1663,7 @@ impl IotaClientCommands {
                 faucet,
             } => {
                 if context.config().get_env(&alias).is_some() {
-                    return Err(anyhow!(
-                        "Environment config with name [{alias}] already exists."
-                    ));
+                    bail!("Environment config with name [{alias}] already exists.");
                 }
                 let env = IotaEnv::new(alias, rpc)
                     .with_graphql(graphql)
@@ -1869,9 +1865,7 @@ pub(crate) async fn upgrade_package(
         .await?;
 
     let Some(data) = resp.data else {
-        return Err(anyhow!(
-            "Could not find upgrade capability at {upgrade_capability}"
-        ));
+        bail!("Could not find upgrade capability at {upgrade_capability}");
     };
 
     let upgrade_cap: UpgradeCap = data
@@ -3076,10 +3070,7 @@ pub(crate) async fn dry_run_or_execute_or_serialize(
                 anyhow!("Effects from IotaTransactionBlockResult should not be empty")
             })?;
             if let IotaExecutionStatus::Failure { error } = effects.status() {
-                return Err(anyhow!(
-                    "Error executing transaction '{}': {error}",
-                    response.digest
-                ));
+                bail!("Error executing transaction '{}': {error}", response.digest);
             }
             Ok(IotaClientCommandResult::TransactionBlock(response))
         }

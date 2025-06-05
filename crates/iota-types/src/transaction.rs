@@ -12,6 +12,7 @@ use std::{
     sync::Arc,
 };
 
+use anyhow::bail;
 use enum_dispatch::enum_dispatch;
 use fastcrypto::{encoding::Base64, hash::HashFunction};
 use iota_protocol_config::ProtocolConfig;
@@ -1784,14 +1785,12 @@ impl TransactionData {
                     mutable: true,
                 },
                 Owner::Immutable => {
-                    return Err(anyhow::anyhow!(
-                        "Upgrade capability is stored immutably and cannot be used for upgrades"
-                    ));
+                    bail!("Upgrade capability is stored immutably and cannot be used for upgrades");
                 }
                 // If the capability is owned by an object, then the module defining the owning
                 // object gets to decide how the upgrade capability should be used.
                 Owner::ObjectOwner(_) => {
-                    return Err(anyhow::anyhow!("Upgrade capability controlled by object"));
+                    bail!("Upgrade capability controlled by object");
                 }
             };
             builder.obj(capability_arg).unwrap();
