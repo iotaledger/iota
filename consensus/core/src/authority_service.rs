@@ -334,12 +334,10 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
         //Equivocation check and update
         if self.is_equivocating(block_ref) {
             let last_round = self.context
-                .metrics
                 .scoring_metrics
                 .get_last_equivocating_round(block_ref.author);
             if u64::from(block_ref.round) > last_round {
                 self.context
-                    .metrics
                     .scoring_metrics
                     .update_last_equivocating_round(block_ref.author,block_ref.round);
                 self.context
@@ -349,7 +347,6 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
                     .with_label_values(&[peer_hostname])
                     .inc();
                 self.context
-                    .metrics
                     .scoring_metrics
                     .update_equivocating_rounds(block_ref.author,1);
             }
@@ -431,13 +428,12 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
         //Equivocation check and update
         for block_ref in block_refs.clone() {
             if self.is_equivocating(block_ref) {
+                let peer_hostname = &self.context.committee.authority(block_ref.author).hostname;
                 let last_round = self.context
-                    .metrics
                     .scoring_metrics
                     .get_last_equivocating_round(block_ref.author);
                 if u64::from(block_ref.round) > last_round {
                     self.context
-                        .metrics
                         .scoring_metrics
                         .update_last_equivocating_round(block_ref.author,block_ref.round);
                     self.context
@@ -447,7 +443,6 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
                         .with_label_values(&[peer_hostname])
                         .inc();
                     self.context
-                        .metrics
                         .scoring_metrics
                         .update_equivocating_rounds(block_ref.author,1);
                 }
