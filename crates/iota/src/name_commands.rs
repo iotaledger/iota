@@ -355,7 +355,7 @@ impl NameCommand {
 
                     for coupon in coupons {
                         args.push(format!(
-                        "--move-call {coupons_package_address}::coupon_house::apply_coupon payment_intent @{} \"{coupon}\" @{IOTA_CLOCK_OBJECT_ID}",
+                        "--move-call {coupons_package_address}::coupon_house::apply_coupon payment_intent @{} '{coupon}' @{IOTA_CLOCK_OBJECT_ID}",
                         iota_names_config.object_id,
                     ));
                     }
