@@ -145,6 +145,7 @@ pub(crate) struct NodeMetrics {
     pub(crate) invalid_blocks: IntCounterVec,
     pub(crate) semantically_invalid_blocks: IntCounterVec,
     pub(crate) syntactically_invalid_blocks: IntCounterVec,
+    pub(crate) equivocating_rounds_by_authority: IntCounterVec,
     pub(crate) rejected_blocks: IntCounterVec,
     pub(crate) rejected_future_blocks: IntCounterVec,
     pub(crate) subscribed_blocks: IntCounterVec,
@@ -451,6 +452,12 @@ impl NodeMetrics {
                 "syntactically_invalid_blocks",
                 "Number of syntactically invalid blocks per peer authority",
                 &["authority", "source", "error"],
+                registry,
+            ).unwrap(),
+            equivocating_rounds_by_authority: register_int_counter_vec_with_registry!(
+                "equivocating_rounds_by_authority",
+                "Registers the number of rounds when the authority sent an equivocating block.",
+                &["authority"],
                 registry,
             ).unwrap(),
             rejected_blocks: register_int_counter_vec_with_registry!(
@@ -889,8 +896,10 @@ pub(crate) struct ValidatorScoreMetrics {
     pub(crate) missing_block_proposals: Arc<Vec<AtomicU64>>,
     // Introducing equivocating rounds per authority.
     pub(crate) equivocating_rounds: Arc<Vec<AtomicU64>>,
-    /// From this point on I will add auxiliary metrics and values. These are used to calculate
-    /// some values necessart for other metrics, and should be reset/recalculated each new epoch
+
+    // From this point on I will add auxiliary metrics and values. These are used to calculate
+    // some values necessart for other metrics, and should be reset/recalculated each new epoch.
+
     // Introducing the auxiliary metric "verified_blocks_this_epoch". "verified_blocks" is
     // currently a prometheus metric already, but we need to be able to count this per epoch.
     pub(crate) verified_blocks_this_epoch: Arc<Vec<AtomicU64>>,
@@ -898,6 +907,9 @@ pub(crate) struct ValidatorScoreMetrics {
     pub(crate) first_round_this_epoch: Arc<AtomicU64>,
     // Register the last seen epoch among blocks, used to trigger the update of missing proposals
     pub(crate) last_seen_epoch: Arc<AtomicU64>,
+    // Registers the last round where an equivocation was found for each authority. Used to avoid
+    // counting multiple times equivocation ocurrences.
+    pub(crate) last_equivocating_round: Arc<Vec<AtomicU64>>,
 }
 
 
@@ -916,6 +928,8 @@ impl Default for ValidatorScoreMetrics {
         // Auxiliary values
         let mut verified_blocks_this_epoch_inner = vec![];
         verified_blocks_this_epoch_inner.resize_with(50, || AtomicU64::new(0));
+        let mut last_equivocating_round_inner = vec![];
+        last_equivocating_round_inner.resize_with(50, || AtomicU64::new(0));
         Self {
             semantically_invalid_blocks: Arc::new(semantically_invalid_blocks_inner),
             syntactically_invalid_blocks: Arc::new(syntactically_invalid_blocks_inner),
@@ -923,7 +937,8 @@ impl Default for ValidatorScoreMetrics {
             equivocating_rounds: Arc::new(equivocating_rounds_inner),
             verified_blocks_this_epoch: Arc::new(verified_blocks_this_epoch_inner),
             first_round_this_epoch: Arc::new(AtomicU64::new(0)),
-            last_seen_epoch: Arc::new(AtomicU64::new(0))
+            last_seen_epoch: Arc::new(AtomicU64::new(0)),
+            last_equivocating_round: Arc::new(last_equivocating_round_inner)
         }
     }
 }
@@ -990,6 +1005,15 @@ impl ValidatorScoreMetrics {
         self.first_round_this_epoch.store(epoch, Ordering::Relaxed);
     }
 
+    pub(crate) fn update_last_equivocating_round(
+        &self,
+        validator: AuthorityIndex,
+        round: u32,
+    ) {
+        self.last_equivocating_round[validator.value()]
+            .store(u64::from(round), Ordering::Relaxed);
+    }
+
     pub(crate) fn get_semantically_invalid_blocks(&self, validator: AuthorityIndex) -> u64 {
         self.semantically_invalid_blocks[validator.value()].load(Ordering::Relaxed)
     }
@@ -1015,6 +1039,9 @@ impl ValidatorScoreMetrics {
         for element in self.verified_blocks_this_epoch.iter() {
             element.store(0, Ordering::Relaxed);
         }
+    }
+    pub(crate) fn get_last_equivocating_round(&self, validator: AuthorityIndex) -> u64 {
+        self.last_equivocating_round[validator.value()].load(Ordering::Relaxed)
     }
 
 }
