@@ -4,7 +4,7 @@
 
 use std::{path::PathBuf, str::FromStr, sync::Arc};
 
-use anyhow::anyhow;
+use anyhow::{anyhow, bail};
 use async_trait::async_trait;
 use iota_protocol_config::ProtocolConfig;
 use iota_test_transaction_builder::TestTransactionBuilder;
@@ -96,10 +96,10 @@ impl FromStr for AdversarialPayloadType {
             return Ok(q);
         }
 
-        Err(anyhow!(
+        bail!(
             "Invalid input string. Valid values are 0 to {}",
             AdversarialPayloadType::COUNT
-        ))
+        )
     }
 }
 
@@ -149,14 +149,14 @@ impl FromStr for AdversarialPayloadCfg {
         )
         .unwrap();
         if !re.is_match(s) {
-            return Err(anyhow!("invalid load config"));
+            bail!("invalid load config");
         };
         let toks = s.split('-').collect::<Vec<_>>();
         let payload_type = AdversarialPayloadType::from_str(toks[0])?;
         let load_factor = toks[1].parse::<f32>().unwrap();
 
         if !(0.0..=1.0).contains(&load_factor) {
-            return Err(anyhow!("invalid load factor. Valid range is [0.0, 1.0]"));
+            bail!("invalid load factor. Valid range is [0.0, 1.0]");
         };
 
         Ok(AdversarialPayloadCfg {

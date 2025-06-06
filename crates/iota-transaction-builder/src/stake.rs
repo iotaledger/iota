@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use anyhow::{Ok, anyhow, ensure};
+use anyhow::{Ok, anyhow, bail, ensure};
 use iota_types::{
     IOTA_SYSTEM_PACKAGE_ID,
     base_types::{IotaAddress, ObjectID, ObjectType},
@@ -41,7 +41,7 @@ impl TransactionBuilder {
         let (oref, coin_type) = self.get_object_ref_and_type(coin).await?;
 
         let ObjectType::Struct(type_) = &coin_type else {
-            return Err(anyhow!("Provided object [{coin}] is not a move object."));
+            bail!("Provided object [{coin}] is not a move object.");
         };
         ensure!(
             type_.is_coin(),
@@ -134,7 +134,7 @@ impl TransactionBuilder {
         let (oref, locked_balance_type) = self.get_object_ref_and_type(locked_balance).await?;
 
         let ObjectType::Struct(type_) = &locked_balance_type else {
-            anyhow::bail!("Provided object [{locked_balance}] is not a move object.");
+            bail!("Provided object [{locked_balance}] is not a move object.");
         };
         ensure!(
             type_.is_timelocked_balance(),

@@ -13,7 +13,7 @@ use std::{
     time::Duration,
 };
 
-use anyhow::{Context, Result, anyhow};
+use anyhow::{Context, Result, anyhow, bail};
 use bytes::{Buf, Bytes, buf::Reader};
 use futures::{StreamExt, TryStreamExt};
 use iota_config::node::ArchiveReaderConfig;
@@ -186,7 +186,7 @@ impl ArchiveReader {
     ) -> Result<Vec<(FileMetadata, FileMetadata)>> {
         let files = manifest.files();
         if files.is_empty() {
-            return Err(anyhow!("Unexpected empty archive store"));
+            bail!("Unexpected empty archive store");
         }
 
         let mut summary_files: Vec<_> = files
@@ -401,10 +401,10 @@ impl ArchiveReader {
             .context("Checkpoint seq num underflow")?;
 
         if checkpoint_range.start > latest_available_checkpoint {
-            return Err(anyhow!(
+            bail!(
                 "Latest available checkpoint is: {}",
                 latest_available_checkpoint
-            ));
+            );
         }
 
         let files: Vec<(FileMetadata, FileMetadata)> = self.verify_manifest(manifest).await?;
@@ -603,10 +603,10 @@ impl ArchiveReader {
             .context("Checkpoint seq num underflow")?;
 
         if checkpoint_range.start > latest_available_checkpoint {
-            return Err(anyhow!(
+            bail!(
                 "Latest available checkpoint is: {}",
                 latest_available_checkpoint
-            ));
+            );
         }
 
         let summary_files: Vec<FileMetadata> = self
@@ -647,10 +647,10 @@ impl ArchiveReader {
         let mut ordered_checkpoints = checkpoints;
         ordered_checkpoints.sort();
         if *ordered_checkpoints.first().unwrap() > latest_available_checkpoint {
-            return Err(anyhow!(
+            bail!(
                 "Latest available checkpoint is: {}",
                 latest_available_checkpoint
-            ));
+            );
         }
 
         let summary_files: Vec<FileMetadata> = self

@@ -1341,7 +1341,7 @@ fn prompt_if_no_config(
                 );
                 match SignatureScheme::from_flag(read_line()?.trim()) {
                     Ok(s) => s,
-                    Err(e) => return Err(anyhow!("{e}")),
+                    Err(e) => bail!("{e}"),
                 }
             };
             let (new_address, phrase, scheme) = config
