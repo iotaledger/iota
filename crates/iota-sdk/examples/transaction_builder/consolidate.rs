@@ -10,10 +10,12 @@
 mod utils;
 
 use futures::StreamExt;
-use iota_json_rpc_types::ObjectChange;
-use iota_types::{
-    programmable_transaction_builder::ProgrammableTransactionBuilder,
-    transaction::{Argument, Command, ObjectArg, TransactionData, TransactionKind},
+use iota_sdk::{
+    rpc_types::ObjectChange,
+    types::{
+        programmable_transaction_builder::ProgrammableTransactionBuilder,
+        transaction::{Argument, Command, ObjectArg, TransactionData, TransactionKind},
+    },
 };
 use utils::{setup_for_write, sign_and_execute_transaction};
 

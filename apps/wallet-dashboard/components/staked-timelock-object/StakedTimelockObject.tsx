@@ -19,9 +19,7 @@ export function StakedTimelockObject({
     handleUnstake,
     currentEpoch,
 }: StakedTimelockObjectProps) {
-    const name =
-        getValidatorByAddress(timelockedStakedObject.validatorAddress)?.name ||
-        timelockedStakedObject.validatorAddress;
+    const validatorMeta = getValidatorByAddress(timelockedStakedObject.validatorAddress);
 
     // TODO probably we could calculate estimated reward on grouping stage.
     const summary = timelockedStakedObject.stakes.reduce(
@@ -53,10 +51,17 @@ export function StakedTimelockObject({
         balance: summary.principal,
     });
 
+    const name = validatorMeta?.name || timelockedStakedObject.validatorAddress;
+
     return (
         <Card onClick={() => handleUnstake(timelockedStakedObject)}>
             <CardImage>
-                <ImageIcon src={null} label={name} fallback={name} size={ImageIconSize.Large} />
+                <ImageIcon
+                    src={validatorMeta?.imageUrl || null}
+                    label={name}
+                    fallback={name}
+                    size={ImageIconSize.Large}
+                />
             </CardImage>
             <CardBody
                 title={name}

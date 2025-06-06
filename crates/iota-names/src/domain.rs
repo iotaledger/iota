@@ -226,10 +226,12 @@ pub fn validate_label(label: &str) -> Result<&str, IotaNamesError> {
     for (i, character) in bytes.iter().enumerate() {
         match character {
             b'a'..=b'z' | b'0'..=b'9' => continue,
-            b'-' if i == 0 || i == len - 1 => {
-                return Err(IotaNamesError::HyphensAsFirstOrLastLabelChar);
+            b'-' => {
+                if i == 0 || i == len - 1 {
+                    return Err(IotaNamesError::HyphensAsFirstOrLastLabelChar);
+                }
             }
-            _ => return Err(IotaNamesError::InvalidLabelChar),
+            _ => return Err(IotaNamesError::InvalidLabelChar((*character) as char, i)),
         };
     }
 
@@ -272,6 +274,13 @@ mod tests {
             "test.test.example.iota"
         );
         assert_eq!(
+            "test.test-with-hyphen@example-hyphen"
+                .parse::<Domain>()
+                .unwrap()
+                .to_string(),
+            "test.test-with-hyphen.example-hyphen.iota"
+        );
+        assert_eq!(
             "iota@iota".parse::<Domain>().unwrap().to_string(),
             "iota.iota.iota"
         );
@@ -283,6 +292,13 @@ mod tests {
         assert_eq!(
             "test.test.test.iota".parse::<Domain>().unwrap().to_string(),
             "test.test.test.iota"
+        );
+        assert_eq!(
+            "test.test-with-hyphen.test-with-hyphen.iota"
+                .parse::<Domain>()
+                .unwrap()
+                .to_string(),
+            "test.test-with-hyphen.test-with-hyphen.iota"
         );
     }
 
@@ -296,6 +312,12 @@ mod tests {
         assert!("test.test@example.iota".parse::<Domain>().is_err());
         assert!("test@test@example".parse::<Domain>().is_err());
         assert!("test.atoi".parse::<Domain>().is_err());
+        assert!("test.test@example-".parse::<Domain>().is_err());
+        assert!("test.test@-example".parse::<Domain>().is_err());
+        assert!("test.test-@example".parse::<Domain>().is_err());
+        assert!("test.-test@example".parse::<Domain>().is_err());
+        assert!("test.test-.iota".parse::<Domain>().is_err());
+        assert!("test.-test.iota".parse::<Domain>().is_err());
     }
 
     #[test]

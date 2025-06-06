@@ -2,7 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import type { Meta, StoryObj } from '@storybook/react';
-import { Select, SelectOption } from '@/components/molecules/select/Select';
+import type { SelectOption } from '@/components/molecules/select/Select';
+import { Select } from '@/components/molecules/select/Select';
 import { useState } from 'react';
 import { IotaLogoMark, PlaceholderReplace } from '@iota/apps-ui-icons';
 

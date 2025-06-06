@@ -6,6 +6,8 @@ import { DialogLayout, DialogLayoutBody, DialogLayoutFooter } from './layout';
 import { ExplorerLink } from '../ExplorerLink';
 import {
     ExplorerLinkType,
+    OutlinedCopyButton,
+    toast,
     TransactionReceipt,
     useGetTransactionWithSummary,
     ViewTxnOnExplorerButton,
@@ -47,9 +49,24 @@ export function TransactionDialogView({
                 )}
             </DialogLayoutBody>
             <DialogLayoutFooter>
-                <ExplorerLink transactionID={txDigest ?? ''} type={ExplorerLinkType.Transaction}>
-                    <ViewTxnOnExplorerButton digest={txDigest ?? ''} />
-                </ExplorerLink>
+                <div className="flex w-full flex-row gap-x-xs">
+                    <div className="flex w-full [&_a]:w-full">
+                        <ExplorerLink
+                            transactionID={txDigest ?? ''}
+                            type={ExplorerLinkType.Transaction}
+                        >
+                            <ViewTxnOnExplorerButton digest={txDigest ?? ''} />
+                        </ExplorerLink>
+                    </div>
+                    <div className="self-center">
+                        <OutlinedCopyButton
+                            textToCopy={txDigest ?? ''}
+                            onCopySuccess={() =>
+                                toast.success('Transaction digest copied to clipboard')
+                            }
+                        />
+                    </div>
+                </div>
             </DialogLayoutFooter>
         </DialogLayout>
     );

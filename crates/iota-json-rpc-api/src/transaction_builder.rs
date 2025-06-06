@@ -20,8 +20,8 @@ use jsonrpsee::{core::RpcResult, proc_macros::rpc};
 #[open_rpc(namespace = "unsafe", tag = "Transaction Builder API")]
 #[rpc(server, client, namespace = "unsafe")]
 pub trait TransactionBuilder {
-    /// Create an unsigned transaction to transfer an object from one address to another. The object's type
-    /// must allow public transfers
+    /// Create an unsigned transaction to transfer an object from one address to
+    /// another. The object's type must allow public transfers
     #[rustfmt::skip]
     #[method(name = "transferObject")]
     async fn transfer_object(
@@ -38,7 +38,8 @@ pub trait TransactionBuilder {
         recipient: IotaAddress,
     ) -> RpcResult<TransactionBlockBytes>;
 
-    /// Create an unsigned transaction to send IOTA coin object to an IOTA address. The IOTA object is also used as the gas object.
+    /// Create an unsigned transaction to send IOTA coin object to an IOTA address.
+    /// The IOTA object is also used as the gas object.
     #[rustfmt::skip]
     #[method(name = "transferIota")]
     async fn transfer_iota(
@@ -55,10 +56,11 @@ pub trait TransactionBuilder {
         amount: Option<BigInt<u64>>,
     ) -> RpcResult<TransactionBlockBytes>;
 
-    /// Send `Coin<T>` to a list of addresses, where `T` can be any coin type, following a list of amounts,
-    /// The object specified in the `gas` field will be used to pay the gas fee for the transaction.
-    /// The gas object can not appear in `input_coins`. If the gas object is not specified, the RPC server
-    /// will auto-select one.
+    /// Send `Coin<T>` to a list of addresses, where `T` can be any coin type,
+    /// following a list of amounts, The object specified in the `gas` field
+    /// will be used to pay the gas fee for the transaction. The gas object can
+    /// not appear in `input_coins`. If the gas object is not specified, the RPC
+    /// server will auto-select one.
     #[rustfmt::skip]
     #[method(name = "pay")]
     async fn pay(
@@ -82,9 +84,11 @@ pub trait TransactionBuilder {
     /// Specifically, what pay_iota does are:
     /// 1. debit each input_coin to create new coin following the order of
     /// amounts and assign it to the corresponding recipient.
-    /// 2. accumulate all residual IOTA from input coins left and deposit all IOTA to the first
+    /// 2. accumulate all residual IOTA from input coins left and deposit all IOTA
+    ///    to the first
     /// input coin, then use the first input coin as the gas coin object.
-    /// 3. the balance of the first input coin after tx is sum(input_coins) - sum(amounts) - actual_gas_cost
+    /// 3. the balance of the first input coin after tx is sum(input_coins) -
+    ///    sum(amounts) - actual_gas_cost
     /// 4. all other input coints other than the first one are deleted.
     #[rustfmt::skip]
     #[method(name = "payIota")]
@@ -105,9 +109,12 @@ pub trait TransactionBuilder {
     /// Send all IOTA coins to one recipient.
     /// This is for IOTA coin only and does not require a separate gas coin object.
     /// Specifically, what pay_all_iota does are:
-    /// 1. accumulate all IOTA from input coins and deposit all IOTA to the first input coin
-    /// 2. transfer the updated first coin to the recipient and also use this first coin as gas coin object.
-    /// 3. the balance of the first input coin after tx is sum(input_coins) - actual_gas_cost.
+    /// 1. accumulate all IOTA from input coins and deposit all IOTA to the first
+    ///    input coin
+    /// 2. transfer the updated first coin to the recipient and also use this first
+    ///    coin as gas coin object.
+    /// 3. the balance of the first input coin after tx is sum(input_coins) -
+    ///    actual_gas_cost.
     /// 4. all other input coins other than the first are deleted.
     #[rustfmt::skip]
     #[method(name = "payAllIota")]
@@ -123,7 +130,8 @@ pub trait TransactionBuilder {
         gas_budget: BigInt<u64>,
     ) -> RpcResult<TransactionBlockBytes>;
 
-    /// Create an unsigned transaction to execute a Move call on the network, by calling the specified function in the module of a given package.
+    /// Create an unsigned transaction to execute a Move call on the network, by
+    /// calling the specified function in the module of a given package.
     #[rustfmt::skip]
     #[method(name = "moveCall")]
     async fn move_call(
@@ -183,7 +191,8 @@ pub trait TransactionBuilder {
         gas_budget: BigInt<u64>,
     ) -> RpcResult<TransactionBlockBytes>;
 
-    /// Create an unsigned transaction to split a coin object into multiple equal-size coins.
+    /// Create an unsigned transaction to split a coin object into multiple
+    /// equal-size coins.
     #[rustfmt::skip]
     #[method(name = "splitCoinEqual")]
     async fn split_coin_equal(
@@ -268,7 +277,8 @@ pub trait TransactionBuilder {
         gas_budget: BigInt<u64>,
     ) -> RpcResult<TransactionBlockBytes>;
 
-    /// Add timelocked stake to a validator's staking pool using multiple balances and amount.
+    /// Add timelocked stake to a validator's staking pool using multiple balances
+    /// and amount.
     #[rustfmt::skip]
     #[method(name = "requestAddTimelockedStake")]
     async fn request_add_timelocked_stake(

@@ -15,7 +15,7 @@ use std::{
     vec,
 };
 
-use anyhow::anyhow;
+use anyhow::bail;
 use arc_swap::{ArcSwap, Guard};
 use async_trait::async_trait;
 use authority_per_epoch_store::CertLockGuard;
@@ -959,7 +959,7 @@ impl AuthorityState {
                         let cache_reader = self.get_transaction_cache_reader().clone();
                         let epoch_store = epoch_store.clone();
                         spawn_monitored_task!(epoch_store.within_alive_epoch(
-                            validator_tx_finalizer.track_signed_tx(cache_reader, tx)
+                            validator_tx_finalizer.track_signed_tx(cache_reader, &epoch_store, tx)
                         ));
                     }
                 }
@@ -1073,7 +1073,7 @@ impl AuthorityState {
 
         if transaction.contains_shared_object() {
             epoch_store
-                .acquire_shared_locks_from_effects(
+                .acquire_shared_version_assignments_from_effects(
                     transaction,
                     effects.data(),
                     self.get_object_cache_reader().as_ref(),
@@ -1221,7 +1221,7 @@ impl AuthorityState {
             .start_timer();
         let input_objects = &certificate.data().transaction_data().input_objects()?;
         self.input_loader.read_objects_for_execution(
-            epoch_store.as_ref(),
+            epoch_store,
             &certificate.key(),
             tx_lock,
             input_objects,
@@ -1631,6 +1631,7 @@ impl AuthorityState {
                 kind,
                 signer,
                 tx_digest,
+                &mut None,
             );
 
         fail_point_if!("cp_execution_nondeterminism", || {
@@ -1811,6 +1812,7 @@ impl AuthorityState {
                 kind,
                 signer,
                 transaction_digest,
+                &mut None,
             );
         let tx_digest = *effects.transaction_digest();
 
@@ -4246,20 +4248,20 @@ impl AuthorityState {
         #[cfg(msim)]
         let extra_packages = framework_injection::get_extra_packages(self.name);
         #[cfg(msim)]
-        let system_packages = system_packages.chain(&extra_packages);
+        let system_packages = system_packages.map(|p| p).chain(extra_packages.iter());
 
         for system_package in system_packages {
             let modules = system_package.modules().to_vec();
             // In simtests, we could override the current built-in framework packages.
             #[cfg(msim)]
-            let modules = framework_injection::get_override_modules(system_package.id(), self.name)
+            let modules = framework_injection::get_override_modules(&system_package.id, self.name)
                 .unwrap_or(modules);
 
             let Some(obj_ref) = iota_framework::compare_system_package(
                 &self.get_object_store(),
-                system_package.id(),
+                &system_package.id,
                 &modules,
-                system_package.dependencies().to_vec(),
+                system_package.dependencies.to_vec(),
                 binary_config,
             )
             .await
@@ -4624,9 +4626,7 @@ impl AuthorityState {
             //   packages, reconfigure, and most likely shut down in the new epoch (this
             //   validator likely doesn't support the new protocol version, or else it
             //   should have had the packages.)
-            return Err(anyhow!(
-                "missing system packages: cannot form ChangeEpochTx"
-            ));
+            bail!("missing system packages: cannot form ChangeEpochTx");
         };
 
         // ChangeEpochV2 requires that both options are set - ProtocolDefinedBaseFee and
@@ -4693,9 +4693,7 @@ impl AuthorityState {
             .expect("read cannot fail")
         {
             warn!("change epoch tx has already been executed via state sync");
-            return Err(anyhow::anyhow!(
-                "change epoch tx has already been executed via state sync",
-            ));
+            bail!("change epoch tx has already been executed via state sync",);
         }
 
         let execution_guard = self
@@ -4827,7 +4825,8 @@ impl AuthorityState {
     pub(crate) fn iter_live_object_set_for_testing(
         &self,
     ) -> impl Iterator<Item = authority_store_tables::LiveObject> + '_ {
-        self.get_accumulator_store().iter_live_object_set()
+        self.get_accumulator_store()
+            .iter_cached_live_object_set_for_testing()
     }
 
     #[cfg(test)]
@@ -4847,6 +4846,8 @@ impl AuthorityState {
             .bulk_insert_genesis_objects(objects)?;
         self.get_object_cache_reader()
             .force_reload_system_packages(&BuiltInFramework::all_package_ids());
+        self.get_reconfig_api()
+            .clear_state_end_of_epoch(&self.execution_lock_for_reconfiguration().await);
         Ok(())
     }
 }
@@ -5185,7 +5186,7 @@ pub mod framework_injection {
         let bytes = get_override_bytes(package_id, name)?;
         let dependencies = if is_system_package(*package_id) {
             BuiltInFramework::get_package_by_id(package_id)
-                .dependencies()
+                .dependencies
                 .to_vec()
         } else {
             // Assume that entirely new injected packages depend on all existing system

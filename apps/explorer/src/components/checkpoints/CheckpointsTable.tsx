@@ -52,7 +52,7 @@ export function CheckpointsTable({
 
     return (
         <div className="flex flex-col gap-md text-left xl:pr-10">
-            {isError && (
+            {isError ? (
                 <InfoBox
                     title="Error"
                     supportingText="Failed to load Checkpoints"
@@ -60,12 +60,11 @@ export function CheckpointsTable({
                     type={InfoBoxType.Error}
                     style={InfoBoxStyle.Default}
                 />
-            )}
-            {isPending || isFetching || !data?.data ? (
+            ) : isPending || isFetching || !data?.data ? (
                 <PlaceholderTable
                     rowCount={Number(limit)}
                     rowHeight="16px"
-                    colHeadings={['Digest', 'Sequence Number', 'Time', 'Transaction Count']}
+                    colHeadings={['Digest', 'Sequence Number', 'Time', 'Transactions']}
                 />
             ) : (
                 <TableCard

@@ -14,7 +14,7 @@ teams:
 
 IOTA Smart Contracts work as a **layer 2** (**L2**) extension of the _IOTA Multi-Asset Ledger_, **layer 1** (**L1**).
 The specifics of the ledger is outside the scope of this documentation; for now it is sufficient to know that the ledger
-contains balances of different kinds of assets (base tokens, native tokens, foundries and _NFT_s) locked in addresses.
+contains balances of different kinds of assets (base tokens and _NFT_s) locked in addresses.
 Assets can only be moved on the ledger by unlocking the corresponding address with its private key.
 
 For example:

@@ -199,7 +199,7 @@ Afterwards, you will be removed from the validators (and potentially the committ
 Serialize the payload that is used to generate a Proof of Possession. This allows the signer to take the payload offline for an Authority protocol BLS keypair to sign.
 
 ```sh
-$IOTA_BINARY validator serialize-payload-pop --account-address $ACCOUNT_ADDRESS --protocol-public-key $BLS_PUBKEY
+$IOTA_BINARY validator serialize-payload-pop --account-address $ACCOUNT_ADDRESS --authority-public-key $BLS_PUBKEY
 Serialized payload: $PAYLOAD_TO_SIGN
 ```
 

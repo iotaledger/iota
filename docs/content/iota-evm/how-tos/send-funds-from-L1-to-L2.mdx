@@ -10,85 +10,33 @@ teams:
   - iotaledger/l2-smart-contract
 ---
 
-import { AddToMetaMaskButton } from '@site/src/components/AddToMetaMaskButton';
-import MetamaskButtons from '../../_snippets/iota-evm/metamask_buttons.mdx';
-
 # Send Funds From L1 to L2
 
-There are multiple types of assets available on both IOTA L1 and L2, here we discuss a few of them, and how to get them
-onto L2.
+This guide will show you how to send funds from L1 to L2 using the [IOTA EVM Bridge](https://evm-bridge.iota.org/).
 
-:::tip Testnet
+## Prerequisites
 
-If you want to fund your EVM Testnet account using the EVM Toolkit, please refer to our [Testnet Quickstart Guide](../getting-started/quick-start.mdx)
+- [Metamask wallet](https://chromewebstore.google.com/detail/metamask/nkbihfbeogaeaoehlefnkodbefgpgknn?hl=en)
+- [IOTA wallet](https://chromewebstore.google.com/detail/iota-wallet/iidjkmdceolghepehaaddojmnjnkkija?hl=en)
 
-:::
+## Steps
 
-## Fund an Ethereum Account on a IOTA Smart Contracts Chain
+1. Open the [IOTA EVM Bridge](https://evm-bridge.iota.org/).
 
-To send EVM transactions, you need to have an Ethereum address that owns tokens on the ISC chain (L2). These tokens will
-be used to cover gas fees.
+2. Connect your IOTA wallet.
 
-<Tabs groupId='wallet' queryString>
-<TabItem value='firefly' label='Firefly'>
+    ![Connect your IOTA wallet](/img/iota-evm/evm/how-tos/get-funds/connect-iota-wallet.png)
 
-You can use your [Firefly Wallet](https://firefly.iota.org/) to easily send L1 IOTA or SMR to your L2 IOTA EVM.
+3. Connect your Metamask wallet by clicking on the `Connect Wallet` button.
+    
+    ![Connect your Metamask wallet](/img/iota-evm/evm/how-tos/get-funds/connect-metamask.png)
 
-#### Requirements
+4. Enter the amount of iota coins you want to transfer to L2. You can also request funds from the faucet by clicking on the `Request Funds` button.
 
--   IOTA Tokens
--   [Firefly Wallet](https://firefly.iota.org/)
--   [Metamask](https://metamask.io/)
+    ![Transfer funds from L1 to L2](/img/iota-evm/evm/how-tos/get-funds/enter-iota-amount.png)
 
-1. The first thing you will need to do is add the EVM to Metamask by hitting the following button.
+5. Click on the bridger assets button to transfer the funds.
 
-<MetamaskButtons />
+    ![Send Transaction](/img/iota-evm/evm/how-tos/get-funds/approve-transaction.png)
 
-2. Once you have added the EVM to Metamask, you can get your address:
-
-    ![Copy your Metamask address](/img/iota-evm/evm/how-tos/get-funds/copy-your-address.png)
-
-3. Next, you will need to open your [Firefly Wallet](https://firefly.iota.org/) and click on `Send Assets`.
-
-    ![Click send assets](/img/iota-evm/evm/how-tos/get-funds/firefly/select-send-assets.png)
-
-4. Select the EVM chain you want to use in the network dropdown.
-
-    ![Select the EVM network](/img/iota-evm/evm/how-tos/get-funds/firefly/select-shimmer-evm.png)
-
-5. Enter the amount of tokens you want to transfer, and the Metamask address from step 2, and click on `Next`
-
-    ![Enter the amount of tokens and metamask address](/img/iota-evm/evm/how-tos/get-funds/firefly/enter-your-desired-amount-and-metamask-address.png)
-
-6. Review the transaction details and click on `Send`.
-
-    {/* ![Hit Send](/img/iota-evm/evm/how-tos/get-funds/firefly/hit-send.png) */}
-
-</TabItem>
-<TabItem value='bloom-wallet' label='Bloom Wallet'>
-
-You can use your [Bloom Wallet](https://bloomwallet.io/) to easily send L1 base token to your L2 EVM account.
-
-1. First, you will need to open your [Bloom Wallet](https://firefly.iota.org/) and click on `Send`.
-
-    ![Click send](/img/iota-evm/evm/how-tos/get-funds/bloom/select-send.png)
-
-2. Select an account with base tokens.
-
-    ![Select an account with base tokens](/img/iota-evm/evm/how-tos/get-funds/bloom/select-the-smr-token.png)
-
-3. Bloom will automatically create an EVM address for you, so you can send funds to that address from the
-   EVM dropdown. Alternatively, you can input any other EVM address.
-
-    ![Select you EVM Address](/img/iota-evm/evm/how-tos/get-funds/bloom/enter-the-recipient-address.png)
-
-4. Enter the amount of base tokens you want to transfer.
-
-    ![Enter the amount of base tokens you want to transfer](/img/iota-evm/evm/how-tos/get-funds/bloom/enter-the-amount.png)
-
-5. Review the transaction details and click on `Confirm`.
-
-    ![Hit Send](/img/iota-evm/evm/how-tos/get-funds/bloom/review-and-confirm-the-transaction.png)
-
-</TabItem>
-</Tabs>
+You can now check the eth balance in your metamask wallet.

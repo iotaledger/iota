@@ -27,6 +27,7 @@ import { RecognizedBadge } from '@iota/apps-ui-icons';
 import { useMemo } from 'react';
 import { AddressLink, CollapsibleCard } from '~/components/ui';
 import { BREAK_POINT, useMediaQuery } from '~/hooks';
+import { onCopySuccess } from '~/lib/utils';
 
 interface BalanceChangesProps {
     changes: BalanceChangeSummary;
@@ -70,7 +71,11 @@ function BalanceChangeEntry({ change }: { change: BalanceChange }): JSX.Element 
                     <span className="w-full flex-shrink-0 text-label-lg text-neutral-40 md:w-40 dark:text-neutral-60">
                         Recipient
                     </span>
-                    <AddressLink address={recipient} />
+                    <AddressLink
+                        address={recipient}
+                        copyText={recipient}
+                        onCopySuccess={onCopySuccess}
+                    />
                 </div>
             )}
         </div>
@@ -93,7 +98,12 @@ function BalanceChangeCard({ changes, owner }: { changes: BalanceChange[]; owner
                         <span className="text-body-md text-neutral-40 dark:text-neutral-60">
                             Owner
                         </span>
-                        <AddressLink label={undefined} address={owner} />
+                        <AddressLink
+                            label={undefined}
+                            address={owner}
+                            copyText={owner}
+                            onCopySuccess={onCopySuccess}
+                        />
                     </div>
                 ) : null
             }

@@ -7,7 +7,6 @@ keywords:
  - node infrastructure
  - tools
  - Ankr api
- - Blast api
  - archive node
 image: /img/logo/WASP_logo_dark.png
 ---
@@ -27,9 +26,3 @@ You can find a complete list of (archival) endpoints in the [Networks & Endpoint
 ## Ankr
 
 [Ankr](https://www.ankr.com/web3-api/) is a well-established industry player known for its enterprise-grade globally distributed infrastructure of nodes and for the largest number of chains on the market to support your requests.
-
-## Blast
-
-[Blast API](https://blastapi.io/) is a decentralized platform that provides reliable and scalable node infrastructure
-for accessing blockchain data. It supports multiple blockchain networks, offering seamless integration and
-high-performance API endpoints for cross-chain decentralized applications (dApps).

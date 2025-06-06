@@ -6,7 +6,7 @@
 
 use std::{net::SocketAddr, path::PathBuf, time::Duration};
 
-use anyhow::{Result, anyhow};
+use anyhow::{Result, bail};
 use clap::{Args, Parser};
 use errors::IndexerError;
 use iota_json_rpc::{JsonRpcServerBuilder, ServerHandle, ServerType};
@@ -132,9 +132,9 @@ impl IndexerConfig {
                 db_port,
                 db_name
             ))),
-            _ => Err(anyhow!(
+            _ => bail!(
                 "Invalid db connection config, either db_url or (db_user_name, db_password, db_host, db_port, db_name) must be provided"
-            )),
+            ),
         }
     }
 }

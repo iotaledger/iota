@@ -21,6 +21,8 @@ use move_package::{
 };
 use move_symbol_pool::Symbol;
 
+pub mod system_package_versions;
+
 const PUBLISHED_AT_MANIFEST_FIELD: &str = "published-at";
 
 pub enum LockCommand {

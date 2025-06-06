@@ -65,6 +65,7 @@ shared_test_runtime = []
 
 [dev-dependencies]
 # external dependencies
+hex.workspace = true
 serde_json.workspace = true
 
 # internal dependencies

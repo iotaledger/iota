@@ -1,0 +1,198 @@
+---
+source: external-crates/move/crates/move-transactional-test-runner/src/framework.rs
+---
+processed 15 tasks
+
+init:
+C: object(0,0)
+
+task 1, lines 7-19:
+//# run-graphql
+Response: {
+  "data": {
+    "address": {
+      "stakedIotas": {
+        "edges": []
+      }
+    }
+  }
+}
+
+task 2, lines 21-23:
+//# programmable --sender C --inputs 10000000000 @C
+//> SplitCoins(Gas, [Input(0)]);
+//> TransferObjects([Result(0)], Input(1))
+created: object(2,0)
+mutated: object(0,0)
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 1960800,  storage_rebate: 0, non_refundable_storage_fee: 0
+
+task 3, line 25:
+//# run 0x3::iota_system::request_add_stake --args object(0x5) object(2,0) @validator_0 --sender C
+events: Event { package_id: iota_system, transaction_module: Identifier("iota_system"), sender: C, type_: StructTag { address: iota_system, module: Identifier("validator"), name: Identifier("StakingRequestEvent"), type_params: [] }, contents: [134, 1, 154, 68, 53, 144, 148, 137, 199, 71, 208, 26, 192, 248, 149, 59, 208, 212, 27, 244, 119, 108, 221, 182, 171, 144, 19, 240, 54, 198, 164, 135, 175, 163, 158, 79, 0, 218, 226, 120, 249, 119, 199, 198, 147, 10, 94, 44, 118, 232, 93, 23, 165, 38, 215, 36, 187, 206, 15, 184, 31, 176, 125, 76, 140, 202, 78, 28, 224, 186, 89, 4, 206, 166, 29, 249, 36, 45, 162, 247, 210, 158, 62, 243, 40, 251, 126, 192, 124, 8, 107, 59, 244, 124, 166, 26, 0, 0, 0, 0, 0, 0, 0, 0, 0, 228, 11, 84, 2, 0, 0, 0] }
+created: object(3,0), object(3,1)
+mutated: 0x0000000000000000000000000000000000000000000000000000000000000005, object(0,0)
+deleted: object(_), object(2,0)
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 14630000,  storage_rebate: 1960800, non_refundable_storage_fee: 0
+
+task 4, line 27:
+//# create-checkpoint
+Checkpoint created: 1
+
+task 5, line 29:
+//# advance-epoch
+Epoch advanced: 0
+
+task 6, lines 31-33:
+//# programmable --sender C --inputs 10000000000 @C
+//> SplitCoins(Gas, [Input(0)]);
+//> TransferObjects([Result(0)], Input(1))
+created: object(6,0)
+mutated: object(0,0)
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 1960800,  storage_rebate: 980400, non_refundable_storage_fee: 0
+
+task 7, line 35:
+//# run 0x3::iota_system::request_add_stake --args object(0x5) object(6,0) @validator_0 --sender C
+events: Event { package_id: iota_system, transaction_module: Identifier("iota_system"), sender: C, type_: StructTag { address: iota_system, module: Identifier("validator"), name: Identifier("StakingRequestEvent"), type_params: [] }, contents: [134, 1, 154, 68, 53, 144, 148, 137, 199, 71, 208, 26, 192, 248, 149, 59, 208, 212, 27, 244, 119, 108, 221, 182, 171, 144, 19, 240, 54, 198, 164, 135, 175, 163, 158, 79, 0, 218, 226, 120, 249, 119, 199, 198, 147, 10, 94, 44, 118, 232, 93, 23, 165, 38, 215, 36, 187, 206, 15, 184, 31, 176, 125, 76, 140, 202, 78, 28, 224, 186, 89, 4, 206, 166, 29, 249, 36, 45, 162, 247, 210, 158, 62, 243, 40, 251, 126, 192, 124, 8, 107, 59, 244, 124, 166, 26, 1, 0, 0, 0, 0, 0, 0, 0, 0, 228, 11, 84, 2, 0, 0, 0] }
+created: object(7,0)
+mutated: 0x0000000000000000000000000000000000000000000000000000000000000005, object(0,0), object(3,0)
+deleted: object(6,0)
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 14630000,  storage_rebate: 14326000, non_refundable_storage_fee: 0
+
+task 8, line 37:
+//# create-checkpoint
+Checkpoint created: 3
+
+task 9, line 39:
+//# advance-epoch
+Epoch advanced: 1
+
+task 10, line 41:
+//# view-object 3,1
+Owner: Account Address ( C )
+Version: 3
+Contents: iota_system::staking_pool::StakedIota {
+    id: iota::object::UID {
+        id: iota::object::ID {
+            bytes: fake(3,1),
+        },
+    },
+    pool_id: iota::object::ID {
+        bytes: _,
+    },
+    stake_activation_epoch: 1u64,
+    principal: iota::balance::Balance<iota::iota::IOTA> {
+        value: 10000000000u64,
+    },
+}
+
+task 11, line 43:
+//# view-object 7,0
+Owner: Account Address ( C )
+Version: 5
+Contents: iota_system::staking_pool::StakedIota {
+    id: iota::object::UID {
+        id: iota::object::ID {
+            bytes: fake(7,0),
+        },
+    },
+    pool_id: iota::object::ID {
+        bytes: _,
+    },
+    stake_activation_epoch: 2u64,
+    principal: iota::balance::Balance<iota::iota::IOTA> {
+        value: 10000000000u64,
+    },
+}
+
+task 12, lines 45-57:
+//# run-graphql
+Response: {
+  "data": {
+    "address": {
+      "stakedIotas": {
+        "edges": [
+          {
+            "cursor": "IAjJcAqfhjsX0MHoNN48qciDbuSE5M7YqsSOeHCHnktqBAAAAAAAAAA=",
+            "node": {
+              "principal": "10000000000"
+            }
+          },
+          {
+            "cursor": "IFxOWZR8DLU1bxL8l8o020b10FS33cq2F1mq5O4ziZalBAAAAAAAAAA=",
+            "node": {
+              "principal": "10000000000"
+            }
+          }
+        ]
+      }
+    }
+  }
+}
+
+task 13, lines 59-103:
+//# run-graphql --cursors @{obj_3_1,1} @{obj_7_0,1}
+Response: {
+  "data": {
+    "no_coins_after_obj_3_0_chkpt_1": {
+      "stakedIotas": {
+        "edges": []
+      }
+    },
+    "no_coins_before_obj_3_0_chkpt_1": {
+      "stakedIotas": {
+        "edges": []
+      }
+    },
+    "no_coins_after_obj_7_0_chkpt_1": {
+      "stakedIotas": {
+        "edges": []
+      }
+    },
+    "no_coins_before_obj_7_0_chkpt_1": {
+      "stakedIotas": {
+        "edges": []
+      }
+    }
+  }
+}
+
+task 14, lines 105-148:
+//# run-graphql --cursors @{obj_3_1,3} @{obj_7_0,3}
+Response: {
+  "data": {
+    "coins_after_obj_3_1_chkpt_3": {
+      "stakedIotas": {
+        "edges": []
+      }
+    },
+    "coins_before_obj_3_1_chkpt_3": {
+      "stakedIotas": {
+        "edges": [
+          {
+            "cursor": "IAjJcAqfhjsX0MHoNN48qciDbuSE5M7YqsSOeHCHnktqAwAAAAAAAAA=",
+            "node": {
+              "principal": "10000000000"
+            }
+          }
+        ]
+      }
+    },
+    "coins_after_obj_7_0_chkpt_3": {
+      "stakedIotas": {
+        "edges": [
+          {
+            "cursor": "IFxOWZR8DLU1bxL8l8o020b10FS33cq2F1mq5O4ziZalAwAAAAAAAAA=",
+            "node": {
+              "principal": "10000000000"
+            }
+          }
+        ]
+      }
+    },
+    "coins_before_obj_7_0_chkpt_3": {
+      "stakedIotas": {
+        "edges": []
+      }
+    }
+  }
+}

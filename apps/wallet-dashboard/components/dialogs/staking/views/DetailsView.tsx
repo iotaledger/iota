@@ -12,6 +12,7 @@ import {
     useIsValidatorCommitteeMember,
     useIsActiveValidator,
     useGetNextEpochCommitteeMember,
+    useGetInactiveValidator,
 } from '@iota/core';
 import {
     Header,
@@ -53,8 +54,10 @@ export function DetailsView({
 }: StakeDialogProps): JSX.Element {
     const totalStake = BigInt(stakedDetails?.principal || 0n);
     const validatorAddress = stakedDetails?.validatorAddress;
-    const { isValidatorExpectedToBeInTheCommittee } =
-        useGetNextEpochCommitteeMember(validatorAddress);
+    const {
+        isValidatorExpectedToBeInTheCommittee,
+        isLoading: isValidatorExpectedToBeInTheCommitteeLoading,
+    } = useGetNextEpochCommitteeMember(validatorAddress);
 
     const {
         isAtRisk,
@@ -75,7 +78,11 @@ export function DetailsView({
     const [iotaEarnedFormatted, iotaEarnedSymbol] = useFormatCoin({ balance: iotaEarned });
     const [totalStakeFormatted, totalStakeSymbol] = useFormatCoin({ balance: totalStake });
 
-    const validatorName = validatorSummary?.name || '--';
+    const { data: inactiveValidatorSummary } = useGetInactiveValidator(validatorAddress);
+    const validatorName =
+        validatorSummary?.name || inactiveValidatorSummary?.name || validatorAddress;
+    const validatorImageUrl =
+        validatorSummary?.imageUrl || inactiveValidatorSummary?.imageUrl || null;
 
     const subtitle = showActiveStatus ? (
         <div className="flex items-center gap-1">
@@ -86,7 +93,6 @@ export function DetailsView({
     ) : (
         formatAddress(validatorAddress)
     );
-
     if (isPendingValidators) {
         return (
             <div className="flex h-full w-full items-center justify-center p-2">
@@ -111,7 +117,7 @@ export function DetailsView({
                     <Card type={CardType.Filled}>
                         <CardImage>
                             <ImageIcon
-                                src={validatorSummary?.imageUrl ?? null}
+                                src={validatorImageUrl}
                                 label={validatorName}
                                 fallback={validatorName}
                                 size={ImageIconSize.Large}
@@ -163,7 +169,8 @@ export function DetailsView({
                             />
                         </div>
                     </Panel>
-                    {!isValidatorExpectedToBeInTheCommittee ? (
+                    {!isValidatorExpectedToBeInTheCommittee &&
+                    !isValidatorExpectedToBeInTheCommitteeLoading ? (
                         <Panel hasBorder>
                             <div className="flex flex-col gap-y-sm p-md">
                                 <KeyValueInfo

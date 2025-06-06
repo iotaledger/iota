@@ -103,15 +103,9 @@ body,
             'node-map';
     }
 
-    @screen md {
-        .home-page-grid-container-bottom {
-            @apply gap-10;
-        }
-    }
-
     @screen lg {
         .home-page-grid-container-bottom {
-            @apply grid grid-cols-2 gap-x-20 gap-y-10;
+            @apply grid grid-cols-2 gap-x-8 gap-y-8;
             grid-template-areas:
                 'activity activity'
                 'packages validators'
@@ -124,10 +118,17 @@ body,
         grid-template-areas:
             'heroImage name'
             'heroImage description'
-            'heroImage objectId'
-            'heroImage type'
+            'objectId type'
             'owner storageRebate'
             'version lastTxBlock';
+    }
+
+    .address-grid-container-top.no-description.no-image {
+        @apply grid grid-cols-2 gap-4;
+        grid-template-areas:
+            'objectId version'
+            'owner type'
+            'lastTxBlock storageRebate';
     }
 
     @screen md {

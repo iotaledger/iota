@@ -2,11 +2,19 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { TableCellText, TableCellBase } from '@iota/apps-ui-kit';
+import { Info } from '@iota/apps-ui-icons';
+import {
+    TableCellText,
+    TableCellBase,
+    InfoBox,
+    InfoBoxStyle,
+    InfoBoxType,
+} from '@iota/apps-ui-kit';
 import { type MoveCallMetric } from '@iota/iota-sdk/client';
 import { type ColumnDef } from '@tanstack/react-table';
 
 import { ObjectLink, PlaceholderTable, TableCard } from '~/components/ui';
+import { onCopySuccess } from '~/lib/utils';
 
 interface TopPackagesTableProps {
     data: MoveCallMetric[];
@@ -47,7 +55,7 @@ const tableColumns: ColumnDef<MoveCallMetric>[] = [
             const item = metric[0].package;
             return (
                 <TableCellBase>
-                    <ObjectLink objectId={item}>
+                    <ObjectLink objectId={item} copyText={item} onCopySuccess={onCopySuccess}>
                         <TableCellText>{item}</TableCellText>
                     </ObjectLink>
                 </TableCellBase>
@@ -75,6 +83,17 @@ export function TopPackagesTable({ data, isLoading }: TopPackagesTableProps) {
                 colHeadings={['Module', 'Function', 'Package ID', 'Count']}
                 rowCount={10}
                 rowHeight="15px"
+            />
+        );
+    }
+    if (!data || data.length === 0) {
+        return (
+            <InfoBox
+                title="No Data Available"
+                supportingText="There are currently no packages to display."
+                icon={<Info />}
+                type={InfoBoxType.Default}
+                style={InfoBoxStyle.Default}
             />
         );
     }

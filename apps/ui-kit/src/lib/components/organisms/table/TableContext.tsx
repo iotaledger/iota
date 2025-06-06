@@ -1,7 +1,8 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { createContext, PropsWithChildren, useContext } from 'react';
+import type { PropsWithChildren } from 'react';
+import { createContext, useContext } from 'react';
 
 export interface TableProviderProps {
     /**

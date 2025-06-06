@@ -15,8 +15,8 @@ tags:
 
 ## Requirements
 
-- [Rust](https://www.rust-lang.org/) (>= 1.65)
-- [Cargo](https://doc.rust-lang.org/cargo/) (>= 1.65)
+- [Rust](https://www.rust-lang.org/) (latest)
+- [Cargo](https://doc.rust-lang.org/cargo/) (latest)
 - for running example: a local network node with the IOTA identity package deployed as described [here](./local-network-setup)
 
 ## Include the Library
@@ -25,12 +25,12 @@ To include IOTA Identity in your project, add it as a dependency in your `Cargo.
 
 ```toml
 [dependencies]
-identity_iota = { git = "https://github.com/iotaledger/identity.rs", tag = "v1.6.0-alpha"}
+identity_iota = { git = "https://github.com/iotaledger/identity.rs", tag = "v1.6.0-beta"}
 ```
 
 ## Examples
 
-To try out the [examples](https://github.com/iotaledger/identity.rs/tree/v1.6.0-alpha/examples), you should:
+To try out the [examples](https://github.com/iotaledger/identity.rs/tree/v1.6.0-beta/examples), you should:
 
 1. Clone the repository:
 
@@ -52,7 +52,7 @@ cargo run --example 0_create_did
 
 ## API Reference
 
-You can find the API reference for the Rust library [here](https://iotaledger.github.io/identity.rs/identity_iota/index.html).
+You can find the API reference for the Rust library [here](https://iotaledger.github.io/identity/identity_iota/index.html).
 
 If you would like to build the documentation, locally you can do so with the following command:
 

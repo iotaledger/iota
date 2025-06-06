@@ -112,7 +112,7 @@ impl Executor {
                 executor.as_ref(),
                 &mut tx_context,
                 &system_package.modules(),
-                system_package.dependencies().to_vec(),
+                system_package.dependencies,
                 &protocol_config,
                 metrics.clone(),
             )?;
@@ -213,6 +213,7 @@ impl Executor {
             &mut self.tx_context,
             &mut gas_charger,
             pt,
+            &mut None,
         )?;
         temporary_store.update_object_version_and_prev_tx();
         Ok(temporary_store.into_inner())

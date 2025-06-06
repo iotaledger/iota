@@ -16,13 +16,12 @@ import clsx from 'clsx';
 import { ValidatorLink } from '~/components/ui';
 
 interface GenerateValidatorsTableColumnsArgs {
-    activeValidators?: IotaValidatorSummary[];
+    allValidators?: IotaValidatorSummary[];
     committeeMembers?: string[];
     atRiskValidators?: [string, string][];
     maxCommitteeSize?: number;
     validatorEvents?: IotaEvent[];
     rollingAverageApys?: ApyByValidator;
-    limit?: number;
     showValidatorIcon?: boolean;
     includeColumns?: string[];
     highlightValidatorName?: boolean;
@@ -90,7 +89,7 @@ function ValidatorWithImage({
 }
 
 export function generateValidatorsTableColumns({
-    activeValidators = [],
+    allValidators = [],
     committeeMembers = [],
     atRiskValidators = [],
     maxCommitteeSize,
@@ -101,8 +100,8 @@ export function generateValidatorsTableColumns({
     highlightValidatorName,
     currentEpoch,
 }: GenerateValidatorsTableColumnsArgs): ColumnDef<IotaValidatorSummaryExtended>[] {
-    const sortedActiveValidators = activeValidators.toSorted(sortByStakingBalanceDesc);
-    const topValidators = sortedActiveValidators.slice(0, maxCommitteeSize);
+    const validatorsSortedByStake = allValidators.toSorted(sortByStakingBalanceDesc);
+    const topValidators = validatorsSortedByStake.slice(0, maxCommitteeSize);
 
     let columns: ColumnDef<IotaValidatorSummaryExtended>[] = [
         {
@@ -192,6 +191,35 @@ export function generateValidatorsTableColumns({
                 return (
                     <TableCellBase>
                         <TableCellText>{`${Number(getValue()) / 100}%`}</TableCellText>
+                    </TableCellBase>
+                );
+            },
+        },
+        {
+            header: 'Next Epoch Commission',
+            accessorKey: 'nextEpochCommissionRate',
+            enableSorting: true,
+            sortingFn: sortByNumber,
+            cell({ getValue }) {
+                return (
+                    <TableCellBase>
+                        <TableCellText>{`${Number(getValue()) / 100}%`}</TableCellText>
+                    </TableCellBase>
+                );
+            },
+        },
+        {
+            header: 'Next Epoch Stake',
+            accessorKey: 'nextEpochStake',
+            id: 'nextEpochStake',
+            enableSorting: true,
+            sortingFn: (rowA, rowB, columnId) =>
+                BigInt(rowA.getValue(columnId)) - BigInt(rowB.getValue(columnId)) > 0 ? 1 : -1,
+            cell({ getValue }) {
+                const nextEpochStake = getValue<string>();
+                return (
+                    <TableCellBase>
+                        <StakeColumn stake={nextEpochStake} />
                     </TableCellBase>
                 );
             },

@@ -347,7 +347,6 @@ String representation of an arbitrary width, possibly signed integer.
 """
 scalar BigInt
 
-
 type BridgeCommitteeInitTransaction {
 	bridgeObjInitialSharedVersion: UInt53!
 }
@@ -1454,7 +1453,6 @@ enum Feature {
 	SYSTEM_STATE
 }
 
-
 """
 Access to the gas inputs, after they have been smashed into one coin. The
 gas coin can only be used by reference, except for with
@@ -1545,7 +1543,6 @@ type GenesisTransaction {
 	"""
 	events(first: Int, after: String, last: Int, before: String): EventConnection!
 }
-
 
 """
 Interface implemented by all GraphQL types that represent a Move datatype
@@ -1701,7 +1698,6 @@ type Input {
 	"""
 	ix: Int!
 }
-
 
 """
 String containing 32B hex-encoded address, with a leading "0x". Leading zeroes can be omitted on input but will always appear in outputs (IotaAddress in output is guaranteed to be 66 characters long).
@@ -4290,7 +4286,6 @@ type StorageFund {
 	nonRefundableBalance: BigInt
 }
 
-
 """
 Details of the system that are decided during genesis.
 """
@@ -4954,8 +4949,17 @@ type ZkLoginVerifyResult {
 	errors: [String!]!
 }
 
+"""
+Marks an element of a GraphQL schema as no longer supported.
+"""
 directive @deprecated(reason: String = "No longer supported") on FIELD_DEFINITION | ARGUMENT_DEFINITION | INPUT_FIELD_DEFINITION | ENUM_VALUE
+"""
+Directs the executor to include this field or fragment only when the `if` argument is true.
+"""
 directive @include(if: Boolean!) on FIELD | FRAGMENT_SPREAD | INLINE_FRAGMENT
+"""
+Directs the executor to skip this field or fragment when the `if` argument is true.
+"""
 directive @skip(if: Boolean!) on FIELD | FRAGMENT_SPREAD | INLINE_FRAGMENT
 schema {
 	query: Query
