@@ -75,6 +75,11 @@ const iotaEvm = [
                 id: 'iota-evm/explanations/how-accounts-work',
             },
             {
+                type: 'doc',
+                label: 'Move Packages',
+                id: 'iota-evm/explanations/move-anchor',
+            },
+            {
                 type: 'link',
                 label: 'Core Contracts',
                 href: '/iota-evm/references/core-contracts/overview',
