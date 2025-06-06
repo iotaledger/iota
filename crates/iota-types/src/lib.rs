@@ -35,7 +35,6 @@ pub mod accumulator;
 pub mod authenticator_state;
 pub mod balance;
 pub mod base_types;
-pub mod bridge;
 pub mod clock;
 pub mod coin;
 pub mod coin_manager;
@@ -121,7 +120,7 @@ built_in_pkgs! {
     MOVE_STDLIB_ADDRESS / MOVE_STDLIB_PACKAGE_ID = 0x1;
     IOTA_FRAMEWORK_ADDRESS / IOTA_FRAMEWORK_PACKAGE_ID = 0x2;
     IOTA_SYSTEM_ADDRESS / IOTA_SYSTEM_PACKAGE_ID = 0x3;
-    BRIDGE_ADDRESS / BRIDGE_PACKAGE_ID = 0xb;
+    GENESIS_BRIDGE_ADDRESS / GENESIS_BRIDGE_PACKAGE_ID = 0xb;
     STARDUST_ADDRESS / STARDUST_PACKAGE_ID = 0x107a;
 }
 
@@ -130,7 +129,7 @@ built_in_ids! {
     IOTA_CLOCK_ADDRESS / IOTA_CLOCK_OBJECT_ID = 0x6;
     IOTA_AUTHENTICATOR_STATE_ADDRESS / IOTA_AUTHENTICATOR_STATE_OBJECT_ID = 0x7;
     IOTA_RANDOMNESS_STATE_ADDRESS / IOTA_RANDOMNESS_STATE_OBJECT_ID = 0x8;
-    IOTA_BRIDGE_ADDRESS / IOTA_BRIDGE_OBJECT_ID = 0x9;
+    GENESIS_IOTA_BRIDGE_ADDRESS / GENESIS_IOTA_BRIDGE_OBJECT_ID = 0x9;
     IOTA_DENY_LIST_ADDRESS / IOTA_DENY_LIST_OBJECT_ID = 0x403;
 }
 
@@ -212,7 +211,6 @@ pub fn resolve_address(addr: &str) -> Option<AccountAddress> {
         "iota" => Some(IOTA_FRAMEWORK_ADDRESS),
         "iota_system" => Some(IOTA_SYSTEM_ADDRESS),
         "stardust" => Some(STARDUST_ADDRESS),
-        "bridge" => Some(BRIDGE_ADDRESS),
         _ => None,
     }
 }

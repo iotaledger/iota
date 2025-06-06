@@ -15,7 +15,7 @@ use fastcrypto::{
     hash::HashFunction,
 };
 use iota_types::{
-    IOTA_BRIDGE_OBJECT_ID, IOTA_RANDOMNESS_STATE_OBJECT_ID,
+    GENESIS_IOTA_BRIDGE_OBJECT_ID, IOTA_RANDOMNESS_STATE_OBJECT_ID,
     authenticator_state::{AuthenticatorStateInner, get_authenticator_state},
     base_types::{IotaAddress, ObjectID},
     clock::Clock,
@@ -341,7 +341,7 @@ impl UnsignedGenesis {
 
     pub fn has_bridge_object(&self) -> bool {
         self.objects()
-            .get_object(&IOTA_BRIDGE_OBJECT_ID)
+            .get_object(&GENESIS_IOTA_BRIDGE_OBJECT_ID)
             .expect("read from genesis cannot fail")
             .is_some()
     }

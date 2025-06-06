@@ -36,7 +36,7 @@ use iota_storage::{
 };
 use iota_swarm_config::genesis_config::AccountConfig;
 use iota_types::{
-    BRIDGE_ADDRESS, IOTA_CLOCK_OBJECT_ID, IOTA_DENY_LIST_OBJECT_ID, IOTA_FRAMEWORK_ADDRESS,
+    IOTA_CLOCK_OBJECT_ID, IOTA_DENY_LIST_OBJECT_ID, IOTA_FRAMEWORK_ADDRESS,
     IOTA_FRAMEWORK_PACKAGE_ID, IOTA_RANDOMNESS_STATE_OBJECT_ID, IOTA_SYSTEM_ADDRESS,
     IOTA_SYSTEM_PACKAGE_ID, IOTA_SYSTEM_STATE_OBJECT_ID, MOVE_STDLIB_ADDRESS,
     MOVE_STDLIB_PACKAGE_ID, STARDUST_ADDRESS, STARDUST_PACKAGE_ID,
@@ -2065,13 +2065,6 @@ static NAMED_ADDRESSES: Lazy<BTreeMap<String, NumericalAddress>> = Lazy::new(|| 
             move_compiler::shared::NumberFormat::Hex,
         ),
     );
-    map.insert(
-        "bridge".to_string(),
-        NumericalAddress::new(
-            BRIDGE_ADDRESS.into_bytes(),
-            move_compiler::shared::NumberFormat::Hex,
-        ),
-    );
     map
 });
 
@@ -2100,15 +2093,10 @@ pub static PRE_COMPILED: Lazy<FullyCompiledProgram> = Lazy::new(|| {
         flavor: Flavor::Iota,
         ..Default::default()
     };
-    let bridge_sources = {
-        let mut buf = iota_files.to_path_buf();
-        buf.extend(["packages", "bridge", "sources"]);
-        buf.to_string_lossy().to_string()
-    };
     let fully_compiled_res = move_compiler::construct_pre_compiled_lib(
         vec![PackagePaths {
             name: Some(("iota-framework".into(), config)),
-            paths: vec![iota_system_sources, iota_sources, iota_deps, bridge_sources],
+            paths: vec![iota_system_sources, iota_sources, iota_deps],
             named_address_map: NAMED_ADDRESSES.clone(),
         }],
         None,

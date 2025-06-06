@@ -3,7 +3,10 @@
 // SPDX-License-Identifier: Apache-2.0
 
 mod compatibility_tests {
-    use std::{collections::BTreeMap, path::Path};
+    use std::{
+        collections::BTreeMap,
+        path::{Path, PathBuf},
+    };
 
     use iota_framework::{BuiltInFramework, compare_system_package};
     use iota_framework_snapshot::{load_bytecode_snapshot, load_bytecode_snapshot_manifest};
@@ -13,6 +16,7 @@ mod compatibility_tests {
     use move_package::source_package::{
         manifest_parser::parse_move_manifest_from_file, parsed_manifest::SourceManifest,
     };
+    use tempfile::TempDir;
 
     #[tokio::test]
     async fn test_framework_compatibility() {
@@ -72,24 +76,22 @@ mod compatibility_tests {
     }
 
     /// This test checks that the the `SinglePackage` entries in `manifest.json`
-    /// match the metadata in the `Move.toml` files in the repo.
-    ///
-    /// Note that this test currently assumes that no framework packages will be
-    /// removed or moved within the repo; we check the historical metadata
-    /// against the current repository. If needed, we could be more precise
-    /// by first checking out the revision of the package listed
-    /// in the manifest (this should actually be fairly cheap since the git
-    /// history is present).
+    /// match the metadata in the `Move.toml` files in the repo for each
+    /// revision.
     #[test]
     fn check_manifest_against_tomls() {
         let manifest = load_bytecode_snapshot_manifest();
+
+        // Clone the current repo into a temp directory
+        let (_temp_dir, clone_repo_path) = clone_repo_to_temp();
+
         for entry in manifest.values() {
+            // Checkout each specified revision in the cloned repo
+            checkout_revision(&clone_repo_path, &entry.git_revision);
+
             for package in entry.packages.iter() {
                 // parse package.path/Move.toml
-                let toml_path = Path::new(env!("CARGO_MANIFEST_DIR"))
-                    .join("..")
-                    .join("..")
-                    .join(&package.path);
+                let toml_path = clone_repo_path.join(&package.path);
                 let package_toml: SourceManifest =
                     parse_move_manifest_from_file(&toml_path).expect("Move.toml exists");
                 // check manifest name field is package.name
@@ -100,6 +102,43 @@ mod compatibility_tests {
                 assert_eq!(published_at_field, package.id);
             }
         }
+    }
+
+    fn clone_repo_to_temp() -> (TempDir, PathBuf) {
+        let temp_dir = tempfile::tempdir().expect("Failed to create temp dir");
+        let repo_path = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+        let clone_path = temp_dir.path().join("repo");
+
+        let status = std::process::Command::new("git")
+            .args([
+                "clone",
+                repo_path.to_str().unwrap(),
+                clone_path.to_str().unwrap(),
+            ])
+            .status()
+            .expect("Failed to clone repository");
+
+        assert!(status.success(), "Git clone failed");
+
+        (temp_dir, clone_path)
+    }
+
+    fn checkout_revision(repo_path: &Path, rev: &str) {
+        let fetch_status = std::process::Command::new("git")
+            .args(["fetch", "origin", rev])
+            .current_dir(repo_path)
+            .status()
+            .expect("Failed to execute git fetch");
+
+        assert!(fetch_status.success(), "Git fetch failed");
+
+        let checkout_status = std::process::Command::new("git")
+            .args(["checkout", rev])
+            .current_dir(repo_path)
+            .status()
+            .expect("Failed to execute git checkout");
+
+        assert!(checkout_status.success(), "Git checkout failed");
     }
 
     #[test]

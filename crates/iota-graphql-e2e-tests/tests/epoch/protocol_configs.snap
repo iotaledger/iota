@@ -10,7 +10,7 @@ task 1, line 7:
 //# create-checkpoint
 Checkpoint created: 1
 
-task 2, lines 9-20:
+task 2, lines 9-17:
 //# run-graphql
 Response: {
   "data": {
@@ -18,15 +18,12 @@ Response: {
       "protocolVersion": 4,
       "config": {
         "value": "128"
-      },
-      "featureFlag": {
-        "value": false
       }
     }
   }
 }
 
-task 3, lines 22-33:
+task 3, lines 19-27:
 //# run-graphql
 Response: {
   "data": {
@@ -34,9 +31,6 @@ Response: {
       "protocolVersion": 1,
       "config": {
         "value": "128"
-      },
-      "featureFlag": {
-        "value": false
       }
     }
   }

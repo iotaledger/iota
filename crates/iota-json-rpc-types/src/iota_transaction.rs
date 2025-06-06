@@ -17,7 +17,7 @@ use iota_types::{
     authenticator_state::ActiveJwk,
     base_types::{EpochId, IotaAddress, ObjectID, ObjectRef, SequenceNumber, TransactionDigest},
     crypto::IotaSignature,
-    digests::{CheckpointDigest, ConsensusCommitDigest, ObjectDigest, TransactionEventsDigest},
+    digests::{ConsensusCommitDigest, ObjectDigest, TransactionEventsDigest},
     effects::{TransactionEffects, TransactionEffectsAPI, TransactionEvents},
     error::{ExecutionError, IotaError, IotaResult},
     event::EventID,
@@ -531,16 +531,6 @@ impl IotaTransactionBlockKind {
                                     },
                                 )
                             }
-                            EndOfEpochTransactionKind::BridgeStateCreate(chain_id) => {
-                                IotaEndOfEpochTransactionKind::BridgeStateCreate(
-                                    (*chain_id.as_bytes()).into(),
-                                )
-                            }
-                            EndOfEpochTransactionKind::BridgeCommitteeInit(
-                                bridge_shared_version,
-                            ) => IotaEndOfEpochTransactionKind::BridgeCommitteeUpdate(
-                                bridge_shared_version,
-                            ),
                         })
                         .collect(),
                 })
@@ -619,14 +609,6 @@ impl IotaTransactionBlockKind {
                                         min_epoch: expire.min_epoch,
                                     },
                                 )
-                            }
-                            EndOfEpochTransactionKind::BridgeStateCreate(id) => {
-                                IotaEndOfEpochTransactionKind::BridgeStateCreate(
-                                    (*id.as_bytes()).into(),
-                                )
-                            }
-                            EndOfEpochTransactionKind::BridgeCommitteeInit(seq) => {
-                                IotaEndOfEpochTransactionKind::BridgeCommitteeUpdate(seq)
                             }
                         })
                         .collect(),
@@ -1670,8 +1652,6 @@ pub enum IotaEndOfEpochTransactionKind {
     ChangeEpochV2(IotaChangeEpochV2),
     AuthenticatorStateCreate,
     AuthenticatorStateExpire(IotaAuthenticatorStateExpire),
-    BridgeStateCreate(CheckpointDigest),
-    BridgeCommitteeUpdate(SequenceNumber),
 }
 
 #[serde_as]

@@ -36,7 +36,6 @@ nonempty.workspace = true
 num-bigint = { version = "0.4", default-features = false, features = ["rand"] }
 num-rational = "0.4"
 num-traits = "0.2.18"
-num_enum.workspace = true
 once_cell.workspace = true
 packable = { version = "0.8", default-features = false, features = ["io"] }
 parking_lot.workspace = true

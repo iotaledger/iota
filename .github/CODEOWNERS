@@ -152,10 +152,3 @@ vercel.json @iotaledger/tooling
 # Disable code ownership for these auto-generated files
 /Cargo.lock
 /pnpm-lock.yaml
-
-# TODO
-# Bridge related stuff will be skipped for now
-# /crates/iota-bridge/
-# /crates/iota-bridge-cli/
-# /crates/iota-bridge-indexer/
-# /bridge/

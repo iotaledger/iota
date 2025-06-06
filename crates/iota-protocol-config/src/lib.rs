@@ -19,7 +19,7 @@ use tracing::{info, warn};
 
 /// The minimum and maximum protocol versions supported by this build.
 const MIN_PROTOCOL_VERSION: u64 = 1;
-pub const MAX_PROTOCOL_VERSION: u64 = 8;
+pub const MAX_PROTOCOL_VERSION: u64 = 9;
 
 // Record history of protocol version allocations here:
 //
@@ -51,6 +51,7 @@ pub const MAX_PROTOCOL_VERSION: u64 = 8;
 //            Enable the new consensus commit rule for testnet.
 //            Enable min_free_execution_slot for the shared object congestion
 //            tracker in devnet.
+// Version 9: Remove the iota-bridge from the framework.
 
 #[derive(Copy, Clone, Debug, Hash, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ProtocolVersion(u64);
@@ -161,10 +162,6 @@ struct FeatureFlags {
 
     #[serde(skip_serializing_if = "is_false")]
     enable_jwk_consensus_updates: bool,
-
-    // Enable bridge protocol
-    #[serde(skip_serializing_if = "is_false")]
-    bridge: bool,
 
     // If true, multisig containing zkLogin sig is accepted.
     #[serde(skip_serializing_if = "is_false")]
@@ -1036,6 +1033,7 @@ pub struct ProtocolConfig {
     /// Bundle.
     max_soft_bundle_size: Option<u64>,
 
+    /// Deprecated because of bridge removal.
     /// Whether to try to form bridge committee
     // Note: this is not a feature flag because we want to distinguish between
     // `None` and `Some(false)`, as committee was already finalized on Testnet.
@@ -1099,18 +1097,6 @@ impl ProtocolConfig {
     pub fn dkg_version(&self) -> u64 {
         // Version 0 was deprecated and removed, the default is 1 if not set.
         self.random_beacon_dkg_version.unwrap_or(1)
-    }
-
-    pub fn enable_bridge(&self) -> bool {
-        self.feature_flags.bridge
-    }
-
-    pub fn should_try_to_finalize_bridge_committee(&self) -> bool {
-        if !self.enable_bridge() {
-            return false;
-        }
-        // In the older protocol version, always try to finalize the committee.
-        self.bridge_should_try_to_finalize_committee.unwrap_or(true)
     }
 
     pub fn accept_zklogin_in_multisig(&self) -> bool {
@@ -1983,6 +1969,10 @@ impl ProtocolConfig {
                         cfg.feature_flags.congestion_control_min_free_execution_slot = true;
                     }
                 }
+                9 => {
+                    // this flag is now deprecated because of the bridge removal.
+                    cfg.bridge_should_try_to_finalize_committee = None;
+                }
                 // Use this template when making changes:
                 //
                 //     // modify an existing constant.
@@ -2089,9 +2079,6 @@ impl ProtocolConfig {
 
     pub fn set_zklogin_max_epoch_upper_bound_delta_for_testing(&mut self, val: Option<u64>) {
         self.feature_flags.zklogin_max_epoch_upper_bound_delta = val
-    }
-    pub fn set_disable_bridge_for_testing(&mut self) {
-        self.feature_flags.bridge = false
     }
 
     pub fn set_passkey_auth_for_testing(&mut self, val: bool) {

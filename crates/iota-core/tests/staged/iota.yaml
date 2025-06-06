@@ -52,9 +52,6 @@ CallArg:
       Object:
         NEWTYPE:
           TYPENAME: ObjectArg
-ChainIdentifier:
-  NEWTYPESTRUCT:
-    TYPENAME: CheckpointDigest
 ChangeEpoch:
   STRUCT:
     - epoch: U64
@@ -340,14 +337,6 @@ EndOfEpochTransactionKind:
       AuthenticatorStateExpire:
         NEWTYPE:
           TYPENAME: AuthenticatorStateExpire
-    4:
-      BridgeStateCreate:
-        NEWTYPE:
-          TYPENAME: ChainIdentifier
-    5:
-      BridgeCommitteeInit:
-        NEWTYPE:
-          TYPENAME: SequenceNumber
 Envelope:
   STRUCT:
     - data:

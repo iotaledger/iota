@@ -1301,11 +1301,10 @@
             "name": "Result",
             "value": {
               "minSupportedProtocolVersion": "1",
-              "maxSupportedProtocolVersion": "8",
+              "maxSupportedProtocolVersion": "9",
               "protocolVersion": "6",
               "featureFlags": {
                 "accept_zklogin_in_multisig": false,
-                "bridge": false,
                 "congestion_control_min_free_execution_slot": false,
                 "consensus_distributed_vote_scoring_strategy": false,
                 "consensus_linearize_subdag_v2": false,
@@ -8033,30 +8032,6 @@
             "properties": {
               "AuthenticatorStateExpire": {
                 "$ref": "#/components/schemas/IotaAuthenticatorStateExpire"
-              }
-            },
-            "additionalProperties": false
-          },
-          {
-            "type": "object",
-            "required": [
-              "BridgeStateCreate"
-            ],
-            "properties": {
-              "BridgeStateCreate": {
-                "$ref": "#/components/schemas/CheckpointDigest"
-              }
-            },
-            "additionalProperties": false
-          },
-          {
-            "type": "object",
-            "required": [
-              "BridgeCommitteeUpdate"
-            ],
-            "properties": {
-              "BridgeCommitteeUpdate": {
-                "$ref": "#/components/schemas/SequenceNumber"
               }
             },
             "additionalProperties": false

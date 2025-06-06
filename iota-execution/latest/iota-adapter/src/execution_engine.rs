@@ -14,9 +14,8 @@ mod checked {
     #[cfg(msim)]
     use iota_types::iota_system_state::advance_epoch_result_injection::maybe_modify_result;
     use iota_types::{
-        BRIDGE_ADDRESS, IOTA_AUTHENTICATOR_STATE_OBJECT_ID, IOTA_BRIDGE_OBJECT_ID,
-        IOTA_FRAMEWORK_ADDRESS, IOTA_FRAMEWORK_PACKAGE_ID, IOTA_RANDOMNESS_STATE_OBJECT_ID,
-        IOTA_SYSTEM_PACKAGE_ID,
+        IOTA_AUTHENTICATOR_STATE_OBJECT_ID, IOTA_FRAMEWORK_ADDRESS, IOTA_FRAMEWORK_PACKAGE_ID,
+        IOTA_RANDOMNESS_STATE_OBJECT_ID, IOTA_SYSTEM_PACKAGE_ID,
         authenticator_state::{
             AUTHENTICATOR_STATE_CREATE_FUNCTION_NAME,
             AUTHENTICATOR_STATE_EXPIRE_JWKS_FUNCTION_NAME, AUTHENTICATOR_STATE_MODULE_NAME,
@@ -29,13 +28,8 @@ mod checked {
         base_types::{
             IotaAddress, ObjectID, ObjectRef, SequenceNumber, TransactionDigest, TxContext,
         },
-        bridge::{
-            BRIDGE_COMMITTEE_MINIMAL_VOTING_POWER, BRIDGE_CREATE_FUNCTION_NAME,
-            BRIDGE_INIT_COMMITTEE_FUNCTION_NAME, BRIDGE_MODULE_NAME, BridgeChainId,
-        },
         clock::{CLOCK_MODULE_NAME, CONSENSUS_COMMIT_PROLOGUE_FUNCTION_NAME},
         committee::EpochId,
-        digests::{ChainIdentifier, get_mainnet_chain_identifier, get_testnet_chain_identifier},
         effects::TransactionEffects,
         error::{ExecutionError, ExecutionErrorKind},
         execution::{ExecutionResults, ExecutionResultsV1, is_certificate_denied},
@@ -43,7 +37,6 @@ mod checked {
         execution_status::{CongestedObjects, ExecutionStatus},
         gas::{GasCostSummary, IotaGasStatus},
         gas_coin::GAS,
-        id::UID,
         inner_temporary_store::InnerTemporaryStore,
         iota_system_state::{
             ADVANCE_EPOCH_FUNCTION_NAME, AdvanceEpochParams, IOTA_SYSTEM_MODULE_NAME,
@@ -62,7 +55,6 @@ mod checked {
         },
     };
     use move_binary_format::CompiledModule;
-    use move_core_types::ident_str;
     use move_trace_format::format::MoveTraceBuilder;
     use move_vm_runtime::move_vm::MoveVM;
     use tracing::{info, instrument, trace, warn};
@@ -714,15 +706,6 @@ mod checked {
                             // safe mode.
                             builder = setup_authenticator_state_expire(builder, expire);
                         }
-                        EndOfEpochTransactionKind::BridgeStateCreate(chain_id) => {
-                            assert!(protocol_config.enable_bridge());
-                            builder = setup_bridge_create(builder, chain_id)
-                        }
-                        EndOfEpochTransactionKind::BridgeCommitteeInit(bridge_shared_version) => {
-                            assert!(protocol_config.enable_bridge());
-                            assert!(protocol_config.should_try_to_finalize_bridge_committee());
-                            builder = setup_bridge_committee_update(builder, bridge_shared_version)
-                        }
                     }
                 }
                 unreachable!(
@@ -1178,80 +1161,6 @@ mod checked {
                 vec![],
             )
             .expect("Unable to generate authenticator_state_create transaction!");
-        builder
-    }
-
-    /// Configures a `ProgrammableTransactionBuilder` to create a bridge.
-    fn setup_bridge_create(
-        mut builder: ProgrammableTransactionBuilder,
-        chain_id: ChainIdentifier,
-    ) -> ProgrammableTransactionBuilder {
-        let bridge_uid = builder
-            .input(CallArg::Pure(
-                UID::new(IOTA_BRIDGE_OBJECT_ID).to_bcs_bytes(),
-            ))
-            .expect("Unable to create Bridge object UID!");
-
-        let bridge_chain_id = if chain_id == get_mainnet_chain_identifier() {
-            BridgeChainId::IotaMainnet as u8
-        } else if chain_id == get_testnet_chain_identifier() {
-            BridgeChainId::IotaTestnet as u8
-        } else {
-            // How do we distinguish devnet from other test envs?
-            BridgeChainId::IotaCustom as u8
-        };
-
-        let bridge_chain_id = builder.pure(bridge_chain_id).unwrap();
-        builder.programmable_move_call(
-            BRIDGE_ADDRESS.into(),
-            BRIDGE_MODULE_NAME.to_owned(),
-            BRIDGE_CREATE_FUNCTION_NAME.to_owned(),
-            vec![],
-            vec![bridge_uid, bridge_chain_id],
-        );
-        builder
-    }
-
-    /// Configures a `ProgrammableTransactionBuilder` to update the bridge
-    /// committee.
-    fn setup_bridge_committee_update(
-        mut builder: ProgrammableTransactionBuilder,
-        bridge_shared_version: SequenceNumber,
-    ) -> ProgrammableTransactionBuilder {
-        let bridge = builder
-            .obj(ObjectArg::SharedObject {
-                id: IOTA_BRIDGE_OBJECT_ID,
-                initial_shared_version: bridge_shared_version,
-                mutable: true,
-            })
-            .expect("Unable to create Bridge object arg!");
-        let system_state = builder
-            .obj(ObjectArg::IOTA_SYSTEM_MUT)
-            .expect("Unable to create System State object arg!");
-
-        let voting_power = builder.programmable_move_call(
-            IOTA_SYSTEM_PACKAGE_ID,
-            IOTA_SYSTEM_MODULE_NAME.to_owned(),
-            ident_str!("validator_voting_powers").to_owned(),
-            vec![],
-            vec![system_state],
-        );
-
-        // Hardcoding min stake participation to 75.00%
-        // TODO: We need to set a correct value or make this configurable.
-        let min_stake_participation_percentage = builder
-            .input(CallArg::Pure(
-                bcs::to_bytes(&BRIDGE_COMMITTEE_MINIMAL_VOTING_POWER).unwrap(),
-            ))
-            .unwrap();
-
-        builder.programmable_move_call(
-            BRIDGE_ADDRESS.into(),
-            BRIDGE_MODULE_NAME.to_owned(),
-            BRIDGE_INIT_COMMITTEE_FUNCTION_NAME.to_owned(),
-            vec![],
-            vec![bridge, voting_power, min_stake_participation_percentage],
-        );
         builder
     }
 

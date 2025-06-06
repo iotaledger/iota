@@ -2,7 +2,7 @@
 source: crates/iota-protocol-config/src/lib.rs
 expression: "ProtocolConfig::get_for_version(cur, *chain_id)"
 ---
-version: 7
+version: 9
 feature_flags:
   consensus_transaction_ordering: ByGasPrice
   per_object_congestion_control_mode: TotalTxCount
@@ -12,6 +12,7 @@ feature_flags:
   disallow_new_modules_in_deps_only_packages: true
   native_charging_v2: true
   convert_type_argument_error: true
+  variant_nodes: true
 max_tx_size_bytes: 131072
 max_input_objects: 2048
 max_size_written_objects: 5000000
@@ -279,6 +280,5 @@ max_deferral_rounds_for_congestion_control: 10
 min_checkpoint_interval_ms: 200
 checkpoint_summary_version_specific_data: 1
 max_soft_bundle_size: 5
-bridge_should_try_to_finalize_committee: false
 max_accumulated_txn_cost_per_object_in_mysticeti_commit: 10
 max_committee_members_count: 50
