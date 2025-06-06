@@ -42,6 +42,86 @@ async function getChainIdentifier() {
 }
 ```
 
+## Dynamic Network Configuration with getGraphQLUrl
+
+For production applications, you'll need to dynamically select network endpoints. Here's how to use the `getGraphQLUrl` helper with your exact implementation:
+
+### 1. Environment Configuration
+
+Configure your `.env` file with network endpoints:
+
+```
+IOTA_NETWORKS='{
+  "mainnet": {
+    "url": "https://api.mainnet.iota.cafe",
+    "graphql": "https://graphql.mainnet.iota.cafe"
+  },
+  "testnet": {
+    "url": "https://api.testnet.iota.cafe",
+    "graphql": "https://graphql.testnet.iota.cafe"
+  },
+  "devnet": {
+    "url": "https://api.devnet.iota.cafe",
+    "graphql": "https://graphql.devnet.iota.cafe"
+  }
+}'
+
+DEFAULT_NETWORK=testnet
+```
+
+### 2. Implementation Example
+The `getGraphQLUrl` helper dynamically retrieves endpoints from your environment configuration, making it easy to switch between networks while maintaining type safety.
+
+```typescript
+import 'dotenv/config';
+import { Network, NetworkId, getNetwork } from '@iota/iota-sdk/client';
+import { IotaGraphQLClient } from '@iota/iota-sdk/graphql';
+
+import { graphql } from '@iota/iota-sdk/graphql/schemas/2025.2';
+
+function getGraphQLUrl(network: Network): string {
+    const url = getNetwork(network).graphql;
+    if (!url) {
+        throw new Error(`GraphQL URL not configured for network: ${network}`);
+    }
+    console.log(`GraphQL URL for ${network}: ${url}`);
+    return url;
+}
+
+async function main() {
+    try {
+
+        const network = Network.Testnet;
+        const graphqlUrl = getGraphQLUrl(network);
+        
+        console.log(`Connecting to GraphQL endpoint: ${graphqlUrl}`);
+
+        const gqlClient = new IotaGraphQLClient({
+            url: graphqlUrl,
+        });
+
+        const chainIdentifierQuery = graphql(`
+            query {
+                chainIdentifier
+            }
+        `);
+
+        const result = await gqlClient.query({
+            query: chainIdentifierQuery,
+            variables: {},
+        });
+
+        console.log('Chain Identifier:', result.data?.chainIdentifier);
+    } catch (error) {
+        console.error('Error:', error);
+        process.exit(1);
+    }
+}
+
+main();
+```
+
+
 ## Type-safety for GraphQL queries
 
 You may have noticed the example above does not include any type definitions for the query. The
