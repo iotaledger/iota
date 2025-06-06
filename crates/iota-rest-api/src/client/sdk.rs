@@ -13,7 +13,7 @@ use tap::Pipe;
 use crate::{
     ExecuteTransactionQueryParameters,
     accounts::{AccountOwnedObjectInfo, ListAccountOwnedObjectsQueryParameters},
-    checkpoints::ListCheckpointsQueryParameters,
+    checkpoints::{CheckpointResponse, ListCheckpointsQueryParameters},
     coins::CoinInfo,
     health::Threshold,
     info::NodeInfo,
@@ -265,7 +265,7 @@ impl Client {
     pub async fn get_checkpoint(
         &self,
         checkpoint_sequence_number: CheckpointSequenceNumber,
-    ) -> Result<Response<SignedCheckpointSummary>> {
+    ) -> Result<Response<CheckpointResponse>> {
         let url = self
             .url()
             .join(&format!("checkpoints/{checkpoint_sequence_number}"))?;
@@ -285,6 +285,7 @@ impl Client {
             limit: Some(1),
             start: None,
             direction: None,
+            contents: false,
         };
 
         let (mut page, parts) = self.list_checkpoints(&parameters).await?.into_parts();
@@ -292,6 +293,10 @@ impl Client {
         let checkpoint = page
             .pop()
             .ok_or_else(|| Error::new_message("server returned empty checkpoint list"))?;
+        let checkpoint = SignedCheckpointSummary {
+            checkpoint: checkpoint.checkpoint,
+            signature: checkpoint.signature,
+        };
 
         Ok(Response::new(checkpoint, parts))
     }
@@ -299,7 +304,7 @@ impl Client {
     pub async fn list_checkpoints(
         &self,
         parameters: &ListCheckpointsQueryParameters,
-    ) -> Result<Response<Vec<SignedCheckpointSummary>>> {
+    ) -> Result<Response<Vec<CheckpointResponse>>> {
         let url = self.url().join("checkpoints")?;
 
         let response = self
@@ -671,8 +676,8 @@ impl From<url::ParseError> for Error {
     }
 }
 
-impl From<iota_types::iota_sdk2_conversions::SdkTypeConversionError> for Error {
-    fn from(value: iota_types::iota_sdk2_conversions::SdkTypeConversionError) -> Self {
+impl From<iota_types::iota_sdk_types_conversions::SdkTypeConversionError> for Error {
+    fn from(value: iota_types::iota_sdk_types_conversions::SdkTypeConversionError) -> Self {
         Self::from_error(value)
     }
 }

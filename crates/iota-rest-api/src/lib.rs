@@ -48,6 +48,12 @@ pub enum Direction {
     Descending,
 }
 
+impl Direction {
+    pub fn is_descending(self) -> bool {
+        matches!(self, Self::Descending)
+    }
+}
+
 #[derive(Debug)]
 pub struct Page<T, C> {
     pub entries: response::ResponseContent<Vec<T>>,
@@ -68,15 +74,18 @@ impl<T: serde::Serialize, C: std::fmt::Display> axum::response::IntoResponse for
 }
 
 const ENDPOINTS: &[&dyn ApiEndpoint<RestService>] = &[
+    // stable APIs
     &info::GetNodeInfo,
     &health::HealthCheck,
+    &checkpoints::ListCheckpoints,
+    &checkpoints::GetCheckpoint,
+    // unstable APIs
     &accounts::ListAccountObjects,
     &objects::GetObject,
     &objects::GetObjectWithVersion,
     &objects::ListDynamicFields,
-    &checkpoints::ListCheckpoints,
-    &checkpoints::GetCheckpoint,
-    &checkpoints::GetCheckpointFull,
+    &checkpoints::GetFullCheckpoint,
+    &checkpoints::ListFullCheckpoints,
     &transactions::GetTransaction,
     &transactions::ListTransactions,
     &committee::GetCommittee,
@@ -97,6 +106,7 @@ pub struct RestService {
     chain_id: iota_types::digests::ChainIdentifier,
     software_version: &'static str,
     metrics: Option<Arc<RestMetrics>>,
+    config: Config,
 }
 
 impl axum::extract::FromRef<RestService> for StateReader {
@@ -120,11 +130,16 @@ impl RestService {
             chain_id,
             software_version,
             metrics: None,
+            config: Config::default(),
         }
     }
 
     pub fn new_without_version(reader: Arc<dyn RestStateReader>) -> Self {
         Self::new(reader, "unknown")
+    }
+
+    pub fn with_config(&mut self, config: Config) {
+        self.config = config;
     }
 
     pub fn with_executor(&mut self, executor: Arc<dyn TransactionExecutor + Send + Sync>) {
@@ -146,9 +161,14 @@ impl RestService {
     pub fn into_router(self) -> Router {
         let metrics = self.metrics.clone();
 
-        let mut api = openapi::Api::new(info());
+        let mut api = openapi::Api::new(info(self.software_version()));
 
-        api.register_endpoints(ENDPOINTS.to_owned());
+        api.register_endpoints(
+            ENDPOINTS
+                .iter()
+                .copied()
+                .filter(|endpoint| endpoint.stable() || self.config.enable_unstable_apis()),
+        );
 
         Router::new()
             .nest("/api/v1/", api.to_router().with_state(self.clone()))
@@ -174,7 +194,7 @@ impl RestService {
     }
 }
 
-fn info() -> openapiv3::v3_1::Info {
+fn info(version: &'static str) -> openapiv3::v3_1::Info {
     use openapiv3::v3_1::{Contact, License};
 
     openapiv3::v3_1::Info {
@@ -190,8 +210,33 @@ fn info() -> openapiv3::v3_1::Info {
             url: Some("https://www.apache.org/licenses/LICENSE-2.0.html".to_owned()),
             ..Default::default()
         }),
-        version: "0.0.0".to_owned(),
+        version: version.to_owned(),
         ..Default::default()
+    }
+}
+
+#[derive(Clone, Debug, Default, serde::Deserialize, serde::Serialize)]
+#[serde(rename_all = "kebab-case")]
+pub struct Config {
+    /// Enable serving of unstable APIs
+    ///
+    /// Defaults to `false`, with unstable APIs being disabled
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub enable_unstable_apis: Option<bool>,
+
+    // Only include this till we have another field that isn't set with a non-default value for
+    // testing
+    #[doc(hidden)]
+    #[serde(skip)]
+    pub _hidden: (),
+}
+
+impl Config {
+    pub fn enable_unstable_apis(&self) -> bool {
+        // TODO
+        // Until the rest service as a whole is "stabilized" with a sane set of default
+        // stable apis, have the default be to enable all apis
+        self.enable_unstable_apis.unwrap_or(true)
     }
 }
 
@@ -237,9 +282,9 @@ mod test {
             concat!(env!("CARGO_MANIFEST_DIR"), "/openapi/openapi.json");
 
         let openapi = {
-            let mut api = openapi::Api::new(info());
+            let mut api = openapi::Api::new(info("unknown"));
 
-            api.register_endpoints(ENDPOINTS.to_owned());
+            api.register_endpoints(ENDPOINTS.iter().copied());
             api.openapi()
         };
 
@@ -275,7 +320,7 @@ mod test {
         }
 
         let openapi = {
-            let mut api = openapi::Api::new(info());
+            let mut api = openapi::Api::new(info("unknown"));
             api.register_endpoints(ENDPOINTS.to_owned());
             api.openapi()
         };

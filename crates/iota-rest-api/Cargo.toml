@@ -11,6 +11,7 @@ anyhow.workspace = true
 async-trait.workspace = true
 axum = { workspace = true, features = ["matched-path"] }
 bcs.workspace = true
+documented = "0.6.0"
 fastcrypto.workspace = true
 iota-sdk2.workspace = true
 itertools.workspace = true
