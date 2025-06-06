@@ -4,6 +4,7 @@
 
 const developer = [
     'developer/developer',
+    'developer/network-overview',
     {
         type: 'category',
         label: 'Getting Started',
@@ -30,11 +31,10 @@ const developer = [
             'developer/getting-started/oracles',
         ],
     },
-        {
+    {
         type: 'category',
         label: 'Explanations',
         items: [
-            'developer/network-overview',
             {
                 type: 'category',
                 label: 'Object Model',
@@ -228,7 +228,7 @@ const developer = [
             },
         ]
     },
-        {
+    {
         type: 'category',
         label: 'How To',
         items: [
@@ -507,8 +507,6 @@ const developer = [
             },
         ],
     },
-    
-    
     'developer/exchange-integration',
 ];
 module.exports = developer;
