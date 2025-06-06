@@ -160,12 +160,14 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
 ```
 
 :::info Style Requirements
+
 The dApp Kit components are built on top of Radix UI. Make sure to import both the dApp Kit and Radix UI styles for the components to work properly:
 ```ts
 import '@iota/dapp-kit/dist/index.css';
 import '@radix-ui/themes/styles.css';
 ```
 This is especially important for Next.js applications where the wallet connect button may not respond without the Radix UI styles.
+
 :::
 
 ## Connecting to a Wallet
