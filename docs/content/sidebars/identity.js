@@ -5,50 +5,6 @@ const identity = [
     'iota-identity/index',
     {
         type: 'category',
-        label: 'Getting Started',
-        collapsed: false,
-        items: [
-            'iota-identity/getting-started/rust',
-            'iota-identity/getting-started/wasm',
-            'iota-identity/getting-started/local-network-setup',
-            'iota-identity/getting-started/universal-resolver'
-        ],
-    },
-    {
-        type: 'category',
-        label: 'References',
-        collapsed: true,
-        items: [
-            {
-                type: 'category',
-                label: 'API',
-                items: [
-                    {
-                        type: 'link',
-                        label: 'Rust',
-                        href: 'https://iotaledger.github.io/identity.rs/identity_iota/index.html',
-                    },
-                    {
-                        type: 'link',
-                        label: 'Wasm',
-                        href: 'references/iota-identity/wasm/api_ref',
-                    },
-                ],
-            },
-            {
-                type: 'category',
-                label: 'Specifications',
-                items: [
-                    'references/iota-identity/overview',
-                    'references/iota-identity/iota-did-method-spec',
-                    'references/iota-identity/revocation-bitmap-2022',
-                    'references/iota-identity/revocation-timeframe-2024',
-                ],
-            },
-        ],
-    },
-    {
-        type: 'category',
         label: 'Explanations',
         items: [
             'iota-identity/explanations/decentralized-identifiers',
@@ -95,6 +51,51 @@ const identity = [
             'iota-identity/how-tos/key-storage',
         ],
     },
+    {
+        type: 'category',
+        label: 'Tutorials',
+        collapsed: false,
+        items: [
+            'iota-identity/getting-started/rust',
+            'iota-identity/getting-started/wasm',
+            'iota-identity/getting-started/local-network-setup',
+            'iota-identity/getting-started/universal-resolver'
+        ],
+    },
+    {
+        type: 'category',
+        label: 'References',
+        collapsed: true,
+        items: [
+            {
+                type: 'category',
+                label: 'API',
+                items: [
+                    {
+                        type: 'link',
+                        label: 'Rust',
+                        href: 'https://iotaledger.github.io/identity.rs/identity_iota/index.html',
+                    },
+                    {
+                        type: 'link',
+                        label: 'Wasm',
+                        href: 'references/iota-identity/wasm/api_ref',
+                    },
+                ],
+            },
+            {
+                type: 'category',
+                label: 'Specifications',
+                items: [
+                    'references/iota-identity/overview',
+                    'references/iota-identity/iota-did-method-spec',
+                    'references/iota-identity/revocation-bitmap-2022',
+                    'references/iota-identity/revocation-timeframe-2024',
+                ],
+            },
+        ],
+    },
+    
     
     'iota-identity/contribute',
 ];
