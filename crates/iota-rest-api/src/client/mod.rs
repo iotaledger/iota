@@ -69,7 +69,14 @@ impl Client {
             .get_checkpoint(checkpoint_sequence_number)
             .await
             .map(Response::into_inner)
-            .and_then(|checkpoint| checkpoint.try_into().map_err(Into::into))
+            .and_then(|checkpoint| {
+                iota_sdk2::types::SignedCheckpointSummary {
+                    checkpoint: checkpoint.checkpoint,
+                    signature: checkpoint.signature,
+                }
+                .try_into()
+                .map_err(Into::into)
+            })
     }
 
     pub async fn get_object(&self, object_id: ObjectID) -> Result<Object> {
