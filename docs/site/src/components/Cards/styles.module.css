@@ -1,15 +1,15 @@
 :root {
-  --iota-cards-border-color: transparent;
-  --iota-cards-background: #f5f8fa;
+  --iota-cards-border-color: rgba(0, 0, 0, 0.1);
+  --iota-cards-background: #f6f8f9;
   --iota-cards-header: #4da2ff;
   --iota-cards-copy: #91a3b1;
   --iota-cards-background-hover: #ebf1f5;
 }
 
 [data-theme="dark"] {
-  --iota-cards-border-color: rgba(247, 247, 248, 0.05);
-  --iota-cards-background: black;
-  --iota-cards-background-hover: rgba(247, 247, 248, 0.15);
+  --iota-cards-border-color: rgba(255, 255, 255, 0.1);
+  --iota-cards-background: rgba(40, 40, 40, 0.8);
+  --iota-cards-background-hover: rgba(32, 32, 32, 0.8);
   --iota-cards-header: #4da2ff;
   --iota-cards-copy: #abbdcc;
 }
@@ -29,6 +29,7 @@
 }
 .card:hover {
   background: var(--iota-cards-background-hover);
+  border-color: var(--iota-cards-border-color);
 }
 
 .card__header__copy {
