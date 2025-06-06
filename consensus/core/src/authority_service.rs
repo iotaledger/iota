@@ -235,7 +235,7 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
         // Update validator score
         self.context
             .scoring_metrics
-            .update_verified_blocks_this_epoch(block.author(),1);
+            .update_verified_blocks_this_epoch(block_ref.author,1);
 
         let missing_ancestors = self
             .core_dispatcher

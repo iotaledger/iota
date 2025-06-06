@@ -8,6 +8,7 @@ use std::{
     sync::Arc,
     time::Duration,
     vec,
+    sync::atomic::Ordering,
 };
 
 use consensus_config::{AuthorityIndex, ProtocolKeyPair};
@@ -322,20 +323,19 @@ impl Core {
         }
         // Update the metrics for seen blocks used in scoring, if a new epoch is detected update
         // the missing proposals
-        self.signals.new_round(new_round);
         let blocks = accepted_blocks.clone();
         for block in blocks {
-           if block.epoch() > self.context.scoring_metrics.last_seen_epoch {
+           if block.epoch() > self.context.scoring_metrics.last_seen_epoch.load(Ordering::Relaxed) {
                self.context.scoring_metrics.update_last_seen_epoch(block.epoch());
                // If a block from a new epoch is received, then an epoch advancement happened and
                // we update the missing proposals metric. This function assumes we receive at least
                // one block from every round.
-               let authorities = self.context.committee.authorities.clone();
+               let authorities_num = self.context.committee.authorities().count();
                // Committee may have changed, so a validator dropping out would only update his
                // metrics when he is back in the committee
-               for authority_index in 0..authorities.len() {
-                   let missing_proposals: u64 = block.round() - self.context.scoring_metrics.get_first_round_this_epoch()-self.context.scoring_metrics.get_verified_blocks_this_epoch(authority_index);
-                   self.context.scoring_metrics.update_missing_block_proposals(authority_index, missing_proposals);
+               for authority_index in 0..authorities_num {
+                   let missing_proposals = u64::from(block.round()) - self.context.scoring_metrics.get_first_round_this_epoch()-self.context.scoring_metrics.get_verified_blocks_this_epoch(self.context.committee.to_authority_index(authority_index).unwrap());
+                   self.context.scoring_metrics.update_missing_block_proposals(self.context.committee.to_authority_index(authority_index).unwrap(), missing_proposals);
                }
                self.context.scoring_metrics.reset_verified_blocks_this_epoch();
                self.context.scoring_metrics.update_first_round_this_epoch(block.round());
