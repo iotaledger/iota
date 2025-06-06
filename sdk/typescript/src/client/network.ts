@@ -63,9 +63,13 @@ export function getNetwork<T>(network: NetworkId): NetworkConfiguration<T> {
 }
 
 export function getDefaultNetwork(): Network {
-    return (process.env.DEFAULT_NETWORK as Network) || Network.Mainnet || Network.Testnet;
+    return (process.env.DEFAULT_NETWORK as Network) || Network.Mainnet;
 }
 
 export function getFullnodeUrl(network: NetworkId): string {
     return getNetwork(network).url;
+}
+
+export function getGraphQLUrl(network: NetworkId): string | undefined {
+    return getNetwork(network).graphql;
 }

@@ -131,7 +131,8 @@ async fn test_async_verifier() {
         committee.clone(),
         metrics,
         ZkLoginEnv::Test,
-        true,
+        true, // accept_zklogin_in_multisig
+        true, // accept_passkey_in_multisig
         Some(30),
     ));
 

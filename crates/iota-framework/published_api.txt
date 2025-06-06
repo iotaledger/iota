@@ -47,7 +47,7 @@ process_pending_stakes_and_withdraws
 	public(package) fun
 	0x3::staking_pool
 process_pending_stake_withdraw
-	fun
+	public(package) fun
 	0x3::staking_pool
 process_pending_stake
 	public(package) fun
@@ -252,6 +252,9 @@ stake_amount
 	0x3::validator
 total_stake
 	public fun
+	0x3::validator
+next_epoch_stake
+	public(package) fun
 	0x3::validator
 voting_power
 	public fun
@@ -1550,6 +1553,9 @@ peel_vec_u128
 	public fun
 	0x2::bcs
 peel_vec_u256
+	public fun
+	0x2::bcs
+peel_enum_tag
 	public fun
 	0x2::bcs
 peel_option_address

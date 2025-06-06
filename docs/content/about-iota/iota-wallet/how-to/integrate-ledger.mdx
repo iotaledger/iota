@@ -4,6 +4,7 @@ teams:
    - iotaledger/tooling
 tags: [iota-wallet]
 ---
+import LedgerDevices from '../../../_snippets/about-iota/ledger_devices.mdx';
 
 # Use IOTA Wallet with a Ledger Device
 
@@ -17,6 +18,8 @@ Before connecting your Ledger device to IOTA Wallet, ensure the following:
 - Install the latest version of [IOTA Wallet](https://chromewebstore.google.com/detail/iota-wallet/iidjkmdceolghepehaaddojmnjnkkija) from the Chrome Web Store.
 - Set up your Ledger device and update it to the latest firmware.
 - Install [Ledger Live](https://www.ledger.com/ledger-live) and confirm that your device can connect successfully.
+
+<LedgerDevices />
 
 ## Install the IOTA App on Your Ledger Device
 
@@ -33,6 +36,14 @@ Ledger Live is preferred, but you need to install the app manually for deprecate
 6. Your device will show the installation progress.
 
 ### Manually (for deprecated devices such as Ledger Nano S)
+
+:::warning
+
+The Ledger Nano S reached its end of life in June 2022 (https://shop.ledger.com/pages/ledger-os-and-device-apps-policy).
+To ensure continued security, compatibility, and performance, we strongly recommend upgrading to a newer device.
+Carry out the manual installation at your own risk.
+
+:::
 
 #### Requirements
 
@@ -62,6 +73,8 @@ Right click and choose `Download Linked File`. This makes sure Safari doesn't un
 6. Follow the steps on https://github.com/LedgerHQ/ledgerctl to install `ledgerctl`.
 7. If you don't already have your ledger device connected, connect and unlock it now.
 8. Install the app on your device `ledgerctl install -f app_nanos.json`.
+   If you get this error message: `ledgerwallet.client.CommException: Exception : Invalid status 5103 (Unknown reason)`, then it means that you do not have enough space left for the app.
+   Delete an existing app on your device and try the install command again. You can delete an app in Ledger Live or with `ledgerctl` by running `ledgerctl list` and then `ledgerctl delete <app_name>`.
 9. Accept `Allow unsafe manager` on your device.
 10. Follow the instructions on your device to uninstall the old app if needed.
 11. Accept `Perform installation` on your device.

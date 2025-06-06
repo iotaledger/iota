@@ -11,7 +11,7 @@ import { ThemedIotaLogo } from '../ThemedIotaLogo';
 function FooterLinks(): JSX.Element {
     return (
         <div className="flex flex-col items-center justify-center gap-6 md:flex-row md:justify-end">
-            <ul className="flex flex-wrap gap-4 md:flex-row md:gap-6">
+            <ul className="flex flex-wrap justify-center gap-4 md:flex-row md:gap-6">
                 {FOOTER_LINKS.map(({ title, href }) => (
                     <li key={href}>
                         <Link
@@ -36,22 +36,22 @@ export function Footer(): JSX.Element {
                     <div className="hidden self-center md:flex md:self-start">
                         <ThemedIotaLogo />
                     </div>
-                    <div>
-                        <FooterLinks />
-                    </div>
+                    <FooterLinks />
                 </div>
                 <Divider />
-                <div className="flex flex-col-reverse justify-center gap-3 pt-3 md:flex-row md:justify-between">
-                    <LegalText />
-                    <LegalLinks />
+                <div className="flex flex-col gap-y-8">
+                    <div className="flex flex-col-reverse justify-center gap-3 pt-3 md:flex-row md:justify-between">
+                        <LegalText />
+                        <LegalLinks />
+                    </div>
+                    <div className="flex justify-center md:hidden md:self-start">
+                        <ThemedIotaLogo />
+                    </div>
+                    <p className="w-full text-center text-body-sm text-neutral-40 dark:text-neutral-60">
+                        {EXPLORER_REV}
+                    </p>
                 </div>
             </nav>
-            <div className="mt-4 flex justify-center pt-5 md:hidden md:self-start">
-                <ThemedIotaLogo />
-            </div>
-            <p className="mt-8 w-full text-center text-body-sm text-neutral-40 dark:text-neutral-60">
-                {EXPLORER_REV}
-            </p>
         </footer>
     );
 }

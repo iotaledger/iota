@@ -4,7 +4,7 @@
 
 use std::fmt::{Display, Formatter, Write};
 
-use anyhow::anyhow;
+use anyhow::{anyhow, bail};
 use getset::{Getters, MutGetters};
 use iota_config::Config;
 use iota_keys::keystore::{AccountKeystore, Keystore};
@@ -206,9 +206,7 @@ impl IotaEnv {
         if let Some(basic_auth) = &self.basic_auth {
             let fields: Vec<_> = basic_auth.split(':').collect();
             if fields.len() != 2 {
-                return Err(anyhow!(
-                    "Basic auth should be in the format `username:password`"
-                ));
+                bail!("Basic auth should be in the format `username:password`");
             }
             builder = builder.basic_auth(fields[0], fields[1]);
         }

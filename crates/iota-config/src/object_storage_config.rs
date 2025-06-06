@@ -4,7 +4,7 @@
 
 use std::{env, fs, path::PathBuf, sync::Arc};
 
-use anyhow::{Context, Result, anyhow};
+use anyhow::{Context, Result, anyhow, bail};
 use clap::*;
 use object_store::{ClientOptions, DynObjectStore, aws::AmazonS3Builder};
 use reqwest::header::{HeaderMap, HeaderName, HeaderValue};
@@ -123,7 +123,7 @@ impl ObjectStoreConfig {
                 .context(anyhow!("failed to create local object store"))?;
             Ok(Arc::new(store))
         } else {
-            Err(anyhow!("no directory provided for local fs storage"))
+            bail!("no directory provided for local fs storage");
         }
     }
     fn new_s3(&self) -> Result<Arc<DynObjectStore>, anyhow::Error> {
@@ -236,7 +236,7 @@ impl ObjectStoreConfig {
             Some(ObjectStoreType::S3) => self.new_s3(),
             Some(ObjectStoreType::GCS) => self.new_gcs(),
             Some(ObjectStoreType::Azure) => self.new_azure(),
-            _ => Err(anyhow!("at least one storage backend should be provided")),
+            _ => bail!("at least one storage backend should be provided"),
         }
     }
 }

@@ -3,20 +3,11 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{
-    collections::{BTreeMap, HashMap},
-    env,
-    fmt::Write as FmtWrite,
-    fs::{self, File},
-    io::{self, BufRead, Write},
-    path::{Path, PathBuf},
-    process::Command,
-};
+use crate::{DEFAULT_BUILD_DIR, DEFAULT_STORAGE_DIR};
 
 use move_command_line_common::{
     env::read_bool_env_var,
     files::{find_filenames, path_to_string},
-    testing::{add_update_baseline_fix, format_diff, read_env_update_baseline, EXP_EXT},
 };
 use move_compiler::command_line::COLOR_MODE_ENV_VAR;
 use move_coverage::coverage_map::{CoverageMap, ExecCoverageMapWithModules};
@@ -26,9 +17,16 @@ use move_package::{
     source_package::{layout::SourcePackageLayout, manifest_parser::parse_move_manifest_from_file},
     BuildConfig,
 };
+use std::{
+    collections::{BTreeMap, HashMap},
+    env,
+    fmt::Write as FmtWrite,
+    fs::{self, File},
+    io::{self, BufRead, Write},
+    path::{Path, PathBuf},
+    process::Command,
+};
 use tempfile::tempdir;
-
-use crate::{DEFAULT_BUILD_DIR, DEFAULT_STORAGE_DIR};
 
 /// Basic datatest testing framework for the CLI. The `run_one` entrypoint
 /// expects an `args.txt` file with arguments that the `move` binary understands
@@ -401,4 +399,49 @@ pub fn run_all(
     }
 
     Ok(())
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+// The following code is migrated from `move-command-line-common` crate, which switched to `insta`
+// for expected output testing. That is not really desierable for the Move CLI, so it has kept
+// this hand rolled approach.
+
+/// Extension for expected output files
+const EXP_EXT: &str = "exp";
+
+/// If any of these env vars is set, the test harness should overwrite
+/// the existing .exp files with the output instead of checking
+/// them against the output.
+const UPDATE_BASELINE: &str = "UPDATE_BASELINE";
+const UPBL: &str = "UPBL";
+const UB: &str = "UB";
+
+fn read_env_update_baseline() -> bool {
+    read_bool_env_var(UPDATE_BASELINE) || read_bool_env_var(UPBL) || read_bool_env_var(UB)
+}
+
+fn add_update_baseline_fix(s: impl AsRef<str>) -> String {
+    format!(
+        "{}\n\
+        Run with `env {}=1` (or `env {}=1`) to save the current output as \
+        the new expected output",
+        s.as_ref(),
+        UB,
+        UPDATE_BASELINE
+    )
+}
+
+fn format_diff(expected: impl AsRef<str>, actual: impl AsRef<str>) -> String {
+    use colored::Colorize;
+    use similar::ChangeTag;
+    let diff = similar::TextDiff::from_lines(expected.as_ref(), actual.as_ref());
+
+    diff.iter_all_changes()
+        .map(|change| match change.tag() {
+            ChangeTag::Delete => format!("{}{}", "-".bold(), change.value()).red(),
+            ChangeTag::Insert => format!("{}{}", "+".bold(), change.value()).green(),
+            ChangeTag::Equal => change.value().dimmed(),
+        })
+        .map(|s| s.to_string())
+        .collect()
 }

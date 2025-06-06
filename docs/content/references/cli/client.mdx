@@ -53,6 +53,7 @@ Commands:
   verify-source               Verify local Move packages against on-chain packages, and optionally their dependencies
   profile-transaction         Profile the gas usage of a transaction. Unless an output filepath is not specified, outputs a file `gas_profile_{tx_digest}_{unix_timestamp}.json` which can be opened in a flamegraph tool
                                   such as speedscope
+  remove-address              Remove an existing address by its alias or hexadecimal string. Warning: removes the private key from the keystore with no way to recover it if it was not backed up
   replay-transaction          Replay a given transaction to view transaction effects. Set environment variable MOVE_VM_STEP=1 to debug
   replay-batch                Replay transactions listed in a file
   replay-checkpoint           Replay all transactions in a range of checkpoints

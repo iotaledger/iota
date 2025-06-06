@@ -4,7 +4,8 @@
 import { useEffect, useRef, useState } from 'react';
 import cx from 'classnames';
 import { Loader, Search as SearchIcon } from '@iota/apps-ui-icons';
-import { Divider, SearchBarType } from '@/components';
+import { Divider } from '@/components/atoms';
+import { SearchBarType } from './search.enums';
 import {
     BACKGROUND_COLORS,
     SUGGESTIONS_WRAPPER_STYLE,
@@ -44,10 +45,6 @@ export interface SearchProps {
      */
     isLoading: boolean;
     /**
-     * Callback when a key is pressed.
-     */
-    onKeyDown?: (event: React.KeyboardEvent<HTMLInputElement>) => void;
-    /**
      * The type of the search bar. Can be 'outlined' or 'filled'.
      */
     type?: SearchBarType;
@@ -64,7 +61,6 @@ export function Search({
     onSuggestionClick,
     placeholder,
     isLoading = false,
-    onKeyDown,
     type = SearchBarType.Outlined,
     renderSuggestion,
 }: SearchProps): React.JSX.Element {
@@ -156,9 +152,6 @@ export function Search({
                     handleOnSuggestionClick(suggestions[0]);
                 }
             }
-        }
-        if (onKeyDown) {
-            onKeyDown(event);
         }
     };
 

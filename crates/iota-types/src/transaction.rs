@@ -12,6 +12,7 @@ use std::{
     sync::Arc,
 };
 
+use anyhow::bail;
 use enum_dispatch::enum_dispatch;
 use fastcrypto::{encoding::Base64, hash::HashFunction};
 use iota_protocol_config::ProtocolConfig;
@@ -1784,14 +1785,12 @@ impl TransactionData {
                     mutable: true,
                 },
                 Owner::Immutable => {
-                    return Err(anyhow::anyhow!(
-                        "Upgrade capability is stored immutably and cannot be used for upgrades"
-                    ));
+                    bail!("Upgrade capability is stored immutably and cannot be used for upgrades");
                 }
                 // If the capability is owned by an object, then the module defining the owning
                 // object gets to decide how the upgrade capability should be used.
                 Owner::ObjectOwner(_) => {
-                    return Err(anyhow::anyhow!("Upgrade capability controlled by object"));
+                    bail!("Upgrade capability controlled by object");
                 }
             };
             builder.obj(capability_arg).unwrap();
@@ -2739,7 +2738,7 @@ pub struct ObjectReadResult {
     pub object: ObjectReadResultKind,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub enum ObjectReadResultKind {
     Object(Object),
     // The version of the object that the transaction intended to read, and the digest of the tx
@@ -2747,6 +2746,22 @@ pub enum ObjectReadResultKind {
     DeletedSharedObject(SequenceNumber, TransactionDigest),
     // A shared object in a cancelled transaction. The sequence number embeds cancellation reason.
     CancelledTransactionSharedObject(SequenceNumber),
+}
+
+impl std::fmt::Debug for ObjectReadResultKind {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            ObjectReadResultKind::Object(obj) => {
+                write!(f, "Object({:?})", obj.compute_object_reference())
+            }
+            ObjectReadResultKind::DeletedSharedObject(seq, digest) => {
+                write!(f, "DeletedSharedObject({}, {:?})", seq, digest)
+            }
+            ObjectReadResultKind::CancelledTransactionSharedObject(seq) => {
+                write!(f, "CancelledTransactionSharedObject({})", seq)
+            }
+        }
+    }
 }
 
 impl From<Object> for ObjectReadResultKind {
@@ -2893,6 +2908,12 @@ impl ObjectReadResult {
 #[derive(Clone)]
 pub struct InputObjects {
     objects: Vec<ObjectReadResult>,
+}
+
+impl std::fmt::Debug for InputObjects {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_list().entries(self.objects.iter()).finish()
+    }
 }
 
 // An InputObjects new-type that has been verified by iota-transaction-checks,

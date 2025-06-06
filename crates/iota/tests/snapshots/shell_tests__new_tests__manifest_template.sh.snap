@@ -1,5 +1,6 @@
 ---
 source: crates/iota/tests/shell_tests.rs
+assertion_line: 78
 description: tests/shell_tests/new_tests/manifest_template.sh
 ---
 ----- script -----
@@ -21,7 +22,7 @@ edition = "2024.beta" # edition = "legacy" to use legacy (pre-2024) Move
 # authors = ["..."]      # e.g., ["Joe Smith (joesmith@noemail.com)", "John Snow (johnsnow@noemail.com)"]
 
 [dependencies]
-Iota = { git = "https://github.com/iotaledger/iota.git", subdir = "crates/iota-framework/packages/iota-framework", rev = "testnet" }
+Iota = { git = "https://github.com/iotaledger/iota.git", subdir = "crates/iota-framework/packages/iota-framework", rev = "testnet", override = true }
 
 # For remote import, use the `{ git = "...", subdir = "...", rev = "..." }`.
 # Revision can be a branch, a tag, and a commit hash.

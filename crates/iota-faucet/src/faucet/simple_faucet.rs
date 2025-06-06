@@ -1145,17 +1145,12 @@ mod tests {
 
         if let Some(effects) = result_effects {
             if matches!(effects.status(), IotaExecutionStatus::Failure { .. }) {
-                Err(anyhow!(
-                    "Error executing transaction: {:#?}",
-                    effects.status()
-                ))
+                bail!("Error executing transaction: {:#?}", effects.status());
             } else {
                 Ok(effects)
             }
         } else {
-            Err(anyhow!(
-                "Effects from IotaTransactionBlockResult should not be empty"
-            ))
+            bail!("Effects from IotaTransactionBlockResult should not be empty");
         }
     }
 

@@ -26,6 +26,20 @@ const nextConfig = {
         NEXT_PUBLIC_DASHBOARD_REV,
         NEXT_PUBLIC_BUILD_ENV,
     },
+    webpack(config) {
+        const fileLoaderRule = config.module.rules.find((rule) => rule.test?.test?.('.svg'));
+        if (fileLoaderRule) {
+            fileLoaderRule.exclude = /\.svg$/i;
+        }
+
+        config.module.rules.push({
+            test: /\.svg$/i,
+            issuer: /\.[jt]sx?$/,
+            use: ['@svgr/webpack'],
+        });
+
+        return config;
+    },
 };
 
 export default withSentryConfig(nextConfig, {
