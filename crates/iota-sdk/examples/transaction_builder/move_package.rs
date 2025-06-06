@@ -10,9 +10,8 @@ mod utils;
 
 use std::path::Path;
 
-use iota_json_rpc_types::ObjectChange;
 use iota_move_build::BuildConfig;
-use iota_types::move_package::UpgradeCap;
+use iota_sdk::{rpc_types::ObjectChange, types::move_package::UpgradeCap};
 use utils::{setup_for_write, sign_and_execute_transaction};
 
 #[tokio::main]

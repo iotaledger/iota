@@ -14,7 +14,7 @@ import { PageHeader, SplitPanes } from '~/components/ui';
 import { useBreakpoint } from '~/hooks/useBreakpoint';
 import { LocalStorageSplitPaneKey } from '~/lib/enums';
 import { Panel, Title, Divider } from '@iota/apps-ui-kit';
-import { TotalStaked } from './TotalStaked';
+import { AddressBalanceBreakdown } from './AddressBalanceBreakdown';
 
 const LEFT_RIGHT_PANEL_MIN_SIZE = 30;
 
@@ -23,7 +23,7 @@ interface AddressResultPageHeaderProps {
 }
 
 function AddressResultPageHeader({ address }: AddressResultPageHeaderProps): JSX.Element {
-    return <PageHeader type="Address" title={address} after={<TotalStaked address={address} />} />;
+    return <PageHeader type="Address" title={address} />;
 }
 
 function AddressResult({ address }: { address: string }): JSX.Element {
@@ -55,6 +55,7 @@ export function AddressResultPage(): JSX.Element {
             content={
                 <div className="flex flex-col gap-2xl">
                     <AddressResultPageHeader address={id!} />
+                    <AddressBalanceBreakdown address={id!} />
                     <AddressResult address={id!} />
                 </div>
             }

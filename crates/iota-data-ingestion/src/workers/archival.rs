@@ -4,6 +4,7 @@
 
 use std::{io::Cursor, sync::Arc};
 
+use anyhow::bail;
 use async_trait::async_trait;
 use byteorder::{BigEndian, ByteOrder};
 use bytes::Bytes;
@@ -136,7 +137,7 @@ impl ArchivalReducer {
 impl Reducer<RelayWorker> for ArchivalReducer {
     async fn commit(&self, batch: &[Arc<CheckpointData>]) -> Result<(), anyhow::Error> {
         if batch.is_empty() {
-            return Err(anyhow::anyhow!("commit batch can't be empty"));
+            bail!("commit batch can't be empty");
         }
         let mut summary_buffer = vec![];
         let mut buffer = vec![];

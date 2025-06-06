@@ -1,7 +1,7 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { StardustOutputDetailsFilter } from '../enums';
+import { StardustOutputDetailsFilter } from '../enums/stardustOutputDetailsFilter.enums';
 
 export const STARDUST_MIGRATABLE_OBJECTS_FILTER_LIST: StardustOutputDetailsFilter[] = Object.values(
     StardustOutputDetailsFilter,

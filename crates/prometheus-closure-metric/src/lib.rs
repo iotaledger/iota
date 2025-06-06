@@ -11,7 +11,7 @@
 // TODO: add example usage once constructor macros are implemented.
 // (For now, look at tests for an example.)
 
-use anyhow::{Result, anyhow};
+use anyhow::{Result, bail};
 use prometheus::{core, proto};
 
 /// A Prometheus metric whose value is computed at collection time by the
@@ -108,7 +108,7 @@ impl ValueType {
 
 pub fn make_label_pairs(desc: &core::Desc, label_values: &[&str]) -> Result<Vec<proto::LabelPair>> {
     if desc.variable_labels.len() != label_values.len() {
-        return Err(anyhow!("inconsistent cardinality"));
+        bail!("inconsistent cardinality");
     }
 
     let total_len = desc.variable_labels.len() + desc.const_label_pairs.len();

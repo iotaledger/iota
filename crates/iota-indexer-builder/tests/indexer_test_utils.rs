@@ -8,7 +8,7 @@ use std::{
     time::{SystemTime, UNIX_EPOCH},
 };
 
-use anyhow::{Error, anyhow};
+use anyhow::{Error, bail};
 use async_trait::async_trait;
 use iota_indexer_builder::{
     Task,
@@ -117,7 +117,7 @@ impl<T: Send + Sync> IndexerProgressStore for InMemoryPersistent<T> {
             },
         );
         if existing.is_some() {
-            return Err(anyhow!("Task {task_name} already exists"));
+            bail!("Task {task_name} already exists");
         }
         Ok(())
     }

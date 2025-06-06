@@ -1,14 +1,16 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use move_core_types::{ident_str, identifier::IdentStr};
+use move_core_types::{ident_str, identifier::IdentStr, language_storage::TypeTag};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 use crate::{
     IOTA_FRAMEWORK_ADDRESS, StructTag,
     coin::{CoinMetadata, TreasuryCap},
+    error::IotaError,
     id::UID,
+    object::{Data, Object},
 };
 
 pub const COIN_MANAGER_MODULE_NAME: &IdentStr = ident_str!("coin_manager");
@@ -49,6 +51,21 @@ impl CoinManager {
             && object_type.module.as_ident_str() == COIN_MANAGER_MODULE_NAME
             && object_type.name.as_ident_str() == COIN_MANAGER_STRUCT_NAME
     }
+
+    pub fn from_bcs_bytes(content: &[u8]) -> Result<Self, IotaError> {
+        bcs::from_bytes(content).map_err(|err| IotaError::ObjectDeserialization {
+            error: format!("Unable to deserialize CoinManager object: {err}"),
+        })
+    }
+
+    pub fn type_(type_param: StructTag) -> StructTag {
+        StructTag {
+            address: IOTA_FRAMEWORK_ADDRESS,
+            name: COIN_MANAGER_STRUCT_NAME.to_owned(),
+            module: COIN_MANAGER_MODULE_NAME.to_owned(),
+            type_params: vec![TypeTag::Struct(Box::new(type_param))],
+        }
+    }
 }
 
 /// The immutable version of CoinMetadata, used in case of migrating from frozen
@@ -80,5 +97,27 @@ impl CoinManagerTreasuryCap {
         object_type.address == IOTA_FRAMEWORK_ADDRESS
             && object_type.module.as_ident_str() == COIN_MANAGER_MODULE_NAME
             && object_type.name.as_ident_str() == COIN_MANAGER_TREASURY_CAP_STRUCT_NAME
+    }
+}
+
+impl TryFrom<Object> for CoinManager {
+    type Error = IotaError;
+    fn try_from(object: Object) -> Result<Self, Self::Error> {
+        TryFrom::try_from(&object)
+    }
+}
+
+impl TryFrom<&Object> for CoinManager {
+    type Error = IotaError;
+    fn try_from(object: &Object) -> Result<Self, Self::Error> {
+        if let Data::Move(o) = &object.data {
+            if o.type_().is_coin_manager() {
+                return CoinManager::from_bcs_bytes(o.contents());
+            }
+        }
+
+        Err(IotaError::Type {
+            error: format!("Object type is not a CoinManager: {object:?}"),
+        })
     }
 }

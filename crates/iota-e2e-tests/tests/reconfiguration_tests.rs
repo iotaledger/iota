@@ -672,6 +672,105 @@ async fn test_reconfig_with_committee_change_basic() {
 }
 
 #[sim_test]
+async fn test_reconfig_with_same_validator() {
+    use iota_swarm_config::genesis_config::{AccountConfig, DEFAULT_GAS_AMOUNT, GenesisConfig};
+    use iota_types::{
+        crypto::{AuthorityPublicKeyBytes, KeypairTraits},
+        governance::MIN_VALIDATOR_JOINING_STAKE_NANOS,
+    };
+    use rand::{SeedableRng, rngs::StdRng};
+
+    // ValidatorGenesisConfig doesn't impl Clone
+    // generate the same config with the same rng seed
+    let node_ip = iota_config::local_ip_utils::get_new_ip();
+    let build_node_config = || {
+        ValidatorGenesisConfigBuilder::new()
+            // the node_ip should always be the same value, otherwise the test will fail
+            .with_ip(node_ip.clone())
+            .build(&mut StdRng::seed_from_u64(0))
+    };
+
+    // the node that will re-join committee
+    let node_config = build_node_config();
+    let node_name: AuthorityPublicKeyBytes = node_config.authority_key_pair.public().into();
+    let node_address = (&node_config.account_key_pair.public()).into();
+    let mut node_handle = None;
+
+    // add coins to the node at the genesis to avoid dealing with faucet
+    let mut genesis_config = GenesisConfig::default();
+    genesis_config
+        .accounts
+        .extend(std::iter::once(AccountConfig {
+            address: Some(node_address),
+            gas_amounts: vec![
+                DEFAULT_GAS_AMOUNT,
+                MIN_VALIDATOR_JOINING_STAKE_NANOS,
+                DEFAULT_GAS_AMOUNT,
+                MIN_VALIDATOR_JOINING_STAKE_NANOS,
+            ],
+        }));
+
+    // create test cluster with 4 default validators
+    let mut test_cluster = TestClusterBuilder::new()
+        .with_num_validators(4)
+        .set_genesis_config(genesis_config)
+        .build()
+        .await;
+
+    // whether node is in committee in a corresponding epoch
+    // test a few join/leave/join cases
+    let node_schedule = [true, true, false, false, true, false, true];
+    // the node initially is not in the committee
+    let mut was_in_committee = false;
+
+    let mut epoch = 0;
+    for is_in_committee in node_schedule {
+        if !was_in_committee && is_in_committee {
+            // add node to committee
+            execute_add_validator_transactions(&test_cluster, &build_node_config()).await;
+        }
+        if was_in_committee && !is_in_committee {
+            // remove node from committee
+            execute_remove_validator_tx(&test_cluster, node_handle.as_ref().unwrap()).await;
+        }
+
+        // reconfiguration
+        test_cluster.force_new_epoch().await;
+        epoch += 1;
+
+        // check that node has joined or left the committee
+        test_cluster.fullnode_handle.iota_node.with(|node| {
+            assert_eq!(
+                is_in_committee,
+                node.state()
+                    .epoch_store_for_testing()
+                    .committee()
+                    .authority_exists(&node_name)
+            );
+        });
+
+        if node_handle.is_none() {
+            // spawn node if not already
+            node_handle = Some(test_cluster.spawn_new_validator(build_node_config()).await);
+        }
+
+        // sync nodes
+        test_cluster.wait_for_epoch_all_nodes(epoch).await;
+
+        // the running node acknowledges being or not being a committee member
+        node_handle.as_ref().unwrap().with(|node| {
+            assert_eq!(
+                is_in_committee,
+                node.state()
+                    .is_validator(&node.state().epoch_store_for_testing())
+            );
+        });
+
+        was_in_committee = is_in_committee;
+    }
+}
+
+#[sim_test]
 async fn test_reconfig_with_committee_change_stress() {
     do_test_reconfig_with_committee_change_stress().await;
 }
@@ -764,7 +863,7 @@ async fn test_epoch_flag_upgrade() {
     let initial_flags_nodes = Arc::new(Mutex::new(HashSet::new()));
     // Register a fail_point_arg, for which the handler is also placed in the
     // authority_store's open() function. When we start the first epoch, the
-    // following code will inject the new flags to the selected nodes once, so
+    // following code will inject the new empty flags to the selected nodes once, so
     // that we can later assert that the flags have changed.
     register_fail_point_arg("initial_epoch_flags", move || {
         // only alter flags on each node once
@@ -775,17 +874,35 @@ async fn test_epoch_flag_upgrade() {
         if initial_flags_nodes.len() >= 2 || !initial_flags_nodes.insert(current_node) {
             return None;
         }
-        // Apply a modified flag set for the first epoch after cluster is started.
-        Some(vec![EpochFlag::WritebackCacheEnabled])
+        // By default WritebackCache is enabled, use empty flag set for the first epoch
+        // after cluster is started.
+        Some(Vec::<EpochFlag>::new())
     });
 
-    // Start the cluster with 2 nodes with non-empty FlagSet and the rest with
-    // empty.
+    // Start the cluster with 2 nodes with empty epoch flag set and the rest with
+    // non-empty.
     let test_cluster = TestClusterBuilder::new()
         .with_epoch_duration_ms(30000)
         .build()
         .await;
-    let any_not_empty = test_cluster.all_node_handles().iter().any(|node| {
+    let any_empty = test_cluster.all_node_handles().iter().any(|node| {
+        node.with(|node| {
+            node.state()
+                .epoch_store_for_testing()
+                .epoch_start_config()
+                .flags()
+                .is_empty()
+        })
+    });
+    assert!(any_empty);
+
+    // When the epoch changes, flags on some nodes should be re-initialized to be
+    // non-empty.
+
+    test_cluster.wait_for_epoch_all_nodes(1).await;
+
+    // Make sure that all nodes have non-empty flags.
+    let all_non_empty = test_cluster.all_node_handles().iter().all(|node| {
         node.with(|node| {
             !node
                 .state()
@@ -795,24 +912,7 @@ async fn test_epoch_flag_upgrade() {
                 .is_empty()
         })
     });
-    assert!(any_not_empty);
-
-    // When the epoch changes, flags on some nodes should be re-initialized to be
-    // empty.
-
-    test_cluster.wait_for_epoch_all_nodes(1).await;
-
-    // Make sure that all nodes have empty flags.
-    let all_empty = test_cluster.all_node_handles().iter().all(|node| {
-        node.with(|node| {
-            node.state()
-                .epoch_store_for_testing()
-                .epoch_start_config()
-                .flags()
-                .is_empty()
-        })
-    });
-    assert!(all_empty);
+    assert!(all_non_empty);
 
     sleep(Duration::from_secs(15)).await;
 

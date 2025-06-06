@@ -4,7 +4,7 @@
 
 use std::{sync::Arc, time::Duration};
 
-use anyhow::{Context, Result, anyhow};
+use anyhow::{Context, Result, bail};
 use clap::*;
 use iota_benchmark::{
     benchmark_setup::Env,
@@ -151,7 +151,7 @@ async fn main() -> Result<()> {
     });
     let joined = handle.join();
     if let Err(err) = joined {
-        Err(anyhow!("Failed to join client runtime: {:?}", err))
+        bail!("Failed to join client runtime: {:?}", err)
     } else {
         // send signal to stop the server runtime
         bench_setup

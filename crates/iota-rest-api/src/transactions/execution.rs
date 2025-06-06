@@ -4,7 +4,7 @@
 
 use std::{net::SocketAddr, sync::Arc};
 
-use axum::extract::{Query, State};
+use axum::extract::{Query, State, rejection::ExtensionRejection};
 use iota_sdk2::types::{
     Address, BalanceChange, CheckpointSequenceNumber, Object, Owner, SignedTransaction,
     TransactionEffects, TransactionEvents, ValidatorAggregatedSignature, framework::Coin,
@@ -68,7 +68,7 @@ impl ApiEndpoint<RestService> for ExecuteTransaction {
 async fn execute_transaction(
     State(state): State<Option<Arc<dyn TransactionExecutor>>>,
     Query(parameters): Query<ExecuteTransactionQueryParameters>,
-    client_address: Option<axum::extract::ConnectInfo<SocketAddr>>,
+    client_address: Result<axum::extract::ConnectInfo<SocketAddr>, ExtensionRejection>,
     accept: AcceptFormat,
     Bcs(transaction): Bcs<SignedTransaction>,
 ) -> Result<ResponseContent<TransactionExecutionResponse>> {
@@ -88,7 +88,7 @@ async fn execute_transaction(
         output_objects,
         auxiliary_data: _,
     } = executor
-        .execute_transaction(request, client_address.map(|a| a.0))
+        .execute_transaction(request, client_address.ok().map(|a| a.0))
         .await?;
 
     let (effects, finality) = {

@@ -1,8 +1,13 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { GroupedTimelockObject } from '@iota/core';
+import { GroupedTimelockObject } from '@iota/core/utils/stake/createTimelockedStakeTransaction';
+import {
+    TimelockedObject,
+    type ExtendedDelegatedTimelockedStake,
+} from '@iota/core/interfaces/timelock.interfaces';
 import { SUPPLY_INCREASE_VESTING_LABEL } from '@iota/core/constants/vesting.constants';
+import { mapTimelockObjects } from '@iota/core/utils/mapTimelockObjects';
 import {
     MIN_STAKING_THRESHOLD,
     SUPPLY_INCREASE_INVESTOR_VESTING_DURATION,
@@ -15,15 +20,9 @@ import {
     SupplyIncreaseUserType,
     SupplyIncreaseVestingPayout,
     SupplyIncreaseVestingPortfolio,
-    TimelockedObject,
     VestingOverview,
 } from '../../interfaces';
-import {
-    ExtendedDelegatedTimelockedStake,
-    isTimelockedObject,
-    isTimelockedStakedIota,
-    mapTimelockObjects,
-} from '../timelock';
+import { isTimelockedObject, isTimelockedStakedIota } from '../timelock';
 import { IotaObjectData } from '@iota/iota-sdk/client';
 
 export function getLatestOrEarliestSupplyIncreaseVestingPayout(

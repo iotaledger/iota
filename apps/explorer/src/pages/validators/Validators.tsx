@@ -143,6 +143,7 @@ function ValidatorPageResult(): JSX.Element {
             'APY',
             'Commission',
             'Next Epoch Commission',
+            'Next Epoch Stake',
             'Last Epoch Rewards',
             'Voting Power',
             'Status',
@@ -218,7 +219,7 @@ function ValidatorPageResult(): JSX.Element {
                     />
                 ) : (
                     <div className="flex w-full flex-col gap-xl">
-                        <div className="py-md--rs text-display-sm text-neutral-10 dark:text-neutral-92">
+                        <div className="pt-md--rs text-display-sm text-neutral-10 dark:text-neutral-92">
                             Validators
                         </div>
                         <div className="flex w-full flex-col gap-md--rs md:h-40 md:flex-row">
@@ -261,6 +262,7 @@ function ValidatorPageResult(): JSX.Element {
                                                 'APY',
                                                 'Commission',
                                                 'Last Epoch Rewards',
+                                                'Next Epoch Stake',
                                                 'Voting Power',
                                                 'Status',
                                                 'Current Epoch Rewards',

@@ -28,7 +28,7 @@ export interface GroupedTimelockObject {
     /**
      * The label of the timelocked objects in mergeObjectIds.
      */
-    label?: string;
+    label?: string | null;
     /**
      * The split amount of the timelocked object.
      */
