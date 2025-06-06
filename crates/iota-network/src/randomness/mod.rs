@@ -10,7 +10,7 @@ use std::{
 };
 
 use anemo::PeerId;
-use anyhow::Result;
+use anyhow::{Result, bail};
 use fastcrypto::groups::bls12381;
 use fastcrypto_tbls::{
     dkg,
@@ -1083,9 +1083,7 @@ impl RandomnessEventLoop {
     ) -> Result<()> {
         let vss_pk = {
             let Some(dkg_output) = &self.dkg_output else {
-                return Err(anyhow::anyhow!(
-                    "called admin_inject_full_signature before DKG completed"
-                ));
+                bail!("called admin_inject_full_signature before DKG completed");
             };
             &dkg_output.vss_pk
         };

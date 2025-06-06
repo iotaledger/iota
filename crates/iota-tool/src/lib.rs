@@ -17,7 +17,7 @@ use std::{
     time::Duration,
 };
 
-use anyhow::{Result, anyhow};
+use anyhow::{Result, anyhow, bail};
 use clap::ValueEnum;
 use eyre::ContextCompat;
 use fastcrypto::{hash::MultisetHash, traits::ToFromBytes};
@@ -808,7 +808,7 @@ pub async fn check_completed_snapshot(
     if exists(&remote_object_store, &get_path(success_marker.as_str())).await {
         Ok(())
     } else {
-        Err(anyhow!(
+        bail!(
             "missing success marker at {}/{}",
             snapshot_store_config.bucket.as_ref().unwrap_or(
                 &snapshot_store_config
@@ -817,7 +817,7 @@ pub async fn check_completed_snapshot(
                     .unwrap_or("unknown_bucket".to_string())
             ),
             success_marker
-        ))
+        )
     }
 }
 
@@ -1024,10 +1024,7 @@ pub async fn download_db_snapshot(
         .map_err(|err| anyhow!("Error parsing MANIFEST from bytes: {}", err))?;
 
     if !root_manifest.epoch_exists(epoch) {
-        return Err(anyhow!(
-            "Epoch dir {} doesn't exist on the remote store",
-            epoch
-        ));
+        bail!("Epoch dir {} doesn't exist on the remote store", epoch);
     }
 
     let epoch_path = format!("epoch_{}", epoch);

@@ -6,8 +6,11 @@ import { useQuery } from '@tanstack/react-query';
 import { useMemo, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import {
+    Button,
     ButtonSegment,
     ButtonSegmentType,
+    ButtonSize,
+    ButtonType,
     InfoBox,
     InfoBoxStyle,
     InfoBoxType,
@@ -16,9 +19,8 @@ import {
     SegmentedButton,
     SegmentedButtonType,
 } from '@iota/apps-ui-kit';
-
 import { CheckpointsTable, PageLayout } from '~/components';
-import { TableCard } from '~/components/ui';
+import { Link, LinkWithQuery, TableCard } from '~/components/ui';
 import { useEnhancedRpcClient } from '~/hooks/useEnhancedRpc';
 import { EpochStats, EpochStatsGrid } from './stats/EpochStats';
 import { ValidatorStatus } from './stats/ValidatorStatus';
@@ -27,7 +29,7 @@ import cx from 'clsx';
 import { TokenStats } from './stats/TokenStats';
 import { EpochTopStats } from './stats/EpochTopStats';
 import { getEpochStorageFundFlow } from '~/lib/utils';
-import { Warning } from '@iota/apps-ui-icons';
+import { ArrowLeft, ArrowRight, Warning } from '@iota/apps-ui-icons';
 import { VALIDATORS_EVENTS_QUERY } from '@iota/core';
 import { useEndOfEpochTransactionFromCheckpoint } from '~/hooks/useEndOfEpochTransactionFromCheckpoint';
 import { type IotaEvent } from '@iota/iota-sdk/src/client';
@@ -135,6 +137,26 @@ export function EpochDetail() {
                         <EpochStats
                             title={`Epoch ${epochData.epoch}`}
                             subtitle={isCurrentEpoch ? 'In progress' : 'Ended'}
+                            trailingElement={
+                                <div className="flex flex-row gap-x-xs">
+                                    <LinkWithQuery to={`/epoch/${Number(epochData.epoch) - 1}`}>
+                                        <Button
+                                            type={ButtonType.Secondary}
+                                            size={ButtonSize.Small}
+                                            icon={<ArrowLeft />}
+                                            disabled={epochData.epoch === '0'}
+                                        />
+                                    </LinkWithQuery>
+                                    <Link to={`/epoch/${Number(epochData.epoch) + 1}`}>
+                                        <Button
+                                            type={ButtonType.Secondary}
+                                            size={ButtonSize.Small}
+                                            icon={<ArrowRight />}
+                                            disabled={!epochData?.endOfEpochInfo}
+                                        />
+                                    </Link>
+                                </div>
+                            }
                         >
                             <EpochTopStats
                                 inProgress={isCurrentEpoch}

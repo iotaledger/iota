@@ -7,7 +7,7 @@ use std::{
     marker::PhantomData,
 };
 
-use anyhow::{Result, anyhow};
+use anyhow::{Result, anyhow, bail};
 use byteorder::ReadBytesExt;
 use integer_encoding::{VarInt, VarIntReader};
 use num_enum::{IntoPrimitive, TryFromPrimitive};
@@ -45,7 +45,7 @@ impl Blob {
     pub fn read<R: Read>(rbuf: &mut R) -> Result<Blob> {
         let len = rbuf.read_varint::<u64>()? as usize;
         if len == 0 {
-            return Err(anyhow!("Invalid object length of 0 in file"));
+            bail!("Invalid object length of 0 in file");
         }
         let encoding = rbuf.read_u8()?;
         let mut data = vec![0u8; len];

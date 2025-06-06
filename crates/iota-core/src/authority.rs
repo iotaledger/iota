@@ -15,7 +15,7 @@ use std::{
     vec,
 };
 
-use anyhow::anyhow;
+use anyhow::bail;
 use arc_swap::{ArcSwap, Guard};
 use async_trait::async_trait;
 use authority_per_epoch_store::CertLockGuard;
@@ -4626,9 +4626,7 @@ impl AuthorityState {
             //   packages, reconfigure, and most likely shut down in the new epoch (this
             //   validator likely doesn't support the new protocol version, or else it
             //   should have had the packages.)
-            return Err(anyhow!(
-                "missing system packages: cannot form ChangeEpochTx"
-            ));
+            bail!("missing system packages: cannot form ChangeEpochTx");
         };
 
         // ChangeEpochV2 requires that both options are set - ProtocolDefinedBaseFee and
@@ -4695,9 +4693,7 @@ impl AuthorityState {
             .expect("read cannot fail")
         {
             warn!("change epoch tx has already been executed via state sync");
-            return Err(anyhow::anyhow!(
-                "change epoch tx has already been executed via state sync",
-            ));
+            bail!("change epoch tx has already been executed via state sync",);
         }
 
         let execution_guard = self
@@ -4829,7 +4825,8 @@ impl AuthorityState {
     pub(crate) fn iter_live_object_set_for_testing(
         &self,
     ) -> impl Iterator<Item = authority_store_tables::LiveObject> + '_ {
-        self.get_accumulator_store().iter_live_object_set()
+        self.get_accumulator_store()
+            .iter_cached_live_object_set_for_testing()
     }
 
     #[cfg(test)]
@@ -4849,6 +4846,8 @@ impl AuthorityState {
             .bulk_insert_genesis_objects(objects)?;
         self.get_object_cache_reader()
             .force_reload_system_packages(&BuiltInFramework::all_package_ids());
+        self.get_reconfig_api()
+            .clear_state_end_of_epoch(&self.execution_lock_for_reconfiguration().await);
         Ok(())
     }
 }

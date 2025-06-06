@@ -29,6 +29,8 @@ export * from './getGasBudgetErrorMessage';
 export * from './sumCoinBalances';
 export * from './extractMediaFileType';
 export * from './nftMediaUtils';
+export * from './mapTimelockObjects';
+export * from './formatDelegatedTimelockedStake';
 
 export * from './stake';
 export * from './transaction';
