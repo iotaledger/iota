@@ -101,6 +101,9 @@ pub enum NameCommand {
         /// sender or if no target address is set.
         #[arg(long)]
         set_reverse_lookup: bool,
+        ///
+        #[arg(long)]
+        coupons: Vec<String>,
         // Whether to print detailed output.
         #[arg(long)]
         verbose: bool,
@@ -320,6 +323,7 @@ impl NameCommand {
                 coin,
                 set_target_address,
                 set_reverse_lookup,
+                coupons,
                 verbose,
                 mut opts,
             } => {
@@ -344,6 +348,20 @@ impl NameCommand {
                         iota_names_config.package_address, iota_names_config.object_id
                     ),
                     "--assign payment_intent".to_string(),
+                ];
+
+                if !coupons.is_empty() {
+                    let coupons_package_address = get_coupons_package_address(&iota_client).await?;
+
+                    for coupon in coupons {
+                        args.push(format!(
+                        "--move-call {coupons_package_address}::coupon_house::apply_coupon payment_intent @{} \"{coupon}\" @{IOTA_CLOCK_OBJECT_ID}",
+                        iota_names_config.object_id,
+                    ));
+                    }
+                }
+
+                args.extend_from_slice(&[
                     format!(
                         "--move-call {}::payments::handle_base_payment <{IOTA_FRAMEWORK_PACKAGE_ID}::iota::IOTA> @{} payment_intent coins.0",
                         iota_names_config.payments_package_address, iota_names_config.object_id
@@ -354,7 +372,8 @@ impl NameCommand {
                         iota_names_config.package_address, iota_names_config.object_id
                     ),
                     "--assign nft".to_string(),
-                ];
+                ]);
+
                 if let Some(identity) = &set_target_address {
                     let identity = (!identity.is_empty())
                         .then(|| identity.parse::<KeyIdentity>())
@@ -2132,6 +2151,18 @@ async fn get_auction_package_address(client: &IotaClient) -> anyhow::Result<Obje
         &Identifier::from_str("AuctionAuth")?,
     )
     .await?;
+
+    Ok(auction_package_address)
+}
+
+async fn get_coupons_package_address(client: &IotaClient) -> anyhow::Result<ObjectID> {
+    let auction_package_address = fetch_package_id_by_module_and_name(
+        client,
+        &Identifier::from_str("coupon_house")?,
+        &Identifier::from_str("CouponsAuth")?,
+    )
+    .await?;
+
     Ok(auction_package_address)
 }
 
