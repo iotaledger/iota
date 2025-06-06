@@ -882,13 +882,23 @@ pub(crate) struct ValidatorScoreMetrics {
     // TO DO: discuss if commits/blocks referencing a syntactically invalid block should be
     // considered syntactically invalid, semantically invalid, or something else.
     pub(crate) syntactically_invalid_blocks: Arc<Vec<AtomicU64>>,
-    // Darcy: Adding the missing proposals metric to the scoring. The current implementation reads
+    // Adding the missing proposals metric to the scoring. The current implementation reads
     // the history of blocks to determine all the missing proposals, but the current architecture
     // register data per epoch, so we need to be careful when implementing the update function.
     pub(crate) missing_block_proposals: Arc<Vec<AtomicU64>>,
-    // Darcy: Introducing equivocating rounds per authority.
+    // Introducing equivocating rounds per authority.
     pub(crate) equivocating_rounds: Arc<Vec<AtomicU64>>,
+    /// From this point on I will add auxiliary metrics and values. These are used to calculate
+    /// some values necessart for other metrics, and should be reset/recalculated each new epoch
+    // Introducing the auxiliary metric "verified_blocks_this_epoch". "verified_blocks" is
+    // currently a prometheus metric already, but we need to be able to count this per epoch.
+    pub(crate) verified_blocks_this_epoch: Arc<Vec<AtomicU64>>,
+    // Register the first round of the current epoch, updated only in transitions
+    pub(crate) first_round_this_epoch: Arc<AtomicU32>,
+    // Register the last seen epoch among blocks, used to trigger the update of missing proposals
+    pub(crate) last_seen_epoch: Arc<AtomicU64>,
 }
+
 
 // TO DO: check if we need Default for something else, otherwise just merge
 // default to ValidatorScoreMetrics.new
@@ -902,11 +912,17 @@ impl Default for ValidatorScoreMetrics {
         syntactically_invalid_blocks_inner.resize_with(50, || AtomicU64::new(0));
         let mut equivocating_rounds_inner = vec![];
         syntactically_invalid_blocks_inner.resize_with(50, || AtomicU64::new(0));
+        /// Auxiliary values
+        let mut verified_blocks_this_epoch_inner = vec![];
+        verified_blocks_this_epoch_inner.resize_with(50, || AtomicU64::new(0));
         Self {
             semantically_invalid_blocks: Arc::new(semantically_invalid_blocks_inner),
             syntactically_invalid_blocks: Arc::new(syntactically_invalid_blocks_inner),
             missing_block_proposals: Arc::new(missing_block_proposals_inner),
-            equivocating_rounds: Arc::new(equivocating_rounds_inner)
+            equivocating_rounds: Arc::new(equivocating_rounds_inner),
+            verified_blocks_this_epoch: Arc::new(verified_blocks_this_epoch_inner),
+            first_round_this_epoch: AtomicU32::new(0),
+            last_seen_epoch: AtomicU64::new(0)
         }
     }
 }
@@ -951,6 +967,28 @@ impl ValidatorScoreMetrics {
         let _ = self.equivocating_rounds[validator.value()]
             .fetch_add(increase, Ordering::Relaxed);
     }
+
+    pub(crate) fn update_verified_blocks_this_epoch(
+        &self,
+        validator: AuthorityIndex,
+        increase: u64,
+    ) {
+        let _ = self.verified_blocks_this_epoch[validator.value()]
+            .fetch_add(increase, Ordering::Relaxed);
+    }
+    pub(crate) fn update_first_round_this_epoch(
+        &self,
+        round: Round,
+    ) {
+        self.first_round_this_epoch.store(u32::from(round), Ordering::Relaxed);
+    }
+    pub(crate) fn update_last_seen_epoch(
+        &self,
+        epoch: u64,
+    ) {
+        self.first_round_this_epoch.store(epoch, Ordering::Relaxed);
+    }
+
     pub(crate) fn get_semantically_invalid_blocks(&self, validator: AuthorityIndex) -> u64 {
         self.semantically_invalid_blocks[validator.value()].load(Ordering::Relaxed)
     }
@@ -962,6 +1000,20 @@ impl ValidatorScoreMetrics {
     }
     pub(crate) fn get_equivocating_rounds(&self, validator: AuthorityIndex) -> u64 {
         self.equivocating_rounds[validator.value()].load(Ordering::Relaxed)
+    }
+    pub(crate) fn get_verified_blocks_this_epoch(&self, validator: AuthorityIndex) -> u64 {
+        self.verified_blocks_this_epoch[validator.value()].load(Ordering::Relaxed)
+    }
+    pub(crate) fn get_first_round_this_epoch(&self) -> u32 {
+        self.first_round_this_epoch.load(Ordering::Relaxed)
+    }
+    pub(crate) fn get_last_seen_epoch(&self) -> u64 {
+        self.last_seen_epoch.load(Ordering::Relaxed)
+    }
+    pub(crate) fn reset_verified_blocks_this_epoch(&self)  {
+        for element in self.verified_blocks_this_epoch {
+            element.store(0, Ordering::Relaxed);
+        }
     }
 
 }
