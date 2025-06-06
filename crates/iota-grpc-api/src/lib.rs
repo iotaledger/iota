@@ -17,7 +17,6 @@ use iota_rest_api::{Direction, stream_checkpoints_public};
 use iota_types::storage::RestStateReader;
 pub mod client;
 use bcs;
-use futures::stream::unfold;
 use iota_types::{
     full_checkpoint_content::CheckpointData, messages_checkpoint::CertifiedCheckpointSummary,
 };
@@ -57,7 +56,7 @@ trait CheckpointOracle<T> where
     fn get_item(&self, ix: u64) -> Option<Arc<T>>;
     fn get_latest(&self) -> Option<u64>;
 
-    fn ser2(&self, item: &Arc<T>) -> Result<checkpoint::Checkpoint, Status> {
+    fn ser2(&self, item: &Arc<T>) -> CheckpointStreamResult {
         self.ser(item)
             .map(|data| checkpoint::Checkpoint {
                 index: self.get_index(item),
@@ -69,24 +68,171 @@ trait CheckpointOracle<T> where
     }
 }
 
-//
-struct CheckpointStreamerState<T> {
+// The checkpoint data/summary stream is created via futures::stream::unfold,
+// CheckpointStreamerState wraps a state for it.
+struct CheckpointStreamerState<T, F> {
+    // Convenience abstraction for RestStateReader, retrieve history checkpoint info
+    oracle: F,
+    // Receiver for the new checkpoint info
     rx: tokio::sync::broadcast::Receiver<Arc<T>>,
+    // Requested start of the checkpoint info stream range
     start: Option<u64>,
+    // Requested end of the checkpoint info stream range
     end: Option<u64>,
 
+    // Current checkpoint sequence number being processed by this stream
     current: u64,
     in_live_stream: bool,
+    // The last sent checkpoint info sequence number
     last_sent: Option<u64>,
 }
 
-impl<T: Send + Sync + 'static> CheckpointStreamerState<T> {
-    fn stream<F: CheckpointOracle<T> + Clone + Send + Sync + 'static>(
+impl<T, F> CheckpointStreamerState<T, F> where
+    T: Send + Sync + 'static,
+    F: CheckpointOracle<T> + Clone + Send + Sync + 'static,
+{
+    // The main logic behind checkpoint info stream.
+    async fn unfold_step(mut self) -> Option<(CheckpointStreamResult, Self)> {
+        let end_idx = self.end.clone();
+        // Special case: only end_index is provided, stream only that checkpoint
+        if self.start.is_none() && self.end.is_some() && !self.in_live_stream {
+            let idx = self.end.unwrap();
+            if let Some(item) = self.oracle.get_item(idx) {
+                self.in_live_stream = true;
+                self.last_sent = Some(idx);
+                return Some((self.oracle.ser2(&item), self));
+            } else {
+                // Not found in storage, wait for it to appear on the broadcast channel
+                loop {
+                    match self.rx.recv().await {
+                        Ok(item) => {
+                            if self.oracle.get_index(&item) == idx {
+                                self.in_live_stream = true;
+                                self.last_sent = Some(idx);
+                                return Some((self.oracle.ser2(&item), self));
+                            }
+                        }
+                        Err(tokio::sync::broadcast::error::RecvError::Lagged(_)) => continue,
+                        Err(_) => return None,
+                    }
+                }
+            }
+        }
+        if !self.in_live_stream {
+            let latest = self.oracle.get_latest().unwrap_or(self.current);
+            let stop_at = end_idx.map(|e| latest.min(e)).unwrap_or(latest);
+            if self.current <= stop_at {
+                if let Some(item) = self.oracle.get_item(self.current) {
+                    let result = self.oracle.ser2(&item);
+                    if let Ok(c) = result.as_ref() {
+                        self.current += 1;
+                        self.in_live_stream = self.current > stop_at;
+                        self.last_sent = Some(c.index);
+                    }
+                    return Some((result, self));
+                } else {
+                    self.in_live_stream = true;
+                    self.last_sent = Some(self.current.saturating_sub(1));
+                }
+            } else {
+                self.in_live_stream = true;
+                self.last_sent = Some(stop_at);
+            }
+        }
+        let last_sent = self.last_sent.unwrap_or(self.current.saturating_sub(1));
+        loop {
+            // If this is the special end_index only case and in_live_stream is true, end
+            // the stream
+            if self.start.is_none() && self.end.is_some() && self.in_live_stream {
+                return None;
+            }
+            // Always try to fill the next expected checkpoint from DB first
+            if let Some(missing_item) = self.oracle.get_item(last_sent + 1) {
+                let result = self.oracle.ser2(&missing_item);
+                match result.as_ref() {
+                    Ok(c) => {
+                        tracing::info!(
+                            "[GAP FILL] Sent missing checkpoint {} from DB (prev last_sent: {})",
+                            c.index, last_sent
+                        );
+                        self.last_sent = Some(c.index);
+                    },
+                    Err(e) => {
+                        tracing::error!(
+                            "[GAP FILL ERROR] BCS serialization error for checkpoint {}: {}",
+                            last_sent + 1,
+                            e
+                        );
+                        self.last_sent = Some(last_sent);
+                    },
+                }
+                return Some((result, self));
+            }
+            // If not found in DB, wait for broadcast
+            match self.rx.recv().await {
+                Ok(item) => {
+                    let idx = self.oracle.get_index(&item);
+                    if let Some(end) = end_idx {
+                        if idx > end {
+                            return None;
+                        }
+                    }
+                    if idx == last_sent + 1 {
+                        let result = self.oracle.ser2(&item);
+                        match result.as_ref() {
+                            Ok(c) => {
+                                self.last_sent = Some(c.index);
+                            },
+                            Err(_) => {
+                                self.last_sent = Some(last_sent);
+                            },
+                        }
+                        return Some((result, self));
+                    } else if idx > last_sent + 1 {
+                        // If a gap is detected, continue the loop to try to fill from DB
+                        continue;
+                    } else {
+                        // Duplicate or out-of-order, skip
+                        continue;
+                    }
+                }
+                Err(tokio::sync::broadcast::error::RecvError::Lagged(_)) => {
+                    let latest = self.oracle.get_latest().unwrap_or(last_sent);
+                    let stop_at = end_idx.map(|e| latest.min(e)).unwrap_or(latest);
+                    while last_sent < stop_at {
+                        let next = last_sent + 1;
+                        if let Some(item) = self.oracle.get_item(next) {
+                            let result = self.oracle.ser2(&item);
+                            match result.as_ref() {
+                                Ok(c) => {
+                                    tracing::info!(
+                                        "[GAP FILL] Sent missing checkpoint {} from DB (prev last_sent: {})",
+                                        c.index, last_sent
+                                    );
+                                    self.last_sent = Some(c.index);
+                                },
+                                Err(_) => {
+                                    self.last_sent = Some(last_sent);
+                                },
+                            }
+                            return Some((result, self));
+                        } else {
+                            break;
+                        }
+                    }
+                    continue;
+                }
+                Err(_) => return None,
+            }
+        }
+    }
+
+    fn stream(
         oracle: F,
         tx: &tokio::sync::broadcast::Sender<Arc<T>>,
         start: Option<u64>,
         end: Option<u64>,
-    ) -> Result<Pin<Box<dyn futures::Stream<Item = CheckpointStreamResult> + Send>>, Status> 
+    ) -> impl futures::Stream<Item = CheckpointStreamResult> + Send
     {
         let latest_idx = oracle.get_latest();
         let start_idx = match (start, end) {
@@ -95,6 +241,7 @@ impl<T: Send + Sync + 'static> CheckpointStreamerState<T> {
         };
 
         let init = CheckpointStreamerState {
+            oracle,
             rx: tx.subscribe(),
             start,
             end,
@@ -104,146 +251,7 @@ impl<T: Send + Sync + 'static> CheckpointStreamerState<T> {
             last_sent: None,
         };
 
-        let stream = unfold(init,
-            move |mut state| {
-            let end_idx = state.end.clone();
-            let oracle = oracle.clone();
-            async move {
-                // Special case: only end_index is provided, stream only that checkpoint
-                if state.start.is_none() && state.end.is_some() && !state.in_live_stream {
-                    let idx = state.end.unwrap();
-                    if let Some(item) = oracle.get_item(idx) {
-                        state.in_live_stream = true;
-                        state.last_sent = Some(idx);
-                        return Some((oracle.ser2(&item), state));
-                    } else {
-                        // Not found in storage, wait for it to appear on the broadcast channel
-                        loop {
-                            match state.rx.recv().await {
-                                Ok(item) => {
-                                    if oracle.get_index(&item) == idx {
-                                        state.in_live_stream = true;
-                                        state.last_sent = Some(idx);
-                                        return Some((oracle.ser2(&item), state));
-                                    }
-                                }
-                                Err(tokio::sync::broadcast::error::RecvError::Lagged(_)) => continue,
-                                Err(_) => return None,
-                            }
-                        }
-                    }
-                }
-                if !state.in_live_stream {
-                    let latest = oracle.get_latest().unwrap_or(state.current);
-                    let stop_at = end_idx.map(|e| latest.min(e)).unwrap_or(latest);
-                    if state.current <= stop_at {
-                        if let Some(item) = oracle.get_item(state.current) {
-                            let result = oracle.ser2(&item);
-                            if let Ok(c) = result.as_ref() {
-                                state.current += 1;
-                                state.in_live_stream = state.current > stop_at;
-                                state.last_sent = Some(c.index);
-                            }
-                            return Some((result, state));
-                        } else {
-                            state.in_live_stream = true;
-                            state.last_sent = Some(state.current.saturating_sub(1));
-                        }
-                    } else {
-                        state.in_live_stream = true;
-                        state.last_sent = Some(stop_at);
-                    }
-                }
-                let last_sent = state.last_sent.unwrap_or(state.current.saturating_sub(1));
-                loop {
-                    // If this is the special end_index only case and in_live_stream is true, end
-                    // the stream
-                    if start.is_none() && end.is_some() && state.in_live_stream {
-                        return None;
-                    }
-                    // Always try to fill the next expected checkpoint from DB first
-                    if let Some(missing_item) = oracle.get_item(last_sent + 1) {
-                        let result = oracle.ser2(&missing_item);
-                        match result.as_ref() {
-                            Ok(c) => {
-                                tracing::info!(
-                                    "[GAP FILL] Sent missing checkpoint {} from DB (prev last_sent: {})",
-                                    c.index, last_sent
-                                );
-                                state.last_sent = Some(c.index);
-                            },
-                            Err(e) => {
-                                tracing::error!(
-                                    "[GAP FILL ERROR] BCS serialization error for checkpoint {}: {}",
-                                    last_sent + 1,
-                                    e
-                                );
-                                state.last_sent = Some(last_sent);
-                            },
-                        }
-                        return Some((result, state));
-                    }
-                    // If not found in DB, wait for broadcast
-                    match state.rx.recv().await {
-                        Ok(item) => {
-                            let idx = oracle.get_index(&item);
-                            if let Some(end) = end_idx {
-                                if idx > end {
-                                    return None;
-                                }
-                            }
-                            if idx == last_sent + 1 {
-                                let result = oracle.ser2(&item);
-                                match result.as_ref() {
-                                    Ok(c) => {
-                                        state.last_sent = Some(c.index);
-                                    },
-                                    Err(_) => {
-                                        state.last_sent = Some(last_sent);
-                                    },
-                                }
-                                return Some((result, state));
-                            } else if idx > last_sent + 1 {
-                                // If a gap is detected, continue the loop to try to fill from DB
-                                continue;
-                            } else {
-                                // Duplicate or out-of-order, skip
-                                continue;
-                            }
-                        }
-                        Err(tokio::sync::broadcast::error::RecvError::Lagged(_)) => {
-                            let latest = oracle.get_latest().unwrap_or(last_sent);
-                            let stop_at = end_idx.map(|e| latest.min(e)).unwrap_or(latest);
-                            while last_sent < stop_at {
-                                let next = last_sent + 1;
-                                if let Some(item) = oracle.get_item(next) {
-                                    let result = oracle.ser2(&item);
-                                    match result.as_ref() {
-                                        Ok(c) => {
-                                            tracing::info!(
-                                                "[GAP FILL] Sent missing checkpoint {} from DB (prev last_sent: {})",
-                                                c.index, last_sent
-                                            );
-                                            state.last_sent = Some(c.index);
-                                        },
-                                        Err(_) => {
-                                            state.last_sent = Some(last_sent);
-                                        },
-                                    }
-                                    return Some((result, state));
-                                } else {
-                                    break;
-                                }
-                            }
-                            continue;
-                        }
-                        Err(_) => return None,
-                    }
-                }
-            }},
-        );
-
-        Ok(Box::pin(stream))
+        futures::stream::unfold(init, Self::unfold_step)
     }
 }
 
@@ -305,7 +313,7 @@ impl CheckpointGrpcService {
         &self,
         start: Option<u64>,
         end: Option<u64>,
-    ) -> Result<Pin<Box<dyn futures::Stream<Item = CheckpointStreamResult> + Send>>, Status> {
+    ) -> impl futures::Stream<Item = CheckpointStreamResult> + Send {
         let state_reader = self.state_reader.clone();
         let oracle = Oracle { state_reader };
         CheckpointStreamerState::stream(oracle, &self.grpc_checkpoint_data_tx, start, end)
@@ -314,7 +322,7 @@ impl CheckpointGrpcService {
         &self,
         start: Option<u64>,
         end: Option<u64>,
-    ) -> Result<Pin<Box<dyn futures::Stream<Item = CheckpointStreamResult> + Send>>, Status> {
+    ) -> impl futures::Stream<Item = CheckpointStreamResult> + Send {
         let state_reader = self.state_reader.clone();
         let oracle = Oracle { state_reader };
         CheckpointStreamerState::stream(oracle, &self.grpc_checkpoint_summary_tx, start, end)
@@ -335,12 +343,12 @@ impl CheckpointService for CheckpointGrpcService {
         let end = req.end_index;
         let full = req.full;
 
-        let stream = if full.unwrap_or(false) {
-            self.stream_checkpoint_data(start, end)
+        let stream: Self::StreamCheckpointsStream = if full.unwrap_or(false) {
+            Box::pin(self.stream_checkpoint_data(start, end))
         } else {
-            self.stream_checkpoint_summary(start, end)
+            Box::pin(self.stream_checkpoint_summary(start, end))
         };
-        Ok(Response::new(stream?))
+        Ok(Response::new(stream))
     }
 
     // TODO: remove this?
