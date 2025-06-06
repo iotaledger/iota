@@ -4,6 +4,7 @@
 
 use std::{cell::RefCell, collections::BTreeMap, path::Path, sync::Arc};
 
+use anyhow::bail;
 use clap::Parser;
 use iota_move_build::decorate_warnings;
 use iota_move_natives::{
@@ -42,9 +43,9 @@ impl Test {
     ) -> anyhow::Result<UnitTestResult> {
         let compute_coverage = self.test.compute_coverage;
         if !cfg!(debug_assertions) && compute_coverage {
-            return Err(anyhow::anyhow!(
+            bail!(
                 "The --coverage flag is currently supported only in debug builds. Please build the IOTA CLI from source in debug mode."
-            ));
+            );
         }
         // save disassembly if trace execution is enabled
         let save_disassembly = self.test.trace_execution.is_some();

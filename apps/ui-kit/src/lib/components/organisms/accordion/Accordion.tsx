@@ -1,10 +1,10 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { PropsWithChildren } from 'react';
+import type { PropsWithChildren } from 'react';
 import cx from 'classnames';
 import { ArrowDown } from '@iota/apps-ui-icons';
-import { Button, ButtonType } from '@/lib';
+import { Button, ButtonType } from '@/components/atoms';
 import { ICON_STYLE } from './accordion.classes';
 
 export interface AccordionHeaderProps {

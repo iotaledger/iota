@@ -8,7 +8,7 @@
 #[path = "../utils.rs"]
 mod utils;
 
-use iota_json_rpc_types::{RPCTransactionRequestParams, TransferObjectParams};
+use iota_sdk::rpc_types::{RPCTransactionRequestParams, TransferObjectParams};
 use utils::{setup_for_write, sign_and_execute_transaction};
 
 #[tokio::main]

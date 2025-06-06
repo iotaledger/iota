@@ -4,7 +4,7 @@
 
 use std::{collections::BTreeSet, path::Path, sync::Arc};
 
-use anyhow::anyhow;
+use anyhow::{anyhow, bail};
 use colored::Colorize;
 use futures::{StreamExt, TryStreamExt};
 use getset::{Getters, MutGetters};
@@ -94,9 +94,7 @@ impl WalletContext {
     /// If not set, defaults to the first address in the keystore.
     pub fn active_address(&self) -> Result<IotaAddress, anyhow::Error> {
         if self.config.keystore.addresses().is_empty() {
-            return Err(anyhow!(
-                "No managed addresses. Create new address with the `new-address` command."
-            ));
+            bail!("No managed addresses. Create new address with the `new-address` command.");
         }
 
         Ok(if let Some(addr) = self.config.active_address() {
@@ -110,9 +108,7 @@ impl WalletContext {
     /// If not set, defaults to the first environment in the config.
     pub fn active_env(&self) -> Result<&IotaEnv, anyhow::Error> {
         if self.config.envs.is_empty() {
-            return Err(anyhow!(
-                "No managed environments. Create new environment with the `new-env` command."
-            ));
+            bail!("No managed environments. Create new environment with the `new-env` command.");
         }
 
         Ok(if self.config.active_env().is_some() {
@@ -160,13 +156,13 @@ impl WalletContext {
                     if let Some(o) = res.data {
                         match GasCoin::try_from(&o) {
                             Ok(gas_coin) => Some(Ok((gas_coin.value(), o.clone()))),
-                            Err(e) => Some(Err(anyhow::anyhow!("{e}"))),
+                            Err(e) => Some(Err(anyhow!("{e}"))),
                         }
                     } else {
                         None
                     }
                 }
-                Err(e) => Some(Err(anyhow::anyhow!("{e}"))),
+                Err(e) => Some(Err(anyhow!("{e}"))),
             }
         })
         .try_collect::<Vec<_>>()
@@ -213,9 +209,9 @@ impl WalletContext {
                 return Ok((o.0, o.1));
             }
         }
-        Err(anyhow!(
+        bail!(
             "No non-argument gas objects found for this address with value >= budget {budget}. Run iota client gas to check for gas objects."
-        ))
+        )
     }
 
     /// Get the [`ObjectRef`] for gas objects owned by the provided address.

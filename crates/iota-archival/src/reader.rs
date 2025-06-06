@@ -13,7 +13,7 @@ use std::{
     time::Duration,
 };
 
-use anyhow::{Context, Result, anyhow};
+use anyhow::{Context, Result, anyhow, bail};
 use bytes::{Buf, Bytes, buf::Reader};
 use futures::{StreamExt, TryStreamExt};
 use iota_config::node::ArchiveReaderConfig;
@@ -186,7 +186,7 @@ impl ArchiveReader {
     ) -> Result<Vec<(FileMetadata, FileMetadata)>> {
         let files = manifest.files();
         if files.is_empty() {
-            return Err(anyhow!("Unexpected empty archive store"));
+            bail!("Unexpected empty archive store");
         }
 
         let mut summary_files: Vec<_> = files
@@ -336,13 +336,13 @@ impl ArchiveReader {
     pub async fn read_summaries_for_list_no_verify<S>(
         &self,
         store: S,
-        skiplist: Vec<CheckpointSequenceNumber>,
+        checkpoints: Vec<CheckpointSequenceNumber>,
         checkpoint_counter: Arc<AtomicU64>,
     ) -> Result<()>
     where
         S: WriteStore + Clone,
     {
-        let summary_files = self.get_summary_files_for_list(skiplist.clone()).await?;
+        let summary_files = self.get_summary_files_for_list(checkpoints.clone()).await?;
         let remote_object_store = self.remote_object_store.clone();
         let stream = futures::stream::iter(summary_files.iter())
             .map(|summary_metadata| {
@@ -365,7 +365,7 @@ impl ArchiveReader {
                     )
                     .and_then(|summary_iter| {
                         summary_iter
-                            .filter(|s| skiplist.contains(&s.sequence_number))
+                            .filter(|s| checkpoints.contains(&s.sequence_number))
                             .try_for_each(|summary| {
                                 Self::insert_certified_checkpoint(&store, summary)?;
                                 checkpoint_counter.fetch_add(1, Ordering::Relaxed);
@@ -401,10 +401,10 @@ impl ArchiveReader {
             .context("Checkpoint seq num underflow")?;
 
         if checkpoint_range.start > latest_available_checkpoint {
-            return Err(anyhow!(
+            bail!(
                 "Latest available checkpoint is: {}",
                 latest_available_checkpoint
-            ));
+            );
         }
 
         let files: Vec<(FileMetadata, FileMetadata)> = self.verify_manifest(manifest).await?;
@@ -603,10 +603,10 @@ impl ArchiveReader {
             .context("Checkpoint seq num underflow")?;
 
         if checkpoint_range.start > latest_available_checkpoint {
-            return Err(anyhow!(
+            bail!(
                 "Latest available checkpoint is: {}",
                 latest_available_checkpoint
-            ));
+            );
         }
 
         let summary_files: Vec<FileMetadata> = self
@@ -647,10 +647,10 @@ impl ArchiveReader {
         let mut ordered_checkpoints = checkpoints;
         ordered_checkpoints.sort();
         if *ordered_checkpoints.first().unwrap() > latest_available_checkpoint {
-            return Err(anyhow!(
+            bail!(
                 "Latest available checkpoint is: {}",
                 latest_available_checkpoint
-            ));
+            );
         }
 
         let summary_files: Vec<FileMetadata> = self

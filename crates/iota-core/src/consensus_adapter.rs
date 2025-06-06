@@ -95,35 +95,35 @@ impl ConsensusAdapterMetrics {
                 &["tx_type"],
                 registry,
             )
-                .unwrap(),
+            .unwrap(),
             sequencing_certificate_success: register_int_counter_vec_with_registry!(
                 "sequencing_certificate_success",
                 "Counts the number of successfully sequenced certificates.",
                 &["tx_type"],
                 registry,
             )
-                .unwrap(),
+            .unwrap(),
             sequencing_certificate_failures: register_int_counter_vec_with_registry!(
                 "sequencing_certificate_failures",
                 "Counts the number of sequenced certificates that failed other than by timeout.",
                 &["tx_type"],
                 registry,
             )
-                .unwrap(),
+            .unwrap(),
             sequencing_certificate_status: register_int_counter_vec_with_registry!(
                 "sequencing_certificate_status",
                 "The status of the certificate sequencing as reported by consensus. The status can be either sequenced or garbage collected.",
                 &["tx_type", "status"],
                 registry,
             )
-                .unwrap(),
+            .unwrap(),
             sequencing_certificate_inflight: register_int_gauge_vec_with_registry!(
                 "sequencing_certificate_inflight",
                 "The inflight requests to sequence certificates.",
                 &["tx_type"],
                 registry,
             )
-                .unwrap(),
+            .unwrap(),
             sequencing_acknowledge_latency: register_histogram_vec_with_registry!(
                 "sequencing_acknowledge_latency",
                 "The latency for acknowledgement from sequencing engine. The overall sequencing latency is measured by the sequencing_certificate_latency metric",
@@ -131,121 +131,72 @@ impl ConsensusAdapterMetrics {
                 SEQUENCING_CERTIFICATE_LATENCY_SEC_BUCKETS.to_vec(),
                 registry,
             )
-                .unwrap(),
+            .unwrap(),
             sequencing_certificate_latency: register_histogram_vec_with_registry!(
                 "sequencing_certificate_latency",
                 "The latency for sequencing a certificate.",
                 &["position", "tx_type", "processed_method"],
                 SEQUENCING_CERTIFICATE_LATENCY_SEC_BUCKETS.to_vec(),
                 registry,
-            ).unwrap(),
+            )
+            .unwrap(),
             sequencing_certificate_authority_position: register_histogram_with_registry!(
                 "sequencing_certificate_authority_position",
                 "The position of the authority when submitted a certificate to consensus.",
                 SEQUENCING_CERTIFICATE_POSITION_BUCKETS.to_vec(),
                 registry,
-            ).unwrap(),
+            )
+            .unwrap(),
             sequencing_certificate_positions_moved: register_histogram_with_registry!(
                 "sequencing_certificate_positions_moved",
                 "The number of authorities ahead of ourselves that were filtered out when submitting a certificate to consensus.",
                 SEQUENCING_CERTIFICATE_POSITION_BUCKETS.to_vec(),
                 registry,
-            ).unwrap(),
+            )
+            .unwrap(),
             sequencing_certificate_preceding_disconnected: register_histogram_with_registry!(
                 "sequencing_certificate_preceding_disconnected",
                 "The number of authorities that were hashed to an earlier position that were filtered out due to being disconnected when submitting to consensus.",
                 SEQUENCING_CERTIFICATE_POSITION_BUCKETS.to_vec(),
                 registry,
-            ).unwrap(),
+            )
+            .unwrap(),
             sequencing_certificate_processed: register_int_counter_vec_with_registry!(
                 "sequencing_certificate_processed",
                 "The number of certificates that have been processed either by consensus or checkpoint.",
                 &["source"],
                 registry
-            ).unwrap(),
+            )
+            .unwrap(),
             sequencing_in_flight_semaphore_wait: register_int_gauge_with_registry!(
                 "sequencing_in_flight_semaphore_wait",
                 "How many requests are blocked on submit_permit.",
                 registry,
             )
-                .unwrap(),
+            .unwrap(),
             sequencing_in_flight_submissions: register_int_gauge_with_registry!(
                 "sequencing_in_flight_submissions",
                 "Number of transactions submitted to local consensus instance and not yet sequenced",
                 registry,
             )
-                .unwrap(),
+            .unwrap(),
             sequencing_estimated_latency: register_int_gauge_with_registry!(
                 "sequencing_estimated_latency",
                 "Consensus latency estimated by consensus adapter in milliseconds",
                 registry,
             )
-                .unwrap(),
+            .unwrap(),
             sequencing_resubmission_interval_ms: register_int_gauge_with_registry!(
                 "sequencing_resubmission_interval_ms",
                 "Resubmission interval used by consensus adapter in milliseconds",
                 registry,
             )
-                .unwrap(),
+            .unwrap(),
         }
     }
 
     pub fn new_test() -> Self {
         Self::new(&Registry::default())
-    }
-
-    pub fn unregister(&self, registry: &Registry) {
-        registry
-            .unregister(Box::new(self.sequencing_certificate_attempt.clone()))
-            .expect("sequencing_certificate_attempt is in registry");
-        registry
-            .unregister(Box::new(self.sequencing_certificate_success.clone()))
-            .expect("sequencing_certificate_success is in registry");
-        registry
-            .unregister(Box::new(self.sequencing_certificate_failures.clone()))
-            .expect("sequencing_certificate_failures is in registry");
-        registry
-            .unregister(Box::new(self.sequencing_certificate_status.clone()))
-            .expect("sequencing_certificate_status is in registry");
-        registry
-            .unregister(Box::new(self.sequencing_certificate_inflight.clone()))
-            .expect("sequencing_certificate_inflight is in registry");
-        registry
-            .unregister(Box::new(self.sequencing_acknowledge_latency.clone()))
-            .expect("sequencing_acknowledge_latency is in registry");
-        registry
-            .unregister(Box::new(self.sequencing_certificate_latency.clone()))
-            .expect("sequencing_certificate_latency is in registry");
-        registry
-            .unregister(Box::new(
-                self.sequencing_certificate_authority_position.clone(),
-            ))
-            .expect("sequencing_certificate_authority_position is in registry");
-        registry
-            .unregister(Box::new(
-                self.sequencing_certificate_positions_moved.clone(),
-            ))
-            .expect("sequencing_certificate_positions_moved is in registry");
-        registry
-            .unregister(Box::new(
-                self.sequencing_certificate_preceding_disconnected.clone(),
-            ))
-            .expect("sequencing_certificate_preceding_disconnected is in registry");
-        registry
-            .unregister(Box::new(self.sequencing_certificate_processed.clone()))
-            .expect("sequencing_certificate_processed is in registry");
-        registry
-            .unregister(Box::new(self.sequencing_in_flight_semaphore_wait.clone()))
-            .expect("sequencing_in_flight_semaphore_wait is in registry");
-        registry
-            .unregister(Box::new(self.sequencing_in_flight_submissions.clone()))
-            .expect("sequencing_in_flight_submissions is in registry");
-        registry
-            .unregister(Box::new(self.sequencing_estimated_latency.clone()))
-            .expect("sequencing_estimated_latency is in registry");
-        registry
-            .unregister(Box::new(self.sequencing_resubmission_interval_ms.clone()))
-            .expect("sequencing_resubmission_interval_ms is in registry");
     }
 }
 
@@ -398,10 +349,6 @@ impl ConsensusAdapter {
         }
     }
 
-    pub fn unregister_consensus_adapter_metrics(&self, registry: &Registry) {
-        self.metrics.unregister(registry);
-    }
-
     fn await_submit_delay(
         &self,
         committee: &Committee,
@@ -411,7 +358,7 @@ impl ConsensusAdapter {
         let min_digest = transactions
             .iter()
             .filter_map(|tx| match &tx.kind {
-                ConsensusTransactionKind::UserTransaction(certificate) => {
+                ConsensusTransactionKind::CertifiedTransaction(certificate) => {
                     Some(certificate.digest())
                 }
                 _ => None,
@@ -608,7 +555,7 @@ impl ConsensusAdapter {
                 fp_ensure!(
                     matches!(
                         transaction.kind,
-                        ConsensusTransactionKind::UserTransaction(_)
+                        ConsensusTransactionKind::CertifiedTransaction(_)
                     ),
                     IotaError::InvalidTxKindInSoftBundle
                 );
@@ -868,7 +815,7 @@ impl ConsensusAdapter {
         let is_user_tx = is_soft_bundle
             || matches!(
                 transactions[0].kind,
-                ConsensusTransactionKind::UserTransaction(_)
+                ConsensusTransactionKind::CertifiedTransaction(_)
             );
         let send_end_of_publish = if is_user_tx {
             // If we are in RejectUserCerts state and we just drained the list we need to
@@ -1302,7 +1249,6 @@ mod adapter_tests {
         committee::Committee,
         crypto::{AuthorityKeyPair, AuthorityPublicKeyBytes, get_key_pair_from_rng},
     };
-    use prometheus::Registry;
     use rand::{Rng, SeedableRng, rngs::StdRng};
 
     use super::position_submit_certificate;
@@ -1411,56 +1357,5 @@ mod adapter_tests {
             }
             assert!(zero_found);
         }
-    }
-
-    #[tokio::test]
-    #[should_panic]
-    async fn test_reregister_consensus_adapter_metrics() {
-        let registry = Registry::new();
-        // create metric the first time
-        let _metrics = ConsensusAdapterMetrics::new(&registry);
-        // create a new metric in the same registry without unregistering
-        // should panic
-        let _metrics = ConsensusAdapterMetrics::new(&registry);
-    }
-
-    #[tokio::test]
-    async fn test_unregister_consensus_adapter_metrics() {
-        let registry = Registry::new();
-
-        // create metric the first time
-        let metrics = ConsensusAdapterMetrics::new(&registry);
-        // use metric
-        metrics
-            .sequencing_certificate_attempt
-            .with_label_values(&["tx"])
-            .inc_by(1);
-        assert_eq!(
-            1,
-            metrics
-                .sequencing_certificate_attempt
-                .with_label_values(&["tx"])
-                .get()
-        );
-        // should not panic
-        metrics.unregister(&registry);
-        // metric can safely be used unregistered
-        metrics
-            .sequencing_certificate_attempt
-            .with_label_values(&["tx"])
-            .inc_by(1);
-
-        // create a new metric in the same registry
-        let metrics = ConsensusAdapterMetrics::new(&registry);
-        // it's fresh
-        assert_eq!(
-            0,
-            metrics
-                .sequencing_certificate_attempt
-                .with_label_values(&["tx"])
-                .get()
-        );
-        // and can be unregistered
-        metrics.unregister(&registry);
     }
 }

@@ -8,7 +8,7 @@ pub mod utils;
 
 use std::{result::Result, str::FromStr, sync::Arc};
 
-use anyhow::{Ok, anyhow, bail};
+use anyhow::{Ok, bail};
 use async_trait::async_trait;
 use iota_json::IotaJsonValue;
 use iota_json_rpc_types::{
@@ -241,9 +241,9 @@ impl TransactionBuilder {
 
         if let Some(gas) = gas {
             if input_coins.contains(&gas) {
-                return Err(anyhow!(
+                bail!(
                     "Gas coin is in input coins of Pay transaction, use PayIota transaction instead!"
-                ));
+                );
             }
         }
 
