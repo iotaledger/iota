@@ -18,7 +18,8 @@ use iota_json_rpc_types::{
 use iota_package_resolver::Resolver;
 use iota_protocol_config::ProtocolVersion;
 use iota_test_transaction_builder::{
-    TestTransactionBuilder, create_nft, delete_nft, publish_example_package, publish_nfts_package,
+    TestTransactionBuilder, create_nft, delete_nft, publish_nfts_package,
+    publish_simple_warrior_package,
 };
 use iota_types::{
     base_types::{ObjectID, SequenceNumber},
@@ -1838,7 +1839,7 @@ fn find_transaction_for_wrapped_or_deleted_object() -> Result<(), anyhow::Error>
         indexer_wait_for_object(client, gas.0, gas.1).await;
 
         // 2) Publish the `Warrior` package
-        let (package_id, _, _) = publish_example_package(&cluster.wallet, "warrior").await;
+        let (package_id, _, _) = publish_simple_warrior_package(&cluster.wallet).await;
 
         // 3) Mint a `Sword`
         let pt = {
@@ -2187,7 +2188,7 @@ fn find_transaction_for_create_and_wrap_same_ptb() -> Result<(), anyhow::Error> 
         indexer_wait_for_object(client, gas.0, gas.1).await;
 
         // 2) Publish the `Warrior` package
-        let (package_id, _, _) = publish_example_package(&cluster.wallet, "warrior").await;
+        let (package_id, _, _) = publish_simple_warrior_package(&cluster.wallet).await;
 
         // 3) In a single PTB: create and wrap Sword
         let pt = {

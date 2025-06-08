@@ -682,6 +682,14 @@ pub async fn publish_nfts_package(
     publish_example_package(context, "nft").await
 }
 
+/// Executes a transaction to publish the `nfts` package and returns the package
+/// id, id of the gas object used, and the digest of the transaction.
+pub async fn publish_simple_warrior_package(
+    context: &WalletContext,
+) -> (ObjectID, ObjectID, TransactionDigest) {
+    publish_example_package(context, "simple_warrior").await
+}
+
 /// Pre-requisite: `publish_nfts_package` must be called before this function.
 /// Executes a transaction to create an NFT and returns the sender address, the
 /// object id of the NFT, and the digest of the transaction.
