@@ -35,7 +35,7 @@ use iota_core::{
     authority::{
         AuthorityState, AuthorityStore, CHAIN_IDENTIFIER, RandomnessRoundReceiver,
         authority_per_epoch_store::AuthorityPerEpochStore,
-        authority_store_tables::AuthorityPerpetualTables,
+        authority_store_tables::{AuthorityPerpetualTables, AuthorityPerpetualTablesOptions},
         epoch_start_configuration::{EpochFlag, EpochStartConfigTrait, EpochStartConfiguration},
     },
     authority_aggregator::{AuthAggMetrics, AuthorityAggregator},
@@ -481,10 +481,12 @@ impl IotaNode {
             None,
         ));
 
-        let perpetual_options = default_db_options().optimize_db_for_write_throughput(4);
+        // By default, only enable write stall on validators for perpetual db.
+        let enable_write_stall = config.enable_db_write_stall.unwrap_or(is_validator);
+        let perpetual_tables_options = AuthorityPerpetualTablesOptions { enable_write_stall };
         let perpetual_tables = Arc::new(AuthorityPerpetualTables::open(
             &config.db_path().join("store"),
-            Some(perpetual_options.options),
+            Some(perpetual_tables_options),
         ));
         let is_genesis = perpetual_tables
             .database_is_empty()
@@ -1167,7 +1169,8 @@ impl IotaNode {
             network
         };
 
-        let discovery_handle = discovery.start(p2p_network.clone());
+        let discovery_handle =
+            discovery.start(p2p_network.clone(), config.network_key_pair().copy());
         let state_sync_handle = state_sync.start(p2p_network.clone());
         let randomness_handle = randomness.start(p2p_network.clone());
 
@@ -1301,7 +1304,7 @@ impl IotaNode {
         iota_tx_validator_metrics: Arc<IotaTxValidatorMetrics>,
         validator_registry_id: RegistryID,
     ) -> Result<ValidatorComponents> {
-        let (checkpoint_service, checkpoint_service_tasks) = Self::start_checkpoint_service(
+        let checkpoint_service = Self::start_checkpoint_service(
             config,
             consensus_adapter.clone(),
             checkpoint_store,
@@ -1354,6 +1357,8 @@ impl IotaNode {
             )
             .await;
 
+        let checkpoint_service_tasks = checkpoint_service.spawn().await;
+
         if epoch_store.authenticator_state_enabled() {
             Self::start_jwk_updater(
                 config,
@@ -1393,7 +1398,7 @@ impl IotaNode {
         state_sync_handle: state_sync::Handle,
         accumulator: Weak<StateAccumulator>,
         checkpoint_metrics: Arc<CheckpointMetrics>,
-    ) -> (Arc<CheckpointService>, JoinSet<()>) {
+    ) -> Arc<CheckpointService> {
         let epoch_start_timestamp_ms = epoch_store.epoch_start_state().epoch_start_timestamp_ms();
         let epoch_duration_ms = epoch_store.epoch_start_state().epoch_duration_ms();
 
@@ -1418,7 +1423,7 @@ impl IotaNode {
         let max_checkpoint_size_bytes =
             epoch_store.protocol_config().max_checkpoint_size_bytes() as usize;
 
-        CheckpointService::spawn(
+        CheckpointService::build(
             state.clone(),
             checkpoint_store,
             epoch_store,
@@ -2007,7 +2012,11 @@ fn build_kv_store(
         )
     })?;
 
-    let http_store = HttpKVStore::new_kv(base_url, metrics.clone())?;
+    let http_store = HttpKVStore::new_kv(
+        base_url,
+        config.transaction_kv_store_read_config.cache_size,
+        metrics.clone(),
+    )?;
     info!("using local key-value store with fallback to http key-value store");
     Ok(Arc::new(FallbackTransactionKVStore::new_kv(
         db_store,
@@ -2110,7 +2119,7 @@ pub async fn build_http_server(
 
     if config.enable_rest_api {
         let mut rest_service = iota_rest_api::RestService::new(
-            Arc::new(RestReadStore::new(state, store)),
+            Arc::new(RestReadStore::new(state.clone(), store)),
             software_version,
         );
 
@@ -2122,6 +2131,12 @@ pub async fn build_http_server(
 
         router = router.merge(rest_service.into_router());
     }
+
+    // TODO: Remove this health check when experimental REST API becomes default
+    // This is a copy of the health check in crates/iota-rest-api/src/health.rs
+    router = router
+        .route("/health", axum::routing::get(health_check_handler))
+        .route_layer(axum::Extension(state));
 
     let listener = tokio::net::TcpListener::bind(&config.json_rpc_address)
         .await
@@ -2142,6 +2157,51 @@ pub async fn build_http_server(
     info!(local_addr =? addr, "IOTA JSON-RPC server listening on {addr}");
 
     Ok(Some(handle))
+}
+
+#[derive(Debug, serde::Serialize, serde::Deserialize)]
+pub struct Threshold {
+    pub threshold_seconds: Option<u32>,
+}
+
+async fn health_check_handler(
+    axum::extract::Query(Threshold { threshold_seconds }): axum::extract::Query<Threshold>,
+    axum::Extension(state): axum::Extension<Arc<AuthorityState>>,
+) -> impl axum::response::IntoResponse {
+    if let Some(threshold_seconds) = threshold_seconds {
+        // Attempt to get the latest checkpoint
+        let summary = match state
+            .get_checkpoint_store()
+            .get_highest_executed_checkpoint()
+        {
+            Ok(Some(summary)) => summary,
+            Ok(None) => {
+                warn!("Highest executed checkpoint not found");
+                return (axum::http::StatusCode::SERVICE_UNAVAILABLE, "down");
+            }
+            Err(err) => {
+                warn!("Failed to retrieve highest executed checkpoint: {:?}", err);
+                return (axum::http::StatusCode::SERVICE_UNAVAILABLE, "down");
+            }
+        };
+
+        // Calculate the threshold time based on the provided threshold_seconds
+        let latest_chain_time = summary.timestamp();
+        let threshold =
+            std::time::SystemTime::now() - Duration::from_secs(threshold_seconds as u64);
+
+        // Check if the latest checkpoint is within the threshold
+        if latest_chain_time < threshold {
+            warn!(
+                ?latest_chain_time,
+                ?threshold,
+                "failing health check due to checkpoint lag"
+            );
+            return (axum::http::StatusCode::SERVICE_UNAVAILABLE, "down");
+        }
+    }
+    // if health endpoint is responding and no threshold is given, respond success
+    (axum::http::StatusCode::OK, "up")
 }
 
 #[cfg(not(test))]

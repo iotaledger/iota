@@ -19,6 +19,12 @@ pub enum KeyIdentity {
     Alias(String),
 }
 
+impl From<IotaAddress> for KeyIdentity {
+    fn from(address: IotaAddress) -> Self {
+        Self::Address(address)
+    }
+}
+
 impl FromStr for KeyIdentity {
     type Err = anyhow::Error;
     fn from_str(s: &str) -> Result<Self, Self::Err> {

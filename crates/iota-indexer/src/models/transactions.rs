@@ -21,6 +21,8 @@ use move_core_types::{
     annotated_value::{MoveDatatypeLayout, MoveTypeLayout},
     language_storage::TypeTag,
 };
+#[cfg(feature = "shared_test_runtime")]
+use serde::Deserialize;
 
 use crate::{
     errors::IndexerError,
