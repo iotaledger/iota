@@ -19,7 +19,6 @@ use iota_package_resolver::Resolver;
 use iota_protocol_config::ProtocolVersion;
 use iota_test_transaction_builder::{
     TestTransactionBuilder, create_nft, delete_nft, publish_example_package, publish_nfts_package,
-    publish_simple_warrior_package,
 };
 use iota_types::{
     base_types::{ObjectID, SequenceNumber},
@@ -1873,7 +1872,7 @@ fn find_transaction_for_wrapped_or_deleted_object() -> Result<(), anyhow::Error>
             .effects
             .unwrap()
             .created()
-            .into_iter()
+            .iter()
             .map(|sword| sword.reference.clone())
             .collect::<Vec<IotaObjectRef>>();
 
@@ -1934,7 +1933,7 @@ fn find_transaction_for_wrapped_or_deleted_object() -> Result<(), anyhow::Error>
             .as_ref()
             .unwrap()
             .wrapped()
-            .into_iter()
+            .iter()
             .map(|wrapped| wrapped.object_id)
             .collect::<Vec<_>>();
 
@@ -1970,7 +1969,7 @@ fn find_transaction_for_wrapped_or_deleted_object() -> Result<(), anyhow::Error>
             .effects
             .unwrap()
             .created()
-            .into_iter()
+            .iter()
             .map(|warrior| warrior.reference.clone())
             .collect::<Vec<IotaObjectRef>>();
 
@@ -2030,7 +2029,7 @@ fn find_transaction_for_wrapped_or_deleted_object() -> Result<(), anyhow::Error>
             .effects
             .unwrap()
             .unwrapped_then_deleted()
-            .into_iter()
+            .iter()
             .map(|sword| sword.object_id)
             .collect::<Vec<_>>();
 
@@ -2124,7 +2123,7 @@ fn find_transaction_for_wrapped_or_deleted_object() -> Result<(), anyhow::Error>
             .effects
             .unwrap()
             .deleted()
-            .into_iter()
+            .iter()
             .map(|deleted| deleted.object_id)
             .collect::<Vec<_>>();
 
@@ -2221,11 +2220,11 @@ fn find_transaction_for_create_and_wrap_same_ptb() -> Result<(), anyhow::Error> 
                 Identifier::from_str("example")?,
                 Identifier::from_str("equip")?,
                 vec![],
-                vec![warrior.clone(), sword.clone()],
+                vec![warrior, sword],
             );
 
             // Transfer the Warrior to the sender
-            builder.transfer_arg(address, warrior.clone());
+            builder.transfer_arg(address, warrior);
 
             builder.finish()
         };
@@ -2299,7 +2298,7 @@ fn find_transaction_for_create_and_wrap_same_ptb() -> Result<(), anyhow::Error> 
             .effects
             .unwrap()
             .unwrapped()
-            .into_iter()
+            .iter()
             .map(|sword| sword.reference.clone())
             .collect::<Vec<IotaObjectRef>>();
 

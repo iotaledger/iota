@@ -515,7 +515,7 @@ impl CheckpointHandler {
         let wrapped_or_deleted_objects = fx
             .all_tombstones()
             .into_iter()
-            .chain(fx.created_and_immediatly_wrapped_objects())
+            .chain(fx.created_and_immediately_wrapped_objects())
             .map(|(object_id, _)| object_id)
             .collect::<Vec<_>>();
 
