@@ -21,7 +21,6 @@ use move_core_types::{
     annotated_value::{MoveDatatypeLayout, MoveTypeLayout},
     language_storage::TypeTag,
 };
-use serde::Deserialize;
 
 use crate::{
     errors::IndexerError,

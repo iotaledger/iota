@@ -4493,6 +4493,7 @@ input TransactionBlockFilter {
 	recvAddress: IotaAddress
 	inputObject: IotaAddress
 	changedObject: IotaAddress
+	wrappedOrDeletedObject: IotaAddress
 	transactionIds: [String!]
 }
 

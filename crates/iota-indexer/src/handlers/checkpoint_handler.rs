@@ -511,11 +511,12 @@ impl CheckpointHandler {
             .map(|(object_ref, _owner, _write_kind)| object_ref.0)
             .collect::<Vec<_>>();
 
-        // Wrapped or deleted Objects
+        // Wrapped or deleted objects
         let wrapped_or_deleted_objects = fx
             .all_tombstones()
             .into_iter()
-            .map(|(object_id, _sequence_number)| object_id)
+            .chain(fx.created_and_immediatly_wrapped_objects())
+            .map(|(object_id, _)| object_id)
             .collect::<Vec<_>>();
 
         // Payers

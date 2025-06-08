@@ -654,17 +654,19 @@ pub async fn emit_new_random_u128(
     context.execute_transaction_must_succeed(txn).await
 }
 
-/// Executes a transaction to publish the `nfts` package and returns the package
-/// id, id of the gas object used, and the digest of the transaction.
-pub async fn publish_nfts_package(
+/// Executes a transaction to publish the specified examples package and returns
+/// the package id, id of the gas object used, and the digest of the
+/// transaction.
+pub async fn publish_example_package(
     context: &WalletContext,
+    example_subpath: &'static str,
 ) -> (ObjectID, ObjectID, TransactionDigest) {
     let (sender, gas_object) = context.get_one_gas_object().await.unwrap().unwrap();
     let gas_id = gas_object.0;
     let gas_price = context.get_reference_gas_price().await.unwrap();
     let txn = context.sign_transaction(
         &TestTransactionBuilder::new(sender, gas_object, gas_price)
-            .publish_examples("nft")
+            .publish_examples(example_subpath)
             .build(),
     );
     let resp = context.execute_transaction_must_succeed(txn).await;
@@ -672,20 +674,12 @@ pub async fn publish_nfts_package(
     (package_id, gas_id, resp.digest)
 }
 
-pub async fn publish_simple_warrior_package(
+/// Executes a transaction to publish the `nfts` package and returns the package
+/// id, id of the gas object used, and the digest of the transaction.
+pub async fn publish_nfts_package(
     context: &WalletContext,
 ) -> (ObjectID, ObjectID, TransactionDigest) {
-    let (sender, gas_object) = context.get_one_gas_object().await.unwrap().unwrap();
-    let gas_id = gas_object.0;
-    let gas_price = context.get_reference_gas_price().await.unwrap();
-    let txn = context.sign_transaction(
-        &TestTransactionBuilder::new(sender, gas_object, gas_price)
-            .publish_examples("simple_warrior")
-            .build(),
-    );
-    let resp = context.execute_transaction_must_succeed(txn).await;
-    let package_id = get_new_package_obj_from_response(&resp).unwrap().0;
-    (package_id, gas_id, resp.digest)
+    publish_example_package(context, "nft").await
 }
 
 /// Pre-requisite: `publish_nfts_package` must be called before this function.

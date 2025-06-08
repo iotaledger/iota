@@ -1472,6 +1472,13 @@ impl PgIndexerStore {
                     "Failed to prune tx_changed_objects table"
                 ];
                 prune_tx_or_event_indice_table![
+                    tx_wrapped_or_deleted_objects,
+                    conn,
+                    min_tx,
+                    max_tx,
+                    "Failed to prune tx_wrapped_or_deleted_objects table"
+                ];
+                prune_tx_or_event_indice_table![
                     tx_calls_pkg,
                     conn,
                     min_tx,

@@ -2366,9 +2366,9 @@ pub enum TransactionFilter {
     /// Query by changed object, including created, mutated and unwrapped
     /// objects.
     ChangedObject(ObjectID),
-    /// Query wrapped or deleted objects. Includes objects that were either
-    /// wrapped immediately after being created, deleted, or deleted immediately
-    /// after being unwrapped.
+    /// Query transactions that wrapped or deleted the specified object.
+    /// Includes transactions that either created and immediately wrapped
+    /// the object or unwrapped and immediately deleted it.
     WrappedOrDeletedObject(ObjectID),
     /// Query by sender address.
     FromAddress(IotaAddress),

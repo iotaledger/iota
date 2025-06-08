@@ -12462,6 +12462,19 @@
             "additionalProperties": false
           },
           {
+            "description": "Query transactions that wrapped or deleted the specified object. Includes transactions that either created and immediately wrapped the object or unwrapped and immediately deleted it.",
+            "type": "object",
+            "required": [
+              "WrappedOrDeletedObject"
+            ],
+            "properties": {
+              "WrappedOrDeletedObject": {
+                "$ref": "#/components/schemas/ObjectID"
+              }
+            },
+            "additionalProperties": false
+          },
+          {
             "description": "Query by sender address.",
             "type": "object",
             "required": [
