@@ -51,7 +51,7 @@ module simple_warrior::example {
         if (option::is_none(&sword)) {
             sword.destroy_none();
         } else {
-            let Sword { id, strength } = option::destroy_some(sword);
+            let Sword { id, strength: _ } = option::destroy_some(sword);
             object::delete(id);
         }
     }
