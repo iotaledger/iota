@@ -30,16 +30,20 @@ wrapped: object(2,0)
 gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2530800,  storage_rebate: 2280000, non_refundable_storage_fee: 0
 
 task 4, lines 39-41:
-//# programmable --sender A --inputs object(3,0)
+//# programmable --sender A --inputs object(3,0) @A
 //> P::M::unwrap(Input(0));
 //> TransferObjects([Result(0)], Input(1))
-Error: Transaction Effects Status: Invalid command argument at 1. Out of bounds access to input or result vector 1
-Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: CommandArgumentError { arg_idx: 1, kind: IndexOutOfBounds { idx: 1 } }, source: None, command: Some(1) } }
+mutated: object(0,0)
+unwrapped: object(2,0)
+deleted: object(3,0)
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2280000,  storage_rebate: 2530800, non_refundable_storage_fee: 0
 
 task 5, lines 43-44:
-//# programmable --sender A --inputs object(4,0)
-//> P::M::destroy(Result(0))
-Error: INVALID TEST. Unknown object, object(4,0)
+//# programmable --sender A --inputs object(2,0)
+//> P::M::destroy(Input(0))
+mutated: object(0,0)
+deleted: object(2,0)
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 980400,  storage_rebate: 2280000, non_refundable_storage_fee: 0
 
 task 6, line 46:
 //# create-checkpoint
@@ -53,6 +57,9 @@ Response: {
       "nodes": [
         {
           "digest": "EjK8uCNejtPBfbjrjmz7kbsCFd5N4UaeqBuYUEZs49sC"
+        },
+        {
+          "digest": "2Q2uC8iV8Ta5hYa3cqxwU35ADxbX4UpgMDGD1f82jQU5"
         }
       ]
     }

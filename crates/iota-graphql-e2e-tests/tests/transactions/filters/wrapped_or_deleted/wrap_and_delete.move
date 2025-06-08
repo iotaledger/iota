@@ -36,12 +36,12 @@ module P::M {
 //> P::M::wrap(Input(0));
 //> TransferObjects([Result(0)], Input(1))
 
-//# programmable --sender A --inputs object(3,0)
+//# programmable --sender A --inputs object(3,0) @A
 //> P::M::unwrap(Input(0));
 //> TransferObjects([Result(0)], Input(1))
 
-//# programmable --sender A --inputs object(4,0)
-//> P::M::destroy(Result(0))
+//# programmable --sender A --inputs object(2,0)
+//> P::M::destroy(Input(0))
 
 //# create-checkpoint
 
