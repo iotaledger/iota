@@ -19,7 +19,6 @@ byteorder.workspace = true
 bytes.workspace = true
 fastcrypto = { workspace = true, features = ["copy_key"] }
 futures.workspace = true
-notify.workspace = true
 object_store.workspace = true
 prometheus.workspace = true
 rand.workspace = true
