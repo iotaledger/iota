@@ -236,6 +236,88 @@ where
     }
 }
 
+fn create_checkpoint_stream2<T, F>(
+    oracle: F,
+    tx: tokio::sync::broadcast::Sender<Arc<T>>,
+    start: Option<u64>,
+    end: Option<u64>,
+) -> impl futures::Stream<Item = CheckpointStreamResult> + Send
+where
+    T: Send + Sync + 'static,
+    F: CheckpointOracle<T> + Clone + Send + Sync + 'static,
+{
+    async_stream::try_stream! {
+        let mut rx = tx.subscribe();
+        let mut latest = oracle.get_latest().unwrap_or(0);
+        let (mut start, end) = match (start, end) {
+            (None, None) => (latest, u64::MAX),
+            (None, Some(end)) => (end, end),
+            (Some(start), None) => (start, u64::MAX),
+            (Some(start), Some(end)) => (start, end),
+        };
+        let mut cached = None;
+
+        while start <= end {
+            // try fetching historical data from the DB first
+            if start <= latest {
+                if let Some(item) = oracle.get_item(start) {
+                    // TODO: add backfill tracing messages
+                    yield oracle.ser2(&item)?;
+                    if start == end {
+                        break;
+                    }
+                    start += 1;
+                    continue;
+                } else {
+                    // report error the the stream and break
+                    Err(Status::internal(format!("Historical checkpoint data missing/pruned: index={start} latest={latest}.")))?;
+                    break;
+                }
+            }
+            // latest < start, live phase
+            if let Some(item) = cached.take() {
+                // already have something in cache
+                let idx = oracle.get_index(&item);
+                if start == idx {
+                    yield oracle.ser2(&item)?;
+                    if start == end {
+                        break;
+                    }
+                    start += 1;
+                } else if start < idx {
+                    cached = Some(item);
+                }
+            }
+            // wait for broadcast
+            match rx.recv().await {
+                Ok(item) => {
+                    let idx = oracle.get_index(&item);
+                    if start == idx {
+                        yield oracle.ser2(&item)?;
+                        if start == end {
+                            break;
+                        }
+                        start += 1;
+                        continue;
+                    } else if start < idx {
+                        // the item is too fresh, need to fill the gap from history DB
+                        cached = Some(item);
+                    } // else item is too old, just drop it and continue
+                }
+                Err(tokio::sync::broadcast::error::RecvError::Lagged(_)) => {
+                    // continue, lagged item should be picked up from history DB
+                }
+                Err(tokio::sync::broadcast::error::RecvError::Closed) => {
+                    // report internal error to the stream and break
+                    Err(Status::internal("Checkpoint data channel closed."))?;
+                    break;
+                },
+            }
+            latest = oracle.get_latest().unwrap_or(start);
+        }
+    }
+}
+
 impl CheckpointGrpcService {
     fn stream_checkpoint_data(
         &self,
@@ -244,7 +326,7 @@ impl CheckpointGrpcService {
     ) -> impl futures::Stream<Item = CheckpointStreamResult> + Send {
         let state_reader = self.state_reader.clone();
         let oracle = Oracle { state_reader };
-        create_checkpoint_stream(oracle, self.grpc_checkpoint_data_tx.clone(), start, end)
+        create_checkpoint_stream2(oracle, self.grpc_checkpoint_data_tx.clone(), start, end)
     }
 
     fn stream_checkpoint_summary(
@@ -254,7 +336,7 @@ impl CheckpointGrpcService {
     ) -> impl futures::Stream<Item = CheckpointStreamResult> + Send {
         let state_reader = self.state_reader.clone();
         let oracle = Oracle { state_reader };
-        create_checkpoint_stream(oracle, self.grpc_checkpoint_summary_tx.clone(), start, end)
+        create_checkpoint_stream2(oracle, self.grpc_checkpoint_summary_tx.clone(), start, end)
     }
 }
 
