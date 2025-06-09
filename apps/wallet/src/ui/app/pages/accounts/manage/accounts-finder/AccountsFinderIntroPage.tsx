@@ -7,8 +7,8 @@ import { useActiveAccount } from '_hooks';
 import { getKey } from '_helpers';
 import { Theme, useTheme } from '@iota/core';
 import { Button, ButtonType } from '@iota/apps-ui-kit';
-import BalanceFinderIntroImage from '_assets/images/balance_finder_intro.svg';
-import BalanceFinderIntroDarkImage from '_assets/images/balance_finder_intro_darkmode.svg';
+import BalanceFinderIntroImage from '_assets/images/balance_finder_intro.png';
+import BalanceFinderIntroDarkImage from '_assets/images/balance_finder_intro_darkmode.png';
 import { isLedgerAccountSerializedUI } from '_src/background/accounts/ledgerAccount';
 import { AllowedAccountSourceTypes } from '_src/ui/app/accounts-finder';
 
@@ -19,6 +19,7 @@ export function AccountsFinderIntroPage() {
 
     const isLedgerAccount = activeAccount && isLedgerAccountSerializedUI(activeAccount);
     const accountSourceId = activeAccount && getKey(activeAccount);
+    const imgSrc = theme === Theme.Dark ? BalanceFinderIntroDarkImage : BalanceFinderIntroImage;
 
     const ledgerPath = `/accounts/manage/accounts-finder/${AllowedAccountSourceTypes.LedgerDerived}`;
     const accountPath = isLedgerAccount
@@ -28,13 +29,7 @@ export function AccountsFinderIntroPage() {
     return (
         <Overlay showModal>
             <div className="flex h-full flex-col items-center justify-between">
-                <div>
-                    {theme === Theme.Dark ? (
-                        <BalanceFinderIntroDarkImage />
-                    ) : (
-                        <BalanceFinderIntroImage />
-                    )}
-                </div>
+                <img src={imgSrc} alt="Balance Finder Intro" />
                 <div className="flex h-full flex-col items-center justify-between">
                     <div className="flex flex-col gap-y-sm p-md text-center">
                         <span className="text-label-lg text-neutral-40 dark:text-neutral-60">
