@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{collections::HashMap, sync::Arc};
+use std::{collections::HashSet, sync::{Arc, LazyLock, Mutex}, time::Duration};
 
 use iota_grpc_api::{
     CheckpointGrpcService,
@@ -16,18 +16,59 @@ use iota_types::{
         CertifiedCheckpointSummary, CheckpointContents, CheckpointSequenceNumber, CheckpointSummary,
     },
     storage::{AccountOwnedObjectInfo, CoinInfo, RestStateReader, error::Result as StorageResult},
+    full_checkpoint_content::CheckpointData
 };
+use tokio::sync::broadcast;
 use tokio_stream::StreamExt;
 use tonic::Request;
 
 struct MockRestStateReader {
-    checkpoints: Arc<
-        std::sync::Mutex<
-            HashMap<CheckpointSequenceNumber, (CertifiedCheckpointSummary, CheckpointContents)>,
-        >,
-    >,
+    checkpoints: Arc<Mutex<HashSet<CheckpointSequenceNumber>>>,
+}
+impl MockRestStateReader {
+    fn new_from_iter<I: Iterator<Item = u64>>(iter: I) -> Self {
+        Self {
+            checkpoints: Arc::new(Mutex::new(iter.collect())),
+        }
+    }
 }
 
+static MOCK_CHECKPOINT_CONTENTS: LazyLock<CheckpointContents> = LazyLock::new(||
+    CheckpointContents::new_with_digests_only_for_tests(vec![]));
+fn mock_checkpoint_summary(sequence_number: u64) -> CheckpointSummary {
+    CheckpointSummary {
+        epoch: 0,
+        sequence_number,
+        network_total_transactions: 0,
+        content_digest: *MOCK_CHECKPOINT_CONTENTS.digest(),
+        previous_digest: None,
+        epoch_rolling_gas_cost_summary: Default::default(),
+        timestamp_ms: 0,
+        checkpoint_commitments: vec![],
+        end_of_epoch_data: None,
+        version_specific_data: vec![],
+    }
+}
+fn mock_cert(sequence_number: u64) -> CertifiedCheckpointSummary
+{
+    let summary = mock_checkpoint_summary(sequence_number);
+    let sig = AuthorityStrongQuorumSignInfo {
+        epoch: 0,
+        signature: Default::default(),
+        signers_map: Default::default(),
+    };
+    CertifiedCheckpointSummary::new_from_data_and_sig(summary, sig)
+}
+fn mock_cert_data(sequence_number: u64) -> (CertifiedCheckpointSummary, CheckpointData)
+{
+    let cert = mock_cert(sequence_number);
+    let data = CheckpointData {
+        checkpoint_summary: cert.clone(),
+        checkpoint_contents: MOCK_CHECKPOINT_CONTENTS.clone().into(),
+        transactions: vec![],
+    };
+    (cert, data)
+}
 // Minimal empty trait impls to satisfy RestStateReader supertraits
 impl iota_types::storage::ObjectStore for MockRestStateReader {
     fn get_object(
@@ -62,9 +103,8 @@ impl iota_types::storage::ReadStore for MockRestStateReader {
     > {
         // Return the checkpoint with the highest sequence number
         let guard = self.checkpoints.lock().unwrap();
-        if let Some(max_seq) = guard.keys().max().cloned() {
-            let (summary, _) = guard.get(&max_seq).unwrap();
-            Ok(iota_types::message_envelope::VerifiedEnvelope::new_unchecked(summary.clone()))
+        if let Some(max_seq) = guard.iter().max().cloned() {
+            Ok(iota_types::message_envelope::VerifiedEnvelope::new_unchecked(mock_cert(max_seq)))
         } else {
             // Use the missing error constructor
             Err(iota_types::storage::error::Error::missing(
@@ -126,20 +166,17 @@ impl iota_types::storage::ReadStore for MockRestStateReader {
         let guard = self.checkpoints.lock().unwrap();
         if seq == u64::MAX {
             // Return the highest checkpoint
-            if let Some(max_seq) = guard.keys().max().cloned() {
+            if let Some(max_seq) = guard.iter().max().cloned() {
                 println!("[READER] Returning highest checkpoint {}", max_seq);
-                return Ok(guard.get(&max_seq).map(|(c, _)| {
-                    iota_types::message_envelope::VerifiedEnvelope::new_unchecked(c.clone())
-                }));
+                return Ok(Some(iota_types::message_envelope::VerifiedEnvelope::new_unchecked(mock_cert(max_seq))));
             } else {
                 return Ok(None);
             }
         }
-        let found = guard.get(&seq).map(|(c, _)| {
+        Ok(guard.get(&seq).map(|_| {
             println!("[READER] Returning checkpoint {}", seq);
-            iota_types::message_envelope::VerifiedEnvelope::new_unchecked(c.clone())
-        });
-        Ok(found)
+            iota_types::message_envelope::VerifiedEnvelope::new_unchecked(mock_cert(seq))
+        }))
     }
     fn get_checkpoint_contents_by_digest(
         &self,
@@ -152,7 +189,7 @@ impl iota_types::storage::ReadStore for MockRestStateReader {
         seq: CheckpointSequenceNumber,
     ) -> iota_types::storage::error::Result<Option<CheckpointContents>> {
         let guard = self.checkpoints.lock().unwrap();
-        Ok(guard.get(&seq).map(|(_, contents)| contents.clone()))
+        Ok(guard.get(&seq).map(|_| MOCK_CHECKPOINT_CONTENTS.clone()))
     }
     fn get_transaction(
         &self,
@@ -250,33 +287,7 @@ impl RestStateReader for MockRestStateReader {
 }
 
 async fn test_service() -> CheckpointGrpcService {
-    let checkpoints = (0..=10)
-        .map(|i| {
-            let contents = CheckpointContents::new_with_digests_only_for_tests(vec![]);
-            let summary = CheckpointSummary {
-                epoch: 0,
-                sequence_number: i,
-                network_total_transactions: 0,
-                content_digest: *contents.digest(),
-                previous_digest: None,
-                epoch_rolling_gas_cost_summary: Default::default(),
-                timestamp_ms: 0,
-                checkpoint_commitments: vec![],
-                end_of_epoch_data: None,
-                version_specific_data: vec![],
-            };
-            let sig = AuthorityStrongQuorumSignInfo {
-                epoch: 0,
-                signature: Default::default(),
-                signers_map: Default::default(),
-            };
-            let cert = CertifiedCheckpointSummary::new_from_data_and_sig(summary, sig);
-            (i, (cert, contents))
-        })
-        .collect::<HashMap<_, _>>();
-    let mock = Arc::new(MockRestStateReader {
-        checkpoints: Arc::new(std::sync::Mutex::new(checkpoints.clone())),
-    });
+    let mock = Arc::new(MockRestStateReader::new_from_iter(0..=10));
     let (grpc_checkpoint_summary_tx, _) = tokio::sync::broadcast::channel(100);
     let (grpc_checkpoint_data_tx, _) = tokio::sync::broadcast::channel(100);
     CheckpointGrpcService::new(mock, grpc_checkpoint_summary_tx, grpc_checkpoint_data_tx)
@@ -294,30 +305,7 @@ fn spawn_checkpoint_sender(
     tokio::spawn(async move {
         let mut seq = start_seq;
         loop {
-            let contents = CheckpointContents::new_with_digests_only_for_tests(vec![]);
-            let summary = CheckpointSummary {
-                epoch: 0,
-                sequence_number: seq,
-                network_total_transactions: 0,
-                content_digest: *contents.digest(),
-                previous_digest: None,
-                epoch_rolling_gas_cost_summary: Default::default(),
-                timestamp_ms: 0,
-                checkpoint_commitments: vec![],
-                end_of_epoch_data: None,
-                version_specific_data: vec![],
-            };
-            let sig = AuthorityStrongQuorumSignInfo {
-                epoch: 0,
-                signature: Default::default(),
-                signers_map: Default::default(),
-            };
-            let cert = CertifiedCheckpointSummary::new_from_data_and_sig(summary, sig);
-            let data = iota_types::full_checkpoint_content::CheckpointData {
-                checkpoint_summary: cert.clone(),
-                checkpoint_contents: contents.clone().into(),
-                transactions: vec![],
-            };
+            let (cert, data) = mock_cert_data(seq);
             let _ = summary_tx.send(Arc::new(cert));
             let _ = data_tx.send(Arc::new(data));
             seq += 1;
@@ -513,40 +501,8 @@ async fn test_both_indices_omitted() {
 
 #[tokio::test]
 async fn test_historical_to_live_gap_fill() {
-    use std::sync::Arc;
-
-    use iota_types::{
-        full_checkpoint_content::CheckpointData, messages_checkpoint::CertifiedCheckpointSummary,
-    };
-    use tokio::sync::broadcast;
-
     // Simulate storage with checkpoints 0..=150
-    let mut checkpoints = std::collections::HashMap::new();
-    for i in 0..=150u64 {
-        let contents = CheckpointContents::new_with_digests_only_for_tests(vec![]);
-        let summary = CheckpointSummary {
-            epoch: 0,
-            sequence_number: i,
-            network_total_transactions: 0,
-            content_digest: *contents.digest(),
-            previous_digest: None,
-            epoch_rolling_gas_cost_summary: Default::default(),
-            timestamp_ms: 0,
-            checkpoint_commitments: vec![],
-            end_of_epoch_data: None,
-            version_specific_data: vec![],
-        };
-        let sig = AuthorityStrongQuorumSignInfo {
-            epoch: 0,
-            signature: Default::default(),
-            signers_map: Default::default(),
-        };
-        let cert = CertifiedCheckpointSummary::new_from_data_and_sig(summary, sig);
-        checkpoints.insert(i, (cert, contents));
-    }
-    let mock = Arc::new(MockRestStateReader {
-        checkpoints: Arc::new(std::sync::Mutex::new(checkpoints.clone())),
-    });
+    let mock = Arc::new(MockRestStateReader::new_from_iter(0..=150));
     let (grpc_checkpoint_summary_tx, _) = broadcast::channel(10);
     let (grpc_checkpoint_data_tx, _) = broadcast::channel(10);
     let svc = CheckpointGrpcService::new(
@@ -556,13 +512,8 @@ async fn test_historical_to_live_gap_fill() {
     );
 
     // Simulate broadcast channel at 150
-    let (summary_150, contents_150) = checkpoints.get(&150).unwrap();
-    let data_150 = CheckpointData {
-        checkpoint_summary: summary_150.clone(),
-        checkpoint_contents: contents_150.clone().into(),
-        transactions: vec![],
-    };
-    let _ = grpc_checkpoint_summary_tx.send(Arc::new(summary_150.clone()));
+    let (summary_150, data_150) = mock_cert_data(150);
+    let _ = grpc_checkpoint_summary_tx.send(Arc::new(summary_150));
     let _ = grpc_checkpoint_data_tx.send(Arc::new(data_150));
 
     // Client requests from 0 (historical)
@@ -591,92 +542,30 @@ async fn test_historical_to_live_gap_fill() {
 
 #[tokio::test(flavor = "current_thread")]
 async fn test_gap_fill_with_slow_client() {
-    use std::{sync::Arc, time::Duration};
-
-    use iota_types::{
-        crypto::AuthorityStrongQuorumSignInfo,
-        full_checkpoint_content::CheckpointData,
-        messages_checkpoint::{CertifiedCheckpointSummary, CheckpointContents, CheckpointSummary},
-    };
-    use tokio::sync::broadcast;
-
-    let checkpoints = Arc::new(std::sync::Mutex::new(HashMap::new()));
-    let mock = Arc::new(MockRestStateReader {
-        checkpoints: checkpoints.clone(),
-    });
+    // Pre-populate storage with checkpoints 0..=10 before spawning the producer and
+    let mock = Arc::new(MockRestStateReader::new_from_iter(0..=10));
+    let checkpoints = mock.checkpoints.clone();
     let (grpc_checkpoint_summary_tx, _) = broadcast::channel(5);
     let (grpc_checkpoint_data_tx, _) = broadcast::channel(5);
     let svc = CheckpointGrpcService::new(
-        mock.clone(),
+        mock,
         grpc_checkpoint_summary_tx.clone(),
         grpc_checkpoint_data_tx.clone(),
     );
 
-    // Pre-populate storage with checkpoints 0..=10 before spawning the producer and
-    // client
-    for i in 0..=10u64 {
-        let contents = CheckpointContents::new_with_digests_only_for_tests(vec![]);
-        let summary = CheckpointSummary {
-            epoch: 0,
-            sequence_number: i,
-            network_total_transactions: 0,
-            content_digest: *contents.digest(),
-            previous_digest: None,
-            epoch_rolling_gas_cost_summary: Default::default(),
-            timestamp_ms: 0,
-            checkpoint_commitments: vec![],
-            end_of_epoch_data: None,
-            version_specific_data: vec![],
-        };
-        let sig = AuthorityStrongQuorumSignInfo {
-            epoch: 0,
-            signature: Default::default(),
-            signers_map: Default::default(),
-        };
-        let cert = CertifiedCheckpointSummary::new_from_data_and_sig(summary, sig);
-        checkpoints
-            .lock()
-            .unwrap()
-            .insert(i, (cert.clone(), contents.clone()));
-    }
-
     // Producer: generates checkpoints 0..=20, one every 100ms
     tokio::spawn({
-        let checkpoints = checkpoints.clone();
         let grpc_checkpoint_summary_tx = grpc_checkpoint_summary_tx.clone();
         let grpc_checkpoint_data_tx = grpc_checkpoint_data_tx.clone();
         async move {
             for i in 11..=200u64 {
-                let contents = CheckpointContents::new_with_digests_only_for_tests(vec![]);
-                let summary = CheckpointSummary {
-                    epoch: 0,
-                    sequence_number: i,
-                    network_total_transactions: 0,
-                    content_digest: *contents.digest(),
-                    previous_digest: None,
-                    epoch_rolling_gas_cost_summary: Default::default(),
-                    timestamp_ms: 0,
-                    checkpoint_commitments: vec![],
-                    end_of_epoch_data: None,
-                    version_specific_data: vec![],
-                };
-                let sig = AuthorityStrongQuorumSignInfo {
-                    epoch: 0,
-                    signature: Default::default(),
-                    signers_map: Default::default(),
-                };
-                let cert = CertifiedCheckpointSummary::new_from_data_and_sig(summary, sig);
+                let (cert, data) = mock_cert_data(i);
                 checkpoints
                     .lock()
                     .unwrap()
-                    .insert(i, (cert.clone(), contents.clone()));
+                    .insert(i);
                 println!("[gRPC] Producer inserted checkpoint {}", i);
-                let data = CheckpointData {
-                    checkpoint_summary: cert.clone(),
-                    checkpoint_contents: contents.clone().into(),
-                    transactions: vec![],
-                };
-                let _ = grpc_checkpoint_summary_tx.send(Arc::new(cert.clone()));
+                let _ = grpc_checkpoint_summary_tx.send(Arc::new(cert));
                 let _ = grpc_checkpoint_data_tx.send(Arc::new(data));
                 tokio::time::sleep(Duration::from_millis(100)).await;
             }
