@@ -10,10 +10,6 @@ pub mod checkpoint {
 }
 
 use checkpoint::checkpoint_service_server::CheckpointService;
-// In this PoC we use the public function from iota-rest-api to stream checkpoints.
-// In the real implementation we will move the stream_checkpoints_public function and the
-// associated logics to this crate.
-use iota_rest_api::{Direction, stream_checkpoints_public};
 use iota_types::storage::RestStateReader;
 pub mod client;
 use async_stream::stream;
@@ -96,7 +92,7 @@ impl CheckpointOracle<CheckpointData> for Oracle {
     }
     fn get_latest(&self) -> Option<u64> {
         self.state_reader
-            .get_latest_checkpoint_sequence_number()
+            .get_latest_checkpoint_sequence_number() // TODO: use get_highest_synced_checkpoint?
             .ok()
     }
 }
@@ -117,7 +113,7 @@ impl CheckpointOracle<CertifiedCheckpointSummary> for Oracle {
     }
     fn get_latest(&self) -> Option<u64> {
         self.state_reader
-            .get_latest_checkpoint_sequence_number()
+            .get_latest_checkpoint_sequence_number() // TODO: use get_highest_synced_checkpoint?
             .ok()
     }
 }
@@ -290,108 +286,165 @@ impl CheckpointService for CheckpointGrpcService {
         request: Request<checkpoint::EpochRequest>,
     ) -> Result<Response<checkpoint::CheckpointSequenceNumberResponse>, Status> {
         let epoch = request.into_inner().epoch;
-        println!(
-            "[gRPC] get_epoch_first_checkpoint_sequence_number called for epoch {}",
+        tracing::info!(
+            "get_epoch_first_checkpoint_sequence_number called for epoch {}",
             epoch
         );
 
-        let latest_seq_opt = self
-            .state_reader
-            .get_latest_checkpoint_sequence_number() // TODO: use get_highest_synced_checkpoint?
-            .ok();
+        // TODO: use get_highest_synced_checkpoint?
+        let latest_seq = match self.state_reader.get_latest_checkpoint_sequence_number() {
+            Ok(seq) => seq,
+            Err(_) => {
+                tracing::info!("No checkpoints found in the system for epoch {}", epoch);
+                return Ok(Response::new(
+                    checkpoint::CheckpointSequenceNumberResponse { sequence_number: 0 },
+                ));
+            }
+        };
 
-        if latest_seq_opt.is_none() {
-            println!(
-                "[gRPC] No checkpoints found in the system for epoch {}.",
-                epoch
-            );
-            return Ok(Response::new(
-                checkpoint::CheckpointSequenceNumberResponse { sequence_number: 0 },
-            ));
-        }
-        let latest_seq = latest_seq_opt.unwrap();
-
-        // Optimization: if the requested epoch is higher than the epoch of the latest
-        // checkpoint, it cannot exist yet.
-        match self
+        // Quick validation: check if requested epoch is beyond latest
+        if let Ok(Some(latest_summary)) = self
             .state_reader
             .get_checkpoint_by_sequence_number(latest_seq)
         {
-            Ok(Some(latest_summary_envelope)) => {
-                if epoch > latest_summary_envelope.epoch {
-                    println!(
-                        "[gRPC] Requested epoch {} is greater than the latest known epoch {}.",
-                        epoch, latest_summary_envelope.epoch
-                    );
-                    return Ok(Response::new(
-                        checkpoint::CheckpointSequenceNumberResponse { sequence_number: 0 },
-                    ));
-                }
-            }
-            Ok(None) => {
-                println!(
-                    "[gRPC] Latest checkpoint (seq {}) not found in store, though sequence number was reported. Proceeding with scan.",
-                    latest_seq
+            if epoch > latest_summary.epoch {
+                tracing::info!(
+                    "Requested epoch {} > latest epoch {}",
+                    epoch,
+                    latest_summary.epoch
                 );
+                return Ok(Response::new(
+                    checkpoint::CheckpointSequenceNumberResponse { sequence_number: 0 },
+                ));
             }
-            Err(e) => {
-                println!(
-                    "[gRPC] Error fetching latest checkpoint summary (seq {}) for optimization: {:?}. Proceeding with scan.",
-                    latest_seq, e
-                );
+
+            // Fast path: if latest checkpoint is target epoch, search backwards from there
+            if latest_summary.epoch == epoch {
+                return Ok(Response::new(
+                    checkpoint::CheckpointSequenceNumberResponse {
+                        sequence_number: self.find_epoch_start_backwards(epoch, latest_seq).await,
+                    },
+                ));
             }
         }
 
-        println!(
-            "[gRPC] Searching for first checkpoint of epoch {} by scanning backwards from seq {}",
-            epoch, latest_seq
+        // Binary search approach for older epochs
+        let found_seq = self.binary_search_epoch_start(epoch, latest_seq).await;
+
+        tracing::info!(
+            "Found first checkpoint for epoch {}: seq={}",
+            epoch,
+            found_seq
         );
-
-        let mut iter =
-            stream_checkpoints_public(self.state_reader.clone(), Direction::Descending, latest_seq);
-        let mut found_seq = 0u64;
-
-        while let Some(Ok((summary, _))) = iter.next() {
-            // summary is VerifiedEnvelope<CertifiedCheckpointSummary>
-            println!(
-                "[gRPC] Inspecting checkpoint (desc): seq={}, epoch={}",
-                summary.sequence_number, summary.epoch
-            );
-
-            if summary.epoch == epoch {
-                found_seq = summary.sequence_number; // Keep updating, last one will be the smallest seq for this epoch
-            } else if summary.epoch < epoch {
-                // We've scanned past the target epoch into earlier epochs.
-                // If found_seq is non-zero, it means we found the target epoch, and found_seq
-                // holds its first seq. If found_seq is zero, the target epoch
-                // was not found (e.g., target 1, saw epochs 2 then 0).
-                println!(
-                    "[gRPC] Scanned past target epoch {}. Current epoch: {}. First seq for target (if any): {}",
-                    epoch, summary.epoch, found_seq
-                );
-                break;
-            }
-            // If summary.epoch > epoch, continue scanning downwards.
-            // found_seq will remain 0 until we hit the target_epoch, or will
-            // hold the latest update.
-        }
-
-        if found_seq == 0 {
-            println!(
-                "[gRPC] No checkpoint found for epoch {} after backward scan.",
-                epoch
-            );
-        } else {
-            println!(
-                "[gRPC] Found first checkpoint for epoch {}: seq={}",
-                epoch, found_seq
-            );
-        }
 
         Ok(Response::new(
             checkpoint::CheckpointSequenceNumberResponse {
                 sequence_number: found_seq,
             },
         ))
+    }
+}
+
+impl CheckpointGrpcService {
+    // Binary search to find the approximate start of an epoch
+    async fn binary_search_epoch_start(&self, target_epoch: u64, latest_seq: u64) -> u64 {
+        let mut left = 0u64;
+        let mut right = latest_seq;
+        let mut epoch_start = 0u64;
+
+        // Binary search to find any checkpoint in the target epoch
+        while left <= right {
+            let mid = left + (right - left) / 2;
+
+            match self.state_reader.get_checkpoint_by_sequence_number(mid) {
+                Ok(Some(summary)) => {
+                    if summary.epoch == target_epoch {
+                        epoch_start = mid;
+                        // Found target epoch, now find its start
+                        return self.find_epoch_start_backwards(target_epoch, mid).await;
+                    } else if summary.epoch < target_epoch {
+                        left = mid + 1;
+                    } else {
+                        if mid == 0 {
+                            break;
+                        }
+                        right = mid - 1;
+                    }
+                }
+                _ => {
+                    // Handle missing checkpoints by adjusting search bounds
+                    if mid == 0 {
+                        break;
+                    }
+                    right = mid - 1;
+                }
+            }
+        }
+
+        epoch_start
+    }
+
+    // Once we know we're in the target epoch, scan backwards to find the start
+    async fn find_epoch_start_backwards(&self, target_epoch: u64, start_seq: u64) -> u64 {
+        tracing::debug!(
+            "Finding epoch {} start, searching backwards from seq {}",
+            target_epoch,
+            start_seq
+        );
+
+        let mut current_seq = start_seq;
+        let mut first_seq = start_seq;
+
+        loop {
+            match self
+                .state_reader
+                .get_checkpoint_by_sequence_number(current_seq)
+            {
+                Ok(Some(summary)) => {
+                    tracing::debug!(
+                        "Checkpoint {} has epoch {}, target epoch {}",
+                        current_seq,
+                        summary.epoch,
+                        target_epoch
+                    );
+
+                    if summary.epoch == target_epoch {
+                        first_seq = current_seq;
+                        if current_seq == 0 {
+                            tracing::debug!(
+                                "Reached checkpoint 0, stopping search. First seq for epoch {}: {}",
+                                target_epoch,
+                                first_seq
+                            );
+                            break;
+                        }
+                        current_seq = current_seq - 1;
+                    } else {
+                        tracing::debug!(
+                            "Found different epoch {} at seq {}, stopping search. First seq for epoch {}: {}",
+                            summary.epoch,
+                            current_seq,
+                            target_epoch,
+                            first_seq
+                        );
+                        break;
+                    }
+                }
+                _ => {
+                    tracing::debug!("No checkpoint found at seq {}", current_seq);
+                    if current_seq == 0 {
+                        break;
+                    }
+                    current_seq = current_seq - 1;
+                }
+            }
+        }
+
+        tracing::debug!(
+            "Final result: first checkpoint of epoch {} is {}",
+            target_epoch,
+            first_seq
+        );
+        first_seq
     }
 }

@@ -123,7 +123,7 @@ async fn test_get_epoch_first_checkpoint_sequence_number() {
     // List all checkpoints and their epochs using the gRPC stream
     println!("[gRPC] Listing all checkpoints and their epochs via gRPC stream");
     let mut stream = client
-        .stream_checkpoints(Some(0), None, None)
+        .stream_checkpoints(Some(0), None, Some(false))
         .await
         .expect("gRPC stream");
     let mut all_indices = vec![];
@@ -131,7 +131,7 @@ async fn test_get_epoch_first_checkpoint_sequence_number() {
     while let Some(res) = stream.next().await {
         match res {
             Ok(cp) => {
-                match bcs::from_bytes::<iota_types::messages_checkpoint::CertifiedCheckpointSummary>(
+                match bcs::from_bytes::<iota_types::messages_checkpoint::CheckpointSummary>(
                     &cp.data,
                 ) {
                     Ok(summary) => {
@@ -139,6 +139,9 @@ async fn test_get_epoch_first_checkpoint_sequence_number() {
                         println!("Checkpoint index: {}, epoch: {}", cp.index, epoch);
                         all_indices.push(cp.index);
                         all_epochs.push(epoch);
+                        if cp.index > 50 {
+                            break;
+                        }
                     }
                     Err(e) => {
                         println!(
