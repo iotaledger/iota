@@ -6294,6 +6294,7 @@ dependencies = [
 name = "iota-grpc-api"
 version = "0.1.0"
 dependencies = [
+ "async-stream",
  "bcs",
  "futures",
  "iota-rest-api",
