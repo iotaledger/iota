@@ -5,11 +5,22 @@ import { PropsWithChildren, useState, useEffect } from 'react';
 import { Theme, ThemePreference } from '../../enums';
 import { ThemeContext } from '../../contexts';
 
+const THEME_TO_HTML_CLASS: Record<Theme, string> = {
+    [Theme.Dark]: 'dark',
+    [Theme.Light]: 'light',
+    [Theme.Names]: 'dark names',
+};
+
 interface ThemeProviderProps {
     appId: string;
+    staticTheme?: Theme;
 }
 
-export function ThemeProvider({ children, appId }: PropsWithChildren<ThemeProviderProps>) {
+export function ThemeProvider({
+    children,
+    appId,
+    staticTheme,
+}: PropsWithChildren<ThemeProviderProps>) {
     const storageKey = `theme_${appId}`;
 
     const getSystemTheme = () => {
@@ -21,7 +32,7 @@ export function ThemeProvider({ children, appId }: PropsWithChildren<ThemeProvid
         return storedTheme ? storedTheme : ThemePreference.System;
     };
 
-    const [systemTheme, setSystemTheme] = useState<Theme>(Theme.Light);
+    const [systemTheme, setSystemTheme] = useState<Theme>(staticTheme ?? Theme.Light);
     const [themePreference, setThemePreference] = useState<ThemePreference>(ThemePreference.System);
     const [isLoadingPreference, setIsLoadingPreference] = useState(true);
 
@@ -44,20 +55,25 @@ export function ThemeProvider({ children, appId }: PropsWithChildren<ThemeProvid
         // Update localStorage with the new preference
         localStorage.setItem(storageKey, themePreference);
 
-        // In case of SystemPreference, listen for system theme changes
-        if (themePreference === ThemePreference.System) {
-            const handleSystemThemeChange = () => {
-                const systemTheme = getSystemTheme();
-                setSystemTheme(systemTheme);
-            };
-            const systemThemeMatcher = window.matchMedia('(prefers-color-scheme: dark)');
-            systemThemeMatcher.addEventListener('change', handleSystemThemeChange);
-            return () => systemThemeMatcher.removeEventListener('change', handleSystemThemeChange);
+        if (!staticTheme) {
+            // In case of SystemPreference, listen for system theme changes
+            if (themePreference === ThemePreference.System) {
+                const handleSystemThemeChange = () => {
+                    const systemTheme = getSystemTheme();
+                    setSystemTheme(systemTheme);
+                };
+                const systemThemeMatcher = window.matchMedia('(prefers-color-scheme: dark)');
+                systemThemeMatcher.addEventListener('change', handleSystemThemeChange);
+                return () =>
+                    systemThemeMatcher.removeEventListener('change', handleSystemThemeChange);
+            }
         }
-    }, [themePreference, storageKey, isLoadingPreference]);
+    }, [themePreference, storageKey, isLoadingPreference, staticTheme]);
 
     // Derive the active theme from the preference
-    const theme = (() => {
+    const selectedTheme = (() => {
+        if (staticTheme) return staticTheme;
+
         switch (themePreference) {
             case ThemePreference.Dark:
                 return Theme.Dark;
@@ -65,18 +81,29 @@ export function ThemeProvider({ children, appId }: PropsWithChildren<ThemeProvid
                 return Theme.Light;
             case ThemePreference.System:
                 return systemTheme;
+            case ThemePreference.Names:
+                return Theme.Names;
         }
     })();
 
     // When the theme (preference or derived) changes update the CSS class
     useEffect(() => {
-        const documentElement = document.documentElement.classList;
-        documentElement.toggle(Theme.Dark, theme === Theme.Dark);
-        documentElement.toggle(Theme.Light, theme === Theme.Light);
-    }, [theme]);
+        Object.values(THEME_TO_HTML_CLASS).forEach((classes) => {
+            for (const className of classes.split(' ')) {
+                document.documentElement.classList.remove(className);
+            }
+        });
+
+        const activeClasses = THEME_TO_HTML_CLASS[selectedTheme];
+        for (const className of activeClasses.split(' ')) {
+            document.documentElement.classList.add(className);
+        }
+    }, [selectedTheme]);
 
     return (
-        <ThemeContext.Provider value={{ theme, setThemePreference, themePreference }}>
+        <ThemeContext.Provider
+            value={{ theme: selectedTheme, setThemePreference, themePreference }}
+        >
             {children}
         </ThemeContext.Provider>
     );

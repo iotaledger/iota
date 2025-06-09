@@ -15,7 +15,7 @@ export const PADDINGS_ONLY_ICON: Record<ButtonSize, string> = {
 
 export const BACKGROUND_COLORS: Record<ButtonType, string> = {
     [ButtonType.Primary]: 'bg-primary-30',
-    [ButtonType.Secondary]: 'bg-neutral-90 dark:bg-neutral-20',
+    [ButtonType.Secondary]: 'bg-neutral-90 dark:bg-neutral-20 names:bg-error-20',
     [ButtonType.Ghost]: 'bg-transparent',
     [ButtonType.Outlined]: 'bg-transparent border border-neutral-50',
     [ButtonType.Destructive]: 'bg-error-90 dark:bg-error-20',
@@ -23,7 +23,7 @@ export const BACKGROUND_COLORS: Record<ButtonType, string> = {
 
 export const DISABLED_BACKGROUND_COLORS: Record<ButtonType, string> = {
     [ButtonType.Primary]: 'bg-neutral-80 dark:bg-neutral-30',
-    [ButtonType.Secondary]: 'bg-neutral-90 dark:bg-neutral-20',
+    [ButtonType.Secondary]: 'bg-neutral-90 dark:bg-neutral-20 names:bg-error-20',
     [ButtonType.Ghost]: 'bg-transparent',
     [ButtonType.Outlined]: 'bg-transparent border border-neutral-50',
     [ButtonType.Destructive]: 'bg-error-90 dark:bg-error-20',

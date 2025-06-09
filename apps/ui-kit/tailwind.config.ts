@@ -3,4 +3,6 @@
 
 import preset from './src/lib/tailwind/responsive.presets';
 
-export default preset;
+export default {
+    presets: [preset],
+};

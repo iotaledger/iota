@@ -77,6 +77,8 @@ export function Button({
     const textSizes = TEXT_CLASSES[size];
     const backgroundColors = disabled ? DISABLED_BACKGROUND_COLORS[type] : BACKGROUND_COLORS[type];
     const textColors = disabled ? TEXT_COLOR_DISABLED[type] : TEXT_COLORS[type];
+
+    console.log(document.documentElement);
     return (
         <button
             onClick={onClick}
