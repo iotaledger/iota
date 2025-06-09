@@ -100,9 +100,11 @@ export function PageHeader({
                                         >
                                             {title}
                                         </span>
-                                        <ButtonUnstyled onClick={handleCopyClick}>
-                                            <Copy className="shrink-0 cursor-pointer" />
-                                        </ButtonUnstyled>
+                                        {showCopyButton && (
+                                            <ButtonUnstyled onClick={handleCopyClick}>
+                                                <Copy className="shrink-0 cursor-pointer" />
+                                            </ButtonUnstyled>
+                                        )}
                                     </div>
                                 )}
                                 {subtitle && (
