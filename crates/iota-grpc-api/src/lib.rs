@@ -134,145 +134,99 @@ where
 {
     stream! {
         let mut rx = tx.subscribe();
-        let latest_idx = oracle.get_latest();
         let start_idx = match (start, end) {
-            (None, None) => latest_idx.unwrap_or(0),
+            (None, None) => oracle.get_latest().unwrap_or(0),
             _ => start.unwrap_or(0),
         };
 
         let mut current = start_idx;
-        let mut in_live_stream = false;
-        let mut last_sent: Option<u64> = None;
+        let mut last_sent = None;
 
-        // Special case: only end_index is provided, stream only that checkpoint
-        if start.is_none() && end.is_some() && !in_live_stream {
+        // Special case: only end_index provided
+        if start.is_none() && end.is_some() {
             let idx = end.unwrap();
             if let Some(item) = oracle.get_item(idx) {
-                in_live_stream = true;
-                last_sent = Some(idx);
                 yield oracle.ser2(&item);
+                return;
+            }
+            // Wait for it on broadcast
+            loop {
+                match rx.recv().await {
+                    Ok(item) if oracle.get_index(&item) == idx => {
+                        yield oracle.ser2(&item);
+                        return;
+                    }
+                    Ok(_) => continue,
+                    Err(tokio::sync::broadcast::error::RecvError::Lagged(_)) => continue,
+                    Err(_) => return,
+                }
+            }
+        }
+
+        // Historical phase
+        let latest = oracle.get_latest().unwrap_or(current);
+        let stop_at = end.map(|e| latest.min(e)).unwrap_or(latest);
+
+        while current <= stop_at {
+            if let Some(item) = oracle.get_item(current) {
+                let result = oracle.ser2(&item);
+                if let Ok(c) = &result {
+                    last_sent = Some(c.index);
+                    current += 1;
+                }
+                yield result;
             } else {
-                // Not found in storage, wait for it to appear on the broadcast channel
-                loop {
-                    match rx.recv().await {
-                        Ok(item) => {
-                            if oracle.get_index(&item) == idx {
-                                in_live_stream = true;
-                                last_sent = Some(idx);
-                                yield oracle.ser2(&item);
-                                break;
-                            }
-                        }
-                        Err(tokio::sync::broadcast::error::RecvError::Lagged(_)) => continue,
-                        Err(_) => return,
-                    }
-                }
+                last_sent = Some(current.saturating_sub(1));
+                break;
             }
         }
 
-        // Historical data phase
-        if !in_live_stream {
-            let latest = oracle.get_latest().unwrap_or(current);
-            let stop_at = end.map(|e| latest.min(e)).unwrap_or(latest);
-
-            while current <= stop_at {
-                if let Some(item) = oracle.get_item(current) {
-                    let result = oracle.ser2(&item);
-                    if let Ok(c) = result.as_ref() {
-                        current += 1;
-                        in_live_stream = current > stop_at;
-                        last_sent = Some(c.index);
-                    }
-                    yield result;
-                } else {
-                    in_live_stream = true;
-                    last_sent = Some(current.saturating_sub(1));
-                    break;
-                }
-            }
-
-            if current > stop_at {
-                in_live_stream = true;
-                last_sent = Some(stop_at);
-            }
+        if current > stop_at {
+            last_sent = Some(stop_at);
         }
 
-        // Live streaming phase
+        // Live phase
         let mut last_sent_idx = last_sent.unwrap_or(current.saturating_sub(1));
 
         loop {
-            // If this is the special end_index only case and in_live_stream is true, end the stream
-            if start.is_none() && end.is_some() && in_live_stream {
-                return;
-            }
-
-            // Always try to fill the next expected checkpoint from DB first
-            if let Some(missing_item) = oracle.get_item(last_sent_idx + 1) {
-                let result = oracle.ser2(&missing_item);
-                match result.as_ref() {
-                    Ok(c) => {
-                        tracing::info!(
-                            "[GAP FILL] Sent missing checkpoint {} from DB (prev last_sent: {})",
-                            c.index,
-                            last_sent_idx
-                        );
-                        last_sent_idx = c.index;
-                    }
-                    Err(e) => {
-                        tracing::error!(
-                            "[GAP FILL ERROR] BCS serialization error for checkpoint {}: {}",
-                            last_sent_idx + 1,
-                            e
-                        );
-                    }
+            // Try DB first
+            if let Some(item) = oracle.get_item(last_sent_idx + 1) {
+                let result = oracle.ser2(&item);
+                if let Ok(c) = &result {
+                    tracing::info!("[GAP FILL] Sent missing checkpoint {} from DB (prev last_sent: {})", c.index, last_sent_idx);
+                    last_sent_idx = c.index;
+                } else {
+                    tracing::error!("[GAP FILL ERROR] BCS serialization error for checkpoint {}: {}", last_sent_idx + 1, result.as_ref().unwrap_err());
                 }
                 yield result;
                 continue;
             }
 
-            // If not found in DB, wait for broadcast
+            // Wait for broadcast
             match rx.recv().await {
                 Ok(item) => {
                     let idx = oracle.get_index(&item);
-
                     if let Some(end_idx) = end {
-                        if idx > end_idx {
-                            return;
-                        }
+                        if idx > end_idx { return; }
                     }
-
                     if idx == last_sent_idx + 1 {
                         let result = oracle.ser2(&item);
                         if result.is_ok() {
                             last_sent_idx = idx;
                         }
                         yield result;
-                    } else if idx > last_sent_idx + 1 {
-                        // If a gap is detected, continue the loop to try to fill from DB
-                        continue;
-                    } else {
-                        // Duplicate or out-of-order, skip
-                        continue;
                     }
+                    // Skip duplicates/out-of-order, continue for gaps
                 }
                 Err(tokio::sync::broadcast::error::RecvError::Lagged(_)) => {
                     let latest = oracle.get_latest().unwrap_or(last_sent_idx);
                     let stop_at = end.map(|e| latest.min(e)).unwrap_or(latest);
-
                     while last_sent_idx < stop_at {
-                        let next = last_sent_idx + 1;
-                        if let Some(item) = oracle.get_item(next) {
+                        if let Some(item) = oracle.get_item(last_sent_idx + 1) {
                             let result = oracle.ser2(&item);
-                            match result.as_ref() {
-                                Ok(c) => {
-                                    tracing::info!(
-                                        "[GAP FILL] Sent missing checkpoint {} from DB (prev last_sent: {})",
-                                        c.index,
-                                        last_sent_idx
-                                    );
-                                    last_sent_idx = c.index;
-                                }
-                                Err(_) => {}
+                            if let Ok(c) = &result {
+                                tracing::info!("[GAP FILL] Sent missing checkpoint {} from DB (prev last_sent: {})", c.index, last_sent_idx);
+                                last_sent_idx = c.index;
                             }
                             yield result;
                         } else {
