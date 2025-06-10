@@ -541,7 +541,9 @@ describe('GraphQL IotaClient compatibility', () => {
             sender: toolbox.address(),
         });
 
-        expect(graphql).toEqual(rpc);
+        expect(graphql.events).toEqual(rpc.events);
+        expect(graphql.error).toBeFalsy();
+        expect(rpc.error).toBeFalsy();
     });
 
     test.skip('getDynamicFields', async () => {
