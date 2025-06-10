@@ -25,21 +25,16 @@ import {
 } from '../../hooks';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useIotaClientContext } from '@iota/dapp-kit';
-import { useEffect, useState } from 'react';
 
 interface AccountBalanceItemProps {
     accounts: SerializedUIAccount[];
     accountIndex: string;
 }
 
-const OBJECT_PER_REQ = 1;
-
 export function AccountBalanceItem({
     accounts,
     accountIndex,
 }: AccountBalanceItemProps): JSX.Element {
-    const [hasVestingObjects, setHasVestingObjects] = useState<boolean>(false);
-
     const queryClient = useQueryClient();
     const iotaContext = useIotaClientContext();
 
@@ -72,69 +67,6 @@ export function AccountBalanceItem({
         staleTime: 0,
     });
 
-    const { data: ownedObjects } = useGetOwnedObjectsMultipleAddresses(
-        addresses,
-        {
-            MatchNone: [
-                { StructType: COIN_TYPE },
-                { StructType: TIMELOCK_IOTA_TYPE },
-                { StructType: TIMELOCK_STAKED_TYPE },
-                { StructType: STARDUST_BASIC_OUTPUT_TYPE },
-                { StructType: STARDUST_NFT_OUTPUT_TYPE },
-            ],
-        },
-        OBJECT_PER_REQ,
-    );
-
-    const { data: stardustOwnedObjects } = useGetOwnedObjectsMultipleAddresses(
-        addresses,
-        {
-            MatchAny: [
-                { StructType: STARDUST_BASIC_OUTPUT_TYPE },
-                { StructType: STARDUST_NFT_OUTPUT_TYPE },
-            ],
-        },
-        OBJECT_PER_REQ,
-    );
-
-    const { data: stardustSharedObjects } = useGetSharedObjectsMultipleAddresses(
-        addresses,
-        OBJECT_PER_REQ,
-    );
-
-    const hasMigrationObjects =
-        stardustOwnedObjects?.pages?.some((data) => data.some((data) => data.data.length > 0)) ||
-        stardustSharedObjects?.pages?.some((data) =>
-            data.some((data) => data.nftOutputs.length > 0 || data.basicOutputs.length > 0),
-        );
-
-    const hasAccountAssets = !!ownedObjects?.pages.some((data) =>
-        data.some((data) => data.data.length > 0),
-    );
-
-    const {
-        data: vestingObjects,
-        hasNextPage,
-        fetchNextPage,
-    } = useGetOwnedObjectsMultipleAddresses(
-        addresses,
-        {
-            MatchAny: [{ StructType: TIMELOCK_IOTA_TYPE }, { StructType: TIMELOCK_STAKED_TYPE }],
-        },
-        10,
-    );
-
-    useEffect(() => {
-        if (vestingObjects?.pages) {
-            const foundVestingObject = haveSupplyIncreaseLabel(vestingObjects.pages.flat());
-            setHasVestingObjects(foundVestingObject);
-
-            if (!foundVestingObject && hasNextPage) {
-                fetchNextPage();
-            }
-        }
-    }, [vestingObjects, hasNextPage]);
-
     return (
         <Collapsible
             defaultOpen
@@ -157,18 +89,8 @@ export function AccountBalanceItem({
                             </span>
                         </div>
                     </div>
-                    <div className="flex flex-col items-end gap-xxs">
-                        <span>{sumOfBalances}</span>
-                        <div className="flex flex-row gap-xxs">
-                            {hasAccountAssets && <Badge type={BadgeType.Neutral} label="Assets" />}
-                            {hasVestingObjects && (
-                                <Badge type={BadgeType.Neutral} label="Vesting" />
-                            )}
-                            {hasMigrationObjects && (
-                                <Badge type={BadgeType.Neutral} label="Migration" />
-                            )}
-                        </div>
-                    </div>
+
+                    <span>{sumOfBalances}</span>
                 </div>
             )}
         >
@@ -181,16 +103,68 @@ export function AccountBalanceItem({
     );
 }
 
-export function AddressItem({ address }: { address: string }): JSX.Element {
-    const { data: balance } = useBalance(address!);
-    const totalBalance = balance?.totalBalance || '0';
-    const coinType = balance?.coinType || '';
-    const [formatted, symbol] = useFormatCoin({ balance: BigInt(totalBalance), coinType });
+export function AddressItem({ address }: { address: string }) {
+    const { data: balance } = useBalance(address);
+    const [formatted, symbol] = useFormatCoin({
+        balance: BigInt(balance?.totalBalance ?? 0),
+        coinType: balance?.coinType ?? '',
+    });
+    const amountLabel = `${formatted} ${symbol}`;
+
+    const { data: ownedObjects } = useGetOwnedObjectsMultipleAddresses(
+        [address],
+        {
+            MatchNone: [
+                { StructType: COIN_TYPE },
+                { StructType: TIMELOCK_IOTA_TYPE },
+                { StructType: TIMELOCK_STAKED_TYPE },
+                { StructType: STARDUST_BASIC_OUTPUT_TYPE },
+                { StructType: STARDUST_NFT_OUTPUT_TYPE },
+            ],
+        },
+        1,
+    );
+    const hasAssets = ownedObjects?.pages?.some((pg) => pg.some((d) => d.data.length > 0)) ?? false;
+
+    const { data: vestingObjects } = useGetOwnedObjectsMultipleAddresses(
+        [address],
+        {
+            MatchAny: [{ StructType: TIMELOCK_IOTA_TYPE }, { StructType: TIMELOCK_STAKED_TYPE }],
+        },
+        1,
+    );
+    const hasVesting = haveSupplyIncreaseLabel(vestingObjects?.pages?.flat() ?? []);
+
+    const { data: stardustOwned } = useGetOwnedObjectsMultipleAddresses(
+        [address],
+        {
+            MatchAny: [
+                { StructType: STARDUST_BASIC_OUTPUT_TYPE },
+                { StructType: STARDUST_NFT_OUTPUT_TYPE },
+            ],
+        },
+        1,
+    );
+    const { data: stardustShared } = useGetSharedObjectsMultipleAddresses([address], 1);
+
+    const hasMigration =
+        (stardustOwned?.pages?.some((pg) => pg.some((d) => d.data.length > 0)) ?? false) ||
+        (stardustShared?.pages?.some((pg) =>
+            pg.some((d) => d.nftOutputs.length > 0 || d.basicOutputs.length > 0),
+        ) ??
+            false);
 
     return (
-        <div className="flex w-full flex-row justify-between">
-            <span>{formatAddress(address)}</span>
-            <span>{`${formatted} ${symbol}`}</span>
+        <div className="flex w-full flex-col items-center gap-xxs py-xxs">
+            <div className="flex w-full flex-row justify-between">
+                <span>{formatAddress(address)}</span>
+                <span>{amountLabel}</span>
+            </div>
+            <div className="flex w-full flex-row gap-xxs">
+                {hasVesting && <Badge type={BadgeType.Warning} label="Vesting" />}
+                {hasMigration && <Badge type={BadgeType.Warning} label="Migration" />}
+                {hasAssets && <Badge type={BadgeType.Neutral} label="Assets" />}
+            </div>
         </div>
     );
 }
