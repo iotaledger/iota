@@ -3,7 +3,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use axum::extract::{Path, Query, State};
-use documented::Documented;
 use iota_sdk2::types::{
     CheckpointContents, CheckpointDigest, CheckpointSequenceNumber, CheckpointSummary,
     SignedCheckpointSummary, ValidatorAggregatedSignature,
@@ -33,7 +32,6 @@ pub struct CheckpointResponse {
 ///
 /// If the checkpoint has been pruned and is not available, a 410 will be
 /// returned.
-#[derive(Documented)]
 pub struct GetCheckpoint;
 
 impl ApiEndpoint<RestService> for GetCheckpoint {
@@ -56,7 +54,6 @@ impl ApiEndpoint<RestService> for GetCheckpoint {
         OperationBuilder::new()
             .tag("Checkpoint")
             .operation_id("Get Checkpoint")
-            .description(Self::DOCS)
             .path_parameter::<CheckpointId>("checkpoint", generator)
             .query_parameters::<GetCheckpointQueryParameters>(generator)
             .response(
@@ -219,7 +216,6 @@ pub struct GetCheckpointQueryParameters {
 ///
 /// If the requested page is below the Node's `lowest_available_checkpoint`, a
 /// 410 will be returned.
-#[derive(Documented)]
 pub struct ListCheckpoints;
 
 impl ApiEndpoint<RestService> for ListCheckpoints {
@@ -242,7 +238,6 @@ impl ApiEndpoint<RestService> for ListCheckpoints {
         OperationBuilder::new()
             .tag("Checkpoint")
             .operation_id("List Checkpoints")
-            .description(Self::DOCS)
             .query_parameters::<ListCheckpointsQueryParameters>(generator)
             .response(
                 200,
@@ -372,7 +367,6 @@ impl ListCheckpointsQueryParameters {
 ///
 /// If the requested checkpoint is below the Node's
 /// `lowest_available_checkpoint_objects`, a 410 will be returned.
-#[derive(Documented)]
 pub struct GetFullCheckpoint;
 
 impl ApiEndpoint<RestService> for GetFullCheckpoint {
@@ -398,7 +392,6 @@ impl ApiEndpoint<RestService> for GetFullCheckpoint {
         OperationBuilder::new()
             .tag("Checkpoint")
             .operation_id("Get Full Checkpoint")
-            .description(Self::DOCS)
             .path_parameter::<CheckpointId>("checkpoint", generator)
             .response(200, ResponseBuilder::new().bcs_content().build())
             .response(404, ResponseBuilder::new().build())
@@ -467,7 +460,6 @@ async fn get_full_checkpoint(
 ///
 /// If the requested page is below the Node's
 /// `lowest_available_checkpoint_objects`, a 410 will be returned.
-#[derive(Documented)]
 pub struct ListFullCheckpoints;
 
 impl ApiEndpoint<RestService> for ListFullCheckpoints {
@@ -493,7 +485,6 @@ impl ApiEndpoint<RestService> for ListFullCheckpoints {
         OperationBuilder::new()
             .tag("Checkpoint")
             .operation_id("List Full Checkpoints")
-            .description(Self::DOCS)
             .query_parameters::<ListFullCheckpointsQueryParameters>(generator)
             .response(200, ResponseBuilder::new().bcs_content().build())
             .response(410, ResponseBuilder::new().build())

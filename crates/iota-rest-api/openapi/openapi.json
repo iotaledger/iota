@@ -24,7 +24,6 @@
         "tags": [
           "General"
         ],
-        "description": "[![stable](https://img.shields.io/badge/api-stable-53b576?style=for-the-badge)](#)\n\nGet basic information about the state of a Node",
         "operationId": "Get NodeInfo",
         "responses": {
           "200": {
@@ -48,7 +47,6 @@
         "tags": [
           "General"
         ],
-        "description": "[![stable](https://img.shields.io/badge/api-stable-53b576?style=for-the-badge)](#)\n\nPerform a service health check\n\nBy default the health check only verifies that the latest checkpoint can be\nfetched from the node's store before returning a 200. Optionally the\n`threshold_seconds` parameter can be provided to test for how up to date the\nnode needs to be to be considered healthy.",
         "operationId": "Health Check",
         "parameters": [
           {
@@ -82,7 +80,6 @@
         "tags": [
           "Checkpoint"
         ],
-        "description": "[![stable](https://img.shields.io/badge/api-stable-53b576?style=for-the-badge)](#)\n\nList Checkpoints\n\nRequest a page of checkpoints, and optionally their contents, ordered by\n`CheckpointSequenceNumber`.\n\nIf the requested page is below the Node's `lowest_available_checkpoint`, a\n410 will be returned.",
         "operationId": "List Checkpoints",
         "parameters": [
           {
@@ -172,7 +169,6 @@
         "tags": [
           "Checkpoint"
         ],
-        "description": "[![stable](https://img.shields.io/badge/api-stable-53b576?style=for-the-badge)](#)\n\nFetch a Checkpoint\n\nFetch a checkpoint either by `CheckpointSequenceNumber` (checkpoint height)\nor by `CheckpointDigest` and optionally request its contents.\n\nIf the checkpoint has been pruned and is not available, a 410 will be\nreturned.",
         "operationId": "Get Checkpoint",
         "parameters": [
           {
@@ -225,7 +221,6 @@
         "tags": [
           "Account"
         ],
-        "description": "[![unstable](https://img.shields.io/badge/api-unstable-red?style=for-the-badge)](#) _Api subject to change; use at your own risk_\n\n",
         "operationId": "ListAccountObjects",
         "parameters": [
           {
@@ -286,7 +281,6 @@
         "tags": [
           "Objects"
         ],
-        "description": "[![unstable](https://img.shields.io/badge/api-unstable-red?style=for-the-badge)](#) _Api subject to change; use at your own risk_\n\n",
         "operationId": "GetObject",
         "parameters": [
           {
@@ -322,7 +316,6 @@
         "tags": [
           "Objects"
         ],
-        "description": "[![unstable](https://img.shields.io/badge/api-unstable-red?style=for-the-badge)](#) _Api subject to change; use at your own risk_\n\n",
         "operationId": "GetObjectWithVersion",
         "parameters": [
           {
@@ -369,7 +362,6 @@
         "tags": [
           "Objects"
         ],
-        "description": "[![unstable](https://img.shields.io/badge/api-unstable-red?style=for-the-badge)](#) _Api subject to change; use at your own risk_\n\n",
         "operationId": "ListDynamicFields",
         "parameters": [
           {
@@ -430,7 +422,6 @@
         "tags": [
           "Checkpoint"
         ],
-        "description": "[![unstable](https://img.shields.io/badge/api-unstable-red?style=for-the-badge)](#) _Api subject to change; use at your own risk_\n\nFetch a Full Checkpoint\n\nRequest a checkpoint and all data associated with it including:\n- CheckpointSummary\n- Validator Signature\n- CheckpointContents\n- Transactions, Effects, Events, as well as all input and output objects\n\nIf the requested checkpoint is below the Node's\n`lowest_available_checkpoint_objects`, a 410 will be returned.",
         "operationId": "Get Full Checkpoint",
         "parameters": [
           {
@@ -467,7 +458,6 @@
         "tags": [
           "Checkpoint"
         ],
-        "description": "[![unstable](https://img.shields.io/badge/api-unstable-red?style=for-the-badge)](#) _Api subject to change; use at your own risk_\n\nList Full Checkpoints\n\nRequest a page of checkpoints and all data associated with them including:\n- CheckpointSummary\n- Validator Signature\n- CheckpointContents\n- Transactions, Effects, Events, as well as all input and output objects\n\nIf the requested page is below the Node's\n`lowest_available_checkpoint_objects`, a 410 will be returned.",
         "operationId": "List Full Checkpoints",
         "parameters": [
           {
@@ -530,7 +520,6 @@
         "tags": [
           "Transactions"
         ],
-        "description": "[![unstable](https://img.shields.io/badge/api-unstable-red?style=for-the-badge)](#) _Api subject to change; use at your own risk_\n\n",
         "operationId": "GetTransaction",
         "parameters": [
           {
@@ -566,7 +555,6 @@
         "tags": [
           "Transactions"
         ],
-        "description": "[![unstable](https://img.shields.io/badge/api-unstable-red?style=for-the-badge)](#) _Api subject to change; use at your own risk_\n\n",
         "operationId": "ListTransactions",
         "parameters": [
           {
@@ -628,7 +616,6 @@
         "tags": [
           "Transactions"
         ],
-        "description": "[![unstable](https://img.shields.io/badge/api-unstable-red?style=for-the-badge)](#) _Api subject to change; use at your own risk_\n\n",
         "operationId": "ExecuteTransaction",
         "parameters": [
           {
@@ -701,7 +688,6 @@
         "tags": [
           "System"
         ],
-        "description": "[![unstable](https://img.shields.io/badge/api-unstable-red?style=for-the-badge)](#) _Api subject to change; use at your own risk_\n\n",
         "operationId": "GetCommittee",
         "parameters": [
           {
@@ -739,7 +725,6 @@
         "tags": [
           "System"
         ],
-        "description": "[![unstable](https://img.shields.io/badge/api-unstable-red?style=for-the-badge)](#) _Api subject to change; use at your own risk_\n\n",
         "operationId": "GetLatestCommittee",
         "responses": {
           "200": {
@@ -761,7 +746,6 @@
         "tags": [
           "System"
         ],
-        "description": "[![unstable](https://img.shields.io/badge/api-unstable-red?style=for-the-badge)](#) _Api subject to change; use at your own risk_\n\n",
         "operationId": "GetSystemStateSummary",
         "responses": {
           "200": {
@@ -782,7 +766,6 @@
         "tags": [
           "System"
         ],
-        "description": "[![unstable](https://img.shields.io/badge/api-unstable-red?style=for-the-badge)](#) _Api subject to change; use at your own risk_\n\n",
         "operationId": "GetCurrentProtocolConfig",
         "responses": {
           "200": {
@@ -817,7 +800,6 @@
         "tags": [
           "System"
         ],
-        "description": "[![unstable](https://img.shields.io/badge/api-unstable-red?style=for-the-badge)](#) _Api subject to change; use at your own risk_\n\n",
         "operationId": "GetProtocolConfig",
         "parameters": [
           {
@@ -868,7 +850,6 @@
         "tags": [
           "System"
         ],
-        "description": "[![unstable](https://img.shields.io/badge/api-unstable-red?style=for-the-badge)](#) _Api subject to change; use at your own risk_\n\n",
         "operationId": "GetGasInfo",
         "responses": {
           "200": {
@@ -884,12 +865,140 @@
         }
       }
     },
+    "/transactions/simulate": {
+      "post": {
+        "tags": [
+          "Transactions"
+        ],
+        "operationId": "SimulateTransaction",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "balance_changes",
+            "description": "Request `BalanceChanges` be included in the Response.",
+            "schema": {
+              "description": "Request `BalanceChanges` be included in the Response.",
+              "default": "false",
+              "type": "boolean"
+            },
+            "style": "form"
+          },
+          {
+            "in": "query",
+            "name": "input_objects",
+            "description": "Request input `Object`s be included in the Response.",
+            "schema": {
+              "description": "Request input `Object`s be included in the Response.",
+              "default": "false",
+              "type": "boolean"
+            },
+            "style": "form"
+          },
+          {
+            "in": "query",
+            "name": "output_objects",
+            "description": "Request output `Object`s be included in the Response.",
+            "schema": {
+              "description": "Request output `Object`s be included in the Response.",
+              "default": "false",
+              "type": "boolean"
+            },
+            "style": "form"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/bcs": {}
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TransactionSimulationResponse"
+                }
+              },
+              "application/bcs": {}
+            }
+          }
+        }
+      }
+    },
+    "/transactions/resolve": {
+      "post": {
+        "tags": [
+          "Transactions"
+        ],
+        "operationId": "ResolveTransaction",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "balance_changes",
+            "description": "Request `BalanceChanges` be included in the Response.",
+            "schema": {
+              "description": "Request `BalanceChanges` be included in the Response.",
+              "default": "false",
+              "type": "boolean"
+            },
+            "style": "form"
+          },
+          {
+            "in": "query",
+            "name": "input_objects",
+            "description": "Request input `Object`s be included in the Response.",
+            "schema": {
+              "description": "Request input `Object`s be included in the Response.",
+              "default": "false",
+              "type": "boolean"
+            },
+            "style": "form"
+          },
+          {
+            "in": "query",
+            "name": "output_objects",
+            "description": "Request output `Object`s be included in the Response.",
+            "schema": {
+              "description": "Request output `Object`s be included in the Response.",
+              "default": "false",
+              "type": "boolean"
+            },
+            "style": "form"
+          },
+          {
+            "in": "query",
+            "name": "simulate",
+            "description": "Request that the fully resolved transaction be simulated and have its results sent back in the response.",
+            "schema": {
+              "description": "Request that the fully resolved transaction be simulated and have its results sent back in the response.",
+              "default": false,
+              "type": "boolean"
+            },
+            "style": "form"
+          }
+        ],
+        "requestBody": {},
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResolveTransactionResponse"
+                }
+              },
+              "application/bcs": {}
+            }
+          }
+        }
+      }
+    },
     "/coins/{coin_type}": {
       "get": {
         "tags": [
           "Coins"
         ],
-        "description": "[![unstable](https://img.shields.io/badge/api-unstable-red?style=for-the-badge)](#) _Api subject to change; use at your own risk_\n\n",
         "operationId": "GetCoinInfo",
         "parameters": [
           {
@@ -924,7 +1033,6 @@
         "tags": [
           "Epochs"
         ],
-        "description": "[![unstable](https://img.shields.io/badge/api-unstable-red?style=for-the-badge)](#) _Api subject to change; use at your own risk_\n\n",
         "operationId": "GetEpochLastCheckpoint",
         "parameters": [
           {
@@ -962,7 +1070,6 @@
         "tags": [
           "OpenAPI"
         ],
-        "description": "[![stable](https://img.shields.io/badge/api-stable-53b576?style=for-the-badge)](#)\n\nProvides a web UI for exploring the OpenAPI v3.1.0 definition for this\nservice",
         "operationId": "OpenAPI Explorer",
         "responses": {
           "200": {
@@ -979,7 +1086,6 @@
         "tags": [
           "OpenAPI"
         ],
-        "description": "[![stable](https://img.shields.io/badge/api-stable-53b576?style=for-the-badge)](#)\n\nReturn the OpenAPI v3.1.0 definition for this service as a JSON document",
         "operationId": "openapi.json",
         "responses": {
           "200": {
@@ -996,7 +1102,6 @@
         "tags": [
           "OpenAPI"
         ],
-        "description": "[![stable](https://img.shields.io/badge/api-stable-53b576?style=for-the-badge)](#)\n\nReturn the OpenAPI v3.1.0 definition for this service as a YAML document",
         "operationId": "openapi.yaml",
         "responses": {
           "200": {
@@ -4084,6 +4189,21 @@
           }
         }
       },
+      "ResolveTransactionResponse": {
+        "description": "Response type for the execute transaction endpoint",
+        "type": "object",
+        "required": [
+          "transaction"
+        ],
+        "properties": {
+          "simulation": {
+            "$ref": "#/components/schemas/TransactionSimulationResponse"
+          },
+          "transaction": {
+            "$ref": "#/components/schemas/Transaction"
+          }
+        }
+      },
       "Secp256k1PublicKey": {
         "description": "Base64 encoded data",
         "type": "string",
@@ -4116,24 +4236,6 @@
           },
           "signature": {
             "$ref": "#/components/schemas/ValidatorAggregatedSignature"
-          }
-        }
-      },
-      "SignedTransaction": {
-        "type": "object",
-        "required": [
-          "signatures",
-          "transaction"
-        ],
-        "properties": {
-          "signatures": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/UserSignature"
-            }
-          },
-          "transaction": {
-            "$ref": "#/components/schemas/Transaction"
           }
         }
       },
@@ -4981,6 +5083,39 @@
           },
           "transaction": {
             "$ref": "#/components/schemas/Transaction"
+          }
+        }
+      },
+      "TransactionSimulationResponse": {
+        "description": "Response type for the transaction simulation endpoint",
+        "type": "object",
+        "required": [
+          "effects"
+        ],
+        "properties": {
+          "balance_changes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BalanceChange"
+            }
+          },
+          "effects": {
+            "$ref": "#/components/schemas/TransactionEffects"
+          },
+          "events": {
+            "$ref": "#/components/schemas/TransactionEvents"
+          },
+          "input_objects": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Object"
+            }
+          },
+          "output_objects": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Object"
+            }
           }
         }
       },

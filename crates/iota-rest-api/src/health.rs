@@ -9,7 +9,6 @@ use axum::{
     http::StatusCode,
     response::IntoResponse,
 };
-use documented::Documented;
 use iota_types::storage::ReadStore;
 use tap::Pipe;
 
@@ -25,7 +24,6 @@ use crate::{
 /// fetched from the node's store before returning a 200. Optionally the
 /// `threshold_seconds` parameter can be provided to test for how up to date the
 /// node needs to be to be considered healthy.
-#[derive(Documented)]
 pub struct HealthCheck;
 
 impl ApiEndpoint<RestService> for HealthCheck {
@@ -48,7 +46,6 @@ impl ApiEndpoint<RestService> for HealthCheck {
         OperationBuilder::new()
             .tag("General")
             .operation_id("Health Check")
-            .description(Self::DOCS)
             .query_parameters::<Threshold>(generator)
             .response(200, ResponseBuilder::new().text_content().build())
             .response(500, ResponseBuilder::new().build())

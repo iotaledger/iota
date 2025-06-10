@@ -5,7 +5,6 @@
 use std::borrow::Cow;
 
 use axum::{Json, extract::State};
-use documented::Documented;
 use iota_sdk2::types::CheckpointDigest;
 use tap::Pipe;
 
@@ -15,7 +14,6 @@ use crate::{
 };
 
 /// Get basic information about the state of a Node
-#[derive(Documented)]
 pub struct GetNodeInfo;
 
 impl ApiEndpoint<RestService> for GetNodeInfo {
@@ -38,7 +36,6 @@ impl ApiEndpoint<RestService> for GetNodeInfo {
         OperationBuilder::new()
             .tag("General")
             .operation_id("Get NodeInfo")
-            .description(Self::DOCS)
             .response(
                 200,
                 ResponseBuilder::new()

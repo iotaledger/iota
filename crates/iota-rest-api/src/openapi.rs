@@ -16,18 +16,12 @@ use axum::{
     response::Html,
     routing::{MethodRouter, get},
 };
-use documented::Documented;
 use openapiv3::v3_1::{
     Components, Header, Info, MediaType, OpenApi, Operation, Parameter, ParameterData, PathItem,
     Paths, ReferenceOr, RequestBody, Response, SchemaObject, Tag,
 };
 use schemars::{JsonSchema, gen::SchemaGenerator};
 use tap::Pipe;
-
-const STABLE_BADGE_MARKDOWN: &str =
-    "[![stable](https://img.shields.io/badge/api-stable-53b576?style=for-the-badge)](#)\n\n";
-
-const UNSTABLE_BADGE_MARKDOWN: &str = "[![unstable](https://img.shields.io/badge/api-unstable-red?style=for-the-badge)](#) _Api subject to change; use at your own risk_\n\n";
 
 pub trait ApiEndpoint<S> {
     fn method(&self) -> Method;
@@ -218,19 +212,7 @@ impl<'a, S> Api<'a, S> {
             other => panic!("unexpected method `{}`", other),
         };
 
-        let mut operation = endpoint.operation(generator);
-
-        if endpoint.stable() {
-            operation
-                .description
-                .get_or_insert_with(String::new)
-                .insert_str(0, STABLE_BADGE_MARKDOWN);
-        } else {
-            operation
-                .description
-                .get_or_insert_with(String::new)
-                .insert_str(0, UNSTABLE_BADGE_MARKDOWN);
-        }
+        let operation = endpoint.operation(generator);
 
         // Collect tags defined by this operation
         tags.extend(operation.tags.clone());
@@ -299,7 +281,6 @@ impl OpenApiDocument {
 }
 
 /// Return the OpenAPI v3.1.0 definition for this service as a JSON document
-#[derive(Documented)]
 pub struct OpenApiJson;
 
 impl ApiEndpoint<Arc<OpenApiDocument>> for OpenApiJson {
@@ -322,7 +303,6 @@ impl ApiEndpoint<Arc<OpenApiDocument>> for OpenApiJson {
         OperationBuilder::new()
             .tag("OpenAPI")
             .operation_id("openapi.json")
-            .description(Self::DOCS)
             .response(
                 200,
                 ResponseBuilder::new()
@@ -338,7 +318,6 @@ impl ApiEndpoint<Arc<OpenApiDocument>> for OpenApiJson {
 }
 
 /// Return the OpenAPI v3.1.0 definition for this service as a YAML document
-#[derive(Documented)]
 pub struct OpenApiYaml;
 
 impl ApiEndpoint<Arc<OpenApiDocument>> for OpenApiYaml {
@@ -361,7 +340,6 @@ impl ApiEndpoint<Arc<OpenApiDocument>> for OpenApiYaml {
         OperationBuilder::new()
             .tag("OpenAPI")
             .operation_id("openapi.yaml")
-            .description(Self::DOCS)
             .response(
                 200,
                 ResponseBuilder::new()
@@ -378,7 +356,6 @@ impl ApiEndpoint<Arc<OpenApiDocument>> for OpenApiYaml {
 
 /// Provides a web UI for exploring the OpenAPI v3.1.0 definition for this
 /// service
-#[derive(Documented)]
 pub struct OpenApiExplorer;
 
 impl ApiEndpoint<Arc<OpenApiDocument>> for OpenApiExplorer {
@@ -401,7 +378,6 @@ impl ApiEndpoint<Arc<OpenApiDocument>> for OpenApiExplorer {
         OperationBuilder::new()
             .tag("OpenAPI")
             .operation_id("OpenAPI Explorer")
-            .description(Self::DOCS)
             .response(
                 200,
                 ResponseBuilder::new()

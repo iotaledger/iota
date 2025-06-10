@@ -4,8 +4,8 @@
 
 use iota_sdk2::types::{
     Address, CheckpointData, CheckpointDigest, CheckpointSequenceNumber, EpochId, Object, ObjectId,
-    SignedCheckpointSummary, SignedTransaction, StructTag, TransactionDigest, ValidatorCommittee,
-    Version,
+    SignedCheckpointSummary, SignedTransaction, StructTag, Transaction, TransactionDigest,
+    UnresolvedTransaction, ValidatorCommittee, Version,
 };
 use reqwest::{StatusCode, Url, header::HeaderValue};
 use tap::Pipe;
@@ -23,7 +23,9 @@ use crate::{
         X_IOTA_MIN_SUPPORTED_PROTOCOL_VERSION,
     },
     transactions::{
-        ListTransactionsQueryParameters, TransactionExecutionResponse, TransactionResponse,
+        ListTransactionsQueryParameters, ResolveTransactionQueryParameters,
+        ResolveTransactionResponse, TransactionExecutionResponse, TransactionResponse,
+        TransactionSimulationResponse,
     },
     types::{
         X_IOTA_CHAIN, X_IOTA_CHAIN_ID, X_IOTA_CHECKPOINT_HEIGHT, X_IOTA_CURSOR, X_IOTA_EPOCH,
@@ -403,6 +405,62 @@ impl Client {
             .inner
             .get(url)
             .header(reqwest::header::ACCEPT, crate::APPLICATION_BCS)
+            .send()
+            .await?;
+
+        self.bcs(response).await
+    }
+
+    pub async fn simulate_transaction(
+        &self,
+        transaction: &Transaction,
+    ) -> Result<Response<TransactionSimulationResponse>> {
+        let url = self.url().join("transactions/simulate")?;
+
+        let body = bcs::to_bytes(transaction)?;
+
+        let response = self
+            .inner
+            .post(url)
+            .header(reqwest::header::ACCEPT, crate::APPLICATION_BCS)
+            .header(reqwest::header::CONTENT_TYPE, crate::APPLICATION_BCS)
+            .body(body)
+            .send()
+            .await?;
+
+        self.bcs(response).await
+    }
+
+    pub async fn resolve_transaction(
+        &self,
+        unresolved_transaction: &UnresolvedTransaction,
+    ) -> Result<Response<ResolveTransactionResponse>> {
+        let url = self.url.join("transactions/resolve")?;
+
+        let response = self
+            .inner
+            .post(url)
+            .header(reqwest::header::ACCEPT, crate::APPLICATION_BCS)
+            .json(unresolved_transaction)
+            .send()
+            .await?;
+
+        self.bcs(response).await
+    }
+
+    pub async fn resolve_transaction_with_parameters(
+        &self,
+        unresolved_transaction: &UnresolvedTransaction,
+        parameters: &ResolveTransactionQueryParameters,
+    ) -> Result<Response<ResolveTransactionResponse>> {
+        let url = self.url.join("transactions/resolve")?;
+
+        let response = self
+            .inner
+            .post(url)
+            .query(&parameters)
+            .header(reqwest::header::ACCEPT, crate::APPLICATION_BCS)
+            .json(unresolved_transaction)
             .send()
             .await?;
 
