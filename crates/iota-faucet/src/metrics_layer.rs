@@ -194,7 +194,7 @@ impl Drop for MetricsGuard {
     fn drop(&mut self) {
         self.metrics
             .current_requests_in_flight
-            .with_label_values(&[&self.path])
+            .with_label_values(&[&self.path, &self.user_agent])
             .dec();
 
         // Request was still in flight when the guard was dropped, implying the client
