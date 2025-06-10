@@ -18,7 +18,7 @@ use crate::db::ConnectionPoolConfig;
 )]
 pub struct IndexerConfig {
     #[arg(long, alias = "db-url")]
-    pub database_url: Url,
+    pub database_url: Option<Url>,
 
     #[command(flatten)]
     pub connection_pool_config: ConnectionPoolConfig,
@@ -174,10 +174,12 @@ pub enum Command {
         snapshot_config: SnapshotLagConfig,
         #[command(flatten)]
         pruning_options: PruningOptions,
+        #[arg(long)]
         reset_db: bool,
     },
     JsonRpcService(JsonRpcConfig),
     AnalyticalWorker,
+    HelpDeprecated,
 }
 
 #[derive(Args, Default, Debug, Clone)]
@@ -217,14 +219,21 @@ impl Default for SnapshotLagConfig {
 }
 
 pub mod deprecated {
-    use std::path::PathBuf;
+    use std::{net::SocketAddr, path::PathBuf, time::Duration};
 
     use anyhow::bail;
     use clap::Parser;
     use secrecy::{ExposeSecret, Secret};
     use url::Url;
 
-    use crate::config::IotaNamesOptions;
+    use crate::{
+        config::{
+            Command, IndexerConfig, IngestionConfig, IngestionSources, IotaNamesOptions,
+            JsonRpcConfig, PruningOptions, SnapshotLagConfig,
+        },
+        db::ConnectionPoolConfig,
+        errors::IndexerError,
+    };
 
     #[derive(Parser, Clone, Debug)]
     #[command(
@@ -342,6 +351,137 @@ pub mod deprecated {
                 analytical_worker: false,
                 iota_names_options: IotaNamesOptions::default(),
             }
+        }
+    }
+
+    fn pool_config_from_env() -> ConnectionPoolConfig {
+        let db_pool_size = std::env::var("DB_POOL_SIZE")
+            .ok()
+            .and_then(|s| s.parse::<u32>().ok())
+            .unwrap_or(ConnectionPoolConfig::DEFAULT_POOL_SIZE);
+        let conn_timeout_secs = std::env::var("DB_CONNECTION_TIMEOUT")
+            .ok()
+            .and_then(|s| s.parse::<u64>().ok())
+            .unwrap_or(ConnectionPoolConfig::DEFAULT_CONNECTION_TIMEOUT);
+        let statement_timeout_secs = std::env::var("DB_STATEMENT_TIMEOUT")
+            .ok()
+            .and_then(|s| s.parse::<u64>().ok())
+            .unwrap_or(ConnectionPoolConfig::DEFAULT_STATEMENT_TIMEOUT);
+
+        ConnectionPoolConfig {
+            pool_size: db_pool_size,
+            connection_timeout: Duration::from_secs(conn_timeout_secs),
+            statement_timeout: Duration::from_secs(statement_timeout_secs),
+        }
+    }
+
+    impl TryFrom<OldIndexerConfig> for IndexerConfig {
+        type Error = IndexerError;
+        fn try_from(mut old_conf: OldIndexerConfig) -> Result<Self, Self::Error> {
+            old_conf.remote_store_url = Some(format!("{}/api/v1", old_conf.rpc_client_url));
+
+            let db_url = old_conf.get_db_url();
+
+            // NOTE: this parses the input host addr and port number for socket addr,
+            // so unwrap() is safe here.
+            let metrics_address = format!(
+                "{}:{}",
+                old_conf.client_metric_host, old_conf.client_metric_port
+            )
+            .parse()
+            .unwrap();
+
+            let download_queue_size = std::env::var("DOWNLOAD_QUEUE_SIZE")
+                .unwrap_or_else(|_| {
+                    IngestionConfig::DEFAULT_CHECKPOINT_DOWNLOAD_QUEUE_SIZE.to_string()
+                })
+                .parse::<usize>()
+                .expect("Invalid DOWNLOAD_QUEUE_SIZE");
+            let ingestion_reader_timeout_secs = std::env::var("INGESTION_READER_TIMEOUT_SECS")
+                .unwrap_or_else(|_| {
+                    IngestionConfig::DEFAULT_CHECKPOINT_DOWNLOAD_TIMEOUT.to_string()
+                })
+                .parse::<u64>()
+                .expect("Invalid INGESTION_READER_TIMEOUT_SECS");
+            let data_limit = std::env::var("CHECKPOINT_PROCESSING_BATCH_DATA_LIMIT")
+                .unwrap_or(
+                    IngestionConfig::DEFAULT_CHECKPOINT_DOWNLOAD_QUEUE_SIZE_BYTES.to_string(),
+                )
+                .parse::<usize>()
+                .unwrap();
+
+            let snapshot_min_lag = std::env::var("OBJECTS_SNAPSHOT_MIN_CHECKPOINT_LAG")
+                .ok()
+                .and_then(|s| s.parse::<usize>().ok())
+                .unwrap_or(SnapshotLagConfig::DEFAULT_MIN_LAG);
+
+            let rpc_client_url_parsed = old_conf
+                .rpc_client_url
+                .parse()
+                .expect("RPC Client url should be valid");
+
+            let command = if old_conf.analytical_worker {
+                Command::AnalyticalWorker
+            } else if old_conf.rpc_server_worker {
+                Command::JsonRpcService(JsonRpcConfig {
+                    iota_names_options: old_conf.iota_names_options,
+                    rpc_address: SocketAddr::new(
+                        old_conf
+                            .rpc_server_url
+                            .as_str()
+                            .parse()
+                            .expect("RPC Server url should be valid"),
+                        old_conf.rpc_server_port,
+                    ),
+                    rpc_client_url: old_conf.rpc_client_url,
+                })
+            } else if old_conf.fullnode_sync_worker {
+                Command::Indexer {
+                    ingestion_config: IngestionConfig {
+                        sources: IngestionSources {
+                            data_ingestion_path: old_conf.data_ingestion_path,
+                            remote_store_url: old_conf.remote_store_url.map(|url| {
+                                url.parse().expect("Remote Store URL should be correct")
+                            }),
+                            rpc_client_url: Some(rpc_client_url_parsed),
+                        },
+                        checkpoint_download_queue_size: download_queue_size,
+                        checkpoint_download_timeout: ingestion_reader_timeout_secs,
+                        checkpoint_download_queue_size_bytes: data_limit,
+                    },
+                    snapshot_config: SnapshotLagConfig {
+                        snapshot_min_lag,
+                        sleep_duration: SnapshotLagConfig::DEFAULT_SLEEP_DURATION_SEC,
+                    },
+                    pruning_options: PruningOptions {
+                        epochs_to_keep: std::env::var("EPOCHS_TO_KEEP")
+                            .map(|s| s.parse::<u64>().ok())
+                            .unwrap_or_else(|_e| None),
+                    },
+                    reset_db: old_conf.reset_db,
+                }
+            } else {
+                return Err(IndexerError::InvalidArgument(
+                    "Worker type argument not specified".into(),
+                ));
+            };
+
+            Ok(IndexerConfig {
+                database_url: Some(
+                    db_url
+                        .map_err(|e| {
+                            IndexerError::PgPoolConnection(format!(
+                                "Failed parsing database url with error {e:?}"
+                            ))
+                        })?
+                        .expose_secret()
+                        .parse()
+                        .expect("Database URL should be correct"),
+                ),
+                connection_pool_config: pool_config_from_env(),
+                metrics_address,
+                command,
+            })
         }
     }
 }
