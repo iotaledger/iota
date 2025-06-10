@@ -146,13 +146,16 @@ export class IotaClientGraphQLTransport implements IotaTransport {
         }
 
         try {
-            if(!method) throw new Error('Missineg method')
+            if (!method) throw new Error('Missineg method');
 
             return method(this, input.params as never) as Promise<T>;
         } catch (error) {
             // Needs to use fallback and has fallback
-            if(this.#fallbackTransport && (hasFallback || error instanceof UnsupportedParamError)){
-                 return this.#fallbackTransport.request(input);
+            if (
+                this.#fallbackTransport &&
+                (hasFallback || error instanceof UnsupportedParamError)
+            ) {
+                return this.#fallbackTransport.request(input);
             } else {
                 throw error;
             }
