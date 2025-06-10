@@ -3,7 +3,7 @@
 
 import { useNavigate } from 'react-router-dom';
 import { Overlay } from '_components';
-import { useActiveAccount } from '_hooks';
+import { useActiveAccount, useAppSelector } from '_hooks';
 import { getKey } from '_helpers';
 import { Theme, useTheme } from '@iota/core';
 import { Button, ButtonType } from '@iota/apps-ui-kit';
@@ -18,6 +18,7 @@ export function AccountsFinderIntroPage() {
     const navigate = useNavigate();
     const activeAccount = useActiveAccount();
     const [skipSeconds, setSkipSeconds] = useState(5);
+    const isAppPopup = useAppSelector((state) => state.app.isAppViewPopup);
 
     const skipActionAllowed = skipSeconds > 0;
     const isLedgerAccount = activeAccount && isLedgerAccountSerializedUI(activeAccount);
@@ -38,6 +39,15 @@ export function AccountsFinderIntroPage() {
 
         return () => clearInterval(id);
     }, [skipActionAllowed]);
+
+    function navigateToAccountFinder() {
+        if (isAppPopup) {
+            const currentBaseUrl = window.location.href.split('#')[0];
+            window.open(`${currentBaseUrl}#${accountPath}`, '_blank', 'noopener noreferrer');
+        } else {
+            navigate(accountPath);
+        }
+    }
 
     return (
         <Overlay showModal>
@@ -79,7 +89,7 @@ export function AccountsFinderIntroPage() {
                             type={ButtonType.Primary}
                             text="Find your assets"
                             fullWidth
-                            onClick={() => navigate(accountPath)}
+                            onClick={navigateToAccountFinder}
                         />
                     </div>
                 </div>
