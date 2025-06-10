@@ -46,7 +46,7 @@ async fn test_checkpoint_sync_performance_rest() {
                     break;
                 }
             }
-            tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+            tokio::time::sleep(std::time::Duration::from_millis(20)).await;
         }
     })
     .await
@@ -58,7 +58,8 @@ async fn test_checkpoint_sync_performance_rest() {
     );
 
     // Clean up
-    drop(handle);
+    handle.abort();
+    let _ = handle.await;
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
@@ -97,7 +98,7 @@ async fn test_checkpoint_sync_performance_grpc() {
                     break;
                 }
             }
-            tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+            tokio::time::sleep(std::time::Duration::from_millis(20)).await;
         }
     })
     .await
@@ -109,7 +110,100 @@ async fn test_checkpoint_sync_performance_grpc() {
     );
 
     // Clean up
-    drop(handle);
-    // cancel.cancel();
-    // let _ = handle.await;
+    cancel.cancel();
+    let _ = handle.await;
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn test_checkpoint_sync_performance_file() {
+    use iota_indexer::store::indexer_store::IndexerStore;
+    use tempfile::tempdir;
+
+    // Start a test cluster with gRPC enabled (needed for checkpoint export)
+    let grpc_port = 50059u16;
+    let grpc_addr = format!("127.0.0.1:{}", grpc_port);
+    let cluster = TestClusterBuilder::new()
+        .with_fullnode_grpc_api_address(grpc_addr.clone())
+        .with_num_validators(1)
+        .build()
+        .await;
+
+    // Wait for a range of checkpoints to be available
+    cluster.wait_for_checkpoint(MAX_CP, None).await;
+
+    // Export checkpoints to a temp directory
+    let temp_dir = tempdir().unwrap();
+    let checkpoint_dir = temp_dir.path().to_path_buf();
+
+    // --- Generate and export checkpoints via gRPC FIRST ---
+    {
+        use futures::StreamExt;
+        use iota_grpc_api::client::GrpcNodeClient;
+        use iota_storage::blob::{Blob, BlobEncoding};
+        use iota_types::full_checkpoint_content::CheckpointData;
+
+        // Use the configured gRPC address
+        let grpc_url = format!("http://{}", grpc_addr);
+        let mut grpc_client = GrpcNodeClient::connect(&grpc_url)
+            .await
+            .expect("connect gRPC");
+        let mut stream = grpc_client
+            .stream_checkpoints(Some(START_CP), Some(MAX_CP), Some(true))
+            .await
+            .expect("gRPC stream");
+        while let Some(Ok(cp)) = stream.next().await {
+            // Deserialize the BCS data into CheckpointData
+            let checkpoint_data: CheckpointData =
+                bcs::from_bytes(&cp.data).expect("deserialize checkpoint data");
+
+            // Re-encode using Blob format (which is what the file reader expects)
+            let blob = Blob::encode(&checkpoint_data, BlobEncoding::Bcs)
+                .expect("encode checkpoint as blob");
+
+            let file_path = checkpoint_dir.join(format!("{}.chk", cp.index));
+            std::fs::write(file_path, blob.to_bytes()).expect("write checkpoint file");
+        }
+        println!(
+            "Exported {} checkpoint files to {:?}",
+            MAX_CP - START_CP + 1,
+            checkpoint_dir
+        );
+    }
+    // --- End export ---
+
+    // Now start the indexer with the populated checkpoint directory
+    let db_url = "postgres://postgres:postgrespw@localhost:5432/iota_indexer_perf_file".to_string();
+    let (store, handle) = iota_indexer::test_utils::start_test_indexer(
+        db_url.clone(),
+        true,
+        None,
+        cluster.rpc_url().to_string(),
+        IndexerTypeConfig::writer_mode(None, None),
+        Some(checkpoint_dir.clone()),
+    )
+    .await;
+
+    // Wait for the indexer to process up to MAX_CP
+    let t0 = Instant::now();
+    tokio::time::timeout(std::time::Duration::from_secs(10), async {
+        loop {
+            if let Ok((_min_cp, max_cp)) = store.get_available_checkpoint_range().await {
+                if max_cp >= MAX_CP {
+                    break;
+                }
+            }
+            tokio::time::sleep(std::time::Duration::from_millis(20)).await;
+        }
+    })
+    .await
+    .expect("Indexer did not process checkpoints in time");
+    let elapsed = t0.elapsed();
+    println!(
+        "[File] Synced checkpoints {}-{} in {:?}",
+        START_CP, MAX_CP, elapsed
+    );
+
+    // Clean up
+    handle.abort();
+    let _ = handle.await;
 }

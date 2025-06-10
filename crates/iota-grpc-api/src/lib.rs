@@ -92,8 +92,9 @@ impl CheckpointOracle<CheckpointData> for Oracle {
     }
     fn get_latest(&self) -> Option<u64> {
         self.state_reader
-            .get_latest_checkpoint_sequence_number() // TODO: use get_highest_synced_checkpoint?
+            .get_highest_synced_checkpoint()
             .ok()
+            .map(|cp| *cp.sequence_number())
     }
 }
 
@@ -113,8 +114,9 @@ impl CheckpointOracle<CertifiedCheckpointSummary> for Oracle {
     }
     fn get_latest(&self) -> Option<u64> {
         self.state_reader
-            .get_latest_checkpoint_sequence_number() // TODO: use get_highest_synced_checkpoint?
+            .get_highest_synced_checkpoint()
             .ok()
+            .map(|cp| *cp.sequence_number())
     }
 }
 
@@ -362,7 +364,6 @@ impl CheckpointService for CheckpointGrpcService {
         Ok(Response::new(stream))
     }
 
-    // TODO: remove this?
     async fn get_epoch_first_checkpoint_sequence_number(
         &self,
         request: Request<checkpoint::EpochRequest>,
@@ -373,9 +374,8 @@ impl CheckpointService for CheckpointGrpcService {
             epoch
         );
 
-        // TODO: use get_highest_synced_checkpoint?
-        let latest_seq = match self.state_reader.get_latest_checkpoint_sequence_number() {
-            Ok(seq) => seq,
+        let latest_seq = match self.state_reader.get_highest_synced_checkpoint() {
+            Ok(cp) => *cp.sequence_number(),
             Err(_) => {
                 tracing::info!("No checkpoints found in the system for epoch {}", epoch);
                 return Ok(Response::new(
@@ -384,7 +384,6 @@ impl CheckpointService for CheckpointGrpcService {
             }
         };
 
-        // Quick validation: check if requested epoch is beyond latest
         if let Ok(Some(latest_summary)) = self
             .state_reader
             .get_checkpoint_by_sequence_number(latest_seq)
@@ -400,7 +399,6 @@ impl CheckpointService for CheckpointGrpcService {
                 ));
             }
 
-            // Fast path: if latest checkpoint is target epoch, search backwards from there
             if latest_summary.epoch == epoch {
                 return Ok(Response::new(
                     checkpoint::CheckpointSequenceNumberResponse {
@@ -410,7 +408,6 @@ impl CheckpointService for CheckpointGrpcService {
             }
         }
 
-        // Binary search approach for older epochs
         let found_seq = self.binary_search_epoch_start(epoch, latest_seq).await;
 
         tracing::info!(
@@ -428,21 +425,17 @@ impl CheckpointService for CheckpointGrpcService {
 }
 
 impl CheckpointGrpcService {
-    // Binary search to find the approximate start of an epoch
     async fn binary_search_epoch_start(&self, target_epoch: u64, latest_seq: u64) -> u64 {
         let mut left = 0u64;
         let mut right = latest_seq;
-        let mut epoch_start = 0u64;
+        let epoch_start = 0u64;
 
-        // Binary search to find any checkpoint in the target epoch
         while left <= right {
             let mid = left + (right - left) / 2;
 
             match self.state_reader.get_checkpoint_by_sequence_number(mid) {
                 Ok(Some(summary)) => {
                     if summary.epoch == target_epoch {
-                        epoch_start = mid;
-                        // Found target epoch, now find its start
                         return self.find_epoch_start_backwards(target_epoch, mid).await;
                     } else if summary.epoch < target_epoch {
                         left = mid + 1;
@@ -454,7 +447,6 @@ impl CheckpointGrpcService {
                     }
                 }
                 _ => {
-                    // Handle missing checkpoints by adjusting search bounds
                     if mid == 0 {
                         break;
                     }
@@ -466,7 +458,6 @@ impl CheckpointGrpcService {
         epoch_start
     }
 
-    // Once we know we're in the target epoch, scan backwards to find the start
     async fn find_epoch_start_backwards(&self, target_epoch: u64, start_seq: u64) -> u64 {
         tracing::debug!(
             "Finding epoch {} start, searching backwards from seq {}",

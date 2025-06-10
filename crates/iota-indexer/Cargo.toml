@@ -76,6 +76,7 @@ serde_json.workspace = true
 iota-config.workspace = true
 iota-keys.workspace = true
 iota-move-build.workspace = true
+iota-storage.workspace = true
 iota-swarm-config.workspace = true
 iota-test-transaction-builder.workspace = true
 simulacrum.workspace = true

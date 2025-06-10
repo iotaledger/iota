@@ -2,7 +2,11 @@
 // Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{collections::HashSet, sync::{Arc, LazyLock, Mutex}, time::Duration};
+use std::{
+    collections::HashSet,
+    sync::{Arc, LazyLock, Mutex},
+    time::Duration,
+};
 
 use iota_grpc_api::{
     CheckpointGrpcService,
@@ -12,11 +16,11 @@ use iota_types::{
     base_types::{IotaAddress, ObjectID},
     committee::EpochId,
     crypto::AuthorityStrongQuorumSignInfo,
+    full_checkpoint_content::CheckpointData,
     messages_checkpoint::{
         CertifiedCheckpointSummary, CheckpointContents, CheckpointSequenceNumber, CheckpointSummary,
     },
     storage::{AccountOwnedObjectInfo, CoinInfo, RestStateReader, error::Result as StorageResult},
-    full_checkpoint_content::CheckpointData
 };
 use tokio::sync::broadcast;
 use tokio_stream::StreamExt;
@@ -33,8 +37,9 @@ impl MockRestStateReader {
     }
 }
 
-static MOCK_CHECKPOINT_CONTENTS: LazyLock<CheckpointContents> = LazyLock::new(||
-    CheckpointContents::new_with_digests_only_for_tests(vec![]));
+static MOCK_CHECKPOINT_CONTENTS: LazyLock<CheckpointContents> =
+    LazyLock::new(|| CheckpointContents::new_with_digests_only_for_tests(vec![]));
+
 fn mock_checkpoint_summary(sequence_number: u64) -> CheckpointSummary {
     CheckpointSummary {
         epoch: 0,
@@ -49,8 +54,8 @@ fn mock_checkpoint_summary(sequence_number: u64) -> CheckpointSummary {
         version_specific_data: vec![],
     }
 }
-fn mock_cert(sequence_number: u64) -> CertifiedCheckpointSummary
-{
+
+fn mock_cert(sequence_number: u64) -> CertifiedCheckpointSummary {
     let summary = mock_checkpoint_summary(sequence_number);
     let sig = AuthorityStrongQuorumSignInfo {
         epoch: 0,
@@ -59,8 +64,8 @@ fn mock_cert(sequence_number: u64) -> CertifiedCheckpointSummary
     };
     CertifiedCheckpointSummary::new_from_data_and_sig(summary, sig)
 }
-fn mock_cert_data(sequence_number: u64) -> (CertifiedCheckpointSummary, CheckpointData)
-{
+
+fn mock_cert_data(sequence_number: u64) -> (CertifiedCheckpointSummary, CheckpointData) {
     let cert = mock_cert(sequence_number);
     let data = CheckpointData {
         checkpoint_summary: cert.clone(),
@@ -69,6 +74,7 @@ fn mock_cert_data(sequence_number: u64) -> (CertifiedCheckpointSummary, Checkpoi
     };
     (cert, data)
 }
+
 // Minimal empty trait impls to satisfy RestStateReader supertraits
 impl iota_types::storage::ObjectStore for MockRestStateReader {
     fn get_object(
@@ -130,7 +136,14 @@ impl iota_types::storage::ReadStore for MockRestStateReader {
             iota_types::crypto::AuthorityQuorumSignInfo<true>,
         >,
     > {
-        unimplemented!()
+        let guard = self.checkpoints.lock().unwrap();
+        if let Some(max_seq) = guard.iter().max().cloned() {
+            Ok(iota_types::message_envelope::VerifiedEnvelope::new_unchecked(mock_cert(max_seq)))
+        } else {
+            Err(iota_types::storage::error::Error::custom(
+                "No checkpoints available",
+            ))
+        }
     }
     fn get_lowest_available_checkpoint(&self) -> iota_types::storage::error::Result<u64> {
         unimplemented!()
@@ -168,7 +181,11 @@ impl iota_types::storage::ReadStore for MockRestStateReader {
             // Return the highest checkpoint
             if let Some(max_seq) = guard.iter().max().cloned() {
                 println!("[READER] Returning highest checkpoint {}", max_seq);
-                return Ok(Some(iota_types::message_envelope::VerifiedEnvelope::new_unchecked(mock_cert(max_seq))));
+                return Ok(Some(
+                    iota_types::message_envelope::VerifiedEnvelope::new_unchecked(mock_cert(
+                        max_seq,
+                    )),
+                ));
             } else {
                 return Ok(None);
             }
@@ -560,10 +577,7 @@ async fn test_gap_fill_with_slow_client() {
         async move {
             for i in 11..=200u64 {
                 let (cert, data) = mock_cert_data(i);
-                checkpoints
-                    .lock()
-                    .unwrap()
-                    .insert(i);
+                checkpoints.lock().unwrap().insert(i);
                 println!("[gRPC] Producer inserted checkpoint {}", i);
                 let _ = grpc_checkpoint_summary_tx.send(Arc::new(cert));
                 let _ = grpc_checkpoint_data_tx.send(Arc::new(data));
