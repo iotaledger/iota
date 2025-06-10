@@ -4,12 +4,14 @@
 import type { Config } from 'tailwindcss';
 import { IOTA_PRIMITIVES_COLOR_PALETTE, SHADER_COLOR_PALETTE } from '../constants/colors.constants';
 import {
-    CUSTOM_FONT_SIZES,
     BORDER_RADIUS,
+    CUSTOM_FONT_SIZES,
     CUSTOM_SPACING,
+    FONT_FAMILIES,
     OPACITY,
     generateVariableSpacing,
 } from './constants';
+import { THEMED_CUSTOM_COLORS } from './constants/customColors.constants';
 import { firefoxPlugin } from './plugins';
 
 export const BASE_CONFIG: Config = {
@@ -39,11 +41,9 @@ export const BASE_CONFIG: Config = {
             colors: {
                 ...IOTA_PRIMITIVES_COLOR_PALETTE,
                 ...SHADER_COLOR_PALETTE,
+                ...THEMED_CUSTOM_COLORS,
             },
-            fontFamily: {
-                'alliance-no2': ['AllianceNo2', 'sans-serif'],
-                inter: ['Inter', 'sans-serif'],
-            },
+            fontFamily: FONT_FAMILIES,
         },
     },
 };
