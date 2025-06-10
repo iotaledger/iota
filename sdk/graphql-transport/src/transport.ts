@@ -62,7 +62,11 @@ export class IotaClientGraphQLTransport implements IotaTransport {
 
     constructor(options: IotaClientGraphQLTransportOptions) {
         this.#options = options;
-        this.#fallbackMethods = options.fallbackMethods || [];
+        this.#fallbackMethods = options.fallbackMethods || [
+            'executeTransactionBlock',
+            'dryRunTransactionBlock',
+            'devInspectTransactionBlock',
+        ];
 
         if (options.fallbackTransportUrl) {
             this.#fallbackTransport = new IotaHTTPTransport({
@@ -134,19 +138,24 @@ export class IotaClientGraphQLTransport implements IotaTransport {
         }
 
         const method = RPC_METHODS[clientMethod];
+        const hasFallback = this.#fallbackMethods.includes(clientMethod);
 
-        if (!method || this.#fallbackMethods.includes(clientMethod)) {
+        // No method and no fallback
+        if (!method && !hasFallback) {
             return this.#unsupportedMethod(input);
         }
 
         try {
+            if(!method) throw new Error('Missineg method')
+
             return method(this, input.params as never) as Promise<T>;
         } catch (error) {
-            if (this.#fallbackTransport && error instanceof UnsupportedParamError) {
-                return this.#fallbackTransport.request(input);
+            // Needs to use fallback and has fallback
+            if(this.#fallbackTransport && (hasFallback || error instanceof UnsupportedParamError)){
+                 return this.#fallbackTransport.request(input);
+            } else {
+                throw error;
             }
-
-            throw error;
         }
     }
 

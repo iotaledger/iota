@@ -966,7 +966,7 @@ export const RPC_METHODS: {
                     txDigest: '', // TODO
                 },
                 packageId: event.sendingModule?.package.address!,
-                parsedJson: event.json ? JSON.parse(event.json) : undefined,
+                parsedJson: event.json,
                 sender: event.sender?.address,
                 timestampMs: new Date(event.timestamp).getTime().toString(),
                 transactionModule: `${event.sendingModule?.package.address}::${event.sendingModule?.name}`,
