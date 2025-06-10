@@ -83,10 +83,23 @@
   --iota-line: rgba(247, 247, 248, 0.1);
   --iota-max-width-desktop: 1162px;
   --iota-dark-blue-bkg: #011829;
+  --iota-cards-border-color: rgba(0, 0, 0, 0.1);
+  --iota-cards-background: #f6f8f9;
+  --iota-cards-header: #4da2ff;
+  --iota-cards-copy: #91a3b1;
+  --iota-cards-background-hover: #ebf1f5;
 
   --primaryFont: "Inter", sans-serif;
   --headerFont: "Twkeverett", sans-serif;
   --monoFont: "Twkeverett Mono", monospace;
+}
+
+[data-theme="dark"] {
+  --iota-cards-border-color: rgba(255, 255, 255, 0.1);
+  --iota-cards-background: rgba(40, 40, 40, 0.8);
+  --iota-cards-background-hover: rgba(32, 32, 32, 0.8);
+  --iota-cards-header: #4da2ff;
+  --iota-cards-copy: #abbdcc;
 }
 
 /* For readability concerns, you should choose a lighter palette in dark mode. */
