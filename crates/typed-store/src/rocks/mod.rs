@@ -84,6 +84,8 @@ const ENV_VAR_DB_PARALLELISM: &str = "DB_PARALLELISM";
 const ROCKSDB_PROPERTY_TOTAL_BLOB_FILES_SIZE: &CStr =
     unsafe { CStr::from_bytes_with_nul_unchecked("rocksdb.total-blob-file-size\0".as_bytes()) };
 
+const DB_CORRUPTED_KEY: &[u8] = b"db_corrupted";
+
 #[cfg(test)]
 mod tests;
 
@@ -595,6 +597,31 @@ impl RocksDB {
     pub fn live_files(&self) -> Result<Vec<LiveFile>, Error> {
         delegate_call!(self.live_files())
     }
+}
+
+// Check if the database is corrupted, and if so, panic.
+// If the corrupted key is not set, we set it to [1].
+pub fn check_and_mark_db_corruption(path: &Path) -> Result<(), String> {
+    let db = rocksdb::DB::open_default(path).map_err(|e| e.to_string())?;
+
+    db.get(DB_CORRUPTED_KEY)
+        .map_err(|e| format!("Failed to open database: {}", e))
+        .and_then(|value| match value {
+            Some(v) if v[0] == 1 => Err(
+                "Database is corrupted, please remove the current database and start clean!"
+                    .to_string(),
+            ),
+            Some(_) => Ok(()),
+            None => db
+                .put(DB_CORRUPTED_KEY, [1])
+                .map_err(|e| format!("Failed to set corrupted key in database: {}", e)),
+        })?;
+
+    Ok(())
+}
+
+pub fn unmark_db_corruption(path: &Path) -> Result<(), Error> {
+    rocksdb::DB::open_default(path)?.put(DB_CORRUPTED_KEY, [0])
 }
 
 pub enum RocksDBSnapshot<'a> {
