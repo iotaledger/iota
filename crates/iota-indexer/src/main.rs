@@ -6,10 +6,9 @@ use std::{env, net::SocketAddr, time::Duration};
 
 use clap::{CommandFactory, FromArgMatches, Parser};
 use iota_indexer::{
-    OldIndexerConfig,
     config::{
         Command, IngestionConfig, IngestionSources, JsonRpcConfig, PruningOptions,
-        SnapshotLagConfig,
+        SnapshotLagConfig, deprecated::OldIndexerConfig,
     },
     db::{
         ConnectionPoolConfig, get_pool_connection, new_connection_pool, reset_database,
@@ -119,8 +118,6 @@ async fn main() -> Result<(), IndexerError> {
 
             let command = if old_conf.analytical_worker {
                 Command::AnalyticalWorker
-            } else if old_conf.reset_db {
-                Command::ResetDatabase { force: true }
             } else if old_conf.rpc_server_worker {
                 Command::JsonRpcService(JsonRpcConfig {
                     iota_names_options: old_conf.iota_names_options,
@@ -134,7 +131,7 @@ async fn main() -> Result<(), IndexerError> {
                     ),
                     rpc_client_url: old_conf.rpc_client_url,
                 })
-            } else {
+            } else if old_conf.fullnode_sync_worker {
                 Command::Indexer {
                     ingestion_config: IngestionConfig {
                         sources: IngestionSources {
@@ -157,7 +154,12 @@ async fn main() -> Result<(), IndexerError> {
                             .map(|s| s.parse::<u64>().ok())
                             .unwrap_or_else(|_e| None),
                     },
+                    reset_db: old_conf.reset_db,
                 }
+            } else {
+                return Err(IndexerError::InvalidArgument(
+                    "Worker type argument not specified".into(),
+                ));
             };
 
             iota_indexer::config::IndexerConfig {
@@ -190,12 +192,17 @@ async fn main() -> Result<(), IndexerError> {
             ingestion_config,
             snapshot_config,
             pruning_options,
+            reset_db,
         } => {
             {
                 // Make sure to run all migrations on startup, and also serve as a compatibility
                 // check.
                 let mut pool_conn = get_pool_connection(&connection_pool)?;
-                run_migrations(&mut pool_conn)?;
+                if reset_db {
+                    reset_database(&mut pool_conn)?;
+                } else {
+                    run_migrations(&mut pool_conn)?;
+                }
             }
 
             let store = PgIndexerStore::new(connection_pool, indexer_metrics.clone());
@@ -217,16 +224,6 @@ async fn main() -> Result<(), IndexerError> {
             }
 
             Indexer::start_reader(&json_rpc_config, &registry, connection_pool).await?;
-        }
-        Command::ResetDatabase { force } => {
-            if !force {
-                return Err(IndexerError::PostgresReset(
-                    "Resetting the DB requires use of the `--force` flag".to_owned(),
-                ));
-            }
-
-            let mut connection = get_pool_connection(&connection_pool)?;
-            reset_database(&mut connection)?;
         }
         Command::AnalyticalWorker => {
             let store = PgIndexerAnalyticalStore::new(connection_pool);

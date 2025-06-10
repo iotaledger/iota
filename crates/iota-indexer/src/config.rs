@@ -12,18 +12,18 @@ use url::Url;
 use crate::db::ConnectionPoolConfig;
 
 #[derive(Parser, Clone, Debug)]
-#[clap(
+#[command(
     name = "IOTA indexer",
     about = "An off-fullnode service serving data from IOTA protocol"
 )]
 pub struct IndexerConfig {
-    #[clap(long, alias = "db-url")]
+    #[arg(long, alias = "db-url")]
     pub database_url: Url,
 
-    #[clap(flatten)]
+    #[command(flatten)]
     pub connection_pool_config: ConnectionPoolConfig,
 
-    #[clap(long, default_value = "0.0.0.0:9184")]
+    #[arg(long, default_value = "0.0.0.0:9184")]
     pub metrics_address: SocketAddr,
 
     #[command(subcommand)]
@@ -174,12 +174,9 @@ pub enum Command {
         snapshot_config: SnapshotLagConfig,
         #[command(flatten)]
         pruning_options: PruningOptions,
+        reset_db: bool,
     },
     JsonRpcService(JsonRpcConfig),
-    ResetDatabase {
-        #[clap(long)]
-        force: bool,
-    },
     AnalyticalWorker,
 }
 
@@ -215,6 +212,136 @@ impl Default for SnapshotLagConfig {
         SnapshotLagConfig {
             snapshot_min_lag: Self::DEFAULT_MIN_LAG,
             sleep_duration: Self::DEFAULT_SLEEP_DURATION_SEC,
+        }
+    }
+}
+
+pub mod deprecated {
+    use std::path::PathBuf;
+
+    use anyhow::bail;
+    use clap::Parser;
+    use secrecy::{ExposeSecret, Secret};
+    use url::Url;
+
+    use crate::config::IotaNamesOptions;
+
+    #[derive(Parser, Clone, Debug)]
+    #[command(
+        name = "IOTA indexer",
+        about = "An off-fullnode service serving data from IOTA protocol"
+    )]
+    pub struct OldIndexerConfig {
+        #[arg(long)]
+        pub db_url: Option<Secret<String>>,
+        #[arg(long)]
+        pub db_user_name: Option<String>,
+        #[arg(long)]
+        pub db_password: Option<Secret<String>>,
+        #[arg(long)]
+        pub db_host: Option<String>,
+        #[arg(long)]
+        pub db_port: Option<u16>,
+        #[arg(long)]
+        pub db_name: Option<String>,
+        #[arg(long, default_value = "http://0.0.0.0:9000", global = true)]
+        pub rpc_client_url: String,
+        #[arg(long, default_value = Some("http://0.0.0.0:9000/api/v1"), global = true)]
+        pub remote_store_url: Option<String>,
+        #[arg(long, default_value = "0.0.0.0", global = true)]
+        pub client_metric_host: String,
+        #[arg(long, default_value = "9184", global = true)]
+        pub client_metric_port: u16,
+        #[arg(long, default_value = "0.0.0.0", global = true)]
+        pub rpc_server_url: String,
+        #[arg(long, default_value = "9000", global = true)]
+        pub rpc_server_port: u16,
+        #[arg(long)]
+        pub reset_db: bool,
+        #[arg(long)]
+        pub fullnode_sync_worker: bool,
+        #[arg(long)]
+        pub rpc_server_worker: bool,
+        #[arg(long)]
+        pub data_ingestion_path: Option<PathBuf>,
+        #[arg(long)]
+        pub analytical_worker: bool,
+        #[command(flatten)]
+        pub iota_names_options: IotaNamesOptions,
+    }
+
+    impl OldIndexerConfig {
+        /// returns connection url without the db name
+        pub fn base_connection_url(&self) -> anyhow::Result<String, anyhow::Error> {
+            let url_secret = self.get_db_url()?;
+            let url_str = url_secret.expose_secret();
+            let url = Url::parse(url_str).expect("Failed to parse URL");
+            Ok(format!(
+                "{}://{}:{}@{}:{}/",
+                url.scheme(),
+                url.username(),
+                url.password().unwrap_or_default(),
+                url.host_str().unwrap_or_default(),
+                url.port().unwrap_or_default()
+            ))
+        }
+
+        pub fn get_db_url(&self) -> anyhow::Result<Secret<String>, anyhow::Error> {
+            match (
+                &self.db_url,
+                &self.db_user_name,
+                &self.db_password,
+                &self.db_host,
+                &self.db_port,
+                &self.db_name,
+            ) {
+                (Some(db_url), _, _, _, _, _) => Ok(db_url.clone()),
+                (
+                    None,
+                    Some(db_user_name),
+                    Some(db_password),
+                    Some(db_host),
+                    Some(db_port),
+                    Some(db_name),
+                ) => Ok(secrecy::Secret::new(format!(
+                    "postgres://{}:{}@{}:{}/{}",
+                    db_user_name,
+                    db_password.expose_secret(),
+                    db_host,
+                    db_port,
+                    db_name
+                ))),
+                _ => bail!(
+                    "Invalid db connection config, either db_url or (db_user_name, db_password, db_host, db_port, db_name) must be provided"
+                ),
+            }
+        }
+    }
+
+    impl Default for OldIndexerConfig {
+        fn default() -> Self {
+            Self {
+                db_url: Some(secrecy::Secret::new(
+                    "postgres://postgres:postgrespw@localhost:5432/iota_indexer".to_string(),
+                )),
+                db_user_name: None,
+                db_password: None,
+                db_host: None,
+                db_port: None,
+                db_name: None,
+                rpc_client_url: "http://127.0.0.1:9000".to_string(),
+                remote_store_url: Some("http://127.0.0.1:9000/api/v1".to_string()),
+                client_metric_host: "0.0.0.0".to_string(),
+                client_metric_port: 9184,
+                rpc_server_url: "0.0.0.0".to_string(),
+                rpc_server_port: 9000,
+                reset_db: false,
+                fullnode_sync_worker: true,
+                rpc_server_worker: true,
+                data_ingestion_path: None,
+                analytical_worker: false,
+                iota_names_options: IotaNamesOptions::default(),
+            }
         }
     }
 }

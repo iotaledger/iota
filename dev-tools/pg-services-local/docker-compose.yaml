@@ -53,17 +53,13 @@ services:
     environment:
       - RUST_BACKTRACE=1
       - RUST_LOG=info
-    command: |
-      sh -c '
-        /usr/local/bin/iota-indexer \
-          --database-url=postgres://postgres:postgrespw@postgres:5432/iota_indexer \
-          reset-database --force &&
-        exec /usr/local/bin/iota-indexer \
-          --db-url=postgres://postgres:postgrespw@postgres:5432/iota_indexer \
-          --rpc-client-url=http://local-network:9000 \
-          --fullnode-sync-worker \
-          --client-metric-port=9181
-      '
+    command:
+      - /usr/local/bin/iota-indexer
+      - --db-url=postgres://postgres:postgrespw@postgres:5432/iota_indexer
+      - --rpc-client-url=http://local-network:9000
+      - --fullnode-sync-worker
+      - --client-metric-port=9181
+      - --reset-db
     ports:
       - "127.0.0.1:9181:9181/tcp"
     depends_on:
