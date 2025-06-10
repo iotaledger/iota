@@ -11,12 +11,15 @@ import BalanceFinderIntroImage from '_assets/images/balance_finder_intro.png';
 import BalanceFinderIntroDarkImage from '_assets/images/balance_finder_intro_darkmode.png';
 import { isLedgerAccountSerializedUI } from '_src/background/accounts/ledgerAccount';
 import { AllowedAccountSourceTypes } from '_src/ui/app/accounts-finder';
+import { useEffect, useState } from 'react';
 
 export function AccountsFinderIntroPage() {
     const { theme } = useTheme();
     const navigate = useNavigate();
     const activeAccount = useActiveAccount();
+    const [skipSeconds, setSkipSeconds] = useState(5);
 
+    const skipActionAllowed = skipSeconds > 0;
     const isLedgerAccount = activeAccount && isLedgerAccountSerializedUI(activeAccount);
     const accountSourceId = activeAccount && getKey(activeAccount);
     const imgSrc = theme === Theme.Dark ? BalanceFinderIntroDarkImage : BalanceFinderIntroImage;
@@ -26,32 +29,55 @@ export function AccountsFinderIntroPage() {
         ? ledgerPath
         : `/accounts/manage/accounts-finder/${accountSourceId}`;
 
+    useEffect(() => {
+        if (!skipActionAllowed) return;
+
+        const id = setInterval(() => {
+            setSkipSeconds((s) => s - 1);
+        }, 1_000);
+
+        return () => clearInterval(id);
+    }, [skipActionAllowed]);
+
     return (
         <Overlay showModal>
             <div className="flex h-full flex-col items-center justify-between">
                 <img src={imgSrc} alt="Balance Finder Intro" />
                 <div className="flex h-full flex-col items-center justify-between">
-                    <div className="flex flex-col gap-y-sm p-md text-center">
+                    <div className="flex flex-col gap-y-md p-md text-center">
                         <span className="text-label-lg text-neutral-40 dark:text-neutral-60">
                             Wallet Setup
                         </span>
                         <span className="text-headline-md text-neutral-10 dark:text-neutral-92">
                             Balance Finder
                         </span>
-                        <span className="text-body-md text-neutral-40 dark:text-neutral-60">
-                            Easily find and import all your accounts with balances, in one place.
-                        </span>
+                        <div className="flex flex-col gap-y-xs text-start text-body-md">
+                            <span className=" text-neutral-40 dark:text-neutral-60">
+                                <span className="text-neutral-10 dark:text-neutral-92">
+                                    Run multiple searches{' '}
+                                </span>
+                                to ensure all assets are located. Some funds and addresses may not
+                                appear immediately.
+                            </span>
+                            <span className=" text-neutral-40 dark:text-neutral-60">
+                                <span className="text-neutral-10 dark:text-neutral-92">
+                                    Missing funds{' '}
+                                </span>
+                                may be due to unmigrated tokens or locked vested funds.
+                            </span>
+                        </div>
                     </div>
                     <div className="flex w-full flex-row gap-x-xs">
                         <Button
                             type={ButtonType.Secondary}
-                            text="Skip"
+                            text={skipActionAllowed ? `Skip (${skipSeconds}s)` : 'Skip'}
                             onClick={() => navigate('/')}
                             fullWidth
+                            disabled={skipActionAllowed}
                         />
                         <Button
                             type={ButtonType.Primary}
-                            text="Start"
+                            text="Find your assets"
                             fullWidth
                             onClick={() => navigate(accountPath)}
                         />
