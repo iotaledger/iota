@@ -62,11 +62,7 @@ export class IotaClientGraphQLTransport implements IotaTransport {
 
     constructor(options: IotaClientGraphQLTransportOptions) {
         this.#options = options;
-        this.#fallbackMethods = options.fallbackMethods || [
-            'executeTransactionBlock',
-            'dryRunTransactionBlock',
-            'devInspectTransactionBlock',
-        ];
+        this.#fallbackMethods = options.fallbackMethods || [];
 
         if (options.fallbackTransportUrl) {
             this.#fallbackTransport = new IotaHTTPTransport({
