@@ -108,9 +108,7 @@ impl IotaJsonValue {
             JsonValue::Number(n) => {
                 // Must be castable to u64
                 if !n.is_u64() {
-                    return Err(anyhow!(
-                        "{n} not allowed. Number must be unsigned integer of at most u32"
-                    ));
+                    bail!("{n} not allowed. Number must be unsigned integer of at most u32");
                 }
             }
             // Must be homogeneous
@@ -249,15 +247,15 @@ impl IotaJsonValue {
             // most U32
             (JsonValue::Number(n), MoveTypeLayout::U8) => match n.as_u64() {
                 Some(x) => R::MoveValue::U8(u8::try_from(x)?),
-                None => return Err(anyhow!("{} is not a valid number. Only u8 allowed.", n)),
+                None => bail!("{} is not a valid number. Only u8 allowed.", n),
             },
             (JsonValue::Number(n), MoveTypeLayout::U16) => match n.as_u64() {
                 Some(x) => R::MoveValue::U16(u16::try_from(x)?),
-                None => return Err(anyhow!("{} is not a valid number. Only u16 allowed.", n)),
+                None => bail!("{} is not a valid number. Only u16 allowed.", n),
             },
             (JsonValue::Number(n), MoveTypeLayout::U32) => match n.as_u64() {
                 Some(x) => R::MoveValue::U32(u32::try_from(x)?),
-                None => return Err(anyhow!("{} is not a valid number. Only u32 allowed.", n)),
+                None => bail!("{} is not a valid number. Only u32 allowed.", n),
             },
 
             // u8, u16, u32, u64, u128, u256 can be encoded as String

@@ -4,9 +4,11 @@
 
 use std::sync::Arc;
 
-use iota_metrics::histogram::Histogram;
 use iota_types::messages_checkpoint::CheckpointSequenceNumber;
-use prometheus::{IntGauge, Registry, register_int_gauge_with_registry};
+use prometheus::{
+    Histogram, IntGauge, Registry, register_histogram_with_registry,
+    register_int_gauge_with_registry,
+};
 use tap::Pipe;
 
 #[derive(Clone)]
@@ -47,9 +49,9 @@ impl Metrics {
         }
     }
 
-    pub fn checkpoint_summary_age_metric(&self) -> Option<&Histogram> {
+    pub fn checkpoint_summary_age_metrics(&self) -> Option<&Histogram> {
         if let Some(inner) = &self.0 {
-            return Some(&inner.checkpoint_summary_age_ms);
+            return Some(&inner.checkpoint_summary_age);
         }
         None
     }
@@ -59,7 +61,7 @@ struct Inner {
     highest_known_checkpoint: IntGauge,
     highest_verified_checkpoint: IntGauge,
     highest_synced_checkpoint: IntGauge,
-    checkpoint_summary_age_ms: Histogram,
+    checkpoint_summary_age: Histogram,
 }
 
 impl Inner {
@@ -86,11 +88,13 @@ impl Inner {
             )
             .unwrap(),
 
-            checkpoint_summary_age_ms: Histogram::new_in_registry(
-                "checkpoint_summary_age_ms",
+            checkpoint_summary_age: register_histogram_with_registry!(
+                "checkpoint_summary_age",
                 "Age of checkpoints summaries when they arrive and are verified.",
+                iota_metrics::LATENCY_SEC_BUCKETS.to_vec(),
                 registry,
-            ),
+            )
+            .unwrap(),
         }
         .pipe(Arc::new)
     }

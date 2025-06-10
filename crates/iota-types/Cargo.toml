@@ -64,7 +64,6 @@ tracing.workspace = true
 consensus-config.workspace = true
 iota-enum-compat-util.workspace = true
 iota-macros.workspace = true
-iota-metrics.workspace = true
 iota-network-stack.workspace = true
 iota-protocol-config.workspace = true
 iota-stardust-sdk = { version = "1.1", default-features = false, features = ["irc_27", "irc_30", "std"], package = "iota-sdk" }

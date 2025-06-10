@@ -14,7 +14,7 @@ use std::{
     sync::Arc,
 };
 
-use anyhow::{Context, Error, anyhow};
+use anyhow::{Context, Error, anyhow, bail};
 use formatting::{FormattedField, format_list, format_param, singular_or_plural};
 use iota_json_rpc_types::{IotaObjectDataOptions, IotaRawData};
 use iota_move_build::CompiledPackage;
@@ -685,9 +685,9 @@ pub(crate) async fn check_compatibility(
         .ok_or_else(|| anyhow!("Unable to read object"))?;
 
     let existing_package = match existing_obj {
-        IotaRawData::Package(pkg) => Ok(pkg),
-        IotaRawData::MoveObject(_) => Err(anyhow!("Object found when package expected")),
-    }?;
+        IotaRawData::Package(pkg) => pkg,
+        IotaRawData::MoveObject(_) => bail!("Object found when package expected"),
+    };
 
     let existing_modules = existing_package
         .module_map
@@ -769,7 +769,7 @@ fn compare_packages(
     if diags.is_empty() {
         Ok(())
     } else {
-        Err(anyhow!(
+        bail!(
             "{}\nUpgrade failed, this package requires changes to be compatible with the existing package. \
             Its upgrade policy is set to '{}'.",
             String::from_utf8(report_diagnostics_to_buffer(
@@ -783,7 +783,7 @@ fn compare_packages(
                 UpgradePolicy::Additive => "additive",
                 UpgradePolicy::DepOnly => "dependency only",
             }
-        ))
+        )
     }
 }
 

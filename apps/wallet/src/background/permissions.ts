@@ -158,14 +158,7 @@ class Permissions {
                 }
             }
         }
-        const alreadyAllowed = await this.hasPermissions(
-            origin,
-            permissionTypes,
-            existingPermission,
-        );
-        if (alreadyAllowed && existingPermission) {
-            return existingPermission;
-        }
+
         const pRequest = await this.createPermissionRequest(
             connection.origin,
             permissionTypes,

@@ -4,7 +4,7 @@
 
 use std::{collections::HashSet, path::PathBuf, str::FromStr, sync::Arc};
 
-use anyhow::anyhow;
+use anyhow::{anyhow, bail};
 use ethers::{providers::Middleware, types::Address as EthAddress};
 use futures::{StreamExt, future};
 use iota_config::Config;
@@ -131,11 +131,11 @@ impl BridgeNodeConfig {
             BridgeChainId::try_from(self.iota.iota_bridge_chain_id)?,
             BridgeChainId::try_from(self.eth.eth_bridge_chain_id)?,
         ) {
-            return Err(anyhow!(
+            bail!(
                 "Route between IOTA chain id {} and Eth chain id {} is not valid",
                 self.iota.iota_bridge_chain_id,
                 self.eth.eth_bridge_chain_id,
-            ));
+            );
         };
 
         let bridge_authority_key = match read_key(&self.bridge_authority_key_path, true)? {
@@ -152,9 +152,7 @@ impl BridgeNodeConfig {
             .await
             .map_err(|e| anyhow!("Error getting bridge committee: {:?}", e))?;
         if !bridge_committee.is_active_member(&bridge_authority_key.public().into()) {
-            return Err(anyhow!(
-                "Bridge authority key is not part of bridge committee"
-            ));
+            bail!("Bridge authority key is not part of bridge committee");
         }
 
         let (eth_client, eth_contracts) = self.prepare_for_eth(metrics).await?;
@@ -163,7 +161,7 @@ impl BridgeNodeConfig {
             .await
             .map_err(|e| anyhow!("Error getting bridge summary: {:?}", e))?;
         if bridge_summary.chain_id != self.iota.iota_bridge_chain_id {
-            anyhow::bail!(
+            bail!(
                 "Bridge chain id mismatch: expected {}, but connected to {}",
                 self.iota.iota_bridge_chain_id,
                 bridge_summary.chain_id
@@ -173,10 +171,10 @@ impl BridgeNodeConfig {
         // Validate approved actions that must be governace actions
         for action in &self.approved_governance_actions {
             if !action.is_governace_action() {
-                anyhow::bail!(format!(
+                bail!(
                     "{:?}",
                     BridgeError::ActionIsNotGovernanceAction(action.clone())
-                ));
+                );
             }
         }
         let approved_governance_actions = self.approved_governance_actions.clone();
@@ -242,29 +240,27 @@ impl BridgeNodeConfig {
         let config = EthBridgeConfig::new(config_address, provider.clone());
 
         if self.run_client && self.eth.eth_contracts_start_block_fallback.is_none() {
-            return Err(anyhow!(
-                "eth_contracts_start_block_fallback is required when run_client is true"
-            ));
+            bail!("eth_contracts_start_block_fallback is required when run_client is true");
         }
 
         // If bridge chain id is Eth Mainent or Sepolia, we expect to see chain
         // identifier to match accordingly.
         let bridge_chain_id: u8 = config.chain_id().call().await?;
         if self.eth.eth_bridge_chain_id != bridge_chain_id {
-            return Err(anyhow!(
+            bail!(
                 "Bridge chain id mismatch: expected {}, but connected to {}",
                 self.eth.eth_bridge_chain_id,
                 bridge_chain_id
-            ));
+            );
         }
         if bridge_chain_id == BridgeChainId::EthMainnet as u8 && chain_id.as_u64() != 1 {
-            anyhow::bail!(
+            bail!(
                 "Expected Eth chain id 1, but connected to {}",
                 chain_id.as_u64()
             );
         }
         if bridge_chain_id == BridgeChainId::EthSepolia as u8 && chain_id.as_u64() != 11155111 {
-            anyhow::bail!(
+            bail!(
                 "Expected Eth chain id 11155111, but connected to {}",
                 chain_id.as_u64()
             );
@@ -317,7 +313,7 @@ impl BridgeNodeConfig {
         if self.iota.iota_bridge_chain_id == BridgeChainId::IotaMainnet as u8
             && iota_identifier != get_mainnet_chain_identifier().to_string()
         {
-            anyhow::bail!(
+            bail!(
                 "Expected iota chain identifier {}, but connected to {}",
                 self.iota.iota_bridge_chain_id,
                 iota_identifier
@@ -326,7 +322,7 @@ impl BridgeNodeConfig {
         if self.iota.iota_bridge_chain_id == BridgeChainId::IotaTestnet as u8
             && iota_identifier != get_testnet_chain_identifier().to_string()
         {
-            anyhow::bail!(
+            bail!(
                 "Expected iota chain identifier {}, but connected to {}",
                 self.iota.iota_bridge_chain_id,
                 iota_identifier
@@ -356,12 +352,12 @@ impl BridgeNodeConfig {
             .get_gas_data_panic_if_not_gas(gas_object_id)
             .await;
         if owner != Owner::AddressOwner(client_iota_address) {
-            return Err(anyhow!(
+            bail!(
                 "Gas object {:?} is not owned by bridge client key's associated iota address {:?}, but {:?}",
                 gas_object_id,
                 client_iota_address,
                 owner
-            ));
+            );
         }
         info!(
             "Starting bridge client with address: {:?}, gas object {:?}, balance: {}",
@@ -428,14 +424,14 @@ pub async fn pick_highest_balance_coin(
         })
         .await;
     if highest_balance_coin.is_none() {
-        return Err(anyhow!("No IOTA coins found for address {:?}", address));
+        bail!("No IOTA coins found for address {:?}", address);
     }
     if highest_balance < minimal_amount {
-        return Err(anyhow!(
+        bail!(
             "Found no single coin that has >= {} balance IOTA for address {:?}",
             minimal_amount,
             address,
-        ));
+        );
     }
     Ok(highest_balance_coin.unwrap())
 }
