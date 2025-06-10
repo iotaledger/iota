@@ -54,19 +54,19 @@ jobs:
       - name: Create snapshot versions
         if: steps.check-changes.outputs.has-changes == 'true'
         run: |
-          pnpm changeset version --snapshot ${{ github.event.inputs.tag || 'experimental' }}
+          pnpm changeset version --snapshot ${{ github.event.inputs.tag }}
           pnpm --filter @iota/iota-sdk codegen:version
 
       - name: Publish snapshot packages
         if: steps.check-changes.outputs.has-changes == 'true'
         run: |
-          pnpm changeset publish --snapshot --tag ${{ github.event.inputs.tag || 'experimental' }}
+          pnpm changeset publish --snapshot --tag ${{ github.event.inputs.tag }}
 
       - name: Create summary
         if: steps.check-changes.outputs.has-changes == 'true'
         run: |
           echo "## Snapshot Release Summary" >> $GITHUB_STEP_SUMMARY
-          echo "**Tag:** \`${{ github.event.inputs.tag || 'experimental' }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "**Tag:** \`${{ github.event.inputs.tag }}\`" >> $GITHUB_STEP_SUMMARY
           echo "**Branch:** \`${{ github.ref_name }}\`" >> $GITHUB_STEP_SUMMARY
           echo "**Commit:** \`${{ github.sha }}\`" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
@@ -76,8 +76,8 @@ jobs:
           echo "### Installation" >> $GITHUB_STEP_SUMMARY
           echo "Install snapshot packages using:" >> $GITHUB_STEP_SUMMARY
           echo "\`\`\`bash" >> $GITHUB_STEP_SUMMARY
-          echo "npm install @iota/iota-sdk@${{ github.event.inputs.tag || 'experimental' }}" >> $GITHUB_STEP_SUMMARY
-          echo "npm install @iota/dapp-kit@${{ github.event.inputs.tag || 'experimental' }}" >> $GITHUB_STEP_SUMMARY
+          echo "npm install @iota/iota-sdk@${{ github.event.inputs.tag }}" >> $GITHUB_STEP_SUMMARY
+          echo "npm install @iota/dapp-kit@${{ github.event.inputs.tag }}" >> $GITHUB_STEP_SUMMARY
           echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
 
       - name: No changes detected
