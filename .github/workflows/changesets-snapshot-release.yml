@@ -4,9 +4,9 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: 'Snapshot tag (e.g., experimental, beta, alpha)'
+        description: "Snapshot tag (e.g., experimental, beta, alpha)"
         required: false
-        default: 'experimental'
+        default: "experimental"
         type: string
 
 concurrency: ${{ github.workflow }}-${{ github.ref }}-${{ github.event.inputs.tag }}
