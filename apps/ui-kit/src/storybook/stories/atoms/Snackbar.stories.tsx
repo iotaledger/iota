@@ -3,7 +3,8 @@
 
 import { useState } from 'react';
 import type { Meta, StoryObj } from '@storybook/react';
-import { Snackbar, SnackbarProps, SnackbarType, Button } from '@/components/atoms';
+import type { SnackbarProps } from '@/components/atoms';
+import { Snackbar, SnackbarType, Button } from '@/components/atoms';
 
 const meta: Meta<SnackbarProps> = {
     component: Snackbar,

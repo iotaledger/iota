@@ -5,6 +5,41 @@
 
 #![forbid(unsafe_code)]
 
+use crate::tasks::{
+    taskify, InitCommand, PrintBytecodeCommand, PublishCommand, RunCommand, SyntaxChoice,
+    TaskCommand, TaskInput,
+};
+use anyhow::{anyhow, Result};
+use async_trait::async_trait;
+use clap::Parser;
+use move_binary_format::file_format::CompiledModule;
+use move_bytecode_source_map::{mapping::SourceMapping, source_map::SourceMap};
+use move_command_line_common::{
+    env::read_bool_env_var,
+    files::{MOVE_EXTENSION, MOVE_IR_EXTENSION},
+    insta_assert,
+};
+use move_compiler::{
+    compiled_unit::AnnotatedCompiledUnit,
+    diagnostics::{warning_filters::WarningFiltersBuilder, Diagnostics},
+    editions::{Edition, Flavor},
+    shared::{files::MappedFiles, NumericalAddress, PackageConfig},
+    FullyCompiledProgram,
+};
+use move_core_types::parsing::{
+    address::ParsedAddress,
+    types::ParsedType,
+    values::{ParsableValue, ParsedValue},
+};
+use move_core_types::{
+    account_address::AccountAddress,
+    identifier::{IdentStr, Identifier},
+    language_storage::{ModuleId, TypeTag},
+};
+use move_disassembler::disassembler::{Disassembler, DisassemblerOptions};
+use move_ir_types::location::Spanned;
+use move_symbol_pool::Symbol;
+use move_vm_runtime::session::SerializedReturnValues;
 use std::{
     collections::{BTreeMap, BTreeSet, VecDeque},
     fmt::{Debug, Write as FmtWrite},
@@ -13,44 +48,7 @@ use std::{
     path::Path,
     sync::Arc,
 };
-
-use anyhow::{Result, anyhow};
-use async_trait::async_trait;
-use clap::Parser;
-use move_binary_format::file_format::CompiledModule;
-use move_bytecode_source_map::{mapping::SourceMapping, source_map::SourceMap};
-use move_command_line_common::{
-    env::read_bool_env_var,
-    files::{MOVE_EXTENSION, MOVE_IR_EXTENSION},
-    testing::{EXP_EXT, add_update_baseline_fix, format_diff, read_env_update_baseline},
-};
-use move_compiler::{
-    FullyCompiledProgram,
-    compiled_unit::AnnotatedCompiledUnit,
-    diagnostics::{Diagnostics, warning_filters::WarningFiltersBuilder},
-    editions::{Edition, Flavor},
-    shared::{NumericalAddress, PackageConfig, files::MappedFiles},
-};
-use move_core_types::{
-    account_address::AccountAddress,
-    identifier::{IdentStr, Identifier},
-    language_storage::{ModuleId, TypeTag},
-    parsing::{
-        address::ParsedAddress,
-        types::ParsedType,
-        values::{ParsableValue, ParsedValue},
-    },
-};
-use move_disassembler::disassembler::{Disassembler, DisassemblerOptions};
-use move_ir_types::location::Spanned;
-use move_symbol_pool::Symbol;
-use move_vm_runtime::session::SerializedReturnValues;
 use tempfile::NamedTempFile;
-
-use crate::tasks::{
-    InitCommand, PrintBytecodeCommand, PublishCommand, RunCommand, SyntaxChoice, TaskCommand,
-    TaskInput, taskify,
-};
 
 pub struct CompiledState {
     pre_compiled_deps: Option<Arc<FullyCompiledProgram>>,
@@ -810,7 +808,10 @@ where
         handle_known_task(&mut output, &mut adapter, task).await;
     }
 
-    handle_expected_output(path, output)?;
+    insta_assert! {
+        input_path: path,
+        contents: output,
+    }
     Ok(())
 }
 
@@ -871,32 +872,4 @@ async fn handle_known_task<'a, Adapter: MoveTestAdapter<'a>>(
         "\ntask {task_number}, {line_number}:\n{task_text}\n{result_string}"
     )
     .unwrap();
-}
-
-fn handle_expected_output(test_path: &Path, output: impl AsRef<str>) -> Result<()> {
-    let output = output.as_ref();
-    assert!(!output.is_empty());
-    let exp_path = test_path.with_extension(EXP_EXT);
-
-    if read_env_update_baseline() {
-        std::fs::write(exp_path, output).unwrap();
-        return Ok(());
-    }
-
-    if !exp_path.exists() {
-        std::fs::write(&exp_path, "").unwrap();
-    }
-    let expected_output = std::fs::read_to_string(&exp_path)
-        .unwrap()
-        .replace("\r\n", "\n")
-        .replace('\r', "\n");
-    if output != expected_output {
-        let msg = format!(
-            "Expected errors differ from actual errors:\n{}",
-            format_diff(expected_output, output),
-        );
-        anyhow::bail!(add_update_baseline_fix(msg))
-    } else {
-        Ok(())
-    }
 }

@@ -1,0 +1,132 @@
+---
+source: external-crates/move/crates/move-transactional-test-runner/src/framework.rs
+---
+processed 12 tasks
+
+init:
+A: object(0,0), B: object(0,1)
+
+task 1, lines 9-33:
+//# publish
+created: object(1,0)
+mutated: object(0,2)
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 5996400,  storage_rebate: 0, non_refundable_storage_fee: 0
+
+task 2, lines 34-36:
+//# programmable --sender A --inputs @A
+//> 0: test::m1::new();
+//> TransferObjects([Result(0)], Input(0));
+created: object(2,0)
+mutated: object(0,0)
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2264800,  storage_rebate: 0, non_refundable_storage_fee: 0
+
+task 3, lines 38-40:
+//# view-object 0,0
+Owner: Account Address ( A )
+Version: 2
+Contents: iota::coin::Coin<iota::iota::IOTA> {
+    id: iota::object::UID {
+        id: iota::object::ID {
+            bytes: fake(0,0),
+        },
+    },
+    balance: iota::balance::Balance<iota::iota::IOTA> {
+        value: 299999996735200u64,
+    },
+}
+
+task 4, lines 41-44:
+//# programmable --sender A --inputs 0u256
+//> 0: iota::address::from_u256(Input(0));
+//> 1: test::m1::new();
+//> TransferObjects([Result(1)], Result(0));
+created: object(4,0)
+mutated: object(0,0)
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2264800,  storage_rebate: 980400, non_refundable_storage_fee: 0
+
+task 5, lines 46-48:
+//# view-object 4,0
+Owner: Account Address ( _ )
+Version: 3
+Contents: test::m1::Pub {
+    id: iota::object::UID {
+        id: iota::object::ID {
+            bytes: fake(4,0),
+        },
+    },
+    value: 112u64,
+}
+
+task 6, lines 49-54:
+//# programmable --sender A --inputs @B true
+//> 0: iota::address::to_u256(Input(0));
+//> 1: iota::address::from_u256(Result(0));
+//> 2: test::m1::new();
+//> 3: test::m1::addr(Result(1), Input(1));
+//> TransferObjects([Result(2)], Result(3));
+created: object(6,0)
+mutated: object(0,0)
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2264800,  storage_rebate: 980400, non_refundable_storage_fee: 0
+
+task 7, lines 56-58:
+//# view-object 6,0
+Owner: Account Address ( B )
+Version: 4
+Contents: test::m1::Pub {
+    id: iota::object::UID {
+        id: iota::object::ID {
+            bytes: fake(6,0),
+        },
+    },
+    value: 112u64,
+}
+
+task 8, lines 59-66:
+//# programmable --sender A --inputs @B true
+//> 0: iota::address::to_u256(Input(0));
+//> 1: iota::address::from_u256(Result(0));
+//> 2: test::m1::new();
+//> 3: test::m1::addr(Result(1), Input(1));
+//> 4: test::m1::cup<iota::object::ID>();
+//> 5: test::m1::cup<test::m1::Pub>();
+//> TransferObjects([Result(4), Result(2), Result(5)], Result(3));
+created: object(8,0), object(8,1), object(8,2)
+mutated: object(0,0)
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 5358000,  storage_rebate: 980400, non_refundable_storage_fee: 0
+
+task 9, line 68:
+//# view-object 8,0
+Owner: Account Address ( B )
+Version: 5
+Contents: test::m1::Cup<iota::object::ID> {
+    id: iota::object::UID {
+        id: iota::object::ID {
+            bytes: fake(8,0),
+        },
+    },
+}
+
+task 10, line 70:
+//# view-object 8,1
+Owner: Account Address ( B )
+Version: 5
+Contents: test::m1::Cup<test::m1::Pub> {
+    id: iota::object::UID {
+        id: iota::object::ID {
+            bytes: fake(8,1),
+        },
+    },
+}
+
+task 11, line 72:
+//# view-object 8,2
+Owner: Account Address ( B )
+Version: 5
+Contents: test::m1::Pub {
+    id: iota::object::UID {
+        id: iota::object::ID {
+            bytes: fake(8,2),
+        },
+    },
+    value: 112u64,
+}

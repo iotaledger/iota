@@ -10,8 +10,8 @@ import questions from '/json/developer/iota-101/move-overview/strings.json';
 
 While Move does not have a built-in type to represent strings, it does offer two standard implementations for strings:
 
-* The [`std::string`](../../../references/framework/std/string.mdx) module defines a `String` type and methods for working with UTF-8 encoded strings.
-* The [`std::ascii`](../../../references/framework/std/ascii.mdx) module provides an ASCII `String` type along with its methods.
+* The [`std::string`](../../../references/framework/move-stdlib/string.mdx) module defines a `String` type and methods for working with UTF-8 encoded strings.
+* The [`std::ascii`](../../../references/framework/move-stdlib/ascii.mdx) module provides an ASCII `String` type along with its methods.
 
 :::tip
 
@@ -51,11 +51,11 @@ To create a new UTF-8 `String` instance, you can use the `string::utf8` method.
 
 The UTF-8 `String` type provides several methods to work with strings. The most common operations include:
 
-* [`append`](../../../references/framework/std/string.mdx#function-append).
-* [`append_utf8`](../../../references/framework/std/string.mdx#function-append_utf8).
-* [`substring`](../../../references/framework/std/string.mdx#function-sub_string).
-* [`length`](../../../references/framework/std/string.mdx#function-length).
-* [`is_empty`](../../../references/framework/std/string.mdx#function-is_empty).
+* [`append`](../../../references/framework/move-stdlib/string.mdx#function-append).
+* [`append_utf8`](../../../references/framework/move-stdlib/string.mdx#function-append_utf8).
+* [`substring`](../../../references/framework/move-stdlib/string.mdx#function-sub_string).
+* [`length`](../../../references/framework/move-stdlib/string.mdx#function-length).
+* [`is_empty`](../../../references/framework/move-stdlib/string.mdx#function-is_empty).
 
 Additionally, for custom string operations, the `as_bytes()` method can be used to access the underlying byte vector.
 
@@ -64,7 +64,7 @@ Additionally, for custom string operations, the `as_bytes()` method can be used 
 
 ### Safe UTF-8 Operations
 
-The default `utf8` method may abort if the bytes passed into it are not valid UTF-8. If you're unsure whether the bytes are valid, you should use the [`try_utf8`](../../../references/framework/std/string.mdx#function-try_utf8) method instead. It returns an [`Option<String>`](../../../references/framework/std/option.mdx#std_option_Option), which contains no value if the bytes are not valid UTF-8, and a `String` otherwise.
+The default `utf8` method may abort if the bytes passed into it are not valid UTF-8. If you're unsure whether the bytes are valid, you should use the [`try_utf8`](../../../references/framework/move-stdlib/string.mdx#function-try_utf8) method instead. It returns an [`Option<String>`](../../../references/framework/move-stdlib/option.mdx#struct-option), which contains no value if the bytes are not valid UTF-8, and a `String` otherwise.
 
 :::tip Try
 

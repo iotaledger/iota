@@ -1,0 +1,42 @@
+---
+source: external-crates/move/crates/move-transactional-test-runner/src/framework.rs
+---
+processed 5 tasks
+
+task 1, lines 7-16:
+//# run-graphql
+Response: {
+  "data": {
+    "object": {
+      "receivedTransactionBlocks": {
+        "nodes": []
+      }
+    }
+  }
+}
+
+task 2, lines 18-28:
+//# publish
+created: object(2,0), object(2,1)
+mutated: object(0,0)
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 6338400,  storage_rebate: 0, non_refundable_storage_fee: 0
+
+task 3, line 30:
+//# create-checkpoint
+Checkpoint created: 1
+
+task 4, lines 32-41:
+//# run-graphql
+Response: {
+  "data": {
+    "object": {
+      "receivedTransactionBlocks": {
+        "nodes": [
+          {
+            "digest": "898rGXhSxTFdqiYcBZmnkCaRu3R2xQjpai2U6L1CFDq4"
+          }
+        ]
+      }
+    }
+  }
+}

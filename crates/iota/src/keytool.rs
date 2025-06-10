@@ -12,7 +12,7 @@ use std::{
     sync::Arc,
 };
 
-use anyhow::anyhow;
+use anyhow::{anyhow, bail};
 use aws_config::BehaviorVersion;
 use aws_sdk_kms::{
     Client as KmsClient,
@@ -58,8 +58,11 @@ use tabled::{
 };
 use tracing::info;
 
-use crate::key_identity::{
-    KeyIdentity, get_identity_address_from_keystore, get_identity_alias_from_keystore,
+use crate::{
+    PrintableResult,
+    key_identity::{
+        KeyIdentity, get_identity_address_from_keystore, get_identity_alias_from_keystore,
+    },
 };
 
 #[derive(Subcommand)]
@@ -613,10 +616,10 @@ impl KeyToolCommand {
                         Ok(seed) => {
                             info!("Importing seed to keystore");
                             if seed.len() != 64 {
-                                return Err(anyhow!(
+                                bail!(
                                     "Invalid seed length: {}, only 64 byte seeds are supported",
                                     seed.len()
-                                ));
+                                );
                             }
                             keystore.import_from_seed(&seed, key_scheme, derivation_path, alias)?
                         }
@@ -989,7 +992,7 @@ impl KeyToolCommand {
                *         &eph_pk_bytes,
                *         max_epoch,
                *         "6c56t7re6ekgmv23o7to8r0sic",
-               *         "https://www.iota.io/",
+               *         "https://www.iota.org/",
                *         &jwt_randomness,
                *     )?;
                *     let url_10 = get_oidc_url(
@@ -997,7 +1000,7 @@ impl KeyToolCommand {
                *         &eph_pk_bytes,
                *         max_epoch,
                *         "2e3e87cb-bf24-4399-ab98-48343d457124",
-               *         "https://www.iota.io",
+               *         "https://www.iota.org",
                *         &jwt_randomness,
                *     )?;
                *     let url_11 = get_oidc_url(
@@ -1111,10 +1114,10 @@ impl KeyToolCommand {
                * jwks.clone().into_iter().collect();             let env = match
                * network.as_str() {                 "devnet" | "localnet" =>
                * ZkLoginEnv::Test,                 "mainnet" | "testnet" =>
-               * ZkLoginEnv::Prod,                 _ => return Err(anyhow!("Invalid
-               * network")),             };
+               * ZkLoginEnv::Prod,                 _ => bail!("Invalid
+               * network"),             };
                *             let verify_params =
-               *                 VerifyParams::new(parsed, vec![], env, true, Some(2)); */
+               *                 VerifyParams::new(parsed, vec![], env, true, true, Some(2)); */
 
               /*             let (serialized, res) = match IntentScope::try_from(intent_scope)
                *                 .map_err(|_| anyhow!("Invalid scope"))?
@@ -1156,7 +1159,7 @@ impl KeyToolCommand {
                *                     );
                *                     (serde_json::to_string(&data)?, res)
                *                 }
-               *                 _ => return Err(anyhow!("Invalid intent scope")),
+               *                 _ => bail!("Invalid intent scope"),
                *             };
                *             CommandOutput::ZkLoginSigVerify(ZkLoginSigVerifyResponse {
                *                 data: Some(serialized),
@@ -1249,23 +1252,6 @@ impl Display for CommandOutput {
     }
 }
 
-impl CommandOutput {
-    pub fn print(&self, pretty: bool) {
-        let line = if pretty {
-            format!("{self}")
-        } else {
-            format!("{:?}", self)
-        };
-        // Log line by line
-        for line in line.lines() {
-            // Logs write to a file on the side.  Print to stdout and also log to file, for
-            // tests to pass.
-            println!("{line}");
-            info!("{line}")
-        }
-    }
-}
-
 // when --json flag is used, any output result is transformed into a JSON pretty
 // string and sent to std output
 impl Debug for CommandOutput {
@@ -1276,6 +1262,8 @@ impl Debug for CommandOutput {
         }
     }
 }
+
+impl PrintableResult for CommandOutput {}
 
 /// Converts legacy formatted private key to 33 bytes bech32 encoded private key
 /// or vice versa. It can handle:
@@ -1290,10 +1278,10 @@ fn convert_private_key_to_bech32(value: String) -> Result<ConvertOutput, anyhow:
         Err(_) => match Hex::decode(&value) {
             Ok(decoded) => {
                 if decoded.len() != 32 {
-                    return Err(anyhow!(format!(
+                    bail!(
                         "Invalid private key length, expected 32 but got {}",
                         decoded.len()
-                    )));
+                    );
                 }
                 IotaKeyPair::Ed25519(Ed25519KeyPair::from_bytes(&decoded)?)
             }
@@ -1301,7 +1289,7 @@ fn convert_private_key_to_bech32(value: String) -> Result<ConvertOutput, anyhow:
                 Ok(ikp) => ikp,
                 Err(_) => match Ed25519KeyPair::decode_base64(&value) {
                     Ok(kp) => IotaKeyPair::Ed25519(kp),
-                    Err(_) => return Err(anyhow!("Invalid private key encoding")),
+                    Err(_) => bail!("Invalid private key encoding"),
                 },
             },
         },

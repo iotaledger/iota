@@ -45,11 +45,11 @@ The first step in claiming your NFT is to retrieve the `NftOutput` object that y
 ### 2. Verify the Native Token Balance
 
 After fetching the `NftOutput`, you need to check for any native tokens that might be held by this output. 
-These tokens are stored in a [`Bag`](../../../references/framework/iota/bag). 
+These tokens are stored in a [`Bag`](../../../references/framework/iota-framework/bag). 
 You'll need to obtain the dynamic field keys used as bag indexes to access the native tokens. 
 For native tokens, these keys are strings 
 representing the [`OTW`](../../iota-101/move-overview/one-time-witness.mdx) used for the native token 
-[`Coin`](../../../references/framework/iota/coin.mdx#struct-coin).
+[`Coin`](../../../references/framework/iota-framework/coin.mdx#resource-coin).
 
 
 <Tabs groupId="language">

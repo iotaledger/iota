@@ -49,6 +49,7 @@ runs:
             - ".github/workflows/_rust_tests.yml"
             - ".github/workflows/_rust_lints.yml"
             - ".github/workflows/_cargo_deny.yml"
+            - ".github/workflows/_split_cluster.yml"
             - "scripts/cargo_sort/cargo_sort.py"
             - "scripts/ci_tests/rust_tests.sh"
             - "Cargo.toml"

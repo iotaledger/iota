@@ -63,6 +63,7 @@ const aboutIota = [
                             'about-iota/iota-wallet/how-to/multi-account',
                             'about-iota/iota-wallet/how-to/get-test-tokens',
                             'about-iota/iota-wallet/how-to/integrate-ledger',
+                            'about-iota/iota-wallet/how-to/restore-account',
                         ],
                     },
                     'about-iota/iota-wallet/FAQ',
@@ -74,6 +75,24 @@ const aboutIota = [
                 href: 'https://nightly.app/download',
                 description: 'Nightly provides a browser extension and mobile app for IOTA.',
             }
+        ],
+    },
+    {
+        type: 'category',
+        label: 'IOTA Wallet Dashboard',
+        items: [
+            'about-iota/iota-wallet-dashboard/getting-started',
+            {
+                type: 'category',
+                label: 'How To',
+                items: [
+                    'about-iota/iota-wallet-dashboard/how-to/basics',
+                    'about-iota/iota-wallet-dashboard/how-to/assets',
+                    'about-iota/iota-wallet-dashboard/how-to/stake',
+                    'about-iota/iota-wallet-dashboard/how-to/vesting',
+                    'about-iota/iota-wallet-dashboard/how-to/migration',
+                ],
+            },
         ],
     },
     {

@@ -3,15 +3,12 @@
 
 import type { Meta, StoryObj } from '@storybook/react';
 import { IotaLogoSmall } from '@iota/apps-ui-icons';
+import type { CardProps, CardImageProps, CardBodyProps, CardActionProps } from '@/components';
 import {
     Card,
-    CardProps,
     CardImage,
-    CardImageProps,
     CardAction,
     CardBody,
-    CardBodyProps,
-    CardActionProps,
     CardActionType,
     CardType,
     ImageType,

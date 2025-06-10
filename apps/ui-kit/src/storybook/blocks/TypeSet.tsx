@@ -3,7 +3,7 @@
 
 import { TypeSetItem } from './TypeSetItem';
 import { getFontSizeLabelFromClass } from '../helpers';
-import { TailwindCustomFonts } from '@/lib/tailwind/constants';
+import type { TailwindCustomFonts } from '@/lib/tailwind/constants';
 
 export interface TypeSetProps {
     typeset: TailwindCustomFonts;

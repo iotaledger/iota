@@ -10,11 +10,11 @@ This topic describes how to integrate IOTA, the token native to the IOTA network
 
 ## Local testing
 
-You can develop and test your integration using a local development server. It will spin up a local network with some test nodes, an indexer, and a faucet. You can find detailed instructions in the [local development guide](../getting-started/local-network.mdx).
+You can develop and test your integration using a local development server. It will spin up a local network with some test nodes, an indexer, and a faucet. You can find detailed instructions in the [local development guide](./getting-started/local-network.mdx).
 
 ## Configure an IOTA Full node
 
-You can set up and configure a [IOTA full node](../../operator/full-node/overview.mdx) using Docker or directly from source code in the IOTA GitHub repository.
+You can set up and configure a [IOTA full node](../operator/full-node/overview.mdx) using Docker or directly from source code in the IOTA GitHub repository.
 
 ## Set up IOTA addresses
 
@@ -114,7 +114,7 @@ This example does the same with TypeScript:
 
 :::info Event Tracking
 
-It's also possible to use event tracking to monitor addresses for incoming transactions. For more information on how events work and how to use them see the ["Using Events"](../iota-101/using-events.mdx) guide.
+It's also possible to use event tracking to monitor addresses for incoming transactions. For more information on how events work and how to use them see the ["Using Events"](./iota-101/using-events.mdx) guide.
 
 :::
 
@@ -125,7 +125,7 @@ IOTA is a DAG-based blockchain and uses checkpoints for node synchronization and
  - Checkpoints do not fork, roll back, or reorganize.
  - IOTA creates one checkpoint about every 200-250 milliseconds.
 
-For more information about confirming finality, see the [Verifying Finality](../../about-iota/iota-architecture/transaction-lifecycle.mdx#verifying-finality) section in the IOTA Architecture documentation.
+For more information about confirming finality, see the [Verifying Finality](../about-iota/iota-architecture/transaction-lifecycle.mdx#verifying-finality) section in the IOTA Architecture documentation.
 
 ### Checkpoint API operations
 
@@ -142,13 +142,13 @@ You can merge and split IOTA token objects to create token objects with specific
 
 To transfer a specific amount of IOTA, you need an IOTA token worth that specific amount. To get an IOTA token with that specific value, you might need to split or merge existing IOTA tokens. IOTA supports several methods to accomplish this, including some that do not require you to manually split or merge coins.
 
-Keep in mind that to execute a transaction, including a normal transfer, you need to provide some IOTA for gas as well. This can not be the same IOTA object as the one you are trying to transfer. The [SDKs](../../references/iota-sdks.mdx) can automatically find another owned IOTA Coin object to use for gas if you don't manually select one. If you only have a single IOTA coin object, you might need to split some off first to have an object to transfer and an object to pay for gas (these can not be the same).
+Keep in mind that to execute a transaction, including a normal transfer, you need to provide some IOTA for gas as well. This can not be the same IOTA object as the one you are trying to transfer. The [SDKs](../references/iota-sdks.mdx) can automatically find another owned IOTA Coin object to use for gas if you don't manually select one. If you only have a single IOTA coin object, you might need to split some off first to have an object to transfer and an object to pay for gas (these can not be the same).
 
 ## IOTA API operations for transfers
 
 :::warning
 
-While it's possible to directly call the JSON-RPC API to integrate, we highly recommend using on of our [SDKs](../../references/iota-sdks.mdx) instead. This will abstract away boilerplate complexity, makes integration easier, and avoids common mistakes.
+While it's possible to directly call the JSON-RPC API to integrate, we highly recommend using on of our [SDKs](../references/iota-sdks.mdx) instead. This will abstract away boilerplate complexity, makes integration easier, and avoids common mistakes.
 
 :::
 
@@ -179,6 +179,6 @@ IOTA supports the following API operations related to transferring IOTA between 
 
 ## Signing transactions
 
-Refer to [IOTA Signatures](../cryptography/transaction-auth/signatures.mdx) for more details on signature validity requirements.
+Refer to [IOTA Signatures](./cryptography/transaction-auth/signatures.mdx) for more details on signature validity requirements.
 
 <Quiz questions={questions} />

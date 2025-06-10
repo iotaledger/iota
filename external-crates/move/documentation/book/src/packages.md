@@ -24,10 +24,11 @@ a_move_package
 └── tests          (optional, test mode)
 ```
 
-The directories and files labeled "required" must be present for a directory to be considered a
-Move package and built. Optional directories may be present, and if so, they will be included in
-the compilation process depending on the mode used to build the package. For instance, when built
-in "dev" or "test" modes, the `tests` and `examples` directories will also be included.
+The directories and files labeled "required" must be present for a directory to be
+considered a Move package and built. Optional directories may be present,
+and if so, they will be included in the compilation process depending on the
+mode used to build the package. For instance, when built in "dev" or "test"
+modes, the `tests` and `examples` directories will also be included.
 
 Going through each of these in turn:
 
@@ -152,17 +153,18 @@ MoveStdlib = { git = "https://github.com/iotaledger/iota.git", subdir = "crates/
 address_to_be_filled_in = "0x101010101"
 ```
 
-Most of the sections in the package manifest are self explanatory, but named addresses can be a bit
-difficult to understand so we examine them in more detail in
-[Named Addresses During Compilation](#named-addresses-during-compilation), but before that we'll
-first take a look at the `Move.lock` file and what it contains.
+Most of the sections in the package manifest are self explanatory, but named
+addresses can be a bit difficult to understand so we examine them in more
+detail in [Named Addresses During Compilation](#named-addresses-during-compilation), but before that we'll first
+take a look at the `Move.lock` file and what it contains.
 
 ## Move.lock
 
-The `Move.lock` file is generated at the root of the Move package when the package is built. The
-`Move.lock` file contains information about your package and its build configuration, and acts as a
-communication layer between the Move compiler and other tools, like chain-specific command line
-interfaces and third-party package managers.
+The `Move.lock` file is generated at the root of the Move package when the
+package is built. The `Move.lock` file contains information about your package
+and its build configuration, and acts as a communication layer between the Move
+compiler and other tools, like chain-specific command line interfaces and
+third-party package managers.
 
 Like the `Move.toml` file, the `Move.lock` file is a text-based TOML file. Unlike the package
 manifest however, the `Move.lock` file is not intended for you to edit directly. Processes on the
@@ -175,7 +177,8 @@ If you are using source control for your package, it's recommended practice to c
 every build of your package is an exact replica of the original, and that changes to the build will
 be apparent as changes to the `Move.lock` file.
 
-The `Move.lock` file is a TOML file that currently contains the following fields.
+The `Move.lock` file is a TOML file that currently contains the following
+fields.
 
 **Note**: other fields may be added to the lock file either in the future, or by third-party package
 package managers as well.
@@ -184,11 +187,11 @@ package managers as well.
 
 This section contains the core information needed in the lockfile:
 
-- The version of the lockfile (needed for backwards compatibility checking, and versioning
-  lockfile changes in the future).
+- The version of the lockfile (needed for backwards compatibility checking, and
+  versioning lockfile changes in the future).
 - The hash of the `Move.toml` file that was used to generate this lock file.
-- The hash of the `Move.lock` file of all dependencies. If no depencies are present, this will be
-  an empty string.
+- The hash of the `Move.lock` file of all dependencies. If no depencies are
+  present, this will be an empty string.
 - The list of dependencies.
 
 ```
@@ -221,9 +224,9 @@ source = { local = "../local-dep" }
 
 ### The `[move.toolchain-version]` Section
 
-As mentioned above, additional fields may be added to the lock file by external tools. For example,
-the IOTA package manager adds toolchain version information to the lock file that can then be used
-for on-chain source verification:
+As mentioned above, additional fields may be added to the lock file by external
+tools. For example, the IOTA package manager adds toolchain version information
+to the lock file that can then be used for on-chain source verification:
 
 ```
 ...
@@ -239,10 +242,11 @@ to use them.
 
 ## Named Addresses During Compilation
 
-Recall that Move has [named addresses](./primitive-types/address.md) and that named addresses cannot
-be declared in Move. Instead they are declared at the package level: in the manifest file
-(`Move.toml`) for a Move package you declare named addresses in the package, instantiate other named
-addresses, and rename named addresses from other packages within the Move package system.
+Recall that Move has [named addresses](./primitive-types/address.md) and that named addresses
+cannot be declared in Move. Instead they are declared at the package level: in
+the manifest file (`Move.toml`) for a Move package you declare named addresses
+in the package, instantiate other named addresses, and rename named addresses
+from other packages within the Move package system.
 
 Let's go through each of these actions, and how they are performed in the package's manifest
 one-by-one:
@@ -371,15 +375,16 @@ named_addr = "0xC0FFEE"
 ## Usage and Artifacts
 
 The Move package system comes with a command line option as part of the CLI:
-`iota move <command> <command_flags>`. Unless a particular path is provided, all package commands
-will run in the current working directory. The full list of commands and flags for the Move CLI can
-be found by running `iota move --help`.
+`iota move <command> <command_flags>`. Unless a particular path is provided, all
+package commands will run in the current working directory. The full list of
+commands and flags for the Move CLI can be found by running `iota move --help`.
 
 ### Artifacts
 
-A package can be compiled using CLI commands. This will create a `build` directory containing
-build-related artifacts (such as bytecode, source maps, and documentation). The general layout of
-the `build` directory is as follows:
+A package can be compiled using CLI commands.
+This will create a `build`
+directory containing build-related artifacts (such as bytecode, source maps, and
+documentation). The general layout of the `build` directory is as follows:
 
 ```
 a_move_package

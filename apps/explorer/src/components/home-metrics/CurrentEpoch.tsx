@@ -48,15 +48,19 @@ export function CurrentEpoch(): JSX.Element {
             onClick={() => ampli.clickedCurrentEpochCard({ epoch: Number(epoch) })}
         >
             <Panel>
-                <Title title={`Epoch ${epoch}`} subtitle={epochSubtitle} />
+                <Title title={`Epoch ${epoch ?? '--'}`} subtitle={epochSubtitle} />
                 <div className="flex flex-col gap-md p-md--rs">
                     <div className="flex flex-row gap-md">
                         <div className="flex flex-1">
-                            <LabelText size={LabelTextSize.Medium} label="Time Left" text={label} />
+                            <LabelText
+                                size={LabelTextSize.Large}
+                                label="Time Left"
+                                text={label || '--'}
+                            />
                         </div>
                         <div className="flex flex-1">
                             <LabelText
-                                size={LabelTextSize.Medium}
+                                size={LabelTextSize.Large}
                                 label="Checkpoint"
                                 text={
                                     networkData?.currentCheckpoint

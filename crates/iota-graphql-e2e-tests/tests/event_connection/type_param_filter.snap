@@ -1,0 +1,185 @@
+---
+source: external-crates/move/crates/move-transactional-test-runner/src/framework.rs
+---
+processed 10 tasks
+
+init:
+A: object(0,0), B: object(0,1)
+
+task 1, lines 7-30:
+//# publish
+created: object(1,0)
+mutated: object(0,2)
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 5988800,  storage_rebate: 0, non_refundable_storage_fee: 0
+
+task 2, line 33:
+//# run Test::M1::emit_T1 --sender A
+events: Event { package_id: Test, transaction_module: Identifier("M1"), sender: A, type_: StructTag { address: Test, module: Identifier("M1"), name: Identifier("EventA"), type_params: [Struct(StructTag { address: Test, module: Identifier("M1"), name: Identifier("T1"), type_params: [] })] }, contents: [0] }
+mutated: object(0,0)
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 980400,  storage_rebate: 0, non_refundable_storage_fee: 0
+
+task 3, line 35:
+//# run Test::M1::emit_T2 --sender A
+events: Event { package_id: Test, transaction_module: Identifier("M1"), sender: A, type_: StructTag { address: Test, module: Identifier("M1"), name: Identifier("EventA"), type_params: [Struct(StructTag { address: Test, module: Identifier("M1"), name: Identifier("T2"), type_params: [] })] }, contents: [0] }
+mutated: object(0,0)
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 980400,  storage_rebate: 980400, non_refundable_storage_fee: 0
+
+task 4, line 37:
+//# run Test::M1::emit_both --sender A
+events: Event { package_id: Test, transaction_module: Identifier("M1"), sender: A, type_: StructTag { address: Test, module: Identifier("M1"), name: Identifier("EventA"), type_params: [Struct(StructTag { address: Test, module: Identifier("M1"), name: Identifier("T1"), type_params: [] })] }, contents: [0] }, Event { package_id: Test, transaction_module: Identifier("M1"), sender: A, type_: StructTag { address: Test, module: Identifier("M1"), name: Identifier("EventA"), type_params: [Struct(StructTag { address: Test, module: Identifier("M1"), name: Identifier("T2"), type_params: [] })] }, contents: [0] }
+mutated: object(0,0)
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 980400,  storage_rebate: 980400, non_refundable_storage_fee: 0
+
+task 5, line 39:
+//# create-checkpoint
+Checkpoint created: 1
+
+task 6, lines 41-48:
+//# run-graphql
+Response: {
+  "data": {
+    "transactionBlocks": {
+      "nodes": [
+        {
+          "digest": "2joLmY9Sv1wqMwzSfA3DkKC4FsWcV3WfjA2mYFWeCHtF"
+        },
+        {
+          "digest": "7xmEmxCMy6SoFYmukbSopebqdPYYsScYg46Eq4tkzSRq"
+        },
+        {
+          "digest": "PMum8x4uY2fyJVFANJ2f9WfHVcxg6zHTeX6Ep7Mpjtr"
+        },
+        {
+          "digest": "DiyL2QTvofM8QFsBPKsfjJ29ZwDpBoC4Go1CtjPqf2EB"
+        },
+        {
+          "digest": "BGsRThqxgkyQC3Dy8Wg2hACSUYGNEUr8cnrhpzWekruS"
+        }
+      ]
+    }
+  }
+}
+
+task 7, lines 50-63:
+//# run-graphql
+Response: {
+  "data": {
+    "events": {
+      "nodes": [
+        {
+          "type": {
+            "repr": "0xec86f8cc1c958b3b9465f911d80f21f6409623b8e5fdf052916f157dca3a1530::M1::EventA<0xec86f8cc1c958b3b9465f911d80f21f6409623b8e5fdf052916f157dca3a1530::M1::T1>"
+          },
+          "sender": {
+            "address": "0x8cca4e1ce0ba5904cea61df9242da2f7d29e3ef328fb7ec07c086b3bf47ca61a"
+          },
+          "json": {
+            "value": {
+              "dummy_field": false
+            }
+          }
+        },
+        {
+          "type": {
+            "repr": "0xec86f8cc1c958b3b9465f911d80f21f6409623b8e5fdf052916f157dca3a1530::M1::EventA<0xec86f8cc1c958b3b9465f911d80f21f6409623b8e5fdf052916f157dca3a1530::M1::T2>"
+          },
+          "sender": {
+            "address": "0x8cca4e1ce0ba5904cea61df9242da2f7d29e3ef328fb7ec07c086b3bf47ca61a"
+          },
+          "json": {
+            "value": {
+              "dummy_field": false
+            }
+          }
+        },
+        {
+          "type": {
+            "repr": "0xec86f8cc1c958b3b9465f911d80f21f6409623b8e5fdf052916f157dca3a1530::M1::EventA<0xec86f8cc1c958b3b9465f911d80f21f6409623b8e5fdf052916f157dca3a1530::M1::T1>"
+          },
+          "sender": {
+            "address": "0x8cca4e1ce0ba5904cea61df9242da2f7d29e3ef328fb7ec07c086b3bf47ca61a"
+          },
+          "json": {
+            "value": {
+              "dummy_field": false
+            }
+          }
+        },
+        {
+          "type": {
+            "repr": "0xec86f8cc1c958b3b9465f911d80f21f6409623b8e5fdf052916f157dca3a1530::M1::EventA<0xec86f8cc1c958b3b9465f911d80f21f6409623b8e5fdf052916f157dca3a1530::M1::T2>"
+          },
+          "sender": {
+            "address": "0x8cca4e1ce0ba5904cea61df9242da2f7d29e3ef328fb7ec07c086b3bf47ca61a"
+          },
+          "json": {
+            "value": {
+              "dummy_field": false
+            }
+          }
+        }
+      ]
+    }
+  }
+}
+
+task 8, lines 65-78:
+//# run-graphql
+Response: {
+  "data": {
+    "events": {
+      "nodes": [
+        {
+          "type": {
+            "repr": "0xec86f8cc1c958b3b9465f911d80f21f6409623b8e5fdf052916f157dca3a1530::M1::EventA<0xec86f8cc1c958b3b9465f911d80f21f6409623b8e5fdf052916f157dca3a1530::M1::T1>"
+          },
+          "sender": {
+            "address": "0x8cca4e1ce0ba5904cea61df9242da2f7d29e3ef328fb7ec07c086b3bf47ca61a"
+          },
+          "json": {
+            "value": {
+              "dummy_field": false
+            }
+          }
+        },
+        {
+          "type": {
+            "repr": "0xec86f8cc1c958b3b9465f911d80f21f6409623b8e5fdf052916f157dca3a1530::M1::EventA<0xec86f8cc1c958b3b9465f911d80f21f6409623b8e5fdf052916f157dca3a1530::M1::T1>"
+          },
+          "sender": {
+            "address": "0x8cca4e1ce0ba5904cea61df9242da2f7d29e3ef328fb7ec07c086b3bf47ca61a"
+          },
+          "json": {
+            "value": {
+              "dummy_field": false
+            }
+          }
+        }
+      ]
+    }
+  }
+}
+
+task 9, lines 80-95:
+//# run-graphql
+Response: {
+  "data": {
+    "events": {
+      "nodes": [
+        {
+          "type": {
+            "repr": "0xec86f8cc1c958b3b9465f911d80f21f6409623b8e5fdf052916f157dca3a1530::M1::EventA<0xec86f8cc1c958b3b9465f911d80f21f6409623b8e5fdf052916f157dca3a1530::M1::T2>"
+          },
+          "sender": {
+            "address": "0x8cca4e1ce0ba5904cea61df9242da2f7d29e3ef328fb7ec07c086b3bf47ca61a"
+          },
+          "json": {
+            "value": {
+              "dummy_field": false
+            }
+          }
+        }
+      ]
+    }
+  }
+}

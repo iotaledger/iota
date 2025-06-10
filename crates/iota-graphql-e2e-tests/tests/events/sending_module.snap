@@ -1,0 +1,73 @@
+---
+source: external-crates/move/crates/move-transactional-test-runner/src/framework.rs
+---
+processed 6 tasks
+
+init:
+A: object(0,0)
+
+task 1, lines 8-13:
+//# publish --upgradeable --sender A
+created: object(1,0), object(1,1)
+mutated: object(0,0)
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 5312400,  storage_rebate: 0, non_refundable_storage_fee: 0
+
+task 2, lines 14-27:
+//# upgrade --package Test --upgrade-capability 1,1 --sender A
+created: object(2,0)
+mutated: object(0,0), object(1,1)
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 6786800,  storage_rebate: 2606800, non_refundable_storage_fee: 0
+
+task 3, line 28:
+//# run Test::M1::emit --sender A
+events: Event { package_id: Test, transaction_module: Identifier("M1"), sender: A, type_: StructTag { address: fake(1,0), module: Identifier("M0"), name: Identifier("Event"), type_params: [] }, contents: [42, 0, 0, 0, 0, 0, 0, 0] }
+mutated: object(0,0)
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 980400,  storage_rebate: 980400, non_refundable_storage_fee: 0
+
+task 4, line 30:
+//# create-checkpoint
+Checkpoint created: 1
+
+task 5, lines 32-47:
+//# run-graphql
+Response: {
+  "data": {
+    "events": {
+      "nodes": [
+        {
+          "sendingModule": {
+            "package": {
+              "address": "0x000000000000000000000000000000000000000000000000000000000000107a"
+            },
+            "name": "nft"
+          },
+          "type": {
+            "repr": "0x0000000000000000000000000000000000000000000000000000000000000002::display::DisplayCreated<0x000000000000000000000000000000000000000000000000000000000000107a::nft::Nft>"
+          }
+        },
+        {
+          "sendingModule": {
+            "package": {
+              "address": "0x000000000000000000000000000000000000000000000000000000000000107a"
+            },
+            "name": "nft"
+          },
+          "type": {
+            "repr": "0x0000000000000000000000000000000000000000000000000000000000000002::display::VersionUpdated<0x000000000000000000000000000000000000000000000000000000000000107a::nft::Nft>"
+          }
+        },
+        {
+          "sendingModule": {
+            "package": {
+              "address": "0x934651be6b43ab4be1a9c32f46618c5269e1049ead23579490e5015bc68ef6c6"
+            },
+            "name": "M1"
+          },
+          "type": {
+            "repr": "0xfb95b4b6a9b1243e0680beadf28da32ff6ffbde035b56fc8f5e008b4aadc8d27::M0::Event"
+          }
+        }
+      ]
+    }
+  }
+}

@@ -3,7 +3,8 @@
 
 import cx from 'classnames';
 import { IotaLogoMark, MenuIcon } from '@iota/apps-ui-icons';
-import { NavbarItem, NavbarItemProps } from '@/components/molecules/navbar-item/NavbarItem';
+import type { NavbarItemProps } from '@/components/molecules/navbar-item/NavbarItem';
+import { NavbarItem } from '@/components/molecules/navbar-item/NavbarItem';
 
 export type NavbarItemWithId = NavbarItemProps & { id: string };
 

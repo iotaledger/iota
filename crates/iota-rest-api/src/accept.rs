@@ -33,7 +33,6 @@ fn parse_accept(headers: &HeaderMap) -> Vec<Mime> {
     items.into_iter().map(|(mime, _)| mime).collect()
 }
 
-#[axum::async_trait]
 impl<S> axum::extract::FromRequestParts<S> for Accept
 where
     S: Send + Sync,
@@ -54,7 +53,6 @@ pub enum AcceptFormat {
     Bcs,
 }
 
-#[axum::async_trait]
 impl<S> axum::extract::FromRequestParts<S> for AcceptFormat
 where
     S: Send + Sync,
@@ -127,5 +125,19 @@ mod tests {
             .unwrap();
         let accept = AcceptFormat::from_request(req, &()).await.unwrap();
         assert_eq!(accept, AcceptFormat::Json);
+
+        let req = Request::builder()
+            .header(header::ACCEPT, "application/json, application/bcs")
+            .body(axum::body::Body::empty())
+            .unwrap();
+        let accept = AcceptFormat::from_request(req, &()).await.unwrap();
+        assert_eq!(accept, AcceptFormat::Json);
+
+        let req = Request::builder()
+            .header(header::ACCEPT, "application/bcs, application/json")
+            .body(axum::body::Body::empty())
+            .unwrap();
+        let accept = AcceptFormat::from_request(req, &()).await.unwrap();
+        assert_eq!(accept, AcceptFormat::Bcs);
     }
 }

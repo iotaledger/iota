@@ -14,6 +14,7 @@ import {
     Panel,
     LoadingIndicator,
 } from '@iota/apps-ui-kit';
+import { onCopySuccess } from '~/lib/utils';
 
 interface DynamicFieldRowProps {
     id: string;
@@ -35,7 +36,11 @@ function DynamicFieldRow({ id, result, defaultOpen }: DynamicFieldRowProps): JSX
                             String(result.name.value)
                         ) : null}
                     </div>
-                    <ObjectLink objectId={result.objectId} />
+                    <ObjectLink
+                        objectId={result.objectId}
+                        copyText={result.objectId}
+                        onCopySuccess={onCopySuccess}
+                    />
                 </div>
             </AccordionHeader>
             <AccordionContent isExpanded={open}>

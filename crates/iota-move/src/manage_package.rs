@@ -28,7 +28,7 @@ pub struct ManagePackage {
     /// using `iota client active-env`).
     pub environment: String,
     #[arg(long = "network-id")]
-    /// The network chain identifier. Use '35834a8a' for mainnet.
+    /// The network chain identifier. Use '6364aad5' for mainnet.
     pub chain_id: String,
     #[arg(long, value_parser = ObjectID::from_hex_literal)]
     /// The original address (Object ID) where this package is published.

@@ -177,7 +177,7 @@ To call a specific function from a specific package, you can use the following c
 
 ### Publish
 
-Publishing a package is one of the most important commands you need when working with IOTA. While the CLI has a standalone `publish` command, PTBs also support publishing and upgrading packages. One main difference is that with `iota client ptb`, you must explicitly transfer the `UpgradeCap` object that is returned when creating a package, or destroy it with a call to [`make_immutable`](../../developer/iota-101/move-overview/package-upgrades/introduction.mdx). Here is an example on how to publish a Move project (from within its folder, that's why the path is ".") on chain using the `iota client ptb` command. It makes a call to the [`iota::tx_context::sender`](../framework/iota/tx_context#function-sender) to acquire the sender and assigns the result of that call to the `sender` variable, and then calls the publish command. The result of `publish` is bounded to `upgrade_cap` variable, and then this object is transferred to the sender. 
+Publishing a package is one of the most important commands you need when working with IOTA. While the CLI has a standalone `publish` command, PTBs also support publishing and upgrading packages. One main difference is that with `iota client ptb`, you must explicitly transfer the `UpgradeCap` object that is returned when creating a package, or destroy it with a call to [`make_immutable`](../../developer/iota-101/move-overview/package-upgrades/introduction.mdx). Here is an example on how to publish a Move project (from within its folder, that's why the path is ".") on chain using the `iota client ptb` command. It makes a call to the [`iota::tx_context::sender`](../framework/iota-framework/tx_context.mdx#function-sender) to acquire the sender and assigns the result of that call to the `sender` variable, and then calls the publish command. The result of `publish` is bounded to `upgrade_cap` variable, and then this object is transferred to the sender. 
 
 ```bash
 iota client ptb \
@@ -344,7 +344,7 @@ iota client ptb \
 
 :::note 
 
-Functions that return a reference, such as [`std::option::borrow`](../framework/std/option.mdx#function-borrow), cannot be used in a PTB call but only in a smart contract.
+Functions that return a reference, such as [`std::option::borrow`](../framework/move-stdlib/option.mdx#function-borrow), cannot be used in a PTB call but only in a smart contract.
 
 :::
 
@@ -376,7 +376,7 @@ iota client ptb \
 
 ### Mint a Coin
 
-Mint coins with a [`0x2::coin::TreasuryCap`](../framework/iota/coin.mdx#struct-treasurycap) and transfer them to the sender. Based on the [simple_token.move](https://github.com/iotaledger/iota/blob/develop/examples/move/token/sources/simple_token.move) example.
+Mint coins with a [`0x2::coin::TreasuryCap`](../framework/iota-framework/coin.mdx#resource-treasurycap) and transfer them to the sender. Based on the [simple_token.move](https://github.com/iotaledger/iota/blob/develop/examples/move/token/sources/simple_token.move) example.
 The package ID and TreasuryCap object ID need to be replaced to the one for your published package.
 
 ```bash

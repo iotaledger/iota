@@ -1,0 +1,45 @@
+---
+source: crates/move-compiler/tests/move_check_testsuite.rs
+info:
+  flavor: iota
+  edition: legacy
+  lint: true
+---
+warning[Lint W99001]: non-composable transfer to sender
+   ┌─ tests/iota_mode/linter/self_transfer.move:24:9
+   │
+23 │     public fun public_transfer_bad(ctx: &mut TxContext) {
+   │                ------------------- Returning an object from a function, allows a caller to use the object and enables composability via programmable transactions.
+24 │         transfer::public_transfer(S1 { id: object::new(ctx), }, tx_context::sender(ctx))
+   │         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+   │         │                                                       │
+   │         │                                                       Transaction sender address coming from here
+   │         Transfer of an object to transaction sender address
+   │
+   = This warning can be suppressed with '#[allow(lint(self_transfer))]' applied to the 'module' or module member ('const', 'fun', or 'struct')
+
+warning[Lint W99001]: non-composable transfer to sender
+   ┌─ tests/iota_mode/linter/self_transfer.move:28:9
+   │
+27 │     public fun private_transfer_bad(ctx: &mut TxContext) {
+   │                -------------------- Returning an object from a function, allows a caller to use the object and enables composability via programmable transactions.
+28 │         transfer::transfer(S1 { id: object::new(ctx), }, tx_context::sender(ctx))
+   │         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+   │         │                                                │
+   │         │                                                Transaction sender address coming from here
+   │         Transfer of an object to transaction sender address
+   │
+   = This warning can be suppressed with '#[allow(lint(self_transfer))]' applied to the 'module' or module member ('const', 'fun', or 'struct')
+
+warning[Lint W99001]: non-composable transfer to sender
+   ┌─ tests/iota_mode/linter/self_transfer.move:40:9
+   │
+37 │     public fun transfer_through_assigns_bad(ctx: &mut TxContext) {
+   │                ---------------------------- Returning an object from a function, allows a caller to use the object and enables composability via programmable transactions.
+38 │         let sender = tx_context::sender(ctx);
+   │                      ----------------------- Transaction sender address coming from here
+39 │         let another_sender = sender;
+40 │         transfer::public_transfer(S1 { id: object::new(ctx), }, another_sender)
+   │         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Transfer of an object to transaction sender address
+   │
+   = This warning can be suppressed with '#[allow(lint(self_transfer))]' applied to the 'module' or module member ('const', 'fun', or 'struct')

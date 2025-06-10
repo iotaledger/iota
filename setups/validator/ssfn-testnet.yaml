@@ -1,0 +1,51 @@
+---
+# Key pairs
+network-key-pair:
+  path: /opt/iota/key-pairs/network.key
+
+# Database Configuration
+db-path: /opt/iota/db/authorities_db
+
+# Genesis Configuration
+genesis:
+  genesis-file-location: /opt/iota/config/genesis.blob
+
+# Network Configuration
+p2p-config:
+  listen-address: "0.0.0.0:8084"
+  external-address: /dns/$HOSTNAME/udp/8084 # UPDATE THIS
+  seed-peers:
+    - address: /dns/validator-hostname/udp/8084 # UPDATE THIS
+      peer-id: <validator-peer-id> # UPDATE THIS: Get this from your validator's network.key
+    - address: /dns/access-0.r.testnet.iota.cafe/udp/8084
+      peer-id: 46064108d0b689ed89d1f44153e532bb101ce8f8ca3a3d01ab991d4dea122cfc
+    - address: /dns/access-1.r.testnet.iota.cafe/udp/8084
+      peer-id: 8ffd25fa4e86c30c3f8da7092695e8a103462d7a213b815d77d6da7f0a2a52f5
+
+# Pruning Configuration
+authority-store-pruning-config:
+  num-epochs-to-retain: 0
+  num-epochs-to-retain-for-checkpoints: 2
+  periodic-compaction-threshold-days: 1
+
+# Resource Optimization
+enable-index-processing: false
+checkpoint-executor-config:
+  local-execution-timeout-sec: 10
+indirect-objects-threshold: 18446744073709551615
+
+# Metrics Configuration
+metrics:
+  push-interval-seconds: 60
+  push-url: https://metrics-proxy.testnet.iota.cafe:8443/publish/metrics
+
+# State Sync Archive Fallback
+state-archive-read-config:
+  - object-store-config:
+      object-store: "S3"
+      aws-endpoint: "https://archive.testnet.iota.cafe"
+      aws-virtual-hosted-style-request: true
+      object-store-connection-limit: 20
+      no-sign-request: true
+    concurrency: 5
+    use-for-pruning-watermark: false

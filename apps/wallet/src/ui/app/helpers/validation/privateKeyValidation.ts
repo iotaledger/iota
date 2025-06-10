@@ -2,6 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+import { fromB58 } from '@iota/bcs';
 import { decodeIotaPrivateKey, encodeIotaPrivateKey } from '@iota/iota-sdk/cryptography/keypair';
 import { hexToBytes } from '@noble/hashes/utils';
 import { z } from 'zod';
@@ -17,12 +18,18 @@ export const privateKeyValidation = z
 
             try {
                 privateKeyBytes = hexToBytes(hexValue);
-            } catch (error) {
-                context.addIssue({
-                    code: 'custom',
-                    message: 'Invalid Private Key, please use a Bech32 encoded 33-byte string.',
-                });
-                return z.NEVER;
+            } catch (_) {
+                try {
+                    // Try decoding base58
+                    privateKeyBytes = fromB58(privateKey);
+                } catch (_) {
+                    context.addIssue({
+                        code: 'custom',
+                        message:
+                            'Invalid Private Key, please use a Bech32 encoded 33-byte string or Base58 encoded string.',
+                    });
+                    return z.NEVER;
+                }
             }
 
             if (![32, 64].includes(privateKeyBytes.length)) {

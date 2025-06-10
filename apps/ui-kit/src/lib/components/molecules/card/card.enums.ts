@@ -10,6 +10,7 @@ export enum CardType {
 export enum ImageType {
     Placeholder = 'placeholder',
     BgSolid = 'bg-solid',
+    BgWhite = 'bg-white',
     BgTransparent = 'bg-transparent',
 }
 

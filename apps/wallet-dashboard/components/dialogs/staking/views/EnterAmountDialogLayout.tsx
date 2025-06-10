@@ -1,7 +1,13 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { CoinFormat, useFormatCoin, useStakeTxnInfo, Validator } from '@iota/core';
+import {
+    CoinFormat,
+    useFormatCoin,
+    useIsValidatorCommitteeMember,
+    useStakeTxnInfo,
+    Validator,
+} from '@iota/core';
 import {
     Button,
     ButtonType,
@@ -16,7 +22,7 @@ import {
     InfoBox,
 } from '@iota/apps-ui-kit';
 import { Field, type FieldProps, useFormikContext } from 'formik';
-import { Exclamation, Loader } from '@iota/apps-ui-icons';
+import { Exclamation, Loader, Warning } from '@iota/apps-ui-icons';
 import { StakedInfo } from './StakedInfo';
 import { DialogLayout, DialogLayoutBody, DialogLayoutFooter } from '../../layout';
 import { useIotaClientQuery } from '@iota/dapp-kit';
@@ -58,13 +64,14 @@ export function EnterAmountDialogLayout({
     const { data: system } = useIotaClientQuery('getLatestIotaSystemState');
     const { values, errors } = useFormikContext<FormValues>();
     const amount = values.amount;
+    const { isCommitteeMember } = useIsValidatorCommitteeMember();
 
     const [gas, symbol] = useFormatCoin({ balance: totalGas ?? 0, format: CoinFormat.FULL });
 
     const { stakedRewardsStartEpoch, timeBeforeStakeRewardsRedeemableAgoDisplay } = useStakeTxnInfo(
         system?.epoch,
     );
-
+    const isValidatorCommitteeMember = isCommitteeMember(selectedValidator);
     return (
         <DialogLayout>
             <Header title="Enter amount" onClose={handleClose} onBack={onBack} titleCentered />
@@ -78,7 +85,7 @@ export function EnterAmountDialogLayout({
                             validatorAddress={selectedValidator}
                             accountAddress={senderAddress}
                         />
-                        <div className="my-md w-full">
+                        <div className="my-md flex w-full flex-col gap-y-2">
                             <Field name="amount">
                                 {({
                                     field: { onChange, ...field },
@@ -106,8 +113,16 @@ export function EnterAmountDialogLayout({
                                 }}
                             </Field>
                             {renderInfo ? <div className="mt-md">{renderInfo}</div> : null}
+                            {!isValidatorCommitteeMember && (
+                                <InfoBox
+                                    type={InfoBoxType.Warning}
+                                    title="Validator is not earning rewards."
+                                    supportingText="Validator is active but not in the current committee, so not earning rewards this epoch. It may earn in future epochs. Stake at your discretion."
+                                    icon={<Warning />}
+                                    style={InfoBoxStyle.Elevated}
+                                />
+                            )}
                         </div>
-
                         <Panel hasBorder>
                             <div className="flex flex-col gap-y-sm p-md">
                                 <KeyValueInfo

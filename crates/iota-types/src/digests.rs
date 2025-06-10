@@ -4,6 +4,7 @@
 
 use std::{env, fmt};
 
+use anyhow::{anyhow, bail};
 use fastcrypto::encoding::{Base58, Encoding, Hex};
 use iota_protocol_config::Chain;
 use once_cell::sync::{Lazy, OnceCell};
@@ -159,7 +160,7 @@ impl fmt::UpperHex for Digest {
 )]
 pub struct ChainIdentifier(pub(crate) CheckpointDigest);
 
-pub const MAINNET_CHAIN_IDENTIFIER_BASE58: &str = "4btiuiMPvEENsttpZC7CZ53DruC3MAgfznDbASZ7DR6S";
+pub const MAINNET_CHAIN_IDENTIFIER_BASE58: &str = "7gzPnGnmjqvpmF7NXTCmtacXLqx1cMaJFV6GCmi1peqr";
 pub const TESTNET_CHAIN_IDENTIFIER_BASE58: &str = "3MhPzSaSTHGffwPSV2Ws2DaK8LR8DBGPozTd2CbiJRwe";
 
 pub static MAINNET_CHAIN_IDENTIFIER: OnceCell<ChainIdentifier> = OnceCell::new();
@@ -376,9 +377,9 @@ impl std::str::FromStr for CheckpointDigest {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let mut result = [0; 32];
-        let buffer = Base58::decode(s).map_err(|e| anyhow::anyhow!(e))?;
+        let buffer = Base58::decode(s).map_err(|e| anyhow!(e))?;
         if buffer.len() != 32 {
-            return Err(anyhow::anyhow!("Invalid digest length. Expected 32 bytes"));
+            bail!("Invalid digest length. Expected 32 bytes");
         }
         result.copy_from_slice(&buffer);
         Ok(CheckpointDigest::new(result))
@@ -461,9 +462,9 @@ impl std::str::FromStr for CheckpointContentsDigest {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let mut result = [0; 32];
-        let buffer = Base58::decode(s).map_err(|e| anyhow::anyhow!(e))?;
+        let buffer = Base58::decode(s).map_err(|e| anyhow!(e))?;
         if buffer.len() != 32 {
-            return Err(anyhow::anyhow!("Invalid digest length. Expected 32 bytes"));
+            bail!("Invalid digest length. Expected 32 bytes");
         }
         result.copy_from_slice(&buffer);
         Ok(CheckpointContentsDigest::new(result))
@@ -637,9 +638,9 @@ impl std::str::FromStr for TransactionDigest {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let mut result = [0; 32];
-        let buffer = Base58::decode(s).map_err(|e| anyhow::anyhow!(e))?;
+        let buffer = Base58::decode(s).map_err(|e| anyhow!(e))?;
         if buffer.len() != 32 {
-            return Err(anyhow::anyhow!("Invalid digest length. Expected 32 bytes"));
+            bail!("Invalid digest length. Expected 32 bytes");
         }
         result.copy_from_slice(&buffer);
         Ok(TransactionDigest::new(result))
@@ -780,9 +781,9 @@ impl std::str::FromStr for TransactionEventsDigest {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let mut result = [0; 32];
-        let buffer = Base58::decode(s).map_err(|e| anyhow::anyhow!(e))?;
+        let buffer = Base58::decode(s).map_err(|e| anyhow!(e))?;
         if buffer.len() != 32 {
-            return Err(anyhow::anyhow!("Invalid digest length. Expected 32 bytes"));
+            bail!("Invalid digest length. Expected 32 bytes");
         }
         result.copy_from_slice(&buffer);
         Ok(Self::new(result))
@@ -838,9 +839,9 @@ impl std::str::FromStr for EffectsAuxDataDigest {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let mut result = [0; 32];
-        let buffer = Base58::decode(s).map_err(|e| anyhow::anyhow!(e))?;
+        let buffer = Base58::decode(s).map_err(|e| anyhow!(e))?;
         if buffer.len() != 32 {
-            return Err(anyhow::anyhow!("Invalid digest length. Expected 32 bytes"));
+            bail!("Invalid digest length. Expected 32 bytes");
         }
         result.copy_from_slice(&buffer);
         Ok(Self::new(result))
@@ -970,9 +971,9 @@ impl std::str::FromStr for ObjectDigest {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let mut result = [0; 32];
-        let buffer = Base58::decode(s).map_err(|e| anyhow::anyhow!(e))?;
+        let buffer = Base58::decode(s).map_err(|e| anyhow!(e))?;
         if buffer.len() != 32 {
-            return Err(anyhow::anyhow!("Invalid digest length. Expected 32 bytes"));
+            bail!("Invalid digest length. Expected 32 bytes");
         }
         result.copy_from_slice(&buffer);
         Ok(ObjectDigest::new(result))
@@ -1051,7 +1052,7 @@ mod test {
 
     #[test]
     fn test_chain_id_mainnet() {
-        let chain_id = ChainIdentifier::from_chain_short_id("35834a8a");
+        let chain_id = ChainIdentifier::from_chain_short_id("6364aad5");
         assert_eq!(
             chain_id.unwrap().chain(),
             iota_protocol_config::Chain::Mainnet

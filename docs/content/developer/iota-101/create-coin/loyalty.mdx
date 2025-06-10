@@ -11,7 +11,7 @@ import questions from '/json/developer/iota-101/create-coin/loyalty.json';
 # Creating Loyalty Token
 
 You can use the IOTA [Closed-Loop Token](../../standards/closed-loop-token.mdx) standard
-to create [tokens](../../../references/framework/iota/token.mdx) that are valid only within a specific service.
+to create [tokens](../../../references/framework/iota-framework/token.mdx) that are valid only within a specific service.
 For example, an airline might grant tokens to frequent flyers that they can use to purchase tickets or upgrades.
 
 In this guide, you'll learn how to create a loyalty token that users can use to make purchases in a digital gift shop.
@@ -37,10 +37,10 @@ These characteristics ensure the `LOYALTY` type has a single instance.
 
 The module's [`init` function](../move-overview/init.mdx) uses the `LOYALTY` OTW to create the token.
 Remember that all `init` functions run only once at the package publish event.
-The initializer function calls [`create_currency`](../../../references/framework/iota/coin.mdx#function-create_currency)
+The initializer function calls [`create_currency`](../../../references/framework/iota-framework/coin.mdx#function-create_currency)
 using the `LOYALTY` type defined earlier.
-It also sets up a policy by sending both the [policy capability](../../../references/framework/iota/token.mdx#struct-tokenpolicycap) 
-and the [treasury capability](../../../references/framework/iota/coin.mdx#struct-treasurycap) to the address associated with the publish event.
+It also sets up a policy by sending both the [policy capability](../../../references/framework/iota-framework/token.mdx#resource-tokenpolicycap) 
+and the [treasury capability](../../../references/framework/iota-framework/coin.mdx#resource-treasurycap) to the address associated with the publish event.
 The holder of these transferable capabilities can mint new `LOYALTY` tokens and modify their policies.
 
 ```move file=<rootDir>/examples/move/token/sources/loyalty.move#L37-L63
@@ -50,8 +50,8 @@ The holder of these transferable capabilities can mint new `LOYALTY` tokens and 
 
 The `reward_user` function allows the holder of the `TreasuryCap` 
 to mint new loyalty tokens and send them to specified addresses.
-It uses the [`token::mint`](../../../references/framework/iota/token.mdx#function-mint) function
-to create the tokens and [`token::transfer`](../../../references/framework/iota/token.mdx#function-transfer) to deliver them to the intended recipients.
+It uses the [`token::mint`](../../../references/framework/iota-framework/token.mdx#function-mint) function
+to create the tokens and [`token::transfer`](../../../references/framework/iota-framework/token.mdx#function-transfer) to deliver them to the intended recipients.
 
 ```move file=<rootDir>/examples/move/token/sources/loyalty.move#L71-L81
 ```
@@ -60,7 +60,7 @@ to create the tokens and [`token::transfer`](../../../references/framework/iota/
 
 Finally, the module includes a `buy_a_gift` function to handle the redemption of `LOYALTY` tokens for `Gift` items.
 This function ensures that the gift's price matches the number of loyalty tokens spent.
-It uses the [`token::spend`](../../../references/framework/iota/token.mdx#function-spend) function to manage the treasury bookkeeping.
+It uses the [`token::spend`](../../../references/framework/iota-framework/token.mdx#function-spend) function to manage the treasury bookkeeping.
 
 ```move file=<rootDir>/examples/move/token/sources/loyalty.move#L85-L100
 ```

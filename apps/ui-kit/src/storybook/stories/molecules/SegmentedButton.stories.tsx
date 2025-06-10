@@ -9,7 +9,8 @@ import {
     SegmentedButton,
     SegmentedButtonType,
 } from '@/components';
-import { ComponentProps, useState } from 'react';
+import type { ComponentProps } from 'react';
+import { useState } from 'react';
 import { PlaceholderReplace } from '@iota/apps-ui-icons';
 
 const meta: Meta<typeof SegmentedButton> = {

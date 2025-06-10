@@ -76,6 +76,7 @@ export const IOTA_PRIMITIVES_COLOR_PALETTE = {
     warning: {
         '10': '#422C00',
         '20': '#2D1E00',
+        '60': '#BE8F32',
         '90': '#FFE3AB',
     },
 };

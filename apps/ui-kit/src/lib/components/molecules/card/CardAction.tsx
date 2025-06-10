@@ -3,7 +3,7 @@
 
 import { ArrowRight } from '@iota/apps-ui-icons';
 import { CardActionType } from './card.enums';
-import { Button, ButtonSize, ButtonType } from '../../atoms/button';
+import { Button, ButtonSize, ButtonType } from '@/components/atoms/button';
 
 export type CardActionProps = {
     title?: string;

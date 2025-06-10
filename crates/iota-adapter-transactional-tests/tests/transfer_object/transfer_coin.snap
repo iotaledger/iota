@@ -1,0 +1,48 @@
+---
+source: external-crates/move/crates/move-transactional-test-runner/src/framework.rs
+---
+processed 5 tasks
+
+init:
+A: object(0,0), B: object(0,1), C: object(0,2)
+
+task 1, lines 9-10:
+//# programmable --sender C --inputs @A
+//> TransferObjects([Gas], Input(0))
+mutated: object(0,2)
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 980400,  storage_rebate: 0, non_refundable_storage_fee: 0
+
+task 2, line 12:
+//# view-object 0,2
+Owner: Account Address ( A )
+Version: 2
+Contents: iota::coin::Coin<iota::iota::IOTA> {
+    id: iota::object::UID {
+        id: iota::object::ID {
+            bytes: fake(0,2),
+        },
+    },
+    balance: iota::balance::Balance<iota::iota::IOTA> {
+        value: 299999998019600u64,
+    },
+}
+
+task 3, line 14:
+//# transfer-object 0,2 --sender A --recipient B
+mutated: object(0,0), object(0,2)
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 1960800,  storage_rebate: 980400, non_refundable_storage_fee: 0
+
+task 4, line 16:
+//# view-object 0,2
+Owner: Account Address ( B )
+Version: 3
+Contents: iota::coin::Coin<iota::iota::IOTA> {
+    id: iota::object::UID {
+        id: iota::object::ID {
+            bytes: fake(0,2),
+        },
+    },
+    balance: iota::balance::Balance<iota::iota::IOTA> {
+        value: 299999998019600u64,
+    },
+}

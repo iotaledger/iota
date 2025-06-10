@@ -5,7 +5,7 @@
 
 import { useState } from 'react';
 import cl from 'clsx';
-import { usePageAssets, AssetCategory } from '@iota/core';
+import { usePageAssets, AssetCategory, NoData } from '@iota/core';
 import {
     Panel,
     Title,
@@ -88,6 +88,12 @@ export default function AssetsDashboardPage(): React.JSX.Element {
                     </div>
                 ) : (
                     <>
+                        {isAssetsLoaded &&
+                        Boolean(!ownedAssets?.visual.length && !ownedAssets?.other.length) ? (
+                            <div className="py-2xl">
+                                <NoData message="No assets found yet." displayImage />
+                            </div>
+                        ) : null}
                         {isAssetsLoaded &&
                         Boolean(ownedAssets?.visual.length || ownedAssets?.other.length) ? (
                             <div className="flex flex-row items-center justify-start gap-xs py-xs">

@@ -5,10 +5,9 @@ import { TriangleDown } from '@iota/apps-ui-icons';
 import cx from 'classnames';
 import { forwardRef, useEffect, useState } from 'react';
 import { Dropdown } from '../dropdown/Dropdown';
-import { SecondaryText } from '../../atoms/secondary-text';
+import { SecondaryText } from '@/components/atoms/secondary-text';
 import { InputWrapper, LabelHtmlTag } from '../input/InputWrapper';
-import { ButtonUnstyled } from '../../atoms/button';
-import { ListItem } from '../../atoms';
+import { ListItem, ButtonUnstyled } from '@/components/atoms';
 import { DropdownPosition } from '../dropdown';
 import { SelectSize } from './select.enums';
 

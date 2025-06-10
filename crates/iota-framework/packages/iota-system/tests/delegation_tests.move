@@ -16,6 +16,7 @@ use iota_system::governance_test_utils::{
     advance_epoch_with_max_committee_members_count,
     advance_epoch_with_balanced_reward_amounts,
     assert_validator_total_stake_amounts,
+    assert_validator_candidate_total_stake_amounts,
     create_validator_for_testing,
     create_iota_system_state_for_testing,
     stake_with,
@@ -559,6 +560,130 @@ fun test_add_preactive_remove_pending_failure() {
 
     // Unstake from the now pending validator. This should fail because pending active validators don't accept withdraws.
     unstake(STAKER_ADDR_1, 0, scenario);
+
+    scenario_val.end();
+}
+
+#[test]
+fun test_add_preactive_remove_preactive_check_total_stake_amount() {
+    set_up_iota_system_state();
+    let mut scenario_val = test_scenario::begin(VALIDATOR_ADDR_1);
+    let scenario = &mut scenario_val;
+
+    add_validator_candidate(
+        NEW_VALIDATOR_ADDR,
+        b"name5",
+        b"/ip4/127.0.0.1/udp/85",
+        NEW_VALIDATOR_PUBKEY,
+        NEW_VALIDATOR_POP,
+        scenario,
+    );
+
+    // Delegate 100 NANOS to the preactive validator
+    stake_with(STAKER_ADDR_1, NEW_VALIDATOR_ADDR, 100, scenario);
+
+    // Advance epoch with some rewards
+    advance_epoch_with_balanced_reward_amounts(0, 400, scenario);
+
+    // The preactive validator should have 100 NANOS total stake
+    assert_validator_candidate_total_stake_amounts(
+        vector[NEW_VALIDATOR_ADDR],
+        vector[100 * NANOS_PER_IOTA],
+        scenario,
+    );
+
+    // Unstake from the preactive validator. There should be no rewards earned.
+    unstake(STAKER_ADDR_1, 0, scenario);
+    assert_eq(total_iota_balance(STAKER_ADDR_1, scenario), 100 * NANOS_PER_IOTA);
+
+    // The preactive validator should have no stake since it got unstaked
+    assert_validator_candidate_total_stake_amounts(
+        vector[NEW_VALIDATOR_ADDR],
+        vector[0 * NANOS_PER_IOTA],
+        scenario,
+    );
+
+    // Advance epoch
+    advance_epoch_with_balanced_reward_amounts(0, 0, scenario);
+
+    // The preactive validator should still have no stake
+    assert_validator_candidate_total_stake_amounts(
+        vector[NEW_VALIDATOR_ADDR],
+        vector[0 * NANOS_PER_IOTA],
+        scenario,
+    );
+
+    // Join validators -> Pending
+    add_validator(NEW_VALIDATOR_ADDR, scenario);
+
+    // Transition validator from Pending -> Active
+    advance_epoch(scenario);
+
+    // Transition validator from Active -> Active
+    advance_epoch(scenario);
+
+    assert_validator_total_stake_amounts(
+        vector[NEW_VALIDATOR_ADDR],
+        vector[0 * NANOS_PER_IOTA],
+        scenario,
+    );
+
+    scenario_val.end();
+}
+
+#[test]
+fun test_add_preactive_remove_preactive_check_total_stake_amount_same_epoch() {
+    set_up_iota_system_state();
+    let mut scenario_val = test_scenario::begin(VALIDATOR_ADDR_1);
+    let scenario = &mut scenario_val;
+
+    add_validator_candidate(
+        NEW_VALIDATOR_ADDR,
+        b"name5",
+        b"/ip4/127.0.0.1/udp/85",
+        NEW_VALIDATOR_PUBKEY,
+        NEW_VALIDATOR_POP,
+        scenario,
+    );
+
+    // Delegate 100 NANOS to the preactive validator
+    stake_with(STAKER_ADDR_1, NEW_VALIDATOR_ADDR, 100, scenario);
+
+    // The preactive validator should have 100 NANOS total stake
+    assert_validator_candidate_total_stake_amounts(
+        vector[NEW_VALIDATOR_ADDR],
+        vector[100 * NANOS_PER_IOTA],
+        scenario,
+    );
+
+    // Unstake from the preactive validator. There should be no rewards earned.
+    unstake(STAKER_ADDR_1, 0, scenario);
+    assert_eq(total_iota_balance(STAKER_ADDR_1, scenario), 100 * NANOS_PER_IOTA);
+
+    // Advance epoch
+    advance_epoch_with_balanced_reward_amounts(0, 0, scenario);
+
+    // The preactive validator should have no stake since it got unstaked
+    assert_validator_candidate_total_stake_amounts(
+        vector[NEW_VALIDATOR_ADDR],
+        vector[0 * NANOS_PER_IOTA],
+        scenario,
+    );
+
+    // Join validators -> Pending
+    add_validator(NEW_VALIDATOR_ADDR, scenario);
+
+    // Transition validator from Pending -> Active
+    advance_epoch(scenario);
+
+    // Transition validator from Active -> Active
+    advance_epoch(scenario);
+
+    assert_validator_total_stake_amounts(
+        vector[NEW_VALIDATOR_ADDR],
+        vector[0 * NANOS_PER_IOTA],
+        scenario,
+    );
 
     scenario_val.end();
 }

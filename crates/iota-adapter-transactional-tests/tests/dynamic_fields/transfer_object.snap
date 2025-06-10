@@ -1,0 +1,63 @@
+---
+source: external-crates/move/crates/move-transactional-test-runner/src/framework.rs
+---
+processed 11 tasks
+
+init:
+A: object(0,0)
+
+task 1, lines 11-66:
+//# publish
+created: object(1,0)
+mutated: object(0,1)
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 9310000,  storage_rebate: 0, non_refundable_storage_fee: 0
+
+task 2, line 68:
+//# run a::m::create --sender A
+created: object(2,0)
+mutated: object(0,0)
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2196400,  storage_rebate: 0, non_refundable_storage_fee: 0
+
+task 3, line 70:
+//# run a::m::create --sender A
+created: object(3,0)
+mutated: object(0,0)
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2196400,  storage_rebate: 980400, non_refundable_storage_fee: 0
+
+task 4, line 72:
+//# run a::m::add_counter --sender A --args object(2,0)
+created: object(4,0), object(4,1)
+mutated: object(0,0), object(2,0)
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 5950800,  storage_rebate: 2196400, non_refundable_storage_fee: 0
+
+task 5, line 74:
+//# run a::m::obj_bump --sender A --args object(2,0)
+mutated: object(0,0), object(2,0), object(4,0)
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 3503600,  storage_rebate: 3503600, non_refundable_storage_fee: 0
+
+task 6, line 76:
+//# run a::m::assert_count --sender A --args object(2,0) 1
+mutated: object(0,0), object(2,0)
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2196400,  storage_rebate: 2196400, non_refundable_storage_fee: 0
+
+task 7, line 78:
+//# run a::m::transfer --sender A --args object(2,0) object(3,0)
+created: object(7,0)
+mutated: object(0,0), object(2,0), object(3,0), object(4,0)
+deleted: object(4,1)
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 7166800,  storage_rebate: 7166800, non_refundable_storage_fee: 0
+
+task 8, line 80:
+//# run a::m::obj_bump --sender A --args object(3,0)
+mutated: object(0,0), object(3,0), object(4,0)
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 3503600,  storage_rebate: 3503600, non_refundable_storage_fee: 0
+
+task 9, line 82:
+//# run a::m::assert_count --sender A --args object(3,0) 2
+mutated: object(0,0), object(3,0)
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2196400,  storage_rebate: 2196400, non_refundable_storage_fee: 0
+
+task 10, line 84:
+//# run a::m::obj_bump --sender A --args object(2,0)
+Error: Transaction Effects Status: Move Runtime Abort. Location: iota::dynamic_field::borrow_child_object_mut (function index 12) at offset 0, Abort Code: 1
+Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: MoveAbort(MoveLocation { module: ModuleId { address: iota, name: Identifier("dynamic_field") }, function: 12, instruction: 0, function_name: Some("borrow_child_object_mut") }, 1), source: Some(VMError { major_status: ABORTED, sub_status: Some(1), message: None, exec_state: None, location: Module(ModuleId { address: iota, name: Identifier("dynamic_field") }), indices: [], offsets: [(FunctionDefinitionIndex(12), 0)] }), command: Some(0) } }

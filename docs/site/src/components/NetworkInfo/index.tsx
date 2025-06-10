@@ -1,11 +1,24 @@
 import React, { useState } from 'react';
 import { ChainId } from '../ChainId';
-import { NetworkProps, MoveProps } from '../constant';
+import { NetworkProps } from '../constant';
 import CodeBlock from '@theme/CodeBlock';
 import Admonition from '@theme/Admonition';
 
+// Create an explorer link with the networks as query and slook for an object if provided
+const buildHref = (explorer, hasQuery: boolean, objectId: string | undefined = null,) =>
+  hasQuery
+    ? objectId
+      ? `${(explorer as { url: string; query: string }).url}/object/${objectId}${(explorer as { url: string; query: string }).query}`
+      : `${(explorer as { url: string; query: string }).url}${(explorer as { url: string; query: string }).query}`
+    : objectId
+      ? `${explorer}/object/${objectId}`
+    : `${explorer}`;
+
 // L1 component
 function L1(props: NetworkProps) {
+  const hasQuery = typeof props.explorer !== 'string'
+  const href = buildHref(props.explorer, hasQuery);
+
   return (
     <table>
       <tbody>
@@ -18,29 +31,40 @@ function L1(props: NetworkProps) {
           <td>{props.protocol}</td>
         </tr>
         <tr>
-          <th>HTTP REST API</th>
-          <td>
-            <CodeBlock>{props.httpRestApi}</CodeBlock>
+          <th>Explorer</th>
+          <td>{href}</td>
+        </tr>
+        <tr>
+          <th>JSON RPC URL</th>
+            <td>
+              <CodeBlock>{props.rpc.json.core}</CodeBlock>
+              <CodeBlock>{props.rpc.json.monochain}</CodeBlock>
+              <tr>
+                <th>Websocket</th>
+                <td>
+                  <CodeBlock>{props.rpc.json.websocket}</CodeBlock>
+                </td>
+              </tr>
+              <tr>
+                <th>Indexer</th>
+                <td>
+                  <CodeBlock>{props.rpc.json.indexer}</CodeBlock>
+                </td>
+              </tr>
           </td>
         </tr>
         <tr>
-          <th>Event API</th>
+          <th>GraphQL RPC URL</th>
           <td>
-            <CodeBlock>{props.eventApi}</CodeBlock>
+            <CodeBlock>{props.rpc.graphql}</CodeBlock>
           </td>
         </tr>
-        <tr>
-          <th>Permanode API</th>
-          <td>
-            <CodeBlock>{props.permaNodeApi}</CodeBlock>
-          </td>
-        </tr>
-        {props.faucetUrl && (
+        {props.faucet && (
           <tr>
             <th>Faucet</th>
             <td>
               <CodeBlock>
-                {props.faucetUrl}
+                {props.faucet}
               </CodeBlock>
             </td>
           </tr>
@@ -50,97 +74,6 @@ function L1(props: NetworkProps) {
   );
 }
 
-// Testnet Component
-function Testnet(props: NetworkProps) {
-  return (
-    <table>
-      <tbody>
-        <tr>
-          <th>Base Token</th>
-          <td>{props.baseToken}</td>
-        </tr>
-        {props.protocol &&<tr>
-          <th>Protocol</th>
-          <td>{props.protocol}</td>
-        </tr>}
-        <tr>
-          <th>HTTP REST API</th>
-          <td>
-            <CodeBlock>{props.httpRestApi}</CodeBlock>
-          </td>
-        </tr>
-        <tr>
-          <th>Event API</th>
-          <td>
-            <CodeBlock>{props.eventApi}</CodeBlock>
-          </td>
-        </tr>
-        <tr>
-          <th>Permanode API</th>
-          <td>
-            <CodeBlock>{props.permaNodeApi}</CodeBlock>
-          </td>
-        </tr>
-        {props.faucetUrl && (
-          <tr>
-            <th>Faucet</th>
-            <td>
-              <CodeBlock>
-                {props.faucetUrl}
-              </CodeBlock>
-            </td>
-          </tr>
-        )}
-      </tbody>
-    </table>
-  );
-}
-
-// Devtnet Component
-function Devnet(props: NetworkProps) {
-  return (
-    <table>
-      <tbody>
-        <tr>
-          <th>Base Token</th>
-          <td>{props.baseToken}</td>
-        </tr>
-        <tr>
-          <th>Protocol</th>
-          <td>{props.protocol}</td>
-        </tr>
-        <tr>
-          <th>HTTP REST API</th>
-          <td>
-            <CodeBlock>{props.httpRestApi}</CodeBlock>
-          </td>
-        </tr>
-        <tr>
-          <th>Event API</th>
-          <td>
-            <CodeBlock>{props.eventApi}</CodeBlock>
-          </td>
-        </tr>
-        <tr>
-          <th>Permanode API</th>
-          <td>
-            <CodeBlock>{props.permaNodeApi}</CodeBlock>
-          </td>
-        </tr>
-        {props.faucetUrl && (
-          <tr>
-            <th>Faucet</th>
-            <td>
-              <CodeBlock>
-                {props.faucetUrl}
-              </CodeBlock>
-            </td>
-          </tr>
-        )}
-      </tbody>
-    </table>
-  );
-}
 // EVM component
 function Evm(props: NetworkProps) {
   return (
@@ -157,18 +90,18 @@ function Evm(props: NetworkProps) {
         <tr>
           <th>Chain ID</th>
           <td>
-            <ChainId url={props.evm.rpcUrls[0]} />
+            <ChainId url={props.evm?.rpcUrls?.[0]} />
           </td>
         </tr>
         <tr>
           <th>RPC URL</th>
           <td>
-            {props.evm.rpcUrls.map((url, index) => (
+            {props.evm?.rpcUrls?.map((url, index) => (
               <CodeBlock key={index}>{url}</CodeBlock>
             ))}
           </td>
         </tr>
-        {props.evmCustom.ankrApiUrls && (
+        {props.evmCustom?.ankrApiUrls && (
           <tr>
             <th>
               <Admonition type='tip' title='Ankr API URLs'>
@@ -177,29 +110,7 @@ function Evm(props: NetworkProps) {
               </Admonition>
             </th>
             <td>
-              {props.evmCustom.ankrApiUrls.map((object, index) =>
-                typeof object === 'string' ? (
-                  <CodeBlock key={index}> {object as string} </CodeBlock>
-                ) : (
-                  <CodeBlock title={Object.keys(object)[0]} key={index}>
-                    {' '}
-                    {Object.values(object)[0]}{' '}
-                  </CodeBlock>
-                ),
-              )}
-            </td>
-          </tr>
-        )}
-        {props.evmCustom.blastApiUrls && (
-          <tr>
-            <th>
-              <Admonition type='tip' title='Blast API URLs'>
-                <a href={'/build/blastAPI/'}>Blast API</a> provides highly
-                scalable fault-tolerant API endpoints.
-              </Admonition>
-            </th>
-            <td>
-              {props.evmCustom.blastApiUrls.map((object, index) =>
+              {props.evmCustom?.ankrApiUrls.map((object, index) =>
                 typeof object === 'string' ? (
                   <CodeBlock key={index}> {object as string} </CodeBlock>
                 ) : (
@@ -216,34 +127,36 @@ function Evm(props: NetworkProps) {
           <th>Explorer</th>
           <td>
             <a
-              href={props.evm.blockExplorerUrls[0]}
+              href={props.evm?.blockExplorerUrls?.[0]}
               target='_blank'
               rel='noopener noreferrer'
             >
-              {props.evm.blockExplorerUrls[0]}
+              {props.evm?.blockExplorerUrls?.[0]}
             </a>
           </td>
         </tr>
         <tr>
           <th>
-            {props.evmCustom.toolkit.hasFaucet ? 'Toolkit & Faucet' : 'Toolkit'}
+            {props.evmCustom?.bridge?.hasFaucet ? 'Toolkit & Faucet' : 'Toolkit'}
           </th>
           <td>
             <a
-              href={props.evmCustom.toolkit.url}
+              href={props.evmCustom?.bridge?.url}
               target='_blank'
               rel='noopener noreferrer'
             >
-              {props.evmCustom.toolkit.url}
+              {props.evmCustom?.bridge?.url}
             </a>
           </td>
         </tr>
-        <tr>
-          <th>WASP API</th>
-          <td>
-            <CodeBlock> {props.evmCustom.api} </CodeBlock>
-          </td>
-        </tr>
+        {props.evmCustom?.api && (
+          <tr>
+            <th>WASP API</th>
+            <td>
+              <CodeBlock> {props.evmCustom.api} </CodeBlock>
+            </td>
+          </tr>
+        )}
       </tbody>
     </table>
   );
@@ -251,81 +164,35 @@ function Evm(props: NetworkProps) {
 
 // EvmCustom component
 function EvmCustom(props: NetworkProps) {
+  const hasQuery = typeof props.explorer !== 'string'
+
   return (
     <table>
       <tbody>
         <tr>
-          <th>Chain Address</th>
+          <th>Chain ID</th>
           <td>
             <a
-              href={props.explorer + '/addr/' + props.evmCustom.chainAddress}
+              href={buildHref(props.explorer, hasQuery, props.evmCustom?.chainId)}
               target='_blank'
               rel='noopener noreferrer'
             >
-              {props.evmCustom.chainAddress}
+              {props.evmCustom?.chainId}
             </a>
           </td>
         </tr>
         <tr>
-          <th>Alias ID</th>
-          <td>{props.evmCustom.aliasId}</td>
-        </tr>
-      </tbody>
-    </table>
-  );
-}
-
-// Move component
-function Move(props: MoveProps) {
-  return (
-    <table>
-      <tbody>
-        <tr>
-          <th>Base Token</th>
-          <td>{props.baseToken}</td>
-        </tr>
-        {props.explorerUrl && (
-          <tr>
-            <th scope="row">Explorer URL</th>
-            <td>
-              <CodeBlock>{props.explorerUrl}</CodeBlock>
-            </td>
-          </tr>
-        )}
-        <tr>
-          <th>JSON RPC URL</th>
+          <th>Package ID</th>
           <td>
-            <CodeBlock>{props.jsonRpcUrl}</CodeBlock>
+            <a
+            href={buildHref(props.explorer, hasQuery, props.evmCustom?.packageId)}
+              target='_blank'
+              rel='noopener noreferrer'
+            >
+              {props.evmCustom?.packageId}
+            </a>
           </td>
         </tr>
-        <tr>
-          <th>Indexer RPC</th>
-          <td>
-            <CodeBlock>{props.indexerRpc}</CodeBlock>
-          </td>
-        </tr>
-        <tr>
-          <th>GraphQL RPC</th>
-          <td>
-            <CodeBlock>{props.graphqlRpc}</CodeBlock>
-          </td>
-        </tr>
-        <tr>
-          <th>RPC Websocket URL</th>
-          <td>
-            <CodeBlock>{props.jsonRpcWebsocketUrl}</CodeBlock>
-          </td>
-        </tr>
-        {props.faucetUrl && (
-          <tr>
-            <th>Faucet URL</th>
-            <td>
-              <CodeBlock>
-                {props.faucetUrl}
-              </CodeBlock>
-            </td>
-          </tr>
-        )}
       </tbody>
     </table>
   );
@@ -335,7 +202,4 @@ export default {
   L1,
   Evm,
   EvmCustom,
-  Move,
-  Testnet,
-  Devnet
 };

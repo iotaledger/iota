@@ -15,7 +15,7 @@ NC='\033[0m'   # No color
 
 # Check dependencies
 if [ "$(uname -s)" != "Linux" ]; then
-	red "[ERROR] This script is for systemd so will only work on Linux."
+	red "[ERROR] This script only supports Linux"
 	exit 1
 fi
 
@@ -162,9 +162,8 @@ fi
 # Move bin to $BIN_DIR
 cp ./target/release/iota-node "$BIN_DIR/iota-node"
 
-EXEC_START_CMD="\"$BIN_DIR/iota-node\" --config-path \"$CONFIG_DIR/fullnode.yaml\""
-
 # Create a systemd service definition file
+EXEC_START_CMD="\"$BIN_DIR/iota-node\" --config-path \"$CONFIG_DIR/fullnode.yaml\""
 SERVICE_DEF=$(
 	cat "$CLONE_DIR/setups/fullnode/systemd/iota-node.service" |
 		# Set the start command to use your paths to the iota-node binary / to the config file

@@ -27,9 +27,12 @@ export * from './toTitleCase';
 export * from './formatBalanceToUSD';
 export * from './getGasBudgetErrorMessage';
 export * from './sumCoinBalances';
+export * from './mapTimelockObjects';
+export * from './formatDelegatedTimelockedStake';
 
 export * from './stake';
 export * from './transaction';
 export * from './validation';
 export * from './migration';
 export * from './legacy';
+export * from './vesting';

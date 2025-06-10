@@ -297,8 +297,8 @@ impl PartialVMError {
         self
     }
 
-    /// Append the message `message` to the message field of the VM status, and
-    /// insert a seperator if the original message is non-empty.
+    /// Append the message `message` to the message field of the VM status, and insert a separator
+    /// if the original message is non-empty.
     pub fn append_message_with_separator(
         mut self,
         separator: char,

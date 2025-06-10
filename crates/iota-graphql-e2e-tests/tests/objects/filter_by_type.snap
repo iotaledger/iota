@@ -1,0 +1,502 @@
+---
+source: external-crates/move/crates/move-transactional-test-runner/src/framework.rs
+---
+processed 17 tasks
+
+init:
+C: object(0,0)
+
+task 1, line 8:
+//# create-checkpoint
+Checkpoint created: 1
+
+task 2, line 10:
+//# advance-epoch
+Epoch advanced: 0
+
+task 3, lines 12-14:
+//# programmable --sender C --inputs 10000000000 @C
+//> SplitCoins(Gas, [Input(0)]);
+//> TransferObjects([Result(0)], Input(1))
+created: object(3,0)
+mutated: object(0,0)
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 1960800,  storage_rebate: 0, non_refundable_storage_fee: 0
+
+task 4, lines 16-18:
+//# run 0x3::iota_system::request_add_stake --args object(0x5) object(3,0) @validator_0 --sender C
+events: Event { package_id: iota_system, transaction_module: Identifier("iota_system"), sender: C, type_: StructTag { address: iota_system, module: Identifier("validator"), name: Identifier("StakingRequestEvent"), type_params: [] }, contents: [134, 1, 154, 68, 53, 144, 148, 137, 199, 71, 208, 26, 192, 248, 149, 59, 208, 212, 27, 244, 119, 108, 221, 182, 171, 144, 19, 240, 54, 198, 164, 135, 175, 163, 158, 79, 0, 218, 226, 120, 249, 119, 199, 198, 147, 10, 94, 44, 118, 232, 93, 23, 165, 38, 215, 36, 187, 206, 15, 184, 31, 176, 125, 76, 140, 202, 78, 28, 224, 186, 89, 4, 206, 166, 29, 249, 36, 45, 162, 247, 210, 158, 62, 243, 40, 251, 126, 192, 124, 8, 107, 59, 244, 124, 166, 26, 1, 0, 0, 0, 0, 0, 0, 0, 0, 228, 11, 84, 2, 0, 0, 0] }
+created: object(4,0)
+mutated: object(_), 0x0000000000000000000000000000000000000000000000000000000000000005, object(0,0)
+deleted: object(3,0)
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 14630000,  storage_rebate: 1960800, non_refundable_storage_fee: 0
+
+task 5, line 19:
+//# create-checkpoint
+Checkpoint created: 3
+
+task 6, line 21:
+//# advance-epoch
+Epoch advanced: 1
+
+task 7, lines 23-38:
+//# run-graphql
+Response: {
+  "data": {
+    "objects": {
+      "edges": [
+        {
+          "node": {
+            "asMoveObject": {
+              "contents": {
+                "type": {
+                  "repr": "0x0000000000000000000000000000000000000000000000000000000000000003::staking_pool::StakedIota"
+                }
+              }
+            }
+          }
+        },
+        {
+          "node": {
+            "asMoveObject": {
+              "contents": {
+                "type": {
+                  "repr": "0x0000000000000000000000000000000000000000000000000000000000000003::staking_pool::StakedIota"
+                }
+              }
+            }
+          }
+        },
+        {
+          "node": {
+            "asMoveObject": {
+              "contents": {
+                "type": {
+                  "repr": "0x0000000000000000000000000000000000000000000000000000000000000003::staking_pool::StakedIota"
+                }
+              }
+            }
+          }
+        },
+        {
+          "node": {
+            "asMoveObject": {
+              "contents": {
+                "type": {
+                  "repr": "0x0000000000000000000000000000000000000000000000000000000000000003::staking_pool::StakedIota"
+                }
+              }
+            }
+          }
+        }
+      ]
+    }
+  }
+}
+
+task 8, lines 40-55:
+//# run-graphql
+Response: {
+  "data": {
+    "objects": {
+      "edges": [
+        {
+          "node": {
+            "asMoveObject": {
+              "contents": {
+                "type": {
+                  "repr": "0x0000000000000000000000000000000000000000000000000000000000000002::clock::Clock"
+                }
+              }
+            }
+          }
+        },
+        {
+          "node": {
+            "asMoveObject": {
+              "contents": {
+                "type": {
+                  "repr": "0x0000000000000000000000000000000000000000000000000000000000000002::random::Random"
+                }
+              }
+            }
+          }
+        },
+        {
+          "node": {
+            "asMoveObject": {
+              "contents": {
+                "type": {
+                  "repr": "0x0000000000000000000000000000000000000000000000000000000000000002::deny_list::DenyList"
+                }
+              }
+            }
+          }
+        },
+        {
+          "node": {
+            "asMoveObject": {
+              "contents": {
+                "type": {
+                  "repr": "0x0000000000000000000000000000000000000000000000000000000000000002::dynamic_field::Field<u64,0x0000000000000000000000000000000000000000000000000000000000000002::random::RandomInner>"
+                }
+              }
+            }
+          }
+        },
+        {
+          "node": {
+            "asMoveObject": {
+              "contents": {
+                "type": {
+                  "repr": "0x0000000000000000000000000000000000000000000000000000000000000002::coin::CoinMetadata<0x0000000000000000000000000000000000000000000000000000000000000002::iota::IOTA>"
+                }
+              }
+            }
+          }
+        },
+        {
+          "node": {
+            "asMoveObject": {
+              "contents": {
+                "type": {
+                  "repr": "0x0000000000000000000000000000000000000000000000000000000000000002::dynamic_field::Field<u64,0x0000000000000000000000000000000000000000000000000000000000000003::staking_pool::PoolTokenExchangeRate>"
+                }
+              }
+            }
+          }
+        },
+        {
+          "node": {
+            "asMoveObject": {
+              "contents": {
+                "type": {
+                  "repr": "0x0000000000000000000000000000000000000000000000000000000000000002::coin::Coin<0x0000000000000000000000000000000000000000000000000000000000000002::iota::IOTA>"
+                }
+              }
+            }
+          }
+        },
+        {
+          "node": {
+            "asMoveObject": {
+              "contents": {
+                "type": {
+                  "repr": "0x0000000000000000000000000000000000000000000000000000000000000002::dynamic_field::Field<u64,0x0000000000000000000000000000000000000000000000000000000000000003::iota_system_state_inner::IotaSystemStateV2>"
+                }
+              }
+            }
+          }
+        },
+        {
+          "node": {
+            "asMoveObject": {
+              "contents": {
+                "type": {
+                  "repr": "0x0000000000000000000000000000000000000000000000000000000000000002::coin::Coin<0x0000000000000000000000000000000000000000000000000000000000000002::iota::IOTA>"
+                }
+              }
+            }
+          }
+        },
+        {
+          "node": {
+            "asMoveObject": {
+              "contents": {
+                "type": {
+                  "repr": "0x0000000000000000000000000000000000000000000000000000000000000002::dynamic_field::Field<u64,0x0000000000000000000000000000000000000000000000000000000000000003::staking_pool::PoolTokenExchangeRate>"
+                }
+              }
+            }
+          }
+        },
+        {
+          "node": {
+            "asMoveObject": {
+              "contents": {
+                "type": {
+                  "repr": "0x0000000000000000000000000000000000000000000000000000000000000002::dynamic_field::Field<u64,0x0000000000000000000000000000000000000000000000000000000000000003::staking_pool::PoolTokenExchangeRate>"
+                }
+              }
+            }
+          }
+        },
+        {
+          "node": {
+            "asMoveObject": {
+              "contents": {
+                "type": {
+                  "repr": "0x0000000000000000000000000000000000000000000000000000000000000002::dynamic_field::Field<0x0000000000000000000000000000000000000000000000000000000000000002::object::ID,address>"
+                }
+              }
+            }
+          }
+        },
+        {
+          "node": {
+            "asMoveObject": {
+              "contents": {
+                "type": {
+                  "repr": "0x0000000000000000000000000000000000000000000000000000000000000002::coin::Coin<0x0000000000000000000000000000000000000000000000000000000000000002::iota::IOTA>"
+                }
+              }
+            }
+          }
+        },
+        {
+          "node": {
+            "asMoveObject": {
+              "contents": {
+                "type": {
+                  "repr": "0x0000000000000000000000000000000000000000000000000000000000000002::display::Display<0x000000000000000000000000000000000000000000000000000000000000107a::nft::Nft>"
+                }
+              }
+            }
+          }
+        }
+      ]
+    }
+  }
+}
+
+task 9, lines 57-72:
+//# run-graphql
+Response: {
+  "data": {
+    "objects": {
+      "edges": [
+        {
+          "node": {
+            "asMoveObject": {
+              "contents": {
+                "type": {
+                  "repr": "0x0000000000000000000000000000000000000000000000000000000000000002::coin::CoinMetadata<0x0000000000000000000000000000000000000000000000000000000000000002::iota::IOTA>"
+                }
+              }
+            }
+          }
+        },
+        {
+          "node": {
+            "asMoveObject": {
+              "contents": {
+                "type": {
+                  "repr": "0x0000000000000000000000000000000000000000000000000000000000000002::coin::Coin<0x0000000000000000000000000000000000000000000000000000000000000002::iota::IOTA>"
+                }
+              }
+            }
+          }
+        },
+        {
+          "node": {
+            "asMoveObject": {
+              "contents": {
+                "type": {
+                  "repr": "0x0000000000000000000000000000000000000000000000000000000000000002::coin::Coin<0x0000000000000000000000000000000000000000000000000000000000000002::iota::IOTA>"
+                }
+              }
+            }
+          }
+        },
+        {
+          "node": {
+            "asMoveObject": {
+              "contents": {
+                "type": {
+                  "repr": "0x0000000000000000000000000000000000000000000000000000000000000002::coin::Coin<0x0000000000000000000000000000000000000000000000000000000000000002::iota::IOTA>"
+                }
+              }
+            }
+          }
+        }
+      ]
+    }
+  }
+}
+
+task 10, lines 74-89:
+//# run-graphql
+Response: {
+  "data": {
+    "objects": {
+      "edges": [
+        {
+          "node": {
+            "asMoveObject": {
+              "contents": {
+                "type": {
+                  "repr": "0x0000000000000000000000000000000000000000000000000000000000000002::coin::Coin<0x0000000000000000000000000000000000000000000000000000000000000002::iota::IOTA>"
+                }
+              }
+            }
+          }
+        },
+        {
+          "node": {
+            "asMoveObject": {
+              "contents": {
+                "type": {
+                  "repr": "0x0000000000000000000000000000000000000000000000000000000000000002::coin::Coin<0x0000000000000000000000000000000000000000000000000000000000000002::iota::IOTA>"
+                }
+              }
+            }
+          }
+        },
+        {
+          "node": {
+            "asMoveObject": {
+              "contents": {
+                "type": {
+                  "repr": "0x0000000000000000000000000000000000000000000000000000000000000002::coin::Coin<0x0000000000000000000000000000000000000000000000000000000000000002::iota::IOTA>"
+                }
+              }
+            }
+          }
+        }
+      ]
+    }
+  }
+}
+
+task 11, lines 91-107:
+//# run-graphql
+Response: {
+  "data": {
+    "objects": {
+      "edges": [
+        {
+          "node": {
+            "asMoveObject": {
+              "contents": {
+                "type": {
+                  "repr": "0x0000000000000000000000000000000000000000000000000000000000000002::coin::Coin<0x0000000000000000000000000000000000000000000000000000000000000002::iota::IOTA>"
+                }
+              }
+            }
+          }
+        },
+        {
+          "node": {
+            "asMoveObject": {
+              "contents": {
+                "type": {
+                  "repr": "0x0000000000000000000000000000000000000000000000000000000000000002::coin::Coin<0x0000000000000000000000000000000000000000000000000000000000000002::iota::IOTA>"
+                }
+              }
+            }
+          }
+        },
+        {
+          "node": {
+            "asMoveObject": {
+              "contents": {
+                "type": {
+                  "repr": "0x0000000000000000000000000000000000000000000000000000000000000002::coin::Coin<0x0000000000000000000000000000000000000000000000000000000000000002::iota::IOTA>"
+                }
+              }
+            }
+          }
+        }
+      ]
+    }
+  }
+}
+
+task 12, lines 109-125:
+//# run-graphql
+Response: {
+  "data": null,
+  "errors": [
+    {
+      "message": "Failed to parse \"String\": Invalid filter, expected: package[::module[::type[<type_params>]]] or primitive type (occurred while parsing \"ObjectFilter\")",
+      "locations": [
+        {
+          "line": 3,
+          "column": 19
+        }
+      ],
+      "path": [
+        "objects"
+      ]
+    }
+  ]
+}
+
+task 13, lines 127-143:
+//# run-graphql
+Response: {
+  "data": null,
+  "errors": [
+    {
+      "message": "Failed to parse \"String\": Invalid filter, expected: package[::module[::type[<type_params>]]] or primitive type (occurred while parsing \"ObjectFilter\")",
+      "locations": [
+        {
+          "line": 3,
+          "column": 19
+        }
+      ],
+      "path": [
+        "objects"
+      ]
+    }
+  ]
+}
+
+task 14, lines 145-161:
+//# run-graphql
+Response: {
+  "data": null,
+  "errors": [
+    {
+      "message": "Failed to parse \"String\": Invalid filter, expected: package[::module[::type[<type_params>]]] or primitive type (occurred while parsing \"ObjectFilter\")",
+      "locations": [
+        {
+          "line": 3,
+          "column": 19
+        }
+      ],
+      "path": [
+        "objects"
+      ]
+    }
+  ]
+}
+
+task 15, lines 163-179:
+//# run-graphql
+Response: {
+  "data": null,
+  "errors": [
+    {
+      "message": "Failed to parse \"String\": Invalid filter, expected: package[::module[::type[<type_params>]]] or primitive type (occurred while parsing \"ObjectFilter\")",
+      "locations": [
+        {
+          "line": 3,
+          "column": 19
+        }
+      ],
+      "path": [
+        "objects"
+      ]
+    }
+  ]
+}
+
+task 16, lines 181-197:
+//# run-graphql
+Response: {
+  "data": null,
+  "errors": [
+    {
+      "message": "Failed to parse \"String\": Invalid filter, expected: package[::module[::type[<type_params>]]] or primitive type (occurred while parsing \"ObjectFilter\")",
+      "locations": [
+        {
+          "line": 3,
+          "column": 19
+        }
+      ],
+      "path": [
+        "objects"
+      ]
+    }
+  ]
+}
