@@ -78,6 +78,8 @@ pub struct NodeConfig {
     /// endpoint on the same interface as `json` `rpc` server.
     #[serde(default)]
     pub enable_rest_api: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub rest: Option<iota_rest_api::Config>,
 
     /// The address for Prometheus metrics.
     #[serde(default = "default_metrics_address")]
@@ -956,7 +958,7 @@ fn default_max_transaction_manager_queue_length() -> usize {
 }
 
 fn default_max_transaction_manager_per_object_queue_length() -> usize {
-    100
+    20
 }
 
 impl Default for AuthorityOverloadConfig {
