@@ -192,7 +192,6 @@ flowchart TD
     style C stroke:#4CAF50,stroke-width:3px
 ```
 
-
 Now, imagine the same account initiates another transaction, this time requiring 1,000,000 gas units. The **first rule** does not apply because the `gas-limit` matcher would be above the 1,500,000. The transaction then proceeds to the **second rule**, which:
 
 * Matches any sender address (`*`).
@@ -227,24 +226,29 @@ From version `0.2`, the Access Controller in Gas Station supports matching using
 
 #### Example Rego Predicate
 
-Lets extend the previous example with a Rego predicate that checks for a specific Move Call package address and function name.
+Lets extend the previous example with a Rego predicate that checks for a specific Move Call package address, function name and argument.
 To do this, you can create a Rego script that defines a rule to match the Move Call transaction attributes.
 
 ```go
 package matchers
 
-default allowed_move_call = false
+default move_call_matches = false
 
-allowed_move_call if {
+move_call_matches if {
     cmds := input.transaction_data.V1.kind.ProgrammableTransaction.commands
     count(cmds) == 1
+
     mc := cmds[0].MoveCall
     mc["package"] == "0xb674e2ed79db3c25fa4c00d5c7d62a9c18089e1fc4c2de5b5ee8b2836a85ae26"
     mc.module == "allowed_module_name"
     mc.function == "allowed_function_name"
+
+    argv_1 := input.transaction_data.V1.kind.ProgrammableTransaction.input.Pure
+    bcs.decode_typed(argv_1, "String") == "allowed_argument_value"
 }
 ```
 For more information on Rego syntax and capabilities, refer to the [Rego documentation](https://www.openpolicyagent.org/docs/policy-language/).
+For detailed config syntax, and more examples refer to [Gas Station Server repository](https://github.com/iotaledger/gas-station/blob/dev/docs/access-controller.md#rego-expression-sources).
 
 
 #### Using the Rego in Access Controller
@@ -252,7 +256,7 @@ For more information on Rego syntax and capabilities, refer to the [Rego documen
 Rego can be used in the Access Controller as the `rego-expression` matcher. It allows you to define complex rules that can evaluate transaction attributes, such as commands, package addresses, and function names.
 
 :::warning
-rego expressions are compiled at the start of the Gas Station Server. Therefore the changes in the source location (file, redis, or http) will not be applied until the server is restarted or the [`/v1/reload_access_controller`](../api-reference/api-reference.mdx#reload-access-controller) API endpoint is called.
+rego expressions are compiled at the start of the Gas Station Server. Therefore the changes in the source location (`file`, `redis`, or `http`) will not be applied until the server is restarted or the [`/v1/reload_access_controller`](../api-reference/api-reference.mdx#reload-access-controller) API endpoint is called.
 :::
 
 ```yaml
@@ -260,9 +264,9 @@ rules:
   - sender-address: 0x0202020202020202020202020202020202020202020202020202020202020202
     rego-expression:
       location-type: redis
-      url: file://./matchers.rego
+      url: redis://localhost:6379
       redis-key: id:matcher
-      rego-rule-path: data.matchers.allowed_move_call
+      rego-rule-path: data.matchers.move_call_matches
     gas-usage:
       value: <1500000
       window: 1 day
@@ -272,7 +276,7 @@ rules:
 Supported `location-type` values:
 
 * `file` – local file
-* `redis` – Redis-stored rego
+* `redis` – Redis stored
 * `http` – download from remote URL
 
 For detailed config syntax, and more examples refer to [Gas Station Server repository](https://github.com/iotaledger/gas-station/blob/dev/docs/access-controller.md#rego-expression-sources).
