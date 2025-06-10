@@ -1185,8 +1185,6 @@ export const RPC_METHODS: {
                     showEvents: true,
                     showInput: true,
                     showObjectChanges: true,
-                    showRawEffects: true,
-                    showRawInput: true,
                 },
             },
             (data) => data.dryRunTransactionBlock,
@@ -1204,8 +1202,6 @@ export const RPC_METHODS: {
                 showEvents: true,
                 showInput: true,
                 showObjectChanges: true,
-                showRawEffects: true,
-                showRawInput: true,
             },
         );
 
