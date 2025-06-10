@@ -13,7 +13,6 @@ interface BannerProps {
     videoSrc: string;
     title: string;
     subtitle?: string;
-    disabled?: boolean;
     size?: BannerSize;
 }
 export function Banner({

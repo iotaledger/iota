@@ -4,7 +4,6 @@
 'use client';
 
 import {
-    Banner,
     StakeDialog,
     useStakeDialog,
     VestingScheduleDialog,
@@ -37,6 +36,7 @@ import {
     InfoBox,
     InfoBoxStyle,
     InfoBoxType,
+    ButtonSize,
 } from '@iota/apps-ui-kit';
 import {
     Theme,
@@ -49,6 +49,7 @@ import {
     GAS_BALANCE_TOO_LOW_ID,
     MIN_NUMBER_IOTA_TO_STAKE,
     NOT_ENOUGH_BALANCE_ID,
+    Banner,
 } from '@iota/core';
 import {
     useCurrentAccount,
@@ -352,10 +353,15 @@ export default function VestingDashboardPage(): JSX.Element {
                             videoSrc={videoSrc}
                             title="Stake Vested Tokens"
                             subtitle="Earn Rewards"
-                            onButtonClick={() => handleNewStake()}
-                            buttonText="Stake"
-                            disabled={supplyIncreaseVestingSchedule.availableStaking === 0n}
-                        />
+                        >
+                            <Button
+                                onClick={() => handleNewStake()}
+                                size={ButtonSize.Small}
+                                type={ButtonType.Outlined}
+                                text="Stake"
+                                disabled={supplyIncreaseVestingSchedule.availableStaking === 0n}
+                            />
+                        </Banner>
                     ) : null}
                 </div>
 
