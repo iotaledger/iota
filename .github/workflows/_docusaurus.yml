@@ -21,6 +21,8 @@ jobs:
         with:
           node-version: "20"
           cache: "pnpm"
+      - name: Enable corepack
+        run: corepack enable
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
       - name: Build

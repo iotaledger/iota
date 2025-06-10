@@ -6283,6 +6283,7 @@ dependencies = [
  "iota-keys",
  "iota-names",
  "iota-protocol-config",
+ "iota-rest-api",
  "iota-types",
  "move-vm-config",
  "object_store 0.10.2",
@@ -6555,6 +6556,7 @@ dependencies = [
  "iota-node",
  "iota-protocol-config",
  "iota-rest-api",
+ "iota-rust-sdk",
  "iota-sdk 1.3.0-alpha",
  "iota-simulator",
  "iota-storage",
@@ -7759,6 +7761,7 @@ dependencies = [
  "iota-types",
  "itertools 0.13.0",
  "mime",
+ "move-binary-format",
  "openapiv3",
  "prometheus",
  "rand 0.8.5",
@@ -8244,6 +8247,7 @@ dependencies = [
  "iota-genesis-builder",
  "iota-macros",
  "iota-protocol-config",
+ "iota-rest-api",
  "iota-simulator",
  "iota-types",
  "move-bytecode-utils",
@@ -11876,9 +11880,9 @@ dependencies = [
 
 [[package]]
 name = "proc-macro2"
-version = "1.0.93"
+version = "1.0.95"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "60946a68e5f9d28b0dc1c21bb8a97ee7d018a8b322fa57838ba31cc878e22d99"
+checksum = "02b3e5e68a3a1a02aad3ec490a98007cbc13c37cbe84a3cd7b8e406d76e7f778"
 dependencies = [
  "unicode-ident",
 ]
