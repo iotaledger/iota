@@ -24,8 +24,8 @@ use crate::{
         Gas, GasCoinConfig, WorkloadBuilderInfo, WorkloadParams,
         payload::Payload,
         workload::{
-            ESTIMATED_COMPUTATION_COST, MAX_GAS_FOR_TESTING, STORAGE_COST_PER_COUNTER, Workload,
-            WorkloadBuilder,
+            ESTIMATED_COMPUTATION_COST, ExpectedFailureType, MAX_GAS_FOR_TESTING,
+            STORAGE_COST_PER_COUNTER, Workload, WorkloadBuilder,
         },
     },
 };
@@ -122,6 +122,9 @@ impl Payload for SharedCounterDeletionTestPayload {
             _ => panic!("Invalid transaction selector"),
         }
         .build_and_sign(self.gas.2.as_ref())
+    }
+    fn get_failure_type(&self) -> Option<ExpectedFailureType> {
+        None
     }
 }
 
