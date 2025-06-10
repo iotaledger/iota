@@ -1,0 +1,87 @@
+name: Changesets Snapshot Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Snapshot tag (e.g., experimental, beta, alpha)"
+        required: false
+        default: "experimental"
+        type: string
+
+concurrency: ${{ github.workflow }}-${{ github.ref }}-${{ github.event.inputs.tag }}
+
+env:
+  IOTA_NETWORKS: ${{ secrets.CHANGESETS_IOTA_NETWORKS }}
+  DEFAULT_NETWORK: ${{ secrets.CHANGESETS_DEFAULT_NETWORK }}
+
+jobs:
+  snapshot:
+    runs-on: self-hosted-x64
+    steps:
+      - name: checkout code repository
+        uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871 # v4.2.1
+        with:
+          fetch-depth: 0
+
+      - uses: pnpm/action-setup@fe02b34f77f8bc703788d5817da081398fad5dd2 # v4.0.0
+      - name: Install Nodejs
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: "20"
+          cache: "pnpm"
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Check for changes in SDK packages
+        id: check-changes
+        run: |
+          if pnpm list --filter "./sdk/*" --depth -1 --json | jq -e "any(.[] | select(.private != true) ; length > 0)" > /dev/null; then
+            echo "has-changes=true" >> $GITHUB_OUTPUT
+          else
+            echo "has-changes=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Build packages
+        if: steps.check-changes.outputs.has-changes == 'true'
+        run: pnpm turbo run build --filter=./sdk/*
+
+      - name: NPM login
+        if: steps.check-changes.outputs.has-changes == 'true'
+        run: npm set "//registry.npmjs.org/:_authToken=${{ secrets.NPM_TOKEN }}"
+
+      - name: Create snapshot versions
+        if: steps.check-changes.outputs.has-changes == 'true'
+        run: |
+          pnpm changeset version --snapshot ${{ github.event.inputs.tag }}
+          pnpm --filter @iota/iota-sdk codegen:version
+
+      - name: Publish snapshot packages
+        if: steps.check-changes.outputs.has-changes == 'true'
+        run: |
+          pnpm changeset publish --snapshot --tag ${{ github.event.inputs.tag }}
+
+      - name: Create summary
+        if: steps.check-changes.outputs.has-changes == 'true'
+        run: |
+          echo "## Snapshot Release Summary" >> $GITHUB_STEP_SUMMARY
+          echo "**Tag:** \`${{ github.event.inputs.tag }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "**Branch:** \`${{ github.ref_name }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "**Commit:** \`${{ github.sha }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Published Packages" >> $GITHUB_STEP_SUMMARY
+          echo "Check the workflow logs for detailed package versions." >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Installation" >> $GITHUB_STEP_SUMMARY
+          echo "Install snapshot packages using:" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`bash" >> $GITHUB_STEP_SUMMARY
+          echo "npm install @iota/iota-sdk@${{ github.event.inputs.tag }}" >> $GITHUB_STEP_SUMMARY
+          echo "npm install @iota/dapp-kit@${{ github.event.inputs.tag }}" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+
+      - name: No changes detected
+        if: steps.check-changes.outputs.has-changes == 'false'
+        run: |
+          echo "## No Changes Detected" >> $GITHUB_STEP_SUMMARY
+          echo "No changes found in SDK packages. Snapshot release skipped." >> $GITHUB_STEP_SUMMARY

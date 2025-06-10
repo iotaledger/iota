@@ -415,13 +415,13 @@ describe('GraphQL IotaClient compatibility', () => {
             options: {
                 showBalanceChanges: true,
                 showEffects: true,
+                showEvents: true,
                 // TODO inputs missing valueType
                 showInput: false,
                 showObjectChanges: true,
                 showRawInput: true,
             },
         });
-
         expect(graphQLTransactionBlock).toEqual(rpcTransactionBlock);
     });
 
