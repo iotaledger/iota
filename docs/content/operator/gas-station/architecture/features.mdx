@@ -244,7 +244,7 @@ move_call_matches if {
     mc.function == "allowed_function_name"
 
     argv_1 := input.transaction_data.V1.kind.ProgrammableTransaction.input.Pure
-    bcs.decode_typed(argv_1, "String") == "allowed_argument_value"
+    bcs.decode_typed(argv_1, "string") == "allowed_argument_value"
 }
 ```
 For more information on Rego syntax and capabilities, refer to the [Rego documentation](https://www.openpolicyagent.org/docs/policy-language/).
