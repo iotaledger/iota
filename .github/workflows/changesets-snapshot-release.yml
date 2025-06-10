@@ -37,10 +37,10 @@ jobs:
       - name: Check for pending changesets
         id: check-changes
         run: |
-          if [ -n "$(ls -A .changeset/*.md 2>/dev/null | grep -v PENDING_CHANGESETS.md)" ]; then
+          if [ -n "$(ls -A .changeset/*.md 2>/dev/null | grep -v README.md)" ]; then
             echo "has-changes=true" >> $GITHUB_OUTPUT
             echo "Found pending changesets:"
-            ls -1 .changeset/*.md 2>/dev/null | grep -v PENDING_CHANGESETS.md | head -5
+            ls -1 .changeset/*.md 2>/dev/null | grep -v README.md | head -5
           else
             echo "has-changes=false" >> $GITHUB_OUTPUT
             echo "No pending changesets found"
