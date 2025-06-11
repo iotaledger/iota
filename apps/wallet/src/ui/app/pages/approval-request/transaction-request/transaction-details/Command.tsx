@@ -38,12 +38,15 @@ function MoveCall({ data }: { data: MoveCallIotaTransaction }): JSX.Element {
     return (
         <span className="text-body-md text-iota-neutral-40 dark:text-iota-neutral-60">
             package:{' '}
-            <span className="text-primary-30 dark:text-primary-80 break-all">
+            <span className="break-all text-iota-primary-30 dark:text-iota-primary-80">
                 {formatAddress(normalizeIotaAddress(movePackage))}
             </span>
             , module:{' '}
-            <span className="text-primary-30 dark:text-primary-80 break-all">{module}</span>,
-            function: <span className="text-primary-30 dark:text-primary-80 break-all">{func}</span>
+            <span className="break-all text-iota-primary-30 dark:text-iota-primary-80">
+                {module}
+            </span>
+            , function:{' '}
+            <span className="break-all text-iota-primary-30 dark:text-iota-primary-80">{func}</span>
             {args && (
                 <span className="break-all">
                     , arguments: {convertCommandArgumentToString(args)}

@@ -57,7 +57,7 @@ function BalanceChangeEntry({ change }: { change: BalanceChange }): JSX.Element 
                     title={coinMetaData?.name || symbol}
                     icon={
                         !unRecognizedToken ? (
-                            <RecognizedBadge className="text-primary-40 h-4 w-4" />
+                            <RecognizedBadge className="h-4 w-4 text-iota-primary-40" />
                         ) : null
                     }
                 />

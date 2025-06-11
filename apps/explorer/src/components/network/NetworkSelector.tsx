@@ -104,7 +104,7 @@ export function NetworkSelector(): JSX.Element {
                                 <div className="flex items-center gap-2">
                                     <CheckmarkFilled
                                         className={cx('flex-shrink-0', {
-                                            'text-primary-30': network === selectedNetwork,
+                                            'text-iota-primary-30': network === selectedNetwork,
                                             'text-gray-45': network !== selectedNetwork,
                                         })}
                                     />

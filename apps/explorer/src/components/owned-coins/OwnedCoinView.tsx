@@ -35,7 +35,7 @@ export function OwnedCoinView({ coin, id }: OwnedCoinViewProps): JSX.Element {
     const CARD_BODY: React.ComponentProps<typeof CardBody> = {
         title: symbol,
         subtitle: `${formattedTotalBalance} ${symbol}`,
-        icon: coin.isRecognized && <RecognizedBadge className="text-primary-40 h-4 w-4" />,
+        icon: coin.isRecognized && <RecognizedBadge className="h-4 w-4 text-iota-primary-40" />,
     };
     return (
         <div

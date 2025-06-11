@@ -187,7 +187,7 @@ export function MenuList() {
                             to={ToS_LINK}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="text-primary-30 dark:text-primary-80 text-label-sm"
+                            className="text-label-sm text-iota-primary-30 dark:text-iota-primary-80"
                         >
                             Terms of Service
                         </Link>

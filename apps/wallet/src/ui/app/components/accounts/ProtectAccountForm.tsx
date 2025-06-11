@@ -137,7 +137,7 @@ export function ProtectAccountForm({
                                 </span>
                                 <a
                                     href={ToS_LINK}
-                                    className="text-primary-30 dark:text-primary-80 text-label-lg"
+                                    className="text-label-lg text-iota-primary-30 dark:text-iota-primary-80"
                                     target="_blank"
                                     rel="noopener noreferrer"
                                 >

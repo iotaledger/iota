@@ -14,8 +14,8 @@ import {
 import { TransactionAction } from '../../interfaces';
 
 const ICON_COLORS = {
-    primary: 'text-primary-30 dark:text-primary-80',
-    error: 'text-error-30 dark: text-error-80',
+    primary: 'text-iota-primary-30 dark:text-iota-primary-80',
+    error: 'text-iota-error-30 dark: text-iota-error-80',
 };
 
 const icons = {

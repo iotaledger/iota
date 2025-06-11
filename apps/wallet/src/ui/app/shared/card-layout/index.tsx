@@ -18,10 +18,10 @@ export function CardLayout({ children, title, subtitle, headerCaption, icon }: C
     return (
         <div className="flex max-h-popup-height w-full max-w-popup-width flex-grow flex-col flex-nowrap items-center overflow-auto p-lg">
             {icon === 'success' ? (
-                <CheckmarkFilled className="text-primary-30 mb-lg h-8 w-8" />
+                <CheckmarkFilled className="mb-lg h-8 w-8 text-iota-primary-30" />
             ) : null}
             {icon === 'iota' ? (
-                <div className="bg-primary-30 mb-lg flex h-10 w-10 flex-col flex-nowrap items-center justify-center rounded-full">
+                <div className="mb-lg flex h-10 w-10 flex-col flex-nowrap items-center justify-center rounded-full bg-iota-primary-30">
                     <IotaLogoMark className="h-6 w-6 text-iota-neutral-100" />
                 </div>
             ) : null}

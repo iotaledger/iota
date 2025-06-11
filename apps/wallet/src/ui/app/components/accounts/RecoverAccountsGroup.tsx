@@ -39,14 +39,14 @@ export function RecoverAccountsGroup({
                     ) : null}
                     {recoverDone ? (
                         <Tooltip text="Recovery process done" position={TooltipPosition.Left}>
-                            <CheckmarkFilled className="text-primary-30 dark:text-primary-80 h-4 w-4" />
+                            <CheckmarkFilled className="h-4 w-4 text-iota-primary-30 dark:text-iota-primary-80" />
                         </Tooltip>
                     ) : null}
                 </div>
             </div>
             <div className="flex flex-col gap-xs">
                 {accounts.map((anAccount) => (
-                    <div className="border-shader-iota-neutral-light-8 rounded-xl border">
+                    <div className="rounded-xl border border-shader-neutral-light-8">
                         <AccountListItem key={anAccount.id} account={anAccount} icon={<Key />} />
                     </div>
                 ))}
