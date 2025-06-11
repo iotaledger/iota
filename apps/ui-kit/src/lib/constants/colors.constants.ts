@@ -74,10 +74,17 @@ export const IOTA_PRIMITIVES_COLOR_PALETTE = {
         '100': '#ffffff',
     },
     'iota-warning': {
-        '10': '#422C00',
-        '20': '#2D1E00',
+        '0': '#000000',
+        '10': '#2D1E00',
+        '20': '#422C00',
+        '30': '#674500',
+        '40': '#8C5D00',
+        '50': '#A47518',
         '60': '#BE8F32',
+        '70': '#D9AA4D',
+        '80': '#F4C568',
         '90': '#FFE3AB',
+        '100': '#FFFFFF',
     },
 };
 export const IOTA_NAMES_COLOR_PALETTE = {
@@ -159,10 +166,17 @@ export const IOTA_NAMES_COLOR_PALETTE = {
         'stop-4': '#20233C',
     },
     'names-warning': {
-        '10': '#422C00',
-        '20': '#2D1E00',
+        '0': '#000000',
+        '10': '#2D1E00',
+        '20': '#422C00',
+        '30': '#674500',
+        '40': '#8C5D00',
+        '50': '#A47518',
         '60': '#BE8F32',
+        '70': '#D9AA4D',
+        '80': '#F4C568',
         '90': '#FFE3AB',
+        '100': '#FFFFFF',
     },
 };
 
