@@ -713,7 +713,7 @@ describe('GraphQL IotaClient compatibility', () => {
         expect(graphql).toEqual(rpc);
     });
 
-    test.skip('getCommitteeInfo', async () => {
+    test('getCommitteeInfo', async () => {
         const rpc = await toolbox.client.getCommitteeInfo({});
         const graphql = await graphQLClient!.getCommitteeInfo({});
 
@@ -724,7 +724,10 @@ describe('GraphQL IotaClient compatibility', () => {
         const rpc = await toolbox.client.getNetworkMetrics();
         const graphql = await graphQLClient!.getNetworkMetrics();
 
-        // Ignore current checkpoint cause timing
+        expect(Number.parseInt(graphql.currentCheckpoint)).closeTo(
+            Number.parseInt(rpc.currentCheckpoint),
+            4,
+        );
         expect({ ...graphql, currentCheckpoint: undefined }).toEqual({
             ...rpc,
             currentCheckpoint: undefined,
