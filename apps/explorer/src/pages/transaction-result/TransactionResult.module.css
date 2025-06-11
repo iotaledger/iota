@@ -15,7 +15,7 @@
 }
 
 .eventtitle:hover {
-    @apply cursor-pointer bg-neutral-92;
+    @apply bg-neutral-92 cursor-pointer;
 
     border-radius: 6px;
 }
@@ -72,7 +72,7 @@
 }
 
 .itemviewcontentvalue {
-    @apply inline-flex content-center items-baseline text-sm text-neutral-40 md:block;
+    @apply text-neutral-40 inline-flex content-center items-baseline text-sm md:block;
 
     line-break: anywhere;
 }

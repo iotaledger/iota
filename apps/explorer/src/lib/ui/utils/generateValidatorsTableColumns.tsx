@@ -36,7 +36,7 @@ function ValidatorWithImage({
     highlightValidatorName?: boolean;
 }) {
     return validator.isPending ? (
-        <div className="flex items-center gap-x-2.5 text-neutral-40 dark:text-neutral-60">
+        <div className="text-neutral-40 dark:text-neutral-60 flex items-center gap-x-2.5">
             <div className="h-8 w-8 shrink-0">
                 <ImageIcon
                     src={validator.imageUrl}
@@ -65,7 +65,7 @@ function ValidatorWithImage({
                 })
             }
             label={
-                <div className="flex items-center gap-x-2.5 text-neutral-40 dark:text-neutral-60">
+                <div className="text-neutral-40 dark:text-neutral-60 flex items-center gap-x-2.5">
                     <div className="h-8 w-8 shrink-0">
                         <ImageIcon
                             src={validator.imageUrl}

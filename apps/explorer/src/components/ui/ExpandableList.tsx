@@ -68,7 +68,7 @@ export function ExpandableListControl(): JSX.Element | null {
                 icon={
                     <TriangleDown
                         className={clsx(
-                            'ml-xxxs h-5 w-5 text-neutral-60',
+                            'text-neutral-60 ml-xxxs h-5 w-5',
                             showAll
                                 ? 'rotate-180 transition-transform ease-linear'
                                 : 'rotate-0 transition-transform ease-linear',

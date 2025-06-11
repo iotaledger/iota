@@ -78,7 +78,7 @@ export function TransactionsForAddressTable({
     if (!hasTxns) {
         return (
             <div className="flex h-20 items-center justify-center md:h-full">
-                <span className="flex flex-row items-center gap-x-xs text-neutral-40 dark:text-neutral-60">
+                <span className="text-neutral-40 dark:text-neutral-60 flex flex-row items-center gap-x-xs">
                     No transactions found
                 </span>
             </div>

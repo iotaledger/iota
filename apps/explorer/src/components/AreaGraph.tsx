@@ -29,7 +29,7 @@ function AxisBottomTick({ x, y, formattedValue }: TickRendererProps): JSX.Elemen
             x={x}
             y={y}
             textAnchor="middle"
-            className="fill-current text-label-lg text-neutral-60 dark:text-neutral-40"
+            className="text-neutral-60 dark:text-neutral-40 fill-current text-label-lg"
         >
             {formattedValue}
         </text>

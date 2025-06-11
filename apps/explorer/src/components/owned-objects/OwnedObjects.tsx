@@ -309,7 +309,7 @@ export function OwnedObjects({ id }: OwnedObjectsProps): JSX.Element {
                             <Pagination {...pagination} />
                             <div className="flex items-center gap-3">
                                 {!isPending && (
-                                    <span className="shrink-0 text-body-sm text-neutral-40 dark:text-neutral-60">
+                                    <span className="text-neutral-40 dark:text-neutral-60 shrink-0 text-body-sm">
                                         Showing {start} - {end}
                                     </span>
                                 )}

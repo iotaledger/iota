@@ -24,7 +24,7 @@ interface OwnObjectContainerProps {
 
 function OwnObjectContainer({ id, children }: OwnObjectContainerProps): JSX.Element {
     return (
-        <div className="rounded-xl p-xs hover:bg-neutral-92 dark:hover:bg-neutral-12">
+        <div className="hover:bg-neutral-92 dark:hover:bg-neutral-12 rounded-xl p-xs">
             <ObjectLink display="block" objectId={id} label={children} />
         </div>
     );
@@ -62,9 +62,9 @@ function SmallThumbnail({ obj }: { obj: IotaObjectResponse }): JSX.Element {
                 variant="xs"
             />
             <div className="flex min-w-0 flex-col flex-nowrap gap-xxs">
-                <span className="text-label-md text-neutral-10 dark:text-neutral-92">{name}</span>
-                <div className="flex flex-row items-center gap-xs text-label-md text-neutral-10 dark:text-neutral-92">
-                    <span className="text-label-sm text-neutral-40 dark:text-neutral-60">
+                <span className="text-neutral-10 dark:text-neutral-92 text-label-md">{name}</span>
+                <div className="text-neutral-10 dark:text-neutral-92 flex flex-row items-center gap-xs text-label-md">
+                    <span className="text-neutral-40 dark:text-neutral-60 text-label-sm">
                         {formatAddress(id!)}
                     </span>
                     <Tooltip text={type} position={TooltipPosition.Bottom}>

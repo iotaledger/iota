@@ -50,7 +50,7 @@ function ThumbnailsOnlyLoading({ limit }: { limit: number }): JSX.Element {
     return (
         <>
             {new Array(limit).fill(0).map((_, index) => (
-                <div key={index} className="md:h-31.5 md:w-31.5 h-16 w-16 text-primary-30">
+                <div key={index} className="md:h-31.5 md:w-31.5 text-primary-30 h-16 w-16">
                     <Loader className="animate-spin" />
                 </div>
             ))}

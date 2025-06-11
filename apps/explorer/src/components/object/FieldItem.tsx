@@ -69,7 +69,7 @@ export function FieldItem({
     }
 
     return (
-        <div className="break-all text-body-md text-neutral-40">
+        <div className="text-neutral-40 break-all text-body-md">
             {value === null || value === undefined ? null : String(value)}
         </div>
     );

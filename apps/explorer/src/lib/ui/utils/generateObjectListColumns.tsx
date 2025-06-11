@@ -16,7 +16,7 @@ function Asset({ object }: { object: IotaObjectResponse }) {
     const name = displayMeta?.name ?? displayMeta?.description ?? '';
     const type = trimStdLibPrefix(parseObjectType(object));
     return (
-        <div className="flex items-center gap-x-2.5 text-neutral-40 dark:text-neutral-60">
+        <div className="text-neutral-40 dark:text-neutral-60 flex items-center gap-x-2.5">
             <ObjectVideoImage
                 fadeIn
                 disablePreview

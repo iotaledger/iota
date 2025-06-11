@@ -57,7 +57,7 @@ function BalanceChangeEntry({ change }: { change: BalanceChange }): JSX.Element 
                     title={coinMetaData?.name || symbol}
                     icon={
                         !unRecognizedToken ? (
-                            <RecognizedBadge className="h-4 w-4 text-primary-40" />
+                            <RecognizedBadge className="text-primary-40 h-4 w-4" />
                         ) : null
                     }
                 />
@@ -68,7 +68,7 @@ function BalanceChangeEntry({ change }: { change: BalanceChange }): JSX.Element 
             </Card>
             {recipient && (
                 <div className="flex flex-wrap items-center justify-between px-sm py-xs">
-                    <span className="w-full flex-shrink-0 text-label-lg text-neutral-40 md:w-40 dark:text-neutral-60">
+                    <span className="text-neutral-40 dark:text-neutral-60 w-full flex-shrink-0 text-label-lg md:w-40">
                         Recipient
                     </span>
                     <AddressLink
@@ -95,7 +95,7 @@ function BalanceChangeCard({ changes, owner }: { changes: BalanceChange[]; owner
             footer={
                 owner ? (
                     <div className="flex flex-wrap justify-between px-md--rs py-sm--rs">
-                        <span className="text-body-md text-neutral-40 dark:text-neutral-60">
+                        <span className="text-neutral-40 dark:text-neutral-60 text-body-md">
                             Owner
                         </span>
                         <AddressLink
