@@ -11,7 +11,11 @@ import ThemedImage from '@theme/ThemedImage';
 
 Sequencing is the post-consensus phase in which transactions agreed upon by the IOTA [consensus protocol](./consensus.mdx) are processed and scheduled for execution.
 
+<<<<<<< HEAD
 Due to the nature of [shared objects](../../developer/iota-101/objects/object-ownership/shared.mdx), conflicting transactions writing to the same shared objects must be executed sequentially.
+=======
+Due to the nature of [shared objects](../../developer/iota-101/objects/object-ownership/shared.mdx), conflicting transactions involving the same shared objects must be executed sequentially.
+>>>>>>> e589252f74 (Sequencing example. Added respective images and the description of the example.)
 If not carefully managed, scheduling a large number of such conflicting transactions can lead to congestion during execution.
 The primary goal of sequencing is to schedule as many transactions as possible while avoiding an unmanageable load on the execution layer.
 
@@ -85,4 +89,3 @@ The case is illustrated in the following image.
         dark: '/img/about-iota/iota-architecture/dark/sequencing2.svg',
     }}
 />
-
