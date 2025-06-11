@@ -54,7 +54,7 @@ export function PlayPause({ paused, onChange, animate }: PlayPauseProps): JSX.El
         >
             {isAnimating && (
                 <motion.svg
-                    className="text-primary-60 absolute left-1/2 top-1/2 h-full w-full -translate-x-1/2 -translate-y-1/2 -rotate-90"
+                    className="absolute left-1/2 top-1/2 h-full w-full -translate-x-1/2 -translate-y-1/2 -rotate-90 text-iota-primary-60"
                     viewBox="0 0 16 16"
                 >
                     <motion.circle

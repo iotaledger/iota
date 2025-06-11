@@ -34,13 +34,16 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Check for changes in SDK packages
+      - name: Check for pending changesets
         id: check-changes
         run: |
-          if pnpm list --filter "./sdk/*" --depth -1 --json | jq -e "any(.[] | select(.private != true) ; length > 0)" > /dev/null; then
+          if [ -n "$(ls -A .changeset/*.md 2>/dev/null | grep -v README.md)" ]; then
             echo "has-changes=true" >> $GITHUB_OUTPUT
+            echo "Found pending changesets:"
+            ls -1 .changeset/*.md 2>/dev/null | grep -v README.md | head -5
           else
             echo "has-changes=false" >> $GITHUB_OUTPUT
+            echo "No pending changesets found"
           fi
 
       - name: Build packages
@@ -83,5 +86,7 @@ jobs:
       - name: No changes detected
         if: steps.check-changes.outputs.has-changes == 'false'
         run: |
-          echo "## No Changes Detected" >> $GITHUB_STEP_SUMMARY
-          echo "No changes found in SDK packages. Snapshot release skipped." >> $GITHUB_STEP_SUMMARY
+          echo "## No Pending Changesets" >> $GITHUB_STEP_SUMMARY
+          echo "No pending changesets found. Snapshot release skipped." >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "To create a changeset, run \`pnpm changeset\` and select the packages you want to release." >> $GITHUB_STEP_SUMMARY

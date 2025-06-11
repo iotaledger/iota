@@ -173,7 +173,7 @@ export function ObjectFieldsCard({
                                 {filteredFieldNames?.map(({ name, type }) => (
                                     <ButtonUnstyled
                                         key={name}
-                                        className="hover:bg-primary-80/20 rounded-lg p-xs"
+                                        className="rounded-lg p-xs hover:bg-iota-primary-80/20"
                                         onClick={() => onFieldsNameClick(name)}
                                     >
                                         <KeyValueInfo

@@ -53,7 +53,7 @@ export function SyntaxHighlighter({
                     <pre className="overflow-auto bg-transparent p-xs font-medium" style={style}>
                         {tokens.slice(0, loadedLines).map((line, i) => (
                             <div {...getLineProps({ line, key: i })} key={i} className="table-row">
-                                <div className="text-primary-30 dark:text-primary-80 table-cell select-none pr-4 text-left opacity-50">
+                                <div className="table-cell select-none pr-4 text-left text-iota-primary-30 opacity-50 dark:text-iota-primary-80">
                                     {i + 1}
                                 </div>
 

@@ -56,7 +56,7 @@ function createInternalLink<T extends string>(
         return (
             <div className="flex flex-row items-center gap-x-xxs">
                 <Link
-                    className="text-primary-30 dark:text-primary-80"
+                    className="text-iota-primary-30 dark:text-iota-primary-80"
                     variant="mono"
                     to={`/${base}/${encodeURI(id)}${queryStringPrefix}`}
                     {...props}

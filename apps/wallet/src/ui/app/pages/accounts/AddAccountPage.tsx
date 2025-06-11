@@ -183,6 +183,6 @@ export function AddAccountPage() {
 
 const CardIcon = ({ Icon }: { Icon: React.ComponentType<{ className: string }> }) => (
     <CardImage type={ImageType.BgTransparent}>
-        <Icon className="text-primary-30 dark:text-primary-80 h-5 w-5" />
+        <Icon className="h-5 w-5 text-iota-primary-30 dark:text-iota-primary-80" />
     </CardImage>
 );

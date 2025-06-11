@@ -39,7 +39,7 @@ export function RecoverAccountsGroup({
                     ) : null}
                     {recoverDone ? (
                         <Tooltip text="Recovery process done" position={TooltipPosition.Left}>
-                            <CheckmarkFilled className="text-primary-30 dark:text-primary-80 h-4 w-4" />
+                            <CheckmarkFilled className="h-4 w-4 text-iota-primary-30 dark:text-iota-primary-80" />
                         </Tooltip>
                     ) : null}
                 </div>

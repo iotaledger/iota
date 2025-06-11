@@ -57,11 +57,11 @@ export function ConnectLedgerModal({
                             Connect your ledger to your computer, unlock it, and launch the IOTA
                             app. Click Continue when done.
                         </span>
-                        <div className="bg-primary-90 dark:bg-primary-10 flex w-full flex-col gap-y-xs rounded-lg px-md py-sm text-center">
+                        <div className="flex w-full flex-col gap-y-xs rounded-lg bg-iota-primary-90 px-md py-sm text-center dark:bg-iota-primary-10">
                             <span className="text-title-sm text-iota-neutral-10 dark:text-iota-neutral-92">
                                 Ensure you're using a compatible version of the Ledger IOTA app
                             </span>
-                            <div className="text-primary-30 dark:text-primary-80 flex w-full flex-wrap justify-center gap-xs text-body-sm">
+                            <div className="flex w-full flex-wrap justify-center gap-xs text-body-sm text-iota-primary-30 dark:text-iota-primary-80">
                                 <Link
                                     to="https://docs.iota.org/about-iota/iota-wallet/how-to/integrate-ledger"
                                     target="_blank"
@@ -90,7 +90,7 @@ export function ConnectLedgerModal({
                             <Link
                                 to="https://support.ledger.com/article/360011633353-zd"
                                 onClick={() => ampli.viewedLedgerTutorial()}
-                                className="text-primary-30 dark:text-primary-80 text-body-md no-underline"
+                                className="text-body-md text-iota-primary-30 no-underline dark:text-iota-primary-80"
                                 target="_blank"
                                 rel="noreferrer"
                             >

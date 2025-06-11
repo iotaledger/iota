@@ -96,7 +96,7 @@ function LeftContent({
     isMainAccount?: boolean;
 }) {
     const accountName = account?.nickname ?? formatAddress(account?.address || '');
-    const backgroundColor = isLocked ? 'bg-iota-neutral-90' : 'bg-primary-30';
+    const backgroundColor = isLocked ? 'bg-iota-neutral-90' : 'bg-iota-primary-30';
     return (
         <Link
             to="/accounts/manage"
@@ -105,7 +105,7 @@ function LeftContent({
         >
             <div
                 className={cn(
-                    'bg-primary-30 flex h-8 w-8 shrink-0 items-center justify-center rounded-full [&_svg]:h-5 [&_svg]:w-5 [&_svg]:text-white',
+                    'flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-iota-primary-30 [&_svg]:h-5 [&_svg]:w-5 [&_svg]:text-white',
                     backgroundColor,
                 )}
             >

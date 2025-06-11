@@ -50,7 +50,8 @@ function MoveCall({ data }: TransactionProps<MoveCallIotaTransaction>): JSX.Elem
             />
             , module:{' '}
             <ObjectLink objectId={`${movePackage}?module=${module}`} label={`'${module}'`} />,
-            function: <span className="text-primary-30 dark:text-primary-80 break-all">{func}</span>
+            function:{' '}
+            <span className="break-all text-iota-primary-30 dark:text-iota-primary-80">{func}</span>
             {args && (
                 <span className="break-all">, arguments: [{flattenIotaArguments(args!)}]</span>
             )}

@@ -11,7 +11,7 @@ const linkStyles = cva([], {
     variants: {
         variant: {
             text: 'text-body-md font-semibold text-iota-neutral-40 hover:text-iota-neutral-60 active:text-steel disabled:text-gray-60',
-            mono: 'text-body-md text-primary-30 hover:text-primary-20',
+            mono: 'text-body-md text-iota-primary-30 hover:text-iota-primary-20',
             textHeroDark: 'text-pBody font-medium text-hero-dark hover:text-hero-darkest',
         },
         uppercase: {
