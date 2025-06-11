@@ -25,7 +25,7 @@ export function NavbarSlideout({
             />
             <div
                 className={cx(
-                    'z-999 rounded-tb-3xl fixed left-0 top-0 h-full w-11/12 rounded-tr-3xl bg-white px-lg py-lg transition-transform duration-300 ease-out dark:bg-neutral-6',
+                    'z-999 rounded-tb-3xl dark:bg-neutral-6 fixed left-0 top-0 h-full w-11/12 rounded-tr-3xl bg-white px-lg py-lg transition-transform duration-300 ease-out',
                     {
                         'translate-x-0': isOpen,
                         '-translate-x-full': !isOpen,

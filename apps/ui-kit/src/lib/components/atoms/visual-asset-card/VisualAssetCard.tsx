@@ -69,8 +69,8 @@ export function VisualAssetCard({
             {assetType === VisualAssetType.Video ? (
                 <video src={assetSrc} className="h-full w-full object-cover" autoPlay loop muted />
             ) : imageError ? (
-                <div className="flex h-full w-full items-center justify-center bg-neutral-96 dark:bg-neutral-10">
-                    <PlaceholderReplace className="h-4 w-4 text-neutral-40 dark:text-neutral-60" />
+                <div className="bg-neutral-96 dark:bg-neutral-10 flex h-full w-full items-center justify-center">
+                    <PlaceholderReplace className="text-neutral-40 dark:text-neutral-60 h-4 w-4" />
                 </div>
             ) : (
                 <img
@@ -85,7 +85,7 @@ export function VisualAssetCard({
             )}
             {isHoverable && onIconClick && (
                 <ButtonUnstyled
-                    className="absolute right-2 top-2 h-9 w-9 cursor-pointer rounded-full p-xs opacity-0 transition-opacity duration-300 group-hover:bg-shader-neutral-light-72 group-hover:opacity-100 [&_svg]:h-5 [&_svg]:w-5 [&_svg]:text-primary-100"
+                    className="[&_svg]:text-primary-100 absolute right-2 top-2 h-9 w-9 cursor-pointer rounded-full p-xs opacity-0 transition-opacity duration-300 group-hover:bg-shader-neutral-light-72 group-hover:opacity-100 [&_svg]:h-5 [&_svg]:w-5"
                     onClick={handleIconClick}
                 >
                     {icon}

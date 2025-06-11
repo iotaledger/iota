@@ -59,12 +59,12 @@ export function InfoBox({
             )}
             <div className="flex flex-col gap-1">
                 {title && (
-                    <span className="text-title-sm text-neutral-10 dark:text-neutral-92">
+                    <span className="text-neutral-10 dark:text-neutral-92 text-title-sm">
                         {title}
                     </span>
                 )}
                 {supportingText && (
-                    <span className="text-body-sm text-neutral-40 dark:text-neutral-60">
+                    <span className="text-neutral-40 dark:text-neutral-60 text-body-sm">
                         {supportingText}
                     </span>
                 )}
