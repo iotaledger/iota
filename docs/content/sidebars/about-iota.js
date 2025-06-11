@@ -60,10 +60,21 @@ const aboutIota = [
                         items: [
                             'about-iota/iota-wallet/how-to/basics',
                             'about-iota/iota-wallet/how-to/stake',
+                            'about-iota/iota-wallet/how-to/import',
+                            {
+                                type: 'category',
+                                label: 'Import Method',
+                                items: [
+                                    'about-iota/iota-wallet/how-to/import/ledger',
+                                    'about-iota/iota-wallet/how-to/import/mnemonic',
+                                    'about-iota/iota-wallet/how-to/import/seed',
+                                    'about-iota/iota-wallet/how-to/import/legacy',
+                                    'about-iota/iota-wallet/how-to/import/balance-finder',
+                                    'about-iota/iota-wallet/how-to/import/migration',
+                                ],
+                            },
                             'about-iota/iota-wallet/how-to/multi-account',
                             'about-iota/iota-wallet/how-to/get-test-tokens',
-                            'about-iota/iota-wallet/how-to/integrate-ledger',
-                            'about-iota/iota-wallet/how-to/restore-account',
                         ],
                     },
                     'about-iota/iota-wallet/FAQ',

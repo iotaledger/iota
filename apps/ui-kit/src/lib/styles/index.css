@@ -21,7 +21,7 @@
     --headline-md-font-weight: 500;
     --headline-sm-font-weight: 500;
 }
-headline-md-font-weight :root.light {
+:root.light {
     --color-primary: theme('colors.iota-primary.30');
 }
 
