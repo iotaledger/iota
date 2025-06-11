@@ -58,7 +58,7 @@ export function MigrationObjectDetailsCard({
                         <ImageWithFallback
                             src={migrationObject.image_url}
                             alt={migrationObject.name}
-                            fallback={<Assets />}
+                            renderFallback={<Assets />}
                         />
                     }
                     isTimelocked={isTimelocked}

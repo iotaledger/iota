@@ -2,5 +2,4 @@
 // SPDX-License-Identifier: Apache-2.0
 
 export * from './NFTMediaDisplayCard';
-export * from './NFTVideoAsset';
 export * from './NFTMediaRenderer';

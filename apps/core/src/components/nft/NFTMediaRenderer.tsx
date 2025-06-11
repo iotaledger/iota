@@ -1,8 +1,13 @@
 // Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { ImageWithFallback, LoadingIndicator, VisualAssetType } from '@iota/apps-ui-kit';
-import { NFTVideoAsset } from './NFTVideoAsset';
+import {
+    MediaFallback,
+    ImageWithFallback,
+    LoadingIndicator,
+    VisualAssetType,
+    Video,
+} from '@iota/apps-ui-kit';
 import { useNFTMediaHeaders } from '../../hooks';
 import { resolveNFTMedia } from '../../utils';
 import clsx from 'clsx';
@@ -27,7 +32,7 @@ export function NFTMediaRenderer({
     videoRef,
 }: NFTMediaRendererProps) {
     const { isLoading, data: nftMediaHeaders } = useNFTMediaHeaders(src);
-    const { type, isAutoPlaySupported, showFallback } = resolveNFTMedia(src, nftMediaHeaders);
+    const { type, isAutoPlaySupported, isMediaSupported } = resolveNFTMedia(src, nftMediaHeaders);
 
     const className = clsx('w-full h-full', objectFit);
 
@@ -35,8 +40,12 @@ export function NFTMediaRenderer({
         return <LoadingIndicator />;
     }
 
+    if (!isMediaSupported) {
+        return <MediaFallback />;
+    }
+
     return type === VisualAssetType.Video ? (
-        <NFTVideoAsset
+        <Video
             src={src}
             isAutoPlayEnabled={!disableAutoPlay && isAutoPlaySupported}
             className={className}
@@ -44,12 +53,6 @@ export function NFTMediaRenderer({
             ref={videoRef}
         />
     ) : (
-        <ImageWithFallback
-            src={src}
-            alt={alt}
-            forceFallback={showFallback}
-            ref={imageRef}
-            className={className}
-        />
+        <ImageWithFallback src={src} alt={alt} ref={imageRef} className={className} />
     );
 }

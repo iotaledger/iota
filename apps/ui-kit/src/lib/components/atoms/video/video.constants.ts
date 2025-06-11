@@ -1,10 +1,8 @@
 // Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { NFTVideoAsset } from '../components';
-
 export const VIDEO_AUTOPLAY_FLAGS: Partial<
-    Omit<React.ComponentProps<typeof NFTVideoAsset>, 'src'>
+    Omit<React.VideoHTMLAttributes<HTMLVideoElement>, 'src'>
 > = {
     autoPlay: true,
     muted: true,
@@ -19,7 +17,7 @@ export const VIDEO_AUTOPLAY_FLAGS: Partial<
 };
 
 export const VIDEO_AUTOPLAY_FLAGS_NO_CONTROLS: Partial<
-    Omit<React.ComponentProps<typeof NFTVideoAsset>, 'src'>
+    Omit<React.VideoHTMLAttributes<HTMLVideoElement>, 'src'>
 > = {
     autoPlay: true,
     muted: true,

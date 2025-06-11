@@ -1,11 +1,11 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { ButtonUnstyled } from '../button';
+import { ButtonUnstyled } from '../../atoms/button';
 import { MoreHoriz } from '@iota/apps-ui-icons';
 import cx from 'classnames';
-import type { AssetDisplayProps } from './AssetDisplay';
-import { AssetDisplay } from './AssetDisplay';
+import { AssetMediaRenderer } from '../../molecules/asset-media-renderer';
+import type { AssetMediaRendererProps } from '../../molecules/asset-media-renderer';
 
 interface VisualAssetBaseProps {
     /**
@@ -38,7 +38,7 @@ interface CustomAssetDisplayProps {
 }
 
 export type VisualAssetCardProps = VisualAssetBaseProps &
-    (AssetDisplayProps | CustomAssetDisplayProps);
+    (AssetMediaRendererProps | CustomAssetDisplayProps);
 
 export function VisualAssetCard({
     onIconClick,
@@ -47,7 +47,7 @@ export function VisualAssetCard({
     assetTitle,
     isHoverable = true,
     ...assetProps
-}: VisualAssetBaseProps & (AssetDisplayProps | CustomAssetDisplayProps)): React.JSX.Element {
+}: VisualAssetBaseProps & (AssetMediaRendererProps | CustomAssetDisplayProps)): React.JSX.Element {
     const handleIconClick = (event: React.MouseEvent<HTMLButtonElement>) => {
         onIconClick?.(event);
         event?.stopPropagation();
@@ -62,13 +62,7 @@ export function VisualAssetCard({
             })}
             onClick={onClick}
         >
-            {!isCustomAsset && (
-                <AssetDisplay
-                    assetType={assetProps.assetType}
-                    src={assetProps.src}
-                    altText={assetProps.altText}
-                />
-            )}
+            {!isCustomAsset && <AssetMediaRenderer {...assetProps} />}
 
             {isCustomAsset && assetProps.renderAsset}
 

@@ -1,17 +1,23 @@
 // Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import React, { forwardRef } from 'react';
-import { VIDEO_AUTOPLAY_FLAGS, VIDEO_AUTOPLAY_FLAGS_NO_CONTROLS } from '../../constants';
+import { forwardRef } from 'react';
+import { VIDEO_AUTOPLAY_FLAGS, VIDEO_AUTOPLAY_FLAGS_NO_CONTROLS } from './video.constants';
 
-interface NFTVideoAssetProps {
+export interface VideoProps {
+    /**
+     * Whether the video should autoplay.
+     */
     isAutoPlayEnabled?: boolean;
+    /**
+     * If the video controls should be disabled.
+     */
     disableControls?: boolean;
 }
 
-export const NFTVideoAsset = forwardRef<
+export const Video = forwardRef<
     HTMLVideoElement,
-    React.ComponentPropsWithoutRef<'video'> & NFTVideoAssetProps
+    React.ComponentPropsWithoutRef<'video'> & VideoProps
 >(({ width = '100%', height = 'auto', isAutoPlayEnabled, disableControls, ...props }, ref) => {
     const videoProps = isAutoPlayEnabled
         ? disableControls

@@ -30,7 +30,7 @@ const SUPPORTED_IMAGE_MIMETYPES = [
 interface ResolveNFTMediaTypeReturn {
     type: VisualAssetType;
     isAutoPlaySupported?: boolean;
-    showFallback?: boolean;
+    isMediaSupported: boolean;
 }
 
 export function resolveNFTMedia(
@@ -47,6 +47,7 @@ export function resolveNFTMedia(
         return {
             type: VisualAssetType.Video,
             isAutoPlaySupported: contentLength ? isVideoInSizeLimit(contentLength) : false,
+            isMediaSupported: true,
         };
     }
 
@@ -56,10 +57,11 @@ export function resolveNFTMedia(
     ) {
         return {
             type: VisualAssetType.Image,
+            isMediaSupported: true,
         };
     }
 
-    return { type: VisualAssetType.Image, showFallback: true };
+    return { type: VisualAssetType.Image, isMediaSupported: false };
 }
 
 export function getFileExtensionByUrl(src: string | null | undefined): string | undefined {

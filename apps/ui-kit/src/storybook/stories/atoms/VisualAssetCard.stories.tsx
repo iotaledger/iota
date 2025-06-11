@@ -22,6 +22,7 @@ type Story = StoryObj<typeof meta>;
 
 export const Default: Story = {
     args: {
+        assetType: VisualAssetType.Image,
         src: 'https://d315pvdvxi2gex.cloudfront.net/528399e23c1bb7b14cced0b89.png',
         altText: 'IOTA Logo',
         onIconClick: () => {

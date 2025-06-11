@@ -3,10 +3,9 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { Modal, type ModalProps } from './Modal';
-import { Image } from '../image/Image';
 import { Close } from '@iota/apps-ui-icons';
-import { resolveNFTMedia, NFTVideoAsset, useNFTMediaHeaders } from '@iota/core';
-import { LoadingIndicator, VisualAssetType } from '@iota/apps-ui-kit';
+import { resolveNFTMedia, useNFTMediaHeaders } from '@iota/core';
+import { LoadingIndicator, MediaFallback, AssetMediaRenderer } from '@iota/apps-ui-kit';
 
 export interface ObjectModalProps extends Omit<ModalProps, 'children'> {
     title: string;
@@ -24,17 +23,21 @@ export function ObjectModal({
     src,
 }: ObjectModalProps): JSX.Element {
     const { data: nftMediaHeaders, isLoading } = useNFTMediaHeaders(src);
-    const { type, isAutoPlaySupported, showFallback } = resolveNFTMedia(src, nftMediaHeaders);
+    const { type, isAutoPlaySupported, isMediaSupported } = resolveNFTMedia(src, nftMediaHeaders);
 
     return (
         <Modal open={open} onClose={onClose}>
             <div className="flex h-full w-full flex-col gap-5">
                 {isLoading ? (
                     <LoadingIndicator />
-                ) : type === VisualAssetType.Video ? (
-                    <NFTVideoAsset src={src} isAutoPlayEnabled={isAutoPlaySupported} />
+                ) : !isMediaSupported ? (
+                    <MediaFallback />
                 ) : (
-                    <Image alt={alt} src={src} rounded="none" forceFallback={showFallback} />
+                    <AssetMediaRenderer
+                        assetType={type}
+                        src={src}
+                        isAutoPlayEnabled={isAutoPlaySupported}
+                    />
                 )}
                 <div className="flex flex-col gap-3">
                     <span className="text-headline-md text-neutral-100">{title}</span>
