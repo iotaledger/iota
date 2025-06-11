@@ -663,7 +663,8 @@ describe('GraphQL IotaClient compatibility', () => {
         expect(graphql).toEqual(rpc);
     });
 
-    test('dryRunTransactionBlock', async () => {
+    // TODO: Skipped because of GraphQL inconsistencies in the implementation, see https://github.com/iotaledger/iota/issues/7323
+    test.skip('dryRunTransactionBlock', async () => {
         const tx = new Transaction();
         tx.setSender(toolbox.address());
         const [coin] = tx.splitCoins(tx.gas, [1]);
