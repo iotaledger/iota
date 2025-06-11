@@ -59,7 +59,7 @@ export function Navbar({
                         <IotaLogoMark className="text-neutral-10 dark:text-neutral-92" />
                     </div>
                     <div
-                        className="state-layer relative rounded-full p-xs hover:cursor-pointer dark:text-neutral-92 sm:hidden [&_svg]:h-6 [&_svg]:w-6"
+                        className="state-layer dark:text-neutral-92 relative rounded-full p-xs hover:cursor-pointer sm:hidden [&_svg]:h-6 [&_svg]:w-6"
                         onClick={onToggleNavbar}
                     >
                         <MenuIcon />

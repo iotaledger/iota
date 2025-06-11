@@ -39,7 +39,7 @@ export function Header({
     const keepSpaceForIcon = titleCentered && (!onBack || !onClose);
 
     return (
-        <div className="flex min-h-[56px] w-full items-center bg-neutral-100 px-md--rs pb-xs pt-sm text-neutral-10 dark:bg-neutral-6 dark:text-neutral-92 [&_svg]:h-5 [&_svg]:w-5">
+        <div className="text-neutral-10 dark:bg-neutral-6 dark:text-neutral-92 flex min-h-[56px] w-full items-center bg-neutral-100 px-md--rs pb-xs pt-sm [&_svg]:h-5 [&_svg]:w-5">
             {onBack ? (
                 <Button
                     size={ButtonSize.Small}
