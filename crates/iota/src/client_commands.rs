@@ -93,7 +93,7 @@ use tracing::debug;
 use crate::{
     PrintableResult,
     clever_error_rendering::render_clever_error_opt,
-    client_ptb::ptb::PTB,
+    client_ptb::ptb::{PTB, PTBCommandResult},
     displays::Pretty,
     key_identity::{KeyIdentity, get_identity_address},
     keytool::Key,
@@ -496,6 +496,10 @@ pub enum IotaClientCommands {
         #[arg(long, short)]
         profile_output: Option<PathBuf>,
     },
+    /// Remove an existing address by its alias or hexadecimal string.
+    /// Warning: removes the private key from the keystore with no way to
+    /// recover it if it was not backed up.
+    RemoveAddress { address: KeyIdentity },
     /// Replay a given transaction to view transaction effects. Set environment
     /// variable MOVE_VM_STEP=1 to debug.
     ReplayTransaction {
@@ -691,10 +695,10 @@ impl OptsWithGas {
             args.push("--dev-inspect".to_string());
         }
         if self.rest.serialize_signed_transaction {
-            args.push("--serialize_signed_transaction".to_string());
+            args.push("--serialize-signed-transaction".to_string());
         }
         if self.rest.serialize_unsigned_transaction {
-            args.push("--serialize_unsigned_transaction".to_string());
+            args.push("--serialize-unsigned-transaction".to_string());
         }
         args
     }
@@ -745,6 +749,25 @@ impl IotaClientCommands {
                         .await?;
                 // this will be displayed via trace info, so no output is needed here
                 IotaClientCommandResult::NoOutput
+            }
+            IotaClientCommands::RemoveAddress { address } => {
+                let address = get_identity_address(Some(address), context)?;
+
+                if context.config().keystore().get_key(&address).is_ok() {
+                    context.config_mut().keystore_mut().remove_key(&address)?;
+                    if context
+                        .config()
+                        .active_address()
+                        .is_some_and(|a| a == address)
+                    {
+                        context.config_mut().set_active_address(None);
+                        context.config().save()?;
+                    }
+                } else {
+                    bail!("Address \"{address}\" does not exist in keystore");
+                }
+
+                IotaClientCommandResult::RemoveAddress(address)
             }
             IotaClientCommands::ReplayTransaction {
                 tx_digest,
@@ -1571,15 +1594,13 @@ impl IotaClientCommands {
                 let mut addr = None;
 
                 if address.is_none() && env.is_none() {
-                    return Err(anyhow!(
-                        "No address, an alias, or env specified. Please specify one."
-                    ));
+                    bail!("No address, an alias, or env specified. Please specify one.");
                 }
 
                 if let Some(address) = address {
                     let address = get_identity_address(Some(address), context)?;
                     if !context.config().keystore().addresses().contains(&address) {
-                        return Err(anyhow!("Address {} not managed by wallet", address));
+                        bail!("Address {} not managed by wallet", address);
                     }
                     context.config_mut().set_active_address(address);
                     addr = Some(address.to_string());
@@ -1642,9 +1663,7 @@ impl IotaClientCommands {
                 faucet,
             } => {
                 if context.config().get_env(&alias).is_some() {
-                    return Err(anyhow!(
-                        "Environment config with name [{alias}] already exists."
-                    ));
+                    bail!("Environment config with name [{alias}] already exists.");
                 }
                 let env = IotaEnv::new(alias, rpc)
                     .with_graphql(graphql)
@@ -1706,10 +1725,16 @@ impl IotaClientCommands {
 
                 IotaClientCommandResult::VerifySource
             }
-            IotaClientCommands::PTB(ptb) => {
-                ptb.execute(context).await?;
-                IotaClientCommandResult::NoOutput
-            }
+            IotaClientCommands::PTB(ptb) => match ptb.execute(context).await? {
+                PTBCommandResult::CommandResult(iota_client_command_result) => {
+                    iota_client_command_result
+                }
+                res => {
+                    let s = res.to_styled_str();
+                    println!("{}", s.ansi());
+                    IotaClientCommandResult::NoOutput
+                }
+            },
         };
         Ok(ret.prerender_clever_errors(context).await)
     }
@@ -1840,9 +1865,7 @@ pub(crate) async fn upgrade_package(
         .await?;
 
     let Some(data) = resp.data else {
-        return Err(anyhow!(
-            "Could not find upgrade capability at {upgrade_capability}"
-        ));
+        bail!("Could not find upgrade capability at {upgrade_capability}");
     };
 
     let upgrade_cap: UpgradeCap = data
@@ -2203,6 +2226,9 @@ impl Display for IotaClientCommandResult {
                 };
                 writeln!(writer, "{}", raw_object)?;
             }
+            IotaClientCommandResult::RemoveAddress(address) => {
+                write!(writer, "Removed address \"{address}\" from keystore.")?
+            }
             IotaClientCommandResult::SerializedUnsignedTransaction(tx_data) => {
                 writeln!(
                     writer,
@@ -2442,6 +2468,7 @@ impl IotaClientCommandResult {
             | IotaClientCommandResult::Object(_)
             | IotaClientCommandResult::Objects(_)
             | IotaClientCommandResult::RawObject(_)
+            | IotaClientCommandResult::RemoveAddress(_)
             | IotaClientCommandResult::SerializedSignedTransaction(_)
             | IotaClientCommandResult::SerializedUnsignedTransaction(_)
             | IotaClientCommandResult::Switch(_)
@@ -2596,6 +2623,7 @@ pub enum IotaClientCommandResult {
     Object(IotaObjectResponse),
     Objects(Vec<IotaObjectResponse>),
     RawObject(IotaObjectResponse),
+    RemoveAddress(IotaAddress),
     SerializedSignedTransaction(SenderSignedData),
     SerializedUnsignedTransaction(TransactionData),
     Switch(SwitchResponse),
@@ -3042,10 +3070,7 @@ pub(crate) async fn dry_run_or_execute_or_serialize(
                 anyhow!("Effects from IotaTransactionBlockResult should not be empty")
             })?;
             if let IotaExecutionStatus::Failure { error } = effects.status() {
-                return Err(anyhow!(
-                    "Error executing transaction '{}': {error}",
-                    response.digest
-                ));
+                bail!("Error executing transaction '{}': {error}", response.digest);
             }
             Ok(IotaClientCommandResult::TransactionBlock(response))
         }

@@ -22,7 +22,7 @@ use std::{
     time::{Duration, Instant},
 };
 
-use anyhow::{Result, anyhow};
+use anyhow::{Result, anyhow, bail};
 use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
 use bytes::Bytes;
 use fastcrypto::hash::{HashFunction, Sha3_256};
@@ -210,6 +210,35 @@ impl Manifest {
             }
         }
     }
+
+    pub fn get_all_end_of_epoch_checkpoint_seq_numbers(&self) -> Result<Vec<u64>> {
+        match self {
+            Manifest::V1(manifest) => {
+                let mut summary_files: Vec<_> = manifest
+                    .file_metadata
+                    .clone()
+                    .into_iter()
+                    .filter(|f| f.file_type == FileType::CheckpointSummary)
+                    .collect();
+                summary_files.sort_by_key(|f| f.checkpoint_seq_range.start);
+                assert_eq!(summary_files.first().unwrap().checkpoint_seq_range.start, 0);
+                // get last checkpoint seq num per epoch
+                let res = summary_files.windows(2).filter_map(|w| {
+                    assert_eq!(
+                        w[1].checkpoint_seq_range.start,
+                        w[0].checkpoint_seq_range.end
+                    );
+                    if w[1].epoch_num == w[0].epoch_num + 1 {
+                        Some(w[0].checkpoint_seq_range.end - 1)
+                    } else {
+                        None
+                    }
+                });
+                Ok(res.collect())
+            }
+        }
+    }
+
     pub fn update(
         &mut self,
         epoch_num: u64,
@@ -317,7 +346,7 @@ pub fn read_manifest_from_bytes(vec: Vec<u8>) -> Result<Manifest> {
     manifest_reader.rewind()?;
     let magic = manifest_reader.read_u32::<BigEndian>()?;
     if magic != MANIFEST_FILE_MAGIC {
-        return Err(anyhow!("Unexpected magic byte in manifest: {}", magic));
+        bail!("Unexpected magic byte in manifest: {}", magic);
     }
 
     // Reads from the end of the file and gets the SHA3 checksum
@@ -335,11 +364,11 @@ pub fn read_manifest_from_bytes(vec: Vec<u8>) -> Result<Manifest> {
     hasher.update(&content_buf);
     let computed_digest = hasher.finalize().digest;
     if computed_digest != sha3_digest {
-        return Err(anyhow!(
+        bail!(
             "Manifest corrupted, computed checksum: {:?}, stored checksum: {:?}",
             computed_digest,
             sha3_digest
-        ));
+        );
     }
     manifest_reader.rewind()?;
     manifest_reader.seek(SeekFrom::Start(MAGIC_BYTES as u64))?;
@@ -439,10 +468,7 @@ pub async fn verify_archive_with_genesis_config(
         }
     }
 
-    Err::<(), anyhow::Error>(anyhow!(
-        "Failed to verify archive after {} retries",
-        num_retries
-    ))
+    bail!("Failed to verify archive after {} retries", num_retries)
 }
 
 pub async fn verify_archive_with_checksums(

@@ -168,7 +168,7 @@ mod tests {
         // successful
         allower.get_mut().write().unwrap().insert(
             client_pub_key.to_owned(),
-            peers::IotaPeer {
+            peers::AllowedPeer {
                 name: "some-node".into(),
                 public_key: client_pub_key.to_owned(),
             },
@@ -285,7 +285,7 @@ mod tests {
         // successful
         allower.get_mut().write().unwrap().insert(
             client_pub_key.to_owned(),
-            peers::IotaPeer {
+            peers::AllowedPeer {
                 name: "some-node".into(),
                 public_key: client_pub_key.to_owned(),
             },

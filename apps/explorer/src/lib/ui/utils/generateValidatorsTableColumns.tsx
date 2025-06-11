@@ -22,7 +22,6 @@ interface GenerateValidatorsTableColumnsArgs {
     maxCommitteeSize?: number;
     validatorEvents?: IotaEvent[];
     rollingAverageApys?: ApyByValidator;
-    limit?: number;
     showValidatorIcon?: boolean;
     includeColumns?: string[];
     highlightValidatorName?: boolean;

@@ -1,7 +1,7 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { useAccounts, useBackgroundClient } from '_hooks';
+import { useAccounts, useBackgroundClient, useUnlockMutation } from '_hooks';
 import { useMutation } from '@tanstack/react-query';
 import {
     Button,
@@ -16,6 +16,8 @@ import {
 } from '@iota/apps-ui-kit';
 import { toast } from '@iota/core';
 import { Warning } from '@iota/apps-ui-icons';
+import { VerifyPasswordModal } from '_src/ui/app/components';
+import { useState } from 'react';
 
 interface RemoveDialogProps {
     accountID: string;
@@ -33,10 +35,13 @@ export function RemoveDialog({ isOpen, setOpen, accountID }: RemoveDialogProps) 
             setOpen(false);
         },
     });
+    const [isPasswordModalVisible, setPasswordModalVisible] = useState(true);
 
     const totalAccounts = allAccounts?.data?.length || 0;
+    const unlockAccountSourceMutation = useUnlockMutation();
 
     function handleCancel() {
+        setPasswordModalVisible(true);
         setOpen(false);
     }
 
@@ -45,6 +50,25 @@ export function RemoveDialog({ isOpen, setOpen, accountID }: RemoveDialogProps) 
             onSuccess: () => toast.success('Account removed'),
             onError: (e) => toast.error((e as Error)?.message || 'Something went wrong'),
         });
+    }
+
+    if (isPasswordModalVisible) {
+        return (
+            <VerifyPasswordModal
+                open={isOpen}
+                onVerify={async (password) => {
+                    await unlockAccountSourceMutation.mutateAsync({
+                        id: accountID,
+                        password,
+                    });
+                    setPasswordModalVisible(false);
+                }}
+                onClose={() => {
+                    setPasswordModalVisible(true);
+                    setOpen(false);
+                }}
+            />
+        );
     }
 
     return (

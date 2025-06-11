@@ -507,13 +507,16 @@ impl<S: PackageStore> Resolver<S> {
         for cmd in &tx.commands {
             match cmd {
                 Command::MoveCall(call) => {
-                    let params = self
+                    let Ok(params) = self
                         .function_parameters(
                             call.package.into(),
                             call.module.as_str(),
                             call.function.as_str(),
                         )
-                        .await?;
+                        .await
+                    else {
+                        continue;
+                    };
 
                     for (open_sig, arg) in params.iter().zip(call.arguments.iter()) {
                         let sig = open_sig.instantiate(&call.type_arguments)?;

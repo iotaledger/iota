@@ -1,5 +1,20 @@
 # @iota/kiosk
 
+## 0.4.3
+
+### Patch Changes
+
+-   Updated dependencies [53d5058]
+    -   @iota/iota-sdk@1.2.0
+
+## 0.4.2
+
+### Patch Changes
+
+-   Updated dependencies [acc502a]
+-   Updated dependencies [1128809]
+    -   @iota/iota-sdk@1.1.0
+
 ## 0.4.1
 
 ### Patch Changes

@@ -36,7 +36,7 @@ async fn test_ptb_files(path: &Path) -> datatest_stable::Result<()> {
 
     // Parsing
     let program = PTB::parse_ptb_commands(shlexed);
-    let (program, program_meta) = match program {
+    let (program, program_metadata) = match program {
         Ok(program) => program,
         Err(errors) => {
             let rendered = build_error_reports(&file_contents, errors);
@@ -53,13 +53,11 @@ async fn test_ptb_files(path: &Path) -> datatest_stable::Result<()> {
     // Preview (This is based on the parsed commands).
     let mut results = vec![];
     results.push(" === PREVIEW === ".to_string());
-    results.push(format!(
-        "{}",
-        PTBPreview {
-            program: &program,
-            program_metadata: &program_meta
-        }
-    ));
+    let preview = PTBPreview {
+        program,
+        program_metadata,
+    };
+    results.push(format!("{preview}"));
 
     // === BUILD PTB ===
     let test_cluster = TestClusterBuilder::new().build().await;
@@ -67,7 +65,7 @@ async fn test_ptb_files(path: &Path) -> datatest_stable::Result<()> {
     let context = &test_cluster.wallet;
     let client = context.get_client().await?;
 
-    let (built_ptb, warnings) = PTB::build_ptb(program, context, client).await;
+    let (built_ptb, warnings) = PTB::build_ptb(preview.program, context, client).await;
 
     if !warnings.is_empty() {
         let rendered = build_error_reports(&file_contents, warnings);
