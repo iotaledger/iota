@@ -19,7 +19,6 @@ use iota_config::{
 use iota_macros::nondeterministic;
 use iota_network::randomness;
 use iota_protocol_config::ProtocolConfig;
-use iota_storage::IndexStore;
 use iota_swarm_config::{genesis_config::AccountConfig, network_config::NetworkConfig};
 use iota_types::{
     base_types::{AuthorityName, ObjectID},
@@ -45,6 +44,7 @@ use crate::{
         committee_store::CommitteeStore, epoch_metrics::EpochMetrics, randomness::RandomnessManager,
     },
     execution_cache::build_execution_cache,
+    jsonrpc_index::IndexStore,
     mock_consensus::{ConsensusMode, MockConsensusClient},
     module_cache_metrics::ResolverMetrics,
     rest_index::RestIndexStore,
