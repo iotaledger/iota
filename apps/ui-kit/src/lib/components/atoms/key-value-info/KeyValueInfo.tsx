@@ -111,7 +111,7 @@ export function KeyValueInfo({
                     'w-1/4': !fullwidth,
                 })}
             >
-                <span className="text-body-md text-neutral-40 dark:text-neutral-60">{keyText}</span>
+                <span className="text-neutral-40 dark:text-neutral-60 text-body-md">{keyText}</span>
                 {tooltipText && (
                     <Tooltip text={tooltipText} position={tooltipPosition}>
                         <Info className="text-neutral-60 dark:text-neutral-40" />
