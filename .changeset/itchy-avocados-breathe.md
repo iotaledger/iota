@@ -2,4 +2,4 @@
 '@iota/iota-sdk': minor
 ---
 
-Rexport `getGraphQLUrl` correctly
+Export `getGraphQLUrl` correctly
