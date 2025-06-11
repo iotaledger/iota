@@ -107,17 +107,15 @@ impl DataManager {
         // Update last_committed_index
         self.last_committed_index = last_committed;
 
-        // Collect all missing blockrefs from all remaining pending subdags, skipping
+        // Collect all missing refs from all remaining pending subdags, skipping
         // the first uncommitted (already processed)
         for (idx, subdag) in self.pending_subdags.iter() {
             if Some(*idx) == first_uncommitted_index {
                 continue;
             }
-            // Query dag_state directly for missing blocks
+            // Query dag_state directly for missing transactions
             let dag_state = self.dag_state.read();
-            // TODO: this needs to check for missing transactions, not block headers
-            let exists =
-                dag_state.contains_block_headers(subdag.committed_transaction_refs.clone());
+            let exists = dag_state.contains_transactions(subdag.committed_transaction_refs.clone());
             for (i, exists) in exists.iter().enumerate() {
                 if !exists {
                     let block_ref = subdag.committed_transaction_refs[i];
@@ -144,33 +142,22 @@ impl DataManager {
         subdag: &PendingSubDag,
     ) -> Result<CommittedSubDag, Vec<BlockRef>> {
         let dag_state = self.dag_state.read();
-        // TODO: this needs to check for missing transactions, not block headers
-        let exists = dag_state.contains_block_headers(subdag.committed_transaction_refs.clone());
+        // Get transactions and check if any are missing
+        let transaction_results = dag_state.get_transactions(&subdag.committed_transaction_refs);
         let mut missing = Vec::new();
-        for (i, exists) in exists.iter().enumerate() {
-            if !exists {
+        for (i, tx_opt) in transaction_results.iter().enumerate() {
+            if tx_opt.is_none() {
                 missing.push(subdag.committed_transaction_refs[i]);
             }
         }
+
         if missing.is_empty() {
-            // All blocks exist, so we can create a CommittedSubDag
-            // Fetch the VerifiedTransactions for each committed_transaction_ref
-            // For now, stub out transaction existence and fetching
-            let transactions = subdag
-                .committed_transaction_refs
-                .iter()
-                .map(|_block_ref| {
-                    // TODO: Replace with actual transaction fetching from dag_state
-                    // For now, just panic or return a stub
-                    // panic!("Transaction fetching not implemented");
-                    crate::block_header::VerifiedTransactions::new(
-                        vec![],
-                        *_block_ref,
-                        crate::block_header::TransactionsCommitment::default(),
-                        bytes::Bytes::new(),
-                    )
-                })
+            // All transactions exist, so we can create a CommittedSubDag
+            let transactions = transaction_results
+                .into_iter()
+                .map(|tx| tx.expect("Transaction must exist since we checked"))
                 .collect();
+
             Ok(CommittedSubDag::new(
                 subdag.leader,
                 subdag.base.blocks.clone(),
@@ -337,7 +324,12 @@ mod tests {
             block1s.iter().map(|b| b.reference()).collect(),
         );
         let (committed, missing) = manager.try_commit(&[subdag1, subdag2]);
-        assert_eq!(committed.len(), 2);
+        assert_eq!(
+            committed.len(),
+            2,
+            "Expected 2 subdags to be committed, got: {:?}",
+            committed
+        );
         assert!(missing.is_empty());
         assert!(manager.pending_subdags.is_empty());
         assert_eq!(manager.last_committed_index, 2);
@@ -451,16 +443,49 @@ mod tests {
         );
 
         let (committed, missing) = manager.try_commit(&[subdag2.clone()]);
-        assert!(committed.is_empty());
-        assert!(missing.is_empty());
-        assert!(manager.pending_subdags.contains_key(&2));
-        assert_eq!(manager.last_committed_index, 0);
+        assert!(
+            committed.is_empty(),
+            "Expected no committed subdags, got: {:?}",
+            committed
+        );
+        assert!(
+            missing.is_empty(),
+            "Expected no missing blocks, got: {:?}",
+            missing
+        );
+        assert!(
+            manager.pending_subdags.contains_key(&2),
+            "Expected pending subdag for index 2, got: {:?}",
+            manager.pending_subdags
+        );
+        assert_eq!(
+            manager.last_committed_index, 0,
+            "Expected last committed index to be 0, got: {}",
+            manager.last_committed_index
+        );
 
         let (committed, missing) = manager.try_commit(&[subdag1.clone()]);
-        assert_eq!(committed.len(), 2);
-        assert!(missing.is_empty());
-        assert!(manager.pending_subdags.is_empty());
-        assert_eq!(manager.last_committed_index, 2);
+        assert_eq!(
+            committed.len(),
+            2,
+            "Expected 2 subdags to be committed, got: {:?}",
+            committed
+        );
+        assert!(
+            missing.is_empty(),
+            "Expected no missing blocks, got: {:?}",
+            missing
+        );
+        assert!(
+            manager.pending_subdags.is_empty(),
+            "Expected no pending subdags, got: {:?}",
+            manager.pending_subdags
+        );
+        assert_eq!(
+            manager.last_committed_index, 2,
+            "Expected last committed index to be 2, got: {}",
+            manager.last_committed_index
+        );
     }
 
     #[test]

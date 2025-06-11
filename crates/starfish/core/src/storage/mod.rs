@@ -41,7 +41,6 @@ pub(crate) trait Store: Send + Sync {
     ) -> ConsensusResult<Vec<Option<VerifiedTransactions>>>;
 
     /// Checks if transactions exist in the store.
-    #[cfg_attr(not(test), expect(dead_code))]
     fn contains_transactions(&self, refs: &[BlockRef]) -> ConsensusResult<Vec<bool>>;
 
     /// Checks if block headers exist in the store.
