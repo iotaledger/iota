@@ -38,7 +38,7 @@ function WalletBalanceUsd({ amount: walletBalance }: WalletBalanceUsdProps) {
     }
 
     return (
-        <div className="text-label-md text-neutral-40 dark:text-neutral-60">
+        <div className="text-neutral-40 dark:text-neutral-60 text-label-md">
             {walletBalanceInUsd}
         </div>
     );
@@ -67,7 +67,7 @@ export function CoinBalance({ amount: walletBalance, type }: CoinProps) {
                         position={TooltipPosition.Bottom}
                     >
                         <div
-                            className="text-headline-lg text-neutral-10 dark:text-neutral-92"
+                            className="text-neutral-10 dark:text-neutral-92 text-headline-lg"
                             data-testid="coin-balance"
                         >
                             {formatted}
@@ -75,13 +75,13 @@ export function CoinBalance({ amount: walletBalance, type }: CoinProps) {
                     </Tooltip>
                 ) : (
                     <div
-                        className="text-headline-lg text-neutral-10 dark:text-neutral-92"
+                        className="text-neutral-10 dark:text-neutral-92 text-headline-lg"
                         data-testid="coin-balance"
                     >
                         {formatted}
                     </div>
                 )}
-                <div className="text-label-md text-neutral-40 dark:text-neutral-60">{symbol}</div>
+                <div className="text-neutral-40 dark:text-neutral-60 text-label-md">{symbol}</div>
             </div>
             <WalletBalanceUsd amount={walletBalance} />
         </>

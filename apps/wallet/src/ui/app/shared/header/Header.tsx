@@ -16,7 +16,7 @@ interface HeaderProps {
  */
 export function Header({ leftContent, middleContent, rightContent }: HeaderProps) {
     return (
-        <header className="flex flex-row items-center justify-between bg-neutral-100 px-md py-xs dark:bg-neutral-6">
+        <header className="dark:bg-neutral-6 flex flex-row items-center justify-between bg-neutral-100 px-md py-xs">
             {leftContent && <div>{leftContent}</div>}
             {middleContent && <div className="shrink-0 overflow-hidden">{middleContent}</div>}
             {rightContent && <div>{rightContent}</div>}

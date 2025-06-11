@@ -48,7 +48,7 @@ export function Navigation() {
     }
 
     return (
-        <div className="sticky bottom-0 w-full shrink-0 border-b-0 bg-neutral-100 dark:bg-neutral-6">
+        <div className="dark:bg-neutral-6 sticky bottom-0 w-full shrink-0 border-b-0 bg-neutral-100">
             <Navbar items={NAVBAR_ITEMS} activeId={activeId} onClickItem={handleItemClick} />
         </div>
     );

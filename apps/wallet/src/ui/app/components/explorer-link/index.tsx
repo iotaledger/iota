@@ -34,7 +34,7 @@ export function ExplorerLink({
     return (
         <ExternalLink
             href={explorerHref}
-            className={clsx('text-body-md text-primary-30 dark:text-primary-80', className)}
+            className={clsx('text-primary-30 dark:text-primary-80 text-body-md', className)}
             title={title}
         >
             <>

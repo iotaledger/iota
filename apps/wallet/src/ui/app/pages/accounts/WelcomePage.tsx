@@ -20,7 +20,7 @@ export function WelcomePage() {
 
     return (
         <Loading loading={isInitializedLoading || isFullscreenGuardLoading}>
-            <div className="flex h-full w-full flex-col items-center justify-between bg-neutral-100 px-md py-2xl shadow-wallet-content dark:bg-neutral-6">
+            <div className="dark:bg-neutral-6 flex h-full w-full flex-col items-center justify-between bg-neutral-100 px-md py-2xl shadow-wallet-content">
                 <IotaLogoWeb
                     width={130}
                     height={32}
@@ -28,13 +28,13 @@ export function WelcomePage() {
                 />
                 <div className="flex flex-col items-center gap-8 text-center">
                     <div className="flex flex-col items-center gap-4">
-                        <span className="text-headline-sm text-neutral-40 dark:text-neutral-60">
+                        <span className="text-neutral-40 dark:text-neutral-60 text-headline-sm">
                             Welcome to
                         </span>
-                        <h1 className="text-display-lg text-neutral-10 dark:text-neutral-92">
+                        <h1 className="text-neutral-10 dark:text-neutral-92 text-display-lg">
                             IOTA Wallet
                         </h1>
-                        <span className="text-title-lg text-neutral-40 dark:text-neutral-60">
+                        <span className="text-neutral-40 dark:text-neutral-60 text-title-lg">
                             Your Gateway to the IOTA Ecosystem
                         </span>
                     </div>
@@ -49,7 +49,7 @@ export function WelcomePage() {
                         }
                     />
                 </div>
-                <div className="text-body-lg text-neutral-60 dark:text-neutral-40">
+                <div className="text-neutral-60 dark:text-neutral-40 text-body-lg">
                     &copy; IOTA Foundation {CURRENT_YEAR}
                 </div>
             </div>

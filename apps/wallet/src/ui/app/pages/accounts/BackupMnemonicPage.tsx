@@ -47,7 +47,7 @@ export function BackupMnemonicPage() {
             <Loading loading={isPending}>
                 <div className="flex h-full flex-col items-center justify-between">
                     <div className="flex flex-col gap-md">
-                        <h3 className="text-center text-headline-lg text-neutral-10 dark:text-neutral-92">
+                        <h3 className="text-neutral-10 dark:text-neutral-92 text-center text-headline-lg">
                             Wallet Created Successfully!
                         </h3>
                         <InfoBox

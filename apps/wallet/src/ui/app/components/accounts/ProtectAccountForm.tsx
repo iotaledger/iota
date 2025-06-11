@@ -132,12 +132,12 @@ export function ProtectAccountForm({
                         name="acceptedTos"
                         label={
                             <div className="flex items-center gap-x-0.5 whitespace-nowrap">
-                                <span className="text-label-lg text-neutral-40 dark:text-neutral-60">
+                                <span className="text-neutral-40 dark:text-neutral-60 text-label-lg">
                                     I read and agreed to the
                                 </span>
                                 <a
                                     href={ToS_LINK}
-                                    className="text-label-lg text-primary-30 dark:text-primary-80"
+                                    className="text-primary-30 dark:text-primary-80 text-label-lg"
                                     target="_blank"
                                     rel="noopener noreferrer"
                                 >

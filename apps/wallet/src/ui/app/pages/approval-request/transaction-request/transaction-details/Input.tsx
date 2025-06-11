@@ -33,7 +33,7 @@ export function Input({ input }: InputProps) {
                     fullwidth
                 />
             ) : (
-                <span className="text-body-md text-neutral-40 dark:text-neutral-60">
+                <span className="text-neutral-40 dark:text-neutral-60 text-body-md">
                     Unknown input value
                 </span>
             )}

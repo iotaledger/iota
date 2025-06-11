@@ -57,7 +57,7 @@ export function TokenStakingOverview({
     return (
         <Card type={CardType.Filled} onClick={handleOnClick} isDisabled={disabled}>
             <CardImage shape={ImageShape.SquareRounded}>
-                <Stake className="h-5 w-5 text-primary-20 dark:text-primary-90" />
+                <Stake className="text-primary-20 dark:text-primary-90 h-5 w-5" />
             </CardImage>
             <CardBody
                 title={

@@ -36,14 +36,14 @@ function MoveCall({ data }: { data: MoveCallIotaTransaction }): JSX.Element {
         type_arguments: typeArgs,
     } = data;
     return (
-        <span className="text-body-md text-neutral-40 dark:text-neutral-60">
+        <span className="text-neutral-40 dark:text-neutral-60 text-body-md">
             package:{' '}
-            <span className="break-all text-primary-30 dark:text-primary-80">
+            <span className="text-primary-30 dark:text-primary-80 break-all">
                 {formatAddress(normalizeIotaAddress(movePackage))}
             </span>
             , module:{' '}
-            <span className="break-all text-primary-30 dark:text-primary-80">{module}</span>,
-            function: <span className="break-all text-primary-30 dark:text-primary-80">{func}</span>
+            <span className="text-primary-30 dark:text-primary-80 break-all">{module}</span>,
+            function: <span className="text-primary-30 dark:text-primary-80 break-all">{func}</span>
             {args && (
                 <span className="break-all">
                     , arguments: {convertCommandArgumentToString(args)}
@@ -104,7 +104,7 @@ export function Command({ command }: CommandProps) {
     return (
         <Collapsible hideBorder defaultOpen title={command.$kind} titleSize={TitleSize.Small}>
             <div className="flex flex-col gap-y-sm px-md">
-                <span className="text-body-md text-neutral-40 dark:text-neutral-60">
+                <span className="text-neutral-40 dark:text-neutral-60 text-body-md">
                     {type === 'MoveCall' ? (
                         <ErrorBoundary>
                             <MoveCall data={data as MoveCallIotaTransaction} />

@@ -43,7 +43,7 @@ export function MenuContent() {
     }
 
     return (
-        <div className="absolute inset-0 z-50 flex flex-col justify-items-stretch overflow-y-auto rounded-t-xl bg-neutral-100 px-2.5 pb-8 dark:bg-neutral-6">
+        <div className="dark:bg-neutral-6 absolute inset-0 z-50 flex flex-col justify-items-stretch overflow-y-auto rounded-t-xl bg-neutral-100 px-2.5 pb-8">
             <ErrorBoundary>
                 <MainLocationContext.Provider value={mainLocation}>
                     <Routes location={menuUrl || ''}>

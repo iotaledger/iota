@@ -47,14 +47,14 @@ export function SignMessageRequest({ request }: SignMessageRequestProps) {
         >
             <PageMainLayoutTitle title="Sign Message" />
             <div className="py-md">
-                <span className="text-title-lg text-neutral-10 dark:text-neutral-92">
+                <span className="text-neutral-10 dark:text-neutral-92 text-title-lg">
                     Message You Are Signing
                 </span>
             </div>
             <Panel hasBorder>
                 <div className="flex flex-col flex-nowrap items-stretch overflow-y-auto overflow-x-hidden shadow-md">
                     <div className="break-words p-lg">
-                        <span className="text-body-sm text-neutral-40 dark:text-neutral-60">
+                        <span className="text-neutral-40 dark:text-neutral-60 text-body-sm">
                             {message}
                         </span>
                     </div>

@@ -159,7 +159,7 @@ export function AccountGroupItem({
                             top: dropdownPosition.y,
                         }}
                         className={clsx(
-                            `absolute right-0 z-[99] rounded-lg bg-neutral-100 shadow-md dark:bg-neutral-6`,
+                            `dark:bg-neutral-6 absolute right-0 z-[99] rounded-lg bg-neutral-100 shadow-md`,
                             showDropdownOptionsBottom ? '-translate-y-full' : '',
                         )}
                     >

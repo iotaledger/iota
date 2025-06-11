@@ -58,7 +58,7 @@ export function Overlay({
                         testId="overlay-title"
                     />
                 )}
-                <div className="flex w-full flex-1 flex-col overflow-hidden bg-neutral-100 p-md dark:bg-neutral-6">
+                <div className="dark:bg-neutral-6 flex w-full flex-1 flex-col overflow-hidden bg-neutral-100 p-md">
                     {children}
                 </div>
             </div>

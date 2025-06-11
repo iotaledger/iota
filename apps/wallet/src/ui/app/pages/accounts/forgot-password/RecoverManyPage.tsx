@@ -52,7 +52,7 @@ export function RecoverManyPage() {
     return (
         <PageTemplate title="Forgot your Passwords?" isTitleCentered onClose={handleCancel}>
             <div className="flex h-full flex-col gap-lg overflow-auto">
-                <span className="text-center text-label-lg text-neutral-40 dark:text-neutral-60">
+                <span className="text-neutral-40 dark:text-neutral-60 text-center text-label-lg">
                     Recover the following accounts by completing the recovery process
                 </span>
                 <div className="flex w-full flex-1 flex-col gap-lg overflow-auto">
@@ -128,7 +128,7 @@ export function RecoverManyPage() {
                     <div className="flex h-full w-full flex-col flex-nowrap gap-4 text-center">
                         {recoverInfo?.type === AccountSourceType.Mnemonic ? (
                             <>
-                                <span className="text-label-lg text-neutral-40 dark:text-neutral-60">
+                                <span className="text-neutral-40 dark:text-neutral-60 text-label-lg">
                                     Enter your mnemonic to recover your account
                                 </span>
                                 <ImportRecoveryPhraseForm

@@ -33,7 +33,7 @@ export function PageTemplate({
                     onClose={onClose}
                 />
             )}
-            <div className="w-full flex-1 overflow-y-auto overflow-x-hidden bg-neutral-100 p-md dark:bg-neutral-6">
+            <div className="dark:bg-neutral-6 w-full flex-1 overflow-y-auto overflow-x-hidden bg-neutral-100 p-md">
                 {children}
             </div>
         </div>

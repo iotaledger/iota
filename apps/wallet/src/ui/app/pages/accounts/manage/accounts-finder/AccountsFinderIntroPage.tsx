@@ -37,13 +37,13 @@ export function AccountsFinderIntroPage() {
                 </div>
                 <div className="flex h-full flex-col items-center justify-between">
                     <div className="flex flex-col gap-y-sm p-md text-center">
-                        <span className="text-label-lg text-neutral-40 dark:text-neutral-60">
+                        <span className="text-neutral-40 dark:text-neutral-60 text-label-lg">
                             Wallet Setup
                         </span>
-                        <span className="text-headline-md text-neutral-10 dark:text-neutral-92">
+                        <span className="text-neutral-10 dark:text-neutral-92 text-headline-md">
                             Balance Finder
                         </span>
-                        <span className="text-body-md text-neutral-40 dark:text-neutral-60">
+                        <span className="text-neutral-40 dark:text-neutral-60 text-body-md">
                             Easily find and import all your accounts with balances, in one place.
                         </span>
                     </div>

@@ -62,7 +62,7 @@ export function PageMainLayout({
                 />
             ) : null}
             <div className="relative flex flex-grow flex-col flex-nowrap overflow-hidden">
-                <div className="flex flex-grow flex-col flex-nowrap overflow-y-auto overflow-x-hidden bg-neutral-100 dark:bg-neutral-6">
+                <div className="dark:bg-neutral-6 flex flex-grow flex-col flex-nowrap overflow-y-auto overflow-x-hidden bg-neutral-100">
                     <main
                         className={cn('flex w-full flex-grow flex-col', {
                             'p-5': bottomNavEnabled && isHomePage,
@@ -105,13 +105,13 @@ function LeftContent({
         >
             <div
                 className={cn(
-                    'flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary-30 [&_svg]:h-5 [&_svg]:w-5 [&_svg]:text-white',
+                    'bg-primary-30 flex h-8 w-8 shrink-0 items-center justify-center rounded-full [&_svg]:h-5 [&_svg]:w-5 [&_svg]:text-white',
                     backgroundColor,
                 )}
             >
                 {isLedgerAccount ? <Ledger /> : <IotaLogoMark />}
             </div>
-            <span className="line-clamp-1 break-all text-title-sm text-neutral-10 dark:text-neutral-92">
+            <span className="text-neutral-10 dark:text-neutral-92 line-clamp-1 break-all text-title-sm">
                 {accountName}
             </span>
             {isLegacyAccount && <Badge type={BadgeType.Neutral} label="Legacy" />}

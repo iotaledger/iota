@@ -28,10 +28,10 @@ export function MigrationDialog({ open, setOpen }: MigrationDialogProps) {
                     <div className="flex flex-col gap-lg text-center">
                         <img src={imgSrc} alt="Migration" />
                         <div className="flex flex-col items-center justify-center gap-y-sm pb-md">
-                            <span className="text-headline-sm text-neutral-10 dark:text-neutral-92">
+                            <span className="text-neutral-10 dark:text-neutral-92 text-headline-sm">
                                 Fast and Easy Migration
                             </span>
-                            <span className="max-w-56 text-body-md text-neutral-40 dark:text-neutral-60">
+                            <span className="text-neutral-40 dark:text-neutral-60 max-w-56 text-body-md">
                                 Migrate your tokens to the new network to enjoy the latest features.
                             </span>
                         </div>
