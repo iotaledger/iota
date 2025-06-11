@@ -53,11 +53,13 @@ interface ListViewProps {
 
 function ListView({ name, icon, description, tags }: ListViewProps) {
     return (
-        <div className="item-center box-border flex gap-sm rounded-2xl bg-neutral-100 p-sm hover:bg-shader-primary-dark-12 dark:bg-neutral-6">
+        <div className="item-center box-border flex gap-sm rounded-2xl bg-iota-neutral-100 p-sm hover:bg-shader-primary-dark-12 dark:bg-iota-neutral-6">
             <ImageIcon src={icon || null} label={name} fallback={name} />
             <div className="flex flex-col justify-center gap-sm">
-                <span className="text-label-md text-neutral-10 dark:text-neutral-92">{name}</span>
-                <span className="text-body-sm text-neutral-40 dark:text-neutral-60">
+                <span className="text-label-md text-iota-neutral-10 dark:text-iota-neutral-92">
+                    {name}
+                </span>
+                <span className="text-body-sm text-iota-neutral-40 dark:text-iota-neutral-60">
                     {description}
                 </span>
                 {tags?.length && (

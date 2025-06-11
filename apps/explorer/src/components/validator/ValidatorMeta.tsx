@@ -43,7 +43,7 @@ export function InactiveValidators({
                             <div>
                                 <Badge type={BadgeType.Neutral} label="Validator" />
                             </div>
-                            <div className="flex flex-row items-center gap-x-xs text-neutral-10 dark:text-neutral-92">
+                            <div className="flex flex-row items-center gap-x-xs text-iota-neutral-10 dark:text-iota-neutral-92">
                                 <span className="text-headline-md">{name}</span>
                                 {projectUrl && (
                                     <a href={projectUrl} target="_blank" rel="noreferrer noopener">
@@ -54,10 +54,10 @@ export function InactiveValidators({
                         </div>
                     </div>
                     <div className="flex w-full flex-col gap-y-md md:w-1/2">
-                        <span className="text-label-lg text-neutral-40 dark:text-neutral-60">
+                        <span className="text-label-lg text-iota-neutral-40 dark:text-iota-neutral-60">
                             Description
                         </span>
-                        <span className="text-body-md text-neutral-10 dark:text-neutral-92">
+                        <span className="text-body-md text-iota-neutral-10 dark:text-iota-neutral-92">
                             {description ?? '--'}
                         </span>
                     </div>
@@ -113,7 +113,7 @@ export function ValidatorMeta({ validatorData }: ValidatorMetaProps): JSX.Elemen
                             <div>
                                 <Badge type={BadgeType.Neutral} label="Validator" />
                             </div>
-                            <div className="flex flex-row items-center gap-x-xs text-neutral-10 dark:text-neutral-92">
+                            <div className="flex flex-row items-center gap-x-xs text-iota-neutral-10 dark:text-iota-neutral-92">
                                 <span className="text-headline-md">{validatorName}</span>
                                 {projectUrl && (
                                     <a href={projectUrl} target="_blank" rel="noreferrer noopener">
@@ -124,10 +124,10 @@ export function ValidatorMeta({ validatorData }: ValidatorMetaProps): JSX.Elemen
                         </div>
                     </div>
                     <div className="flex w-full flex-col gap-y-md md:w-1/2">
-                        <span className="text-label-lg text-neutral-40 dark:text-neutral-60">
+                        <span className="text-label-lg text-iota-neutral-40 dark:text-iota-neutral-60">
                             Description
                         </span>
-                        <span className="text-body-md text-neutral-10 dark:text-neutral-92">
+                        <span className="text-body-md text-iota-neutral-10 dark:text-iota-neutral-92">
                             {description ?? '--'}
                         </span>
                     </div>

@@ -141,7 +141,7 @@ function VisibilityOffBar({ rows, halfWidthRow }: VisibilityOffBarProps) {
                 return (
                     <div
                         key={index}
-                        className={`h-2.5 rounded bg-neutral-92/60 dark:bg-neutral-10/60 ${width}`}
+                        className={`bg-neutral-92/60 dark:bg-neutral-10/60 h-2.5 rounded ${width}`}
                     />
                 );
             })}

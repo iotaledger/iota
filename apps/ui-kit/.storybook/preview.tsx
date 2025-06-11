@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { type Preview } from '@storybook/react';
-import { themes } from '@storybook/theming';
+import { withThemeByClassName } from '@storybook/addon-themes';
 
 import '../src/lib/styles/index.css';
 
@@ -15,10 +15,27 @@ const preview: Preview = {
                 date: /Date$/i,
             },
         },
-        darkMode: {
-            stylePreview: true,
-            dark: { ...themes.dark },
-            light: { ...themes.normal },
+    },
+    decorators: [
+        withThemeByClassName({
+            themes: {
+                light: 'light',
+                dark: 'dark',
+                names: 'names',
+            },
+            defaultTheme: 'light',
+        }),
+    ],
+    globalTypes: {
+        theme: {
+            name: 'Theme',
+            description: 'Global theme for components',
+            defaultValue: 'light',
+            toolbar: {
+                icon: 'paintbrush',
+                items: ['light', 'dark', 'names'],
+                showName: true,
+            },
         },
     },
 };
