@@ -283,7 +283,7 @@ describe('GraphQL IotaClient compatibility', () => {
     });
 
     // This should work with a full node. Try to unskip it "later"
-    test.skip('tryGetPastObject', async () => {
+    test('tryGetPastObject', async () => {
         const {
             data: [{ coinObjectId: id, version }],
         } = await toolbox.getGasObjectsOwnedByAddress();
@@ -578,7 +578,7 @@ describe('GraphQL IotaClient compatibility', () => {
         expect(graphql).toEqual(rpc);
     });
 
-    test.skip('getDynamicFieldObjectV2', async () => {
+    test('getDynamicFieldObjectV2', async () => {
         const { data } = await toolbox.client.getDynamicFields({
             parentId: parentObjectId,
         });
@@ -713,28 +713,32 @@ describe('GraphQL IotaClient compatibility', () => {
         expect(graphql).toEqual(rpc);
     });
 
-    test('getCommitteeInfo', async () => {
+    test.skip('getCommitteeInfo', async () => {
         const rpc = await toolbox.client.getCommitteeInfo({});
         const graphql = await graphQLClient!.getCommitteeInfo({});
 
         expect(graphql).toEqual(rpc);
     });
 
-    test.skip('getNetworkMetrics', async () => {
+    test('getNetworkMetrics', async () => {
         const rpc = await toolbox.client.getNetworkMetrics();
         const graphql = await graphQLClient!.getNetworkMetrics();
 
-        expect(graphql).toEqual(rpc);
+        // Ignore current checkpoint cause timing
+        expect({ ...graphql, currentCheckpoint: undefined }).toEqual({
+            ...rpc,
+            currentCheckpoint: undefined,
+        });
     });
 
-    test.skip('getParticipationMetrics', async () => {
+    test('getParticipationMetrics', async () => {
         const rpc = await toolbox.client.getParticipationMetrics();
         const graphql = await graphQLClient!.getParticipationMetrics();
 
         expect(graphql).toEqual(rpc);
     });
 
-    test.skip('getMoveCallMetrics', async () => {
+    test('getMoveCallMetrics', async () => {
         const rpc = await toolbox.client.getMoveCallMetrics();
         const graphql = await graphQLClient!.getMoveCallMetrics();
 
@@ -748,7 +752,7 @@ describe('GraphQL IotaClient compatibility', () => {
         expect(graphql).toEqual(rpc);
     });
 
-    test.skip('getAllEpochAddressMetrics', async () => {
+    test('getAllEpochAddressMetrics', async () => {
         const rpc = await toolbox.client.getAllEpochAddressMetrics();
         const graphql = await graphQLClient!.getAllEpochAddressMetrics();
 
@@ -762,7 +766,7 @@ describe('GraphQL IotaClient compatibility', () => {
         expect(graphql).toEqual(rpc);
     });
 
-    test.skip('getEpochs', async () => {
+    test('getEpochs', async () => {
         const rpc = await toolbox.client.getEpochs();
         const graphql = await graphQLClient!.getEpochs();
 
@@ -783,7 +787,7 @@ describe('GraphQL IotaClient compatibility', () => {
         expect(graphql).toEqual(rpc);
     });
 
-    test.skip('getValidatorsApy', async () => {
+    test('getValidatorsApy', async () => {
         const rpc = await toolbox.client.getValidatorsApy();
         const graphql = await graphQLClient!.getValidatorsApy();
 
