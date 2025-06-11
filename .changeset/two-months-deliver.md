@@ -3,4 +3,5 @@
 '@iota/iota-sdk': minor
 ---
 
-Fixes in the GraphQL support and iota client
+Improved logic around `fallbackMethods` in graphql-transport
+Improved IotaClient compatibility with graphql-transport
