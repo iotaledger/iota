@@ -612,22 +612,39 @@ describe('GraphQL IotaClient compatibility', () => {
         const [coin] = tx.splitCoins(tx.gas, [1]);
         tx.transferObjects([coin], toolbox.address());
 
-        const { confirmedLocalExecution, ...graphql } =
-            await graphQLClient!.signAndExecuteTransaction({
-                transaction: tx as Transaction,
-                signer: toolbox.keypair,
-                options: {
-                    showBalanceChanges: true,
-                    showEffects: true,
-                    showEvents: true,
-                    // TODO inputs missing valueType
-                    showInput: false,
-                    showObjectChanges: true,
-                    showRawInput: true,
-                },
-            });
+        const transaction = await graphQLClient!.signAndExecuteTransaction({
+            transaction: tx as Transaction,
+            signer: toolbox.keypair,
+            options: {
+                showBalanceChanges: true,
+                showEffects: true,
+                showEvents: true,
+                // TODO inputs missing valueType
+                showInput: false,
+                showObjectChanges: true,
+                showRawInput: true,
+            },
+        });
 
-        await toolbox.client.waitForTransaction({ digest: graphql.digest });
+        await toolbox.client.waitForTransaction({ digest: transaction.digest });
+
+        const {
+            checkpoint: gCheckpoint,
+            timestampMs: gTimestampMs,
+            rawEffects: gRawEffects,
+            ...graphql
+        } = (await toolbox.client.getTransactionBlock({
+            digest: transaction.digest,
+            options: {
+                showBalanceChanges: true,
+                showEffects: true,
+                showEvents: true,
+                // TODO inputs missing valueType
+                showInput: false,
+                showObjectChanges: true,
+                showRawInput: true,
+            },
+        })) as IotaTransactionBlockResponse & { rawEffects: unknown };
 
         const { checkpoint, timestampMs, rawEffects, ...rpc } =
             (await toolbox.client.getTransactionBlock({
