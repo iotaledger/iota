@@ -1836,10 +1836,13 @@ fn find_transaction_for_wrapped_or_deleted_object() -> Result<(), anyhow::Error>
                 address,
             )
             .await;
+        let gas_object_id = gas.0;
         indexer_wait_for_object(client, gas.0, gas.1).await;
 
         // 2) Publish the `Warrior` package
-        let (package_id, _, _) = publish_simple_warrior_package(&cluster.wallet).await;
+        let (package_id, tx_digest) =
+            publish_simple_warrior_package(&cluster.wallet, &keypair, address, gas).await;
+        indexer_wait_for_transaction(tx_digest, store, client).await;
 
         // 3) Mint a `Sword`
         let pt = {
@@ -1860,6 +1863,7 @@ fn find_transaction_for_wrapped_or_deleted_object() -> Result<(), anyhow::Error>
             builder.finish()
         };
 
+        let gas = cluster.get_latest_object_ref(&gas_object_id).await;
         let tx_builder = TestTransactionBuilder::new(address, gas, 1000);
         let tx_data = tx_builder.programmable(pt).build();
         let signed_transaction = to_sender_signed_transaction(tx_data, &keypair);
@@ -1912,13 +1916,7 @@ fn find_transaction_for_wrapped_or_deleted_object() -> Result<(), anyhow::Error>
             builder.finish()
         };
 
-        let gas = cluster
-            .fund_address_and_return_gas(
-                cluster.get_reference_gas_price().await,
-                Some(500_000_000_000),
-                address,
-            )
-            .await;
+        let gas = cluster.get_latest_object_ref(&gas_object_id).await;
         let tx_builder = TestTransactionBuilder::new(address, gas, 1000);
         let tx_data = tx_builder.programmable(pt).build();
         let signed_transaction = to_sender_signed_transaction(tx_data, &keypair);
@@ -2006,13 +2004,7 @@ fn find_transaction_for_wrapped_or_deleted_object() -> Result<(), anyhow::Error>
             builder.finish()
         };
 
-        let gas = cluster
-            .fund_address_and_return_gas(
-                cluster.get_reference_gas_price().await,
-                Some(500_000_000_000),
-                address,
-            )
-            .await;
+        let gas = cluster.get_latest_object_ref(&gas_object_id).await;
         let tx_builder = TestTransactionBuilder::new(address, gas, 1000);
         let tx_data = tx_builder.programmable(pt).build();
         let signed_transaction = to_sender_signed_transaction(tx_data, &keypair);
@@ -2102,14 +2094,7 @@ fn find_transaction_for_wrapped_or_deleted_object() -> Result<(), anyhow::Error>
             builder.finish()
         };
 
-        let gas = cluster
-            .fund_address_and_return_gas(
-                cluster.get_reference_gas_price().await,
-                Some(500_000_000_000),
-                address,
-            )
-            .await;
-
+        let gas = cluster.get_latest_object_ref(&gas_object_id).await;
         let tx_builder = TestTransactionBuilder::new(address, gas, 1000);
         let tx_data = tx_builder.programmable(pt).build();
         let signed_transaction = to_sender_signed_transaction(tx_data, &keypair);
@@ -2185,10 +2170,13 @@ fn find_transaction_for_create_and_wrap_same_ptb() -> Result<(), anyhow::Error> 
                 address,
             )
             .await;
+        let gas_object_id = gas.0;
         indexer_wait_for_object(client, gas.0, gas.1).await;
 
         // 2) Publish the `Warrior` package
-        let (package_id, _, _) = publish_simple_warrior_package(&cluster.wallet).await;
+        let (package_id, tx_digest) =
+            publish_simple_warrior_package(&cluster.wallet, &keypair, address, gas).await;
+        indexer_wait_for_transaction(tx_digest, store, client).await;
 
         // 3) In a single PTB: create and wrap Sword
         let pt = {
@@ -2231,6 +2219,7 @@ fn find_transaction_for_create_and_wrap_same_ptb() -> Result<(), anyhow::Error> 
         };
 
         // 4) Send the transaction
+        let gas = cluster.get_latest_object_ref(&gas_object_id).await;
         let tx_builder = TestTransactionBuilder::new(address, gas, 1000);
         let tx_data = tx_builder.programmable(pt).build();
         let signed_transaction = to_sender_signed_transaction(tx_data, &keypair);
@@ -2278,13 +2267,7 @@ fn find_transaction_for_create_and_wrap_same_ptb() -> Result<(), anyhow::Error> 
             builder.finish()
         };
 
-        let gas = cluster
-            .fund_address_and_return_gas(
-                cluster.get_reference_gas_price().await,
-                Some(500_000_000_000),
-                address,
-            )
-            .await;
+        let gas = cluster.get_latest_object_ref(&gas_object_id).await;
         let tx_builder = TestTransactionBuilder::new(address, gas, 1000);
         let tx_data = tx_builder.programmable(pt).build();
         let signed_transaction = to_sender_signed_transaction(tx_data, &keypair);
