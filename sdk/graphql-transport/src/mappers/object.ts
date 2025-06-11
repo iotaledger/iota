@@ -16,7 +16,7 @@ import { toShortTypeString } from './util.js';
 
 export function mapGraphQLObjectToRpcObject(
     object: Rpc_Object_FieldsFragment,
-    options: { showBcs?: boolean | null } = {},
+    options: { showBcs?: boolean | null; showContent?: boolean } = {},
 ): NonNullable<IotaObjectResponse['data']> {
     return {
         bcs: options?.showBcs
@@ -27,18 +27,20 @@ export function mapGraphQLObjectToRpcObject(
                   type: toShortTypeString(object.asMoveObject?.contents?.type.repr!),
               }
             : undefined,
-        content: {
-            dataType: 'moveObject' as const,
-            ...(moveDataToRpcContent(
-                object.asMoveObject?.contents?.data!,
-                object.asMoveObject?.contents?.type.layout!,
-            ) as {
-                fields: {
-                    [key: string]: MoveValue;
-                };
-                type: string;
-            }),
-        },
+        content: options.showContent
+            ? {
+                  dataType: 'moveObject' as const,
+                  ...(moveDataToRpcContent(
+                      object.asMoveObject?.contents?.data!,
+                      object.asMoveObject?.contents?.type.layout!,
+                  ) as {
+                      fields: {
+                          [key: string]: MoveValue;
+                      };
+                      type: string;
+                  }),
+              }
+            : undefined,
         digest: object.digest!,
         display: formatDisplay(object),
         objectId: object.objectId,
