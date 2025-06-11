@@ -477,7 +477,7 @@ impl WritebackCache {
         version: SequenceNumber,
         object: ObjectEntry,
     ) {
-        debug!(?object_id, ?version, ?object, "inserting object entry");
+        trace!(?object_id, ?version, ?object, "inserting object entry");
         fail_point_async!("write_object_entry");
         self.metrics.record_cache_write("object");
 
