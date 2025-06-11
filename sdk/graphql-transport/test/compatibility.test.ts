@@ -633,7 +633,7 @@ describe('GraphQL IotaClient compatibility', () => {
             timestampMs: gTimestampMs,
             rawEffects: gRawEffects,
             ...graphql
-        } = (await toolbox.client.getTransactionBlock({
+        } = (await graphQLClient.getTransactionBlock({
             digest: transaction.digest,
             options: {
                 showBalanceChanges: true,
