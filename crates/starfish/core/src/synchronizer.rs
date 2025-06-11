@@ -1187,7 +1187,7 @@ mod tests {
         core_thread::{CoreThreadDispatcher, tests::MockCoreThreadDispatcher},
         dag_state::DagState,
         error::{ConsensusError, ConsensusResult},
-        network::{BlockStream, NetworkClient, SerializedBlock},
+        network::{BlockBundleStream, BlockStream, NetworkClient, SerializedBlock},
         storage::mem_store::MemStore,
         synchronizer::{
             FETCH_BLOCKS_CONCURRENCY, FETCH_REQUEST_TIMEOUT, InflightBlockHeadersMap,
@@ -1251,6 +1251,15 @@ mod tests {
             _last_received: Round,
             _timeout: Duration,
         ) -> ConsensusResult<BlockStream> {
+            unimplemented!("Unimplemented")
+        }
+
+        async fn subscribe_block_bundles(
+            &self,
+            _peer: AuthorityIndex,
+            _last_received: Round,
+            _timeout: Duration,
+        ) -> ConsensusResult<BlockBundleStream> {
             unimplemented!("Unimplemented")
         }
 
