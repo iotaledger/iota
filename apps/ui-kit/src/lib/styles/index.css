@@ -10,14 +10,14 @@
 :root {
     --font-family: theme('fontFamily.alliance-no2');
 }
-:root.names {
-    --color-primary: theme('colors.iota-primary.30');
-}
-
 :root.light {
-    --color-primary: theme('colors.iota-error.50');
+  --color-primary: theme('colors.iota-primary.30');
 }
 
 :root.dark {
-    --color-primary: theme('colors.iota-error.80');
+  --color-primary: theme('colors.iota-primary.80');
+}
+
+:root.names {
+  --color-primary: theme('colors.iota-error.60');
 }
