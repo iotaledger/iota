@@ -91,7 +91,7 @@ function BaseImage({
             ref={scope}
             className={cx(
                 imageStyles({ size, rounded, aspect }),
-                'bg-neutral-96 text-neutral-40 dark:bg-neutral-10 dark:text-neutral-60 relative flex items-center justify-center',
+                'relative flex items-center justify-center bg-iota-neutral-96 text-iota-neutral-40 dark:bg-iota-neutral-10 dark:text-iota-neutral-60',
                 animateFadeIn && 'opacity-0',
             )}
         >
@@ -101,7 +101,7 @@ function BaseImage({
                 isBlurred && (
                     <div
                         className={clsx(
-                            'bg-neutral-10/30 absolute z-20 flex h-full w-full items-center justify-center rounded-md text-center text-white backdrop-blur-md',
+                            'absolute z-20 flex h-full w-full items-center justify-center rounded-md bg-iota-neutral-10/30 text-center text-white backdrop-blur-md',
                             visibility === ImageVisibility.Hide &&
                                 'pointer-events-none cursor-not-allowed',
                         )}

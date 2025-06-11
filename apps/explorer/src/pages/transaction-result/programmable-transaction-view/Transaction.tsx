@@ -23,7 +23,7 @@ function ArrayArgument({
     return (
         <>
             {data && (
-                <span className="text-neutral-40 dark:text-neutral-60 break-all text-body-md">
+                <span className="break-all text-body-md text-iota-neutral-40 dark:text-iota-neutral-60">
                     ({flattenIotaArguments(data)})
                 </span>
             )}
@@ -41,7 +41,7 @@ function MoveCall({ data }: TransactionProps<MoveCallIotaTransaction>): JSX.Elem
     } = data;
 
     return (
-        <span className="text-neutral-40 dark:text-neutral-60 text-body-md">
+        <span className="text-body-md text-iota-neutral-40 dark:text-iota-neutral-60">
             package:{' '}
             <ObjectLink
                 objectId={movePackage}

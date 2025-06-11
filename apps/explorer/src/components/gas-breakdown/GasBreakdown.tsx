@@ -26,18 +26,18 @@ function GasAmount({ amount, burnedAmount }: GasProps): JSX.Element | null {
 
     return (
         <div className="flex flex-wrap items-center gap-xxs">
-            <span className="text-neutral-40 dark:text-neutral-60 text-label-lg">
+            <span className="text-label-lg text-iota-neutral-40 dark:text-iota-neutral-60">
                 {formattedAmount} {symbol}
             </span>
-            <span className="text-neutral-70 flex flex-wrap items-center text-body-md font-medium">
+            <span className="flex flex-wrap items-center text-body-md font-medium text-iota-neutral-70">
                 {BigInt(amount)?.toLocaleString()} (nano)
             </span>
             {!!burnedAmount && (
                 <>
-                    <span className="text-neutral-40 dark:text-neutral-60 text-label-md">
+                    <span className="text-label-md text-iota-neutral-40 dark:text-iota-neutral-60">
                         Burnt: {formattedBurnedAmount} {burnedSymbol}
                     </span>
-                    <span className="text-neutral-70 flex flex-wrap items-center text-body-sm font-medium">
+                    <span className="flex flex-wrap items-center text-body-sm font-medium text-iota-neutral-70">
                         {BigInt(burnedAmount)?.toLocaleString()} (nano)
                     </span>
                 </>
@@ -65,13 +65,13 @@ function GasPaymentLinks({ objectIds }: { objectIds: string[] }): JSX.Element {
 function GasInfo({ label, info }: { label: string; info?: React.ReactNode }) {
     return (
         <div className="flex flex-col gap-2 md:flex-row md:gap-10">
-            <span className="text-neutral-40 dark:text-neutral-60 w-full flex-shrink-0 text-label-lg md:w-40">
+            <span className="w-full flex-shrink-0 text-label-lg text-iota-neutral-40 md:w-40 dark:text-iota-neutral-60">
                 {label}
             </span>
             {info ? (
                 info
             ) : (
-                <span className="text-neutral-40 dark:text-neutral-60 text-label-lg md:w-40">
+                <span className="text-label-lg text-iota-neutral-40 md:w-40 dark:text-iota-neutral-60">
                     --
                 </span>
             )}
@@ -157,8 +157,8 @@ export function GasBreakdown({ summary }: GasBreakdownProps): JSX.Element | null
                     <AccordionContent isExpanded>
                         <div className="flex flex-col gap-xs">
                             {isSponsored && owner && (
-                                <div className="bg-neutral-92 dark:bg-neutral-12 flex items-center gap-md rounded-lg p-xs">
-                                    <span className="text-neutral-40 dark:text-neutral-60 text-label-lg">
+                                <div className="flex items-center gap-md rounded-lg bg-iota-neutral-92 p-xs dark:bg-iota-neutral-12">
+                                    <span className="text-label-lg text-iota-neutral-40 dark:text-iota-neutral-60">
                                         Paid by
                                     </span>
                                     <AddressLink label={undefined} address={owner} />

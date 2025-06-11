@@ -23,7 +23,7 @@ export function Header(): JSX.Element {
                 <LinkWithQuery
                     data-testid="nav-logo-button"
                     to="/"
-                    className="text-neutral-10 flex flex-nowrap items-center gap-1"
+                    className="flex flex-nowrap items-center gap-1 text-iota-neutral-10"
                 >
                     <ThemedIotaLogo />
                 </LinkWithQuery>

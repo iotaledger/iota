@@ -15,11 +15,11 @@
 }
 
 #cc--main #c-ttl {
-    @apply mb-2 text-body-lg font-semibold text-iota-neutral-60;
+    @apply text-iota-iota-neutral-60 mb-2 text-body-lg font-semibold;
 }
 
 #cc--main #c-txt {
-    @apply text-body-md font-medium text-iota-neutral-40;
+    @apply text-iota-iota-neutral-40 text-body-md font-medium;
 }
 
 #cc--main #c-bns {

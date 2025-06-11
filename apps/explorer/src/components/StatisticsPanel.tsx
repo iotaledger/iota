@@ -59,7 +59,7 @@ export function StatisticsPanel<T>({
                         </div>
                     ) : (
                         <div className="flex items-center justify-center">
-                            <span className="text-neutral-40 dark:text-neutral-60 flex flex-row items-center gap-x-xs">
+                            <span className="flex flex-row items-center gap-x-xs text-iota-neutral-40 dark:text-iota-neutral-60">
                                 No historical data available
                             </span>
                         </div>
