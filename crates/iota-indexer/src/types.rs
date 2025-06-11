@@ -535,6 +535,20 @@ pub struct TxIndex {
     pub transaction_digest: TransactionDigest,
     pub checkpoint_sequence_number: u64,
     pub input_objects: Vec<ObjectID>,
+    pub changed_objects: Vec<ObjectID>,
+    pub payers: Vec<IotaAddress>,
+    pub sender: IotaAddress,
+    pub recipients: Vec<IotaAddress>,
+    pub move_calls: Vec<(ObjectID, String, String)>,
+}
+
+#[derive(Debug, Clone)]
+pub struct TxIndexV2 {
+    pub tx_sequence_number: u64,
+    pub tx_kind: IotaTransactionKind,
+    pub transaction_digest: TransactionDigest,
+    pub checkpoint_sequence_number: u64,
+    pub input_objects: Vec<ObjectID>,
     /// Objects that were mutated, created and unwrapped objects. In other
     /// words, all objects that still exist in the object state after this
     /// transaction.

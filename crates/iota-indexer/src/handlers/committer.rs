@@ -14,7 +14,7 @@ use crate::{metrics::IndexerMetrics, store::IndexerStore, types::IndexerResult};
 
 pub(crate) const CHECKPOINT_COMMIT_BATCH_SIZE: usize = 100;
 
-pub async fn start_tx_checkpoint_commit_task<S>(
+pub(crate) async fn start_tx_checkpoint_commit_task<S>(
     state: S,
     metrics: IndexerMetrics,
     tx_indexing_receiver: iota_metrics::metered_channel::Receiver<CheckpointDataToCommit>,
@@ -138,7 +138,7 @@ async fn commit_checkpoints<S>(
         let _step_1_guard = metrics.checkpoint_db_commit_latency_step_1.start_timer();
         let mut persist_tasks = vec![
             state.persist_transactions(tx_batch),
-            state.persist_tx_indices(tx_indices_batch),
+            state.persist_tx_indices_v2(tx_indices_batch),
             state.persist_events(events_batch),
             state.persist_event_indices(event_indices_batch),
             state.persist_displays(display_updates_batch),

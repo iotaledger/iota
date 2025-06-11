@@ -43,7 +43,7 @@ use crate::{
     types::{
         EventIndex, IndexedCheckpoint, IndexedDeletedObject, IndexedEpochInfo, IndexedEvent,
         IndexedObject, IndexedPackage, IndexedTransaction, IndexerResult,
-        IotaSystemStateSummaryView, TxIndex,
+        IotaSystemStateSummaryView, TxIndexV2,
     },
 };
 
@@ -352,7 +352,7 @@ impl CheckpointHandler {
     ) -> IndexerResult<(
         Vec<IndexedTransaction>,
         Vec<IndexedEvent>,
-        Vec<TxIndex>,
+        Vec<TxIndexV2>,
         Vec<EventIndex>,
         BTreeMap<String, StoredDisplay>,
     )> {
@@ -412,7 +412,7 @@ impl CheckpointHandler {
         ))
     }
 
-    pub async fn index_transaction(
+    async fn index_transaction(
         tx: &CheckpointTransaction,
         tx_sequence_number: u64,
         checkpoint_seq: CheckpointSequenceNumber,
@@ -420,7 +420,7 @@ impl CheckpointHandler {
         metrics: &IndexerMetrics,
     ) -> IndexerResult<(
         IndexedTransaction,
-        TxIndex,
+        TxIndexV2,
         Vec<IndexedEvent>,
         Vec<EventIndex>,
         BTreeMap<String, StoredDisplay>,
@@ -543,7 +543,7 @@ impl CheckpointHandler {
             .map(|(p, m, f)| (*<&ObjectID>::clone(p), m.to_string(), f.to_string()))
             .collect();
 
-        let db_tx_indices = TxIndex {
+        let db_tx_indices = TxIndexV2 {
             tx_sequence_number,
             transaction_digest: *tx_digest,
             checkpoint_sequence_number: checkpoint_seq,
