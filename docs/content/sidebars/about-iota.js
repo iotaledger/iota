@@ -74,6 +74,12 @@ const aboutIota = [
                 label: 'Nightly Wallet',
                 href: 'https://nightly.app/download',
                 description: 'Nightly provides a browser extension and mobile app for IOTA.',
+            },
+            {
+                type: 'link',
+                label: 'Cosmostation Wallet',
+                href: 'https://www.cosmostation.io/',
+                description: 'Cosmostation provides a browser extension and mobile app for IOTA.',
             }
         ],
     },
