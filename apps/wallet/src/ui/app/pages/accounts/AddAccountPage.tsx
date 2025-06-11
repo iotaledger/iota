@@ -141,7 +141,7 @@ export function AddAccountPage() {
             <div className="flex h-full w-full flex-col gap-4 ">
                 {cardGroups.map((group, groupIndex) => (
                     <div key={groupIndex} className="flex flex-col gap-y-2">
-                        <span className="text-neutral-60 dark:text-neutral-40 text-label-lg">
+                        <span className="text-label-lg text-iota-neutral-60 dark:text-iota-neutral-40">
                             {group.title}
                         </span>
                         {group.cards.map((card, cardIndex) => (

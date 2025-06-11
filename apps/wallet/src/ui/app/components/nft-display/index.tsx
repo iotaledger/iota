@@ -71,7 +71,7 @@ export function NFTDisplayCard({
                         />
                     )}
                     {wideView && (
-                        <span className="text-neutral-10 dark:text-neutral-92 text-title-lg">
+                        <span className="text-title-lg text-iota-neutral-10 dark:text-iota-neutral-92">
                             {nftName}
                         </span>
                     )}

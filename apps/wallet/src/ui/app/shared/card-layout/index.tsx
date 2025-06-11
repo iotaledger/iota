@@ -22,11 +22,11 @@ export function CardLayout({ children, title, subtitle, headerCaption, icon }: C
             ) : null}
             {icon === 'iota' ? (
                 <div className="bg-primary-30 mb-lg flex h-10 w-10 flex-col flex-nowrap items-center justify-center rounded-full">
-                    <IotaLogoMark className="h-6 w-6 text-neutral-100" />
+                    <IotaLogoMark className="h-6 w-6 text-iota-neutral-100" />
                 </div>
             ) : null}
             {headerCaption ? (
-                <span className="text-neutral-40 text-label-sm">{headerCaption}</span>
+                <span className="text-label-sm text-iota-neutral-40">{headerCaption}</span>
             ) : null}
             {title ? (
                 <div className="mt-1.25">
@@ -35,7 +35,7 @@ export function CardLayout({ children, title, subtitle, headerCaption, icon }: C
             ) : null}
             {subtitle ? (
                 <div className="mb-md text-center">
-                    <span className="text-neutral-10 dark:text-neutral-92 text-label-md">
+                    <span className="text-label-md text-iota-neutral-10 dark:text-iota-neutral-92">
                         {subtitle}
                     </span>
                 </div>

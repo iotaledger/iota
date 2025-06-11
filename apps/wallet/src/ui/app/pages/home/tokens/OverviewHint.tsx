@@ -13,11 +13,13 @@ export function OverviewHint({ onClick, icon, title }: OverviewHintProps) {
     const IconComponent = icon;
     return (
         <div
-            className="state-layer bg-neutral-96 dark:bg-neutral-10 relative flex w-full cursor-pointer items-center  gap-3 rounded-xl border border-transparent p-xs px-sm py-xs"
+            className="state-layer relative flex w-full cursor-pointer items-center gap-3 rounded-xl  border border-transparent bg-iota-neutral-96 p-xs px-sm py-xs dark:bg-iota-neutral-10"
             onClick={onClick}
         >
             <IconComponent className="text-primary-20 dark:text-primary-90 h-5 w-5" />
-            <span className="text-neutral-10 dark:text-neutral-92 text-label-sm">{title}</span>
+            <span className="text-label-sm text-iota-neutral-10 dark:text-iota-neutral-92">
+                {title}
+            </span>
         </div>
     );
 }
