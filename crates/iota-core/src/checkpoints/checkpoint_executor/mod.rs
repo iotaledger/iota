@@ -40,12 +40,12 @@ use iota_types::{
     effects::{TransactionEffects, TransactionEffectsAPI},
     error::IotaResult,
     executable_transaction::VerifiedExecutableTransaction,
-    full_checkpoint_content::CheckpointData,
     inner_temporary_store::PackageStoreWithFallback,
     message_envelope::Message,
     messages_checkpoint::{
         CertifiedCheckpointSummary, CheckpointSequenceNumber, VerifiedCheckpoint,
     },
+    grpc::{CertifiedCheckpointSummary as GrpcCertifiedCheckpointSummary, CheckpointData as GrpcCheckpointData},
     transaction::{TransactionDataAPI, TransactionKind, VerifiedTransaction},
 };
 use itertools::izip;
@@ -154,8 +154,11 @@ pub struct CheckpointExecutor {
     accumulator: Arc<StateAccumulator>,
     config: CheckpointExecutorConfig,
     metrics: Arc<CheckpointExecutorMetrics>,
-    grpc_checkpoint_summary_tx: Option<broadcast::Sender<Arc<CertifiedCheckpointSummary>>>,
-    grpc_checkpoint_data_tx: Option<broadcast::Sender<Arc<CheckpointData>>>,
+    grpc_checkpoint_summary_tx: Option<
+        broadcast::Sender<Arc<GrpcCertifiedCheckpointSummary>>,
+    >,
+    grpc_checkpoint_data_tx:
+        Option<broadcast::Sender<Arc<GrpcCheckpointData>>>,
 }
 
 impl CheckpointExecutor {
@@ -166,8 +169,14 @@ impl CheckpointExecutor {
         accumulator: Arc<StateAccumulator>,
         config: CheckpointExecutorConfig,
         metrics: Arc<CheckpointExecutorMetrics>,
-        grpc_checkpoint_summary_tx: Option<broadcast::Sender<Arc<CertifiedCheckpointSummary>>>,
-        grpc_checkpoint_data_tx: Option<broadcast::Sender<Arc<CheckpointData>>>,
+        grpc_checkpoint_summary_tx: Option<
+            broadcast::Sender<
+                Arc<GrpcCertifiedCheckpointSummary>,
+            >,
+        >,
+        grpc_checkpoint_data_tx: Option<
+            broadcast::Sender<Arc<GrpcCheckpointData>>,
+        >,
     ) -> Self {
         Self {
             mailbox,
@@ -471,26 +480,32 @@ impl CheckpointExecutor {
             self.bump_highest_executed_checkpoint(checkpoint);
             if let Some(tx) = &self.grpc_checkpoint_summary_tx {
                 let summary = CertifiedCheckpointSummary::from(checkpoint.clone());
-                let arc_summary = Arc::new(summary);
+                let versioned_summary =
+                    GrpcCertifiedCheckpointSummary::from(
+                        summary,
+                    );
+                let arc_summary = Arc::new(versioned_summary);
                 println!(
                     "[gRPC][Fullnode] Broadcasting checkpoint: seq={}, epoch={}",
-                    arc_summary.sequence_number, arc_summary.epoch
+                    arc_summary.sequence_number(),
+                    checkpoint.epoch()
                 );
                 let _ = tx.send(arc_summary);
             }
             if let Some(data_tx) = &self.grpc_checkpoint_data_tx {
-                let full_data = Arc::new(
+                let checkpoint_data = 
                     crate::checkpoints::checkpoint_executor::data_ingestion_handler::load_checkpoint_data(
                         checkpoint.clone(),
                         self.object_cache_reader.as_ref(),
                         self.transaction_cache_reader.as_ref(),
                         self.checkpoint_store.clone(),
                         &all_tx_digests,
-                    ).expect("Failed to load full CheckpointData")
-                );
+                    ).expect("Failed to load full CheckpointData");
+                let versioned_data = GrpcCheckpointData::from(checkpoint_data);
+                let full_data = Arc::new(versioned_data);
                 println!(
                     "[gRPC][Fullnode] Broadcasting full CheckpointData: seq={}",
-                    full_data.checkpoint_summary.sequence_number
+                    full_data.sequence_number()
                 );
                 let _ = data_tx.send(full_data);
             }

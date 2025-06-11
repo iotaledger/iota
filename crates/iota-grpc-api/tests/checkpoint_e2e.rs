@@ -130,29 +130,25 @@ async fn test_get_epoch_first_checkpoint_sequence_number() {
     let mut all_epochs = vec![];
     while let Some(res) = stream.next().await {
         match res {
-            Ok(cp) => {
-                match bcs::from_bytes::<iota_types::messages_checkpoint::CheckpointSummary>(
-                    &cp.data,
-                ) {
-                    Ok(summary) => {
-                        let epoch = summary.epoch;
-                        println!("Checkpoint index: {}, epoch: {}", cp.index, epoch);
-                        all_indices.push(cp.index);
-                        all_epochs.push(epoch);
-                        if cp.index > 50 {
-                            break;
-                        }
-                    }
-                    Err(e) => {
-                        println!(
-                            "[gRPC] Failed to deserialize checkpoint summary at index {}: {:?}",
-                            cp.index, e
-                        );
-                        println!("[gRPC] Raw checkpoint data: {:?}", cp.data);
+            Ok(cp) => match GrpcNodeClient::deserialize_checkpoint_summary(&cp) {
+                Ok(summary) => {
+                    let epoch = summary.data().epoch;
+                    println!("Checkpoint index: {}, epoch: {}", cp.index, epoch);
+                    all_indices.push(cp.index);
+                    all_epochs.push(epoch);
+                    if cp.index > 50 {
                         break;
                     }
                 }
-            }
+                Err(e) => {
+                    println!(
+                        "[gRPC] Failed to deserialize checkpoint summary at index {}: {:?}",
+                        cp.index, e
+                    );
+                    println!("[gRPC] Raw checkpoint data: {:?}", cp.data);
+                    break;
+                }
+            },
             Err(e) => {
                 println!("[gRPC] Stream error: {:?}", e);
                 break;
@@ -199,8 +195,8 @@ async fn test_stream_full_checkpoint_data() {
         .await
         .unwrap();
     if let Some(Ok(cp)) = stream.next().await {
-        let checkpoint_data: iota_types::full_checkpoint_content::CheckpointData =
-            bcs::from_bytes(&cp.data).expect("bcs decode");
+        let checkpoint_data = GrpcNodeClient::deserialize_checkpoint_data(&cp)
+            .expect("Failed to deserialize checkpoint data");
         assert_eq!(checkpoint_data.checkpoint_summary.sequence_number, 2);
     } else {
         panic!("No checkpoint data returned");

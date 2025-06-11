@@ -2,7 +2,6 @@
 // Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use bcs;
 use iota_data_ingestion::GrpcBlobWorker;
 use iota_data_ingestion_core::Worker;
 use iota_grpc_api::client::GrpcNodeClient;
@@ -49,7 +48,9 @@ async fn test_grpc_blob_worker_logic() {
         .expect("stream");
     while let Some(Ok(checkpoint)) = stream.next().await {
         let checkpoint_data: CheckpointData =
-            bcs::from_bytes(&checkpoint.data).expect("bcs decode");
+            GrpcNodeClient::deserialize_checkpoint_data(&checkpoint)
+                .expect("deserialize checkpoint data");
+
         println!(
             "Streamed full CheckpointData for checkpoint {}",
             checkpoint.index

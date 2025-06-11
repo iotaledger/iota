@@ -15,20 +15,28 @@ pub mod client;
 use async_stream::stream;
 use bcs;
 use iota_types::{
-    full_checkpoint_content::CheckpointData, messages_checkpoint::CertifiedCheckpointSummary,
+    full_checkpoint_content::CheckpointData,
+    grpc::{
+        CertifiedCheckpointSummary as GrpcCertifiedCheckpointSummary,
+        CheckpointData as GrpcCheckpointData,
+    },
+    messages_checkpoint::CertifiedCheckpointSummary,
 };
 
 pub struct CheckpointGrpcService {
     pub state_reader: Arc<dyn RestStateReader>,
-    pub grpc_checkpoint_summary_tx: tokio::sync::broadcast::Sender<Arc<CertifiedCheckpointSummary>>,
-    pub grpc_checkpoint_data_tx: tokio::sync::broadcast::Sender<Arc<CheckpointData>>,
+    pub grpc_checkpoint_summary_tx:
+        tokio::sync::broadcast::Sender<Arc<GrpcCertifiedCheckpointSummary>>,
+    pub grpc_checkpoint_data_tx: tokio::sync::broadcast::Sender<Arc<GrpcCheckpointData>>,
 }
 
 impl CheckpointGrpcService {
     pub fn new(
         state_reader: Arc<dyn RestStateReader>,
-        grpc_checkpoint_summary_tx: tokio::sync::broadcast::Sender<Arc<CertifiedCheckpointSummary>>,
-        grpc_checkpoint_data_tx: tokio::sync::broadcast::Sender<Arc<CheckpointData>>,
+        grpc_checkpoint_summary_tx: tokio::sync::broadcast::Sender<
+            Arc<GrpcCertifiedCheckpointSummary>,
+        >,
+        grpc_checkpoint_data_tx: tokio::sync::broadcast::Sender<Arc<GrpcCheckpointData>>,
     ) -> Self {
         Self {
             state_reader,
@@ -80,15 +88,17 @@ fn get_full_checkpoint_data(
     state_reader.get_checkpoint_data(summary, contents).ok()
 }
 
-impl CheckpointOracle<CheckpointData> for Oracle {
-    fn get_index(&self, item: &Arc<CheckpointData>) -> u64 {
-        item.checkpoint_summary.sequence_number
+impl CheckpointOracle<GrpcCheckpointData> for Oracle {
+    fn get_index(&self, item: &Arc<GrpcCheckpointData>) -> u64 {
+        item.sequence_number()
     }
-    fn ser(&self, item: &Arc<CheckpointData>) -> Result<Vec<u8>, bcs::Error> {
+    fn ser(&self, item: &Arc<GrpcCheckpointData>) -> Result<Vec<u8>, bcs::Error> {
         bcs::to_bytes(&**item)
     }
-    fn get_item(&self, ix: u64) -> Option<Arc<CheckpointData>> {
-        get_full_checkpoint_data(&self.state_reader, ix).map(Arc::new)
+    fn get_item(&self, ix: u64) -> Option<Arc<GrpcCheckpointData>> {
+        get_full_checkpoint_data(&self.state_reader, ix)
+            .map(GrpcCheckpointData::from)
+            .map(Arc::new)
     }
     fn get_latest(&self) -> Option<u64> {
         self.state_reader
@@ -98,19 +108,20 @@ impl CheckpointOracle<CheckpointData> for Oracle {
     }
 }
 
-impl CheckpointOracle<CertifiedCheckpointSummary> for Oracle {
-    fn get_index(&self, item: &Arc<CertifiedCheckpointSummary>) -> u64 {
-        item.data().sequence_number
+impl CheckpointOracle<GrpcCertifiedCheckpointSummary> for Oracle {
+    fn get_index(&self, item: &Arc<GrpcCertifiedCheckpointSummary>) -> u64 {
+        item.sequence_number()
     }
-    fn ser(&self, item: &Arc<CertifiedCheckpointSummary>) -> Result<Vec<u8>, bcs::Error> {
-        bcs::to_bytes(&item.data())
+    fn ser(&self, item: &Arc<GrpcCertifiedCheckpointSummary>) -> Result<Vec<u8>, bcs::Error> {
+        bcs::to_bytes(&**item)
     }
-    fn get_item(&self, ix: u64) -> Option<Arc<CertifiedCheckpointSummary>> {
+    fn get_item(&self, ix: u64) -> Option<Arc<GrpcCertifiedCheckpointSummary>> {
         self.state_reader
             .get_checkpoint_by_sequence_number(ix)
             .ok()
             .flatten()
-            .map(|v| Arc::new(v.into()))
+            .map(|v| GrpcCertifiedCheckpointSummary::from(CertifiedCheckpointSummary::from(v)))
+            .map(Arc::new)
     }
     fn get_latest(&self) -> Option<u64> {
         self.state_reader

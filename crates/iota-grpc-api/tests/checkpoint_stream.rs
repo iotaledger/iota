@@ -17,6 +17,10 @@ use iota_types::{
     committee::EpochId,
     crypto::AuthorityStrongQuorumSignInfo,
     full_checkpoint_content::CheckpointData,
+    grpc::{
+        CertifiedCheckpointSummary as GrpcCertifiedCheckpointSummary,
+        CheckpointData as GrpcCheckpointData,
+    },
     messages_checkpoint::{
         CertifiedCheckpointSummary, CheckpointContents, CheckpointSequenceNumber, CheckpointSummary,
     },
@@ -313,18 +317,16 @@ async fn test_service() -> CheckpointGrpcService {
 // Helper function to spawn a background checkpoint sender for summaries and
 // data
 fn spawn_checkpoint_sender(
-    summary_tx: tokio::sync::broadcast::Sender<Arc<CertifiedCheckpointSummary>>,
-    data_tx: tokio::sync::broadcast::Sender<
-        Arc<iota_types::full_checkpoint_content::CheckpointData>,
-    >,
+    summary_tx: tokio::sync::broadcast::Sender<Arc<GrpcCertifiedCheckpointSummary>>,
+    data_tx: tokio::sync::broadcast::Sender<Arc<GrpcCheckpointData>>,
     start_seq: u64,
 ) {
     tokio::spawn(async move {
         let mut seq = start_seq;
         loop {
             let (cert, data) = mock_cert_data(seq);
-            let _ = summary_tx.send(Arc::new(cert));
-            let _ = data_tx.send(Arc::new(data));
+            let _ = summary_tx.send(Arc::new(GrpcCertifiedCheckpointSummary::from(cert)));
+            let _ = data_tx.send(Arc::new(GrpcCheckpointData::from(data)));
             seq += 1;
             tokio::time::sleep(std::time::Duration::from_millis(100)).await;
         }
@@ -463,8 +465,10 @@ async fn test_future_end_index_only_full() {
     while let Some(res) = stream.next().await {
         match res {
             Ok(cp) => {
-                let checkpoint_data: iota_types::full_checkpoint_content::CheckpointData =
-                    bcs::from_bytes(&cp.data).expect("bcs decode");
+                let checkpoint_data = match bcs::from_bytes::<GrpcCheckpointData>(&cp.data) {
+                    Ok(versioned) => versioned.into_v1().expect("Expected V1 data"),
+                    Err(_) => bcs::from_bytes::<CheckpointData>(&cp.data).expect("bcs decode"),
+                };
                 result.push(checkpoint_data.checkpoint_summary.sequence_number);
                 break;
             }
@@ -530,8 +534,9 @@ async fn test_historical_to_live_gap_fill() {
 
     // Simulate broadcast channel at 150
     let (summary_150, data_150) = mock_cert_data(150);
-    let _ = grpc_checkpoint_summary_tx.send(Arc::new(summary_150));
-    let _ = grpc_checkpoint_data_tx.send(Arc::new(data_150));
+    let _ = grpc_checkpoint_summary_tx
+        .send(Arc::new(GrpcCertifiedCheckpointSummary::from(summary_150)));
+    let _ = grpc_checkpoint_data_tx.send(Arc::new(GrpcCheckpointData::from(data_150)));
 
     // Client requests from 0 (historical)
     let req = StreamRequest {
@@ -547,7 +552,10 @@ async fn test_historical_to_live_gap_fill() {
     let mut received = Vec::new();
     // Collect up to 151 checkpoints
     while let Some(Ok(cp)) = stream.next().await {
-        let checkpoint_data: CheckpointData = bcs::from_bytes(&cp.data).expect("bcs decode");
+        let checkpoint_data = match bcs::from_bytes::<GrpcCheckpointData>(&cp.data) {
+            Ok(versioned) => versioned.into_v1().expect("Expected V1 data"),
+            Err(_) => bcs::from_bytes::<CheckpointData>(&cp.data).expect("bcs decode"),
+        };
         received.push(checkpoint_data.checkpoint_summary.sequence_number);
         if checkpoint_data.checkpoint_summary.sequence_number == 150 {
             break;
@@ -579,8 +587,9 @@ async fn test_gap_fill_with_slow_client() {
                 let (cert, data) = mock_cert_data(i);
                 checkpoints.lock().unwrap().insert(i);
                 println!("[gRPC] Producer inserted checkpoint {}", i);
-                let _ = grpc_checkpoint_summary_tx.send(Arc::new(cert));
-                let _ = grpc_checkpoint_data_tx.send(Arc::new(data));
+                let _ = grpc_checkpoint_summary_tx
+                    .send(Arc::new(GrpcCertifiedCheckpointSummary::from(cert)));
+                let _ = grpc_checkpoint_data_tx.send(Arc::new(GrpcCheckpointData::from(data)));
                 tokio::time::sleep(Duration::from_millis(100)).await;
             }
         }
@@ -599,7 +608,10 @@ async fn test_gap_fill_with_slow_client() {
         .into_inner();
     let mut received = Vec::new();
     while let Some(Ok(cp)) = stream.next().await {
-        let checkpoint_data: CheckpointData = bcs::from_bytes(&cp.data).expect("bcs decode");
+        let checkpoint_data = match bcs::from_bytes::<GrpcCheckpointData>(&cp.data) {
+            Ok(versioned) => versioned.into_v1().expect("Expected V1 data"),
+            Err(_) => bcs::from_bytes::<CheckpointData>(&cp.data).expect("bcs decode"),
+        };
         received.push(checkpoint_data.checkpoint_summary.sequence_number);
         tokio::time::sleep(Duration::from_millis(500)).await; // slow down the client
         println!(

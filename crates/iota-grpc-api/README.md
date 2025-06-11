@@ -42,6 +42,7 @@ message Checkpoint {
 ### Streaming Range Logic
 
 For all cases, the `full` flag determines the data type:
+
 - If `full=false` (default): streams `CertifiedCheckpointSummary` (BCS-encoded in bytes field)
 - If `full=true`: streams `CheckpointData` (BCS-encoded in bytes field)
 
@@ -107,6 +108,7 @@ flowchart TD
 ```
 
 **Explanation:**
+
 - **Historical fetch**: Always tries to get each requested checkpoint from the DB first.
 - **Live stream**: Waits for new checkpoints on the broadcast channel. If a gap is detected (missed checkpoints), the service tries to fill the gap from the DB before resuming live streaming.
 - **End index only**: Only streams the requested checkpoint, from DB if possible, otherwise waits for it to appear on the broadcast channel.

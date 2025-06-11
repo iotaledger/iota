@@ -58,6 +58,7 @@ pub mod gas;
 pub mod gas_coin;
 pub mod gas_model;
 pub mod governance;
+pub mod grpc;
 pub mod id;
 pub mod in_memory_storage;
 pub mod inner_temporary_store;

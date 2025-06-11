@@ -309,7 +309,8 @@ pub async fn run_grpc_checkpoint_ingestion(
             "[gRPC][Indexer] Received raw checkpoint, {} bytes (expecting CheckpointData)",
             cp.data.len()
         );
-        let checkpoint_data: CheckpointData = match bcs::from_bytes::<CheckpointData>(&cp.data) {
+        let checkpoint_data: CheckpointData = match GrpcNodeClient::deserialize_checkpoint_data(&cp)
+        {
             Ok(data) => {
                 println!(
                     "[gRPC][Indexer] Successfully decoded CheckpointData seq={}, size={} bytes",

@@ -153,8 +153,8 @@ async fn test_checkpoint_sync_performance_file() {
             .expect("gRPC stream");
         while let Some(Ok(cp)) = stream.next().await {
             // Deserialize the BCS data into CheckpointData
-            let checkpoint_data: CheckpointData =
-                bcs::from_bytes(&cp.data).expect("deserialize checkpoint data");
+            let checkpoint_data: CheckpointData = GrpcNodeClient::deserialize_checkpoint_data(&cp)
+                .expect("deserialize checkpoint data");
 
             // Re-encode using Blob format (which is what the file reader expects)
             let blob = Blob::encode(&checkpoint_data, BlobEncoding::Bcs)

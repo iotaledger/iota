@@ -4,16 +4,17 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+async-stream = "0.3"
 bcs.workspace = true
 futures.workspace = true
 iota-rest-api.workspace = true
 iota-types.workspace = true
 prost.workspace = true
+serde.workspace = true
 tokio = { workspace = true, features = ["rt-multi-thread"] }
 tokio-stream.workspace = true
 tonic.workspace = true
 tracing.workspace = true
-async-stream = "0.3"
 
 [build-dependencies]
 tonic-build.workspace = true

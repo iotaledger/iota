@@ -4,6 +4,7 @@
 
 tonic::include_proto!("iota.grpc");
 
+use iota_types::grpc::{CertifiedCheckpointSummary, CheckpointData};
 use tonic::transport::Channel;
 
 use crate::checkpoint::checkpoint_service_client::CheckpointServiceClient;
@@ -46,5 +47,51 @@ impl GrpcNodeClient {
             .get_epoch_first_checkpoint_sequence_number(request)
             .await?;
         Ok(response.into_inner().sequence_number)
+    }
+
+    /// Deserialize checkpoint data from the gRPC stream, handling versioned
+    /// types
+    pub fn deserialize_checkpoint_data(
+        checkpoint: &crate::checkpoint::Checkpoint,
+    ) -> Result<
+        iota_types::full_checkpoint_content::CheckpointData,
+        Box<dyn std::error::Error + Send + Sync>,
+    > {
+        // First try to deserialize as versioned data
+        match bcs::from_bytes::<CheckpointData>(&checkpoint.data) {
+            Ok(versioned) => versioned
+                .into_v1()
+                .ok_or_else(|| "Unsupported checkpoint data version".into()),
+            Err(_) => {
+                // Fallback: try direct deserialization for backward compatibility
+                bcs::from_bytes::<iota_types::full_checkpoint_content::CheckpointData>(
+                    &checkpoint.data,
+                )
+                .map_err(|e| format!("Failed to deserialize checkpoint data: {}", e).into())
+            }
+        }
+    }
+
+    /// Deserialize checkpoint summary from the gRPC stream, handling versioned
+    /// types
+    pub fn deserialize_checkpoint_summary(
+        checkpoint: &crate::checkpoint::Checkpoint,
+    ) -> Result<
+        iota_types::messages_checkpoint::CertifiedCheckpointSummary,
+        Box<dyn std::error::Error + Send + Sync>,
+    > {
+        // First try to deserialize as versioned summary
+        match bcs::from_bytes::<CertifiedCheckpointSummary>(&checkpoint.data) {
+            Ok(versioned) => versioned
+                .into_v1()
+                .ok_or_else(|| "Unsupported checkpoint summary version".into()),
+            Err(_) => {
+                // Fallback: try direct deserialization for backward compatibility
+                bcs::from_bytes::<iota_types::messages_checkpoint::CertifiedCheckpointSummary>(
+                    &checkpoint.data,
+                )
+                .map_err(|e| format!("Failed to deserialize checkpoint summary: {}", e).into())
+            }
+        }
     }
 }
