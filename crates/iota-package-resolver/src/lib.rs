@@ -2012,7 +2012,7 @@ mod tests {
     /// overrides its dependency on A from v1 to v2.  The type in C refers
     /// to types that were defined in both B, A v1, and A v2.
     #[tokio::test]
-    async fn test_relinking_layout_layout() {
+    async fn test_relinking_layout() {
         let (_, cache) = package_cache([
             (1, build_package("a0").unwrap(), a0_types()),
             (2, build_package("a1").unwrap(), a1_types()),
@@ -2279,7 +2279,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_err_not_a_package_layout() {
+    async fn test_layout_err_not_a_package() {
         let (_, cache) = package_cache([(1, build_package("a0").unwrap(), a0_types())]);
         let resolver = Resolver::new(cache);
         let err = resolver
@@ -2290,7 +2290,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_err_no_module_layout() {
+    async fn test_layout_err_no_module() {
         let (_, cache) = package_cache([(1, build_package("a0").unwrap(), a0_types())]);
         let resolver = Resolver::new(cache);
         let err = resolver
@@ -2301,7 +2301,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_err_no_struct_layout() {
+    async fn test_layout_err_no_struct() {
         let (_, cache) = package_cache([(1, build_package("a0").unwrap(), a0_types())]);
         let resolver = Resolver::new(cache);
 
@@ -2313,7 +2313,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_err_type_arity_layout() {
+    async fn test_layout_err_type_arity() {
         let (_, cache) = package_cache([(1, build_package("a0").unwrap(), a0_types())]);
         let resolver = Resolver::new(cache);
 
