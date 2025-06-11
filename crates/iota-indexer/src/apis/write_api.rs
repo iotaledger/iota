@@ -9,7 +9,7 @@ use diesel::{
     ExpressionMethods, QueryDsl, RunQueryDsl, SelectableHelper, pg::sql_types, sql_query,
 };
 use downcast::Any;
-use fastcrypto::{encoding::Base64, traits::ToFromBytes};
+use fastcrypto::{encoding::Base64, error::FastCryptoError, traits::ToFromBytes};
 use iota_json_rpc::IotaRpcModule;
 use iota_json_rpc_api::{WriteApiClient, WriteApiServer, error_object_from_rpc};
 use iota_json_rpc_types::{
@@ -64,6 +64,15 @@ pub(crate) struct WriteApi {
     metrics: IndexerMetrics,
 }
 
+type TransactionDataToCommit = (
+    IndexedTransaction,
+    TxIndex,
+    Vec<IndexedEvent>,
+    Vec<EventIndex>,
+    BTreeMap<String, StoredDisplay>,
+    TransactionObjectChangesToCommit,
+);
+
 impl WriteApi {
     pub fn new(
         fullnode_client: HttpClient,
@@ -81,27 +90,23 @@ impl WriteApi {
         }
     }
 
-    async fn execute_and_optimistically_index_tx_effects(
+    async fn execute_and_index_tx_effects(
         &self,
         tx_bytes: Base64,
         signatures: Vec<Base64>,
         options: Option<IotaTransactionBlockResponseOptions>,
-    ) -> RpcResult<IotaTransactionBlockResponse> {
-        let tx_data: TransactionData =
-            bcs::from_bytes(&tx_bytes.to_vec().map_err(IndexerError::FastCrypto)?)
-                .map_err(IndexerError::Bcs)?;
-        let mut sigs = Vec::new();
-        for sig in signatures {
-            sigs.push(
-                GenericSignature::from_bytes(&sig.to_vec().map_err(IndexerError::FastCrypto)?)
-                    .map_err(IndexerError::FastCrypto)?,
-            );
-        }
+    ) -> Result<IotaTransactionBlockResponse, IndexerError> {
+        let tx_data: TransactionData = bcs::from_bytes(&tx_bytes.to_vec()?)?;
+        let sigs = signatures
+            .into_iter()
+            .map(|sig| GenericSignature::from_bytes(&sig.to_vec()?))
+            .collect::<Result<Vec<_>, FastCryptoError>>()?;
+
         let transaction = Transaction::from_generic_sig_data(tx_data, sigs);
 
         // TODO: shouldn't return type below be from rust-sdk types?
         // Is this type correct?
-        let result = self
+        let response = self
             .fullnode_rest_client
             .execute_transaction(
                 &ExecuteTransactionQueryParameters {
@@ -117,12 +122,11 @@ impl WriteApi {
 
         let TransactionExecutionResponse {
             effects,
-            finality: _,
             events,
-            balance_changes: _,
             input_objects,
             output_objects,
-        } = result;
+            ..
+        } = response;
         let tx_digest = *effects.transaction_digest();
 
         if let (Some(input_objects), Some(output_objects)) = (input_objects, output_objects) {
@@ -133,13 +137,15 @@ impl WriteApi {
                 input_objects,
                 output_objects,
             };
-            self.optimistically_index_transaction(&full_tx_data).await?;
+            self.index_transaction(&full_tx_data).await?;
         } else {
-            tracing::warn!("Cannot optimistically index because of missing in/out objs");
+            tracing::warn!(
+                "Cannot optimistically index because of missing in/out objs for tx: {tx_digest}"
+            );
         }
 
         let tx_block_response = self
-            .wait_for_and_return_tx_block_response(tx_digest, options.clone())
+            .wait_for_local_indexing(tx_digest, options.clone())
             .await?;
 
         Ok(IotaTransactionBlockResponseWithOptions {
@@ -149,7 +155,7 @@ impl WriteApi {
         .into())
     }
 
-    async fn wait_for_and_return_tx_block_response(
+    async fn wait_for_local_indexing(
         &self,
         tx_digest: TransactionDigest,
         options: Option<IotaTransactionBlockResponseOptions>,
@@ -184,7 +190,7 @@ impl WriteApi {
         .await
     }
 
-    async fn optimistically_index_transaction(
+    async fn index_transaction(
         &self,
         full_tx_data: &CheckpointTransaction,
     ) -> Result<(), IndexerError> {
@@ -192,26 +198,11 @@ impl WriteApi {
             .get_or_assign_optimistic_tx_global_order(full_tx_data.transaction.digest())
             .await?;
 
-        let (
-            indexed_tx,
-            tx_indices,
-            indexed_events,
-            events_indices,
-            indexed_displays,
-            object_changes,
-        ) = self
+        let tx_data_to_commit = self
             .full_optimistic_tx_data_to_indexed_data(full_tx_data, &assigned_global_order)
             .await?;
 
-        self.persist_optimistic_tx(
-            indexed_tx,
-            tx_indices,
-            indexed_events,
-            events_indices,
-            indexed_displays,
-            object_changes,
-        )
-        .await
+        self.persist_optimistic_tx(tx_data_to_commit).await
     }
 
     async fn get_or_assign_optimistic_tx_global_order(
@@ -250,14 +241,7 @@ impl WriteApi {
         &self,
         full_tx_data: &CheckpointTransaction,
         assigned_global_order: &TxGlobalOrder,
-    ) -> IndexerResult<(
-        IndexedTransaction,
-        TxIndex,
-        Vec<IndexedEvent>,
-        Vec<EventIndex>,
-        BTreeMap<String, StoredDisplay>,
-        TransactionObjectChangesToCommit,
-    )> {
+    ) -> IndexerResult<TransactionDataToCommit> {
         let object_changes = {
             let indexed_eventually_removed_objects = full_tx_data
                 .removed_object_refs_post_version()
@@ -314,13 +298,17 @@ impl WriteApi {
 
     async fn persist_optimistic_tx(
         &self,
-        indexed_tx: IndexedTransaction,
-        tx_indices: TxIndex,
-        indexed_events: Vec<IndexedEvent>,
-        events_indices: Vec<EventIndex>,
-        indexed_displays: BTreeMap<String, StoredDisplay>,
-        object_changes: TransactionObjectChangesToCommit,
+        tx_data_to_commit: TransactionDataToCommit,
     ) -> Result<(), IndexerError> {
+        let (
+            indexed_tx,
+            tx_indices,
+            indexed_events,
+            events_indices,
+            indexed_displays,
+            object_changes,
+        ) = tx_data_to_commit;
+
         self.store.persist_objects(vec![object_changes]).await?;
         self.store.persist_displays(indexed_displays).await?;
 
@@ -353,72 +341,18 @@ impl WriteApi {
     fn optimistic_event_indices_from_indexed_event_indices(
         event_indices: Vec<EventIndex>,
     ) -> OptimisticEventIndices {
-        let (
-            event_emit_packages,
-            event_emit_modules,
-            event_senders,
-            event_struct_packages,
-            event_struct_modules,
-            event_struct_names,
-            event_struct_instantiations,
-        ) = event_indices.into_iter().map(|i| i.split()).fold(
-            (
-                Vec::new(),
-                Vec::new(),
-                Vec::new(),
-                Vec::new(),
-                Vec::new(),
-                Vec::new(),
-                Vec::new(),
-            ),
-            |(
-                mut event_emit_packages,
-                mut event_emit_modules,
-                mut event_senders,
-                mut event_struct_packages,
-                mut event_struct_modules,
-                mut event_struct_names,
-                mut event_struct_instantiations,
-            ),
-             index| {
-                event_emit_packages.push(index.0);
-                event_emit_modules.push(index.1);
-                event_senders.push(index.2);
-                event_struct_packages.push(index.3);
-                event_struct_modules.push(index.4);
-                event_struct_names.push(index.5);
-                event_struct_instantiations.push(index.6);
-                (
-                    event_emit_packages,
-                    event_emit_modules,
-                    event_senders,
-                    event_struct_packages,
-                    event_struct_modules,
-                    event_struct_names,
-                    event_struct_instantiations,
-                )
-            },
-        );
+        let splits: Vec<_> = event_indices.into_iter().map(|i| i.split()).collect();
 
         OptimisticEventIndices {
-            optimistic_event_emit_packages: event_emit_packages
-                .into_iter()
-                .map(Into::into)
-                .collect(),
-            optimistic_event_emit_modules: event_emit_modules.into_iter().map(Into::into).collect(),
-            optimistic_event_senders: event_senders.into_iter().map(Into::into).collect(),
-            optimistic_event_struct_packages: event_struct_packages
-                .into_iter()
-                .map(Into::into)
-                .collect(),
-            optimistic_event_struct_modules: event_struct_modules
-                .into_iter()
-                .map(Into::into)
-                .collect(),
-            optimistic_event_struct_names: event_struct_names.into_iter().map(Into::into).collect(),
-            optimistic_event_struct_instantiations: event_struct_instantiations
-                .into_iter()
-                .map(Into::into)
+            optimistic_event_emit_packages: splits.iter().map(|t| t.0.clone().into()).collect(),
+            optimistic_event_emit_modules: splits.iter().map(|t| t.1.clone().into()).collect(),
+            optimistic_event_senders: splits.iter().map(|t| t.2.clone().into()).collect(),
+            optimistic_event_struct_packages: splits.iter().map(|t| t.3.clone().into()).collect(),
+            optimistic_event_struct_modules: splits.iter().map(|t| t.4.clone().into()).collect(),
+            optimistic_event_struct_names: splits.iter().map(|t| t.5.clone().into()).collect(),
+            optimistic_event_struct_instantiations: splits
+                .iter()
+                .map(|t| t.6.clone().into())
                 .collect(),
         }
     }
@@ -462,12 +396,8 @@ impl WriteApiServer for WriteApi {
                 node_response
             }
             Some(ExecuteTransactionRequestType::WaitForLocalExecution) => {
-                self.execute_and_optimistically_index_tx_effects(
-                    tx_bytes,
-                    signatures,
-                    options.clone(),
-                )
-                .await?
+                self.execute_and_index_tx_effects(tx_bytes, signatures, options.clone())
+                    .await?
             }
         };
         Ok(IotaTransactionBlockResponseWithOptions {
