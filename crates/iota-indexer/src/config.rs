@@ -179,6 +179,7 @@ pub enum Command {
     },
     JsonRpcService(JsonRpcConfig),
     AnalyticalWorker,
+    /// Print help for the deprecated interface.
     HelpDeprecated,
 }
 
