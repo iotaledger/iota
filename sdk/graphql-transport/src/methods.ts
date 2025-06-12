@@ -456,7 +456,7 @@ export const RPC_METHODS: {
                           ? inputFilter.AddressOwner
                           : undefined,
             };
-            const unsupportedFilters = ['MatchAll', 'MatchAny', 'MatchNone', 'Version'];
+            const unsupportedFilters: string[] = [];
 
             for (const unsupportedFilter of unsupportedFilters) {
                 if (unsupportedFilter in inputFilter) {
