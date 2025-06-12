@@ -66,9 +66,10 @@ pub enum IntentScope {
     SenderSignedTransaction = 4, // Used for an authority signature on a user signed transaction.
     ProofOfPossession = 5,       /* Used as a signature representing an authority's proof of
                                   * possession of its authority key. */
-    BridgeEventUnused = 6, // for bridge purposes but it's currently not included in messages.
-    ConsensusBlock = 7,    // Used for consensus authority signature on block's digest
-    DiscoveryPeers = 8,    // Used for reporting peer addresses in discovery
+    BridgeEventDeprecated = 6, /* Deprecated. Should not be reused. Introduced for bridge
+                                * purposes but was never included in messages. */
+    ConsensusBlock = 7, // Used for consensus authority signature on block's digest.
+    DiscoveryPeers = 8, // Used for reporting peer addresses in discovery
 }
 
 impl TryFrom<u8> for IntentScope {
