@@ -22,7 +22,7 @@ use std::{
     time::{Duration, Instant},
 };
 
-use anyhow::{Result, anyhow};
+use anyhow::{Result, anyhow, bail};
 use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
 use bytes::Bytes;
 use fastcrypto::hash::{HashFunction, Sha3_256};
@@ -346,7 +346,7 @@ pub fn read_manifest_from_bytes(vec: Vec<u8>) -> Result<Manifest> {
     manifest_reader.rewind()?;
     let magic = manifest_reader.read_u32::<BigEndian>()?;
     if magic != MANIFEST_FILE_MAGIC {
-        return Err(anyhow!("Unexpected magic byte in manifest: {}", magic));
+        bail!("Unexpected magic byte in manifest: {}", magic);
     }
 
     // Reads from the end of the file and gets the SHA3 checksum
@@ -364,11 +364,11 @@ pub fn read_manifest_from_bytes(vec: Vec<u8>) -> Result<Manifest> {
     hasher.update(&content_buf);
     let computed_digest = hasher.finalize().digest;
     if computed_digest != sha3_digest {
-        return Err(anyhow!(
+        bail!(
             "Manifest corrupted, computed checksum: {:?}, stored checksum: {:?}",
             computed_digest,
             sha3_digest
-        ));
+        );
     }
     manifest_reader.rewind()?;
     manifest_reader.seek(SeekFrom::Start(MAGIC_BYTES as u64))?;
@@ -468,10 +468,7 @@ pub async fn verify_archive_with_genesis_config(
         }
     }
 
-    Err::<(), anyhow::Error>(anyhow!(
-        "Failed to verify archive after {} retries",
-        num_retries
-    ))
+    bail!("Failed to verify archive after {} retries", num_retries)
 }
 
 pub async fn verify_archive_with_checksums(

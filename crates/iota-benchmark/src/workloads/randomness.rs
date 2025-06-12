@@ -23,7 +23,10 @@ use crate::{
     workloads::{
         Gas, GasCoinConfig, WorkloadBuilderInfo, WorkloadParams,
         payload::Payload,
-        workload::{ESTIMATED_COMPUTATION_COST, MAX_GAS_FOR_TESTING, Workload, WorkloadBuilder},
+        workload::{
+            ESTIMATED_COMPUTATION_COST, ExpectedFailureType, MAX_GAS_FOR_TESTING, Workload,
+            WorkloadBuilder,
+        },
     },
 };
 
@@ -61,6 +64,9 @@ impl Payload for RandomnessTestPayload {
         TestTransactionBuilder::new(self.gas.1, self.gas.0, rgp)
             .call_emit_random(self.package_id, self.randomness_initial_shared_version)
             .build_and_sign(self.gas.2.as_ref())
+    }
+    fn get_failure_type(&self) -> Option<ExpectedFailureType> {
+        None
     }
 }
 

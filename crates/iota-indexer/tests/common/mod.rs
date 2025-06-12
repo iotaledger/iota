@@ -8,6 +8,7 @@ use std::{
     time::Duration,
 };
 
+use fastcrypto::traits::Signer;
 use iota_config::local_ip_utils::{get_available_port, new_local_tcp_socket_for_testing};
 use iota_indexer::{
     IndexerConfig,
@@ -22,7 +23,7 @@ use iota_json_rpc_types::{IotaTransactionBlockResponseOptions, TransactionBlockB
 use iota_metrics::init_metrics;
 use iota_types::{
     base_types::{ObjectID, SequenceNumber},
-    crypto::AccountKeyPair,
+    crypto::Signature,
     digests::TransactionDigest,
     utils::to_sender_signed_transaction,
 };
@@ -272,7 +273,7 @@ pub async fn execute_tx_and_wait_for_indexer(
     cluster: &TestCluster,
     store: &PgIndexerStore,
     tx_bytes: TransactionBlockBytes,
-    keypair: &AccountKeyPair,
+    keypair: &dyn Signer<Signature>,
 ) {
     let txn = to_sender_signed_transaction(tx_bytes.to_data().unwrap(), keypair);
     let res = cluster.wallet.execute_transaction_must_succeed(txn).await;

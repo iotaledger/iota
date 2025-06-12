@@ -247,9 +247,7 @@ impl NameCommand {
                     let expiration_datetime = DateTime::<Utc>::from(nft.expiration_time())
                         .format("%Y-%m-%d %H:%M:%S.%f UTC")
                         .to_string();
-                    return Err(anyhow::anyhow!(
-                        "NFT for {domain} has not expired yet: {expiration_datetime}"
-                    ));
+                    bail!("NFT for {domain} has not expired yet: {expiration_datetime}");
                 }
 
                 let burn_function = if nft.domain().parent().is_some() {
@@ -1760,10 +1758,7 @@ async fn get_owned_nft_by_name<T: DeserializeOwned + IotaNamesNft>(
         }
     }
 
-    Err(anyhow::anyhow!(
-        "no matching owned {} found for {domain}",
-        T::TYPE_NAME
-    ))
+    bail!("no matching owned {} found for {domain}", T::TYPE_NAME)
 }
 
 async fn get_proxy_nft_by_name(
@@ -2127,9 +2122,7 @@ async fn fetch_package_id_by_module_and_name(
             }
         }
     }
-    Err(anyhow::anyhow!(
-        "failed to find package ID for {module_name}::{struct_name}"
-    ))?
+    bail!("failed to find package ID for {module_name}::{struct_name}")
 }
 
 async fn get_auction_package_address(client: &IotaClient) -> anyhow::Result<ObjectID> {
