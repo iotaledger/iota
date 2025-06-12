@@ -4,7 +4,7 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use anyhow::{Result, anyhow};
+use anyhow::{Result, bail};
 use iota_data_ingestion_core::Worker;
 use iota_package_resolver::{PackageStore, Resolver};
 use iota_types::{
@@ -182,7 +182,7 @@ async fn get_move_struct<T: PackageStore>(
         MoveTypeLayout::Struct(move_struct_layout) => {
             BoundedVisitor::deserialize_struct(contents, &move_struct_layout)
         }
-        _ => Err(anyhow!("Object is not a move struct")),
+        _ => bail!("Object is not a move struct"),
     }?;
     Ok(move_struct)
 }

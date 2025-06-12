@@ -4,7 +4,7 @@
 
 use std::{fs::File, path::PathBuf};
 
-use anyhow::Result;
+use anyhow::{Result, bail};
 use camino::Utf8PathBuf;
 use clap::Parser;
 use fastcrypto::encoding::{Encoding, Hex};
@@ -300,9 +300,9 @@ pub async fn run(cmd: Ceremony) -> Result<()> {
             let builder = Builder::load(&dir).await?;
 
             let Some(unsigned_genesis) = builder.unsigned_genesis_checkpoint() else {
-                return Err(anyhow::anyhow!(
+                bail!(
                     "Unable to examine genesis checkpoint; try running `build-unsigned-checkpoint`"
-                ));
+                );
             };
 
             examine_genesis_checkpoint(unsigned_genesis, builder.tx_migration_objects());
@@ -317,9 +317,9 @@ pub async fn run(cmd: Ceremony) -> Result<()> {
 
             // Don't sign unless the unsigned checkpoint has already been created
             if builder.unsigned_genesis_checkpoint().is_none() {
-                return Err(anyhow::anyhow!(
+                bail!(
                     "Unable to verify and sign genesis checkpoint; try running `build-unsigned-checkpoint`"
-                ));
+                );
             }
 
             builder = builder.add_validator_signature(&keypair);
@@ -356,11 +356,11 @@ fn check_protocol_version(builder: &Builder, protocol_version: ProtocolVersion) 
     // protocol version, but if this happens there is almost certainly some
     // confusion (e.g. using a `iota` binary built at the wrong commit).
     if builder.protocol_version() != protocol_version {
-        return Err(anyhow::anyhow!(
+        bail!(
             "Serialized protocol version does not match local --protocol-version argument. ({:?} vs {:?})",
             builder.protocol_version(),
             protocol_version
-        ));
+        );
     }
     Ok(())
 }
