@@ -198,6 +198,27 @@ export class BackgroundClient {
         );
     }
 
+    public getLockedState(args: MethodPayload<'getLockedState'>['args']) {
+        return lastValueFrom(
+            this.sendMessage(
+                createMessage<MethodPayload<'getLockedState'>>({
+                    type: 'method-payload',
+                    method: 'getLockedState',
+                    args,
+                }),
+            ).pipe(
+                take(1),
+                map(({ payload }) => {
+                    if (!isMethodPayload(payload, 'getLockedStateResponse')) {
+                        throw new Error('Unknown response for getLockedState');
+                    }
+                    const { remainingTime } = payload.args;
+                    return { remainingTime };
+                }),
+            ),
+        );
+    }
+
     public verifyPassword(args: MethodPayload<'verifyPassword'>['args']) {
         return lastValueFrom(
             this.sendMessage(
