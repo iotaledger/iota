@@ -33,7 +33,11 @@ export function NFTMediaRenderer({
     const className = clsx('w-full h-full', objectFit);
 
     if (isLoading) {
-        return <LoadingIndicator />;
+        return (
+            <div className="flex items-center justify-center h-full w-full">
+                <LoadingIndicator />
+            </div>
+        );
     }
 
     if (!isMediaSupported) {
