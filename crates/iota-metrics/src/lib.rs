@@ -24,9 +24,10 @@ use dashmap::DashMap;
 use once_cell::sync::OnceCell;
 use parking_lot::Mutex;
 use prometheus::{
-    Histogram, IntGaugeVec, Registry, TextEncoder,
+    Histogram, IntCounterVec, IntGaugeVec, Registry, TextEncoder,
     core::{AtomicI64, GenericGauge},
-    register_histogram_with_registry, register_int_gauge_vec_with_registry,
+    register_histogram_with_registry, register_int_counter_vec_with_registry,
+    register_int_gauge_vec_with_registry,
 };
 pub use scopeguard;
 use simple_server_timing_header::Timer;
@@ -81,6 +82,7 @@ pub struct Metrics {
     pub scope_duration_ns: IntGaugeVec,
     pub scope_entrance: IntGaugeVec,
     pub thread_stall_duration_sec: Histogram,
+    pub system_invariant_violations: IntCounterVec,
 }
 
 impl Metrics {
@@ -162,6 +164,12 @@ impl Metrics {
                 registry,
             )
             .unwrap(),
+            system_invariant_violations: register_int_counter_vec_with_registry!(
+                "system_invariant_violations",
+                "Number of system invariant violations",
+                &["name"],
+                registry,
+            ).unwrap(),
         }
     }
 }
