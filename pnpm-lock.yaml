@@ -627,6 +627,9 @@ importers:
 
   apps/ui-kit:
     dependencies:
+      '@fontsource-variable/roboto-flex':
+        specifier: ^5.2.6
+        version: 5.2.6
       '@fontsource/inter':
         specifier: ^5.0.17
         version: 5.1.0
@@ -4057,10 +4060,6 @@ packages:
     resolution: {integrity: sha512-X9GYgruZBSOozg4w4dzv9uOz8oK/EpPVQXkp0MM6Tsgp/nRIU9hJzJ0Pxg1aRa3xCeEQTOimZHcocQFlLwYajQ==}
     engines: {node: '>=18.0'}
 
-  '@docusaurus/logger@3.5.2':
-    resolution: {integrity: sha512-LHC540SGkeLfyT3RHK3gAMK6aS5TRqOD4R72BEU/DE2M/TY8WwEUAMY576UUc/oNJXv8pGhBmQB6N9p3pt8LQw==}
-    engines: {node: '>=18.0'}
-
   '@docusaurus/logger@3.7.0':
     resolution: {integrity: sha512-z7g62X7bYxCYmeNNuO9jmzxLQG95q9QxINCwpboVcNff3SJiHJbGrarxxOVMVmAh1MsrSfxWkVGv4P41ktnFsA==}
     engines: {node: '>=18.0'}
@@ -4214,15 +4213,6 @@ packages:
       react: ^18.0.0 || ^19.0.0
       react-dom: ^18.0.0 || ^19.0.0
 
-  '@docusaurus/utils-common@3.5.2':
-    resolution: {integrity: sha512-i0AZjHiRgJU6d7faQngIhuHKNrszpL/SHQPgF1zH4H+Ij6E9NBYGy6pkcGWToIv7IVPbs+pQLh1P3whn0gWXVg==}
-    engines: {node: '>=18.0'}
-    peerDependencies:
-      '@docusaurus/types': '*'
-    peerDependenciesMeta:
-      '@docusaurus/types':
-        optional: true
-
   '@docusaurus/utils-common@3.7.0':
     resolution: {integrity: sha512-IZeyIfCfXy0Mevj6bWNg7DG7B8G+S6o6JVpddikZtWyxJguiQ7JYr0SIZ0qWd8pGNuMyVwriWmbWqMnK7Y5PwA==}
     engines: {node: '>=18.0'}
@@ -4230,15 +4220,6 @@ packages:
   '@docusaurus/utils-validation@3.7.0':
     resolution: {integrity: sha512-w8eiKk8mRdN+bNfeZqC4nyFoxNyI1/VExMKAzD9tqpJfLLbsa46Wfn5wcKH761g9WkKh36RtFV49iL9lh1DYBA==}
     engines: {node: '>=18.0'}
-
-  '@docusaurus/utils@3.5.2':
-    resolution: {integrity: sha512-33QvcNFh+Gv+C2dP9Y9xWEzMgf3JzrpL2nW9PopidiohS1nDcyknKRx2DWaFvyVTTYIkkABVSr073VTj/NITNA==}
-    engines: {node: '>=18.0'}
-    peerDependencies:
-      '@docusaurus/types': '*'
-    peerDependenciesMeta:
-      '@docusaurus/types':
-        optional: true
 
   '@docusaurus/utils@3.7.0':
     resolution: {integrity: sha512-e7zcB6TPnVzyUaHMJyLSArKa2AG3h9+4CfvKXKKWNx6hRs+p0a+u7HHTJBgo6KW2m+vqDnuIHK4X+bhmoghAFA==}
@@ -5127,6 +5108,9 @@ packages:
 
   '@fontsource-variable/red-hat-mono@5.1.0':
     resolution: {integrity: sha512-oQb2wx97BCERvA0HjmWo014pr6s4pXDgjt/FOl07WSUGQefcmOWwpHbCDSQGGQhrAnTf3nziFFvtfkEf6qxN0w==}
+
+  '@fontsource-variable/roboto-flex@5.2.6':
+    resolution: {integrity: sha512-8jUDGkb6gRUexJkdUz1GThB9fshF7ENe/vVmtf+nz2MxQZZsrrYT92tST3xM+xf/BnoqL6yRkGdv9zNITiyYCw==}
 
   '@fontsource/inter@5.1.0':
     resolution: {integrity: sha512-zKZR3kf1G0noIes1frLfOHP5EXVVm0M7sV/l9f/AaYf+M/DId35FO4LkigWjqWYjTJZGgplhdv4cB+ssvCqr5A==}
@@ -23022,11 +23006,6 @@ snapshots:
       postcss-sort-media-queries: 5.2.0(postcss@8.4.47)
       tslib: 2.8.1
 
-  '@docusaurus/logger@3.5.2':
-    dependencies:
-      chalk: 4.1.2
-      tslib: 2.8.1
-
   '@docusaurus/logger@3.7.0':
     dependencies:
       chalk: 4.1.2
@@ -24337,6 +24316,8 @@ snapshots:
 
   '@fontsource-variable/red-hat-mono@5.1.0': {}
 
+  '@fontsource-variable/roboto-flex@5.2.6': {}
+
   '@fontsource/inter@5.1.0': {}
 
   '@gql.tada/cli-utils@1.6.2(@0no-co/graphqlsp@1.12.14(graphql@16.9.0)(typescript@5.6.2))(graphql@16.9.0)(typescript@5.6.2)':
@@ -24550,7 +24531,6 @@ snapshots:
       '@graphql-markdown/logger': 1.0.4
       '@graphql-markdown/printer-legacy': 1.9.0(@docusaurus/types@3.7.0(@swc/core@1.7.28(@swc/helpers@0.5.5))(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(@swc/core@1.7.28(@swc/helpers@0.5.5))(graphql@16.9.0)(prettier@3.3.3)(typescript@5.6.2)
     transitivePeerDependencies:
-      - '@docusaurus/types'
       - '@graphql-markdown/diff'
       - '@graphql-markdown/helpers'
       - '@swc/core'
@@ -24558,8 +24538,9 @@ snapshots:
       - graphql
       - graphql-config
       - prettier
+      - react
+      - react-dom
       - supports-color
-      - typescript
       - uglify-js
       - webpack-cli
 
@@ -24579,13 +24560,13 @@ snapshots:
       '@graphql-markdown/graphql': 1.1.4(graphql@16.9.0)(prettier@3.3.3)
       '@graphql-markdown/utils': 1.7.0(prettier@3.3.3)
     transitivePeerDependencies:
-      - '@docusaurus/types'
       - '@swc/core'
       - esbuild
       - graphql
       - prettier
+      - react
+      - react-dom
       - supports-color
-      - typescript
       - uglify-js
       - webpack-cli
 
