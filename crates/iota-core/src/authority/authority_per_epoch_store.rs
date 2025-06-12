@@ -85,17 +85,16 @@ use super::{
     shared_object_congestion_tracker::{
         ExecutionTime, SequencingResult, SharedObjectCongestionTracker,
     },
-    suggested_gas_price_calculator::SuggestedGasPriceCalculator,
     transaction_deferral::{DeferralKey, DeferralReason, transaction_deferral_within_limit},
 };
 use crate::{
     authority::{
         AuthorityMetrics, ResolverWrapper,
         epoch_start_configuration::EpochStartConfiguration,
-        shared_object_congestion_info::MultiCommitCongestionInfo,
         shared_object_version_manager::{
             AssignedTxAndVersions, ConsensusSharedObjVerAssignment, SharedObjVerManager,
         },
+        suggested_gas_price_calculator::PerCommitSuggestedGasPriceCalculator,
     },
     checkpoints::{
         BuilderCheckpointSummary, CheckpointHeight, CheckpointServiceNotify, EpochStats,
@@ -437,9 +436,6 @@ pub struct AuthorityPerEpochStore {
     /// State machine managing randomness DKG and generation.
     randomness_manager: OnceCell<tokio::sync::Mutex<RandomnessManager>>,
     randomness_reporter: OnceCell<RandomnessReporter>,
-
-    /// Shared object congestion info from multiple consensus commit rounds.
-    congestion_info: Mutex<MultiCommitCongestionInfo>,
 }
 
 /// AuthorityEpochTables contains tables that contain data that is only valid
@@ -947,7 +943,6 @@ impl AuthorityPerEpochStore {
             jwk_aggregator,
             randomness_manager: OnceCell::new(),
             randomness_reporter: OnceCell::new(),
-            congestion_info: Mutex::new(MultiCommitCongestionInfo::default()),
         });
 
         s.update_buffer_stake_metric();
@@ -3131,7 +3126,8 @@ impl AuthorityPerEpochStore {
             }
         );
 
-        self.add_new_per_commit_congestion_info(consensus_commit_info.round);
+        let mut suggested_gas_price_calculator =
+            PerCommitSuggestedGasPriceCalculator::new(consensus_commit_info.round);
 
         let mut randomness_state_updated = false;
         for tx in transactions {
@@ -3154,6 +3150,7 @@ impl AuthorityPerEpochStore {
                     dkg_failed,
                     randomness_round.is_some(),
                     congestion_tracker,
+                    &mut suggested_gas_price_calculator,
                     authority_metrics,
                 )
                 .await?
@@ -3410,6 +3407,7 @@ impl AuthorityPerEpochStore {
         dkg_failed: bool,
         generating_randomness: bool,
         shared_object_congestion_tracker: &mut SharedObjectCongestionTracker,
+        suggested_gas_price_calculator: &mut PerCommitSuggestedGasPriceCalculator,
         authority_metrics: &Arc<AuthorityMetrics>,
     ) -> IotaResult<ConsensusCertificateResult> {
         let _scope = monitored_scope("HandleConsensusTransaction");
@@ -3519,8 +3517,8 @@ impl AuthorityPerEpochStore {
                                     );
 
                                     // Calculate suggested gas price for the cancelled certificate
-                                    let _suggested_gas_price =
-                                        self.calculate_suggested_gas_price(&certificate);
+                                    let _suggested_gas_price = suggested_gas_price_calculator
+                                        .calculate_suggested_gas_price(&certificate);
 
                                     ConsensusCertificateResult::Cancelled((
                                         certificate,
@@ -3532,30 +3530,31 @@ impl AuthorityPerEpochStore {
                                 }
                             }
                         };
-                        return Ok(deferral_result);
+
+                        Ok(deferral_result)
                     }
                     SchedulingResult::Schedule(start_time) => {
-                        // Update shared object congestion info for a single scheduled certificate
-                        self.update_per_commit_congestion_info_for_scheduled_consensus_certificate(
-                            &certificate,
-                            estimated_execution_duration,
-                        );
-
                         if dkg_failed && certificate.transaction_data().uses_randomness() {
                             debug!(
                                 "Canceling randomness-using certificate for transaction {:?} because DKG failed",
                                 certificate.digest(),
                             );
+
                             return Ok(ConsensusCertificateResult::Cancelled((
                                 certificate,
                                 CancelConsensusCertificateReason::DkgFailed,
                             )));
                         }
 
-                        // This certificate will be scheduled. Update object execution slots.
+                        // This certificate will be scheduled. If it contains shared object(s),
+                        // we have to update the following:
+                        // - shared object execution slots (for congestion tracker);
+                        // - shared object congestion info (for suggested gas price calculator).
                         if certificate.contains_shared_object() {
                             shared_object_congestion_tracker
                                 .bump_object_execution_slots(&certificate, start_time);
+                            suggested_gas_price_calculator
+                                .update_congestion_info(&certificate, estimated_execution_duration);
                         }
 
                         Ok(ConsensusCertificateResult::Scheduled {
@@ -4028,39 +4027,6 @@ impl AuthorityPerEpochStore {
                 ),
             }
         }
-    }
-
-    /// Add new empty per-commit congestion data for `commit_round` to
-    /// multi-commit congestion info.
-    fn add_new_per_commit_congestion_info(&self, commit_round: CommitRound) {
-        let mut congestion_info = self.congestion_info.lock();
-        (*congestion_info).add_new_per_commit_congestion_info(commit_round);
-    }
-
-    /// Update per-commit congestion info for a single consensus certificate
-    /// in the current consensus commit round.
-    fn update_per_commit_congestion_info_for_scheduled_consensus_certificate(
-        &self,
-        certificate: &VerifiedExecutableTransaction,
-        estimated_execution_duration: ExecutionTime,
-    ) {
-        let mut congestion_info = self.congestion_info.lock();
-        (*congestion_info).update_per_commit_congestion_info_for_scheduled_consensus_certificate(
-            certificate,
-            estimated_execution_duration,
-        );
-    }
-
-    /// Calculate a suggested gas price using multi-commit congestion data
-    /// for a given certificate.
-    fn calculate_suggested_gas_price(&self, certificate: &VerifiedExecutableTransaction) -> u64 {
-        let multi_commit_congestion_info = self.congestion_info.lock();
-
-        SuggestedGasPriceCalculator::calculate(
-            &multi_commit_congestion_info,
-            certificate,
-            self.reference_gas_price(),
-        )
     }
 }
 

@@ -1,30 +1,48 @@
-use iota_types::executable_transaction::VerifiedExecutableTransaction;
+use iota_types::{
+    base_types::CommitRound, executable_transaction::VerifiedExecutableTransaction,
+    transaction::TransactionDataAPI,
+};
 
-use super::shared_object_congestion_info::MultiCommitCongestionInfo;
+use super::{
+    shared_object_congestion_info::PerCommitCongestionInfo,
+    shared_object_congestion_tracker::ExecutionTime,
+};
 
-/// Suggested gas price calculator is a component that calculates suggested
-/// gas prices for shared-object transactions.
-pub(crate) struct SuggestedGasPriceCalculator;
+/// `PerCommitSuggestedGasPriceCalculator` calculates suggested gas prices
+/// for deferred/cancelled shared-object transactions, using congestion
+/// info from a single consensus commit.
+pub(crate) struct PerCommitSuggestedGasPriceCalculator {
+    congestion_info: PerCommitCongestionInfo,
+}
 
-impl SuggestedGasPriceCalculator {
-    /// Calculate a suggested gas price using multi-commit congestion data
-    /// for a given certificate. The reference gas price will be used as
-    /// a suggested gas price if the certificate does not contain shared
-    /// objects or if there is no congestion on the certificate's input
-    /// shared objects, even though this function should only be called
-    /// for certificate cancelled due to shared object congestion.
-    pub fn calculate(
-        _multi_commit_congestion_info: &MultiCommitCongestionInfo,
-        certificate: &VerifiedExecutableTransaction,
-        reference_gas_price: u64,
-    ) -> u64 {
-        if certificate.contains_shared_object() {
-            // TODO: think about inflated gas price: there is no congestion, but senders set
-            // high gas prices. The calculator should return reference gas price.
-
-            reference_gas_price + 1
-        } else {
-            reference_gas_price
+impl PerCommitSuggestedGasPriceCalculator {
+    /// Create/initialize a new `PerCommitSuggestedGasPriceCalculator` with
+    /// empty shared object congestion data for a given consensus commit
+    /// round.
+    pub fn new(commit_round: CommitRound) -> Self {
+        Self {
+            congestion_info: PerCommitCongestionInfo::new(commit_round),
         }
+    }
+
+    /// Update per-commit congestion info for a single certificate. This should
+    /// only be called for scheduled certificates that contain shared object(s).
+    pub fn update_congestion_info(
+        &mut self,
+        certificate: &VerifiedExecutableTransaction,
+        estimated_execution_duration: ExecutionTime,
+    ) {
+        self.congestion_info
+            .update_for_scheduled_consensus_certificate(certificate, estimated_execution_duration);
+    }
+
+    /// Calculate a suggested gas price using single-commit congestion data.
+    /// This should only be called for certificates deferred/cancelled due
+    /// to shared object congestion.
+    pub fn calculate_suggested_gas_price(
+        &self,
+        certificate: &VerifiedExecutableTransaction,
+    ) -> u64 {
+        certificate.transaction_data().gas_price()
     }
 }
