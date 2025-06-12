@@ -20,7 +20,7 @@
     .text-label-lg,
     .text-label-md,
     .text-label-sm {
-        @apply font-inter;
+        font-family: var(--font-family);
     }
 
     .text-display-lg,

@@ -36,6 +36,7 @@
     },
     "types": "./dist/index.d.ts",
     "dependencies": {
+        "@fontsource-variable/roboto-flex": "^5.2.6",
         "@fontsource/inter": "^5.0.17",
         "@iota/apps-ui-icons": "workspace:*",
         "@radix-ui/react-dialog": "^1.1.1",

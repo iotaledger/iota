@@ -7,8 +7,19 @@
 
 @import 'tailwindcss/utilities';
 @import './utilities.css';
-:root {
+
+:root.light,
+:root.dark {
     --font-family: theme('fontFamily.alliance-no2');
+    --display-lg-font-weight: 500;
+    --display-lg-line-height: 120%;
+    --display-md-font-weight: 500;
+    --display-md-line-height: 120%;
+    --display-sm-font-weight: 500;
+    --display-sm-line-height: 120%;
+    --headline-lg-font-weight: 500;
+    --headline-md-font-weight: 500;
+    --headline-sm-font-weight: 500;
 }
 :root.light {
     --color-primary: theme('colors.iota-primary.30');
@@ -19,5 +30,15 @@
 }
 
 :root.names {
-    --color-primary: theme('colors.iota-error.60');
+    --color-primary: theme('colors.names-primary.30');
+    --font-family: theme('fontFamily.roboto-flex');
+    --display-lg-font-weight: 700;
+    --display-lg-line-height: 100%;
+    --display-md-font-weight: 700;
+    --display-md-line-height: 100%;
+    --display-sm-font-weight: 700;
+    --display-sm-line-height: 100%;
+    --headline-lg-font-weight: 600;
+    --headline-md-font-weight: 600;
+    --headline-sm-font-weight: 600;
 }
