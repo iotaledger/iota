@@ -66,7 +66,8 @@ pub enum IntentScope {
     SenderSignedTransaction = 4, // Used for an authority signature on a user signed transaction.
     ProofOfPossession = 5,       /* Used as a signature representing an authority's proof of
                                   * possession of its authority key. */
-    Reserved = 6, // it was thought for bridge purposes but it was never included in messages.
+    BridgeEventDeprecated = 6, /* Deprecated. Should not be reused. Introduced for bridge
+                                * purposes but was never included in messages. */
     ConsensusBlock = 7, // Used for consensus authority signature on block's digest.
 }
 
