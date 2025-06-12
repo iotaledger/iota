@@ -1003,7 +1003,14 @@ impl<K, V> DBMap<K, V> {
     }
 
     fn report_metrics(rocksdb: &Arc<RocksDB>, cf_name: &str, db_metrics: &Arc<DBMetrics>) {
-        let cf = rocksdb.cf_handle(cf_name).expect("Failed to get cf");
+        let Some(cf) = rocksdb.cf_handle(cf_name) else {
+            tracing::warn!(
+                "unable to report metrics for cf {cf_name:?} in db {:?}",
+                rocksdb.db_name()
+            );
+            return;
+        };
+
         db_metrics
             .cf_metrics
             .rocksdb_total_sst_files_size
@@ -2642,7 +2649,6 @@ pub fn default_db_options() -> DBOptions {
     opt.set_table_cache_num_shard_bits(10);
 
     // LSM compression settings
-    opt.set_min_level_to_compress(2);
     opt.set_compression_type(rocksdb::DBCompressionType::Lz4);
     opt.set_bottommost_compression_type(rocksdb::DBCompressionType::Zstd);
     opt.set_bottommost_zstd_max_train_bytes(1024 * 1024, true);

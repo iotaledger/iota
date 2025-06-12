@@ -6,6 +6,7 @@
 mod test {
     use std::{
         collections::HashSet,
+        num::NonZeroUsize,
         path::PathBuf,
         str::FromStr,
         sync::{
@@ -22,7 +23,10 @@ mod test {
         system_state_observer::SystemStateObserver,
         util::get_ed25519_keypair_from_keystore,
         workloads::{
-            adversarial::AdversarialPayloadCfg, workload_configuration::WorkloadConfiguration,
+            adversarial::AdversarialPayloadCfg,
+            expected_failure::ExpectedFailurePayloadCfg,
+            workload::ExpectedFailureType,
+            workload_configuration::{WorkloadConfig, WorkloadConfiguration, WorkloadWeights},
         },
     };
     use iota_config::{AUTHORITIES_DB_NAME, IOTA_KEYSTORE_FILENAME, node::AuthorityOverloadConfig};
@@ -41,12 +45,14 @@ mod test {
     use iota_simulator::{SimConfig, configs::*, tempfile::TempDir};
     use iota_storage::blob::Blob;
     use iota_surfer::surf_strategy::SurfStrategy;
+    use iota_swarm_config::network_config_builder::ConfigBuilder;
     use iota_types::{
         base_types::{ConciseableName, ObjectID, SequenceNumber},
         digests::TransactionDigest,
         full_checkpoint_content::CheckpointData,
         messages_checkpoint::VerifiedCheckpoint,
         supported_protocol_versions::SupportedProtocolVersions,
+        traffic_control::{FreqThresholdConfig, PolicyConfig, PolicyType},
         transaction::{
             DEFAULT_VALIDATOR_GAS_PRICE, TEST_ONLY_GAS_UNIT_FOR_HEAVY_COMPUTATION_STORAGE,
         },
@@ -542,7 +548,64 @@ mod test {
             info!("Simulated load config: {:?}", simulated_load_config);
         }
 
-        test_simulated_load_with_test_config(test_cluster, 50, simulated_load_config).await;
+        test_simulated_load_with_test_config(test_cluster, 50, simulated_load_config, None, None)
+            .await;
+    }
+
+    // Tests cluster defense against failing transaction floods Traffic Control
+    #[sim_test(config = "test_config()")]
+    async fn test_simulated_load_expected_failure_traffic_control() {
+        // TODO: can we get away with significantly increasing this?
+        let target_qps = get_var("SIM_STRESS_TEST_QPS", 10);
+        let num_workers = get_var("SIM_STRESS_TEST_WORKERS", 10);
+
+        let expected_tps = target_qps * num_workers;
+        let error_policy_type = PolicyType::FreqThreshold(FreqThresholdConfig {
+            client_threshold: expected_tps / 2,
+            window_size_secs: 5,
+            update_interval_secs: 1,
+            ..Default::default()
+        });
+        info!(
+            "test_simulated_load_expected_failure_traffic_control setup.
+             Policy type: {:?}",
+            error_policy_type
+        );
+
+        let policy_config = PolicyConfig {
+            connection_blocklist_ttl_sec: 1,
+            error_policy_type,
+            dry_run: false,
+            ..Default::default()
+        };
+        let network_config = ConfigBuilder::new_with_temp_dir()
+            .committee_size(NonZeroUsize::new(4).unwrap())
+            .with_policy_config(Some(policy_config))
+            .with_epoch_duration(5000)
+            .build();
+        let test_cluster = Arc::new(
+            TestClusterBuilder::new()
+                .set_network_config(network_config)
+                .build()
+                .await,
+        );
+
+        let mut simulated_load_config = SimulatedLoadConfig::default();
+        {
+            simulated_load_config.expected_failure_weight = 20;
+            simulated_load_config.expected_failure_config.failure_type =
+                ExpectedFailureType::try_from(0).unwrap();
+            info!("Simulated load config: {:?}", simulated_load_config);
+        }
+
+        test_simulated_load_with_test_config(
+            test_cluster,
+            50,
+            simulated_load_config,
+            Some(target_qps),
+            Some(num_workers),
+        )
+        .await;
     }
 
     // Tests cluster liveness when DKG has failed.
@@ -852,6 +915,8 @@ mod test {
         num_shared_counters: Option<u64>,
         use_shared_counter_max_tip: bool,
         shared_counter_max_tip: u64,
+        expected_failure_weight: u32,
+        expected_failure_config: ExpectedFailurePayloadCfg,
     }
 
     impl Default for SimulatedLoadConfig {
@@ -868,6 +933,10 @@ mod test {
                 num_shared_counters: Some(1),
                 use_shared_counter_max_tip: false,
                 shared_counter_max_tip: 0,
+                expected_failure_weight: 0,
+                expected_failure_config: ExpectedFailurePayloadCfg {
+                    failure_type: ExpectedFailureType::try_from(0).unwrap(),
+                },
             }
         }
     }
@@ -877,6 +946,8 @@ mod test {
             test_cluster,
             test_duration_secs,
             SimulatedLoadConfig::default(),
+            None,
+            None,
         )
         .await;
     }
@@ -885,6 +956,8 @@ mod test {
         test_cluster: Arc<TestCluster>,
         test_duration_secs: u64,
         config: SimulatedLoadConfig,
+        target_qps: Option<u64>,
+        num_workers: Option<u64>,
     ) {
         let sender = test_cluster.get_address_0();
         let keystore_path = test_cluster.swarm.dir().join(IOTA_KEYSTORE_FILENAME);
@@ -917,17 +990,10 @@ mod test {
 
         // The default test parameters are somewhat conservative in order to keep the
         // running time of the test reasonable in CI.
-        let target_qps = get_var("SIM_STRESS_TEST_QPS", 10);
-        let num_workers = get_var("SIM_STRESS_TEST_WORKERS", 10);
+        let target_qps = target_qps.unwrap_or(get_var("SIM_STRESS_TEST_QPS", 10));
+        let num_workers = num_workers.unwrap_or(get_var("SIM_STRESS_TEST_WORKERS", 10));
         let in_flight_ratio = get_var("SIM_STRESS_TEST_IFR", 2);
         let batch_payment_size = get_var("SIM_BATCH_PAYMENT_SIZE", 15);
-        let shared_counter_weight = config.shared_counter_weight;
-        let transfer_object_weight = config.transfer_object_weight;
-        let num_transfer_accounts = config.num_transfer_accounts;
-        let delegation_weight = config.delegation_weight;
-        let batch_payment_weight = config.batch_payment_weight;
-        let shared_object_deletion_weight = config.shared_deletion_weight;
-        let randomness_weight = config.randomness_weight;
 
         // Run random payloads at 100% load
         let adversarial_cfg = AdversarialPayloadCfg::from_str("0-1.0").unwrap();
@@ -938,8 +1004,6 @@ mod test {
         // enabled. tests run for ever
         let adversarial_weight = 0;
 
-        let shared_counter_hotness_factor = config.shared_counter_hotness_factor;
-        let num_shared_counters = config.num_shared_counters;
         let shared_counter_max_tip = if config.use_shared_counter_max_tip {
             config.shared_counter_max_tip
         } else {
@@ -947,25 +1011,35 @@ mod test {
         };
         let gas_request_chunk_size = 100;
 
-        let workloads_builders = WorkloadConfiguration::create_workload_builders(
-            0,
+        let weights = WorkloadWeights {
+            shared_counter: config.shared_counter_weight,
+            transfer_object: config.transfer_object_weight,
+            delegation: config.delegation_weight,
+            batch_payment: config.batch_payment_weight,
+            shared_deletion: config.shared_deletion_weight,
+            randomness: config.randomness_weight,
+            adversarial: adversarial_weight,
+            expected_failure: config.expected_failure_weight,
+        };
+
+        let workload_config = WorkloadConfig {
+            group: 0,
             num_workers,
-            num_transfer_accounts,
-            shared_counter_weight,
-            transfer_object_weight,
-            delegation_weight,
-            batch_payment_weight,
-            shared_object_deletion_weight,
-            adversarial_weight,
+            num_transfer_accounts: config.num_transfer_accounts,
+            weights,
             adversarial_cfg,
-            randomness_weight,
+            expected_failure_cfg: config.expected_failure_config,
             batch_payment_size,
-            shared_counter_hotness_factor,
-            num_shared_counters,
+            shared_counter_hotness_factor: config.shared_counter_hotness_factor,
+            num_shared_counters: config.num_shared_counters,
             shared_counter_max_tip,
             target_qps,
             in_flight_ratio,
             duration,
+        };
+
+        let workloads_builders = WorkloadConfiguration::create_workload_builders(
+            workload_config,
             system_state_observer.clone(),
         )
         .await;
