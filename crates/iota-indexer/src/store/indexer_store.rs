@@ -2,9 +2,10 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{any::Any, collections::BTreeMap};
+use std::{any::Any, collections::BTreeMap, format};
 
 use async_trait::async_trait;
+use iota_types::base_types::TransactionDigest;
 
 use crate::{
     db::PoolConnection,
@@ -19,6 +20,7 @@ use crate::{
         transactions::{OptimisticTransaction, TransactionIndexingStatus, TxGlobalOrder},
         tx_indices::OptimisticTxIndices,
     },
+    run_query_async, transactional_blocking_with_retry,
     types::{
         EventIndex, IndexedCheckpoint, IndexedEvent, IndexedPackage, IndexedTransaction, TxIndex,
     },
@@ -150,4 +152,8 @@ pub trait IndexerStore: Any + Clone + Sync + Send + 'static {
         digests: &[Vec<u8>],
         connection_with_lock: PoolConnection,
     ) -> Result<(), IndexerError>;
+    async fn get_or_assign_optimistic_tx_global_order(
+        &self,
+        tx_digest: &TransactionDigest,
+    ) -> Result<TxGlobalOrder, IndexerError>;
 }

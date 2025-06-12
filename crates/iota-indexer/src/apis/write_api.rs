@@ -190,6 +190,7 @@ impl WriteApi {
     ) -> Result<(), IndexerError> {
         let tx_digest = full_tx_data.transaction.digest();
         let assigned_global_order = self
+            .store
             .get_or_assign_optimistic_tx_global_order(tx_digest)
             .await?;
 
@@ -204,14 +205,14 @@ impl WriteApi {
             .full_optimistic_tx_data_to_indexed_data(full_tx_data, &assigned_global_order)
             .await?;
 
-        println!("about to hold execution lock: {tx_digest}");
+        // println!("about to hold execution lock: {tx_digest}");
 
         let conn_with_locked_tx = self
             .store
             .hold_execution_lock_for_transactions(&[tx_digest.inner().to_vec()])
             .await?;
 
-        println!("about to hold execution lock: {tx_digest}");
+        println!("Optimistic got lock: {tx_digest}");
 
         let tx_status = self
             .store
@@ -220,7 +221,10 @@ impl WriteApi {
             .pop()
             .expect("Execution status should always be present since it was just added");
 
+        println!("Optimistic got execution status: {tx_digest}");
+
         if !tx_status.indexing_completed {
+            println!("persist: {tx_digest}");
             self.persist_optimistic_tx(
                 indexed_tx,
                 tx_indices,
@@ -236,39 +240,8 @@ impl WriteApi {
                 .await?;
         }
 
+        println!("Optimistic release lock: {tx_digest}");
         Ok(())
-    }
-
-    async fn get_or_assign_optimistic_tx_global_order(
-        &self,
-        tx_digest: &TransactionDigest,
-    ) -> Result<TxGlobalOrder, IndexerError> {
-        let tx_digest_bytes = tx_digest.inner().to_vec();
-
-        let pool = self.inner.get_pool();
-
-        transactional_blocking_with_retry!(
-            &pool,
-            |conn| {
-                sql_query(
-                    r#"
-                        INSERT INTO tx_global_order (tx_digest, global_sequence_number)
-                        SELECT $1, MAX(tx_sequence_number) FROM tx_digests
-                        ON CONFLICT (tx_digest) DO NOTHING
-                    "#,
-                )
-                .bind::<sql_types::Bytea, _>(&tx_digest_bytes)
-                .execute(conn)
-            },
-            Duration::from_secs(30)
-        )?;
-
-        run_query_async!(&pool, |conn| {
-            tx_global_order::table
-                .select(TxGlobalOrder::as_select())
-                .filter(tx_global_order::tx_digest.eq(tx_digest_bytes))
-                .first::<TxGlobalOrder>(conn)
-        })
     }
 
     async fn full_optimistic_tx_data_to_indexed_data(

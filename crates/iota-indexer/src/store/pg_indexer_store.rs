@@ -11,9 +11,9 @@ use std::{
 
 use async_trait::async_trait;
 use diesel::{
-    ExpressionMethods, OptionalExtension, QueryDsl, RunQueryDsl,
+    ExpressionMethods, OptionalExtension, QueryDsl, RunQueryDsl, SelectableHelper,
     dsl::{max, min},
-    sql_types,
+    sql_query, sql_types,
     upsert::excluded,
 };
 use downcast::Any;
@@ -21,7 +21,7 @@ use futures::future::Either;
 use iota_protocol_config::ProtocolConfig;
 use iota_types::{
     base_types::ObjectID,
-    digests::{ChainIdentifier, CheckpointDigest},
+    digests::{ChainIdentifier, CheckpointDigest, TransactionDigest},
 };
 use itertools::Itertools;
 use tap::TapFallible;
@@ -52,7 +52,7 @@ use crate::{
         tx_indices::OptimisticTxIndices,
     },
     on_conflict_do_update, on_conflict_do_update_with_condition, persist_chunk_into_table,
-    read_only_blocking,
+    read_only_blocking, run_query_async,
     schema::{
         chain_identifier, checkpoints, display, epochs, event_emit_module, event_emit_package,
         event_senders, event_struct_instantiation, event_struct_module, event_struct_name,
@@ -68,7 +68,8 @@ use crate::{
         tx_calls_pkg, tx_changed_objects, tx_digests, tx_global_order, tx_input_objects, tx_kinds,
         tx_recipients, tx_senders,
     },
-    start_transaction_with_query_with_retry, transactional_blocking_with_retry,
+    spawn_read_only_blocking, start_transaction_with_query_with_retry,
+    transactional_blocking_with_retry,
     types::{
         EventIndex, IndexedCheckpoint, IndexedDeletedObject, IndexedEvent, IndexedObject,
         IndexedPackage, IndexedTransaction, TxIndex,
@@ -1807,11 +1808,59 @@ impl IndexerStore for PgIndexerStore {
             .await
     }
 
+    async fn get_or_assign_optimistic_tx_global_order(
+        &self,
+        tx_digest: &TransactionDigest,
+    ) -> Result<TxGlobalOrder, IndexerError> {
+        let tx_digest_bytes = tx_digest.inner().to_vec();
+
+        self.spawn_blocking_task(move |this| {
+            let pool = this.blocking_cp;
+
+            transactional_blocking_with_retry!(
+                &pool,
+                |conn| {
+                    sql_query(
+                        r#"
+                        INSERT INTO tx_global_order (tx_digest, global_sequence_number)
+                        SELECT $1, MAX(tx_sequence_number) FROM tx_digests
+                        ON CONFLICT (tx_digest) DO NOTHING
+                    "#,
+                    )
+                    .bind::<sql_types::Bytea, _>(&tx_digest_bytes)
+                    .execute(conn)
+                },
+                Duration::from_secs(30)
+            )
+        })
+        .await
+        .map_err(|e| {
+            IndexerError::PostgresWrite(format!(
+                "Failed to persist optimistic transaction: {:?}",
+                e
+            ))
+        })??;
+
+        let tx_digest_bytes_clone = tx_digest.inner().to_vec();
+        let pool = self.blocking_cp.clone();
+        run_query_async!(&pool, move |conn| {
+            tx_global_order::table
+                .select(TxGlobalOrder::as_select())
+                .filter(tx_global_order::tx_digest.eq(tx_digest_bytes_clone))
+                .first::<TxGlobalOrder>(conn)
+        })
+    }
+
     async fn hold_execution_lock_for_transactions(
         &self,
         digests: &[Vec<u8>],
     ) -> Result<PoolConnection, IndexerError> {
+        let digests = digests.to_vec();
         // TODO: metrics
+
+        let first_digest = TransactionDigest::try_from(digests[0].as_slice()).unwrap();
+        let diglen = digests.len();
+        // println!("inserting status {diglen}: {first_digest:?}");
 
         let default_indexing_statuses = digests
             .iter()
@@ -1821,33 +1870,44 @@ impl IndexerStore for PgIndexerStore {
             })
             .collect::<Vec<_>>();
 
-        transactional_blocking_with_retry!(
-            &self.blocking_cp,
-            |conn| {
-                for indexing_status_chunk in
-                    default_indexing_statuses.chunks(PG_COMMIT_CHUNK_SIZE_INTRA_DB_TX)
-                {
-                    insert_or_ignore_into!(
-                        transaction_indexing_status::table,
-                        indexing_status_chunk,
-                        conn
-                    );
-                }
-                Ok::<(), IndexerError>(())
-            },
-            PG_DB_COMMIT_SLEEP_DURATION
-        )?;
+        let connection_with_lock = self
+            .spawn_blocking_task(move |this| {
+                transactional_blocking_with_retry!(
+                    &this.blocking_cp,
+                    |conn| {
+                        for indexing_status_chunk in
+                            default_indexing_statuses.chunks(PG_COMMIT_CHUNK_SIZE_INTRA_DB_TX)
+                        {
+                            insert_or_ignore_into!(
+                                transaction_indexing_status::table,
+                                indexing_status_chunk,
+                                conn
+                            );
+                        }
+                        Ok::<(), IndexerError>(())
+                    },
+                    PG_DB_COMMIT_SLEEP_DURATION
+                )?;
 
-        let query = diesel::sql_query(
-            "SELECT 1 FROM transaction_indexing_status WHERE tx_digest = ANY($1) FOR UPDATE",
-        )
-        .bind::<sql_types::Array<sql_types::Bytea>, _>(digests);
+                // println!("inserted status {diglen}: {first_digest:?}");
 
-        let connection_with_lock = start_transaction_with_query_with_retry!(
-            &self.blocking_cp,
-            query,
-            Duration::from_secs(10)
-        )?;
+                let query = diesel::sql_query(
+                "SELECT 1 FROM transaction_indexing_status WHERE tx_digest = ANY($1) FOR UPDATE",
+            )
+            .bind::<sql_types::Array<sql_types::Bytea>, _>(digests);
+
+                start_transaction_with_query_with_retry!(
+                    &this.blocking_cp,
+                    query,
+                    Duration::from_secs(10)
+                )
+            })
+            .await
+            .map_err(|e| {
+                IndexerError::PostgresWrite(format!("Failed to hold execution lock: {:?}", e))
+            })??;
+
+        println!("Got lock {diglen}: {first_digest:?}");
 
         Ok(connection_with_lock)
     }
@@ -1856,7 +1916,13 @@ impl IndexerStore for PgIndexerStore {
         &self,
         digests: &[Vec<u8>],
     ) -> Result<Vec<TransactionIndexingStatus>, IndexerError> {
-        let indexing_status = read_only_blocking!(&self.blocking_cp, |conn| {
+        let first_digest = TransactionDigest::try_from(digests[0].as_slice()).unwrap();
+        let diglen = digests.len();
+        println!("about to get execution status {diglen}: {first_digest:?}");
+        let digests = digests.to_vec();
+
+        let pool = self.blocking_cp.clone();
+        let indexing_status = run_query_async!(&pool, move |conn| {
             transaction_indexing_status::dsl::transaction_indexing_status
                 .filter(transaction_indexing_status::tx_digest.eq_any(digests))
                 .load::<TransactionIndexingStatus>(conn)
@@ -1873,6 +1939,10 @@ impl IndexerStore for PgIndexerStore {
         // TODO: metrics
         // TODO: is this really async
 
+        let first_digest = TransactionDigest::try_from(digests[0].as_slice()).unwrap();
+        let diglen = digests.len();
+        println!("mark_transactions_as_indexed {diglen}: {first_digest:?}");
+
         let completed_indexing_statuses = digests
             .iter()
             .map(|digest| TransactionIndexingStatus {
@@ -1881,20 +1951,28 @@ impl IndexerStore for PgIndexerStore {
             })
             .collect::<Vec<_>>();
 
-        for indexing_status_chunk in
-            completed_indexing_statuses.chunks(PG_COMMIT_CHUNK_SIZE_INTRA_DB_TX)
-        {
-            on_conflict_do_update!(
-                transaction_indexing_status::table,
-                indexing_status_chunk,
-                transaction_indexing_status::tx_digest,
-                transaction_indexing_status::indexing_completed
-                    .eq(excluded(transaction_indexing_status::indexing_completed)),
-                &mut connection_with_lock
-            ); // TODO: can it be done in batches? will the first execute do the commit? How to handle errors? we just skipped retry logic
-        }
+        self.spawn_blocking_task(move |this| {
+            for indexing_status_chunk in
+                completed_indexing_statuses.chunks(PG_COMMIT_CHUNK_SIZE_INTRA_DB_TX)
+            {
+                on_conflict_do_update!(
+                    transaction_indexing_status::table,
+                    indexing_status_chunk,
+                    transaction_indexing_status::tx_digest,
+                    transaction_indexing_status::indexing_completed
+                        .eq(excluded(transaction_indexing_status::indexing_completed)),
+                    &mut connection_with_lock
+                ); // TODO: can it be done in batches? will the first execute do the commit? How to handle errors? we just skipped retry logic
+            }
 
-        diesel::sql_query("COMMIT").execute(&mut connection_with_lock)?;
+            Ok(sql_query("COMMIT").execute(&mut connection_with_lock))
+        })
+        .await
+        .map_err(|e| {
+            IndexerError::PostgresWrite(format!("Failed to mark transactions as indexed: {:?}", e))
+        })???;
+
+        println!("mark_transactions_as_indexed DONE {diglen}: {first_digest:?}");
 
         Ok(())
     }

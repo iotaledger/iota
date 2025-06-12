@@ -3,7 +3,7 @@
 use std::{path::Path, str::FromStr};
 
 use fastcrypto::encoding::Base64;
-use futures::{TryStreamExt, stream::FuturesUnordered};
+use futures::{StreamExt, TryStreamExt, stream::FuturesUnordered};
 use iota_json::{call_args, type_args};
 use iota_json_rpc_api::{
     CoinReadApiClient, IndexerApiClient, ReadApiClient, TransactionBuilderClient, WriteApiClient,
@@ -505,7 +505,7 @@ fn test_execute_transactions_with_shared_objects() {
             .await
             .unwrap();
 
-        let res_1 = increment_counter(sender, &sender_kp, client, package_id, &counter_obj)
+        let res_1 = increment_counter(sender, &sender_kp, client, package_id, &counter_obj, None)
             .await
             .unwrap();
         assert_eq!(res_1.status_ok(), Some(true));
@@ -516,7 +516,7 @@ fn test_execute_transactions_with_shared_objects() {
 }
 
 #[test]
-fn test_parallel_shared_object_updates() {
+fn test_parallel_indentical_requests() {
     let ApiTestSetup {
         runtime,
         cluster,
@@ -560,25 +560,96 @@ fn test_parallel_shared_object_updates() {
             .unwrap();
 
         let range = 0..10;
-
-        // let transaction_futures = vec![];
-        //
-        // for _ in 0..10 {
-        //     let package_id_copy = package_id;
-        //     let counter_obj_copy = counter_obj;
-        //     let fut = increment_counter_n_times_batch(
-        //         sender,
-        //         &sender_kp,
-        //         client,
-        //         &package_id_copy,
-        //         &counter_obj_copy,
-        //         1,
-        //     )
-        //     transa
-        // }
-
         let transaction_results: Vec<_> = range
-            .map(|_| increment_counter(sender, &sender_kp, client, &package_id, &counter_obj))
+            .map(|_| increment_counter(sender, &sender_kp, client, &package_id, &counter_obj, None))
+            .collect::<FuturesUnordered<_>>()
+            .try_collect()
+            .await
+            .unwrap();
+
+        let digests = transaction_results
+            .iter()
+            .map(|res| {
+                (
+                    res.digest,
+                    res.effects.as_ref().unwrap().dependencies().to_vec(),
+                )
+            })
+            .collect::<Vec<_>>(); // TODO: fix
+
+        println!("FINISHED PASS: {:#?}", digests);
+    });
+}
+
+#[test]
+fn test_parallel_shared_object_updates() {
+    let ApiTestSetup {
+        runtime,
+        cluster,
+        store,
+        client,
+    } = ApiTestSetup::get_or_init();
+
+    runtime.block_on(async {
+        indexer_wait_for_checkpoint(store, 1).await;
+
+        let (sender, sender_kp): (_, AccountKeyPair) = get_key_pair();
+
+        let rgp = cluster.get_reference_gas_price().await;
+
+        let range = 0..10;
+        let separate_gas_for_each_request: Vec<_> = futures::stream::iter(range)
+            .then(|_| async {
+                cluster
+                    .fund_address_and_return_gas(rgp, Some(10_000_000_000), sender)
+                    .await
+                    .0
+            })
+            .collect()
+            .await;
+
+        let gas = cluster
+            .fund_address_and_return_gas(rgp, Some(10_000_000_000), sender)
+            .await;
+
+        indexer_wait_for_object(client, gas.0, gas.1).await;
+
+        let res = deploy_basics_pkg(sender, &sender_kp, client).await;
+        assert_eq!(res.status_ok(), Some(true));
+
+        let package_id: ObjectID = *res
+            .object_changes
+            .as_ref()
+            .unwrap()
+            .iter()
+            .filter_map(|o| match o {
+                ObjectChange::Published { package_id, .. } => Some(package_id),
+                _ => None,
+            })
+            .exactly_one()
+            .unwrap();
+        println!("Publish result: {:#?}", package_id);
+
+        let (_, counter_obj) = create_counter_object(sender, &sender_kp, client, &package_id)
+            .await
+            .unwrap();
+
+        println!("Starting concurrent requests\n\n\n\n");
+        tokio::time::sleep(std::time::Duration::from_millis(2000)).await;
+        println!("Slept\n\n\n\n");
+
+        let transaction_results: Vec<_> = separate_gas_for_each_request
+            .iter()
+            .map(|gas| {
+                increment_counter(
+                    sender,
+                    &sender_kp,
+                    client,
+                    &package_id,
+                    &counter_obj,
+                    Some(*gas),
+                )
+            })
             .collect::<FuturesUnordered<_>>()
             .try_collect()
             .await
@@ -944,6 +1015,7 @@ async fn increment_counter(
     client: &HttpClient,
     package_id: &ObjectID,
     counter_id: &ObjectID,
+    gas: Option<ObjectID>,
 ) -> Result<IotaTransactionBlockResponse, anyhow::Error> {
     let module = "counter".to_string();
     let function = "increment".to_string();
@@ -955,7 +1027,7 @@ async fn increment_counter(
             function.clone(),
             type_args![].unwrap(),
             call_args!(counter_id).unwrap(),
-            None,
+            gas,
             10_000_000.into(),
             None,
         )
