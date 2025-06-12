@@ -72,6 +72,59 @@
     --visual-asset-placeholder-icon: theme('colors.iota-neutral.40');
     --visual-asset-title-color: theme('colors.iota-neutral.100');
     --visual-asset-icon-color: theme('colors.iota-neutral.100');
+
+    /* ACCOUNT */
+    --account-title-color: theme('colors.iota-neutral.10');
+    --account-icon-color: theme('colors.iota-neutral.40');
+    --account-check-active-color: theme('colors.iota-primary.30');
+    --account-check-inactive-color: theme('colors.iota-neutral.40');
+
+    /* ADDRESS */
+    --address-text-color: theme('colors.iota-neutral.40');
+
+    /* CARD */
+    --card-filled-bg: theme('colors.iota-neutral.96');
+    --card-image-bg-solid: theme('colors.iota-neutral.96');
+    --card-image-bg-white: theme('colors.iota-neutral.100');
+    --card-action-link-color: theme('colors.iota-neutral.10');
+    --card-action-title-color: theme('colors.iota-neutral.10');
+    --card-action-subtitle-color: theme('colors.iota-neutral.60');
+    --card-body-title-color: theme('colors.iota-neutral.10');
+    --card-body-subtitle-color: theme('colors.iota-neutral.40');
+
+    /* DISPLAY STATS */
+    --display-stats-bg-default: theme('colors.iota-neutral.96');
+    --display-stats-bg-highlight: theme('colors.iota-primary.30');
+    --display-stats-bg-secondary: theme('colors.iota-secondary.90');
+
+    --display-stats-text-default: theme('colors.iota-neutral.10');
+    --display-stats-text-highlight: theme('colors.iota-neutral.100');
+    --display-stats-text-secondary: theme('colors.iota-neutral.10');
+
+    --display-stats-icon-color: theme('colors.iota-neutral.10');
+    --display-stats-copy-icon-color: theme('colors.iota-neutral.60');
+
+    /* DROPDOWN */
+    --dropdown-bg: theme('colors.iota-neutral.100');
+    --dropdown-border-color: theme('colors.iota-neutral.80');
+
+    /* INPUT */
+    --input-text-color: theme('colors.iota-neutral.10');
+    --input-placeholder-color: theme('colors.iota-neutral.40 / 0.4');
+    --input-label-color: theme('colors.iota-neutral.40');
+    --input-border-color: theme('colors.iota-neutral.80');
+    --input-border-hover-color: theme('colors.iota-neutral.50');
+    --input-border-error-color: theme('colors.iota-error.30');
+    --input-border-focus-color: theme('colors.iota-primary.30');
+    --input-icon-color: theme('colors.iota-neutral.10');
+    --input-copy-icon-color: theme('colors.iota-neutral.60');
+    --input-visibility-bar-color: rgba(28, 28, 28, 0.6); /* neutral.92 with 60% opacity */
+
+    /* NAVBAR ITEM */
+    --navbar-icon-color: theme('colors.iota-neutral.40');
+    --navbar-icon-selected-color: theme('colors.iota-neutral.10');
+    --navbar-label-color: theme('colors.iota-neutral.60');
+    --navbar-label-selected-color: theme('colors.iota-neutral.10');
 }
 
 :root.dark {
@@ -121,6 +174,60 @@
     --visual-asset-placeholder-icon: theme('colors.iota-neutral.60');
     --visual-asset-title-color: theme('colors.iota-neutral.100');
     --visual-asset-icon-color: theme('colors.iota-neutral.100');
+
+    /* ACCOUNT */
+    --account-title-color: theme('colors.iota-neutral.92');
+    --account-icon-color: theme('colors.iota-neutral.60');
+    --account-check-active-color: theme('colors.iota-primary.80');
+    --account-check-inactive-color: theme('colors.iota-neutral.60');
+
+    /* ADDRESS */
+    --address-text-color: theme('colors.iota-neutral.60');
+
+    /* CARD */
+    --card-filled-bg: theme('colors.iota-neutral.10');
+    --card-image-bg-solid: theme('colors.iota-neutral.10');
+    --card-image-bg-white: theme('colors.iota-neutral.6');
+    --card-action-link-color: theme('colors.iota-neutral.92');
+    --card-action-title-color: theme('colors.iota-neutral.92');
+    --card-action-subtitle-color: theme('colors.iota-neutral.40');
+    --card-body-title-color: theme('colors.iota-neutral.92');
+    --card-body-subtitle-color: theme('colors.iota-neutral.60');
+
+    /* DISPLAY STATS */
+    --display-stats-bg-default: theme('colors.iota-neutral.10');
+    --display-stats-bg-highlight: theme('colors.iota-primary.80');
+    --display-stats-bg-secondary: theme('colors.iota-secondary.10');
+
+    --display-stats-text-default: theme('colors.iota-neutral.92');
+    --display-stats-text-highlight: theme('colors.iota-primary.10');
+    --display-stats-text-secondary: theme('colors.iota-neutral.92');
+
+    --display-stats-icon-color: theme('colors.iota-neutral.92');
+    --display-stats-copy-icon-color: theme('colors.iota-neutral.40');
+
+    /* DROPDOWN */
+    --dropdown-bg: theme('colors.iota-neutral.6');
+    --dropdown-border-color: theme('colors.iota-neutral.20');
+
+    /* INPUT */
+    --input-text-color: theme('colors.iota-neutral.92');
+    --input-placeholder-color: theme('colors.iota-neutral.60 / 0.4');
+    --input-label-color: theme('colors.iota-neutral.60');
+    --input-border-color: theme('colors.iota-neutral.20');
+    --input-border-hover-color: theme('colors.iota-neutral.60');
+    --input-border-error-color: theme('colors.iota-error.80');
+    --input-border-focus-color: theme('colors.iota-primary.80');
+    --input-icon-color: theme('colors.iota-neutral.92');
+    --input-copy-icon-color: theme('colors.iota-neutral.40');
+    --input-visibility-bar-color: rgba(250, 250, 250, 0.6); /* neutral.10 with 60% opacity */
+
+    /* NAVBAR ITEM */
+    --navbar-icon-color: theme('colors.iota-neutral.60');
+    --navbar-icon-selected-color: theme('colors.iota-neutral.92');
+
+    --navbar-label-color: theme('colors.iota-neutral.40');
+    --navbar-label-selected-color: theme('colors.iota-neutral.92');
 }
 
 :root.names {
@@ -181,4 +288,58 @@
     --visual-asset-placeholder-icon: theme('colors.iota-neutral.60');
     --visual-asset-title-color: theme('colors.iota-neutral.100');
     --visual-asset-icon-color: theme('colors.iota-neutral.100');
+
+    /* ACCOUNT */
+    --account-title-color: theme('colors.iota-neutral.92');
+    --account-icon-color: theme('colors.iota-neutral.60');
+    --account-check-active-color: theme('colors.iota-primary.80');
+    --account-check-inactive-color: theme('colors.iota-neutral.60');
+
+    /* ADDRESS */
+    --address-text-color: theme('colors.iota-neutral.60');
+
+    /* CARD */
+    --card-filled-bg: theme('colors.iota-neutral.10');
+    --card-image-bg-solid: theme('colors.iota-neutral.10');
+    --card-image-bg-white: theme('colors.iota-neutral.6');
+    --card-action-link-color: theme('colors.iota-neutral.92');
+    --card-action-title-color: theme('colors.iota-neutral.92');
+    --card-action-subtitle-color: theme('colors.iota-neutral.40');
+    --card-body-title-color: theme('colors.iota-neutral.92');
+    --card-body-subtitle-color: theme('colors.iota-neutral.60');
+
+    /* DISPLAY STATS */
+    --display-stats-bg-default: theme('colors.iota-neutral.10');
+    --display-stats-bg-highlight: theme('colors.iota-primary.80');
+    --display-stats-bg-secondary: theme('colors.iota-secondary.10');
+
+    --display-stats-text-default: theme('colors.iota-neutral.92');
+    --display-stats-text-highlight: theme('colors.iota-primary.10');
+    --display-stats-text-secondary: theme('colors.iota-neutral.92');
+
+    --display-stats-icon-color: theme('colors.iota-neutral.92');
+    --display-stats-copy-icon-color: theme('colors.iota-neutral.40');
+
+    /* DROPDOWN */
+    --dropdown-bg: theme('colors.iota-neutral.6');
+    --dropdown-border-color: theme('colors.iota-neutral.20');
+
+    /* INPUT */
+    --input-text-color: theme('colors.iota-neutral.92');
+    --input-placeholder-color: theme('colors.iota-neutral.60 / 0.4');
+    --input-label-color: theme('colors.iota-neutral.60');
+    --input-border-color: theme('colors.iota-neutral.20');
+    --input-border-hover-color: theme('colors.iota-neutral.60');
+    --input-border-error-color: theme('colors.iota-error.80');
+    --input-border-focus-color: theme('colors.iota-primary.80');
+    --input-icon-color: theme('colors.iota-neutral.92');
+    --input-copy-icon-color: theme('colors.iota-neutral.40');
+    --input-visibility-bar-color: rgba(250, 250, 250, 0.6); /* neutral.10 with 60% opacity */
+
+    /* NAVBAR ITEM */
+    --navbar-icon-color: theme('colors.iota-neutral.60');
+    --navbar-icon-selected-color: theme('colors.iota-neutral.92');
+
+    --navbar-label-color: theme('colors.iota-neutral.40');
+    --navbar-label-selected-color: theme('colors.iota-neutral.92');
 }
