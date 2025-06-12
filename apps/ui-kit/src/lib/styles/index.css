@@ -91,6 +91,7 @@
     --button-segment-underline-default-color: theme('colors.shader-neutral-light.8');
     --button-segment-underline-hover-color: theme('colors.iota-neutral.70');
     --button-segment-underline-selected-color: theme('colors.iota-primary.30');
+    --button-segment-bg-color-selected: theme('colors.iota-primary.100');
 }
 :root.dark {
     /* COLORS */
@@ -160,6 +161,7 @@
     --button-segment-underline-default-color: theme('colors.shader-neutral-dark.8');
     --button-segment-underline-hover-color: theme('colors.iota-neutral.40');
     --button-segment-underline-selected-color: theme('colors.iota-primary.80');
+    --button-segment-bg-color-selected: theme('colors.iota-neutral.6');
 }
 
 :root.names {
@@ -240,6 +242,7 @@
     --button-segment-text-color-focused: theme('colors.names-neutral.60');
     --button-segment-text-color-selected: theme('colors.names-neutral.92');
     --button-segment-underline-default-color: theme('colors.shader-neutral-dark.8');
-    --button-segment-underline-hover-color: theme('colors.iota-neutral.40');
-    --button-segment-underline-selected-color: theme('colors.iota-primary.80');
+    --button-segment-underline-hover-color: theme('colors.names-neutral.40');
+    --button-segment-underline-selected-color: theme('colors.names-primary.80');
+    --button-segment-bg-color-selected: theme('colors.names-neutral.6');
 }

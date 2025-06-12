@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 export const BACKGROUND_COLORS = 'bg-transparent';
-export const BACKGROUND_COLORS_SELECTED = 'bg-primary-100 dark:bg-neutral-6';
+export const BACKGROUND_COLORS_SELECTED = 'button-segment-bg-color-selected';
 
 const TEXT_COLOR = 'button-segment-text-color-default';
 const TEXT_COLOR_HOVER = 'button-segment-text-color-hover';

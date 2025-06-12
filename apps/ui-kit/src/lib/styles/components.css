@@ -171,6 +171,11 @@
     .button-segment-text-color-selected {
         color: var(--button-segment-text-color-selected);
     }
+
+    .button-segment-bg-color-selected {
+        background-color: var(--button-segment-bg-color-selected);
+    }
+
     .button-segment-underline-base {
         @apply relative before:absolute before:left-0 before:block before:w-full before:content-[''];
         border-bottom: 1px solid var(--button-segment-underline-default-color);
