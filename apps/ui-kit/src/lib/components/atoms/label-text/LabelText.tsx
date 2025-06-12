@@ -56,15 +56,13 @@ export function LabelText({
     return (
         <div className={cx('flex flex-col', centeredClasses, gapClass)}>
             <div className="flex flex-row flex-wrap items-center gap-0.5">
-                <span
-                    className={cx('text-neutral-10 dark:text-neutral-92 font-inter', textClasses)}
-                >
+                <span className={cx('label-text-primary-neutral font-inter', textClasses)}>
                     {text}
                 </span>
                 {supportingLabel && (
                     <span
                         className={cx(
-                            'text-neutral-60 dark:text-neutral-40 font-inter',
+                            'label-text-secondary-neutral font-inter',
                             supportingLabelClasses,
                         )}
                     >
@@ -75,7 +73,7 @@ export function LabelText({
             <div className="flex flex-row items-center gap-x-0.5">
                 <span
                     className={cx(
-                        'text-neutral-60 dark:text-neutral-40 flex items-center font-inter',
+                        'label-text-secondary-neutral flex items-center font-inter',
                         labelTextClasses,
                     )}
                 >
@@ -83,7 +81,7 @@ export function LabelText({
                     {tooltipText && (
                         <div className="ml-xxxs flex items-center">
                             <Tooltip text={tooltipText} position={tooltipPosition}>
-                                <Info className="text-neutral-60 dark:text-neutral-40" />
+                                <Info className="label-text-secondary-neutral" />
                             </Tooltip>
                         </div>
                     )}
