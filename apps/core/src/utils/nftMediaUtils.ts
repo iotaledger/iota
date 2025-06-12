@@ -29,7 +29,7 @@ const SUPPORTED_IMAGE_MIMETYPES = [
 
 interface ResolveNFTMediaTypeReturn {
     type: VisualAssetType;
-    isAutoPlaySupported?: boolean;
+    shouldAutoPlayVideo?: boolean;
     isMediaSupported: boolean;
 }
 
@@ -46,7 +46,7 @@ export function resolveNFTMedia(
     ) {
         return {
             type: VisualAssetType.Video,
-            isAutoPlaySupported: contentLength ? isVideoInSizeLimit(contentLength) : false,
+            shouldAutoPlayVideo: contentLength ? isVideoInSizeLimit(contentLength) : false,
             isMediaSupported: true,
         };
     }

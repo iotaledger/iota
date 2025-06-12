@@ -5,7 +5,6 @@
 import { NFTMediaRenderer } from '@iota/core';
 import { cva, type VariantProps } from 'class-variance-authority';
 import clsx from 'clsx';
-import { useRef } from 'react';
 
 import { ObjectModal } from '~/components/ui';
 
@@ -70,8 +69,6 @@ export function ObjectVideoImage({
     disableVideoControls,
     disableAutoPlay = false,
 }: ObjectVideoImageProps): JSX.Element {
-    const videoRef = useRef<HTMLVideoElement | null>(null);
-
     const close = () => {
         if (disablePreview) {
             return;
@@ -80,8 +77,6 @@ export function ObjectVideoImage({
         if (setOpen) {
             setOpen(false);
         }
-
-        videoRef.current?.play();
     };
     const openPreview = () => {
         if (disablePreview) {
@@ -91,8 +86,6 @@ export function ObjectVideoImage({
         if (setOpen) {
             setOpen(true);
         }
-
-        videoRef.current?.pause();
     };
 
     return (
@@ -108,7 +101,6 @@ export function ObjectVideoImage({
             <div
                 className={clsx(
                     imageStyles({ variant, disablePreview, rounded }),
-                    videoRef?.current && 'group/video',
                     rounded && 'overflow-hidden',
                 )}
                 onClick={openPreview}
@@ -118,7 +110,6 @@ export function ObjectVideoImage({
                     alt={title}
                     disableVideoControls={disableVideoControls}
                     disableAutoPlay={disableAutoPlay}
-                    videoRef={videoRef}
                     objectFit={imageStyles({ objectFit })}
                 />
             </div>

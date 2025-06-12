@@ -23,7 +23,7 @@ export function ObjectModal({
     src,
 }: ObjectModalProps): JSX.Element {
     const { data: nftMediaHeaders, isLoading } = useNFTMediaHeaders(src);
-    const { type, isAutoPlaySupported, isMediaSupported } = resolveNFTMedia(src, nftMediaHeaders);
+    const { type, shouldAutoPlayVideo, isMediaSupported } = resolveNFTMedia(src, nftMediaHeaders);
 
     return (
         <Modal open={open} onClose={onClose}>
@@ -36,7 +36,7 @@ export function ObjectModal({
                     <AssetMediaRenderer
                         assetType={type}
                         src={src}
-                        isAutoPlayEnabled={isAutoPlaySupported}
+                        isAutoPlayEnabled={shouldAutoPlayVideo}
                     />
                 )}
                 <div className="flex flex-col gap-3">
