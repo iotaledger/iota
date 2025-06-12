@@ -220,8 +220,10 @@ impl Core {
             std::thread::sleep(Duration::from_millis(wait_ms));
         }
 
-        // Try to commit and propose, since they may not have run after the last storage
-        // write.
+        // Try to commit and propose, since they may not have run after the last write
+        // to storage. The returned committed subdags and missing transaction
+        // refs can be ignored as the missing transactions will be fetched by the
+        // periodic transactions' synchronizer.
         self.try_commit().unwrap();
         let last_proposed_block = if let Some(last_proposed_block) = self.try_propose(true).unwrap()
         {
@@ -261,11 +263,12 @@ impl Core {
     /// causal history exists. The method also uses the input bool variable if
     /// this call is known to be about not old blocks. The method returns:
     /// - The references of ancestors missing their block
+    /// - The references of committed transactions that are missing
     #[tracing::instrument(skip_all)]
     pub(crate) fn add_blocks(
         &mut self,
         blocks: Vec<VerifiedBlock>,
-    ) -> ConsensusResult<BTreeSet<BlockRef>> {
+    ) -> ConsensusResult<(BTreeSet<BlockRef>, BTreeSet<BlockRef>)> {
         let _scope = monitored_scope("Core::add_blocks");
         let _s = self
             .context
@@ -282,7 +285,7 @@ impl Core {
         let (accepted_blocks_headers, missing_block_refs) =
             self.block_manager.try_accept_blocks(blocks);
 
-        if !accepted_blocks_headers.is_empty() {
+        let missing_committed_txns = if !accepted_blocks_headers.is_empty() {
             debug!(
                 "Accepted block headers: {}",
                 accepted_blocks_headers
@@ -292,7 +295,7 @@ impl Core {
             );
 
             // Try to commit the new blocks if possible.
-            self.try_commit()?;
+            let (_subdags, new_missing_committed_txns) = self.try_commit()?;
 
             // Try to propose now since there are new blocks accepted.
             self.try_propose(false)?;
@@ -301,7 +304,11 @@ impl Core {
             // This needs to be called after try_commit() and try_propose(), which may
             // have advanced the threshold clock round.
             self.try_signal_new_round();
-        }
+
+            new_missing_committed_txns
+        } else {
+            BTreeSet::new()
+        };
 
         if !missing_block_refs.is_empty() {
             trace!(
@@ -309,17 +316,18 @@ impl Core {
                 missing_block_refs.iter().map(|b| b.to_string()).join(", ")
             );
         }
-        Ok(missing_block_refs)
+        Ok((missing_block_refs, missing_committed_txns))
     }
 
     /// Processes the provided block headers and accepts them if possible when
     /// their causal history exists. The method returns:
     /// - The references of ancestors missing their block header
+    /// - The references of committed transactions that are missing
     #[tracing::instrument(skip_all)]
     pub(crate) fn add_block_headers(
         &mut self,
         block_headers: Vec<VerifiedBlockHeader>,
-    ) -> ConsensusResult<BTreeSet<BlockRef>> {
+    ) -> ConsensusResult<(BTreeSet<BlockRef>, BTreeSet<BlockRef>)> {
         let _scope = monitored_scope("Core::add_block_header");
         let _s = self
             .context
@@ -336,7 +344,7 @@ impl Core {
         let (accepted_block_headers, missing_block_refs) =
             self.block_manager.try_accept_block_headers(block_headers);
 
-        if !accepted_block_headers.is_empty() {
+        let missing_committed_txns = if !accepted_block_headers.is_empty() {
             debug!(
                 "Accepted block headers: {}",
                 accepted_block_headers
@@ -346,7 +354,7 @@ impl Core {
             );
 
             // Try to commit the new blocks if possible.
-            self.try_commit()?;
+            let (_subdags, new_missing_committed_txns) = self.try_commit()?;
 
             // Try to propose now since there are new blocks accepted.
             self.try_propose(false)?;
@@ -355,7 +363,11 @@ impl Core {
             // This needs to be called after try_commit() and try_propose(), which may
             // have advanced the threshold clock round.
             self.try_signal_new_round();
-        }
+
+            new_missing_committed_txns
+        } else {
+            BTreeSet::new()
+        };
 
         if !missing_block_refs.is_empty() {
             trace!(
@@ -363,17 +375,42 @@ impl Core {
                 missing_block_refs.iter().map(|b| b.to_string()).join(", ")
             );
         }
-        Ok(missing_block_refs)
+        Ok((missing_block_refs, missing_committed_txns))
+    }
+
+    /// Adds transactions to the DAG state. This is called when transactions are
+    /// fetched from peers.
+    pub(crate) fn add_transactions(
+        &mut self,
+        transactions: Vec<VerifiedTransactions>,
+    ) -> ConsensusResult<()> {
+        let _scope = monitored_scope("Core::add_transactions");
+
+        // Add transactions to the dag state.
+        // TODO: transactions should be added to the data manager instead of the dag
+        //  state. DataManager should keep track of missing data for commits and should
+        //  try to create a committed subdag as soon as the data becomes available.
+        let mut dag_state = self.dag_state.write();
+        for transaction in transactions {
+            dag_state.add_transactions(transaction, false);
+        }
+
+        // After adding transactions, some pending subdags might be committable.
+        // We collect any newly missing refs to be picked up by the periodic fetcher.
+        // let (_, newly_missing_txns) = self.try_commit()?;
+        // self.missing_transaction_data.extend(newly_missing_txns);
+
+        Ok(())
     }
 
     // Adds the certified commits that have been synced via the commit syncer. We
-    // are using the commit info in order to skip running the decision
+    // are using the commit info to skip running the decision
     // rule and immediately commit the corresponding leaders and sub dags.
     #[tracing::instrument(skip_all)]
     pub(crate) fn add_certified_commits(
         &mut self,
         certified_commits: CertifiedCommits,
-    ) -> ConsensusResult<BTreeSet<BlockRef>> {
+    ) -> ConsensusResult<(BTreeSet<BlockRef>, BTreeSet<BlockRef>)> {
         let _scope = monitored_scope("Core::add_certified_commits");
         let block_headers = certified_commits
             .commits()
@@ -417,7 +454,7 @@ impl Core {
         &mut self,
         round: Round,
         force: bool,
-    ) -> ConsensusResult<Option<VerifiedBlock>> {
+    ) -> ConsensusResult<(Option<VerifiedBlock>, BTreeSet<BlockRef>)> {
         let _scope = monitored_scope("Core::new_block");
         if self.last_proposed_round() < round {
             self.context
@@ -431,15 +468,18 @@ impl Core {
             self.try_signal_new_round();
             return result;
         }
-        Ok(None)
+        Ok((None, BTreeSet::new()))
     }
 
     // Attempts to create a new block, persist and propose it to all peers.
     // When force is true, ignore if leader from the last round exists among
     // ancestors and if the minimum round delay has passed.
-    fn try_propose(&mut self, force: bool) -> ConsensusResult<Option<VerifiedBlock>> {
+    fn try_propose(
+        &mut self,
+        force: bool,
+    ) -> ConsensusResult<(Option<VerifiedBlock>, BTreeSet<BlockRef>)> {
         if !self.should_propose() {
-            return Ok(None);
+            return Ok((None, BTreeSet::new()));
         }
         if let Some(verified_block) = self.try_new_block(force) {
             self.signals.new_block(verified_block.clone())?;
@@ -447,10 +487,10 @@ impl Core {
             fail_point!("consensus-after-propose");
 
             // The new block may help commit.
-            self.try_commit()?;
-            return Ok(Some(verified_block));
+            let (_, missing_committed_txns) = self.try_commit()?;
+            return Ok((Some(verified_block), missing_committed_txns));
         }
-        Ok(None)
+        Ok((None, BTreeSet::new()))
     }
 
     /// Attempts to propose a new block for the next round. If a block has
@@ -680,7 +720,7 @@ impl Core {
     /// Runs commit rule to attempt to commit additional blocks from the DAG. If
     /// any `certified_commits` are provided, then it will attempt to commit
     /// those first before trying to commit any further leaders.
-    fn try_commit(&mut self) -> ConsensusResult<Vec<PendingSubDag>> {
+    fn try_commit(&mut self) -> ConsensusResult<(Vec<PendingSubDag>, BTreeSet<BlockRef>)> {
         let _s = self
             .context
             .metrics
@@ -690,6 +730,7 @@ impl Core {
             .start_timer();
 
         let mut committed_sub_dags = Vec::new();
+        let mut all_missing_committed_txns = BTreeSet::new();
         // TODO: Add optimization to abort early without quorum for a round.
         loop {
             // LeaderSchedule has a limit to how many sequenced leaders can be committed
@@ -769,8 +810,10 @@ impl Core {
             );
 
             // TODO: refcount subdags
-            let (subdags, _missing_transactions_refs) =
+            let (subdags, missing_transactions_refs) =
                 self.commit_observer.handle_commit(sequenced_leaders)?;
+
+            all_missing_committed_txns.extend(missing_transactions_refs);
 
             // Both pending and solid sub DAGs should be added to scoring subdags.
             self.dag_state
@@ -793,12 +836,27 @@ impl Core {
         self.transaction_consumer
             .notify_own_blocks_status(committed_block_refs);
 
-        Ok(committed_sub_dags)
+        Ok((committed_sub_dags, all_missing_committed_txns))
     }
 
     pub(crate) fn get_missing_blocks(&self) -> BTreeMap<BlockRef, BTreeSet<AuthorityIndex>> {
         let _scope = monitored_scope("Core::get_missing_blocks");
         self.block_manager.missing_blocks()
+    }
+
+    pub(crate) fn get_missing_transaction_data(&mut self) -> BTreeSet<BlockRef> {
+        let _scope = monitored_scope("Core::get_missing_transaction_data");
+
+        // Get all block refs that have been accepted but don't have transactions
+        let dag_state = self.dag_state.read();
+        let missing_transactions = dag_state
+            .get_uncommitted_blocks_at_round(dag_state.highest_accepted_round())
+            .iter()
+            .map(|block| block.reference())
+            .filter(|block_ref| !dag_state.contains_transactions(vec![*block_ref])[0])
+            .collect::<BTreeSet<_>>();
+
+        missing_transactions
     }
 
     /// Sets if there is 2f+1 subscriptions to the block stream.
@@ -2133,7 +2191,7 @@ mod test {
 
         // Now try to commit up to the latest leader (round = 4). Do not provide any
         // certified commits.
-        let committed_sub_dags = core.try_commit().unwrap();
+        let (committed_sub_dags, _) = core.try_commit().unwrap();
 
         // We should have committed up to round 4
         assert_eq!(committed_sub_dags.len(), 4);

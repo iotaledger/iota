@@ -50,10 +50,14 @@ enum CoreThreadCommand {
     /// true`, then the block will be created for `round` skipping
     /// any checks (ex leader existence of previous round). More information can
     /// be found on the `Core` component.
-    NewBlock(Round, oneshot::Sender<()>, bool),
+    NewBlock(Round, oneshot::Sender<BTreeSet<BlockRef>>, bool),
     /// Request missing blocks that need to be synced together with authorities
     /// that have these blocks.
     GetMissingBlocks(oneshot::Sender<BTreeMap<BlockRef, BTreeSet<AuthorityIndex>>>),
+    /// Add transactions to be processed and accepted
+    AddTransactions(Vec<VerifiedTransactions>, oneshot::Sender<()>),
+    /// Get missing transaction data that need to be synced
+    GetMissingTransactionData(oneshot::Sender<BTreeSet<BlockRef>>),
 }
 
 #[derive(Error, Debug)]
@@ -74,19 +78,12 @@ pub trait CoreThreadDispatcher: Sync + Send + 'static {
         blocks: Vec<VerifiedBlockHeader>,
     ) -> Result<BTreeSet<BlockRef>, CoreError>;
 
-    // TODO: The following method will be called from transaction synchronizer to
-    //  trigger output  of commits that became solid in the DataManager
-    #[expect(unused)]
-    async fn add_data(
+    async fn add_transactions(
         &self,
-        data: Vec<VerifiedTransactions>,
-    ) -> Result<BTreeSet<BlockRef>, CoreError>;
+        transactions: Vec<VerifiedTransactions>,
+    ) -> ConsensusResult<()>;
 
-    // TODO: The following method will be used by the transaction synchronizer to
-    //  get references to missing transactions that has already been committed and
-    //  needs to be fetched before the commit is successfully output.
-    #[expect(unused)]
-    async fn get_missing_data(&self) -> Result<BTreeSet<BlockRef>, CoreError>;
+    async fn get_missing_transaction_data(&self) -> ConsensusResult<BTreeSet<BlockRef>>;
 
     async fn add_certified_commits(
         &self,
@@ -146,18 +143,18 @@ impl CoreThread {
                     match command {
                         CoreThreadCommand::AddBlocks(blocks, sender) => {
                             let _scope = monitored_scope("CoreThread::loop::add_blocks");
-                            let missing_block_refs = self.core.add_blocks(blocks)?;
-                            sender.send(missing_block_refs).ok();
+                            let (missing_block_refs, missing_committed_txns) = self.core.add_blocks(blocks)?;
+                            sender.send((missing_block_refs, missing_committed_txns)).ok();
                         }
                         CoreThreadCommand::AddBlockHeaders(block_headers, sender) => {
                             let _scope = monitored_scope("CoreThread::loop::add_block_headers");
-                            let missing_block_refs = self.core.add_block_headers(block_headers)?;
-                            sender.send(missing_block_refs).ok();
+                            let (missing_block_refs, missing_committed_txns) = self.core.add_block_headers(block_headers)?;
+                            sender.send((missing_block_refs,missing_committed_txns)).ok();
                         }
                         CoreThreadCommand::AddCertifiedCommits(commits, sender) => {
                             let _scope = monitored_scope("CoreThread::loop::add_certified_commits");
-                            let missing_block_refs = self.core.add_certified_commits(commits)?;
-                            sender.send(missing_block_refs).ok();
+                            let (missing_block_refs, missing_committed_txns) = self.core.add_certified_commits(commits)?;
+                            sender.send((missing_block_refs, missing_committed_txns)).ok();
                         }
                         CoreThreadCommand::NewBlock(round, sender, force) => {
                             let _scope = monitored_scope("CoreThread::loop::new_block");
@@ -167,6 +164,15 @@ impl CoreThread {
                         CoreThreadCommand::GetMissingBlocks(sender) => {
                             let _scope = monitored_scope("CoreThread::loop::get_missing_blocks");
                             sender.send(self.core.get_missing_blocks()).ok();
+                        }
+                        CoreThreadCommand::AddTransactions(transactions, sender) => {
+                            let _scope = monitored_scope("CoreThread::loop::add_transactions");
+                            self.core.add_transactions(transactions)?;
+                            sender.send(()).ok();
+                        }
+                        CoreThreadCommand::GetMissingTransactionData(sender) => {
+                            let _scope = monitored_scope("CoreThread::loop::get_missing_transaction_data");
+                            sender.send(Ok(self.core.get_missing_transaction_data())).ok();
                         }
                     }
                 }
@@ -309,15 +315,21 @@ impl CoreThreadDispatcher for ChannelCoreThreadDispatcher {
         Ok(missing_block_refs)
     }
 
-    async fn add_data(
+    async fn add_transactions(
         &self,
-        _data: Vec<VerifiedTransactions>,
-    ) -> Result<BTreeSet<BlockRef>, CoreError> {
-        todo!()
+        transactions: Vec<VerifiedTransactions>,
+    ) -> Result<(), CoreError> {
+        let (sender, receiver) = oneshot::channel();
+        self.send(CoreThreadCommand::AddTransactions(transactions, sender))
+            .await;
+        receiver.await.map_err(|e| Shutdown(e.to_string()))
     }
 
-    async fn get_missing_data(&self) -> Result<BTreeSet<BlockRef>, CoreError> {
-        todo!()
+    async fn get_missing_transaction_data(&self) -> Result<BTreeSet<BlockRef>, CoreError> {
+        let (sender, receiver) = oneshot::channel();
+        self.send(CoreThreadCommand::GetMissingTransactionData(sender))
+            .await;
+        receiver.await.map_err(|e| Shutdown(e.to_string()))
     }
 
     async fn add_certified_commits(
@@ -461,15 +473,15 @@ pub(crate) mod tests {
             Ok(block_refs)
         }
 
-        async fn add_data(
+        async fn add_transactions(
             &self,
-            _data: Vec<VerifiedTransactions>,
-        ) -> Result<BTreeSet<BlockRef>, CoreError> {
-            todo!()
+            _transactions: Vec<VerifiedTransactions>,
+        ) -> ConsensusResult<()> {
+            unimplemented!()
         }
 
-        async fn get_missing_data(&self) -> Result<BTreeSet<BlockRef>, CoreError> {
-            todo!()
+        async fn get_missing_transaction_data(&self) -> ConsensusResult<BTreeSet<BlockRef>> {
+            unimplemented!()
         }
 
         async fn add_certified_commits(

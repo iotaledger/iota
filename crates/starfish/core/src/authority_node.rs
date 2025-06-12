@@ -31,6 +31,7 @@ use crate::{
     subscriber::Subscriber,
     synchronizer::{Synchronizer, SynchronizerHandle},
     transaction::{TransactionClient, TransactionConsumer, TransactionVerifier},
+    transactions_synchronizer::{TransactionsSynchronizer, TransactionsSynchronizerHandle},
 };
 
 pub struct ConsensusAuthority {
@@ -38,6 +39,7 @@ pub struct ConsensusAuthority {
     start_time: Instant,
     transaction_client: Arc<TransactionClient>,
     synchronizer: Arc<SynchronizerHandle>,
+    transactions_synchronizer: Arc<TransactionsSynchronizerHandle>,
     commit_consumer_monitor: Arc<CommitConsumerMonitor>,
 
     commit_syncer_handle: CommitSyncerHandle,
@@ -183,6 +185,13 @@ impl ConsensusAuthority {
             sync_last_known_own_block,
         );
 
+        let transactions_synchronizer = TransactionsSynchronizer::start(
+            network_client.clone(),
+            context.clone(),
+            core_dispatcher.clone(),
+            dag_state.clone(),
+        );
+
         let commit_syncer_handle = CommitSyncer::new(
             context.clone(),
             core_dispatcher.clone(),
@@ -199,6 +208,7 @@ impl ConsensusAuthority {
             block_verifier,
             commit_vote_monitor,
             synchronizer.clone(),
+            transactions_synchronizer.clone(),
             core_dispatcher,
             signals_receivers.block_broadcast_receiver(),
             dag_state.clone(),
@@ -229,6 +239,7 @@ impl ConsensusAuthority {
             start_time,
             transaction_client: Arc::new(tx_client),
             synchronizer,
+            transactions_synchronizer,
             commit_consumer_monitor,
             commit_syncer_handle,
             leader_timeout_handle,
@@ -253,6 +264,16 @@ impl ConsensusAuthority {
             }
             warn!(
                 "Failed to stop synchronizer when shutting down consensus: {:?}",
+                e
+            );
+        };
+
+        if let Err(e) = self.transactions_synchronizer.stop().await {
+            if e.is_panic() {
+                std::panic::resume_unwind(e.into_panic());
+            }
+            warn!(
+                "Failed to stop transactions synchronizer when shutting down consensus: {:?}",
                 e
             );
         };

@@ -87,6 +87,11 @@ pub(crate) enum ConsensusError {
     )]
     TooManyFetchedBlocksReturned(AuthorityIndex),
 
+    #[error(
+        "Too many transactions have been returned from authority {0} when requesting to fetch missing transactions"
+    )]
+    TooManyFetchedTransactionsReturned(AuthorityIndex),
+
     #[error("Too many blocks have been requested from authority {0}")]
     TooManyFetchBlocksRequested(AuthorityIndex),
 
@@ -119,6 +124,9 @@ pub(crate) enum ConsensusError {
 
     #[error("Synchronizer for fetching blocks directly from {0} is saturated")]
     SynchronizerSaturated(AuthorityIndex),
+
+    #[error("Transactions synchronizer for fetching transactions directly from {0} is saturated")]
+    TransactionsSynchronizerSaturated(AuthorityIndex),
 
     #[error("Block {block_ref:?} rejected: {reason}")]
     BlockRejected { block_ref: BlockRef, reason: String },
@@ -205,6 +213,9 @@ pub(crate) enum ConsensusError {
 
     #[error("Request timeout: {0:?}")]
     NetworkRequestTimeout(String),
+
+    #[error("Timeout while fetching transactions from authority {0}")]
+    FetchTransactionsTimeout(AuthorityIndex),
 
     #[error("Consensus has shut down!")]
     Shutdown,
