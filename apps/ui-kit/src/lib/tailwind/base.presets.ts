@@ -2,7 +2,11 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import type { Config } from 'tailwindcss';
-import { IOTA_PRIMITIVES_COLOR_PALETTE, SHADER_COLOR_PALETTE } from '../constants/colors.constants';
+import {
+    IOTA_PRIMITIVES_COLOR_PALETTE,
+    IOTA_NAMES_COLOR_PALETTE,
+    SHADER_COLOR_PALETTE,
+} from '../constants/colors.constants';
 import {
     BORDER_RADIUS,
     CUSTOM_FONT_SIZES,
@@ -40,6 +44,7 @@ export const BASE_CONFIG: Config = {
             },
             colors: {
                 ...IOTA_PRIMITIVES_COLOR_PALETTE,
+                ...IOTA_NAMES_COLOR_PALETTE,
                 ...SHADER_COLOR_PALETTE,
                 ...THEMED_CUSTOM_COLORS,
             },
