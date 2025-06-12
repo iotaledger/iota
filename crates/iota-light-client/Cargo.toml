@@ -52,5 +52,5 @@ move-core-types.workspace = true
 telemetry-subscribers.workspace = true
 
 [dev-dependencies]
-tempfile.workspace = true
 roaring.workspace = true
+tempfile.workspace = true

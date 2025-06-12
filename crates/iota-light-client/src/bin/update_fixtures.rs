@@ -17,7 +17,7 @@ use tokio::fs::create_dir_all;
 use tracing::info;
 
 const FIXTURES_DIR: &str = "tests/fixtures";
-const CHECKPOINT_LIST_INDEXES: &[usize] = &[0, 1];
+const SELECTED_EPOCHS: &[usize] = &[0, 1];
 
 #[tokio::main]
 pub async fn main() -> Result<()> {
@@ -42,10 +42,10 @@ pub async fn main() -> Result<()> {
 
     // only keep necessary indexes
     let checkpoints = &mut checkpoint_list.checkpoints;
-    let _ = checkpoints.split_off(*CHECKPOINT_LIST_INDEXES.last().unwrap() + 1);
+    let _ = checkpoints.split_off(*SELECTED_EPOCHS.last().unwrap() + 1);
     write_checkpoint_list(&config, &checkpoint_list)?;
 
-    let checkpoints = CHECKPOINT_LIST_INDEXES
+    let checkpoints = SELECTED_EPOCHS
         .iter()
         .map(|i| *checkpoint_list.checkpoints.get(*i).unwrap())
         .collect::<Vec<_>>();
