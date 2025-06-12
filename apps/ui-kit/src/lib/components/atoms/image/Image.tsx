@@ -17,8 +17,8 @@ export const ImageWithFallback = forwardRef<HTMLImageElement, ImageWithFallbackP
             onError?.(error);
         }
 
-        if (imageError) {
-            return !fallback ? <MediaFallback /> : fallback;
+        if (imageError || !imageProps.src) {
+            return fallback ? fallback : <MediaFallback />;
         }
 
         return <Image onError={handleImageError} ref={ref} {...imageProps} />;

@@ -10,34 +10,29 @@ import {
 } from '@iota/apps-ui-kit';
 import { useNFTMediaHeaders } from '../../hooks';
 import { resolveNFTMedia } from '../../utils';
-import clsx from 'clsx';
 
 interface NFTMediaRendererProps {
     src: string;
     alt?: string;
     disableVideoControls?: boolean;
     disableAutoPlay?: boolean;
-    objectFit?: string | null;
-    imageRef?: React.Ref<HTMLImageElement>;
-    videoRef?: React.Ref<HTMLVideoElement>;
 }
 
 export function NFTMediaRenderer({
     src,
     alt = 'NFT',
-    objectFit = 'object-cover',
     disableVideoControls,
     disableAutoPlay = false,
-    imageRef,
-    videoRef,
 }: NFTMediaRendererProps) {
     const { isLoading, data: nftMediaHeaders } = useNFTMediaHeaders(src);
     const { type, shouldAutoPlayVideo, isMediaSupported } = resolveNFTMedia(src, nftMediaHeaders);
 
-    const className = clsx('w-full h-full', objectFit);
-
     if (isLoading) {
-        return <LoadingIndicator />;
+        return (
+            <div className="flex items-center justify-center h-full w-full">
+                <LoadingIndicator />
+            </div>
+        );
     }
 
     if (!isMediaSupported) {
@@ -48,11 +43,10 @@ export function NFTMediaRenderer({
         <Video
             src={src}
             isAutoPlayEnabled={!disableAutoPlay && shouldAutoPlayVideo}
-            className={className}
+            className="w-full h-full object-cover"
             disableControls={disableVideoControls}
-            ref={videoRef}
         />
     ) : (
-        <ImageWithFallback src={src} alt={alt} ref={imageRef} className={className} />
+        <ImageWithFallback src={src} alt={alt} className="w-full h-full object-cover" />
     );
 }
