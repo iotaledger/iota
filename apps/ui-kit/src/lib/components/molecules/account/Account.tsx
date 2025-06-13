@@ -129,7 +129,7 @@ export function Account({
                 <Avatar isLocked={isLocked} />
                 <div className="flex flex-col items-start py-xs">
                     <div className="flex items-center space-x-2">
-                        <span className="text-neutral-10 dark:text-neutral-92 font-inter text-title-md">
+                        <span className="account-title-color font-inter text-title-md">
                             {title}
                         </span>
                         {badgeText && badgeType ? (
@@ -153,7 +153,7 @@ export function Account({
                 </div>
             </div>
             <div className="z-10 ml-auto flex items-center space-x-2 [&_button]:h-5 [&_button]:w-5 [&_svg]:h-5 [&_svg]:w-5">
-                <div className="[&_svg]:text-neutral-40 [&_svg]:dark:text-neutral-60 flex items-center space-x-2 [&_button:not(.locked)]:hidden group-hover:[&_button:not(.locked)]:flex">
+                <div className="account-icon-color flex items-center space-x-2 [&_button:not(.locked)]:hidden group-hover:[&_button:not(.locked)]:flex">
                     {onOptionsClick && (
                         <ButtonUnstyled onClick={onOptionsClick}>
                             <MoreHoriz />
@@ -180,9 +180,9 @@ export function Account({
                 {showSelected && (
                     <ButtonUnstyled>
                         {isSelected ? (
-                            <CheckmarkFilled className="text-primary-30 dark:text-primary-80 h-5 w-5" />
+                            <CheckmarkFilled className="account-check-active-color h-5 w-5" />
                         ) : (
-                            <RadioOff className="text-neutral-40 dark:text-neutral-60 h-5 w-5" />
+                            <RadioOff className="account-check-inactive-color h-5 w-5" />
                         )}
                     </ButtonUnstyled>
                 )}
