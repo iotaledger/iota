@@ -98,7 +98,7 @@ export function Accordion({
 }): React.JSX.Element {
     return (
         <div
-            className={cx('accordion-bg', {
+            className={cx('accordion-bg rounded-xl', {
                 'border border-shader-neutral-light-8 dark:border-shader-neutral-dark-8':
                     !hideBorder,
             })}
