@@ -46,7 +46,7 @@ export function RecoverAccountsGroup({
             </div>
             <div className="flex flex-col gap-xs">
                 {accounts.map((anAccount) => (
-                    <div className="border-shader-iota-neutral-light-8 rounded-xl border">
+                    <div className="rounded-xl border border-shader-neutral-light-8">
                         <AccountListItem key={anAccount.id} account={anAccount} icon={<Key />} />
                     </div>
                 ))}
