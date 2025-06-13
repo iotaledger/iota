@@ -111,10 +111,10 @@ export function KeyValueInfo({
                     'w-1/4': !fullwidth,
                 })}
             >
-                <span className="text-neutral-40 dark:text-neutral-60 text-body-md">{keyText}</span>
+                <span className="key-tooltip-text-color text-body-md">{keyText}</span>
                 {tooltipText && (
                     <Tooltip text={tooltipText} position={tooltipPosition}>
-                        <Info className="text-neutral-60 dark:text-neutral-40" />
+                        <Info className="key-supporting-text" />
                     </Tooltip>
                 )}
             </div>
@@ -127,7 +127,7 @@ export function KeyValueInfo({
                 <span
                     title={valueHoverTitle}
                     className={cx(
-                        'text-neutral-10 dark:text-neutral-92',
+                        'key-value-hover-text-color',
                         size === ValueSize.Medium ? 'text-body-lg' : 'text-body-md',
                         { truncate: isTruncated },
                     )}
@@ -137,7 +137,7 @@ export function KeyValueInfo({
                 {supportingLabel && (
                     <span
                         className={cx(
-                            'text-neutral-60 dark:text-neutral-40',
+                            'key-supporting-text-color',
                             size === ValueSize.Medium ? 'text-body-md' : 'text-body-sm',
                         )}
                     >
@@ -147,7 +147,7 @@ export function KeyValueInfo({
                 <div className="self-center">
                     {copyText && (
                         <ButtonUnstyled onClick={handleCopyClick}>
-                            <Copy className="text-neutral-60 dark:text-neutral-40" />
+                            <Copy className="key-supporting-text" />
                         </ButtonUnstyled>
                     )}
                 </div>
