@@ -1,0 +1,205 @@
+@layer components {
+    /* BADGE */
+    .badge-bg-color-neutral {
+        background-color: var(--badge-bg-color-neutral);
+    }
+
+    .badge-bg-color-primary {
+        background-color: var(--badge-bg-color-primary);
+    }
+
+    .badge-bg-color-primary-soft {
+        background-color: var(--badge-bg-color-primary-soft);
+    }
+
+    .badge-border-color-primary {
+        border-color: var(--badge-border-color-primary);
+    }
+
+    .badge-border-color-soft {
+        border-color: var(--badge-border-color-soft);
+    }
+
+    .badge-text-color-neutral {
+        color: var(--badge-text-color-neutral);
+    }
+
+    .badge-text-color-primary-soft {
+        color: var(--badge-text-color-primary-soft);
+    }
+
+    .badge-text-color-primary {
+        color: var(--badge-text-color-primary);
+    }
+
+    /* INFOBOX */
+    .infobox-text-title {
+        color: var(--infobox-text-title);
+    }
+
+    .infobox-supporting-text {
+        color: var(--infobox-supporting-text);
+    }
+
+    /* BUTTON */
+    .button-bg-color-primary {
+        background-color: var(--button-bg-color-primary);
+    }
+
+    .button-bg-color-secondary {
+        background-color: var(--button-bg-color-secondary);
+    }
+
+    .button-bg-color-error {
+        background-color: var(--button-bg-color-error);
+    }
+
+    .button-border-color-outline {
+        border-color: var(--button-border-color-outline);
+    }
+
+    .button-text-color-primary {
+        color: var(--button-text-color-primary);
+    }
+
+    .button-text-color-neutral {
+        color: var(--button-text-color-neutral);
+    }
+
+    .button-text-color-error {
+        color: var(--button-text-color-error);
+    }
+
+    .button-text-color-primary {
+        color: var(--button-text-color-primary);
+    }
+
+    /* HEADER */
+    .header-bg-color {
+        background-color: var(--header-bg-color);
+    }
+
+    .header-text-color {
+        color: var(--header-text-color);
+    }
+
+    /* LABELTEXT */
+    .label-text-primary-neutral {
+        color: var(--label-text-primary-neutral);
+    }
+
+    .label-text-secondary-neutral {
+        color: var(--label-text-secondary-neutral);
+    }
+
+    /* KEYVALUE */
+    .key-supporting-text-color {
+        color: var(--key-supporting-text-color);
+    }
+
+    .key-value-hover-text-color {
+        color: var(--key-value-hover-text-color);
+    }
+
+    .key-tooltip-text-color {
+        color: var(--key-tooltip-text-color);
+    }
+
+    /* CHECKBOX */
+
+    .checkbox-base {
+        @apply relative inset-0 flex h-5 w-5 items-center justify-center rounded border;
+    }
+
+    .checkbox-state {
+        @apply peer-enabled:state-layer group-[.disabled]:cursor-not-allowed;
+    }
+
+    .checkbox-border-default {
+        border-color: var(--checkbox-border-color-default);
+    }
+
+    .checkbox-border-checked {
+        border-color: var(--checkbox-border-color-checked);
+    }
+
+    .checkbox-border-disabled {
+        border-color: var(--checkbox-border-color-disabled);
+    }
+
+    .checkbox-border-disabled-checked {
+        border-color: var(--checkbox-border-color-disabled-checked);
+    }
+
+    .checkbox-bg-checked {
+        background-color: var(--checkbox-bg-color-checked);
+    }
+
+    .checkbox-bg-disabled-checked {
+        background-color: var(--checkbox-bg-color-disabled-checked);
+    }
+
+    .checkbox-text {
+        color: var(--checkbox-text-color);
+    }
+
+    .checkbox-text-checked {
+        color: var(--checkbox-text-color-checked);
+    }
+
+    .checkbox-icon {
+        @apply [&_svg]:h-4 [&_svg]:w-4;
+    }
+
+    .checkbox-icon-hidden {
+        @apply peer-[&:not(:checked,:indeterminate)]:[&_svg]:hidden;
+    }
+
+    .checkbox-label {
+        @apply text-label-lg;
+        color: var(--checkbox-label-text-color);
+    }
+
+    .checkbox-label-disabled {
+        @apply group-[.disabled]:cursor-not-allowed;
+    }
+
+    /* BUTTON SEGMENT */
+    .button-segment-text-color-default {
+        color: var(--button-segment-text-color-default);
+    }
+
+    .button-segment-text-color-hover {
+        @apply enabled:hover:[color:var(--button-segment-text-color-hover)];
+    }
+
+    .button-segment-text-color-focused {
+        @apply enabled:focus:[color:var(--button-segment-text-color-focused)];
+    }
+
+    .button-segment-text-color-selected {
+        color: var(--button-segment-text-color-selected);
+    }
+
+    .button-segment-bg-color-selected {
+        background-color: var(--button-segment-bg-color-selected);
+    }
+
+    .button-segment-underline-base {
+        @apply relative before:absolute before:left-0 before:block before:w-full before:content-[''];
+        border-bottom: 1px solid var(--button-segment-underline-default-color);
+    }
+
+    .button-segment-underline-hover {
+        @apply hover:before:left-2 hover:before:w-[calc(100%-16px)];
+    }
+
+    .button-segment-underline-hover-color {
+        @apply hover:before:border-b hover:before:border-[color:var(--button-segment-underline-hover-color)];
+    }
+
+    .button-segment-underline-selected {
+        @apply before:bottom-[-0.8px] enabled:before:left-2 enabled:before:w-[calc(100%-16px)];
+        @apply before:border-b before:border-[color:var(--button-segment-underline-selected-color)];
+    }
+}
