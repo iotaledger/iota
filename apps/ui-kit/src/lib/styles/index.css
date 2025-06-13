@@ -26,7 +26,7 @@
 :root.light {
     /* COLORS */
     --warning-surface: theme('colors.iota-warning.90');
-    --on-warning: theme('colors.iota-warning.20');
+    --on-warning: theme('colors.iota-warning.10');
     --error-surface: theme('colors.iota-error.90');
     --on-error: theme('colors.iota-warning.20');
     --success-surface: theme('colors.iota-tertiary.90');
@@ -50,7 +50,7 @@
 
     /* BUTTON */
     --button-bg-color-primary: theme('colors.iota-primary.30');
-    --button-bg-color-secondary: theme('colors.iota-primary.90');
+    --button-bg-color-secondary: theme('colors.iota-neutral.90');
     --button-bg-color-error: theme('colors.iota-error.90');
     --button-border-color-outline: theme('colors.iota-neutral.50');
     --button-text-color-primary: theme('colors.iota-primary.100');
@@ -118,8 +118,8 @@
 
     /* BUTTON */
     --button-bg-color-primary: theme('colors.iota-primary.30');
-    --button-bg-color-secondary: theme('colors.iota-primary.20');
-    --button-bg-color-error: theme('colors.iota-error.10');
+    --button-bg-color-secondary: theme('colors.iota-neutral.20');
+    --button-bg-color-error: theme('colors.iota-error.20');
     --button-border-color-outline: theme('colors.iota-neutral.60');
     --button-text-color-primary: theme('colors.iota-primary.100');
     --button-text-color-neutral: theme('colors.iota-neutral.92');
@@ -130,7 +130,7 @@
     --header-text-color: theme('colors.iota-neutral.92');
 
     /* LABEL */
-    --label-text-primary-neutral: theme('colors.iota-neutral.10');
+    --label-text-primary-neutral: theme('colors.iota-neutral.92');
     --label-text-secondary-neutral: theme('colors.iota-neutral.40');
 
     /* KEY VALUE */
@@ -199,7 +199,7 @@
 
     /* BUTTON */
     --button-bg-color-primary: theme('colors.names-primary.30');
-    --button-bg-color-secondary: theme('colors.names-primary.20');
+    --button-bg-color-secondary: theme('colors.names-neutral.20');
     --button-bg-color-error: theme('colors.names-error.20');
     --button-border-color-outline: theme('colors.names-neutral.50');
     --button-text-color-primary: theme('colors.names-primary.30');
