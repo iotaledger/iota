@@ -49,7 +49,7 @@ export function TableCellText({
         <div className="flex flex-row items-baseline gap-1">
             <span>{children}</span>
             {supportingLabel && (
-                <span className="text-neutral-60 dark:text-neutral-40 text-body-sm">
+                <span className="table-cell-supporting-label-color text-body-sm">
                     {supportingLabel}
                 </span>
             )}

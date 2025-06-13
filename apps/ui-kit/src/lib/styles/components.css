@@ -326,4 +326,268 @@
     .visual-asset-icon-color svg {
         color: var(--visual-asset-icon-color);
     }
+
+    /* ACCOUNT */
+    .account-title-color {
+        color: var(--account-title-color);
+    }
+
+    .account-icon-color svg {
+        color: var(--account-icon-color);
+    }
+
+    .account-check-active-color {
+        color: var(--account-check-active-color);
+    }
+
+    .account-check-inactive-color {
+        color: var(--account-check-inactive-color);
+    }
+
+    /* ADDRESS */
+    .address-text-color {
+        color: var(--address-text-color);
+    }
+
+    /* CARD */
+    .card-filled-bg {
+        background-color: var(--card-filled-bg);
+    }
+
+    .card-image-bg-solid {
+        background-color: var(--card-image-bg-solid);
+    }
+    .card-image-bg-white {
+        background-color: var(--card-image-bg-white);
+    }
+    .card-action-link-color {
+        color: var(--card-action-link-color);
+    }
+
+    .card-action-title-color {
+        color: var(--card-action-title-color);
+    }
+
+    .card-action-subtitle-color {
+        color: var(--card-action-subtitle-color);
+    }
+    .card-body-title-color {
+        color: var(--card-body-title-color);
+    }
+
+    .card-body-subtitle-color {
+        color: var(--card-body-subtitle-color);
+    }
+
+    /* CHIP */
+
+    .chip-bg-selected {
+        background-color: var(--chip-bg-selected);
+    }
+
+    .chip-border-default {
+        border-color: var(--chip-border-default);
+    }
+
+    .chip-text-default {
+        color: var(--chip-text-default);
+    }
+
+    .chip-text-selected {
+        color: var(--chip-text-selected);
+    }
+
+    .chip-focus-ring {
+        box-shadow: 0 0 0 2px var(--chip-focus-ring);
+    }
+
+    /* DISPLAY STATS */
+    .display-stats-bg-default {
+        background-color: var(--display-stats-bg-default);
+    }
+
+    .display-stats-bg-highlight {
+        background-color: var(--display-stats-bg-highlight);
+    }
+
+    .display-stats-bg-secondary {
+        background-color: var(--display-stats-bg-secondary);
+    }
+
+    .display-stats-text-default {
+        color: var(--display-stats-text-default);
+    }
+
+    .display-stats-text-highlight {
+        color: var(--display-stats-text-highlight);
+    }
+
+    .display-stats-text-secondary {
+        color: var(--display-stats-text-secondary);
+    }
+
+    .display-stats-icon-color {
+        color: var(--display-stats-icon-color);
+    }
+
+    .display-stats-copy-icon-color {
+        color: var(--display-stats-copy-icon-color);
+    }
+
+    /* DROPDOWN */
+    .dropdown-bg {
+        background-color: var(--dropdown-bg);
+    }
+
+    .dropdown-border-color {
+        border-color: var(--dropdown-border-color);
+    }
+
+    /* INPUT */
+    .input-text-color {
+        color: var(--input-text-color);
+    }
+
+    .input-placeholder-color {
+        &::placeholder {
+            color: var(--input-placeholder-color);
+        }
+    }
+
+    .input-icon-color {
+        color: var(--input-icon-color);
+    }
+
+    .input-caret-color {
+        caret-color: var(--input-caret-color);
+    }
+
+    .input-border-color {
+        border-color: var(--input-border-color);
+    }
+
+    .input-border-color-hover {
+        &:hover {
+            border-color: var(--input-border-hover-color);
+        }
+    }
+
+    .input-border-color-focus {
+        &:has(input:focus) {
+            border-color: var(--input-border-focus-color) !important;
+        }
+    }
+
+    .input-border-color-error {
+        .group.errored & {
+            border-color: var(--input-border-error-color);
+        }
+    }
+
+    .input-border-color-disabled {
+        .group.enabled & {
+            cursor: text;
+        }
+        &:disabled {
+            cursor: not-allowed;
+        }
+    }
+    .input-visibility-bar {
+        background-color: var(--input-visibility-bar-color);
+    }
+
+    .input-label-color {
+        color: var(--input-label-color);
+    }
+
+    /* NAVBAR ITEM */
+    .navbar-icon-color {
+        color: var(--navbar-icon-color);
+    }
+
+    .navbar-icon-selected-color {
+        color: var(--navbar-icon-selected-color);
+    }
+
+    .navbar-label-color {
+        color: var(--navbar-label-color);
+    }
+
+    .navbar-label-selected-color {
+        color: var(--navbar-label-selected-color);
+    }
+
+    /* SEARCH */
+    .search-text-color {
+        color: var(--search-text-color);
+    }
+
+    .search-placeholder-color::placeholder {
+        color: var(--search-placeholder-color);
+    }
+
+    .search-border-color {
+        border-color: var(--search-border-color);
+    }
+
+    .search-bg-color-filled {
+        background-color: var(--search-bg-color-filled);
+    }
+
+    .search-suggestion-bg-color {
+        background-color: var(--search-suggestion-bg-color);
+    }
+
+    /* SEGMENTED BUTTON */
+    .segmented-filled-bg-color {
+        background-color: var(--segmented-filled-bg-color);
+    }
+
+    .segmented-outlined-border {
+        border-color: var(--segmented-outlined-border-color);
+    }
+
+    /* SELECT */
+    .select-border-color {
+        border-color: var(--select-border-color);
+    }
+
+    .select-border-hover-color {
+        border-color: var(--select-border-hover-color);
+    }
+
+    .select-border-focus-color {
+        border-color: var(--select-border-focus-color);
+    }
+
+    .select-border-error-color {
+        border-color: var(--select-border-error-color);
+    }
+
+    .select-icon-color {
+        color: var(--select-icon-color);
+    }
+
+    .select-label-color {
+        color: var(--select-label-color);
+    }
+
+    /* TABLE CELL */
+    .table-cell-supporting-label-color {
+        color: var(--table-cell-supporting-label-color);
+    }
+
+    /* TABLE HEADER CELL */
+    .table-header-text-color {
+        color: var(--table-header-text-color);
+    }
+
+    /* TITLE */
+    .title-main-color {
+        color: var(--title-main-color);
+    }
+
+    .title-subtitle-color {
+        color: var(--title-subtitle-color);
+    }
 }
