@@ -1,5 +1,5 @@
 ---
-'@iota/iota-sdk': minor
+'@iota/iota-sdk': patch
 ---
 
 Export `getGraphQLUrl` correctly
