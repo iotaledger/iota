@@ -1508,7 +1508,6 @@ impl DBBatch {
     }
 }
 
-// TODO: Remove this entire implementation once we switch to sally
 impl DBBatch {
     pub fn delete_batch<J: Borrow<K>, K: Serialize, V>(
         &mut self,
