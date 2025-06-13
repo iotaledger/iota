@@ -89,7 +89,7 @@
 
     /* RADIO BUTTON */
     --radio-icon-color: theme('colors.iota-neutral.60');
-    --radio-icon-checked-color: theme('colors.iota-primary.80');
+    --radio-icon-checked-color: theme('colors.iota-primary.30');
     --radio-icon-checked-disabled-color: theme('colors.iota-neutral.40');
     --radio-label-color: theme('colors.iota-neutral.60');
 
@@ -149,7 +149,7 @@
 
     /* RADIO BUTTON */
     --radio-icon-color: theme('colors.iota-neutral.60');
-    --radio-icon-checked-color: theme('colors.iota-primary.80');
+    --radio-icon-checked-color: theme('colors.iota-primary.30');
     --radio-icon-checked-disabled-color: theme('colors.iota-neutral.40');
     --radio-label-color: theme('colors.iota-neutral.60');
 
