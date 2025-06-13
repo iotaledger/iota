@@ -454,6 +454,10 @@
         }
     }
 
+    .input-icon-color {
+        color: var(--input-icon-color);
+    }
+
     .input-caret-color {
         caret-color: var(--input-caret-color);
     }
@@ -464,25 +468,19 @@
 
     .input-border-color-hover {
         &:hover {
-            border-color: var(--input-border-color-hover);
+            border-color: var(--input-border-hover-color);
         }
     }
 
     .input-border-color-focus {
         &:has(input:focus) {
-            border-color: var(--input-border-color-focus) !important;
+            border-color: var(--input-border-focus-color) !important;
         }
     }
 
     .input-border-color-error {
         .group.errored & {
-            border-color: var(--input-border-color-error);
-        }
-    }
-
-    .input-border-color-error-dark {
-        .group.errored.dark & {
-            border-color: var(--input-border-color-error-dark);
+            border-color: var(--input-border-error-color);
         }
     }
 
@@ -496,6 +494,10 @@
     }
     .input-visibility-bar {
         background-color: var(--input-visibility-bar-color);
+    }
+
+    .input-label-color {
+        color: var(--input-label-color);
     }
 
     /* NAVBAR ITEM */
