@@ -92,6 +92,13 @@
     --card-body-title-color: theme('colors.iota-neutral.10');
     --card-body-subtitle-color: theme('colors.iota-neutral.40');
 
+    /* CHIP */
+    --chip-bg-selected: theme('colors.iota-primary.90');
+    --chip-border-default: theme('colors.iota-neutral.70');
+    --chip-text-default: theme('colors.iota-neutral.40');
+    --chip-text-selected: theme('colors.iota-neutral.10');
+    --chip-focus-ring: theme('colors.iota-primary.30');
+
     /* DISPLAY STATS */
     --display-stats-bg-default: theme('colors.iota-neutral.96');
     --display-stats-bg-highlight: theme('colors.iota-primary.30');
@@ -125,6 +132,35 @@
     --navbar-icon-selected-color: theme('colors.iota-neutral.10');
     --navbar-label-color: theme('colors.iota-neutral.60');
     --navbar-label-selected-color: theme('colors.iota-neutral.10');
+
+    /* SEARCH */
+    --search-text-color: theme('colors.iota-neutral.10');
+    --search-placeholder-color: theme('colors.iota-neutral.40');
+    --search-border-color: theme('colors.iota-neutral.70');
+    --search-bg-color-filled: theme('colors.iota-neutral.92');
+    --search-suggestion-bg-color: theme('colors.iota-neutral.100');
+
+    /* SEGMENTED BUTTON */
+    --segmented-filled-bg-color: theme('colors.iota-neutral.96');
+    --segmented-outlined-border-color: theme('colors.iota-neutral.70');
+
+    /* SELECT */
+    --select-border-color: theme('colors.iota-neutral.80');
+    --select-border-hover-color: theme('colors.iota-neutral.50');
+    --select-border-focus-color: theme('colors.iota-primary.30');
+    --select-border-error-color: theme('colors.iota-error.30');
+    --select-icon-color: theme('colors.iota-neutral.10');
+    --select-label-color: theme('colors.iota-neutral.10');
+
+    /* TABLE CELL */
+    --table-cell-supporting-label-color: theme('colors.iota-neutral.60');
+
+    /* TABLE HEADER CELL */
+    --table-header-text-color: theme('colors.iota-neutral.10');
+
+    /* TITLE */
+    --title-main-color: theme('colors.iota-neutral.10');
+    --title-subtitle-color: theme('colors.iota-neutral.60');
 }
 
 :root.dark {
@@ -194,6 +230,13 @@
     --card-body-title-color: theme('colors.iota-neutral.92');
     --card-body-subtitle-color: theme('colors.iota-neutral.60');
 
+    /* CHIP */
+    --chip-bg-selected: theme('colors.iota-primary.10');
+    --chip-border-default: theme('colors.iota-neutral.40');
+    --chip-text-default: theme('colors.iota-neutral.60');
+    --chip-text-selected: theme('colors.iota-neutral.92');
+    --chip-focus-ring: theme('colors.iota-primary.80');
+
     /* DISPLAY STATS */
     --display-stats-bg-default: theme('colors.iota-neutral.10');
     --display-stats-bg-highlight: theme('colors.iota-primary.80');
@@ -228,6 +271,34 @@
 
     --navbar-label-color: theme('colors.iota-neutral.40');
     --navbar-label-selected-color: theme('colors.iota-neutral.92');
+    /* SEARCH */
+    --search-text-color: theme('colors.iota-neutral.92');
+    --search-placeholder-color: theme('colors.iota-neutral.60');
+    --search-border-color: theme('colors.iota-neutral.40');
+    --search-bg-color-filled: theme('colors.iota-neutral.12');
+    --search-suggestion-bg-color: theme('colors.iota-neutral.10');
+
+    /* SEGMENTED BUTTON */
+    --segmented-filled-bg-color: theme('colors.iota-neutral.10');
+    --segmented-outlined-border-color: theme('colors.iota-neutral.40');
+
+    /* SELECT */
+    --select-border-color: theme('colors.iota-neutral.20');
+    --select-border-hover-color: theme('colors.iota-neutral.60');
+    --select-border-focus-color: theme('colors.iota-primary.80');
+    --select-border-error-color: theme('colors.iota-error.80');
+    --select-icon-color: theme('colors.iota-neutral.92');
+    --select-label-color: theme('colors.iota-neutral.92');
+
+    /* TABLE CELL */
+    --table-cell-supporting-label-color: theme('colors.iota-neutral.40');
+
+    /* TABLE HEADER CELL */
+    --table-header-text-color: theme('colors.iota-neutral.92');
+
+    /* TITLE */
+    --title-main-color: theme('colors.iota-neutral.92');
+    --title-subtitle-color: theme('colors.iota-neutral.40');
 }
 
 :root.names {
@@ -308,6 +379,13 @@
     --card-body-title-color: theme('colors.iota-neutral.92');
     --card-body-subtitle-color: theme('colors.iota-neutral.60');
 
+    /* CHIP */
+    --chip-bg-selected: theme('colors.iota-primary.10');
+    --chip-border-default: theme('colors.iota-neutral.40');
+    --chip-text-default: theme('colors.iota-neutral.60');
+    --chip-text-selected: theme('colors.iota-neutral.92');
+    --chip-focus-ring: theme('colors.iota-primary.80');
+
     /* DISPLAY STATS */
     --display-stats-bg-default: theme('colors.iota-neutral.10');
     --display-stats-bg-highlight: theme('colors.iota-primary.80');
@@ -342,4 +420,32 @@
 
     --navbar-label-color: theme('colors.iota-neutral.40');
     --navbar-label-selected-color: theme('colors.iota-neutral.92');
+    /* SEARCH */
+    --search-text-color: theme('colors.iota-neutral.92');
+    --search-placeholder-color: theme('colors.iota-neutral.60');
+    --search-border-color: theme('colors.iota-neutral.40');
+    --search-bg-color-filled: theme('colors.iota-neutral.12');
+    --search-suggestion-bg-color: theme('colors.iota-neutral.10');
+
+    /* SEGMENTED BUTTON */
+    --segmented-filled-bg-color: theme('colors.iota-neutral.10');
+    --segmented-outlined-border-color: theme('colors.iota-neutral.40');
+
+    /* SELECT */
+    --select-border-color: theme('colors.iota-neutral.20');
+    --select-border-hover-color: theme('colors.iota-neutral.60');
+    --select-border-focus-color: theme('colors.iota-primary.80');
+    --select-border-error-color: theme('colors.iota-error.80');
+    --select-icon-color: theme('colors.iota-neutral.92');
+    --select-label-color: theme('colors.iota-neutral.92');
+
+    /* TABLE CELL */
+    --table-cell-supporting-label-color: theme('colors.iota-neutral.40');
+
+    /* TABLE HEADER CELL */
+    --table-header-text-color: theme('colors.iota-neutral.92');
+
+    /* TITLE */
+    --title-main-color: theme('colors.iota-neutral.92');
+    --title-subtitle-color: theme('colors.iota-neutral.40');
 }

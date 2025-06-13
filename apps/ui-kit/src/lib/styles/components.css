@@ -176,6 +176,28 @@
         color: var(--card-body-subtitle-color);
     }
 
+    /* CHIP */
+
+    .chip-bg-selected {
+        background-color: var(--chip-bg-selected);
+    }
+
+    .chip-border-default {
+        border-color: var(--chip-border-default);
+    }
+
+    .chip-text-default {
+        color: var(--chip-text-default);
+    }
+
+    .chip-text-selected {
+        color: var(--chip-text-selected);
+    }
+
+    .chip-focus-ring {
+        box-shadow: 0 0 0 2px var(--chip-focus-ring);
+    }
+
     /* DISPLAY STATS */
     .display-stats-bg-default {
         background-color: var(--display-stats-bg-default);
@@ -288,5 +310,79 @@
 
     .navbar-label-selected-color {
         color: var(--navbar-label-selected-color);
+    }
+
+    /* SEARCH */
+    .search-text-color {
+        color: var(--search-text-color);
+    }
+
+    .search-placeholder-color::placeholder {
+        color: var(--search-placeholder-color);
+    }
+
+    .search-border-color {
+        border-color: var(--search-border-color);
+    }
+
+    .search-bg-color-filled {
+        background-color: var(--search-bg-color-filled);
+    }
+
+    .search-suggestion-bg-color {
+        background-color: var(--search-suggestion-bg-color);
+    }
+
+    /* SEGMENTED BUTTON */
+    .segmented-filled-bg-color {
+        background-color: var(--segmented-filled-bg-color);
+    }
+
+    .segmented-outlined-border {
+        border-color: var(--segmented-outlined-border-color);
+    }
+
+    /* SELECT */
+    .select-border-color {
+        border-color: var(--select-border-color);
+    }
+
+    .select-border-hover-color {
+        border-color: var(--select-border-hover-color);
+    }
+
+    .select-border-focus-color {
+        border-color: var(--select-border-focus-color);
+    }
+
+    .select-border-error-color {
+        border-color: var(--select-border-error-color);
+    }
+
+    .select-icon-color {
+        color: var(--select-icon-color);
+    }
+
+    .select-label-color {
+        color: var(--select-label-color);
+    }
+
+    /* TABLE CELL */
+    .table-cell-supporting-label-color {
+        color: var(--table-cell-supporting-label-color);
+    }
+
+    /* TABLE HEADER CELL */
+    .table-header-text-color {
+        color: var(--table-header-text-color);
+    }
+
+    /* TITLE */
+    .title-main-color {
+        color: var(--title-main-color);
+    }
+
+    .title-subtitle-color {
+        color: var(--title-subtitle-color);
     }
 }
