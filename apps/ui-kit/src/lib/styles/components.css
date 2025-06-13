@@ -202,4 +202,128 @@
         @apply before:bottom-[-0.8px] enabled:before:left-2 enabled:before:w-[calc(100%-16px)];
         @apply before:border-b before:border-[color:var(--button-segment-underline-selected-color)];
     }
+    /* LOADING INDICATOR */
+    .loading-indicator-color {
+        color: var(--loading-indicator-color);
+    }
+
+    /* LIST ITEM */
+    .list-item-color {
+        color: var(--list-item-color);
+    }
+
+    .list-item-border-color {
+        border-color: var(--list-item-border-color);
+    }
+
+    .list-item-highlight-bg {
+        background-color: var(--list-item-highlight-bg);
+    }
+
+    /* PANEL */
+    .panel-bg {
+        background-color: var(--panel-bg);
+    }
+
+    .panel-border-color {
+        border-color: var(--panel-border-color);
+    }
+
+    /* RADIO BUTTON */
+    .radio-icon-color {
+        color: var(--radio-icon-color);
+    }
+
+    .radio-icon-checked-color {
+        color: var(--radio-icon-checked-color);
+    }
+
+    .radio-icon-checked-disabled-color {
+        color: var(--radio-icon-checked-disabled-color);
+    }
+
+    .radio-label-color {
+        color: var(--radio-label-color);
+    }
+
+    /* SECONDARY TEXT */
+    .secondary-text-color {
+        color: var(--secondary-text-color);
+    }
+
+    .secondary-text-error-color {
+        color: var(--secondary-text-error-color);
+    }
+
+    /* SKELETON */
+    .skeleton-bg {
+        background-color: var(--skeleton-bg);
+    }
+
+    .skeleton-secondary-bg {
+        background-color: var(--skeleton-secondary-bg);
+    }
+
+    /* TOGGLE */
+    .toggle-bg-active {
+        background-color: var(--toggle-bg-active);
+    }
+
+    .toggle-border-active {
+        border-color: var(--toggle-border-active);
+    }
+
+    .toggle-bg-inactive {
+        background-color: var(--toggle-bg-inactive);
+    }
+
+    .toggle-border-inactive {
+        border-color: var(--toggle-border-inactive);
+    }
+
+    .toggle-bg-disabled-active {
+        background-color: var(--toggle-bg-disabled-active);
+    }
+
+    .toggle-border-disabled-active {
+        border-color: var(--toggle-border-disabled-active);
+    }
+
+    .toggle-thumb-color {
+        background-color: var(--toggle-thumb-color);
+    }
+
+    .toggle-thumb-color-checked {
+        background-color: var(--toggle-thumb-color-checked);
+    }
+
+    .toggle-label-color {
+        color: var(--toggle-label-color);
+    }
+
+    /* TOOLTIP */
+    .tooltip-bg {
+        background-color: var(--tooltip-bg);
+    }
+
+    .tooltip-text-color {
+        color: var(--tooltip-text-color);
+    }
+
+    /* VISUAL ASSET CARD */
+    .visual-asset-placeholder-bg {
+        background-color: var(--visual-asset-placeholder-bg);
+    }
+
+    .visual-asset-placeholder-icon {
+        color: var(--visual-asset-placeholder-icon);
+    }
+
+    .visual-asset-title-color {
+        color: var(--visual-asset-title-color);
+    }
+
+    .visual-asset-icon-color svg {
+        color: var(--visual-asset-icon-color);
+    }
 }
