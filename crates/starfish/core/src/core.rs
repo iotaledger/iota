@@ -225,24 +225,24 @@ impl Core {
         // refs can be ignored as the missing transactions will be fetched by the
         // periodic transactions' synchronizer.
         self.try_commit().unwrap();
-        let last_proposed_block = if let Some(last_proposed_block) = self.try_propose(true).unwrap()
-        {
-            Some(last_proposed_block)
-        } else {
-            let last_proposed_block = self.dag_state.read().get_last_proposed_block();
-            if self.should_propose() {
-                assert!(
-                    last_proposed_block.round() != GENESIS_ROUND,
-                    "At minimum a block of round higher than genesis should have been produced during recovery"
-                );
-            }
-            if last_proposed_block.round() != GENESIS_ROUND {
-                // if no new block proposed then just re-broadcast the last proposed one to
-                // ensure liveness.
-                self.signals.new_block(last_proposed_block.clone()).unwrap();
-                Some(last_proposed_block)
-            } else {
-                None
+        let last_proposed_block = match self.try_propose(true).unwrap() {
+            (Some(block), _) => Some(block),
+            (None, _) => {
+                let last_proposed_block = self.dag_state.read().get_last_proposed_block();
+                if self.should_propose() {
+                    assert!(
+                        last_proposed_block.round() != GENESIS_ROUND,
+                        "At minimum a block of round higher than genesis should have been produced during recovery"
+                    );
+                }
+                if last_proposed_block.round() != GENESIS_ROUND {
+                    // if no new block proposed then just re-broadcast the last proposed one to
+                    // ensure liveness.
+                    self.signals.new_block(last_proposed_block.clone()).unwrap();
+                    Some(last_proposed_block)
+                } else {
+                    None
+                }
             }
         };
 
@@ -1671,9 +1671,13 @@ mod test {
 
         // Try to propose again - with or without ignore leaders check, it will not
         // return any block
-        assert!(core.try_propose(false).unwrap().is_none());
-        assert!(core.try_propose(true).unwrap().is_none());
+        let (new_block_opt, missing_committed_txns) = core.try_propose(false).unwrap();
+        assert!(new_block_opt.is_none());
+        assert!(missing_committed_txns.is_empty());
 
+        let (new_block_opt, missing_committed_txns) = core.try_propose(true).unwrap();
+        assert!(new_block_opt.is_none());
+        assert!(missing_committed_txns.is_empty());
         // Check no commits have been persisted to dag_state & store
         let last_commit = store.read_last_commit().unwrap();
         assert!(last_commit.is_none());
@@ -1740,7 +1744,9 @@ mod test {
         assert_eq!(core.last_proposed_round(), 1);
         expected_ancestors.insert(core.last_proposed_block_header().reference());
         // attempt to create a block - none will be produced.
-        assert!(core.try_propose(false).unwrap().is_none());
+        let (new_block_opt, missing_committed_txns) = core.try_propose(false).unwrap();
+        assert!(new_block_opt.is_none());
+        assert!(missing_committed_txns.is_empty());
 
         // Adding another block now forms a quorum for round 1, so block at round 2 will
         // proposed
@@ -1825,7 +1831,9 @@ mod test {
         );
 
         // Trying to explicitly propose a block will not produce anything
-        assert!(core.try_propose(true).unwrap().is_none());
+        let (new_block_opt, missing_committed_txns) = core.try_propose(true).unwrap();
+        assert!(new_block_opt.is_none());
+        assert!(missing_committed_txns.is_empty());
 
         // Create blocks for the whole network - even "our" node in order to replicate
         // an "amnesia" recovery.
@@ -1838,13 +1846,18 @@ mod test {
         assert!(core.add_block_headers(block_headers).unwrap().is_empty());
 
         // Try to propose - no block should be produced.
-        assert!(core.try_propose(true).unwrap().is_none());
+        let (new_block_opt, missing_committed_txns) = core.try_propose(true).unwrap();
+        assert!(new_block_opt.is_none());
+        assert!(missing_committed_txns.is_empty());
 
         // Now set the last known proposed round which is the highest round for which
         // the network informed us that we do have proposed a block about.
         core.set_last_known_proposed_round(10);
 
-        let block = core.try_propose(true).expect("No error").unwrap();
+        let (new_block_opt, missing_committed_txns) = core.try_propose(true).expect("No error");
+        assert!(missing_committed_txns.is_empty());
+
+        let block = new_block_opt.unwrap();
         assert_eq!(block.round(), 11);
         assert_eq!(block.ancestors().len(), 4);
 
@@ -1909,13 +1922,12 @@ mod test {
                     assert_eq!(round - 1, r);
                     if core_fixture.core.last_proposed_round() == r {
                         // Force propose new block regardless of min round delay.
-                        core_fixture
-                            .core
-                            .try_propose(true)
-                            .unwrap()
-                            .unwrap_or_else(|| {
-                                panic!("Block should have been proposed for round {}", round)
-                            });
+                        let (new_block_opt, missing_committed_txns) =
+                            core_fixture.try_propose(true).unwrap();
+                        assert!(missing_committed_txns.is_empty());
+                        new_block_opt.unwrap_or_else(|| {
+                            panic!("Block should have been proposed for round {}", round)
+                        });
                     }
                 }
 
@@ -1937,13 +1949,18 @@ mod test {
                 .core
                 .add_block_headers(last_round_blocks.clone())
                 .unwrap();
-            assert!(core_fixture.core.try_propose(false).unwrap().is_none());
+            let (new_block_opt, missing_committed_txns) = core_fixture.try_propose(false).unwrap();
+            assert!(new_block_opt.is_none());
+            assert!(missing_committed_txns.is_empty());
         }
 
         // Now try to create the blocks for round 4 via the leader timeout method which
         // should ignore any leader checks or min round delay.
         for core_fixture in cores.iter_mut() {
-            assert!(core_fixture.core.new_block(4, true).unwrap().is_some());
+            let (new_block, missing_committed_txns) = core_fixture.core.new_block(4, true).unwrap();
+            assert!(missing_committed_txns.is_empty());
+            assert!(new_block.is_some());
+
             assert_eq!(core_fixture.core.last_proposed_round(), 4);
 
             // Check commits have been persisted to store
@@ -2018,13 +2035,17 @@ mod test {
         );
 
         // There is no proposal even with forced proposing.
-        assert!(core.try_propose(true).unwrap().is_none());
+        let (new_block_opt, missing_committed_txns) = core.try_propose(true).unwrap();
+        assert!(new_block_opt.is_none());
+        assert!(missing_committed_txns.is_empty());
 
         // Let Core know subscriber exists.
         core.set_quorum_subscribers_exists(true);
 
         // Proposing now would succeed.
-        assert!(core.try_propose(true).unwrap().is_some());
+        let (new_block_opt, missing_committed_txns) = core.try_propose(true).unwrap();
+        assert!(new_block_opt.is_some());
+        assert!(missing_committed_txns.is_empty());
     }
 
     #[tokio::test(flavor = "current_thread", start_paused = true)]

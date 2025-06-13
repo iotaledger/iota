@@ -206,7 +206,6 @@ impl TransactionsSynchronizerHandle {
             })
             .await
             .map_err(|_| ConsensusError::Shutdown)?;
-
         receiver.await.map_err(|_| ConsensusError::Shutdown)?
     }
 
@@ -223,7 +222,7 @@ impl TransactionsSynchronizerHandle {
 /// `TransactionsSynchronizer` oversees live transaction synchronization,
 /// crucial for node progress. Live synchronization refers to the process of
 /// retrieving missing transactions, particularly those essential for advancing
-/// a node when data from only a few rounds is absent.
+/// a node when data from only a few most recent rounds is absent.
 /// `TransactionsSynchronizer` aims for swift catch-up employing two mechanisms:
 ///
 /// 1. Explicitly requesting missing transactions from designated authorities
@@ -245,6 +244,7 @@ pub(crate) struct TransactionsSynchronizer<C: NetworkClient, D: CoreThreadDispat
     dag_state: Arc<RwLock<DagState>>,
     fetch_transactions_scheduler_task: JoinSet<()>,
     network_client: Arc<C>,
+    // TODO: do we need external BlockVerifier?
     inflight_transactions_map: Arc<InflightTransactionsMap>,
     commands_sender: Sender<Command>,
 }
@@ -336,7 +336,7 @@ impl<C: NetworkClient, D: CoreThreadDispatcher> TransactionsSynchronizer<C, D> {
                                 .into_iter()
                                 .take(MAX_TRANSACTIONS_PER_FETCH)
                                 .collect();
-
+                            // How does the inflight map work if transactions will be only reported as missing once? Also, why is that for the headers as well? For each suspended block we ask another peer or what?
                             let transactions_guard = self.inflight_transactions_map.lock_transactions(missing_block_refs, peer_index);
                             let Some(transactions_guard) = transactions_guard else {
                                 result.send(Ok(())).ok();
@@ -481,6 +481,7 @@ impl<C: NetworkClient, D: CoreThreadDispatcher> TransactionsSynchronizer<C, D> {
         let transactions = Handle::current()
             .spawn_blocking({
                 move || {
+                    // TODO: fix this
                     serialized_transactions
                         .into_iter()
                         .map(|serialized| {
@@ -493,22 +494,43 @@ impl<C: NetworkClient, D: CoreThreadDispatcher> TransactionsSynchronizer<C, D> {
             .await
             .expect("Spawn blocking should not fail")?;
 
+        let metrics = &context.metrics.node_metrics;
+        let peer_hostname = &context.committee.authority(peer_index).hostname;
+        metrics
+            .transaction_synchronizer_fetched_transactions_by_peer
+            .with_label_values(&[peer_hostname.as_str(), sync_method])
+            .inc_by(transactions.len() as u64);
+        for transactions in &transactions {
+            let block_hostname = &context.committee.authority(transactions.author()).hostname;
+            metrics
+                .transaction_synchronizer_fetched_transactions_by_authority
+                .with_label_values(&[block_hostname.as_str(), sync_method])
+                .inc();
+        }
+
+        debug!(
+            "Synced {} missing blocks from peer {peer_index} {peer_hostname}: {}",
+            transactions.len(),
+            transactions
+                .iter()
+                .map(|b| b.reference().to_string())
+                .join(", "),
+        );
+
         // Add the transactions to the core
-        core_dispatcher.add_transactions(transactions).await?;
+        core_dispatcher
+            .add_transactions(transactions)
+            .await
+            .map_err(|_| ConsensusError::Shutdown)?;
+
+        // now release all the locked blocks as they have been fetched, verified &
+        // processed
+        drop(requested_transactions_guard);
 
         // Kick off the scheduler to fetch any remaining missing transactions
         commands_sender
             .try_send(Command::KickOffScheduler)
             .map_err(|_| ConsensusError::Shutdown)?;
-
-        // Report metrics
-        // TODO: Add metrics for transactions synchronizer
-        // context
-        //     .metrics
-        //     .node_metrics
-        //     .transactions_synchronizer_fetched_transactions
-        //     .with_label_values(&[sync_method])
-        //     .inc_by(requested_transactions_guard.block_refs.len() as u64);
 
         Ok(())
     }
@@ -518,13 +540,14 @@ impl<C: NetworkClient, D: CoreThreadDispatcher> TransactionsSynchronizer<C, D> {
         peer: AuthorityIndex,
         transactions_guard: TransactionsGuard,
         request_timeout: Duration,
-        retries: u32,
+        mut retries: u32,
     ) -> (
         ConsensusResult<Vec<Bytes>>,
         TransactionsGuard,
         u32,
         AuthorityIndex,
     ) {
+        let start = Instant::now();
         let block_refs = transactions_guard
             .block_refs
             .iter()
@@ -536,11 +559,27 @@ impl<C: NetworkClient, D: CoreThreadDispatcher> TransactionsSynchronizer<C, D> {
             request_timeout,
             network_client.fetch_transactions(peer, block_refs, request_timeout),
         )
-        .await
-        .map_err(|_| ConsensusError::FetchTransactionsTimeout(peer))
-        .and_then(|r| r);
+        .await;
 
-        (result, transactions_guard, retries + 1, peer)
+        fail_point_async!("consensus-delay");
+
+        let resp = match result {
+            Ok(Err(err)) => {
+                // Add a delay before retrying - if that is needed. If the request has timed
+                // out, then eventually this will be a no-op.
+                sleep_until(start + request_timeout).await;
+                retries += 1;
+                Err(err)
+            } // network error
+            Err(err) => {
+                // timeout
+                sleep_until(start + request_timeout).await;
+                retries += 1;
+                Err(ConsensusError::NetworkRequestTimeout(err.to_string()))
+            }
+            Ok(result) => result,
+        };
+        (resp, transactions_guard, retries, peer)
     }
 
     /// Starts a task to fetch missing transactions from other authorities.
@@ -551,38 +590,66 @@ impl<C: NetworkClient, D: CoreThreadDispatcher> TransactionsSynchronizer<C, D> {
         if missing_transactions.is_empty() {
             return Ok(());
         }
-
-        // Fetch the missing transactions from other authorities
-        let fetch_transactions_from_authorities_async = Self::fetch_transactions_from_authorities(
-            self.context.clone(),
-            self.inflight_transactions_map.clone(),
-            self.network_client.clone(),
-            missing_transactions,
-        );
+        let context = self.context.clone();
+        let network_client = self.network_client.clone();
+        let core_dispatcher = self.core_dispatcher.clone();
+        let inflight_transactions_map = self.inflight_transactions_map.clone();
+        let commands_sender = self.commands_sender.clone();
 
         self.fetch_transactions_scheduler_task
             .spawn(monitored_future!(async move {
-                let _scope = monitored_scope("TransactionsSynchronizer::fetch_transactions_from_authorities");
-                let results = fetch_transactions_from_authorities_async.await;
+                let _scope = monitored_scope("FetchMissingTransactionsScheduler");
+                context
+                    .metrics
+                    .node_metrics
+                    .fetch_transactions_scheduler_inflight
+                    .inc();
+                let total_requested = missing_transactions.len();
 
-                for (transactions_guard, serialized_transactions, peer_index) in results {
-                    // Process the fetched transactions
+                fail_point_async!("consensus-delay");
+                // Fetch the missing transactions from other authorities
+                let results = Self::fetch_transactions_from_authorities(
+                    context.clone(),
+                    inflight_transactions_map,
+                    network_client,
+                    missing_transactions,
+                )
+                .await;
+                context
+                    .metrics
+                    .node_metrics
+                    .fetch_transactions_scheduler_inflight
+                    .dec();
+                if results.is_empty() {
+                    warn!("No results returned while requesting missing transactions");
+                    return;
+                }
+                let mut total_fetched = 0;
+                for (transactions_guard, fetched_transactions, peer) in results {
+                    total_fetched += fetched_transactions.len();
+
                     if let Err(err) = Self::process_fetched_transactions(
-                        serialized_transactions,
-                        peer_index,
+                        fetched_transactions,
+                        peer,
                         transactions_guard,
-                        self.core_dispatcher.clone(),
-                        self.context.clone(),
-                        self.commands_sender.clone(),
+                        core_dispatcher.clone(),
+                        context.clone(),
+                        commands_sender.clone(),
                         "periodic",
                     )
                     .await
                     {
-                        warn!("Error while processing fetched transactions from peer {peer_index}: {err}");
+                        warn!(
+                            "Error occurred while processing fetched blocks from peer {peer}: {err}"
+                        );
                     }
                 }
-            }));
 
+                debug!(
+                    "Total blocks requested to fetch: {}, total fetched: {}",
+                    total_requested, total_fetched
+                );
+            }));
         Ok(())
     }
 
@@ -593,85 +660,139 @@ impl<C: NetworkClient, D: CoreThreadDispatcher> TransactionsSynchronizer<C, D> {
         network_client: Arc<C>,
         missing_transactions: BTreeSet<BlockRef>,
     ) -> Vec<(TransactionsGuard, Vec<Bytes>, AuthorityIndex)> {
-        let _scope =
-            monitored_scope("TransactionsSynchronizer::fetch_transactions_from_authorities");
+        const MAX_PEERS: usize = 3;
 
-        if missing_transactions.is_empty() {
-            return Vec::new();
+        // Attempt to fetch only up to a max of blocks
+        let missing_transactions = missing_transactions
+            .into_iter()
+            .take(MAX_PEERS * MAX_TRANSACTIONS_PER_FETCH)
+            .collect::<Vec<_>>();
+
+        let mut missing_transactions_per_authority = vec![0; context.committee.size()];
+        for block in &missing_transactions {
+            missing_transactions_per_authority[block.author] += 1;
+        }
+        for (missing, (_, authority)) in missing_transactions_per_authority
+            .into_iter()
+            .zip(context.committee.authorities())
+        {
+            context
+                .metrics
+                .node_metrics
+                .transactions_synchronizer_missing_transactions_by_authority
+                .with_label_values(&[&authority.hostname.as_str()])
+                .inc_by(missing as u64);
+            context
+                .metrics
+                .node_metrics
+                .transactions_synchronizer_current_missing_transactions_by_authority
+                .with_label_values(&[&authority.hostname.as_str()])
+                .set(missing as i64);
         }
 
-        // Report metrics
-        // TODO: Add metrics for transactions synchronizer
-        // context
-        //     .metrics
-        //     .node_metrics
-        //     .transactions_synchronizer_missing_transactions
-        //     .set(missing_transactions.len() as i64);
-
+        // TODO: only use authorities that have acknowledged the transactions
         // Get the list of authorities to fetch from
+        #[cfg_attr(test, expect(unused_mut))]
         let mut authorities: Vec<AuthorityIndex> = context
             .committee
             .authorities()
-            .filter_map(|(index, _)| {
-                if index != context.own_index {
-                    Some(index)
-                } else {
-                    None
-                }
-            })
-            .collect();
+            .filter_map(|(peer_index, _)| (peer_index != context.own_index).then_some(peer_index))
+            .collect::<Vec<_>>();
 
-        // Shuffle the authorities to avoid always fetching from the same ones
+        // In test, the order is not randomized
         #[cfg(not(test))]
-        {
-            let mut rng = rand::thread_rng();
-            authorities.shuffle(&mut rng);
+        authorities.shuffle(&mut ThreadRng::default());
+
+        let mut authorities = authorities.into_iter();
+        let mut request_futures = FuturesUnordered::new();
+
+        // Send the initial requests
+        for transactions in missing_transactions.chunks(MAX_TRANSACTIONS_PER_FETCH) {
+            let authority = authorities
+                .next()
+                .expect("Possible misconfiguration as a peer should be found");
+            let peer_hostname = &context.committee.authority(authority).hostname;
+            let block_refs = transactions.iter().cloned().collect::<BTreeSet<_>>();
+            // lock the blocks to be fetched. If no lock can be acquired for any of the
+            // blocks then don't bother
+            if let Some(transactions_guard) =
+                inflight_transactions_map.lock_transactions(block_refs.clone(), authority)
+            {
+                info!(
+                    "Periodic sync of {} missing committed transactions from authority {} {}: {}",
+                    block_refs.len(),
+                    authority,
+                    peer_hostname,
+                    block_refs
+                        .iter()
+                        .map(|b| b.to_string())
+                        .collect::<Vec<_>>()
+                        .join(", ")
+                );
+
+                request_futures.push(Self::fetch_transactions_request(
+                    network_client.clone(),
+                    authority,
+                    transactions_guard,
+                    FETCH_REQUEST_TIMEOUT,
+                    1,
+                ));
+            }
         }
 
-        // Try to lock the transactions for each authority
         let mut results = Vec::new();
-        let mut futures = FuturesUnordered::new();
+        let fetcher_timeout = sleep(FETCH_FROM_PEERS_TIMEOUT);
 
-        for authority_index in authorities {
-            // Try to lock the transactions for this authority
-            let transactions_guard = inflight_transactions_map
-                .lock_transactions(missing_transactions.clone(), authority_index);
-            let Some(transactions_guard) = transactions_guard else {
-                continue;
-            };
+        tokio::pin!(fetcher_timeout);
 
-            // Fetch the transactions from this authority
-            let block_refs = transactions_guard
-                .block_refs
-                .iter()
-                .cloned()
-                .collect::<Vec<_>>();
-            futures.push(async move {
-                let result = timeout(
-                    FETCH_FROM_PEERS_TIMEOUT,
-                    network_client.fetch_transactions(
-                        authority_index,
-                        block_refs,
-                        FETCH_FROM_PEERS_TIMEOUT,
-                    ),
-                )
-                .await
-                .map_err(|_| ConsensusError::FetchTransactionsTimeout(authority_index))
-                .and_then(|r| r);
+        loop {
+            tokio::select! {
+                Some((response, transactions_guard, _retries, peer_index)) = request_futures.next() => {
+                    let peer_hostname = &context.committee.authority(peer_index).hostname;
+                    match response {
+                        Ok(fetched_blocks) => {
+                            info!("Fetched {} blocks from peer {}", fetched_blocks.len(), peer_hostname);
+                            results.push((transactions_guard, fetched_blocks, peer_index));
 
-                (result, transactions_guard, authority_index)
-            });
-        }
-
-        // Wait for all the futures to complete
-        while let Some((result, transactions_guard, authority_index)) = futures.next().await {
-            match result {
-                Ok(serialized_transactions) => {
-                    results.push((transactions_guard, serialized_transactions, authority_index));
-                }
-                Err(err) => {
-                    warn!("Error while fetching transactions from peer {authority_index}: {err}");
-                    drop(transactions_guard);
+                            // no more pending requests are left, just break the loop
+                            if request_futures.is_empty() {
+                                break;
+                            }
+                        },
+                        Err(_) => {
+                            // try again if there is any peer left
+                            if let Some(next_peer) = authorities.next() {
+                                // do best effort to lock guards. If we can't lock then don't bother at this run.
+                                if let Some(blocks_guard) = inflight_transactions_map.swap_locks(transactions_guard, next_peer) {
+                                    info!(
+                                        "Retrying syncing {} missing blocks from peer {}: {}",
+                                        blocks_guard.block_refs.len(),
+                                        peer_hostname,
+                                        blocks_guard.block_refs
+                                            .iter()
+                                            .map(|b| b.to_string())
+                                            .collect::<Vec<_>>()
+                                            .join(", ")
+                                    );
+                                    request_futures.push(Self::fetch_transactions_request(
+                                        network_client.clone(),
+                                        next_peer,
+                                        blocks_guard,
+                                        FETCH_REQUEST_TIMEOUT,
+                                        1,
+                                    ));
+                                } else {
+                                    debug!("Couldn't acquire locks to fetch blocks from peer {next_peer}.")
+                                }
+                            } else {
+                                debug!("No more peers left to fetch blocks");
+                            }
+                        }
+                    }
+                },
+                _ = &mut fetcher_timeout => {
+                    debug!("Timed out while fetching missing blocks");
+                    break;
                 }
             }
         }
@@ -689,8 +810,7 @@ mod tests {
 
     use super::*;
     use crate::{
-        block_header::{BlockRef, Transaction, VerifiedTransactions},
-        error::ConsensusError,
+        block_header::{BlockRef, VerifiedTransactions},
         network::NetworkClient,
     };
 

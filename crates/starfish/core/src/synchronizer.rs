@@ -58,6 +58,8 @@ const FETCH_FROM_PEERS_TIMEOUT: Duration = Duration::from_millis(4_000);
 /// Max number of blocks to fetch per request.
 /// This value should be chosen so even with blocks at max size, the requests
 /// can finish on hosts with good network using the timeouts above.
+// TODO: this can be increased as we're only syncing headers which have almost
+// constant size
 const MAX_BLOCKS_PER_FETCH: usize = 32;
 
 const MAX_AUTHORITIES_TO_FETCH_PER_BLOCK: usize = 3;
@@ -635,7 +637,7 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> Synchronizer<C
         // Now send them to core for processing. Ignore the returned missing blocks as
         // we don't want this mechanism to keep feedback looping on fetching
         // more blocks. The periodic synchronization will take care of that.
-        let missing_blocks = core_dispatcher
+        let (missing_blocks, missing_committed_txns) = core_dispatcher
             .add_block_headers(blocks)
             .await
             .map_err(|_| ConsensusError::Shutdown)?;
@@ -658,6 +660,14 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> Synchronizer<C
             .node_metrics
             .missing_blocks_after_fetch_total
             .inc_by(missing_blocks.len() as u64);
+
+        if !missing_committed_txns.is_empty() {
+            // TODO: handle missing committed transactions.
+            warn!(
+                "Missing committed transactions after fetching blocks: {:?}",
+                missing_committed_txns
+            );
+        }
 
         Ok(())
     }

@@ -233,7 +233,6 @@ pub(crate) trait NetworkService: Send + Sync + 'static {
     /// Handles the request to fetch transactions by references from the peer.
     async fn handle_fetch_transactions(
         &self,
-        peer: AuthorityIndex,
         block_refs: Vec<BlockRef>,
     ) -> ConsensusResult<Vec<Bytes>>;
 }

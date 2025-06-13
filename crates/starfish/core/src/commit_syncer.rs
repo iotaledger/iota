@@ -341,14 +341,14 @@ impl<C: NetworkClient> CommitSyncer<C> {
                 .add_certified_commits(commits)
                 .await
             {
-                Ok(missing) => {
-                    if !missing.is_empty() {
+                Ok((missing_blocks, missing_committed_txns)) => {
+                    if !missing_blocks.is_empty() {
                         warn!(
                             "Fetched block headers have missing ancestors: {:?} for commit range {:?}",
-                            missing, fetched_commit_range
+                            missing_blocks, fetched_commit_range
                         );
                     }
-                    for block_ref in missing {
+                    for block_ref in missing_blocks {
                         let hostname = &self
                             .inner
                             .context
@@ -359,6 +359,13 @@ impl<C: NetworkClient> CommitSyncer<C> {
                             .commit_sync_fetch_missing_blocks
                             .with_label_values(&[hostname])
                             .inc();
+                    }
+                    if !missing_committed_txns.is_empty() {
+                        // TODO: handle missing committed transactions.
+                        warn!(
+                            "Fetched blocks have missing committed transactions: {:?} for commit range {:?}",
+                            missing_committed_txns, fetched_commit_range
+                        );
                     }
                 }
                 Err(e) => {

@@ -408,6 +408,37 @@ impl NetworkClient for TonicClient {
         }
         Ok(blocks)
     }
+
+    async fn fetch_transactions(
+        &self,
+        peer: AuthorityIndex,
+        block_refs: Vec<BlockRef>,
+        timeout: Duration,
+    ) -> ConsensusResult<Vec<Bytes>> {
+        let mut client = self.get_client(peer, timeout).await?;
+        let mut request = Request::new(FetchTransactionsRequest {
+            block_refs: block_refs
+                .iter()
+                .filter_map(|r| match bcs::to_bytes(r) {
+                    // TODO: is the serialization correct?
+                    Ok(serialized) => Some(serialized),
+                    Err(e) => {
+                        debug!("Failed to serialize block ref {:?}: {e:?}", r);
+                        None
+                    }
+                })
+                .collect(),
+        });
+        request.set_timeout(timeout);
+        let response = client.fetch_transactions(request).await.map_err(|e| {
+            if e.code() == tonic::Code::DeadlineExceeded {
+                ConsensusError::NetworkRequestTimeout(format!("fetch_transactions failed: {e:?}"))
+            } else {
+                ConsensusError::NetworkRequest(format!("fetch_transactions failed: {e:?}"))
+            }
+        })?;
+        Ok(response.into_inner().vec_serialized_transactions)
+    }
 }
 
 // Tonic channel wrapped with layers.
@@ -809,6 +840,35 @@ impl<S: NetworkService> ConsensusService for TonicServiceProxy<S> {
         Ok(Response::new(GetLatestRoundsResponse {
             highest_received,
             highest_accepted,
+        }))
+    }
+
+    async fn fetch_transactions(
+        &self,
+        request: Request<FetchTransactionsRequest>,
+    ) -> Result<Response<FetchTransactionsResponse>, tonic::Status> {
+        let request = request.into_inner();
+        let block_refs = request
+            .block_refs
+            .iter()
+            .filter_map(|r| match bcs::from_bytes::<BlockRef>(r) {
+                // TODO: is the deserialization correct?
+                Ok(block_ref) => Some(block_ref),
+                Err(e) => {
+                    debug!("Failed to deserialize block ref: {e:?}");
+                    None
+                }
+            })
+            .collect();
+
+        let vec_serialized_transactions = self
+            .service
+            .handle_fetch_transactions(block_refs)
+            .await
+            .map_err(|e| tonic::Status::internal(format!("fetch_transactions failed: {e:?}")))?;
+
+        Ok(Response::new(FetchTransactionsResponse {
+            vec_serialized_transactions,
         }))
     }
 }
@@ -1283,6 +1343,19 @@ pub(crate) struct GetLatestRoundsResponse {
     // Highest accepted round per authority.
     #[prost(uint32, repeated, tag = "2")]
     highest_accepted: Vec<u32>,
+}
+
+// TODO: are these correct?
+#[derive(Clone, prost::Message)]
+pub(crate) struct FetchTransactionsRequest {
+    #[prost(bytes = "vec", repeated, tag = "1")]
+    block_refs: Vec<Vec<u8>>,
+}
+
+#[derive(Clone, prost::Message)]
+pub(crate) struct FetchTransactionsResponse {
+    #[prost(bytes = "bytes", repeated, tag = "1")]
+    vec_serialized_transactions: Vec<Bytes>,
 }
 
 // Splits a list of byte sequences into chunks where each chunk's total size

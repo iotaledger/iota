@@ -155,6 +155,11 @@ pub(crate) struct NodeMetrics {
     pub(crate) missing_blocks_after_fetch_total: IntCounter,
     pub(crate) num_of_bad_nodes: IntGauge,
     pub(crate) quorum_receive_latency: Histogram,
+    pub(crate) transaction_synchronizer_fetched_transactions_by_peer: IntCounterVec,
+    pub(crate) transaction_synchronizer_fetched_transactions_by_authority: IntCounterVec,
+    pub(crate) transactions_synchronizer_missing_transactions_by_authority: IntCounterVec,
+    pub(crate) transactions_synchronizer_current_missing_transactions_by_authority: IntGaugeVec,
+    pub(crate) fetch_transactions_scheduler_inflight: IntGauge,
     pub(crate) reputation_scores: IntGaugeVec,
     pub(crate) scope_processing_time: HistogramVec,
     pub(crate) sub_dags_per_commit_count: Histogram,
@@ -517,6 +522,35 @@ impl NodeMetrics {
                 "quorum_receive_latency",
                 "The time it took to receive a new round quorum of blocks",
                 registry
+            ).unwrap(),
+            transaction_synchronizer_fetched_transactions_by_peer: register_int_counter_vec_with_registry!(
+                "transaction_synchronizer_fetched_transactions_by_peer",
+                "Number of fetched transactions per peer authority via the transaction synchronizer",
+                &["peer", "type"],
+                registry,
+            ).unwrap(),
+            transaction_synchronizer_fetched_transactions_by_authority: register_int_counter_vec_with_registry!(
+                "transaction_synchronizer_fetched_transactions_by_authority",
+                "Number of fetched transactions per block author via the transaction synchronizer",
+                &["authority", "type"],
+                registry,
+            ).unwrap(),
+            transactions_synchronizer_missing_transactions_by_authority: register_int_counter_vec_with_registry!(
+                "transactions_synchronizer_missing_transactions_by_authority",
+                "Number of missing transactions per block author, as observed by the transaction synchronizer during periodic sync.",
+                &["authority"],
+                registry,
+            ).unwrap(),
+            transactions_synchronizer_current_missing_transactions_by_authority: register_int_gauge_vec_with_registry!(
+                "transactions_synchronizer_current_missing_transactions_by_authority",
+                "Current number of missing transactions per block author, as observed by the transaction synchronizer during periodic sync.",
+                &["authority"],
+                registry,
+            ).unwrap(),
+            fetch_transactions_scheduler_inflight: register_int_gauge_with_registry!(
+                "fetch_transactions_scheduler_inflight",
+                "Designates whether the transaction synchronizer scheduler task to fetch transactions is currently running",
+                registry,
             ).unwrap(),
             reputation_scores: register_int_gauge_vec_with_registry!(
                 "reputation_scores",

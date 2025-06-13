@@ -306,11 +306,12 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
             .with_label_values(&[peer_hostname])
             .inc();
 
-        let missing_ancestors = self
+        let (missing_ancestors, missing_committed_txns) = self
             .core_dispatcher
             .add_blocks(vec![verified_block])
             .await
             .map_err(|_| ConsensusError::Shutdown)?;
+
         if !missing_ancestors.is_empty() {
             // schedule the fetching of them from this peer
             if let Err(err) = self
@@ -332,6 +333,15 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
                 );
             }
         }
+
+        if !missing_committed_txns.is_empty() {
+            // TODO: handle missing committed transactions.
+            warn!(
+                "Missing committed transactions after adding block: {:?}",
+                missing_committed_txns
+            );
+        }
+
         Ok(())
     }
 
@@ -1008,7 +1018,6 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
 
     async fn handle_fetch_transactions(
         &self,
-        peer: AuthorityIndex,
         block_refs: Vec<BlockRef>,
     ) -> ConsensusResult<Vec<Bytes>> {
         fail_point_async!("consensus-rpc-response");
