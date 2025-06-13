@@ -26,6 +26,8 @@
     --headline-sm-font-weight: 500;
 }
 :root.light {
+    /* ---------------- ATOMS ---------------- */
+
     /* LOADING INDICATOR */
     --loading-indicator-color: theme('colors.iota-primary.30');
 
@@ -72,6 +74,8 @@
     --visual-asset-placeholder-icon: theme('colors.iota-neutral.40');
     --visual-asset-title-color: theme('colors.iota-neutral.100');
     --visual-asset-icon-color: theme('colors.iota-neutral.100');
+
+    /* ---------------- MOLECULES ---------------- */
 
     /* ACCOUNT */
     --account-title-color: theme('colors.iota-neutral.10');
@@ -161,9 +165,29 @@
     /* TITLE */
     --title-main-color: theme('colors.iota-neutral.10');
     --title-subtitle-color: theme('colors.iota-neutral.60');
+
+    /* ---------------- ORGANISMS ---------------- */
+
+    /* ACCORDION */
+    --accordion-bg: theme('colors.iota-neutral.100');
+    --accordion-icon-color: theme('colors.iota-neutral.10');
+
+    /* DIALOG */
+    --dialog-content-bg: theme('colors.iota-primary.100');
+    --dialog-title-color: theme('colors.iota-neutral.10');
+    --dialog-body-color: theme('colors.iota-neutral.40');
+
+    /* NAVBAR */
+    --navbar-icon-color: theme('colors.iota-neutral.10');
+    --navbar-slideout-bg: theme('colors.iota-neutral.100');
+
+    /* TABLE */
+    --table-text-color: theme('colors.iota-neutral.40');
 }
 
 :root.dark {
+    /* ---------------- ATOMS ---------------- */
+
     /* LOADING INDICATOR */
     --loading-indicator-color: theme('colors.iota-primary.80');
 
@@ -210,6 +234,8 @@
     --visual-asset-placeholder-icon: theme('colors.iota-neutral.60');
     --visual-asset-title-color: theme('colors.iota-neutral.100');
     --visual-asset-icon-color: theme('colors.iota-neutral.100');
+
+    /* ---------------- MOLECULES ---------------- */
 
     /* ACCOUNT */
     --account-title-color: theme('colors.iota-neutral.92');
@@ -299,6 +325,24 @@
     /* TITLE */
     --title-main-color: theme('colors.iota-neutral.92');
     --title-subtitle-color: theme('colors.iota-neutral.40');
+
+    /* ---------------- ORGANISMS ---------------- */
+
+    /* ACCORDION */
+    --accordion-bg: theme('colors.iota-neutral.6');
+    --accordion-icon-color: theme('colors.iota-neutral.92');
+
+    /* DIALOG */
+    --dialog-content-bg: theme('colors.iota-neutral.6');
+    --dialog-title-color: theme('colors.iota-neutral.92');
+    --dialog-body-color: theme('colors.iota-neutral.60');
+
+    /* NAVBAR */
+    --navbar-icon-color: theme('colors.iota-neutral.92');
+    --navbar-slideout-bg: theme('colors.iota-neutral.6');
+
+    /* TABLE */
+    --table-text-color: theme('colors.iota-neutral.60');
 }
 
 :root.names {
@@ -312,6 +356,8 @@
     --headline-lg-font-weight: 600;
     --headline-md-font-weight: 600;
     --headline-sm-font-weight: 600;
+
+    /* ---------------- ATOMS ---------------- */
 
     /* LOADING INDICATOR */
     --loading-indicator-color: theme('colors.names-primary.80');
@@ -360,6 +406,8 @@
     --visual-asset-title-color: theme('colors.iota-neutral.100');
     --visual-asset-icon-color: theme('colors.iota-neutral.100');
 
+    /* ---------------- MOLECULES ---------------- */
+
     /* ACCOUNT */
     --account-title-color: theme('colors.iota-neutral.92');
     --account-icon-color: theme('colors.iota-neutral.60');
@@ -448,4 +496,22 @@
     /* TITLE */
     --title-main-color: theme('colors.iota-neutral.92');
     --title-subtitle-color: theme('colors.iota-neutral.40');
+
+    /* ---------------- ORGANISMS ---------------- */
+
+    /* ACCORDION */
+    --accordion-bg: theme('colors.iota-neutral.6');
+    --accordion-icon-color: theme('colors.iota-neutral.92');
+
+    /* DIALOG */
+    --dialog-content-bg: theme('colors.iota-neutral.6');
+    --dialog-title-color: theme('colors.iota-neutral.92');
+    --dialog-body-color: theme('colors.iota-neutral.60');
+
+    /* NAVBAR */
+    --navbar-icon-color: theme('colors.iota-neutral.92');
+    --navbar-slideout-bg: theme('colors.iota-neutral.6');
+
+    /* TABLE */
+    --table-text-color: theme('colors.iota-neutral.60');
 }
