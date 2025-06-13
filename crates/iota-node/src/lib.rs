@@ -1535,7 +1535,7 @@ impl IotaNode {
             .filter_map(|tx| {
                 match tx.kind {
                     // shared object txns will be re-executed by consensus replay
-                    ConsensusTransactionKind::UserTransaction(tx)
+                    ConsensusTransactionKind::CertifiedTransaction(tx)
                         if !tx.contains_shared_object() =>
                     {
                         let tx = *tx;
