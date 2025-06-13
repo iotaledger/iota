@@ -42,6 +42,7 @@
     /* BADGE */
     --badge-bg-color-neutral: theme('colors.iota-neutral.92');
     --badge-text-color-neutral: theme('colors.iota-neutral.10');
+    --badge-border-color-neutral: theme('colors.iota-neutral.92');
     --badge-bg-color-primary: theme('colors.iota-primary.30');
     --badge-border-color-primary: theme('colors.iota-primary.30');
     --badge-text-color-primary: theme('colors.iota-primary.100');
@@ -269,6 +270,7 @@
     /* BADGE */
     --badge-bg-color-neutral: theme('colors.iota-neutral.12');
     --badge-text-color-neutral: theme('colors.iota-neutral.92');
+    --badge-border-color-neutral: theme('colors.iota-neutral.12');
     --badge-bg-color-primary: theme('colors.iota-primary.30');
     --badge-border-color-primary: theme('colors.iota-primary.30');
     --badge-text-color-primary: theme('colors.iota-neutral.100');
@@ -507,6 +509,7 @@
     /* BADGE */
     --badge-bg-color-neutral: theme('colors.names-neutral.12');
     --badge-text-color-neutral: theme('colors.names-neutral.92');
+    --badge-border-color-neutral: theme('colors.iota-neutral.12');
     --badge-bg-color-primary: theme('colors.names-primary.30');
     --badge-border-color-primary: theme('colors.names-primary.30');
     --badge-text-color-primary: theme('colors.names-neutral.100');

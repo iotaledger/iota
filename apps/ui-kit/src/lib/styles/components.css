@@ -18,6 +18,10 @@
         border-color: var(--badge-border-color-primary);
     }
 
+    .badge-border-color-neutral {
+        border-color: var(--badge-border-color-neutral);
+    }
+
     .badge-border-color-soft {
         border-color: var(--badge-border-color-soft);
     }

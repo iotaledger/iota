@@ -23,7 +23,7 @@ export const TEXT_COLORS: Record<BadgeType, string> = {
 
 export const BORDER_COLORS: Record<BadgeType, string> = {
     [BadgeType.PrimarySolid]: 'badge-border-color-primary',
-    [BadgeType.Neutral]: 'badge-bg-color-neutral',
+    [BadgeType.Neutral]: 'badge-border-color-neutral',
     [BadgeType.PrimarySoft]: 'badge-border-color-soft',
     [BadgeType.Success]: 'border-success-surface',
     [BadgeType.Warning]: 'border-warning-surface',
