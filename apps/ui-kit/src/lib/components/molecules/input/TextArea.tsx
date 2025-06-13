@@ -115,7 +115,7 @@ export const TextArea = forwardRef<HTMLTextAreaElement, TextFieldBaseProps>(func
                     <span className="absolute bottom-4 right-4 flex">
                         <ButtonUnstyled
                             onClick={onToggleButtonClick}
-                            className="text-neutral-10 dark:text-neutral-92 [&_svg]:h-5 [&_svg]:w-5"
+                            className="input-icon-color [&_svg]:h-5 [&_svg]:w-5"
                             tabIndex={-1}
                         >
                             {isInputContentVisible ? <VisibilityOn /> : <VisibilityOff />}
@@ -139,10 +139,7 @@ function VisibilityOffBar({ rows, halfWidthRow }: VisibilityOffBarProps) {
                 const isHalfWidth = halfWidthRow === index + 1;
                 const width = isHalfWidth ? 'w-1/2' : 'w-full';
                 return (
-                    <div
-                        key={index}
-                        className={`bg-neutral-92/60 dark:bg-neutral-10/60 h-2.5 rounded ${width}`}
-                    />
+                    <div key={index} className={`input-visibility-bar h-2.5 rounded ${width}`} />
                 );
             })}
         </>

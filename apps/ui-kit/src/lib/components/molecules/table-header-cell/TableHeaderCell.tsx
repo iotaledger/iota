@@ -79,7 +79,7 @@ export function TableHeaderCell({
         }
     };
 
-    const textColorClass = 'text-neutral-10 dark:text-neutral-92';
+    const textColorClass = 'table-header-text-color';
     const textSizeClass = 'text-label-lg';
 
     const sortElement = (() => {
