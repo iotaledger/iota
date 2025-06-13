@@ -523,7 +523,7 @@
     --button-bg-color-secondary: theme('colors.names-neutral.20');
     --button-bg-color-error: theme('colors.names-error.20');
     --button-border-color-outline: theme('colors.names-neutral.50');
-    --button-text-color-primary: theme('colors.names-primary.30');
+    --button-text-color-primary: theme('colors.names-primary.100');
     --button-text-color-neutral: theme('colors.names-primary.90');
     --button-text-color-error: theme('colors.names-error.90');
 
