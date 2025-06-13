@@ -485,11 +485,13 @@ impl CheckpointExecutor {
                         summary,
                     );
                 let arc_summary = Arc::new(versioned_summary);
-                println!(
-                    "[gRPC][Fullnode] Broadcasting checkpoint: seq={}, epoch={}",
-                    arc_summary.sequence_number(),
-                    checkpoint.epoch()
-                );
+                if arc_summary.sequence_number() % 100 == 0 {
+                    println!(
+                        "[gRPC][Fullnode] Broadcasting checkpoint: seq={}, epoch={}",
+                        arc_summary.sequence_number(),
+                        checkpoint.epoch()
+                    );
+                }
                 let _ = tx.send(arc_summary);
             }
             if let Some(data_tx) = &self.grpc_checkpoint_data_tx {
@@ -503,10 +505,12 @@ impl CheckpointExecutor {
                     ).expect("Failed to load full CheckpointData");
                 let versioned_data = GrpcCheckpointData::from(checkpoint_data);
                 let full_data = Arc::new(versioned_data);
-                println!(
-                    "[gRPC][Fullnode] Broadcasting full CheckpointData: seq={}",
-                    full_data.sequence_number()
-                );
+                // if full_data.sequence_number() % 100 == 0 {
+                //     println!(
+                //         "[gRPC][Fullnode] Broadcasting full CheckpointData: seq={}",
+                //         full_data.sequence_number()
+                //     );
+                // }
                 let _ = data_tx.send(full_data);
             }
         }

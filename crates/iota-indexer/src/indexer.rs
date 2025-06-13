@@ -154,11 +154,38 @@ impl Indexer {
 
         // Branch: gRPC or REST.
         if let Some(grpc_url) = &config.grpc_client_url {
-            println!("Using gRPC checkpoint ingestion from {}", grpc_url);
-            run_grpc_checkpoint_ingestion(
-                grpc_url,
+            println!(
+                "Using gRPC checkpoint ingestion from {} (with WorkerPool)",
+                grpc_url
+            );
+            // Set up WorkerPool for gRPC ingestion
+            let worker = new_handlers(
                 store.clone(),
                 metrics.clone(),
+                primary_watermark,
+                cancel.clone(),
+            )
+            .await?;
+            let concurrency = download_queue_size;
+            let (tx, rx) = tokio::sync::mpsc::channel::<Arc<CheckpointData>>(concurrency);
+            let worker_pool = WorkerPool::new(
+                worker,
+                "primary".to_string(),
+                concurrency,
+                Default::default(),
+            );
+            // Spawn the WorkerPool
+            let (pool_status_sender, _pool_status_receiver) = tokio::sync::mpsc::channel(1);
+            let cancel_clone = cancel.clone();
+            tokio::spawn(async move {
+                worker_pool
+                    .run(primary_watermark, rx, pool_status_sender, cancel_clone)
+                    .await;
+            });
+            // Spawn a task to pull from gRPC and feed into the WorkerPool
+            run_grpc_checkpoint_workerpool_ingestion(
+                grpc_url,
+                tx,
                 primary_watermark,
                 cancel.clone(),
             )
@@ -273,11 +300,11 @@ impl ProgressStore for ShimIndexerProgressStore {
     }
 }
 
-// The gRPC ingestion logic.
-pub async fn run_grpc_checkpoint_ingestion(
+/// Pulls checkpoints from the gRPC stream and sends them to the WorkerPool
+/// channel.
+pub async fn run_grpc_checkpoint_workerpool_ingestion(
     grpc_url: &str,
-    store: PgIndexerStore,
-    metrics: IndexerMetrics,
+    tx: tokio::sync::mpsc::Sender<Arc<CheckpointData>>,
     start_watermark: u64,
     cancel: CancellationToken,
 ) -> Result<(), IndexerError> {
@@ -286,52 +313,27 @@ pub async fn run_grpc_checkpoint_ingestion(
         .await
         .map_err(|e| IndexerError::Generic(format!("Failed to connect to gRPC: {e}")))?;
     println!(
-        "[gRPC][Indexer] starting stream from watermark {}",
+        "[gRPC][Indexer] starting stream from watermark {} (WorkerPool mode)",
         start_watermark
     );
     let mut stream = client
         .stream_checkpoints(Some(start_watermark), None, Some(true))
         .await
         .map_err(|e| IndexerError::Generic(format!("Failed to stream checkpoints: {e}")))?;
-
-    let handler = std::sync::Arc::new(
-        crate::handlers::checkpoint_handler::new_handlers(
-            store.clone(),
-            metrics.clone(),
-            start_watermark,
-            cancel.clone(),
-        )
-        .await?,
-    );
-
     while let Some(Ok(cp)) = stream.next().await {
-        println!(
-            "[gRPC][Indexer] Received raw checkpoint, {} bytes (expecting CheckpointData)",
-            cp.data.len()
-        );
+        if cancel.is_cancelled() {
+            break;
+        }
         let checkpoint_data: CheckpointData = match GrpcNodeClient::deserialize_checkpoint_data(&cp)
         {
-            Ok(data) => {
-                println!(
-                    "[gRPC][Indexer] Successfully decoded CheckpointData seq={}, size={} bytes",
-                    data.checkpoint_summary.sequence_number,
-                    cp.data.len()
-                );
-                data
-            }
+            Ok(data) => data,
             Err(e) => {
                 println!("[gRPC][Indexer] BCS decode error: {e}");
                 continue;
             }
         };
-        println!(
-            "[gRPC][Indexer] Received checkpoint seq={}",
-            checkpoint_data.checkpoint_summary.sequence_number
-        );
-        std::sync::Arc::clone(&handler)
-            .process_checkpoint(Arc::new(checkpoint_data))
-            .await?;
-        if cancel.is_cancelled() {
+        if let Err(_e) = tx.send(Arc::new(checkpoint_data)).await {
+            println!("[gRPC][Indexer] WorkerPool channel closed");
             break;
         }
     }

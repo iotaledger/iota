@@ -11,7 +11,7 @@ use test_cluster::TestClusterBuilder;
 use tokio_util::sync::CancellationToken;
 
 const START_CP: u64 = 0;
-const MAX_CP: u64 = 20;
+const MAX_CP: u64 = 4999;
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn test_checkpoint_sync_performance_rest() {
@@ -39,14 +39,14 @@ async fn test_checkpoint_sync_performance_rest() {
 
     // Wait for the indexer to process up to MAX_CP
     let t0 = Instant::now();
-    tokio::time::timeout(std::time::Duration::from_secs(10), async {
+    tokio::time::timeout(std::time::Duration::from_secs(3600), async {
         loop {
             if let Ok((_min_cp, max_cp)) = store.get_available_checkpoint_range().await {
                 if max_cp >= MAX_CP {
                     break;
                 }
             }
-            tokio::time::sleep(std::time::Duration::from_millis(20)).await;
+            tokio::time::sleep(std::time::Duration::from_millis(100)).await;
         }
     })
     .await
@@ -91,14 +91,14 @@ async fn test_checkpoint_sync_performance_grpc() {
 
     // Wait for the indexer to process up to MAX_CP
     let t0 = Instant::now();
-    tokio::time::timeout(std::time::Duration::from_secs(10), async {
+    tokio::time::timeout(std::time::Duration::from_secs(3600), async {
         loop {
             if let Ok((_min_cp, max_cp)) = store.get_available_checkpoint_range().await {
                 if max_cp >= MAX_CP {
                     break;
                 }
             }
-            tokio::time::sleep(std::time::Duration::from_millis(20)).await;
+            tokio::time::sleep(std::time::Duration::from_millis(100)).await;
         }
     })
     .await
@@ -185,14 +185,14 @@ async fn test_checkpoint_sync_performance_file() {
 
     // Wait for the indexer to process up to MAX_CP
     let t0 = Instant::now();
-    tokio::time::timeout(std::time::Duration::from_secs(10), async {
+    tokio::time::timeout(std::time::Duration::from_secs(3600), async {
         loop {
             if let Ok((_min_cp, max_cp)) = store.get_available_checkpoint_range().await {
                 if max_cp >= MAX_CP {
                     break;
                 }
             }
-            tokio::time::sleep(std::time::Duration::from_millis(20)).await;
+            tokio::time::sleep(std::time::Duration::from_millis(100)).await;
         }
     })
     .await
