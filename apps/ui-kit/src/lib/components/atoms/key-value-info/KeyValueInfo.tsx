@@ -114,7 +114,7 @@ export function KeyValueInfo({
                 <span className="key-tooltip-text-color text-body-md">{keyText}</span>
                 {tooltipText && (
                     <Tooltip text={tooltipText} position={tooltipPosition}>
-                        <Info className="key-supporting-text" />
+                        <Info className="key-supporting-text-color" />
                     </Tooltip>
                 )}
             </div>
