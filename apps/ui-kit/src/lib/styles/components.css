@@ -1,4 +1,6 @@
 @layer components {
+    /* ---------------- ATOMS ---------------- */
+
     /* BADGE */
     .badge-bg-color-neutral {
         background-color: var(--badge-bg-color-neutral);
@@ -202,6 +204,7 @@
         @apply before:bottom-[-0.8px] enabled:before:left-2 enabled:before:w-[calc(100%-16px)];
         @apply before:border-b before:border-[color:var(--button-segment-underline-selected-color)];
     }
+
     /* LOADING INDICATOR */
     .loading-indicator-color {
         color: var(--loading-indicator-color);
@@ -326,6 +329,8 @@
     .visual-asset-icon-color svg {
         color: var(--visual-asset-icon-color);
     }
+
+    /* ---------------- MOLECULES ---------------- */
 
     /* ACCOUNT */
     .account-title-color {
@@ -589,5 +594,42 @@
 
     .title-subtitle-color {
         color: var(--title-subtitle-color);
+    }
+
+    /* ---------------- ORGANISMS ---------------- */
+
+    /* ACCORDION */
+    .accordion-bg {
+        background-color: var(--accordion-bg);
+    }
+
+    .accordion-icon-color {
+        color: var(--accordion-icon-color);
+    }
+
+    /* DIALOG */
+    .dialog-content-bg {
+        background-color: var(--dialog-content-bg);
+    }
+
+    .dialog-title-color {
+        color: var(--dialog-title-color);
+    }
+
+    .dialog-body-color {
+        color: var(--dialog-body-color);
+    }
+
+    /* NAVBAR */
+    .navbar-icon-color {
+        color: var(--navbar-icon-color);
+    }
+    .navbar-slideout-bg {
+        background-color: var(--navbar-slideout-bg);
+    }
+
+    /* TABLE */
+    .table-text-color {
+        color: var(--table-text-color);
     }
 }
