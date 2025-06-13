@@ -61,6 +61,7 @@ use iota_core::{
         reconfiguration::ReconfigurationInitiator,
     },
     execution_cache::build_execution_cache,
+    jsonrpc_index::IndexStore,
     module_cache_metrics::ResolverMetrics,
     overload_monitor::overload_monitor,
     rest_index::RestIndexStore,
@@ -94,7 +95,7 @@ use iota_protocol_config::ProtocolConfig;
 use iota_rest_api::RestMetrics;
 use iota_snapshot::uploader::StateSnapshotUploader;
 use iota_storage::{
-    FileCompression, IndexStore, StorageFormat,
+    FileCompression, StorageFormat,
     http_key_value_store::HttpKVStore,
     key_value_store::{FallbackTransactionKVStore, TransactionKeyValueStore},
     key_value_store_metrics::KeyValueStoreMetrics,
@@ -1169,7 +1170,8 @@ impl IotaNode {
             network
         };
 
-        let discovery_handle = discovery.start(p2p_network.clone());
+        let discovery_handle =
+            discovery.start(p2p_network.clone(), config.network_key_pair().copy());
         let state_sync_handle = state_sync.start(p2p_network.clone());
         let randomness_handle = randomness.start(p2p_network.clone());
 
@@ -2118,9 +2120,13 @@ pub async fn build_http_server(
 
     if config.enable_rest_api {
         let mut rest_service = iota_rest_api::RestService::new(
-            Arc::new(RestReadStore::new(state, store)),
+            Arc::new(RestReadStore::new(state.clone(), store)),
             software_version,
         );
+
+        if let Some(config) = config.rest.clone() {
+            rest_service.with_config(config);
+        }
 
         rest_service.with_metrics(RestMetrics::new(prometheus_registry));
 
@@ -2130,6 +2136,12 @@ pub async fn build_http_server(
 
         router = router.merge(rest_service.into_router());
     }
+
+    // TODO: Remove this health check when experimental REST API becomes default
+    // This is a copy of the health check in crates/iota-rest-api/src/health.rs
+    router = router
+        .route("/health", axum::routing::get(health_check_handler))
+        .route_layer(axum::Extension(state));
 
     let listener = tokio::net::TcpListener::bind(&config.json_rpc_address)
         .await
@@ -2150,6 +2162,51 @@ pub async fn build_http_server(
     info!(local_addr =? addr, "IOTA JSON-RPC server listening on {addr}");
 
     Ok(Some(handle))
+}
+
+#[derive(Debug, serde::Serialize, serde::Deserialize)]
+pub struct Threshold {
+    pub threshold_seconds: Option<u32>,
+}
+
+async fn health_check_handler(
+    axum::extract::Query(Threshold { threshold_seconds }): axum::extract::Query<Threshold>,
+    axum::Extension(state): axum::Extension<Arc<AuthorityState>>,
+) -> impl axum::response::IntoResponse {
+    if let Some(threshold_seconds) = threshold_seconds {
+        // Attempt to get the latest checkpoint
+        let summary = match state
+            .get_checkpoint_store()
+            .get_highest_executed_checkpoint()
+        {
+            Ok(Some(summary)) => summary,
+            Ok(None) => {
+                warn!("Highest executed checkpoint not found");
+                return (axum::http::StatusCode::SERVICE_UNAVAILABLE, "down");
+            }
+            Err(err) => {
+                warn!("Failed to retrieve highest executed checkpoint: {:?}", err);
+                return (axum::http::StatusCode::SERVICE_UNAVAILABLE, "down");
+            }
+        };
+
+        // Calculate the threshold time based on the provided threshold_seconds
+        let latest_chain_time = summary.timestamp();
+        let threshold =
+            std::time::SystemTime::now() - Duration::from_secs(threshold_seconds as u64);
+
+        // Check if the latest checkpoint is within the threshold
+        if latest_chain_time < threshold {
+            warn!(
+                ?latest_chain_time,
+                ?threshold,
+                "failing health check due to checkpoint lag"
+            );
+            return (axum::http::StatusCode::SERVICE_UNAVAILABLE, "down");
+        }
+    }
+    // if health endpoint is responding and no threshold is given, respond success
+    (axum::http::StatusCode::OK, "up")
 }
 
 #[cfg(not(test))]

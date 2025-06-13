@@ -4,7 +4,7 @@
 
 use std::{fs::File, io::Read, time::Duration};
 
-use anyhow::anyhow;
+use anyhow::bail;
 use backoff::{ExponentialBackoff, future::retry};
 use chrono::{DateTime, Utc};
 use clap::*;
@@ -128,9 +128,7 @@ async fn main() -> Result<(), anyhow::Error> {
     }
 
     if !failed_queries.is_empty() {
-        return Err(anyhow!(
-            "Following queries failed to meet threshold conditions: {failed_queries:#?}"
-        ));
+        bail!("Following queries failed to meet threshold conditions: {failed_queries:#?}");
     }
 
     Ok(())
