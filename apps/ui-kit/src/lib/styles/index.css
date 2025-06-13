@@ -4,12 +4,14 @@
 @import './fonts.css';
 @import 'tailwindcss/base';
 @import './base.css';
-
+@import 'tailwindcss/components';
+@import './components.css';
 @import 'tailwindcss/utilities';
 @import './utilities.css';
 
 :root.light,
 :root.dark {
+    /* FONTS */
     --font-family: theme('fontFamily.alliance-no2');
     --display-lg-font-weight: 500;
     --display-lg-line-height: 120%;
@@ -22,15 +24,144 @@
     --headline-sm-font-weight: 500;
 }
 :root.light {
-    --color-primary: theme('colors.iota-primary.30');
-}
+    /* COLORS */
+    --warning-surface: theme('colors.iota-warning.90');
+    --on-warning: theme('colors.iota-warning.10');
+    --error-surface: theme('colors.iota-error.90');
+    --on-error: theme('colors.iota-warning.20');
+    --success-surface: theme('colors.iota-tertiary.90');
+    --on-success: theme('colors.iota-tertiary.20');
+    --default-surface: theme('colors.iota-primary.90');
+    --on-default: theme('colors.iota-neutral.10');
 
+    /* BADGE */
+    --badge-bg-color-neutral: theme('colors.iota-neutral.92');
+    --badge-text-color-neutral: theme('colors.iota-neutral.10');
+    --badge-bg-color-primary: theme('colors.iota-primary.30');
+    --badge-border-color-primary: theme('colors.iota-primary.30');
+    --badge-text-color-primary: theme('colors.iota-primary.100');
+    --badge-bg-color-primary-soft: theme('colors.iota-primary.90');
+    --badge-text-color-primary-soft: theme('colors.iota-primary.20');
+    --badge-border-color-soft: theme('colors.iota-primary.90');
+
+    /* INFOBOX */
+    --infobox-text-title: theme('colors.iota-neutral.10');
+    --infobox-supporting-text: theme('colors.iota-neutral.40');
+
+    /* BUTTON */
+    --button-bg-color-primary: theme('colors.iota-primary.30');
+    --button-bg-color-secondary: theme('colors.iota-neutral.90');
+    --button-bg-color-error: theme('colors.iota-error.90');
+    --button-border-color-outline: theme('colors.iota-neutral.50');
+    --button-text-color-primary: theme('colors.iota-primary.100');
+    --button-text-color-neutral: theme('colors.iota-neutral.10');
+    --button-text-color-error: theme('colors.iota-error.20');
+
+    /* HEADER */
+    --header-bg-color: theme('colors.iota-neutral.100');
+    --header-text-color: theme('colors.iota-neutral.10');
+
+    /* LABEL */
+    --label-text-primary-neutral: theme('colors.iota-neutral.10');
+    --label-text-secondary-neutral: theme('colors.iota-neutral.60');
+
+    /* KEY VALUE */
+    --key-supporting-text-color: theme('colors.iota-neutral.60');
+    --key-value-hover-text-color: theme('colors.iota-neutral.10');
+    --key-tooltip-text-color: theme('colors.iota-neutral.40');
+
+    /* CHECKBOX */
+    --checkbox-border-color-default: theme('colors.iota-neutral.80');
+    --checkbox-border-color-checked: theme('colors.iota-primary.30');
+    --checkbox-border-color-disabled: theme('colors.iota-neutral.70');
+    --checkbox-border-color-disabled-checked: theme('colors.iota-neutral.60');
+    --checkbox-bg-color-checked: theme('colors.iota-primary.30');
+    --checkbox-bg-color-disabled-checked: theme('colors.iota-neutral.60');
+    --checkbox-text-color: theme('colors.iota-neutral.40');
+    --checkbox-text-color-checked: theme('colors.white');
+    --checkbox-label-text-color: theme('colors.iota-neutral.40');
+
+    /* BUTTON SEGMENT */
+    --button-segment-text-color-default: theme('colors.iota-neutral.60');
+    --button-segment-text-color-hover: theme('colors.iota-neutral.40');
+    --button-segment-text-color-focused: theme('colors.iota-neutral.40');
+    --button-segment-text-color-selected: theme('colors.iota-neutral.10');
+    --button-segment-underline-default-color: theme('colors.shader-neutral-light.8');
+    --button-segment-underline-hover-color: theme('colors.iota-neutral.70');
+    --button-segment-underline-selected-color: theme('colors.iota-primary.30');
+    --button-segment-bg-color-selected: theme('colors.iota-primary.100');
+}
 :root.dark {
-    --color-primary: theme('colors.iota-primary.80');
+    /* COLORS */
+    --warning-surface: theme('colors.iota-warning.20');
+    --on-warning: theme('colors.iota-warning.90');
+    --error-surface: theme('colors.iota-error.10');
+    --on-error: theme('colors.iota-error.90');
+    --success-surface: theme('colors.iota-tertiary.10');
+    --on-success: theme('colors.iota-tertiary.90');
+    --default-surface: theme('colors.iota-primary.10');
+    --on-default: theme('colors.iota-neutral.92');
+
+    /* BADGE */
+    --badge-bg-color-neutral: theme('colors.iota-neutral.12');
+    --badge-text-color-neutral: theme('colors.iota-neutral.92');
+    --badge-bg-color-primary: theme('colors.iota-primary.30');
+    --badge-border-color-primary: theme('colors.iota-primary.30');
+    --badge-text-color-primary: theme('colors.iota-neutral.100');
+    --badge-bg-color-primary-soft: theme('colors.iota-primary.10');
+    --badge-text-color-primary-soft: theme('colors.iota-primary.90');
+    --badge-border-color-soft: theme('colors.iota-primary.10');
+
+    /* INFOBOX */
+    --infobox-text-title: theme('colors.iota-neutral.92');
+    --infobox-supporting-text: theme('colors.iota-neutral.60');
+
+    /* BUTTON */
+    --button-bg-color-primary: theme('colors.iota-primary.30');
+    --button-bg-color-secondary: theme('colors.iota-neutral.20');
+    --button-bg-color-error: theme('colors.iota-error.20');
+    --button-border-color-outline: theme('colors.iota-neutral.60');
+    --button-text-color-primary: theme('colors.iota-primary.100');
+    --button-text-color-neutral: theme('colors.iota-neutral.92');
+    --button-text-color-error: theme('colors.iota-error.90');
+
+    /* HEADER */
+    --header-bg-color: theme('colors.iota-neutral.6');
+    --header-text-color: theme('colors.iota-neutral.92');
+
+    /* LABEL */
+    --label-text-primary-neutral: theme('colors.iota-neutral.92');
+    --label-text-secondary-neutral: theme('colors.iota-neutral.40');
+
+    /* KEY VALUE */
+    --key-supporting-text-color: theme('colors.iota-neutral.40');
+    --key-value-hover-text-color: theme('colors.iota-neutral.92');
+    --key-tooltip-text-color: theme('colors.iota-neutral.60');
+
+    /* CHECKBOX */
+    --checkbox-border-color-default: theme('colors.iota-neutral.20');
+    --checkbox-border-color-checked: theme('colors.iota-primary.30');
+    --checkbox-border-color-disabled: theme('colors.iota-neutral.30');
+    --checkbox-border-color-disabled-checked: theme('colors.iota-neutral.40');
+    --checkbox-bg-color-checked: theme('colors.iota-primary.30');
+    --checkbox-bg-color-disabled-checked: theme('colors.iota-neutral.40');
+    --checkbox-text-color: theme('colors.iota-neutral.60');
+    --checkbox-text-color-checked: theme('colors.white');
+    --checkbox-label-text-color: theme('colors.iota-neutral.60');
+
+    /* BUTTON SEGMENT */
+    --button-segment-text-color-default: theme('colors.iota-neutral.40');
+    --button-segment-text-color-hover: theme('colors.iota-neutral.60');
+    --button-segment-text-color-focused: theme('colors.iota-neutral.60');
+    --button-segment-text-color-selected: theme('colors.iota-neutral.92');
+    --button-segment-underline-default-color: theme('colors.shader-neutral-dark.8');
+    --button-segment-underline-hover-color: theme('colors.iota-neutral.40');
+    --button-segment-underline-selected-color: theme('colors.iota-primary.80');
+    --button-segment-bg-color-selected: theme('colors.iota-neutral.6');
 }
 
 :root.names {
-    --color-primary: theme('colors.names-primary.30');
+    /* FONTS */
     --font-family: theme('fontFamily.roboto-flex');
     --display-lg-font-weight: 700;
     --display-lg-line-height: 100%;
@@ -41,4 +172,71 @@
     --headline-lg-font-weight: 600;
     --headline-md-font-weight: 600;
     --headline-sm-font-weight: 600;
+
+    /* COLORS */
+    --warning-surface: theme('colors.names-warning.20');
+    --on-warning: theme('colors.names-warning.90');
+    --error-surface: theme('colors.names-error.20');
+    --on-error: theme('colors.names-error.90');
+    --success-surface: theme('colors.names-tertiary.20');
+    --on-success: theme('colors.names-tertiary.90');
+    --default-surface: theme('colors.names-primary.20');
+    --on-default: theme('colors.names-neutral.92');
+
+    /* BADGE */
+    --badge-bg-color-neutral: theme('colors.names-neutral.12');
+    --badge-text-color-neutral: theme('colors.names-neutral.92');
+    --badge-bg-color-primary: theme('colors.names-primary.30');
+    --badge-border-color-primary: theme('colors.names-primary.30');
+    --badge-text-color-primary: theme('colors.names-neutral.100');
+    --badge-bg-color-primary-soft: theme('colors.names-primary.20');
+    --badge-text-color-primary-soft: theme('colors.names-primary.90');
+    --badge-border-color-soft: theme('colors.names-primary.20');
+
+    /* INFOBOX */
+    --infobox-text-title: theme('colors.names-neutral.92');
+    --infobox-supporting-text: theme('colors.names-neutral.92');
+
+    /* BUTTON */
+    --button-bg-color-primary: theme('colors.names-primary.30');
+    --button-bg-color-secondary: theme('colors.names-neutral.20');
+    --button-bg-color-error: theme('colors.names-error.20');
+    --button-border-color-outline: theme('colors.names-neutral.50');
+    --button-text-color-primary: theme('colors.names-primary.30');
+    --button-text-color-neutral: theme('colors.names-primary.90');
+    --button-text-color-error: theme('colors.names-error.90');
+
+    /* HEADER */
+    --header-bg-color: theme('colors.names-neutral.6');
+    --header-text-color: theme('colors.names-neutral.92');
+
+    /* LABEL */
+    --label-text-primary-neutral: theme('colors.names-neutral.92');
+    --label-text-secondary-neutral: theme('colors.names-neutral.40');
+
+    /* KEY VALUE */
+    --key-supporting-text-color: theme('colors.iota-neutral.50');
+    --key-value-hover-text-color: theme('colors.iota-neutral.92');
+    --key-tooltip-text-color: theme('colors.iota-neutral.60');
+
+    /* CHECKBOX */
+    --checkbox-border-color-default: theme('colors.names-neutral.20');
+    --checkbox-border-color-checked: theme('colors.names-primary.30');
+    --checkbox-border-color-disabled: theme('colors.names-neutral.30');
+    --checkbox-border-color-disabled-checked: theme('colors.names-neutral.40');
+    --checkbox-bg-color-checked: theme('colors.names-primary.30');
+    --checkbox-bg-color-disabled-checked: theme('colors.names-neutral.40');
+    --checkbox-text-color: theme('colors.names-neutral.60');
+    --checkbox-text-color-checked: theme('colors.white');
+    --checkbox-label-text-color: theme('colors.names-neutral.60');
+
+    /* BUTTON SEGMENT */
+    --button-segment-text-color-default: theme('colors.names-neutral.40');
+    --button-segment-text-color-hover: theme('colors.names-neutral.60');
+    --button-segment-text-color-focused: theme('colors.names-neutral.60');
+    --button-segment-text-color-selected: theme('colors.names-neutral.92');
+    --button-segment-underline-default-color: theme('colors.shader-neutral-dark.8');
+    --button-segment-underline-hover-color: theme('colors.names-neutral.40');
+    --button-segment-underline-selected-color: theme('colors.names-primary.80');
+    --button-segment-bg-color-selected: theme('colors.names-neutral.6');
 }
