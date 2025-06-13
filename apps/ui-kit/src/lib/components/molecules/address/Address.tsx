@@ -78,7 +78,7 @@ export function Address({
     }
 
     return (
-        <div className="text-neutral-40 dark:text-neutral-60 group flex flex-row items-center gap-1">
+        <div className="address-text-color group flex flex-row items-center gap-1">
             <span className={cx('font-inter text-body-sm')}>{text}</span>
             {isCopyable && (
                 <ButtonUnstyled

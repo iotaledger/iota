@@ -137,21 +137,17 @@ export const Select = forwardRef<HTMLButtonElement, SelectProps>(
                         onClick={onSelectorClick}
                         disabled={disabled}
                         className={cx(
-                            'border-neutral-80 focus-visible:enabled:border-primary-30 active:enabled:border-primary-30 group-[.errored]:border-error-30 group-[.opened]:border-primary-30 dark:border-neutral-20 dark:hover:enabled:border-neutral-60 dark:group-[.errored]:border-error-80 dark:group-[.opened]:border-primary-80 [&:is(:focus,_:focus-visible,_:active)]:enabled:border-primary-30 dark:[&:is(:focus,_:focus-visible,_:active)]:enabled:border-primary-80 flex  flex-row items-center gap-x-3 rounded-lg border py-sm hover:enabled:border-neutral-50 disabled:cursor-not-allowed [&_svg]:h-5 [&_svg]:w-5',
+                            'select-border-color focus-visible:enabled:select-border-focus-color active:enabled:select-border-focus-color group-[.errored]:select-border-error-color group-[.opened]:select-border-focus-color [&:is(:focus,_:focus-visible,_:active)]:enabled:select-border-focus-color hover:enabled:select-border-hover-color flex flex-row items-center gap-x-3 rounded-lg border py-sm disabled:cursor-not-allowed [&_svg]:h-5 [&_svg]:w-5',
                             selectPadding,
                         )}
                     >
-                        {leadingIcon && (
-                            <span className="text-neutral-10 dark:text-neutral-92">
-                                {leadingIcon}
-                            </span>
-                        )}
+                        {leadingIcon && <span className="select-icon-color">{leadingIcon}</span>}
 
                         <div className="flex w-full flex-row items-baseline gap-x-3">
                             {selectorText && (
                                 <div
                                     className={cx(
-                                        'text-neutral-10 dark:text-neutral-92 block w-full text-start',
+                                        'select-label-color block w-full text-start',
                                         textSize,
                                     )}
                                 >
@@ -167,12 +163,9 @@ export const Select = forwardRef<HTMLButtonElement, SelectProps>(
                         </div>
 
                         <TriangleDown
-                            className={cx(
-                                'text-neutral-10 dark:text-neutral-92 transition-transform',
-                                {
-                                    ' rotate-180': isOpen,
-                                },
-                            )}
+                            className={cx('select-icon-color transition-transform', {
+                                ' rotate-180': isOpen,
+                            })}
                         />
                     </ButtonUnstyled>
 
