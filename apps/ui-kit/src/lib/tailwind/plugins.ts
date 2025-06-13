@@ -6,3 +6,7 @@ import plugin from 'tailwindcss/plugin';
 export const firefoxPlugin = plugin(({ addVariant }) => {
     addVariant('firefox', '@-moz-document url-prefix()');
 });
+
+export const namesVariant = plugin(({ addVariant }) => {
+    addVariant('names', '&:is(.names *)');
+});
