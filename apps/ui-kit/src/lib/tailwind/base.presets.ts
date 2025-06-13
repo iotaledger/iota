@@ -16,12 +16,12 @@ import {
     generateVariableSpacing,
 } from './constants';
 import { THEMED_CUSTOM_COLORS } from './constants/customColors.constants';
-import { firefoxPlugin } from './plugins';
+import { firefoxPlugin, namesVariant } from './plugins';
 
 export const BASE_CONFIG: Config = {
     content: ['./src/**/*.{html,js,jsx,ts,tsx}'],
-    darkMode: 'class',
-    plugins: [firefoxPlugin],
+    darkMode: 'selector',
+    plugins: [firefoxPlugin, namesVariant],
     theme: {
         extend: {
             fontSize: {
