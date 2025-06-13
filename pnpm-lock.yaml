@@ -603,6 +603,9 @@ importers:
       react:
         specifier: ^18.3.1
         version: 18.3.1
+      react-dom:
+        specifier: ^18.3.1
+        version: 18.3.1(react@18.3.1)
       storybook:
         specifier: ^7.1.0
         version: 7.6.20
