@@ -20,7 +20,7 @@ use iota_metrics::{
 use itertools::Itertools as _;
 use parking_lot::{Mutex, RwLock};
 #[cfg(not(test))]
-use rand::{prelude::SliceRandom, rngs::ThreadRng};
+use rand::{prelude::SliceRandom, rngs::ThreadRng, seq::IteratorRandom};
 use tap::TapFallible;
 use tokio::{
     runtime::Handle,
@@ -56,6 +56,9 @@ const FETCH_FROM_PEERS_TIMEOUT: Duration = Duration::from_millis(4_000);
 const MAX_BLOCKS_PER_FETCH: usize = 32;
 
 const MAX_AUTHORITIES_TO_FETCH_PER_BLOCK: usize = 2;
+
+/// Ratio of suspended to missing blocks above which we trigger hot-fetch.
+const HOT_FETCH_RATIO_THRESHOLD: f64 = 50.0;
 
 /// The number of rounds above the highest accepted round that still willing to
 /// fetch missing blocks via the periodic synchronizer. Any missing blocks of
@@ -911,10 +914,10 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> Synchronizer<C
             let highest_accepted_round = dag_state.read().highest_accepted_round();
             missing_blocks = missing_blocks
                 .into_iter()
-                .take_while(|b| {
-                    b.round <= highest_accepted_round + SYNC_MISSING_BLOCK_ROUND_THRESHOLD
+                .take_while(|(block_ref, _)| {
+                    block_ref.round <= highest_accepted_round + SYNC_MISSING_BLOCK_ROUND_THRESHOLD
                 })
-                .collect::<BTreeSet<_>>();
+                .collect::<BTreeMap<_, _>>();
 
             // If no missing blocks are within the acceptable thresholds to sync while we
             // commit lag, then we disable the scheduler completely for this run.
@@ -952,6 +955,7 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> Synchronizer<C
                     network_client,
                     missing_blocks,
                     dag_state,
+                    suspended_blocks_count,
                 )
                 .await;
                 context
@@ -1018,15 +1022,89 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> Synchronizer<C
         context: Arc<Context>,
         inflight_blocks: Arc<InflightBlocksMap>,
         network_client: Arc<C>,
-        missing_blocks: BTreeSet<BlockRef>,
+        missing_blocks: BTreeMap<BlockRef, BTreeSet<AuthorityIndex>>,
         dag_state: Arc<RwLock<DagState>>,
+        suspended_blocks_count: usize,
     ) -> Vec<(BlocksGuard, Vec<Bytes>, AuthorityIndex)> {
+        let mut request_futures = FuturesUnordered::new();
+
+        let highest_rounds = Self::get_highest_accepted_rounds(dag_state, &context);
+
+        // Hot-path: when the ratio of suspended to missing blocks exceeds
+        // HOT_FETCH_RATIO_THRESHOLD, proactively fetch a batch of missing
+        // blocks from the authors of blocks referencing them.
+        if suspended_blocks_count as f64 > HOT_FETCH_RATIO_THRESHOLD * missing_blocks.len() as f64 {
+            // Step 1: Map authors to their missing blocks
+            let mut authority_to_blocks: HashMap<AuthorityIndex, Vec<BlockRef>> = HashMap::new();
+            for (missing_block_ref, authorities) in &missing_blocks {
+                for author in authorities {
+                    authority_to_blocks
+                        .entry(*author)
+                        .or_default()
+                        .push(*missing_block_ref);
+                }
+            }
+            // Step 2: Choose one random authority from the map
+
+            #[cfg(not(test))]
+            let chosen = authority_to_blocks.iter().choose(&mut ThreadRng::default());
+
+            #[cfg(test)]
+            let chosen = authority_to_blocks.iter().min_by_key(|(peer, _)| *peer);
+
+            if let Some((&peer, blocks)) = chosen {
+                let block_refs = blocks
+                    .iter()
+                    .copied()
+                    .take(MAX_BLOCKS_PER_FETCH)
+                    .collect::<BTreeSet<_>>();
+                if let Some(guard) = inflight_blocks.lock_blocks(block_refs.clone(), peer) {
+                    let peer_hostname = &context.committee.authority(peer).hostname;
+                    info!(
+                        "Hot fetch of {} blocks from peer {} {} (blocks: [{}])",
+                        block_refs.len(),
+                        peer,
+                        peer_hostname,
+                        block_refs
+                            .iter()
+                            .map(|b| b.to_string())
+                            .collect::<Vec<_>>()
+                            .join(", ")
+                    );
+                    // Record hot metrics
+                    let metrics = &context.metrics.node_metrics;
+                    metrics
+                        .synchronizer_requested_blocks_by_peer
+                        .with_label_values(&[peer_hostname.as_str(), "hot"])
+                        .inc_by(block_refs.len() as u64);
+                    for block_ref in &block_refs {
+                        let block_hostname =
+                            &context.committee.authority(block_ref.author).hostname;
+                        metrics
+                            .synchronizer_requested_blocks_by_authority
+                            .with_label_values(&[block_hostname.as_str(), "hot"])
+                            .inc();
+                    }
+                    request_futures.push(Self::fetch_blocks_request(
+                        network_client.clone(),
+                        peer,
+                        guard,
+                        highest_rounds.clone(),
+                        FETCH_REQUEST_TIMEOUT,
+                        1,
+                    ));
+                }
+            }
+        }
+
+        // Proceed with the usual fetching
         const MAX_PEERS: usize = 3;
 
         // Attempt to fetch only up to a max of blocks
         let missing_blocks = missing_blocks
-            .into_iter()
+            .keys()
             .take(MAX_PEERS * MAX_BLOCKS_PER_FETCH)
+            .cloned()
             .collect::<Vec<_>>();
 
         let mut missing_blocks_per_authority = vec![0; context.committee.size()];
@@ -1063,9 +1141,6 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> Synchronizer<C
         peers.shuffle(&mut ThreadRng::default());
 
         let mut peers = peers.into_iter();
-        let mut request_futures = FuturesUnordered::new();
-
-        let highest_rounds = Self::get_highest_accepted_rounds(dag_state, &context);
 
         // Send the initial requests
         for blocks in missing_blocks.chunks(MAX_BLOCKS_PER_FETCH) {
@@ -1180,14 +1255,16 @@ mod tests {
         BlockAPI, CommitDigest, CommitIndex,
         authority_service::COMMIT_LAG_MULTIPLIER,
         block::{BlockDigest, BlockRef, Round, TestBlock, VerifiedBlock},
+        block_manager::SuspendedBlock,
         block_verifier::NoopBlockVerifier,
-        commit::{CommitRange, CommitVote, TrustedCommit},
+        commit::{CertifiedCommits, CommitRange, CommitVote, TrustedCommit},
         commit_vote_monitor::CommitVoteMonitor,
         context::Context,
-        core_thread::{CoreThreadDispatcher, tests::MockCoreThreadDispatcher},
+        core_thread::{CoreError, CoreThreadDispatcher, tests::MockCoreThreadDispatcher},
         dag_state::DagState,
         error::{ConsensusError, ConsensusResult},
         network::{BlockStream, NetworkClient},
+        round_prober::QuorumRound,
         storage::mem_store::MemStore,
         synchronizer::{
             FETCH_BLOCKS_CONCURRENCY, FETCH_REQUEST_TIMEOUT, InflightBlocksMap,
@@ -1583,6 +1660,7 @@ mod tests {
                 .get_missing_blocks()
                 .await
                 .unwrap()
+                .0
                 .is_empty()
         );
     }
@@ -1917,5 +1995,317 @@ mod tests {
                 std::panic::resume_unwind(err.into_panic());
             }
         }
+    }
+    #[derive(Default)]
+    struct SyncMockDispatcher {
+        missing_blocks: Mutex<BTreeMap<BlockRef, BTreeSet<AuthorityIndex>>>,
+        suspended_blocks_count: Mutex<usize>,
+        added_blocks: Mutex<Vec<VerifiedBlock>>,
+    }
+
+    #[async_trait::async_trait]
+    impl CoreThreadDispatcher for SyncMockDispatcher {
+        async fn get_missing_blocks(
+            &self,
+        ) -> Result<(BTreeMap<BlockRef, BTreeSet<AuthorityIndex>>, usize), CoreError> {
+            Ok((
+                self.missing_blocks.lock().await.clone(),
+                *self.suspended_blocks_count.lock().await,
+            ))
+        }
+        async fn add_blocks(
+            &self,
+            blocks: Vec<VerifiedBlock>,
+        ) -> Result<BTreeSet<BlockRef>, CoreError> {
+            let mut guard = self.added_blocks.lock().await;
+            guard.extend(blocks.clone());
+            Ok(blocks.iter().map(|b| b.reference()).collect())
+        }
+
+        // Stub out the remaining CoreThreadDispatcher methods with defaults:
+
+        async fn check_block_refs(
+            &self,
+            block_refs: Vec<BlockRef>,
+        ) -> Result<BTreeSet<BlockRef>, CoreError> {
+            // Echo back the requested refs by default
+            Ok(block_refs.into_iter().collect())
+        }
+
+        async fn add_certified_commits(
+            &self,
+            _commits: CertifiedCommits,
+        ) -> Result<BTreeSet<BlockRef>, CoreError> {
+            // No additional certified-commit logic in tests
+            Ok(BTreeSet::new())
+        }
+
+        async fn new_block(&self, _round: Round, _force: bool) -> Result<(), CoreError> {
+            Ok(())
+        }
+
+        fn set_subscriber_exists(&self, _exists: bool) -> Result<(), CoreError> {
+            Ok(())
+        }
+
+        fn set_propagation_delay_and_quorum_rounds(
+            &self,
+            _delay: Round,
+            _received_quorum_rounds: Vec<QuorumRound>,
+            _accepted_quorum_rounds: Vec<QuorumRound>,
+        ) -> Result<(), CoreError> {
+            Ok(())
+        }
+
+        fn set_last_known_proposed_round(&self, _round: Round) -> Result<(), CoreError> {
+            Ok(())
+        }
+
+        fn highest_received_rounds(&self) -> Vec<Round> {
+            Vec::new()
+        }
+    }
+
+    #[tokio::test(flavor = "current_thread")]
+    async fn hot_fetch_picks_smallest_authority() {
+        // 1) Setup 10‐node context and in‐mem DAG
+        let (ctx, _) = Context::new_for_test(10);
+        let context = Arc::new(ctx);
+        let store = Arc::new(MemStore::new());
+        let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store)));
+        let inflight = InflightBlocksMap::new();
+
+        // 2) One missing block
+        let missing_vb = VerifiedBlock::new_for_test(TestBlock::new(100, 3).build());
+        let missing_ref = missing_vb.reference();
+        let missing_blocks = BTreeMap::from([(
+            missing_ref,
+            BTreeSet::from([
+                AuthorityIndex::new_for_test(2),
+                AuthorityIndex::new_for_test(3),
+                AuthorityIndex::new_for_test(4),
+            ]),
+        )]);
+
+        // 3) 51 suspended children split across authors 2,3,4
+        let suspended_map = (0..51)
+            .map(|i| {
+                let auth = if i < 17 {
+                    2
+                } else if i < 34 {
+                    3
+                } else {
+                    4
+                };
+                let vb = VerifiedBlock::new_for_test(
+                    TestBlock::new(101 + i, auth)
+                        .set_ancestors(vec![missing_ref])
+                        .build(),
+                );
+                (
+                    vb.reference(),
+                    SuspendedBlock::new(vb, BTreeSet::from([missing_ref])),
+                )
+            })
+            .collect::<BTreeMap<_, _>>();
+
+        // 4) Prepare mocks and stubs
+        let network_client = Arc::new(MockNetworkClient::default());
+        // Stub *all*  authorities so none panic:
+        for i in 1..=9 {
+            let peer = AuthorityIndex::new_for_test(i);
+            network_client
+                .stub_fetch_blocks(vec![missing_vb.clone()], peer, None)
+                .await;
+        }
+
+        // 5) Invoke hot‐fetch directly
+        let results = Synchronizer::<MockNetworkClient, NoopBlockVerifier, SyncMockDispatcher>
+        ::fetch_blocks_from_authorities(
+            context.clone(),
+            inflight.clone(),
+            network_client.clone(),
+            missing_blocks,
+            dag_state.clone(),
+            suspended_map.len(),
+        )
+            .await;
+
+        // 6) Assert we got exactly two fetches - one hot path and one cold periodic
+        //    path,
+        assert_eq!(results.len(), 2);
+
+        // 7) The hot‐fetch went to peer 2
+        let (_hot_guard, hot_bytes, hot_peer) = &results[0];
+        assert_eq!(*hot_peer, AuthorityIndex::new_for_test(2));
+
+        // 8) The periodic fetch went to peer 1
+        let (_periodic_guard, _periodic_bytes, periodic_peer) = &results[1];
+        assert_eq!(*periodic_peer, AuthorityIndex::new_for_test(1));
+
+        // 7) Verify the returned bytes correspond to that block
+        let expected = missing_vb.serialized().clone();
+        assert_eq!(hot_bytes, &vec![expected]);
+    }
+
+    #[tokio::test(flavor = "current_thread")]
+    async fn no_hot_fetch_when_ratio_below_threshold() {
+        // 1) Setup 10-node context and in-mem DAG
+        let (ctx, _) = Context::new_for_test(10);
+        let context = Arc::new(ctx);
+        let store = Arc::new(MemStore::new());
+        let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store)));
+        let inflight = InflightBlocksMap::new();
+
+        // 2) One missing block from authority 3
+        let missing_vb = VerifiedBlock::new_for_test(TestBlock::new(100, 3).build());
+        let missing_ref = missing_vb.reference();
+        let missing_blocks = BTreeMap::from([(
+            missing_ref,
+            BTreeSet::from([
+                AuthorityIndex::new_for_test(2),
+                AuthorityIndex::new_for_test(3),
+                AuthorityIndex::new_for_test(4),
+            ]),
+        )]);
+
+        // 3) Stub only the periodic fetch from peer 1
+        let peer = AuthorityIndex::new_for_test(1);
+        let network_client = Arc::new(MockNetworkClient::default());
+        network_client
+            .stub_fetch_blocks(vec![missing_vb.clone()], peer, None)
+            .await;
+
+        // 4) Call fetch_blocks_from_authorities with a small suspended_count (no hot)
+        let results = Synchronizer::<
+            MockNetworkClient,
+            NoopBlockVerifier,
+            SyncMockDispatcher,
+        >::fetch_blocks_from_authorities(
+            context.clone(),
+            inflight.clone(),
+            network_client.clone(),
+            missing_blocks,
+            dag_state.clone(), 10,
+        )
+            .await;
+
+        // Expect only the periodic fetch (no hot)
+        assert_eq!(results.len(), 1);
+        let (_guard, bytes, got_peer) = &results[0];
+        assert_eq!(*got_peer, peer);
+        // verify returned bytes match the serialized missing block
+        let expected = missing_vb.serialized().clone();
+        assert_eq!(bytes, &vec![expected]);
+    }
+
+    #[tokio::test(flavor = "current_thread")]
+    async fn hot_and_periodic_large_scenario() {
+        use std::{
+            collections::{BTreeMap, BTreeSet},
+            sync::Arc,
+        };
+
+        use parking_lot::RwLock;
+
+        use crate::{
+            block::{Round, TestBlock, VerifiedBlock},
+            context::Context,
+        };
+
+        // 1) Setup a 10-node context, in-memory DAG, and inflight map
+        let (ctx, _) = Context::new_for_test(10);
+        let context = Arc::new(ctx);
+        let store = Arc::new(MemStore::new());
+        let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store)));
+        let inflight = InflightBlocksMap::new();
+        let network_client = Arc::new(MockNetworkClient::default());
+
+        // 2) Create two missing blocks, both known by authorities 8 and 9
+        let mut missing_blocks = BTreeMap::new();
+        let mut missing_vbs = Vec::new();
+        for i in 0..2 {
+            let vb = VerifiedBlock::new_for_test(TestBlock::new(1000 + i as Round, 0).build());
+            let r = vb.reference();
+            missing_blocks.insert(
+                r,
+                BTreeSet::from([
+                    AuthorityIndex::new_for_test(8),
+                    AuthorityIndex::new_for_test(9),
+                ]),
+            );
+            missing_vbs.push(vb);
+        }
+
+        // 3) Create five additional missing blocks, each known by one authority 2..6
+        for (i, auth) in (2..7).enumerate() {
+            let vb = VerifiedBlock::new_for_test(TestBlock::new(2000 + i as Round, 0).build());
+            let r = vb.reference();
+            missing_blocks.insert(r, BTreeSet::from([AuthorityIndex::new_for_test(auth)]));
+            missing_vbs.push(vb);
+        }
+
+        // 4) Mock a suspended_map of 1000 entries referencing both first two missing
+        //    refs. We only need the count, not the actual map
+        let suspended_count = 1000;
+
+        // 5. Stub the hot path authority
+        let hot_authority = AuthorityIndex::new_for_test(2);
+        let hot_refs: Vec<BlockRef> = missing_blocks
+            .iter()
+            .filter(|(_, auths)| auths.contains(&hot_authority))
+            .map(|(r, _)| *r)
+            .take(MAX_BLOCKS_PER_FETCH)
+            .collect();
+        let hot_vbs: Vec<VerifiedBlock> = missing_vbs
+            .iter()
+            .filter(|vb| hot_refs.contains(&vb.reference()))
+            .cloned()
+            .collect();
+        network_client
+            .stub_fetch_blocks(hot_vbs.clone(), hot_authority, None)
+            .await;
+
+        // 6. Stub the perioidc path authority
+        network_client
+            .stub_fetch_blocks(missing_vbs.clone(), AuthorityIndex::new_for_test(1), None)
+            .await;
+
+        // 7) Execute the fetch logic
+        let results = Synchronizer::<
+            MockNetworkClient,
+            NoopBlockVerifier,
+            SyncMockDispatcher,
+        >::fetch_blocks_from_authorities(
+            context.clone(),
+            inflight.clone(),
+            network_client.clone(),
+            missing_blocks,
+            dag_state.clone(),
+            suspended_count,
+        )
+            .await;
+
+        // 8) We should get exactly two fetches: hot then periodic
+        assert_eq!(results.len(), 2, "Expected one hot + one periodic fetch");
+
+        // 9) Verify hot fetch went to authority 8 with the first two blocks
+        let (_hot_guard, hot_bytes, hot_peer) = &results[0];
+        assert_eq!(*hot_peer, AuthorityIndex::new_for_test(2));
+        let expected_hot = hot_vbs
+            .iter()
+            .clone()
+            .map(|vb| vb.serialized())
+            .collect::<Vec<_>>();
+        assert_eq!(hot_bytes, &expected_hot);
+
+        // 10) Verify periodic fetch went to peer 1 with all 7 blocks
+        let (_per_guard, per_bytes, per_peer) = &results[1];
+        assert_eq!(*per_peer, AuthorityIndex::new_for_test(1));
+        let expected_per = missing_vbs
+            .iter()
+            .map(|vb| vb.serialized().clone())
+            .collect::<Vec<_>>();
+        assert_eq!(per_bytes, &expected_per);
     }
 }
