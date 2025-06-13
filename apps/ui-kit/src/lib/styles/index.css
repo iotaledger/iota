@@ -37,6 +37,8 @@
     --default-surface: theme('colors.iota-primary.90');
     --on-default: theme('colors.iota-neutral.10');
 
+    /* ---------------- ATOMS ---------------- */
+
     /* BADGE */
     --badge-bg-color-neutral: theme('colors.iota-neutral.92');
     --badge-text-color-neutral: theme('colors.iota-neutral.10');
@@ -141,6 +143,8 @@
     --visual-asset-title-color: theme('colors.iota-neutral.100');
     --visual-asset-icon-color: theme('colors.iota-neutral.100');
 
+    /* ---------------- MOLECULES ---------------- */
+
     /* ACCOUNT */
     --account-title-color: theme('colors.iota-neutral.10');
     --account-icon-color: theme('colors.iota-neutral.40');
@@ -229,7 +233,26 @@
     /* TITLE */
     --title-main-color: theme('colors.iota-neutral.10');
     --title-subtitle-color: theme('colors.iota-neutral.60');
+
+    /* ---------------- ORGANISMS ---------------- */
+
+    /* ACCORDION */
+    --accordion-bg: theme('colors.iota-neutral.100');
+    --accordion-icon-color: theme('colors.iota-neutral.10');
+
+    /* DIALOG */
+    --dialog-content-bg: theme('colors.iota-primary.100');
+    --dialog-title-color: theme('colors.iota-neutral.10');
+    --dialog-body-color: theme('colors.iota-neutral.40');
+
+    /* NAVBAR */
+    --navbar-icon-color: theme('colors.iota-neutral.10');
+    --navbar-slideout-bg: theme('colors.iota-neutral.100');
+
+    /* TABLE */
+    --table-text-color: theme('colors.iota-neutral.40');
 }
+
 :root.dark {
     /* COLORS */
     --warning-surface: theme('colors.iota-warning.20');
@@ -240,6 +263,8 @@
     --on-success: theme('colors.iota-tertiary.90');
     --default-surface: theme('colors.iota-primary.10');
     --on-default: theme('colors.iota-neutral.92');
+
+    /* ---------------- ATOMS ---------------- */
 
     /* BADGE */
     --badge-bg-color-neutral: theme('colors.iota-neutral.12');
@@ -345,6 +370,8 @@
     --visual-asset-title-color: theme('colors.iota-neutral.100');
     --visual-asset-icon-color: theme('colors.iota-neutral.100');
 
+    /* ---------------- MOLECULES ---------------- */
+
     /* ACCOUNT */
     --account-title-color: theme('colors.iota-neutral.92');
     --account-icon-color: theme('colors.iota-neutral.60');
@@ -433,6 +460,24 @@
     /* TITLE */
     --title-main-color: theme('colors.iota-neutral.92');
     --title-subtitle-color: theme('colors.iota-neutral.40');
+
+    /* ---------------- ORGANISMS ---------------- */
+
+    /* ACCORDION */
+    --accordion-bg: theme('colors.iota-neutral.6');
+    --accordion-icon-color: theme('colors.iota-neutral.92');
+
+    /* DIALOG */
+    --dialog-content-bg: theme('colors.iota-neutral.6');
+    --dialog-title-color: theme('colors.iota-neutral.92');
+    --dialog-body-color: theme('colors.iota-neutral.60');
+
+    /* NAVBAR */
+    --navbar-icon-color: theme('colors.iota-neutral.92');
+    --navbar-slideout-bg: theme('colors.iota-neutral.6');
+
+    /* TABLE */
+    --table-text-color: theme('colors.iota-neutral.60');
 }
 
 :root.names {
@@ -456,6 +501,8 @@
     --on-success: theme('colors.names-tertiary.90');
     --default-surface: theme('colors.names-primary.20');
     --on-default: theme('colors.names-neutral.92');
+
+    /* ---------------- ATOMS ---------------- */
 
     /* BADGE */
     --badge-bg-color-neutral: theme('colors.names-neutral.12');
@@ -649,4 +696,22 @@
     /* TITLE */
     --title-main-color: theme('colors.names-neutral.92');
     --title-subtitle-color: theme('colors.names-neutral.40');
+
+    /* ---------------- ORGANISMS ---------------- */
+
+    /* ACCORDION */
+    --accordion-bg: theme('colors.iota-neutral.6');
+    --accordion-icon-color: theme('colors.iota-neutral.92');
+
+    /* DIALOG */
+    --dialog-content-bg: theme('colors.iota-neutral.6');
+    --dialog-title-color: theme('colors.iota-neutral.92');
+    --dialog-body-color: theme('colors.iota-neutral.60');
+
+    /* NAVBAR */
+    --navbar-icon-color: theme('colors.iota-neutral.92');
+    --navbar-slideout-bg: theme('colors.iota-neutral.6');
+
+    /* TABLE */
+    --table-text-color: theme('colors.iota-neutral.60');
 }
