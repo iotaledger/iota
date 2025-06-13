@@ -98,7 +98,7 @@ const DialogContent = React.forwardRef<
                 <RadixDialog.Content
                     ref={ref}
                     className={cx(
-                        'bg-primary-100 dark:bg-neutral-6 fixed z-[99999] flex flex-col justify-center',
+                        'dialog-content-bg fixed z-[99999] flex flex-col justify-center',
                         positionClass,
                         widthClass,
                     )}
@@ -122,7 +122,7 @@ const DialogTitle = React.forwardRef<
 >((props, ref) => (
     <RadixDialog.Title
         ref={ref}
-        className="text-neutral-10 dark:text-neutral-92 font-inter text-title-lg"
+        className="dialog-title-color font-inter text-title-lg"
         {...props}
     />
 ));
@@ -132,7 +132,7 @@ const DialogBody = React.forwardRef<React.ElementRef<'div'>, React.ComponentProp
     (props, ref) => (
         <div
             ref={ref}
-            className="text-neutral-40 dark:text-neutral-60 flex-1 overflow-y-auto p-md--rs text-body-sm"
+            className="dialog-body-color flex-1 overflow-y-auto p-md--rs text-body-sm"
             {...props}
         />
     ),
