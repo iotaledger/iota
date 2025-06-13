@@ -512,6 +512,9 @@ importers:
       '@svgr/core':
         specifier: ^7.0.0
         version: 7.0.0(typescript@5.6.2)
+      '@types/react':
+        specifier: ^18.3.3
+        version: 18.3.9
       react:
         specifier: ^18.3.1
         version: 18.3.1
