@@ -61,6 +61,7 @@
     }
 
     .button-border-color-outline {
+        border-width: 1px;
         border-color: var(--button-border-color-outline);
     }
 
