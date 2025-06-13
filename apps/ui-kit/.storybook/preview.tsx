@@ -15,6 +15,14 @@ const preview: Preview = {
                 date: /Date$/i,
             },
         },
+        backgrounds: {
+            default: 'light',
+            values: [
+                { name: 'light', value: '#FFFFFF' },
+                { name: 'dark', value: '#0F141C' },
+                { name: 'names', value: '#0F1228' },
+            ],
+        },
     },
     decorators: [
         withThemeByClassName({

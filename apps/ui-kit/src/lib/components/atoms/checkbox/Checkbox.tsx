@@ -72,10 +72,14 @@ export const Checkbox = forwardRef<HTMLInputElement, CheckboxProps>(
 
         return (
             <div
-                className={cx('group inline-flex', isLabelFirst ? 'flex-row-reverse' : 'flex-row', {
-                    disabled: isDisabled,
-                    'gap-x-2': label,
-                })}
+                className={cx(
+                    'group inline-flex has-[:disabled]:opacity-40',
+                    isLabelFirst ? 'flex-row-reverse' : 'flex-row',
+                    {
+                        disabled: isDisabled,
+                        'gap-x-2': label,
+                    },
+                )}
             >
                 <input
                     id={name}
@@ -91,7 +95,16 @@ export const Checkbox = forwardRef<HTMLInputElement, CheckboxProps>(
                 />
                 <span
                     onClick={() => inputRef.current?.click()}
-                    className="peer-enabled:state-layer border-neutral-80 text-neutral-40 peer-disabled:text-neutral-70 peer-[&:is(:checked,:indeterminate)]:border-primary-30 peer-[&:is(:checked,:indeterminate)]:bg-primary-30 disabled:peer-[&:not(:checked,:indeterminate)]:border-neutral-70 dark:border-neutral-20 dark:text-neutral-60 dark:peer-disabled:text-neutral-30 dark:peer-disabled:peer-[&:not(:checked,:indeterminate)]:border-neutral-30 dark:peer-disabled:peer-[&:is(:checked,:indeterminate)]:bg-neutral-40 peer-disabled:[&:is(:checked,:indeterminate)]:border-neutral-60 peer-disabled:[&:is(:checked,:indeterminate)]:bg-neutral-60 dark:peer-disabled:[&:is(:checked,:indeterminate)]:border-neutral-40 relative inset-0 flex h-5 w-5 items-center justify-center rounded border group-[.disabled]:cursor-not-allowed peer-disabled:text-opacity-40 peer-disabled:opacity-40 peer-[&:is(:checked,:indeterminate)]:text-white peer-[&:not(:checked,:indeterminate)]:text-opacity-40 dark:peer-disabled:text-opacity-40 [&_svg]:h-4 [&_svg]:w-4 peer-[&:not(:checked,:indeterminate)]:[&_svg]:hidden"
+                    className={cx(
+                        'checkbox-base checkbox-state checkbox-icon checkbox-icon-hidden',
+                        'checkbox-border-default',
+                        'peer-[&:is(:checked,:indeterminate)]:checkbox-border-checked',
+                        'peer-[&:is(:checked,:indeterminate)]:checkbox-bg-checked',
+                        'peer-[&:is(:checked,:indeterminate)]:checkbox-text-checked',
+                        'disabled:peer-[&:not(:checked,:indeterminate)]:checkbox-border-disabled',
+                        'peer-disabled:[&:is(:checked,:indeterminate)]:checkbox-border-disabled-checked',
+                        'peer-disabled:[&:is(:checked,:indeterminate)]:checkbox-bg-disabled-checked',
+                    )}
                 >
                     <CheckmarkIcon />
                 </span>
@@ -104,10 +117,7 @@ export const Checkbox = forwardRef<HTMLInputElement, CheckboxProps>(
 
 function LabelText({ label, name }: Pick<CheckboxProps, 'label' | 'name'>) {
     return (
-        <label
-            htmlFor={name}
-            className="text-neutral-40 dark:text-neutral-60 text-label-lg group-[.disabled]:cursor-not-allowed group-[.disabled]:text-opacity-40 group-[.disabled]:dark:text-opacity-40"
-        >
+        <label htmlFor={name} className="checkbox-label checkbox-label-disabled">
             {label}
         </label>
     );
