@@ -9,6 +9,7 @@ import {
     useNewStakeTransaction,
     parseAmount,
     getGasBudgetErrorMessage,
+    NO_BALANCE_GENERIC_MESSAGE,
 } from '@iota/core';
 import { IOTA_DECIMALS, IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 import { useFormikContext } from 'formik';
@@ -108,7 +109,7 @@ export function EnterAmountView({
 
     const errorMessage = useMemo(() => {
         if (isError) {
-            return getGasBudgetErrorMessage(stakeTransactionError);
+            return getGasBudgetErrorMessage(stakeTransactionError) ?? NO_BALANCE_GENERIC_MESSAGE;
         } else {
             return undefined;
         }

@@ -15,6 +15,7 @@ import {
     Validator,
     toast,
     useIsValidatorCommitteeMember,
+    MIN_GAS_BUDGET,
 } from '@iota/core';
 import * as Sentry from '@sentry/react';
 import { ampli } from '_src/shared/analytics/ampli';
@@ -72,9 +73,10 @@ export function StakeFormComponent({ validatorAddress, epoch, onSuccess }: Stake
 
     // set minimum stake amount to 1 IOTA
     const minimumStake = parseAmount(MIN_NUMBER_IOTA_TO_STAKE.toString(), decimals);
+
     const { data: maxAmountTransactionData } = useNewStakeTransaction(
         validatorAddress,
-        coinBalance,
+        coinBalance - MIN_GAS_BUDGET,
         activeAddress,
     );
 

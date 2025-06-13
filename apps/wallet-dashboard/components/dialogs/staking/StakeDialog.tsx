@@ -11,6 +11,7 @@ import {
     createValidationSchema,
     MIN_NUMBER_IOTA_TO_STAKE,
     useNewStakeTransaction,
+    MIN_GAS_BUDGET,
 } from '@iota/core';
 import { FormikProvider, useFormik } from 'formik';
 import { useCurrentAccount, useIotaClientQuery } from '@iota/dapp-kit';
@@ -63,7 +64,7 @@ export function StakeDialog({
 
     const { data: maxAmountTransactionData } = useNewStakeTransaction(
         selectedValidator,
-        coinBalance,
+        coinBalance - MIN_GAS_BUDGET,
         senderAddress,
     );
     const maxAmountTxGasBudget = BigInt(maxAmountTransactionData?.gasSummary?.budget ?? 0n);
