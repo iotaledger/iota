@@ -54,8 +54,7 @@ export function ListItem({
             className={cx(
                 'w-full',
                 {
-                    'border-b border-shader-neutral-light-8 pb-xs dark:border-shader-neutral-dark-8':
-                        !hideBottomBorder,
+                    'list-item-border-color border-b pb-xs': !hideBottomBorder,
                 },
                 { 'opacity-40': isDisabled },
             )}
@@ -66,10 +65,10 @@ export function ListItem({
                 tabIndex={0}
                 onKeyDown={handleKeyDown}
                 className={cx(
-                    'text-neutral-10 dark:text-neutral-92 relative flex flex-row items-center justify-between px-md py-sm',
+                    'list-item-color relative flex flex-row items-center justify-between px-md py-sm',
                     !isDisabled && onClick ? 'cursor-pointer' : 'cursor-default',
                     {
-                        'bg-shader-primary-dark-16 dark:bg-shader-inverted-dark-16': isHighlighted,
+                        'list-item-highlight-bg': isHighlighted,
                         'state-layer': !isDisabled,
                     },
                 )}
