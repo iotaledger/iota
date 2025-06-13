@@ -1,4 +1,5 @@
 @layer components {
+    /* BADGE */
     .badge-bg-color-neutral {
         background-color: var(--badge-bg-color-neutral);
     }
@@ -31,6 +32,7 @@
         color: var(--badge-text-color-primary);
     }
 
+    /* INFOBOX */
     .infoBox-text-title {
         color: var(--infoBox-text-title);
     }
@@ -39,6 +41,7 @@
         color: var(--infoBox-supporting-text);
     }
 
+    /* BUTTON */
     .button-bg-color-primary {
         background-color: var(--button-bg-color-primary);
     }
@@ -71,6 +74,7 @@
         color: var(--button-text-color-primary);
     }
 
+    /* HEADER */
     .header-bg-color {
         background-color: var(--header-bg-color);
     }
@@ -79,6 +83,7 @@
         color: var(--header-text-color);
     }
 
+    /* LABELTEXT */
     .label-text-primary-neutral {
         color: var(--label-text-primary-neutral);
     }
@@ -87,6 +92,7 @@
         color: var(--label-text-secondary-neutral);
     }
 
+    /* KEYVALUE */
     .key-supporting-text-color {
         color: var(--key-supporting-text-color);
     }
@@ -98,6 +104,8 @@
     .key-tooltip-text-color {
         color: var(--key-tooltip-text-color);
     }
+
+    /* CHECKBOX */
 
     .checkbox-base {
         @apply relative inset-0 flex h-5 w-5 items-center justify-center rounded border;
@@ -156,6 +164,7 @@
         @apply group-[.disabled]:cursor-not-allowed;
     }
 
+    /* BUTTON SEGMENT */
     .button-segment-text-color-default {
         color: var(--button-segment-text-color-default);
     }

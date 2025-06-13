@@ -34,7 +34,7 @@
     --default-surface: theme('colors.iota-primary.90');
     --on-default: theme('colors.iota-neutral.10');
 
-    /*BADGE */
+    /* BADGE */
     --badge-bg-color-neutral: theme('colors.iota-neutral.92');
     --badge-text-color-neutral: theme('colors.iota-neutral.10');
     --badge-bg-color-primary: theme('colors.iota-primary.30');
@@ -44,11 +44,11 @@
     --badge-text-color-primary-soft: theme('colors.iota-primary.20');
     --badge-border-color-soft: theme('colors.iota-primary.90');
 
-    /*INFOBOX */
+    /* INFOBOX */
     --infoBox-text-title: theme('colors.iota-neutral.10');
     --infoBox-supporting-text: theme('colors.iota-neutral.40');
 
-    /*BUTTON */
+    /* BUTTON */
     --button-bg-color-primary: theme('colors.iota-primary.30');
     --button-bg-color-secondary: theme('colors.iota-primary.90');
     --button-bg-color-error: theme('colors.iota-error.90');
@@ -57,15 +57,15 @@
     --button-text-color-neutral: theme('colors.iota-neutral.10');
     --button-text-color-error: theme('colors.iota-error.20');
 
-    /*HEADER */
+    /* HEADER */
     --header-bg-color: theme('colors.iota-neutral.100');
     --header-text-color: theme('colors.iota-neutral.10');
 
-    /*LABEL */
+    /* LABEL */
     --label-text-primary-neutral: theme('colors.iota-neutral.10');
     --label-text-secondary-neutral: theme('colors.iota-neutral.60');
 
-    /*KEY VALUE */
+    /* KEY VALUE */
     --key-supporting-text-color: theme('colors.iota-neutral.60');
     --key-value-hover-text-color: theme('colors.iota-neutral.10');
     --key-tooltip-text-color: theme('colors.iota-neutral.40');
@@ -75,10 +75,8 @@
     --checkbox-border-color-checked: theme('colors.iota-primary.30');
     --checkbox-border-color-disabled: theme('colors.iota-neutral.70');
     --checkbox-border-color-disabled-checked: theme('colors.iota-neutral.60');
-
     --checkbox-bg-color-checked: theme('colors.iota-primary.30');
     --checkbox-bg-color-disabled-checked: theme('colors.iota-neutral.60');
-
     --checkbox-text-color: theme('colors.iota-neutral.40');
     --checkbox-text-color-checked: theme('colors.white');
     --checkbox-label-text-color: theme('colors.iota-neutral.40');
@@ -104,7 +102,7 @@
     --default-surface: theme('colors.iota-primary.10');
     --on-default: theme('colors.iota-neutral.92');
 
-    /*BADGE */
+    /* BADGE */
     --badge-bg-color-neutral: theme('colors.iota-neutral.12');
     --badge-text-color-neutral: theme('colors.iota-neutral.92');
     --badge-bg-color-primary: theme('colors.iota-primary.30');
@@ -114,11 +112,11 @@
     --badge-text-color-primary-soft: theme('colors.iota-primary.90');
     --badge-border-color-soft: theme('colors.iota-primary.10');
 
-    /*INFOBOX */
+    /* INFOBOX */
     --infoBox-text-title: theme('colors.iota-neutral.92');
     --infoBox-supporting-text: theme('colors.iota-neutral.60');
 
-    /*BUTTON */
+    /* BUTTON */
     --button-bg-color-primary: theme('colors.iota-primary.30');
     --button-bg-color-secondary: theme('colors.iota-primary.20');
     --button-bg-color-error: theme('colors.iota-error.10');
@@ -127,15 +125,15 @@
     --button-text-color-neutral: theme('colors.iota-neutral.92');
     --button-text-color-error: theme('colors.iota-error.90');
 
-    /*HEADER */
+    /* HEADER */
     --header-bg-color: theme('colors.iota-neutral.6');
     --header-text-color: theme('colors.iota-neutral.92');
 
-    /*LABEL */
+    /* LABEL */
     --label-text-primary-neutral: theme('colors.iota-neutral.10');
     --label-text-secondary-neutral: theme('colors.iota-neutral.40');
 
-    /*KEY VALUE */
+    /* KEY VALUE */
     --key-supporting-text-color: theme('colors.iota-neutral.40');
     --key-value-hover-text-color: theme('colors.iota-neutral.92');
     --key-tooltip-text-color: theme('colors.iota-neutral.60');
@@ -145,10 +143,8 @@
     --checkbox-border-color-checked: theme('colors.iota-primary.30');
     --checkbox-border-color-disabled: theme('colors.iota-neutral.30');
     --checkbox-border-color-disabled-checked: theme('colors.iota-neutral.40');
-
     --checkbox-bg-color-checked: theme('colors.iota-primary.30');
     --checkbox-bg-color-disabled-checked: theme('colors.iota-neutral.40');
-
     --checkbox-text-color: theme('colors.iota-neutral.60');
     --checkbox-text-color-checked: theme('colors.white');
     --checkbox-label-text-color: theme('colors.iota-neutral.60');
@@ -187,7 +183,7 @@
     --default-surface: theme('colors.names-primary.20');
     --on-default: theme('colors.names-neutral.92');
 
-    /*BADGE */
+    /* BADGE */
     --badge-bg-color-neutral: theme('colors.names-neutral.12');
     --badge-text-color-neutral: theme('colors.names-neutral.92');
     --badge-bg-color-primary: theme('colors.names-primary.30');
@@ -197,11 +193,11 @@
     --badge-text-color-primary-soft: theme('colors.names-primary.90');
     --badge-border-color-soft: theme('colors.names-primary.20');
 
-    /*INFOBOX */
+    /* INFOBOX */
     --infoBox-text-title: theme('colors.names-neutral.92');
     --infoBox-supporting-text: theme('colors.names-neutral.92');
 
-    /*BUTTON */
+    /* BUTTON */
     --button-bg-color-primary: theme('colors.names-primary.30');
     --button-bg-color-secondary: theme('colors.names-primary.20');
     --button-bg-color-error: theme('colors.names-error.20');
@@ -210,15 +206,15 @@
     --button-text-color-neutral: theme('colors.names-primary.90');
     --button-text-color-error: theme('colors.names-error.90');
 
-    /*HEADER */
+    /* HEADER */
     --header-bg-color: theme('colors.names-neutral.6');
     --header-text-color: theme('colors.names-neutral.92');
 
-    /*LABEL */
+    /* LABEL */
     --label-text-primary-neutral: theme('colors.names-neutral.92');
     --label-text-secondary-neutral: theme('colors.names-neutral.40');
 
-    /*KEY VALUE */
+    /* KEY VALUE */
     --key-supporting-text-color: theme('colors.iota-neutral.50');
     --key-value-hover-text-color: theme('colors.iota-neutral.92');
     --key-tooltip-text-color: theme('colors.iota-neutral.60');
@@ -228,10 +224,8 @@
     --checkbox-border-color-checked: theme('colors.names-primary.30');
     --checkbox-border-color-disabled: theme('colors.names-neutral.30');
     --checkbox-border-color-disabled-checked: theme('colors.names-neutral.40');
-
     --checkbox-bg-color-checked: theme('colors.names-primary.30');
     --checkbox-bg-color-disabled-checked: theme('colors.names-neutral.40');
-
     --checkbox-text-color: theme('colors.names-neutral.60');
     --checkbox-text-color-checked: theme('colors.white');
     --checkbox-label-text-color: theme('colors.names-neutral.60');
