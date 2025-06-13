@@ -19,6 +19,7 @@ export interface IotaClientGraphQLTransportOptions {
     url: string;
     fallbackTransportUrl?: string;
     fallbackMethods?: (keyof typeof RPC_METHODS)[];
+    unsupportedMethods: (keyof typeof RPC_METHODS)[];
 }
 
 export type GraphQLDocument<
@@ -59,6 +60,7 @@ export class IotaClientGraphQLTransport implements IotaTransport {
     #options: IotaClientGraphQLTransportOptions;
     #fallbackTransport?: IotaTransport;
     #fallbackMethods: (keyof typeof RPC_METHODS)[];
+    #unsupportedMethods: (keyof typeof RPC_METHODS)[];
 
     constructor(options: IotaClientGraphQLTransportOptions) {
         this.#options = options;
@@ -67,6 +69,7 @@ export class IotaClientGraphQLTransport implements IotaTransport {
             'dryRunTransactionBlock',
             'devInspectTransactionBlock',
         ];
+        this.#unsupportedMethods = options.unsupportedMethods || ['getOwnedObjects'];
 
         if (options.fallbackTransportUrl) {
             this.#fallbackTransport = new IotaHTTPTransport({
@@ -137,16 +140,20 @@ export class IotaClientGraphQLTransport implements IotaTransport {
                 clientMethod = input.method.split('_')[1] as keyof typeof RPC_METHODS;
         }
 
-        const method = RPC_METHODS[clientMethod];
+        // Methods will fallback will still go throug GraphQL first and only default to JSON-RPC if they fail
         const hasFallback = this.#fallbackMethods.includes(clientMethod);
+        // Unsupported methods will go through JSON-RPC directly
+        const isUnsupported = this.#unsupportedMethods.includes(clientMethod);
 
-        // No method and no fallback
-        if (!method && !hasFallback) {
+        const method = RPC_METHODS[clientMethod];
+
+        // No method and no fallback, or if not supported
+        if ((!method && !hasFallback) || isUnsupported) {
             return this.#unsupportedMethod(input);
         }
 
         try {
-            if (!method) throw new Error('Missineg method');
+            if (!method) throw new Error('Missing method');
 
             return method(this, input.params as never) as Promise<T>;
         } catch (error) {
