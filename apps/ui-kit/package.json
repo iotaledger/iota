@@ -42,11 +42,13 @@
         "@radix-ui/react-visually-hidden": "^1.1.0",
         "classnames": "^2.5.1",
         "lodash.merge": "^4.6.2",
-        "react": "^18.3.1",
-        "react-dom": "^18.3.1",
         "react-number-format": "^5.2.2"
     },
+    "peerDependencies": {
+        "react": "*"
+    },
     "devDependencies": {
+        "react": "^18.3.1",
         "@chromatic-com/storybook": "^1.6.0",
         "@storybook/addon-essentials": "^7.1.0",
         "@storybook/addon-interactions": "^7.1.0",
