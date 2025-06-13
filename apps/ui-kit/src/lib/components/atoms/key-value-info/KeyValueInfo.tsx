@@ -147,7 +147,7 @@ export function KeyValueInfo({
                 <div className="self-center">
                     {copyText && (
                         <ButtonUnstyled onClick={handleCopyClick}>
-                            <Copy className="key-supporting-text" />
+                            <Copy className="key-supporting-text-color" />
                         </ButtonUnstyled>
                     )}
                 </div>
