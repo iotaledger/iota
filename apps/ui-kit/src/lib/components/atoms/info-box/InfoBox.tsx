@@ -58,9 +58,9 @@ export function InfoBox({
                 </span>
             )}
             <div className="flex flex-col gap-1">
-                {title && <span className="infoBox-text-title  text-title-sm">{title}</span>}
+                {title && <span className="infobox-text-title  text-title-sm">{title}</span>}
                 {supportingText && (
-                    <span className="infoBox-supporting-text text-body-sm">{supportingText}</span>
+                    <span className="infobox-supporting-text text-body-sm">{supportingText}</span>
                 )}
             </div>
         </div>

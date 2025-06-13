@@ -45,8 +45,8 @@
     --badge-border-color-soft: theme('colors.iota-primary.90');
 
     /* INFOBOX */
-    --infoBox-text-title: theme('colors.iota-neutral.10');
-    --infoBox-supporting-text: theme('colors.iota-neutral.40');
+    --infobox-text-title: theme('colors.iota-neutral.10');
+    --infobox-supporting-text: theme('colors.iota-neutral.40');
 
     /* BUTTON */
     --button-bg-color-primary: theme('colors.iota-primary.30');
@@ -113,8 +113,8 @@
     --badge-border-color-soft: theme('colors.iota-primary.10');
 
     /* INFOBOX */
-    --infoBox-text-title: theme('colors.iota-neutral.92');
-    --infoBox-supporting-text: theme('colors.iota-neutral.60');
+    --infobox-text-title: theme('colors.iota-neutral.92');
+    --infobox-supporting-text: theme('colors.iota-neutral.60');
 
     /* BUTTON */
     --button-bg-color-primary: theme('colors.iota-primary.30');
@@ -194,8 +194,8 @@
     --badge-border-color-soft: theme('colors.names-primary.20');
 
     /* INFOBOX */
-    --infoBox-text-title: theme('colors.names-neutral.92');
-    --infoBox-supporting-text: theme('colors.names-neutral.92');
+    --infobox-text-title: theme('colors.names-neutral.92');
+    --infobox-supporting-text: theme('colors.names-neutral.92');
 
     /* BUTTON */
     --button-bg-color-primary: theme('colors.names-primary.30');

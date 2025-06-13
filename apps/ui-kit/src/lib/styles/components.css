@@ -33,12 +33,12 @@
     }
 
     /* INFOBOX */
-    .infoBox-text-title {
-        color: var(--infoBox-text-title);
+    .infobox-text-title {
+        color: var(--infobox-text-title);
     }
 
-    .infoBox-supporting-text {
-        color: var(--infoBox-supporting-text);
+    .infobox-supporting-text {
+        color: var(--infobox-supporting-text);
     }
 
     /* BUTTON */
