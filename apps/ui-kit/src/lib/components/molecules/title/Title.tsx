@@ -60,7 +60,7 @@ export function Title({
         >
             <div className="flex flex-row items-center gap-x-xxxs">
                 <div className="flex flex-col justify-start">
-                    <div className="text-neutral-10 dark:text-neutral-92 flex flex-row items-center gap-x-0.5">
+                    <div className="title-main-color flex flex-row items-center gap-x-0.5">
                         <h4 className={cx(TITLE_SIZE[size])}>{title}</h4>
                         {tooltipText && (
                             <Tooltip text={tooltipText} position={tooltipPosition}>
@@ -68,7 +68,7 @@ export function Title({
                             </Tooltip>
                         )}
                     </div>
-                    <p className="text-neutral-60 dark:text-neutral-40 text-label-md">{subtitle}</p>
+                    <p className="title-subtitle-color text-label-md">{subtitle}</p>
                 </div>
                 {supportingElement}
             </div>

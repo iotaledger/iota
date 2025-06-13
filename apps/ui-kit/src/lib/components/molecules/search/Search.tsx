@@ -159,7 +159,7 @@ export function Search({
         <div className="relative w-full">
             <div
                 className={cx(
-                    'text-neutral-10 dark:text-neutral-92 flex items-center overflow-hidden px-md py-sm [&_svg]:h-6 [&_svg]:w-6',
+                    'search-text-color flex items-center overflow-hidden px-md py-sm [&_svg]:h-6 [&_svg]:w-6',
                     roundedStyleWithSuggestions,
                     searchTypeClass,
                 )}
@@ -173,7 +173,7 @@ export function Search({
                     onFocus={() => setIsSuggestionsVisible(true)}
                     placeholder={placeholder}
                     className={cx(
-                        'placeholder:text-neutral-40 placeholder:dark:text-neutral-60 w-full flex-1 outline-none',
+                        'search-placeholder-color w-full flex-1 outline-none',
                         backgroundColorClass,
                     )}
                 />
@@ -183,7 +183,7 @@ export function Search({
                 <div
                     ref={suggestionsListRef}
                     className={cx(
-                        'dark:bg-neutral-10 absolute left-0 top-full flex w-full flex-col items-center overflow-hidden bg-neutral-100',
+                        'search-suggestion-bg-color absolute left-0 top-full flex w-full flex-col items-center overflow-hidden',
                         suggestionsStyle,
                     )}
                 >
