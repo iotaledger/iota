@@ -2911,17 +2911,18 @@ async fn test_account_state_unknown_account() {
 
 // Reproducer and fix test for https://github.com/iotaledger/iota/issues/7267
 #[tokio::test]
-async fn test_authority_store_init()
-{
+async fn test_authority_store_init() {
     // The failure originates within AuthorityState::try_create_dynamic_field_info.
     // To trigger it we need to meet several conditions:
     // - index store must be enabled and empty;
-    // - object store must have an object owned object, ie. a dynamic object field object with version > 1;
+    // - object store must have an object owned object, ie. a dynamic object field
+    //   object with version > 1;
     // - genesis must have this dof object with version 1.
     //
     // The test proceeds in two stages:
     // 1. prepare the objects and the store using one AuthorityState;
-    // 2. create another AuthorityState with the proper genesis and store so that the proper code path is used to test the fix.
+    // 2. create another AuthorityState with the proper genesis and store so that
+    //    the proper code path is used to test the fix.
 
     use crate::authority::move_integration_tests::build_and_publish_test_package;
     telemetry_subscribers::init_for_testing();
@@ -2931,10 +2932,13 @@ async fn test_authority_store_init()
     let gas_id = ObjectID::random();
     let gas_obj = Object::with_id_owner_for_testing(gas_id, sender);
 
-    // Create a random directory to store the DB; it'll be reused in both authorities.
+    // Create a random directory to store the DB; it'll be reused in both
+    // authorities.
     let dir = std::env::temp_dir();
-    let store_base_path =
-        dir.join(format!("DB_{:?}", iota_macros::nondeterministic!(ObjectID::random())));
+    let store_base_path = dir.join(format!(
+        "DB_{:?}",
+        iota_macros::nondeterministic!(ObjectID::random())
+    ));
     std::fs::create_dir(&store_base_path).unwrap();
 
     // Create initial authority.
@@ -2948,7 +2952,7 @@ async fn test_authority_store_init()
             .authority_key_pair()
             .copy();
 
-        let authority = TestAuthorityBuilder::new()
+        TestAuthorityBuilder::new()
             .with_store_base_path(store_base_path.clone())
             .with_genesis_and_keypair(&genesis, &authority_key)
             // Disable indexer, the index store must be empty.
@@ -2957,9 +2961,7 @@ async fn test_authority_store_init()
             // It's hard to flush the writeback cache that is enabled by default.
             .with_cache_config(iota_config::ExecutionCacheConfig::PassthroughCache)
             .build()
-            .await;
-
-        authority
+            .await
     };
 
     // Create an object owned object.
@@ -3063,7 +3065,7 @@ async fn test_authority_store_init()
             .authority_key_pair()
             .copy();
 
-        let authority = TestAuthorityBuilder::new()
+        TestAuthorityBuilder::new()
             // Reuse the object store, there's no index store at this point.
             .with_store_base_path(store_base_path)
             .with_genesis_and_keypair(&genesis, &authority_key)
@@ -3071,9 +3073,7 @@ async fn test_authority_store_init()
             // We don't care about writeback cache now.
             // Build invokes AuthorityState::new down to try_create_dynamic_field_info.
             .build()
-            .await;
-
-        authority
+            .await
     };
 
     // The test is passed if the build didn't panic and authority is created.
