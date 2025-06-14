@@ -2909,9 +2909,20 @@ async fn test_account_state_unknown_account() {
     );
 }
 
+// Reproducer and fix test for https://github.com/iotaledger/iota/issues/7267
 #[tokio::test]
 async fn test_authority_store_init()
 {
+    // The failure originates within AuthorityState::try_create_dynamic_field_info.
+    // To trigger it we need to meet several conditions:
+    // - index store must be enabled and empty;
+    // - object store must have an object owned object, ie. a dynamic object field object with version > 1;
+    // - genesis must have this dof object with version 1.
+    //
+    // The test proceeds in two stages:
+    // 1. prepare the objects and the store using one AuthorityState;
+    // 2. create another AuthorityState with the proper genesis and store so that the proper code path is used to test the fix.
+
     use crate::authority::move_integration_tests::build_and_publish_test_package;
     telemetry_subscribers::init_for_testing();
 
@@ -2920,12 +2931,10 @@ async fn test_authority_store_init()
     let gas_id = ObjectID::random();
     let gas_obj = Object::with_id_owner_for_testing(gas_id, sender);
 
-    // Create a random directory to store the DB.
+    // Create a random directory to store the DB; it'll be reused in both authorities.
     let dir = std::env::temp_dir();
-    println!("!!!! tmp dir={}", dir.as_path().to_str().unwrap());
     let store_base_path =
         dir.join(format!("DB_{:?}", iota_macros::nondeterministic!(ObjectID::random())));
-    println!("!!!! db dir={}", store_base_path.as_path().to_str().unwrap());
     std::fs::create_dir(&store_base_path).unwrap();
 
     // Create initial authority.
@@ -2935,9 +2944,6 @@ async fn test_authority_store_init()
             .with_objects([gas_obj.clone()])
             .build();
         let genesis = network_config.genesis;
-        println!("\n\n");
-        println!("!!!! genesis ids+vers+type+tag={:?}", genesis.objects().iter().map(|o| (o.id(), o.version(), o.type_(), o.struct_tag())).collect::<Vec<_>>());
-        println!("\n\n");
         let authority_key = network_config.validator_configs[0]
             .authority_key_pair()
             .copy();
@@ -2945,17 +2951,18 @@ async fn test_authority_store_init()
         let authority = TestAuthorityBuilder::new()
             .with_store_base_path(store_base_path.clone())
             .with_genesis_and_keypair(&genesis, &authority_key)
-            // .with_store(store)
-            // disable indexer to prevent the node from indexing
-            // .disable_indexer()
+            // Disable indexer, the index store must be empty.
+            .disable_indexer()
+            // Use passthrough cache so that the new objects end up in object store.
+            // It's hard to flush the writeback cache that is enabled by default.
+            .with_cache_config(iota_config::ExecutionCacheConfig::PassthroughCache)
             .build()
             .await;
-        assert!(authority.indexes.is_some());
 
         authority
     };
 
-    // Create an object owned object, ie. having a dynamic field.
+    // Create an object owned object.
     let (package_obj, parent_obj, child_obj, field_obj) = {
         // Publish ./data/object_owner package.
         let package = build_and_publish_test_package(
@@ -3005,26 +3012,6 @@ async fn test_authority_store_init()
         assert!(effects.status().is_ok());
         let child = effects.created()[0].0;
         let child_obj = authority.get_object(&child.0).await.unwrap().unwrap();
-        println!("!!!!! 10 child_id={:?} ver={:?}", child.0, child.1);
-        println!("!!!!! 11 child_id={:?} ver={:?} type={:?} tag={:?}", child_obj.id(), child_obj.version(), child_obj.type_(), child_obj.struct_tag());
-
-        // Mutate the child directly should work fine.
-        let effects = call_move(
-            &authority,
-            &gas_id,
-            &sender,
-            &sender_key,
-            &package.0,
-            "object_owner",
-            "mutate_child",
-            vec![],
-            vec![TestCallArg::Object(child.0)],
-        )
-        .await
-        .unwrap();
-        assert!(effects.status().is_ok());
-        let mutated_ids = effects.mutated().into_iter().map(|x| (x.0.0, x.0.1)).collect::<Vec<_>>();
-        println!("!!!!! 13 mutated ids+vers={:?}", mutated_ids);
 
         // Add the child to the parent.
         let effects = call_move(
@@ -3051,52 +3038,24 @@ async fn test_authority_store_init()
             Owner::ObjectOwner(field_id) => field_id.into(),
             Owner::Shared { .. } | Owner::Immutable | Owner::AddressOwner(_) => panic!(),
         };
-        println!("!!!!! 14 child_effect id={:?} ver={:?}", child_effect.0, child_effect.1);
-        println!("!!!!! 15 field_id={:?}", field_id);
+        // This is the object that we need to trigger the failure code path.
         let field_obj = authority.get_object(&field_id).await.unwrap().unwrap();
         assert_eq!(field_obj.owner, parent.0);
-        println!("!!!!! 16 field_id={:?} ver={:?} type={:?} tag={:?}", field_obj.id(), field_obj.version(), field_obj.type_(), field_obj.struct_tag());
-
-
-        let mutated_ids = effects.mutated().into_iter().map(|x| (x.0.0, x.0.1)).collect::<Vec<_>>();
-        println!("!!!!! 17 mutated ids+vers={:?}", mutated_ids);
 
         (package_obj, parent_obj, child_obj, field_obj)
     };
-    println!("!!!! 20 authority get field object");
-    authority.get_object_store().get_object(&field_obj.id()).unwrap().unwrap();
 
-    use typed_store::Map;
-    authority.indexes.as_ref().unwrap().tables().owner_index().schedule_delete_all();
-    println!("!!!! waiting for 10 sec to delete owner index");
-    tokio::time::sleep(std::time::Duration::from_secs(10)).await;
-    println!("!!!! waiting done, continue");
     drop(authority);
-    std::fs::remove_dir_all(&store_base_path.join("indexes"));
 
-    println!("\n\n");
-    println!("!!!! package_id={:?} package_obj={package_obj:?}", package_obj.id());
-    println!("!!!! parent_id={:?} parent_obj={parent_obj:?}", parent_obj.id());
-    println!("!!!! child_id={:?} child_obj={child_obj:?}", child_obj.id());
-    println!("!!!! field_id={:?} field_obj={field_obj:?}", field_obj.id());
-    println!("\n\n");
-
-    println!("!!!! waiting for 20 sec to sync db");
+    // Just in case, let rocksdb time to sync or something.
     tokio::time::sleep(std::time::Duration::from_secs(20)).await;
-    println!("!!!! waiting done, continue");
 
-    // Create another authority.
-    let authority = {
-        let mut field_obj_v0 = field_obj.clone();
-        match &mut field_obj_v0.data {
-            Data::Move(obj) => {
-                obj.decrement_version_to(1.into());
-            },
-            Data::Package(_) => {},
-        };
-
+    // Create the test authority.
+    let _ = {
         let network_config = iota_swarm_config::network_config_builder::ConfigBuilder::new(&dir)
             .rng(&mut StdRng::from_seed(authority_seed))
+            // Add the relevant and target objects to the genesis.
+            // The object version will reset to 1 when genesis is created.
             .with_objects([gas_obj, package_obj, parent_obj, child_obj, field_obj])
             .build();
         let genesis = network_config.genesis;
@@ -3104,21 +3063,20 @@ async fn test_authority_store_init()
             .authority_key_pair()
             .copy();
 
-        println!("!!!! 2");
         let authority = TestAuthorityBuilder::new()
+            // Reuse the object store, there's no index store at this point.
             .with_store_base_path(store_base_path)
             .with_genesis_and_keypair(&genesis, &authority_key)
-            // .with_store(store)
-            // disable indexer to prevent the node from indexing
-            // .disable_indexer()
+            // Index is enabled by default and empty.
+            // We don't care about writeback cache now.
+            // Build invokes AuthorityState::new down to try_create_dynamic_field_info.
             .build()
             .await;
-        assert!(authority.indexes.is_some());
 
         authority
     };
 
-    println!("!!!! 3");
+    // The test is passed if the build didn't panic and authority is created.
 }
 
 #[tokio::test]
