@@ -5,6 +5,7 @@
 use std::{
     cmp::max,
     collections::{BTreeMap, BTreeSet, HashSet, VecDeque},
+    mem,
     ops::Bound::{Excluded, Included, Unbounded},
     panic,
     sync::Arc,
@@ -36,6 +37,7 @@ use crate::{
 /// block.
 // TODO: make it derivable from the protocol parameters
 pub(crate) const MAX_TRANSACTIONS_ACK_DEPTH: Round = 50;
+const MAX_HEADERS_PER_BUNDLE: usize = 10;
 
 /// DagState provides the API to write and read accepted blocks from the DAG.
 /// Only uncommitted and last committed blocks are cached in memory.
@@ -1118,6 +1120,37 @@ impl DagState {
             .recent_dag_cordial_knowledge
             .get_mut(authority_index)
             .expect("We expect authority index should be valid") = new_map;
+    }
+
+    pub(crate) fn take_unknown_headers_for_authority(
+        &mut self,
+        authority_index: AuthorityIndex,
+    ) -> Vec<VerifiedBlockHeader> {
+        let mut set =
+            mem::take(&mut self.block_headers_not_known_by_authority[authority_index.value()]);
+        let block_refs: Vec<BlockRef> = {
+            if set.len() <= MAX_HEADERS_PER_BUNDLE {
+                mem::take(&mut set).into_iter().collect()
+            } else {
+                let cut_off = *set.iter().nth(MAX_HEADERS_PER_BUNDLE).unwrap();
+                let head = set.split_off(&cut_off);
+                let result = set.into_iter().collect();
+                set = head;
+                result
+            }
+        };
+        self.block_headers_not_known_by_authority[authority_index.value()] = set;
+        for block_ref in block_refs.iter() {
+            let (_, who_knows_given_block) = self.recent_dag_cordial_knowledge
+                [block_ref.author.value()]
+            .get_mut(&(block_ref.round, block_ref.digest))
+            .expect("We expect block ref to be in recent dag cordial knowledge");
+            who_knows_given_block.insert(authority_index);
+        }
+        self.get_block_headers(&block_refs)
+            .into_iter()
+            .map(|opt| opt.expect("All headers should be in DagState or on disk"))
+            .collect()
     }
 
     pub(crate) fn take_commit_votes(&mut self, limit: usize) -> Vec<CommitVote> {
