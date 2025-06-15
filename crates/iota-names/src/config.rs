@@ -25,6 +25,8 @@ pub struct IotaNamesConfig {
     pub registry_id: ObjectID,
     /// ID of the reverse registry table.
     pub reverse_registry_id: ObjectID,
+    /// ID of the auction house.
+    pub auction_house_id: ObjectID,
 }
 
 impl Default for IotaNamesConfig {
@@ -42,6 +44,7 @@ impl IotaNamesConfig {
         payments_package_address: IotaAddress,
         registry_id: ObjectID,
         reverse_registry_id: ObjectID,
+        auction_house_id: ObjectID,
     ) -> Self {
         Self {
             package_address,
@@ -49,6 +52,7 @@ impl IotaNamesConfig {
             payments_package_address,
             registry_id,
             reverse_registry_id,
+            auction_house_id,
         }
     }
 
@@ -59,6 +63,7 @@ impl IotaNamesConfig {
             std::env::var("IOTA_NAMES_PAYMENTS_PACKAGE_ADDRESS")?.parse()?,
             std::env::var("IOTA_NAMES_REGISTRY_ID")?.parse()?,
             std::env::var("IOTA_NAMES_REVERSE_REGISTRY_ID")?.parse()?,
+            std::env::var("IOTA_NAMES_AUCTION_HOUSE_ID")?.parse()?,
         ))
     }
 
@@ -107,12 +112,15 @@ impl IotaNamesConfig {
             "0xef24c78e8c085e29760d37b287fc16647f0f578e8d22f18dd65f655285afad3e";
         const REVERSE_REGISTRY_ID: &str =
             "0x566dc13eafceaf8c3487ee2c41464553839ef4d50937c63741e359c98080c7b6";
+        // TODO use actual object id
+        const AUCTION_HOUSE_ID: &str = "0x12345";
 
         let package_address = IotaAddress::from_str(PACKAGE_ADDRESS).unwrap();
         let object_id = ObjectID::from_str(OBJECT_ID).unwrap();
         let payments_package_address = IotaAddress::from_str(PAYMENTS_PACKAGE_ADDRESS).unwrap();
         let registry_id = ObjectID::from_str(REGISTRY_ID).unwrap();
         let reverse_registry_id = ObjectID::from_str(REVERSE_REGISTRY_ID).unwrap();
+        let auction_house_id = ObjectID::from_str(AUCTION_HOUSE_ID).unwrap();
 
         Self::new(
             package_address,
@@ -120,6 +128,7 @@ impl IotaNamesConfig {
             payments_package_address,
             registry_id,
             reverse_registry_id,
+            auction_house_id,
         )
     }
 }
