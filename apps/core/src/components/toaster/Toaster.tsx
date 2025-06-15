@@ -30,7 +30,7 @@ export function Toaster(props: ToasterProps) {
     return (
         <ToasterLib
             position="bottom-right"
-            containerClassName={cl('!z-[9999999]', props.containerClassName)}
+            containerClassName={cl('!z-[9999999] toast-layer', props.containerClassName)}
         >
             {(t) => (
                 <div style={{ opacity: t.visible ? 1 : 0 }} className={props.snackbarWrapClassName}>

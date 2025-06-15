@@ -3,7 +3,7 @@
 
 use std::collections::BTreeMap;
 
-use anyhow::{Context, Result};
+use anyhow::{Context, Result, bail};
 use chrono::{DateTime, Utc};
 use csv::ReaderBuilder;
 use serde::{Deserialize, Serialize};
@@ -49,10 +49,10 @@ impl MainnetUnlocksStore {
                 result.context("failed to deserialize CSV row into StillLockedEntry")?;
 
             if let Some(old_entry) = map.insert(entry.timestamp, entry) {
-                return Err(anyhow::anyhow!(
+                bail!(
                     "duplicate entry found for timestamp: {}",
                     old_entry.timestamp
-                ));
+                );
             }
         }
 

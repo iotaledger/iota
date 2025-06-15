@@ -6,7 +6,6 @@ import { ampli } from '_src/shared/analytics/ampli';
 import { useState } from 'react';
 import { toast } from '@iota/core';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import Browser from 'webextension-polyfill';
 import {
     Card,
     CardType,
@@ -26,6 +25,7 @@ import { getLedgerConnectionErrorMessage } from '../../helpers/errorMessages';
 import { useAppSelector, useCreateAccountsMutation } from '_hooks';
 import { AppType } from '../../redux/slices/app/appType';
 import { Create, ImportPass, Key, Seed, Ledger } from '@iota/apps-ui-icons';
+import Browser from 'webextension-polyfill';
 
 async function openTabWithSearchParam(searchParam: string, searchParamValue: string) {
     const currentURL = new URL(window.location.href);
@@ -174,6 +174,7 @@ export function AddAccountPage() {
                         ampli.connectedHardwareWallet({ hardwareWalletType: 'Ledger' });
                         navigate('/accounts/import-ledger-accounts');
                     }}
+                    requestLedgerPermissionsFirst
                 />
             )}
         </PageTemplate>

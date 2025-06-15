@@ -11,7 +11,7 @@ import {
     INPUT_PLACEHOLDER_CLASSES,
 } from './input.classes';
 import cx from 'classnames';
-import { ButtonUnstyled } from '../../atoms/button';
+import { ButtonUnstyled } from '@/components/atoms/button';
 import { VisibilityOff, VisibilityOn } from '@iota/apps-ui-icons';
 
 type TextAreaProps = Omit<

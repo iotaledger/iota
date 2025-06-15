@@ -22,7 +22,6 @@ interface GenerateValidatorsTableColumnsArgs {
     maxCommitteeSize?: number;
     validatorEvents?: IotaEvent[];
     rollingAverageApys?: ApyByValidator;
-    limit?: number;
     showValidatorIcon?: boolean;
     includeColumns?: string[];
     highlightValidatorName?: boolean;
@@ -205,6 +204,22 @@ export function generateValidatorsTableColumns({
                 return (
                     <TableCellBase>
                         <TableCellText>{`${Number(getValue()) / 100}%`}</TableCellText>
+                    </TableCellBase>
+                );
+            },
+        },
+        {
+            header: 'Next Epoch Stake',
+            accessorKey: 'nextEpochStake',
+            id: 'nextEpochStake',
+            enableSorting: true,
+            sortingFn: (rowA, rowB, columnId) =>
+                BigInt(rowA.getValue(columnId)) - BigInt(rowB.getValue(columnId)) > 0 ? 1 : -1,
+            cell({ getValue }) {
+                const nextEpochStake = getValue<string>();
+                return (
+                    <TableCellBase>
+                        <StakeColumn stake={nextEpochStake} />
                     </TableCellBase>
                 );
             },

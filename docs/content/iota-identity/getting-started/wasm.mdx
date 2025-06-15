@@ -24,25 +24,25 @@ If your project does not contain it already, install the peer dependency `@iota/
 npm install @iota/iota-sdk
 ```
 
-You can install the latest alpha version of the library by running the following command:
+You can install the latest beta version of the library by running the following command:
 
 ```bash npm2yarn
-npm install @iota/identity-wasm@alpha
+npm install @iota/identity-wasm@beta
 ```
 
 ## Build the Library
 
-Alternatively, you can build the bindings to work with currently unreleased features. You can find instructions for this in the [`identity.rs` repository](https://github.com/iotaledger/identity.rs/blob/v1.6.0-alpha/bindings/wasm/identity_wasm#build).
+Alternatively, you can build the bindings to work with currently unreleased features. You can find instructions for this in the [`identity.rs` repository](https://github.com/iotaledger/identity.rs/blob/v1.6.0-beta/bindings/wasm/identity_wasm#build).
 
 ## Node.js Usage
 
 The following code creates a new IOTA DID Document suitable for publishing to a [locally running test network](./local-network-setup).
 
 ```ts reference
-https://github.com/iotaledger/identity.rs/blob/wasm-v1.6.0-alpha/bindings/wasm/identity_wasm/examples/src/0_basic/0_create_did.ts
+https://github.com/iotaledger/identity.rs/blob/v1.6.0-beta/bindings/wasm/identity_wasm/examples/src/0_basic/0_create_did.ts
 ```
 
-See [utils](https://github.com/iotaledger/identity.rs/blob/v1.6.0-alpha/bindings/wasm/identity_wasm/examples/src/util.ts) for details about the implementations about the helper functions used here.
+See [utils](https://github.com/iotaledger/identity.rs/blob/v1.6.0-beta/bindings/wasm/identity_wasm/examples/src/util.ts) for details about the implementations about the helper functions used here.
 
 ### Expected Output
 
@@ -217,4 +217,4 @@ because of that **it will only be slow for the first time**.
 
 ## [API Reference](../../references/iota-identity/wasm/api_ref.md)
 
-## [Examples](https://github.com/iotaledger/identity.rs/blob/v1.6.0-alpha/bindings/wasm/identity_wasm/examples/README.md)
+## [Examples](https://github.com/iotaledger/identity.rs/blob/v1.6.0-beta/bindings/wasm/identity_wasm/examples/README.md)

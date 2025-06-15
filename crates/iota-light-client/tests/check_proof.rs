@@ -8,50 +8,36 @@ use std::{
     path::PathBuf,
 };
 
-use anyhow::anyhow;
+use anyhow::Context;
 use iota_light_client::{
+    checkpoint::read_checkpoint_list,
+    config::Config,
     construct::construct_proof,
     proof::{Proof, ProofTarget, verify_proof},
-    utils::{CheckpointsList, Config, read_checkpoint_list},
 };
-use iota_rest_api::CheckpointData;
 use iota_types::{
     committee::Committee,
     effects::TransactionEffectsAPI,
     event::{Event, EventID},
+    full_checkpoint_content::CheckpointData,
+    messages_checkpoint::CertifiedCheckpointSummary,
     object::Object,
 };
 
-async fn read_full_checkpoint(checkpoint_path: &PathBuf) -> anyhow::Result<CheckpointData> {
-    println!("Reading checkpoint from {:?}", checkpoint_path);
-    let mut reader = fs::File::open(checkpoint_path.clone())?;
-    let mut buffer = Vec::new();
-    reader.read_to_end(&mut buffer)?;
-    let data: CheckpointData =
-        bcs::from_bytes(&buffer).map_err(|e| anyhow!("Unable to parse checkpoint file: {}", e))?;
-    Ok(data)
-}
+const FIXTURES_DIR: &str = "tests/fixtures";
 
 async fn read_test_data() -> (Committee, CheckpointData) {
-    let mut config_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-    config_path.push("example_config/light_client.yaml");
-    let reader = fs::File::open(config_path).unwrap();
-    let mut config: Config = serde_yaml::from_reader(reader).unwrap();
+    let mut config = Config::get_mainnet_config();
+    config.checkpoints_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(FIXTURES_DIR);
 
-    // Replace the placeholder in the example config
-    let mut summary_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-    summary_path.push("example_config");
-    config.checkpoint_summary_dir = summary_path;
-
-    let checkpoints_list: CheckpointsList =
+    let checkpoint_list =
         read_checkpoint_list(&config).expect("reading the checkpoints.yaml should not fail");
-
-    let committee_seq = checkpoints_list
-        .checkpoints
+    let committee_seq = checkpoint_list
+        .checkpoints()
         .first()
         .expect("there should be a first checkpoint in the checkpoints.yaml");
-    let seq = checkpoints_list
-        .checkpoints
+    let seq = checkpoint_list
+        .checkpoints()
         .get(1)
         .expect("there should be a second checkpoint in the checkpoints.yaml");
 
@@ -59,38 +45,47 @@ async fn read_test_data() -> (Committee, CheckpointData) {
 }
 
 async fn read_data(committee_seq: u64, seq: u64) -> (Committee, CheckpointData) {
-    let mut checkpoint_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-    checkpoint_path.push(format!("example_config/{}.chk", committee_seq));
-
-    let committee_checkpoint = read_full_checkpoint(&checkpoint_path).await.unwrap();
-
-    let prev_committee = committee_checkpoint
-        .checkpoint_summary
+    let checkpoint_summary_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join(FIXTURES_DIR)
+        .join(format!("{committee_seq}.sum"));
+    let summary = read_checkpoint_summary(&checkpoint_summary_path)
+        .await
+        .unwrap();
+    let prev_committee = summary
         .end_of_epoch_data
         .as_ref()
-        .ok_or(anyhow!("Expected checkpoint to be end-of-epoch"))
-        .unwrap()
+        .expect("Expected all checkpoints to be end-of-epoch checkpoints")
         .next_epoch_committee
         .iter()
         .cloned()
         .collect();
 
-    // Make a committee object using this
-    let committee = Committee::new(
-        committee_checkpoint
-            .checkpoint_summary
-            .epoch()
-            .checked_add(1)
-            .unwrap(),
-        prev_committee,
-    );
+    let committee = Committee::new(summary.epoch().checked_add(1).unwrap(), prev_committee);
 
-    let mut d = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-    d.push(format!("example_config/{}.chk", seq));
-
-    let full_checkpoint = read_full_checkpoint(&d).await.unwrap();
+    let full_checkpoint_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join(FIXTURES_DIR)
+        .join(format!("{seq}.chk"));
+    let full_checkpoint = read_full_checkpoint(&full_checkpoint_path).await.unwrap();
 
     (committee, full_checkpoint)
+}
+
+async fn read_checkpoint_summary(
+    checkpoint_path: &PathBuf,
+) -> anyhow::Result<CertifiedCheckpointSummary> {
+    let mut reader = fs::File::open(checkpoint_path.clone())?;
+    let metadata = fs::metadata(checkpoint_path)?;
+    let mut buffer = vec![0; metadata.len() as usize];
+    reader.read_exact(&mut buffer)?;
+    bcs::from_bytes(&buffer).context("failed to deserialize summary from bcs bytes")
+}
+
+async fn read_full_checkpoint(checkpoint_path: &PathBuf) -> anyhow::Result<CheckpointData> {
+    let mut reader = fs::File::open(checkpoint_path.clone())?;
+    let metadata = fs::metadata(checkpoint_path)?;
+    let mut buffer = vec![0; metadata.len() as usize];
+    reader.read_exact(&mut buffer)?;
+    bcs::from_bytes(&buffer).context("failed to deserialize full checkpoint from bcs bytes")
 }
 
 #[tokio::test]
@@ -112,8 +107,7 @@ async fn test_new_committee() {
         .checkpoint_summary
         .end_of_epoch_data
         .as_ref()
-        .ok_or(anyhow!("Expected checkpoint to be end-of-epoch"))
-        .unwrap()
+        .expect("Expected checkpoint to be end-of-epoch")
         .next_epoch_committee
         .iter()
         .cloned()
@@ -146,7 +140,7 @@ async fn test_incorrect_new_committee() {
     let committee_proof = Proof {
         checkpoint_summary: full_checkpoint.checkpoint_summary.clone(),
         contents_proof: None,
-        targets: ProofTarget::new().set_committee(committee.clone()), // WRONG
+        targets: ProofTarget::new().set_committee(committee.clone()), // WRONG,
     };
 
     assert!(verify_proof(&committee, &committee_proof).is_err());
@@ -161,8 +155,7 @@ async fn test_fail_incorrect_cert() {
         .checkpoint_summary
         .end_of_epoch_data
         .as_ref()
-        .ok_or(anyhow!("Expected checkpoint to be end-of-epoch"))
-        .unwrap()
+        .expect("expected checkpoint to be end-of-epoch")
         .next_epoch_committee
         .iter()
         .cloned()

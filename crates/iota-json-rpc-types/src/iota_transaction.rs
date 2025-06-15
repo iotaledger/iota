@@ -2121,10 +2121,16 @@ impl IotaTypeTag {
     }
 }
 
-impl TryInto<TypeTag> for IotaTypeTag {
+impl AsRef<str> for IotaTypeTag {
+    fn as_ref(&self) -> &str {
+        &self.0
+    }
+}
+
+impl TryFrom<IotaTypeTag> for TypeTag {
     type Error = anyhow::Error;
-    fn try_into(self) -> Result<TypeTag, Self::Error> {
-        parse_iota_type_tag(&self.0)
+    fn try_from(tag: IotaTypeTag) -> Result<Self, Self::Error> {
+        parse_iota_type_tag(&tag.0)
     }
 }
 

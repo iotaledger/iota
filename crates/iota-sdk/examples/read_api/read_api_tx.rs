@@ -5,8 +5,10 @@
 //!
 //! cargo run --example read_api_tx
 
-use iota_json_rpc_types::{IotaObjectDataOptions, IotaTransactionBlockResponseOptions};
-use iota_sdk::IotaClientBuilder;
+use iota_sdk::{
+    IotaClientBuilder,
+    rpc_types::{IotaObjectDataOptions, IotaTransactionBlockResponseOptions},
+};
 
 #[tokio::main]
 async fn main() -> Result<(), anyhow::Error> {

@@ -94,7 +94,10 @@ export function FieldsContent({ objectId }: FieldsContentProps) {
 
     return (
         <div>
-            <SegmentedButton type={SegmentedButtonType.Transparent}>
+            <SegmentedButton
+                type={SegmentedButtonType.Transparent}
+                shape={ButtonSegmentType.Underlined}
+            >
                 {FIELDS_CATEGORIES.map(({ label, value }) => (
                     <ButtonSegment
                         key={value}

@@ -21,9 +21,12 @@ import {
     useNewUnstakeTransaction,
     Validator,
     toast,
+    NOT_ENOUGH_BALANCE_ID,
+    GAS_BUDGET_ERROR_MESSAGES,
+    GAS_BALANCE_TOO_LOW_ID,
 } from '@iota/core';
 import { useCurrentAccount, useSignAndExecuteTransaction } from '@iota/dapp-kit';
-import { Warning } from '@iota/apps-ui-icons';
+import { Warning, Info } from '@iota/apps-ui-icons';
 import { StakeRewardsPanel, ValidatorStakingData } from '@/components';
 import { DialogLayout, DialogLayoutFooter, DialogLayoutBody } from '../../layout';
 
@@ -46,10 +49,11 @@ export function UnstakeView({
     showActiveStatus,
 }: UnstakeDialogProps): JSX.Element {
     const activeAddress = useCurrentAccount()?.address ?? '';
-    const { data: unstakeData, isPending: isUnstakeTxPending } = useNewUnstakeTransaction(
-        activeAddress,
-        extendedStake.stakedIotaId,
-    );
+    const {
+        data: unstakeData,
+        isPending: isUnstakeTxPending,
+        error,
+    } = useNewUnstakeTransaction(activeAddress, extendedStake.stakedIotaId);
     const [gasFormatted] = useFormatCoin({
         balance: unstakeData?.gasSummary?.totalGas,
         format: CoinFormat.FULL,
@@ -74,7 +78,10 @@ export function UnstakeView({
     } = delegatedStakeDataResult;
 
     const delegationId = extendedStake?.stakedIotaId;
-    const isPreparingUnstake = !unstakeData || isUnstakeTxPending;
+    const isNotEnoughGas =
+        error &&
+        (error.message.includes(NOT_ENOUGH_BALANCE_ID) ||
+            error.message.includes(GAS_BALANCE_TOO_LOW_ID));
 
     async function handleUnstake(): Promise<void> {
         if (!unstakeData) return;
@@ -156,14 +163,30 @@ export function UnstakeView({
             </DialogLayoutBody>
 
             <DialogLayoutFooter>
+                {isNotEnoughGas && (
+                    <div className="pt-sm">
+                        <InfoBox
+                            supportingText={GAS_BUDGET_ERROR_MESSAGES[GAS_BALANCE_TOO_LOW_ID]}
+                            icon={<Info />}
+                            type={InfoBoxType.Error}
+                            style={InfoBoxStyle.Elevated}
+                        />
+                    </div>
+                )}
                 <Button
                     type={ButtonType.Secondary}
                     fullWidth
                     onClick={handleUnstake}
-                    disabled={isPreparingUnstake || isTransactionPending || !delegationId}
+                    disabled={
+                        !unstakeData ||
+                        isUnstakeTxPending ||
+                        isTransactionPending ||
+                        isNotEnoughGas ||
+                        !delegationId
+                    }
                     text="Unstake"
                     icon={
-                        isPreparingUnstake ? (
+                        isUnstakeTxPending || isTransactionPending ? (
                             <LoadingIndicator data-testid="loading-indicator" />
                         ) : null
                     }

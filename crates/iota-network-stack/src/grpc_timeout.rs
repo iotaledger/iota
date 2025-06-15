@@ -15,7 +15,7 @@ use std::{
 use http::{HeaderMap, HeaderValue, Request, Response};
 use pin_project_lite::pin_project;
 use tokio::time::Sleep;
-use tonic::Status;
+use tonic::{Status, body::Body};
 use tower::Service;
 
 const GRPC_TIMEOUT_HEADER: &str = "grpc-timeout";
@@ -97,7 +97,7 @@ where
             ready!(sleep.poll(cx));
             let response = Status::deadline_exceeded("Timeout expired")
                 .into_http()
-                .map(|_| MaybeEmptyBody::empty());
+                .map(|_: Body| MaybeEmptyBody::empty());
             return Poll::Ready(Ok(response));
         }
 

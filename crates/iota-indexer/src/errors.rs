@@ -144,6 +144,9 @@ pub enum IndexerError {
 
     #[error(transparent)]
     IotaNames(#[from] IotaNamesError),
+
+    #[error("Inconsistent migration records: {0}")]
+    DbMigration(String),
 }
 
 pub trait Context<T> {

@@ -4,7 +4,13 @@
 import { useState } from 'react';
 import { useCurrentAccount } from '@iota/dapp-kit';
 import { CoinBalance } from '@iota/iota-sdk/client';
-import { useSortedCoinsByCategories, CoinItem, useGetAllBalances, VirtualList } from '@iota/core';
+import {
+    useSortedCoinsByCategories,
+    CoinItem,
+    useGetAllBalances,
+    VirtualList,
+    NoData,
+} from '@iota/core';
 import {
     ButtonSegment,
     Panel,
@@ -68,49 +74,62 @@ export function MyCoins(): React.JSX.Element {
         <Panel>
             <div className="flex h-full w-full flex-col">
                 <Title title="My Coins" />
-                <div className="px-sm py-sm md:px-xxs lg:px-sm">
-                    <div className="inline-flex w-full justify-start md:justify-center lg:justify-start">
-                        <SegmentedButton type={SegmentedButtonType.Filled}>
-                            {TOKEN_CATEGORIES.map(({ label, value }) => {
-                                const recognizedButEmpty =
-                                    value === TokenCategory.Recognized ? !recognized.length : false;
-                                const notRecognizedButEmpty =
-                                    value === TokenCategory.Unrecognized
-                                        ? !unrecognized?.length
-                                        : false;
-
-                                return (
-                                    <ButtonSegment
-                                        key={value}
-                                        onClick={() => setSelectedTokenCategory(value)}
-                                        label={label}
-                                        selected={selectedTokenCategory === value}
-                                        disabled={recognizedButEmpty || notRecognizedButEmpty}
-                                    />
-                                );
-                            })}
-                        </SegmentedButton>
+                {!coinBalances?.length ? (
+                    <div className="py-2xl">
+                        <NoData message="Start by buying IOTA" />
                     </div>
-                </div>
-                <div className="max-h-[400px] flex-1 overflow-y-auto px-sm pb-md pt-sm sm:max-h-none">
-                    <VirtualList
-                        items={
-                            selectedTokenCategory === TokenCategory.Recognized
-                                ? recognized
-                                : selectedTokenCategory === TokenCategory.Unrecognized
-                                  ? unrecognized
-                                  : [...recognized!, ...unrecognized!]
-                        }
-                        estimateSize={() => 60}
-                        render={(coin: CoinBalance) => {
-                            const isRecognized = recognized?.find(
-                                (c) => c.coinType === coin.coinType,
-                            );
-                            return virtualItem(!!isRecognized, coin);
-                        }}
-                        heightClassName="h-full"
-                    />
-                </div>
+                ) : null}
+                {coinBalances?.length ? (
+                    <>
+                        <div className="px-sm py-sm md:px-xxs lg:px-sm">
+                            <div className="inline-flex w-full justify-start md:justify-center lg:justify-start">
+                                <SegmentedButton type={SegmentedButtonType.Filled}>
+                                    {TOKEN_CATEGORIES.map(({ label, value }) => {
+                                        const recognizedButEmpty =
+                                            value === TokenCategory.Recognized
+                                                ? !recognized.length
+                                                : false;
+                                        const notRecognizedButEmpty =
+                                            value === TokenCategory.Unrecognized
+                                                ? !unrecognized?.length
+                                                : false;
+
+                                        return (
+                                            <ButtonSegment
+                                                key={value}
+                                                onClick={() => setSelectedTokenCategory(value)}
+                                                label={label}
+                                                selected={selectedTokenCategory === value}
+                                                disabled={
+                                                    recognizedButEmpty || notRecognizedButEmpty
+                                                }
+                                            />
+                                        );
+                                    })}
+                                </SegmentedButton>
+                            </div>
+                        </div>
+                        <div className="max-h-[400px] flex-1 overflow-y-auto px-sm pb-md pt-sm sm:max-h-none">
+                            <VirtualList
+                                items={
+                                    selectedTokenCategory === TokenCategory.Recognized
+                                        ? recognized
+                                        : selectedTokenCategory === TokenCategory.Unrecognized
+                                          ? unrecognized
+                                          : [...recognized!, ...unrecognized!]
+                                }
+                                estimateSize={() => 60}
+                                render={(coin: CoinBalance) => {
+                                    const isRecognized = recognized?.find(
+                                        (c) => c.coinType === coin.coinType,
+                                    );
+                                    return virtualItem(!!isRecognized, coin);
+                                }}
+                                heightClassName="h-full"
+                            />
+                        </div>
+                    </>
+                ) : null}
             </div>
             {selectedCoin && activeAccountAddress && (
                 <SendTokenDialog

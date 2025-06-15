@@ -4,7 +4,8 @@
 import { useEffect, useRef, useState } from 'react';
 import cx from 'classnames';
 import { Loader, Search as SearchIcon } from '@iota/apps-ui-icons';
-import { Divider, SearchBarType } from '@/components';
+import { Divider } from '@/components/atoms';
+import { SearchBarType } from './search.enums';
 import {
     BACKGROUND_COLORS,
     SUGGESTIONS_WRAPPER_STYLE,
