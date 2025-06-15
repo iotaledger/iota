@@ -575,13 +575,13 @@ pub struct Opts {
     /// --signed-tx-bytes <SIGNED_TX_BYTES>`.
     #[arg(long, required = false)]
     pub serialize_signed_transaction: bool,
-    /// Use a custom signer for the transaction. This option must be used with
-    /// --serialize-unsigned-transaction since the custom signer's private key
-    /// is not available in the keystore. The resulting unsigned transaction
-    /// can then be signed externally using the custom signer's private key.
+    /// Set the transaction sender to this address. When not specified, the sender is inferred
+    /// by finding the owner of the gas payment. Note that when setting this field, the
+    /// transaction will fail to execute if the sender's private key is not in the keystore;
+    /// similarly, it will fail when using this with `--serialize-signed-transaction` flag if the
+    /// private key corresponding to this address is not in keystore.
     #[arg(long, required = false, value_parser)]
-    pub custom_signer: Option<IotaAddress>,
-
+    pub sender: Option<IotaAddress>,
     /// Select which fields of the response to display.
     /// If not provided, all fields are displayed.
     /// The fields are: input, effects, events, object_changes,
@@ -614,7 +614,7 @@ impl Opts {
             serialize_unsigned_transaction: false,
             serialize_signed_transaction: false,
             display: HashSet::new(),
-            custom_signer: None,
+            sender: None,
         }
     }
     /// Uses the passed `gas_budget` for the gas budget variable, sets
@@ -628,7 +628,7 @@ impl Opts {
             serialize_unsigned_transaction: false,
             serialize_signed_transaction: false,
             display: HashSet::new(),
-            custom_signer: None,
+            sender: None,
         }
     }
 
@@ -643,7 +643,7 @@ impl Opts {
             serialize_unsigned_transaction: false,
             serialize_signed_transaction: false,
             display,
-            custom_signer: None,
+            sender: None,
         }
     }
 }
@@ -2932,14 +2932,14 @@ pub(crate) async fn dry_run_or_execute_or_serialize(
         gas_budget,
         serialize_unsigned_transaction,
         serialize_signed_transaction,
-        custom_signer,
+        sender,
     ) = (
         opts.dry_run,
         opts.dev_inspect,
         opts.gas_budget,
         opts.serialize_unsigned_transaction,
         opts.serialize_signed_transaction,
-        opts.custom_signer,
+        opts.sender,
     );
     ensure!(
         !serialize_unsigned_transaction || !serialize_signed_transaction,
@@ -2953,12 +2953,12 @@ pub(crate) async fn dry_run_or_execute_or_serialize(
 
     let client = context.get_client().await?;
 
-    let new_signer = custom_signer.unwrap_or(signer);
+    let signer = sender.unwrap_or(signer);
 
     if dev_inspect {
         return execute_dev_inspect(
             context,
-            new_signer,
+            signer,
             tx_kind,
             gas_budget,
             gas_price,
@@ -2977,7 +2977,7 @@ pub(crate) async fn dry_run_or_execute_or_serialize(
     if dry_run {
         return execute_dry_run(
             context,
-            new_signer,
+            signer,
             tx_kind,
             gas_budget,
             gas_price,
@@ -2993,7 +2993,7 @@ pub(crate) async fn dry_run_or_execute_or_serialize(
             debug!("Estimating gas budget");
             let budget = estimate_gas_budget(
                 context,
-                new_signer,
+                signer,
                 tx_kind.clone(),
                 gas_price,
                 gas.clone(),
@@ -3009,7 +3009,7 @@ pub(crate) async fn dry_run_or_execute_or_serialize(
     let tx_data = client
         .transaction_builder()
         .tx_data(
-            new_signer,
+            signer,
             tx_kind,
             gas_budget,
             gas_price,

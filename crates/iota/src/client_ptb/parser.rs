@@ -39,13 +39,13 @@ struct ProgramParsingState {
     warn_shadows_set: bool,
     serialize_unsigned_set: bool,
     serialize_signed_set: bool,
-    custom_signer_set: bool,
+    sender_set: bool,
     json_set: bool,
     dry_run_set: bool,
     dev_inspect_set: bool,
     gas_object_id: Option<Spanned<ObjectID>>,
     gas_budget: Option<Spanned<u64>>,
-    custom_signer: Option<Spanned<IotaAddress>>,
+    sender: Option<Spanned<IotaAddress>>,
 }
 
 impl<'a, I: Iterator<Item = &'a str>> ProgramParser<'a, I> {
@@ -64,13 +64,13 @@ impl<'a, I: Iterator<Item = &'a str>> ProgramParser<'a, I> {
                 warn_shadows_set: false,
                 serialize_unsigned_set: false,
                 serialize_signed_set: false,
-                custom_signer_set: false,
+                sender_set: false,
                 json_set: false,
                 dry_run_set: false,
                 dev_inspect_set: false,
                 gas_object_id: None,
                 gas_budget: None,
-                custom_signer: None,
+                sender: None,
             },
         })
     }
@@ -114,10 +114,9 @@ impl<'a, I: Iterator<Item = &'a str>> ProgramParser<'a, I> {
             match lexeme {
                 L(T::Command, A::SERIALIZE_UNSIGNED) => flag!(serialize_unsigned_set),
                 L(T::Command, A::SERIALIZE_SIGNED) => flag!(serialize_signed_set),
-                L(T::Command, A::CUSTOM_SIGNER) => {
-                    flag!(custom_signer_set);
-                    let custom_signer = try_!(self.parse_custom_signer());
-                    self.state.custom_signer = Some(custom_signer);
+                L(T::Command, A::SENDER) => {
+                    let sender = try_!(self.parse_address_literal());
+                    self.state.sender = Some(sender.map(|a| IotaAddress::from(a.into_inner())));
                 }
                 L(T::Command, A::SUMMARY) => flag!(summary_set),
                 L(T::Command, A::JSON) => flag!(json_set),
@@ -217,13 +216,13 @@ impl<'a, I: Iterator<Item = &'a str>> ProgramParser<'a, I> {
                     summary_set: self.state.summary_set,
                     serialize_unsigned_set: self.state.serialize_unsigned_set,
                     serialize_signed_set: self.state.serialize_signed_set,
-                    custom_signer_set: self.state.custom_signer_set,
+                    sender_set: self.state.sender_set,
                     gas_object_id: self.state.gas_object_id,
                     json_set: self.state.json_set,
                     dry_run_set: self.state.dry_run_set,
                     dev_inspect_set: self.state.dev_inspect_set,
                     gas_budget: self.state.gas_budget,
-                    custom_signer: self.state.custom_signer,
+                    sender: self.state.sender,
                 },
             ))
         } else {
@@ -391,14 +390,6 @@ impl<'a, I: Iterator<Item = &'a str>> ProgramParser<'a, I> {
             .map(|a| ObjectID::from(a.into_inner())))
     }
 
-
-    /// Parse a custom signer.
-    /// The expected format is: `--custom-signer <address>`
-    fn parse_custom_signer(&mut self) -> PTBResult<Spanned<IotaAddress>> {
-        Ok(self
-            .parse_address_literal()?
-            .map(|a| IotaAddress::from(a.into_inner())))
-    }
 }
 
 /// Methods for parsing arguments and types in commands
@@ -977,6 +968,8 @@ mod tests {
             "--json",
             "--preview",
             "--warn-shadows",
+            // Sender
+            "--sender @0x1",
         ];
         let mut parsed = Vec::new();
         for input in inputs {
@@ -1039,6 +1032,11 @@ mod tests {
             "--gas-coin",
             "--gas-coin @0x1 @0x2",
             "--gas-coin 1",
+            // Custom signer
+            "--sender",
+            "--sender nope",
+            "--sender @0x1 @0x2",
+            "--sender 0x1",
         ];
         let mut parsed = Vec::new();
         for input in inputs {

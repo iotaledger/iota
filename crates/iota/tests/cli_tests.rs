@@ -3120,7 +3120,7 @@ async fn test_serialize_tx() -> Result<(), anyhow::Error> {
             serialize_unsigned_transaction: true,
             serialize_signed_transaction: false,
             display: HashSet::new(),
-            custom_signer: None,
+            sender: None,
         },
     }
     .execute(context)
@@ -3137,7 +3137,7 @@ async fn test_serialize_tx() -> Result<(), anyhow::Error> {
             serialize_unsigned_transaction: false,
             serialize_signed_transaction: true,
             display: HashSet::new(),
-            custom_signer: None,
+            sender: None,
         },
     }
     .execute(context)
@@ -3155,7 +3155,7 @@ async fn test_serialize_tx() -> Result<(), anyhow::Error> {
             serialize_unsigned_transaction: false,
             serialize_signed_transaction: true,
             display: HashSet::new(),
-            custom_signer: None,
+            sender: None,
         },
     }
     .execute(context)
@@ -3926,7 +3926,7 @@ async fn test_gas_estimation() -> Result<(), anyhow::Error> {
             serialize_unsigned_transaction: false,
             serialize_signed_transaction: false,
             display: HashSet::new(),
-            custom_signer: None,
+            sender: None,
         },
     }
     .execute(context)
@@ -4800,5 +4800,71 @@ async fn test_new_env() -> Result<(), anyhow::Error> {
     assert_eq!(*new_env.basic_auth(), basic_auth);
     assert_eq!(*new_env.faucet(), faucet);
 
+    Ok(())
+}
+
+#[sim_test]
+async fn test_ptb_sender() -> Result<(), anyhow::Error> {
+    use iota_types::base_types::IotaAddress;
+    use iota::key_identity::KeyIdentity;
+    use iota::client_commands::{IotaClientCommands, OptsWithGas};
+    use iota::client_ptb::ptb::PTB;
+    use std::collections::HashSet;
+    // Hardcoded multisig address (generated with `iota keytool multi-sig-address --pks ADtqJ7zOtqQtYqOo0CpvDXNlMhV3HeJDpjrASKGLWdop --weights 1 --threshold 1`)
+    let multisig_address = IotaAddress::from_str("0xdbcd4c41bd078067c1fed6382ce014771529f37087d02a48f927d678f96064fa").unwrap();
+    let mut test_cluster = TestClusterBuilder::new()
+        .with_num_validators(2)
+        .build()
+        .await;
+    let address = test_cluster.get_address_0();
+    let rgp = test_cluster.get_reference_gas_price().await;
+    let context = &mut test_cluster.wallet;
+    let client = context.get_client().await?;
+    let object_refs = client
+        .read_api()
+        .get_owned_objects(
+            address,
+            Some(IotaObjectResponseQuery::new_with_options(
+                IotaObjectDataOptions::new()
+                    .with_type()
+                    .with_owner()
+                    .with_previous_transaction(),
+            )),
+            None,
+            None,
+        )
+        .await?
+        .data;
+    let gas_obj_id = object_refs.first().unwrap().object().unwrap().object_id;
+    let obj_id = object_refs.get(1).unwrap().object().unwrap().object_id;
+    // Send funds to the multisig address
+    IotaClientCommands::Transfer {
+        to: KeyIdentity::Address(multisig_address),
+        object_id: obj_id,
+        opts: OptsWithGas::for_testing(Some(gas_obj_id), rgp * TEST_ONLY_GAS_UNIT_FOR_TRANSFER),
+    }
+    .execute(context)
+    .await?;
+    // Now do a PTB with --custom-signer
+    let ptb_string = format!(
+        r#"
+        --split-coins gas [1]
+        --assign s
+        --transfer-objects [s.0] @{}
+        --custom-signer {}
+        --gas-budget 10000000
+        "#,
+        multisig_address,
+        multisig_address,
+    );
+    println!("AVH");
+    println!("{}", ptb_string);
+    let args = shlex::split(&ptb_string).unwrap();
+    let ptb = PTB {
+        args,
+        display: HashSet::new(),
+    };
+    // This should not error (we just check it runs)
+    let _ = ptb.execute(context).await?;
     Ok(())
 }
