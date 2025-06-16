@@ -53,6 +53,10 @@ use crate::{
 
 pub(crate) struct WriteApi {
     fullnode: HttpClient,
+}
+
+pub(crate) struct OptimisticWriteApi {
+    write_api: WriteApi,
     fullnode_rest_client: iota_rest_api::Client,
     inner: IndexerReader,
     store: PgIndexerStore,
@@ -69,15 +73,23 @@ type TransactionDataToCommit = (
 );
 
 impl WriteApi {
+    pub fn new(fullnode_client: HttpClient) -> Self {
+        Self {
+            fullnode: fullnode_client,
+        }
+    }
+}
+
+impl OptimisticWriteApi {
     pub fn new(
-        fullnode_client: HttpClient,
+        write_api: WriteApi,
         fullnode_rest_client: iota_rest_api::Client,
         inner: IndexerReader,
         store: PgIndexerStore,
         metrics: IndexerMetrics,
     ) -> Self {
         Self {
-            fullnode: fullnode_client,
+            write_api,
             fullnode_rest_client,
             inner,
             store,
@@ -380,23 +392,11 @@ impl WriteApiServer for WriteApi {
         options: Option<IotaTransactionBlockResponseOptions>,
         request_type: Option<ExecuteTransactionRequestType>,
     ) -> RpcResult<IotaTransactionBlockResponse> {
-        let iota_transaction_response = match request_type {
-            None | Some(ExecuteTransactionRequestType::WaitForEffectsCert) => {
-                let mut node_response = self
-                    .fullnode
-                    .execute_transaction_block(tx_bytes, signatures, options.clone(), request_type)
-                    .await
-                    .map_err(error_object_from_rpc)?;
-                // it's not locally executed in indexer, no matter what is the status in the
-                // node
-                node_response.confirmed_local_execution = Some(false);
-                node_response
-            }
-            Some(ExecuteTransactionRequestType::WaitForLocalExecution) => {
-                self.execute_and_index_tx_effects(tx_bytes, signatures, options.clone())
-                    .await?
-            }
-        };
+        let iota_transaction_response = self
+            .fullnode
+            .execute_transaction_block(tx_bytes, signatures, options.clone(), request_type)
+            .await
+            .map_err(error_object_from_rpc)?;
         Ok(IotaTransactionBlockResponseWithOptions {
             response: iota_transaction_response,
             options: options.unwrap_or_default(),
@@ -435,7 +435,76 @@ impl WriteApiServer for WriteApi {
     }
 }
 
+#[async_trait]
+impl WriteApiServer for OptimisticWriteApi {
+    async fn execute_transaction_block(
+        &self,
+        tx_bytes: Base64,
+        signatures: Vec<Base64>,
+        options: Option<IotaTransactionBlockResponseOptions>,
+        request_type: Option<ExecuteTransactionRequestType>,
+    ) -> RpcResult<IotaTransactionBlockResponse> {
+        let iota_transaction_response = match request_type {
+            None | Some(ExecuteTransactionRequestType::WaitForEffectsCert) => {
+                let mut node_response = self
+                    .write_api
+                    .execute_transaction_block(tx_bytes, signatures, options.clone(), request_type)
+                    .await?;
+                // it's not locally executed in indexer, no matter what is the status in the
+                // node
+                node_response.confirmed_local_execution = Some(false);
+                node_response
+            }
+            Some(ExecuteTransactionRequestType::WaitForLocalExecution) => {
+                self.execute_and_index_tx_effects(tx_bytes, signatures, options.clone())
+                    .await?
+            }
+        };
+        Ok(IotaTransactionBlockResponseWithOptions {
+            response: iota_transaction_response,
+            options: options.unwrap_or_default(),
+        }
+        .into())
+    }
+
+    async fn dev_inspect_transaction_block(
+        &self,
+        sender_address: IotaAddress,
+        tx_bytes: Base64,
+        gas_price: Option<BigInt<u64>>,
+        epoch: Option<BigInt<u64>>,
+        additional_args: Option<DevInspectArgs>,
+    ) -> RpcResult<DevInspectResults> {
+        self.write_api
+            .dev_inspect_transaction_block(
+                sender_address,
+                tx_bytes,
+                gas_price,
+                epoch,
+                additional_args,
+            )
+            .await
+    }
+
+    async fn dry_run_transaction_block(
+        &self,
+        tx_bytes: Base64,
+    ) -> RpcResult<DryRunTransactionBlockResponse> {
+        self.write_api.dry_run_transaction_block(tx_bytes).await
+    }
+}
+
 impl IotaRpcModule for WriteApi {
+    fn rpc(self) -> RpcModule<Self> {
+        self.into_rpc()
+    }
+
+    fn rpc_doc_module() -> Module {
+        iota_json_rpc_api::WriteApiOpenRpc::module_doc()
+    }
+}
+
+impl IotaRpcModule for OptimisticWriteApi {
     fn rpc(self) -> RpcModule<Self> {
         self.into_rpc()
     }
