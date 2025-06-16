@@ -2420,7 +2420,7 @@ impl AuthorityState {
                     );
 
                     let Some(df_info) = self
-                        .try_create_dynamic_field_info(new_object, written, layout_resolver.as_mut())
+                        .try_create_dynamic_field_info(new_object, written, layout_resolver.as_mut(), false)
                         .unwrap_or_else(|e| {
                             error!("try_create_dynamic_field_info should not fail, {}, new_object={:?}", e, new_object);
                             None
@@ -2449,6 +2449,7 @@ impl AuthorityState {
         o: &Object,
         written: &WrittenObjects,
         resolver: &mut dyn LayoutResolver,
+        get_latest_object_version: bool,
     ) -> IotaResult<Option<DynamicFieldInfo>> {
         // Skip if not a move object
         let Some(move_object) = o.data.try_as_move().cloned() else {
@@ -2512,23 +2513,41 @@ impl AuthorityState {
 
                 // Try to find the object in the written objects first.
                 let (version, digest, object_type) = if let Some(object) = written.get(&object_id) {
-                    let version = object.version();
-                    let digest = object.digest();
-                    let object_type = object.data.type_().unwrap().clone();
-                    (version, digest, object_type)
+                    (
+                        object.version(),
+                        object.digest(),
+                        object.data.type_().unwrap().clone(),
+                    )
                 } else {
                     // If not found, try to find it in the database.
-                    let object = self
-                        .get_object_store()
-                        .get_object_by_key(&object_id, o.version())?
-                        .ok_or_else(|| UserInputError::ObjectNotFound {
-                            object_id,
-                            version: Some(o.version()),
-                        })?;
-                    let version = object.version();
-                    let digest = object.digest();
-                    let object_type = object.data.type_().unwrap().clone();
-                    (version, digest, object_type)
+                    let object = if get_latest_object_version {
+                        // Loading genesis object could meet a condition that the version of the
+                        // genesis object is behind the one in the snapshot.
+                        // In this case, the object can not be found with get_object_by_key, we need
+                        // to use get_object instead. Since get_object is a heavier operation, we
+                        // only allow to use it for genesis.
+                        // reference: https://github.com/iotaledger/iota/issues/7267
+                        self.get_object_store()
+                            .get_object(&object_id)?
+                            .ok_or_else(|| UserInputError::ObjectNotFound {
+                                object_id,
+                                version: Some(o.version()),
+                            })?
+                    } else {
+                        // Non-genesis object should be in the database with the given version.
+                        self.get_object_store()
+                            .get_object_by_key(&object_id, o.version())?
+                            .ok_or_else(|| UserInputError::ObjectNotFound {
+                                object_id,
+                                version: Some(o.version()),
+                            })?
+                    };
+
+                    (
+                        object.version(),
+                        object.digest(),
+                        object.data.type_().unwrap().clone(),
+                    )
                 };
 
                 DynamicFieldInfo {
@@ -2995,6 +3014,7 @@ impl AuthorityState {
                         o,
                         &BTreeMap::new(),
                         layout_resolver.as_mut(),
+                        true,
                     )?
                     else {
                         continue;
