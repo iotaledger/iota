@@ -13,7 +13,7 @@ use crate::{
     models::{display::StoredDisplay, obj_indices::StoredObjectVersion},
     types::{
         EventIndex, IndexedCheckpoint, IndexedDeletedObject, IndexedEpochInfo, IndexedEvent,
-        IndexedObject, IndexedPackage, IndexedTransaction, IndexerResult, TxIndexV2,
+        IndexedObject, IndexedPackage, IndexedTransaction, IndexerResult, TxIndex, TxIndexExt,
     },
 };
 
@@ -27,12 +27,27 @@ pub(crate) const CHECKPOINT_COMMIT_BATCH_SIZE: usize = 100;
 pub(crate) const UNPROCESSED_CHECKPOINT_SIZE_LIMIT: usize = 1000;
 
 #[derive(Debug)]
-pub(crate) struct CheckpointDataToCommit {
+pub struct CheckpointDataToCommit {
+    pub checkpoint: IndexedCheckpoint,
+    pub transactions: Vec<IndexedTransaction>,
+    pub events: Vec<IndexedEvent>,
+    pub event_indices: Vec<EventIndex>,
+    pub tx_indices: Vec<TxIndex>,
+    pub display_updates: BTreeMap<String, StoredDisplay>,
+    pub object_changes: TransactionObjectChangesToCommit,
+    pub object_history_changes: TransactionObjectChangesToCommit,
+    pub object_versions: Vec<StoredObjectVersion>,
+    pub packages: Vec<IndexedPackage>,
+    pub epoch: Option<EpochToCommit>,
+}
+
+#[derive(Debug)]
+pub(crate) struct CheckpointDataToCommitV2 {
     pub(crate) checkpoint: IndexedCheckpoint,
     pub(crate) transactions: Vec<IndexedTransaction>,
     pub(crate) events: Vec<IndexedEvent>,
     pub(crate) event_indices: Vec<EventIndex>,
-    pub(crate) tx_indices: Vec<TxIndexV2>,
+    pub(crate) tx_indices: Vec<TxIndexExt>,
     pub(crate) display_updates: BTreeMap<String, StoredDisplay>,
     pub(crate) object_changes: TransactionObjectChangesToCommit,
     pub(crate) object_history_changes: TransactionObjectChangesToCommit,

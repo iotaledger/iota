@@ -186,7 +186,7 @@ impl TransactionEffects {
     }
 
     /// Returns all objects that were created + wrapped in the same transaction.
-    pub fn created_and_immediately_wrapped_objects(&self) -> Vec<(ObjectID, SequenceNumber)> {
+    pub fn created_then_wrapped_objects(&self) -> Vec<(ObjectID, SequenceNumber)> {
         // Filter `ObjectChange` where:
         // - `input_digest` and `output_digest` are `None`, and
         // - `id_operation` is `Created`.

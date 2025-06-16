@@ -17,7 +17,7 @@ use crate::{
         tx_changed_objects, tx_digests, tx_input_objects, tx_kinds, tx_recipients, tx_senders,
         tx_wrapped_or_deleted_objects,
     },
-    types::{TxIndex, TxIndexV2},
+    types::{TxIndex, TxIndexExt, TxIndexV2},
 };
 
 #[derive(QueryableByName)]
@@ -142,22 +142,8 @@ impl TxIndex {
     }
 }
 
-#[expect(clippy::type_complexity)]
 impl TxIndexV2 {
-    pub fn split(
-        self: TxIndexV2,
-    ) -> (
-        Vec<StoredTxSenders>,
-        Vec<StoredTxRecipients>,
-        Vec<StoredTxInputObject>,
-        Vec<StoredTxChangedObject>,
-        Vec<StoredTxWrappedOrDeletedObject>,
-        Vec<StoredTxPkg>,
-        Vec<StoredTxMod>,
-        Vec<StoredTxFun>,
-        Vec<StoredTxDigest>,
-        Vec<StoredTxKind>,
-    ) {
+    pub fn split(self: TxIndexV2) -> TxIndexV2Split {
         let (
             tx_senders,
             tx_recipients,
@@ -165,7 +151,7 @@ impl TxIndexV2 {
             tx_changed_objects,
             tx_pkgs,
             tx_mods,
-            tx_calls,
+            tx_funs,
             tx_digests,
             tx_kinds,
         ) = split_common_tx_index_base(
@@ -181,7 +167,7 @@ impl TxIndexV2 {
             self.move_calls,
         );
 
-        let wrapped_or_deleted_objects = self
+        let tx_wrapped_or_deleted_objects = self
             .wrapped_or_deleted_objects
             .into_iter()
             .map(|o| StoredTxWrappedOrDeletedObject {
@@ -191,19 +177,43 @@ impl TxIndexV2 {
             })
             .collect();
 
-        (
+        TxIndexV2Split {
             tx_senders,
             tx_recipients,
             tx_input_objects,
             tx_changed_objects,
-            wrapped_or_deleted_objects,
+            tx_wrapped_or_deleted_objects,
             tx_pkgs,
             tx_mods,
-            tx_calls,
+            tx_funs,
             tx_digests,
             tx_kinds,
-        )
+        }
     }
+}
+
+impl TxIndexExt {
+    pub fn split(self: TxIndexExt) -> TxIndexExtSplit {
+        match self {
+            TxIndexExt::TxIndexV2(tx_index_v2) => TxIndexExtSplit::TxIndexV2(tx_index_v2.split()),
+        }
+    }
+}
+
+pub(crate) enum TxIndexExtSplit {
+    TxIndexV2(TxIndexV2Split),
+}
+pub(crate) struct TxIndexV2Split {
+    pub(crate) tx_senders: Vec<StoredTxSenders>,
+    pub(crate) tx_recipients: Vec<StoredTxRecipients>,
+    pub(crate) tx_input_objects: Vec<StoredTxInputObject>,
+    pub(crate) tx_changed_objects: Vec<StoredTxChangedObject>,
+    pub(crate) tx_wrapped_or_deleted_objects: Vec<StoredTxWrappedOrDeletedObject>,
+    pub(crate) tx_pkgs: Vec<StoredTxPkg>,
+    pub(crate) tx_mods: Vec<StoredTxMod>,
+    pub(crate) tx_funs: Vec<StoredTxFun>,
+    pub(crate) tx_digests: Vec<StoredTxDigest>,
+    pub(crate) tx_kinds: Vec<StoredTxKind>,
 }
 
 #[expect(clippy::type_complexity)]
@@ -291,7 +301,7 @@ fn split_common_tx_index_base(
         })
         .collect();
 
-    let tx_calls = packages_modules_funcs
+    let tx_funs = packages_modules_funcs
         .iter()
         .map(|(p, m, f)| StoredTxFun {
             tx_sequence_number,
@@ -319,7 +329,7 @@ fn split_common_tx_index_base(
         tx_changed_objects,
         tx_pkgs,
         tx_mods,
-        tx_calls,
+        tx_funs,
         vec![stored_tx_digest],
         vec![tx_kind],
     )

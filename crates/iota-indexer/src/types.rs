@@ -543,7 +543,12 @@ pub struct TxIndex {
 }
 
 #[derive(Debug, Clone)]
-pub struct TxIndexV2 {
+pub(crate) enum TxIndexExt {
+    TxIndexV2(TxIndexV2),
+}
+
+#[derive(Debug, Clone)]
+pub(crate) struct TxIndexV2 {
     pub tx_sequence_number: u64,
     pub tx_kind: IotaTransactionKind,
     pub transaction_digest: TransactionDigest,
