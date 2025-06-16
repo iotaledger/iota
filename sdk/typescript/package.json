@@ -61,6 +61,10 @@
             "import": "./dist/esm/keypairs/secp256r1/index.js",
             "require": "./dist/cjs/keypairs/secp256r1/index.js"
         },
+        "./keypairs/passkey": {
+            "import": "./dist/esm/keypairs/passkey/index.js",
+            "require": "./dist/cjs/keypairs/passkey/index.js"
+        },
         "./multisig": {
             "import": "./dist/esm/multisig/index.js",
             "require": "./dist/cjs/multisig/index.js"
