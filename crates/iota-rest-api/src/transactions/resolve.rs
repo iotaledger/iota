@@ -581,17 +581,16 @@ fn select_gas(
     for (object_ref, value) in gas_coins {
         selected_gas.push(object_ref);
         selected_gas_value += value;
+        if selected_gas_value >= budget {
+            return Ok(selected_gas);
+        }
     }
 
-    if selected_gas_value >= budget {
-        Ok(selected_gas)
-    } else {
-        Err(RestError::new(
-            axum::http::StatusCode::BAD_REQUEST,
-            format!(
-                "unable to select sufficient gas coins from account {owner} \
-                    to satisfy required budget {budget}"
-            ),
-        ))
-    }
+    Err(RestError::new(
+        axum::http::StatusCode::BAD_REQUEST,
+        format!(
+            "unable to select sufficient gas coins from account {owner} \
+                to satisfy required budget {budget}"
+        ),
+    ))
 }
