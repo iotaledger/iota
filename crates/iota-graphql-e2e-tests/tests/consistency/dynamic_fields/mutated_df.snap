@@ -1,0 +1,273 @@
+---
+source: external-crates/move/crates/move-transactional-test-runner/src/framework.rs
+---
+processed 17 tasks
+
+init:
+A: object(0,0)
+
+task 1, lines 15-46:
+//# publish
+created: object(1,0)
+mutated: object(0,1)
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 7820400,  storage_rebate: 0, non_refundable_storage_fee: 0
+
+task 2, line 48:
+//# run Test::M1::parent --sender A --args @A
+created: object(2,0)
+mutated: object(0,0)
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2287600,  storage_rebate: 0, non_refundable_storage_fee: 0
+
+task 3, line 50:
+//# view-object 2,0
+Owner: Account Address ( A )
+Version: 2
+Contents: Test::M1::Parent {
+    id: iota::object::UID {
+        id: iota::object::ID {
+            bytes: fake(2,0),
+        },
+    },
+    count: 0u64,
+}
+
+task 4, line 52:
+//# run Test::M1::add_df --sender A --args object(2,0)
+created: object(4,0), object(4,1), object(4,2)
+mutated: object(0,0), object(2,0)
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 8626000,  storage_rebate: 2287600, non_refundable_storage_fee: 0
+
+task 5, line 54:
+//# view-object 2,0
+Owner: Account Address ( A )
+Version: 3
+Contents: Test::M1::Parent {
+    id: iota::object::UID {
+        id: iota::object::ID {
+            bytes: fake(2,0),
+        },
+    },
+    count: 0u64,
+}
+
+task 6, line 56:
+//# run Test::M1::mutate_parent --sender A --args object(2,0)
+mutated: object(0,0), object(2,0)
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2287600,  storage_rebate: 2287600, non_refundable_storage_fee: 0
+
+task 7, line 58:
+//# view-object 2,0
+Owner: Account Address ( A )
+Version: 4
+Contents: Test::M1::Parent {
+    id: iota::object::UID {
+        id: iota::object::ID {
+            bytes: fake(2,0),
+        },
+    },
+    count: 42u64,
+}
+
+task 8, line 60:
+//# create-checkpoint
+Checkpoint created: 1
+
+task 9, lines 62-110:
+//# run-graphql
+Response: {
+  "data": {
+    "latest": {
+      "version": 4,
+      "dynamicFields": {
+        "edges": [
+          {
+            "cursor": "IAkupHMC/N2LXodj7vkddNcaCcsZwR25rA03IE7MlmJKAQAAAAAAAAA=",
+            "node": {
+              "name": {
+                "bcs": "A2RmMg=="
+              },
+              "value": {
+                "json": "df2"
+              }
+            }
+          },
+          {
+            "cursor": "IE9XGQh9caQ/MfIDapykcDRbZRXNgrKvsWy5UvLcewCSAQAAAAAAAAA=",
+            "node": {
+              "name": {
+                "bcs": "A2RmMQ=="
+              },
+              "value": {
+                "json": "df1"
+              }
+            }
+          },
+          {
+            "cursor": "IPD4tovAjlP4/5+z4HeAphVDVV0rv6RgVyugyRx6m7DjAQAAAAAAAAA=",
+            "node": {
+              "name": {
+                "bcs": "A2RmMw=="
+              },
+              "value": {
+                "json": "df3"
+              }
+            }
+          }
+        ]
+      },
+      "dynamicField": {
+        "name": {
+          "bcs": "A2RmMQ=="
+        },
+        "value": {
+          "json": "df1"
+        }
+      }
+    },
+    "df_added": {
+      "version": 3,
+      "dynamicField": {
+        "name": {
+          "bcs": "A2RmMQ=="
+        },
+        "value": {
+          "json": "df1"
+        }
+      }
+    },
+    "before_df_added": {
+      "version": 2,
+      "dynamicField": null
+    }
+  }
+}
+
+task 10, line 112:
+//# view-object 2,0
+Owner: Account Address ( A )
+Version: 4
+Contents: Test::M1::Parent {
+    id: iota::object::UID {
+        id: iota::object::ID {
+            bytes: fake(2,0),
+        },
+    },
+    count: 42u64,
+}
+
+task 11, line 114:
+//# run Test::M1::mutate_df1 --sender A --args object(2,0)
+mutated: object(0,0), object(2,0), object(4,1)
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 4461200,  storage_rebate: 4400400, non_refundable_storage_fee: 0
+
+task 12, line 116:
+//# view-object 2,0
+Owner: Account Address ( A )
+Version: 5
+Contents: Test::M1::Parent {
+    id: iota::object::UID {
+        id: iota::object::ID {
+            bytes: fake(2,0),
+        },
+    },
+    count: 42u64,
+}
+
+task 13, line 118:
+//# run Test::M1::mutate_parent --sender A --args object(2,0)
+mutated: object(0,0), object(2,0)
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2287600,  storage_rebate: 2287600, non_refundable_storage_fee: 0
+
+task 14, line 120:
+//# view-object 2,0
+Owner: Account Address ( A )
+Version: 6
+Contents: Test::M1::Parent {
+    id: iota::object::UID {
+        id: iota::object::ID {
+            bytes: fake(2,0),
+        },
+    },
+    count: 84u64,
+}
+
+task 15, line 122:
+//# create-checkpoint
+Checkpoint created: 2
+
+task 16, lines 124-172:
+//# run-graphql
+Response: {
+  "data": {
+    "latest": {
+      "version": 6,
+      "dynamicFields": {
+        "edges": [
+          {
+            "cursor": "IAkupHMC/N2LXodj7vkddNcaCcsZwR25rA03IE7MlmJKAgAAAAAAAAA=",
+            "node": {
+              "name": {
+                "bcs": "A2RmMg=="
+              },
+              "value": {
+                "json": "df2"
+              }
+            }
+          },
+          {
+            "cursor": "IE9XGQh9caQ/MfIDapykcDRbZRXNgrKvsWy5UvLcewCSAgAAAAAAAAA=",
+            "node": {
+              "name": {
+                "bcs": "A2RmMQ=="
+              },
+              "value": {
+                "json": "df1_mutated"
+              }
+            }
+          },
+          {
+            "cursor": "IPD4tovAjlP4/5+z4HeAphVDVV0rv6RgVyugyRx6m7DjAgAAAAAAAAA=",
+            "node": {
+              "name": {
+                "bcs": "A2RmMw=="
+              },
+              "value": {
+                "json": "df3"
+              }
+            }
+          }
+        ]
+      },
+      "dynamicField": {
+        "name": {
+          "bcs": "A2RmMQ=="
+        },
+        "value": {
+          "json": "df1_mutated"
+        }
+      }
+    },
+    "df1_mutated": {
+      "version": 5,
+      "dynamicField": {
+        "name": {
+          "bcs": "A2RmMQ=="
+        },
+        "value": {
+          "json": "df1_mutated"
+        }
+      }
+    },
+    "before_df1_mutated": {
+      "version": 4,
+      "dynamicField": {
+        "name": {
+          "bcs": "A2RmMQ=="
+        },
+        "value": {
+          "json": "df1"
+        }
+      }
+    }
+  }
+}

@@ -37,7 +37,7 @@ params.items[1] = ISCDictItem("N", nativeTokenID);
 ```solidity
 ISCDict memory result = ISC.sandbox.callView(
     ISC.util.hn("accounts"),
-    ISC.util.hn("balanceNativeToken"),
+    ISC.util.hn("getL2BalanceBaseTokens"),
     params
 );
 ```
@@ -75,7 +75,7 @@ contract NativeTokenBalance {
 
         ISCDict memory result = ISC.sandbox.callView(
             ISC.util.hn("accounts"),
-            ISC.util.hn("balanceNativeToken"),
+            ISC.util.hn("getL2BalanceBaseTokens"),
             params
         );
 

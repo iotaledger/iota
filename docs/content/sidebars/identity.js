@@ -74,12 +74,12 @@ const identity = [
                     {
                         type: 'link',
                         label: 'Rust',
-                        href: 'https://iotaledger.github.io/identity.rs/identity_iota/index.html',
+                        href: 'https://iotaledger.github.io/identity/identity_iota/index.html',
                     },
                     {
                         type: 'link',
                         label: 'Wasm',
-                        href: 'references/iota-identity/wasm/api_ref',
+                        href: '/references/iota-identity/wasm/api_ref',
                     },
                 ],
             },

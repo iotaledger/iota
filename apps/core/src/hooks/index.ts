@@ -58,6 +58,10 @@ export * from './useAssetGasBudgetEstimation';
 export * from './useRecognizedPackages';
 export * from './useGetAllBalances';
 export * from './useCoinsReFetchingConfig';
+export * from './useIsValidatorCommitteeMember';
+export * from './useIsActiveValidator';
+export * from './useMaxCommitteeSize';
+export * from './useGetNextEpochCommitteeMember';
 
 export * from './stake';
 export * from './ui';

@@ -10,6 +10,23 @@ The IOTA full node configuration file is a YAML file named `fullnode.yaml`, loca
 
 You can modify it to configure your IOTA node.
 
+To simplify the setup process, you can use the default configuration file:
+
+<Tabs groupId="network" queryString>
+    <TabItem label="Mainnet" value="mainnet">
+        ```yaml file=<rootDir>/setups/fullnode/fullnode-mainnet.yaml
+        ```
+    </TabItem>
+    <TabItem label="Testnet" value="testnet">
+        ```yaml file=<rootDir>/setups/fullnode/fullnode-testnet.yaml
+        ```
+    </TabItem>
+    <TabItem label="Devnet" value="devnet">
+        ```yaml file=<rootDir>/setups/fullnode/fullnode-devnet.yaml
+        ```
+    </TabItem>
+</Tabs>
+
 :::info
 If you used the installer script, it will have generated that config file for you, with default ports, archive and pruning settings, and also covers peering configuration for the selected network.
 :::

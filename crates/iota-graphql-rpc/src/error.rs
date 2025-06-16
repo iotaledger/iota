@@ -5,6 +5,7 @@
 use async_graphql::{ErrorExtensionValues, ErrorExtensions, Pos, Response, ServerError};
 use async_graphql_axum::GraphQLResponse;
 use iota_indexer::errors::IndexerError;
+use iota_names::error::IotaNamesError;
 
 /// Error codes for the `extensions.code` field of a GraphQL error that
 /// originates from outside GraphQL.
@@ -77,6 +78,8 @@ pub enum Error {
     Client(String),
     #[error("Internal error occurred while processing request: {0}")]
     Internal(String),
+    #[error(transparent)]
+    IotaNames(#[from] IotaNamesError),
 }
 
 impl ErrorExtensions for Error {
@@ -90,6 +93,9 @@ impl ErrorExtensions for Error {
             }
             Error::Internal(_) => {
                 e.set("code", code::INTERNAL_SERVER_ERROR);
+            }
+            Error::IotaNames(_) => {
+                e.set("code", code::BAD_REQUEST);
             }
         })
     }

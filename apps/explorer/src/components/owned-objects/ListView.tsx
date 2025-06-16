@@ -16,8 +16,10 @@ export function ListView({ data, loading }: ListViewProps): JSX.Element {
     const tableColumns = generateObjectListColumns();
 
     return (
-        <div className="h-full w-full overflow-y-auto">
-            {tableColumns && data && <TableCard data={data ?? []} columns={tableColumns} />}
+        <div className="h-full w-full">
+            {tableColumns && data && (
+                <TableCard data={data ?? []} columns={tableColumns} heightFull />
+            )}
             {loading && new Array(10).fill(0).map((_, index) => <Placeholder key={index} />)}
         </div>
     );

@@ -2,27 +2,27 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-//! This analysis flags situations when instances of a iota::table::Table or
-//! iota::table_vec::TableVec or iota::bag::Bag are being compared for
-//! (in)equality at this type of comparison is not very useful and DOES NOT take
-//! into consideration structural (in)equality.
+//! This analysis flags situations when instances of a iota::table::Table or iota::table_vec::TableVec
+//! or iota::bag::Bag are being compared for (in)equality at this type of comparison is not very
+//! useful and DOES NOT take into consideration structural (in)equality.
 
 use move_core_types::account_address::AccountAddress;
 use move_symbol_pool::Symbol;
 
+use crate::{
+    diag,
+    diagnostics::codes::{custom, DiagnosticInfo, Severity},
+    parser::ast as P,
+    iota_mode::{IOTA_ADDR_NAME, IOTA_ADDR_VALUE},
+    typing::{ast as T, visitor::simple_visitor},
+};
+
 use super::{
-    BAG_MOD_NAME, BAG_STRUCT_NAME, LINKED_TABLE_MOD_NAME, LINKED_TABLE_STRUCT_NAME,
-    LINT_WARNING_PREFIX, LinterDiagnosticCategory, LinterDiagnosticCode, OBJECT_BAG_MOD_NAME,
+    LinterDiagnosticCategory, LinterDiagnosticCode, BAG_MOD_NAME, BAG_STRUCT_NAME,
+    LINKED_TABLE_MOD_NAME, LINKED_TABLE_STRUCT_NAME, LINT_WARNING_PREFIX, OBJECT_BAG_MOD_NAME,
     OBJECT_BAG_STRUCT_NAME, OBJECT_TABLE_MOD_NAME, OBJECT_TABLE_STRUCT_NAME, TABLE_MOD_NAME,
     TABLE_STRUCT_NAME, TABLE_VEC_MOD_NAME, TABLE_VEC_STRUCT_NAME, VEC_MAP_MOD_NAME,
     VEC_MAP_STRUCT_NAME, VEC_SET_MOD_NAME, VEC_SET_STRUCT_NAME,
-};
-use crate::{
-    diag,
-    diagnostics::codes::{DiagnosticInfo, Severity, custom},
-    iota_mode::{IOTA_ADDR_NAME, IOTA_ADDR_VALUE},
-    parser::ast as P,
-    typing::{ast as T, visitor::simple_visitor},
 };
 
 const COLLECTIONS_EQUALITY_DIAG: DiagnosticInfo = custom(
@@ -34,12 +34,7 @@ const COLLECTIONS_EQUALITY_DIAG: DiagnosticInfo = custom(
 );
 
 const COLLECTION_TYPES: &[(Symbol, AccountAddress, &str, &str)] = &[
-    (
-        IOTA_ADDR_NAME,
-        IOTA_ADDR_VALUE,
-        BAG_MOD_NAME,
-        BAG_STRUCT_NAME,
-    ),
+    (IOTA_ADDR_NAME, IOTA_ADDR_VALUE, BAG_MOD_NAME, BAG_STRUCT_NAME),
     (
         IOTA_ADDR_NAME,
         IOTA_ADDR_VALUE,

@@ -1,0 +1,334 @@
+---
+source: external-crates/move/crates/move-transactional-test-runner/src/framework.rs
+---
+processed 13 tasks
+
+init:
+A: object(0,0)
+
+task 1, lines 15-56:
+//# publish
+created: object(1,0)
+mutated: object(0,1)
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 8466400,  storage_rebate: 0, non_refundable_storage_fee: 0
+
+task 2, line 58:
+//# run Test::M1::parent --sender A --args @A
+created: object(2,0)
+mutated: object(0,0)
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2287600,  storage_rebate: 0, non_refundable_storage_fee: 0
+
+task 3, line 60:
+//# view-object 2,0
+Owner: Account Address ( A )
+Version: 2
+Contents: Test::M1::Parent {
+    id: iota::object::UID {
+        id: iota::object::ID {
+            bytes: fake(2,0),
+        },
+    },
+    count: 0u64,
+}
+
+task 4, line 62:
+//# run Test::M1::add_df --sender A --args object(2,0)
+created: object(4,0), object(4,1), object(4,2)
+mutated: object(0,0), object(2,0)
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 8626000,  storage_rebate: 2287600, non_refundable_storage_fee: 0
+
+task 5, line 64:
+//# view-object 2,0
+Owner: Account Address ( A )
+Version: 3
+Contents: Test::M1::Parent {
+    id: iota::object::UID {
+        id: iota::object::ID {
+            bytes: fake(2,0),
+        },
+    },
+    count: 0u64,
+}
+
+task 6, line 66:
+//# run Test::M1::add_more_df --sender A --args object(2,0)
+created: object(6,0), object(6,1), object(6,2)
+mutated: object(0,0), object(2,0)
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 8626000,  storage_rebate: 2287600, non_refundable_storage_fee: 0
+
+task 7, line 68:
+//# view-object 2,0
+Owner: Account Address ( A )
+Version: 4
+Contents: Test::M1::Parent {
+    id: iota::object::UID {
+        id: iota::object::ID {
+            bytes: fake(2,0),
+        },
+    },
+    count: 0u64,
+}
+
+task 8, line 70:
+//# run Test::M1::remove_df --sender A --args object(2,0)
+mutated: object(0,0), object(2,0)
+deleted: object(4,0), object(4,1), object(4,2)
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2287600,  storage_rebate: 8626000, non_refundable_storage_fee: 0
+
+task 9, line 72:
+//# run Test::M1::mutate_parent --sender A --args object(2,0)
+mutated: object(0,0), object(2,0)
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2287600,  storage_rebate: 2287600, non_refundable_storage_fee: 0
+
+task 10, line 74:
+//# create-checkpoint
+Checkpoint created: 1
+
+task 11, lines 76-139:
+//# run-graphql
+Response: {
+  "data": {
+    "latest": {
+      "version": 6,
+      "dynamicFields": {
+        "edges": [
+          {
+            "cursor": "IBdJyFZgAd3FF4kUA2ChBc3/KHCheQ4d6azocaJ074V0AQAAAAAAAAA=",
+            "node": {
+              "name": {
+                "bcs": "A2RmNA=="
+              },
+              "value": {
+                "json": "df4"
+              }
+            }
+          },
+          {
+            "cursor": "IHxoRI3Ce6B/guuh3eNs1qH336WmuI7nYdX85L26PEuAAQAAAAAAAAA=",
+            "node": {
+              "name": {
+                "bcs": "A2RmNQ=="
+              },
+              "value": {
+                "json": "df5"
+              }
+            }
+          },
+          {
+            "cursor": "IMqQupB6O4axj4yBPPakqB9dSiVLWP/F7L4oaURajy0AAQAAAAAAAAA=",
+            "node": {
+              "name": {
+                "bcs": "A2RmNg=="
+              },
+              "value": {
+                "json": "df6"
+              }
+            }
+          }
+        ]
+      },
+      "df1": null,
+      "df5": {
+        "name": {
+          "bcs": "A2RmNQ=="
+        },
+        "value": {
+          "json": "df5"
+        }
+      }
+    },
+    "df123_removed": {
+      "version": 5,
+      "dynamicFields": {
+        "edges": [
+          {
+            "cursor": "IBdJyFZgAd3FF4kUA2ChBc3/KHCheQ4d6azocaJ074V0AQAAAAAAAAA=",
+            "node": {
+              "name": {
+                "bcs": "A2RmNA=="
+              },
+              "value": {
+                "json": "df4"
+              }
+            }
+          },
+          {
+            "cursor": "IHxoRI3Ce6B/guuh3eNs1qH336WmuI7nYdX85L26PEuAAQAAAAAAAAA=",
+            "node": {
+              "name": {
+                "bcs": "A2RmNQ=="
+              },
+              "value": {
+                "json": "df5"
+              }
+            }
+          },
+          {
+            "cursor": "IMqQupB6O4axj4yBPPakqB9dSiVLWP/F7L4oaURajy0AAQAAAAAAAAA=",
+            "node": {
+              "name": {
+                "bcs": "A2RmNg=="
+              },
+              "value": {
+                "json": "df6"
+              }
+            }
+          }
+        ]
+      },
+      "df1": null,
+      "df5": {
+        "name": {
+          "bcs": "A2RmNQ=="
+        },
+        "value": {
+          "json": "df5"
+        }
+      }
+    },
+    "df456_added": {
+      "version": 4,
+      "dynamicFields": {
+        "edges": [
+          {
+            "cursor": "IBdJyFZgAd3FF4kUA2ChBc3/KHCheQ4d6azocaJ074V0AQAAAAAAAAA=",
+            "node": {
+              "name": {
+                "bcs": "A2RmNA=="
+              },
+              "value": {
+                "json": "df4"
+              }
+            }
+          },
+          {
+            "cursor": "IHxoRI3Ce6B/guuh3eNs1qH336WmuI7nYdX85L26PEuAAQAAAAAAAAA=",
+            "node": {
+              "name": {
+                "bcs": "A2RmNQ=="
+              },
+              "value": {
+                "json": "df5"
+              }
+            }
+          },
+          {
+            "cursor": "IMLJhsnVZodSpYwJoiKfF3kNHye1ihAddPx0WGiGxKw2AQAAAAAAAAA=",
+            "node": {
+              "name": {
+                "bcs": "A2RmMQ=="
+              },
+              "value": {
+                "json": "df1"
+              }
+            }
+          },
+          {
+            "cursor": "IMY+0QMC1n5JxcCwV89cZwPnGkowu1Fxz5MhIMs3n/sDAQAAAAAAAAA=",
+            "node": {
+              "name": {
+                "bcs": "A2RmMw=="
+              },
+              "value": {
+                "json": "df3"
+              }
+            }
+          },
+          {
+            "cursor": "IMqQupB6O4axj4yBPPakqB9dSiVLWP/F7L4oaURajy0AAQAAAAAAAAA=",
+            "node": {
+              "name": {
+                "bcs": "A2RmNg=="
+              },
+              "value": {
+                "json": "df6"
+              }
+            }
+          },
+          {
+            "cursor": "IPwFTVBmrzm0reXE4RCTAJ26VIXwFYgZ4H0stJw+2VOxAQAAAAAAAAA=",
+            "node": {
+              "name": {
+                "bcs": "A2RmMg=="
+              },
+              "value": {
+                "json": "df2"
+              }
+            }
+          }
+        ]
+      },
+      "df1": {
+        "name": {
+          "bcs": "A2RmMQ=="
+        },
+        "value": {
+          "json": "df1"
+        }
+      },
+      "df5": {
+        "name": {
+          "bcs": "A2RmNQ=="
+        },
+        "value": {
+          "json": "df5"
+        }
+      }
+    }
+  }
+}
+
+task 12, lines 141-179:
+//# run-graphql
+Response: {
+  "data": {
+    "latest_owner": {
+      "dynamicFields": {
+        "edges": [
+          {
+            "cursor": "IBdJyFZgAd3FF4kUA2ChBc3/KHCheQ4d6azocaJ074V0AQAAAAAAAAA=",
+            "node": {
+              "name": {
+                "bcs": "A2RmNA=="
+              },
+              "value": {
+                "json": "df4"
+              }
+            }
+          },
+          {
+            "cursor": "IHxoRI3Ce6B/guuh3eNs1qH336WmuI7nYdX85L26PEuAAQAAAAAAAAA=",
+            "node": {
+              "name": {
+                "bcs": "A2RmNQ=="
+              },
+              "value": {
+                "json": "df5"
+              }
+            }
+          },
+          {
+            "cursor": "IMqQupB6O4axj4yBPPakqB9dSiVLWP/F7L4oaURajy0AAQAAAAAAAAA=",
+            "node": {
+              "name": {
+                "bcs": "A2RmNg=="
+              },
+              "value": {
+                "json": "df6"
+              }
+            }
+          }
+        ]
+      },
+      "df1": null,
+      "df5": {
+        "name": {
+          "bcs": "A2RmNQ=="
+        },
+        "value": {
+          "json": "df5"
+        }
+      }
+    }
+  }
+}

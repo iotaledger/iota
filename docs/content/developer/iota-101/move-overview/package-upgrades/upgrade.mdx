@@ -354,14 +354,14 @@ Use the `iota client upgrade` command to perform the package upgrade. Provide va
 
 Developers working with Move can define custom upgrade policies using available types and functions.
 For instance, you might want to prevent upgrades, regardless of the package owner.
-The [`make_immutable` function](../../../../references/framework/iota/package.mdx#function-make_immutable) allows you 
+The [`make_immutable` function](../../../../references/framework/iota-framework/package.mdx#function-make_immutable) allows you 
 to enforce this behavior.
-For more complex policies, you can leverage types like [`UpgradeTicket`](../../../../references/framework/iota/package.mdx#struct-upgradeticket) and [`UpgradeReceipt`](../../../../references/framework/iota/package.mdx#struct-upgradereceipt).
+For more complex policies, you can leverage types like [`UpgradeTicket`](../../../../references/framework/iota-framework/package.mdx#struct-upgradeticket) and [`UpgradeReceipt`](../../../../references/framework/iota-framework/package.mdx#struct-upgradereceipt).
 
 ### CLI-Driven Upgrade Process
 
 When you use the IOTA Client CLI,
-the `upgrade` command simplifies the [package](../../../../references/framework/iota/package.mdx) upgrade process.
+the `upgrade` command simplifies the [package](../../../../references/framework/iota-framework/package.mdx) upgrade process.
 It generates the upgrade digest, authorizes the upgrade with the `UpgradeCap` to obtain an `UpgradeTicket`,
 and updates the `UpgradeCap` with the `UpgradeReceipt` after a successful upgrade.
 

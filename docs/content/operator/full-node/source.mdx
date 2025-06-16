@@ -10,7 +10,7 @@ import questions from '/json/node-operators/iota-full-node/node-setup.json';
 import {Networks} from '@site/src/components/constant'
 import WarningAdvanced from '../../_snippets/warning-advanced-instructions-node-setup.mdx'
 import FullnodeRequirements from '../../_snippets/operator/fullnode-requirements-tab.mdx'
-import CheckNodeConfig from '../../_snippets/operator/check-node-config.mdx'
+import FullnodeP2P from '../../_snippets/operator/fullnode-p2p.mdx'
 import TryRpcEndpoint from '../../_snippets/operator/try-rpc-endpoint.mdx'
 import Ports from '../../_snippets/operator/fullnode-ports.mdx'
 
@@ -47,12 +47,12 @@ The installer will perform the following steps:
   `tzdata`, `libprotobuf-dev`, `ca-certificates`, `build-essential`, `libssl-dev`, `libclang-dev`, `libpq-dev`, `pkg-config`, `openssl`, `protobuf-compiler`, `git`, `clang`, `cmake`
 3. Clone the [iota repo](https://github.com/iotaledger/iota), set to the right branch for the [network](../../developer/getting-started/connect.mdx#iota-networks) you chose
 4. Build the iota-node binary  
-  The built binary is located at `/opt/iota/bin/iota-node` (or in `$BIN_DIR` if specified)
+  The built binary is located at `/opt/iota/bin/iota-node` by default.
 5. Create a user called iota, make it own directories for service binary, config, data
 6. Create a node config file, download genesis/migration blobs  
-  The config and blob files are located at `/opt/iota/config` (or in `$CONFIG_DIR` if specified)
+  The config and blob files are located at `/opt/iota/config` by default.
 6. Create a systemd service unit file  
-  The service definition file is located at `/etc/systemd/system/iota-node.service`
+  The service definition file is located at `/etc/systemd/system/iota-node.service`.
 7. Start the service
 
 ## 3. Check your installation
@@ -71,9 +71,17 @@ journalctl -u iota-node -f
 
 If you need to stop the service, you can run `sudo systemctl stop iota-node`
 
+Your IOTA node should now be running and connected to the network you chose.
+
 ### Check your node configuration
 
-<CheckNodeConfig/>
+By default, the configuration file `fullnode.yaml` is located at  `/opt/iota/config/fullnode.yaml`.
+
+If you changed your local configuration you can always go back to the default [Full Node Configuration](https://docs.iota.org/operator/full-node/configuration).
+
+#### Configure P2P Settings
+
+<FullnodeP2P />
 
 ### Reach your node via the RPC endpoint
 
@@ -97,7 +105,7 @@ NETWORK="testnet" bash -i <(curl -sSf https://raw.githubusercontent.com/iotaledg
 Re-use the same network (`testnet`, `mainnet`, `devnet`) your node is already running on.
 :::
 
-Your full node restarts on: <code>{Networks.iota_localnet.jsonRpcUrl}</code>.
+Your full node restarts on: <code>{Networks.iota_localnet.rpc.json.core}</code>.
 
 :::info
 If your full node is configured to prune transactions, Archival nodes can help ensure lagging peer nodes don't lose any information. For more information, see [IOTA Archives](../common/archives.mdx).

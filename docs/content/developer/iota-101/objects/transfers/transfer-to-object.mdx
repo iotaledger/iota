@@ -89,7 +89,7 @@ This argument type includes the `ObjectID`, `Version`, and `Digest` of the objec
 
 ### The Receiving Interface in Move
 
-The core of the receiving interface is defined in the [`iota::transfer`](../../../../references/framework/iota/transfer.mdx) module in the IOTA framework:
+The core of the receiving interface is defined in the [`iota::transfer`](../../../../references/framework/iota-framework/transfer.mdx) module in the IOTA framework:
 
 
 ```move
@@ -123,11 +123,11 @@ module iota::transfer {
 
 ### Key Concepts
 
-- **Receiving Argument:** Each `Receiving` argument in a PTB refers to an object of type `T` and is represented by [`iota::transfer::Receiving<T>`](../../../../references/framework/iota/transfer.mdx#struct-receiving).
-- **Receiving an Object:** To receive the object, call the [`iota::transfer::receive`](../../../../references/framework/iota/transfer.mdx#function-receive) function with a mutable reference to the parent object's `UID`. The module defining the parent object controls access and sets any restrictions on receiving the child object.
+- **Receiving Argument:** Each `Receiving` argument in a PTB refers to an object of type `T` and is represented by [`iota::transfer::Receiving<T>`](../../../../references/framework/iota-framework/transfer.mdx#struct-receiving).
+- **Receiving an Object:** To receive the object, call the [`iota::transfer::receive`](../../../../references/framework/iota-framework/transfer.mdx#function-receive) function with a mutable reference to the parent object's `UID`. The module defining the parent object controls access and sets any restrictions on receiving the child object.
 - **Ownership Verification:** The system dynamically checks and enforces that the `UID` of the parent object actually owns the object referenced by the `Receiving` parameter.
 
-Because [`iota::transfer::Receiving`](../../../../references/framework/iota/transfer.mdx#struct-receiving) has only the `drop` ability,
+Because [`iota::transfer::Receiving`](../../../../references/framework/iota-framework/transfer.mdx#struct-receiving) has only the `drop` ability,
 the existence of a `Receiving<T>` argument represents the ability, but not the obligation,
 to receive the object during the transaction.
 Any object associated with a `Receiving` argument remains untouched unless it is explicitly received.
@@ -138,8 +138,8 @@ Similar to custom transfer policies, IOTA allows the definition of custom receiv
 
 ### Receiving Rules Based on Object Abilities
 
-- **Module-Specific Reception:** You can use the [`iota::transfer::receive`](../../../../references/framework/iota/transfer.mdx#function-receive)  function only on objects defined in the same module where the `receive` call is made, similar to the [`iota::transfer::transfer`](../../../../references/framework/iota/transfer.mdx#function-transfer)  function.
-- **Public Reception:** For objects that also have the `store` ability, anyone can use the [`iota::transfer::public_receive`](../../../../references/framework/iota/transfer.mdx#function-public_receive)  function to receive them, akin to the [`iota::transfer::public_transfer`](../../../../references/framework/iota/transfer.mdx#function-public_transfer) function.
+- **Module-Specific Reception:** You can use the [`iota::transfer::receive`](../../../../references/framework/iota-framework/transfer.mdx#function-receive)  function only on objects defined in the same module where the `receive` call is made, similar to the [`iota::transfer::transfer`](../../../../references/framework/iota-framework/transfer.mdx#function-transfer)  function.
+- **Public Reception:** For objects that also have the `store` ability, anyone can use the [`iota::transfer::public_receive`](../../../../references/framework/iota-framework/transfer.mdx#function-public_receive)  function to receive them, akin to the [`iota::transfer::public_transfer`](../../../../references/framework/iota-framework/transfer.mdx#function-public_transfer) function.
 
 This leads to the following matrix of permissions for receiving objects:
 
@@ -148,7 +148,7 @@ This leads to the following matrix of permissions for receiving objects:
 | `key`            | Yes                        | Yes                      |
 | `key` + `store`  | Yes                        | No                       |
 
-You can combine these restrictions to create complex rules, such as implementing [soul-bound objects](#soul-bound-example).
+You can combine these restrictions to create complex rules, such as implementing [soul-bound objects](#soul-bound-objects).
 
 ## Using SDKs
 
@@ -206,8 +206,8 @@ If you want to allow receiving sent objects from shared objects defined in a mod
 Otherwise, anyone could receive sent objects.
 
 Because the `receive_object` function is generic over the object being received, it can only receive objects that have both `key` and `store` abilities.
-`receive_object` must also use the [`iota::transfer::public_receive`](../../../../references/framework/iota/transfer.mdx#function-public_receive)
-function to receive the object and not [`iota::transfer::receive`](../../../../references/framework/iota/transfer.mdx#function-receive)
+`receive_object` must also use the [`iota::transfer::public_receive`](../../../../references/framework/iota-framework/transfer.mdx#function-public_receive)
+function to receive the object and not [`iota::transfer::receive`](../../../../references/framework/iota-framework/transfer.mdx#function-receive)
 because you can only use `receive` on objects defined in the current module.
 
 In this example, a shared object (`SharedObject`) holds a counter that anyone can increment,
@@ -310,7 +310,7 @@ module examples::account {
 }
 ```
 
-### Soul-Bound Objects {#soul-bound-example}
+### Soul-Bound Objects
 
 Soul-bound objects are bound to a specific address and must remain there or be returned to it.
 The following module implements this by creating a receipt that must be destroyed within the same transaction where the object is received.

@@ -29,6 +29,7 @@ use iota_types::{
 use iota_verifier_latest::meter::IotaVerifierMeter;
 use move_binary_format::CompiledModule;
 use move_bytecode_verifier_meter::Meter;
+use move_trace_format::format::MoveTraceBuilder;
 use move_vm_config::verifier::{MeterConfig, VerifierConfig};
 use move_vm_runtime_latest::move_vm::MoveVM;
 
@@ -77,6 +78,7 @@ impl executor::Executor for Executor {
         transaction_kind: TransactionKind,
         transaction_signer: IotaAddress,
         transaction_digest: TransactionDigest,
+        trace_builder_opt: &mut Option<MoveTraceBuilder>,
     ) -> (
         InnerTemporaryStore,
         IotaGasStatus,
@@ -98,6 +100,7 @@ impl executor::Executor for Executor {
             metrics,
             enable_expensive_checks,
             certificate_deny_set,
+            trace_builder_opt,
         )
     }
 
@@ -139,6 +142,7 @@ impl executor::Executor for Executor {
                 metrics,
                 enable_expensive_checks,
                 certificate_deny_set,
+                &mut None,
             )
         } else {
             execute_transaction_to_effects::<execution_mode::DevInspect<false>>(
@@ -156,6 +160,7 @@ impl executor::Executor for Executor {
                 metrics,
                 enable_expensive_checks,
                 certificate_deny_set,
+                &mut None,
             )
         }
     }

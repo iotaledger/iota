@@ -21,6 +21,7 @@ import {
     useGetStardustSharedNftObjects,
     useGetAllBalances,
     toast,
+    haveSupplyIncreaseLabel,
 } from '@iota/core';
 import {
     Button,
@@ -135,8 +136,8 @@ export function TokenDetails() {
 
     if (supplyIncreaseVestingEnabled) {
         hasSupplyIncreaseVestingObjects =
-            !!supplyIncreaseVestingObjects?.pages?.[0]?.data?.length ||
-            !!supplyIncreaseVestingObjectsStaked?.pages?.[0]?.data?.length;
+            haveSupplyIncreaseLabel(supplyIncreaseVestingObjects?.pages || []) ||
+            haveSupplyIncreaseLabel(supplyIncreaseVestingObjectsStaked?.pages || []);
     }
 
     if (migrationEnabled) {
@@ -249,7 +250,6 @@ export function TokenDetails() {
                                 <div className="flex w-full flex-col items-center gap-xs">
                                     {accountHasIota || delegatedStake?.length ? (
                                         <TokenStakingOverview
-                                            disabled={!tokenBalance}
                                             accountAddress={activeAccountAddress}
                                         />
                                     ) : null}

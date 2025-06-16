@@ -1,0 +1,24 @@
+---
+source: external-crates/move/crates/move-transactional-test-runner/src/framework.rs
+---
+processed 4 tasks
+
+init:
+A: object(0,0)
+
+task 1, lines 10-29:
+//# publish
+created: object(1,0)
+mutated: object(0,1)
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 6125600,  storage_rebate: 0, non_refundable_storage_fee: 0
+
+task 2, line 31:
+//# run a::m::add_then_freeze --sender A
+created: object(2,0), object(2,1)
+mutated: object(0,0)
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 3655600,  storage_rebate: 0, non_refundable_storage_fee: 0
+
+task 3, line 33:
+//# run a::m::read_from_frozen --sender A --args object(2,0)
+mutated: object(0,0)
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 980400,  storage_rebate: 980400, non_refundable_storage_fee: 0

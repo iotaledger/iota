@@ -1,11 +1,12 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { ReactNode } from 'react';
+import type { ReactNode } from 'react';
 import cx from 'classnames';
 import { Copy, Info } from '@iota/apps-ui-icons';
 import { ValueSize } from './keyValue.enums';
-import { Tooltip, TooltipPosition } from '../tooltip';
+import type { TooltipPosition } from '../tooltip';
+import { Tooltip } from '../tooltip';
 import { ButtonUnstyled } from '../button';
 
 interface KeyValueProps {

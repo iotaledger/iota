@@ -14,6 +14,7 @@ import { normalizeIotaAddress, toB64 } from '@iota/iota-sdk/utils';
 import { publicKeyFromRawBytes } from '@iota/iota-sdk/verify';
 
 import { AddressLink } from '~/components/ui';
+import { onCopySuccess } from '~/lib';
 
 type SignaturePubkeyPair = {
     signatureScheme: SignatureScheme;
@@ -29,13 +30,15 @@ function SignaturePanel({ title, signature: data }: SignaturePanelProps): JSX.El
     const { signature, signatureScheme } = data;
     return (
         <div className="flex w-full flex-col gap-md">
-            <ButtonSegment selected label={title} type={ButtonSegmentType.Underlined} />
+            <ButtonSegment selected label={title} type={ButtonSegmentType.Underlined} isNested />
             <KeyValueInfo keyText="Scheme" value={signatureScheme} fullwidth />
             <KeyValueInfo
                 keyText="Address"
                 value={
                     <AddressLink
                         address={'address' in data ? data.address : data.publicKey.toIotaAddress()}
+                        copyText={'address' in data ? data.address : data.publicKey.toIotaAddress()}
+                        onCopySuccess={onCopySuccess}
                     />
                 }
                 fullwidth
@@ -45,6 +48,7 @@ function SignaturePanel({ title, signature: data }: SignaturePanelProps): JSX.El
                     keyText="IOTA Public Key"
                     value={data.publicKey.toIotaPublicKey()}
                     copyText={data.publicKey.toIotaPublicKey()}
+                    onCopySuccess={onCopySuccess}
                     isTruncated
                     fullwidth
                 />
@@ -52,6 +56,7 @@ function SignaturePanel({ title, signature: data }: SignaturePanelProps): JSX.El
             <KeyValueInfo
                 keyText="Signature"
                 copyText={toB64(signature)}
+                onCopySuccess={onCopySuccess}
                 value={toB64(signature)}
                 isTruncated
                 fullwidth
@@ -114,7 +119,7 @@ export function Signatures({ transaction }: SignaturesProps) {
         : null;
 
     return (
-        <div className="flex flex-wrap gap-lg px-md--rs py-md md:py-md">
+        <div className="flex flex-wrap gap-lg p-sm--rs">
             {userSignatures.length > 0 && (
                 <div className="flex w-full flex-col gap-lg">
                     {userSignatures.map((signature, index) => (

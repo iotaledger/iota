@@ -2,8 +2,8 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { ErrorBoundary, Loading, TransactionCard, NoData } from '_components';
-import { useQueryTransactionsByAddress } from '@iota/core';
+import { ErrorBoundary, Loading, TransactionCard } from '_components';
+import { useQueryTransactionsByAddress, NoData } from '@iota/core';
 import { useActiveAddress } from '_hooks';
 import { InfoBox, InfoBoxStyle, InfoBoxType } from '@iota/apps-ui-kit';
 import { Warning } from '@iota/apps-ui-icons';
@@ -37,7 +37,10 @@ export function CompletedTransactions() {
                     </ErrorBoundary>
                 ))
             ) : (
-                <NoData message="You can view your IOTA network transactions here once they are available." />
+                <NoData
+                    message="You can view your IOTA network transactions here once they are available."
+                    displayImage
+                />
             )}
         </Loading>
     );

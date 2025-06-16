@@ -36,6 +36,9 @@ export interface TableCardProps<DataType extends RowData> {
     totalLabel?: string;
     viewAll?: string;
     pageSizeSelector?: ReactNode;
+    heightFull?: boolean;
+    rowLimit?: number;
+    allowManualTableSort?: boolean;
 }
 
 export function TableCard<DataType extends object>({
@@ -49,6 +52,9 @@ export function TableCard<DataType extends object>({
     totalLabel,
     viewAll,
     pageSizeSelector,
+    heightFull,
+    rowLimit,
+    allowManualTableSort = true,
 }: TableCardProps<DataType>): JSX.Element {
     const [sorting, setSorting] = useState<SortingState>(defaultSorting || []);
 
@@ -80,8 +86,15 @@ export function TableCard<DataType extends object>({
     }
 
     return (
-        <div className={clsx('w-full overflow-visible', refetching && 'opacity-50')}>
+        <div
+            className={clsx(
+                'w-full overflow-visible',
+                refetching && 'opacity-50',
+                heightFull && 'h-full',
+            )}
+        >
             <Table
+                heightFull
                 rowIndexes={table.getRowModel().rows.map((row) => row.index)}
                 paginationOptions={paginationOptions}
                 supportingLabel={totalLabel}
@@ -102,7 +115,7 @@ export function TableCard<DataType extends object>({
                                     key={id}
                                     columnKey={id}
                                     label={column.columnDef.header?.toString()}
-                                    hasSort={column.columnDef.enableSorting}
+                                    hasSort={allowManualTableSort && column.columnDef.enableSorting}
                                     sortOrder={getColumnSortOrder(
                                         id,
                                         column.columnDef.enableSorting,
@@ -125,15 +138,18 @@ export function TableCard<DataType extends object>({
                     ))}
                 </TableHeader>
                 <TableBody>
-                    {table.getRowModel().rows.map((row) => (
-                        <TableRow key={row.id}>
-                            {row.getVisibleCells().map((cell) => (
-                                <Fragment key={cell.id}>
-                                    {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                                </Fragment>
-                            ))}
-                        </TableRow>
-                    ))}
+                    {table
+                        .getRowModel()
+                        .rows.slice(0, rowLimit)
+                        .map((row) => (
+                            <TableRow key={row.id}>
+                                {row.getVisibleCells().map((cell) => (
+                                    <Fragment key={cell.id}>
+                                        {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                                    </Fragment>
+                                ))}
+                            </TableRow>
+                        ))}
                 </TableBody>
             </Table>
         </div>

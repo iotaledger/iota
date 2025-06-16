@@ -14,7 +14,7 @@ use std::{
     sync::Arc,
 };
 
-use anyhow::{Context, Error, anyhow};
+use anyhow::{Context, Error, anyhow, bail};
 use formatting::{FormattedField, format_list, format_param, singular_or_plural};
 use iota_json_rpc_types::{IotaObjectDataOptions, IotaRawData};
 use iota_move_build::CompiledPackage;
@@ -651,6 +651,7 @@ upgrade_codes!(
         Missing: { msg: "missing declaration" },
         VersionMismatch: { msg: "file format version downgrade" },
         FriendMismatch: { msg: "friend mismatch" },
+        NewDeclaration: { msg: "new declaration" },
     ],
     Enums: [
         VariantMismatch: { msg: "variant mismatch" },
@@ -684,9 +685,9 @@ pub(crate) async fn check_compatibility(
         .ok_or_else(|| anyhow!("Unable to read object"))?;
 
     let existing_package = match existing_obj {
-        IotaRawData::Package(pkg) => Ok(pkg),
-        IotaRawData::MoveObject(_) => Err(anyhow!("Object found when package expected")),
-    }?;
+        IotaRawData::Package(pkg) => pkg,
+        IotaRawData::MoveObject(_) => bail!("Object found when package expected"),
+    };
 
     let existing_modules = existing_package
         .module_map
@@ -768,7 +769,7 @@ fn compare_packages(
     if diags.is_empty() {
         Ok(())
     } else {
-        Err(anyhow!(
+        bail!(
             "{}\nUpgrade failed, this package requires changes to be compatible with the existing package. \
             Its upgrade policy is set to '{}'.",
             String::from_utf8(report_diagnostics_to_buffer(
@@ -782,7 +783,7 @@ fn compare_packages(
                 UpgradePolicy::Additive => "additive",
                 UpgradePolicy::DepOnly => "dependency only",
             }
-        ))
+        )
     }
 }
 
@@ -1044,11 +1045,11 @@ fn missing_module_diag(
 
     diags.add(Diagnostic::new(
         Declarations::ModuleMissing,
-        (loc, format!("Package is missing module '{module_name}'",)),
+        (loc, format!("Package is missing module '{module_name}'")),
         Vec::<(Loc, String)>::new(),
         vec![
             "Modules which are part package cannot be removed during an upgrade.".to_string(),
-            format!("add missing module '{module_name}' back to the package."),
+            format!("Add missing module '{module_name}' back to the package."),
         ],
     ));
 
@@ -1065,6 +1066,14 @@ fn missing_definition_diag(
 ) -> Result<Diagnostics, Error> {
     let mut diags = Diagnostics::new();
 
+    // capitalize the first letter
+    let capital_declaration_kind = {
+        let mut chars = declaration_kind.chars();
+        match chars.next() {
+            None => String::new(),
+            Some(c) => c.to_uppercase().collect::<String>() + chars.as_str(),
+        }
+    };
     let module_name = compiled_unit_with_source.unit.name.as_str();
     let loc = compiled_unit_with_source
         .unit
@@ -1076,11 +1085,11 @@ fn missing_definition_diag(
             Declarations::PublicMissing,
             vec![
                 format!(
-                    "{declaration_kind}s are part of a module's public interface \
+                    "{capital_declaration_kind}s are part of a module's public interface \
                      and cannot be removed or changed during a 'compatible' upgrade.",
                 ),
                 format!(
-                    "add missing {declaration_kind} '{identifier_name}' \
+                    "Add missing {declaration_kind} '{identifier_name}' \
                      back to the module '{module_name}'.",
                 ),
             ],
@@ -1090,11 +1099,11 @@ fn missing_definition_diag(
             Declarations::Missing,
             vec![
                 format!(
-                    "{declaration_kind}s cannot be removed or changed during an 'additive' or \
+                    "{capital_declaration_kind}s cannot be removed or changed during an 'additive' or \
                     'dependency only' upgrade.",
                 ),
                 format!(
-                    "add missing {declaration_kind} '{identifier_name}' \
+                    "Add missing {declaration_kind} '{identifier_name}' \
                      back to the module '{module_name}'.",
                 ),
             ],
@@ -1105,11 +1114,7 @@ fn missing_definition_diag(
         code,
         (
             loc,
-            format!(
-                "{declaration_kind} '{identifier_name}' is missing",
-                declaration_kind = declaration_kind,
-                identifier_name = identifier_name,
-            ),
+            format!("{declaration_kind} '{identifier_name}' is missing"),
         ),
         std::iter::empty::<(Loc, String)>(),
         [reason_notes].concat(),
@@ -1143,7 +1148,7 @@ fn function_lost_public(
         Declarations::PublicMissing,
         (
             def_loc,
-            format!("Function '{function_name}' has lost its public visibility",),
+            format!("Function '{function_name}' has lost its public visibility"),
         ),
         Vec::<(Loc, String)>::new(),
         vec![
@@ -2063,7 +2068,7 @@ fn enum_variant_missing_diag(
         Enums::VariantMismatch,
         (
             enum_sourcemap.definition_location,
-            format!("Missing variant '{variant_name}'.",),
+            format!("Missing variant '{variant_name}'."),
         ),
         Vec::<(Loc, String)>::new(),
         vec![
@@ -2100,20 +2105,15 @@ fn struct_new_diag(
         .context("Unable to get struct source map")?;
 
     diags.add(Diagnostic::new(
-        Declarations::TypeMismatch,
+        Declarations::NewDeclaration,
         (
             struct_sourcemap.definition_location,
-            format!("New unexpected struct '{}'.", struct_name),
+            format!("New unexpected struct '{struct_name}'."),
         ),
         Vec::<(Loc, String)>::new(),
         vec![
-            "Structs are part of a module's public interface \
-            and cannot be removed or changed during an upgrade."
-                .to_string(),
-            format!(
-                "Restore the original struct '{struct_name}' including the ordering.",
-                struct_name = struct_name,
-            ),
+            "Structs cannot be added during a 'dependency only' upgrade.".to_string(),
+            format!("Remove the struct '{struct_name}' from its module."),
         ],
     ));
 
@@ -2179,17 +2179,12 @@ fn enum_new_diag(
         .definition_location;
 
     diags.add(Diagnostic::new(
-        Enums::VariantMismatch,
-        (def_loc, format!("New unexpected enum '{}'.", enum_name)),
+        Declarations::NewDeclaration,
+        (def_loc, format!("New unexpected enum '{enum_name}'.")),
         Vec::<(Loc, String)>::new(),
         vec![
-            "Enums are part of a module's public interface and cannot \
-            be changed during an upgrade."
-                .to_string(),
-            format!(
-                "Restore the original enum '{enum_name}' including the ordering.",
-                enum_name = enum_name,
-            ),
+            "Enums cannot be added during a 'dependency only' upgrade.".to_string(),
+            format!("Remove the enum '{enum_name}' from its module."),
         ],
     ));
 
@@ -2255,20 +2250,15 @@ fn function_new_diag(
         .definition_location;
 
     diags.add(Diagnostic::new(
-        Functions_::SignatureMismatch,
+        Declarations::NewDeclaration,
         (
             def_loc,
             format!("New unexpected function '{}'.", function_name),
         ),
         Vec::<(Loc, String)>::new(),
         vec![
-            "Functions are part of a module's public interface and cannot \
-            be changed during an upgrade."
-                .to_string(),
-            format!(
-                "Restore the original function '{function_name}' including the ordering.",
-                function_name = function_name,
-            ),
+            "Functions cannot be added during a 'dependency only' upgrade.".to_string(),
+            format!("Remove the function '{function_name}' from its module."),
         ],
     ));
 

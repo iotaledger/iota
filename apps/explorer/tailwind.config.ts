@@ -21,6 +21,7 @@ export default {
             },
             height: {
                 header: '80px',
+                'mobile-header': '120px',
             },
         },
     },

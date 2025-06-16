@@ -83,10 +83,23 @@
   --iota-line: rgba(247, 247, 248, 0.1);
   --iota-max-width-desktop: 1162px;
   --iota-dark-blue-bkg: #011829;
+  --iota-cards-border-color: rgba(0, 0, 0, 0.1);
+  --iota-cards-background: #f6f8f9;
+  --iota-cards-header: #4da2ff;
+  --iota-cards-copy: #91a3b1;
+  --iota-cards-background-hover: #ebf1f5;
 
   --primaryFont: "Inter", sans-serif;
   --headerFont: "Twkeverett", sans-serif;
   --monoFont: "Twkeverett Mono", monospace;
+}
+
+[data-theme="dark"] {
+  --iota-cards-border-color: rgba(255, 255, 255, 0.1);
+  --iota-cards-background: rgba(40, 40, 40, 0.8);
+  --iota-cards-background-hover: rgba(32, 32, 32, 0.8);
+  --iota-cards-header: #4da2ff;
+  --iota-cards-copy: #abbdcc;
 }
 
 /* For readability concerns, you should choose a lighter palette in dark mode. */
@@ -452,25 +465,23 @@ h4 {
 }
 
 /** navbar search field **/
-[data-theme='light'] .DocSearch {
-  --docsearch-searchbox-background: var(--ifm-background-color-dark);
-}
 
 .DocSearch-Button-Container {
   width: 100%;
-  justify-content: space-between;
 }
 
 .DocSearch-Button {
   width: 12.5rem;
-  height: 2.625rem !important;
-  font-family: var(--headerFont);
   border: solid 1px rgba(247, 247, 248, 0.1) !important;
-  border-radius: 2.25rem !important;
   padding: 1rem 1.1rem 1rem 1.25rem !important;
+}
+
+[data-theme="dark"] .DocSearch-Button {
   color: var(--iota-white) !important;
-  font-family: var(--primaryFont);
-  letter-spacing: -0.01em;
+}
+
+[data-theme="light"] .DocSearch-Button {
+  color: var(--iota-black) !important;
 }
 
 @media screen and (max-width: 599px) {
@@ -484,9 +495,6 @@ h4 {
   margin-left: auto;
 }
 
-.DocSearch-Search-Icon path {
-  stroke: var(--iota-white);
-}
 
 .DocSearch-Button-Keys {
   display: none !important;

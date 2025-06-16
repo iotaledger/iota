@@ -5,13 +5,14 @@
 
 use std::collections::BTreeMap;
 
+use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 use strum::AsRefStr;
 use thiserror::Error;
 
 use crate::{
     base_types::{AuthorityName, EpochId, ObjectRef, TransactionDigest},
-    committee::StakeUnit,
+    committee::{QUORUM_THRESHOLD, StakeUnit, TOTAL_VOTING_POWER},
     crypto::{AuthorityStrongQuorumSignInfo, ConciseAuthorityPublicKeyBytes},
     effects::{
         CertifiedTransactionEffects, TransactionEffects, TransactionEvents,
@@ -35,20 +36,15 @@ pub const NON_RECOVERABLE_ERROR_MSG: &str =
 /// Every invariant needs detailed documents to instruct client handling.
 #[derive(Eq, PartialEq, Clone, Debug, Serialize, Deserialize, Error, Hash, AsRefStr)]
 pub enum QuorumDriverError {
-    #[error("QuorumDriver internal error: {0:?}.")]
+    #[error("QuorumDriver internal error: {0}.")]
     QuorumDriverInternal(IotaError),
-    #[error("Invalid user signature: {0:?}.")]
+    #[error("Invalid user signature: {0}.")]
     InvalidUserSignature(IotaError),
     #[error(
-        "Failed to sign transaction by a quorum of validators because of locked objects: {:?}, retried a conflicting transaction {:?}, success: {:?}",
-        conflicting_txes,
-        retried_tx,
-        retried_tx_success
+        "Failed to sign transaction by a quorum of validators because of locked objects: {conflicting_txes:?}"
     )]
     ObjectsDoubleUsed {
         conflicting_txes: BTreeMap<TransactionDigest, (Vec<(AuthorityName, ObjectRef)>, StakeUnit)>,
-        retried_tx: Option<TransactionDigest>,
-        retried_tx_success: Option<bool>,
     },
     #[error("Transaction timed out before reaching finality")]
     TimeoutBeforeFinality,
@@ -75,6 +71,99 @@ pub enum QuorumDriverError {
         errors: GroupedErrors,
         retry_after_secs: u64,
     },
+}
+
+impl QuorumDriverError {
+    pub fn to_error_message(&self) -> String {
+        match self {
+            QuorumDriverError::InvalidUserSignature(err) => {
+                format!("Invalid user signature: {err}")
+            }
+            QuorumDriverError::TxAlreadyFinalizedWithDifferentUserSignatures => {
+                "The transaction is already finalized but with different user signatures"
+                    .to_string()
+            }
+            QuorumDriverError::TimeoutBeforeFinality
+            | QuorumDriverError::FailedWithTransientErrorAfterMaximumAttempts { .. }
+            | QuorumDriverError::SystemOverload { .. }
+            | QuorumDriverError::SystemOverloadRetryAfter { .. } => self.to_string(),
+            QuorumDriverError::ObjectsDoubleUsed { conflicting_txes } => {
+                let weights: Vec<u64> =
+                    conflicting_txes.values().map(|(_, stake)| *stake).collect();
+                let remaining: u64 = TOTAL_VOTING_POWER - weights.iter().sum::<u64>();
+
+                // better version of above
+                let reason = if weights.iter().all(|w| remaining + w < QUORUM_THRESHOLD) {
+                    "equivocated until the next epoch"
+                } else {
+                    "reserved for another transaction"
+                };
+
+                format!(
+                    "Failed to sign transaction by a quorum of validators because one or more of its objects is {}. Other transactions locking these objects:\n{}",
+                    reason,
+                    conflicting_txes
+                        .iter()
+                        .sorted_by(|(_, (_, a)), (_, (_, b))| b.cmp(a))
+                        .map(|(digest, (_, stake))| format!(
+                            "- {} (stake {}.{})",
+                            digest,
+                            stake / 100,
+                            stake % 100,
+                        ))
+                        .join("\n"),
+                )
+            }
+            QuorumDriverError::NonRecoverableTransactionError { errors } => {
+                let new_errors: Vec<String> = errors
+                    .iter()
+                    // sort by total stake, descending, so users see the most prominent one
+                    // first
+                    .sorted_by(|(_, a, _), (_, b, _)| b.cmp(a))
+                    .filter_map(|(err, _, _)| {
+                        match &err {
+                            // Special handling of UserInputError:
+                            // ObjectNotFound and DependentPackageNotFound are considered
+                            // retryable errors but they have different treatment
+                            // in AuthorityAggregator.
+                            // The optimal fix would be to examine if the total stake
+                            // of ObjectNotFound/DependentPackageNotFound exceeds the
+                            // quorum threshold, but it takes a Committee here.
+                            // So, we take an easier route and consider them non-retryable
+                            // at all. Combining this with the sorting above, clients will
+                            // see the dominant error first.
+                            IotaError::UserInput { error } => Some(error.to_string()),
+                            _ => {
+                                if err.is_retryable().0 {
+                                    None
+                                } else {
+                                    Some(err.to_string())
+                                }
+                            }
+                        }
+                    })
+                    .collect();
+
+                assert!(
+                    !new_errors.is_empty(),
+                    "NonRecoverableTransactionError should have at least one non-retryable error"
+                );
+
+                let mut error_list = vec![];
+                for err in new_errors.iter() {
+                    error_list.push(format!("- {}", err));
+                }
+
+                format!(
+                    "Transaction execution failed due to issues with transaction inputs, please review the errors and try again:\n{}",
+                    error_list.join("\n")
+                )
+            }
+            QuorumDriverError::QuorumDriverInternal { .. } => {
+                "Internal error occurred while executing transaction.".to_string()
+            }
+        }
+    }
 }
 
 pub type GroupedErrors = Vec<(IotaError, StakeUnit, Vec<ConciseAuthorityPublicKeyBytes>)>;

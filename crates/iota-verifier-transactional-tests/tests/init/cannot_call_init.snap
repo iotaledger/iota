@@ -1,0 +1,9 @@
+---
+source: external-crates/move/crates/move-transactional-test-runner/src/framework.rs
+---
+processed 1 task
+
+task 0, lines 5-18:
+//# publish
+Error: Transaction Effects Status: IOTA Move Bytecode Verification Error. Please run the IOTA Move Verifier for more information.
+Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: IotaMoveVerificationError, source: Some("_::m::init at offset 1. Cannot call a module's 'init' function from another Move function"), command: Some(0) } }

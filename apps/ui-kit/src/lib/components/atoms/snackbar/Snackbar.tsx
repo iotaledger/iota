@@ -5,7 +5,7 @@ import { useEffect } from 'react';
 import cx from 'classnames';
 import { Close } from '@iota/apps-ui-icons';
 import { SnackbarType } from './snackbar.enums';
-import { BACKGROUND_COLOR, TEXT_COLOR } from '@/components/atoms/snackbar/snackbar.classes';
+import { BACKGROUND_COLOR, TEXT_COLOR } from './snackbar.classes';
 
 type Renderable = JSX.Element | string | null;
 export interface SnackbarProps {

@@ -49,6 +49,7 @@ iota-json-rpc-api.workspace = true
 iota-json-rpc-types.workspace = true
 iota-mainnet-unlocks.workspace = true
 iota-metrics.workspace = true
+iota-names.workspace = true
 iota-open-rpc.workspace = true
 iota-open-rpc-macros.workspace = true
 iota-protocol-config.workspace = true

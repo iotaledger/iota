@@ -147,6 +147,7 @@ export function EnterValuesFormView({
                                 onActionClick={onMaxTokenButtonClick}
                                 isMaxActionDisabled={isMaxActionDisabled}
                                 totalGas={sendCoinTransactionQuery.data?.gasSummary?.totalGas}
+                                coinMetadata={coinMetadata.data}
                             />
                             <AddressInput name="to" placeholder="Enter Address" />
                         </div>
@@ -175,7 +176,9 @@ export function EnterValuesFormView({
                         formik.isSubmitting ||
                         !hasEnoughBalance ||
                         !!gasBudgetError ||
-                        !gasBudgetEst
+                        !gasBudgetEst ||
+                        !coinMetadata ||
+                        coinMetadata.data === null
                     }
                     text="Review"
                     fullWidth

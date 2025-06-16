@@ -1,7 +1,8 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
-import { useIotaClientQuery } from '@iota/dapp-kit';
+
 import { useGetValidatorsApy } from '..';
+import { useIotaClientQuery } from '@iota/dapp-kit';
 
 export function useValidatorInfo({ validatorAddress }: { validatorAddress: string }) {
     const {
@@ -10,13 +11,11 @@ export function useValidatorInfo({ validatorAddress }: { validatorAddress: strin
         isError: errorValidators,
     } = useIotaClientQuery('getLatestIotaSystemState');
     const { data: rollingAverageApys } = useGetValidatorsApy();
-
     const validatorSummary =
         system?.activeValidators.find((validator) => validator.iotaAddress === validatorAddress) ||
         null;
 
     const currentEpoch = Number(system?.epoch || 0);
-
     const stakingPoolActivationEpoch = Number(validatorSummary?.stakingPoolActivationEpoch || 0);
 
     // flag as new validator if the validator was activated in the last epoch

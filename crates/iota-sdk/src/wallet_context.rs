@@ -4,13 +4,14 @@
 
 use std::{collections::BTreeSet, path::Path, sync::Arc};
 
-use anyhow::anyhow;
+use anyhow::{anyhow, bail};
 use colored::Colorize;
+use futures::{StreamExt, TryStreamExt};
 use getset::{Getters, MutGetters};
 use iota_config::{Config, PersistedConfig};
 use iota_json_rpc_types::{
-    IotaObjectData, IotaObjectDataFilter, IotaObjectDataOptions, IotaObjectResponse,
-    IotaObjectResponseQuery, IotaTransactionBlockResponse, IotaTransactionBlockResponseOptions,
+    IotaObjectData, IotaObjectDataFilter, IotaObjectDataOptions, IotaObjectResponseQuery,
+    IotaTransactionBlockResponse, IotaTransactionBlockResponseOptions,
 };
 use iota_keys::keystore::AccountKeystore;
 use iota_types::{
@@ -24,7 +25,7 @@ use tokio::sync::RwLock;
 use tracing::warn;
 
 use crate::{
-    IotaClient,
+    IotaClient, PagedFn,
     iota_client_config::{IotaClientConfig, IotaEnv},
 };
 
@@ -93,9 +94,7 @@ impl WalletContext {
     /// If not set, defaults to the first address in the keystore.
     pub fn active_address(&self) -> Result<IotaAddress, anyhow::Error> {
         if self.config.keystore.addresses().is_empty() {
-            return Err(anyhow!(
-                "No managed addresses. Create new address with the `new-address` command."
-            ));
+            bail!("No managed addresses. Create new address with the `new-address` command.");
         }
 
         Ok(if let Some(addr) = self.config.active_address() {
@@ -109,9 +108,7 @@ impl WalletContext {
     /// If not set, defaults to the first environment in the config.
     pub fn active_env(&self) -> Result<&IotaEnv, anyhow::Error> {
         if self.config.envs.is_empty() {
-            return Err(anyhow!(
-                "No managed environments. Create new environment with the `new-env` command."
-            ));
+            bail!("No managed environments. Create new environment with the `new-env` command.");
         }
 
         Ok(if self.config.active_env().is_some() {
@@ -139,10 +136,8 @@ impl WalletContext {
     ) -> Result<Vec<(u64, IotaObjectData)>, anyhow::Error> {
         let client = self.get_client().await?;
 
-        let mut objects: Vec<IotaObjectResponse> = Vec::new();
-        let mut cursor = None;
-        loop {
-            let response = client
+        let values_objects = PagedFn::stream(async |cursor| {
+            client
                 .read_api()
                 .get_owned_objects(
                     address,
@@ -153,27 +148,25 @@ impl WalletContext {
                     cursor,
                     None,
                 )
-                .await?;
-
-            objects.extend(response.data);
-
-            if response.has_next_page {
-                cursor = response.next_cursor;
-            } else {
-                break;
+                .await
+        })
+        .filter_map(|res| async {
+            match res {
+                Ok(res) => {
+                    if let Some(o) = res.data {
+                        match GasCoin::try_from(&o) {
+                            Ok(gas_coin) => Some(Ok((gas_coin.value(), o.clone()))),
+                            Err(e) => Some(Err(anyhow!("{e}"))),
+                        }
+                    } else {
+                        None
+                    }
+                }
+                Err(e) => Some(Err(anyhow!("{e}"))),
             }
-        }
-
-        // TODO: We should ideally fetch the objects from local cache
-        let mut values_objects = Vec::new();
-
-        for object in objects {
-            let o = object.data;
-            if let Some(o) = o {
-                let gas_coin = GasCoin::try_from(&o)?;
-                values_objects.push((gas_coin.value(), o.clone()));
-            }
-        }
+        })
+        .try_collect::<Vec<_>>()
+        .await?;
 
         Ok(values_objects)
     }
@@ -216,9 +209,9 @@ impl WalletContext {
                 return Ok((o.0, o.1));
             }
         }
-        Err(anyhow!(
+        bail!(
             "No non-argument gas objects found for this address with value >= budget {budget}. Run iota client gas to check for gas objects."
-        ))
+        )
     }
 
     /// Get the [`ObjectRef`] for gas objects owned by the provided address.

@@ -145,6 +145,11 @@ export function AccountGroupItem({
                     onOptionsClick={handleOptionsClick}
                     onLockAccountClick={handleToggleLock}
                     onUnlockAccountClick={handleToggleLock}
+                    badgeTooltipText={
+                        isLegacy
+                            ? 'Legacy address from the Chrysalis era. May not be supported by newer wallets, please consider migrating funds'
+                            : undefined
+                    }
                 />
             </div>
             <Portal containerId={'manage-account-item-portal-container'}>

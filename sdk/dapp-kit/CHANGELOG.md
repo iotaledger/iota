@@ -1,5 +1,42 @@
 # @iota/dapp-kit
 
+## 0.4.6
+
+### Patch Changes
+
+-   ea7f799: Connect modal now explicitly requests the wallet to prompt the user to grant or extend
+    connection permissions.
+-   Updated dependencies [53d5058]
+    -   @iota/iota-sdk@1.2.0
+    -   @iota/wallet-standard@0.2.10
+
+## 0.4.5
+
+### Patch Changes
+
+-   Updated dependencies [acc502a]
+-   Updated dependencies [1128809]
+    -   @iota/iota-sdk@1.1.0
+    -   @iota/wallet-standard@0.2.9
+
+## 0.4.4
+
+### Patch Changes
+
+-   Updated dependencies [26cf13b]
+    -   @iota/iota-sdk@1.0.1
+    -   @iota/wallet-standard@0.2.8
+
+## 0.4.3
+
+### Patch Changes
+
+-   Updated dependencies [f4d75c7]
+-   Updated dependencies [daa968f]
+-   Updated dependencies [864fd32]
+    -   @iota/iota-sdk@1.0.0
+    -   @iota/wallet-standard@0.2.7
+
 ## 0.4.2
 
 ### Patch Changes

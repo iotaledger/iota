@@ -1,0 +1,34 @@
+---
+source: external-crates/move/crates/move-transactional-test-runner/src/framework.rs
+---
+processed 6 tasks
+
+task 0, lines 7-14:
+//# publish
+Error: Transaction Effects Status: IOTA Move Bytecode Verification Error. Please run the IOTA Move Verifier for more information.
+Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: IotaMoveVerificationError, source: Some("Invalid entry point return type. Expected a non reference type."), command: Some(0) } }
+
+task 1, lines 16-23:
+//# publish
+Error: Transaction Effects Status: IOTA Move Bytecode Verification Error. Please run the IOTA Move Verifier for more information.
+Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: IotaMoveVerificationError, source: Some("Invalid entry point return type. Expected a non reference type."), command: Some(0) } }
+
+task 2, lines 25-32:
+//# publish
+Error: Transaction Effects Status: IOTA Move Bytecode Verification Error. Please run the IOTA Move Verifier for more information.
+Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: IotaMoveVerificationError, source: Some("Invalid entry point return type. Expected a non reference type."), command: Some(0) } }
+
+task 3, lines 34-42:
+//# publish
+Error: Transaction Effects Status: IOTA Move Bytecode Verification Error. Please run the IOTA Move Verifier for more information.
+Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: IotaMoveVerificationError, source: Some("Invalid entry point return type. The specified return type does not have the 'drop' ability: _::m::Copyable"), command: Some(0) } }
+
+task 4, lines 44-53:
+//# publish
+Error: Transaction Effects Status: IOTA Move Bytecode Verification Error. Please run the IOTA Move Verifier for more information.
+Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: IotaMoveVerificationError, source: Some("Invalid entry point return type. The specified return type does not have the 'drop' ability: _::m::Obj"), command: Some(0) } }
+
+task 5, lines 55-64:
+//# publish
+Error: Transaction Effects Status: IOTA Move Bytecode Verification Error. Please run the IOTA Move Verifier for more information.
+Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: IotaMoveVerificationError, source: Some("Invalid entry point return type. The specified return type does not have the 'drop' ability: vector<_::m::Obj>"), command: Some(0) } }

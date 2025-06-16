@@ -32,9 +32,8 @@ jobs:
       - name: Download ledgernano bin
         run: |
           sudo apt-get install -y gh
-          echo ${{ secrets.LEDGER_APP_TOKEN }} | gh auth login --with-token
           gh release list --repo https://github.com/iotaledger/ledger-app-iota
-          gh release download --repo https://github.com/iotaledger/ledger-app-iota -p nanos.tar.gz untagged-a706a550379839d8db15
+          gh release download --repo https://github.com/iotaledger/ledger-app-iota -p nanos.tar.gz ledger-app-iota-v0.9.2
           tar -xvf nanos.tar.gz
           mv nanos/iota sdk/ledgerjs-hw-app-iota/tests/iota
 

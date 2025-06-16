@@ -6,35 +6,33 @@
 //! or not) other structs with the key ability. In other words flags freezing of
 //! structs whose fields (directly or not) wrap objects.
 
-use std::{collections::BTreeMap, sync::Arc};
-
-use move_core_types::account_address::AccountAddress;
-use move_ir_types::location::*;
-use move_symbol_pool::Symbol;
-
 use crate::{
     diag,
     diagnostics::{
-        Diagnostic, DiagnosticReporter, Diagnostics,
-        codes::{DiagnosticInfo, Severity, custom},
+        codes::{custom, DiagnosticInfo, Severity},
         warning_filters::WarningFilters,
+        Diagnostic, DiagnosticReporter, Diagnostics,
     },
     expansion::ast as E,
-    iota_mode::{
-        IOTA_ADDR_VALUE,
-        linters::{
-            FREEZE_FUN, LINT_WARNING_PREFIX, LinterDiagnosticCategory, LinterDiagnosticCode,
-            PUBLIC_FREEZE_FUN, TRANSFER_MOD_NAME,
-        },
-    },
     naming::ast as N,
     parser::ast::{self as P, Ability_},
-    shared::{CompilationEnv, Identifier, program_info::TypingProgramInfo},
+    shared::{program_info::TypingProgramInfo, CompilationEnv, Identifier},
+    iota_mode::{
+        linters::{
+            LinterDiagnosticCategory, LinterDiagnosticCode, FREEZE_FUN, LINT_WARNING_PREFIX,
+            PUBLIC_FREEZE_FUN, TRANSFER_MOD_NAME,
+        },
+        IOTA_ADDR_VALUE,
+    },
     typing::{
         ast as T,
         visitor::{TypingVisitorConstructor, TypingVisitorContext},
     },
 };
+use move_core_types::account_address::AccountAddress;
+use move_ir_types::location::*;
+use move_symbol_pool::Symbol;
+use std::{collections::BTreeMap, sync::Arc};
 
 const FREEZE_WRAPPING_DIAG: DiagnosticInfo = custom(
     LINT_WARNING_PREFIX,

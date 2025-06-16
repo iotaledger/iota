@@ -24,7 +24,7 @@
         "questionText": "Which flag should be used to persist data on the local network instead of using --force-regenesis?",
         "answerOptions": [
             {
-                "answerText": "--config-dir",
+                "answerText": "--network.config",
                 "isCorrect": true
             },
             {

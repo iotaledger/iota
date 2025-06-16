@@ -5,6 +5,7 @@
 import {
     Badge,
     BadgeType,
+    ButtonUnstyled,
     InfoBox,
     InfoBoxStyle,
     InfoBoxType,
@@ -12,7 +13,7 @@ import {
     Placeholder,
 } from '@iota/apps-ui-kit';
 import { Copy, Warning } from '@iota/apps-ui-icons';
-import { useCopyToClipboard, toast } from '@iota/core';
+import { onCopySuccess } from '~/lib/utils';
 
 type PageHeaderType = 'Transaction' | 'Checkpoint' | 'Address' | 'Object' | 'Package';
 
@@ -35,11 +36,20 @@ export function PageHeader({
     after,
     status,
 }: PageHeaderProps): JSX.Element {
-    const copyToClipBoard = useCopyToClipboard(() => toast('Copied'));
-
-    const handleCopy = async () => {
-        await copyToClipBoard(title);
-    };
+    async function handleCopyClick(event: React.MouseEvent<HTMLButtonElement>) {
+        event.stopPropagation();
+        if (!navigator.clipboard) {
+            return;
+        }
+        if (title) {
+            try {
+                await navigator.clipboard.writeText(title);
+                onCopySuccess();
+            } catch (error) {
+                console.error('Failed to copy:', error);
+            }
+        }
+    }
 
     return (
         <Panel>
@@ -82,10 +92,9 @@ export function PageHeader({
                                         >
                                             {title}
                                         </span>
-                                        <Copy
-                                            onClick={handleCopy}
-                                            className="shrink-0 cursor-pointer"
-                                        />
+                                        <ButtonUnstyled onClick={handleCopyClick}>
+                                            <Copy className="shrink-0 cursor-pointer" />
+                                        </ButtonUnstyled>
                                     </div>
                                 )}
                                 {subtitle && (
@@ -106,7 +115,7 @@ export function PageHeader({
                             </>
                         )}
                     </div>
-                    {after && <div className="w-1/2 sm:w-1/4">{after}</div>}
+                    {after && <div className="w-full md:w-1/4">{after}</div>}
                 </div>
             </div>
         </Panel>

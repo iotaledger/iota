@@ -21,15 +21,15 @@ The key difference is the requirement of a [one-time witness](../move-overview/o
 ```move file=<rootDir>/examples/move/coin/sources/my_coin.move 
 ```
 
-The [`Coin<T>`](../../../references/framework/iota/coin.mdx) is a generic coin implementation in IOTA.
-By accessing the [`TreasuryCap`](../../../references/framework/iota/coin.mdx#struct-treasurycap),
+The [`Coin<T>`](../../../references/framework/iota-framework/coin.mdx) is a generic coin implementation in IOTA.
+By accessing the [`TreasuryCap`](../../../references/framework/iota-framework/coin.mdx#resource-treasurycap),
 you gain control over minting and burning coins.
 You can send further transactions directly to `iota::coin::Coin` using the `TreasuryCap` object for authorization.
 
 ## Extending the Coin Module
 
 To extend the coin module, add a `mint` function.
-This function utilizes the [`mint`](../../../references/framework/iota/coin.mdx#function-mint) method from the `Coin` module
+This function utilizes the [`mint`](../../../references/framework/iota-framework/coin.mdx#function-mint) method from the `Coin` module
 to create a coin and transfer it to a specified address.
 
 ## IOTA CLI
@@ -63,23 +63,23 @@ If you need to restrict specific addresses from accessing your coin, consider im
 ## Creating a Regulated Coin
 
 To deny specific addresses from holding your coin,
-use the [`create_regulated_currency`](../../../references/framework/iota/coin.mdx#function-create_regulated_currency_v1) function instead of [`create_currency`](../../../references/framework/iota/coin.mdx#function-create_currency).
+use the [`create_regulated_currency`](../../../references/framework/iota-framework/coin.mdx#function-create_regulated_currency_v1) function instead of [`create_currency`](../../../references/framework/iota-framework/coin.mdx#function-create_currency).
 
 Internally, `create_regulated_currency` calls `create_currency` to create the coin
-and also produces a [`DenyCap`](../../../references/framework/iota/coin.mdx#struct-denycapv1) object.
+and also produces a [`DenyCap`](../../../references/framework/iota-framework/coin.mdx#resource-denycapv1) object.
 This object allows you to manage the deny list in a `DenyList` object.
 The process is similar to the previous example but includes transferring the `DenyCap` object to the module publisher.
 
 ## Creating Tokens
 
-Tokens reuse the [`TreasuryCap`](../../../references/framework/iota/coin.mdx#struct-treasurycap) defined in the `iota::coin` module
+Tokens reuse the [`TreasuryCap`](../../../references/framework/iota-framework/coin.mdx#resource-denycapv1) defined in the `iota::coin` module
 and follow the same initialization process.
 The `coin::create_currency` function ensures the uniqueness of the `TreasuryCap` and enforces the creation of a `CoinMetadata` object.
 
 You can mint and burn tokens using functions similar to those for coins, both requiring the `TreasuryCap`:
 
-- [`token::mint`](../../../references/framework/iota/token.mdx#function-mint) — Mint a token.
-- [`token::burn`](../../../references/framework/iota/token.mdx#function-burn) — Burn a token.
+- [`token::mint`](../../../references/framework/iota-framework/token.mdx#function-mint) — Mint a token.
+- [`token::burn`](../../../references/framework/iota-framework/token.mdx#function-burn) — Burn a token.
 
 For complete details on working with tokens, refer to the [Closed-Loop Token](../../standards/closed-loop-token.mdx) standard.
 
@@ -87,7 +87,7 @@ For complete details on working with tokens, refer to the [Closed-Loop Token](..
 
 Explore these topics for practical examples of coin and token creation:
 
-- [Migrate to CoinManager](migrate-to-coin-manager.mdx): Learn about IOTA's unique [`CoinManager`](../../../references/framework/iota/coin_manager.mdx), and how it simplify managing your [Coins](../../../references/framework/iota/coin.mdx).
+- [Migrate to CoinManager](migrate-to-coin-manager.mdx): Learn about IOTA's unique [`CoinManager`](../../../references/framework/iota-framework/coin_manager.mdx), and how it simplify managing your [Coins](../../../references/framework/iota-framework/coin.mdx).
 - [Regulated Coin and Deny List](regulated.mdx): Learn how to create a regulated coin and manage the deny list.
 - [Loyalty Token](loyalty.mdx): Discover how to create a token to reward user loyalty.
 - [In-Game Token](in-game-token.mdx): Understand how to create tokens usable within a mobile game.

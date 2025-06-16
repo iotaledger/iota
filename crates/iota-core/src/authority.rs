@@ -15,7 +15,7 @@ use std::{
     vec,
 };
 
-use anyhow::anyhow;
+use anyhow::bail;
 use arc_swap::{ArcSwap, Guard};
 use async_trait::async_trait;
 use authority_per_epoch_store::CertLockGuard;
@@ -26,6 +26,7 @@ use fastcrypto::{
     hash::MultisetHash,
 };
 use iota_archival::reader::ArchiveReaderBalancer;
+use iota_common::debug_fatal;
 use iota_config::{
     NodeConfig,
     genesis::Genesis,
@@ -45,8 +46,6 @@ use iota_metrics::{
     TX_TYPE_SHARED_OBJ_TX, TX_TYPE_SINGLE_WRITER_TX, monitored_scope, spawn_monitored_task,
 };
 use iota_storage::{
-    IndexStore,
-    indexes::{CoinInfo, ObjectIndexChanges},
     key_value_store::{
         KVStoreTransactionData, TransactionKeyValueStore, TransactionKeyValueStoreTrait,
     },
@@ -107,6 +106,7 @@ use iota_types::{
     },
     supported_protocol_versions::{ProtocolConfig, SupportedProtocolVersions},
     transaction::*,
+    transaction_executor::SimulateTransactionResult,
 };
 use itertools::Itertools;
 use move_binary_format::{CompiledModule, binary_config::BinaryConfig};
@@ -154,6 +154,7 @@ use crate::{
         TransactionCacheRead,
     },
     execution_driver::execution_process,
+    jsonrpc_index::{CoinInfo, IndexStore, ObjectIndexChanges},
     metrics::{LatencyObserver, RateTracker},
     module_cache_metrics::ResolverMetrics,
     overload_monitor::{AuthorityOverloadInfo, overload_monitor_accept_tx},
@@ -295,8 +296,6 @@ pub struct AuthorityMetrics {
 
     /// bytecode verifier metrics for tracking timeouts
     pub bytecode_verifier_metrics: Arc<BytecodeVerifierMetrics>,
-
-    pub authenticator_state_update_failed: IntCounter,
 
     /// Count of zklogin signatures
     pub zklogin_sig_count: IntCounter,
@@ -715,12 +714,6 @@ impl AuthorityMetrics {
             ).unwrap(),
             limits_metrics: Arc::new(LimitsMetrics::new(registry)),
             bytecode_verifier_metrics: Arc::new(BytecodeVerifierMetrics::new(registry)),
-            authenticator_state_update_failed: register_int_counter_with_registry!(
-                "authenticator_state_update_failed",
-                "Number of failed authenticator state updates",
-                registry,
-            )
-            .unwrap(),
             zklogin_sig_count: register_int_counter_with_registry!(
                 "zklogin_sig_count",
                 "Count of zkLogin signatures",
@@ -959,7 +952,7 @@ impl AuthorityState {
                         let cache_reader = self.get_transaction_cache_reader().clone();
                         let epoch_store = epoch_store.clone();
                         spawn_monitored_task!(epoch_store.within_alive_epoch(
-                            validator_tx_finalizer.track_signed_tx(cache_reader, tx)
+                            validator_tx_finalizer.track_signed_tx(cache_reader, &epoch_store, tx)
                         ));
                     }
                 }
@@ -1073,7 +1066,7 @@ impl AuthorityState {
 
         if transaction.contains_shared_object() {
             epoch_store
-                .acquire_shared_locks_from_effects(
+                .acquire_shared_version_assignments_from_effects(
                     transaction,
                     effects.data(),
                     self.get_object_cache_reader().as_ref(),
@@ -1221,7 +1214,7 @@ impl AuthorityState {
             .start_timer();
         let input_objects = &certificate.data().transaction_data().input_objects()?;
         self.input_loader.read_objects_for_execution(
-            epoch_store.as_ref(),
+            epoch_store,
             &certificate.key(),
             tx_lock,
             input_objects,
@@ -1413,10 +1406,8 @@ impl AuthorityState {
             certificate.data().transaction_data().kind()
         {
             if let Some(err) = &execution_error_opt {
-                error!("Authenticator state update failed: {err}");
-                self.metrics.authenticator_state_update_failed.inc();
+                debug_fatal!("Authenticator state update failed: {:?}", err);
             }
-            debug_assert!(execution_error_opt.is_none());
             epoch_store.update_authenticator_state(auth_state);
 
             // double check that the signature verifier always matches the authenticator
@@ -1631,6 +1622,7 @@ impl AuthorityState {
                 kind,
                 signer,
                 tx_digest,
+                &mut None,
             );
 
         fail_point_if!("cp_execution_nondeterminism", || {
@@ -1811,6 +1803,7 @@ impl AuthorityState {
                 kind,
                 signer,
                 transaction_digest,
+                &mut None,
             );
         let tx_digest = *effects.transaction_digest();
 
@@ -1875,6 +1868,136 @@ impl AuthorityState {
             effects,
             mock_gas,
         ))
+    }
+
+    pub fn simulate_transaction(
+        &self,
+        transaction: TransactionData,
+    ) -> IotaResult<SimulateTransactionResult> {
+        if transaction.kind().is_system_tx() {
+            return Err(IotaError::UnsupportedFeature {
+                error: "simulate does not support system transactions".to_string(),
+            });
+        }
+
+        let epoch_store = self.load_epoch_store_one_call_per_task();
+        if !self.is_fullnode(&epoch_store) {
+            return Err(IotaError::UnsupportedFeature {
+                error: "simulate is only supported on fullnodes".to_string(),
+            });
+        }
+
+        self.simulate_transaction_impl(&epoch_store, transaction)
+    }
+
+    fn simulate_transaction_impl(
+        &self,
+        epoch_store: &AuthorityPerEpochStore,
+        transaction: TransactionData,
+    ) -> IotaResult<SimulateTransactionResult> {
+        // Cheap validity checks for a transaction, including input size limits.
+        transaction.validity_check_no_gas_check(epoch_store.protocol_config())?;
+
+        let input_object_kinds = transaction.input_objects()?;
+        let receiving_object_refs = transaction.receiving_objects();
+
+        iota_transaction_checks::deny::check_transaction_for_signing(
+            &transaction,
+            &[],
+            &input_object_kinds,
+            &receiving_object_refs,
+            &self.config.transaction_deny_config,
+            self.get_backing_package_store().as_ref(),
+        )?;
+
+        let (input_objects, receiving_objects) = self.input_loader.read_objects_for_signing(
+            // We don't want to cache this transaction since it's a dry run.
+            None,
+            &input_object_kinds,
+            &receiving_object_refs,
+            epoch_store.epoch(),
+        )?;
+
+        // make a gas object if one was not provided
+        let mut gas_object_refs = transaction.gas().to_vec();
+        let ((gas_status, checked_input_objects), mock_gas) = if transaction.gas().is_empty() {
+            let sender = transaction.sender();
+            // use a 1B iota coin
+            const NANOS_TO_IOTA: u64 = 1_000_000_000;
+            const DRY_RUN_IOTA: u64 = 1_000_000_000;
+            let max_coin_value = NANOS_TO_IOTA * DRY_RUN_IOTA;
+            let gas_object_id = ObjectID::MAX;
+            let gas_object = Object::new_move(
+                MoveObject::new_gas_coin(OBJECT_START_VERSION, gas_object_id, max_coin_value),
+                Owner::AddressOwner(sender),
+                TransactionDigest::genesis_marker(),
+            );
+            let gas_object_ref = gas_object.compute_object_reference();
+            gas_object_refs = vec![gas_object_ref];
+            (
+                iota_transaction_checks::check_transaction_input_with_given_gas(
+                    epoch_store.protocol_config(),
+                    epoch_store.reference_gas_price(),
+                    &transaction,
+                    input_objects,
+                    receiving_objects,
+                    gas_object,
+                    &self.metrics.bytecode_verifier_metrics,
+                    &self.config.verifier_signing_config,
+                )?,
+                Some(gas_object_id),
+            )
+        } else {
+            (
+                iota_transaction_checks::check_transaction_input(
+                    epoch_store.protocol_config(),
+                    epoch_store.reference_gas_price(),
+                    &transaction,
+                    input_objects,
+                    &receiving_objects,
+                    &self.metrics.bytecode_verifier_metrics,
+                    &self.config.verifier_signing_config,
+                )?,
+                None,
+            )
+        };
+
+        let protocol_config = epoch_store.protocol_config();
+        let (kind, signer, _) = transaction.execution_parts();
+
+        let silent = true;
+        let executor = iota_execution::executor(protocol_config, silent, None)
+            .expect("Creating an executor should not fail here");
+
+        let expensive_checks = false;
+        let (inner_temp_store, _, effects, _execution_error) = executor
+            .execute_transaction_to_effects(
+                self.get_backing_store().as_ref(),
+                protocol_config,
+                self.metrics.limits_metrics.clone(),
+                expensive_checks,
+                self.config.certificate_deny_config.certificate_deny_set(),
+                &epoch_store.epoch_start_config().epoch_data().epoch_id(),
+                epoch_store
+                    .epoch_start_config()
+                    .epoch_data()
+                    .epoch_start_timestamp(),
+                checked_input_objects,
+                gas_object_refs,
+                gas_status,
+                kind,
+                signer,
+                transaction.digest(),
+                &mut None,
+            );
+
+        Ok(SimulateTransactionResult {
+            input_objects: inner_temp_store.input_objects,
+            output_objects: inner_temp_store.written,
+            events: effects.events_digest().map(|_| inner_temp_store.events),
+            effects,
+            mock_gas_id: mock_gas,
+        })
     }
 
     /// The object ID for gas can be any object ID, even for an uncreated object
@@ -4246,20 +4369,20 @@ impl AuthorityState {
         #[cfg(msim)]
         let extra_packages = framework_injection::get_extra_packages(self.name);
         #[cfg(msim)]
-        let system_packages = system_packages.chain(&extra_packages);
+        let system_packages = system_packages.map(|p| p).chain(extra_packages.iter());
 
         for system_package in system_packages {
             let modules = system_package.modules().to_vec();
             // In simtests, we could override the current built-in framework packages.
             #[cfg(msim)]
-            let modules = framework_injection::get_override_modules(system_package.id(), self.name)
+            let modules = framework_injection::get_override_modules(&system_package.id, self.name)
                 .unwrap_or(modules);
 
             let Some(obj_ref) = iota_framework::compare_system_package(
                 &self.get_object_store(),
-                system_package.id(),
+                &system_package.id,
                 &modules,
-                system_package.dependencies().to_vec(),
+                system_package.dependencies.to_vec(),
                 binary_config,
             )
             .await
@@ -4624,9 +4747,7 @@ impl AuthorityState {
             //   packages, reconfigure, and most likely shut down in the new epoch (this
             //   validator likely doesn't support the new protocol version, or else it
             //   should have had the packages.)
-            return Err(anyhow!(
-                "missing system packages: cannot form ChangeEpochTx"
-            ));
+            bail!("missing system packages: cannot form ChangeEpochTx");
         };
 
         // ChangeEpochV2 requires that both options are set - ProtocolDefinedBaseFee and
@@ -4693,9 +4814,7 @@ impl AuthorityState {
             .expect("read cannot fail")
         {
             warn!("change epoch tx has already been executed via state sync");
-            return Err(anyhow::anyhow!(
-                "change epoch tx has already been executed via state sync",
-            ));
+            bail!("change epoch tx has already been executed via state sync",);
         }
 
         let execution_guard = self
@@ -4827,7 +4946,8 @@ impl AuthorityState {
     pub(crate) fn iter_live_object_set_for_testing(
         &self,
     ) -> impl Iterator<Item = authority_store_tables::LiveObject> + '_ {
-        self.get_accumulator_store().iter_live_object_set()
+        self.get_accumulator_store()
+            .iter_cached_live_object_set_for_testing()
     }
 
     #[cfg(test)]
@@ -4847,6 +4967,8 @@ impl AuthorityState {
             .bulk_insert_genesis_objects(objects)?;
         self.get_object_cache_reader()
             .force_reload_system_packages(&BuiltInFramework::all_package_ids());
+        self.get_reconfig_api()
+            .clear_state_end_of_epoch(&self.execution_lock_for_reconfiguration().await);
         Ok(())
     }
 }
@@ -5185,7 +5307,7 @@ pub mod framework_injection {
         let bytes = get_override_bytes(package_id, name)?;
         let dependencies = if is_system_package(*package_id) {
             BuiltInFramework::get_package_by_id(package_id)
-                .dependencies()
+                .dependencies
                 .to_vec()
         } else {
             // Assume that entirely new injected packages depend on all existing system

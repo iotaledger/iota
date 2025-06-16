@@ -1,0 +1,14 @@
+## Monitoring Services
+
+Implementing monitoring services is essential to ensure the reliability, security, and performance of the blockchain network by providing real-time insights, detecting anomalies, enabling proactive issue resolution, and receiving automatic alerts.
+
+**Prometheus and Grafana** (recommended)
+
+Example pre-made dashboards you can use:
+
+- Community-owned grafana dashboard: https://github.com/stakeme-team/grafana-iota.
+- Grafana setup for the [local private network](https://github.com/iotaledger/iota/tree/develop/dev-tools/grafana-local), which might be a good example of how to build your own setup. 
+- Officially supported dashboards can be found [here](https://github.com/iotaledger/iota/tree/develop/setups/grafana) in the IOTA repository.
+
+**Dolphin**  
+Dolphin is a CLI tool that provides high-level features for validator, fullnode, and bridge monitoring. Under the hood, it uses the IOTA node Prometheus metric exporter to check the health of the node. More info: https://gitlab.com/blockscope-net/dolphin-v2.

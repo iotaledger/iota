@@ -160,8 +160,7 @@ impl Default for Loc {
     }
 }
 
-/// Return true if `f` is an IOTA framework function declared in `module` with a
-/// name in `names`
+/// Return true if `f` is an IOTA framework function declared in `module` with a name in `names`
 fn is_framework_function(f: &FunctionRef, module: &str, names: Vec<&str>) -> bool {
     *f.module_id.address() == IOTA_FRAMEWORK_ADDRESS
         && f.module_id.name().to_string() == module
@@ -757,7 +756,7 @@ impl GlobalEnv {
             .expect("file_id undefined")
     }
 
-    /// Maps a an index which was obtained by `file_id_to_idx` back to a FileId.
+    /// Maps an index which was obtained by `file_id_to_idx` back to a FileId.
     pub fn file_idx_to_id(&self, file_idx: u16) -> FileId {
         *self
             .file_idx_to_id

@@ -125,11 +125,15 @@ pub async fn serve_executor(
         .parse()
         .unwrap();
 
+    info!("Starting executor server on {}", executor_server_url);
+
     let executor_server_handle = tokio::spawn(async move {
         iota_rest_api::RestService::new_without_version(executor)
             .start_service(executor_server_url)
             .await;
     });
+
+    info!("spawned executor server");
 
     let (pg_store, pg_handle) = start_test_indexer_impl(
         db_url,
@@ -403,36 +407,5 @@ impl ExecutorCluster {
         let _ = join!(self.graphql_server_join_handle, self.indexer_join_handle);
         let db_url = self.graphql_connection_config.db_url.clone();
         force_delete_database(db_url).await;
-    }
-
-    pub async fn force_objects_snapshot_catchup(&self, start_cp: u64, end_cp: u64) {
-        self.indexer_store
-            .update_objects_snapshot(start_cp, end_cp)
-            .await
-            .unwrap();
-
-        let mut latest_snapshot_cp = self
-            .indexer_store
-            .get_latest_object_snapshot_checkpoint_sequence_number()
-            .await
-            .unwrap()
-            .unwrap_or_default();
-
-        tokio::time::timeout(Duration::from_secs(60), async {
-            while latest_snapshot_cp < end_cp - 1 {
-                tokio::time::sleep(Duration::from_secs(1)).await;
-                latest_snapshot_cp = self
-                    .indexer_store
-                    .get_latest_object_snapshot_checkpoint_sequence_number()
-                    .await
-                    .unwrap()
-                    .unwrap_or_default();
-            }
-        })
-        .await
-        .unwrap_or_else(|_| panic!("Timeout waiting for indexer to update objects snapshot - latest_snapshot_cp: {}, end_cp: {}",
-        latest_snapshot_cp, end_cp));
-
-        tokio::time::sleep(Duration::from_secs(5)).await;
     }
 }

@@ -139,9 +139,9 @@ public fun request_swap(
 
 In this function, the `Object` is passed by value, fully consuming it and wrapping it into a `SwapRequest`.
 The wrapper object is then sent to the service operator.
-The example also uses [`coin::into_balance`](../../../../references/framework/iota/coin.mdx#function-into_balance)
-to wrap the fee's [`Coin`](../../../../references/framework/iota/coin.mdx) into a
-[`Balance`](../../../../references/framework/iota/balance.mdx).
+The example also uses [`coin::into_balance`](../../../../references/framework/iota-framework/coin.mdx#function-into_balance)
+to wrap the fee's [`Coin`](../../../../references/framework/iota-framework/coin.mdx) into a
+[`Balance`](../../../../references/framework/iota-framework/balance.mdx).
 
 ### Executing the Swap
 
@@ -190,7 +190,7 @@ fee1
 
 In some cases, direct wrapping might be too rigid.
 For example, you might want an object type that can optionally contain another object, which can be replaced later.
-This flexibility can be achieved using [`Option`](../../../../references/framework/std/option.mdx).
+This flexibility can be achieved using [`Option`](../../../../references/framework/move-stdlib/option.mdx).
 
 Consider a simple game character—a warrior with a sword and shield.
 The warrior might not always have these items, and they should be able to equip or replace them as needed.
@@ -247,13 +247,13 @@ and passes a `sword` by value to wrap it into the `warrior`.
 
 Since `Sword` is an object type without `drop` ability,
 the warrior can't drop that sword if he's already equipped another.
-If you call [`option::fill`](../../../../references/framework/std/option.mdx#function-fill) without checking and taking out the existing sword,
+If you call [`option::fill`](../../../../references/framework/move-stdlib/option.mdx#function-fill) without checking and taking out the existing sword,
 an error will occur.
 Therefore, `equip_sword` should start by checking whether there is already a sword equipped. If so, remove it out and send it back to the sender, in this case, the player's inventory.
 
 ## Wrapping with `vector`
 
-Another approach is wrapping objects in a [`vector`](../../../../references/framework/std/vector.mdx),
+Another approach is wrapping objects in a [`vector`](../../../../references/framework/move-stdlib/vector.mdx),
 allowing the container object to hold multiple instances of the wrapped type.
 This approach is useful when an object needs to manage a dynamic collection of other objects.
 

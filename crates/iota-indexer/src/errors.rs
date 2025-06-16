@@ -5,6 +5,7 @@
 use fastcrypto::error::FastCryptoError;
 use iota_data_ingestion_core::IngestionError;
 use iota_json_rpc_api::{error_object_from_rpc, internal_error};
+use iota_names::error::IotaNamesError;
 use iota_types::{
     base_types::ObjectIDParseError,
     error::{IotaError, IotaObjectResponseError, UserInputError},
@@ -140,6 +141,12 @@ pub enum IndexerError {
 
     #[error(transparent)]
     Ingestion(#[from] IngestionError),
+
+    #[error(transparent)]
+    IotaNames(#[from] IotaNamesError),
+
+    #[error("Inconsistent migration records: {0}")]
+    DbMigration(String),
 }
 
 pub trait Context<T> {

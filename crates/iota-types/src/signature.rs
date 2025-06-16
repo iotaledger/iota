@@ -25,8 +25,8 @@ use crate::{
     base_types::IotaAddress,
     committee::EpochId,
     crypto::{
-        CompressedSignature, IotaSignature, PublicKey, Signature, SignatureScheme,
-        ZkLoginAuthenticatorAsBytes,
+        CompressedSignature, IotaSignature, PasskeyAuthenticatorAsBytes, PublicKey, Signature,
+        SignatureScheme, ZkLoginAuthenticatorAsBytes,
     },
     digests::ZKLoginInputsDigest,
     error::{IotaError, IotaResult},
@@ -41,6 +41,7 @@ pub struct VerifyParams {
     pub oidc_provider_jwks: ImHashMap<JwkId, JWK>,
     pub zk_login_env: ZkLoginEnv,
     pub accept_zklogin_in_multisig: bool,
+    pub accept_passkey_in_multisig: bool,
     pub zklogin_max_epoch_upper_bound_delta: Option<u64>,
 }
 
@@ -49,12 +50,14 @@ impl VerifyParams {
         oidc_provider_jwks: ImHashMap<JwkId, JWK>,
         zk_login_env: ZkLoginEnv,
         accept_zklogin_in_multisig: bool,
+        accept_passkey_in_multisig: bool,
         zklogin_max_epoch_upper_bound_delta: Option<u64>,
     ) -> Self {
         Self {
             oidc_provider_jwks,
             zk_login_env,
             accept_zklogin_in_multisig,
+            accept_passkey_in_multisig,
             zklogin_max_epoch_upper_bound_delta,
         }
     }
@@ -148,14 +151,16 @@ impl GenericSignature {
                         })?)
                             .into(),
                     )),
-                    SignatureScheme::Secp256r1 => Ok(CompressedSignature::Secp256r1(
-                        (&Secp256r1Signature::from_bytes(bytes).map_err(|_| {
-                            IotaError::InvalidSignature {
-                                error: "Cannot parse secp256r1 sig".to_string(),
-                            }
-                        })?)
-                            .into(),
-                    )),
+                    SignatureScheme::Secp256r1 | SignatureScheme::PasskeyAuthenticator => {
+                        Ok(CompressedSignature::Secp256r1(
+                            (&Secp256r1Signature::from_bytes(bytes).map_err(|_| {
+                                IotaError::InvalidSignature {
+                                    error: "Cannot parse secp256r1 sig".to_string(),
+                                }
+                            })?)
+                                .into(),
+                        ))
+                    }
                     _ => Err(IotaError::UnsupportedFeature {
                         error: "Unsupported signature scheme".to_string(),
                     }),
@@ -163,6 +168,9 @@ impl GenericSignature {
             }
             GenericSignature::ZkLoginAuthenticator(s) => Ok(CompressedSignature::ZkLogin(
                 ZkLoginAuthenticatorAsBytes(s.as_ref().to_vec()),
+            )),
+            GenericSignature::PasskeyAuthenticator(s) => Ok(CompressedSignature::Passkey(
+                PasskeyAuthenticatorAsBytes(s.as_ref().to_vec()),
             )),
             _ => Err(IotaError::UnsupportedFeature {
                 error: "Unsupported signature scheme".to_string(),
@@ -202,6 +210,7 @@ impl GenericSignature {
                 }
             }
             GenericSignature::ZkLoginAuthenticator(s) => s.get_pk(),
+            GenericSignature::PasskeyAuthenticator(s) => s.get_pk(),
             _ => Err(IotaError::UnsupportedFeature {
                 error: "Unsupported signature scheme".to_string(),
             }),
@@ -210,10 +219,8 @@ impl GenericSignature {
 }
 
 /// GenericSignature encodes a single signature [enum Signature] as is `flag ||
-/// signature || pubkey`. It encodes [struct MultiSigLegacy] as the MultiSig
-/// flag (0x03) concat with the bcs serializedbytes of [struct MultiSigLegacy]
-/// i.e. `flag || bcs_bytes(MultiSigLegacy)`. [struct Multisig] is encodede as
-/// the MultiSig flag (0x03) concat with the bcs serializedbytes of [struct
+/// signature || pubkey`. [struct Multisig] is encoded as
+/// the MultiSig flag (0x03) concat with the bcs serialized bytes of [struct
 /// Multisig] i.e. `flag || bcs_bytes(Multisig)`.
 impl ToFromBytes for GenericSignature {
     fn from_bytes(bytes: &[u8]) -> Result<Self, FastCryptoError> {
