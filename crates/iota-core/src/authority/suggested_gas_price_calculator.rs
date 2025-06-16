@@ -88,6 +88,51 @@ impl SuggestedGasPriceCalculator {
         certificate: &VerifiedExecutableTransaction,
         estimated_execution_duration: ExecutionTime,
     ) -> u64 {
+        for object in certificate.shared_input_objects() {
+            if let Some(per_object_congestion_info) = self.congestion_info.get(&object.id) {
+                // Calculate availablem estimated execution duration for this shared object
+                let available_estimated_execution_duration = self.max_execution_duration_per_commit
+                    - per_object_congestion_info
+                        .iter()
+                        .map(|tx_congestion_info| tx_congestion_info.estimated_execution_duration)
+                        .sum::<ExecutionTime>();
+
+                if estimated_execution_duration > available_estimated_execution_duration {
+                    // Certificate's estimated execution duration is larger than the available
+                    // execution duration for this shared object. In other words, this object
+                    // is congested. We need to find the lowest gas price of scheduled
+                    // transaction touching this shared object such that the deferred/cancelled
+                    // certificate's would fully fit, i.e., would be scheduled.
+
+                    let mut accum_estimated_execution_duration =
+                        available_estimated_execution_duration;
+                    for tx_congestion_info in per_object_congestion_info.iter().rev() {
+                        accum_estimated_execution_duration +=
+                            tx_congestion_info.estimated_execution_duration;
+                        if accum_estimated_execution_duration >= estimated_execution_duration {
+                            // The accumulated estimated execution duration is sufficient
+                            // to fit this certificate, so we break the loop and take the
+                            // gas price of the corresponding transaction.
+                            break;
+                        }
+                    }
+                } else {
+                    // ^ This branch means the certificate would be scheduled if
+                    // it only touched this shared object. In other words, this
+                    // shared object alone is not the reason for
+                    // deferring/cancelling this certificate.
+
+                    // None
+                }
+            } else {
+                // If there is no congestion info for this object, that means
+                // none of the scheduled transactions touched this object so
+                // far.
+
+                // None
+            }
+        }
+
         certificate.transaction_data().gas_price()
     }
 }
