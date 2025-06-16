@@ -922,9 +922,9 @@ impl Default for ValidatorScoreMetrics {
         let mut syntactically_invalid_blocks_inner = vec![];
         syntactically_invalid_blocks_inner.resize_with(50, || AtomicU64::new(0));
         let mut missing_block_proposals_inner = vec![];
-        syntactically_invalid_blocks_inner.resize_with(50, || AtomicU64::new(0));
+        missing_block_proposals_inner.resize_with(50, || AtomicU64::new(0));
         let mut equivocating_rounds_inner = vec![];
-        syntactically_invalid_blocks_inner.resize_with(50, || AtomicU64::new(0));
+        equivocating_rounds_inner.resize_with(50, || AtomicU64::new(0));
         // Auxiliary values
         let mut verified_blocks_this_epoch_inner = vec![];
         verified_blocks_this_epoch_inner.resize_with(50, || AtomicU64::new(0));
@@ -972,7 +972,7 @@ impl ValidatorScoreMetrics {
         validator: AuthorityIndex,
         increase: u64,
     ) {
-        let _ = self.missing_block_proposals[get(validator.value())]
+        let _ = self.missing_block_proposals[validator.value()]
             .fetch_add(increase, Ordering::Relaxed);
     }
     pub(crate) fn update_equivocating_rounds(
