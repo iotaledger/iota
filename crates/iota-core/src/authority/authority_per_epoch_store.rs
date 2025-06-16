@@ -94,7 +94,7 @@ use crate::{
         shared_object_version_manager::{
             AssignedTxAndVersions, ConsensusSharedObjVerAssignment, SharedObjVerManager,
         },
-        suggested_gas_price_calculator::PerCommitSuggestedGasPriceCalculator,
+        suggested_gas_price_calculator::SuggestedGasPriceCalculator,
     },
     checkpoints::{
         BuilderCheckpointSummary, CheckpointHeight, CheckpointServiceNotify, EpochStats,
@@ -3126,8 +3126,7 @@ impl AuthorityPerEpochStore {
             }
         );
 
-        let mut suggested_gas_price_calculator =
-            PerCommitSuggestedGasPriceCalculator::new(consensus_commit_info.round);
+        let mut suggested_gas_price_calculator = SuggestedGasPriceCalculator::new();
 
         let mut randomness_state_updated = false;
         for tx in transactions {
@@ -3407,7 +3406,7 @@ impl AuthorityPerEpochStore {
         dkg_failed: bool,
         generating_randomness: bool,
         shared_object_congestion_tracker: &mut SharedObjectCongestionTracker,
-        suggested_gas_price_calculator: &mut PerCommitSuggestedGasPriceCalculator,
+        suggested_gas_price_calculator: &mut SuggestedGasPriceCalculator,
         authority_metrics: &Arc<AuthorityMetrics>,
     ) -> IotaResult<ConsensusCertificateResult> {
         let _scope = monitored_scope("HandleConsensusTransaction");

@@ -207,7 +207,6 @@ pub mod authority_store_pruner;
 pub mod authority_store_tables;
 pub mod authority_store_types;
 pub mod epoch_start_configuration;
-pub mod shared_object_congestion_info;
 pub mod shared_object_congestion_tracker;
 pub mod shared_object_version_manager;
 pub mod suggested_gas_price_calculator;
