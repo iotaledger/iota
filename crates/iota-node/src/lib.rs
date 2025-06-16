@@ -129,7 +129,10 @@ use tokio::{
 };
 use tower::ServiceBuilder;
 use tracing::{Instrument, debug, error, error_span, info, warn};
-use typed_store::{DBMetrics, rocks::default_db_options};
+use typed_store::{
+    DBMetrics,
+    rocks::{check_and_mark_db_corruption, default_db_options, unmark_db_corruption},
+};
 
 use crate::metrics::{GrpcMetrics, IotaNodeMetrics};
 
@@ -438,6 +441,12 @@ impl IotaNode {
         let _ = CHAIN_IDENTIFIER.set(chain_identifier);
         info!("IOTA chain identifier: {chain_identifier}");
 
+        // Check and set the db_corrupted flag
+        let db_corrupted_path = &config.db_path().join("status");
+        if let Err(err) = check_and_mark_db_corruption(db_corrupted_path) {
+            panic!("Failed to check database corruption: {}", err);
+        }
+
         // Initialize metrics to track db usage before creating any stores
         DBMetrics::init(&prometheus_registry);
 
@@ -584,6 +593,9 @@ impl IotaNode {
             genesis.checkpoint_contents().clone(),
             &epoch_store,
         );
+
+        // Database has everything from genesis, set corrupted key to 0
+        unmark_db_corruption(db_corrupted_path)?;
 
         info!("creating state sync store");
         let state_sync_store = RocksDbStore::new(
