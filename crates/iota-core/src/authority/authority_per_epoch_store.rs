@@ -3126,7 +3126,16 @@ impl AuthorityPerEpochStore {
             }
         );
 
-        let mut suggested_gas_price_calculator = SuggestedGasPriceCalculator::new();
+        // Note that if we do not have a max execution duration, we do not need to
+        // calculate suggested gas price.
+        let mut suggested_gas_price_calculator = self.get_max_execution_duration_per_commit().map(
+            |get_max_execution_duration_per_commit| {
+                SuggestedGasPriceCalculator::new(
+                    self.reference_gas_price(),
+                    get_max_execution_duration_per_commit,
+                )
+            },
+        );
 
         let mut randomness_state_updated = false;
         for tx in transactions {
@@ -3406,7 +3415,7 @@ impl AuthorityPerEpochStore {
         dkg_failed: bool,
         generating_randomness: bool,
         shared_object_congestion_tracker: &mut SharedObjectCongestionTracker,
-        suggested_gas_price_calculator: &mut SuggestedGasPriceCalculator,
+        suggested_gas_price_calculator: &mut Option<SuggestedGasPriceCalculator>,
         authority_metrics: &Arc<AuthorityMetrics>,
     ) -> IotaResult<ConsensusCertificateResult> {
         let _scope = monitored_scope("HandleConsensusTransaction");
@@ -3515,17 +3524,32 @@ impl AuthorityPerEpochStore {
                                         congested_objects
                                     );
 
-                                    // Calculate suggested gas price for the cancelled certificate
-                                    let _suggested_gas_price = suggested_gas_price_calculator
-                                        .calculate_suggested_gas_price(&certificate);
+                                    if let Some(suggested_gas_price_calculator) =
+                                        suggested_gas_price_calculator
+                                    {
+                                        // Calculate suggested gas price for the cancelled
+                                        // certificate.
+                                        let _suggested_gas_price = suggested_gas_price_calculator
+                                            .calculate_suggested_gas_price(
+                                                &certificate,
+                                                estimated_execution_duration,
+                                            );
 
-                                    ConsensusCertificateResult::Cancelled((
-                                        certificate,
-                                        CancelConsensusCertificateReason::CongestionOnObjects(
-                                            congested_objects,
-                                            // TODO: _suggested_gas_price
-                                        ),
-                                    ))
+                                        ConsensusCertificateResult::Cancelled((
+                                            certificate,
+                                            CancelConsensusCertificateReason::CongestionOnObjects(
+                                                congested_objects,
+                                                // TODO: _suggested_gas_price
+                                            ),
+                                        ))
+                                    } else {
+                                        ConsensusCertificateResult::Cancelled((
+                                            certificate,
+                                            CancelConsensusCertificateReason::CongestionOnObjects(
+                                                congested_objects,
+                                            ),
+                                        ))
+                                    }
                                 }
                             }
                         };
@@ -3552,8 +3576,15 @@ impl AuthorityPerEpochStore {
                         if certificate.contains_shared_object() {
                             shared_object_congestion_tracker
                                 .bump_object_execution_slots(&certificate, start_time);
-                            suggested_gas_price_calculator
-                                .update_congestion_info(&certificate, estimated_execution_duration);
+
+                            if let Some(suggested_gas_price_calculator) =
+                                suggested_gas_price_calculator
+                            {
+                                suggested_gas_price_calculator.update_congestion_info(
+                                    &certificate,
+                                    estimated_execution_duration,
+                                );
+                            }
                         }
 
                         Ok(ConsensusCertificateResult::Scheduled {

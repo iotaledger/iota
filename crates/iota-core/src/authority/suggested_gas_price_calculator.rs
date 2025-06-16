@@ -41,14 +41,18 @@ type PerCommitCongestionInfo = HashMap<ObjectID, PerObjectCongestionInfo>;
 /// info from a single consensus commit.
 pub(crate) struct SuggestedGasPriceCalculator {
     congestion_info: PerCommitCongestionInfo,
+    reference_gas_price: u64,
+    max_execution_duration_per_commit: ExecutionTime,
 }
 
 impl SuggestedGasPriceCalculator {
     /// Create a new `SuggestedGasPriceCalculator` with empty shared
     /// object congestion data for a given consensus commit round.
-    pub fn new() -> Self {
+    pub fn new(reference_gas_price: u64, max_execution_duration_per_commit: ExecutionTime) -> Self {
         Self {
             congestion_info: PerCommitCongestionInfo::new(),
+            reference_gas_price,
+            max_execution_duration_per_commit,
         }
     }
 
@@ -82,6 +86,7 @@ impl SuggestedGasPriceCalculator {
     pub fn calculate_suggested_gas_price(
         &self,
         certificate: &VerifiedExecutableTransaction,
+        estimated_execution_duration: ExecutionTime,
     ) -> u64 {
         certificate.transaction_data().gas_price()
     }
