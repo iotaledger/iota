@@ -332,7 +332,7 @@
     /* LIST ITEM */
     --list-item-color: theme('colors.iota-neutral.92');
     --list-item-border-color: theme('colors.shader-neutral-dark.8');
-    --list-item-highlight-bg: theme('colors.shader-inverted-dark.16');
+    --list-item-highlight-bg: theme('colors.shader-primary-dark.8');
 
     /* PANEL */
     --panel-bg: theme('colors.iota-neutral.6');
@@ -572,17 +572,17 @@
     /* LIST ITEM */
     --list-item-color: theme('colors.names-neutral.92');
     --list-item-border-color: theme('colors.shader-neutral-dark.8');
-    --list-item-highlight-bg: theme('colors.shader-inverted-dark.16');
+    --list-item-highlight-bg: theme('colors.shader-primary-dark.12');
 
     /* PANEL */
     --panel-bg: theme('colors.names-neutral.6');
     --panel-border-color: theme('colors.shader-neutral-dark.8');
 
     /* RADIO BUTTON */
-    --radio-icon-color: theme('colors.names-neutral.60');
+    --radio-icon-color: theme('colors.names-neutral.70');
     --radio-icon-checked-color: theme('colors.names-primary.30');
-    --radio-icon-checked-disabled-color: theme('colors.names-neutral.40');
-    --radio-label-color: theme('colors.names-neutral.60');
+    --radio-icon-checked-disabled-color: theme('colors.names-neutral.70');
+    --radio-label-color: theme('colors.names-neutral.70');
 
     /* SECONDARY TEXT */
     --secondary-text-color: theme('colors.names-neutral.60');
@@ -604,8 +604,8 @@
     --toggle-label-color: theme('colors.names-neutral.60');
 
     /* TOOLTIP */
-    --tooltip-bg: theme('colors.names-neutral.30');
-    --tooltip-text-color: theme('colors.names-neutral.92');
+    --tooltip-bg: theme('colors.black');
+    --tooltip-text-color: theme('colors.white');
 
     /* VISUAL ASSET CARD */
     --visual-asset-placeholder-bg: theme('colors.names-neutral.10');
@@ -615,12 +615,12 @@
 
     /* ACCOUNT */
     --account-title-color: theme('colors.names-neutral.92');
-    --account-icon-color: theme('colors.names-neutral.60');
+    --account-icon-color: theme('colors.names-neutral.70');
     --account-check-active-color: theme('colors.names-primary.80');
     --account-check-inactive-color: theme('colors.names-neutral.60');
 
     /* ADDRESS */
-    --address-text-color: theme('colors.names-neutral.60');
+    --address-text-color: theme('colors.names-neutral.70');
 
     /* CARD */
     --card-filled-bg: theme('colors.names-neutral.10');
@@ -630,12 +630,12 @@
     --card-action-title-color: theme('colors.names-neutral.92');
     --card-action-subtitle-color: theme('colors.names-neutral.40');
     --card-body-title-color: theme('colors.names-neutral.92');
-    --card-body-subtitle-color: theme('colors.names-neutral.60');
+    --card-body-subtitle-color: theme('colors.names-neutral.70');
 
     /* CHIP */
-    --chip-bg-selected: theme('colors.names-primary.10');
-    --chip-border-default: theme('colors.names-neutral.40');
-    --chip-text-default: theme('colors.names-neutral.60');
+    --chip-bg-selected: theme('colors.names-primary.20');
+    --chip-border-default: theme('colors.names-neutral.20');
+    --chip-text-default: theme('colors.names-neutral.70');
     --chip-text-selected: theme('colors.names-neutral.92');
     --chip-focus-ring: theme('colors.names-primary.80');
 
