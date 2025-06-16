@@ -6,7 +6,7 @@ use std::sync::{Arc, RwLock};
 
 use anemo::{Request, Response};
 use iota_config::p2p::AccessType;
-use rand::seq::IteratorRandom;
+use rand::seq::{IteratorRandom, SliceRandom};
 use serde::{Deserialize, Serialize};
 
 use super::{Discovery, MAX_PEERS_TO_SEND, NodeInfo, SignedNodeInfo, State};
@@ -55,7 +55,8 @@ impl Discovery for Server {
             .ok_or_else(|| anemo::rpc::Status::internal("own_info has not been initialized yet"))?;
 
         let mut rng = rand::thread_rng();
-        let mut known_connected_peers = state
+        // Prefer connected peers
+        let mut known_peers = state
             .known_peers
             .iter()
             .filter_map(|(peer_id, peer_info)| {
@@ -72,12 +73,13 @@ impl Discovery for Server {
                     && !state.connected_peers.contains_key(peer_id))
                 .then_some(peer_info.inner().clone())
             })
-            .choose_multiple(&mut rng, MAX_PEERS_TO_SEND - known_connected_peers.len());
-        known_connected_peers.append(&mut known_not_connected_peers);
+            .choose_multiple(&mut rng, MAX_PEERS_TO_SEND - known_peers.len());
+        known_peers.append(&mut known_not_connected_peers);
+        known_peers.shuffle(&mut rng);
 
         Ok(Response::new(GetKnownPeersResponseV2 {
             own_info,
-            known_peers: known_connected_peers,
+            known_peers,
         }))
     }
 }
