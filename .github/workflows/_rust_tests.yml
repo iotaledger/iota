@@ -95,7 +95,7 @@ jobs:
         # "RESTART_POSTGRES" are set in the env variables above
         run: |
           export CI_IS_RUST=${{ inputs.isRust }}
-          export CI_IS_EXTERNAL_CRATES=${{ inputs.inputs.isRust }}
+          export CI_IS_EXTERNAL_CRATES=${{ inputs.isRust }}
           export CI_IS_PG_INTEGRATION=${{ inputs.isPgIntegration }}
           export CI_IS_MOVE_EXAMPLE_USED_BY_OTHERS=${{ inputs.isMoveExampleUsedByOthers }}
           export TEST_ONLY_CHANGED_CRATES=${{ inputs.testOnlyChangedCrates }}
@@ -153,7 +153,7 @@ jobs:
         # "RESTART_POSTGRES" are set in the env variables above
         run: |
           export CI_IS_RUST=${{ inputs.isRust }}
-          export CI_IS_EXTERNAL_CRATES=${{ inputs.inputs.isRust }}
+          export CI_IS_EXTERNAL_CRATES=${{ inputs.isRust }}
           export CI_IS_PG_INTEGRATION=${{ inputs.isPgIntegration }}
           export CI_IS_MOVE_EXAMPLE_USED_BY_OTHERS=${{ inputs.isMoveExampleUsedByOthers }}
           export TEST_ONLY_CHANGED_CRATES=${{ inputs.testOnlyChangedCrates }}
