@@ -29,7 +29,7 @@ use crate::{
     error::{ConsensusError, ConsensusResult},
     network::{
         BlockBundle, BlockBundleStream, BlockStream, NetworkService, SerializedBlock,
-        SerializedBlockBundle, SerializedHeaderAndTransactions,
+        SerializedBlockAndHeaders, SerializedBlockBundle, SerializedHeaderAndTransactions,
     },
     stake_aggregator::{QuorumThreshold, StakeAggregator},
     storage::Store,
@@ -105,7 +105,7 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
                 .invalid_blocks
                 .with_label_values(&[
                     peer_hostname.as_str(),
-                    "handle_send_block",
+                    "handle_subscribed_block",
                     "UnexpectedAuthority",
                 ])
                 .inc();
@@ -121,7 +121,7 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
                 .invalid_blocks
                 .with_label_values(&[
                     peer_hostname.as_str(),
-                    "handle_send_block",
+                    "handle_subscribed_block",
                     e.clone().name(),
                 ])
                 .inc();
@@ -158,7 +158,7 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
         let verified_block = VerifiedBlock::new(verified_block_header, verified_transactions);
 
         let block_ref = verified_block.reference();
-        debug!("Received block {} via send block.", block_ref);
+        debug!("Received block {} via subscribed block.", block_ref);
 
         // Reject block with timestamp too far in the future.
         let now = self.context.clock.timestamp_utc_ms();
@@ -193,7 +193,7 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
                 .metrics
                 .node_metrics
                 .block_timestamp_drift_wait_ms
-                .with_label_values(&[peer_hostname.as_str(), "handle_send_block"])
+                .with_label_values(&[peer_hostname.as_str(), "handle_subscribed_block"])
                 .inc_by(forward_time_drift.as_millis() as u64);
             debug!(
                 "Block {:?} timestamp ({} > {}) is in the future, waiting for {}ms",
@@ -269,12 +269,239 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
         Ok(())
     }
 
-    async fn handle_subscribed_block_bundles(
+    async fn handle_subscribed_block_bundle(
         &self,
         _peer: AuthorityIndex,
         _serialized_block_bundle: SerializedBlockBundle,
     ) -> ConsensusResult<()> {
-        unimplemented!("Unimplemented")
+        fail_point_async!("consensus-rpc-response");
+
+        let peer_hostname = &self.context.committee.authority(peer).hostname;
+        // 1. Create a verified block and make some preliminary checks
+        let serialized_block_and_headers =
+            SerializedBlockAndHeaders::try_from(serialized_block_bundle)?;
+        let serialized_block_and_transactions =
+            SerializedHeaderAndTransactions::try_from(SerializedBlock {
+                serialized_block: serialized_block_and_headers.serialized_block,
+            })?;
+
+        let signed_block_header: SignedBlockHeader =
+            bcs::from_bytes(&serialized_block_and_transactions.serialized_block_header)
+                .map_err(ConsensusError::MalformedBlockHeader)?;
+
+        // Reject blocks not produced by the peer.
+        if peer != signed_block_header.author() {
+            self.context
+                .metrics
+                .node_metrics
+                .invalid_blocks
+                .with_label_values(&[
+                    peer_hostname.as_str(),
+                    "handle_subscribed_block_bundle",
+                    "UnexpectedAuthority",
+                ])
+                .inc();
+            let e = ConsensusError::UnexpectedAuthority(signed_block_header.author(), peer);
+            info!("Block with wrong authority from {}: {}", peer, e);
+            return Err(e);
+        }
+
+        if let Err(e) = self.block_verifier.verify(&signed_block_header) {
+            self.context
+                .metrics
+                .node_metrics
+                .invalid_blocks
+                .with_label_values(&[
+                    peer_hostname.as_str(),
+                    "handle_subscribed_block_bundle",
+                    e.clone().name(),
+                ])
+                .inc();
+            info!("Invalid block header from {}: {}", peer, e);
+            return Err(e);
+        }
+
+        if signed_block_header.transactions_commitment()
+            != TransactionsCommitment::compute_transactions_commitment(
+                &serialized_block_and_transactions.serialized_transactions,
+            )
+            .expect("we should expect correct computation of the transactions commitment")
+        {
+            return Err(ConsensusError::TransactionCommitmentFailure {
+                round: signed_block_header.round(),
+                author: signed_block_header.author(),
+                peer,
+            });
+        }
+
+        let verified_block_header = VerifiedBlockHeader::new_verified(
+            signed_block_header,
+            serialized_block_and_transactions.serialized_block_header,
+        );
+        let transactions: Vec<Transaction> =
+            bcs::from_bytes(&serialized_block_and_transactions.serialized_transactions)
+                .map_err(ConsensusError::MalformedTransactions)?;
+        let verified_transactions = VerifiedTransactions::new(
+            transactions,
+            verified_block_header.reference(),
+            verified_block_header.transactions_commitment(),
+            serialized_block_and_transactions.serialized_transactions,
+        );
+        let verified_block = VerifiedBlock::new(verified_block_header, verified_transactions);
+
+        let block_ref = verified_block.reference();
+        debug!("Received block {} via send block.", block_ref);
+
+        // 2. Reject block with timestamp too far in the future.
+        let now = self.context.clock.timestamp_utc_ms();
+        let forward_time_drift =
+            Duration::from_millis(verified_block.timestamp_ms().saturating_sub(now));
+        if forward_time_drift > self.context.parameters.max_forward_time_drift {
+            self.context
+                .metrics
+                .node_metrics
+                .rejected_future_blocks
+                .with_label_values(&[peer_hostname])
+                .inc();
+            debug!(
+                "Block {:?} timestamp ({} > {}) is too far in the future, rejected.",
+                block_ref,
+                verified_block.timestamp_ms(),
+                now,
+            );
+            return Err(ConsensusError::BlockRejected {
+                block_ref,
+                reason: format!(
+                    "Block timestamp is too far in the future: {} > {}",
+                    verified_block.timestamp_ms(),
+                    now
+                ),
+            });
+        }
+
+        // 3. Wait until the block's timestamp is current.
+        if forward_time_drift > Duration::ZERO {
+            self.context
+                .metrics
+                .node_metrics
+                .block_timestamp_drift_wait_ms
+                .with_label_values(&[peer_hostname.as_str(), "handle_subscribed_block_bundle"])
+                .inc_by(forward_time_drift.as_millis() as u64);
+            debug!(
+                "Block {:?} timestamp ({} > {}) is in the future, waiting for {}ms",
+                block_ref,
+                verified_block.timestamp_ms(),
+                now,
+                forward_time_drift.as_millis(),
+            );
+            sleep(forward_time_drift).await;
+        }
+
+        // 4. Create block headers from bytes from a bundle
+
+        let mut additional_block_headers = vec![];
+        for serialized_header in serialized_block_and_headers.serialized_headers {
+            let signed_block_header: SignedBlockHeader = bcs::from_bytes(&serialized_header)
+                .map_err(ConsensusError::MalformedBlockHeader)?;
+
+            if let Err(e) = self.block_verifier.verify(&signed_block_header) {
+                self.context
+                    .metrics
+                    .node_metrics
+                    .invalid_blocks
+                    .with_label_values(&[
+                        peer_hostname.as_str(),
+                        "handle_subscribed_block_bundle",
+                        e.clone().name(),
+                    ])
+                    .inc();
+                info!("Invalid additional block header from {}: {}", peer, e);
+                // TODO: should we continue to work with other headers or return error?
+                // return Err(e);
+                continue;
+            }
+
+            let verified_block_header =
+                VerifiedBlockHeader::new_verified(signed_block_header, serialized_header);
+            additional_block_headers.push(verified_block_header);
+        }
+
+        // Observe headers and the block for the commit votes. When local commit is
+        // lagging too much, commit sync loop will trigger fetching.
+        for block_header in additional_block_headers.iter() {
+            self.commit_vote_monitor.observe_block(block_header);
+        }
+        self.commit_vote_monitor.observe_block(&verified_block);
+
+        // Reject blocks when local commit index is lagging too far from quorum commit
+        // index.
+        //
+        // IMPORTANT: this must be done after observing votes from the block, otherwise
+        // observed quorum commit will no longer progress.
+        //
+        // Since the main issue with too many suspended blocks is memory usage not CPU,
+        // it is ok to reject after block verifications instead of before.
+        let last_commit_index = self.dag_state.read().last_commit_index();
+        let quorum_commit_index = self.commit_vote_monitor.quorum_commit_index();
+        // The threshold to ignore block should be larger than commit_sync_batch_size,
+        // to avoid excessive block rejections and synchronizations.
+
+        // TODO::  should we still process headers even if the block is rejected?
+        if last_commit_index
+            + self.context.parameters.commit_sync_batch_size * COMMIT_LAG_MULTIPLIER
+            < quorum_commit_index
+        {
+            self.context
+                .metrics
+                .node_metrics
+                .rejected_blocks
+                .with_label_values(&["commit_lagging"])
+                .inc();
+            debug!(
+                "Block {:?} is rejected because last commit index is lagging quorum commit index too much ({} < {})",
+                block_ref, last_commit_index, quorum_commit_index,
+            );
+            return Err(ConsensusError::BlockRejected {
+                block_ref,
+                reason: format!(
+                    "Last commit index is lagging quorum commit index too much ({} < {})",
+                    last_commit_index, quorum_commit_index,
+                ),
+            });
+        }
+
+        // handle headers
+
+        self.context
+            .metrics
+            .node_metrics
+            .verified_blocks
+            .with_label_values(&[peer_hostname])
+            .inc();
+
+        let mut missing_ancestors = self
+            .core_dispatcher
+            .add_block_headers(additional_block_headers)
+            .await
+            .map_err(|_| ConsensusError::Shutdown)?;
+
+        missing_ancestors.extend(
+            self.core_dispatcher
+                .add_blocks(vec![verified_block])
+                .await
+                .map_err(|_| ConsensusError::Shutdown)?,
+        );
+        if !missing_ancestors.is_empty() {
+            // schedule the fetching of them from this peer
+            if let Err(err) = self
+                .synchronizer
+                .fetch_block_headers(missing_ancestors, peer)
+                .await
+            {
+                warn!("Errored while trying to fetch missing ancestors via synchronizer: {err}");
+            }
+        }
+        Ok(())
     }
 
     async fn handle_subscribe_blocks(
