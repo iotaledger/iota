@@ -110,9 +110,6 @@ impl OptimisticWriteApi {
             .collect::<Result<Vec<_>, FastCryptoError>>()?;
 
         let transaction = Transaction::from_generic_sig_data(tx_data, sigs);
-
-        // TODO: shouldn't return type below be from rust-sdk types?
-        // Is this type correct?
         let response = self
             .fullnode_rest_client
             .execute_transaction(
