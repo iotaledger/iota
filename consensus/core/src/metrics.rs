@@ -972,7 +972,7 @@ impl ValidatorScoreMetrics {
         validator: AuthorityIndex,
         increase: u64,
     ) {
-        let _ = self.missing_block_proposals[validator.value()]
+        let _ = self.missing_block_proposals[get(validator.value())]
             .fetch_add(increase, Ordering::Relaxed);
     }
     pub(crate) fn update_equivocating_rounds(
