@@ -441,7 +441,7 @@ impl IotaNode {
         info!("IOTA chain identifier: {chain_identifier}");
 
         // Check and set the db_corrupted flag
-        let db_corrupted_path = &config.db_path().join("root");
+        let db_corrupted_path = &config.db_path().join("status");
         if let Err(err) = check_and_mark_db_corruption(db_corrupted_path) {
             panic!("Failed to check database corruption: {}", err);
         }
