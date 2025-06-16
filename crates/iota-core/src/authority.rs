@@ -2459,7 +2459,7 @@ impl AuthorityState {
         o: &Object,
         written: &WrittenObjects,
         resolver: &mut dyn LayoutResolver,
-        is_genesis: bool,
+        get_latest_object_version: bool,
     ) -> IotaResult<Option<DynamicFieldInfo>> {
         // Skip if not a move object
         let Some(move_object) = o.data.try_as_move().cloned() else {
@@ -2530,7 +2530,7 @@ impl AuthorityState {
                     )
                 } else {
                     // If not found, try to find it in the database.
-                    let object = if is_genesis {
+                    let object = if get_latest_object_version {
                         // Loading genesis object could meet a condition that the version of the
                         // genesis object is behind the one in the snapshot.
                         // In this case, the object can not be found with get_object_by_key, we need
