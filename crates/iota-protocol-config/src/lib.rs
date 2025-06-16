@@ -19,7 +19,7 @@ use tracing::{info, warn};
 
 /// The minimum and maximum protocol versions supported by this build.
 const MIN_PROTOCOL_VERSION: u64 = 1;
-pub const MAX_PROTOCOL_VERSION: u64 = 9;
+pub const MAX_PROTOCOL_VERSION: u64 = 10;
 
 // Record history of protocol version allocations here:
 //
@@ -59,7 +59,7 @@ pub const MAX_PROTOCOL_VERSION: u64 = 9;
 //            Enable the new consensus commit rule for mainnet.
 //            Increase the committee size to 80.
 //            Enable passkey auth in multisig for devnet.
-//            Enable the gas price feedback mechanism in devnet.
+// Version 10: Enable the gas price feedback mechanism in devnet.
 
 #[derive(Copy, Clone, Debug, Hash, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ProtocolVersion(u64);
@@ -2031,10 +2031,13 @@ impl ProtocolConfig {
 
                     cfg.max_committee_members_count = Some(80);
 
+                    // Enable passkey in multisig in devnet.
                     if chain != Chain::Testnet && chain != Chain::Mainnet {
-                        // Enable passkey in multisig in devnet.
                         cfg.feature_flags.accept_passkey_in_multisig = true;
-
+                    }
+                }
+                10 => {
+                    if chain != Chain::Testnet && chain != Chain::Mainnet {
                         // Enable the gas price feedback mechanism (which is used for
                         // transactions cancelled due to shared object congestion) in devnet
                         cfg.feature_flags

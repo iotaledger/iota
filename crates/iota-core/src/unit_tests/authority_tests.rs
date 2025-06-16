@@ -6433,8 +6433,14 @@ async fn test_consensus_handler_congestion_control_transaction_cancellation() {
         .collect::<HashMap<_, _>>();
     assert_eq!(
         [
-            (shared_objects[0].id(), SequenceNumber::CONGESTED),
-            (shared_objects[1].id(), SequenceNumber::CONGESTED)
+            (
+                shared_objects[0].id(),
+                SequenceNumber::new_congested_with_suggested_gas_price(gas_price_of_cancelled_txs)
+            ),
+            (
+                shared_objects[1].id(),
+                SequenceNumber::new_congested_with_suggested_gas_price(gas_price_of_cancelled_txs)
+            )
         ]
         .into_iter()
         .collect::<HashMap<_, _>>(),
@@ -6465,8 +6471,14 @@ async fn test_consensus_handler_congestion_control_transaction_cancellation() {
     assert_eq!(
         shared_inputs,
         vec![
-            SharedInput::Cancelled((shared_objects[0].id(), SequenceNumber::CONGESTED)),
-            SharedInput::Cancelled((shared_objects[1].id(), SequenceNumber::CONGESTED))
+            SharedInput::Cancelled((
+                shared_objects[0].id(),
+                SequenceNumber::new_congested_with_suggested_gas_price(gas_price_of_cancelled_txs)
+            )),
+            SharedInput::Cancelled((
+                shared_objects[1].id(),
+                SequenceNumber::new_congested_with_suggested_gas_price(gas_price_of_cancelled_txs)
+            ))
         ]
     );
 
@@ -6476,7 +6488,10 @@ async fn test_consensus_handler_congestion_control_transaction_cancellation() {
         cancelled_objects,
         vec![shared_objects[0].id(), shared_objects[1].id()]
     );
-    assert_eq!(cancellation_reason, SequenceNumber::CONGESTED);
+    assert_eq!(
+        cancellation_reason,
+        SequenceNumber::new_congested_with_suggested_gas_price(gas_price_of_cancelled_txs)
+    );
 
     // Consensus commit prologue contains cancelled txn shared object version
     // assignment.
@@ -6487,12 +6502,22 @@ async fn test_consensus_handler_congestion_control_transaction_cancellation() {
             &prologue_txn.consensus_determined_version_assignments,
             ConsensusDeterminedVersionAssignments::CancelledTransactions(assignment)
             if assignment == &vec![(
-                                *cancelled_txn.digest(),
-                                vec![
-                                    (shared_objects[0].id(), SequenceNumber::CONGESTED),
-                                    (shared_objects[1].id(), SequenceNumber::CONGESTED)
-                                ]
-                            )]
+                *cancelled_txn.digest(),
+                vec![
+                    (
+                        shared_objects[0].id(),
+                        SequenceNumber::new_congested_with_suggested_gas_price(
+                            gas_price_of_cancelled_txs
+                        ),
+                    ),
+                    (
+                        shared_objects[1].id(),
+                        SequenceNumber::new_congested_with_suggested_gas_price(
+                            gas_price_of_cancelled_txs
+                        ),
+                    )
+                ]
+            )]
         ));
     } else {
         panic!("First scheduled transaction must be a ConsensusCommitPrologueV1 transaction.");

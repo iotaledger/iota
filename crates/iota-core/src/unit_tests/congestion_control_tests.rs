@@ -338,13 +338,15 @@ async fn test_congestion_control_execution_cancellation() {
     )
     .await;
 
-    // Transaction should be cancelled with `shared_object_1` as the congested
-    // object, and the suggested gas price should be TEST_ONLY_GAS_PRICE
+    // Transaction should be cancelled with `shared_object_1` and `shared_object_2`
+    // as the congested objects, and the suggested gas price should be
+    // `TEST_ONLY_GAS_PRICE`.
     assert_eq!(
         effects.status(),
         &ExecutionStatus::Failure {
-            error: ExecutionFailureStatus::ExecutionCancelledDueToSharedObjectCongestion {
+            error: ExecutionFailureStatus::ExecutionCancelledDueToSharedObjectCongestionV2 {
                 congested_objects: CongestedObjects(vec![shared_object_1.0, shared_object_2.0]),
+                suggested_gas_price: TEST_ONLY_GAS_PRICE,
             },
             command: None
         }
@@ -354,8 +356,14 @@ async fn test_congestion_control_execution_cancellation() {
     assert_eq!(
         effects.input_shared_objects(),
         vec![
-            InputSharedObject::Cancelled(shared_object_1.0, SequenceNumber::CONGESTED),
-            InputSharedObject::Cancelled(shared_object_2.0, SequenceNumber::CONGESTED)
+            InputSharedObject::Cancelled(
+                shared_object_1.0,
+                SequenceNumber::new_congested_with_suggested_gas_price(TEST_ONLY_GAS_PRICE)
+            ),
+            InputSharedObject::Cancelled(
+                shared_object_2.0,
+                SequenceNumber::new_congested_with_suggested_gas_price(TEST_ONLY_GAS_PRICE)
+            )
         ]
     );
 
@@ -378,8 +386,9 @@ async fn test_congestion_control_execution_cancellation() {
     // Should result in the same cancellation.
     assert_eq!(
         execution_error.unwrap().to_execution_status().0,
-        ExecutionFailureStatus::ExecutionCancelledDueToSharedObjectCongestion {
+        ExecutionFailureStatus::ExecutionCancelledDueToSharedObjectCongestionV2 {
             congested_objects: CongestedObjects(vec![shared_object_1.0, shared_object_2.0]),
+            suggested_gas_price: TEST_ONLY_GAS_PRICE,
         }
     );
     assert_eq!(&effects, effects_2.data())
