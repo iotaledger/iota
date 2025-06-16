@@ -11,7 +11,7 @@ use std::{
 
 use async_trait::async_trait;
 use diesel::{
-    ExpressionMethods, OptionalExtension, QueryDsl, RunQueryDsl,
+    ExpressionMethods, OptionalExtension, QueryDsl, RunQueryDsl, SelectableHelper,
     dsl::{max, min},
     upsert::excluded,
 };
@@ -48,7 +48,8 @@ use crate::{
         transactions::{OptimisticTransaction, StoredTransaction, TxGlobalOrder},
         tx_indices::OptimisticTxIndices,
     },
-    on_conflict_do_update, persist_chunk_into_table, read_only_blocking,
+    on_conflict_do_update, on_conflict_do_update_with_condition, persist_chunk_into_table,
+    read_only_blocking, run_query_async,
     schema::{
         chain_identifier, checkpoints, display, epochs, event_emit_module, event_emit_package,
         event_senders, event_struct_instantiation, event_struct_module, event_struct_name,
@@ -64,7 +65,7 @@ use crate::{
         tx_changed_objects, tx_digests, tx_global_order, tx_input_objects, tx_kinds, tx_recipients,
         tx_senders,
     },
-    transactional_blocking_with_retry,
+    spawn_read_only_blocking, transactional_blocking_with_retry,
     types::{
         EventIndex, IndexedCheckpoint, IndexedDeletedObject, IndexedEvent, IndexedObject,
         IndexedPackage, IndexedTransaction, TxIndex,
@@ -304,7 +305,7 @@ impl PgIndexerStore {
         transactional_blocking_with_retry!(
             &self.blocking_cp,
             |conn| {
-                on_conflict_do_update!(
+                on_conflict_do_update_with_condition!(
                     display::table,
                     display_updates.values().collect::<Vec<_>>(),
                     display::object_type,
@@ -313,6 +314,7 @@ impl PgIndexerStore {
                         display::version.eq(excluded(display::version)),
                         display::bcs.eq(excluded(display::bcs)),
                     ),
+                    excluded(display::version).gt(display::version),
                     conn
                 );
                 Ok::<(), IndexerError>(())
@@ -1855,6 +1857,26 @@ impl IndexerStore for PgIndexerStore {
 
         info!("Persisted optimistic transaction {sequence_number}");
         Ok(())
+    }
+
+    async fn get_transactions_with_global_order(
+        &self,
+        digests: &[Vec<u8>],
+    ) -> Result<Vec<Vec<u8>>, IndexerError> {
+        let digests = digests.to_vec();
+
+        let pool = self.blocking_cp.clone();
+        let indexing_status = run_query_async!(&pool, move |conn| {
+            tx_global_order::table
+                .select(TxGlobalOrder::as_select())
+                .filter(tx_global_order::tx_digest.eq_any(&digests))
+                .load::<TxGlobalOrder>(conn)
+        })
+        .context("Failed reading tx indexing status from PostgresDB")?
+        .into_iter()
+        .map(|tgo| tgo.tx_digest)
+        .collect();
+        Ok(indexing_status)
     }
 
     async fn persist_tx_global_order(

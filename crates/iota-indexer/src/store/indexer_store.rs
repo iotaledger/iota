@@ -133,4 +133,9 @@ pub trait IndexerStore: Any + Clone + Sync + Send + 'static {
     async fn refresh_participation_metrics(&self) -> Result<(), IndexerError>;
 
     fn as_any(&self) -> &dyn Any;
+
+    async fn get_transactions_with_global_order(
+        &self,
+        digests: &[Vec<u8>],
+    ) -> Result<Vec<Vec<u8>>, IndexerError>;
 }

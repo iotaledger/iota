@@ -2,17 +2,22 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::collections::{BTreeMap, HashMap};
+use std::collections::{BTreeMap, HashMap, HashSet};
 
-use iota_types::messages_checkpoint::CheckpointSequenceNumber;
+use iota_types::{
+    base_types::{ObjectID, SequenceNumber},
+    messages_checkpoint::CheckpointSequenceNumber,
+};
 use tap::tap::TapFallible;
 use tokio_util::sync::CancellationToken;
 use tracing::{error, info, instrument};
 
-use super::{CheckpointDataToCommit, EpochToCommit};
+use super::{CheckpointDataToCommit, EpochToCommit, TransactionObjectChangesToCommit};
 use crate::{
-    metrics::IndexerMetrics, models::transactions::TxGlobalOrder, store::IndexerStore,
-    types::IndexerResult,
+    metrics::IndexerMetrics,
+    models::transactions::TxGlobalOrder,
+    store::IndexerStore,
+    types::{IndexedTransaction, IndexerResult},
 };
 
 pub(crate) const CHECKPOINT_COMMIT_BATCH_SIZE: usize = 100;
@@ -128,6 +133,10 @@ async fn commit_checkpoints<S>(
         .iter()
         .map(Into::into)
         .collect::<Vec<TxGlobalOrder>>();
+    let tx_digests = tx_batch
+        .iter()
+        .map(|t| t.tx_digest.into_inner().to_vec())
+        .collect::<Vec<_>>();
     let tx_indices_batch = tx_indices_batch.into_iter().flatten().collect::<Vec<_>>();
     let events_batch = events_batch.into_iter().flatten().collect::<Vec<_>>();
     let event_indices_batch = event_indices_batch
@@ -141,6 +150,17 @@ async fn commit_checkpoints<S>(
     let packages_batch = packages_batch.into_iter().flatten().collect::<Vec<_>>();
     let checkpoint_num = checkpoint_batch.len();
     let tx_count = tx_batch.len();
+
+    let transactions_with_global_order = state
+        .get_transactions_with_global_order(&tx_digests)
+        .await
+        .expect("Getting transactions with global order should not fail");
+
+    let object_changes_batch = cut_out_already_indexed_object_changes(
+        &transactions_with_global_order,
+        &tx_batch,
+        object_changes_batch,
+    );
 
     {
         let _step_1_guard = metrics.checkpoint_db_commit_latency_step_1.start_timer();
@@ -242,4 +262,47 @@ async fn commit_checkpoints<S>(
     metrics
         .thousand_transaction_avg_db_commit_latency
         .observe(elapsed * 1000.0 / tx_count as f64);
+}
+
+fn cut_out_already_indexed_object_changes(
+    already_indexed_txs: &[Vec<u8>],
+    transactions_to_commit: &[IndexedTransaction],
+    object_changes_to_commit: Vec<TransactionObjectChangesToCommit>,
+) -> Vec<TransactionObjectChangesToCommit> {
+    let already_indexed_txs: HashSet<Vec<u8>> = already_indexed_txs.iter().cloned().collect();
+
+    let already_processed_obj_versions: HashSet<(ObjectID, SequenceNumber)> =
+        transactions_to_commit
+            .iter()
+            .filter(|tx| already_indexed_txs.contains(tx.tx_digest.inner().as_slice()))
+            .flat_map(|tx| {
+                let modified_objs = tx.effects.all_changed_objects();
+                let deleted_objs = tx.effects.all_tombstones();
+                modified_objs
+                    .into_iter()
+                    .map(|o| (o.0.0, o.0.1))
+                    .chain(deleted_objs)
+            })
+            .collect();
+
+    object_changes_to_commit
+        .into_iter()
+        .map(|ocb| TransactionObjectChangesToCommit {
+            changed_objects: ocb
+                .changed_objects
+                .into_iter()
+                .filter(|o| {
+                    !already_processed_obj_versions.contains(&(o.object.id(), o.object.version()))
+                })
+                .collect(),
+            deleted_objects: ocb
+                .deleted_objects
+                .into_iter()
+                .filter(|o| {
+                    !already_processed_obj_versions
+                        .contains(&(o.object_id, SequenceNumber::from_u64(o.object_version)))
+                })
+                .collect(),
+        })
+        .collect()
 }
