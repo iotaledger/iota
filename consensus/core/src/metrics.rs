@@ -443,7 +443,7 @@ impl NodeMetrics {
                 registry,
             ).unwrap(),
             semantically_invalid_blocks: register_int_counter_vec_with_registry!(
-                "invalid_blocks",
+                "semantically_invalid_blocks",
                 "Number of semantically invalid blocks per peer authority",
                 &["authority", "source", "error"],
                 registry,
