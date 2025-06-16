@@ -672,6 +672,7 @@ fn update_known_peers(
         }
 
         // If Peer is Private, and not in our allowlist, skip it.
+        // There should be no Private Peers. Keep this just in case.
         if peer_info.access_type == AccessType::Private
             && !allowlisted_peers.contains_key(&peer_info.peer_id)
         {
