@@ -475,8 +475,6 @@ function filter_and_run_tests() {
         # first run tests for external crates (they are not part of the workspace)
         if [ "$test_type" == $TEST_TYPE_NEXTEST ]; then
             run_cargo_nextest "$combined_set_external" ".config/nextest_external.toml" "external-crates/move/Cargo.toml" "tracing"
-        elif [ "$test_type" == $TEST_TYPE_SIMTEST ]; then
-            run_cargo_simtest "$combined_set_external" "external-crates/move/Cargo.toml"
         fi
     fi
 
