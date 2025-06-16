@@ -133,19 +133,24 @@ impl OptimisticWriteApi {
         } = response;
         let tx_digest = *effects.transaction_digest();
 
-        if let (Some(input_objects), Some(output_objects)) = (input_objects, output_objects) {
-            let full_tx_data = CheckpointTransaction {
-                transaction,
-                effects,
-                events,
-                input_objects,
-                output_objects,
-            };
-            self.index_transaction(&full_tx_data).await?;
-        } else {
-            tracing::warn!(
-                "Cannot optimistically index because of missing in/out objs for tx: {tx_digest}"
-            );
+        match (input_objects, output_objects) {
+            (Some(input_objects), Some(output_objects))
+                if !input_objects.is_empty() && !output_objects.is_empty() =>
+            {
+                let full_tx_data = CheckpointTransaction {
+                    transaction,
+                    effects,
+                    events,
+                    input_objects,
+                    output_objects,
+                };
+                self.index_transaction(&full_tx_data).await?;
+            }
+            _ => {
+                tracing::warn!(
+                    "Cannot optimistically index because of missing in/out objs for tx: {tx_digest}"
+                );
+            }
         }
 
         let tx_block_response = self
