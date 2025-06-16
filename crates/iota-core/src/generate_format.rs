@@ -200,6 +200,8 @@ fn get_registry() -> Result<Registry> {
     };
     tracer.trace_value(&mut samples, &si).unwrap();
 
+    // Temporary fix until https://github.com/iotaledger/iota/issues/7384
+    // is resolved.
     let event = iota_types::event::Event::random_for_testing();
     tracer.trace_value(&mut samples, &event).unwrap();
 
