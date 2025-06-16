@@ -572,6 +572,7 @@ fn select_gas(
                 .ok()
                 .map(|coin| (object.compute_object_reference(), coin.value()))
         })
+        .sorted_by(|object1, object2| object2.1.cmp(&object1.1))
         .take(max_gas_payment_objects as usize);
 
     let mut selected_gas = vec![];
