@@ -62,7 +62,7 @@ export function VirtualList<T>({
 
         resizeObserver.observe(el);
         return () => resizeObserver.disconnect();
-    }, [virtualizer]);
+    }, []);
 
     const virtualItems = virtualizer.getVirtualItems();
 
