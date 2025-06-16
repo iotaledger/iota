@@ -101,6 +101,7 @@ pub(crate) enum MoveTypeLayout {
     Vector(Box<MoveTypeLayout>),
     Struct(MoveStructLayout),
     Enum(MoveEnumLayout),
+    InvalidType,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -143,33 +144,33 @@ impl MoveType {
     }
 
     /// Structured representation of the "shape" of values that match this type.
-    /// May return no layout if the type is invalid.
-    async fn layout(&self, ctx: &Context<'_>) -> Result<Option<MoveTypeLayout>> {
+    /// May return MoveTypeLayout::InvalidType for malformed types.
+    async fn layout(&self, ctx: &Context<'_>) -> Result<MoveTypeLayout> {
         let resolver: &PackageResolver = ctx
             .data()
             .map_err(|_| Error::Internal("Unable to fetch Package Cache.".to_string()))
             .extend()?;
 
         let Some(layout) = self.layout_impl(resolver).await.extend()? else {
-            return Ok(None);
+            return Ok(MoveTypeLayout::InvalidType);
         };
 
-        Ok(Some(MoveTypeLayout::try_from(layout).extend()?))
+        MoveTypeLayout::try_from(layout).extend()
     }
 
     /// The abilities this concrete type has. Returns no abilities if the type
     /// is invalid.
-    async fn abilities(&self, ctx: &Context<'_>) -> Result<Option<Vec<MoveAbility>>> {
+    async fn abilities(&self, ctx: &Context<'_>) -> Result<Vec<MoveAbility>> {
         let resolver: &PackageResolver = ctx
             .data()
             .map_err(|_| Error::Internal("Unable to fetch Package Cache.".to_string()))
             .extend()?;
 
         let Some(abilities) = self.abilities_impl(resolver).await.extend()? else {
-            return Ok(None);
+            return Ok(vec![]);
         };
 
-        Ok(Some(abilities.into_iter().map(MoveAbility::from).collect()))
+        Ok(abilities.into_iter().map(MoveAbility::from).collect())
     }
 }
 
