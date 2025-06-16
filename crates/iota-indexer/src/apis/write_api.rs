@@ -5,9 +5,7 @@
 use std::{collections::BTreeMap, time::Duration};
 
 use async_trait::async_trait;
-use diesel::{
-    ExpressionMethods, QueryDsl, RunQueryDsl, SelectableHelper, pg::sql_types, sql_query,
-};
+use diesel::{RunQueryDsl, pg::sql_types, sql_query};
 use downcast::Any;
 use fastcrypto::{encoding::Base64, error::FastCryptoError, traits::ToFromBytes};
 use iota_json_rpc::IotaRpcModule;
@@ -45,9 +43,6 @@ use crate::{
         transactions::{StoredTransaction, TxGlobalOrder},
         tx_indices::OptimisticTxIndices,
     },
-    run_query_async,
-    schema::tx_global_order,
-    spawn_read_only_blocking,
     store::{IndexerStore, PgIndexerStore},
     transactional_blocking_with_retry,
     types::{
@@ -195,8 +190,14 @@ impl WriteApi {
         full_tx_data: &CheckpointTransaction,
     ) -> Result<(), IndexerError> {
         let assigned_global_order = self
-            .get_or_assign_optimistic_tx_global_order(full_tx_data.transaction.digest())
+            .assign_optimistic_tx_global_order(full_tx_data.transaction.digest())
             .await?;
+
+        let Some(assigned_global_order) = assigned_global_order else {
+            // Global order was assigned earlier by other indexing process, we avoid double
+            // or concurrent indexing and return
+            return Ok(());
+        };
 
         let tx_data_to_commit = self
             .full_optimistic_tx_data_to_indexed_data(full_tx_data, &assigned_global_order)
@@ -205,15 +206,15 @@ impl WriteApi {
         self.persist_optimistic_tx(tx_data_to_commit).await
     }
 
-    async fn get_or_assign_optimistic_tx_global_order(
+    async fn assign_optimistic_tx_global_order(
         &self,
         tx_digest: &TransactionDigest,
-    ) -> Result<TxGlobalOrder, IndexerError> {
+    ) -> Result<Option<TxGlobalOrder>, IndexerError> {
         let tx_digest_bytes = tx_digest.inner().to_vec();
 
         let pool = self.inner.get_pool();
 
-        transactional_blocking_with_retry!(
+        let mut results: Vec<TxGlobalOrder> = transactional_blocking_with_retry!(
             &pool,
             |conn| {
                 sql_query(
@@ -221,20 +222,16 @@ impl WriteApi {
                         INSERT INTO tx_global_order (tx_digest, global_sequence_number)
                         SELECT $1, MAX(tx_sequence_number) FROM tx_digests
                         ON CONFLICT (tx_digest) DO NOTHING
+                        RETURNING *;
                     "#,
                 )
                 .bind::<sql_types::Bytea, _>(&tx_digest_bytes)
-                .execute(conn)
+                .load::<TxGlobalOrder>(conn)
             },
             Duration::from_secs(30)
         )?;
 
-        run_query_async!(&pool, |conn| {
-            tx_global_order::table
-                .select(TxGlobalOrder::as_select())
-                .filter(tx_global_order::tx_digest.eq(tx_digest_bytes))
-                .first::<TxGlobalOrder>(conn)
-        })
+        Ok(results.pop())
     }
 
     async fn full_optimistic_tx_data_to_indexed_data(
