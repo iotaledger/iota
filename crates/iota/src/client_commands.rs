@@ -582,11 +582,12 @@ pub struct Opts {
     /// --signed-tx-bytes <SIGNED_TX_BYTES>`.
     #[arg(long, required = false)]
     pub serialize_signed_transaction: bool,
-    /// Set the transaction sender to this address. When not specified, the sender is inferred
-    /// by finding the owner of the gas payment. Note that when setting this field, the
-    /// transaction will fail to execute if the sender's private key is not in the keystore;
-    /// similarly, it will fail when using this with `--serialize-signed-transaction` flag if the
-    /// private key corresponding to this address is not in keystore.
+    /// Set the transaction sender to this address. When not specified, the
+    /// sender is inferred by finding the owner of the gas payment. Note
+    /// that when setting this field, the transaction will fail to execute
+    /// if the sender's private key is not in the keystore; similarly, it
+    /// will fail when using this with `--serialize-signed-transaction` flag if
+    /// the private key corresponding to this address is not in keystore.
     #[arg(long, required = false, value_parser)]
     pub sender: Option<IotaAddress>,
     /// Select which fields of the response to display.

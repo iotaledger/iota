@@ -29,6 +29,7 @@ expression: parsed
             summary_set: false,
             serialize_unsigned_set: false,
             serialize_signed_set: false,
+            sender_set: false,
             gas_object_id: None,
             json_set: false,
             dry_run_set: false,
@@ -42,6 +43,7 @@ expression: parsed
                     value: 1,
                 },
             ),
+            sender: None,
         },
     ),
     (
@@ -70,6 +72,7 @@ expression: parsed
             summary_set: false,
             serialize_unsigned_set: false,
             serialize_signed_set: false,
+            sender_set: false,
             gas_object_id: None,
             json_set: false,
             dry_run_set: false,
@@ -83,6 +86,7 @@ expression: parsed
                     value: 1,
                 },
             ),
+            sender: None,
         },
     ),
 ]

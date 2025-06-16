@@ -67,7 +67,7 @@ use iota_types::{
     transaction::{
         TEST_ONLY_GAS_UNIT_FOR_GENERIC, TEST_ONLY_GAS_UNIT_FOR_OBJECT_BASICS,
         TEST_ONLY_GAS_UNIT_FOR_PUBLISH, TEST_ONLY_GAS_UNIT_FOR_SPLIT_COIN,
-        TEST_ONLY_GAS_UNIT_FOR_TRANSFER,
+        TEST_ONLY_GAS_UNIT_FOR_TRANSFER, TransactionDataAPI,
     },
 };
 use move_package::{BuildConfig as MoveBuildConfig, lock_file::schema::ManagedPackage};
@@ -4854,13 +4854,20 @@ async fn test_new_env() -> Result<(), anyhow::Error> {
 
 #[sim_test]
 async fn test_ptb_sender() -> Result<(), anyhow::Error> {
-    use iota_types::base_types::IotaAddress;
-    use iota::key_identity::KeyIdentity;
-    use iota::client_commands::{IotaClientCommands, OptsWithGas};
-    use iota::client_ptb::ptb::PTB;
     use std::collections::HashSet;
-    // Hardcoded multisig address (generated with `iota keytool multi-sig-address --pks ADtqJ7zOtqQtYqOo0CpvDXNlMhV3HeJDpjrASKGLWdop --weights 1 --threshold 1`)
-    let multisig_address = IotaAddress::from_str("0xdbcd4c41bd078067c1fed6382ce014771529f37087d02a48f927d678f96064fa").unwrap();
+
+    use iota::{
+        client_commands::{IotaClientCommands, OptsWithGas},
+        client_ptb::ptb::PTB,
+        key_identity::KeyIdentity,
+    };
+    use iota_types::base_types::IotaAddress;
+    // Hardcoded multisig address (generated with `iota keytool multi-sig-address
+    // --pks ADtqJ7zOtqQtYqOo0CpvDXNlMhV3HeJDpjrASKGLWdop --weights 1 --threshold
+    // 1` where the pubKey is for the privKey with all zeros)
+    let multisig_address =
+        IotaAddress::from_str("0xdbcd4c41bd078067c1fed6382ce014771529f37087d02a48f927d678f96064fa")
+            .unwrap();
     let mut test_cluster = TestClusterBuilder::new()
         .with_num_validators(2)
         .build()
@@ -4871,17 +4878,7 @@ async fn test_ptb_sender() -> Result<(), anyhow::Error> {
     let client = context.get_client().await?;
     let object_refs = client
         .read_api()
-        .get_owned_objects(
-            address,
-            Some(IotaObjectResponseQuery::new_with_options(
-                IotaObjectDataOptions::new()
-                    .with_type()
-                    .with_owner()
-                    .with_previous_transaction(),
-            )),
-            None,
-            None,
-        )
+        .get_owned_objects(address, None, None, None)
         .await?
         .data;
     let gas_obj_id = object_refs.first().unwrap().object().unwrap().object_id;
@@ -4894,26 +4891,30 @@ async fn test_ptb_sender() -> Result<(), anyhow::Error> {
     }
     .execute(context)
     .await?;
-    // Now do a PTB with --custom-signer
+    // Now do a PTB with --sender
     let ptb_string = format!(
         r#"
         --split-coins gas [1]
         --assign s
-        --transfer-objects [s.0] @{}
-        --custom-signer {}
+        --transfer-objects [s.0] @{multisig_address}
+        --sender @{multisig_address}
         --gas-budget 10000000
-        "#,
-        multisig_address,
-        multisig_address,
+        --serialize-unsigned-transaction
+        "#
     );
-    println!("AVH");
-    println!("{}", ptb_string);
     let args = shlex::split(&ptb_string).unwrap();
     let ptb = PTB {
         args,
         display: HashSet::new(),
     };
-    // This should not error (we just check it runs)
-    let _ = ptb.execute(context).await?;
+    let ptb_res = ptb.execute(context).await?;
+    let PTBCommandResult::CommandResult(IotaClientCommandResult::SerializedUnsignedTransaction(
+        tx_data,
+    )) = ptb_res
+    else {
+        unreachable!("Invalid result");
+    };
+    assert_eq!(tx_data.sender(), multisig_address);
+
     Ok(())
 }

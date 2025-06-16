@@ -6,7 +6,9 @@ use std::fmt;
 
 use iota_types::{
     Identifier, TypeTag,
-    base_types::{ObjectID, RESOLVED_ASCII_STR, RESOLVED_STD_OPTION, RESOLVED_UTF8_STR, IotaAddress},
+    base_types::{
+        IotaAddress, ObjectID, RESOLVED_ASCII_STR, RESOLVED_STD_OPTION, RESOLVED_UTF8_STR,
+    },
     id::RESOLVED_IOTA_ID,
 };
 use move_core_types::{
