@@ -32,6 +32,216 @@ const iotaEvm = [
     },
     {
         type: 'category',
+        label: 'Explanations',
+        items: [
+            {
+                type: 'doc',
+                label: 'Anatomy of a Smart Contract',
+                id: 'iota-evm/explanations/smart-contract-anatomy',
+            },
+            {
+                type: 'doc',
+                label: 'Sandbox Interface',
+                id: 'iota-evm/explanations/sandbox',
+            },
+            {
+                type: 'doc',
+                label: 'Calling a Smart Contract',
+                id: 'iota-evm/explanations/invocation',
+            },
+            {
+                type: 'doc',
+                label: 'State, Transitions and State Anchoring',
+                id: 'iota-evm/explanations/states',
+            },
+            {
+                type: 'doc',
+                label: 'State manager',
+                id: 'iota-evm/explanations/state_manager',
+            },
+            {
+                type: 'doc',
+                label: 'Validators and Access Nodes',
+                id: 'iota-evm/explanations/validators',
+            },
+            {
+                type: 'doc',
+                label: 'Consensus',
+                id: 'iota-evm/explanations/consensus',
+            },
+            {
+                type: 'doc',
+                label: 'How Accounts Work',
+                id: 'iota-evm/explanations/how-accounts-work',
+            },
+            {
+                type: 'doc',
+                label: 'Move Packages',
+                id: 'iota-evm/explanations/move-anchor',
+            },
+            {
+                type: 'link',
+                label: 'Core Contracts',
+                href: '/iota-evm/references/core-contracts/overview',
+            },
+        ],
+    },
+    {
+        type: 'category',
+        label: 'How To',
+        items: [
+            'iota-evm/how-tos/introduction',
+            {
+                type: 'doc',
+                label: 'Send Funds from L1 to L2',
+                id: 'iota-evm/how-tos/send-funds-from-L1-to-L2',
+            },
+            {
+                type: 'doc',
+                label: 'Create a Basic Contract',
+                id: 'iota-evm/how-tos/create-a-basic-contract',
+            },
+            {
+                type: 'doc',
+                label: 'Deploy a Smart Contract',
+                id: 'iota-evm/how-tos/deploy-a-smart-contract',
+            },
+            {
+                type: 'doc',
+                label: 'Create Custom Tokens - ERC20',
+                id: 'iota-evm/how-tos/ERC20',
+            },
+            {
+                type: 'doc',
+                label: 'Create NFTs - ERC721',
+                id: 'iota-evm/how-tos/ERC721',
+            },
+            {
+                type: 'doc',
+                label: 'Test Smart Contracts',
+                id: 'iota-evm/how-tos/test-smart-contracts',
+            },
+            {
+                type: 'category',
+                label: 'Interact with the Core Contracts',
+                items: [
+                    {
+                        type: 'doc',
+                        label: 'Introduction',
+                        id: 'iota-evm/how-tos/core-contracts/introduction',
+                    },
+                    {
+                        type: 'category',
+                        label: 'Basics',
+                        items: [
+                            {
+                                type: 'doc',
+                                label: 'Get Native Assets Balance',
+                                id: 'iota-evm/how-tos/core-contracts/basics/get-balance',
+                            },
+                            {
+                                type: 'category',
+                                label: 'Allowance',
+                                items: [
+                                    {
+                                        type: 'doc',
+                                        label: 'Allow',
+                                        id: 'iota-evm/how-tos/core-contracts/basics/allowance/allow',
+                                    },
+                                    {
+                                        type: 'doc',
+                                        label: 'Get Allowance',
+                                        id: 'iota-evm/how-tos/core-contracts/basics/allowance/get-allowance',
+                                    },
+                                    {
+                                        type: 'doc',
+                                        label: 'Take Allowance',
+                                        id: 'iota-evm/how-tos/core-contracts/basics/allowance/take-allowance',
+                                    },
+                                ],
+                            },
+                            {
+                                type: 'doc',
+                                label: 'Send Assets to L1',
+                                id: 'iota-evm/how-tos/core-contracts/basics/send-assets-to-l1',
+                            },
+                        ],
+                    },
+                    {
+                        type: 'category',
+                        label: 'Objects',
+                        items: [
+                            {
+                                label: 'Introduction',
+                                type: 'doc',
+                                id: 'iota-evm/how-tos/core-contracts/objects/introduction',
+                            },
+                            {
+                                type: 'doc',
+                                label: 'Get Objects Owned by an Account',
+                                id: 'iota-evm/how-tos/core-contracts/objects/get-L2-objects',
+                            },
+                        ],
+                    },
+                    {
+                        type: 'doc',
+                        label: 'Get Randomness on L2',
+                        id: 'iota-evm/how-tos/core-contracts/get-randomness-on-l2',
+                    },
+                    {
+                        type: 'doc',
+                        label: 'Call and Call View',
+                        id: 'iota-evm/how-tos/core-contracts/call-view',
+                    },
+                ],
+            },
+        ],
+    },
+    {
+        type: 'category',
+        label: 'Tutorials',
+        items: [
+            {
+                type: 'category',
+                label: 'Cross-chain NFT Marketplace',
+                items: [
+                    {
+                        type: 'doc',
+                        label: 'Part I',
+                        id: 'iota-evm/tutorials/cross-chain-nft-marketplace-part-1',
+                    },
+                    {
+                        type: 'doc',
+                        label: 'Part II',
+                        id: 'iota-evm/tutorials/cross-chain-nft-marketplace-part-2',
+                    },
+                ],
+            },
+            {
+                type: 'category',
+                label: 'Defi Lend Borrow',
+                items: [
+                    {
+                        type: 'doc',
+                        label: 'Part I',
+                        id: 'iota-evm/tutorials/defi-lend-borrow-tutorial-part-1',
+                    },
+                    {
+                        type: 'doc',
+                        label: 'Part II',
+                        id: 'iota-evm/tutorials/defi-lend-borrow-tutorial-part-2',
+                    },
+                ],
+            },
+            {
+                type: 'doc',
+                label: 'Yield Farming',
+                id: 'iota-evm/tutorials/defi-yield-farming',
+            },
+        ],
+    },
+    {
+        type: 'category',
         label: 'Tools',
         items: [
             {
@@ -103,288 +313,6 @@ const iotaEvm = [
                 type: 'doc',
                 id: 'iota-evm/tools/multicall',
             }
-        ],
-    },
-    {
-        type: 'category',
-        label: 'How To',
-        items: [
-            'iota-evm/how-tos/introduction',
-            {
-                type: 'doc',
-                label: 'Send Funds from L1 to L2',
-                id: 'iota-evm/how-tos/send-funds-from-L1-to-L2',
-            },
-            {
-                type: 'doc',
-                label: 'Create a Basic Contract',
-                id: 'iota-evm/how-tos/create-a-basic-contract',
-            },
-            {
-                type: 'doc',
-                label: 'Deploy a Smart Contract',
-                id: 'iota-evm/how-tos/deploy-a-smart-contract',
-            },
-            {
-                type: 'doc',
-                label: 'Create Custom Tokens - ERC20',
-                id: 'iota-evm/how-tos/ERC20',
-            },
-            {
-                type: 'doc',
-                label: 'Send ERC20 Tokens Across Chains',
-                id: 'iota-evm/how-tos/send-ERC20-across-chains',
-            },
-            {
-                type: 'doc',
-                label: 'Create NFTs - ERC721',
-                id: 'iota-evm/how-tos/ERC721',
-            },
-            {
-                type: 'doc',
-                label: 'Send NFTs Across Chains',
-                id: 'iota-evm/how-tos/send-NFTs-across-chains',
-            },
-            {
-                type: 'doc',
-                label: 'Test Smart Contracts',
-                id: 'iota-evm/how-tos/test-smart-contracts',
-            },
-            /* Readd once available
-            {
-                type: 'category',
-                label: 'Interact with the Core Contracts',
-                items: [
-                    {
-                        type: 'doc',
-                        label: 'Introduction',
-                        id: 'iota-evm/how-tos/core-contracts/introduction',
-                    },
-                    {
-                        type: 'category',
-                        label: 'Basics',
-                        items: [
-                            {
-                                type: 'doc',
-                                label: 'Get Native Assets Balance',
-                                id: 'iota-evm/how-tos/core-contracts/basics/get-balance',
-                            },
-                            {
-                                type: 'category',
-                                label: 'Allowance',
-                                items: [
-                                    {
-                                        type: 'doc',
-                                        label: 'Allow',
-                                        id: 'iota-evm/how-tos/core-contracts/basics/allowance/allow',
-                                    },
-                                    {
-                                        type: 'doc',
-                                        label: 'Get Allowance',
-                                        id: 'iota-evm/how-tos/core-contracts/basics/allowance/get-allowance',
-                                    },
-                                    {
-                                        type: 'doc',
-                                        label: 'Take Allowance',
-                                        id: 'iota-evm/how-tos/core-contracts/basics/allowance/take-allowance',
-                                    },
-                                ],
-                            },
-                            {
-                                type: 'doc',
-                                label: 'Send Assets to L1',
-                                id: 'iota-evm/how-tos/core-contracts/basics/send-assets-to-l1',
-                            },
-                        ],
-                    },
-                    {
-                        type: 'category',
-                        label: 'Token',
-                        items: [
-                            {
-                                label: 'Introduction',
-                                type: 'doc',
-                                id: 'iota-evm/how-tos/core-contracts/token/introduction',
-                            },
-                            {
-                                type: 'doc',
-                                label: 'Create a Native Token',
-                                id: 'iota-evm/how-tos/core-contracts/token/create-native-token',
-                            },
-                            {
-                                type: 'doc',
-                                label: 'Mint Native Tokens',
-                                id: 'iota-evm/how-tos/core-contracts/token/mint-token',
-                            },
-                            {
-                                type: 'doc',
-                                label: 'Custom ERC20 Functions',
-                                id: 'iota-evm/how-tos/core-contracts/token/erc20-native-token',
-                            },
-                            {
-                                type: 'doc',
-                                label: 'Create a Foundry',
-                                id: 'iota-evm/how-tos/core-contracts/token/create-foundry',
-                            },
-                            {
-                                type: 'doc',
-                                label: 'Register Token as ERC20',
-                                id: 'iota-evm/how-tos/core-contracts/token/register-token',
-                            },
-                            {
-                                type: 'doc',
-                                label: 'Send Token Across Chains',
-                                id: 'iota-evm/how-tos/core-contracts/token/send-token-across-chains',
-                            },
-                        ],
-                    },
-                    {
-                        type: 'category',
-                        label: 'NFT',
-                        items: [
-                            {
-                                label: 'Introduction',
-                                type: 'doc',
-                                id: 'iota-evm/how-tos/core-contracts/nft/introduction',
-                            },
-                            {
-                                type: 'doc',
-                                label: 'Mint an NFT',
-                                id: 'iota-evm/how-tos/core-contracts/nft/mint-nft',
-                            },
-                            {
-                                type: 'doc',
-                                label: 'Use as ERC721',
-                                id: 'iota-evm/how-tos/core-contracts/nft/use-as-erc721',
-                            },
-                            {
-                                type: 'doc',
-                                label: 'Get NFT Metadata',
-                                id: 'iota-evm/how-tos/core-contracts/nft/get-nft-metadata',
-                            },
-                            {
-                                type: 'doc',
-                                label: 'Get NFTs Owned by an Account',
-                                id: 'iota-evm/how-tos/core-contracts/nft/get-L2-nfts',
-                            },
-                            {
-                                type: 'doc',
-                                label: 'Get NFTs in Collection',
-                                id: 'iota-evm/how-tos/core-contracts/nft/get-nft-in-collection',
-                            },
-                            {
-                                type: 'doc',
-                                label: 'Get On-Chain NFT Data',
-                                id: 'iota-evm/how-tos/core-contracts/nft/get-nft-data',
-                            },
-                        ],
-                    },
-                    {
-                        type: 'doc',
-                        label: 'Get Randomness on L2',
-                        id: 'iota-evm/how-tos/core-contracts/get-randomness-on-l2',
-                    },
-                    {
-                        type: 'doc',
-                        label: 'Call and Call View',
-                        id: 'iota-evm/how-tos/core-contracts/call-view',
-                    },
-                ],
-            },*/
-        ],
-    },
-    {
-        type: 'category',
-        label: 'Tutorials',
-        items: [
-            {
-                type: 'category',
-                label: 'Cross-chain NFT Marketplace',
-                items: [
-                    {
-                        type: 'doc',
-                        label: 'Part I',
-                        id: 'iota-evm/tutorials/cross-chain-nft-marketplace-part-1',
-                    },
-                    {
-                        type: 'doc',
-                        label: 'Part II',
-                        id: 'iota-evm/tutorials/cross-chain-nft-marketplace-part-2',
-                    },
-                ],
-            },
-            {
-                type: 'category',
-                label: 'Defi Lend Borrow',
-                items: [
-                    {
-                        type: 'doc',
-                        label: 'Part I',
-                        id: 'iota-evm/tutorials/defi-lend-borrow-tutorial-part-1',
-                    },
-                    {
-                        type: 'doc',
-                        label: 'Part II',
-                        id: 'iota-evm/tutorials/defi-lend-borrow-tutorial-part-2',
-                    },
-                ],
-            },
-            {
-                type: 'doc',
-                label: 'Yield Farming',
-                id: 'iota-evm/tutorials/defi-yield-farming',
-            },
-        ],
-    },
-    {
-        type: 'category',
-        label: 'Explanations',
-        items: [
-            {
-                type: 'doc',
-                label: 'Anatomy of a Smart Contract',
-                id: 'iota-evm/explanations/smart-contract-anatomy',
-            },
-            {
-                type: 'doc',
-                label: 'Sandbox Interface',
-                id: 'iota-evm/explanations/sandbox',
-            },
-            {
-                type: 'doc',
-                label: 'Calling a Smart Contract',
-                id: 'iota-evm/explanations/invocation',
-            },
-            {
-                type: 'doc',
-                label: 'State, Transitions and State Anchoring',
-                id: 'iota-evm/explanations/states',
-            },
-            {
-                type: 'doc',
-                label: 'State manager',
-                id: 'iota-evm/explanations/state_manager',
-            },
-            {
-                type: 'doc',
-                label: 'Validators and Access Nodes',
-                id: 'iota-evm/explanations/validators',
-            },
-            {
-                type: 'doc',
-                label: 'Consensus',
-                id: 'iota-evm/explanations/consensus',
-            },
-            {
-                type: 'doc',
-                label: 'How Accounts Work',
-                id: 'iota-evm/explanations/how-accounts-work',
-            },
-            {
-                type: 'link',
-                label: 'Core Contracts',
-                href: '/iota-evm/references/core-contracts/overview',
-            },
         ],
     },
     {
@@ -485,7 +413,6 @@ const iotaEvm = [
         label: 'References',
         items: [
             'iota-evm/references/json-rpc-spec',
-            /* Re-add once available
             {
                 type: 'category',
                 label: 'Magic Contract',
@@ -517,11 +444,6 @@ const iotaEvm = [
                     },
                     {
                         type: 'doc',
-                        label: 'blob',
-                        id: 'iota-evm/references/core-contracts/blob',
-                    },
-                    {
-                        type: 'doc',
                         label: 'blocklog',
                         id: 'iota-evm/references/core-contracts/blocklog',
                     },
@@ -540,18 +462,23 @@ const iotaEvm = [
                         label: 'EVM',
                         id: 'iota-evm/references/core-contracts/evm',
                     },
+                    {
+                        type: 'doc',
+                        label: 'Types',
+                        id: 'iota-evm/references/core-contracts/types',
+                    },
                 ],
-            },*/
-            // {
-            //     type: 'category',
-            //     label: 'ISC Utilities',
-            //     items: [
-            //         {
-            //             type: 'autogenerated',
-            //             dirName: 'iota-evm/references/iscutils',
-            //         },
-            //     ],
-            // },
+            },
+            {
+                type: 'category',
+                label: 'ISC Utilities',
+                items: [
+                    {
+                        type: 'autogenerated',
+                        dirName: 'iota-evm/references/iscutils',
+                    },
+                ],
+            },
             {
                 type: 'category',
                 label: 'WASP API',

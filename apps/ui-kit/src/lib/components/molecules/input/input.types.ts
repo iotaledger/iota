@@ -1,9 +1,9 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { ComponentProps } from 'react';
-import { InputType } from '.';
-import { NumericFormat } from 'react-number-format';
+import type { ComponentProps } from 'react';
+import type { InputType } from '.';
+import type { NumericFormat } from 'react-number-format';
 
 type InputElementProps = Omit<
     React.ComponentProps<'input'>,

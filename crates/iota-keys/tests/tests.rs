@@ -282,3 +282,34 @@ fn get_alias_by_address_test() {
     let address = generate_new_key(SignatureScheme::ED25519, None, None).unwrap();
     assert!(keystore.get_alias_by_address(&address.0).is_err())
 }
+
+#[test]
+fn remove_key_test() {
+    let temp_dir = TempDir::new().unwrap();
+    let keystore_path = temp_dir.path().join("iota.keystore");
+    let mut keystore = Keystore::from(FileBasedKeystore::new(&keystore_path).unwrap());
+
+    let address = keystore
+        .generate_and_add_new_key(
+            SignatureScheme::ED25519,
+            Some("test_key".to_string()),
+            None,
+            None,
+        )
+        .unwrap()
+        .0;
+
+    let mut aliases_path = keystore_path.clone();
+    aliases_path.set_extension("aliases");
+
+    let aliases_content = fs::read_to_string(&aliases_path).unwrap();
+    assert!(aliases_content.contains("test_key"));
+    assert!(keystore.get_key(&address).is_ok());
+
+    keystore.remove_key(&address).unwrap();
+
+    // Verify alias is removed from file
+    let aliases_content = fs::read_to_string(&aliases_path).unwrap();
+    assert!(!aliases_content.contains("test_key"));
+    assert!(keystore.get_key(&address).is_err());
+}

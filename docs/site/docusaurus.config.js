@@ -29,9 +29,9 @@ const config = {
   },
 
   // TODO: Revert the changes when the docs are ready
-  onBrokenLinks: "ignore",
-  onBrokenMarkdownLinks: "warn",
-  onBrokenAnchors: "warn",
+  onBrokenLinks: "throw",
+  onBrokenMarkdownLinks: "throw",
+  onBrokenAnchors: "throw",
 
   // Even if you don't use internationalization, you can use this field to set
   // useful metadata like html lang. For example, if your site is Chinese, you
@@ -58,10 +58,10 @@ const config = {
       "@graphql-markdown/docusaurus",
       /** @type {import('@graphql-markdown/types').ConfigOptions} */
       {
-        id:'devnet',
-        schema: "https://raw.githubusercontent.com/iotaledger/iota/refs/heads/devnet/crates/iota-graphql-rpc/schema.graphql",
+        id:'mainnet',
+        schema: "https://raw.githubusercontent.com/iotaledger/iota/refs/heads/mainnet/crates/iota-graphql-rpc/schema.graphql",
         rootPath: "../content", // docs will be generated under rootPath/baseURL
-        baseURL: "references/iota-api/iota-graphql/reference/devnet/",
+        baseURL: "references/iota-api/iota-graphql/reference/",
         loaders: {
           UrlLoader: {
             module: "@graphql-tools/url-loader",
@@ -76,7 +76,22 @@ const config = {
         id:'testnet',
         schema: "https://raw.githubusercontent.com/iotaledger/iota/refs/heads/testnet/crates/iota-graphql-rpc/schema.graphql",
         rootPath: "../content", // docs will be generated under rootPath/baseURL
-        baseURL: "references/iota-api/iota-graphql/reference/",
+        baseURL: "references/iota-api/iota-graphql/reference/testnet/",
+        loaders: {
+          UrlLoader: {
+            module: "@graphql-tools/url-loader",
+          }
+        },
+      },
+    ],
+    [
+      "@graphql-markdown/docusaurus",
+      /** @type {import('@graphql-markdown/types').ConfigOptions} */
+      {
+        id:'devnet',
+        schema: "https://raw.githubusercontent.com/iotaledger/iota/refs/heads/devnet/crates/iota-graphql-rpc/schema.graphql",
+        rootPath: "../content", // docs will be generated under rootPath/baseURL
+        baseURL: "references/iota-api/iota-graphql/reference/devnet/",
         loaders: {
           UrlLoader: {
             module: "@graphql-tools/url-loader",

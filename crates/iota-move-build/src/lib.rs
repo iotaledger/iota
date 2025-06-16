@@ -44,7 +44,7 @@ use move_package::{
         build_plan::BuildPlan, compiled_package::CompiledPackage as MoveCompiledPackage,
     },
     package_hooks::{PackageHooks, PackageIdentifier},
-    resolution::resolution_graph::{Package, ResolvedGraph},
+    resolution::resolution_graph::ResolvedGraph,
     source_package::parsed_manifest::{OnChainInfo, PackageName, SourceManifest},
 };
 use move_symbol_pool::Symbol;
@@ -398,7 +398,7 @@ impl CompiledPackage {
     /// dependencies' storage package IDs (where to load those packages
     /// on-chain).
     pub fn get_dependency_storage_package_ids(&self) -> Vec<ObjectID> {
-        self.dependency_ids.published.values().cloned().collect()
+        self.dependency_ids.published.values().copied().collect()
     }
 
     pub fn get_package_digest(&self, with_unpublished_deps: bool) -> [u8; 32] {
@@ -599,10 +599,6 @@ impl CompiledPackage {
             error: error_message.join("\n"),
         })
     }
-
-    pub fn published_dependency_ids(&self) -> Vec<ObjectID> {
-        self.dependency_ids.published.values().cloned().collect()
-    }
 }
 
 impl Default for BuildConfig {
@@ -739,9 +735,8 @@ pub fn gather_published_ids(
     )
 }
 
-pub fn published_at_property(package: &Package) -> Result<ObjectID, PublishedAtError> {
-    let Some(value) = package
-        .source_package
+pub fn published_at_property(manifest: &SourceManifest) -> Result<ObjectID, PublishedAtError> {
+    let Some(value) = manifest
         .package
         .custom_properties
         .get(&Symbol::from(PUBLISHED_AT_MANIFEST_FIELD))

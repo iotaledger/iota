@@ -83,8 +83,8 @@ jobs:
       isMoveExampleUsedByOthers: ${{ inputs.isMoveExampleUsedByOthers }}
       runSimtest: true
       testOnlyChangedCrates: true
-      changedCrates: ${{ join(fromJson(needs.crates-changes.outputs.components), ' ') }}
-      changedExternalCrates: ${{ join(fromJson(needs.external-changes.outputs.components), ' ') }}
+      changedCrates: ${{ join(fromJson(needs.crates-changes.outputs.components || '[]'), ' ') }}
+      changedExternalCrates: ${{ join(fromJson(needs.external-changes.outputs.components || '[]'), ' ') }}
 
   execution-cut:
     if: (!cancelled() && !failure() && inputs.isRust)

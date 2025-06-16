@@ -30,9 +30,9 @@ This document will give a high to mid-level overview of the migration process.
 
 [Foundry Outputs](https://github.com/iotaledger/tips/blob/main/tips/TIP-0018/tip-0018.md#foundry-output) in Stardust represent the capability to control the supply of user-defined Native Tokens. In Move, there
 are established ways for these operations, in particular using
-[`Coin`](../../references/framework/iota/coin.mdx#struct-coin) and
-[`TreasuryCap`](../../references/framework/iota/coin.mdx#struct-treasurycap). The two main goals of the
-foundry migration are to convert it to a [`CoinManager`](../../references/framework/iota/coin_manager.mdx),
+[`Coin`](../../references/framework/iota-framework/coin.mdx#resource-coin) and
+[`TreasuryCap`](../../references/framework/iota-framework/coin.mdx#resource-treasurycap). The two main goals of the
+foundry migration are to convert it to a [`CoinManager`](../../references/framework/iota-framework/coin_manager.mdx),
 a type introduced in the Move IOTA framework simplify working with the `TreasuryCap`, and to a `Coin<IOTA>`
 to hold the IOTA tokens of the foundry itself.
 
@@ -54,7 +54,7 @@ The result of the foundry migration is the following:
 - A package representing the native token, particularly containing a one-time witness representing the unique type of
 the native token (to be used as `Coin<package_id::token_name::NativeTokenOneTimeWitness>`; abbreviated in the rest of
 this document).
-- A `CoinManager` and [`CoinManagerTreasuryCap`](../../references/framework/iota/coin_manager.mdx#struct-coinmanagertreasurycap) object, the latter of which is owned by the address of the alias that
+- A `CoinManager` and [`CoinManagerTreasuryCap`](../../references/framework/iota-framework/coin_manager.mdx#resource-coinmanagertreasurycap) object, the latter of which is owned by the address of the alias that
 owned the original foundry.
 - A minted coin (`Coin<NativeTokenOneTimeWitness>`) containing the entire circulating supply of the native tokens owned
 by the `0x0` address.
@@ -68,7 +68,7 @@ the minted coin, it is left at the zero address. This means they were burned in 
 also burned on the Move ledger, as no one controls the `0x0` address.
 
 In Move, the `TreasuryCap` type uses a `u64` representation (within
-[`Balance`](../../references/framework/iota/balance.mdx#struct-balance)) as its maximum supply. Since
+[`Balance`](../../references/framework/iota-framework/balance.mdx#struct-balance)) as its maximum supply. Since
 Stardust allows for `u256` to be used, in some rare cases, the maximum or circulating supply may exceed the maximum
 value representable by `u64` (`MAX_U64_SUPPLY`, which here refers to `2^64 - 2` for technical reasons). If the maximum
 supply exceeds it, it is truncated to `MAX_U64_SUPPLY`, which is fine since no more than `MAX_U64_SUPPLY` tokens were
@@ -100,7 +100,7 @@ the `owner` of `B` to the address of `A` (the Alias ID), which is equivalent to 
 the same as if `B` would have been transferred (using either of `iota::transfer::{transfer,public_transfer}`) to the
 address of `A` (the Alias ID). The migrated alias `A` can then _receive_ `B` using the
 `stardust::address_unlock_condition::unlock_alias_address_owned_basic` function, which is essentially a wrapper around
-[`iota::transfer::receive`](../../references/framework/iota/transfer.mdx#function-receive). There are
+[`iota::transfer::receive`](../../references/framework/iota-framework/transfer.mdx#function-receive). There are
 equivalent unlock functions for the other possible variants of object ownership.
 
 ## Basic Outputs

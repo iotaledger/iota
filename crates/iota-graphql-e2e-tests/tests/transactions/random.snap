@@ -1,0 +1,68 @@
+---
+source: external-crates/move/crates/move-transactional-test-runner/src/framework.rs
+---
+processed 6 tasks
+
+task 1, line 7:
+//# create-checkpoint
+Checkpoint created: 1
+
+task 2, lines 9-38:
+//# run-graphql
+Response: {
+  "data": {
+    "object": {
+      "address": "0x0000000000000000000000000000000000000000000000000000000000000008",
+      "version": 1,
+      "asMoveObject": {
+        "contents": {
+          "type": {
+            "repr": "0x0000000000000000000000000000000000000000000000000000000000000002::random::Random"
+          },
+          "json": {
+            "id": "0x0000000000000000000000000000000000000000000000000000000000000008",
+            "inner": {
+              "id": "0x641bd86e87be3f0ce633439e72d2e9281f536d2a14dc6d6a32b6eb477a0082ab",
+              "version": "1"
+            }
+          }
+        }
+      }
+    },
+    "transactionBlocks": {
+      "nodes": [
+        {
+          "kind": {
+            "__typename": "GenesisTransaction"
+          }
+        }
+      ]
+    }
+  }
+}
+
+task 4, line 44:
+//# create-checkpoint
+Checkpoint created: 2
+
+task 5, lines 46-61:
+//# run-graphql
+Response: {
+  "data": {
+    "transactionBlocks": {
+      "nodes": [
+        {
+          "kind": {
+            "__typename": "RandomnessStateUpdateTransaction",
+            "epoch": {
+              "epochId": 0
+            },
+            "randomnessRound": 0,
+            "randomBytes": "SGVsbG8gU3Vp",
+            "randomnessObjInitialSharedVersion": 2
+          }
+        }
+      ]
+    }
+  }
+}

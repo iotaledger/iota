@@ -5,6 +5,7 @@ on:
     branches:
       - devnet
       - testnet
+      - mainnet
 
 jobs:
   build-and-upload-docs:

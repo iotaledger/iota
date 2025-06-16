@@ -24,8 +24,8 @@ use crate::{
         Gas, GasCoinConfig, WorkloadBuilderInfo, WorkloadParams,
         payload::Payload,
         workload::{
-            ESTIMATED_COMPUTATION_COST, MAX_GAS_FOR_TESTING, STORAGE_COST_PER_COUNTER, Workload,
-            WorkloadBuilder,
+            ESTIMATED_COMPUTATION_COST, ExpectedFailureType, MAX_GAS_FOR_TESTING,
+            STORAGE_COST_PER_COUNTER, Workload, WorkloadBuilder,
         },
     },
 };
@@ -122,6 +122,9 @@ impl Payload for SharedCounterDeletionTestPayload {
             _ => panic!("Invalid transaction selector"),
         }
         .build_and_sign(self.gas.2.as_ref())
+    }
+    fn get_failure_type(&self) -> Option<ExpectedFailureType> {
+        None
     }
 }
 
@@ -276,11 +279,12 @@ impl Workload<dyn Payload> for SharedCounterDeletionWorkload {
                 .build_and_sign(keypair.as_ref());
             let proxy_ref = proxy.clone();
             futures.push(async move {
-                if let Ok(effects) = proxy_ref.execute_transaction_block(transaction).await {
-                    effects.created()[0].0
-                } else {
-                    panic!("Failed to create shared counter!");
-                }
+                proxy_ref
+                    .execute_transaction_block(transaction)
+                    .await
+                    .unwrap()
+                    .created()[0]
+                    .0
             });
         }
         self.counters = join_all(futures).await;

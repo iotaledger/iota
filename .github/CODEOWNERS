@@ -44,6 +44,7 @@
 /crates/iota-move/ @iotaledger/vm-language
 /crates/iota-move-build/ @iotaledger/vm-language
 /crates/iota-move-lsp/ @iotaledger/vm-language
+/crates/iota-names/ @iotaledger/dev-tools
 /crates/iota-network/ @iotaledger/node
 /crates/iota-network-stack/ @iotaledger/node
 /crates/iota-node/ @iotaledger/node
@@ -79,8 +80,6 @@
 /crates/iota-transactional-test-runner/ @iotaledger/vm-language
 /crates/iota-types/ @iotaledger/core-protocol @iotaledger/sc-platform
 /crates/iota-upgrade-compatibility-transactional-tests/ @iotaledger/vm-language
-/crates/iota-util-mem/ @iotaledger/core-protocol @iotaledger/sc-platform
-/crates/iota-util-mem-derive/ @iotaledger/core-protocol @iotaledger/sc-platform
 /crates/iota-verifier-transactional-tests/ @iotaledger/vm-language
 /crates/prometheus-closure-metric/ @iotaledger/node
 /crates/shared-crypto/ @iotaledger/core-protocol
@@ -97,6 +96,9 @@
 /docker/ @iotaledger/infrastructure @iotaledger/node @iotaledger/devops-admin
 /dev-tools/ @iotaledger/infrastructure @iotaledger/node @iotaledger/devops-admin
 /dev-tools/iota-indexer-monitoring/ @iotaledger/infrastructure
+/dev-tools/iota-data-ingestion/ @iotaledger/infrastructure
+/dev-tools/iota-rest-kv/ @iotaledger/infrastructure
+/dev-tools/pg-services-local/ @iotaledger/infrastructure
 /setups/ @iotaledger/infrastructure @iotaledger/node @iotaledger/devops-admin
 
 # Frontend apps to be looked after by Boxfish Studio or the tooling team
@@ -137,7 +139,7 @@ vercel.json @iotaledger/tooling
 
 # Scripts
 /scripts/cargo_sort/ @muXxer
-/scripts/ci_tests/ @nmrshll
+/scripts/ci_tests/ @iotaledger/node
 /scripts/codesearch/ @muXxer
 /scripts/generate_files/ @muXxer
 /scripts/tooling/ @iotaledger/tooling

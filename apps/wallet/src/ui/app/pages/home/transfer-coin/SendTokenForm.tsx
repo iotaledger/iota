@@ -124,6 +124,7 @@ export function SendTokenForm({
                             onActionClick={onMaxTokenButtonClick}
                             isMaxActionDisabled={isMaxActionDisabled}
                             totalGas={transactionData?.gasSummary?.totalGas}
+                            coinMetadata={coinMetadata.data}
                         />
                         <AddressInput name="to" placeholder="Enter Address" />
                     </div>
@@ -152,7 +153,9 @@ export function SendTokenForm({
                             isSubmitting ||
                             !hasEnoughBalance ||
                             gasBudgetEst === '' ||
-                            gasBudgetEst === undefined
+                            gasBudgetEst === undefined ||
+                            !coinMetadata ||
+                            coinMetadata.data === null
                         }
                         text="Review"
                         fullWidth

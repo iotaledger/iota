@@ -7,47 +7,45 @@
 //! to an abort. A typical patterns is to create a fresh object and share it
 //! within the same function
 
-use std::collections::BTreeMap;
-
-use move_core_types::account_address::AccountAddress;
-use move_ir_types::location::*;
-use move_proc_macros::growing_stack;
-
 use crate::{
     cfgir::{
-        CFGContext,
         absint::JoinResult,
         cfg::ImmForwardCFG,
         visitor::{
-            LocalState, SimpleAbsInt, SimpleAbsIntConstructor, SimpleDomain,
-            SimpleExecutionContext, calls_special_function,
+            calls_special_function, LocalState, SimpleAbsInt, SimpleAbsIntConstructor,
+            SimpleDomain, SimpleExecutionContext,
         },
+        CFGContext,
     },
     diag,
     diagnostics::{
+        codes::{custom, DiagnosticInfo, Severity},
         Diagnostic, Diagnostics,
-        codes::{DiagnosticInfo, Severity, custom},
     },
     expansion::ast::ModuleIdent,
     hlir::ast::{
         BaseType, BaseType_, Exp, LValue, LValue_, Label, ModuleCall, SingleType, SingleType_,
-        Type, Type_, TypeName_, UnannotatedExp_, Var,
-    },
-    iota_mode::{
-        IOTA_ADDR_VALUE, TX_CONTEXT_MODULE_NAME, TX_CONTEXT_TYPE_NAME,
-        info::{IotaInfo, TransferKind},
-        linters::{
-            LINT_WARNING_PREFIX, LinterDiagnosticCategory, LinterDiagnosticCode, PUBLIC_SHARE_FUN,
-            SHARE_FUN, TRANSFER_MOD_NAME, type_abilities,
-        },
+        Type, TypeName_, Type_, UnannotatedExp_, Var,
     },
     naming::ast::BuiltinTypeName_,
     parser::ast::{Ability_, DatatypeName},
     shared::{
-        Identifier,
         program_info::{DatatypeKind, TypingProgramInfo},
+        Identifier,
+    },
+    iota_mode::{
+        info::{IotaInfo, TransferKind},
+        linters::{
+            type_abilities, LinterDiagnosticCategory, LinterDiagnosticCode, LINT_WARNING_PREFIX,
+            PUBLIC_SHARE_FUN, SHARE_FUN, TRANSFER_MOD_NAME,
+        },
+        IOTA_ADDR_VALUE, TX_CONTEXT_MODULE_NAME, TX_CONTEXT_TYPE_NAME,
     },
 };
+use move_core_types::account_address::AccountAddress;
+use move_ir_types::location::*;
+use move_proc_macros::growing_stack;
+use std::collections::BTreeMap;
 
 const SHARE_FUNCTIONS: &[(AccountAddress, &str, &str)] = &[
     (IOTA_ADDR_VALUE, TRANSFER_MOD_NAME, PUBLIC_SHARE_FUN),

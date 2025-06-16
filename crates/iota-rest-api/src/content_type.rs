@@ -28,7 +28,6 @@ fn parse_content_type(headers: &HeaderMap) -> Result<Option<Mime>, mime::FromStr
     Ok(Some(mime))
 }
 
-#[axum::async_trait]
 impl<S> axum::extract::FromRequestParts<S> for ContentType
 where
     S: Send + Sync,

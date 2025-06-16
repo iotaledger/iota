@@ -29,6 +29,11 @@ export function Collapsible({
 }: CollapsibleProps) {
     const [open, setOpen] = useState(isOpen ?? defaultOpen ?? false);
 
+    // Update the uncontrolled state if the controlled state was modified externally
+    if (isOpen && open != isOpen) {
+        setOpen(isOpen);
+    }
+
     function handleOpenChange(isOpen: boolean) {
         setOpen(isOpen);
         onOpenChange?.(isOpen);

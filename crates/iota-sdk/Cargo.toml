@@ -17,7 +17,7 @@ colored.workspace = true
 fastcrypto.workspace = true
 futures.workspace = true
 futures-core = "0.3.21"
-getset = "0.1"
+getset.workspace = true
 jsonrpsee.workspace = true
 reqwest.workspace = true
 rustls.workspace = true
@@ -50,6 +50,9 @@ tempfile.workspace = true
 
 # internal dependencies
 iota-move-build.workspace = true
+
+[features]
+iota-names = []
 
 [[example]]
 name = "coin_read_api"

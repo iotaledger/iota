@@ -6,7 +6,6 @@ import {
     useGetStakingValidatorDetails,
 } from '@iota/core';
 import { KeyValueInfo, Panel, TooltipPosition } from '@iota/apps-ui-kit';
-import { useIsValidatorCommitteeMember } from '@/hooks';
 
 interface StakedInfoProps {
     validatorAddress: string;
@@ -17,7 +16,6 @@ export function StakedInfo({ validatorAddress, accountAddress }: StakedInfoProps
     const { apy, isApyApproxZero } = useValidatorInfo({
         validatorAddress: validatorAddress,
     });
-    const { isCommitteeMember } = useIsValidatorCommitteeMember();
 
     const { totalValidatorsStake, totalStakePercentage, totalStake, commission } =
         useGetStakingValidatorDetails({
@@ -33,13 +31,6 @@ export function StakedInfo({ validatorAddress, accountAddress }: StakedInfoProps
     return (
         <Panel hasBorder>
             <div className="flex flex-col gap-y-sm p-md">
-                <KeyValueInfo
-                    keyText="Member of Committee"
-                    tooltipPosition={TooltipPosition.Bottom}
-                    tooltipText="If the validator is part of the current committee."
-                    value={isCommitteeMember(validatorAddress) ? 'Yes' : 'No'}
-                    fullwidth
-                />
                 <KeyValueInfo
                     keyText="Staking APY"
                     tooltipPosition={TooltipPosition.Right}

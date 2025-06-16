@@ -17,54 +17,40 @@ The `errors` contract keeps a map of error codes to error message templates.
 This allows contracts to store lengthy error strings only once and then reuse them by just providing the error code (and
 optional extra values) when producing an error, thus saving storage and gas.
 
----
-
 ## Entry Points
 
-### `registerError(m ErrorMessageFormat) c ErrorCode`
+### `registerError`
 
 Registers an error message template.
 
 #### Parameters
 
-- `m` (`string`): The error message template, which supports standard [go verbs](https://pkg.go.dev/fmt#hdr-Printing)
-  for variable printing.
+| Name               | Type   | Optional | Description                                                                                                               |
+| ------------------ | ------ | -------- | ------------------------------------------------------------------------------------------------------------------------- |
+| errorMessageFormat | string | No       | The error message template, which supports standard [go verbs](https://pkg.go.dev/fmt#hdr-Printing) for variable printing |
 
 #### Returns
 
-- `c` (`ErrorCode`): The error code of the registered template
+| Name        | Type                                  | Description                               |
+| ----------- | ------------------------------------- | ----------------------------------------- |
+| vmErrorCode | [VMErrorCode](./types.md#vmerrorcode) | The error code of the registered template |
 
 ---
 
 ## Views
 
-### `getErrorMessageFormat(c ErrorCode) m ErrorMessageFormat`
+### `getErrorMessageFormat`
 
 Returns the message template stored for a given error code.
 
 #### Parameters
 
-- `c` (`ErrorCode`): The error code of the registered template.
+| Name        | Type                                  | Optional | Description                               |
+| ----------- | ------------------------------------- | -------- | ----------------------------------------- |
+| vmErrorCode | [VMErrorCode](./types.md#vmerrorcode) | No       | The error code of the registered template |
 
 #### Returns
 
-- `m` (`string`): The error message template.
-
----
-
-## Schemas
-
-### `ErrorCode`
-
-`ErrorCode` is encoded as the concatenation of:
-
-- The contract hname(`hname`).
-- The error ID, calculated as the hash of the error template(`uint16`).
-
-### `UnresolvedVMError`
-
-`UnresolvedVMError` is encoded as the concatenation of:
-
-- The error code ([`ErrorCode`](#errorcode)).
-- CRC32 checksum of the formatted string (`uint32`).
-- The JSON-encoded list of parameters for the template (`string` prefixed with `uint16` size).
+| Name               | Type   | Description                |
+| ------------------ | ------ | -------------------------- |
+| errorMessageFormat | string | The error message template |

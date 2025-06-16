@@ -34,7 +34,7 @@ use crate::{
     execution::{DynamicallyLoadedObjectMetadata, ExecutionResults},
     move_package::MovePackage,
     object::Object,
-    transaction::{SenderSignedData, TransactionDataAPI, TransactionKey},
+    transaction::{SenderSignedData, TransactionDataAPI},
 };
 
 /// A potential input to a transaction.
@@ -569,11 +569,4 @@ where
     fn as_object_store(&self) -> &dyn ObjectStore {
         self
     }
-}
-
-pub trait GetSharedLocks: Send + Sync {
-    fn get_shared_locks(
-        &self,
-        key: &TransactionKey,
-    ) -> IotaResult<Option<Vec<(ObjectID, SequenceNumber)>>>;
 }

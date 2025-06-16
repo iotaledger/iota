@@ -34,7 +34,6 @@ use iota_types::{
     object::{Data, GAS_VALUE_FOR_TESTING, OBJECT_START_VERSION, Owner},
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     randomness_state::get_randomness_state_obj_initial_shared_version,
-    storage::GetSharedLocks,
     supported_protocol_versions::SupportedProtocolVersions,
     utils::{to_sender_signed_transaction, to_sender_signed_transaction_with_multi_signers},
 };
@@ -2913,6 +2912,176 @@ async fn test_account_state_unknown_account() {
     );
 }
 
+// Reproducer and fix test for https://github.com/iotaledger/iota/issues/7267
+#[tokio::test]
+async fn test_authority_store_init() {
+    // The failure originates within AuthorityState::try_create_dynamic_field_info.
+    // To trigger it we need to meet several conditions:
+    // - index store must be enabled and empty;
+    // - object store must have an object owned object, ie. a dynamic object field
+    //   object with version > 1;
+    // - genesis must have this dof object with version 1.
+    //
+    // The test proceeds in two stages:
+    // 1. prepare the objects and the store using one AuthorityState;
+    // 2. create another AuthorityState with the proper genesis and store so that
+    //    the proper code path is used to test the fix.
+
+    use crate::authority::move_integration_tests::build_and_publish_test_package;
+    telemetry_subscribers::init_for_testing();
+
+    let authority_seed = [1u8; 32];
+    let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
+    let gas_id = ObjectID::random();
+    let gas_obj = Object::with_id_owner_for_testing(gas_id, sender);
+
+    // Create a random directory to store the DB; it'll be reused in both
+    // authorities.
+    let dir = std::env::temp_dir();
+    let store_base_path = dir.join(format!(
+        "DB_{:?}",
+        iota_macros::nondeterministic!(ObjectID::random())
+    ));
+    std::fs::create_dir(&store_base_path).unwrap();
+
+    // Create initial authority.
+    let authority = {
+        let network_config = iota_swarm_config::network_config_builder::ConfigBuilder::new(&dir)
+            .rng(&mut StdRng::from_seed(authority_seed))
+            .with_objects([gas_obj.clone()])
+            .build();
+        let genesis = network_config.genesis;
+        let authority_key = network_config.validator_configs[0]
+            .authority_key_pair()
+            .copy();
+
+        TestAuthorityBuilder::new()
+            .with_store_base_path(store_base_path.clone())
+            .with_genesis_and_keypair(&genesis, &authority_key)
+            // Disable indexer, the index store must be empty.
+            .disable_indexer()
+            // Use passthrough cache so that the new objects end up in object store.
+            // It's hard to flush the writeback cache that is enabled by default.
+            .with_cache_config(iota_config::ExecutionCacheConfig::PassthroughCache)
+            .build()
+            .await
+    };
+
+    // Create an object owned object.
+    let (package_obj, parent_obj, child_obj, field_obj) = {
+        // Publish ./data/object_owner package.
+        let package = build_and_publish_test_package(
+            &authority,
+            &sender,
+            &sender_key,
+            &gas_id,
+            "object_owner",
+            // with_unpublished_deps
+            false,
+        )
+        .await;
+        let package_obj = authority.get_object(&package.0).await.unwrap().unwrap();
+
+        // Create a parent.
+        let effects = call_move(
+            &authority,
+            &gas_id,
+            &sender,
+            &sender_key,
+            &package.0,
+            "object_owner",
+            "create_parent",
+            vec![],
+            vec![],
+        )
+        .await
+        .unwrap();
+        assert!(effects.status().is_ok());
+        let parent = effects.created()[0].0;
+        let parent_obj = authority.get_object(&parent.0).await.unwrap().unwrap();
+
+        // Create a child.
+        let effects = call_move(
+            &authority,
+            &gas_id,
+            &sender,
+            &sender_key,
+            &package.0,
+            "object_owner",
+            "create_child",
+            vec![],
+            vec![],
+        )
+        .await
+        .unwrap();
+        assert!(effects.status().is_ok());
+        let child = effects.created()[0].0;
+        let child_obj = authority.get_object(&child.0).await.unwrap().unwrap();
+
+        // Add the child to the parent.
+        let effects = call_move(
+            &authority,
+            &gas_id,
+            &sender,
+            &sender_key,
+            &package.0,
+            "object_owner",
+            "add_child",
+            vec![],
+            vec![TestCallArg::Object(parent.0), TestCallArg::Object(child.0)],
+        )
+        .await
+        .unwrap();
+        effects.status().unwrap();
+        let child_effect = effects
+            .mutated()
+            .into_iter()
+            .find(|((id, _, _), _)| id == &child.0)
+            .unwrap();
+        // Check that the child is now owned by the parent.
+        let field_id = match child_effect.1 {
+            Owner::ObjectOwner(field_id) => field_id.into(),
+            Owner::Shared { .. } | Owner::Immutable | Owner::AddressOwner(_) => panic!(),
+        };
+        // This is the object that we need to trigger the failure code path.
+        let field_obj = authority.get_object(&field_id).await.unwrap().unwrap();
+        assert_eq!(field_obj.owner, parent.0);
+
+        (package_obj, parent_obj, child_obj, field_obj)
+    };
+
+    drop(authority);
+
+    // Just in case, let rocksdb time to sync or something.
+    tokio::time::sleep(std::time::Duration::from_secs(20)).await;
+
+    // Create the test authority.
+    let _ = {
+        let network_config = iota_swarm_config::network_config_builder::ConfigBuilder::new(&dir)
+            .rng(&mut StdRng::from_seed(authority_seed))
+            // Add the relevant and target objects to the genesis.
+            // The object version will reset to 1 when genesis is created.
+            .with_objects([gas_obj, package_obj, parent_obj, child_obj, field_obj])
+            .build();
+        let genesis = network_config.genesis;
+        let authority_key = network_config.validator_configs[0]
+            .authority_key_pair()
+            .copy();
+
+        TestAuthorityBuilder::new()
+            // Reuse the object store, there's no index store at this point.
+            .with_store_base_path(store_base_path)
+            .with_genesis_and_keypair(&genesis, &authority_key)
+            // Index is enabled by default and empty.
+            // We don't care about writeback cache now.
+            // Build invokes AuthorityState::new down to try_create_dynamic_field_info.
+            .build()
+            .await
+    };
+
+    // The test is passed if the build didn't panic and authority is created.
+}
+
 #[tokio::test]
 async fn test_authority_persist() {
     async fn init_state(
@@ -3422,23 +3591,25 @@ async fn test_store_revert_transfer_iota() {
         .await
         .unwrap();
 
-    let db = &authority_state.database_for_testing();
-    db.revert_state_update(&tx_digest).unwrap();
+    let cache = authority_state.get_object_cache_reader();
+    let tx_cache = authority_state.get_transaction_cache_reader();
+    let reconfig_api = authority_state.get_reconfig_api();
+    reconfig_api.revert_state_update(&tx_digest).unwrap();
+    reconfig_api
+        .clear_state_end_of_epoch(&authority_state.execution_lock_for_reconfiguration().await);
 
     assert_eq!(
-        db.get_object(&gas_object_id).unwrap().unwrap().owner,
+        cache.get_object(&gas_object_id).unwrap().unwrap().owner,
         Owner::AddressOwner(sender),
     );
     assert_eq!(
-        db.get_latest_object_ref_or_tombstone(gas_object_id)
+        cache
+            .get_latest_object_ref_or_tombstone(gas_object_id)
             .unwrap()
             .unwrap(),
         gas_object_ref
     );
-    // Transaction should not be deleted on revert in case it's needed
-    // to execute a future state sync checkpoint.
-    assert!(db.get_transaction_block(&tx_digest).unwrap().is_some());
-    assert!(!db.is_tx_already_executed(&tx_digest).unwrap());
+    assert!(!tx_cache.is_tx_already_executed(&tx_digest).unwrap());
 }
 
 #[tokio::test]
@@ -3458,6 +3629,15 @@ async fn test_store_revert_wrap_move_call() {
     )
     .await
     .unwrap();
+
+    authority_state
+        .get_cache_commit()
+        .commit_transaction_outputs(
+            authority_state.epoch_store_for_testing().epoch(),
+            &[*create_effects.transaction_digest()],
+        )
+        .await
+        .unwrap();
 
     assert!(create_effects.status().is_ok());
     assert_eq!(create_effects.created().len(), 1);
@@ -3495,18 +3675,21 @@ async fn test_store_revert_wrap_move_call() {
 
     let wrapper_v0 = wrap_effects.created()[0].0;
 
-    let db = &authority_state.database_for_testing();
-    db.revert_state_update(&wrap_digest).unwrap();
+    let cache = &authority_state.get_object_cache_reader();
+    let reconfig_api = authority_state.get_reconfig_api();
+    reconfig_api.revert_state_update(&wrap_digest).unwrap();
+    reconfig_api
+        .clear_state_end_of_epoch(&authority_state.execution_lock_for_reconfiguration().await);
 
     // The wrapped object is unwrapped once again (accessible from storage).
-    let object = db.get_object(&object_v0.0).unwrap().unwrap();
+    let object = cache.get_object(&object_v0.0).unwrap().unwrap();
     assert_eq!(object.version(), object_v0.1);
 
     // The wrapper doesn't exist
-    assert!(db.get_object(&wrapper_v0.0).unwrap().is_none());
+    assert!(cache.get_object(&wrapper_v0.0).unwrap().is_none());
 
     // The gas is uncharged
-    let gas = db.get_object(&gas_object_id).unwrap().unwrap();
+    let gas = cache.get_object(&gas_object_id).unwrap().unwrap();
     assert_eq!(gas.version(), create_effects.gas_object().0.1);
 }
 
@@ -3543,6 +3726,18 @@ async fn test_store_revert_unwrap_move_call() {
     )
     .await
     .unwrap();
+
+    authority_state
+        .get_cache_commit()
+        .commit_transaction_outputs(
+            authority_state.epoch_store_for_testing().epoch(),
+            &[
+                *create_effects.transaction_digest(),
+                *wrap_effects.transaction_digest(),
+            ],
+        )
+        .await
+        .unwrap();
 
     assert!(wrap_effects.status().is_ok());
     assert_eq!(wrap_effects.created().len(), 1);
@@ -3581,21 +3776,25 @@ async fn test_store_revert_unwrap_move_call() {
     assert_eq!(unwrap_effects.unwrapped().len(), 1);
     assert_eq!(unwrap_effects.unwrapped()[0].0.0, object_v0.0);
 
-    let db = &authority_state.database_for_testing();
+    let cache = &authority_state.get_object_cache_reader();
+    let reconfig_api = authority_state.get_reconfig_api();
 
-    db.revert_state_update(&unwrap_digest).unwrap();
+    reconfig_api.revert_state_update(&unwrap_digest).unwrap();
+    reconfig_api
+        .clear_state_end_of_epoch(&authority_state.execution_lock_for_reconfiguration().await);
 
     // The unwrapped object is wrapped once again
-    assert!(db.get_object(&object_v0.0).unwrap().is_none());
+    assert!(cache.get_object(&object_v0.0).unwrap().is_none());
 
     // The wrapper exists
-    let wrapper = db.get_object(&wrapper_v0.0).unwrap().unwrap();
+    let wrapper = cache.get_object(&wrapper_v0.0).unwrap().unwrap();
     assert_eq!(wrapper.version(), wrapper_v0.1);
 
     // The gas is uncharged
-    let gas = db.get_object(&gas_object_id).unwrap().unwrap();
+    let gas = cache.get_object(&gas_object_id).unwrap().unwrap();
     assert_eq!(gas.version(), wrap_effects.gas_object().0.1);
 }
+
 #[tokio::test]
 async fn test_store_get_dynamic_object() {
     let (_, fields) = create_and_retrieve_df_info(ident_str!("add_ofield")).await;
@@ -3808,6 +4007,18 @@ async fn test_store_revert_add_ofield() {
     let outer_v0 = create_outer_effects.created()[0].0;
     let inner_v0 = create_inner_effects.created()[0].0;
 
+    authority_state
+        .get_cache_commit()
+        .commit_transaction_outputs(
+            authority_state.epoch_store_for_testing().epoch(),
+            &[
+                *create_outer_effects.transaction_digest(),
+                *create_inner_effects.transaction_digest(),
+            ],
+        )
+        .await
+        .unwrap();
+
     let add_txn = to_sender_signed_transaction(
         TransactionData::new_move_call(
             sender,
@@ -3842,27 +4053,31 @@ async fn test_store_revert_add_ofield() {
     let outer_v1 = find_by_id(&add_effects.mutated(), outer_v0.0).unwrap();
     let inner_v1 = find_by_id(&add_effects.mutated(), inner_v0.0).unwrap();
 
-    let db = &authority_state.database_for_testing();
+    let cache = authority_state.get_object_cache_reader();
+    let reconfig_api = &authority_state.get_reconfig_api();
 
-    let outer = db.get_object(&outer_v0.0).unwrap().unwrap();
+    let outer = cache.get_object(&outer_v0.0).unwrap().unwrap();
     assert_eq!(outer.version(), outer_v1.1);
 
-    let field = db.get_object(&field_v0.0).unwrap().unwrap();
+    let field = cache.get_object(&field_v0.0).unwrap().unwrap();
     assert_eq!(field.owner, Owner::ObjectOwner(outer_v0.0.into()));
 
-    let inner = db.get_object(&inner_v0.0).unwrap().unwrap();
+    let inner = cache.get_object(&inner_v0.0).unwrap().unwrap();
     assert_eq!(inner.version(), inner_v1.1);
     assert_eq!(inner.owner, Owner::ObjectOwner(field_v0.0.into()));
 
-    db.revert_state_update(&add_digest).unwrap();
+    reconfig_api.revert_state_update(&add_digest).unwrap();
 
-    let outer = db.get_object(&outer_v0.0).unwrap().unwrap();
+    reconfig_api
+        .clear_state_end_of_epoch(&authority_state.execution_lock_for_reconfiguration().await);
+
+    let outer = cache.get_object(&outer_v0.0).unwrap().unwrap();
     assert_eq!(outer.version(), outer_v0.1);
 
     // Field no longer exists
-    assert!(db.get_object(&field_v0.0).unwrap().is_none());
+    assert!(cache.get_object(&field_v0.0).unwrap().is_none());
 
-    let inner = db.get_object(&inner_v0.0).unwrap().unwrap();
+    let inner = cache.get_object(&inner_v0.0).unwrap().unwrap();
     assert_eq!(inner.version(), inner_v0.1);
     assert_eq!(inner.owner, Owner::AddressOwner(sender));
 }
@@ -3919,6 +4134,19 @@ async fn test_store_revert_remove_ofield() {
     assert!(add_effects.status().is_ok());
     assert_eq!(add_effects.created().len(), 1);
 
+    authority_state
+        .get_cache_commit()
+        .commit_transaction_outputs(
+            authority_state.epoch_store_for_testing().epoch(),
+            &[
+                *create_outer_effects.transaction_digest(),
+                *create_inner_effects.transaction_digest(),
+                *add_effects.transaction_digest(),
+            ],
+        )
+        .await
+        .unwrap();
+
     let field_v0 = add_effects.created()[0].0;
     let outer_v1 = find_by_id(&add_effects.mutated(), outer_v0.0).unwrap();
     let inner_v1 = find_by_id(&add_effects.mutated(), inner_v0.0).unwrap();
@@ -3954,24 +4182,29 @@ async fn test_store_revert_remove_ofield() {
     let outer_v2 = find_by_id(&remove_effects.mutated(), outer_v0.0).unwrap();
     let inner_v2 = find_by_id(&remove_effects.mutated(), inner_v0.0).unwrap();
 
-    let db = &authority_state.database_for_testing();
+    let cache = &authority_state.get_object_cache_reader();
+    let reconfig_api = &authority_state.get_reconfig_api();
 
-    let outer = db.get_object(&outer_v0.0).unwrap().unwrap();
+    let outer = cache.get_object(&outer_v0.0).unwrap().unwrap();
     assert_eq!(outer.version(), outer_v2.1);
 
-    let inner = db.get_object(&inner_v0.0).unwrap().unwrap();
+    let inner = cache.get_object(&inner_v0.0).unwrap().unwrap();
     assert_eq!(inner.owner, Owner::AddressOwner(sender));
     assert_eq!(inner.version(), inner_v2.1);
 
-    db.revert_state_update(&remove_ofield_digest).unwrap();
+    reconfig_api
+        .revert_state_update(&remove_ofield_digest)
+        .unwrap();
+    reconfig_api
+        .clear_state_end_of_epoch(&authority_state.execution_lock_for_reconfiguration().await);
 
-    let outer = db.get_object(&outer_v0.0).unwrap().unwrap();
+    let outer = cache.get_object(&outer_v0.0).unwrap().unwrap();
     assert_eq!(outer.version(), outer_v1.1);
 
-    let field = db.get_object(&field_v0.0).unwrap().unwrap();
+    let field = cache.get_object(&field_v0.0).unwrap().unwrap();
     assert_eq!(field.owner, Owner::ObjectOwner(outer_v0.0.into()));
 
-    let inner = db.get_object(&inner_v0.0).unwrap().unwrap();
+    let inner = cache.get_object(&inner_v0.0).unwrap().unwrap();
     assert_eq!(inner.owner, Owner::ObjectOwner(field_v0.0.into()));
     assert_eq!(inner.version(), inner_v1.1);
 }
@@ -4748,9 +4981,9 @@ async fn test_shared_object_transaction_ok() {
     // Verify shared locks are now set for the transaction.
     let shared_object_version = authority
         .epoch_store_for_testing()
-        .get_shared_locks(&certificate.key())
-        .expect("failed to read shared locks")
-        .expect("locks are not set")
+        .get_assigned_shared_object_versions(&certificate.key())
+        .expect("Reading shared version assignments should not fail")
+        .expect("Versions should be set")
         .into_iter()
         .find_map(|(object_id, version)| {
             if object_id == shared_object_id {
@@ -4759,7 +4992,7 @@ async fn test_shared_object_transaction_ok() {
                 None
             }
         })
-        .expect("shared object is not locked");
+        .expect("shared object must be assigned a version");
     assert_eq!(shared_object_version, OBJECT_START_VERSION);
 
     // Finally (Re-)execute the contract should succeed.
@@ -4860,9 +5093,9 @@ async fn test_consensus_commit_prologue_generation() {
     let get_assigned_version = |txn_key: &TransactionKey| -> SequenceNumber {
         authority_state
             .epoch_store_for_testing()
-            .get_shared_locks(txn_key)
+            .get_assigned_shared_object_versions(txn_key)
             .unwrap()
-            .expect("locks are not set")
+            .expect("versions should be set")
             .iter()
             .filter_map(|(id, seq)| {
                 if id == &IOTA_CLOCK_OBJECT_ID {
@@ -4967,7 +5200,7 @@ async fn test_consensus_message_processed() {
         } else {
             let epoch_store = authority2.epoch_store_for_testing();
             epoch_store
-                .acquire_shared_locks_from_effects(
+                .acquire_shared_version_assignments_from_effects(
                     &VerifiedExecutableTransaction::new_from_certificate(certificate.clone()),
                     &effects1,
                     authority2.get_object_cache_reader().as_ref(),
@@ -6193,18 +6426,15 @@ async fn test_consensus_handler_congestion_control_transaction_cancellation() {
     // Check cancelled transaction shared locks.
     let shared_object_version = authority
         .epoch_store_for_testing()
-        .get_shared_locks(&cancelled_txn.key())
-        .expect("failed to read shared locks")
-        .expect("locks are not set")
+        .get_assigned_shared_object_versions(&cancelled_txn.key())
+        .expect("Reading shared version assignments should not fail")
+        .expect("Versions should be set")
         .into_iter()
         .collect::<HashMap<_, _>>();
     assert_eq!(
         [
-            (
-                shared_objects[0].id(),
-                SequenceNumber::new_congested_with_suggested_gas_price(gas_price_of_cancelled_txs)
-            ),
-            (shared_objects[1].id(), SequenceNumber::CANCELLED_READ)
+            (shared_objects[0].id(), SequenceNumber::CONGESTED),
+            (shared_objects[1].id(), SequenceNumber::CONGESTED)
         ]
         .into_iter()
         .collect::<HashMap<_, _>>(),
@@ -6215,7 +6445,7 @@ async fn test_consensus_handler_congestion_control_transaction_cancellation() {
     let input_loader = TransactionInputLoader::new(authority.get_object_cache_reader().clone());
     let input_objects = input_loader
         .read_objects_for_execution(
-            authority.epoch_store_for_testing().as_ref(),
+            &authority.epoch_store_for_testing(),
             &cancelled_txn.key(),
             &CertLockGuard::guard_for_tests(),
             &cancelled_txn
@@ -6235,21 +6465,18 @@ async fn test_consensus_handler_congestion_control_transaction_cancellation() {
     assert_eq!(
         shared_inputs,
         vec![
-            SharedInput::Cancelled((
-                shared_objects[0].id(),
-                SequenceNumber::new_congested_with_suggested_gas_price(gas_price_of_cancelled_txs)
-            )),
-            SharedInput::Cancelled((shared_objects[1].id(), SequenceNumber::CANCELLED_READ))
+            SharedInput::Cancelled((shared_objects[0].id(), SequenceNumber::CONGESTED)),
+            SharedInput::Cancelled((shared_objects[1].id(), SequenceNumber::CONGESTED))
         ]
     );
 
     // Test get_cancelled_objects.
     let (cancelled_objects, cancellation_reason) = input_objects.get_cancelled_objects().unwrap();
-    assert_eq!(cancelled_objects, vec![shared_objects[0].id()]);
     assert_eq!(
-        cancellation_reason,
-        SequenceNumber::new_congested_with_suggested_gas_price(gas_price_of_cancelled_txs)
+        cancelled_objects,
+        vec![shared_objects[0].id(), shared_objects[1].id()]
     );
+    assert_eq!(cancellation_reason, SequenceNumber::CONGESTED);
 
     // Consensus commit prologue contains cancelled txn shared object version
     // assignment.
@@ -6260,15 +6487,12 @@ async fn test_consensus_handler_congestion_control_transaction_cancellation() {
             &prologue_txn.consensus_determined_version_assignments,
             ConsensusDeterminedVersionAssignments::CancelledTransactions(assignment)
             if assignment == &vec![(
-                *cancelled_txn.digest(),
-                vec![
-                    (
-                        shared_objects[0].id(),
-                        SequenceNumber::new_congested_with_suggested_gas_price(gas_price_of_cancelled_txs),
-                    ),
-                    (shared_objects[1].id(), SequenceNumber::CANCELLED_READ)
-                ]
-            )]
+                                *cancelled_txn.digest(),
+                                vec![
+                                    (shared_objects[0].id(), SequenceNumber::CONGESTED),
+                                    (shared_objects[1].id(), SequenceNumber::CONGESTED)
+                                ]
+                            )]
         ));
     } else {
         panic!("First scheduled transaction must be a ConsensusCommitPrologueV1 transaction.");

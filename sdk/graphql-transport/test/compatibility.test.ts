@@ -388,6 +388,12 @@ describe('GraphQL IotaClient compatibility', () => {
                 },
             });
 
+        // Sorth both results to avoid any order difference
+        graphQLTransactions.data.sort(
+            (txA, txB) => Number(txA.timestampMs) - Number(txB.timestampMs),
+        );
+        rpcTransactions.data.sort((txA, txB) => Number(txA.timestampMs) - Number(txB.timestampMs));
+
         expect(graphQLTransactions).toEqual(rpcTransactions);
     });
 

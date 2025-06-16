@@ -96,7 +96,7 @@ fn test_proof_of_possession() {
     // Result from: target/debug/iota validator serialize-payload-pop
     // --account-address
     // 0x1a4623343cd42be47d67314fce0ad042f3c82685544bc91d8c11d24e74ba7357
-    // --protocol-public-key
+    // --authority-public-key
     // 99f25ef61f8032b914636460982c5cc6f134ef1ddae76657f2cbfec1ebfc8d097374080df6fcf0dcb8bc4b0d8e0af5d80ebbff2b4c599f54f42d6312dfc314276078c1cc347ebbbec5198be258513f386b930d02c2749a803e2330955ebd1a10
     let msg = Base64::decode("BQAAgAGZ8l72H4AyuRRjZGCYLFzG8TTvHdrnZlfyy/7B6/yNCXN0CA32/PDcuLxLDY4K9dgOu/8rTFmfVPQtYxLfwxQnYHjBzDR+u77FGYviWFE/OGuTDQLCdJqAPiMwlV69GhAaRiM0PNQr5H1nMU/OCtBC88gmhVRLyR2MEdJOdLpzVwAAAAAAAAAA").unwrap();
     let sig = kp.sign(&msg);

@@ -1,5 +1,46 @@
 # @iota/iota-sdk
 
+## 1.2.0
+
+### Minor Changes
+
+-   53d5058: Added iota names rpc methods to IotaClient and also GraphQL queries.
+
+## 1.1.0
+
+### Minor Changes
+
+-   1128809: Add `getGraphQLUrl` shorthand to quickly get the graphql endpoint of the given network
+
+### Patch Changes
+
+-   acc502a: Add IOTA Names interfaces
+
+## 1.0.1
+
+### Patch Changes
+
+-   26cf13b: Include mainnet into default network envs
+
+## 1.0.0
+
+### Major Changes
+
+-   daa968f: Initial release of `@iota/bcs` and `@iota/iota-sdk`
+
+### Minor Changes
+
+-   864fd32: Rename `getLatestIotaSystemState` to `getLatestIotaSystemStateV1` and add a new
+    backwards-compatible and future-proof `getLatestIotaSystemState` method that dynamically calls
+    ``getLatestIotaSystemStateV1`or`getLatestIotaSystemStateV2` based on the protocol version of the
+    node.
+
+### Patch Changes
+
+-   f4d75c7: Add graphql field in the network configuration.
+-   Updated dependencies [daa968f]
+    -   @iota/bcs@1.0.0
+
 ## 0.7.0
 
 ### Minor Changes

@@ -25,7 +25,7 @@ Welcome to this beginner-friendly tutorial on [Move](../iota-101/move-overview/m
 
 ## Prerequisites
 
-- Basic understanding of blockchain concepts like [tokens](../../references/framework/iota/token.mdx) and [transactions](https://www.scalingparrots.com/en/what-is-a-blockchain-transaction/).
+- Basic understanding of blockchain concepts like [tokens](../../references/framework/iota-framework/token.mdx) and [transactions](https://www.scalingparrots.com/en/what-is-a-blockchain-transaction/).
 - Basic understanding of the [Move](../iota-101/move-overview/move-overview.mdx)
 - [Install IOTA CLI](install-iota.mdx)
 
@@ -46,11 +46,11 @@ The first step in our program is importing necessary modules from the IOTA packa
 ```move file=<rootDir>/examples/move/token/sources/coffee.move#L8-L12
 ```
 
-- [`iota::tx_context::sender`](../../references/framework/iota/tx_context.mdx): Manages the transaction context.
-- [`iota::coin`](../../references/framework/iota/coin.mdx): Handles the creation and management of coins.
-- [`iota::balance`](../../references/framework/iota/balance.mdx): Manages the balance of the shop.
-- [`iota::token`](../../references/framework/iota/token.mdx): Manages the minting, transfer, and burning of tokens.
-- [`iota::iota::IOTA`](../../references/framework/iota/iota.mdx): The IOTA cryptocurrency module.
+- [`iota::tx_context::sender`](../../references/framework/iota-framework/tx_context.mdx): Manages the transaction context.
+- [`iota::coin`](../../references/framework/iota-framework/coin.mdx): Handles the creation and management of coins.
+- [`iota::balance`](../../references/framework/iota-framework/balance.mdx): Manages the balance of the shop.
+- [`iota::token`](../../references/framework/iota-framework/token.mdx): Manages the minting, transfer, and burning of tokens.
+- [`iota::iota::IOTA`](../../references/framework/iota-framework/iota.mdx): The IOTA cryptocurrency module.
 
 ## 3. Defining Constants
 
@@ -136,7 +136,7 @@ This function ensures the customer has exactly 4 points, spends them, and emits 
 
 ## 9. Transferring Tokens
 
-The `transfer` function enables customers to [transfer](../../references/framework/iota/transfer.mdx) their `COFFEE` tokens to others, but with a 1-point fee deducted as commission. This demonstrates how Move can enforce rules and fees during token transfers, ensuring a fair system of exchange.
+The `transfer` function enables customers to [transfer](../../references/framework/iota-framework/transfer.mdx) their `COFFEE` tokens to others, but with a 1-point fee deducted as commission. This demonstrates how Move can enforce rules and fees during token transfers, ensuring a fair system of exchange.
 
 ### Function Arguments
 

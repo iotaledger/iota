@@ -13,7 +13,7 @@ import questions from '/json/developer/iota-101/objects/object-model.json';
 The fundamental unit of storage on IOTA is the object. 
 Unlike many blockchains that focus on accounts containing key-value stores, IOTA's storage model centers around objects,
 each of which is addressable on-chain by a unique ID.
-In IOTA, a smart contract is an object known as a [package](../../../references/framework/iota/package.mdx),
+In IOTA, a smart contract is an object known as a [package](../../../references/framework/iota-framework/package.mdx),
 and these smart contracts interact with other objects on the IOTA network:
 
 - **IOTA Move Package:** A collection of IOTA Move bytecode modules. Each module has a unique name within its containing package. The combination of the package's on-chain ID and the module name uniquely identifies the module. When you publish smart contracts on IOTA, the package is the unit of publication. Once published, a package object can only be upgraded with the appropriate permissions. A package object may depend on other package objects previously published on IOTA.

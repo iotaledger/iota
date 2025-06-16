@@ -11,7 +11,7 @@ import Link from '@docusaurus/Link';
 
 export const AddressExplorerLink = ({address, network='iota'}) => (
   <Link 
-    to={new URL('/address/' + address, Networks[network].evm.core.blockExplorerUrls[0]).href}
+    to={new URL('/address/' + address, Networks[network].evm.blockExplorerUrls[0]).href}
     >
     {address}
   </Link>

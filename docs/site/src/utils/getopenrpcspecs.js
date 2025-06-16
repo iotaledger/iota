@@ -45,7 +45,7 @@ const downloadFile = (branch) => {
 }
 
 // Download Mainnet OpenRPC spec
-// downloadFile("mainnet");
+downloadFile("mainnet");
 
 // Download Testnet OpenRPC spec
 downloadFile("testnet");

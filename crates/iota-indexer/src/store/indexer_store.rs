@@ -63,15 +63,10 @@ pub trait IndexerStore: Any + Clone + Sync + Send + 'static {
         object_versions: Vec<StoredObjectVersion>,
     ) -> Result<(), IndexerError>;
 
-    // persist objects snapshot with object changes during backfill
-    async fn backfill_objects_snapshot(
+    async fn persist_objects_snapshot(
         &self,
         object_changes: Vec<TransactionObjectChangesToCommit>,
     ) -> Result<(), IndexerError>;
-
-    // update objects snapshot after backfill is done
-    async fn update_objects_snapshot(&self, start_cp: u64, end_cp: u64)
-    -> Result<(), IndexerError>;
 
     async fn persist_checkpoints(
         &self,

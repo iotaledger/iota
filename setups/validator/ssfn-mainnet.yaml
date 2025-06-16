@@ -1,0 +1,56 @@
+---
+# Key pairs
+network-key-pair:
+  path: /opt/iota/key-pairs/network.key
+
+# Database Configuration
+db-path: /opt/iota/db/authorities_db
+
+# Genesis Configuration
+genesis:
+  genesis-file-location: /opt/iota/config/genesis.blob
+migration-tx-data-path: /opt/iota/config/migration.blob
+
+# Network Configuration
+p2p-config:
+  listen-address: "0.0.0.0:8084"
+  external-address: /dns/$HOSTNAME/udp/8084 # UPDATE THIS
+  seed-peers:
+    - address: /dns/validator-hostname/udp/8084 # UPDATE THIS
+      peer-id: <validator-peer-id> # UPDATE THIS: Get this from your validator's network.key
+    - address: /dns/access-0.r.mainnet.iota.cafe/udp/8084
+      peer-id: 66b55de43e925417761f3c66cd734451b5876e1496b961052095bdd8a7732189
+    - address: /dns/access-1.r.mainnet.iota.cafe/udp/8084
+      peer-id: 7f8dc46616df5b5640ffd118c6ef640b3f7f5cae8a2bedfa700769e12150a197
+    - address: /dns/access-2.r.mainnet.iota.cafe/udp/8084
+      peer-id: c9fbf6fb511fc5243989c7a455d36f277844288b1a1d8453331c200b6ac4d99f
+    - address: /dns/access-3.r.mainnet.iota.cafe/udp/8084
+      peer-id: 2c1e05e9bddaf505b70184baf21a188a7c270b1b58f38d55e3aea42d067c5fb6
+
+# Pruning Configuration
+authority-store-pruning-config:
+  num-epochs-to-retain: 0
+  num-epochs-to-retain-for-checkpoints: 2
+  periodic-compaction-threshold-days: 1
+
+# Resource Optimization
+enable-index-processing: false
+checkpoint-executor-config:
+  local-execution-timeout-sec: 10
+indirect-objects-threshold: 18446744073709551615
+
+# Metrics Configuration
+metrics:
+  push-interval-seconds: 60
+  push-url: https://metrics-proxy.mainnet.iota.cafe:8443/publish/metrics
+
+# State Sync Archive Fallback
+state-archive-read-config:
+  - object-store-config:
+      object-store: "S3"
+      aws-endpoint: "https://archive.mainnet.iota.cafe"
+      aws-virtual-hosted-style-request: true
+      object-store-connection-limit: 20
+      no-sign-request: true
+    concurrency: 5
+    use-for-pruning-watermark: false

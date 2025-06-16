@@ -32,13 +32,13 @@ export class FeaturesController {
                     defaultValue: [
                         {
                             name: 'Wallet Dashboard',
-                            link: 'https://wallet-dashboard-staging-iota1.vercel.app/',
+                            link: 'https://wallet-dashboard.iota.org/',
                             icon: 'https://iota.org/logo.png',
                             tags: ['Wallet', 'Dashboard'],
                         },
                         {
                             name: 'EVM Bridge',
-                            link: 'https://evm-bridge-iota1.vercel.app/',
+                            link: 'https://evm-bridge.iota.org/',
                             icon: 'https://iota.org/logo.png',
                             tags: ['EVM', 'Bridge'],
                         },
@@ -123,9 +123,15 @@ export class FeaturesController {
                     defaultValue: [
                         {
                             name: 'Wallet Dashboard',
-                            link: 'https://wallet-dashboard-iota1.vercel.app/',
+                            link: 'https://wallet-dashboard.iota.org/',
                             icon: 'https://iota.org/logo.png',
                             tags: ['Wallet', 'Dashboard'],
+                        },
+                        {
+                            name: 'EVM Bridge',
+                            link: 'https://evm-bridge.iota.org/',
+                            icon: 'https://iota.org/logo.png',
+                            tags: ['EVM', 'Bridge'],
                         },
                     ],
                 },

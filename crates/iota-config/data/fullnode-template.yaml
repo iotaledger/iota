@@ -6,7 +6,6 @@ network-address: "/dns/localhost/tcp/8080/http"
 metrics-address: "0.0.0.0:9184"
 # this address is also used for web socket connections
 json-rpc-address: "0.0.0.0:9000"
-enable-event-processing: true
 
 p2p-config:
   external-address: /dns/$HOSTNAME/udp/8084 # UPDATE THIS

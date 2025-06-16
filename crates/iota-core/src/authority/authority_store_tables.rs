@@ -13,11 +13,10 @@ use typed_store::{
     DBMapUtils,
     metrics::SamplingInterval,
     rocks::{
-        DBBatch, DBMap, DBOptions, MetricConf, ReadWriteOptions, default_db_options,
+        DBBatch, DBMap, DBMapTableConfigMap, DBOptions, MetricConf, default_db_options,
         read_size_from_env,
         util::{empty_compaction_filter, reference_count_merge_operator},
     },
-    rocksdb::Options,
     traits::{Map, TableSummary, TypedStoreDebug},
 };
 
@@ -36,6 +35,22 @@ const ENV_VAR_TRANSACTIONS_BLOCK_CACHE_SIZE: &str = "TRANSACTIONS_BLOCK_CACHE_MB
 const ENV_VAR_EFFECTS_BLOCK_CACHE_SIZE: &str = "EFFECTS_BLOCK_CACHE_MB";
 const ENV_VAR_EVENTS_BLOCK_CACHE_SIZE: &str = "EVENTS_BLOCK_CACHE_MB";
 const ENV_VAR_INDIRECT_OBJECTS_BLOCK_CACHE_SIZE: &str = "INDIRECT_OBJECTS_BLOCK_CACHE_MB";
+
+/// Options to apply to every column family of the `perpetual` DB.
+#[derive(Default)]
+pub struct AuthorityPerpetualTablesOptions {
+    /// Whether to enable write stalling on all column families.
+    pub enable_write_stall: bool,
+}
+
+impl AuthorityPerpetualTablesOptions {
+    fn apply_to(&self, mut db_options: DBOptions) -> DBOptions {
+        if !self.enable_write_stall {
+            db_options = db_options.disable_write_throttling();
+        }
+        db_options
+    }
+}
 
 /// AuthorityPerpetualTables contains data that must be preserved from one epoch
 /// to the next.
@@ -56,21 +71,17 @@ pub struct AuthorityPerpetualTables {
     /// executed transactions whose effects have not yet been written out,
     /// and which must be retried. But, they cannot be retried unless their
     /// input objects are still accessible!
-    #[default_options_override_fn = "objects_table_default_config"]
     pub(crate) objects: DBMap<ObjectKey, StoreObjectWrapper>,
 
-    #[default_options_override_fn = "indirect_move_objects_table_default_config"]
     pub(crate) indirect_move_objects: DBMap<ObjectContentDigest, StoreMoveObjectWrapper>,
 
     /// Object references of currently active objects that can be mutated.
-    #[default_options_override_fn = "live_owned_object_markers_table_default_config"]
     pub(crate) live_owned_object_markers: DBMap<ObjectRef, ()>,
 
     /// This is a map between the transaction digest and the corresponding
     /// transaction that's known to be executable. This means that it may
     /// have been executed locally, or it may have been synced through
     /// state-sync but hasn't been executed yet.
-    #[default_options_override_fn = "transactions_table_default_config"]
     pub(crate) transactions: DBMap<TransactionDigest, TrustedTransaction>,
 
     /// A map between the transaction digest of a certificate to the effects of
@@ -85,7 +96,6 @@ pub struct AuthorityPerpetualTables {
     ///
     /// It's also possible for the effects to be reverted if the transaction
     /// didn't make it into the epoch.
-    #[default_options_override_fn = "effects_table_default_config"]
     pub(crate) effects: DBMap<TransactionEffectsDigest, TransactionEffects>,
 
     /// Transactions that have been executed locally on this node. We need this
@@ -99,7 +109,6 @@ pub struct AuthorityPerpetualTables {
     // We could potentially remove this if we decided not to provide events in the execution path.
     // TODO: Figure out what to do with this table in the long run.
     // Also we need a pruning policy for this table. We can prune this table along with tx/effects.
-    #[default_options_override_fn = "events_table_default_config"]
     pub(crate) events: DBMap<(TransactionEventsDigest, usize), Event>,
 
     /// Epoch and checkpoint of transactions finalized by checkpoint
@@ -156,13 +165,45 @@ impl AuthorityPerpetualTables {
         parent_path.join("perpetual")
     }
 
-    pub fn open(parent_path: &Path, db_options: Option<Options>) -> Self {
+    pub fn open(
+        parent_path: &Path,
+        db_options_override: Option<AuthorityPerpetualTablesOptions>,
+    ) -> Self {
+        let db_options_override = db_options_override.unwrap_or_default();
+        let db_options =
+            db_options_override.apply_to(default_db_options().optimize_db_for_write_throughput(4));
+        let table_options = DBMapTableConfigMap::new(BTreeMap::from([
+            (
+                "objects".to_string(),
+                objects_table_config(db_options.clone()),
+            ),
+            (
+                "indirect_move_objects".to_string(),
+                indirect_move_objects_table_config(db_options.clone()),
+            ),
+            (
+                "live_owned_object_markers".to_string(),
+                live_owned_object_markers_table_config(db_options.clone()),
+            ),
+            (
+                "transactions".to_string(),
+                transactions_table_config(db_options.clone()),
+            ),
+            (
+                "effects".to_string(),
+                effects_table_config(db_options.clone()),
+            ),
+            (
+                "events".to_string(),
+                events_table_config(db_options.clone()),
+            ),
+        ]));
         Self::open_tables_read_write(
             Self::path(parent_path),
             MetricConf::new("perpetual")
                 .with_sampling(SamplingInterval::new(Duration::from_secs(60), 0)),
-            db_options,
-            None,
+            Some(db_options.options),
+            Some(table_options),
         )
     }
 
@@ -605,57 +646,58 @@ impl Iterator for LiveSetIter<'_> {
 }
 
 // These functions are used to initialize the DB tables
-fn live_owned_object_markers_table_default_config() -> DBOptions {
+fn live_owned_object_markers_table_config(db_options: DBOptions) -> DBOptions {
     DBOptions {
-        options: default_db_options()
+        options: db_options
+            .clone()
             .optimize_for_write_throughput()
             .optimize_for_read(read_size_from_env(ENV_VAR_LOCKS_BLOCK_CACHE_SIZE).unwrap_or(1024))
             .options,
-        rw_options: ReadWriteOptions::default().set_ignore_range_deletions(false),
+        rw_options: db_options.rw_options.set_ignore_range_deletions(false),
     }
 }
 
-fn objects_table_default_config() -> DBOptions {
-    default_db_options()
+fn objects_table_config(db_options: DBOptions) -> DBOptions {
+    db_options
         .optimize_for_write_throughput()
         .optimize_for_read(read_size_from_env(ENV_VAR_OBJECTS_BLOCK_CACHE_SIZE).unwrap_or(5 * 1024))
 }
 
-fn transactions_table_default_config() -> DBOptions {
-    default_db_options()
+fn transactions_table_config(db_options: DBOptions) -> DBOptions {
+    db_options
         .optimize_for_write_throughput()
         .optimize_for_point_lookup(
             read_size_from_env(ENV_VAR_TRANSACTIONS_BLOCK_CACHE_SIZE).unwrap_or(512),
         )
 }
 
-fn effects_table_default_config() -> DBOptions {
-    default_db_options()
+fn effects_table_config(db_options: DBOptions) -> DBOptions {
+    db_options
         .optimize_for_write_throughput()
         .optimize_for_point_lookup(
             read_size_from_env(ENV_VAR_EFFECTS_BLOCK_CACHE_SIZE).unwrap_or(1024),
         )
 }
 
-fn events_table_default_config() -> DBOptions {
-    default_db_options()
+fn events_table_config(db_options: DBOptions) -> DBOptions {
+    db_options
         .optimize_for_write_throughput()
         .optimize_for_read(read_size_from_env(ENV_VAR_EVENTS_BLOCK_CACHE_SIZE).unwrap_or(1024))
 }
 
-fn indirect_move_objects_table_default_config() -> DBOptions {
-    let mut options = default_db_options()
+fn indirect_move_objects_table_config(mut db_options: DBOptions) -> DBOptions {
+    db_options = db_options
         .optimize_for_write_throughput()
         .optimize_for_point_lookup(
             read_size_from_env(ENV_VAR_INDIRECT_OBJECTS_BLOCK_CACHE_SIZE).unwrap_or(512),
         );
-    options.options.set_merge_operator(
+    db_options.options.set_merge_operator(
         "refcount operator",
         reference_count_merge_operator,
         reference_count_merge_operator,
     );
-    options
+    db_options
         .options
         .set_compaction_filter("empty filter", empty_compaction_filter);
-    options
+    db_options
 }

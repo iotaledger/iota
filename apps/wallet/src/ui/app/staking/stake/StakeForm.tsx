@@ -14,6 +14,7 @@ import {
     useNewStakeTransaction,
     Validator,
     toast,
+    useIsValidatorCommitteeMember,
 } from '@iota/core';
 import * as Sentry from '@sentry/react';
 import { ampli } from '_src/shared/analytics/ampli';
@@ -25,7 +26,7 @@ import {
     FormikProvider,
     useFormik,
 } from 'formik';
-import { memo, useMemo } from 'react';
+import { memo, useEffect, useMemo } from 'react';
 import { useActiveAccount, useSigner } from '_hooks';
 import {
     Button,
@@ -38,7 +39,7 @@ import {
     Input,
     InputType,
 } from '@iota/apps-ui-kit';
-import { Exclamation, Loader } from '@iota/apps-ui-icons';
+import { Exclamation, Loader, Warning } from '@iota/apps-ui-icons';
 import { ExplorerLinkHelper } from '../../components';
 import { useMutation } from '@tanstack/react-query';
 import { getSignerOperationErrorMessage } from '../../helpers';
@@ -64,28 +65,16 @@ export function StakeFormComponent({ validatorAddress, epoch, onSuccess }: Stake
     const signer = useSigner(activeAccount);
     const { data: iotaBalance, isPending: isIotaBalanceLoading } = useBalance(activeAddress);
     const coinBalance = BigInt(iotaBalance?.totalBalance || 0);
-
+    const { isCommitteeMember } = useIsValidatorCommitteeMember();
     const { data: metadata } = useCoinMetadata(IOTA_TYPE_ARG);
     const decimals = metadata?.decimals ?? 0;
     const coinSymbol = metadata?.symbol ?? '';
 
     // set minimum stake amount to 1 IOTA
     const minimumStake = parseAmount(MIN_NUMBER_IOTA_TO_STAKE.toString(), decimals);
-    const { data: maxAmountTransactionData } = useNewStakeTransaction(
-        validatorAddress,
-        coinBalance,
-        activeAddress,
-    );
-    const maxAmountTxGasBudget = BigInt(maxAmountTransactionData?.gasSummary?.budget ?? 0n);
-    const availableBalance = coinBalance - maxAmountTxGasBudget;
-    const [availableBalanceFormatted, symbol] = useFormatCoin({
-        balance: availableBalance,
-        format: CoinFormat.FULL,
-    });
-
     const validationSchema = useMemo(
-        () => createValidationSchema(availableBalance, coinSymbol, decimals, minimumStake),
-        [availableBalance, coinSymbol, decimals, minimumStake],
+        () => createValidationSchema(coinBalance, coinSymbol, decimals, minimumStake),
+        [coinBalance, coinSymbol, decimals, minimumStake],
     );
 
     const { mutateAsync: stakeTokenMutateAsync, isPending: isStakeTokenTransactionPending } =
@@ -153,7 +142,7 @@ export function StakeFormComponent({ validatorAddress, epoch, onSuccess }: Stake
         onSubmit: handleSubmit,
         validateOnChange: true,
     });
-    const { values, isValid, isSubmitting, submitForm, setFieldValue } = formik;
+    const { values, isValid, isSubmitting, setFieldValue, submitForm } = formik;
     const { amount } = values;
     const amountWithoutDecimals = parseAmount(amount, decimals);
 
@@ -164,6 +153,24 @@ export function StakeFormComponent({ validatorAddress, epoch, onSuccess }: Stake
     } = useNewStakeTransaction(validatorAddress, amountWithoutDecimals, activeAddress);
     const transaction = newStakeData?.transaction;
     const gasSummary = newStakeData?.gasSummary;
+
+    const { data: maxAmountTransactionData } = useNewStakeTransaction(
+        validatorAddress,
+        coinBalance,
+        activeAddress,
+    );
+    const maxAmountTxGasBudget = BigInt(maxAmountTransactionData?.gasSummary?.budget ?? 0n);
+    // do not remove: gasBudget field is used in the validation schema apps/core/src/utils/stake/createValidationSchema.ts
+    useEffect(() => {
+        setFieldValue('gasBudget', maxAmountTxGasBudget);
+    }, [maxAmountTxGasBudget]);
+
+    // for user we show available amount as available_balance - gas_budget
+    const availableBalance = coinBalance - maxAmountTxGasBudget;
+    const [availableBalanceFormatted, symbol] = useFormatCoin({
+        balance: availableBalance,
+        format: CoinFormat.FULL,
+    });
 
     const isLoading =
         isIotaBalanceLoading ||
@@ -229,6 +236,15 @@ export function StakeFormComponent({ validatorAddress, epoch, onSuccess }: Stake
                         );
                     }}
                 </Field>
+                {!isCommitteeMember(validatorAddress) && (
+                    <InfoBox
+                        type={InfoBoxType.Warning}
+                        title="Validator is not earning rewards."
+                        supportingText="Validator is active but not in the current committee, so not earning rewards this epoch. It may earn in future epochs. Stake at your discretion."
+                        icon={<Warning />}
+                        style={InfoBoxStyle.Elevated}
+                    />
+                )}
 
                 {isUnsafeAmount ? (
                     <InfoBox

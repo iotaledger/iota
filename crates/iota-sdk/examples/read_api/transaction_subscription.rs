@@ -10,8 +10,7 @@
 //! cargo run --example transaction_subscription
 
 use futures::stream::StreamExt;
-use iota_json_rpc_types::TransactionFilter;
-use iota_sdk::IotaClientBuilder;
+use iota_sdk::{IotaClientBuilder, rpc_types::TransactionFilter};
 
 #[tokio::main]
 async fn main() -> Result<(), anyhow::Error> {

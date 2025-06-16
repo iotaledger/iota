@@ -2,8 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { ButtonPill, Input, InputType } from '@iota/apps-ui-kit';
-import { CoinStruct } from '@iota/iota-sdk/client';
-import { CoinFormat, IOTA_COIN_METADATA, useCoinMetadata, useFormatCoin } from '../../hooks';
+import { CoinMetadata, CoinStruct } from '@iota/iota-sdk/client';
+import { CoinFormat, IOTA_COIN_METADATA, useFormatCoin } from '../../hooks';
 import { useField, useFormikContext } from 'formik';
 import { TokenForm } from '../../forms';
 import { parseAmount } from '../../utils';
@@ -16,6 +16,7 @@ export interface SendTokenInputProps {
     isMaxActionDisabled?: boolean;
     name: string;
     totalGas?: string;
+    coinMetadata?: CoinMetadata | null;
 }
 
 export function SendTokenFormInput({
@@ -25,10 +26,10 @@ export function SendTokenFormInput({
     isMaxActionDisabled,
     name,
     totalGas,
+    coinMetadata,
 }: SendTokenInputProps) {
     const { values, isSubmitting, validateField } = useFormikContext<TokenForm>();
 
-    const { data: coinMetadata } = useCoinMetadata(coinType);
     const coinDecimals = coinMetadata?.decimals ?? 0;
     const symbol = coinMetadata?.symbol ?? IOTA_COIN_METADATA.symbol;
 
@@ -38,7 +39,8 @@ export function SendTokenFormInput({
     });
 
     const [field, meta, helpers] = useField<string>(name);
-    const errorMessage = meta.error;
+    const errorMessage =
+        coinMetadata === null ? 'There was an error fetching the coin metadata' : meta.error;
     const isActionButtonDisabled = isSubmitting || isMaxActionDisabled;
 
     const gasAmount = formattedGasBudgetEstimation

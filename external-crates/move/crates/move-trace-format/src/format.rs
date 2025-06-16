@@ -218,6 +218,12 @@ impl MoveTrace {
     }
 }
 
+impl Default for MoveTrace {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl MoveTraceBuilder {
     /// Create a new `MoveTraceBuilder` with no additional tracing.
     pub fn new() -> Self {
@@ -312,6 +318,12 @@ impl MoveTraceBuilder {
     fn push_event(&mut self, event: TraceEvent) {
         self.trace.events.push(event.clone());
         self.tracer.notify(&event, Writer(&mut self.trace));
+    }
+}
+
+impl Default for MoveTraceBuilder {
+    fn default() -> Self {
+        Self::new()
     }
 }
 

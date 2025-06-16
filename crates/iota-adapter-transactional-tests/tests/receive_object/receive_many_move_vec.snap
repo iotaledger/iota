@@ -1,0 +1,211 @@
+---
+source: external-crates/move/crates/move-transactional-test-runner/src/framework.rs
+---
+processed 22 tasks
+
+task 1, lines 7-78:
+//# publish
+created: object(1,0)
+mutated: object(0,0)
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 11278400,  storage_rebate: 0, non_refundable_storage_fee: 0
+
+task 2, line 80:
+//# run tto::M1::start
+created: object(2,0), object(2,1), object(2,2), object(2,3), object(2,4)
+mutated: object(0,0)
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 7022400,  storage_rebate: 980400, non_refundable_storage_fee: 0
+
+task 3, line 82:
+//# view-object 2,0
+Owner: Account Address ( _ )
+Version: 3
+Contents: tto::M1::A {
+    id: iota::object::UID {
+        id: iota::object::ID {
+            bytes: fake(2,0),
+        },
+    },
+}
+
+task 4, line 84:
+//# view-object 2,1
+Owner: Account Address ( fake(2,0) )
+Version: 3
+Contents: tto::M1::B {
+    id: iota::object::UID {
+        id: iota::object::ID {
+            bytes: fake(2,1),
+        },
+    },
+}
+
+task 5, line 86:
+//# view-object 2,2
+Owner: Account Address ( fake(2,0) )
+Version: 3
+Contents: tto::M1::B {
+    id: iota::object::UID {
+        id: iota::object::ID {
+            bytes: fake(2,2),
+        },
+    },
+}
+
+task 6, line 88:
+//# view-object 2,3
+Owner: Account Address ( fake(2,0) )
+Version: 3
+Contents: tto::M1::B {
+    id: iota::object::UID {
+        id: iota::object::ID {
+            bytes: fake(2,3),
+        },
+    },
+}
+
+task 7, lines 90-92:
+//# view-object 2,4
+Owner: Account Address ( fake(2,0) )
+Version: 3
+Contents: tto::M1::B {
+    id: iota::object::UID {
+        id: iota::object::ID {
+            bytes: fake(2,4),
+        },
+    },
+}
+
+task 8, lines 93-96:
+//# programmable --inputs object(2,0) receiving(2,1) receiving(2,2) receiving(2,3) receiving(2,4)
+//> 0: MakeMoveVec<iota::transfer::Receiving<tto::M1::B>>([Input(1), Input(2), Input(3), Input(4)]);
+// Make the Move vec and pass, but never receive
+mutated: object(0,0), object(2,0)
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2188800,  storage_rebate: 2188800, non_refundable_storage_fee: 0
+
+task 9, lines 97-101:
+//# programmable --inputs object(2,0) receiving(2,1) receiving(2,2) receiving(2,3) receiving(2,4)
+//> 0: MakeMoveVec<iota::transfer::Receiving<tto::M1::B>>([Input(1), Input(2), Input(3), Input(4)]);
+//> 1: tto::M1::receive_none(Input(0), Result(0));
+// Make the Move vec of receiving arguments and then receive all but the last. Only the ince we receive should be mutated
+mutated: object(0,0), object(2,0)
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2188800,  storage_rebate: 2188800, non_refundable_storage_fee: 0
+
+task 10, lines 102-106:
+//# programmable --inputs object(2,0) receiving(2,1) receiving(2,2) receiving(2,3) receiving(2,4)
+//> 0: MakeMoveVec<iota::transfer::Receiving<tto::M1::B>>([Input(1), Input(2), Input(3), Input(4)]);
+//> 1: tto::M1::receive_all_but_last(Input(0), Result(0));
+// Make the Move vec of receiving arguments, pass to a function by immref, then later use the vec to receive all of them
+mutated: object(0,0), object(2,0), object(2,2), object(2,3), object(2,4)
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 5814000,  storage_rebate: 5814000, non_refundable_storage_fee: 0
+
+task 11, lines 107-112:
+//# programmable --inputs object(2,0) receiving(2,1) receiving(2,2) receiving(2,3) receiving(2,4)
+//> 0: MakeMoveVec<iota::transfer::Receiving<tto::M1::B>>([Input(1), Input(2), Input(3), Input(4)]);
+//> 1: tto::M1::receive_none_by_immref(Input(0), Result(0));
+//> 2: tto::M1::receive_all_send_back(Input(0), Result(0));
+// Make the Move vec of receiving arguments, pass to a function by mutref, then later use the vec to receive all of them
+mutated: object(0,0), object(2,0), object(2,1), object(2,2), object(2,3), object(2,4)
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 7022400,  storage_rebate: 7022400, non_refundable_storage_fee: 0
+
+task 12, lines 113-118:
+//# programmable --inputs object(2,0) receiving(2,1) receiving(2,2) receiving(2,3) receiving(2,4)
+//> 0: MakeMoveVec<iota::transfer::Receiving<tto::M1::B>>([Input(1), Input(2), Input(3), Input(4)]);
+//> 1: tto::M1::receive_none_by_mutref(Input(0), Result(0));
+//> 2: tto::M1::receive_all_send_back(Input(0), Result(0));
+// Make the Move vec of receiving arguments, pass to a function by mutref and receive some
+mutated: object(0,0), object(2,0), object(2,1), object(2,2), object(2,3), object(2,4)
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 7022400,  storage_rebate: 7022400, non_refundable_storage_fee: 0
+
+task 13, lines 119-124:
+//# programmable --inputs object(2,0) receiving(2,1) receiving(2,2) receiving(2,3) receiving(2,4)
+//> 0: MakeMoveVec<iota::transfer::Receiving<tto::M1::B>>([Input(1), Input(2), Input(3), Input(4)]);
+//> 1: tto::M1::receive_all_but_last_by_mut_ref(Input(0), Result(0));
+//> 2: tto::M1::receive_all_by_mut_ref(Input(0), Result(0));
+// Make the Move vec of receiving arguments, pass to a function by mutref, receive some, then pass by mutref again to receive the rest
+mutated: object(0,0), object(2,0), object(2,1), object(2,2), object(2,3), object(2,4)
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 7022400,  storage_rebate: 7022400, non_refundable_storage_fee: 0
+
+task 14, lines 125-130:
+//# programmable --inputs object(2,0) receiving(2,1) receiving(2,2) receiving(2,3) receiving(2,4)
+//> 0: MakeMoveVec<iota::transfer::Receiving<tto::M1::B>>([Input(1), Input(2), Input(3), Input(4)]);
+//> 1: tto::M1::receive_all_but_last_by_mut_ref(Input(0), Result(0));
+//> 2: tto::M1::receive_all_by_mut_ref(Input(0), Result(0));
+// Make the Move vec of receiving arguments, pass to a function by mutref, receive some, then pass by value to receive the rest
+mutated: object(0,0), object(2,0), object(2,1), object(2,2), object(2,3), object(2,4)
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 7022400,  storage_rebate: 7022400, non_refundable_storage_fee: 0
+
+task 15, lines 131-136:
+//# programmable --inputs object(2,0) receiving(2,1) receiving(2,2) receiving(2,3) receiving(2,4)
+//> 0: MakeMoveVec<iota::transfer::Receiving<tto::M1::B>>([Input(1), Input(2), Input(3), Input(4)]);
+//> 1: tto::M1::receive_all_but_last_by_mut_ref(Input(0), Result(0));
+//> 2: tto::M1::receive_all_send_back(Input(0), Result(0));
+// Make the Move vec of receiving arguments and then receive all of them
+mutated: object(0,0), object(2,0), object(2,1), object(2,2), object(2,3), object(2,4)
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 7022400,  storage_rebate: 7022400, non_refundable_storage_fee: 0
+
+task 16, lines 137-139:
+//# programmable --inputs object(2,0) receiving(2,1) receiving(2,2) receiving(2,3) receiving(2,4)
+//> 0: MakeMoveVec<iota::transfer::Receiving<tto::M1::B>>([Input(1), Input(2), Input(3), Input(4)]);
+//> 1: tto::M1::receive_all(Input(0), Result(0));
+mutated: object(0,0), object(2,0), object(2,1), object(2,2), object(2,3), object(2,4)
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 7022400,  storage_rebate: 7022400, non_refundable_storage_fee: 0
+
+task 17, line 141:
+//# view-object 2,0
+Owner: Account Address ( _ )
+Version: 12
+Contents: tto::M1::A {
+    id: iota::object::UID {
+        id: iota::object::ID {
+            bytes: fake(2,0),
+        },
+    },
+}
+
+task 18, line 143:
+//# view-object 2,1
+Owner: Account Address ( _ )
+Version: 12
+Contents: tto::M1::B {
+    id: iota::object::UID {
+        id: iota::object::ID {
+            bytes: fake(2,1),
+        },
+    },
+}
+
+task 19, line 145:
+//# view-object 2,2
+Owner: Account Address ( _ )
+Version: 12
+Contents: tto::M1::B {
+    id: iota::object::UID {
+        id: iota::object::ID {
+            bytes: fake(2,2),
+        },
+    },
+}
+
+task 20, line 147:
+//# view-object 2,3
+Owner: Account Address ( _ )
+Version: 12
+Contents: tto::M1::B {
+    id: iota::object::UID {
+        id: iota::object::ID {
+            bytes: fake(2,3),
+        },
+    },
+}
+
+task 21, line 149:
+//# view-object 2,4
+Owner: Account Address ( _ )
+Version: 12
+Contents: tto::M1::B {
+    id: iota::object::UID {
+        id: iota::object::ID {
+            bytes: fake(2,4),
+        },
+    },
+}

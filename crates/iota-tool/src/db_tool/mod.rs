@@ -349,7 +349,6 @@ pub fn reset_db_to_genesis(path: &Path) -> anyhow::Result<()> {
     // websocket-address: "0.0.0.0:9001"
     // metrics-address: "0.0.0.0:9184"
     // admin-interface-address: "127.0.0.1:1337"
-    // enable-event-processing: true
     // grpc-load-shed: ~
     // grpc-concurrency-limit: ~
     // p2p-config:

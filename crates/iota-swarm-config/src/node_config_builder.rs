@@ -212,6 +212,10 @@ impl ValidatorConfigBuilder {
             transaction_kv_store_read_config: Default::default(),
             transaction_kv_store_write_config: None,
             enable_rest_api: true,
+            rest: Some(iota_rest_api::Config {
+                enable_unstable_apis: Some(true),
+                ..Default::default()
+            }),
             jwk_fetch_interval_seconds: self
                 .jwk_fetch_interval
                 .map(|i| i.as_secs())
@@ -225,6 +229,8 @@ impl ValidatorConfigBuilder {
             execution_cache: ExecutionCacheConfig::default(),
             enable_validator_tx_finalizer: true,
             verifier_signing_config: VerifierSigningConfig::default(),
+            enable_db_write_stall: None,
+            iota_names_config: None,
         }
     }
 
@@ -270,6 +276,7 @@ pub struct FullnodeConfigBuilder {
     policy_config: Option<PolicyConfig>,
     fw_config: Option<RemoteFirewallConfig>,
     data_ingestion_dir: Option<PathBuf>,
+    disable_pruning: bool,
 }
 
 impl FullnodeConfigBuilder {
@@ -301,6 +308,11 @@ impl FullnodeConfigBuilder {
 
     pub fn with_db_checkpoint_config(mut self, db_checkpoint_config: DBCheckpointConfig) -> Self {
         self.db_checkpoint_config = Some(db_checkpoint_config);
+        self
+    }
+
+    pub fn with_disable_pruning(mut self, disable_pruning: bool) -> Self {
+        self.disable_pruning = disable_pruning;
         self
     }
 
@@ -455,6 +467,12 @@ impl FullnodeConfigBuilder {
             ..Default::default()
         };
 
+        let mut pruning_config = AuthorityStorePruningConfig::default();
+        if self.disable_pruning {
+            pruning_config.set_num_epochs_to_retain_for_checkpoints(None);
+            pruning_config.set_num_epochs_to_retain(u64::MAX);
+        };
+
         NodeConfig {
             authority_key_pair: AuthorityKeyPairWithPath::new(validator_config.authority_key_pair),
             account_key_pair: KeyPairWithPath::new(validator_config.account_key_pair),
@@ -485,7 +503,7 @@ impl FullnodeConfigBuilder {
             grpc_load_shed: None,
             grpc_concurrency_limit: None,
             p2p_config,
-            authority_store_pruning_config: AuthorityStorePruningConfig::default(),
+            authority_store_pruning_config: pruning_config,
             end_of_epoch_broadcast_channel_capacity:
                 default_end_of_epoch_broadcast_channel_capacity(),
             checkpoint_executor_config,
@@ -506,6 +524,10 @@ impl FullnodeConfigBuilder {
             transaction_kv_store_read_config: Default::default(),
             transaction_kv_store_write_config: Default::default(),
             enable_rest_api: true,
+            rest: Some(iota_rest_api::Config {
+                enable_unstable_apis: Some(true),
+                ..Default::default()
+            }),
             // note: not used by fullnodes.
             jwk_fetch_interval_seconds: 3600,
             zklogin_oauth_providers: default_zklogin_oauth_providers(),
@@ -518,6 +540,8 @@ impl FullnodeConfigBuilder {
             // This is a validator specific feature.
             enable_validator_tx_finalizer: false,
             verifier_signing_config: VerifierSigningConfig::default(),
+            enable_db_write_stall: None,
+            iota_names_config: None,
         }
     }
 

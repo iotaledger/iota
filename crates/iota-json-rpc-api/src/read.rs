@@ -67,10 +67,10 @@ pub trait ReadApi {
         options: Option<IotaObjectDataOptions>,
     ) -> RpcResult<Vec<IotaObjectResponse>>;
 
-    /// Note there is no software-level guarantee/SLA that objects with past versions
-    /// can be retrieved by this API, even if the object and version exists/existed.
-    /// The result may vary across nodes depending on their pruning policies.
-    /// Return the object information for a specified version
+    /// Note there is no software-level guarantee/SLA that objects with past
+    /// versions can be retrieved by this API, even if the object and version
+    /// exists/existed. The result may vary across nodes depending on their
+    /// pruning policies. Return the object information for a specified version
     #[rustfmt::skip]
     #[method(name = "tryGetPastObject")]
     async fn try_get_past_object(
@@ -104,10 +104,10 @@ pub trait ReadApi {
         version: SequenceNumber,
     ) -> RpcResult<IotaPastObjectResponse>;
 
-    /// Note there is no software-level guarantee/SLA that objects with past versions
-    /// can be retrieved by this API, even if the object and version exists/existed.
-    /// The result may vary across nodes depending on their pruning policies.
-    /// Return the object information for a specified version
+    /// Note there is no software-level guarantee/SLA that objects with past
+    /// versions can be retrieved by this API, even if the object and version
+    /// exists/existed. The result may vary across nodes depending on their
+    /// pruning policies. Return the object information for a specified version
     #[rustfmt::skip]
     #[method(name = "tryMultiGetPastObjects")]
     async fn try_multi_get_past_objects(
@@ -158,7 +158,8 @@ pub trait ReadApi {
     async fn get_latest_checkpoint_sequence_number(&self) -> RpcResult<BigInt<u64>>;
 
     /// Return the protocol config table for the given version number.
-    /// If the version number is not specified, If none is specified, the node uses the version of the latest epoch it has processed.
+    /// If the version number is not specified, If none is specified, the node uses
+    /// the version of the latest epoch it has processed.
     #[rustfmt::skip]
     #[method(name = "getProtocolConfig")]
     async fn get_protocol_config(

@@ -401,8 +401,8 @@ pub enum LocalState<V: Clone + Debug + Default> {
     },
 }
 
-/// A trait for a the context when visiting a `Command` in a block. At a minimum
-/// it must hold the diagnostics and the abstract state
+/// A trait for the context when visiting a `Command` in a block. At a minimum it must hold the diagnostics
+/// and the abstract state
 pub trait SimpleExecutionContext {
     /// Add a diagnostic
     fn add_diag(&mut self, diag: Diagnostic);

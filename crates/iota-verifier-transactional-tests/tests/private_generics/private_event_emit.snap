@@ -1,0 +1,40 @@
+---
+source: external-crates/move/crates/move-transactional-test-runner/src/framework.rs
+---
+processed 9 tasks
+
+task 1, lines 9-18:
+//# publish
+Error: Transaction Effects Status: IOTA Move Bytecode Verification Error. Please run the IOTA Move Verifier for more information.
+Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: IotaMoveVerificationError, source: Some("_::m::t. Invalid call to 'iota::event::emit' with an event type 'T0'. The event's type must be defined in the current module"), command: Some(0) } }
+
+task 2, lines 20-29:
+//# publish
+Error: Transaction Effects Status: IOTA Move Bytecode Verification Error. Please run the IOTA Move Verifier for more information.
+Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: IotaMoveVerificationError, source: Some("_::m::t. Invalid call to 'iota::event::emit' with an event type 'u64'. The event's type must be defined in the current module"), command: Some(0) } }
+
+task 3, lines 31-44:
+//# publish
+Error: Transaction Effects Status: IOTA Move Bytecode Verification Error. Please run the IOTA Move Verifier for more information.
+Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: IotaMoveVerificationError, source: Some("_::m::t. Invalid call to 'iota::event::emit' with an event type 'vector<_::m::X>'. The event's type must be defined in the current module"), command: Some(0) } }
+
+task 4, lines 46-59:
+//# publish
+Error: Transaction Effects Status: IOTA Move Bytecode Verification Error. Please run the IOTA Move Verifier for more information.
+Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: IotaMoveVerificationError, source: Some("_::m::t. Invalid call to 'iota::event::emit' with an event type 'vector<_::m::X>'. The event's type must be defined in the current module"), command: Some(0) } }
+
+task 5, lines 61-70:
+//# publish
+created: object(5,0)
+mutated: object(0,0)
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 3982400,  storage_rebate: 980400, non_refundable_storage_fee: 0
+
+task 7, lines 74-84:
+//# publish --dependencies test
+Error: Transaction Effects Status: IOTA Move Bytecode Verification Error. Please run the IOTA Move Verifier for more information.
+Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: IotaMoveVerificationError, source: Some("_::t::t. Invalid call to 'iota::event::emit' with an event type 'test::m::X'. The event's type must be defined in the current module"), command: Some(0) } }
+
+task 8, lines 86-96:
+//# publish --dependencies test
+Error: Transaction Effects Status: IOTA Move Bytecode Verification Error. Please run the IOTA Move Verifier for more information.
+Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: IotaMoveVerificationError, source: Some("_::t::t. Invalid call to 'iota::event::emit' with an event type 'test::m::Y'. The event's type must be defined in the current module"), command: Some(0) } }

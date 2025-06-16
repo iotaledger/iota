@@ -64,13 +64,11 @@ tracing.workspace = true
 consensus-config.workspace = true
 iota-enum-compat-util.workspace = true
 iota-macros.workspace = true
-iota-metrics.workspace = true
 iota-network-stack.workspace = true
 iota-protocol-config.workspace = true
 iota-stardust-sdk = { version = "1.1", default-features = false, features = ["irc_27", "irc_30", "std"], package = "iota-sdk" }
 move-binary-format.workspace = true
 move-bytecode-utils.workspace = true
-move-command-line-common.workspace = true
 move-core-types.workspace = true
 move-disassembler.workspace = true
 move-ir-types.workspace = true
@@ -81,7 +79,6 @@ shared-crypto.workspace = true
 typed-store-error.workspace = true
 
 [dev-dependencies]
-# external dependencies
 async-trait.workspace = true
 bincode.workspace = true
 coset.workspace = true
@@ -95,20 +92,11 @@ serde_yaml.workspace = true
 tokio.workspace = true
 url.workspace = true
 
-# internal dependencies
-iota-util-mem.workspace = true
-
 [[bench]]
 name = "accumulator_bench"
 harness = false
 
 [features]
 default = []
-tracing = [
-  "move-vm-profiler/tracing",
-  "move-vm-test-utils/tracing",
-]
+tracing = ["move-vm-profiler/tracing", "move-vm-test-utils/tracing"]
 fuzzing = ["move-core-types/fuzzing", "dep:proptest-derive", "dep:proptest"]
-
-[package.metadata.cargo-udeps.ignore]
-development = ["iota-util-mem"]

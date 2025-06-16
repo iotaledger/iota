@@ -13,7 +13,7 @@ const SPECULOS_BASE_URL: string = `http://127.0.0.1:${API_PORT}`;
 
 // Before running the tests you need to install speculos and start the iota app with it.
 // If the binary is not available, download it:
-// gh release download --repo https://github.com/iotaledger/ledger-app-iota -p nanos.tar.gz untagged-a706a550379839d8db15
+// gh release download --repo https://github.com/iotaledger/ledger-app-iota -p nanos.tar.gz ledger-app-iota-v0.9.2
 // tar -xvf nanos.tar.gz
 // sudo apt-get install qemu-user-static libxcb-xinerama0 // might be needed for speculos to work
 // pip install speculos

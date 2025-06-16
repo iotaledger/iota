@@ -80,7 +80,8 @@ fn async_verifier_bench(c: &mut Criterion) {
                         batch_size,
                         metrics.clone(),
                         ZkLoginEnv::Test,
-                        true,
+                        true, // accept_zklogin_in_multisig
+                        true, // accept_passkey_in_multisig
                         Some(30),
                     ));
 

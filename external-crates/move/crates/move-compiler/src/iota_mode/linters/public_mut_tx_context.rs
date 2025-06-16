@@ -8,18 +8,17 @@
 //! Promotes best practices for future-proofing smart contract code by allowing
 //! mutation of the transaction context.
 
-use move_ir_types::location::Loc;
-
-use super::{LINT_WARNING_PREFIX, LinterDiagnosticCategory, LinterDiagnosticCode};
+use super::{LinterDiagnosticCategory, LinterDiagnosticCode, LINT_WARNING_PREFIX};
 use crate::{
     diag,
-    diagnostics::codes::{DiagnosticInfo, Severity, custom},
+    diagnostics::codes::{custom, DiagnosticInfo, Severity},
     expansion::ast::{ModuleIdent, Visibility},
-    iota_mode::{IOTA_ADDR_VALUE, TX_CONTEXT_MODULE_NAME, TX_CONTEXT_TYPE_NAME},
     naming::ast::Type_,
     parser::ast::FunctionName,
+    iota_mode::{IOTA_ADDR_VALUE, TX_CONTEXT_MODULE_NAME, TX_CONTEXT_TYPE_NAME},
     typing::{ast as T, visitor::simple_visitor},
 };
+use move_ir_types::location::Loc;
 
 const REQUIRE_MUTABLE_TX_CONTEXT_DIAG: DiagnosticInfo = custom(
     LINT_WARNING_PREFIX,

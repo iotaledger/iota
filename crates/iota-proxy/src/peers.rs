@@ -24,11 +24,11 @@ use iota_types::{
 use itertools::Itertools;
 use tracing::{debug, error, info};
 
-/// IotaPeers is a mapping of public key to IotaPeer data
-pub type IotaPeers = Arc<RwLock<HashMap<Ed25519PublicKey, IotaPeer>>>;
+/// AllowedPeers is a mapping of public key to AllowedPeer data
+pub type AllowedPeers = Arc<RwLock<HashMap<Ed25519PublicKey, AllowedPeer>>>;
 
 #[derive(Hash, PartialEq, Eq, Debug, Clone)]
-pub struct IotaPeer {
+pub struct AllowedPeer {
     pub name: String,
     pub public_key: Ed25519PublicKey,
 }
@@ -41,9 +41,9 @@ pub struct IotaPeer {
 /// extension to check incoming clients on the http api against known keys.
 #[derive(Debug, Clone)]
 pub struct IotaNodeProvider {
-    active_validator_nodes: IotaPeers,
-    pending_validator_nodes: IotaPeers,
-    static_nodes: IotaPeers,
+    active_validator_nodes: AllowedPeers,
+    pending_validator_nodes: AllowedPeers,
+    static_nodes: AllowedPeers,
     rpc_url: String,
     rpc_poll_interval: Duration,
 }
@@ -65,10 +65,14 @@ impl Allower for IotaNodeProvider {
 }
 
 impl IotaNodeProvider {
-    pub fn new(rpc_url: String, rpc_poll_interval: Duration, static_peers: Vec<IotaPeer>) -> Self {
+    pub fn new(
+        rpc_url: String,
+        rpc_poll_interval: Duration,
+        static_peers: Vec<AllowedPeer>,
+    ) -> Self {
         // build our hashmap with the static pub keys. we only do this one time at
         // binary startup.
-        let static_nodes: HashMap<Ed25519PublicKey, IotaPeer> = static_peers
+        let static_nodes: HashMap<Ed25519PublicKey, AllowedPeer> = static_peers
             .into_iter()
             .map(|v| (v.public_key.clone(), v))
             .collect();
@@ -85,25 +89,25 @@ impl IotaNodeProvider {
     }
 
     /// get is used to retrieve peer info in our handlers
-    pub fn get(&self, key: &Ed25519PublicKey) -> Option<IotaPeer> {
+    pub fn get(&self, key: &Ed25519PublicKey) -> Option<AllowedPeer> {
         debug!("look for {:?}", key);
         // check static nodes first
         if let Some(v) = self.static_nodes.read().unwrap().get(key) {
-            return Some(IotaPeer {
+            return Some(AllowedPeer {
                 name: v.name.to_owned(),
                 public_key: v.public_key.to_owned(),
             });
         }
         // check active validators
         if let Some(v) = self.active_validator_nodes.read().unwrap().get(key) {
-            return Some(IotaPeer {
+            return Some(AllowedPeer {
                 name: v.name.to_owned(),
                 public_key: v.public_key.to_owned(),
             });
         }
         // check pending validators
         if let Some(v) = self.pending_validator_nodes.read().unwrap().get(key) {
-            return Some(IotaPeer {
+            return Some(AllowedPeer {
                 name: v.name.to_owned(),
                 public_key: v.public_key.to_owned(),
             });
@@ -112,7 +116,7 @@ impl IotaNodeProvider {
     }
 
     /// Get a mutable reference to the allowed validator map
-    pub fn get_mut(&mut self) -> &mut IotaPeers {
+    pub fn get_mut(&mut self) -> &mut AllowedPeers {
         &mut self.active_validator_nodes
     }
 
@@ -260,7 +264,7 @@ impl IotaNodeProvider {
 /// list and let us communicate with those actual peers via tls.
 fn extract_validators_from_summaries(
     validator_summaries: &[IotaValidatorSummary],
-) -> impl Iterator<Item = (Ed25519PublicKey, IotaPeer)> + use<'_> {
+) -> impl Iterator<Item = (Ed25519PublicKey, AllowedPeer)> + use<'_> {
     validator_summaries.iter().filter_map(|vm| {
         match Ed25519PublicKey::from_bytes(&vm.network_pubkey_bytes) {
             Ok(public_key) => {
@@ -270,7 +274,7 @@ fn extract_validators_from_summaries(
                 );
                 Some((
                     public_key.clone(),
-                    IotaPeer {
+                    AllowedPeer {
                         name: vm.name.to_owned(),
                         public_key,
                     },
