@@ -863,7 +863,7 @@ async fn test_epoch_flag_upgrade() {
     let initial_flags_nodes = Arc::new(Mutex::new(HashSet::new()));
     // Register a fail_point_arg, for which the handler is also placed in the
     // authority_store's open() function. When we start the first epoch, the
-    // following code will inject the new flags to the selected nodes once, so
+    // following code will inject the new empty flags to the selected nodes once, so
     // that we can later assert that the flags have changed.
     register_fail_point_arg("initial_epoch_flags", move || {
         // only alter flags on each node once
@@ -874,17 +874,35 @@ async fn test_epoch_flag_upgrade() {
         if initial_flags_nodes.len() >= 2 || !initial_flags_nodes.insert(current_node) {
             return None;
         }
-        // Apply a modified flag set for the first epoch after cluster is started.
-        Some(vec![EpochFlag::WritebackCacheEnabled])
+        // By default WritebackCache is enabled, use empty flag set for the first epoch
+        // after cluster is started.
+        Some(Vec::<EpochFlag>::new())
     });
 
-    // Start the cluster with 2 nodes with non-empty FlagSet and the rest with
-    // empty.
+    // Start the cluster with 2 nodes with empty epoch flag set and the rest with
+    // non-empty.
     let test_cluster = TestClusterBuilder::new()
         .with_epoch_duration_ms(30000)
         .build()
         .await;
-    let any_not_empty = test_cluster.all_node_handles().iter().any(|node| {
+    let any_empty = test_cluster.all_node_handles().iter().any(|node| {
+        node.with(|node| {
+            node.state()
+                .epoch_store_for_testing()
+                .epoch_start_config()
+                .flags()
+                .is_empty()
+        })
+    });
+    assert!(any_empty);
+
+    // When the epoch changes, flags on some nodes should be re-initialized to be
+    // non-empty.
+
+    test_cluster.wait_for_epoch_all_nodes(1).await;
+
+    // Make sure that all nodes have non-empty flags.
+    let all_non_empty = test_cluster.all_node_handles().iter().all(|node| {
         node.with(|node| {
             !node
                 .state()
@@ -894,24 +912,7 @@ async fn test_epoch_flag_upgrade() {
                 .is_empty()
         })
     });
-    assert!(any_not_empty);
-
-    // When the epoch changes, flags on some nodes should be re-initialized to be
-    // empty.
-
-    test_cluster.wait_for_epoch_all_nodes(1).await;
-
-    // Make sure that all nodes have empty flags.
-    let all_empty = test_cluster.all_node_handles().iter().all(|node| {
-        node.with(|node| {
-            node.state()
-                .epoch_store_for_testing()
-                .epoch_start_config()
-                .flags()
-                .is_empty()
-        })
-    });
-    assert!(all_empty);
+    assert!(all_non_empty);
 
     sleep(Duration::from_secs(15)).await;
 

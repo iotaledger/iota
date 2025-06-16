@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use anyhow::anyhow;
+use anyhow::bail;
 use chrono::{DateTime, Duration, NaiveDateTime, Utc};
 use humantime::parse_duration;
 use serde::Deserialize;
@@ -107,7 +107,7 @@ pub fn timestamp_string_to_unix_seconds<N: NowProvider>(
             if let Some(datetime) = new_datetime {
                 return Ok(datetime.timestamp());
             } else {
-                return Err(anyhow!("Unable to calculate time offset"));
+                bail!("Unable to calculate time offset");
             }
         }
 
@@ -118,7 +118,7 @@ pub fn timestamp_string_to_unix_seconds<N: NowProvider>(
         let utc_datetime: DateTime<Utc> = DateTime::from_naive_utc_and_offset(datetime, Utc);
         Ok(utc_datetime.timestamp())
     } else {
-        Err(anyhow!("Invalid timestamp format"))
+        bail!("Invalid timestamp format")
     }
 }
 

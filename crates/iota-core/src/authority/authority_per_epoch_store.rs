@@ -835,7 +835,9 @@ impl AuthorityPerEpochStore {
         let pending_consensus_certificates: HashSet<_> = pending_consensus_transactions
             .iter()
             .filter_map(|transaction| {
-                if let ConsensusTransactionKind::UserTransaction(certificate) = &transaction.kind {
+                if let ConsensusTransactionKind::CertifiedTransaction(certificate) =
+                    &transaction.kind
+                {
                     Some(*certificate.digest())
                 } else {
                     None
@@ -876,6 +878,7 @@ impl AuthorityPerEpochStore {
             signature_verifier_metrics,
             zklogin_env,
             protocol_config.accept_zklogin_in_multisig(),
+            protocol_config.accept_passkey_in_multisig(),
             protocol_config.zklogin_max_epoch_upper_bound_delta(),
         );
 
@@ -1871,7 +1874,7 @@ impl AuthorityPerEpochStore {
 
         // TODO: lock once for all insert() calls.
         for transaction in transactions {
-            if let ConsensusTransactionKind::UserTransaction(cert) = &transaction.kind {
+            if let ConsensusTransactionKind::CertifiedTransaction(cert) = &transaction.kind {
                 let state = lock.expect("Must pass reconfiguration lock when storing certificate");
                 // Caller is responsible for performing graceful check
                 assert!(
@@ -2466,7 +2469,7 @@ impl AuthorityPerEpochStore {
         // IotaTxValidator
         match &transaction.transaction {
             SequencedConsensusTransactionKind::External(ConsensusTransaction {
-                kind: ConsensusTransactionKind::UserTransaction(_certificate),
+                kind: ConsensusTransactionKind::CertifiedTransaction(_certificate),
                 ..
             }) => {}
             SequencedConsensusTransactionKind::External(ConsensusTransaction {
@@ -3412,7 +3415,7 @@ impl AuthorityPerEpochStore {
 
         match &transaction {
             SequencedConsensusTransactionKind::External(ConsensusTransaction {
-                kind: ConsensusTransactionKind::UserTransaction(certificate),
+                kind: ConsensusTransactionKind::CertifiedTransaction(certificate),
                 ..
             }) => {
                 if certificate.epoch() != self.epoch() {

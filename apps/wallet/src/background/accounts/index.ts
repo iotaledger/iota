@@ -29,7 +29,12 @@ import { ImportedAccount } from './importedAccount';
 import { LedgerAccount } from './ledgerAccount';
 import { MnemonicAccount } from './mnemonicAccount';
 import { SeedAccount } from './seedAccount';
-import { MILLISECONDS_PER_SECOND, SECONDS_PER_MINUTE } from '@iota/core';
+import {
+    MILLISECONDS_PER_SECOND,
+    SECONDS_PER_MINUTE,
+    WALLET_LOCK_DURATION_IN_MS,
+} from '@iota/core';
+import { AccountTooManyAttemptsError } from '_src/shared/accounts';
 
 function toAccount(account: SerializedAccount) {
     if (MnemonicAccount.isOfType(account)) {
@@ -298,9 +303,28 @@ export async function accountsHandleUIMessage(msg: Message, uiConnection: UiConn
         await uiConnection.send(createMessage({ type: 'done' }, msg.id));
         return true;
     }
+    if (isMethodPayload(payload, 'getLockedState')) {
+        let remainingTime = 0;
+        const { isLockedOut, lockTimeMs } = await getLockedState();
+        if (isLockedOut && lockTimeMs) {
+            const elapsedTime = Date.now() - Number(lockTimeMs);
+            remainingTime = Math.max(0, WALLET_LOCK_DURATION_IN_MS - elapsedTime);
+        }
+        await uiConnection.send(
+            createMessage<MethodPayload<'getLockedStateResponse'>>(
+                {
+                    type: 'method-payload',
+                    method: 'getLockedStateResponse',
+                    args: {
+                        remainingTime,
+                    },
+                },
+                msg.id,
+            ),
+        );
+    }
     if (isMethodPayload(payload, 'verifyPassword')) {
         const MAX_UNLOCK_ATTEMPTS = 3;
-        const WALLET_LOCK_DURATION_IN_MS = 60 * MILLISECONDS_PER_SECOND;
         const RESET_FAILED_ATTEMPTS_THRESHOLD_IN_MS =
             60 * SECONDS_PER_MINUTE * MILLISECONDS_PER_SECOND;
 
@@ -312,9 +336,7 @@ export async function accountsHandleUIMessage(msg: Message, uiConnection: UiConn
 
             if (remainingTime > 0) {
                 // The wallet is still locked after the maximum number of failed attempts
-                throw new Error(
-                    `Too many failed attempts. Please try again in ${Math.ceil(remainingTime / MILLISECONDS_PER_SECOND)} seconds.`,
-                );
+                throw new AccountTooManyAttemptsError();
             } else {
                 await clearStateAfterManyFailedAttempts();
             }
@@ -351,10 +373,7 @@ export async function accountsHandleUIMessage(msg: Message, uiConnection: UiConn
                     lockTimeMs: Date.now(),
                     isLockedOut: true,
                 });
-                const remainingSeconds = WALLET_LOCK_DURATION_IN_MS / MILLISECONDS_PER_SECOND;
-                throw new Error(
-                    `Too many failed attempts. Please try again in ${remainingSeconds} ${remainingSeconds === 1 ? 'second' : 'seconds'}.`,
-                );
+                throw new AccountTooManyAttemptsError();
             } else {
                 // Update the failed attempts count and the time of the last failed attempt
                 await updateLockedState({ failedAttempts, lastFailedAttemptTime: currentTime });
