@@ -442,24 +442,11 @@ impl WriteApiServer for OptimisticWriteApi {
         tx_bytes: Base64,
         signatures: Vec<Base64>,
         options: Option<IotaTransactionBlockResponseOptions>,
-        request_type: Option<ExecuteTransactionRequestType>,
+        _request_type: Option<ExecuteTransactionRequestType>,
     ) -> RpcResult<IotaTransactionBlockResponse> {
-        let iota_transaction_response = match request_type {
-            None | Some(ExecuteTransactionRequestType::WaitForEffectsCert) => {
-                let mut node_response = self
-                    .write_api
-                    .execute_transaction_block(tx_bytes, signatures, options.clone(), request_type)
-                    .await?;
-                // it's not locally executed in indexer, no matter what is the status in the
-                // node
-                node_response.confirmed_local_execution = Some(false);
-                node_response
-            }
-            Some(ExecuteTransactionRequestType::WaitForLocalExecution) => {
-                self.execute_and_index_tx_effects(tx_bytes, signatures, options.clone())
-                    .await?
-            }
-        };
+        let iota_transaction_response = self
+            .execute_and_index_tx_effects(tx_bytes, signatures, options.clone())
+            .await?;
         Ok(IotaTransactionBlockResponseWithOptions {
             response: iota_transaction_response,
             options: options.unwrap_or_default(),
