@@ -15,7 +15,8 @@
 :root.light,
 :root.dark {
     /* FONTS */
-    --font-family: theme('fontFamily.alliance-no2');
+    --font-family-heading: theme('fontFamily.alliance-no2');
+    --font-family-text: theme('fontFamily.inter');
     --display-lg-font-weight: 500;
     --display-lg-line-height: 120%;
     --display-md-font-weight: 500;
@@ -483,7 +484,8 @@
 }
 
 :root.names {
-    --font-family: theme('fontFamily.roboto-flex');
+    --font-family-heading: theme('fontFamily.roboto-flex');
+    --font-family-text: theme('fontFamily.inter');
     --display-lg-font-weight: 700;
     --display-lg-line-height: 100%;
     --display-md-font-weight: 700;
