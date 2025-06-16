@@ -61,6 +61,7 @@ use iota_core::{
         reconfiguration::ReconfigurationInitiator,
     },
     execution_cache::build_execution_cache,
+    jsonrpc_index::IndexStore,
     module_cache_metrics::ResolverMetrics,
     overload_monitor::overload_monitor,
     rest_index::RestIndexStore,
@@ -94,7 +95,7 @@ use iota_protocol_config::ProtocolConfig;
 use iota_rest_api::RestMetrics;
 use iota_snapshot::uploader::StateSnapshotUploader;
 use iota_storage::{
-    FileCompression, IndexStore, StorageFormat,
+    FileCompression, StorageFormat,
     http_key_value_store::HttpKVStore,
     key_value_store::{FallbackTransactionKVStore, TransactionKeyValueStore},
     key_value_store_metrics::KeyValueStoreMetrics,
@@ -2122,6 +2123,10 @@ pub async fn build_http_server(
             Arc::new(RestReadStore::new(state.clone(), store)),
             software_version,
         );
+
+        if let Some(config) = config.rest.clone() {
+            rest_service.with_config(config);
+        }
 
         rest_service.with_metrics(RestMetrics::new(prometheus_registry));
 

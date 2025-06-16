@@ -78,6 +78,8 @@ pub struct NodeConfig {
     /// endpoint on the same interface as `json` `rpc` server.
     #[serde(default)]
     pub enable_rest_api: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub rest: Option<iota_rest_api::Config>,
 
     /// The address for Prometheus metrics.
     #[serde(default = "default_metrics_address")]
@@ -734,7 +736,10 @@ pub struct AuthorityStorePruningConfig {
     /// modified time is older than `periodic_compaction_threshold_days`
     /// days. That ensures that all sst files eventually go through the
     /// compaction process
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(
+        default = "default_periodic_compaction_threshold_days",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub periodic_compaction_threshold_days: Option<usize>,
     /// number of epochs to keep the latest version of transactions and effects
     /// for
@@ -762,6 +767,10 @@ fn default_max_checkpoints_in_batch() -> usize {
 
 fn default_smoothing() -> bool {
     cfg!(not(test))
+}
+
+fn default_periodic_compaction_threshold_days() -> Option<usize> {
+    Some(1)
 }
 
 impl Default for AuthorityStorePruningConfig {
@@ -956,7 +965,7 @@ fn default_max_transaction_manager_queue_length() -> usize {
 }
 
 fn default_max_transaction_manager_per_object_queue_length() -> usize {
-    100
+    20
 }
 
 impl Default for AuthorityOverloadConfig {
