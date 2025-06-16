@@ -21,4 +21,9 @@ iota-protocol-config.workspace = true
 iota-types.workspace = true
 
 [dev-dependencies]
+# external dependencies
 tokio = { workspace = true, features = ["full"] }
+
+# internal dependencies
+iota-move-build.workspace = true
+move-package.workspace = true

@@ -58,8 +58,7 @@ env:
 jobs:
   rust-tests:
     name: Run rust tests
-    if: |
-      !cancelled() && (inputs.isRust || inputs.isPgIntegration || inputs.isMoveExampleUsedByOthers)
+    if: (!cancelled() && (inputs.isRust || inputs.isPgIntegration || inputs.isMoveExampleUsedByOthers))
     timeout-minutes: 90
     runs-on: [self-hosted-x64]
     env:
@@ -117,8 +116,7 @@ jobs:
 
   rust-simtests:
     name: Run rust simtests
-    if: |
-      inputs.runSimtest && !cancelled() && (inputs.isRust || inputs.isPgIntegration || inputs.isMoveExampleUsedByOthers)
+    if: (!cancelled() && inputs.runSimtest && (inputs.isRust || inputs.isPgIntegration || inputs.isMoveExampleUsedByOthers))
     timeout-minutes: 90
     runs-on: [self-hosted-x64]
     env:
@@ -180,8 +178,7 @@ jobs:
 
   check-unused-deps:
     name: Check Unused Dependencies (${{ matrix.flags }})
-    if: |
-      !cancelled() && !failure() && inputs.isRust && github.event.pull_request.draft == false
+    if: (!cancelled() && !failure())
     strategy:
       matrix:
         flags: ["--all-features", "--no-default-features"]
@@ -201,6 +198,7 @@ jobs:
       # non-deterministic `test` job.
       IOTA_SKIP_SIMTESTS: 1
     runs-on: ${{ matrix.os }}
+    if: (!cancelled() && !failure())
     strategy:
       matrix:
         os:

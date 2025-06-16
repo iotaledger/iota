@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { useGetObject } from '@iota/core';
+import { useGetObjectOrPastObject } from '@iota/core';
 import { useParams } from 'react-router-dom';
 import { ErrorBoundary, PageLayout } from '~/components';
 import { PageHeader } from '~/components/ui';
@@ -16,7 +16,7 @@ const PACKAGE_TYPE_NAME = 'Move Package';
 
 export function ObjectResult(): JSX.Element {
     const { id: objID } = useParams();
-    const { data, isPending, isError, isFetched } = useGetObject(objID!);
+    const { data, isPending, isError, isFetched } = useGetObjectOrPastObject(objID);
 
     if (isPending) {
         return (
@@ -30,7 +30,7 @@ export function ObjectResult(): JSX.Element {
         );
     }
 
-    const isPageError = isError || data.error || (isFetched && !data);
+    const isPageError = isError || data?.error || (isFetched && !data);
 
     const resp = data && !isPageError ? translate(data) : null;
     const isPackage = resp ? resp.objType === PACKAGE_TYPE_NAME : false;
@@ -41,7 +41,15 @@ export function ObjectResult(): JSX.Element {
                 <div className="flex flex-col gap-y-2xl">
                     {!isPackage && !isPageError && (
                         <div className="flex flex-col gap-y-2xl">
-                            <PageHeader type="Object" title={resp?.id ?? ''} />
+                            <PageHeader
+                                type="Object"
+                                title={resp?.id ?? ''}
+                                error={
+                                    data?.isViewingPastVersion
+                                        ? 'This object was deleted. You are viewing a past version of this object.'
+                                        : undefined
+                                }
+                            />
                             <ErrorBoundary>{data && <ObjectView data={data} />}</ErrorBoundary>
                         </div>
                     )}

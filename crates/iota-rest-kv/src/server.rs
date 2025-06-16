@@ -37,7 +37,7 @@ impl Server {
 
         let router = Router::new()
             .route("/health", get(health::health))
-            .route("/:item_type/:key", get(kv_store::data_as_bytes))
+            .route("/{item_type}/{key}", get(kv_store::data_as_bytes))
             .with_state(shared_state)
             .fallback(fallback);
 

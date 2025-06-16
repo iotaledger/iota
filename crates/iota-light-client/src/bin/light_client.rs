@@ -5,13 +5,16 @@
 use std::{fs, path::PathBuf, str::FromStr};
 
 use clap::Parser;
-use iota_json::IotaJsonValue;
 use iota_light_client::utils::{
     Config, RemotePackageStore, SCommands, check_and_sync_checkpoints,
     get_verified_effects_and_events, get_verified_object,
 };
 use iota_package_resolver::Resolver;
-use iota_types::{base_types::ObjectID, digests::TransactionDigest, object::Data};
+use iota_types::{
+    base_types::ObjectID,
+    digests::TransactionDigest,
+    object::{Data, bounded_visitor::BoundedVisitor},
+};
 
 /// A light client for the IOTA blockchain
 #[derive(Parser, Debug)]
@@ -27,12 +30,14 @@ struct Args {
 
 #[tokio::main]
 pub async fn main() {
+    env_logger::init();
+
     // Command line arguments and config loading
     let args = Args::parse();
+
     let path = args
         .config
         .unwrap_or_else(|| panic!("Need a config file path"));
-
     let reader = fs::File::open(path.clone())
         .unwrap_or_else(|_| panic!("Unable to load config from {}", path.display()));
     let config: Config = serde_yaml::from_reader(reader).unwrap();
@@ -40,7 +45,7 @@ pub async fn main() {
     // Print config parameters
     println!(
         "Checkpoint Dir: {}",
-        config.checkpoint_summary_dir().display()
+        config.checkpoint_summary_dir.display()
     );
 
     let remote_package_store = RemotePackageStore::new(config.clone());
@@ -61,23 +66,27 @@ pub async fn main() {
                 exec_digests.transaction, exec_digests.effects
             );
 
-            for event in events.as_ref().unwrap().data.iter() {
-                let type_layout = resolver
-                    .type_layout(event.type_.clone().into())
-                    .await
-                    .unwrap();
+            if events.is_some() {
+                for event in events.as_ref().unwrap().data.iter() {
+                    let type_layout = resolver
+                        .type_layout(event.type_.clone().into())
+                        .await
+                        .unwrap();
 
-                let json_val =
-                    IotaJsonValue::from_bcs_bytes(Some(&type_layout), &event.contents).unwrap();
+                    let result = BoundedVisitor::deserialize_value(&event.contents, &type_layout)
+                        .expect("Cannot deserialize");
 
-                println!(
-                    "Event:\n - Package: {}\n - Module: {}\n - Sender: {}\n - Type: {}\n{}",
-                    event.package_id,
-                    event.transaction_module,
-                    event.sender,
-                    event.type_,
-                    serde_json::to_string_pretty(&json_val.to_json_value()).unwrap()
-                );
+                    println!(
+                        "Event:\n - Package: {}\n - Module: {}\n - Sender: {}\n - Type: {}\n{}",
+                        event.package_id,
+                        event.transaction_module,
+                        event.sender,
+                        event.type_,
+                        serde_json::to_string_pretty(&result).unwrap()
+                    );
+                }
+            } else {
+                println!("No events found");
             }
         }
         Some(SCommands::Object { oid }) => {
@@ -92,9 +101,9 @@ pub async fn main() {
                     .await
                     .unwrap();
 
-                let json_val =
-                    IotaJsonValue::from_bcs_bytes(Some(&type_layout), move_object.contents())
-                        .unwrap();
+                let result =
+                    BoundedVisitor::deserialize_value(move_object.contents(), &type_layout)
+                        .expect("Cannot deserialize");
 
                 let (oid, version, hash) = object.compute_object_reference();
                 println!(
@@ -104,7 +113,7 @@ pub async fn main() {
                     hash,
                     object.owner,
                     object_type,
-                    serde_json::to_string_pretty(&json_val.to_json_value()).unwrap()
+                    serde_json::to_string_pretty(&result).unwrap()
                 );
             }
         }
@@ -115,7 +124,7 @@ pub async fn main() {
                 .expect("Failed to sync checkpoints");
         }
         _ => {}
-    };
+    }
 }
 
 // Make a test namespace

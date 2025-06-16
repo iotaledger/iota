@@ -191,33 +191,28 @@ fn build_packages_with_move_config(
     // write out generated docs
     let docs_dir = PathBuf::from(DOCS_DIR);
     let mut files_to_write = BTreeMap::new();
-    create_category_file(system_dir);
+    create_category_file("iota_system");
     relocate_docs(
-        system_dir,
         &system_pkg.package.compiled_docs.unwrap(),
         &mut files_to_write,
     );
-    create_category_file(framework_dir);
+    create_category_file("iota");
     relocate_docs(
-        framework_dir,
         &framework_pkg.package.compiled_docs.unwrap(),
         &mut files_to_write,
     );
-    create_category_file(stdlib_dir);
+    create_category_file("std");
     relocate_docs(
-        stdlib_dir,
         &stdlib_pkg.package.compiled_docs.unwrap(),
         &mut files_to_write,
     );
-    create_category_file(bridge_dir);
+    create_category_file("bridge");
     relocate_docs(
-        bridge_dir,
         &bridge_pkg.package.compiled_docs.unwrap(),
         &mut files_to_write,
     );
-    create_category_file(stardust_dir);
+    create_category_file("stardust");
     relocate_docs(
-        stardust_dir,
         &stardust_pkg.package.compiled_docs.unwrap(),
         &mut files_to_write,
     );
@@ -271,7 +266,7 @@ fn create_category_file(prefix: &str) {
 /// * Deduplicate packages (since multiple packages could share dependencies);
 ///   and
 /// * Replace html tags and use Docusaurus components where needed.
-fn relocate_docs(prefix: &str, files: &[(String, String)], output: &mut BTreeMap<String, String>) {
+fn relocate_docs(files: &[(String, String)], output: &mut BTreeMap<String, String>) {
     // Turn on multi-line mode so that `.` matches newlines, consume from the start
     // of the file to beginning of the heading, then capture the heading as three
     // different parts and replace with the yaml tag for docusaurus, add the
@@ -296,16 +291,10 @@ fn relocate_docs(prefix: &str, files: &[(String, String)], output: &mut BTreeMap
     let iota_system_regex = regex::Regex::new(r"((?:\.\.\/|\.\/)+)(iota_system)(\.md)").unwrap();
 
     for (file_name, file_content) in files {
-        let path = PathBuf::from(file_name);
-        let top_level = path.components().count() == 1;
-        let file_name = if top_level {
-            let mut new_path = PathBuf::from(prefix);
-            new_path.push(file_name);
-            new_path.to_string_lossy().to_string()
-        } else {
-            let mut new_path = PathBuf::new();
-            new_path.push(path.components().skip(1).collect::<PathBuf>());
-            new_path.to_string_lossy().to_string()
+        if file_name.contains("dependencies") {
+            // we don't need to keep the dependency version of each doc since it will
+            // generated on its own
+            continue;
         };
 
         // Replace a-tags with Link to register anchors in Docusaurus (we have to use

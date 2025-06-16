@@ -2,6 +2,8 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use std::path::PathBuf;
+
 use anyhow::{bail, ensure};
 use clap::{self, Args, Parser};
 use iota_types::{
@@ -68,9 +70,21 @@ pub struct IotaInitArgs {
     #[arg(long)]
     pub default_gas_price: Option<u64>,
     #[arg(long)]
-    pub object_snapshot_min_checkpoint_lag: Option<usize>,
+    pub objects_snapshot_min_checkpoint_lag: Option<usize>,
     #[arg(long)]
     pub flavor: Option<Flavor>,
+    /// The number of epochs to keep in the database. Epochs outside of this
+    /// range will be pruned by the indexer.
+    #[arg(long)]
+    pub epochs_to_keep: Option<u64>,
+    /// Dir for simulacrum to write checkpoint files to. To be passed to the
+    /// offchain indexer and reader.
+    #[clap(long)]
+    pub data_ingestion_path: Option<PathBuf>,
+    /// URL for the IOTA REST API. To be passed to the offchain indexer and
+    /// reader.
+    #[clap(long)]
+    pub rest_api_url: Option<String>,
 }
 
 #[derive(Debug, clap::Parser)]
@@ -113,6 +127,8 @@ pub struct ProgrammableTransactionCommand {
     pub gas_payment: Option<FakeID>,
     #[arg(long = "dev-inspect")]
     pub dev_inspect: bool,
+    #[clap(long = "dry-run")]
+    pub dry_run: bool,
     #[arg(
         long,
         value_parser = ParsedValue::<IotaExtraValueArgs>::parse,
@@ -173,14 +189,8 @@ pub struct RunGraphqlCommand {
     pub show_service_version: bool,
     #[arg(long, num_args(1..))]
     pub cursors: Vec<String>,
-}
-
-#[derive(Debug, clap::Parser)]
-pub struct ForceObjectSnapshotCatchup {
     #[arg(long)]
-    pub start_cp: u64,
-    #[arg(long)]
-    pub end_cp: u64,
+    pub wait_for_checkpoint_pruned: Option<u64>,
 }
 
 #[derive(Debug, clap::Parser)]
@@ -218,7 +228,6 @@ pub enum IotaSubcommand<ExtraValueArgs: ParsableValue, ExtraRunArgs: Parser> {
     SetRandomState(SetRandomStateCommand),
     ViewCheckpoint,
     RunGraphql(RunGraphqlCommand),
-    ForceObjectSnapshotCatchup(ForceObjectSnapshotCatchup),
     Bench(RunCommand<ExtraValueArgs>, ExtraRunArgs),
 }
 
@@ -266,11 +275,6 @@ impl<ExtraValueArgs: ParsableValue, ExtraRunArgs: Parser> clap::FromArgMatches
             Some(("run-graphql", matches)) => {
                 IotaSubcommand::RunGraphql(RunGraphqlCommand::from_arg_matches(matches)?)
             }
-            Some(("force-object-snapshot-catchup", matches)) => {
-                IotaSubcommand::ForceObjectSnapshotCatchup(
-                    ForceObjectSnapshotCatchup::from_arg_matches(matches)?,
-                )
-            }
             Some(("bench", matches)) => IotaSubcommand::Bench(
                 RunCommand::from_arg_matches(matches)?,
                 ExtraRunArgs::from_arg_matches(matches)?,
@@ -308,7 +312,6 @@ impl<ExtraValueArgs: ParsableValue, ExtraRunArgs: Parser> clap::CommandFactory
             .subcommand(SetRandomStateCommand::command().name("set-random-state"))
             .subcommand(clap::Command::new("view-checkpoint"))
             .subcommand(RunGraphqlCommand::command().name("run-graphql"))
-            .subcommand(ForceObjectSnapshotCatchup::command().name("force-object-snapshot-catchup"))
             .subcommand(
                 RunCommand::<ExtraValueArgs>::augment_args(ExtraRunArgs::command()).name("bench"),
             )

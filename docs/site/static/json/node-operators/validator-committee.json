@@ -9,15 +9,6 @@
         ]
     },
     {
-        "questionText": "Which consensus engines does IOTA utilize to handle transactions?",
-        "answerOptions": [
-            { "answerText": "PoW and PoS", "isCorrect": false },
-            { "answerText": "Narwhal and Bullshark", "isCorrect": true },
-            { "answerText": "DAG and Blockchain", "isCorrect": false },
-            { "answerText": "BFT and DPoS", "isCorrect": false }
-        ]
-    },
-    {
         "questionText": "What is the purpose of certificates in IOTA’s consensus process?",
         "answerOptions": [
             { "answerText": "To confirm that a transaction has been validated by a quorum of validators.", "isCorrect": true },

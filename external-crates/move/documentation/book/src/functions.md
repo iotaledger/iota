@@ -130,7 +130,7 @@ module a::n {
 `entry` functions may have restrictions on their parameters and return types. Although, these
 restrictions are specific to each individual deployment of Move.
 
-[The documentation for `entry` functions on IOTA can be found here.](https://docs.iota.io/concepts/iota-move-concepts/entry-functions).
+[The documentation for `entry` functions on IOTA can be found here.](https://docs.iota.org/concepts/iota-move-concepts/entry-functions).
 
 ### Name
 
@@ -316,7 +316,7 @@ fun add(x: u64, y: u64): u64 {
 The return value here is the result of `x + y`.
 
 [As mentioned above](#function-body), the function's body is an [expression block](./variables.md).
-The expression block can sequence various statements, and the final expression in the block will be
+The expression block can sequence various statements, and the final expression in the block will
 be the value of that block
 
 ```move

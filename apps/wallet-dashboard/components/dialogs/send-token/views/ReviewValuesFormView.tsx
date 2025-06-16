@@ -41,10 +41,11 @@ interface ReviewValuesFormProps {
     isPayAllIota?: boolean;
     onClose: () => void;
     onBack: () => void;
+    totalGas: string | undefined;
 }
 
 export function ReviewValuesFormView({
-    formData: { amount, to, gasBudgetEst },
+    formData: { amount, to },
     senderAddress,
     isPending,
     executeTransfer,
@@ -52,6 +53,7 @@ export function ReviewValuesFormView({
     isPayAllIota,
     onClose,
     onBack,
+    totalGas,
 }: ReviewValuesFormProps): JSX.Element {
     const { data: metadata } = useCoinMetadata(coinType);
     const amountWithoutDecimals = parseAmount(amount, metadata?.decimals ?? 0);
@@ -60,8 +62,9 @@ export function ReviewValuesFormView({
         coinType,
         format: CoinFormat.ROUNDED,
     });
+
     const [gasFormatted, gasSymbol] = useFormatCoin({
-        balance: gasBudgetEst,
+        balance: totalGas,
         format: CoinFormat.FULL,
     });
 

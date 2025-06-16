@@ -45,10 +45,22 @@ async fn main() -> Result<(), anyhow::Error> {
         println!(" *** First Dynamic Field ***");
         let dynamic_field = client
             .read_api()
-            .get_dynamic_field_object(parent_object_id, dynamic_field_info.name)
+            .get_dynamic_field_object(parent_object_id, dynamic_field_info.name.clone())
             .await?;
         println!("{dynamic_field:?}");
         println!(" *** First Dynamic Field ***\n");
+
+        println!(" *** First Dynamic Field BCS***");
+        let dynamic_field = client
+            .read_api()
+            .get_dynamic_field_object_v2(
+                parent_object_id,
+                dynamic_field_info.name,
+                IotaObjectDataOptions::new().with_bcs(),
+            )
+            .await?;
+        println!("{:?}", dynamic_field.data.expect("missing data").bcs);
+        println!(" *** First Dynamic Field BCS***\n");
     }
 
     let object = owned_objects

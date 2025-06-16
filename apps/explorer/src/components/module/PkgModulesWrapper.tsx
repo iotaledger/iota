@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { useCallback, useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { type Direction } from 'react-resizable-panels';
 
 import { SplitPanes, useSearchParamsMerged, VerticalList } from '~/components/ui';
@@ -56,15 +56,6 @@ export function PkgModulesWrapper({
     const filteredModules = query
         ? moduleNames.filter((name) => name.toLowerCase().includes(query.toLowerCase()))
         : [];
-
-    const submitSearch = useCallback(() => {
-        if (filteredModules.length === 1) {
-            setSearchParams({
-                module: filteredModules[0],
-            });
-        }
-    }, [filteredModules, setSearchParams]);
-
     const onChangeModule = (newModule: string) => {
         setSearchParams(
             {
@@ -98,17 +89,11 @@ export function PkgModulesWrapper({
         label: item,
     }));
 
-    function handleSearchKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
-        if (e.key === 'Enter') {
-            submitSearch();
-        }
-    }
     return (
         <div className="flex h-full flex-col items-stretch gap-md--rs md:flex-row md:flex-nowrap">
             <div className="flex w-full flex-col md:min-h-[560px] md:w-1/5">
                 <div className="relative z-[1]">
                     <Search
-                        onKeyDown={handleSearchKeyDown}
                         searchValue={query}
                         onSearchValueChange={(value) => setQuery(value?.trim() ?? '')}
                         placeholder="Search"

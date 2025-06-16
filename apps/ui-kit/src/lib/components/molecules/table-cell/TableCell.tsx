@@ -1,8 +1,8 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
-import { PropsWithChildren } from 'react';
+import type { PropsWithChildren } from 'react';
 import cx from 'classnames';
-import { Placeholder } from '../../atoms';
+import { Placeholder } from '@/components/atoms';
 
 interface TableCellBaseProps {
     /**

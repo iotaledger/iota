@@ -1,18 +1,12 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { PropsWithChildren, ReactNode } from 'react';
+import type { PropsWithChildren, ReactNode } from 'react';
 import cx from 'classnames';
 import { TableProvider, useTableContext } from './TableContext';
-import {
-    Button,
-    ButtonProps,
-    ButtonSize,
-    ButtonType,
-    Checkbox,
-    TableCellBase,
-    TableHeaderCell,
-} from '@/lib';
+import type { ButtonProps } from '@/components/atoms';
+import { Button, ButtonSize, ButtonType, Checkbox } from '@/components/atoms';
+import { TableCellBase, TableHeaderCell } from '@/components/molecules';
 import { ArrowLeft, DoubleArrowLeft, ArrowRight, DoubleArrowRight } from '@iota/apps-ui-icons';
 
 export interface TablePaginationOptions {
@@ -75,6 +69,11 @@ export type TableProps = {
      * The page size selector component.
      */
     pageSizeSelector?: ReactNode;
+
+    /**
+     * If the table should take the full height of the parent.
+     */
+    heightFull?: boolean;
 };
 
 export function Table({
@@ -85,12 +84,23 @@ export function Table({
     rowIndexes,
     children,
     pageSizeSelector,
+    heightFull = false,
 }: PropsWithChildren<TableProps>): JSX.Element {
     return (
         <TableProvider selectedRowIndexes={selectedRowIndexes} rowIndexes={rowIndexes}>
-            <div className="w-full">
-                <div className="overflow-auto">
-                    <table className="w-full table-auto">{children}</table>
+            <div className={cx('w-full', { 'h-full': heightFull })}>
+                <div
+                    className={cx('overflow-auto', {
+                        'h-full': heightFull,
+                    })}
+                >
+                    <table
+                        className={cx('w-full table-auto', {
+                            'h-full': heightFull,
+                        })}
+                    >
+                        {children}
+                    </table>
                 </div>
                 <div
                     className={cx('flex w-full items-center gap-2 pt-md', {

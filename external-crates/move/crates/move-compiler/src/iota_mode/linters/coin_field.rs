@@ -2,22 +2,22 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-//! This analysis flags uses of the iota::coin::Coin struct in fields of other
-//! structs. In most cases it's preferable to use iota::balance::Balance instead
-//! to save space.
+//! This analysis flags uses of the iota::coin::Coin struct in fields of other structs. In most cases
+//! it's preferable to use iota::balance::Balance instead to save space.
 
-use super::{
-    COIN_MOD_NAME, COIN_STRUCT_NAME, LINT_WARNING_PREFIX, LinterDiagnosticCategory,
-    LinterDiagnosticCode,
-};
 use crate::{
     diag,
-    diagnostics::codes::{DiagnosticInfo, Severity, custom},
+    diagnostics::codes::{custom, DiagnosticInfo, Severity},
     expansion::ast::ModuleIdent,
-    iota_mode::IOTA_ADDR_VALUE,
     naming::ast as N,
     parser::ast::DatatypeName,
+    iota_mode::IOTA_ADDR_VALUE,
     typing::{ast as T, visitor::simple_visitor},
+};
+
+use super::{
+    LinterDiagnosticCategory, LinterDiagnosticCode, COIN_MOD_NAME, COIN_STRUCT_NAME,
+    LINT_WARNING_PREFIX,
 };
 
 const COIN_FIELD_DIAG: DiagnosticInfo = custom(
@@ -46,7 +46,7 @@ simple_visitor!(
         }
 
         if let N::StructFields::Defined(_, sfields) = &sdef.fields {
-            for (_floc, _fname, (_, ftype)) in sfields {
+            for (_floc, _fname, (_, (_, ftype))) in sfields {
                 if is_field_coin_type(ftype) {
                     let msg = "Sub-optimal 'iota::coin::Coin' field type. Using \
                         'iota::balance::Balance' instead will be more space efficient";

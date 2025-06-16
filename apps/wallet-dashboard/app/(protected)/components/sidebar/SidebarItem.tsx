@@ -8,13 +8,13 @@ import { NavbarItem, Tooltip, TooltipPosition } from '@iota/apps-ui-kit';
 import { usePathname } from 'next/navigation';
 import Link from 'next/link';
 
-export function SidebarItem({ icon, title, path }: ProtectedRoute) {
+export function SidebarItem({ icon, title, path, id }: ProtectedRoute) {
     const pathname = usePathname();
     const RouteIcon = icon;
     const isActive = pathname === path;
     return (
         <Tooltip text={title} position={TooltipPosition.Right}>
-            <Link href={path} className="relative px-sm py-xxs">
+            <Link href={path} className="relative px-sm py-xxs" data-testid={`sidebar-${id}`}>
                 <NavbarItem isSelected={isActive} icon={<RouteIcon />} />
             </Link>
         </Tooltip>

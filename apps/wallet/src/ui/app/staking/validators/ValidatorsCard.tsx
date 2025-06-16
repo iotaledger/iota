@@ -13,7 +13,6 @@ import {
     useFormatCoin,
     StakedCard,
 } from '@iota/core';
-import { useIotaClientQuery } from '@iota/dapp-kit';
 import { useMemo } from 'react';
 import { useActiveAddress } from '_hooks';
 import {
@@ -28,7 +27,8 @@ import {
     DisplayStats,
 } from '@iota/apps-ui-kit';
 import { useNavigate } from 'react-router-dom';
-import { Info, Warning } from '@iota/apps-ui-icons';
+import { Warning } from '@iota/apps-ui-icons';
+import { useIotaClientQuery } from '@iota/dapp-kit';
 
 export function ValidatorsCard() {
     const accountAddress = useActiveAddress();
@@ -45,6 +45,7 @@ export function ValidatorsCard() {
     const navigate = useNavigate();
 
     const { data: system } = useIotaClientQuery('getLatestIotaSystemState');
+    const committeeMembers = system?.committeeMembers;
     const activeValidators = system?.activeValidators;
     const delegatedStake = delegatedStakeData ? formatDelegatedStake(delegatedStakeData) : [];
 
@@ -55,22 +56,22 @@ export function ValidatorsCard() {
 
     const delegations = useMemo(() => {
         return delegatedStakeData?.flatMap((delegation) => {
+            const isInCommittee = committeeMembers?.find(
+                (member) => member.stakingPoolId === delegation.stakingPool,
+            );
+            const isActive = activeValidators?.find(
+                (validator) => validator.stakingPoolId === delegation.stakingPool,
+            );
             return delegation.stakes.map((d) => ({
                 ...d,
                 // flag any inactive validator for the stakeIota object
-                // if the stakingPoolId is not found in the activeValidators list flag as inactive
-                inactiveValidator: !activeValidators?.find(
-                    ({ stakingPoolId }) => stakingPoolId === delegation.stakingPool,
-                ),
+                // if the stakingPoolId is not found in the committeeMembers list flag as inactive
+                activeButNotInTheCommittee: !isInCommittee && isActive,
+                inactiveValidator: !isActive,
                 validatorAddress: delegation.validatorAddress,
             }));
         });
-    }, [activeValidators, delegatedStake]);
-
-    // Check if there are any inactive validators
-    const hasInactiveValidatorDelegation = delegations?.some(
-        ({ inactiveValidator }) => inactiveValidator,
-    );
+    }, [committeeMembers, delegatedStake]);
 
     // Get total rewards for all delegations
     const delegatedStakes = delegatedStakeData ? formatDelegatedStake(delegatedStakeData) : [];
@@ -123,28 +124,38 @@ export function ValidatorsCard() {
             </div>
             <Title title="In progress" size={TitleSize.Small} />
             <div className="flex max-h-[420px] w-full flex-1 flex-col items-start overflow-auto">
-                {hasInactiveValidatorDelegation ? (
-                    <div className="mb-3">
-                        <InfoBox
-                            type={InfoBoxType.Default}
-                            title="Earn with active validators"
-                            supportingText="Unstake IOTA from the inactive validators and stake on an active
-validator to start earning rewards again."
-                            icon={<Info />}
-                            style={InfoBoxStyle.Elevated}
-                        />
-                    </div>
-                ) : null}
                 <div className="w-full gap-2">
                     {system &&
                         delegations
                             ?.filter(({ inactiveValidator }) => inactiveValidator)
                             .map((delegation) => (
+                                <div className="w-full gap-2" key={delegation.stakedIotaId}>
+                                    <StakedCard
+                                        extendedStake={delegation}
+                                        inactiveValidator
+                                        currentEpoch={Number(system.epoch)}
+                                        onClick={() =>
+                                            navigate(
+                                                `/stake/delegation-detail?${new URLSearchParams({
+                                                    validator: delegation.validatorAddress,
+                                                    staked: delegation.stakedIotaId,
+                                                }).toString()}`,
+                                            )
+                                        }
+                                    />
+                                </div>
+                            ))}
+                </div>
+                <div className="w-full gap-2">
+                    {system &&
+                        delegations
+                            ?.filter(({ activeButNotInTheCommittee }) => activeButNotInTheCommittee)
+                            .map((delegation) => (
                                 <StakedCard
                                     extendedStake={delegation}
                                     currentEpoch={Number(system.epoch)}
                                     key={delegation.stakedIotaId}
-                                    inactiveValidator
+                                    activeButNotInTheCommittee
                                     onClick={() =>
                                         navigate(
                                             `/stake/delegation-detail?${new URLSearchParams({
@@ -160,7 +171,10 @@ validator to start earning rewards again."
                 <div className="w-full gap-2">
                     {system &&
                         delegations
-                            ?.filter(({ inactiveValidator }) => !inactiveValidator)
+                            ?.filter(
+                                ({ activeButNotInTheCommittee, inactiveValidator }) =>
+                                    !activeButNotInTheCommittee && !inactiveValidator,
+                            )
                             .map((delegation) => (
                                 <StakedCard
                                     extendedStake={delegation}

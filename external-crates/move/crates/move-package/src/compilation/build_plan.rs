@@ -11,14 +11,14 @@ use std::{
 
 use anyhow::Result;
 use move_compiler::{
-    compiled_unit::AnnotatedCompiledUnit,
-    diagnostics::{report_diagnostics_to_buffer_with_env_color, report_warnings, Migration},
-    editions::Edition,
-    shared::{files::MappedFiles, PackagePaths},
     Compiler,
+    compiled_unit::AnnotatedCompiledUnit,
+    diagnostics::{Migration, report_diagnostics_to_buffer_with_env_color},
+    editions::Edition,
+    shared::{PackagePaths, files::MappedFiles},
 };
 use move_symbol_pool::Symbol;
-use toml_edit::{value, Document};
+use toml_edit::{Document, value};
 use vfs::VfsPath;
 
 use super::{
@@ -26,10 +26,10 @@ use super::{
     package_layout::CompiledPackageLayout,
 };
 use crate::{
-    compilation::compiled_package::{make_deps_for_compiler_internal, CompiledPackage},
+    compilation::compiled_package::{CompiledPackage, make_deps_for_compiler_internal},
     resolution::resolution_graph::{Package, ResolvedGraph},
     source_package::{
-        manifest_parser::{resolve_move_manifest_path, EDITION_NAME, PACKAGE_NAME},
+        manifest_parser::{EDITION_NAME, PACKAGE_NAME, resolve_move_manifest_path},
         parsed_manifest::PackageName,
     },
 };
@@ -87,8 +87,14 @@ impl BuildPlan {
     }
 
     /// Compilation results in the process exit upon warning/failure
-    pub fn compile<W: Write>(&self, writer: &mut W) -> Result<CompiledPackage> {
-        self.compile_with_driver(writer, |compiler| compiler.build_and_report())
+    pub fn compile<W: Write>(
+        &self,
+        writer: &mut W,
+        modify_compiler: impl FnOnce(Compiler) -> Compiler,
+    ) -> Result<CompiledPackage> {
+        self.compile_with_driver(writer, |compiler| {
+            modify_compiler(compiler).build_and_report()
+        })
     }
 
     /// Compilation results in the process exit upon warning/failure
@@ -132,25 +138,38 @@ impl BuildPlan {
 
     /// Compilation process does not exit even if warnings/failures are
     /// encountered
-    pub fn compile_no_exit<W: Write>(&self, writer: &mut W) -> Result<CompiledPackage> {
-        self.compile_with_driver(writer, |compiler| {
-            let (files, units_res) = compiler.build()?;
+    pub fn compile_no_exit<W: Write>(
+        &self,
+        writer: &mut W,
+        modify_compiler: impl FnOnce(Compiler) -> Compiler,
+    ) -> Result<CompiledPackage> {
+        let mut diags = None;
+        let res = self.compile_with_driver(writer, |compiler| {
+            let (files, units_res) = modify_compiler(compiler).build()?;
             match units_res {
                 Ok((units, warning_diags)) => {
-                    report_warnings(&files, warning_diags);
+                    diags = Some(report_diagnostics_to_buffer_with_env_color(
+                        &files,
+                        warning_diags,
+                    ));
                     Ok((files, units))
                 }
                 Err(error_diags) => {
                     assert!(!error_diags.is_empty());
-                    let diags_buf =
-                        report_diagnostics_to_buffer_with_env_color(&files, error_diags);
-                    if let Err(err) = std::io::stdout().write_all(&diags_buf) {
-                        anyhow::bail!("Cannot output compiler diagnostics: {}", err);
-                    }
+                    diags = Some(report_diagnostics_to_buffer_with_env_color(
+                        &files,
+                        error_diags,
+                    ));
                     anyhow::bail!("Compilation error");
                 }
             }
-        })
+        });
+        if let Some(diags) = diags {
+            if let Err(err) = std::io::stdout().write_all(&diags) {
+                anyhow::bail!("Cannot output compiler diagnostics: {}", err);
+            }
+        }
+        res
     }
 
     pub fn compute_dependencies(&self) -> CompilationDependencies {
@@ -210,7 +229,7 @@ impl BuildPlan {
     pub fn compile_with_driver<W: Write>(
         &self,
         writer: &mut W,
-        compiler_driver: impl FnMut(
+        compiler_driver: impl FnOnce(
             Compiler,
         )
             -> anyhow::Result<(MappedFiles, Vec<AnnotatedCompiledUnit>)>,
@@ -223,7 +242,7 @@ impl BuildPlan {
         &self,
         dependencies: CompilationDependencies,
         writer: &mut W,
-        mut compiler_driver: impl FnMut(
+        compiler_driver: impl FnOnce(
             Compiler,
         )
             -> anyhow::Result<(MappedFiles, Vec<AnnotatedCompiledUnit>)>,
@@ -241,7 +260,7 @@ impl BuildPlan {
             root_package,
             transitive_dependencies,
             &self.resolution_graph,
-            &mut compiler_driver,
+            compiler_driver,
         )?;
 
         Self::clean(

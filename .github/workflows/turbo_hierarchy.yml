@@ -23,6 +23,7 @@ jobs:
       isExplorer: ${{ (steps.turbo.outputs.packages && contains(fromJson(steps.turbo.outputs.packages), 'iota-explorer')) }}
       isTypescriptSDK: ${{ (steps.turbo.outputs.packages && contains(fromJson(steps.turbo.outputs.packages), '@iota/iota-sdk')) }}
       isAppsBackend: ${{ (steps.turbo.outputs.packages && contains(fromJson(steps.turbo.outputs.packages), 'apps-backend')) }}
+      isWalletDashboard: ${{ (steps.turbo.outputs.packages && contains(fromJson(steps.turbo.outputs.packages), 'wallet-dashboard')) }}
       isGraphQlTransport: ${{ (steps.turbo.outputs.packages && contains(fromJson(steps.turbo.outputs.packages), '@iota/graphql-transport')) }}
       isLedgerjs: ${{ (steps.turbo.outputs.packages && contains(fromJson(steps.turbo.outputs.packages), '@iota/ledgerjs-hw-app-iota')) }}
     steps:
@@ -40,6 +41,7 @@ jobs:
     concurrency:
       group: turbo-audit-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
       cancel-in-progress: ${{ github.ref != 'refs/heads/develop' }}
+    if: (github.event.pull_request.draft == false || contains(github.event.pull_request.body, '[run-ci]'))
     steps:
       - name: Checkout
         uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871 # v4.2.1
@@ -57,6 +59,7 @@ jobs:
     concurrency:
       group: turbo-build-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
       cancel-in-progress: ${{ github.ref != 'refs/heads/develop' }}
+    if: (github.event.pull_request.draft == false || contains(github.event.pull_request.body, '[run-ci]'))
     steps:
       - name: Checkout
         uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871 # v4.2.1
@@ -108,7 +111,7 @@ jobs:
           retention-days: 7
 
   e2e:
-    if: (!cancelled() && !failure() && !github.event.pull_request.draft && github.ref_name != 'develop')
+    if: (!cancelled() && !failure() && (github.event.pull_request.draft == false || contains(github.event.pull_request.body, '[run-ci]')) && github.ref_name != 'develop')
     needs: diff
     uses: ./.github/workflows/_e2e.yml
     with:
@@ -118,9 +121,10 @@ jobs:
       isAppsBackend: ${{ needs.diff.outputs.isAppsBackend == 'true' }}
       isTypescriptSDK: ${{ needs.diff.outputs.isTypescriptSDK == 'true' }}
       isGraphQlTransport: ${{ needs.diff.outputs.isGraphQlTransport == 'true' }}
+      isWalletDashboard: ${{ needs.diff.outputs.isWalletDashboard == 'true' }}
 
   ledgernano:
-    if: (!cancelled() && !failure()) && needs.diff.outputs.isLedgerjs == 'true' && github.event.pull_request.draft == false
+    if: (!cancelled() && !failure() && needs.diff.outputs.isLedgerjs == 'true' && (github.event.pull_request.draft == false || contains(github.event.pull_request.body, '[run-ci]')))
     needs: diff
     uses: ./.github/workflows/_ledgernano.yml
     secrets: inherit

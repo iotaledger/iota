@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { CoinFormat, formatBalance } from '../../';
+import { CoinFormat, formatBalance, MIN_NUMBER_IOTA_TO_STAKE } from '../../';
 import BigNumber from 'bignumber.js';
 import { mixed, object } from 'yup';
 
@@ -27,8 +27,11 @@ export function createValidationSchema(
                 }
                 return true;
             })
-            .test('min', `\${path} must be greater than 1 ${coinSymbol}`, (amount) =>
-                amount ? amount.shiftedBy(decimals).gte(minimumStake.toString()) : false,
+            .test(
+                'min',
+                `\${path} must be greater than ${MIN_NUMBER_IOTA_TO_STAKE} ${coinSymbol}`,
+                (amount) =>
+                    amount ? amount.shiftedBy(decimals).gte(minimumStake.toString()) : false,
             )
             .test('max', (amount, ctx) => {
                 const gasBudget = ctx.parent.gasBudget || 0n;
@@ -38,6 +41,13 @@ export function createValidationSchema(
                         message: 'Insufficient funds',
                     });
                 }
+
+                const canStake = availableBalance >= minimumStake;
+                if (!canStake)
+                    return ctx.createError({
+                        message: `Insufficient funds to stake a minimum of ${MIN_NUMBER_IOTA_TO_STAKE} ${coinSymbol}`,
+                    });
+
                 const enoughBalance = amount
                     ? amount.shiftedBy(decimals).lte(availableBalance.toString())
                     : false;

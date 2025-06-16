@@ -9,6 +9,7 @@ use hyper::header::InvalidHeaderValue;
 use iota_json_rpc_api::{
     TRANSACTION_EXECUTION_CLIENT_ERROR_CODE, TRANSIENT_ERROR_CODE, error_object_from_rpc,
 };
+use iota_names::error::IotaNamesError;
 use iota_types::{
     error::{IotaError, IotaObjectResponseError, UserInputError},
     quorum_driver_types::QuorumDriverError,
@@ -77,6 +78,9 @@ pub enum Error {
 
     #[error("Unsupported Feature: {0}")]
     UnsupportedFeature(String),
+
+    #[error(transparent)]
+    IotaNames(#[from] IotaNamesError),
 }
 
 impl From<IotaError> for Error {

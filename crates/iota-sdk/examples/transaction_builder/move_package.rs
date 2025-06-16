@@ -35,7 +35,7 @@ async fn main() -> Result<(), anyhow::Error> {
         .publish(
             sender,
             module.get_package_bytes(false),
-            module.published_dependency_ids(),
+            module.get_dependency_storage_package_ids(),
             gas_coin_object_id,
             gas_budget,
         )
@@ -82,7 +82,7 @@ async fn main() -> Result<(), anyhow::Error> {
 
     // In reality you would like to do some changes to the package before upgrading
     let module = BuildConfig::default().build(package_path)?;
-    let deps = module.published_dependency_ids();
+    let deps = module.get_dependency_storage_package_ids();
     let package_bytes = module.get_package_bytes(false);
 
     let tx_data = client

@@ -15,7 +15,7 @@ use iota_indexer::{
     handlers::objects_snapshot_handler::SnapshotLagConfig,
     indexer::Indexer,
     store::{PgIndexerStore, indexer_store::IndexerStore},
-    test_utils::{IndexerTypeConfig, start_test_indexer},
+    test_utils::{DBInitHook, IndexerTypeConfig, start_test_indexer},
 };
 use iota_json_rpc_api::ReadApiClient;
 use iota_json_rpc_types::{IotaTransactionBlockResponseOptions, TransactionBlockBytes};
@@ -129,8 +129,9 @@ pub async fn start_test_cluster_with_read_write_indexer(
         get_indexer_db_url(database_name),
         // reset the existing db
         true,
+        None,
         cluster.rpc_url().to_string(),
-        IndexerTypeConfig::writer_mode(None),
+        IndexerTypeConfig::writer_mode(None, None),
         None,
     )
     .await;
@@ -299,6 +300,7 @@ pub async fn start_simulacrum_rest_api_with_write_indexer(
     data_ingestion_path: PathBuf,
     server_url: Option<SocketAddr>,
     database_name: Option<&str>,
+    db_init_hook: Option<DBInitHook>,
 ) -> (
     JoinHandle<()>,
     PgIndexerStore,
@@ -314,11 +316,15 @@ pub async fn start_simulacrum_rest_api_with_write_indexer(
     let (pg_store, pg_handle) = start_test_indexer(
         get_indexer_db_url(database_name),
         true,
+        db_init_hook,
         format!("http://{}", server_url),
-        IndexerTypeConfig::writer_mode(Some(SnapshotLagConfig {
-            snapshot_min_lag: 5,
-            sleep_duration: 0,
-        })),
+        IndexerTypeConfig::writer_mode(
+            Some(SnapshotLagConfig {
+                snapshot_min_lag: 5,
+                sleep_duration: 0,
+            }),
+            None,
+        ),
         Some(data_ingestion_path),
     )
     .await;
@@ -341,6 +347,7 @@ pub async fn start_simulacrum_rest_api_with_read_write_indexer(
         data_ingestion_path.clone(),
         Some(simulacrum_server_url),
         database_name,
+        None,
     )
     .await;
 

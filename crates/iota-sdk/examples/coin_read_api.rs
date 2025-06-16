@@ -31,7 +31,7 @@ async fn main() -> Result<(), anyhow::Error> {
         .get_coins(active_address, coin_type.clone(), None, 5) // get the first five coins
         .await?;
     println!(" *** Coins ***");
-    println!("{:?}", coins);
+    println!("{coins:?}");
     println!(" *** Coins ***\n");
 
     // Get all coins
@@ -43,7 +43,7 @@ async fn main() -> Result<(), anyhow::Error> {
         .get_all_coins(active_address, None, 5) // get the first five coins
         .await?;
     println!(" *** All coins ***");
-    println!("{:?}", all_coins);
+    println!("{all_coins:?}");
     println!(" *** All coins ***\n");
 
     // Get coins as a stream
@@ -55,7 +55,7 @@ async fn main() -> Result<(), anyhow::Error> {
     println!(" *** Coins Stream ***");
     coins_stream
         .for_each(|coin| {
-            println!("{:?}", coin);
+            println!("{coin:?}");
             future::ready(())
         })
         .await;
@@ -69,7 +69,7 @@ async fn main() -> Result<(), anyhow::Error> {
         .await?;
 
     println!(" *** Select Coins ***");
-    println!("{:?}", select_coins);
+    println!("{select_coins:?}");
     println!(" *** Select Coins ***\n");
 
     // Balance
@@ -87,22 +87,28 @@ async fn main() -> Result<(), anyhow::Error> {
         .get_all_balances(active_address)
         .await?;
     println!(" *** Balance + Total Balance *** ");
-    println!("Balance: {:?}", balance);
-    println!("Total Balance: {:?}", total_balance);
+    println!("Balance: {balance:?}");
+    println!("Total Balance: {total_balance:?}");
     println!(" *** Balance + Total Balance ***\n ");
 
     // Return the coin metadata for the Coin<IOTA>
     let coin_metadata = client.coin_read_api().get_coin_metadata(&coin_type).await?;
 
     println!(" *** Coin Metadata *** ");
-    println!("{:?}", coin_metadata);
+    println!("{coin_metadata:?}");
     println!(" *** Coin Metadata ***\n ");
 
     // Total Supply
     let total_supply = client.coin_read_api().get_total_supply(coin_type).await?;
     println!(" *** Total Supply *** ");
-    println!("{:?}", total_supply);
+    println!("{total_supply:?}");
     println!(" *** Total Supply ***\n ");
+
+    // IOTA Circulating Supply
+    let circulating_supply = client.coin_read_api().get_circulating_supply().await?;
+    println!(" *** IOTA Circulating Supply *** ");
+    println!("{circulating_supply:?}");
+    println!(" *** IOTA Circulating Supply ***\n ");
 
     Ok(())
 }

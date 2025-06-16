@@ -53,9 +53,8 @@ WORKDIR "$WORKDIR"
 # Install runtime dependencies and tools
 RUN apt update && apt install -y libpq5 ca-certificates curl
 
-# Install rosetta-cli
-RUN curl -sSfL https://raw.githubusercontent.com/coinbase/rosetta-cli/master/scripts/install.sh | sh -s
-
+# Install rosetta-cli (workaround because the install script is broken after rename)
+RUN curl -sSfL https://raw.githubusercontent.com/coinbase/mesh-cli/master/scripts/install.sh | sed -e 's/^REPO=.*/REPO=mesh-cli/' | sh -s
 COPY --from=builder /iota/iota-rosetta /usr/local/bin
 
 ARG BUILD_DATE

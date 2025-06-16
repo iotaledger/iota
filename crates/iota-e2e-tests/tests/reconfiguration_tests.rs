@@ -672,6 +672,105 @@ async fn test_reconfig_with_committee_change_basic() {
 }
 
 #[sim_test]
+async fn test_reconfig_with_same_validator() {
+    use iota_swarm_config::genesis_config::{AccountConfig, DEFAULT_GAS_AMOUNT, GenesisConfig};
+    use iota_types::{
+        crypto::{AuthorityPublicKeyBytes, KeypairTraits},
+        governance::MIN_VALIDATOR_JOINING_STAKE_NANOS,
+    };
+    use rand::{SeedableRng, rngs::StdRng};
+
+    // ValidatorGenesisConfig doesn't impl Clone
+    // generate the same config with the same rng seed
+    let node_ip = iota_config::local_ip_utils::get_new_ip();
+    let build_node_config = || {
+        ValidatorGenesisConfigBuilder::new()
+            // the node_ip should always be the same value, otherwise the test will fail
+            .with_ip(node_ip.clone())
+            .build(&mut StdRng::seed_from_u64(0))
+    };
+
+    // the node that will re-join committee
+    let node_config = build_node_config();
+    let node_name: AuthorityPublicKeyBytes = node_config.authority_key_pair.public().into();
+    let node_address = (&node_config.account_key_pair.public()).into();
+    let mut node_handle = None;
+
+    // add coins to the node at the genesis to avoid dealing with faucet
+    let mut genesis_config = GenesisConfig::default();
+    genesis_config
+        .accounts
+        .extend(std::iter::once(AccountConfig {
+            address: Some(node_address),
+            gas_amounts: vec![
+                DEFAULT_GAS_AMOUNT,
+                MIN_VALIDATOR_JOINING_STAKE_NANOS,
+                DEFAULT_GAS_AMOUNT,
+                MIN_VALIDATOR_JOINING_STAKE_NANOS,
+            ],
+        }));
+
+    // create test cluster with 4 default validators
+    let mut test_cluster = TestClusterBuilder::new()
+        .with_num_validators(4)
+        .set_genesis_config(genesis_config)
+        .build()
+        .await;
+
+    // whether node is in committee in a corresponding epoch
+    // test a few join/leave/join cases
+    let node_schedule = [true, true, false, false, true, false, true];
+    // the node initially is not in the committee
+    let mut was_in_committee = false;
+
+    let mut epoch = 0;
+    for is_in_committee in node_schedule {
+        if !was_in_committee && is_in_committee {
+            // add node to committee
+            execute_add_validator_transactions(&test_cluster, &build_node_config()).await;
+        }
+        if was_in_committee && !is_in_committee {
+            // remove node from committee
+            execute_remove_validator_tx(&test_cluster, node_handle.as_ref().unwrap()).await;
+        }
+
+        // reconfiguration
+        test_cluster.force_new_epoch().await;
+        epoch += 1;
+
+        // check that node has joined or left the committee
+        test_cluster.fullnode_handle.iota_node.with(|node| {
+            assert_eq!(
+                is_in_committee,
+                node.state()
+                    .epoch_store_for_testing()
+                    .committee()
+                    .authority_exists(&node_name)
+            );
+        });
+
+        if node_handle.is_none() {
+            // spawn node if not already
+            node_handle = Some(test_cluster.spawn_new_validator(build_node_config()).await);
+        }
+
+        // sync nodes
+        test_cluster.wait_for_epoch_all_nodes(epoch).await;
+
+        // the running node acknowledges being or not being a committee member
+        node_handle.as_ref().unwrap().with(|node| {
+            assert_eq!(
+                is_in_committee,
+                node.state()
+                    .is_validator(&node.state().epoch_store_for_testing())
+            );
+        });
+
+        was_in_committee = is_in_committee;
+    }
+}
+
+#[sim_test]
 async fn test_reconfig_with_committee_change_stress() {
     do_test_reconfig_with_committee_change_stress().await;
 }

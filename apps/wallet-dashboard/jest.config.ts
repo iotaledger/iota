@@ -10,6 +10,7 @@ const config: Config = {
         '^@iota/core/constants/(.*)$': '<rootDir>/../core/src/constants/$1',
         '^@iota/core/utils/(.*)$': '<rootDir>/../core/src/utils/$1',
     },
+    testPathIgnorePatterns: ['tests'],
 };
 
 export default config;

@@ -2,7 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import cx from 'classnames';
-import { InfoBoxStyle, InfoBoxType } from './infoBox.enums';
+import type { InfoBoxType } from './infoBox.enums';
+import { InfoBoxStyle } from './infoBox.enums';
 import { BACKGROUND_COLORS, ICON_COLORS } from './infoBox.classes';
 
 export interface InfoBoxProps {
@@ -17,7 +18,7 @@ export interface InfoBoxProps {
     /**
      * The supporting text of the info box (optional).
      */
-    supportingText?: string;
+    supportingText?: React.ReactNode;
     /**
      * The type of the info box.
      */

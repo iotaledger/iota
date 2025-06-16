@@ -1,0 +1,55 @@
+---
+description: 'Learn about the role of oracles in blockchain, their role in providing external data to smart contracts, and the available oracles in IOTA.'
+tags:
+- move-sc
+---
+
+# Introduction to Oracles in Blockchain
+
+Smart contracts are powerful tools in the blockchain ecosystem, enabling automated, self-executing agreements based on
+predefined conditions. However, one of their fundamental limitations is that they operate in a sandboxed environment.
+This isolation ensures that smart contracts produce the same results every time they run, maintaining the deterministic
+nature essential for blockchain's integrity and trust. But this also means smart contracts cannot directly access
+or interact with external data or systems.
+
+## Bridging the Gap with Oracles
+
+Oracles serve as a critical bridge in this scenario, connecting the isolated world of smart contracts with external data
+sources. They play a pivotal role in expanding the functionality of smart contracts by providing them
+with real-world information. Oracles fetch data from various external sources, like internet APIs, real-world sensors,
+and other data feeds, and then relay this information to the smart contracts on the blockchain.
+
+### Ensuring Idempotent Results
+
+The key challenge for oracles in the blockchain context is to provide data with enough specificity and reliability to
+guarantee idempotent results - the property that a smart contract will produce the same outcome every time it's executed
+under the same conditions. This consistency is crucial for maintaining trust and predictability in the blockchain
+environment.
+
+Oracles achieve this by sourcing data from reliable and verified external sources and using consensus mechanisms or
+multiple data points to validate the information's accuracy. This process ensures that the data provided to the smart
+contracts is relevant and timely, maintaining the integrity and deterministic nature of the blockchain
+operations.
+
+## Oracle Provider in IOTA Ecosystem
+
+### Pyth
+
+The Pyth Network delivers real-time financial market data across multiple blockchains and can be used in off-chain applications.
+Pyth gets contributions from over 90 publishers, including several exchanges. It offers comprehensive and accurate price
+feeds for asset classes such as US equities, commodities, and cryptocurrencies. Its price feeds get updates
+multiple times per second, ensuring they are current and reliable.
+
+:::tip
+
+You can learn more about Pyth Oracles in their [official documentation](https://docs.pyth.network/documentation).
+
+:::
+
+### IOTA Testnet
+
+For details, refer to the [Pyth Network IOTA Price Feed Contract Address](https://docs.pyth.network/price-feeds/contract-addresses/iota#iota-testnet) in the official documentation.
+
+#### Example Code
+
+For detailed code example on how to use real-time Pyth data in IOTA applications, refer to the Pyth Network [How to Use Real-Time Data in IOTA Contracts documentation](https://docs.pyth.network/price-feeds/use-real-time-data/iota#install-pyth-sdk).

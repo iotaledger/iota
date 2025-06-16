@@ -2,8 +2,8 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-//! ProgramInfo extension for Iota Flavor
-//! Contains information that may be expensive to compute and is needed only for Iota
+//! ProgramInfo extension for IOTA Flavor
+//! Contains information that may be expensive to compute and is needed only for IOTA
 
 use std::{
     collections::{BTreeMap, BTreeSet},
@@ -14,7 +14,7 @@ use crate::{
     diagnostics::warning_filters::WarningFilters,
     expansion::ast::{Fields, ModuleIdent},
     naming::ast as N,
-    parser::ast::{Ability_, DatatypeName, Field},
+    parser::ast::{Ability_, DatatypeName, DocComment, Field},
     shared::{
         program_info::{DatatypeKind, TypingProgramInfo},
         unique_map::UniqueMap,
@@ -161,11 +161,11 @@ fn all_uid_holders(info: &TypingProgramInfo) -> BTreeMap<(ModuleIdent, DatatypeN
         info: &TypingProgramInfo,
         visited: &mut BTreeSet<(ModuleIdent, DatatypeName)>,
         uid_holders: &mut BTreeMap<(ModuleIdent, DatatypeName), UIDHolder>,
-        fields: &Fields<N::Type>,
+        fields: &Fields<(DocComment, N::Type)>,
     ) -> Option<UIDHolder> {
         fields
             .key_cloned_iter()
-            .map(|(field, (_, ty))| {
+            .map(|(field, (_, (_, ty)))| {
                 Some(match visit_ty(info, visited, uid_holders, ty)? {
                     UIDHolder::IsUID => UIDHolder::Direct { field, ty: ty.loc },
                     UIDHolder::Direct { field, ty: uid }

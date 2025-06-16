@@ -93,7 +93,12 @@ export function TransactionTile({ transaction }: TransactionTileProps): JSX.Elem
 
     return (
         <>
-            <Card type={CardType.Default} isHoverable onClick={openDetailsDialog}>
+            <Card
+                testId="transaction-tile"
+                type={CardType.Default}
+                isHoverable
+                onClick={openDetailsDialog}
+            >
                 <CardImage type={ImageType.BgSolid} shape={ImageShape.SquareRounded}>
                     <TransactionIcon
                         txnFailed={transaction.state === TransactionState.Failed}

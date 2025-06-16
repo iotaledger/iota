@@ -1,0 +1,56 @@
+---
+source: external-crates/move/crates/move-transactional-test-runner/src/framework.rs
+---
+processed 9 tasks
+
+init:
+A: object(0,0)
+
+task 1, lines 12-53:
+//# publish
+created: object(1,0)
+mutated: object(0,1)
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 9606400,  storage_rebate: 0, non_refundable_storage_fee: 0
+
+task 2, lines 55-57:
+//# run test::m1::create --sender A
+created: object(2,0)
+mutated: object(0,0)
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2234400,  storage_rebate: 0, non_refundable_storage_fee: 0
+
+task 3, line 58:
+//# run test::m1::add_child --args object(2,0) --sender A
+created: object(3,0), object(3,1)
+mutated: object(0,0), object(2,0)
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 5920400,  storage_rebate: 2234400, non_refundable_storage_fee: 0
+
+task 4, lines 60-62:
+//# run test::m1::transfer_child --args object(2,0) --sender A
+mutated: object(0,0), object(2,0), object(3,1)
+deleted: object(3,0)
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 3473200,  storage_rebate: 5920400, non_refundable_storage_fee: 0
+
+task 5, line 63:
+//# run test::m1::add_child --args object(2,0) --sender A
+created: object(3,0), object(5,0)
+mutated: object(0,0), object(2,0)
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 5920400,  storage_rebate: 2234400, non_refundable_storage_fee: 0
+
+task 6, lines 65-67:
+//# run test::m1::delete_child --args object(2,0) --sender A
+mutated: object(0,0), object(2,0)
+deleted: object(3,0), object(5,0)
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2234400,  storage_rebate: 5920400, non_refundable_storage_fee: 0
+
+task 7, line 68:
+//# run test::m1::add_child --args object(2,0) --sender A
+created: object(3,0), object(7,0)
+mutated: object(0,0), object(2,0)
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 5920400,  storage_rebate: 2234400, non_refundable_storage_fee: 0
+
+task 8, line 70:
+//# run test::m1::wrap_child --args object(2,0) --sender A
+mutated: object(0,0), object(2,0)
+deleted: object(3,0)
+wrapped: object(7,0)
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2477600,  storage_rebate: 5920400, non_refundable_storage_fee: 0

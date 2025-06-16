@@ -3,7 +3,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import '@fontsource-variable/inter';
-import '@fontsource-variable/red-hat-mono';
 import { GrowthBookProvider } from '@growthbook/growthbook-react';
 import { QueryClientProvider } from '@tanstack/react-query';
 import React from 'react';

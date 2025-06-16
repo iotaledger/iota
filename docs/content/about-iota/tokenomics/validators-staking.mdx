@@ -18,13 +18,13 @@ The staking pool is implemented in a system-level smart contract ([staking_pool.
 
 ## Validator Pool Rewards
 
-At each epoch boundary, the system computes the staking rewards for each validator pool proportionally to the staked tokens in each pool. The staking rewards $rewards(i, E)$ for validator pool $i$ at epoch $E$ are computed as follows:
+At each epoch boundary, the system computes the staking rewards for each validator pool proportionally to the staked tokens in each pool. The staking rewards $$rewards(i, E)$$ for validator pool $$i$$ at epoch $$E$$ are computed as follows:
 
 $$
 rewards(i, E) = \frac{ stakedTokens(i, E)}{\sum_i (stakedTokens(i, E)) }\times totalRewards(E).
 $$
 
-$rewards(i, E)$ is then adjusted to consider potential slashed validators who have not met minimum quality requirements. Additionally, validators earn commissions on the staking pool's tokens. IOTA keeps track of the rewards accrued by both validators and delegators using a single global exchange rate table.
+$$rewards(i, E)$$ is then adjusted to consider potential slashed validators who have not met minimum quality requirements. Additionally, validators earn commissions on the staking pool's tokens. IOTA keeps track of the rewards accrued by both validators and delegators using a single global exchange rate table.
 
 <StakingPoolReqs />
 

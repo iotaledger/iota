@@ -148,7 +148,7 @@ This leads to the following matrix of permissions for receiving objects:
 | `key`            | Yes                        | Yes                      |
 | `key` + `store`  | Yes                        | No                       |
 
-You can combine these restrictions to create complex rules, such as implementing [soul-bound objects](#soul-bound-example).
+You can combine these restrictions to create complex rules, such as implementing [soul-bound objects](#soul-bound-objects).
 
 ## Using SDKs
 
@@ -310,7 +310,7 @@ module examples::account {
 }
 ```
 
-### Soul-Bound Objects {#soul-bound-example}
+### Soul-Bound Objects
 
 Soul-bound objects are bound to a specific address and must remain there or be returned to it.
 The following module implements this by creating a receipt that must be destroyed within the same transaction where the object is received.

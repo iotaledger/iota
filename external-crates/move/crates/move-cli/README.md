@@ -70,19 +70,6 @@ can change where the build artifacts are saved by passing the optional `--build-
 $ move build --build-dir <path_to_save_to> # Build current Move package and save artifacts under <path_to_save_to>
 ```
 
-You can verify the specifications in a Move package using the Move Prover with the `prove` command:
-
-```shell
-$ move prove # Verify the specifications in the current package
-$ move prove -p <path> # Verify the specifications in the package at <path>
-```
-
-In order to run the Move Prover [additional tools need to be installed](https://github.com/move-language/move/blob/main/language/move-prover/doc/user/install.md).
-Information on the Move Prover and its configuration options can be found
-[here](https://github.com/move-language/move/blob/main/language/move-prover/doc/user/prover-guide.md)
-and
-[here](https://github.com/move-language/move/blob/main/language/move-prover/doc/user/spec-lang.md).
-
 You can also run unit tests in a package using the `test` command
 
 ```shell

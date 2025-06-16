@@ -26,6 +26,16 @@ on:
         description: "Release iota-graphql-rpc image"
         required: false
         default: false
+      iota_data_ingestion:
+        type: boolean
+        description: "Release iota-data-ingestion image"
+        required: false
+        default: false
+      iota_rest_kv:
+        type: boolean
+        description: "Release iota-rest-kv image"
+        required: false
+        default: false
 
 jobs:
   prepare:
@@ -60,6 +70,18 @@ jobs:
           # or if the event is a release (in which case the job should run regardless of the input).
           if [ "${{ github.event_name == 'workflow_dispatch' && github.event.inputs.iota_graphql_rpc == 'true' || github.event_name == 'release' }}" == "true" ]; then
             images_array+=("iota-graphql-rpc")
+          fi
+
+          # Check iota_data_ingestion: true if the input is set to true and the event is workflow_dispatch,
+          # or if the event is a release (in which case the job should run regardless of the input).
+          if [ "${{ github.event_name == 'workflow_dispatch' && github.event.inputs.iota_data_ingestion == 'true' || github.event_name == 'release' }}" == "true" ]; then
+            images_array+=("iota-data-ingestion")
+          fi
+
+          # Check iota_rest_kv: true if the input is set to true and the event is workflow_dispatch,
+          # or if the event is a release (in which case the job should run regardless of the input).
+          if [ "${{ github.event_name == 'workflow_dispatch' && github.event.inputs.iota_rest_kv == 'true' || github.event_name == 'release' }}" == "true" ]; then
+            images_array+=("iota-rest-kv")
           fi
 
           # Check if the images_array is empty

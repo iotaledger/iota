@@ -44,8 +44,13 @@ use test_cluster::TestClusterBuilder;
 /// of the pool at the expected number (a quarter of 3.5B IOTAs) starting from
 /// epoch 1, this is totally fine.
 #[sim_test]
-#[ignore = "Very flaky. TODO in tracking issue https://github.com/iotaledger/iota/issues/5293: reactivate"]
 async fn test_apy() {
+    // clean up the `cached` cache before running the test.
+    #[cfg(msim)]
+    {
+        iota_json_rpc::governance_api::clear_exchange_rates_cache_for_testing().await;
+    }
+
     // We need a large stake for low enough APY values such that they are not
     // filtered out by the APY calculation function.
     let pool_stake = 3_500_000_000 * NANOS_PER_IOTA / 4;

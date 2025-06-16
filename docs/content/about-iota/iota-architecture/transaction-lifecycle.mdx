@@ -83,7 +83,7 @@ Depending on whether the transaction uses shared input objects, the validators w
 * Execute it immediately if no shared objects are involved.
 * Submit it to IOTA's consensus layer to order the transaction with others if shared objects are involved, and then execute it.
 
-This ensures that transactions are processed in the correct order and prevent conflicts.
+This ensures that transactions involving shared objects are consistently ordered across validators, preventing conflicts.
 
 ### Effects Certificate
 
@@ -99,16 +99,11 @@ Once you or the full node sees an effects _certificate_, you can be sure that th
 
 ### Checkpoints
 
-The final stage in a transaction's life is its inclusion in a checkpoint. Validators send executed transactions to the consensus layer, which orders all transactions universally. This ordered list of transactions is used to create checkpoints. Checkpoints include:
-
-* Ordered transaction lists.
-* Transaction effects.
-
-Transactions are added to checkpoints once they are complete and causally ordered, meaning any related dependencies are included and ordered correctly. This ensures the transactions are processed in the right sequence. Forming checkpoints usually takes a few seconds. Once included in a checkpoint, the transaction is permanently recorded on the IOTA network.
+The final stage in a transaction's life is its inclusion in a checkpoint. The consensus layer produces a globally agreed-upon ordering of transactions. Validators take chunks of this ordered list and use them to form checkpoints. Each checkpoint contains a list of transaction digests and the digests of their effects. To ensure completeness, the network may wait until all required transaction data is available. This process typically takes a few seconds. Once a transaction is included in a checkpoint, it becomes part of the permanent record on the IOTA network.
 
 ### Transaction Finality
 
-Transaction finality means that once a transaction is executed, it can't be reversed or changed. From the time a transaction is sent to when it receives validator signatures, less than half a second passes. At this point, the sender knows the transaction will be processed and can't be undone. Honest validators will reject any subsequent transactions that try to use the same input objects within the same epoch.
+Transaction finality means that once a transaction is executed, it can't be reversed or changed. From the time a transaction is sent to when it receives validator signatures, less than half a second passes. At this point, the sender knows the transaction will be processed and can't be undone. Honest validators will reject any subsequent transactions that try to use the same owned objects within the same epoch.
 
 ### Settlement Finality
 

@@ -2,16 +2,16 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { useCurrentAccount } from '@iota/dapp-kit';
-import { VirtualList, TransactionTile } from '@/components';
-import { useQueryTransactionsByAddress } from '@iota/core';
+import { TransactionTile } from '@/components';
+import { VirtualList, useQueryTransactionsByAddress } from '@iota/core';
 import { getExtendedTransaction } from '@/lib/utils/transaction';
 import { IotaTransactionBlockResponse } from '@iota/iota-sdk/client';
 
 interface TransactionsListProps {
-    overflowClassName?: string;
+    heightClassName?: string;
 }
 
-export function TransactionsList({ overflowClassName }: TransactionsListProps): JSX.Element {
+export function TransactionsList({ heightClassName }: TransactionsListProps): JSX.Element {
     const currentAccount = useCurrentAccount();
     const { allTransactions, fetchNextPage, hasNextPage, isFetchingNextPage, error } =
         useQueryTransactionsByAddress(currentAccount?.address);
@@ -34,8 +34,7 @@ export function TransactionsList({ overflowClassName }: TransactionsListProps): 
             fetchNextPage={fetchNextPage}
             hasNextPage={hasNextPage}
             isFetchingNextPage={isFetchingNextPage}
-            heightClassName="h-full"
-            overflowClassName={overflowClassName}
+            heightClassName={heightClassName}
         />
     );
 }

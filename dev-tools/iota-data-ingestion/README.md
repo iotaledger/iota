@@ -1,6 +1,14 @@
-# Checkpoint Remote Store
+# IOTA Data Ingestion Services
 
-This Docker container enables storing checkpoint blobs to a remote storage service (e.g., AWS S3). The service requires AWS credentials for proper execution.
+Contains services for ingesting and storing IOTA blockchain data in different formats to support various use cases. The services utilize Docker containers to store checkpoint data to remote storage services (e.g. AWS S3).
+
+## Available Services
+
+There are three separate services, each in its own directory:
+
+1. **Live Checkpoint Storage** (`live/`) - Stores raw checkpoint blobs to object storage for immediate access.
+2. **Historical Checkpoint Storage** (`historical/`) - Compresses and batches checkpoint data for efficient long-term storage to object storage.
+3. **KV Store** (`kv-store/`) - Processes checkpoint data and stores it in a structured format in DynamoDB and S3. This service is primarily used to provide historical data for Archival IOTA Nodes, which can query specific transactions, events, and effects efficiently through a REST API.
 
 ## Configuration
 
@@ -17,7 +25,15 @@ AWS_ENDPOINT_URL=http://localstack:4566  # Optional: Used for local testing with
 
 ### Configuration File
 
-A default configuration file is provided at `config/config.yaml`. This configuration can be customized based on your needs and is mounted into the container via Docker Compose.
+Each service has its own configuration file:
+
+- **Live Service**: `live/config.yaml`
+- **Historical Service**: `historical/config.yaml`
+- **KV Store Service**: `kv-store/config.yaml`
+
+These configurations can be customized based on your needs and are mounted into their respective containers via Docker Compose.
+
+An example of `config.yaml` for the Blob worker:
 
 ```yaml
 # IndexerExecutor config
@@ -99,7 +115,9 @@ cd <iota project directory>/dev-tools/iota-data-ingestion
 Run the container in detached mode:
 
 ```shell
-docker compose up -d
+pushd historical && docker compose up -d && popd
+pushd live && docker compose up -d && popd
+pushd kv-store && docker compose up -d && popd
 ```
 
 ### 4. Stop the Service
@@ -107,7 +125,9 @@ docker compose up -d
 Stop and remove the container and associated resources:
 
 ```shell
-docker compose down
+pushd historical && docker compose down && popd
+pushd live && docker compose down && popd
+pushd kv-store && docker compose down && popd
 ```
 
 ## Local development
@@ -119,7 +139,11 @@ Before starting the service, you need to set up the required AWS components. The
 ### 1. Create S3 Bucket
 
 ```bash
+# For live and historical services
 aws --profile localstack s3 mb s3://checkpoints
+
+# For KV Store service
+aws --profile localstack s3 mb s3://iota-storage-bucket
 ```
 
 ### 2. Verify Resources
@@ -128,6 +152,16 @@ Verify that the resources were created correctly:
 
 ```bash
 aws --profile localstack s3 ls
+```
+
+### 3. Create DynamoDB Table (for KV Store)
+
+```bash
+aws --profile localstack dynamodb create-table \
+    --table-name iota-storage \
+    --attribute-definitions AttributeName=pk,AttributeType=S AttributeName=sk,AttributeType=S \
+    --key-schema AttributeName=pk,KeyType=HASH AttributeName=sk,KeyType=RANGE \
+    --billing-mode PAY_PER_REQUEST
 ```
 
 ## Troubleshooting

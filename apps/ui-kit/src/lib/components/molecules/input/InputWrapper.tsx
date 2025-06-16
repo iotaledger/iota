@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import cx from 'classnames';
-import { SecondaryText } from '../../atoms/secondary-text';
+import { SecondaryText } from '@/components/atoms/secondary-text';
 import { LABEL_CLASSES } from './input.classes';
 import { createElement } from 'react';
 

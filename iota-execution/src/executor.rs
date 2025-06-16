@@ -19,6 +19,7 @@ use iota_types::{
     storage::BackingStore,
     transaction::{CheckedInputObjects, ProgrammableTransaction, TransactionKind},
 };
+use move_trace_format::format::MoveTraceBuilder;
 
 /// Abstracts over access to the VM across versions of the execution layer.
 pub trait Executor {
@@ -42,6 +43,7 @@ pub trait Executor {
         transaction_kind: TransactionKind,
         transaction_signer: IotaAddress,
         transaction_digest: TransactionDigest,
+        trace_builder_opt: &mut Option<MoveTraceBuilder>,
     ) -> (
         InnerTemporaryStore,
         IotaGasStatus,

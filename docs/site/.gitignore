@@ -1,6 +1,6 @@
 # build spec
 
-# open-spec # TODO: Re-enable after repo is public again
+open-spec
 
 # Dependencies
 /node_modules

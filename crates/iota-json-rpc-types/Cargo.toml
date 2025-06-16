@@ -29,6 +29,7 @@ iota-enum-compat-util.workspace = true
 iota-json.workspace = true
 iota-macros.workspace = true
 iota-metrics.workspace = true
+iota-names.workspace = true
 iota-package-resolver.workspace = true
 iota-protocol-config.workspace = true
 iota-types.workspace = true

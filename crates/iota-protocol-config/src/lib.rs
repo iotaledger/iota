@@ -4,11 +4,14 @@
 
 use std::{
     cell::RefCell,
+    cmp::min,
     sync::atomic::{AtomicBool, Ordering},
 };
 
 use clap::*;
-use iota_protocol_config_macros::{ProtocolConfigAccessors, ProtocolConfigFeatureFlagsGetters};
+use iota_protocol_config_macros::{
+    ProtocolConfigAccessors, ProtocolConfigFeatureFlagsGetters, ProtocolConfigOverride,
+};
 use move_vm_config::verifier::VerifierConfig;
 use serde::{Deserialize, Serialize};
 use serde_with::skip_serializing_none;
@@ -16,7 +19,7 @@ use tracing::{info, warn};
 
 /// The minimum and maximum protocol versions supported by this build.
 const MIN_PROTOCOL_VERSION: u64 = 1;
-pub const MAX_PROTOCOL_VERSION: u64 = 7;
+pub const MAX_PROTOCOL_VERSION: u64 = 8;
 
 // Record history of protocol version allocations here:
 //
@@ -39,6 +42,15 @@ pub const MAX_PROTOCOL_VERSION: u64 = 7;
 //            execution layer.
 // Version 6: Bound size of values created in the adapter.
 // Version 7: Improve handling of stake withdrawal from candidate validators.
+// Version 8: Variants as type nodes.
+//            Enable smart ancestor selection for testnet.
+//            Enable probing for accepted rounds in round prober for testnet.
+//            Switch to distributed vote scoring in consensus in testnet.
+//            Enable zstd compression for consensus tonic network in testnet.
+//            Enable consensus garbage collection for testnet
+//            Enable the new consensus commit rule for testnet.
+//            Enable min_free_execution_slot for the shared object congestion
+//            tracker in devnet.
 
 #[derive(Copy, Clone, Debug, Hash, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ProtocolVersion(u64);
@@ -124,7 +136,7 @@ pub struct Error(pub String);
 // TODO: There are quite a few non boolean values in the feature flags. We
 // should move them out.
 /// Records on/off feature flags that may vary at each protocol version.
-#[derive(Default, Clone, Serialize, Debug, ProtocolConfigFeatureFlagsGetters)]
+#[derive(Default, Clone, Serialize, Deserialize, Debug, ProtocolConfigFeatureFlagsGetters)]
 struct FeatureFlags {
     // Add feature flags here, e.g.:
     // new_protocol_feature: bool,
@@ -223,6 +235,41 @@ struct FeatureFlags {
     // Properly convert certain type argument errors in the execution layer.
     #[serde(skip_serializing_if = "is_false")]
     convert_type_argument_error: bool,
+
+    // Probe rounds received by peers from every authority.
+    #[serde(skip_serializing_if = "is_false")]
+    consensus_round_prober: bool,
+
+    // Use distributed vote leader scoring strategy in consensus.
+    #[serde(skip_serializing_if = "is_false")]
+    consensus_distributed_vote_scoring_strategy: bool,
+
+    // Enables the new logic for collecting the subdag in the consensus linearizer. The new logic
+    // does not stop the recursion at the highest committed round for each authority, but
+    // allows to commit uncommitted blocks up to gc round (excluded) for that authority.
+    #[serde(skip_serializing_if = "is_false")]
+    consensus_linearize_subdag_v2: bool,
+
+    // Variants count as nodes
+    #[serde(skip_serializing_if = "is_false")]
+    variant_nodes: bool,
+
+    // Use smart ancestor selection in consensus.
+    #[serde(skip_serializing_if = "is_false")]
+    consensus_smart_ancestor_selection: bool,
+
+    // Probe accepted rounds in round prober.
+    #[serde(skip_serializing_if = "is_false")]
+    consensus_round_prober_probe_accepted_rounds: bool,
+
+    // If true, enable zstd compression for consensus tonic network.
+    #[serde(skip_serializing_if = "is_false")]
+    consensus_zstd_compression: bool,
+
+    // Use the minimum free execution slot to schedule execution of a transaction in the shared
+    // object congestion tracker.
+    #[serde(skip_serializing_if = "is_false")]
+    congestion_control_min_free_execution_slot: bool,
 }
 
 fn is_true(b: &bool) -> bool {
@@ -234,7 +281,7 @@ fn is_false(b: &bool) -> bool {
 }
 
 /// Ordering mechanism for transactions in one consensus output.
-#[derive(Default, Copy, Clone, PartialEq, Eq, Serialize, Debug)]
+#[derive(Default, Copy, Clone, PartialEq, Eq, Serialize, Deserialize, Debug)]
 pub enum ConsensusTransactionOrdering {
     /// No ordering. Transactions are processed in the order they appear in the
     /// consensus output.
@@ -251,7 +298,7 @@ impl ConsensusTransactionOrdering {
 }
 
 // The config for per object congestion control in consensus handler.
-#[derive(Default, Copy, Clone, PartialEq, Eq, Serialize, Debug)]
+#[derive(Default, Copy, Clone, PartialEq, Eq, Serialize, Deserialize, Debug)]
 pub enum PerObjectCongestionControlMode {
     #[default]
     None, // No congestion control.
@@ -266,7 +313,7 @@ impl PerObjectCongestionControlMode {
 }
 
 // Configuration options for consensus algorithm.
-#[derive(Default, Copy, Clone, PartialEq, Eq, Serialize, Debug)]
+#[derive(Default, Copy, Clone, PartialEq, Eq, Serialize, Deserialize, Debug)]
 pub enum ConsensusChoice {
     #[default]
     Mysticeti,
@@ -279,7 +326,7 @@ impl ConsensusChoice {
 }
 
 // Configuration options for consensus network.
-#[derive(Default, Copy, Clone, PartialEq, Eq, Serialize, Debug)]
+#[derive(Default, Copy, Clone, PartialEq, Eq, Serialize, Deserialize, Debug)]
 pub enum ConsensusNetwork {
     #[default]
     Tonic,
@@ -325,7 +372,7 @@ impl ConsensusNetwork {
 /// version.
 /// - If you want a customized getter, you can add a method in the impl.
 #[skip_serializing_none]
-#[derive(Clone, Serialize, Debug, ProtocolConfigAccessors)]
+#[derive(Clone, Serialize, Debug, ProtocolConfigAccessors, ProtocolConfigOverride)]
 pub struct ProtocolConfig {
     pub version: ProtocolVersion,
 
@@ -996,13 +1043,17 @@ pub struct ProtocolConfig {
 
     /// The max accumulated txn execution cost per object in a mysticeti commit.
     /// Transactions in a commit will be deferred once their touch shared
-    /// objects hit this limit.    
+    /// objects hit this limit.
     max_accumulated_txn_cost_per_object_in_mysticeti_commit: Option<u64>,
 
     /// Maximum number of committee (validators taking part in consensus)
     /// validators at any moment. We do not allow the number of committee
     /// validators in any epoch to go above this.
     max_committee_members_count: Option<u64>,
+
+    /// Configures the garbage collection depth for consensus. When is unset or
+    /// `0` then the garbage collection is disabled.
+    consensus_gc_depth: Option<u32>,
 }
 
 // feature flags
@@ -1143,6 +1194,55 @@ impl ProtocolConfig {
     pub fn native_charging_v2(&self) -> bool {
         self.feature_flags.native_charging_v2
     }
+
+    pub fn consensus_round_prober(&self) -> bool {
+        self.feature_flags.consensus_round_prober
+    }
+
+    pub fn consensus_distributed_vote_scoring_strategy(&self) -> bool {
+        self.feature_flags
+            .consensus_distributed_vote_scoring_strategy
+    }
+
+    pub fn gc_depth(&self) -> u32 {
+        if cfg!(msim) {
+            // exercise a very low gc_depth
+            min(5, self.consensus_gc_depth.unwrap_or(0))
+        } else {
+            self.consensus_gc_depth.unwrap_or(0)
+        }
+    }
+
+    pub fn consensus_linearize_subdag_v2(&self) -> bool {
+        let res = self.feature_flags.consensus_linearize_subdag_v2;
+        assert!(
+            !res || self.gc_depth() > 0,
+            "The consensus linearize sub dag V2 requires GC to be enabled"
+        );
+        res
+    }
+
+    pub fn variant_nodes(&self) -> bool {
+        self.feature_flags.variant_nodes
+    }
+
+    pub fn consensus_smart_ancestor_selection(&self) -> bool {
+        self.feature_flags.consensus_smart_ancestor_selection
+    }
+
+    pub fn consensus_round_prober_probe_accepted_rounds(&self) -> bool {
+        self.feature_flags
+            .consensus_round_prober_probe_accepted_rounds
+    }
+
+    pub fn consensus_zstd_compression(&self) -> bool {
+        self.feature_flags.consensus_zstd_compression
+    }
+
+    pub fn congestion_control_min_free_execution_slot(&self) -> bool {
+        self.feature_flags
+            .congestion_control_min_free_execution_slot
+    }
 }
 
 #[cfg(not(msim))]
@@ -1176,7 +1276,7 @@ impl ProtocolConfig {
         let mut ret = Self::get_for_version_impl(version, chain);
         ret.version = version;
 
-        CONFIG_OVERRIDE.with(|ovr| {
+        ret = CONFIG_OVERRIDE.with(|ovr| {
             if let Some(override_fn) = &*ovr.borrow() {
                 warn!(
                     "overriding ProtocolConfig settings with custom settings (you should not see this log outside of tests)"
@@ -1185,7 +1285,19 @@ impl ProtocolConfig {
             } else {
                 ret
             }
-        })
+        });
+
+        if std::env::var("IOTA_PROTOCOL_CONFIG_OVERRIDE_ENABLE").is_ok() {
+            warn!(
+                "overriding ProtocolConfig settings with custom settings; this may break non-local networks"
+            );
+            let overrides: ProtocolConfigOptional =
+                serde_env::from_env_with_prefix("IOTA_PROTOCOL_CONFIG_OVERRIDE")
+                    .expect("failed to parse ProtocolConfig override env variables");
+            overrides.apply_to(&mut ret);
+        }
+
+        ret
     }
 
     /// Get the value ProtocolConfig that are in effect during the given
@@ -1685,6 +1797,8 @@ impl ProtocolConfig {
             max_accumulated_txn_cost_per_object_in_mysticeti_commit: Some(10),
 
             max_committee_members_count: None,
+
+            consensus_gc_depth: None,
             // When adding a new constant, set it to None in the earliest version, like this:
             // new_constant: None,
         };
@@ -1702,10 +1816,7 @@ impl ProtocolConfig {
 
         // zkLogin related flags
         {
-            cfg.feature_flags.zklogin_auth = false;
-            cfg.feature_flags.enable_jwk_consensus_updates = false;
             cfg.feature_flags.zklogin_max_epoch_upper_bound_delta = Some(30);
-            cfg.feature_flags.accept_zklogin_in_multisig = false;
         }
 
         // Enable Mysticeti on mainnet.
@@ -1718,8 +1829,6 @@ impl ProtocolConfig {
 
         // Do not allow bridge committee to finalize on mainnet.
         cfg.bridge_should_try_to_finalize_committee = Some(chain != Chain::Mainnet);
-
-        cfg.feature_flags.bridge = false;
 
         // Devnet
         if chain != Chain::Mainnet && chain != Chain::Testnet {
@@ -1843,6 +1952,37 @@ impl ProtocolConfig {
                 }
                 // version 7 is a new framework version but with no config changes
                 7 => {}
+                8 => {
+                    // TODO: add new consensus related config params to this
+                    // version
+
+                    cfg.feature_flags.variant_nodes = true;
+
+                    if chain != Chain::Mainnet {
+                        // Enable round prober in consensus.
+                        cfg.feature_flags.consensus_round_prober = true;
+                        // Enable distributed vote scoring.
+                        cfg.feature_flags
+                            .consensus_distributed_vote_scoring_strategy = true;
+                        cfg.feature_flags.consensus_linearize_subdag_v2 = true;
+                        // Enable smart ancestor selection for testnet
+                        cfg.feature_flags.consensus_smart_ancestor_selection = true;
+                        // Enable probing for accepted rounds in round prober for testnet
+                        cfg.feature_flags
+                            .consensus_round_prober_probe_accepted_rounds = true;
+                        // Enable zstd compression for consensus in testnet
+                        cfg.feature_flags.consensus_zstd_compression = true;
+                        // Assuming a round rate of max 15/sec, then using a gc depth of 60 allow
+                        // blocks within a window of ~4 seconds
+                        // to be included before be considered garbage collected.
+                        cfg.consensus_gc_depth = Some(60);
+                    }
+                    // Enable min_free_execution_slot for the shared object congestion tracker in
+                    // devnet.
+                    if chain != Chain::Testnet && chain != Chain::Mainnet {
+                        cfg.feature_flags.congestion_control_min_free_execution_slot = true;
+                    }
+                }
                 // Use this template when making changes:
                 //
                 //     // modify an existing constant.
@@ -1961,6 +2101,28 @@ impl ProtocolConfig {
     pub fn set_disallow_new_modules_in_deps_only_packages_for_testing(&mut self, val: bool) {
         self.feature_flags
             .disallow_new_modules_in_deps_only_packages = val;
+    }
+
+    pub fn set_consensus_round_prober_for_testing(&mut self, val: bool) {
+        self.feature_flags.consensus_round_prober = val;
+    }
+
+    pub fn set_consensus_distributed_vote_scoring_strategy_for_testing(&mut self, val: bool) {
+        self.feature_flags
+            .consensus_distributed_vote_scoring_strategy = val;
+    }
+
+    pub fn set_gc_depth_for_testing(&mut self, val: u32) {
+        self.consensus_gc_depth = Some(val);
+    }
+
+    pub fn set_consensus_linearize_subdag_v2_for_testing(&mut self, val: bool) {
+        self.feature_flags.consensus_linearize_subdag_v2 = val;
+    }
+
+    pub fn set_consensus_round_prober_probe_accepted_rounds(&mut self, val: bool) {
+        self.feature_flags
+            .consensus_round_prober_probe_accepted_rounds = val;
     }
 }
 

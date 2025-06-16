@@ -8,7 +8,7 @@ import {
     SegmentedButton,
     SegmentedButtonType,
 } from '@iota/apps-ui-kit';
-import { useGetDynamicFields, useGetObject } from '@iota/core';
+import { useGetDynamicFields, useGetObjectOrPastObject } from '@iota/core';
 import { useIotaClientQuery } from '@iota/dapp-kit';
 import { type IotaObjectResponse } from '@iota/iota-sdk/client';
 import { useState } from 'react';
@@ -20,7 +20,7 @@ enum FieldCategory {
 }
 
 function useObjectFieldsCard(id: string) {
-    const { data: iotaObjectResponseData, isPending, isError } = useGetObject(id);
+    const { data: iotaObjectResponseData, isPending, isError } = useGetObjectOrPastObject(id);
 
     const objectType =
         (iotaObjectResponseData?.data?.type ??
@@ -33,7 +33,7 @@ function useObjectFieldsCard(id: string) {
     // Get the normalized struct for the object
     const {
         data: normalizedStructData,
-        isPending: loadingNormalizedStruct,
+        isLoading: loadingNormalizedStruct,
         isError: errorNormalizedMoveStruct,
     } = useIotaClientQuery(
         'getNormalizedMoveStruct',
@@ -77,7 +77,7 @@ export function FieldsContent({ objectId }: FieldsContentProps) {
     const fieldsCount = normalizedStructData?.fields.length;
     const FIELDS_CATEGORIES = [
         {
-            label: `${fieldsCount} Fields`,
+            label: `${fieldsCount !== undefined ? `${fieldsCount} ` : ''}Fields`,
             value: FieldCategory.Fields,
         },
         {

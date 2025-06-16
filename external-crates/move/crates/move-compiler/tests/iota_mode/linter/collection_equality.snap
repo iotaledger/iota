@@ -1,0 +1,78 @@
+---
+source: crates/move-compiler/tests/move_check_testsuite.rs
+info:
+  flavor: iota
+  edition: legacy
+  lint: true
+---
+warning[Lint W99005]: possibly useless collections compare
+   ┌─ tests/iota_mode/linter/collection_equality.move:18:14
+   │
+18 │         bag1 == bag2
+   │              ^^ Comparing collections of type 'iota::bag::Bag' may yield unexpected result.
+   │
+   = Equality for collections of type 'iota::bag::Bag' IS NOT a structural check based on content
+   = This warning can be suppressed with '#[allow(lint(collection_equality))]' applied to the 'module' or module member ('const', 'fun', or 'struct')
+
+warning[Lint W99005]: possibly useless collections compare
+   ┌─ tests/iota_mode/linter/collection_equality.move:22:14
+   │
+22 │         bag1 != bag2
+   │              ^^ Comparing collections of type 'iota::object_bag::ObjectBag' may yield unexpected result.
+   │
+   = Equality for collections of type 'iota::object_bag::ObjectBag' IS NOT a structural check based on content
+   = This warning can be suppressed with '#[allow(lint(collection_equality))]' applied to the 'module' or module member ('const', 'fun', or 'struct')
+
+warning[Lint W99005]: possibly useless collections compare
+   ┌─ tests/iota_mode/linter/collection_equality.move:26:16
+   │
+26 │         table1 == table2
+   │                ^^ Comparing collections of type 'iota::table::Table' may yield unexpected result.
+   │
+   = Equality for collections of type 'iota::table::Table' IS NOT a structural check based on content
+   = This warning can be suppressed with '#[allow(lint(collection_equality))]' applied to the 'module' or module member ('const', 'fun', or 'struct')
+
+warning[Lint W99005]: possibly useless collections compare
+   ┌─ tests/iota_mode/linter/collection_equality.move:33:20
+   │
+33 │             table1 == table2
+   │                    ^^ Comparing collections of type 'iota::object_table::ObjectTable' may yield unexpected result.
+   │
+   = Equality for collections of type 'iota::object_table::ObjectTable' IS NOT a structural check based on content
+   = This warning can be suppressed with '#[allow(lint(collection_equality))]' applied to the 'module' or module member ('const', 'fun', or 'struct')
+
+warning[Lint W99005]: possibly useless collections compare
+   ┌─ tests/iota_mode/linter/collection_equality.move:37:16
+   │
+37 │         table1 == table2
+   │                ^^ Comparing collections of type 'iota::linked_table::LinkedTable' may yield unexpected result.
+   │
+   = Equality for collections of type 'iota::linked_table::LinkedTable' IS NOT a structural check based on content
+   = This warning can be suppressed with '#[allow(lint(collection_equality))]' applied to the 'module' or module member ('const', 'fun', or 'struct')
+
+warning[Lint W99005]: possibly useless collections compare
+   ┌─ tests/iota_mode/linter/collection_equality.move:41:16
+   │
+41 │         table1 == table2
+   │                ^^ Comparing collections of type 'iota::table_vec::TableVec' may yield unexpected result.
+   │
+   = Equality for collections of type 'iota::table_vec::TableVec' IS NOT a structural check based on content
+   = This warning can be suppressed with '#[allow(lint(collection_equality))]' applied to the 'module' or module member ('const', 'fun', or 'struct')
+
+warning[Lint W99005]: possibly useless collections compare
+   ┌─ tests/iota_mode/linter/collection_equality.move:45:14
+   │
+45 │         vec1 == vec2
+   │              ^^ Comparing collections of type 'iota::vec_map::VecMap' may yield unexpected result.
+   │
+   = Equality for collections of type 'iota::vec_map::VecMap' IS NOT a structural check based on content
+   = This warning can be suppressed with '#[allow(lint(collection_equality))]' applied to the 'module' or module member ('const', 'fun', or 'struct')
+
+warning[Lint W99005]: possibly useless collections compare
+   ┌─ tests/iota_mode/linter/collection_equality.move:49:14
+   │
+49 │         vec1 == vec2
+   │              ^^ Comparing collections of type 'iota::vec_set::VecSet' may yield unexpected result.
+   │
+   = Equality for collections of type 'iota::vec_set::VecSet' IS NOT a structural check based on content
+   = This warning can be suppressed with '#[allow(lint(collection_equality))]' applied to the 'module' or module member ('const', 'fun', or 'struct')

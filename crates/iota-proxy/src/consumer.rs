@@ -96,7 +96,7 @@ impl ProtobufDecoder {
         let mut result: Vec<T> = vec![];
         while !self.buf.get_ref().is_empty() {
             let len = {
-                let mut is = CodedInputStream::from_buffered_reader(&mut self.buf);
+                let mut is = CodedInputStream::from_buf_read(&mut self.buf);
                 is.read_raw_varint32()
             }?;
             let mut buf = vec![0; len as usize];
@@ -134,7 +134,7 @@ pub fn populate_labels(
     // add our extra labels to our incoming metric data
     for mf in data.iter_mut() {
         for m in mf.mut_metric() {
-            m.mut_label().extend(labels.clone());
+            m.label.extend(labels.clone());
         }
     }
     timer.observe_duration();
@@ -343,7 +343,6 @@ pub async fn convert_to_remote_write(
 #[cfg(test)]
 mod tests {
     use prometheus::proto;
-    use protobuf;
 
     use crate::{
         consumer::populate_labels,
@@ -358,10 +357,10 @@ mod tests {
             "test_histogram",
             "i'm a help message",
             Some(proto::MetricType::HISTOGRAM),
-            protobuf::RepeatedField::from(vec![create_metric_histogram(
-                protobuf::RepeatedField::from_vec(create_labels(vec![])),
+            vec![create_metric_histogram(
+                create_labels(vec![]),
                 create_histogram(),
-            )]),
+            )],
         );
 
         let labeled_mf = populate_labels("validator-0".into(), "unittest-network".into(), vec![mf]);

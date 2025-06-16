@@ -1944,6 +1944,7 @@ impl DeprecatedNominalResourceFlag {
 }
 #[rustfmt::skip]
 #[allow(non_camel_case_types)]
+#[allow(clippy::upper_case_acronyms)]
 #[repr(u8)]
 enum DeprecatedKind {
     ALL                     = 0x1,
@@ -2145,8 +2146,7 @@ impl<'a, 'b> VersionedBinary<'a, 'b> {
             return Err(PartialVMError::new(StatusCode::UNKNOWN_VERSION));
         }
 
-        // Bad flavor to the version: for version 7 and above, only IOTA_FLAVOR is
-        // supported
+        // Bad flavor to the version: for version 7 and above, only IOTA_FLAVOR is supported
         if version >= VERSION_7 && flavor != Some(BinaryFlavor::IOTA_FLAVOR) {
             return Err(PartialVMError::new(StatusCode::UNKNOWN_VERSION));
         }

@@ -533,6 +533,16 @@ impl fmt::Debug for VerifiedBlock {
     }
 }
 
+/// Block with extended additional information, such as
+/// local blocks that are excluded from the block's ancestors.
+/// The extended information do not need to be certified or forwarded to other
+/// authorities.
+#[derive(Clone, Debug)]
+pub(crate) struct ExtendedBlock {
+    pub block: VerifiedBlock,
+    pub excluded_ancestors: Vec<BlockRef>,
+}
+
 /// Generates the genesis blocks for the current Committee.
 /// The blocks are returned in authority index order.
 pub(crate) fn genesis_blocks(context: Arc<Context>) -> Vec<VerifiedBlock> {

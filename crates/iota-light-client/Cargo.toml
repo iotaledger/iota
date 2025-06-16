@@ -18,20 +18,22 @@ path = "src/bin/light_client.rs"
 anyhow.workspace = true
 async-trait.workspace = true
 bcs.workspace = true
-bytes.workspace = true
 clap.workspace = true
+env_logger = "0.11.5"
+log = "0.4.22"
+object_store.workspace = true
+reqwest.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 serde_yaml.workspace = true
 tokio = { workspace = true, features = ["full"] }
+url.workspace = true
 
 # internal dependencies
 iota-config.workspace = true
-iota-json.workspace = true
 iota-json-rpc-types.workspace = true
 iota-package-resolver.workspace = true
 iota-rest-api.workspace = true
 iota-sdk.workspace = true
 iota-types.workspace = true
-move-binary-format.workspace = true
 move-core-types.workspace = true

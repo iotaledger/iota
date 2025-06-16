@@ -3,7 +3,7 @@
     "private": true,
     "scripts": {
         "build": "nest build",
-        "format": "prettier --write \"src/**/*.ts\"",
+        "prettier:fix": "prettier --write \"src/**/*.ts\"",
         "dev": "nest start --watch",
         "debug": "nest start --debug --watch",
         "preview": "pnpm run build && node dist/apps-backend/src/main",

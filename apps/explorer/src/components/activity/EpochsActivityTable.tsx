@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { InfoBox, InfoBoxStyle, InfoBoxType, Select, SelectSize } from '@iota/apps-ui-kit';
-import { useIotaClientQuery, useIotaClient, useIotaClientInfiniteQuery } from '@iota/dapp-kit';
+import { useIotaClient, useIotaClientInfiniteQuery, useIotaClientQuery } from '@iota/dapp-kit';
 import { useCursorPagination } from '@iota/core';
 import { Warning } from '@iota/apps-ui-icons';
 import { useQuery } from '@tanstack/react-query';

@@ -1,0 +1,9 @@
+services:
+  live-checkpoints-remote-store:
+    image: iotaledger/iota-data-ingestion
+    volumes:
+      - ./config.yaml:/iota/config.yaml:r
+      - ./output:/iota/output
+    command: >
+      iota-data-ingestion
+      /iota/config.yaml

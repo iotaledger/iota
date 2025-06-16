@@ -31,6 +31,7 @@ tracing.workspace = true
 consensus-config.workspace = true
 iota-genesis-common.workspace = true
 iota-keys.workspace = true
+iota-names.workspace = true
 iota-protocol-config.workspace = true
 iota-types.workspace = true
 move-vm-config.workspace = true

@@ -4,6 +4,7 @@
 
 #[test_only]
 module bridge::bridge_tests;
+
 use bridge::bridge::{
     inner_limiter,
     inner_paused,
@@ -43,7 +44,6 @@ use bridge::message::{Self, to_parsed_token_transfer_message};
 use bridge::message_types;
 use bridge::test_token::{TEST_TOKEN, create_bridge_token as create_test_token};
 use bridge::usdc::USDC;
-use std::type_name;
 use iota::address;
 use iota::balance;
 use iota::coin::{Self, Coin};
@@ -51,6 +51,7 @@ use iota::hex;
 use iota::package::test_publish;
 use iota::test_scenario;
 use iota::test_utils::destroy;
+use std::type_name;
 
 // common error start code for unexpected errors in tests (assertions).
 // If more than one assert in a test needs to use an unexpected error code,
@@ -102,9 +103,7 @@ fun test_init_committee_twice() {
 #[expected_failure(abort_code = bridge::bridge::ENotSystemAddress)]
 fun test_init_committee_non_system_addr() {
     let mut env = create_env(chain_ids::iota_mainnet());
-    env.setup_validators(vector[
-        create_validator(@0xA, 100, &b"12345678901234567890123456789012"),
-    ]);
+    env.setup_validators(vector[create_validator(@0xA, 100, &b"12345678901234567890123456789012")]);
     env.create_bridge(@0x0);
     env.register_committee();
     env.init_committee(@0xA);
@@ -127,9 +126,7 @@ fun test_register_foreign_token() {
     let addr = @0x0;
     let mut env = create_env(chain_ids::iota_testnet());
     env.create_bridge_default();
-    let (upgrade_cap, treasury_cap, metadata) = create_test_token(env
-        .scenario()
-        .ctx());
+    let (upgrade_cap, treasury_cap, metadata) = create_test_token(env.scenario().ctx());
     env.register_foreign_token<TEST_TOKEN>(
         treasury_cap,
         upgrade_cap,
@@ -145,9 +142,7 @@ fun test_register_foreign_token_non_zero_supply() {
     let addr = @0x0;
     let mut env = create_env(chain_ids::iota_testnet());
     env.create_bridge_default();
-    let (upgrade_cap, mut treasury_cap, metadata) = create_test_token(env
-        .scenario()
-        .ctx());
+    let (upgrade_cap, mut treasury_cap, metadata) = create_test_token(env.scenario().ctx());
     let _coin = treasury_cap.mint(1, env.scenario().ctx());
     env.register_foreign_token<TEST_TOKEN>(
         treasury_cap,
@@ -203,10 +198,7 @@ fun test_add_token_malformed_2() {
         addr,
         false,
         vector[test_token_id()],
-        vector[
-            type_name::get<TEST_TOKEN>().into_string(),
-            type_name::get<BTC>().into_string(),
-        ],
+        vector[type_name::get<TEST_TOKEN>().into_string(), type_name::get<BTC>().into_string()],
         vector[10],
     );
 
@@ -252,9 +244,7 @@ fun test_register_foreign_token_bad_upgrade_cap() {
     let addr = @0x0;
     let mut env = create_env(chain_ids::iota_testnet());
     env.create_bridge_default();
-    let (_upgrade_cap, treasury_cap, metadata) = create_test_token(env
-        .scenario()
-        .ctx());
+    let (_upgrade_cap, treasury_cap, metadata) = create_test_token(env.scenario().ctx());
     let upgrade_cap = test_publish(@0x42.to_id(), env.scenario().ctx());
     env.register_foreign_token<TEST_TOKEN>(
         treasury_cap,
@@ -352,9 +342,7 @@ fun test_get_seq_num_and_increment() {
         ) ==
         0,
     );
-    assert!(
-        inner.sequence_nums()[&message_types::committee_blocklist()] == 1,
-    );
+    assert!(inner.sequence_nums()[&message_types::committee_blocklist()] == 1);
     assert!(
         inner.test_get_current_seq_num_and_increment(
             message_types::committee_blocklist(),
@@ -362,22 +350,12 @@ fun test_get_seq_num_and_increment() {
         1,
     );
     // other message type nonce does not change
-    assert!(
-        !inner.sequence_nums().contains(&message_types::token()),
-    );
-    assert!(
-        !inner.sequence_nums().contains(&message_types::emergency_op()),
-    );
-    assert!(
-        !inner.sequence_nums().contains(&message_types::update_bridge_limit()),
-    );
-    assert!(
-        !inner.sequence_nums().contains(&message_types::update_asset_price()),
-    );
-    assert!(
-        inner.test_get_current_seq_num_and_increment(message_types::token()) ==
-        0,
-    );
+    assert!(!inner.sequence_nums().contains(&message_types::token()));
+    assert!(!inner.sequence_nums().contains(&message_types::emergency_op()));
+    assert!(!inner.sequence_nums().contains(&message_types::update_bridge_limit()));
+    assert!(!inner.sequence_nums().contains(&message_types::update_asset_price()));
+    assert!(inner.test_get_current_seq_num_and_increment(message_types::token()) ==
+        0);
     assert!(
         inner.test_get_current_seq_num_and_increment(
             message_types::emergency_op(),
@@ -490,9 +468,7 @@ fun test_update_asset_price() {
     let inner = bridge.test_load_inner_mut();
 
     // Assert the starting limit is a different value
-    assert!(
-        inner.inner_treasury().notional_value<BTC>() != 1_001_000_000,
-    );
+    assert!(inner.inner_treasury().notional_value<BTC>() != 1_001_000_000);
     // now change it to 100_001_000
     let msg = message::create_update_asset_price_message(
         inner.inner_treasury().token_id<BTC>(),
@@ -709,10 +685,8 @@ fun test_get_token_transfer_action_data() {
         bridge.test_get_token_transfer_action_signatures(chain_id, 13) ==
         option::none(),
     );
-    assert!(
-        bridge.test_get_parsed_token_transfer_message(chain_id, 13) ==
-        option::none(),
-    );
+    assert!(bridge.test_get_parsed_token_transfer_message(chain_id, 13) ==
+        option::none());
 
     destroy(bridge);
     coin.burn_for_testing();
@@ -738,26 +712,18 @@ fun change_url() {
     let mut env = create_env(chain_id);
     env.create_bridge_default();
     let mut bridge = env.bridge(@0xAAAA);
-    bridge
-        .bridge_ref_mut()
-        .update_node_url(b"<url_here>", env.scenario().ctx());
+    bridge.bridge_ref_mut().update_node_url(b"<url_here>", env.scenario().ctx());
     bridge.return_bridge();
     env.destroy_env();
 }
 
 #[test]
-#[
-    expected_failure(
-        abort_code = bridge::committee::ESenderIsNotInBridgeCommittee,
-    ),
-]
+#[expected_failure(abort_code = bridge::committee::ESenderIsNotInBridgeCommittee)]
 fun change_url_bad_sender() {
     let chain_id = chain_ids::iota_testnet();
     let mut env = create_env(chain_id);
     env.create_bridge_default();
     let mut bridge = env.bridge(@0x0);
-    bridge
-        .bridge_ref_mut()
-        .update_node_url(b"<url_here>", env.scenario().ctx());
+    bridge.bridge_ref_mut().update_node_url(b"<url_here>", env.scenario().ctx());
     abort 0
 }

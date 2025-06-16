@@ -12,7 +12,7 @@ use std::{
 use futures::FutureExt;
 use parking_lot::Mutex;
 use prometheus::{
-    IntCounterVec, IntGaugeVec, Registry, opts, register_int_counter_vec_with_registry,
+    IntCounterVec, IntGaugeVec, Registry, register_int_counter_vec_with_registry,
     register_int_gauge_vec_with_registry,
 };
 use tokio::{
@@ -190,32 +190,6 @@ impl HistogramVec {
             labels,
             channel: self.channel.clone(),
         }
-    }
-
-    // HistogramVec uses asynchronous model to report metrics which makes
-    // it difficult to unregister counters in the usual manner. Here we
-    // re-create counters so that their `desc()`s match the ones created by
-    // HistogramVec and remove them from the registry. Counters can be safely
-    // unregistered even if they are still in use.
-    pub fn unregister(name: &str, desc: &str, labels: &[&str], registry: &Registry) {
-        let sum_name = format!("{}_sum", name);
-        let count_name = format!("{}_count", name);
-
-        let sum = IntCounterVec::new(opts!(sum_name, desc), labels).unwrap();
-        registry
-            .unregister(Box::new(sum))
-            .unwrap_or_else(|_| panic!("{}_sum counter is in prometheus registry", name));
-
-        let count = IntCounterVec::new(opts!(count_name, desc), labels).unwrap();
-        registry
-            .unregister(Box::new(count))
-            .unwrap_or_else(|_| panic!("{}_count counter is in prometheus registry", name));
-
-        let labels: Vec<_> = labels.iter().cloned().chain(["pct"]).collect();
-        let gauge = IntGaugeVec::new(opts!(name, desc), &labels).unwrap();
-        registry
-            .unregister(Box::new(gauge))
-            .unwrap_or_else(|_| panic!("{} gauge is in prometheus registry", name));
     }
 }
 
@@ -475,7 +449,7 @@ mod tests {
         let gather = registry.gather();
         let gather: HashMap<_, _> = gather
             .into_iter()
-            .map(|f| (f.get_name().to_string(), f))
+            .map(|f| (f.name().to_string(), f))
             .collect();
         let hist = gather.get("test").unwrap();
         let sum = gather.get("test_sum").unwrap();
@@ -500,11 +474,11 @@ mod tests {
             .get_metric()
             .iter()
             .map(|m| {
-                let value = m.get_gauge().get_value();
+                let value = m.get_gauge().value();
                 let mut key = String::new();
                 for label in m.get_label() {
                     key.push_str("::");
-                    key.push_str(label.get_value());
+                    key.push_str(label.value());
                 }
                 (key, value)
             })
@@ -516,11 +490,11 @@ mod tests {
             .get_metric()
             .iter()
             .map(|m| {
-                let value = m.get_counter().get_value();
+                let value = m.get_counter().value();
                 let mut key = String::new();
                 for label in m.get_label() {
                     key.push_str("::");
-                    key.push_str(label.get_value());
+                    key.push_str(label.value());
                 }
                 (key, value)
             })

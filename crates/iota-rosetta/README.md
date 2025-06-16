@@ -38,7 +38,7 @@ default.
 #### 5. Generate configuration with prefunded accounts for rosetta-cli
 
 `./iota-rosetta generate-rosetta-cli-config`
-This will generate the `rosetta-cli.json` and `iota.ros` file to be used by the [Rosetta-CLI](https://github.com/coinbase/rosetta-cli)
+This will generate the `rosetta-cli.json` and `iota.ros` file to be used by the [Rosetta-CLI](https://github.com/coinbase/mesh-cli)
 
 ### Build local test network using Docker Compose
 
@@ -221,7 +221,7 @@ the `/construction/parse` endpoint is used for checking transaction correctness 
 
 The sender, recipients and transfer amounts are specified in the intent operations,
 these data are being used to create TransactionData for signature.
-After the tx is executed, the rosetta-cli compare the intent operations with the confirmed operations ,
+After the tx is executed, the rosetta-cli compares the intent operations with the confirmed operations ,
 the confirmed operations must contain the intent operations (the confirmed operations can have more operations than the intent).
 Since the intent operations of TransferIota contains all the balance change information(amount field) already,
 we don't need to use the event to create the operations, also operation created by `get_coin_operation_from_event` will contain recipient's coin id, which will cause a mismatch.

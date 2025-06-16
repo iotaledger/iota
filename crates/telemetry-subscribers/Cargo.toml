@@ -10,7 +10,7 @@ description = "Library for common telemetry and observability functionality"
 [dependencies]
 atomic_float = "1.0"
 bytes.workspace = true
-bytes-varint = "1.0"
+bytes-varint = "1.1.0"
 clap.workspace = true
 console-subscriber = { version = "0.4", optional = true }
 crossterm.workspace = true

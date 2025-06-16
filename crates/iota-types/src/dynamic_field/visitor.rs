@@ -148,7 +148,7 @@ impl<'b, 'l> Visitor<'b, 'l> for FieldVisitor {
         })
     }
 
-    // === Empty/default casees ===
+    // === Empty/default cases ===
     //
     // A dynamic field must be a struct, so if the visitor is fed anything else, it
     // complains.

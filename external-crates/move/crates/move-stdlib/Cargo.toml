@@ -16,7 +16,7 @@ move-binary-format.workspace = true
 move-command-line-common.workspace = true
 move-core-types.workspace = true
 move-docgen.workspace = true
-move-prover.workspace = true
+move-package.workspace = true
 sha2.workspace = true
 walkdir.workspace = true
 

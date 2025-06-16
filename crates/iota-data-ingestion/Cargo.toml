@@ -10,9 +10,8 @@ publish = false
 # external dependencies
 anyhow.workspace = true
 async-trait.workspace = true
-aws-config = "1.5.6"
-aws-sdk-dynamodb = "1.42"
-aws-sdk-s3 = "1.50"
+aws-config.workspace = true
+aws-sdk-dynamodb.workspace = true
 backoff.workspace = true
 base64-url.workspace = true
 bcs.workspace = true

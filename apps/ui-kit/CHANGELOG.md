@@ -1,5 +1,31 @@
 # @iota/apps-ui-kit
 
+## 0.5.0
+
+### Minor Changes
+
+-   a4b46bc: add more badge types
+
+### Patch Changes
+
+-   6d274df: make renderSuggestion prop optional in Search component
+-   976e7f8: Add heightFull configuration props to Table component
+-   bb45cb5: Add new type for CardImage component
+-   Updated dependencies [a4b46bc]
+    -   @iota/apps-ui-icons@0.3.0
+
+## 0.4.0
+
+### Minor Changes
+
+-   a3f08da: add toggle component
+
+### Patch Changes
+
+-   1ad39f9: Update dependencies
+-   4e4f710: replace supportingText from string to ReactNode in InfoBox component
+-   d0cb92e: manage unreachable images by displaying a placeholder instead in VisualAssetCard
+
 ## 0.3.0
 
 ### Minor Changes

@@ -3,7 +3,7 @@
 
 import { useCurrentAccount, useIotaClientContext } from '@iota/dapp-kit';
 import { formatAddress } from '@iota/iota-sdk/utils';
-import { useBalance, useFormatCoin, useGetFiatBalance, toast } from '@iota/core';
+import { useBalance, useFormatCoin, useGetFiatBalance, toast, useGetAllBalances } from '@iota/core';
 import {
     Address,
     Button,
@@ -28,6 +28,7 @@ export function AccountBalance() {
     const [formatted, symbol] = useFormatCoin({ balance: coinBalance?.totalBalance });
     const [isSendTokenDialogOpen, setIsSendTokenDialogOpen] = useState(false);
     const explorerLink = `${explorer}/address/${address}`;
+    const { data: coinBalances } = useGetAllBalances(account?.address);
 
     function openSendTokenDialog(): void {
         setIsSendTokenDialogOpen(true);
@@ -41,6 +42,8 @@ export function AccountBalance() {
         toast('Address copied');
     }
 
+    const sendTokenCoin = coinBalance?.totalBalance === '0' ? coinBalances?.[0] : coinBalance;
+
     return (
         <>
             <Panel>
@@ -52,7 +55,7 @@ export function AccountBalance() {
                     <div className="flex h-full flex-col items-center justify-center gap-y-lg p-lg">
                         <div className="flex flex-col items-center gap-y-xs">
                             {address && (
-                                <div className="-mr-lg">
+                                <div className="-mr-lg" data-full-address={address}>
                                     <Address
                                         text={formattedAddress}
                                         isCopyable
@@ -63,7 +66,10 @@ export function AccountBalance() {
                                     />
                                 </div>
                             )}
-                            <span className="text-headline-lg text-neutral-10 dark:text-neutral-92">
+                            <span
+                                data-testid="balance-amount"
+                                className="text-headline-lg text-neutral-10 dark:text-neutral-92"
+                            >
                                 {formatted} {symbol}
                             </span>
                             {fiatBalance && (
@@ -77,7 +83,7 @@ export function AccountBalance() {
                                 onClick={openSendTokenDialog}
                                 text="Send"
                                 size={ButtonSize.Small}
-                                disabled={!address}
+                                disabled={!address || coinBalances?.length === 0}
                                 testId="send-coin-button"
                                 fullWidth
                             />
@@ -93,12 +99,14 @@ export function AccountBalance() {
                 )}
                 {address && (
                     <>
-                        <SendTokenDialog
-                            activeAddress={address}
-                            coin={coinBalance!}
-                            open={isSendTokenDialogOpen}
-                            setOpen={setIsSendTokenDialogOpen}
-                        />
+                        {sendTokenCoin && (
+                            <SendTokenDialog
+                                activeAddress={address}
+                                coin={sendTokenCoin}
+                                open={isSendTokenDialogOpen}
+                                setOpen={setIsSendTokenDialogOpen}
+                            />
+                        )}
                         <ReceiveFundsDialog
                             address={address}
                             open={isReceiveDialogOpen}

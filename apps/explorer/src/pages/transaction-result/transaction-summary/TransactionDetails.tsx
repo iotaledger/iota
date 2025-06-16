@@ -5,6 +5,7 @@
 import { DisplayStats, truncate } from '@iota/apps-ui-kit';
 import { formatDate } from '@iota/core';
 import { AddressLink, CheckpointSequenceLink, EpochLink } from '~/components';
+import { onCopySuccess } from '~/lib/utils';
 
 interface TransactionDetailsProps {
     sender?: string;
@@ -25,6 +26,8 @@ export function TransactionDetails({
                 <DisplayStats
                     label="Sender"
                     value={<AddressLink address={sender}>{truncate(sender)}</AddressLink>}
+                    copyText={sender}
+                    onCopySuccess={onCopySuccess}
                 />
             )}
             {checkpoint && (
@@ -35,6 +38,8 @@ export function TransactionDetails({
                             {Number(checkpoint).toLocaleString()}
                         </CheckpointSequenceLink>
                     }
+                    copyText={checkpoint}
+                    onCopySuccess={onCopySuccess}
                 />
             )}
             {executedEpoch && (

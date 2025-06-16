@@ -7,11 +7,13 @@
 use std::{net::SocketAddr, path::PathBuf, time::Duration};
 
 use anyhow::{Result, anyhow};
-use clap::Parser;
+use clap::{Args, Parser};
 use errors::IndexerError;
 use iota_json_rpc::{JsonRpcServerBuilder, ServerHandle, ServerType};
 use iota_json_rpc_api::CLIENT_SDK_TYPE_HEADER;
 use iota_metrics::spawn_monitored_task;
+use iota_names::config::IotaNamesConfig;
+use iota_types::base_types::{IotaAddress, ObjectID};
 use jsonrpsee::http_client::{HeaderMap, HeaderValue, HttpClient, HttpClientBuilder};
 use metrics::IndexerMetrics;
 use prometheus::Registry;
@@ -65,7 +67,7 @@ pub struct IndexerConfig {
     pub db_name: Option<String>,
     #[arg(long, default_value = "http://0.0.0.0:9000", global = true)]
     pub rpc_client_url: String,
-    #[arg(long, default_value = Some("https://checkpoints.mainnet.iota.cafe"), global = true)]
+    #[arg(long, default_value = Some("http://0.0.0.0:9000/api/v1"), global = true)]
     pub remote_store_url: Option<String>,
     #[arg(long, default_value = "0.0.0.0", global = true)]
     pub client_metric_host: String,
@@ -85,6 +87,8 @@ pub struct IndexerConfig {
     pub data_ingestion_path: Option<PathBuf>,
     #[arg(long)]
     pub analytical_worker: bool,
+    #[command(flatten)]
+    pub iota_names_options: IotaNamesOptions,
 }
 
 impl IndexerConfig {
@@ -147,7 +151,7 @@ impl Default for IndexerConfig {
             db_port: None,
             db_name: None,
             rpc_client_url: "http://127.0.0.1:9000".to_string(),
-            remote_store_url: Some("https://checkpoints.mainnet.iota.cafe".to_string()),
+            remote_store_url: Some("http://127.0.0.1:9000/api/v1".to_string()),
             client_metric_host: "0.0.0.0".to_string(),
             client_metric_port: 9184,
             rpc_server_url: "0.0.0.0".to_string(),
@@ -157,7 +161,71 @@ impl Default for IndexerConfig {
             rpc_server_worker: true,
             data_ingestion_path: None,
             analytical_worker: false,
+            iota_names_options: IotaNamesOptions::default(),
         }
+    }
+}
+
+#[derive(Args, Debug, Clone)]
+pub struct IotaNamesOptions {
+    #[arg(default_value_t = IotaNamesConfig::default().package_address)]
+    #[arg(long = "iota-names-package-address")]
+    pub package_address: IotaAddress,
+    #[arg(default_value_t = IotaNamesConfig::default().object_id)]
+    #[arg(long = "iota-names-object-id")]
+    pub object_id: ObjectID,
+    #[arg(default_value_t = IotaNamesConfig::default().payments_package_address)]
+    #[arg(long = "iota-names-payments-package-address")]
+    pub payments_package_address: IotaAddress,
+    #[arg(default_value_t = IotaNamesConfig::default().registry_id)]
+    #[arg(long = "iota-names-registry-id")]
+    pub registry_id: ObjectID,
+    #[arg(default_value_t = IotaNamesConfig::default().reverse_registry_id)]
+    #[arg(long = "iota-names-reverse-registry-id")]
+    pub reverse_registry_id: ObjectID,
+}
+
+impl From<IotaNamesOptions> for IotaNamesConfig {
+    fn from(options: IotaNamesOptions) -> Self {
+        let IotaNamesOptions {
+            package_address,
+            object_id,
+            payments_package_address,
+            registry_id,
+            reverse_registry_id,
+        } = options;
+        Self {
+            package_address,
+            object_id,
+            payments_package_address,
+            registry_id,
+            reverse_registry_id,
+        }
+    }
+}
+
+impl From<IotaNamesConfig> for IotaNamesOptions {
+    fn from(config: IotaNamesConfig) -> Self {
+        let IotaNamesConfig {
+            package_address,
+            object_id,
+            payments_package_address,
+            registry_id,
+            reverse_registry_id,
+        } = config;
+        Self {
+            package_address,
+            object_id,
+            payments_package_address,
+            registry_id,
+            reverse_registry_id,
+        }
+    }
+}
+
+impl Default for IotaNamesOptions {
+    fn default() -> Self {
+        IotaNamesConfig::default().into()
     }
 }
 
@@ -172,7 +240,10 @@ pub async fn build_json_rpc_server(
     let http_client = crate::get_http_client(config.rpc_client_url.as_str())?;
 
     builder.register_module(WriteApi::new(http_client.clone()))?;
-    builder.register_module(IndexerApi::new(reader.clone()))?;
+    builder.register_module(IndexerApi::new(
+        reader.clone(),
+        config.iota_names_options.clone().into(),
+    ))?;
     builder.register_module(TransactionBuilderApi::new(reader.clone()))?;
     builder.register_module(MoveUtilsApi::new(reader.clone()))?;
     builder.register_module(GovernanceReadApi::new(reader.clone()))?;

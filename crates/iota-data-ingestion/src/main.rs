@@ -176,7 +176,7 @@ async fn main() -> Result<()> {
             }
             Task::Kv(kv_config) => {
                 let worker_pool = WorkerPool::new(
-                    KVStoreWorker::new(kv_config).await,
+                    KVStoreWorker::new(kv_config).await?,
                     task_config.name,
                     task_config.concurrency,
                     Default::default(),

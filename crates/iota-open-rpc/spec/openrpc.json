@@ -12,7 +12,7 @@
       "name": "Apache-2.0",
       "url": "https://raw.githubusercontent.com/iotaledger/iota/main/LICENSE"
     },
-    "version": "1.1.0"
+    "version": "1.2.3"
   },
   "methods": [
     {
@@ -313,7 +313,7 @@
           "name": "Write API"
         }
       ],
-      "description": "Execute the transaction and wait for results if desired. Request types: 1. WaitForEffectsCert: waits for TransactionEffectsCert and then return to client.     This mode is a proxy for transaction finality. 2. WaitForLocalExecution: waits for TransactionEffectsCert and make sure the node     executed the transaction locally before returning the client. The local execution     makes sure this node is aware of this transaction when client fires subsequent queries.     However if the node fails to execute the transaction locally in a timely manner,     a bool type in the response is set to false to indicated the case. request_type is default to be `WaitForEffectsCert` unless options.show_events or options.show_effects is true",
+      "description": "Execute the transaction and wait for results if desired. Request types: 1. WaitForEffectsCert: waits for TransactionEffectsCert and then return to    client. This mode is a proxy for transaction finality. 2. WaitForLocalExecution: waits for TransactionEffectsCert and make sure the    node executed the transaction locally before returning the client. The    local execution makes sure this node is aware of this transaction when    client fires subsequent queries. However if the node fails to execute the    transaction locally in a timely manner, a bool type in the response is    set to false to indicated the case. request_type is default to be `WaitForEffectsCert` unless options.show_events or options.show_effects is true",
       "params": [
         {
           "name": "tx_bytes",
@@ -1301,11 +1301,18 @@
             "name": "Result",
             "value": {
               "minSupportedProtocolVersion": "1",
-              "maxSupportedProtocolVersion": "7",
+              "maxSupportedProtocolVersion": "8",
               "protocolVersion": "6",
               "featureFlags": {
                 "accept_zklogin_in_multisig": false,
                 "bridge": false,
+                "congestion_control_min_free_execution_slot": false,
+                "consensus_distributed_vote_scoring_strategy": false,
+                "consensus_linearize_subdag_v2": false,
+                "consensus_round_prober": false,
+                "consensus_round_prober_probe_accepted_rounds": false,
+                "consensus_smart_ancestor_selection": false,
+                "consensus_zstd_compression": false,
                 "convert_type_argument_error": true,
                 "disable_invariant_violation_check_in_swap_loc": true,
                 "disallow_new_modules_in_deps_only_packages": true,
@@ -1321,6 +1328,7 @@
                 "relocate_event_module": true,
                 "rethrow_serialization_type_layout_errors": true,
                 "uncompressed_g1_group_elements": true,
+                "variant_nodes": false,
                 "zklogin_auth": false
               },
               "attributes": {
@@ -1439,6 +1447,7 @@
                 "consensus_bad_nodes_stake_threshold": {
                   "u64": "20"
                 },
+                "consensus_gc_depth": null,
                 "consensus_max_num_transactions_in_block": {
                   "u64": "512"
                 },
@@ -3760,6 +3769,47 @@
       ]
     },
     {
+      "name": "iotax_getDynamicFieldObjectV2",
+      "tags": [
+        {
+          "name": "Extended API"
+        }
+      ],
+      "description": "Return the dynamic field object information for a specified object with content options.",
+      "params": [
+        {
+          "name": "parent_object_id",
+          "description": "The ID of the queried parent object",
+          "required": true,
+          "schema": {
+            "$ref": "#/components/schemas/ObjectID"
+          }
+        },
+        {
+          "name": "name",
+          "description": "The Name of the dynamic field",
+          "required": true,
+          "schema": {
+            "$ref": "#/components/schemas/DynamicFieldName"
+          }
+        },
+        {
+          "name": "options",
+          "description": "Options for specifying the content to be returned",
+          "schema": {
+            "$ref": "#/components/schemas/ObjectDataOptions"
+          }
+        }
+      ],
+      "result": {
+        "name": "IotaObjectResponse",
+        "required": true,
+        "schema": {
+          "$ref": "#/components/schemas/IotaObjectResponse"
+        }
+      }
+    },
+    {
       "name": "iotax_getDynamicFields",
       "tags": [
         {
@@ -4189,6 +4239,23 @@
       ]
     },
     {
+      "name": "iotax_getParticipationMetrics",
+      "tags": [
+        {
+          "name": "Extended API"
+        }
+      ],
+      "description": "Returns the participation metrics. Participation is defined as the total number of unique addresses that have delegated stake in the current epoch. Includes both staked and timelocked staked IOTA. Exclusively served by the indexer.",
+      "params": [],
+      "result": {
+        "name": "ParticipationMetrics",
+        "required": true,
+        "schema": {
+          "$ref": "#/components/schemas/ParticipationMetrics"
+        }
+      }
+    },
+    {
       "name": "iotax_getReferenceGasPrice",
       "tags": [
         {
@@ -4523,6 +4590,101 @@
           }
         }
       ]
+    },
+    {
+      "name": "iotax_iotaNamesFindAllRegistrationNFTs",
+      "tags": [
+        {
+          "name": "Extended API"
+        }
+      ],
+      "description": "Find all registration NFTs for the given address.",
+      "params": [
+        {
+          "name": "address",
+          "required": true,
+          "schema": {
+            "$ref": "#/components/schemas/IotaAddress"
+          }
+        },
+        {
+          "name": "cursor",
+          "schema": {
+            "$ref": "#/components/schemas/ObjectID"
+          }
+        },
+        {
+          "name": "limit",
+          "schema": {
+            "type": "integer",
+            "format": "uint",
+            "minimum": 0.0
+          }
+        },
+        {
+          "name": "options",
+          "schema": {
+            "$ref": "#/components/schemas/ObjectDataOptions"
+          }
+        }
+      ],
+      "result": {
+        "name": "ObjectsPage",
+        "required": true,
+        "schema": {
+          "$ref": "#/components/schemas/Page_for_IotaObjectResponse_and_ObjectID"
+        }
+      }
+    },
+    {
+      "name": "iotax_iotaNamesLookup",
+      "tags": [
+        {
+          "name": "Extended API"
+        }
+      ],
+      "description": "Return the resolved record for the given name.",
+      "params": [
+        {
+          "name": "name",
+          "description": "The name to resolve",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "result": {
+        "name": "IotaNameRecord",
+        "schema": {
+          "$ref": "#/components/schemas/IotaNameRecord"
+        }
+      }
+    },
+    {
+      "name": "iotax_iotaNamesReverseLookup",
+      "tags": [
+        {
+          "name": "Extended API"
+        }
+      ],
+      "description": "Return the resolved name for the given address.",
+      "params": [
+        {
+          "name": "address",
+          "description": "The address to resolve.",
+          "required": true,
+          "schema": {
+            "$ref": "#/components/schemas/IotaAddress"
+          }
+        }
+      ],
+      "result": {
+        "name": "String",
+        "schema": {
+          "type": "string"
+        }
+      }
     },
     {
       "name": "iotax_queryEvents",
@@ -5120,7 +5282,7 @@
           "name": "Transaction Builder API"
         }
       ],
-      "description": "Send all IOTA coins to one recipient. This is for IOTA coin only and does not require a separate gas coin object. Specifically, what pay_all_iota does are: 1. accumulate all IOTA from input coins and deposit all IOTA to the first input coin 2. transfer the updated first coin to the recipient and also use this first coin as gas coin object. 3. the balance of the first input coin after tx is sum(input_coins) - actual_gas_cost. 4. all other input coins other than the first are deleted.",
+      "description": "Send all IOTA coins to one recipient. This is for IOTA coin only and does not require a separate gas coin object. Specifically, what pay_all_iota does are: 1. accumulate all IOTA from input coins and deposit all IOTA to the first    input coin 2. transfer the updated first coin to the recipient and also use this first    coin as gas coin object. 3. the balance of the first input coin after tx is sum(input_coins) -    actual_gas_cost. 4. all other input coins other than the first are deleted.",
       "params": [
         {
           "name": "signer",
@@ -5173,7 +5335,7 @@
           "name": "Transaction Builder API"
         }
       ],
-      "description": "Send IOTA coins to a list of addresses, following a list of amounts. This is for IOTA coin only and does not require a separate gas coin object. Specifically, what pay_iota does are: 1. debit each input_coin to create new coin following the order of amounts and assign it to the corresponding recipient. 2. accumulate all residual IOTA from input coins left and deposit all IOTA to the first input coin, then use the first input coin as the gas coin object. 3. the balance of the first input coin after tx is sum(input_coins) - sum(amounts) - actual_gas_cost 4. all other input coints other than the first one are deleted.",
+      "description": "Send IOTA coins to a list of addresses, following a list of amounts. This is for IOTA coin only and does not require a separate gas coin object. Specifically, what pay_iota does are: 1. debit each input_coin to create new coin following the order of amounts and assign it to the corresponding recipient. 2. accumulate all residual IOTA from input coins left and deposit all IOTA    to the first input coin, then use the first input coin as the gas coin object. 3. the balance of the first input coin after tx is sum(input_coins) -    sum(amounts) - actual_gas_cost 4. all other input coints other than the first one are deleted.",
       "params": [
         {
           "name": "signer",
@@ -8274,6 +8436,49 @@
           "Friend"
         ]
       },
+      "IotaNameRecord": {
+        "description": "A single record in the registry.",
+        "type": "object",
+        "required": [
+          "data",
+          "expirationTimestampMs",
+          "nftId"
+        ],
+        "properties": {
+          "data": {
+            "description": "Additional data which may be stored in a record",
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            }
+          },
+          "expirationTimestampMs": {
+            "description": "Timestamp in milliseconds when the record expires.",
+            "type": "integer",
+            "format": "uint64",
+            "minimum": 0.0
+          },
+          "nftId": {
+            "description": "The ID of the registration NFT assigned to this record.\n\nThe owner of the corresponding NFT has the rights to be able to change and adjust the `target_address` of this domain.\n\nIt is possible that the ID changes if the record expires and is purchased by someone else.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ObjectID"
+              }
+            ]
+          },
+          "targetAddress": {
+            "description": "The target address that this domain points to",
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/IotaAddress"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        }
+      },
       "IotaObjectDataFilter": {
         "oneOf": [
           {
@@ -11037,6 +11242,21 @@
                 "type": "null"
               }
             ]
+          }
+        }
+      },
+      "ParticipationMetrics": {
+        "description": "Provides metrics about the participation in the network.",
+        "type": "object",
+        "required": [
+          "totalAddresses"
+        ],
+        "properties": {
+          "totalAddresses": {
+            "description": "The count of distinct addresses with delegated stake.",
+            "type": "integer",
+            "format": "uint64",
+            "minimum": 0.0
           }
         }
       },

@@ -22,6 +22,9 @@ on:
       isGraphQlTransport:
         type: boolean
         required: false
+      isWalletDashboard:
+        type: boolean
+        required: false
 
 concurrency:
   group: e2e-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
@@ -34,7 +37,7 @@ jobs:
   # Run e2e test against localnet built on the develop branch
   localnet:
     name: Localnet
-    if: inputs.isExplorer || inputs.isTypescriptSDK || inputs.isWallet || inputs.isRpc || github.ref_name == 'develop'
+    if: inputs.isExplorer || inputs.isTypescriptSDK || inputs.isWallet || inputs.isWalletDashboard || inputs.isRpc || github.ref_name == 'develop'
     runs-on: self-hosted-x64
     continue-on-error: ${{ github.ref_name == 'develop' }}
     services:
@@ -52,22 +55,27 @@ jobs:
           --health-retries 5
         ports:
           - 5432:5432
-
     steps:
       - uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871 # v4.2.1
+
       - uses: pnpm/action-setup@fe02b34f77f8bc703788d5817da081398fad5dd2 # v4.0.0
-      - run: cargo build --bin iota --features indexer --profile dev
+
+      - name: Build Iota binary
+        run: cargo build --bin iota --features indexer --profile dev
+
       - name: Install Nodejs
         uses: actions/setup-node@0a44ba7841725637a19e28fa30b79a866c81b0a6 # v4.0.4
         with:
           node-version: "20"
           cache: "pnpm"
+
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
+
       - name: Install Playwright Browsers
         run: pnpm --filter iota-explorer playwright install --with-deps chromium
 
-      - name: Set env
+      - name: Set environment variables
         run: |
           echo "VITE_IOTA_BIN=$PWD/target/debug/iota" >> $GITHUB_ENV
           echo "E2E_RUN_LOCAL_NET_CMD=(RUST_BACKTRACE=1 $(echo $PWD/target/debug/iota) start --with-faucet --force-regenesis --with-indexer --with-graphql)" >> $GITHUB_ENV
@@ -90,16 +98,40 @@ jobs:
 
       - name: Build explorer
         if: inputs.isTypescriptSDK || inputs.isExplorer || inputs.isRpc || github.ref_name == 'develop'
+        env:
+          IOTA_NETWORKS: '{ "localnet": { "id": "localnet", "name": "Localnet", "url": "http://localhost:9124", "explorer": "http://localhost:3000", "chain": "iota:local", "faucet": "http://localhost:9123" } }'
         run: pnpm turbo --filter=iota-explorer build
 
       - name: Run Explorer e2e tests
         if: inputs.isTypescriptSDK || inputs.isExplorer || inputs.isRpc || github.ref_name == 'develop'
         run: pnpm --filter iota-explorer playwright test
-      - uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # v4.4.3
+
+      - name: Upload Explorer test reports
+        uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # v4.4.3
         if: always()
         with:
           name: playwright-report-explorer
           path: apps/explorer/playwright-report/
+          retention-days: 30
+
+      - name: Build Wallet
+        if: inputs.isWalletDashboard || inputs.isWallet || inputs.isRpc || inputs.isTypescriptSDK || github.ref_name == 'develop'
+        run: pnpm wallet build
+
+      - name: Build Dashboard
+        if: inputs.isWalletDashboard || inputs.isRpc || inputs.isTypescriptSDK || github.ref_name == 'develop'
+        run: pnpm turbo --filter wallet-dashboard build
+
+      - name: Run Dashboard e2e tests
+        if: inputs.isWalletDashboard || inputs.isRpc || inputs.isTypescriptSDK || github.ref_name == 'develop'
+        run: xvfb-run --auto-servernum --server-args="-screen 0 1280x960x24" -- pnpm --filter wallet-dashboard playwright test
+
+      - name: Upload Dashboard test reports
+        uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # v4.4.3
+        if: always()
+        with:
+          name: playwright-report-wallet-dashboard
+          path: apps/wallet-dashboard/playwright-report/
           retention-days: 30
 
       - name: Build Kiosk
@@ -113,15 +145,12 @@ jobs:
       - name: Run Local net
         run: cargo run --bin iota start --force-regenesis --with-faucet --epoch-duration-ms 10000 &
 
-      - name: Build Wallet
-        if: inputs.isWallet || inputs.isRpc || inputs.isTypescriptSDK || github.ref_name == 'develop'
-        run: pnpm wallet build
-
       - name: Run Wallet e2e tests
         if: inputs.isWallet || inputs.isRpc || inputs.isTypescriptSDK || github.ref_name == 'develop'
         run: xvfb-run --auto-servernum --server-args="-screen 0 1280x960x24" -- pnpm --filter iota-wallet playwright test
 
-      - uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # v4.4.3
+      - name: Upload Wallet test reports
+        uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # v4.4.3
         if: always()
         with:
           name: playwright-report-wallet

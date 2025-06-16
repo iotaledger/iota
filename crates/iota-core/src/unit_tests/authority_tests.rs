@@ -4037,7 +4037,7 @@ async fn test_iter_live_object_set() {
     .await
     .unwrap();
     assert!(
-        matches!(effects.status(), ExecutionStatus::Success { .. }),
+        matches!(effects.status(), ExecutionStatus::Success),
         "{:?}",
         effects.status()
     );
@@ -4058,7 +4058,7 @@ async fn test_iter_live_object_set() {
     .await
     .unwrap();
     assert!(
-        matches!(effects.status(), ExecutionStatus::Success { .. }),
+        matches!(effects.status(), ExecutionStatus::Success),
         "{:?}",
         effects.status()
     );
@@ -4089,7 +4089,7 @@ async fn test_iter_live_object_set() {
     .await
     .unwrap();
     assert!(
-        matches!(effects.status(), ExecutionStatus::Success { .. }),
+        matches!(effects.status(), ExecutionStatus::Success),
         "{:?}",
         effects.status()
     );
@@ -4115,7 +4115,7 @@ async fn test_iter_live_object_set() {
     .await
     .unwrap();
     assert!(
-        matches!(effects.status(), ExecutionStatus::Success { .. }),
+        matches!(effects.status(), ExecutionStatus::Success),
         "{:?}",
         effects.status()
     );
@@ -4136,7 +4136,7 @@ async fn test_iter_live_object_set() {
     .await
     .unwrap();
     assert!(
-        matches!(effects.status(), ExecutionStatus::Success { .. }),
+        matches!(effects.status(), ExecutionStatus::Success),
         "{:?}",
         effects.status()
     );
@@ -6192,7 +6192,7 @@ async fn test_consensus_handler_congestion_control_transaction_cancellation() {
     assert_eq!(
         [
             (shared_objects[0].id(), SequenceNumber::CONGESTED),
-            (shared_objects[1].id(), SequenceNumber::CANCELLED_READ)
+            (shared_objects[1].id(), SequenceNumber::CONGESTED)
         ]
         .into_iter()
         .collect::<HashMap<_, _>>(),
@@ -6224,13 +6224,16 @@ async fn test_consensus_handler_congestion_control_transaction_cancellation() {
         shared_inputs,
         vec![
             SharedInput::Cancelled((shared_objects[0].id(), SequenceNumber::CONGESTED)),
-            SharedInput::Cancelled((shared_objects[1].id(), SequenceNumber::CANCELLED_READ))
+            SharedInput::Cancelled((shared_objects[1].id(), SequenceNumber::CONGESTED))
         ]
     );
 
     // Test get_cancelled_objects.
     let (cancelled_objects, cancellation_reason) = input_objects.get_cancelled_objects().unwrap();
-    assert_eq!(cancelled_objects, vec![shared_objects[0].id()]);
+    assert_eq!(
+        cancelled_objects,
+        vec![shared_objects[0].id(), shared_objects[1].id()]
+    );
     assert_eq!(cancellation_reason, SequenceNumber::CONGESTED);
 
     // Consensus commit prologue contains cancelled txn shared object version
@@ -6245,7 +6248,7 @@ async fn test_consensus_handler_congestion_control_transaction_cancellation() {
                                 *cancelled_txn.digest(),
                                 vec![
                                     (shared_objects[0].id(), SequenceNumber::CONGESTED),
-                                    (shared_objects[1].id(), SequenceNumber::CANCELLED_READ)
+                                    (shared_objects[1].id(), SequenceNumber::CONGESTED)
                                 ]
                             )]
         ));

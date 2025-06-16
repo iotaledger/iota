@@ -21,6 +21,17 @@ Describe the tests that you ran to verify your changes.
 
 Make sure to provide instructions for the maintainer as well as any relevant configurations.
 
+- [ ] Basic tests (linting, compilation, formatting, unit/integration tests)
+- [ ] Patch-specific tests (correctness, functionality coverage)
+
+### Infrastructure QA (only required for crates that are maintained by @iotaledger/infrastructure)
+
+- [ ] Synchronization of the indexer from genesis for a network including migration objects.
+- [ ] Restart of indexer synchronization locally without resetting the database.
+- [ ] Restart of indexer synchronization on a production-like database.
+- [ ] Deployment of services using Docker.
+- [ ] Verification of API backward compatibility.
+
 ## Change checklist
 
 Tick the boxes that are relevant to your changes, and delete any items that are not.
@@ -31,3 +42,20 @@ Tick the boxes that are relevant to your changes, and delete any items that are 
 - [ ] I have made corresponding changes to the documentation
 - [ ] I have added tests that prove my fix is effective or that my feature works
 - [ ] I have checked that new and existing unit tests pass locally with my changes
+
+### Release Notes
+
+<!--
+Check each box that your changes affect. If none of the boxes relate to your changes, release notes aren't required.
+
+For each box you select, include information after the relevant heading that describes the impact of your changes that a user might notice and any actions they must take to implement updates.
+-->
+
+- [ ] Protocol:
+- [ ] Nodes (Validators and Full nodes):
+- [ ] Indexer:
+- [ ] JSON-RPC:
+- [ ] GraphQL:
+- [ ] CLI:
+- [ ] Rust SDK:
+- [ ] REST API:

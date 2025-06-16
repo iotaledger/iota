@@ -66,10 +66,6 @@ impl<'a> MoveTestAdapter<'a> for SimpleVMTestAdapter {
         self.default_syntax
     }
 
-    async fn cleanup_resources(&mut self) -> Result<()> {
-        Ok(())
-    }
-
     async fn init(
         default_syntax: SyntaxChoice,
         pre_compiled_deps: Option<Arc<FullyCompiledProgram>>,
@@ -212,7 +208,7 @@ impl<'a> MoveTestAdapter<'a> for SimpleVMTestAdapter {
                         .collect::<VMResult<_>>()?;
 
                     session.execute_function_bypass_visibility(
-                        module, function, type_args, args, gas_status,
+                        module, function, type_args, args, gas_status, None,
                     )
                 },
                 test_vm_config(),

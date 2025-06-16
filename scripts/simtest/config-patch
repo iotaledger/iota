@@ -12,14 +12,14 @@ index cc5620ecfe..d2ad8f1dac 100644
  # 64 bit MSVC, override default 1M stack with 8M stack
  [target.x86_64-pc-windows-msvc]
 diff --git a/Cargo.toml b/Cargo.toml
-index e91e9c7d48..d719828c54 100644
+index 8c3e44600d..c44174d67a 100644
 --- a/Cargo.toml
 +++ b/Cargo.toml
-@@ -466,3 +466,7 @@ transaction-fuzzer = { path = "crates/transaction-fuzzer" }
+@@ -473,3 +473,7 @@ transaction-fuzzer = { path = "crates/transaction-fuzzer" }
  typed-store = { path = "crates/typed-store" }
  typed-store-derive = { path = "crates/typed-store-derive" }
  typed-store-error = { path = "crates/typed-store-error" }
 +
 +[patch.crates-io]
-+tokio = { git = "https://github.com/iotaledger/iota-sim.git", branch = "tokio-1.43" }
-+futures-timer = { git = "https://github.com/iotaledger/iota-sim.git", branch = "tokio-1.43" }
++tokio = { git = "https://github.com/iotaledger/iota-sim.git", branch = "tokio-1.44.2" }
++futures-timer = { git = "https://github.com/iotaledger/iota-sim.git", branch = "tokio-1.44.2" }

@@ -223,3 +223,12 @@ pub struct AddressMetrics {
     /// The count of daily unique sender addresses.
     pub daily_active_addresses: u64,
 }
+
+/// Provides metrics about the participation in the network.
+#[serde_as]
+#[derive(Serialize, Deserialize, Debug, Clone, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct ParticipationMetrics {
+    /// The count of distinct addresses with delegated stake.
+    pub total_addresses: u64,
+}

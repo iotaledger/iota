@@ -4,6 +4,7 @@ teams:
    - iotaledger/tooling
 tags: [iota-wallet]
 ---
+import Seed from '../../_snippets/about-iota/iota-wallet/seed.md'
 
 # Getting Started with the IOTA Wallet
 
@@ -85,3 +86,101 @@ To use your IOTA Wallet on different devices or browsers, you can import it usin
 By following these steps, you can manage, stake,
 and transfer your digital assets on the IOTA network from any of your devices, ensuring a seamless experience.
 
+
+:::tip
+
+After importing your wallet, you may notice a `Vesting` or `Migration` label, indicating that you will need to take
+action to migrate all your funds, or that you have vested tokens.
+
+If so, please follow the [Migration
+Guide](../iota-wallet-dashboard/how-to/migration.mdx) or the [Vesting Guide](../iota-wallet-dashboard/how-to/vesting.mdx).
+
+:::
+
+
+## Use the Balance Finder
+
+[The way accounts and wallets are managed in the IOTA Wallet is different than in Firefly and similar Stardust Wallets](#whats-changed).
+You can use the IOTA balance finder to import all your Firefly wallets and unify them into a single profile. 
+
+### How to Access the Balance Finder
+
+If you are importing a profile, you will be prompted to use the Balance Finder as part of the import process.
+
+   ![Balance Finder in Prompt](/img/about-iota/iota-wallet/getting-started/access-balance-finder-prompt.png)
+
+You can also access the balance finder by clicking on the meatball menu (`...`) beside the desired account dropdown in the
+`Manage Accounts` section.
+
+   ![Balance Finder in Accounts View](/img/about-iota/iota-wallet/getting-started/access-balance-finder.png)
+
+### Find Balances
+
+Once you have [accessed the Balance Finder](#how-to-access-the-balance-finder), hit the `Search` button and the
+Balance Finder will retrieve any sub-accounts related to your main account. 
+
+   ![Balance Finder Search](/img/about-iota/iota-wallet/getting-started/balance-finder-hit-search.png)
+
+:::tip 
+
+If you still have any missing balances, hit `Search` again.
+
+:::
+   
+### Migrate Your Stardust Assets
+
+If you have NFTs or native tokens that need migration, you will see a button indicating that you need to migrate
+them.
+
+   ![Migration Button](/img/about-iota/iota-wallet/getting-started/migration-button.png)
+
+When you click on it, it prompt you to use the [IOTA Wallet
+Dashboard](../iota-wallet-dashboard/getting-started.mdx) to migrate them.
+
+   ![Migration Pop In](/img/about-iota/iota-wallet/getting-started/migration-pop-in.png)
+
+
+## Vesting & Staked Vesting
+
+If your account has vested tokens, you will see a button indicating that you can access Vested Staking
+
+   ![Migration Button](/img/about-iota/iota-wallet/getting-started/vested-staking-button.png)
+
+When you click on it, it prompt you to use the [IOTA Wallet
+Dashboard](../iota-wallet-dashboard/getting-started.mdx) to manage your vested tokens.
+
+   ![Migration Pop In](/img/about-iota/iota-wallet/getting-started/vested-staking-pop-in.png)
+
+## What's Changed?
+
+### Account Management
+
+In Firefly, accounts were structured using a multi-account index, 
+which allowed generating multiple addresses under a single account without exposing the underlying BIP32 derivation
+paths. In practice, this means that Firefly would display a single wallet account that actually represented `n` addresses.
+
+The IOTA Wallet now displays each address individually.
+This change provides transparency for users managing accounts across different wallets or tools.
+
+When restoring accounts by importing a mnemonic phrase or seed,
+the IOTA Wallet will display the main account by default.
+To access derived accounts use the [Balance Finder](#use-the-balance-finder) tool to scan for assets associated with historical paths.
+This ensures compatibility with Firefly’s legacy multi-account framework. 
+
+:::note Legacy Chrysalis Accounts
+
+If you are trying to restore an Legacy Chrysalis-era account from a mnemonic in a third-party wallet, you may notice a
+discrepancy in the amount of IOTA in your wallet. You should use the [Balance Finder](#use-the-balance-finder) in the
+IOTA Web Wallet and move all your funds in `Legacy` addresses to a new address to be able to access them in any wallet.
+
+:::
+
+### Stronghold Has Been Deprecated
+
+<Seed />
+
+The new IOTA Wallet does not support Stronghold. If you have your mnemonic, private key or seed, you can use them to
+[import your account](#importing-an-existing-wallet). 
+
+Alternatively, if you only have your seed or `.stronghold` file backup and know the password, you should follow the
+[Restore Account guide](./how-to/restore-account.mdx).

@@ -49,10 +49,10 @@ use iota_core::{
     connection_monitor::ConnectionMonitor,
     consensus_adapter::{
         CheckConnection, ConnectionMonitorStatus, ConsensusAdapter, ConsensusAdapterMetrics,
-        SubmitToConsensus,
+        ConsensusClient,
     },
     consensus_handler::ConsensusHandlerInitializer,
-    consensus_manager::{ConsensusClient, ConsensusManager, ConsensusManagerTrait},
+    consensus_manager::{ConsensusManager, ConsensusManagerTrait, UpdatableConsensusClient},
     consensus_validator::{IotaTxValidator, IotaTxValidatorMetrics},
     db_checkpoint_handler::DBCheckpointHandler,
     epoch::{
@@ -81,7 +81,7 @@ use iota_json_rpc::{
 use iota_json_rpc_api::JsonRpcMetrics;
 use iota_macros::{fail_point, fail_point_async, replay_log};
 use iota_metrics::{
-    RegistryService,
+    RegistryID, RegistryService,
     hardware_metrics::register_hardware_metrics,
     metrics_network::{MetricsMakeCallbackHandler, NetworkConnectionMetrics, NetworkMetrics},
     server_timing_middleware, spawn_monitored_task,
@@ -90,7 +90,7 @@ use iota_network::{
     api::ValidatorServer, discovery, discovery::TrustedPeerChangeEvent, randomness, state_sync,
 };
 use iota_network_stack::server::ServerBuilder;
-use iota_protocol_config::{Chain, ProtocolConfig};
+use iota_protocol_config::ProtocolConfig;
 use iota_rest_api::RestMetrics;
 use iota_snapshot::uploader::StateSnapshotUploader;
 use iota_storage::{
@@ -138,6 +138,7 @@ pub mod metrics;
 
 pub struct ValidatorComponents {
     validator_server_handle: JoinHandle<Result<()>>,
+    validator_server_cancel_handle: tokio::sync::oneshot::Sender<()>,
     validator_overload_monitor_handle: Option<JoinHandle<()>>,
     consensus_manager: ConsensusManager,
     consensus_store_pruner: ConsensusStorePruner,
@@ -146,6 +147,7 @@ pub struct ValidatorComponents {
     checkpoint_service_tasks: JoinSet<()>,
     checkpoint_metrics: Arc<CheckpointMetrics>,
     iota_tx_validator_metrics: Arc<IotaTxValidatorMetrics>,
+    validator_registry_id: RegistryID,
 }
 
 #[cfg(msim)]
@@ -1197,18 +1199,25 @@ impl IotaNode {
             .consensus_config
             .as_mut()
             .ok_or_else(|| anyhow!("Validator is missing consensus config"))?;
+        let validator_registry = Registry::new();
+        let validator_registry_id = registry_service.add(validator_registry.clone());
 
-        let client = Arc::new(ConsensusClient::new());
+        let client = Arc::new(UpdatableConsensusClient::new());
         let consensus_adapter = Arc::new(Self::construct_consensus_adapter(
             &committee,
             consensus_config,
             state.name,
             connection_monitor_status.clone(),
-            &registry_service.default_registry(),
+            &validator_registry,
             client.clone(),
         ));
-        let consensus_manager =
-            ConsensusManager::new(&config, consensus_config, registry_service, client);
+        let consensus_manager = ConsensusManager::new(
+            &config,
+            consensus_config,
+            registry_service,
+            &validator_registry,
+            client,
+        );
 
         // This only gets started up once, not on every epoch. (Make call to remove
         // every epoch.)
@@ -1216,20 +1225,20 @@ impl IotaNode {
             consensus_manager.get_storage_base_path(),
             consensus_config.db_retention_epochs(),
             consensus_config.db_pruner_period(),
-            &registry_service.default_registry(),
+            &validator_registry,
         );
 
-        let checkpoint_metrics = CheckpointMetrics::new(&registry_service.default_registry());
-        let iota_tx_validator_metrics =
-            IotaTxValidatorMetrics::new(&registry_service.default_registry());
+        let checkpoint_metrics = CheckpointMetrics::new(&validator_registry);
+        let iota_tx_validator_metrics = IotaTxValidatorMetrics::new(&validator_registry);
 
-        let validator_server_handle = Self::start_grpc_validator_service(
-            &config,
-            state.clone(),
-            consensus_adapter.clone(),
-            &registry_service.default_registry(),
-        )
-        .await?;
+        let (validator_server_handle, validator_server_cancel_handle) =
+            Self::start_grpc_validator_service(
+                &config,
+                state.clone(),
+                consensus_adapter.clone(),
+                &validator_registry,
+            )
+            .await?;
 
         // Starts an overload monitor that monitors the execution of the authority.
         // Don't start the overload monitor when max_load_shedding_percentage is 0.
@@ -1261,10 +1270,12 @@ impl IotaNode {
             consensus_store_pruner,
             accumulator,
             validator_server_handle,
+            validator_server_cancel_handle,
             validator_overload_monitor_handle,
             checkpoint_metrics,
             iota_node_metrics,
             iota_tx_validator_metrics,
+            validator_registry_id,
         )
         .await
     }
@@ -1283,10 +1294,12 @@ impl IotaNode {
         consensus_store_pruner: ConsensusStorePruner,
         accumulator: Weak<StateAccumulator>,
         validator_server_handle: JoinHandle<Result<()>>,
+        validator_server_cancel_handle: tokio::sync::oneshot::Sender<()>,
         validator_overload_monitor_handle: Option<JoinHandle<()>>,
         checkpoint_metrics: Arc<CheckpointMetrics>,
         iota_node_metrics: Arc<IotaNodeMetrics>,
         iota_tx_validator_metrics: Arc<IotaTxValidatorMetrics>,
+        validator_registry_id: RegistryID,
     ) -> Result<ValidatorComponents> {
         let (checkpoint_service, checkpoint_service_tasks) = Self::start_checkpoint_service(
             config,
@@ -1353,6 +1366,7 @@ impl IotaNode {
 
         Ok(ValidatorComponents {
             validator_server_handle,
+            validator_server_cancel_handle,
             validator_overload_monitor_handle,
             consensus_manager,
             consensus_store_pruner,
@@ -1360,6 +1374,7 @@ impl IotaNode {
             checkpoint_service_tasks,
             checkpoint_metrics,
             iota_tx_validator_metrics,
+            validator_registry_id,
         })
     }
 
@@ -1423,7 +1438,7 @@ impl IotaNode {
         authority: AuthorityName,
         connection_monitor_status: Arc<ConnectionMonitorStatus>,
         prometheus_registry: &Registry,
-        consensus_client: Arc<dyn SubmitToConsensus>,
+        consensus_client: Arc<dyn ConsensusClient>,
     ) -> ConsensusAdapter {
         let ca_metrics = ConsensusAdapterMetrics::new(prometheus_registry);
         // The consensus adapter allows the authority to send user certificates through
@@ -1446,7 +1461,10 @@ impl IotaNode {
         state: Arc<AuthorityState>,
         consensus_adapter: Arc<ConsensusAdapter>,
         prometheus_registry: &Registry,
-    ) -> Result<tokio::task::JoinHandle<Result<()>>> {
+    ) -> Result<(
+        tokio::task::JoinHandle<Result<()>>,
+        tokio::sync::oneshot::Sender<()>,
+    )> {
         let validator_service = ValidatorService::new(
             state.clone(),
             consensus_adapter,
@@ -1464,15 +1482,18 @@ impl IotaNode {
 
         server_builder = server_builder.add_service(ValidatorServer::new(validator_service));
 
-        let server = server_builder
+        let mut server = server_builder
             .bind(config.network_address())
             .await
             .map_err(|err| anyhow!(err.to_string()))?;
+        let cancel_handle = server
+            .take_cancel_handle()
+            .expect("GRPC server should still have a cancel handle");
         let local_addr = server.local_addr();
         info!("Listening to traffic on {local_addr}");
         let grpc_server = spawn_monitored_task!(server.serve().map_err(Into::into));
 
-        Ok(grpc_server)
+        Ok((grpc_server, cancel_handle))
     }
 
     pub fn state(&self) -> Arc<AuthorityState> {
@@ -1656,6 +1677,7 @@ impl IotaNode {
 
             let new_validator_components = if let Some(ValidatorComponents {
                 validator_server_handle,
+                validator_server_cancel_handle,
                 validator_overload_monitor_handle,
                 consensus_manager,
                 consensus_store_pruner,
@@ -1663,6 +1685,7 @@ impl IotaNode {
                 mut checkpoint_service_tasks,
                 checkpoint_metrics,
                 iota_tx_validator_metrics,
+                validator_registry_id,
             }) = self.validator_components.lock().await.take()
             {
                 info!("Reconfiguring the validator.");
@@ -1724,20 +1747,28 @@ impl IotaNode {
                             consensus_store_pruner,
                             weak_accumulator,
                             validator_server_handle,
+                            validator_server_cancel_handle,
                             validator_overload_monitor_handle,
                             checkpoint_metrics,
                             self.metrics.clone(),
                             iota_tx_validator_metrics,
+                            validator_registry_id,
                         )
                         .await?,
                     )
                 } else {
                     info!("This node is no longer a validator after reconfiguration");
+                    if self.registry_service.remove(validator_registry_id) {
+                        debug!("Removed validator metrics registry");
+                    } else {
+                        warn!("Failed to remove validator metrics registry");
+                    }
+                    if validator_server_cancel_handle.send(()).is_ok() {
+                        debug!("Validator grpc server cancelled");
+                    } else {
+                        warn!("Failed to cancel validator grpc server");
+                    }
 
-                    consensus_adapter.unregister_consensus_adapter_metrics(
-                        &self.registry_service.default_registry(),
-                    );
-                    debug!("Unregistered consensus adapter metrics");
                     None
                 }
             } else {
@@ -1969,24 +2000,14 @@ fn build_kv_store(
         return Ok(Arc::new(db_store));
     }
 
-    let base_url: url::Url = base_url.parse().tap_err(|e| {
+    base_url.parse::<url::Url>().tap_err(|e| {
         error!(
             "failed to parse config.transaction_kv_store_config.base_url ({:?}) as url: {}",
             base_url, e
         )
     })?;
 
-    let network_str = match state.get_chain_identifier().map(|c| c.chain()) {
-        Some(Chain::Mainnet) => "/mainnet",
-        Some(Chain::Testnet) => "/testnet",
-        _ => {
-            info!("using local db only for kv store for unknown chain");
-            return Ok(Arc::new(db_store));
-        }
-    };
-
-    let base_url = base_url.join(network_str)?.to_string();
-    let http_store = HttpKVStore::new_kv(&base_url, metrics.clone())?;
+    let http_store = HttpKVStore::new_kv(base_url, metrics.clone())?;
     info!("using local key-value store with fallback to http key-value store");
     Ok(Arc::new(FallbackTransactionKVStore::new_kv(
         db_store,
@@ -2066,11 +2087,16 @@ pub async fn build_http_server(
             ))?;
         }
 
+        // TODO: Init from chain if config is not set once `IotaNamesConfig::from_chain`
+        // is implemented
+        let iota_names_config = config.iota_names_config.clone().unwrap_or_default();
+
         server.register_module(IndexerApi::new(
             state.clone(),
             ReadApi::new(state.clone(), kv_store.clone(), metrics.clone()),
             kv_store,
             metrics,
+            iota_names_config,
             config.indexer_max_subscriptions,
         ))?;
         server.register_module(MoveUtils::new(state.clone()))?;

@@ -14,6 +14,7 @@ import { normalizeIotaAddress, toB64 } from '@iota/iota-sdk/utils';
 import { publicKeyFromRawBytes } from '@iota/iota-sdk/verify';
 
 import { AddressLink } from '~/components/ui';
+import { onCopySuccess } from '~/lib';
 
 type SignaturePubkeyPair = {
     signatureScheme: SignatureScheme;
@@ -36,6 +37,8 @@ function SignaturePanel({ title, signature: data }: SignaturePanelProps): JSX.El
                 value={
                     <AddressLink
                         address={'address' in data ? data.address : data.publicKey.toIotaAddress()}
+                        copyText={'address' in data ? data.address : data.publicKey.toIotaAddress()}
+                        onCopySuccess={onCopySuccess}
                     />
                 }
                 fullwidth
@@ -45,6 +48,7 @@ function SignaturePanel({ title, signature: data }: SignaturePanelProps): JSX.El
                     keyText="IOTA Public Key"
                     value={data.publicKey.toIotaPublicKey()}
                     copyText={data.publicKey.toIotaPublicKey()}
+                    onCopySuccess={onCopySuccess}
                     isTruncated
                     fullwidth
                 />
@@ -52,6 +56,7 @@ function SignaturePanel({ title, signature: data }: SignaturePanelProps): JSX.El
             <KeyValueInfo
                 keyText="Signature"
                 copyText={toB64(signature)}
+                onCopySuccess={onCopySuccess}
                 value={toB64(signature)}
                 isTruncated
                 fullwidth

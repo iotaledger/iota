@@ -13,34 +13,40 @@ export const HOMEPAGE_ROUTE: ProtectedRoute = {
     title: ProtectedRouteTitle.Home,
     path: '/home',
     icon: Home,
+    id: 'home',
 };
 
 export const ASSETS_ROUTE: ProtectedRoute = {
     title: ProtectedRouteTitle.Assets,
     path: '/assets',
     icon: Assets,
+    id: 'assets',
 };
 
 export const STAKING_ROUTE: ProtectedRoute = {
     title: ProtectedRouteTitle.Staking,
     path: '/staking',
     icon: Stake,
+    id: 'staking',
 };
 
 export const ACTIVITY_ROUTE: ProtectedRoute = {
     title: ProtectedRouteTitle.Activity,
     path: '/activity',
     icon: Activity,
+    id: 'activity',
 };
 export const MIGRATION_ROUTE: ProtectedRoute = {
     title: ProtectedRouteTitle.Migration,
     path: '/migration',
     icon: Migration,
+    id: 'migration',
 };
 export const VESTING_ROUTE: ProtectedRoute = {
     title: ProtectedRouteTitle.Vesting,
     path: '/vesting',
     icon: Vesting,
+    id: 'vesting',
 };
 
 export const PROTECTED_ROUTES = [

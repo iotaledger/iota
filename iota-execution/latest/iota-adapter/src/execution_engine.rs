@@ -63,6 +63,7 @@ mod checked {
     };
     use move_binary_format::CompiledModule;
     use move_core_types::ident_str;
+    use move_trace_format::format::MoveTraceBuilder;
     use move_vm_runtime::move_vm::MoveVM;
     use tracing::{info, instrument, trace, warn};
 
@@ -102,6 +103,7 @@ mod checked {
         metrics: Arc<LimitsMetrics>,
         enable_expensive_checks: bool,
         certificate_deny_set: &HashSet<TransactionDigest>,
+        trace_builder_opt: &mut Option<MoveTraceBuilder>,
     ) -> (
         InnerTemporaryStore,
         IotaGasStatus,
@@ -154,6 +156,7 @@ mod checked {
             deny_cert,
             contains_deleted_input,
             cancelled_objects,
+            trace_builder_opt,
         );
 
         let status = if let Err(error) = &execution_result {
@@ -277,6 +280,7 @@ mod checked {
             tx_context,
             &mut gas_charger,
             pt,
+            &mut None,
         )?;
         temporary_store.update_object_version_and_prev_tx();
         Ok(temporary_store.into_inner())
@@ -303,6 +307,7 @@ mod checked {
         deny_cert: bool,
         contains_deleted_input: bool,
         cancelled_objects: Option<(Vec<ObjectID>, SequenceNumber)>,
+        trace_builder_opt: &mut Option<MoveTraceBuilder>,
     ) -> (
         GasCostSummary,
         Result<Mode::ExecutionResults, ExecutionError>,
@@ -358,6 +363,7 @@ mod checked {
                     gas_charger,
                     protocol_config,
                     metrics.clone(),
+                    trace_builder_opt,
                 )
             };
 
@@ -605,6 +611,7 @@ mod checked {
         gas_charger: &mut GasCharger,
         protocol_config: &ProtocolConfig,
         metrics: Arc<LimitsMetrics>,
+        trace_builder_opt: &mut Option<MoveTraceBuilder>,
     ) -> Result<Mode::ExecutionResults, ExecutionError> {
         let result = match transaction_kind {
             TransactionKind::Genesis(GenesisTransaction { objects, events }) => {
@@ -644,6 +651,7 @@ mod checked {
                     gas_charger,
                     protocol_config,
                     metrics,
+                    trace_builder_opt,
                 )
                 .expect("ConsensusCommitPrologueV1 cannot fail");
                 Ok(Mode::empty_results())
@@ -657,6 +665,7 @@ mod checked {
                     tx_ctx,
                     gas_charger,
                     pt,
+                    trace_builder_opt,
                 )
             }
             TransactionKind::EndOfEpochTransaction(txns) => {
@@ -675,6 +684,7 @@ mod checked {
                                 gas_charger,
                                 protocol_config,
                                 metrics,
+                                trace_builder_opt,
                             )?;
                             return Ok(Mode::empty_results());
                         }
@@ -689,6 +699,7 @@ mod checked {
                                 gas_charger,
                                 protocol_config,
                                 metrics,
+                                trace_builder_opt,
                             )?;
                             return Ok(Mode::empty_results());
                         }
@@ -727,6 +738,7 @@ mod checked {
                     gas_charger,
                     protocol_config,
                     metrics,
+                    trace_builder_opt,
                 )?;
                 Ok(Mode::empty_results())
             }
@@ -739,6 +751,7 @@ mod checked {
                     gas_charger,
                     protocol_config,
                     metrics,
+                    trace_builder_opt,
                 )?;
                 Ok(Mode::empty_results())
             }
@@ -902,6 +915,7 @@ mod checked {
         gas_charger: &mut GasCharger,
         protocol_config: &ProtocolConfig,
         metrics: Arc<LimitsMetrics>,
+        trace_builder_opt: &mut Option<MoveTraceBuilder>,
     ) -> Result<(), ExecutionError> {
         let result = programmable_transactions::execution::execute::<execution_mode::System>(
             protocol_config,
@@ -911,6 +925,7 @@ mod checked {
             tx_ctx,
             gas_charger,
             advance_epoch_pt,
+            trace_builder_opt,
         );
 
         #[cfg(msim)]
@@ -945,6 +960,7 @@ mod checked {
             gas_charger,
             protocol_config,
             metrics,
+            trace_builder_opt,
         );
 
         Ok(())
@@ -962,6 +978,7 @@ mod checked {
         gas_charger: &mut GasCharger,
         protocol_config: &ProtocolConfig,
         metrics: Arc<LimitsMetrics>,
+        trace_builder_opt: &mut Option<MoveTraceBuilder>,
     ) -> Result<(), ExecutionError> {
         let params = AdvanceEpochParams {
             epoch: change_epoch.epoch,
@@ -990,6 +1007,7 @@ mod checked {
             gas_charger,
             protocol_config,
             metrics,
+            trace_builder_opt,
         )
     }
 
@@ -1005,6 +1023,7 @@ mod checked {
         gas_charger: &mut GasCharger,
         protocol_config: &ProtocolConfig,
         metrics: Arc<LimitsMetrics>,
+        trace_builder_opt: &mut Option<MoveTraceBuilder>,
     ) -> Result<(), ExecutionError> {
         let params = AdvanceEpochParams {
             epoch: change_epoch_v2.epoch,
@@ -1030,6 +1049,7 @@ mod checked {
             gas_charger,
             protocol_config,
             metrics,
+            trace_builder_opt,
         )
     }
 
@@ -1041,6 +1061,7 @@ mod checked {
         gas_charger: &mut GasCharger,
         protocol_config: &ProtocolConfig,
         metrics: Arc<LimitsMetrics>,
+        trace_builder_opt: &mut Option<MoveTraceBuilder>,
     ) {
         let binary_config = to_binary_config(protocol_config);
         for (version, modules, dependencies) in system_packages.into_iter() {
@@ -1067,6 +1088,7 @@ mod checked {
                     tx_ctx,
                     gas_charger,
                     publish_pt,
+                    trace_builder_opt,
                 )
                 .expect("System Package Publish must succeed");
             } else {
@@ -1109,6 +1131,7 @@ mod checked {
         gas_charger: &mut GasCharger,
         protocol_config: &ProtocolConfig,
         metrics: Arc<LimitsMetrics>,
+        trace_builder_opt: &mut Option<MoveTraceBuilder>,
     ) -> Result<(), ExecutionError> {
         let pt = {
             let mut builder = ProgrammableTransactionBuilder::new();
@@ -1136,6 +1159,7 @@ mod checked {
             tx_ctx,
             gas_charger,
             pt,
+            trace_builder_opt,
         )
     }
 
@@ -1245,6 +1269,7 @@ mod checked {
         gas_charger: &mut GasCharger,
         protocol_config: &ProtocolConfig,
         metrics: Arc<LimitsMetrics>,
+        trace_builder_opt: &mut Option<MoveTraceBuilder>,
     ) -> Result<(), ExecutionError> {
         let pt = {
             let mut builder = ProgrammableTransactionBuilder::new();
@@ -1276,6 +1301,7 @@ mod checked {
             tx_ctx,
             gas_charger,
             pt,
+            trace_builder_opt,
         )
     }
 
@@ -1319,6 +1345,7 @@ mod checked {
         gas_charger: &mut GasCharger,
         protocol_config: &ProtocolConfig,
         metrics: Arc<LimitsMetrics>,
+        trace_builder_opt: &mut Option<MoveTraceBuilder>,
     ) -> Result<(), ExecutionError> {
         let pt = {
             let mut builder = ProgrammableTransactionBuilder::new();
@@ -1351,6 +1378,7 @@ mod checked {
             tx_ctx,
             gas_charger,
             pt,
+            trace_builder_opt,
         )
     }
 }

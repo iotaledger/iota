@@ -29,9 +29,9 @@ const config = {
   },
 
   // TODO: Revert the changes when the docs are ready
-  onBrokenLinks: "ignore",
-  onBrokenMarkdownLinks: "warn",
-  onBrokenAnchors: "warn",
+  onBrokenLinks: "throw",
+  onBrokenMarkdownLinks: "throw",
+  onBrokenAnchors: "throw",
 
   // Even if you don't use internationalization, you can use this field to set
   // useful metadata like html lang. For example, if your site is Chinese, you
@@ -54,15 +54,14 @@ const config = {
     mermaid: true,
   },
   plugins: [
-    // ....
     [
       "@graphql-markdown/docusaurus",
       /** @type {import('@graphql-markdown/types').ConfigOptions} */
       {
-        id:'devnet',
-        schema: "https://raw.githubusercontent.com/iotaledger/iota/refs/heads/devnet/crates/iota-graphql-rpc/schema.graphql",
+        id:'mainnet',
+        schema: "https://raw.githubusercontent.com/iotaledger/iota/refs/heads/mainnet/crates/iota-graphql-rpc/schema.graphql",
         rootPath: "../content", // docs will be generated under rootPath/baseURL
-        baseURL: "references/iota-api/iota-graphql/reference/devnet/",
+        baseURL: "references/iota-api/iota-graphql/reference/",
         loaders: {
           UrlLoader: {
             module: "@graphql-tools/url-loader",
@@ -77,7 +76,22 @@ const config = {
         id:'testnet',
         schema: "https://raw.githubusercontent.com/iotaledger/iota/refs/heads/testnet/crates/iota-graphql-rpc/schema.graphql",
         rootPath: "../content", // docs will be generated under rootPath/baseURL
-        baseURL: "references/iota-api/iota-graphql/reference/",
+        baseURL: "references/iota-api/iota-graphql/reference/testnet/",
+        loaders: {
+          UrlLoader: {
+            module: "@graphql-tools/url-loader",
+          }
+        },
+      },
+    ],
+    [
+      "@graphql-markdown/docusaurus",
+      /** @type {import('@graphql-markdown/types').ConfigOptions} */
+      {
+        id:'devnet',
+        schema: "https://raw.githubusercontent.com/iotaledger/iota/refs/heads/devnet/crates/iota-graphql-rpc/schema.graphql",
+        rootPath: "../content", // docs will be generated under rootPath/baseURL
+        baseURL: "references/iota-api/iota-graphql/reference/devnet/",
         loaders: {
           UrlLoader: {
             module: "@graphql-tools/url-loader",
@@ -149,7 +163,25 @@ const config = {
         },
       },
     ],
-    'plugin-image-zoom'
+    'plugin-image-zoom',
+    [
+      'docusaurus-plugin-openapi-docs',
+      {
+        id: 'openapi',
+        docsPluginId: 'classic',
+        config: {
+          coreApiV2: {
+            specPath:
+              'https://raw.githubusercontent.com/iotaledger/wasp/refs/heads/develop/clients/apiclient/api/openapi.yaml',
+            outputDir: 
+              '../content/iota-evm/references/openapi',
+            sidebarOptions: {
+              groupPathsBy: 'tag',
+            }
+          }
+        }
+      }
+    ]
   ],
   presets: [
     [
@@ -160,6 +192,8 @@ const config = {
           path: "../content",
           routeBasePath: "/",
           sidebarPath: require.resolve("./sidebars.js"),
+          docItemComponent: "@theme/ApiItem", // Derived from docusaurus-theme-openapi
+          docRootComponent: "@theme/DocRoot", // add @theme/DocRoot
           async sidebarItemsGenerator({
             isCategoryIndex: defaultCategoryIndexMatcher, // The default matcher implementation, given below
             defaultSidebarItemsGenerator,
@@ -192,7 +226,7 @@ const config = {
             "1.0.0",
           ],*/
           remarkPlugins: [
-            math,
+            [math,{singleDollarTextMath:false}],
             [
               require("@docusaurus/remark-plugin-npm2yarn"),
               { sync: true, converters: ["yarn", "pnpm"] },
@@ -230,8 +264,12 @@ const config = {
       type: "text/css",
     },
   ],
-  themes: ["@docusaurus/theme-mermaid",
-    '@saucelabs/theme-github-codeblock', '@docusaurus/theme-live-codeblock'],
+  themes: [
+    '@docusaurus/theme-mermaid',
+    '@saucelabs/theme-github-codeblock', 
+    '@docusaurus/theme-live-codeblock',
+    'docusaurus-theme-openapi-docs',
+  ],
   themeConfig:
     /** @type {import('@docusaurus/preset-classic').ThemeConfig} */
     ({
@@ -288,9 +326,18 @@ const config = {
             label: "IOTA Identity",
             to: "iota-identity",
           },
+          {
+            label: "IOTA EVM",
+            to: "iota-evm",
+          },
+          {
+            type: 'custom-WalletConnectButton',
+            position: 'right',
+          },
         ],
       },
       footer: {
+        style: "dark",
         logo: {
           alt: "IOTA Wiki Logo",
           src: "/logo/iota-logo.svg",

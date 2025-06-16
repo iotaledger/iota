@@ -2,7 +2,6 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { useIotaClientQuery } from '@iota/dapp-kit';
 import { useQuery } from '@tanstack/react-query';
 import { useMemo, useState } from 'react';
 import { useParams } from 'react-router-dom';
@@ -29,9 +28,10 @@ import { TokenStats } from './stats/TokenStats';
 import { EpochTopStats } from './stats/EpochTopStats';
 import { getEpochStorageFundFlow } from '~/lib/utils';
 import { Warning } from '@iota/apps-ui-icons';
-import type { Network } from '@iota/iota-sdk/src/client';
-import { useNetworkContext } from '~/contexts/networkContext';
-import { Feature, useFeatureEnabledByNetwork } from '@iota/core';
+import { VALIDATORS_EVENTS_QUERY } from '@iota/core';
+import { useEndOfEpochTransactionFromCheckpoint } from '~/hooks/useEndOfEpochTransactionFromCheckpoint';
+import { type IotaEvent } from '@iota/iota-sdk/src/client';
+import { useIotaClientQuery } from '@iota/dapp-kit';
 
 enum EpochTabs {
     Checkpoints = 'checkpoints',
@@ -39,12 +39,10 @@ enum EpochTabs {
 }
 
 export function EpochDetail() {
-    const [network] = useNetworkContext();
     const [activeTabId, setActiveTabId] = useState(EpochTabs.Checkpoints);
     const { id } = useParams();
     const enhancedRpc = useEnhancedRpcClient();
     const { data: systemState } = useIotaClientQuery('getLatestIotaSystemState');
-    const isFixedGasPrice = useFeatureEnabledByNetwork(Feature.FixedGasPrice, network as Network);
     const { data, isPending, isError } = useQuery({
         queryKey: ['epoch', id],
         queryFn: async () =>
@@ -56,10 +54,25 @@ export function EpochDetail() {
     });
 
     const [epochData] = data?.data ?? [];
+
+    const endOfPreviousEpochCheckpoint = epochData?.firstCheckpointId
+        ? (Number(epochData.firstCheckpointId) - 1).toString()
+        : undefined;
+    const { data: endOfEpochTransaction } = useEndOfEpochTransactionFromCheckpoint(
+        endOfPreviousEpochCheckpoint,
+    );
+    const validatorEvents: IotaEvent[] | undefined = endOfEpochTransaction?.events?.filter(
+        (event): event is IotaEvent => event.type === VALIDATORS_EVENTS_QUERY,
+    );
+
     const isCurrentEpoch = useMemo(
         () => systemState?.epoch === epochData?.epoch,
         [systemState, epochData],
     );
+    const committeeMembers =
+        epochData?.committeeMembers?.map(
+            (committeeMemberIndex) => epochData.validators[Number(committeeMemberIndex)],
+        ) ?? [];
 
     const tableColumns = useMemo(() => {
         if (!epochData?.validators || epochData.validators.length === 0) return null;
@@ -73,20 +86,16 @@ export function EpochDetail() {
             'Status',
         ];
 
-        if (!isFixedGasPrice) {
-            includeColumns.push('Proposed next Epoch gas price');
-        }
-
         // todo: enrich this historical validator data when we have
         // at-risk / pending validators for historical epochs
         return generateValidatorsTableColumns({
-            atRiskValidators: [],
-            validatorEvents: [],
-            rollingAverageApys: null,
+            committeeMembers: committeeMembers.map((member) => member.iotaAddress),
+            validatorEvents: validatorEvents ?? [],
             showValidatorIcon: true,
             includeColumns,
+            currentEpoch: epochData.epoch,
         });
-    }, [epochData]);
+    }, [epochData, validatorEvents, committeeMembers]);
 
     if (isPending) return <PageLayout content={<LoadingIndicator />} />;
 
@@ -104,9 +113,6 @@ export function EpochDetail() {
                 }
             />
         );
-
-    const tableData = epochData.validators;
-
     const { fundInflow, fundOutflow, netInflow } = getEpochStorageFundFlow(
         epochData.endOfEpochInfo,
     );
@@ -204,11 +210,13 @@ export function EpochDetail() {
                                     initialLimit={20}
                                 />
                             ) : null}
-                            {activeTabId === EpochTabs.Validators && tableData && tableColumns ? (
+                            {activeTabId === EpochTabs.Validators &&
+                            committeeMembers &&
+                            tableColumns ? (
                                 <TableCard
                                     sortTable
                                     defaultSorting={[{ id: 'stakingPoolIotaBalance', desc: true }]}
-                                    data={tableData}
+                                    data={committeeMembers}
                                     columns={tableColumns}
                                 />
                             ) : null}

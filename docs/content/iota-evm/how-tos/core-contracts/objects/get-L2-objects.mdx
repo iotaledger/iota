@@ -1,0 +1,53 @@
+---
+description: How to get the L2 Objects owned by an account.
+image: /img/logo/WASP_logo_dark.png
+tags:
+  - evm
+  - how-to
+teams:
+  - iotaledger/l2-smart-contract
+---
+import ISCAgentID from '../../../../_snippets/iota-evm/AgentID.md';
+
+# Get Objects Owned by an Account
+
+This guide will show you how to get the L2 Objects owned by an account using the `ISCAccounts.getL2Objects`.
+
+## Understanding the `getL2Objects` Function
+
+The `getL2Objects` function is a view function provided by the `ISCAccounts` interface. It takes an `ISCAgentID` as an argument and returns an array of `ObjectID` objects. This function allows users to query and retrieve the list of L2 Objects owned by a specified agent.
+<ISCAgentID/>
+
+The returned array contains the identifiers of the Objects, which can then be used to fetch more details about each Object if needed.
+
+## Implement the `getL2Objects` Function
+
+Here’s a sample implementation to retrieve L2 s owned by an account:
+
+```solidity
+function getOwnedObjects() public view returns (IotaObjectID[] memory) {
+      ISCAgentID memory agentID = ISC.sandbox.getSenderAccount();
+      // Call the getL2Objects function from the ISCAccounts contract
+      IotaObjectID[] memory ownedObjects = ISC.accounts.getL2Objects(agentID);
+      return ownedObjects;
+  }
+```
+
+## Full Example Contract
+
+```solidity
+// SPDX-License-Identifier: MIT
+pragma solidity >=0.8.24;
+
+import "@iota/iscmagic/ISC.sol";
+
+contract MyObjectContract {
+
+  function getOwnedObjects() public view returns (IotaObjectID[] memory) {
+      ISCAgentID memory agentID = ISC.sandbox.getSenderAccount();
+      // Call the getL2Objects function from the ISCAccounts contract
+      IotaObjectID[] memory ownedObjects = ISC.accounts.getL2Objects(agentID);
+      return ownedObjects;
+  }
+}
+```

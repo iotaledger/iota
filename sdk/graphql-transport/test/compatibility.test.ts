@@ -388,6 +388,12 @@ describe('GraphQL IotaClient compatibility', () => {
                 },
             });
 
+        // Sorth both results to avoid any order difference
+        graphQLTransactions.data.sort(
+            (txA, txB) => Number(txA.timestampMs) - Number(txB.timestampMs),
+        );
+        rpcTransactions.data.sort((txA, txB) => Number(txA.timestampMs) - Number(txB.timestampMs));
+
         expect(graphQLTransactions).toEqual(rpcTransactions);
     });
 
@@ -570,6 +576,26 @@ describe('GraphQL IotaClient compatibility', () => {
         expect(graphql).toEqual(rpc);
     });
 
+    test.skip('getDynamicFieldObjectV2', async () => {
+        const { data } = await toolbox.client.getDynamicFields({
+            parentId: parentObjectId,
+        });
+
+        const field = data.find((field) => field.type === 'DynamicObject')!;
+
+        const rpc = await toolbox.client.getDynamicFieldObjectV2({
+            parentObjectId: parentObjectId,
+            name: field.name,
+        });
+
+        const graphql = await graphQLClient!.getDynamicFieldObjectV2({
+            parentObjectId: parentObjectId,
+            name: field.name,
+        });
+
+        expect(graphql).toEqual(rpc);
+    });
+
     test.skip('subscribeEvent', async () => {
         // TODO
     });
@@ -675,6 +701,13 @@ describe('GraphQL IotaClient compatibility', () => {
     test.skip('getNetworkMetrics', async () => {
         const rpc = await toolbox.client.getNetworkMetrics();
         const graphql = await graphQLClient!.getNetworkMetrics();
+
+        expect(graphql).toEqual(rpc);
+    });
+
+    test.skip('getParticipationMetrics', async () => {
+        const rpc = await toolbox.client.getParticipationMetrics();
+        const graphql = await graphQLClient!.getParticipationMetrics();
 
         expect(graphql).toEqual(rpc);
     });

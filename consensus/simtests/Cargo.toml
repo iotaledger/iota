@@ -1,0 +1,35 @@
+[package]
+name = "consensus-simtests"
+version = "0.1.0"
+authors = ["IOTA Foundation <info@iota.org>"]
+edition = "2021"
+license = "Apache-2.0"
+publish = false
+
+[lints]
+workspace = true
+
+[target.'cfg(msim)'.dependencies]
+# external dependencies
+anyhow.workspace = true
+arc-swap.workspace = true
+parking_lot.workspace = true
+prometheus.workspace = true
+rand.workspace = true
+tempfile.workspace = true
+tokio.workspace = true
+tokio-stream.workspace = true
+tokio-util.workspace = true
+tracing.workspace = true
+
+# internal dependencies
+consensus-config.workspace = true
+consensus-core.workspace = true
+iota-config.workspace = true
+iota-macros.workspace = true
+iota-metrics.workspace = true
+iota-network-stack.workspace = true
+iota-protocol-config.workspace = true
+iota-simulator.workspace = true
+telemetry-subscribers.workspace = true
+typed-store.workspace = true

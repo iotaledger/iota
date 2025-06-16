@@ -1,7 +1,7 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { ScreenSize } from '../enums';
+import type { ScreenSize } from '../enums';
 
 export const pxToRem = (px: number, base: number = 16) => `${px / base}rem`;
 

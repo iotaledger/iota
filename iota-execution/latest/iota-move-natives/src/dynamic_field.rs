@@ -86,7 +86,7 @@ pub struct DynamicFieldHashTypeAndKeyCostParams {
 ///                type tag of `K`
 /// ****************************************************************************
 /// *******************
-#[instrument(level = "trace", skip_all, err)]
+#[instrument(level = "trace", skip_all)]
 pub fn hash_type_and_key(
     context: &mut NativeContext,
     mut ty_args: Vec<Type>,
@@ -176,7 +176,7 @@ pub struct DynamicFieldAddChildObjectCostParams {
 ///                struct tag of `Child`
 /// ****************************************************************************
 /// *******************
-#[instrument(level = "trace", skip_all, err)]
+#[instrument(level = "trace", skip_all)]
 pub fn add_child_object(
     context: &mut NativeContext,
     mut ty_args: Vec<Type>,
@@ -280,7 +280,7 @@ pub struct DynamicFieldBorrowChildObjectCostParams {
 ///                `Child`
 /// ****************************************************************************
 /// *******************
-#[instrument(level = "trace", skip_all, err)]
+#[instrument(level = "trace", skip_all)]
 pub fn borrow_child_object(
     context: &mut NativeContext,
     mut ty_args: Vec<Type>,
@@ -363,7 +363,7 @@ pub struct DynamicFieldRemoveChildObjectCostParams {
 ///                value of type `Child`
 /// ****************************************************************************
 /// *******************
-#[instrument(level = "trace", skip_all, err)]
+#[instrument(level = "trace", skip_all)]
 pub fn remove_child_object(
     context: &mut NativeContext,
     mut ty_args: Vec<Type>,
@@ -428,7 +428,7 @@ pub struct DynamicFieldHasChildObjectCostParams {
 /// dynamic_field_has_child_object_cost_base                    | covers various
 /// fixed costs in the oper ****************************************************
 /// *******************************************
-#[instrument(level = "trace", skip_all, err)]
+#[instrument(level = "trace", skip_all)]
 pub fn has_child_object(
     context: &mut NativeContext,
     ty_args: Vec<Type>,
@@ -477,7 +477,7 @@ pub struct DynamicFieldHasChildObjectWithTyCostParams {
 ///                value of type tag for `Child`
 /// ****************************************************************************
 /// *******************
-#[instrument(level = "trace", skip_all, err)]
+#[instrument(level = "trace", skip_all)]
 pub fn has_child_object_with_ty(
     context: &mut NativeContext,
     mut ty_args: Vec<Type>,

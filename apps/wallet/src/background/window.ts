@@ -8,7 +8,7 @@ import Browser from 'webextension-polyfill';
 const POPUP_WIDTH = 360;
 const POPUP_HEIGHT = 680;
 
-const windowRemovedStream = fromEventPattern<number>(
+export const windowRemovedStream = fromEventPattern<number>(
     (handler) => Browser.windows.onRemoved.addListener(handler),
     (handler) => Browser.windows.onRemoved.removeListener(handler),
 ).pipe(share());

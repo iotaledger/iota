@@ -74,7 +74,7 @@ pub fn is_vested_reward(output_id: OutputId, basic_output: &BasicOutput) -> bool
 
     has_vesting_prefix
         && basic_output.unlock_conditions().timelock().is_some()
-        && basic_output.native_tokens().len() == 0
+        && basic_output.native_tokens().is_empty()
         && basic_output.unlock_conditions().len() == 2
         && basic_output.unlock_conditions().address().is_some()
 }
@@ -101,7 +101,7 @@ pub fn try_from_stardust(
         return Err(VestedRewardError::UnlockConditionsNumberMismatch);
     }
 
-    if basic_output.native_tokens().len() > 0 {
+    if !basic_output.native_tokens().is_empty() {
         return Err(VestedRewardError::NativeTokensNotSupported);
     }
 

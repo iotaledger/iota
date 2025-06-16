@@ -2,8 +2,6 @@
 
 `@iota/kiosk` is part of the **IOTA Rebased SDK**, designed specifically for interacting with the IOTA Rebased protocol.
 
-> **Note**: This package is currently supported **only in Testnet and Devnet**, it is **not yet supported in Mainnet**.
-
 This Kiosk SDK library provides different utilities to interact/create/manage a
 [Kiosk](https://github.com/iotaledger/iota/tree/develop/kiosk).
 
