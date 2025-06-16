@@ -2153,6 +2153,10 @@ impl ProtocolConfig {
     pub fn set_accept_passkey_in_multisig_for_testing(&mut self, val: bool) {
         self.feature_flags.accept_passkey_in_multisig = val;
     }
+
+    pub fn set_consensus_smart_ancestor_selection_for_testing(&mut self, val: bool) {
+        self.feature_flags.consensus_smart_ancestor_selection = val;
+    }
 }
 
 type OverrideFn = dyn Fn(ProtocolVersion, ProtocolConfig) -> ProtocolConfig + Send + Sync;
