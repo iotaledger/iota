@@ -53,7 +53,6 @@ pub const MAX_PROTOCOL_VERSION: u64 = 9;
 //            tracker in devnet.
 // Version 9: Disable smart ancestor selection for the testnet.
 //            Enable zstd compression for consensus tonic network in mainnet.
-//            Increase the committee size to 80.
 //            Enable passkey auth in multisig for devnet.
 
 #[derive(Copy, Clone, Debug, Hash, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
@@ -2000,8 +1999,6 @@ impl ProtocolConfig {
 
                     // Enable zstd compression for consensus
                     cfg.feature_flags.consensus_zstd_compression = true;
-
-                    cfg.max_committee_members_count = Some(80);
 
                     // Enable passkey in multisig in devnet.
                     if chain != Chain::Testnet && chain != Chain::Mainnet {
