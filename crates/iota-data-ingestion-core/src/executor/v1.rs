@@ -16,13 +16,12 @@ use tokio::{
 use tokio_util::sync::CancellationToken;
 
 use crate::{
-    DataIngestionMetrics, IngestionError, IngestionResult, ReaderOptions, Worker,
+    DataIngestionMetrics, IngestionError, IngestionResult, MAX_CHECKPOINTS_IN_PROGRESS,
+    ReaderOptions, Worker,
     progress_store::{ExecutorProgress, ProgressStore, ProgressStoreWrapper, ShimProgressStore},
-    reader::CheckpointReader,
+    reader::v1::CheckpointReader,
     worker_pool::{WorkerPool, WorkerPoolStatus},
 };
-
-pub const MAX_CHECKPOINTS_IN_PROGRESS: usize = 10000;
 
 /// The Executor of the main ingestion pipeline process.
 ///
@@ -90,13 +89,13 @@ pub const MAX_CHECKPOINTS_IN_PROGRESS: usize = 10000;
 /// }
 /// ```
 pub struct IndexerExecutor<P> {
-    pools: Vec<Pin<Box<dyn Future<Output = ()> + Send>>>,
-    pool_senders: Vec<mpsc::Sender<Arc<CheckpointData>>>,
-    progress_store: ProgressStoreWrapper<P>,
-    pool_status_sender: mpsc::Sender<WorkerPoolStatus>,
-    pool_status_receiver: mpsc::Receiver<WorkerPoolStatus>,
-    metrics: DataIngestionMetrics,
-    token: CancellationToken,
+    pub(crate) pools: Vec<Pin<Box<dyn Future<Output = ()> + Send>>>,
+    pub(crate) pool_senders: Vec<mpsc::Sender<Arc<CheckpointData>>>,
+    pub(crate) progress_store: ProgressStoreWrapper<P>,
+    pub(crate) pool_status_sender: mpsc::Sender<WorkerPoolStatus>,
+    pub(crate) pool_status_receiver: mpsc::Receiver<WorkerPoolStatus>,
+    pub(crate) metrics: DataIngestionMetrics,
+    pub(crate) token: CancellationToken,
 }
 
 impl<P: ProgressStore> IndexerExecutor<P> {
