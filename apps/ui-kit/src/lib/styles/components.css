@@ -614,6 +614,10 @@
         color: var(--title-subtitle-color);
     }
 
+    .title-icon-color {
+        color: var(--title-icon-color);
+    }
+
     /* ---------------- ORGANISMS ---------------- */
 
     /* ACCORDION */
@@ -623,6 +627,10 @@
 
     .accordion-icon-color {
         color: var(--accordion-icon-color);
+    }
+
+    .accordion-border-color {
+        border-color: var(--accordion-border-color);
     }
 
     /* DIALOG */
