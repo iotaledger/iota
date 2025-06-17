@@ -61,11 +61,11 @@ export function DepositLayer2() {
     useEffect(() => {
         if (isTransactionSuccess) {
             toast.success('Withdraw transaction confirmed! Your funds have been transferred.');
-            const blanceQueryKey = getBalanceQueryKey({
+            const balanceQueryKey = getBalanceQueryKey({
                 chainId,
                 address: layer2Account.address,
             });
-            queryClient.invalidateQueries({ queryKey: blanceQueryKey });
+            queryClient.invalidateQueries({ queryKey: balanceQueryKey });
         }
     }, [isTransactionSuccess]);
 

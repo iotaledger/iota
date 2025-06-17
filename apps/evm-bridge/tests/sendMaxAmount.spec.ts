@@ -187,9 +187,9 @@ test.describe('Send MAX amount from L2', () => {
 
         await expect(testPageL2.getByText('Bridge Assets')).toBeEnabled();
 
-        const approveTransacionPagePromise = browserL2.waitForEvent('page');
+        const approveTransactionPagePromise = browserL2.waitForEvent('page');
         await testPageL2.getByText('Bridge Assets').click();
-        const approveTransactionPage = await approveTransacionPagePromise;
+        const approveTransactionPage = await approveTransactionPagePromise;
 
         await approveTransactionPage.getByRole('button', { name: 'Confirm' }).click();
 
