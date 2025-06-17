@@ -39,8 +39,8 @@ The module's [`init` function](../move-overview/init.mdx) uses the `LOYALTY` OTW
 Remember that all `init` functions run only once at the package publish event.
 The initializer function calls [`create_currency`](../../../references/framework/iota/coin.mdx#function-create_currency)
 using the `LOYALTY` type defined earlier.
-It also sets up a policy by sending both the [policy capability](../../../references/framework/iota/token.mdx#resource-tokenpolicycap) 
-and the [treasury capability](../../../references/framework/iota/coin.mdx#resource-treasurycap) to the address associated with the publish event.
+It also sets up a policy by sending both the [policy capability](../../../references/framework/iota/token.mdx#struct-tokenpolicycap) 
+and the [treasury capability](../../../references/framework/iota/coin.mdx#struct-treasurycap) to the address associated with the publish event.
 The holder of these transferable capabilities can mint new `LOYALTY` tokens and modify their policies.
 
 ```move file=<rootDir>/examples/move/token/sources/loyalty.move#L37-L63

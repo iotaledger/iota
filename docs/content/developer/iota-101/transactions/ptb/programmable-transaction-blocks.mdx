@@ -52,7 +52,7 @@ A PTB consists of two main components:
   - [`MakeMoveVec`](#makemovevec): Create a vector of Move values, primarily used as arguments for `MoveCall`.
   - [`MoveCall`](#movecall): Invoke an `entry` or `public` Move function in a published package.
   - [`Publish`](#publish): Create a new package and call the `init` function of each module.
-  - [`Upgrade`](#upgrade): Upgrade an existing package, gated by [`iota::package::UpgradeCap`](../../../../references/framework/iota/package.mdx#resource-upgradecap).
+  - [`Upgrade`](#upgrade): Upgrade an existing package, gated by [`iota::package::UpgradeCap`](../../../../references/framework/iota/package.mdx#struct-upgradecap).
 
 ### Inputs and Results
 
@@ -89,7 +89,7 @@ Each command may produce a (possibly empty) array of results. The number and typ
 
 - `MoveCall`: Returns results based on the Move function called.
 - `SplitCoins`: Produces coins from a single [coin](../../../../references/framework/iota/coin.mdx).
-- `Publish`: Returns the [upgrade capability](../../../../references/framework/iota/package.mdx#resource-upgradecap) for the new package.
+- `Publish`: Returns the [upgrade capability](../../../../references/framework/iota/package.mdx#struct-upgradecap) for the new package.
 - `Upgrade`: Returns the [upgrade receipt](../../../../references/framework/iota/package.mdx#struct-upgradereceipt) for the upgraded package.
 - `TransferObjects` and `MergeCoins`: Do not produce results.
 
@@ -239,7 +239,7 @@ Let's look at how specific commands are executed.
   - `TransitiveDependencies`: Package IDs to link against.
 - **Notes**:
   - Calls the `init` function of each module.
-  - Produces an [`iota::package::UpgradeCap`](../../../../references/framework/iota/package.mdx#resource-upgradecap).
+  - Produces an [`iota::package::UpgradeCap`](../../../../references/framework/iota/package.mdx#struct-upgradecap).
 
 ##### `Upgrade`
 
@@ -247,7 +247,7 @@ Let's look at how specific commands are executed.
 - **Usage**:
   - Similar to `Publish`, but upgrades an existing package.
   - `Package`: Object ID of the package to upgrade.
-  - `UpgradeTicket`: Obtained from [`iota::package::UpgradeCap`](../../../../references/framework/iota/package.mdx#resource-upgradecap).
+  - `UpgradeTicket`: Obtained from [`iota::package::UpgradeCap`](../../../../references/framework/iota/package.mdx#struct-upgradecap).
 - **Notes**:
   - Does not call the `init` function of each module.
   - Produces an [`iota::package::UpgradeReceipt`](../../../../references/framework/iota/package.mdx#struct-upgradereceipt).

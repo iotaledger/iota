@@ -19,7 +19,7 @@ Relying on a single key to manage on-chain package upgrades can introduce signif
 
 To mitigate these risks while still enabling [live package upgrades](./upgrade.mdx),
 IOTA offers _custom upgrade policies_.
-These policies secure access to the [`UpgradeCap`](../../../../references/framework/iota/package.mdx#resource-upgradecap) and issue [`UpgradeTicket`](../../../../references/framework/iota/package.mdx#struct-upgradeticket) objects,
+These policies secure access to the [`UpgradeCap`](../../../../references/framework/iota/package.mdx#struct-upgradecap) and issue [`UpgradeTicket`](../../../../references/framework/iota/package.mdx#struct-upgradeticket) objects,
 authorizing upgrades on a per-case basis.
 
 ## Compatibility
@@ -79,7 +79,7 @@ Any function pair that produces an `UpgradeTicket` from an `UpgradeCap` and cons
 
 ## UpgradeCap
 
-The [`UpgradeCap`](../../../../references/framework/iota/package.mdx#resource-upgradecap) type is crucial for managing package upgrades:
+The [`UpgradeCap`](../../../../references/framework/iota/package.mdx#struct-upgradecap) type is crucial for managing package upgrades:
 
 ```move
 module iota::package {

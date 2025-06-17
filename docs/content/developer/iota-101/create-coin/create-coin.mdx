@@ -22,7 +22,7 @@ The key difference is the requirement of a [one-time witness](../move-overview/o
 ```
 
 The [`Coin<T>`](../../../references/framework/iota/coin.mdx) is a generic coin implementation in IOTA.
-By accessing the [`TreasuryCap`](../../../references/framework/iota/coin.mdx#resource-treasurycap),
+By accessing the [`TreasuryCap`](../../../references/framework/iota/coin.mdx#struct-treasurycap),
 you gain control over minting and burning coins.
 You can send further transactions directly to `iota::coin::Coin` using the `TreasuryCap` object for authorization.
 
@@ -66,13 +66,13 @@ To deny specific addresses from holding your coin,
 use the [`create_regulated_currency`](../../../references/framework/iota/coin.mdx#function-create_regulated_currency_v1) function instead of [`create_currency`](../../../references/framework/iota/coin.mdx#function-create_currency).
 
 Internally, `create_regulated_currency` calls `create_currency` to create the coin
-and also produces a [`DenyCap`](../../../references/framework/iota/coin.mdx#resource-denycapv1) object.
+and also produces a [`DenyCap`](../../../references/framework/iota/coin.mdx#struct-denycapv1) object.
 This object allows you to manage the deny list in a `DenyList` object.
 The process is similar to the previous example but includes transferring the `DenyCap` object to the module publisher.
 
 ## Creating Tokens
 
-Tokens reuse the [`TreasuryCap`](../../../references/framework/iota/coin.mdx#resource-denycapv1) defined in the `iota::coin` module
+Tokens reuse the [`TreasuryCap`](../../../references/framework/iota/coin.mdx#struct-denycapv1) defined in the `iota::coin` module
 and follow the same initialization process.
 The `coin::create_currency` function ensures the uniqueness of the `TreasuryCap` and enforces the creation of a `CoinMetadata` object.
 
