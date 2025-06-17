@@ -171,6 +171,11 @@
         @apply group-[.disabled]:cursor-not-allowed;
     }
 
+    /* DIVIDER */
+    .divider-bg-color {
+        background-color: var(--divider-bg-color);
+    }
+
     /* BUTTON SEGMENT */
     .button-segment-text-color-default {
         color: var(--button-segment-text-color-default);
