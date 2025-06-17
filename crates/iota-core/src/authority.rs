@@ -26,6 +26,7 @@ use fastcrypto::{
     hash::MultisetHash,
 };
 use iota_archival::reader::ArchiveReaderBalancer;
+use iota_common::debug_fatal;
 use iota_config::{
     NodeConfig,
     genesis::Genesis,
@@ -45,8 +46,6 @@ use iota_metrics::{
     TX_TYPE_SHARED_OBJ_TX, TX_TYPE_SINGLE_WRITER_TX, monitored_scope, spawn_monitored_task,
 };
 use iota_storage::{
-    IndexStore,
-    indexes::{CoinInfo, ObjectIndexChanges},
     key_value_store::{
         KVStoreTransactionData, TransactionKeyValueStore, TransactionKeyValueStoreTrait,
     },
@@ -107,6 +106,7 @@ use iota_types::{
     },
     supported_protocol_versions::{ProtocolConfig, SupportedProtocolVersions},
     transaction::*,
+    transaction_executor::SimulateTransactionResult,
 };
 use itertools::Itertools;
 use move_binary_format::{CompiledModule, binary_config::BinaryConfig};
@@ -126,7 +126,7 @@ use tokio::{
     sync::{RwLock, mpsc, mpsc::unbounded_channel, oneshot},
     task::JoinHandle,
 };
-use tracing::{Instrument, debug, error, info, instrument, warn};
+use tracing::{Instrument, debug, error, info, instrument, trace, warn};
 use typed_store::TypedStoreError;
 
 use self::{
@@ -154,6 +154,7 @@ use crate::{
         TransactionCacheRead,
     },
     execution_driver::execution_process,
+    jsonrpc_index::{CoinInfo, IndexStore, ObjectIndexChanges},
     metrics::{LatencyObserver, RateTracker},
     module_cache_metrics::ResolverMetrics,
     overload_monitor::{AuthorityOverloadInfo, overload_monitor_accept_tx},
@@ -295,8 +296,6 @@ pub struct AuthorityMetrics {
 
     /// bytecode verifier metrics for tracking timeouts
     pub bytecode_verifier_metrics: Arc<BytecodeVerifierMetrics>,
-
-    pub authenticator_state_update_failed: IntCounter,
 
     /// Count of zklogin signatures
     pub zklogin_sig_count: IntCounter,
@@ -715,12 +714,6 @@ impl AuthorityMetrics {
             ).unwrap(),
             limits_metrics: Arc::new(LimitsMetrics::new(registry)),
             bytecode_verifier_metrics: Arc::new(BytecodeVerifierMetrics::new(registry)),
-            authenticator_state_update_failed: register_int_counter_with_registry!(
-                "authenticator_state_update_failed",
-                "Number of failed authenticator state updates",
-                registry,
-            )
-            .unwrap(),
             zklogin_sig_count: register_int_counter_with_registry!(
                 "zklogin_sig_count",
                 "Count of zkLogin signatures",
@@ -1126,7 +1119,7 @@ impl AuthorityState {
                 .execute_certificate_latency_single_writer
                 .start_timer()
         };
-        debug!("execute_certificate");
+        trace!("execute_certificate");
 
         self.metrics.total_cert_attempts.inc();
 
@@ -1170,7 +1163,6 @@ impl AuthorityState {
     ) -> IotaResult<(TransactionEffects, Option<ExecutionError>)> {
         let _scope = monitored_scope("Execution::try_execute_immediately");
         let _metrics_guard = self.metrics.internal_execution_latency.start_timer();
-        debug!("execute_certificate_internal");
 
         let tx_digest = certificate.digest();
 
@@ -1206,6 +1198,9 @@ impl AuthorityState {
         )
         .await
         .tap_err(|e| info!(?tx_digest, "process_certificate failed: {e}"))
+        .tap_ok(
+            |(fx, _)| debug!(?tx_digest, fx_digest=?fx.digest(), "process_certificate succeeded"),
+        )
     }
 
     pub fn read_objects_for_execution(
@@ -1413,10 +1408,8 @@ impl AuthorityState {
             certificate.data().transaction_data().kind()
         {
             if let Some(err) = &execution_error_opt {
-                error!("Authenticator state update failed: {err}");
-                self.metrics.authenticator_state_update_failed.inc();
+                debug_fatal!("Authenticator state update failed: {:?}", err);
             }
-            debug_assert!(execution_error_opt.is_none());
             epoch_store.update_authenticator_state(auth_state);
 
             // double check that the signature verifier always matches the authenticator
@@ -1879,6 +1872,136 @@ impl AuthorityState {
         ))
     }
 
+    pub fn simulate_transaction(
+        &self,
+        transaction: TransactionData,
+    ) -> IotaResult<SimulateTransactionResult> {
+        if transaction.kind().is_system_tx() {
+            return Err(IotaError::UnsupportedFeature {
+                error: "simulate does not support system transactions".to_string(),
+            });
+        }
+
+        let epoch_store = self.load_epoch_store_one_call_per_task();
+        if !self.is_fullnode(&epoch_store) {
+            return Err(IotaError::UnsupportedFeature {
+                error: "simulate is only supported on fullnodes".to_string(),
+            });
+        }
+
+        self.simulate_transaction_impl(&epoch_store, transaction)
+    }
+
+    fn simulate_transaction_impl(
+        &self,
+        epoch_store: &AuthorityPerEpochStore,
+        transaction: TransactionData,
+    ) -> IotaResult<SimulateTransactionResult> {
+        // Cheap validity checks for a transaction, including input size limits.
+        transaction.validity_check_no_gas_check(epoch_store.protocol_config())?;
+
+        let input_object_kinds = transaction.input_objects()?;
+        let receiving_object_refs = transaction.receiving_objects();
+
+        iota_transaction_checks::deny::check_transaction_for_signing(
+            &transaction,
+            &[],
+            &input_object_kinds,
+            &receiving_object_refs,
+            &self.config.transaction_deny_config,
+            self.get_backing_package_store().as_ref(),
+        )?;
+
+        let (input_objects, receiving_objects) = self.input_loader.read_objects_for_signing(
+            // We don't want to cache this transaction since it's a dry run.
+            None,
+            &input_object_kinds,
+            &receiving_object_refs,
+            epoch_store.epoch(),
+        )?;
+
+        // make a gas object if one was not provided
+        let mut gas_object_refs = transaction.gas().to_vec();
+        let ((gas_status, checked_input_objects), mock_gas) = if transaction.gas().is_empty() {
+            let sender = transaction.sender();
+            // use a 1B iota coin
+            const NANOS_TO_IOTA: u64 = 1_000_000_000;
+            const DRY_RUN_IOTA: u64 = 1_000_000_000;
+            let max_coin_value = NANOS_TO_IOTA * DRY_RUN_IOTA;
+            let gas_object_id = ObjectID::MAX;
+            let gas_object = Object::new_move(
+                MoveObject::new_gas_coin(OBJECT_START_VERSION, gas_object_id, max_coin_value),
+                Owner::AddressOwner(sender),
+                TransactionDigest::genesis_marker(),
+            );
+            let gas_object_ref = gas_object.compute_object_reference();
+            gas_object_refs = vec![gas_object_ref];
+            (
+                iota_transaction_checks::check_transaction_input_with_given_gas(
+                    epoch_store.protocol_config(),
+                    epoch_store.reference_gas_price(),
+                    &transaction,
+                    input_objects,
+                    receiving_objects,
+                    gas_object,
+                    &self.metrics.bytecode_verifier_metrics,
+                    &self.config.verifier_signing_config,
+                )?,
+                Some(gas_object_id),
+            )
+        } else {
+            (
+                iota_transaction_checks::check_transaction_input(
+                    epoch_store.protocol_config(),
+                    epoch_store.reference_gas_price(),
+                    &transaction,
+                    input_objects,
+                    &receiving_objects,
+                    &self.metrics.bytecode_verifier_metrics,
+                    &self.config.verifier_signing_config,
+                )?,
+                None,
+            )
+        };
+
+        let protocol_config = epoch_store.protocol_config();
+        let (kind, signer, _) = transaction.execution_parts();
+
+        let silent = true;
+        let executor = iota_execution::executor(protocol_config, silent, None)
+            .expect("Creating an executor should not fail here");
+
+        let expensive_checks = false;
+        let (inner_temp_store, _, effects, _execution_error) = executor
+            .execute_transaction_to_effects(
+                self.get_backing_store().as_ref(),
+                protocol_config,
+                self.metrics.limits_metrics.clone(),
+                expensive_checks,
+                self.config.certificate_deny_config.certificate_deny_set(),
+                &epoch_store.epoch_start_config().epoch_data().epoch_id(),
+                epoch_store
+                    .epoch_start_config()
+                    .epoch_data()
+                    .epoch_start_timestamp(),
+                checked_input_objects,
+                gas_object_refs,
+                gas_status,
+                kind,
+                signer,
+                transaction.digest(),
+                &mut None,
+            );
+
+        Ok(SimulateTransactionResult {
+            input_objects: inner_temp_store.input_objects,
+            output_objects: inner_temp_store.written,
+            events: effects.events_digest().map(|_| inner_temp_store.events),
+            effects,
+            mock_gas_id: mock_gas,
+        })
+    }
+
     /// The object ID for gas can be any object ID, even for an uncreated object
     pub async fn dev_inspect_transaction_block(
         &self,
@@ -2299,7 +2422,7 @@ impl AuthorityState {
                     );
 
                     let Some(df_info) = self
-                        .try_create_dynamic_field_info(new_object, written, layout_resolver.as_mut())
+                        .try_create_dynamic_field_info(new_object, written, layout_resolver.as_mut(), false)
                         .unwrap_or_else(|e| {
                             error!("try_create_dynamic_field_info should not fail, {}, new_object={:?}", e, new_object);
                             None
@@ -2328,6 +2451,7 @@ impl AuthorityState {
         o: &Object,
         written: &WrittenObjects,
         resolver: &mut dyn LayoutResolver,
+        get_latest_object_version: bool,
     ) -> IotaResult<Option<DynamicFieldInfo>> {
         // Skip if not a move object
         let Some(move_object) = o.data.try_as_move().cloned() else {
@@ -2391,23 +2515,41 @@ impl AuthorityState {
 
                 // Try to find the object in the written objects first.
                 let (version, digest, object_type) = if let Some(object) = written.get(&object_id) {
-                    let version = object.version();
-                    let digest = object.digest();
-                    let object_type = object.data.type_().unwrap().clone();
-                    (version, digest, object_type)
+                    (
+                        object.version(),
+                        object.digest(),
+                        object.data.type_().unwrap().clone(),
+                    )
                 } else {
                     // If not found, try to find it in the database.
-                    let object = self
-                        .get_object_store()
-                        .get_object_by_key(&object_id, o.version())?
-                        .ok_or_else(|| UserInputError::ObjectNotFound {
-                            object_id,
-                            version: Some(o.version()),
-                        })?;
-                    let version = object.version();
-                    let digest = object.digest();
-                    let object_type = object.data.type_().unwrap().clone();
-                    (version, digest, object_type)
+                    let object = if get_latest_object_version {
+                        // Loading genesis object could meet a condition that the version of the
+                        // genesis object is behind the one in the snapshot.
+                        // In this case, the object can not be found with get_object_by_key, we need
+                        // to use get_object instead. Since get_object is a heavier operation, we
+                        // only allow to use it for genesis.
+                        // reference: https://github.com/iotaledger/iota/issues/7267
+                        self.get_object_store()
+                            .get_object(&object_id)?
+                            .ok_or_else(|| UserInputError::ObjectNotFound {
+                                object_id,
+                                version: Some(o.version()),
+                            })?
+                    } else {
+                        // Non-genesis object should be in the database with the given version.
+                        self.get_object_store()
+                            .get_object_by_key(&object_id, o.version())?
+                            .ok_or_else(|| UserInputError::ObjectNotFound {
+                                object_id,
+                                version: Some(o.version()),
+                            })?
+                    };
+
+                    (
+                        object.version(),
+                        object.digest(),
+                        object.data.type_().unwrap().clone(),
+                    )
                 };
 
                 DynamicFieldInfo {
@@ -2472,7 +2614,6 @@ impl AuthorityState {
             // Emit events
             self.subscription_handler
                 .process_tx(certificate.data().transaction_data(), &effects, &events)
-                .await
                 .tap_ok(|_| {
                     self.metrics
                         .post_processing_total_tx_had_event_processed
@@ -2836,7 +2977,7 @@ impl AuthorityState {
             .enqueue_certificates(certs, epoch_store)
     }
 
-    pub(crate) fn enqueue_with_expected_effects_digest(
+    pub fn enqueue_with_expected_effects_digest(
         &self,
         certs: Vec<(VerifiedExecutableTransaction, TransactionEffectsDigest)>,
         epoch_store: &AuthorityPerEpochStore,
@@ -2874,6 +3015,7 @@ impl AuthorityState {
                         o,
                         &BTreeMap::new(),
                         layout_resolver.as_mut(),
+                        true,
                     )?
                     else {
                         continue;

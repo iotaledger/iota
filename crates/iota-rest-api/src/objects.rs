@@ -5,7 +5,7 @@
 use axum::extract::{Path, Query, State};
 use iota_sdk2::types::{Object, ObjectId, TypeTag, Version};
 use iota_types::{
-    iota_sdk2_conversions::{SdkTypeConversionError, type_tag_core_to_sdk},
+    iota_sdk_types_conversions::{SdkTypeConversionError, type_tag_core_to_sdk},
     storage::{DynamicFieldIndexInfo, DynamicFieldKey},
 };
 use serde::{Deserialize, Serialize};

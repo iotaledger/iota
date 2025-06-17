@@ -561,30 +561,45 @@ impl Core {
         }
 
         // Determine the ancestors to be included in proposal.
-        let (ancestors, excluded_and_equivocating_ancestors) =
-            self.smart_ancestors_to_propose(clock_round, !force);
+        // Smart ancestor selection requires distributed scoring to be enabled.
+        let (ancestors, excluded_ancestors) = if self
+            .context
+            .protocol_config
+            .consensus_distributed_vote_scoring_strategy()
+            && self
+                .context
+                .protocol_config
+                .consensus_smart_ancestor_selection()
+        {
+            let (ancestors, excluded_and_equivocating_ancestors) =
+                self.smart_ancestors_to_propose(clock_round, !force);
 
-        // If we did not find enough good ancestors to propose, continue to wait before
-        // proposing.
-        if ancestors.is_empty() {
-            assert!(
-                !force,
-                "Ancestors should have been returned if force is true!"
-            );
-            return None;
-        }
+            // If we did not find enough good ancestors to propose, continue to wait before
+            // proposing.
+            if ancestors.is_empty() {
+                assert!(
+                    !force,
+                    "Ancestors should have been returned if force is true!"
+                );
+                return None;
+            }
 
-        let excluded_ancestors_limit = self.context.committee.size() * 2;
-        if excluded_and_equivocating_ancestors.len() > excluded_ancestors_limit {
-            debug!(
-                "Dropping {} excluded ancestor(s) during proposal due to size limit",
-                excluded_and_equivocating_ancestors.len() - excluded_ancestors_limit,
-            );
-        }
-        let excluded_ancestors = excluded_and_equivocating_ancestors
-            .into_iter()
-            .take(excluded_ancestors_limit)
-            .collect();
+            let excluded_ancestors_limit = self.context.committee.size() * 2;
+            if excluded_and_equivocating_ancestors.len() > excluded_ancestors_limit {
+                debug!(
+                    "Dropping {} excluded ancestor(s) during proposal due to size limit",
+                    excluded_and_equivocating_ancestors.len() - excluded_ancestors_limit,
+                );
+            }
+            let excluded_ancestors = excluded_and_equivocating_ancestors
+                .into_iter()
+                .take(excluded_ancestors_limit)
+                .collect();
+
+            (ancestors, excluded_ancestors)
+        } else {
+            (self.ancestors_to_propose(clock_round), vec![])
+        };
 
         // Update the last included ancestor block refs
         for ancestor in &ancestors {
@@ -1082,6 +1097,66 @@ impl Core {
             .collect::<Vec<_>>();
 
         sequenced_leaders
+    }
+
+    /// Retrieves the next ancestors to propose to form a block at `clock_round`
+    /// round.
+    fn ancestors_to_propose(&mut self, clock_round: Round) -> Vec<VerifiedBlock> {
+        // Now take the ancestors before the clock_round (excluded) for each authority.
+        let (ancestors, gc_enabled, gc_round) = {
+            let dag_state = self.dag_state.read();
+            (
+                dag_state.get_last_cached_block_per_authority(clock_round),
+                dag_state.gc_enabled(),
+                dag_state.gc_round(),
+            )
+        };
+
+        assert_eq!(
+            ancestors.len(),
+            self.context.committee.size(),
+            "Fatal error, number of returned ancestors don't match committee size."
+        );
+
+        // Propose only ancestors of higher rounds than what has already been proposed.
+        // And always include own last proposed block first among ancestors.
+        let (last_proposed_block, _) = ancestors[self.context.own_index].clone();
+        assert_eq!(last_proposed_block.author(), self.context.own_index);
+        let ancestors = iter::once(last_proposed_block)
+            .chain(
+                ancestors
+                    .into_iter()
+                    .filter(|(block, _)| block.author() != self.context.own_index)
+                    .filter(|(block, _)| {
+                        if gc_enabled && gc_round > GENESIS_ROUND {
+                            return block.round() > gc_round;
+                        }
+                        true
+                    })
+                    .flat_map(|(block, _)| {
+                        if let Some(last_block_ref) = self.last_included_ancestors[block.author()] {
+                            return (last_block_ref.round < block.round()).then_some(block);
+                        }
+                        Some(block)
+                    }),
+            )
+            .collect::<Vec<_>>();
+
+        // TODO: this is for temporary sanity check - we might want to remove later on
+        let mut quorum = StakeAggregator::<QuorumThreshold>::new();
+        for ancestor in ancestors
+            .iter()
+            .filter(|block| block.round() == clock_round - 1)
+        {
+            quorum.add(ancestor.author(), &self.context.committee);
+        }
+        assert!(
+            quorum.reached_threshold(&self.context.committee),
+            "Fatal error, quorum not reached for parent round when proposing for round {}. Possible mismatch between DagState and Core.",
+            clock_round
+        );
+
+        ancestors
     }
 
     /// Retrieves the next ancestors to propose to form a block at `clock_round`
@@ -2514,7 +2589,13 @@ mod test {
             sleep(wait_time).await;
         }
 
-        let (context, _) = Context::new_for_test(4);
+        let (mut context, _) = Context::new_for_test(4);
+        context
+            .protocol_config
+            .set_consensus_smart_ancestor_selection_for_testing(true);
+        context
+            .protocol_config
+            .set_consensus_distributed_vote_scoring_strategy_for_testing(true);
 
         // Create the cores for all authorities
         let mut all_cores = create_cores(context, vec![1, 1, 1, 1]);
@@ -2606,7 +2687,13 @@ mod test {
     #[tokio::test]
     async fn test_smart_ancestor_selection() {
         telemetry_subscribers::init_for_testing();
-        let (context, mut key_pairs) = Context::new_for_test(7);
+        let (mut context, mut key_pairs) = Context::new_for_test(7);
+        context
+            .protocol_config
+            .set_consensus_smart_ancestor_selection_for_testing(true);
+        context
+            .protocol_config
+            .set_consensus_distributed_vote_scoring_strategy_for_testing(true);
         let context = Arc::new(context.with_parameters(Parameters {
             sync_last_known_own_block_timeout: Duration::from_millis(2_000),
             ..Default::default()
@@ -2854,7 +2941,13 @@ mod test {
     #[tokio::test]
     async fn test_excluded_ancestor_limit() {
         telemetry_subscribers::init_for_testing();
-        let (context, mut key_pairs) = Context::new_for_test(4);
+        let (mut context, mut key_pairs) = Context::new_for_test(4);
+        context
+            .protocol_config
+            .set_consensus_smart_ancestor_selection_for_testing(true);
+        context
+            .protocol_config
+            .set_consensus_distributed_vote_scoring_strategy_for_testing(true);
         let context = Arc::new(context.with_parameters(Parameters {
             sync_last_known_own_block_timeout: Duration::from_millis(2_000),
             ..Default::default()
