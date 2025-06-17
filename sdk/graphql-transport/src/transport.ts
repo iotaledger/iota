@@ -73,7 +73,8 @@ export class IotaClientGraphQLTransport implements IotaTransport {
             'getParticipationMetrics',
             'getMoveCallMetrics',
             'getAllEpochAddressMetrics',
-            'getEpochs'
+            'getEpochs',
+            'getDynamicFieldObjectV2',
         ];
         this.#unsupportedMethods = options.unsupportedMethods || ['getOwnedObjects'];
 
