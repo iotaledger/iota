@@ -2589,7 +2589,13 @@ mod test {
             sleep(wait_time).await;
         }
 
-        let (context, _) = Context::new_for_test(4);
+        let (mut context, _) = Context::new_for_test(4);
+        context
+            .protocol_config
+            .set_consensus_smart_ancestor_selection_for_testing(true);
+        context
+            .protocol_config
+            .set_consensus_distributed_vote_scoring_strategy_for_testing(true);
 
         // Create the cores for all authorities
         let mut all_cores = create_cores(context, vec![1, 1, 1, 1]);
@@ -2681,7 +2687,13 @@ mod test {
     #[tokio::test]
     async fn test_smart_ancestor_selection() {
         telemetry_subscribers::init_for_testing();
-        let (context, mut key_pairs) = Context::new_for_test(7);
+        let (mut context, mut key_pairs) = Context::new_for_test(7);
+        context
+            .protocol_config
+            .set_consensus_smart_ancestor_selection_for_testing(true);
+        context
+            .protocol_config
+            .set_consensus_distributed_vote_scoring_strategy_for_testing(true);
         let context = Arc::new(context.with_parameters(Parameters {
             sync_last_known_own_block_timeout: Duration::from_millis(2_000),
             ..Default::default()
@@ -2929,7 +2941,13 @@ mod test {
     #[tokio::test]
     async fn test_excluded_ancestor_limit() {
         telemetry_subscribers::init_for_testing();
-        let (context, mut key_pairs) = Context::new_for_test(4);
+        let (mut context, mut key_pairs) = Context::new_for_test(4);
+        context
+            .protocol_config
+            .set_consensus_smart_ancestor_selection_for_testing(true);
+        context
+            .protocol_config
+            .set_consensus_distributed_vote_scoring_strategy_for_testing(true);
         let context = Arc::new(context.with_parameters(Parameters {
             sync_last_known_own_block_timeout: Duration::from_millis(2_000),
             ..Default::default()

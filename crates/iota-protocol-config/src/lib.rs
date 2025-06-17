@@ -51,13 +51,8 @@ pub const MAX_PROTOCOL_VERSION: u64 = 9;
 //            Enable the new consensus commit rule for testnet.
 //            Enable min_free_execution_slot for the shared object congestion
 //            tracker in devnet.
-// Version 9: Enable smart ancestor selection for mainnet.
-//            Enable probing for accepted rounds in round prober for mainnet.
-//            Switch to distributed vote scoring in consensus in mainnet.
+// Version 9: Disable smart ancestor selection for the testnet.
 //            Enable zstd compression for consensus tonic network in mainnet.
-//            Enable consensus garbage collection for mainnet
-//            Enable the new consensus commit rule for mainnet.
-//            Increase the committee size to 80.
 //            Enable passkey auth in multisig for devnet.
 
 #[derive(Copy, Clone, Debug, Hash, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
@@ -1997,25 +1992,13 @@ impl ProtocolConfig {
                     }
                 }
                 9 => {
-                    // Enable round prober in consensus.
-                    cfg.feature_flags.consensus_round_prober = true;
-                    // Enable distributed vote scoring.
-                    cfg.feature_flags
-                        .consensus_distributed_vote_scoring_strategy = true;
-                    cfg.feature_flags.consensus_linearize_subdag_v2 = true;
-                    // Enable smart ancestor selection
-                    cfg.feature_flags.consensus_smart_ancestor_selection = true;
-                    // Enable probing for accepted rounds in round prober
-                    cfg.feature_flags
-                        .consensus_round_prober_probe_accepted_rounds = true;
+                    if chain != Chain::Mainnet {
+                        // Disable smart ancestor selection in the testnet and devnet.
+                        cfg.feature_flags.consensus_smart_ancestor_selection = false;
+                    }
+
                     // Enable zstd compression for consensus
                     cfg.feature_flags.consensus_zstd_compression = true;
-                    // Assuming a round rate of max 15/sec, then using a gc depth of 60 allow
-                    // blocks within a window of ~4 seconds
-                    // to be included before be considered garbage collected.
-                    cfg.consensus_gc_depth = Some(60);
-
-                    cfg.max_committee_members_count = Some(80);
 
                     // Enable passkey in multisig in devnet.
                     if chain != Chain::Testnet && chain != Chain::Mainnet {
@@ -2166,6 +2149,10 @@ impl ProtocolConfig {
 
     pub fn set_accept_passkey_in_multisig_for_testing(&mut self, val: bool) {
         self.feature_flags.accept_passkey_in_multisig = val;
+    }
+
+    pub fn set_consensus_smart_ancestor_selection_for_testing(&mut self, val: bool) {
+        self.feature_flags.consensus_smart_ancestor_selection = val;
     }
 }
 

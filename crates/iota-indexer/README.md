@@ -63,13 +63,22 @@ To run the indexer as a standalone service with an existing fullnode, follow the
 
 ```sh
 # Change the RPC_CLIENT_URL to http://0.0.0.0:9000 to run indexer against local validator & fullnode
+
+# Old CLI
 cargo run --bin iota-indexer -- --db-url "postgres://postgres:postgrespw@localhost/iota_indexer" --rpc-client-url "https://api.devnet.iota.cafe:443" --fullnode-sync-worker --reset-db
+
+# New CLI
+cargo run --bin iota-indexer -- --db-url "postgres://postgres:postgrespw@localhost/iota_indexer" indexer --rpc-client-url "https://api.devnet.iota.cafe:443"  --reset-db
 ```
 
 - to run indexer as a reader which exposes a JSON RPC service with following [APIs](https://docs.iota.org/iota-api-ref).
 
-```
+```sh
+# Old CLI
 cargo run --bin iota-indexer -- --db-url "postgres://postgres:postgrespw@localhost/iota_indexer" --rpc-client-url "https://api.devnet.iota.cafe:443" --rpc-server-worker
+
+# New CLI
+cargo run --bin iota-indexer -- --db-url "postgres://postgres:postgrespw@localhost/iota_indexer" json-rpc-service --rpc-client-url "https://api.devnet.iota.cafe:443"
 ```
 
 More available flags can be found in this [file](https://github.com/iotaledger/iota/blob/develop/crates/iota-indexer/src/lib.rs).
@@ -80,6 +89,22 @@ To wipe the database, make sure you are in the `iota/crates/iota-indexer` direct
 
 ```sh
 diesel database reset --database-url="postgres://postgres:postgrespw@localhost/iota_indexer"
+```
+
+### CLI Reference
+
+The IOTA Indexer is currently transitioning from the old CLI to a new one.
+While both versions are still supported, the old CLI will be deprecated in the future.
+Users are encouraged to start using the new CLI.
+
+To view help information for each version:
+
+```sh
+# Old CLI
+cargo run --bin iota-indexer -- help-deprecated
+
+# New CLI
+cargo run --bin iota-indexer -- help
 ```
 
 ### Running tests
