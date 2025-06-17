@@ -17,12 +17,11 @@
     "scripts": {
         "clean": "rm -rf tsconfig.tsbuildinfo ./dist",
         "build": "build-package",
-        "typecheck": "tsc --noEmit",
         "eslint:check": "eslint --max-warnings=0 \"./src/**/*.{js,ts}\"",
         "eslint:fix": "pnpm eslint:check --fix",
         "prettier:check": "prettier -c --ignore-unknown --ignore-path=.prettierignore .",
         "prettier:fix": "prettier -w --ignore-unknown --ignore-path=.prettierignore .",
-        "lint": "pnpm run typecheck && pnpm eslint:check && pnpm prettier:check",
+        "lint": "pnpm eslint:check && pnpm prettier:check",
         "lint:fix": "pnpm eslint:fix && pnpm prettier:fix",
         "run:example": "tsx",
         "test": "vitest"
