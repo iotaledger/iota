@@ -122,6 +122,9 @@ pub enum NameCommand {
         /// The coin to use for payment. If not provided, selects the first coin
         /// with enough balance.
         coin: Option<ObjectID>,
+        ///
+        #[arg(long, num_args(1..))]
+        coupons: Vec<String>,
         // Whether to print detailed output.
         #[arg(long)]
         verbose: bool,
@@ -338,8 +341,6 @@ impl NameCommand {
                 let label = domain.label(1).unwrap();
                 let mut price = fetch_pricing_config(&iota_client).await?.get_price(label)?;
 
-                println!("price before {price}");
-
                 if !coupons.is_empty() {
                     let coupon_house = get_coupon_house(&iota_client).await?;
 
@@ -349,8 +350,6 @@ impl NameCommand {
                             .await?;
                     }
                 }
-
-                println!("price after {price}");
 
                 let domain_name = domain.to_string();
                 let coin =
@@ -364,21 +363,21 @@ impl NameCommand {
                         "--move-call {}::payment::init_registration @{} '{domain_name}'",
                         iota_names_config.package_address, iota_names_config.object_id
                     ),
-                    "--assign payment_intent".to_string(),
+                    "--assign register_intent".to_string(),
                 ];
 
                 if !coupons.is_empty() {
                     let coupons_package_address = get_coupons_package_address(&iota_client).await?;
 
                     for coupon in coupons {
-                        args.push(format!("--move-call {coupons_package_address}::coupon_house::apply_coupon payment_intent @{} '{coupon}' @{IOTA_CLOCK_OBJECT_ID}", iota_names_config.object_id,
+                        args.push(format!("--move-call {coupons_package_address}::coupon_house::apply_coupon register_intent @{} '{coupon}' @{IOTA_CLOCK_OBJECT_ID}", iota_names_config.object_id,
                         ));
                     }
                 }
 
                 args.extend_from_slice(&[
                     format!(
-                        "--move-call {}::payments::handle_base_payment <{IOTA_FRAMEWORK_PACKAGE_ID}::iota::IOTA> @{} payment_intent coins.0",
+                        "--move-call {}::payments::handle_base_payment <{IOTA_FRAMEWORK_PACKAGE_ID}::iota::IOTA> @{} register_intent coins.0",
                         iota_names_config.payments_package_address, iota_names_config.object_id
                     ),
                     "--assign receipt".to_string(),
@@ -432,17 +431,29 @@ impl NameCommand {
                 domain,
                 years,
                 coin,
+                coupons,
                 verbose,
                 mut opts,
             } => {
                 let iota_names_config = get_iota_names_config(&iota_client).await?;
 
                 let label = domain.label(1).unwrap();
-                let price = fetch_renewal_config(context)
+                let mut price = fetch_renewal_config(context)
                     .await?
                     .pricing
                     .get_price(label)?
                     * years as u64;
+
+                if !coupons.is_empty() {
+                    let coupon_house = get_coupon_house(&iota_client).await?;
+
+                    for coupon in coupons.iter() {
+                        price = coupon_house
+                            .apply_coupon(coupon, price, &iota_client)
+                            .await?;
+                    }
+                }
+
                 let domain_name = domain.to_string();
                 let coin =
                     select_coin_arg_for_payment(domain_name.as_str(), coin, price, context).await?;
@@ -458,9 +469,21 @@ impl NameCommand {
                         "--move-call {}::payment::init_renewal @{} @{nft_id} {years}",
                         iota_names_config.package_address, iota_names_config.object_id,
                     ),
-                    "--assign renewal_intent".to_string(),
+                    "--assign renew_intent".to_string(),
+                ];
+
+                if !coupons.is_empty() {
+                    let coupons_package_address = get_coupons_package_address(&iota_client).await?;
+
+                    for coupon in coupons {
+                        args.push(format!("--move-call {coupons_package_address}::coupon_house::apply_coupon renew_intent @{} '{coupon}' @{IOTA_CLOCK_OBJECT_ID}", iota_names_config.object_id,
+                        ));
+                    }
+                }
+
+                args.extend_from_slice(&[
                     format!(
-                        "--move-call {}::payments::handle_base_payment <{IOTA_FRAMEWORK_PACKAGE_ID}::iota::IOTA> @{} renewal_intent coins.0",
+                        "--move-call {}::payments::handle_base_payment <{IOTA_FRAMEWORK_PACKAGE_ID}::iota::IOTA> @{} renew_intent coins.0",
                         iota_names_config.payments_package_address, iota_names_config.object_id
                     ),
                     "--assign receipt".to_string(),
@@ -468,7 +491,8 @@ impl NameCommand {
                         "--move-call {}::payment::renew receipt @{} @{nft_id} @{IOTA_CLOCK_OBJECT_ID}",
                         iota_names_config.package_address, iota_names_config.object_id,
                     ),
-                ];
+                ]);
+
                 let display = std::mem::take(&mut opts.rest.display);
                 args.extend(opts.into_args());
 
@@ -2347,7 +2371,6 @@ async fn get_coupon_house(iota_client: &IotaClient) -> anyhow::Result<CouponHous
         &TypeTag::Struct(Box::new(coupon_house_key)),
         &IotaJsonValue::new(serde_json::json!({ "dummy_field": false }))?.to_bcs_bytes(&layout)?,
     )?;
-    println!("{object_id}");
 
     let entry = get_object_from_bcs::<Field<ConfigKey, CouponHouse>>(iota_client, object_id)
         .await
