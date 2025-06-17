@@ -7,7 +7,7 @@ export const SIGNATURE_SCHEME_TO_FLAG = {
     Secp256k1: 0x01,
     Secp256r1: 0x02,
     MultiSig: 0x03,
-    Passkey: 0x04,
+    Passkey: 0x06,
 } as const;
 
 export const SIGNATURE_SCHEME_TO_SIZE = {
@@ -21,7 +21,7 @@ export const SIGNATURE_FLAG_TO_SCHEME = {
     0x01: 'Secp256k1',
     0x02: 'Secp256r1',
     0x03: 'MultiSig',
-    0x04: 'Passkey',
+    0x06: 'Passkey',
 } as const;
 
 export type SignatureScheme = 'ED25519' | 'Secp256k1' | 'Secp256r1' | 'MultiSig' | 'Passkey';
