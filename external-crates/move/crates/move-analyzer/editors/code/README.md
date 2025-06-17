@@ -62,7 +62,7 @@ If you are on Windows, the following answer assumes that your Windows user name 
 If your `move-analyzer` binary is in a different directory than the default one (`~/.iota/bin`
 on macOS or Linux, or `C:\Users\USER\.iota\bin` on Windows), you may have the extension look
 for the binary at this new location using VSCode's settings (`⌘` + `,` on macOS, or use the menu
-item _Code > Preferences > Settings_). Search for the `move.server.path` user setting,
+item _Code > Preferences > Settings_). Search for the `iota-move.server.path` user setting,
 set it to the new location of the `move-analyzer` binary, and restart VSCode.
 
 ## What if advanced features (e.g., go to def) do not work, particularly after re-install or upgrade
