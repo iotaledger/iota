@@ -3,21 +3,20 @@
     "author": "IOTA Foundation <info@iota.org>",
     "version": "0.0.0",
     "description": "ISC SDK for interacting with IOTA Smart Contracts.",
-    "type": "module",
+    "type": "commonjs",
     "license": "Apache-2.0",
-    "main": "./dist/index.cjs",
-    "module": "./dist/index.js",
-    "types": "./dist/index.d.ts",
+    "main": "./dist/cjs/index.js",
+    "module": "./dist/esm/index.js",
+    "types": "./dist/cjs/index.d.ts",
     "exports": {
         ".": {
-            "import": "./dist/index.js",
-            "require": "./dist/index.cjs",
-            "types": "./dist/index.d.ts"
+            "import": "./dist/esm/index.js",
+            "require": "./dist/cjs/index.js"
         }
     },
     "scripts": {
-        "dev": "vite",
-        "build": "vite build",
+        "clean": "rm -rf tsconfig.tsbuildinfo ./dist",
+        "build": "build-package",
         "typecheck": "tsc --noEmit",
         "eslint:check": "eslint --max-warnings=0 \"./src/**/*.{js,ts}\"",
         "eslint:fix": "pnpm eslint:check --fix",
@@ -35,17 +34,12 @@
         "@noble/hashes": "^1.4.0"
     },
     "devDependencies": {
-        "@eslint/js": "^9.17.0",
+        "@iota/build-scripts": "workspace:*",
         "@types/node": "^20.14.10",
-        "@typescript-eslint/eslint-plugin": "^6.21.0",
-        "@typescript-eslint/parser": "^6.21.0",
         "dotenv": "^16.4.5",
-        "eslint": "^8.45.0",
         "ethers": "^6.13.5",
-        "prettier": "^3.3.1",
         "tsx": "^3.12.7",
         "typescript": "^5.5.3",
-        "typescript-eslint": "^7.12.0",
         "vite": "^5.4.12",
         "vite-plugin-dts": "^4.3.0",
         "vitest": "^2.1.9",

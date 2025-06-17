@@ -1,9 +1,10 @@
-import { Transaction, TransactionObjectArgument } from '@iota/iota-sdk/transactions';
-import * as isc from './isc';
-import { ChainData } from './types';
+import type { TransactionObjectArgument } from '@iota/iota-sdk/transactions';
+import { Transaction } from '@iota/iota-sdk/transactions';
+import * as isc from './isc.js';
+import type { ChainData } from './types/index.js';
 import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
-import { L2_FROM_L1_GAS_BUDGET } from './constants';
-import type { ObjectArgument } from './isc';
+import { L2_FROM_L1_GAS_BUDGET } from './constants.js';
+import type { ObjectArgument } from './isc.js';
 
 export type Agent = {
     type: 'evm';

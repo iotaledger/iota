@@ -1,1 +1,1 @@
-export * from './getHname';
+export * from './getHname.js';

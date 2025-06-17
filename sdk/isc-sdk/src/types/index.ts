@@ -1,2 +1,2 @@
-export * from './assetsResponse';
-export * from './chainData';
+export * from './assetsResponse.js';
+export * from './chainData.js';

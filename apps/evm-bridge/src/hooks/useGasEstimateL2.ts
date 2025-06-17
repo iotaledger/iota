@@ -15,6 +15,7 @@ export function useGasEstimateL2({ address, amount }: UseL2GasEstimateProps) {
     const client = usePublicClient();
 
     return useQuery({
+        // eslint-disable-next-line @tanstack/query/exhaustive-deps
         queryKey: ['l2-deposit-transaction-gas-estimate', address, iscContractAddress, amount],
         async queryFn() {
             if (!address || !amount || !iscContractAddress) {

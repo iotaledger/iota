@@ -1,7 +1,7 @@
-import { Transaction, TransactionObjectArgument } from '@iota/iota-sdk/transactions';
-import { ChainData } from './types';
+import type { Transaction, TransactionObjectArgument } from '@iota/iota-sdk/transactions';
+import type { ChainData } from './types/index.js';
 import { bcs } from '@iota/iota-sdk/bcs';
-import { IscAgentID, IscAssets } from './bcs';
+import { IscAgentID, IscAssets } from './bcs.js';
 
 export type ObjectArgument = string | TransactionObjectArgument;
 

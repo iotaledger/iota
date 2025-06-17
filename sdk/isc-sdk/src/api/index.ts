@@ -1,1 +1,1 @@
-export * from './EvmRpcClient';
+export * from './EvmRpcClient.js';

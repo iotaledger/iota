@@ -28,6 +28,7 @@ export function useBuildL1DepositTransaction({
     const variables = useNetworkVariables();
     const senderAddress = currentAccount?.address as string;
     return useQuery({
+        // eslint-disable-next-line @tanstack/query/exhaustive-deps
         queryKey: ['l1-deposit-transaction', receivingAddress, amount.toString(), senderAddress],
         queryFn: async () => {
             if (!receivingAddress) {

@@ -1,1 +1,1 @@
-export * from './contracts.enums';
+export * from './contracts.enums.js';

@@ -1,4 +1,4 @@
-import { AssetsResponse } from '../types';
+import type { AssetsResponse } from '../types/index.js';
 
 export class EvmRpcClient {
     public baseUrl: string;
