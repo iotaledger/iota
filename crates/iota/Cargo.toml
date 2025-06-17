@@ -21,6 +21,7 @@ aws-sdk-kms = "1.44.0"
 axum.workspace = true
 bcs.workspace = true
 bip32.workspace = true
+blake2 = "0.10"
 camino.workspace = true
 chrono = { workspace = true, optional = true }
 clap.workspace = true

@@ -7,6 +7,7 @@ use std::{
 };
 
 use anyhow::bail;
+use blake2::Digest;
 use chrono::{Utc, prelude::DateTime};
 use clap::Parser;
 use iota_graphql_rpc_client::simple_client::{GraphqlQueryVariable, SimpleClient};
@@ -30,6 +31,7 @@ use iota_types::{
     coin::Coin,
     collection_types::{Entry, LinkedTable, LinkedTableNode, VecMap},
     digests::{ChainIdentifier, TransactionDigest},
+    dynamic_field::Field,
 };
 use move_core_types::{
     annotated_value::{MoveFieldLayout, MoveStructLayout, MoveTypeLayout},
@@ -102,7 +104,7 @@ pub enum NameCommand {
         #[arg(long)]
         set_reverse_lookup: bool,
         ///
-        #[arg(long)]
+        #[arg(long, num_args(1..))]
         coupons: Vec<String>,
         // Whether to print detailed output.
         #[arg(long)]
@@ -334,7 +336,36 @@ impl NameCommand {
                 let iota_names_config = get_iota_names_config(&iota_client).await?;
 
                 let label = domain.label(1).unwrap();
-                let price = fetch_pricing_config(&iota_client).await?.get_price(label)?;
+                let mut price = fetch_pricing_config(&iota_client).await?.get_price(label)?;
+
+                println!("price before {price}");
+
+                if !coupons.is_empty() {
+                    let coupon_house = get_coupon_house(&iota_client).await?;
+
+                    for coupon in coupons.iter() {
+                        let coupon = coupon_house.get_coupon(coupon, &iota_client).await.unwrap();
+                        match coupon.kind {
+                            0 => {
+                                let discount_amount =
+                                    ((price as u128) * (coupon.amount as u128) / 100) as u64;
+                                price -= discount_amount;
+                            }
+                            1 => {
+                                price = if price >= coupon.amount {
+                                    price - coupon.amount
+                                } else {
+                                    0
+                                };
+                            }
+                            _ => bail!("undefined coupon kind"),
+                        }
+                        println!("{coupon:?}");
+                    }
+                }
+
+                println!("price after {price}");
+
                 let domain_name = domain.to_string();
                 let coin =
                     select_coin_arg_for_payment(domain_name.as_str(), coin, price, context).await?;
@@ -354,10 +385,8 @@ impl NameCommand {
                     let coupons_package_address = get_coupons_package_address(&iota_client).await?;
 
                     for coupon in coupons {
-                        args.push(format!(
-                        "--move-call {coupons_package_address}::coupon_house::apply_coupon payment_intent @{} '{coupon}' @{IOTA_CLOCK_OBJECT_ID}",
-                        iota_names_config.object_id,
-                    ));
+                        args.push(format!("--move-call {coupons_package_address}::coupon_house::apply_coupon payment_intent @{} '{coupon}' @{IOTA_CLOCK_OBJECT_ID}", iota_names_config.object_id,
+                        ));
                     }
                 }
 
@@ -2229,6 +2258,92 @@ fn deserialize_move_object_from_bcs<T: DeserializeOwned>(
         .try_into_move()
         .ok_or_else(|| anyhow::anyhow!("invalid move type"))?
         .deserialize::<T>()
+}
+
+#[derive(Debug, Deserialize)]
+struct Coupons {
+    coupons: iota_names::registry::Table,
+}
+
+#[expect(unused)]
+#[derive(Debug, Deserialize)]
+struct CouponRange {
+    pub from: u8,
+    pub to: u8,
+}
+
+#[expect(unused)]
+#[derive(Debug, Deserialize)]
+struct CouponRules {
+    pub length: Option<CouponRange>,
+    pub available_claims: Option<u64>,
+    pub user: Option<IotaAddress>,
+    pub expiration: Option<u64>,
+    pub years: Option<CouponRange>,
+    pub can_stack: bool,
+}
+
+#[expect(unused)]
+#[derive(Debug, Deserialize)]
+struct Coupon {
+    pub kind: u8,
+    pub amount: u64,
+    pub rules: CouponRules,
+}
+
+#[expect(unused)]
+#[derive(Debug, Deserialize)]
+struct CouponHouse {
+    coupons: Coupons,
+    version: u8,
+    id: ObjectID,
+}
+
+impl CouponHouse {
+    async fn get_coupon(&self, name: &str, client: &IotaClient) -> anyhow::Result<Coupon> {
+        let mut hasher = blake2::Blake2b::<blake2::digest::consts::U32>::new();
+        hasher.update(name);
+        let hash = hasher.finalize().to_vec();
+        let coupon_bytes = bcs::to_bytes(&hash).unwrap();
+
+        let object_id = iota_types::dynamic_field::derive_dynamic_field_id(
+            self.coupons.coupons.id,
+            &TypeTag::Vector(Box::new(TypeTag::U8)),
+            &coupon_bytes,
+        )?;
+
+        let entry = get_object_from_bcs::<Field<Vec<u8>, Coupon>>(client, object_id).await?;
+
+        Ok(entry.value)
+    }
+}
+
+async fn get_coupon_house(iota_client: &IotaClient) -> anyhow::Result<CouponHouse> {
+    let coupon_package_address = get_coupons_package_address(iota_client).await?;
+    let iota_names_config = get_iota_names_config(iota_client).await?;
+    let coupon_house_key = StructTag::from_str(&format!(
+        "{}::iota_names::RegistryKey<{coupon_package_address}::coupon_house::CouponHouse>",
+        iota_names_config.package_address,
+    ))?;
+    let layout = MoveTypeLayout::Struct(Box::new(MoveStructLayout {
+        type_: coupon_house_key.clone(),
+        fields: vec![MoveFieldLayout::new(
+            Identifier::from_str("dummy_field")?,
+            MoveTypeLayout::Bool,
+        )],
+    }));
+    let object_id = iota_types::dynamic_field::derive_dynamic_field_id(
+        iota_names_config.object_id,
+        &TypeTag::Struct(Box::new(coupon_house_key)),
+        &IotaJsonValue::new(serde_json::json!({ "dummy_field": false }))?.to_bcs_bytes(&layout)?,
+    )?;
+    println!("{object_id}");
+
+    let entry = get_object_from_bcs::<Field<ConfigKey, CouponHouse>>(iota_client, object_id)
+        .await
+        .unwrap();
+
+    Ok(entry.value)
 }
 
 #[cfg(test)]

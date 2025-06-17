@@ -5800,6 +5800,7 @@ dependencies = [
  "bcs",
  "bin-version",
  "bip32",
+ "blake2",
  "camino",
  "chrono",
  "clap",
