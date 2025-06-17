@@ -7,7 +7,7 @@ A municipality aims to promote energy efficiency among households by distributin
 
 Let's dive right into it. We can start by minting a new token. Tokens are similar to [coins](../coin.mdx) in IOTA, but if you have read the prior articles, you already know that they can have their own [rules](rules.mdx) and [policies](token-policy.mdx).
 
-Since they share similarities with coins, we can start by creating an [`init` function](../../iota-101/move-overview/init.mdx) with an [OTW](../../iota-101/move-overview/one-time-witness.mdx) for our module and create a coin with a name, symbol, and description using [`coin::create_currency`](../../../references/framework/iota-framework/coin.mdx#function-create_currency):
+Since they share similarities with coins, we can start by creating an [`init` function](../../iota-101/move-overview/init.mdx) with an [OTW](../../iota-101/move-overview/one-time-witness.mdx) for our module and create a coin with a name, symbol, and description using [`coin::create_currency`](../../../references/framework/iota/coin.mdx#function-create_currency):
 
 ```move file=<rootDir>/docs/examples/move/clt-tutorial/sources/clt_tutorial.move#L24-L33
 ```
@@ -21,7 +21,7 @@ Let's create the policy and share it as a [shared object](../../iota-101/objects
 ```move file=<rootDir>/docs/examples/move/clt-tutorial/sources/clt_tutorial.move#L35
 ```
 
-The `new_policy` function also returns a policy capability that grants admin rights, similar to the [treasury capability](../../../references/framework/iota-framework/coin.mdx#resource-treasurycap).
+The `new_policy` function also returns a policy capability that grants admin rights, similar to the [treasury capability](../../../references/framework/iota/coin.mdx#struct-treasurycap).
 After creating the token and its policy, we:
 - Share the token policy
 ```move file=<rootDir>/docs/examples/move/clt-tutorial/sources/clt_tutorial.move#L41
@@ -42,7 +42,7 @@ This is relatively easy; we create a `gift_voucher` function that will mint the 
 ```move file=<rootDir>/docs/examples/move/clt-tutorial/sources/clt_tutorial.move#L65-L75
 ```
 
-As you can see, the [`token::transfer`](../../../references/framework/iota-framework/token.mdx#function-transfer) function returns an [`ActionRequest`](../../../references/framework/iota-framework/token.mdx#struct-actionrequest). This object can not be dropped, so without passing it to another function that destroys it, the contract wouldn't work.
+As you can see, the [`token::transfer`](../../../references/framework/iota/token.mdx#function-transfer) function returns an [`ActionRequest`](../../../references/framework/iota/token.mdx#struct-actionrequest). This object can not be dropped, so without passing it to another function that destroys it, the contract wouldn't work.
 This means we have to confirm the transfer for which we have [multiple options](./action-request.mdx#approving-actions).
 
 In this case, as the caller of the `gift_voucher` function is the municipality, we can approve the action directly using our treasury capability, as shown in the last line of the `gift_voucher` function.
@@ -88,10 +88,10 @@ Next, add a function to add addresses to the rule configuration:
 ```move file=<rootDir>/docs/examples/move/clt-tutorial/sources/rules.move#L61-L75
 ```
 
-First, we check if the token policy already has a rule configuration. If not, we create a new one with [`token::add_rule_config`](../../../references/framework/iota-framework/token.mdx#function-add_rule_config)
-passing the rule witness, the token policy and its capability, and a new [bag](../../../references/framework/iota-framework/bag.mdx) in which we want to store the addresses.
+First, we check if the token policy already has a rule configuration. If not, we create a new one with [`token::add_rule_config`](../../../references/framework/iota/token.mdx#function-add_rule_config)
+passing the rule witness, the token policy and its capability, and a new [bag](../../../references/framework/iota/bag.mdx) in which we want to store the addresses.
 
-Then we can get the mutable config with our `config_mut` helper function, which is just a wrapper of [`token::rule_config_mut.`](../../../references/framework/iota-framework/token.mdx#function-rule_config_mut).
+Then we can get the mutable config with our `config_mut` helper function, which is just a wrapper of [`token::rule_config_mut.`](../../../references/framework/iota/token.mdx#function-rule_config_mut).
 And as a last step, we add the address to our bag.
 
 :::note Bonus Task
@@ -143,7 +143,7 @@ And now we are back to our `buy_led_bulb` function. We can now verify/stamp the 
 ```
 
 In this tutorial we are returning the action request. We could also approve it right away. 
-So, in this case, we have to call the [`token_policy::confirm_request`](../../../references/framework/iota-framework/token.mdx#function-confirm_request) function in a [PTB](../../iota-101/transactions/ptb/programmable-transaction-blocks-overview.mdx) afterward, which will check the request for the approval stamp and make our TX succeed.
+So, in this case, we have to call the [`token_policy::confirm_request`](../../../references/framework/iota/token.mdx#function-confirm_request) function in a [PTB](../../iota-101/transactions/ptb/programmable-transaction-blocks-overview.mdx) afterward, which will check the request for the approval stamp and make our TX succeed.
 
 Now the shop owns the voucher, and the household just got a new energy-efficient LED bulb.
 
