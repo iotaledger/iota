@@ -485,8 +485,8 @@ impl CheckpointExecutor {
                         summary,
                     );
                 let arc_summary = Arc::new(versioned_summary);
-                if arc_summary.sequence_number() % 100 == 0 {
-                    println!(
+                if arc_summary.sequence_number() % 5000 == 0 {
+                    info!(
                         "[gRPC][Fullnode] Broadcasting checkpoint: seq={}, epoch={}",
                         arc_summary.sequence_number(),
                         checkpoint.epoch()

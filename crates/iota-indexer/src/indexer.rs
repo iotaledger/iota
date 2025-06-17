@@ -7,7 +7,7 @@ use std::{collections::HashMap, env, sync::Arc};
 use anyhow::Result;
 use async_trait::async_trait;
 use iota_data_ingestion_core::{
-    DataIngestionMetrics, IndexerExecutor, ProgressStore, ReaderOptions, Worker, WorkerPool,
+    DataIngestionMetrics, IndexerExecutor, ProgressStore, ReaderOptions, WorkerPool,
 };
 use iota_grpc_api::client::GrpcNodeClient;
 use iota_metrics::spawn_monitored_task;
@@ -15,7 +15,7 @@ use iota_rest_api::CheckpointData;
 use iota_types::messages_checkpoint::CheckpointSequenceNumber;
 use prometheus::Registry;
 use tokio_util::sync::CancellationToken;
-use tracing::info;
+use tracing::{info, warn};
 
 use crate::{
     build_json_rpc_server,
@@ -73,6 +73,28 @@ impl Indexer {
             .expect("Failed to get latest tx checkpoint sequence number from DB")
             .map(|seq| seq + 1)
             .unwrap_or_default();
+
+        // For gRPC mode, if starting from 0, warn about potential pruning issues
+        let primary_watermark = if primary_watermark == 0 && config.grpc_client_url.is_some() {
+            warn!(
+                "Starting from checkpoint 0 with gRPC - if you see 'Historical checkpoint data missing/pruned' errors, consider setting a higher starting checkpoint or using REST mode for historical sync"
+            );
+            primary_watermark
+        } else {
+            primary_watermark
+        };
+        let download_queue_size = env::var("DOWNLOAD_QUEUE_SIZE")
+            .unwrap_or_else(|_| DOWNLOAD_QUEUE_SIZE.to_string())
+            .parse::<usize>()
+            .expect("Invalid DOWNLOAD_QUEUE_SIZE");
+        let ingestion_reader_timeout_secs = env::var("INGESTION_READER_TIMEOUT_SECS")
+            .unwrap_or_else(|_| INGESTION_READER_TIMEOUT_SECS.to_string())
+            .parse::<u64>()
+            .expect("Invalid INGESTION_READER_TIMEOUT_SECS");
+        let data_limit = std::env::var("CHECKPOINT_PROCESSING_BATCH_DATA_LIMIT")
+            .unwrap_or(CHECKPOINT_PROCESSING_BATCH_DATA_LIMIT.to_string())
+            .parse::<usize>()
+            .unwrap();
         let extra_reader_options = ReaderOptions {
             batch_size: config.checkpoint_download_queue_size,
             timeout_secs: config.checkpoint_download_timeout,
@@ -174,22 +196,101 @@ impl Indexer {
                 concurrency,
                 Default::default(),
             );
-            // Spawn the WorkerPool
-            let (pool_status_sender, _pool_status_receiver) = tokio::sync::mpsc::channel(1);
-            let cancel_clone = cancel.clone();
+
+            // Fix: Use unbounded channel to prevent backpressure blocking
+            // The key issue was that gRPC flow had no one reading from
+            // pool_status_receiver, causing WorkerPool to block after
+            // MAX_CHECKPOINTS_IN_PROGRESS (~10000) updates
+            let (pool_status_sender, mut pool_status_receiver) = tokio::sync::mpsc::channel(100);
+
+            // Spawn task to consume progress updates (prevents blocking)
+            let cancel_progress = cancel.clone();
             tokio::spawn(async move {
+                while let Some(_status) = pool_status_receiver.recv().await {
+                    if cancel_progress.is_cancelled() {
+                        break;
+                    }
+                    // Simply consume the status updates to prevent blocking
+                    // Full progress tracking could be implemented here if
+                    // needed
+                }
+                info!("gRPC progress consumer task terminated");
+            });
+
+            // Spawn the WorkerPool
+            let cancel_clone = cancel.clone();
+            let worker_pool_handle = tokio::spawn(async move {
                 worker_pool
                     .run(primary_watermark, rx, pool_status_sender, cancel_clone)
                     .await;
             });
-            // Spawn a task to pull from gRPC and feed into the WorkerPool
-            run_grpc_checkpoint_workerpool_ingestion(
-                grpc_url,
-                tx,
-                primary_watermark,
-                cancel.clone(),
-            )
-            .await?;
+
+            // Spawn a task to pull from gRPC and feed into the WorkerPool with retry logic
+            let grpc_url_owned = grpc_url.clone();
+            let store_clone = store.clone();
+            let grpc_handle = tokio::spawn(async move {
+                loop {
+                    // Get the latest checkpoint from DB before each attempt
+                    let current_watermark = store_clone
+                        .get_latest_checkpoint_sequence_number()
+                        .await
+                        .expect("Failed to get latest checkpoint from DB")
+                        .map(|seq| seq + 1)
+                        .unwrap_or_default();
+
+                    warn!(
+                        "[gRPC][Indexer] Starting/resuming from checkpoint {}",
+                        current_watermark
+                    );
+
+                    match run_grpc_checkpoint_workerpool_ingestion(
+                        grpc_url_owned.clone(),
+                        tx.clone(),
+                        current_watermark,
+                        cancel.clone(),
+                    )
+                    .await
+                    {
+                        Ok(()) => {
+                            warn!("[gRPC][Indexer] Stream completed normally");
+                            break;
+                        }
+                        Err(e) => {
+                            warn!(
+                                "[gRPC][Indexer] Stream failed: {}, retrying in 1 second...",
+                                e
+                            );
+                            tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
+                            if cancel.is_cancelled() {
+                                break;
+                            }
+                        }
+                    }
+                }
+                Ok::<(), IndexerError>(())
+            });
+
+            // Wait for either task to complete (shouldn't happen unless cancelled or error)
+            tokio::select! {
+                result = worker_pool_handle => {
+                    if let Err(e) = result {
+                        return Err(IndexerError::Generic(format!("WorkerPool task failed: {e}")));
+                    }
+                }
+                result = grpc_handle => {
+                    match result {
+                        Ok(Ok(())) => {
+                            return Err(IndexerError::Generic("gRPC ingestion completed unexpectedly".to_string()));
+                        }
+                        Ok(Err(e)) => {
+                            return Err(IndexerError::Generic(format!("gRPC ingestion failed: {e}")));
+                        }
+                        Err(e) => {
+                            return Err(IndexerError::Generic(format!("gRPC task panicked: {e}")));
+                        }
+                    }
+                }
+            }
         } else {
             info!(
                 "Using REST checkpoint ingestion from {}",
@@ -303,16 +404,16 @@ impl ProgressStore for ShimIndexerProgressStore {
 /// Pulls checkpoints from the gRPC stream and sends them to the WorkerPool
 /// channel.
 pub async fn run_grpc_checkpoint_workerpool_ingestion(
-    grpc_url: &str,
+    grpc_url: String,
     tx: tokio::sync::mpsc::Sender<Arc<CheckpointData>>,
     start_watermark: u64,
     cancel: CancellationToken,
 ) -> Result<(), IndexerError> {
     use tokio_stream::StreamExt;
-    let mut client = GrpcNodeClient::connect(grpc_url)
+    let mut client = GrpcNodeClient::connect(&grpc_url)
         .await
         .map_err(|e| IndexerError::Generic(format!("Failed to connect to gRPC: {e}")))?;
-    println!(
+    warn!(
         "[gRPC][Indexer] starting stream from watermark {} (WorkerPool mode)",
         start_watermark
     );
@@ -320,22 +421,39 @@ pub async fn run_grpc_checkpoint_workerpool_ingestion(
         .stream_checkpoints(Some(start_watermark), None, Some(true))
         .await
         .map_err(|e| IndexerError::Generic(format!("Failed to stream checkpoints: {e}")))?;
-    while let Some(Ok(cp)) = stream.next().await {
+    while let Some(result) = stream.next().await {
         if cancel.is_cancelled() {
+            warn!("[gRPC][Indexer] Cancelled, stopping stream");
             break;
         }
+
+        let cp = match result {
+            Ok(cp) => cp,
+            Err(e) => {
+                warn!("[gRPC][Indexer] Stream error: {e}");
+                return Err(IndexerError::Generic(format!("gRPC stream error: {e}")));
+            }
+        };
+
         let checkpoint_data: CheckpointData = match GrpcNodeClient::deserialize_checkpoint_data(&cp)
         {
             Ok(data) => data,
             Err(e) => {
-                println!("[gRPC][Indexer] BCS decode error: {e}");
+                warn!("[gRPC][Indexer] BCS decode error: {e}");
                 continue;
             }
         };
         if let Err(_e) = tx.send(Arc::new(checkpoint_data)).await {
-            println!("[gRPC][Indexer] WorkerPool channel closed");
+            warn!("[gRPC][Indexer] WorkerPool channel closed");
             break;
         }
+    }
+
+    warn!("[gRPC][Indexer] Stream ended - this should only happen on cancellation or error");
+    if !cancel.is_cancelled() {
+        return Err(IndexerError::Generic(
+            "gRPC stream ended unexpectedly".to_string(),
+        ));
     }
     Ok(())
 }
