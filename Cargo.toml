@@ -428,7 +428,7 @@ iota-rosetta = { path = "crates/iota-rosetta" }
 iota-rpc-loadgen = { path = "crates/iota-rpc-loadgen" }
 iota-sdk = { path = "crates/iota-sdk" }
 # core-types with json format for REST API
-iota-sdk2 = { package = "iota-rust-sdk", git = "https://github.com/iotaledger/iota-rust-sdk.git", rev = "906ed1e2fe6379afebac5dd654196b2be64247ad", features = ["hash", "serde", "schemars"] }
+iota-sdk2 = { package = "iota-rust-sdk", git = "https://github.com/iotaledger/iota-rust-sdk.git", rev = "7bf9e749746559d582c84abf0bfdc8f311df2601", features = ["hash", "serde", "schemars"] }
 iota-simulator = { path = "crates/iota-simulator" }
 iota-snapshot = { path = "crates/iota-snapshot" }
 iota-source-validation = { path = "crates/iota-source-validation" }
