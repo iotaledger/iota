@@ -344,23 +344,9 @@ impl NameCommand {
                     let coupon_house = get_coupon_house(&iota_client).await?;
 
                     for coupon in coupons.iter() {
-                        let coupon = coupon_house.get_coupon(coupon, &iota_client).await.unwrap();
-                        match coupon.kind {
-                            0 => {
-                                let discount_amount =
-                                    ((price as u128) * (coupon.amount as u128) / 100) as u64;
-                                price -= discount_amount;
-                            }
-                            1 => {
-                                price = if price >= coupon.amount {
-                                    price - coupon.amount
-                                } else {
-                                    0
-                                };
-                            }
-                            _ => bail!("undefined coupon kind"),
-                        }
-                        println!("{coupon:?}");
+                        price = coupon_house
+                            .apply_coupon(coupon, price, &iota_client)
+                            .await?;
                     }
                 }
 
@@ -2300,7 +2286,7 @@ struct CouponHouse {
 }
 
 impl CouponHouse {
-    async fn get_coupon(&self, name: &str, client: &IotaClient) -> anyhow::Result<Coupon> {
+    async fn get_coupon(&self, name: &str, iota_client: &IotaClient) -> anyhow::Result<Coupon> {
         let mut hasher = blake2::Blake2b::<blake2::digest::consts::U32>::new();
         hasher.update(name);
         let hash = hasher.finalize().to_vec();
@@ -2312,9 +2298,33 @@ impl CouponHouse {
             &coupon_bytes,
         )?;
 
-        let entry = get_object_from_bcs::<Field<Vec<u8>, Coupon>>(client, object_id).await?;
+        let entry = get_object_from_bcs::<Field<Vec<u8>, Coupon>>(iota_client, object_id).await?;
 
         Ok(entry.value)
+    }
+
+    async fn apply_coupon(
+        &self,
+        coupon: &str,
+        price: u64,
+        iota_client: &IotaClient,
+    ) -> anyhow::Result<u64> {
+        let coupon = self.get_coupon(coupon, &iota_client).await?;
+
+        Ok(match coupon.kind {
+            0 => {
+                let discount_amount = ((price as u128) * (coupon.amount as u128) / 100) as u64;
+                price - discount_amount
+            }
+            1 => {
+                if price >= coupon.amount {
+                    price - coupon.amount
+                } else {
+                    0
+                }
+            }
+            _ => bail!("undefined coupon kind"),
+        })
     }
 }
 
