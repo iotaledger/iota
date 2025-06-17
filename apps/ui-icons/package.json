@@ -27,5 +27,8 @@
         "rimraf": "^5.0.1",
         "tsup": "^8.3.5",
         "typescript": "^5.5.3"
+    },
+    "peerDependencies": {
+        "react": "^18 || ^19"
     }
 }

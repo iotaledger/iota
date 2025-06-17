@@ -1718,7 +1718,7 @@ fn try_get_object_before_version() {
 #[tokio::test]
 async fn failed_stored_tx_into_transaction_block() {
     let db_url = get_indexer_db_url(Some("test_failed_stored_tx_into_transaction_block"));
-    let mut test_db = TestDatabase::new(db_url.into());
+    let mut test_db = TestDatabase::new(db_url);
     test_db.recreate();
     test_db.reset_db();
     let pool = test_db.to_connection_pool();
