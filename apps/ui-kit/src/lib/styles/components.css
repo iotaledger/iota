@@ -171,6 +171,11 @@
         @apply group-[.disabled]:cursor-not-allowed;
     }
 
+    /* DIVIDER */
+    .divider-bg-color {
+        background-color: var(--divider-bg-color);
+    }
+
     /* BUTTON SEGMENT */
     .button-segment-text-color-default {
         color: var(--button-segment-text-color-default);
@@ -511,20 +516,20 @@
     }
 
     /* NAVBAR ITEM */
-    .navbar-icon-color {
-        color: var(--navbar-icon-color);
+    .navbar-item-icon-color {
+        color: var(--navbar-item-icon-color);
     }
 
-    .navbar-icon-selected-color {
-        color: var(--navbar-icon-selected-color);
+    .navbar-item-icon-selected-color {
+        color: var(--navbar-item-icon-selected-color);
     }
 
-    .navbar-label-color {
-        color: var(--navbar-label-color);
+    .navbar-item-label-color {
+        color: var(--navbar-item-label-color);
     }
 
-    .navbar-label-selected-color {
-        color: var(--navbar-label-selected-color);
+    .navbar-item-label-selected-color {
+        color: var(--navbar-item-label-selected-color);
     }
 
     /* SEARCH */
