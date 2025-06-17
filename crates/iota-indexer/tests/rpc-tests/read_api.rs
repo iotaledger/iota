@@ -8,12 +8,14 @@ use iota_indexer::{
     models::transactions::StoredTransaction, store::package_resolver::IndexerStorePackageResolver,
     test_utils::TestDatabase,
 };
-use iota_json_rpc_api::{IndexerApiClient, ReadApiClient, TransactionBuilderClient};
+use iota_json_rpc_api::{
+    ExtendedApiClient, IndexerApiClient, ReadApiClient, TransactionBuilderClient,
+};
 use iota_json_rpc_types::{
     CheckpointId, IotaGetPastObjectRequest, IotaObjectDataOptions, IotaObjectRef,
     IotaObjectResponse, IotaObjectResponseQuery, IotaPastObjectResponse,
     IotaTransactionBlockEffectsAPI, IotaTransactionBlockResponse,
-    IotaTransactionBlockResponseOptions, IotaTransactionBlockResponseQuery, TransactionFilter,
+    IotaTransactionBlockResponseOptions, IotaTransactionBlockResponseQueryV2, TransactionFilterV2,
 };
 use iota_package_resolver::Resolver;
 use iota_protocol_config::ProtocolVersion;
@@ -1943,9 +1945,9 @@ fn find_transaction_for_wrapped_or_deleted_object() -> Result<(), anyhow::Error>
         );
 
         let query_res = client
-            .query_transaction_blocks(
-                IotaTransactionBlockResponseQuery {
-                    filter: Some(TransactionFilter::WrappedOrDeletedObject(
+            .query_transaction_blocks_v2(
+                IotaTransactionBlockResponseQueryV2 {
+                    filter: Some(TransactionFilterV2::WrappedOrDeletedObject(
                         wrapped_objects[0],
                     )),
                     options: Some(IotaTransactionBlockResponseOptions::full_content()),
@@ -2033,9 +2035,9 @@ fn find_transaction_for_wrapped_or_deleted_object() -> Result<(), anyhow::Error>
         );
 
         let query_res = client
-            .query_transaction_blocks(
-                IotaTransactionBlockResponseQuery {
-                    filter: Some(TransactionFilter::WrappedOrDeletedObject(
+            .query_transaction_blocks_v2(
+                IotaTransactionBlockResponseQueryV2 {
+                    filter: Some(TransactionFilterV2::WrappedOrDeletedObject(
                         unwrapped_then_deleted_objects[0],
                     )),
                     options: Some(IotaTransactionBlockResponseOptions::full_content()),
@@ -2120,9 +2122,9 @@ fn find_transaction_for_wrapped_or_deleted_object() -> Result<(), anyhow::Error>
         );
 
         let query_res = client
-            .query_transaction_blocks(
-                IotaTransactionBlockResponseQuery {
-                    filter: Some(TransactionFilter::WrappedOrDeletedObject(
+            .query_transaction_blocks_v2(
+                IotaTransactionBlockResponseQueryV2 {
+                    filter: Some(TransactionFilterV2::WrappedOrDeletedObject(
                         deleted_objects[0],
                     )),
                     options: Some(IotaTransactionBlockResponseOptions::full_content()),
@@ -2293,9 +2295,9 @@ fn find_transaction_for_create_and_wrap_same_ptb() -> Result<(), anyhow::Error> 
         );
 
         let query_res = client
-            .query_transaction_blocks(
-                IotaTransactionBlockResponseQuery {
-                    filter: Some(TransactionFilter::WrappedOrDeletedObject(
+            .query_transaction_blocks_v2(
+                IotaTransactionBlockResponseQueryV2 {
+                    filter: Some(TransactionFilterV2::WrappedOrDeletedObject(
                         sword_object_ref[0].object_id,
                     )),
                     options: Some(IotaTransactionBlockResponseOptions::full_content()),

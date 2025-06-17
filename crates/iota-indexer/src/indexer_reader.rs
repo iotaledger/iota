@@ -23,7 +23,7 @@ use iota_json_rpc_types::{
     EventFilter, IotaCoinMetadata, IotaEvent, IotaMoveValue, IotaObjectDataFilter,
     IotaTransactionBlockEffects, IotaTransactionBlockEffectsAPI, IotaTransactionBlockResponse,
     IotaTransactionKind, MoveCallMetrics, MoveFunctionName, NetworkMetrics, ParticipationMetrics,
-    TransactionFilter,
+    TransactionFilter, TransactionFilterV2,
 };
 use iota_package_resolver::{Package, PackageStore, PackageStoreWithLruCache, Resolver};
 use iota_types::{
@@ -955,13 +955,37 @@ impl IndexerReader {
         limit: usize,
         is_descending: bool,
     ) -> IndexerResult<Vec<IotaTransactionBlockResponse>> {
-        self.query_transaction_blocks_impl(filter, options, cursor, limit, is_descending)
-            .await
+        self.query_transaction_blocks_impl(
+            filter.map(TransactionFilterKind::V1),
+            options,
+            cursor,
+            limit,
+            is_descending,
+        )
+        .await
+    }
+
+    pub async fn query_transaction_blocks_in_blocking_task_v2(
+        &self,
+        filter: Option<TransactionFilterV2>,
+        options: iota_json_rpc_types::IotaTransactionBlockResponseOptions,
+        cursor: Option<TransactionDigest>,
+        limit: usize,
+        is_descending: bool,
+    ) -> IndexerResult<Vec<IotaTransactionBlockResponse>> {
+        self.query_transaction_blocks_impl(
+            filter.map(TransactionFilterKind::V2),
+            options,
+            cursor,
+            limit,
+            is_descending,
+        )
+        .await
     }
 
     async fn query_transaction_blocks_impl(
         &self,
-        filter: Option<TransactionFilter>,
+        filter: Option<TransactionFilterKind>,
         options: iota_json_rpc_types::IotaTransactionBlockResponseOptions,
         cursor: Option<TransactionDigest>,
         limit: usize,
@@ -993,7 +1017,8 @@ impl IndexerReader {
         let order_str = if is_descending { "DESC" } else { "ASC" };
         let (table_name, main_where_clause) = match filter {
             // Processed above
-            Some(TransactionFilter::Checkpoint(seq)) => {
+            Some(TransactionFilterKind::V1(TransactionFilter::Checkpoint(seq)))
+            | Some(TransactionFilterKind::V2(TransactionFilterV2::Checkpoint(seq))) => {
                 return self
                     .query_transaction_blocks_by_checkpoint_impl(
                         seq,
@@ -1005,11 +1030,16 @@ impl IndexerReader {
                     .await;
             }
             // FIXME: sanitize module & function
-            Some(TransactionFilter::MoveFunction {
+            Some(TransactionFilterKind::V1(TransactionFilter::MoveFunction {
                 package,
                 module,
                 function,
-            }) => {
+            }))
+            | Some(TransactionFilterKind::V2(TransactionFilterV2::MoveFunction {
+                package,
+                module,
+                function,
+            })) => {
                 let package = Hex::encode(package.to_vec());
                 match (module, function) {
                     (Some(module), Some(function)) => (
@@ -1037,42 +1067,50 @@ impl IndexerReader {
                     ),
                 }
             }
-            Some(TransactionFilter::InputObject(object_id)) => {
+            Some(TransactionFilterKind::V1(TransactionFilter::InputObject(object_id)))
+            | Some(TransactionFilterKind::V2(TransactionFilterV2::InputObject(object_id))) => {
                 let object_id = Hex::encode(object_id.to_vec());
                 (
                     "tx_input_objects".into(),
                     format!("object_id = '\\x{}'::bytea", object_id),
                 )
             }
-            Some(TransactionFilter::ChangedObject(object_id)) => {
+            Some(TransactionFilterKind::V1(TransactionFilter::ChangedObject(object_id)))
+            | Some(TransactionFilterKind::V2(TransactionFilterV2::ChangedObject(object_id))) => {
                 let object_id = Hex::encode(object_id.to_vec());
                 (
                     "tx_changed_objects".into(),
                     format!("object_id = '\\x{}'::bytea", object_id),
                 )
             }
-            Some(TransactionFilter::WrappedOrDeletedObject(object_id)) => {
+            Some(TransactionFilterKind::V2(TransactionFilterV2::WrappedOrDeletedObject(
+                object_id,
+            ))) => {
                 let object_id = Hex::encode(object_id.to_vec());
                 (
                     "tx_wrapped_or_deleted_objects".into(),
                     format!("object_id = '\\x{}'::bytea", object_id),
                 )
             }
-            Some(TransactionFilter::FromAddress(from_address)) => {
+            Some(TransactionFilterKind::V1(TransactionFilter::FromAddress(from_address)))
+            | Some(TransactionFilterKind::V2(TransactionFilterV2::FromAddress(from_address))) => {
                 let from_address = Hex::encode(from_address.to_vec());
                 (
                     "tx_senders".into(),
                     format!("sender = '\\x{}'::bytea", from_address),
                 )
             }
-            Some(TransactionFilter::ToAddress(to_address)) => {
+            Some(TransactionFilterKind::V1(TransactionFilter::ToAddress(to_address)))
+            | Some(TransactionFilterKind::V2(TransactionFilterV2::ToAddress(to_address))) => {
                 let to_address = Hex::encode(to_address.to_vec());
                 (
                     "tx_recipients".into(),
                     format!("recipient = '\\x{}'::bytea", to_address),
                 )
             }
-            Some(TransactionFilter::FromAndToAddress { from, to }) => {
+            Some(TransactionFilterKind::V1(TransactionFilter::FromAndToAddress { from, to }))
+            | Some(TransactionFilterKind::V2(TransactionFilterV2::FromAndToAddress { from, to })) =>
+            {
                 let from_address = Hex::encode(from.to_vec());
                 let to_address = Hex::encode(to.to_vec());
                 // Need to remove ambiguities for tx_sequence_number column
@@ -1110,7 +1148,8 @@ impl IndexerReader {
                 );
                 (inner_query, "1 = 1".into())
             }
-            Some(TransactionFilter::FromOrToAddress { addr }) => {
+            Some(TransactionFilterKind::V1(TransactionFilter::FromOrToAddress { addr }))
+            | Some(TransactionFilterKind::V2(TransactionFilterV2::FromOrToAddress { addr })) => {
                 let address = Hex::encode(addr.to_vec());
                 let inner_query = format!(
                     "( \
@@ -1139,7 +1178,8 @@ impl IndexerReader {
                 );
                 (inner_query, "1 = 1".into())
             }
-            Some(TransactionFilter::TransactionKind(kind)) => {
+            Some(TransactionFilterKind::V1(TransactionFilter::TransactionKind(kind)))
+            | Some(TransactionFilterKind::V2(TransactionFilterV2::TransactionKind(kind))) => {
                 // The `SystemTransaction` variant can be used to filter for all types of system
                 // transactions.
                 if kind == IotaTransactionKind::SystemTransaction {
@@ -1148,7 +1188,8 @@ impl IndexerReader {
                     ("tx_kinds".into(), format!("tx_kind = {}", kind as u8))
                 }
             }
-            Some(TransactionFilter::TransactionKindIn(kind_vec)) => {
+            Some(TransactionFilterKind::V1(TransactionFilter::TransactionKindIn(kind_vec)))
+            | Some(TransactionFilterKind::V2(TransactionFilterV2::TransactionKindIn(kind_vec))) => {
                 if kind_vec.is_empty() {
                     return Err(IndexerError::InvalidArgument(
                         "no transaction kind provided".into(),
@@ -2174,4 +2215,9 @@ fn get_single_obj_id_from_package_publish(
         // The coin package does not exist.
         Ok(None)
     }
+}
+
+enum TransactionFilterKind {
+    V1(TransactionFilter),
+    V2(TransactionFilterV2),
 }

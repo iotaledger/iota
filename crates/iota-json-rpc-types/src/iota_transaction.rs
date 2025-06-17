@@ -94,6 +94,36 @@ impl IotaTransactionBlockResponseQuery {
     }
 }
 
+#[derive(Debug, Clone, Deserialize, Serialize, JsonSchema, Default)]
+#[serde(
+    rename_all = "camelCase",
+    rename = "TransactionBlockResponseQuery",
+    default
+)]
+pub struct IotaTransactionBlockResponseQueryV2 {
+    /// If None, no filter will be applied
+    pub filter: Option<TransactionFilterV2>,
+    /// config which fields to include in the response, by default only digest
+    /// is included
+    pub options: Option<IotaTransactionBlockResponseOptions>,
+}
+
+impl IotaTransactionBlockResponseQueryV2 {
+    pub fn new(
+        filter: Option<TransactionFilterV2>,
+        options: Option<IotaTransactionBlockResponseOptions>,
+    ) -> Self {
+        Self { filter, options }
+    }
+
+    pub fn new_with_filter(filter: TransactionFilterV2) -> Self {
+        Self {
+            filter: Some(filter),
+            options: None,
+        }
+    }
+}
+
 pub type TransactionBlocksPage = Page<IotaTransactionBlockResponse, TransactionDigest>;
 
 #[derive(Debug, Clone, Deserialize, Serialize, JsonSchema, Eq, PartialEq, Default)]
@@ -2366,10 +2396,6 @@ pub enum TransactionFilter {
     /// Query by changed object, including created, mutated and unwrapped
     /// objects.
     ChangedObject(ObjectID),
-    /// Query transactions that wrapped or deleted the specified object.
-    /// Includes transactions that either created and immediately wrapped
-    /// the object or unwrapped and immediately deleted it.
-    WrappedOrDeletedObject(ObjectID),
     /// Query by sender address.
     FromAddress(IotaAddress),
     /// Query by recipient address.
@@ -2399,13 +2425,6 @@ impl Filter<EffectsWithInput> for TransactionFilter {
                 .mutated()
                 .iter()
                 .any(|oref: &OwnedObjectRef| &oref.reference.object_id == o),
-            TransactionFilter::WrappedOrDeletedObject(o) => item
-                .effects
-                .wrapped()
-                .iter()
-                .chain(item.effects.deleted())
-                .chain(item.effects.unwrapped_then_deleted())
-                .any(|oref: &IotaObjectRef| &oref.object_id == o),
             TransactionFilter::FromAddress(a) => &item.input.sender() == a,
             TransactionFilter::ToAddress(a) => {
                 let mutated: &[OwnedObjectRef] = item.effects.mutated();
@@ -2436,6 +2455,100 @@ impl Filter<EffectsWithInput> for TransactionFilter {
                 .any(|kind| kind == &IotaTransactionKind::from(item.input.kind())),
             // this filter is not supported, RPC will reject it on subscription
             TransactionFilter::Checkpoint(_) => false,
+        }
+    }
+}
+
+#[serde_as]
+#[derive(Clone, Debug, JsonSchema, Serialize, Deserialize)]
+pub enum TransactionFilterV2 {
+    /// Query by checkpoint.
+    Checkpoint(
+        #[schemars(with = "BigInt<u64>")]
+        #[serde_as(as = "Readable<BigInt<u64>, _>")]
+        CheckpointSequenceNumber,
+    ),
+    /// Query by move function.
+    MoveFunction {
+        package: ObjectID,
+        module: Option<String>,
+        function: Option<String>,
+    },
+    /// Query by input object.
+    InputObject(ObjectID),
+    /// Query by changed object, including created, mutated and unwrapped
+    /// objects.
+    ChangedObject(ObjectID),
+    /// Query transactions that wrapped or deleted the specified object.
+    /// Includes transactions that either created and immediately wrapped
+    /// the object or unwrapped and immediately deleted it.
+    WrappedOrDeletedObject(ObjectID),
+    /// Query by sender address.
+    FromAddress(IotaAddress),
+    /// Query by recipient address.
+    ToAddress(IotaAddress),
+    /// Query by sender and recipient address.
+    FromAndToAddress { from: IotaAddress, to: IotaAddress },
+    /// Query txs that have a given address as sender or recipient.
+    FromOrToAddress { addr: IotaAddress },
+    /// Query by transaction kind
+    TransactionKind(IotaTransactionKind),
+    /// Query transactions of any given kind in the input.
+    TransactionKindIn(Vec<IotaTransactionKind>),
+}
+
+impl Filter<EffectsWithInput> for TransactionFilterV2 {
+    fn matches(&self, item: &EffectsWithInput) -> bool {
+        let _scope = monitored_scope("TransactionFilter::matches");
+        match self {
+            TransactionFilterV2::InputObject(o) => {
+                let Ok(input_objects) = item.input.input_objects() else {
+                    return false;
+                };
+                input_objects.iter().any(|object| object.object_id() == *o)
+            }
+            TransactionFilterV2::ChangedObject(o) => item
+                .effects
+                .mutated()
+                .iter()
+                .any(|oref: &OwnedObjectRef| &oref.reference.object_id == o),
+            TransactionFilterV2::WrappedOrDeletedObject(o) => item
+                .effects
+                .wrapped()
+                .iter()
+                .chain(item.effects.deleted())
+                .chain(item.effects.unwrapped_then_deleted())
+                .any(|oref: &IotaObjectRef| &oref.object_id == o),
+            TransactionFilterV2::FromAddress(a) => &item.input.sender() == a,
+            TransactionFilterV2::ToAddress(a) => {
+                let mutated: &[OwnedObjectRef] = item.effects.mutated();
+                mutated.iter().chain(item.effects.unwrapped().iter()).any(|oref: &OwnedObjectRef| {
+                    matches!(oref.owner, Owner::AddressOwner(owner) if owner == *a)
+                })
+            }
+            TransactionFilterV2::FromAndToAddress { from, to } => {
+                Self::FromAddress(*from).matches(item) && Self::ToAddress(*to).matches(item)
+            }
+            TransactionFilterV2::FromOrToAddress { addr } => {
+                Self::FromAddress(*addr).matches(item) || Self::ToAddress(*addr).matches(item)
+            }
+            TransactionFilterV2::MoveFunction {
+                package,
+                module,
+                function,
+            } => item.input.move_calls().into_iter().any(|(p, m, f)| {
+                p == package
+                    && (module.is_none() || matches!(module,  Some(m2) if m2 == &m.to_string()))
+                    && (function.is_none() || matches!(function, Some(f2) if f2 == &f.to_string()))
+            }),
+            TransactionFilterV2::TransactionKind(kind) => {
+                kind == &IotaTransactionKind::from(item.input.kind())
+            }
+            TransactionFilterV2::TransactionKindIn(kinds) => kinds
+                .iter()
+                .any(|kind| kind == &IotaTransactionKind::from(item.input.kind())),
+            // this filter is not supported, RPC will reject it on subscription
+            TransactionFilterV2::Checkpoint(_) => false,
         }
     }
 }
