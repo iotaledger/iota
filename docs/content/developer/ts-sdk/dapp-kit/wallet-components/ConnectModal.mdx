@@ -1,0 +1,66 @@
+---
+tags: [ts-sdk]
+teams:
+   - iotaledger/tooling
+---
+# ConnectModal
+
+The `ConnectModal` component opens a modal that guides the user through connecting their wallet to
+the dApp.
+
+## Controlled example
+
+```tsx live
+function ControlledConnectModalExample() {
+  const currentAccount = useCurrentAccount();
+  const [open, setOpen] = useState(false);
+
+  return (
+    <ConnectModal
+      trigger={
+        <button disabled={!!currentAccount}>
+          {' '}
+          {currentAccount ? 'Connected' : 'Connect'}
+        </button>
+      }
+      open={open}
+      onOpenChange={(isOpen) => setOpen(isOpen)}
+    />
+  );
+}
+```
+
+Click **Connect** to connect your wallet and see the previous code in action
+
+## Uncontrolled example
+
+```tsx live
+function UncontrolledConnectModalExample() {
+  const currentAccount = useCurrentAccount();
+
+  return (
+    <ConnectModal
+      trigger={
+        <button disabled={!!currentAccount}>
+          {' '}
+          {currentAccount ? 'Connected' : 'Connect'}
+        </button>
+      }
+    />
+  );
+}
+```
+
+Click **Connect** to connect your wallet and see the previous code in action
+
+## Controlled props
+
+-   `open` - The controlled open state of the dialog.
+-   `onOpenChange` - Event handler called when the open state of the dialog changes.
+-   `trigger` - The trigger button that opens the dialog.
+
+## Uncontrolled props
+
+-   `defaultOpen` - The open state of the dialog when it is initially rendered. Use when you do not
+    need to control its open state.
+-   `trigger` - The trigger button that opens the dialog.

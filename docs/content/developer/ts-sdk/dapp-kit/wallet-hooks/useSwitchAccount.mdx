@@ -1,0 +1,48 @@
+---
+tags: [ts-sdk]
+teams:
+   - iotaledger/tooling
+---
+# useSwitchAccount
+
+The `useSwitchAccount` hook is a mutation hook for establishing a connection to a specific wallet.
+
+```ts live
+function UseSwitchAccountExample() {
+    const { mutate: switchAccount } = useSwitchAccount();
+    const accounts = useAccounts();
+
+    return (
+        <div style={{ padding: 20 }}>
+            <ul>
+                {accounts.map((account) => (
+                    <li key={account.address}>
+                        <button
+                            onClick={() => {
+                                switchAccount(
+                                    { account },
+                                    {
+                                        onSuccess: () =>
+                                            console.log(`switched to ${account.address}`),
+                                    },
+                                );
+                            }}
+                        >
+                            Switch to {account.address}
+                        </button>
+                    </li>
+                ))}
+            </ul>
+        </div>
+    );
+}
+```
+
+## Arguments
+
+-   `args` - Arguments passed to the `connect` function of the wallet.
+
+    -   `account` - The account to switch to.
+
+-   `options` - Options passed the `useMutation` hook from
+    [@tanstack/react-query](https://tanstack.com/query/latest/docs/react/guides/mutations).

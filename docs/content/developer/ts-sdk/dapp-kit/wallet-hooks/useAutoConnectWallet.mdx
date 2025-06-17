@@ -1,0 +1,28 @@
+---
+tags: [ts-sdk]
+teams:
+   - iotaledger/tooling
+---
+# useAutoConnectWallet
+
+The `useAutoConnectWallet` hook retrieves the status for the initial wallet auto-connection process.
+
+```ts live
+function UseAutoConnectionStatusExample() {
+    const autoConnectionStatus = useAutoConnectWallet();
+
+    return (
+        <div style={{ padding: 20 }}>
+            <div>Auto-connection status: {autoConnectionStatus}</div>
+        </div>
+    );
+}
+```
+
+## Auto-connection status properties
+
+-   `disabled` - When the auto-connection functionality is disabled.
+-   `idle` - When the initial auto-connection attempt hasn't been made yet.
+-   `attempted` - When an auto-connection attempt has been made. This means either that there is no
+    previously connected wallet, the previously connected wallet was not found, or that it has
+    successfully connected to a wallet.
