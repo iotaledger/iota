@@ -173,8 +173,8 @@ export async function fetchKioskExtension(
             },
         },
         options: {
-            showContent: true
-        }
+            showContent: true,
+        },
     });
 
     if (!extension.data) return null;
