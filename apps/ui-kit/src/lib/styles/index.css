@@ -293,7 +293,7 @@
     /* BUTTON */
     --button-bg-color-primary: theme('colors.iota-primary.30');
     --button-bg-color-secondary: theme('colors.iota-neutral.20');
-    --button-bg-color-error: theme('colors.iota-error.20');
+    --button-bg-color-error: theme('colors.iota-error.10');
     --button-border-color-outline: theme('colors.iota-neutral.60');
     --button-text-color-primary: theme('colors.iota-primary.100');
     --button-text-color-neutral: theme('colors.iota-neutral.92');
@@ -541,9 +541,9 @@
     --button-bg-color-primary: theme('colors.names-primary.30');
     --button-bg-color-secondary: theme('colors.names-neutral.20');
     --button-bg-color-error: theme('colors.names-error.20');
-    --button-border-color-outline: theme('colors.names-neutral.50');
+    --button-border-color-outline: theme('colors.names-neutral.60');
     --button-text-color-primary: theme('colors.names-primary.100');
-    --button-text-color-neutral: theme('colors.names-primary.90');
+    --button-text-color-neutral: theme('colors.names-neutral.92');
     --button-text-color-error: theme('colors.names-error.90');
 
     /* HEADER */
@@ -552,7 +552,7 @@
 
     /* LABEL */
     --label-text-primary-neutral: theme('colors.names-neutral.92');
-    --label-text-secondary-neutral: theme('colors.names-neutral.40');
+    --label-text-secondary-neutral: theme('colors.names-neutral.50');
 
     /* KEY VALUE */
     --key-supporting-text-color: theme('colors.iota-neutral.50');
@@ -563,12 +563,12 @@
     --checkbox-border-color-default: theme('colors.names-neutral.20');
     --checkbox-border-color-checked: theme('colors.names-primary.30');
     --checkbox-border-color-disabled: theme('colors.names-neutral.30');
-    --checkbox-border-color-disabled-checked: theme('colors.names-neutral.40');
+    --checkbox-border-color-disabled-checked: theme('colors.names-neutral.50');
     --checkbox-bg-color-checked: theme('colors.names-primary.30');
-    --checkbox-bg-color-disabled-checked: theme('colors.names-neutral.40');
-    --checkbox-text-color: theme('colors.names-neutral.60');
+    --checkbox-bg-color-disabled-checked: theme('colors.names-neutral.50');
+    --checkbox-text-color: theme('colors.names-neutral.70');
     --checkbox-text-color-checked: theme('colors.white');
-    --checkbox-label-text-color: theme('colors.names-neutral.60');
+    --checkbox-label-text-color: theme('colors.names-neutral.70');
 
     /* DIVIDER */
     --divider-bg-color: theme('colors.shader-neutral-dark.8');
@@ -725,19 +725,19 @@
     /* ---------------- ORGANISMS ---------------- */
 
     /* ACCORDION */
-    --accordion-bg: theme('colors.iota-neutral.6');
-    --accordion-icon-color: theme('colors.iota-neutral.92');
+    --accordion-bg: theme('colors.names-neutral.6');
+    --accordion-icon-color: theme('colors.names-neutral.92');
     --accordion-border-color: theme('colors.shader-neutral-dark.8');
 
     /* DIALOG */
-    --dialog-content-bg: theme('colors.iota-neutral.6');
-    --dialog-title-color: theme('colors.iota-neutral.92');
-    --dialog-body-color: theme('colors.iota-neutral.60');
+    --dialog-content-bg: theme('colors.names-neutral.6');
+    --dialog-title-color: theme('colors.names-neutral.92');
+    --dialog-body-color: theme('colors.names-neutral.70');
 
     /* NAVBAR */
-    --navbar-icon-color: theme('colors.iota-neutral.92');
-    --navbar-slideout-bg: theme('colors.iota-neutral.6');
+    --navbar-icon-color: theme('colors.names-neutral.92');
+    --navbar-slideout-bg: theme('colors.names-neutral.6');
 
     /* TABLE */
-    --table-text-color: theme('colors.iota-neutral.60');
+    --table-text-color: theme('colors.names-neutral.70');
 }
