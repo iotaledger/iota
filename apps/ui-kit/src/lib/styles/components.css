@@ -553,6 +553,10 @@
         background-color: var(--search-suggestion-bg-color);
     }
 
+    .search-selected-index-bg-color {
+        background-color: var(--search-selected-index-bg-color);
+    }
+
     /* SEGMENTED BUTTON */
     .segmented-filled-bg-color {
         background-color: var(--segmented-filled-bg-color);
@@ -590,6 +594,10 @@
     /* TABLE CELL */
     .table-cell-supporting-label-color {
         color: var(--table-cell-supporting-label-color);
+    }
+
+    .table-cell-border-color {
+        border-color: var(--table-cell-border-color);
     }
 
     /* TABLE HEADER CELL */
