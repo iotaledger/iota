@@ -155,7 +155,7 @@ export class IotaClientGraphQLTransport implements IotaTransport {
         // No method and no fallback allowed
         if (!method && !allowFallback) {
             throw new UnsupportedMethodError(input.method);
-         }
+        }
 
         try {
             // Method doesnt have a graphql implementation
@@ -183,9 +183,9 @@ export class IotaClientGraphQLTransport implements IotaTransport {
     }
 
     async #tryUseFallback<T = unknown>(input: IotaTransportRequestOptions): Promise<T> {
-         if (!this.#fallbackTransport) {
-             throw new UnsupportedMethodError(input.method);
-         }
+        if (!this.#fallbackTransport) {
+            throw new UnsupportedMethodError(input.method);
+        }
 
         return this.#fallbackTransport.request(input);
     }
