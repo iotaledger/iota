@@ -147,19 +147,25 @@ export class IotaClientGraphQLTransport implements IotaTransport {
 
         const method = RPC_METHODS[clientMethod];
 
-        // No method and no fallback allowed, or if not supported
-        if ((!method && !allowFallback) || isUnsupported) {
-            return this.#unsupportedMethod(input);
+        if (isUnsupported) {
+            // If Unsupported we force to try fallback
+            return this.#tryUseFallback(input);
         }
 
+        // No method and no fallback allowed
+        if (!method && !allowFallback) {
+            throw new UnsupportedMethodError(input.method);
+         }
+
         try {
+            // Method doesnt have a graphql implementation
             if (!method) throw new Error('Missing method');
 
             return method(this, input.params as never) as Promise<T>;
         } catch (error) {
             // Method has an allowed fallback or is partially unsupported
             if (allowFallback || error instanceof UnsupportedParamError) {
-                return this.#unsupportedMethod(input);
+                return this.#tryUseFallback(input);
             } else {
                 throw error;
             }
@@ -176,10 +182,10 @@ export class IotaClientGraphQLTransport implements IotaTransport {
         return this.#fallbackTransport.subscribe(input);
     }
 
-    async #unsupportedMethod<T = unknown>(input: IotaTransportRequestOptions): Promise<T> {
-        if (!this.#fallbackTransport) {
-            throw new UnsupportedMethodError(input.method);
-        }
+    async #tryUseFallback<T = unknown>(input: IotaTransportRequestOptions): Promise<T> {
+         if (!this.#fallbackTransport) {
+             throw new UnsupportedMethodError(input.method);
+         }
 
         return this.#fallbackTransport.request(input);
     }
