@@ -30,6 +30,7 @@ use crate::{
         ReadApi, TransactionBuilderApi, WriteApi,
     },
     indexer_reader::IndexerReader,
+    optimistic_indexing::OptimisticTransactionExecutor,
     store::PgIndexerStore,
 };
 
@@ -41,6 +42,7 @@ pub mod indexer;
 pub mod indexer_reader;
 pub mod metrics;
 pub mod models;
+mod optimistic_indexing;
 pub mod processors;
 pub mod schema;
 pub mod store;
@@ -317,10 +319,7 @@ pub async fn build_optimistic_json_rpc_server(
             let http_client = get_http_client(config.rpc_client_url.as_str())?;
             builder.register_module(OptimisticWriteApi::new(
                 WriteApi::new(http_client),
-                rest_api_client,
-                reader,
-                store,
-                metrics,
+                OptimisticTransactionExecutor::new(rest_api_client, reader, store, metrics),
             ))?;
             Ok(builder)
         },
