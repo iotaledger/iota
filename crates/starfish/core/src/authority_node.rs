@@ -170,20 +170,6 @@ impl ConsensusAuthority {
         let (core_dispatcher, core_thread_handle) =
             ChannelCoreThreadDispatcher::start(context.clone(), &dag_state, core);
         let core_dispatcher = Arc::new(core_dispatcher);
-        let leader_timeout_handle =
-            LeaderTimeoutTask::start(core_dispatcher.clone(), &signals_receivers, context.clone());
-
-        let commit_vote_monitor = Arc::new(CommitVoteMonitor::new(context.clone()));
-
-        let synchronizer = Synchronizer::start(
-            network_client.clone(),
-            context.clone(),
-            core_dispatcher.clone(),
-            commit_vote_monitor.clone(),
-            block_verifier.clone(),
-            dag_state.clone(),
-            sync_last_known_own_block,
-        );
 
         let transactions_synchronizer = TransactionsSynchronizer::start(
             network_client.clone(),
@@ -192,10 +178,31 @@ impl ConsensusAuthority {
             dag_state.clone(),
         );
 
+        let leader_timeout_handle = LeaderTimeoutTask::start(
+            core_dispatcher.clone(),
+            transactions_synchronizer.clone(),
+            &signals_receivers,
+            context.clone(),
+        );
+
+        let commit_vote_monitor = Arc::new(CommitVoteMonitor::new(context.clone()));
+
+        let synchronizer = Synchronizer::start(
+            network_client.clone(),
+            context.clone(),
+            core_dispatcher.clone(),
+            commit_vote_monitor.clone(),
+            transactions_synchronizer.clone(),
+            block_verifier.clone(),
+            dag_state.clone(),
+            sync_last_known_own_block,
+        );
+
         let commit_syncer_handle = CommitSyncer::new(
             context.clone(),
             core_dispatcher.clone(),
             commit_vote_monitor.clone(),
+            transactions_synchronizer.clone(),
             commit_consumer_monitor.clone(),
             network_client.clone(),
             block_verifier.clone(),

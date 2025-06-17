@@ -135,4 +135,11 @@ impl NetworkService for Mutex<TestService> {
     ) -> ConsensusResult<(Vec<Round>, Vec<Round>)> {
         unimplemented!("Unimplemented")
     }
+
+    async fn handle_fetch_transactions(
+        &self,
+        _block_refs: Vec<BlockRef>,
+    ) -> ConsensusResult<Vec<Bytes>> {
+        unimplemented!("Unimplemented")
+    }
 }

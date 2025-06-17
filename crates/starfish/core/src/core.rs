@@ -1843,7 +1843,10 @@ mod test {
         let block_headers = builder.block_headers.values().cloned().collect::<Vec<_>>();
 
         // Process all the blocks
-        assert!(core.add_block_headers(block_headers).unwrap().is_empty());
+        let (missing_ancestors, missing_committed_txns) =
+            core.add_block_headers(block_headers).unwrap();
+        assert!(missing_ancestors.is_empty());
+        assert!(missing_committed_txns.is_empty());
 
         // Try to propose - no block should be produced.
         let (new_block_opt, missing_committed_txns) = core.try_propose(true).unwrap();
@@ -1923,7 +1926,7 @@ mod test {
                     if core_fixture.core.last_proposed_round() == r {
                         // Force propose new block regardless of min round delay.
                         let (new_block_opt, missing_committed_txns) =
-                            core_fixture.try_propose(true).unwrap();
+                            core_fixture.core.try_propose(true).unwrap();
                         assert!(missing_committed_txns.is_empty());
                         new_block_opt.unwrap_or_else(|| {
                             panic!("Block should have been proposed for round {}", round)
@@ -1949,7 +1952,8 @@ mod test {
                 .core
                 .add_block_headers(last_round_blocks.clone())
                 .unwrap();
-            let (new_block_opt, missing_committed_txns) = core_fixture.try_propose(false).unwrap();
+            let (new_block_opt, missing_committed_txns) =
+                core_fixture.core.try_propose(false).unwrap();
             assert!(new_block_opt.is_none());
             assert!(missing_committed_txns.is_empty());
         }

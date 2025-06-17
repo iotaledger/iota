@@ -46,6 +46,7 @@ use crate::{
     dag_state::DagState,
     error::{ConsensusError, ConsensusResult},
     network::NetworkClient,
+    transactions_synchronizer::TransactionsSynchronizerHandle,
 };
 
 /// The number of concurrent fetch blocks requests per authority
@@ -263,6 +264,7 @@ pub(crate) struct Synchronizer<C: NetworkClient, V: BlockVerifier, D: CoreThread
     core_dispatcher: Arc<D>,
     commit_vote_monitor: Arc<CommitVoteMonitor>,
     dag_state: Arc<RwLock<DagState>>,
+    transactions_synchronizer: Arc<TransactionsSynchronizerHandle>,
     fetch_blocks_scheduler_task: JoinSet<()>,
     fetch_own_last_block_task: JoinSet<()>,
     network_client: Arc<C>,
@@ -279,6 +281,7 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> Synchronizer<C
         context: Arc<Context>,
         core_dispatcher: Arc<D>,
         commit_vote_monitor: Arc<CommitVoteMonitor>,
+        transactions_synchronizer: Arc<TransactionsSynchronizerHandle>,
         block_verifier: Arc<V>,
         dag_state: Arc<RwLock<DagState>>,
         sync_last_known_own_block: bool,
@@ -300,6 +303,7 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> Synchronizer<C
                 index,
                 network_client.clone(),
                 block_verifier.clone(),
+                transactions_synchronizer.clone(),
                 commit_vote_monitor.clone(),
                 context.clone(),
                 core_dispatcher.clone(),
@@ -329,6 +333,7 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> Synchronizer<C
                 commit_vote_monitor,
                 fetch_blocks_scheduler_task: JoinSet::new(),
                 fetch_own_last_block_task: JoinSet::new(),
+                transactions_synchronizer,
                 network_client,
                 block_verifier,
                 inflight_block_headers_map,
@@ -460,6 +465,7 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> Synchronizer<C
         peer_index: AuthorityIndex,
         network_client: Arc<C>,
         block_verifier: Arc<V>,
+        transactions_synchronizer: Arc<TransactionsSynchronizerHandle>,
         commit_vote_monitor: Arc<CommitVoteMonitor>,
         context: Arc<Context>,
         core_dispatcher: Arc<D>,
@@ -516,6 +522,7 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> Synchronizer<C
                                 core_dispatcher.clone(),
                                 block_verifier.clone(),
                                 commit_vote_monitor.clone(),
+                                transactions_synchronizer.clone(),
                                 context.clone(),
                                 commands_sender.clone(),
                                 "live"
@@ -552,6 +559,7 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> Synchronizer<C
         core_dispatcher: Arc<D>,
         block_verifier: Arc<V>,
         commit_vote_monitor: Arc<CommitVoteMonitor>,
+        transactions_synchronizer: Arc<TransactionsSynchronizerHandle>,
         context: Arc<Context>,
         commands_sender: Sender<Command>,
         sync_method: &str,
@@ -662,11 +670,18 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> Synchronizer<C
             .inc_by(missing_blocks.len() as u64);
 
         if !missing_committed_txns.is_empty() {
-            // TODO: handle missing committed transactions.
-            warn!(
+            debug!(
                 "Missing committed transactions after fetching blocks: {:?}",
                 missing_committed_txns
             );
+            if let Err(err) = transactions_synchronizer
+                .fetch_transactions(missing_committed_txns)
+                .await
+            {
+                warn!(
+                    "Error while trying to fetch missing transactions via transactions synchronizer: {err}"
+                );
+            }
         }
 
         Ok(())
@@ -947,6 +962,7 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> Synchronizer<C
         let blocks_to_fetch = self.inflight_block_headers_map.clone();
         let commands_sender = self.commands_sender.clone();
         let dag_state = self.dag_state.clone();
+        let transactions_synchronizer = self.transactions_synchronizer.clone();
 
         let (commit_lagging, last_commit_index, quorum_commit_index) = self.is_commit_lagging();
         if commit_lagging {
@@ -1021,6 +1037,7 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> Synchronizer<C
                         core_dispatcher.clone(),
                         block_verifier.clone(),
                         commit_vote_monitor.clone(),
+                        transactions_synchronizer.clone(),
                         context.clone(),
                         commands_sender.clone(),
                         "periodic",
@@ -1380,6 +1397,7 @@ mod tests {
             FETCH_BLOCKS_CONCURRENCY, FETCH_REQUEST_TIMEOUT, InflightBlockHeadersMap,
             MAX_BLOCKS_PER_FETCH, SYNC_MISSING_BLOCK_ROUND_THRESHOLD, Synchronizer,
         },
+        transactions_synchronizer::TransactionsSynchronizer,
     };
 
     type FetchRequestKey = (Vec<BlockRef>, AuthorityIndex);
@@ -1448,6 +1466,15 @@ mod tests {
             _last_received: Round,
             _timeout: Duration,
         ) -> ConsensusResult<BlockBundleStream> {
+            unimplemented!("Unimplemented")
+        }
+
+        async fn fetch_transactions(
+            &self,
+            _peer: AuthorityIndex,
+            _block_refs: Vec<BlockRef>,
+            _timeout: Duration,
+        ) -> ConsensusResult<Vec<Bytes>> {
             unimplemented!("Unimplemented")
         }
 
@@ -1626,11 +1653,19 @@ mod tests {
         let store = Arc::new(MemStore::new());
         let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store)));
 
+        let transactions_synchronizer = TransactionsSynchronizer::start(
+            network_client.clone(),
+            context.clone(),
+            core_dispatcher.clone(),
+            dag_state.clone(),
+        );
+
         let handle = Synchronizer::start(
             network_client.clone(),
             context,
             core_dispatcher.clone(),
             commit_vote_monitor,
+            transactions_synchronizer,
             block_verifier,
             dag_state,
             false,
@@ -1679,11 +1714,19 @@ mod tests {
         let store = Arc::new(MemStore::new());
         let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store)));
 
+        let transactions_synchronizer = TransactionsSynchronizer::start(
+            network_client.clone(),
+            context.clone(),
+            core_dispatcher.clone(),
+            dag_state.clone(),
+        );
+
         let handle = Synchronizer::start(
             network_client.clone(),
             context,
             core_dispatcher.clone(),
             commit_vote_monitor,
+            transactions_synchronizer,
             block_verifier,
             dag_state,
             false,
@@ -1744,7 +1787,12 @@ mod tests {
         let network_client = Arc::new(MockNetworkClient::default());
         let store = Arc::new(MemStore::new());
         let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store)));
-
+        let transactions_synchronizer = TransactionsSynchronizer::start(
+            network_client.clone(),
+            context.clone(),
+            core_dispatcher.clone(),
+            dag_state.clone(),
+        );
         // Create some test blocks
         let expected_blocks = (0..10)
             .map(|round| VerifiedBlockHeader::new_for_test(TestBlockHeader::new(round, 0).build()))
@@ -1783,6 +1831,7 @@ mod tests {
             context,
             core_dispatcher.clone(),
             commit_vote_monitor,
+            transactions_synchronizer,
             block_verifier,
             dag_state,
             false,
@@ -1817,7 +1866,12 @@ mod tests {
         let store = Arc::new(MemStore::new());
         let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store)));
         let commit_vote_monitor = Arc::new(CommitVoteMonitor::new(context.clone()));
-
+        let transactions_synchronizer = TransactionsSynchronizer::start(
+            network_client.clone(),
+            context.clone(),
+            core_dispatcher.clone(),
+            dag_state.clone(),
+        );
         // AND stub some missing blocks. The highest accepted round is 0. Create some
         // blocks that are below and above the threshold sync.
         let expected_blocks = (0..SYNC_MISSING_BLOCK_ROUND_THRESHOLD * 2)
@@ -1879,6 +1933,7 @@ mod tests {
             context.clone(),
             core_dispatcher.clone(),
             commit_vote_monitor.clone(),
+            transactions_synchronizer,
             block_verifier.clone(),
             dag_state.clone(),
             false,
@@ -1907,7 +1962,12 @@ mod tests {
         let store = Arc::new(MemStore::new());
         let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store)));
         let commit_vote_monitor = Arc::new(CommitVoteMonitor::new(context.clone()));
-
+        let transactions_synchronizer = TransactionsSynchronizer::start(
+            network_client.clone(),
+            context.clone(),
+            core_dispatcher.clone(),
+            dag_state.clone(),
+        );
         // AND stub some missing blocks. The highest accepted round is 0. Create blocks
         // that are above the threshold sync.
         let mut expected_blocks = (SYNC_MISSING_BLOCK_ROUND_THRESHOLD * 2
@@ -1965,6 +2025,7 @@ mod tests {
             context.clone(),
             core_dispatcher.clone(),
             commit_vote_monitor.clone(),
+            transactions_synchronizer,
             block_verifier,
             dag_state.clone(),
             false,
@@ -2031,7 +2092,12 @@ mod tests {
         let store = Arc::new(MemStore::new());
         let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store)));
         let our_index = AuthorityIndex::new_for_test(0);
-
+        let transactions_synchronizer = TransactionsSynchronizer::start(
+            network_client.clone(),
+            context.clone(),
+            core_dispatcher.clone(),
+            dag_state.clone(),
+        );
         // Create some test blocks
         let mut expected_blocks = (8..=10)
             .map(|round| VerifiedBlockHeader::new_for_test(TestBlockHeader::new(round, 0).build()))
@@ -2101,6 +2167,7 @@ mod tests {
             context.clone(),
             core_dispatcher.clone(),
             commit_vote_monitor,
+            transactions_synchronizer,
             block_verifier,
             dag_state,
             true,

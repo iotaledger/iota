@@ -54,6 +54,8 @@ const FETCH_FROM_PEERS_TIMEOUT: Duration = Duration::from_millis(4_000);
 /// requests can finish on hosts with good network using the timeouts above.
 const MAX_TRANSACTIONS_PER_FETCH: usize = 32;
 
+// TODO: this should be calculated based on the number of authorities and should
+// be at least 2/3 of all authorities by stake
 const MAX_AUTHORITIES_TO_FETCH_PER_TRANSACTION: usize = 2;
 
 struct TransactionsGuard {
@@ -177,7 +179,6 @@ impl InflightTransactionsMap {
 enum Command {
     FetchTransactions {
         missing_block_refs: BTreeSet<BlockRef>,
-        peer_index: AuthorityIndex,
         result: oneshot::Sender<Result<(), ConsensusError>>,
     },
     KickOffScheduler,
@@ -195,13 +196,11 @@ impl TransactionsSynchronizerHandle {
     pub(crate) async fn fetch_transactions(
         &self,
         missing_block_refs: BTreeSet<BlockRef>,
-        peer_index: AuthorityIndex,
     ) -> ConsensusResult<()> {
         let (sender, receiver) = oneshot::channel();
         self.commands_sender
             .send(Command::FetchTransactions {
                 missing_block_refs,
-                peer_index,
                 result: sender,
             })
             .await
@@ -324,19 +323,15 @@ impl<C: NetworkClient, D: CoreThreadDispatcher> TransactionsSynchronizer<C, D> {
             tokio::select! {
                 Some(command) = self.commands_receiver.recv() => {
                     match command {
-                        Command::FetchTransactions{ missing_block_refs, peer_index, result } => {
-                            if peer_index == self.context.own_index {
-                                error!("We should never attempt to fetch transactions from our own node");
-                                continue;
-                            }
-
+                        Command::FetchTransactions{ missing_block_refs, result } => {
                             // Keep only the max allowed transactions to request. It is ok to reduce here as the scheduler
-                            // task will take care syncing whatever is leftover.
+                            // task will take care of syncing whatever is leftover.
                             let missing_block_refs = missing_block_refs
                                 .into_iter()
                                 .take(MAX_TRANSACTIONS_PER_FETCH)
                                 .collect();
-                            // How does the inflight map work if transactions will be only reported as missing once? Also, why is that for the headers as well? For each suspended block we ask another peer or what?
+                            // TODO: How does the inflight map work if transactions will be only reported as missing once?
+                            // TODO: get authorities who acknowledged the transactions and fetch from them
                             let transactions_guard = self.inflight_transactions_map.lock_transactions(missing_block_refs, peer_index);
                             let Some(transactions_guard) = transactions_guard else {
                                 result.send(Ok(())).ok();
@@ -344,7 +339,7 @@ impl<C: NetworkClient, D: CoreThreadDispatcher> TransactionsSynchronizer<C, D> {
                             };
 
                             // We don't block if the corresponding peer task is saturated - but we rather drop the request. That's ok as the periodic
-                            // synchronization task will handle any still missing transactions in next run.
+                            // synchronization task will handle any still missing transactions in the next run.
                             let r = self
                                 .fetch_transaction_senders
                                 .get(&peer_index)
@@ -360,8 +355,8 @@ impl<C: NetworkClient, D: CoreThreadDispatcher> TransactionsSynchronizer<C, D> {
                             result.send(r).ok();
                         }
                         Command::KickOffScheduler => {
-                            // just reset the scheduler timeout timer to run immediately if not already running.
-                            // If the scheduler is already running then just reduce the remaining time to run.
+                            // Reset the scheduler timeout timer to run immediately if not already running.
+                            // If the scheduler is already running, then reduce the remaining time to run.
                             let timeout = if self.fetch_transactions_scheduler_task.is_empty() {
                                 Instant::now()
                             } else {
@@ -585,7 +580,11 @@ impl<C: NetworkClient, D: CoreThreadDispatcher> TransactionsSynchronizer<C, D> {
     /// Starts a task to fetch missing transactions from other authorities.
     async fn start_fetch_missing_transactions_task(&mut self) -> ConsensusResult<()> {
         // Get missing transactions from the core
-        let missing_transactions = self.core_dispatcher.get_missing_transaction_data().await?;
+        let missing_transactions = self
+            .core_dispatcher
+            .get_missing_transaction_data()
+            .await
+            .map_err(|_err| ConsensusError::Shutdown)?;
 
         if missing_transactions.is_empty() {
             return Ok(());
@@ -831,6 +830,7 @@ mod tests {
             peer: AuthorityIndex,
         ) {
             let mut transactions_map = self.transactions.lock().await;
+            // FIXME:
             for transaction in transactions {
                 let block_ref = transaction.block_ref();
                 let serialized = bcs::to_bytes(&transaction).unwrap();

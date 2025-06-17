@@ -321,25 +321,18 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
             {
                 warn!("Errored while trying to fetch missing ancestors via synchronizer: {err}");
             }
-
+        }
+        if !missing_committed_txns.is_empty() {
             // Also fetch missing transactions for these blocks
             if let Err(err) = self
                 .transactions_synchronizer
-                .fetch_transactions(missing_ancestors, peer)
+                .fetch_transactions(missing_committed_txns)
                 .await
             {
                 warn!(
                     "Errored while trying to fetch missing transactions via transactions synchronizer: {err}"
                 );
             }
-        }
-
-        if !missing_committed_txns.is_empty() {
-            // TODO: handle missing committed transactions.
-            warn!(
-                "Missing committed transactions after adding block: {:?}",
-                missing_committed_txns
-            );
         }
 
         Ok(())
@@ -1396,22 +1389,24 @@ mod tests {
         let network_client = Arc::new(FakeNetworkClient::default());
         let store = Arc::new(MemStore::new());
         let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store.clone())));
+        let transactions_synchronizer = TransactionsSynchronizer::start(
+            network_client.clone(),
+            context.clone(),
+            core_dispatcher.clone(),
+            dag_state.clone(),
+        );
+
         let synchronizer = Synchronizer::start(
             network_client.clone(),
             context.clone(),
             core_dispatcher.clone(),
             commit_vote_monitor.clone(),
+            transactions_synchronizer.clone(),
             block_verifier.clone(),
             dag_state.clone(),
             false,
         );
 
-        let transactions_synchronizer = TransactionsSynchronizer::start(
-            network_client,
-            context.clone(),
-            core_dispatcher.clone(),
-            dag_state.clone(),
-        );
         let authority_service = Arc::new(AuthorityService::new(
             context.clone(),
             block_verifier,
@@ -1467,22 +1462,24 @@ mod tests {
         let network_client = Arc::new(FakeNetworkClient::default());
         let store = Arc::new(MemStore::new());
         let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store.clone())));
+        let transactions_synchronizer = TransactionsSynchronizer::start(
+            network_client.clone(),
+            context.clone(),
+            core_dispatcher.clone(),
+            dag_state.clone(),
+        );
+
         let synchronizer = Synchronizer::start(
             network_client.clone(),
             context.clone(),
             core_dispatcher.clone(),
             commit_vote_monitor.clone(),
+            transactions_synchronizer.clone(),
             block_verifier.clone(),
             dag_state.clone(),
             true,
         );
 
-        let transactions_synchronizer = TransactionsSynchronizer::start(
-            network_client,
-            context.clone(),
-            core_dispatcher.clone(),
-            dag_state.clone(),
-        );
         let authority_service = Arc::new(AuthorityService::new(
             context.clone(),
             block_verifier,
