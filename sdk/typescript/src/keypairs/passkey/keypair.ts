@@ -18,7 +18,7 @@ import {
     PASSKEY_PUBLIC_KEY_SIZE,
     PASSKEY_SIGNATURE_SIZE,
     PasskeyPublicKey,
-} from './publicKey.js';
+} from './publickey.js';
 import type { AuthenticationCredential, RegistrationCredential } from './types.js';
 
 type DeepPartialConfigKeys = 'rp' | 'user' | 'authenticatorSelection';
