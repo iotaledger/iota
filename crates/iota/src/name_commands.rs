@@ -2180,17 +2180,6 @@ async fn get_auction_package_address(client: &IotaClient) -> anyhow::Result<Obje
     Ok(auction_package_address)
 }
 
-async fn get_coupons_package_address(client: &IotaClient) -> anyhow::Result<ObjectID> {
-    let auction_package_address = fetch_package_id_by_module_and_name(
-        client,
-        &Identifier::from_str("coupon_house")?,
-        &Identifier::from_str("CouponsAuth")?,
-    )
-    .await?;
-
-    Ok(auction_package_address)
-}
-
 async fn get_auction_house_id(
     auction_package_id: ObjectID,
     client: &SimpleClient,
@@ -2254,6 +2243,17 @@ fn deserialize_move_object_from_bcs<T: DeserializeOwned>(
         .try_into_move()
         .ok_or_else(|| anyhow::anyhow!("invalid move type"))?
         .deserialize::<T>()
+}
+
+async fn get_coupons_package_address(client: &IotaClient) -> anyhow::Result<ObjectID> {
+    let coupons_package_address = fetch_package_id_by_module_and_name(
+        client,
+        &Identifier::from_str("coupon_house")?,
+        &Identifier::from_str("CouponsAuth")?,
+    )
+    .await?;
+
+    Ok(coupons_package_address)
 }
 
 #[derive(Debug, Deserialize)]
