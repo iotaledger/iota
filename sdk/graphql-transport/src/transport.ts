@@ -19,7 +19,7 @@ export interface IotaClientGraphQLTransportOptions {
     url: string;
     fallbackTransportUrl?: string;
     fallbackMethods?: (keyof typeof RPC_METHODS)[];
-    unsupportedMethods: (keyof typeof RPC_METHODS)[];
+    unsupportedMethods?: (keyof typeof RPC_METHODS)[];
 }
 
 export type GraphQLDocument<
@@ -68,6 +68,12 @@ export class IotaClientGraphQLTransport implements IotaTransport {
             'executeTransactionBlock',
             'dryRunTransactionBlock',
             'devInspectTransactionBlock',
+            'getTotalTransactions',
+            'getNetworkMetrics',
+            'getParticipationMetrics',
+            'getMoveCallMetrics',
+            'getAllEpochAddressMetrics',
+            'getEpochs'
         ];
         this.#unsupportedMethods = options.unsupportedMethods || ['getOwnedObjects'];
 

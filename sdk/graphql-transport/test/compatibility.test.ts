@@ -783,7 +783,7 @@ describe('GraphQL IotaClient compatibility', () => {
         expect(graphql).toEqual(rpc);
     });
 
-    test.skip('getTotalTransactions', async () => {
+    test('getTotalTransactions', async () => {
         const rpc = await toolbox.client.getTotalTransactions();
         const graphql = await graphQLClient!.getTotalTransactions();
 
