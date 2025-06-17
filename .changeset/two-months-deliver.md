@@ -4,4 +4,5 @@
 ---
 
 Improved logic around `fallbackMethods` in graphql-transport
+Introduced `unsupportedMethods` in graphql-transport
 Improved IotaClient compatibility with graphql-transport
