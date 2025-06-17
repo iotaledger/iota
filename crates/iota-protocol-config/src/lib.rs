@@ -59,7 +59,7 @@ pub const MAX_PROTOCOL_VERSION: u64 = 10;
 //            Enable the new consensus commit rule for mainnet.
 //            Increase the committee size to 80.
 //            Enable passkey auth in multisig for devnet.
-// Version 10: TODO.
+// Version 10: Enable Identifier input validation.
 
 #[derive(Copy, Clone, Debug, Hash, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ProtocolVersion(u64);
