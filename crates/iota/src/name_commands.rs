@@ -1887,7 +1887,7 @@ async fn fetch_pricing_config(client: &IotaClient) -> anyhow::Result<PricingConf
         &IotaJsonValue::new(serde_json::json!({ "dummy_field": false }))?.to_bcs_bytes(&layout)?,
     )?;
 
-    let entry = get_object_from_bcs::<Field<ConfigKey, PricingConfig>>(client, object_id)
+    let entry = get_object_from_bcs::<Field<DummyKey, PricingConfig>>(client, object_id)
         .await
         .map_err(|e| anyhow::anyhow!("couldn't fetch pricing config: {e}"))?;
 
@@ -1914,7 +1914,7 @@ async fn fetch_renewal_config(context: &mut WalletContext) -> anyhow::Result<Ren
         &IotaJsonValue::new(serde_json::json!({ "dummy_field": false }))?.to_bcs_bytes(&layout)?,
     )?;
 
-    let entry = get_object_from_bcs::<Field<ConfigKey, RenewalConfig>>(&client, object_id)
+    let entry = get_object_from_bcs::<Field<DummyKey, RenewalConfig>>(&client, object_id)
         .await
         .map_err(|e| anyhow::anyhow!("couldn't fetch renewal config: {e}"))?;
 
@@ -1999,7 +1999,7 @@ impl IotaNamesNftProxy {
 
 #[expect(unused)]
 #[derive(Debug, Deserialize)]
-struct ConfigKey {
+struct DummyKey {
     dummy_field: bool,
 }
 
@@ -2317,7 +2317,7 @@ impl CouponHouse {
                 .to_bcs_bytes(&layout)?,
         )?;
 
-        let entry = get_object_from_bcs::<Field<ConfigKey, CouponHouse>>(iota_client, object_id)
+        let entry = get_object_from_bcs::<Field<DummyKey, CouponHouse>>(iota_client, object_id)
             .await
             .unwrap();
 
