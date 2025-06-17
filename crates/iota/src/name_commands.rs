@@ -1288,7 +1288,7 @@ impl std::fmt::Display for NameCommandResult {
                 format_auction(f, auction)?;
                 writeln!(f, "\nNFT:")?;
                 format_nft(f, &auction.nft)?;
-                write!(f, "Transaction digest: {transaction}")
+                write!(f, "\nTransaction digest: {transaction}")
             }
             Self::AuctionClaim {
                 record,
