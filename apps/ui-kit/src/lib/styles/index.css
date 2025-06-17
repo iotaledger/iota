@@ -202,10 +202,10 @@
     --input-visibility-bar-color: rgba(28, 28, 28, 0.6); /* neutral.92 with 60% opacity */
 
     /* NAVBAR ITEM */
-    --navbar-icon-color: theme('colors.iota-neutral.40');
-    --navbar-icon-selected-color: theme('colors.iota-neutral.10');
-    --navbar-label-color: theme('colors.iota-neutral.60');
-    --navbar-label-selected-color: theme('colors.iota-neutral.10');
+    --navbar-item-icon-color: theme('colors.iota-neutral.40');
+    --navbar-item-icon-selected-color: theme('colors.iota-neutral.10');
+    --navbar-item-label-color: theme('colors.iota-neutral.60');
+    --navbar-item-label-selected-color: theme('colors.iota-neutral.10');
 
     /* SEARCH */
     --search-text-color: theme('colors.iota-neutral.10');
@@ -430,11 +430,11 @@
     --input-visibility-bar-color: rgba(250, 250, 250, 0.6); /* neutral.10 with 60% opacity */
 
     /* NAVBAR ITEM */
-    --navbar-icon-color: theme('colors.iota-neutral.60');
-    --navbar-icon-selected-color: theme('colors.iota-neutral.92');
+    --navbar-item-icon-color: theme('colors.iota-neutral.60');
+    --navbar-item-icon-selected-color: theme('colors.iota-neutral.92');
+    --navbar-item-label-color: theme('colors.iota-neutral.40');
+    --navbar-item-label-selected-color: theme('colors.iota-neutral.92');
 
-    --navbar-label-color: theme('colors.iota-neutral.40');
-    --navbar-label-selected-color: theme('colors.iota-neutral.92');
     /* SEARCH */
     --search-text-color: theme('colors.iota-neutral.92');
     --search-placeholder-color: theme('colors.iota-neutral.60');
@@ -668,11 +668,11 @@
     --input-visibility-bar-color: rgba(250, 250, 250, 0.6); /* neutral.10 with 60% opacity */
 
     /* NAVBAR ITEM */
-    --navbar-icon-color: theme('colors.names-neutral.60');
-    --navbar-icon-selected-color: theme('colors.names-neutral.92');
+    --navbar-item-icon-color: theme('colors.names-neutral.60');
+    --navbar-item-icon-selected-color: theme('colors.names-neutral.92');
+    --navbar-item-label-color: theme('colors.names-neutral.40');
+    --navbar-item-label-selected-color: theme('colors.names-neutral.92');
 
-    --navbar-label-color: theme('colors.names-neutral.40');
-    --navbar-label-selected-color: theme('colors.names-neutral.92');
     /* SEARCH */
     --search-text-color: theme('colors.names-neutral.92');
     --search-placeholder-color: theme('colors.names-neutral.60');
