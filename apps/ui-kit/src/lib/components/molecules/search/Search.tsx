@@ -205,9 +205,7 @@ export function Search({
                                 onMouseEnter={() => setSelectedIndex(index)}
                                 className={cx(
                                     'w-full cursor-pointer px-md py-sm',
-                                    selectedIndex === index
-                                        ? 'bg-shader-primary-dark-16 dark:bg-shader-inverted-dark-16'
-                                        : '',
+                                    selectedIndex === index ? 'search-selected-index-bg-color' : '',
                                 )}
                             >
                                 {renderSuggestion(suggestion, index)}

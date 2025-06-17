@@ -216,6 +216,7 @@
     --search-border-color: theme('colors.iota-neutral.70');
     --search-bg-color-filled: theme('colors.iota-neutral.92');
     --search-suggestion-bg-color: theme('colors.iota-neutral.100');
+    --search-selected-index-bg-color: theme('colors.shader-primary-dark.16');
 
     /* SEGMENTED BUTTON */
     --segmented-filled-bg-color: theme('colors.iota-neutral.96');
@@ -231,6 +232,7 @@
 
     /* TABLE CELL */
     --table-cell-supporting-label-color: theme('colors.iota-neutral.60');
+    --table-cell-border-color: theme('colors.shader-neutral-light.8');
 
     /* TABLE HEADER CELL */
     --table-header-text-color: theme('colors.iota-neutral.10');
@@ -447,6 +449,7 @@
     --search-border-color: theme('colors.iota-neutral.40');
     --search-bg-color-filled: theme('colors.iota-neutral.12');
     --search-suggestion-bg-color: theme('colors.iota-neutral.10');
+    --search-selected-index-bg-color: theme('colors.shader-inverted-dark.16');
 
     /* SEGMENTED BUTTON */
     --segmented-filled-bg-color: theme('colors.iota-neutral.10');
@@ -462,6 +465,7 @@
 
     /* TABLE CELL */
     --table-cell-supporting-label-color: theme('colors.iota-neutral.40');
+    --table-cell-border-color: theme('colors.shader-neutral-dark.8');
 
     /* TABLE HEADER CELL */
     --table-header-text-color: theme('colors.iota-neutral.92');
@@ -688,6 +692,7 @@
     --search-border-color: theme('colors.names-neutral.40');
     --search-bg-color-filled: theme('colors.names-neutral.12');
     --search-suggestion-bg-color: theme('colors.names-neutral.12');
+    --search-selected-index-bg-color: theme('colors.shader-inverted-dark.16');
 
     /* SEGMENTED BUTTON */
     --segmented-filled-bg-color: theme('colors.names-neutral.10');
@@ -703,6 +708,7 @@
 
     /* TABLE CELL */
     --table-cell-supporting-label-color: theme('colors.names-neutral.40');
+    --table-cell-border-color: theme('colors.shader-neutral-dark.8');
 
     /* TABLE HEADER CELL */
     --table-header-text-color: theme('colors.names-neutral.92');
