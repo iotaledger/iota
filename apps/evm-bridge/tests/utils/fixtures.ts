@@ -1,7 +1,7 @@
 import path from 'path';
 import { test as base, chromium, type BrowserContext } from '@playwright/test';
 
-const EXTENSION_L1_PATH = path.join(__dirname, '../../wallet-dist-L1');
+const EXTENSION_L1_PATH = path.join(__dirname, '../../../wallet/dist');
 const EXTENSION_L2_PATH = path.join(__dirname, '../../wallet-dist-L2');
 
 const COMMON_ARGS = ['--user-agent=Playwright', '--disable-dev-shm-usage', '--no-sandbox'];

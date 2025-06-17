@@ -25,6 +25,12 @@ on:
       isWalletDashboard:
         type: boolean
         required: false
+      isEvmBridge:
+        type: boolean
+        required: false
+      isIscSDK:
+        type: boolean
+        required: false
 
 concurrency:
   group: e2e-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
@@ -155,4 +161,28 @@ jobs:
         with:
           name: playwright-report-wallet
           path: apps/wallet/playwright-report/
+          retention-days: 30
+
+      - name: Build Evm-bridge
+        if: inputs.isEvmBridge || inputs.isIscSDK
+        env:
+          VITE_EVM_BRIDGE_DEFAULT_NETWORK: ${{ secrets.EVM_BRIDGE_PREVIEW_DEFAULT_NETWORK }}
+          VITE_EVM_BRIDGE_CONFIG: ${{ secrets.EVM_BRIDGE_CONFIG }}
+        run: pnpm evm-bridge build
+
+      - name: Prepare evm-bridge e2e tests (downloads wallet artifact dist)
+        if: inputs.isEvmBridge || inputs.isIscSDK
+        working-directory: ./apps/evm-bridge
+        run: pnpm run test:prepare
+
+      - name: Run evm-bridge tests
+        if: inputs.isEvmBridge || inputs.isIscSDK
+        working-directory: ./apps/evm-bridge
+        run: DEBUG=pw:webserver xvfb-run --auto-servernum pnpm run test:e2e
+
+      - uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # v4.4.3
+        if: always()
+        with:
+          name: playwright-report-app
+          path: apps/evm-bridge/playwright-report/
           retention-days: 30
