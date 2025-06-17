@@ -1887,11 +1887,11 @@ async fn fetch_pricing_config(client: &IotaClient) -> anyhow::Result<PricingConf
         &IotaJsonValue::new(serde_json::json!({ "dummy_field": false }))?.to_bcs_bytes(&layout)?,
     )?;
 
-    let entry = get_object_from_bcs::<PricingConfigEntry>(client, object_id)
+    let entry = get_object_from_bcs::<Field<ConfigKey, PricingConfig>>(client, object_id)
         .await
         .map_err(|e| anyhow::anyhow!("couldn't fetch pricing config: {e}"))?;
 
-    Ok(entry.pricing_config)
+    Ok(entry.value)
 }
 
 async fn fetch_renewal_config(context: &mut WalletContext) -> anyhow::Result<RenewalConfig> {
@@ -1914,9 +1914,11 @@ async fn fetch_renewal_config(context: &mut WalletContext) -> anyhow::Result<Ren
         &IotaJsonValue::new(serde_json::json!({ "dummy_field": false }))?.to_bcs_bytes(&layout)?,
     )?;
 
-    let entry = get_object_from_bcs::<RenewalConfigEntry>(&client, object_id).await?;
+    let entry = get_object_from_bcs::<Field<ConfigKey, RenewalConfig>>(&client, object_id)
+        .await
+        .map_err(|e| anyhow::anyhow!("couldn't fetch renewal config: {e}"))?;
 
-    Ok(entry.renewal_config)
+    Ok(entry.value)
 }
 
 async fn handle_transaction_result<Fun, F>(
@@ -1993,22 +1995,6 @@ impl IotaNamesNftProxy {
             IotaNamesNftProxy::Subdomain(_) => "subdomain_proxy",
         }
     }
-}
-
-#[expect(unused)]
-#[derive(Debug, Deserialize)]
-struct PricingConfigEntry {
-    id: ObjectID,
-    key: ConfigKey,
-    pricing_config: PricingConfig,
-}
-
-#[expect(unused)]
-#[derive(Debug, Deserialize)]
-struct RenewalConfigEntry {
-    id: ObjectID,
-    key: ConfigKey,
-    renewal_config: RenewalConfig,
 }
 
 #[expect(unused)]
@@ -2350,7 +2336,9 @@ impl CouponHouse {
             &coupon_bytes,
         )?;
 
-        let entry = get_object_from_bcs::<Field<Vec<u8>, Coupon>>(iota_client, object_id).await?;
+        let entry = get_object_from_bcs::<Field<Vec<u8>, Coupon>>(iota_client, object_id)
+            .await
+            .map_err(|e| anyhow::anyhow!("couldn't fetch coupon: {e}"))?;
 
         Ok(entry.value)
     }
