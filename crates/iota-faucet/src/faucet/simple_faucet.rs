@@ -917,24 +917,8 @@ impl Faucet for SimpleFaucet {
             let window = Duration::from_secs(self.rate_window_secs);
             let now = Instant::now();
 
-            // Debug: log the state before pruning.
-            debug!(
-                "Before pruning, recipient {:?} has {} request(s): {:?}",
-                recipient,
-                entries.len(),
-                entries
-            );
-
             // Remove timestamps older than the configured window.
             entries.retain(|&timestamp| now.duration_since(timestamp) < window);
-
-            // Debug: log the state after pruning.
-            debug!(
-                "After pruning, recipient {:?} has {} request(s): {:?}",
-                recipient,
-                entries.len(),
-                entries
-            );
 
             // Check if the number of requests in the window exceeds the configured limit.
             if entries.len() >= self.max_requests_per_window {
@@ -956,14 +940,6 @@ impl Faucet for SimpleFaucet {
 
             // Record the current request.
             entries.push(now);
-
-            // Debug: log the state after adding the new request.
-            debug!(
-                "After adding request, recipient {:?} has {} request(s): {:?}",
-                recipient,
-                entries.len(),
-                entries
-            );
 
             // Release the lock.
             drop(request_times);
