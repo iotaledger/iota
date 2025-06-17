@@ -214,7 +214,7 @@ async function extractNativeTokensFromObject(
             name: nativeToken.name,
             options: {
                 showContent: true,
-            }
+            },
         });
 
         if (objectDynamic?.data?.content && 'fields' in objectDynamic.data.content) {
