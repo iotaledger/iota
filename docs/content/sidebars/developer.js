@@ -52,6 +52,7 @@ const developer = [
             'developer/getting-started/coffee-example',
             'developer/getting-started/simple-token-transfer',
             'developer/getting-started/oracles',
+            `developer/getting-started/move-trace-debug`,
         ],
     },
     {
