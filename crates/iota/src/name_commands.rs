@@ -342,7 +342,7 @@ impl NameCommand {
                 let mut price = fetch_pricing_config(&iota_client).await?.get_price(label)?;
 
                 if !coupons.is_empty() {
-                    let coupon_house = get_coupon_house(&iota_client).await?;
+                    let coupon_house = CouponHouse::new(&iota_client).await?;
 
                     for coupon in coupons.iter() {
                         price = coupon_house
@@ -445,7 +445,7 @@ impl NameCommand {
                     * years as u64;
 
                 if !coupons.is_empty() {
-                    let coupon_house = get_coupon_house(&iota_client).await?;
+                    let coupon_house = CouponHouse::new(&iota_client).await?;
 
                     for coupon in coupons.iter() {
                         price = coupon_house
@@ -2310,6 +2310,34 @@ struct CouponHouse {
 }
 
 impl CouponHouse {
+    async fn new(iota_client: &IotaClient) -> anyhow::Result<CouponHouse> {
+        let coupon_package_address = get_coupons_package_address(iota_client).await?;
+        let iota_names_config = get_iota_names_config(iota_client).await?;
+        let coupon_house_key = StructTag::from_str(&format!(
+            "{}::iota_names::RegistryKey<{coupon_package_address}::coupon_house::CouponHouse>",
+            iota_names_config.package_address,
+        ))?;
+        let layout = MoveTypeLayout::Struct(Box::new(MoveStructLayout {
+            type_: coupon_house_key.clone(),
+            fields: vec![MoveFieldLayout::new(
+                Identifier::from_str("dummy_field")?,
+                MoveTypeLayout::Bool,
+            )],
+        }));
+        let object_id = iota_types::dynamic_field::derive_dynamic_field_id(
+            iota_names_config.object_id,
+            &TypeTag::Struct(Box::new(coupon_house_key)),
+            &IotaJsonValue::new(serde_json::json!({ "dummy_field": false }))?
+                .to_bcs_bytes(&layout)?,
+        )?;
+
+        let entry = get_object_from_bcs::<Field<ConfigKey, CouponHouse>>(iota_client, object_id)
+            .await
+            .unwrap();
+
+        Ok(entry.value)
+    }
+
     async fn get_coupon(&self, name: &str, iota_client: &IotaClient) -> anyhow::Result<Coupon> {
         let mut hasher = blake2::Blake2b::<blake2::digest::consts::U32>::new();
         hasher.update(name);
@@ -2350,33 +2378,6 @@ impl CouponHouse {
             _ => bail!("undefined coupon kind"),
         })
     }
-}
-
-async fn get_coupon_house(iota_client: &IotaClient) -> anyhow::Result<CouponHouse> {
-    let coupon_package_address = get_coupons_package_address(iota_client).await?;
-    let iota_names_config = get_iota_names_config(iota_client).await?;
-    let coupon_house_key = StructTag::from_str(&format!(
-        "{}::iota_names::RegistryKey<{coupon_package_address}::coupon_house::CouponHouse>",
-        iota_names_config.package_address,
-    ))?;
-    let layout = MoveTypeLayout::Struct(Box::new(MoveStructLayout {
-        type_: coupon_house_key.clone(),
-        fields: vec![MoveFieldLayout::new(
-            Identifier::from_str("dummy_field")?,
-            MoveTypeLayout::Bool,
-        )],
-    }));
-    let object_id = iota_types::dynamic_field::derive_dynamic_field_id(
-        iota_names_config.object_id,
-        &TypeTag::Struct(Box::new(coupon_house_key)),
-        &IotaJsonValue::new(serde_json::json!({ "dummy_field": false }))?.to_bcs_bytes(&layout)?,
-    )?;
-
-    let entry = get_object_from_bcs::<Field<ConfigKey, CouponHouse>>(iota_client, object_id)
-        .await
-        .unwrap();
-
-    Ok(entry.value)
 }
 
 #[cfg(test)]
