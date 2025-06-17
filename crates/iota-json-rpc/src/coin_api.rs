@@ -8,14 +8,14 @@ use anyhow::Result;
 use async_trait::async_trait;
 use cached::{SizedCache, proc_macro::cached};
 use chrono::DateTime;
-use iota_core::authority::AuthorityState;
+use iota_core::{authority::AuthorityState, jsonrpc_index::TotalBalance};
 use iota_json_rpc_api::{CoinReadApiOpenRpc, CoinReadApiServer, JsonRpcMetrics, cap_page_limit};
 use iota_json_rpc_types::{Balance, CoinPage, IotaCirculatingSupply, IotaCoinMetadata};
 use iota_mainnet_unlocks::MainnetUnlocksStore;
 use iota_metrics::spawn_monitored_task;
 use iota_open_rpc::Module;
 use iota_protocol_config::Chain;
-use iota_storage::{indexes::TotalBalance, key_value_store::TransactionKeyValueStore};
+use iota_storage::key_value_store::TransactionKeyValueStore;
 use iota_types::{
     balance::Supply,
     base_types::{IotaAddress, ObjectID},

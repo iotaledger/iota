@@ -102,9 +102,16 @@ pub type PackageResolver = Arc<Resolver<PackageStoreWithLruCache<IndexerStorePac
 
 // Impl for common initialization and utilities
 impl IndexerReader {
-    pub fn new<T: Into<String>>(db_url: T) -> Result<Self> {
-        let config = ConnectionPoolConfig::default();
-        Self::new_with_config(db_url, config)
+    pub fn new(pool: ConnectionPool) -> Self {
+        let indexer_store_pkg_resolver = IndexerStorePackageResolver::new(pool.clone());
+        let package_cache = PackageStoreWithLruCache::new(indexer_store_pkg_resolver);
+        let package_resolver = Arc::new(Resolver::new(package_cache));
+        let package_obj_type_cache = Arc::new(Mutex::new(SizedCache::with_size(10000)));
+        Self {
+            pool,
+            package_resolver,
+            package_obj_type_cache,
+        }
     }
 
     pub fn new_with_config<T: Into<String>>(
@@ -125,15 +132,7 @@ impl IndexerReader {
             .build(manager)
             .map_err(|e| anyhow!("Failed to initialize connection pool. Error: {:?}. If Error is None, please check whether the configured pool size (currently {}) exceeds the maximum number of connections allowed by the database.", e, config.pool_size))?;
 
-        let indexer_store_pkg_resolver = IndexerStorePackageResolver::new(pool.clone());
-        let package_cache = PackageStoreWithLruCache::new(indexer_store_pkg_resolver);
-        let package_resolver = Arc::new(Resolver::new(package_cache));
-        let package_obj_type_cache = Arc::new(Mutex::new(SizedCache::with_size(10000)));
-        Ok(Self {
-            pool,
-            package_resolver,
-            package_obj_type_cache,
-        })
+        Ok(Self::new(pool))
     }
 
     pub async fn spawn_blocking<F, R, E>(&self, f: F) -> Result<R, E>
