@@ -464,14 +464,7 @@ impl IndexerReader {
             None => return Err(IndexerError::InvalidArgument("Invalid epoch".into())),
         };
 
-        let system_state: IotaSystemStateSummary = bcs::from_bytes(&stored_epoch.system_state)
-            .map_err(|_| {
-                IndexerError::PersistentStorageDataCorruption(format!(
-                    "Failed to deserialize `system_state` for epoch {:?}",
-                    epoch,
-                ))
-            })?;
-        Ok(system_state)
+        (&stored_epoch).try_into()
     }
 
     pub async fn get_chain_identifier_in_blocking_task(
