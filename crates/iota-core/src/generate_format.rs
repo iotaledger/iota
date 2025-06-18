@@ -200,9 +200,15 @@ fn get_registry() -> Result<Registry> {
     };
     tracer.trace_value(&mut samples, &si).unwrap();
 
-    // Temporary fix until https://github.com/iotaledger/iota/issues/7384
-    // is resolved.
-    let event = iota_types::event::Event::random_for_testing();
+    // We need Event sample here, because our GenesisTransaction contains an
+    // Event while, sui's doesn't.
+    let event = Event {
+        package_id: ObjectID::random(),
+        transaction_module: Identifier::new("foo").unwrap(),
+        sender: IotaAddress::ZERO,
+        type_: struct_tag.clone(),
+        contents: vec![0],
+    };
     tracer.trace_value(&mut samples, &event).unwrap();
 
     // 2. Trace the main entry point(s) + every enum separately.
@@ -274,15 +280,6 @@ fn get_registry() -> Result<Registry> {
     tracer
         .trace_type::<CertifiedCheckpointSummary>(&samples)
         .unwrap();
-
-    let event = Event {
-        package_id: ObjectID::random(),
-        transaction_module: Identifier::new("foo").unwrap(),
-        sender: IotaAddress::ZERO,
-        type_: struct_tag.clone(),
-        contents: vec![0],
-    };
-    tracer.trace_value(&mut samples, &event).unwrap();
 
     tracer.trace_type::<Object>(&samples).unwrap();
 
