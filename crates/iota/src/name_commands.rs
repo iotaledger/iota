@@ -344,11 +344,13 @@ impl NameCommand {
                 if !coupons.is_empty() {
                     let coupon_house = CouponHouse::new(&iota_client).await?;
 
-                    for coupon in &coupons {
-                        let coupon = coupon_house.get_coupon(coupon, &iota_client).await?;
+                    for coupon_str in &coupons {
+                        let coupon = coupon_house.get_coupon(coupon_str, &iota_client).await?;
 
                         if !coupon.rules.can_stack && coupons.len() > 1 {
-                            bail!("non-stackable coupons used");
+                            bail!(
+                                "coupon '{coupon_str}' cannot stack with the other coupons provided"
+                            );
                         }
 
                         price = coupon_house.apply_coupon(&coupon, price).await?;
@@ -451,11 +453,13 @@ impl NameCommand {
                 if !coupons.is_empty() {
                     let coupon_house = CouponHouse::new(&iota_client).await?;
 
-                    for coupon in &coupons {
-                        let coupon = coupon_house.get_coupon(coupon, &iota_client).await?;
+                    for coupon_str in &coupons {
+                        let coupon = coupon_house.get_coupon(coupon_str, &iota_client).await?;
 
                         if !coupon.rules.can_stack && coupons.len() > 1 {
-                            bail!("non-stackable coupons used");
+                            bail!(
+                                "coupon '{coupon_str}' cannot stack with the other coupons provided"
+                            );
                         }
 
                         price = coupon_house.apply_coupon(&coupon, price).await?;
