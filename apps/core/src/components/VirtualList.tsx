@@ -52,6 +52,18 @@ export function VirtualList<T>({
         overscan: 3, // Number of items to render outside the viewport to improve performance and avoid flickering
     });
 
+    useEffect(() => {
+        const el = containerRef.current;
+        if (!el) return;
+
+        const resizeObserver = new ResizeObserver((entries) => {
+            virtualizer.measure();
+        });
+
+        resizeObserver.observe(el);
+        return () => resizeObserver.disconnect();
+    }, []);
+
     const virtualItems = virtualizer.getVirtualItems();
 
     useEffect(() => {
