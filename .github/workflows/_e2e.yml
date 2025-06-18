@@ -73,8 +73,8 @@ jobs:
 
       - uses: pnpm/action-setup@fe02b34f77f8bc703788d5817da081398fad5dd2 # v4.0.0
 
-      - name: Build Iota binary
-        run: cargo build --bin iota --features indexer --profile dev
+      # - name: Build Iota binary
+      #   run: cargo build --bin iota --features indexer --profile dev
 
       - name: Install Nodejs
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
@@ -86,7 +86,7 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Install Playwright Browsers
-        run: pnpm --filter iota-explorer playwright install --with-deps chromium
+        run: pnpm dlx playwright@1.46.1 install --with-deps chromium
 
       - name: Set environment variables
         run: |
@@ -96,10 +96,6 @@ jobs:
       - name: Build Evm-bridge
         if: inputs.isEvmBridge || inputs.isIscSDK
         run: pnpm evm-bridge build
-
-      - name: Install Playwright Browsers for Evm-bridge
-        if: inputs.isEvmBridge || inputs.isIscSDK
-        run: pnpm --filter iota-evm-bridge playwright install --with-deps chromium
 
       - name: Prepare evm-bridge e2e tests (downloads wallet artifact dist)
         if: inputs.isEvmBridge || inputs.isIscSDK
