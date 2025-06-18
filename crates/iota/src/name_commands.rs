@@ -103,7 +103,7 @@ pub enum NameCommand {
         /// sender or if no target address is set.
         #[arg(long)]
         set_reverse_lookup: bool,
-        ///
+        /// Coupons to apply discounts to the price.
         #[arg(long, num_args(1..))]
         coupons: Vec<String>,
         // Whether to print detailed output.
@@ -122,7 +122,7 @@ pub enum NameCommand {
         /// The coin to use for payment. If not provided, selects the first coin
         /// with enough balance.
         coin: Option<ObjectID>,
-        ///
+        /// Coupons to apply discounts to the price.
         #[arg(long, num_args(1..))]
         coupons: Vec<String>,
         // Whether to print detailed output.
