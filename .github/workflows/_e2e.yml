@@ -31,6 +31,11 @@ on:
       isIscSDK:
         type: boolean
         required: false
+    secrets:
+      EVM_BRIDGE_PREVIEW_DEFAULT_NETWORK:
+        required: true
+      EVM_BRIDGE_CONFIG:
+        required: true
 
 concurrency:
   group: e2e-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
