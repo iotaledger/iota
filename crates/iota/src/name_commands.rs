@@ -345,9 +345,13 @@ impl NameCommand {
                     let coupon_house = CouponHouse::new(&iota_client).await?;
 
                     for coupon in &coupons {
-                        price = coupon_house
-                            .apply_coupon(coupon, price, &iota_client)
-                            .await?;
+                        let coupon = coupon_house.get_coupon(coupon, &iota_client).await?;
+
+                        if !coupon.rules.can_stack && coupons.len() > 1 {
+                            bail!("non-stackable coupons used");
+                        }
+
+                        price = coupon_house.apply_coupon(&coupon, price).await?;
                     }
                 }
 
@@ -448,9 +452,13 @@ impl NameCommand {
                     let coupon_house = CouponHouse::new(&iota_client).await?;
 
                     for coupon in &coupons {
-                        price = coupon_house
-                            .apply_coupon(coupon, price, &iota_client)
-                            .await?;
+                        let coupon = coupon_house.get_coupon(coupon, &iota_client).await?;
+
+                        if !coupon.rules.can_stack && coupons.len() > 1 {
+                            bail!("non-stackable coupons used");
+                        }
+
+                        price = coupon_house.apply_coupon(&coupon, price).await?;
                     }
                 }
 
@@ -2279,7 +2287,6 @@ struct CouponRules {
     pub can_stack: bool,
 }
 
-#[expect(unused)]
 #[derive(Debug, Deserialize)]
 struct Coupon {
     pub kind: u8,
@@ -2343,14 +2350,7 @@ impl CouponHouse {
         Ok(entry.value)
     }
 
-    async fn apply_coupon(
-        &self,
-        coupon: &str,
-        price: u64,
-        iota_client: &IotaClient,
-    ) -> anyhow::Result<u64> {
-        let coupon = self.get_coupon(coupon, &iota_client).await?;
-
+    async fn apply_coupon(&self, coupon: &Coupon, price: u64) -> anyhow::Result<u64> {
         Ok(match coupon.kind {
             0 => {
                 let discount_amount = ((price as u128) * (coupon.amount as u128) / 100) as u64;
