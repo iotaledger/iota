@@ -73,6 +73,31 @@ jobs:
 
       - uses: pnpm/action-setup@fe02b34f77f8bc703788d5817da081398fad5dd2 # v4.0.0
 
+      - name: Build Evm-bridge
+        if: inputs.isEvmBridge || inputs.isIscSDK
+        run: pnpm evm-bridge build
+
+      - name: Install Playwright Browsers for Evm-bridge
+        if: inputs.isEvmBridge || inputs.isIscSDK
+        run: pnpm --filter iota-evm-bridge playwright install --with-deps chromium
+
+      - name: Prepare evm-bridge e2e tests (downloads wallet artifact dist)
+        if: inputs.isEvmBridge || inputs.isIscSDK
+        working-directory: ./apps/evm-bridge
+        run: pnpm run test:prepare
+
+      - name: Run evm-bridge tests
+        if: inputs.isEvmBridge || inputs.isIscSDK
+        working-directory: ./apps/evm-bridge
+        run: DEBUG=pw:webserver xvfb-run --auto-servernum pnpm run test:e2e
+
+      - uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # v4.4.3
+        if: always()
+        with:
+          name: playwright-report-app
+          path: apps/evm-bridge/playwright-report/
+          retention-days: 30
+
       - name: Build Iota binary
         run: cargo build --bin iota --features indexer --profile dev
 
@@ -168,25 +193,4 @@ jobs:
         with:
           name: playwright-report-wallet
           path: apps/wallet/playwright-report/
-          retention-days: 30
-
-      - name: Build Evm-bridge
-        if: inputs.isEvmBridge || inputs.isIscSDK
-        run: pnpm evm-bridge build
-
-      - name: Prepare evm-bridge e2e tests (downloads wallet artifact dist)
-        if: inputs.isEvmBridge || inputs.isIscSDK
-        working-directory: ./apps/evm-bridge
-        run: pnpm run test:prepare
-
-      - name: Run evm-bridge tests
-        if: inputs.isEvmBridge || inputs.isIscSDK
-        working-directory: ./apps/evm-bridge
-        run: DEBUG=pw:webserver xvfb-run --auto-servernum pnpm run test:e2e
-
-      - uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # v4.4.3
-        if: always()
-        with:
-          name: playwright-report-app
-          path: apps/evm-bridge/playwright-report/
           retention-days: 30
