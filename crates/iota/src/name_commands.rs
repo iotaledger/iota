@@ -342,19 +342,10 @@ impl NameCommand {
                 let mut price = fetch_pricing_config(&iota_client).await?.get_price(label)?;
 
                 if !coupons.is_empty() {
-                    let coupon_house = CouponHouse::new(&iota_client).await?;
-
-                    for coupon_str in &coupons {
-                        let coupon = coupon_house.get_coupon(coupon_str, &iota_client).await?;
-
-                        if !coupon.rules.can_stack && coupons.len() > 1 {
-                            bail!(
-                                "coupon '{coupon_str}' cannot stack with the other coupons provided"
-                            );
-                        }
-
-                        price = coupon_house.apply_coupon(&coupon, price).await?;
-                    }
+                    price = CouponHouse::new(&iota_client)
+                        .await?
+                        .apply_coupons(&coupons, price, &iota_client)
+                        .await?;
                 }
 
                 let domain_name = domain.to_string();
@@ -451,19 +442,10 @@ impl NameCommand {
                     * years as u64;
 
                 if !coupons.is_empty() {
-                    let coupon_house = CouponHouse::new(&iota_client).await?;
-
-                    for coupon_str in &coupons {
-                        let coupon = coupon_house.get_coupon(coupon_str, &iota_client).await?;
-
-                        if !coupon.rules.can_stack && coupons.len() > 1 {
-                            bail!(
-                                "coupon '{coupon_str}' cannot stack with the other coupons provided"
-                            );
-                        }
-
-                        price = coupon_house.apply_coupon(&coupon, price).await?;
-                    }
+                    price = CouponHouse::new(&iota_client)
+                        .await?
+                        .apply_coupons(&coupons, price, &iota_client)
+                        .await?;
                 }
 
                 let domain_name = domain.to_string();
@@ -2363,6 +2345,25 @@ impl CouponHouse {
             1 => price.saturating_sub(coupon.amount),
             _ => bail!("undefined coupon kind"),
         })
+    }
+
+    async fn apply_coupons(
+        &self,
+        coupons: &[String],
+        mut price: u64,
+        iota_client: &IotaClient,
+    ) -> anyhow::Result<u64> {
+        for coupon_str in coupons {
+            let coupon = self.get_coupon(coupon_str, &iota_client).await?;
+
+            if !coupon.rules.can_stack && coupons.len() > 1 {
+                bail!("coupon '{coupon_str}' cannot stack with the other coupons provided");
+            }
+
+            price = self.apply_coupon(&coupon, price).await?;
+        }
+
+        Ok(price)
     }
 }
 
