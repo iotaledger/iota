@@ -240,12 +240,14 @@
     /* TITLE */
     --title-main-color: theme('colors.iota-neutral.10');
     --title-subtitle-color: theme('colors.iota-neutral.60');
+    --title-icon-color: theme('colors.iota-neutral.60');
 
     /* ---------------- ORGANISMS ---------------- */
 
     /* ACCORDION */
     --accordion-bg: theme('colors.iota-neutral.100');
     --accordion-icon-color: theme('colors.iota-neutral.10');
+    --accordion-border-color: theme('colors.shader-neutral-light.8');
 
     /* DIALOG */
     --dialog-content-bg: theme('colors.iota-primary.100');
@@ -473,12 +475,13 @@
     /* TITLE */
     --title-main-color: theme('colors.iota-neutral.92');
     --title-subtitle-color: theme('colors.iota-neutral.40');
-
+    --title-icon-color: theme('colors.iota-neutral.40');
     /* ---------------- ORGANISMS ---------------- */
 
     /* ACCORDION */
     --accordion-bg: theme('colors.iota-neutral.6');
     --accordion-icon-color: theme('colors.iota-neutral.92');
+    --accordion-border-color: theme('colors.shader-neutral-dark.8');
 
     /* DIALOG */
     --dialog-content-bg: theme('colors.iota-neutral.6');
@@ -716,12 +719,14 @@
     /* TITLE */
     --title-main-color: theme('colors.names-neutral.92');
     --title-subtitle-color: theme('colors.names-neutral.40');
+    --title-icon-color: theme('colors.iota-neutral.50');
 
     /* ---------------- ORGANISMS ---------------- */
 
     /* ACCORDION */
     --accordion-bg: theme('colors.iota-neutral.6');
     --accordion-icon-color: theme('colors.iota-neutral.92');
+    --accordion-border-color: theme('colors.shader-neutral-dark.8');
 
     /* DIALOG */
     --dialog-content-bg: theme('colors.iota-neutral.6');

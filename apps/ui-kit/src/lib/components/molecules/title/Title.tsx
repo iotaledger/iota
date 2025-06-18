@@ -64,7 +64,7 @@ export function Title({
                         <h4 className={cx(TITLE_SIZE[size])}>{title}</h4>
                         {tooltipText && (
                             <Tooltip text={tooltipText} position={tooltipPosition}>
-                                <Info />
+                                <Info className="title-icon-color" />
                             </Tooltip>
                         )}
                     </div>
