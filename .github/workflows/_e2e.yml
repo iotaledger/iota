@@ -38,6 +38,8 @@ concurrency:
 
 env:
   RUST_LOG: warn
+  VITE_EVM_BRIDGE_DEFAULT_NETWORK: ${{ secrets.EVM_BRIDGE_PREVIEW_DEFAULT_NETWORK }}
+  VITE_EVM_BRIDGE_CONFIG: ${{ secrets.EVM_BRIDGE_CONFIG }}
 
 jobs:
   # Run e2e test against localnet built on the develop branch
@@ -46,9 +48,6 @@ jobs:
     if: inputs.isExplorer || inputs.isTypescriptSDK || inputs.isWallet || inputs.isWalletDashboard || inputs.isRpc || github.ref_name == 'develop'
     runs-on: self-hosted-x64
     continue-on-error: ${{ github.ref_name == 'develop' }}
-    env:
-      VITE_EVM_BRIDGE_DEFAULT_NETWORK: ${{ secrets.EVM_BRIDGE_PREVIEW_DEFAULT_NETWORK }}
-      VITE_EVM_BRIDGE_CONFIG: ${{ secrets.EVM_BRIDGE_CONFIG }}
     services:
       postgres:
         image: postgres:15
