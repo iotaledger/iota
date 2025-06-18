@@ -487,7 +487,7 @@ mod execution_slot_tests {
     use super::ExecutionSlot;
 
     #[test]
-    fn test_execution_slot_new_and_duration() {
+    fn execution_slot_new_and_duration() {
         // Creating a slot with `start_time`  < `end_time`
         let slot = ExecutionSlot::new(1, 3);
         assert_eq!(slot.duration(), 2);
@@ -495,20 +495,20 @@ mod execution_slot_tests {
 
     #[test]
     #[should_panic]
-    fn test_execution_slot_new_zero_duration() {
+    fn execution_slot_new_zero_duration() {
         // Creating a slot with `start_time`  == `end_time` should panic.
         ExecutionSlot::new(1, 1);
     }
 
     #[test]
     #[should_panic]
-    fn test_execution_slot_new_negative_duration() {
+    fn execution_slot_new_negative_duration() {
         // Creating a slot with `start_time`  > `end_time` should panic.
         ExecutionSlot::new(3, 1);
     }
 
     #[test]
-    fn test_execution_slot_intersection() {
+    fn execution_slot_intersection() {
         // Test intersection of two identical slots
         let slot_1 = ExecutionSlot::new(1, 3);
         let slot_2 = ExecutionSlot::new(1, 3);
@@ -573,7 +573,7 @@ mod execution_slot_tests {
     }
 
     #[test]
-    fn test_execution_slot_contains() {
+    fn execution_slot_contains() {
         // Test case where slot_1 contains slot_2
         let slot_1 = ExecutionSlot::new(1, 5);
         let slot_2 = ExecutionSlot::new(2, 3);
@@ -740,7 +740,7 @@ mod object_cost_tests {
     use super::{shared_object_test_utils::*, *};
 
     #[rstest]
-    fn test_compute_tx_start_at_time(#[values(true, false)] assign_min_free_execution_slot: bool) {
+    fn compute_tx_start_at_time(#[values(true, false)] assign_min_free_execution_slot: bool) {
         let object_id_0 = ObjectID::random();
         let object_id_1 = ObjectID::random();
         let object_id_2 = ObjectID::random();
@@ -916,7 +916,7 @@ mod object_cost_tests {
     }
 
     #[rstest]
-    fn test_try_schedule_return_correct_congested_objects(
+    fn try_schedule_return_correct_congested_objects(
         #[values(
             PerObjectCongestionControlMode::TotalGasBudget,
             PerObjectCongestionControlMode::TotalTxCount
@@ -1067,7 +1067,7 @@ mod object_cost_tests {
     }
 
     #[rstest]
-    fn test_try_schedule_return_correct_deferral_key(
+    fn try_schedule_return_correct_deferral_key(
         #[values(
             PerObjectCongestionControlMode::TotalGasBudget,
             PerObjectCongestionControlMode::TotalTxCount
@@ -1171,7 +1171,7 @@ mod object_cost_tests {
     }
 
     #[rstest]
-    fn test_bump_object_execution_slots(
+    fn bump_object_execution_slots(
         #[values(
             PerObjectCongestionControlMode::TotalGasBudget,
             PerObjectCongestionControlMode::TotalTxCount
@@ -1336,7 +1336,7 @@ mod object_cost_tests {
     }
 
     #[rstest]
-    fn test_slots_overflow(#[values(true, false)] assign_min_free_execution_slot: bool) {
+    fn slots_overflow(#[values(true, false)] assign_min_free_execution_slot: bool) {
         let object_id_0 = ObjectID::random();
         let object_id_1 = ObjectID::random();
         let object_id_2 = ObjectID::random();
@@ -1555,7 +1555,7 @@ mod object_cost_tests {
     }
 
     #[test]
-    fn test_congested_objects_version_assignments() {
+    fn congested_objects_version_assignments() {
         use std::collections::BTreeMap;
 
         use iota_types::base_types::SequenceNumber;
