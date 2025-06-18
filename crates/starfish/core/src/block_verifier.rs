@@ -31,8 +31,7 @@ pub(crate) trait BlockVerifier: Send + Sync + 'static {
         block: &VerifiedBlockHeader,
         ancestors: &[Option<VerifiedBlockHeader>],
     ) -> ConsensusResult<()>;
-    fn check_and_verify_transactions(&self, transactions: &Vec<Transaction>)
-    -> ConsensusResult<()>;
+    fn check_and_verify_transactions(&self, transactions: &[Transaction]) -> ConsensusResult<()>;
 }
 
 /// `SignedBlockVerifier` checks the validity of a block.
@@ -61,7 +60,7 @@ impl SignedBlockVerifier {
             transaction_verifier,
         }
     }
-    fn check_transactions(&self, batch: &[&[u8]]) -> ConsensusResult<()> {
+    pub(crate) fn check_transactions(&self, batch: &[&[u8]]) -> ConsensusResult<()> {
         let max_transaction_size_limit =
             self.context.protocol_config.max_transaction_size_bytes() as usize;
         for t in batch {
@@ -187,10 +186,7 @@ impl BlockVerifier for SignedBlockVerifier {
         Ok(())
     }
 
-    fn check_and_verify_transactions(
-        &self,
-        transactions: &Vec<Transaction>,
-    ) -> ConsensusResult<()> {
+    fn check_and_verify_transactions(&self, transactions: &[Transaction]) -> ConsensusResult<()> {
         let batch: Vec<_> = transactions.iter().map(|t| t.data()).collect();
         self.check_transactions(&batch)?;
         self.transaction_verifier
@@ -230,6 +226,10 @@ pub(crate) struct NoopBlockVerifier;
 #[cfg(test)]
 impl BlockVerifier for NoopBlockVerifier {
     fn verify(&self, _block: &SignedBlockHeader) -> ConsensusResult<()> {
+        Ok(())
+    }
+
+    fn check_and_verify_transactions(&self, _transactions: &[Transaction]) -> ConsensusResult<()> {
         Ok(())
     }
 

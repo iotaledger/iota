@@ -842,7 +842,7 @@ mod tests {
 
         fn check_and_verify_transactions(
             &self,
-            transactions: &Vec<Transaction>,
+            _transactions: &[Transaction],
         ) -> ConsensusResult<()> {
             Ok(())
         }
