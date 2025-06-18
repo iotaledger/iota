@@ -389,23 +389,23 @@ mod tests {
         // Try sequencing the first certificate
         let shared_input_objects_1: Vec<_> = certificate_1.shared_input_objects().collect();
         shared_object_congestion_tracker.initialize_object_execution_slots(&shared_input_objects_1);
-        let sequencing_result = shared_object_congestion_tracker.try_schedule(
+        let sequencing_result_1 = shared_object_congestion_tracker.try_schedule(
             &certificate_1,
             max_execution_duration_per_commit,
             &previously_deferred_tx_digests,
             commit_round,
         );
         // Shared-object transactions allocations at this step should look as follows:
-        // |----------------------------------------------------------------|
-        // |  object_1  |  object_2  |  object_3  |  object_4  |  object_5  |
-        // |----------------------------------------------------------------|
-        // |:::::::::::::::MAX_EXECUTION_DURATION_PER_COMMIT::::::::::::::::|
-        // |----------------------------------------------------------------|
-        // |                                                                |
-        // |----------------------------------------------------------------|
-        // |   certificate_1 (1003)  |                                      |
-        // |----------------------------------------------------------------|
-        if let SequencingResult::Schedule(start_time) = sequencing_result {
+        // |-------------------------------------------------------------------------------|
+        // |   object_1    |   object_2    |   object_3    |   object_4    |   object_5    |
+        // |-------------------------------------------------------------------------------|
+        // |:::::::::::::::::::::::MAX_EXECUTION_DURATION_PER_COMMIT:::::::::::::::::::::::|
+        // |-------------------------------------------------------------------------------|
+        // |               |               |               |               |               |
+        // |-------------------------------------------------------------------------------|
+        // |         certificate_1         |               |               |               |
+        // |-------------------------------------------------------------------------------|
+        if let SequencingResult::Schedule(start_time) = sequencing_result_1 {
             shared_object_congestion_tracker
                 .bump_object_execution_slots(&certificate_1, start_time);
             suggested_gas_price_calculator
@@ -433,16 +433,16 @@ mod tests {
             &previously_deferred_tx_digests,
             commit_round,
         );
-        // Shared-object transactions allocations at this step looks as follows:
-        // |----------------------------------------------------------------|
-        // |  object_1  |  object_2  |  object_3  |  object_4  |  object_5  |
-        // |----------------------------------------------------------------|
-        // |:::::::::::::::MAX_EXECUTION_DURATION_PER_COMMIT::::::::::::::::|
-        // |----------------------------------------------------------------|
-        // |            |         certificate_2 (1002)         |            |
-        // |----------------------------------------------------------------|
-        // |   certificate_1 (1003)  |                                      |
-        // |----------------------------------------------------------------|
+        // Shared-object transactions allocations at this step should look as follows:
+        // |-------------------------------------------------------------------------------|
+        // |   object_1    |   object_2    |   object_3    |   object_4    |   object_5    |
+        // |-------------------------------------------------------------------------------|
+        // |:::::::::::::::::::::::MAX_EXECUTION_DURATION_PER_COMMIT:::::::::::::::::::::::|
+        // |-------------------------------------------------------------------------------|
+        // |               |         certificate_2         |               |               |
+        // |-------------------------------------------------------------------------------|
+        // |         certificate_1         |               |               |               |
+        // |-------------------------------------------------------------------------------|
         if let SequencingResult::Schedule(start_time) = sequencing_result_2 {
             shared_object_congestion_tracker
                 .bump_object_execution_slots(&certificate_2, start_time);
@@ -462,7 +462,7 @@ mod tests {
         let estimated_execution_duration_3 =
             shared_object_congestion_tracker.get_estimated_execution_duration(&certificate_3);
 
-        // Try sequencing the second certificate
+        // Try sequencing the third certificate
         let shared_input_objects_3: Vec<_> = certificate_3.shared_input_objects().collect();
         shared_object_congestion_tracker.initialize_object_execution_slots(&shared_input_objects_3);
         let sequencing_result_3 = shared_object_congestion_tracker.try_schedule(
@@ -471,16 +471,16 @@ mod tests {
             &previously_deferred_tx_digests,
             commit_round,
         );
-        // Shared-object transactions allocations at this step looks as follows:
-        // |----------------------------------------------------------------|
-        // |  object_1  |  object_2  |  object_3  |  object_4  |  object_5  |
-        // |----------------------------------------------------------------|
-        // |:::::::::::::::MAX_EXECUTION_DURATION_PER_COMMIT::::::::::::::::|
-        // |----------------------------------------------------------------|
-        // |            |         certificate_2 (1002)         |            |
-        // |----------------------------------------------------------------|
-        // |   certificate_1 (1003)  |            |   certificate_3 (1001)  |
-        // |----------------------------------------------------------------|
+        // Shared-object transactions allocations at this step should look as follows:
+        // |-------------------------------------------------------------------------------|
+        // |   object_1    |   object_2    |   object_3    |   object_4    |   object_5    |
+        // |-------------------------------------------------------------------------------|
+        // |:::::::::::::::::::::::MAX_EXECUTION_DURATION_PER_COMMIT:::::::::::::::::::::::|
+        // |-------------------------------------------------------------------------------|
+        // |               |         certificate_2         |               |               |
+        // |-------------------------------------------------------------------------------|
+        // |         certificate_1         |               |         certificate_3         |
+        // |-------------------------------------------------------------------------------|
         if let SequencingResult::Schedule(start_time) = sequencing_result_3 {
             shared_object_congestion_tracker
                 .bump_object_execution_slots(&certificate_3, start_time);
@@ -515,16 +515,16 @@ mod tests {
             &previously_deferred_tx_digests,
             commit_round,
         );
-        // Shared-object transactions allocations at this step looks as follows:
-        // |----------------------------------------------------------------|
-        // |  object_1  |  object_2  |  object_3  |  object_4  |  object_5  |
-        // |----------------------------------------------------------------|
-        // |:::::::::::::::MAX_EXECUTION_DURATION_PER_COMMIT::::::::::::::::|
-        // |----------------------------------------------------------------|
-        // |            |         certificate_2 (1002)         |            |
-        // |----------------------------------------------------------------|
-        // |   certificate_1 (1003)  |            |   certificate_3 (1001)  |
-        // |----------------------------------------------------------------|
+        // Shared-object transactions allocations at this step should look as follows:
+        // |-------------------------------------------------------------------------------|
+        // |   object_1    |   object_2    |   object_3    |   object_4    |   object_5    |
+        // |-------------------------------------------------------------------------------|
+        // |:::::::::::::::::::::::MAX_EXECUTION_DURATION_PER_COMMIT:::::::::::::::::::::::|
+        // |-------------------------------------------------------------------------------|
+        // |               |         certificate_2         |               |               |
+        // |-------------------------------------------------------------------------------|
+        // |         certificate_1         |               |         certificate_3         |
+        // |-------------------------------------------------------------------------------|
         if let SequencingResult::Defer(_key, congested_objects) = sequencing_result_4 {
             assert_eq!(
                 congested_objects,
@@ -550,7 +550,7 @@ mod tests {
         let estimated_execution_duration_5 =
             shared_object_congestion_tracker.get_estimated_execution_duration(&certificate_5);
 
-        // Try sequencing the fourth certificate
+        // Try sequencing the fifth certificate
         let shared_input_objects_5: Vec<_> = certificate_5.shared_input_objects().collect();
         shared_object_congestion_tracker.initialize_object_execution_slots(&shared_input_objects_5);
         let sequencing_result_5 = shared_object_congestion_tracker.try_schedule(
@@ -559,16 +559,16 @@ mod tests {
             &previously_deferred_tx_digests,
             commit_round,
         );
-        // Shared-object transactions allocations at this step looks as follows:
-        // |----------------------------------------------------------------|
-        // |  object_1  |  object_2  |  object_3  |  object_4  |  object_5  |
-        // |----------------------------------------------------------------|
-        // |:::::::::::::::MAX_EXECUTION_DURATION_PER_COMMIT::::::::::::::::|
-        // |----------------------------------------------------------------|
-        // |            |         certificate_2 (1002)         |            |
-        // |----------------------------------------------------------------|
-        // |   certificate_1 (1003)  |            |   certificate_3 (1001)  |
-        // |----------------------------------------------------------------|
+        // Shared-object transactions allocations at this step should look as follows:
+        // |-------------------------------------------------------------------------------|
+        // |   object_1    |   object_2    |   object_3    |   object_4    |   object_5    |
+        // |-------------------------------------------------------------------------------|
+        // |:::::::::::::::::::::::MAX_EXECUTION_DURATION_PER_COMMIT:::::::::::::::::::::::|
+        // |-------------------------------------------------------------------------------|
+        // |               |         certificate_2         |               |               |
+        // |-------------------------------------------------------------------------------|
+        // |         certificate_1         |               |         certificate_3         |
+        // |-------------------------------------------------------------------------------|
         if let SequencingResult::Defer(_key, congested_objects) = sequencing_result_5 {
             assert_eq!(
                 congested_objects,
@@ -580,19 +580,101 @@ mod tests {
             match mode {
                 PerObjectCongestionControlMode::None => unreachable!(),
                 PerObjectCongestionControlMode::TotalTxCount => {
-                    // To be scheduled, certificate_4 should have payed at least the gas
+                    // To be scheduled, certificate_5 should have payed at least the gas
                     // price of certificate_2 plus 1. `TotalTxCount` mode is blind to
-                    // gas budget.
+                    // gas budget of certificate_5.
                     assert_eq!(suggested_gas_price, gas_price_2 + 1);
                 }
                 PerObjectCongestionControlMode::TotalGasBudget => {
-                    // To be scheduled, certificate_4 should have payed at least the gas
+                    // To be scheduled, certificate_5 should have payed at least the gas
                     // price of certificate_1 plus 1.
                     assert_eq!(suggested_gas_price, gas_price_1 + 1);
                 }
             }
         } else {
             panic!("Certificate 5 must be deferred");
+        }
+
+        // Construct the sixth certificate with some shared input objects,
+        // gas price, estimated execution duration, and update calculator's
+        // congestion info for this certificate.
+        let objects_6 = vec![(object_1, true)];
+        let gas_budget_6 = 1_000_000;
+        let gas_price_6 = 1_000;
+        let certificate_6 = build_transaction(&objects_6, gas_budget_6, gas_price_6);
+        let estimated_execution_duration_6 =
+            shared_object_congestion_tracker.get_estimated_execution_duration(&certificate_6);
+
+        // Try sequencing the sixth certificate
+        let shared_input_objects_6: Vec<_> = certificate_6.shared_input_objects().collect();
+        shared_object_congestion_tracker.initialize_object_execution_slots(&shared_input_objects_6);
+        let sequencing_result_6 = shared_object_congestion_tracker.try_schedule(
+            &certificate_6,
+            max_execution_duration_per_commit,
+            &previously_deferred_tx_digests,
+            commit_round,
+        );
+        // Shared-object transactions allocations at this step should look as follows:
+        // |-------------------------------------------------------------------------------|
+        // |   object_1    |   object_2    |   object_3    |   object_4    |   object_5    |
+        // |-------------------------------------------------------------------------------|
+        // |:::::::::::::::::::::::MAX_EXECUTION_DURATION_PER_COMMIT:::::::::::::::::::::::|
+        // |-------------------------------------------------------------------------------|
+        // | certificate_6 |         certificate_2         |               |               |
+        // |-------------------------------------------------------------------------------|
+        // |         certificate_1         |               |         certificate_3         |
+        // |-------------------------------------------------------------------------------|
+        if let SequencingResult::Schedule(start_time) = sequencing_result_6 {
+            shared_object_congestion_tracker
+                .bump_object_execution_slots(&certificate_6, start_time);
+            suggested_gas_price_calculator
+                .update_congestion_info(&certificate_6, estimated_execution_duration_6);
+        } else {
+            panic!("Certificate 6 must be scheduled");
+        }
+
+        // Construct the seventh certificate with some shared input objects,
+        // gas price, estimated execution duration, and update calculator's
+        // congestion info for this certificate.
+        let objects_7 = vec![(object_1, true)];
+        let gas_budget_7 = 1_000_000;
+        let gas_price_7 = 1_000;
+        let certificate_7 = build_transaction(&objects_7, gas_budget_7, gas_price_7);
+        let estimated_execution_duration_7 =
+            shared_object_congestion_tracker.get_estimated_execution_duration(&certificate_7);
+
+        // Try sequencing the seventh certificate
+        let shared_input_objects_7: Vec<_> = certificate_7.shared_input_objects().collect();
+        shared_object_congestion_tracker.initialize_object_execution_slots(&shared_input_objects_7);
+        let sequencing_result_7 = shared_object_congestion_tracker.try_schedule(
+            &certificate_7,
+            max_execution_duration_per_commit,
+            &previously_deferred_tx_digests,
+            commit_round,
+        );
+        // Shared-object transactions allocations at this step should look as follows:
+        // |-------------------------------------------------------------------------------|
+        // |   object_1    |   object_2    |   object_3    |   object_4    |   object_5    |
+        // |-------------------------------------------------------------------------------|
+        // |:::::::::::::::::::::::MAX_EXECUTION_DURATION_PER_COMMIT:::::::::::::::::::::::|
+        // |-------------------------------------------------------------------------------|
+        // | certificate_6 |         certificate_2         |               |               |
+        // |-------------------------------------------------------------------------------|
+        // |         certificate_1         |               |         certificate_3         |
+        // |-------------------------------------------------------------------------------|
+        if let SequencingResult::Defer(_key, congested_objects) = sequencing_result_7 {
+            assert_eq!(
+                congested_objects,
+                objects_7.into_iter().map(|(id, _)| id).collect::<Vec<_>>(),
+            );
+            let suggested_gas_price = suggested_gas_price_calculator
+                .calculate_suggested_gas_price(&certificate_7, estimated_execution_duration_7);
+
+            // To be scheduled, certificate_7 should have payed at least the gas
+            // price of certificate_6 plus 1.
+            assert_eq!(suggested_gas_price, gas_price_6 + 1);
+        } else {
+            panic!("Certificate 7 must be deferred");
         }
     }
 }
