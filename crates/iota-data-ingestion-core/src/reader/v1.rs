@@ -29,8 +29,7 @@ use tracing::{debug, error, info};
 use crate::{
     IngestionError, IngestionResult, MAX_CHECKPOINTS_IN_PROGRESS, create_remote_store_client,
     reader::fetch::{
-        CheckpointResult, LocalCheckpointFileOps, ReadSource, fetch_from_full_node,
-        fetch_from_object_store,
+        CheckpointResult, LocalRead, ReadSource, fetch_from_full_node, fetch_from_object_store,
     },
 };
 
@@ -51,7 +50,7 @@ pub struct CheckpointReader {
     data_limiter: DataLimiter,
 }
 
-impl LocalCheckpointFileOps for CheckpointReader {
+impl LocalRead for CheckpointReader {
     fn exceeds_capacity(&self, checkpoint_number: CheckpointSequenceNumber) -> bool {
         ((MAX_CHECKPOINTS_IN_PROGRESS as u64 + self.last_pruned_watermark) <= checkpoint_number)
             || self.data_limiter.exceeds()

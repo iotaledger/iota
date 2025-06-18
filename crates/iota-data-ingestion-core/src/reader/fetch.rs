@@ -23,7 +23,7 @@ use crate::{IngestionError, IngestionResult, MAX_CHECKPOINTS_IN_PROGRESS};
 pub type CheckpointResult = IngestionResult<(Arc<CheckpointData>, usize)>;
 
 /// Managing and processing checkpoint files in a directory.
-pub(crate) trait LocalCheckpointFileOps {
+pub(crate) trait LocalRead {
     /// Path is used as the source for reading checkpoint files.
     fn path(&self) -> &Path;
     /// Returns the current checkpoint sequence number.
@@ -59,7 +59,7 @@ pub(crate) trait LocalCheckpointFileOps {
     ///
     /// Iterates over unprocessed checkpoint files, deserializing each into a
     /// [`CheckpointData`]. Stops early if the capacity is exceeded, as
-    /// determined by [`LocalCheckpointFileOps::exceeds_capacity`], or when
+    /// determined by [`LocalRead::exceeds_capacity`], or when
     /// [`MAX_CHECKPOINTS_IN_PROGRESS`] files have been processed.
     fn read_local_files(&self) -> IngestionResult<Vec<Arc<CheckpointData>>> {
         // files are already sorted by sequence number in ascending order
@@ -79,7 +79,7 @@ pub(crate) trait LocalCheckpointFileOps {
     /// Reads and deserializes unprocessed checkpoint files with retry and
     /// capacity check.
     ///
-    /// This method wraps [`LocalCheckpointFileOps::read_local_files`] with an
+    /// This method wraps [`LocalRead::read_local_files`] with an
     /// exponential backoff retry mechanism to handle transient read errors.
     /// Retries are performed according to the default
     /// [`backoff::ExponentialBackoff`] policy.
