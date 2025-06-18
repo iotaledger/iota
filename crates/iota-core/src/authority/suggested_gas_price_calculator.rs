@@ -173,7 +173,7 @@ impl SuggestedGasPriceCalculator {
 }
 
 #[cfg(test)]
-mod suggested_gas_price_calculator_tests {
+mod tests {
     use iota_types::base_types::ObjectID;
 
     use super::SuggestedGasPriceCalculator;
@@ -187,7 +187,7 @@ mod suggested_gas_price_calculator_tests {
     const MAX_GAS_PRICE: u64 = 100_000;
 
     #[test]
-    fn test_update_congestion_info() {
+    fn update_congestion_info() {
         let max_execution_duration_per_commit = 10; // not important in this test
 
         let mut suggested_gas_price_calculator =
