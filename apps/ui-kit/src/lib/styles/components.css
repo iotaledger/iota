@@ -482,20 +482,20 @@
     }
 
     .input-border-color-hover {
-        &:hover {
+        &:hover:not(:has(input:focus)) {
             border-color: var(--input-border-hover-color);
+        }
+    }
+
+    .input-border-error-color {
+        .group.errored:not(:has(input:focus)) & {
+            border-color: var(--input-border-error-color);
         }
     }
 
     .input-border-color-focus {
         &:has(input:focus) {
-            border-color: var(--input-border-focus-color) !important;
-        }
-    }
-
-    .input-border-color-error {
-        .group.errored & {
-            border-color: var(--input-border-error-color);
+            border-color: var(--input-border-focus-color);
         }
     }
 
