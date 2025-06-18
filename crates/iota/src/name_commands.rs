@@ -344,7 +344,7 @@ impl NameCommand {
                 if !coupons.is_empty() {
                     let coupon_house = CouponHouse::new(&iota_client).await?;
 
-                    for coupon in coupons.iter() {
+                    for coupon in &coupons {
                         price = coupon_house
                             .apply_coupon(coupon, price, &iota_client)
                             .await?;
@@ -447,7 +447,7 @@ impl NameCommand {
                 if !coupons.is_empty() {
                     let coupon_house = CouponHouse::new(&iota_client).await?;
 
-                    for coupon in coupons.iter() {
+                    for coupon in &coupons {
                         price = coupon_house
                             .apply_coupon(coupon, price, &iota_client)
                             .await?;
@@ -2297,10 +2297,10 @@ struct CouponHouse {
 
 impl CouponHouse {
     async fn new(iota_client: &IotaClient) -> anyhow::Result<CouponHouse> {
-        let coupon_package_address = get_coupons_package_address(iota_client).await?;
+        let coupons_package_address = get_coupons_package_address(iota_client).await?;
         let iota_names_config = get_iota_names_config(iota_client).await?;
         let coupon_house_key = StructTag::from_str(&format!(
-            "{}::iota_names::RegistryKey<{coupon_package_address}::coupon_house::CouponHouse>",
+            "{}::iota_names::RegistryKey<{coupons_package_address}::coupon_house::CouponHouse>",
             iota_names_config.package_address,
         ))?;
         let layout = MoveTypeLayout::Struct(Box::new(MoveStructLayout {
@@ -2319,7 +2319,7 @@ impl CouponHouse {
 
         let entry = get_object_from_bcs::<Field<DummyKey, CouponHouse>>(iota_client, object_id)
             .await
-            .unwrap();
+            .map_err(|e| anyhow::anyhow!("couldn't fetch coupon house: {e}"))?;
 
         Ok(entry.value)
     }
