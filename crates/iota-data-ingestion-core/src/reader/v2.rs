@@ -2,7 +2,12 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use std::{
-    future::Future, num::NonZeroUsize, ops::Range, path::PathBuf, sync::Arc, time::Duration,
+    future::Future,
+    num::NonZeroUsize,
+    ops::Range,
+    path::{Path, PathBuf},
+    sync::Arc,
+    time::Duration,
 };
 
 use backoff::backoff::Backoff;
@@ -31,10 +36,9 @@ use crate::{
     history::reader::HistoricalReader,
     reader::{
         fetch::{
-            CheckpointResult, ReadSource, fetch_from_full_node, fetch_from_object_store,
-            read_local_files_with_retry_and_capacity_check, setup_directory_watcher,
+            CheckpointResult, LocalRead, ReadSource, fetch_from_full_node, fetch_from_object_store,
         },
-        v1::{DataLimiter, gc_processed_files},
+        v1::DataLimiter,
     },
 };
 
@@ -170,6 +174,25 @@ struct CheckpointReaderActor {
     data_limiter: DataLimiter,
 }
 
+impl LocalRead for CheckpointReaderActor {
+    fn exceeds_capacity(&self, checkpoint_number: CheckpointSequenceNumber) -> bool {
+        ((MAX_CHECKPOINTS_IN_PROGRESS as u64 + self.last_pruned_watermark) <= checkpoint_number)
+            || self.data_limiter.exceeds()
+    }
+
+    fn path(&self) -> &Path {
+        &self.path
+    }
+
+    fn current_checkpoint_number(&self) -> CheckpointSequenceNumber {
+        self.current_checkpoint_number
+    }
+
+    fn update_last_pruned_watermark(&mut self, watermark: CheckpointSequenceNumber) {
+        self.last_pruned_watermark = watermark;
+    }
+}
+
 impl CheckpointReaderActor {
     fn exceeds_capacity(&self, checkpoint_number: CheckpointSequenceNumber) -> bool {
         ((MAX_CHECKPOINTS_IN_PROGRESS as u64 + self.last_pruned_watermark) <= checkpoint_number)
@@ -219,12 +242,7 @@ impl CheckpointReaderActor {
 
     async fn sync(&mut self) -> IngestionResult<()> {
         let mut read_source = ReadSource::Local;
-        let mut checkpoints = read_local_files_with_retry_and_capacity_check(
-            &self.path,
-            self.current_checkpoint_number,
-            |seq| self.exceeds_capacity(seq),
-        )
-        .await?;
+        let mut checkpoints = self.read_local_files_with_retry().await?;
 
         if self.should_fetch_from_remote(&checkpoints) {
             checkpoints = self.remote_fetch().await;
@@ -257,26 +275,17 @@ impl CheckpointReaderActor {
     }
 
     async fn run(mut self) {
-        let (_watcher, mut inotify_rx) = setup_directory_watcher(&self.path);
-
-        gc_processed_files(
-            &self.path,
-            self.last_pruned_watermark,
-            &mut self.last_pruned_watermark,
-            &mut self.data_limiter,
-        )
-        .expect("Failed to clean the directory");
+        let (_watcher, mut inotify_rx) = self.setup_directory_watcher();
+        self.data_limiter.gc(self.last_pruned_watermark);
+        self.gc_processed_files(self.last_pruned_watermark)
+            .expect("Failed to clean the directory");
 
         loop {
             tokio::select! {
                 _ = &mut self.shutdown_rx => break,
                 Some(watermark) = self.gc_signal_rx.recv() => {
-                    gc_processed_files(
-                        &self.path,
-                        watermark,
-                        &mut self.last_pruned_watermark,
-                        &mut self.data_limiter,
-                    ).expect("Failed to clean the directory");
+                    self.data_limiter.gc(watermark);
+                    self.gc_processed_files(watermark).expect("Failed to clean the directory");
                 }
                 Ok(Some(_)) | Err(_) = timeout(Duration::from_millis(self.tick_interval_ms), inotify_rx.recv())  => {
                     self.sync().await.expect("Failed to read checkpoint files");

@@ -22,6 +22,138 @@ use crate::{IngestionError, IngestionResult, MAX_CHECKPOINTS_IN_PROGRESS};
 
 pub type CheckpointResult = IngestionResult<(Arc<CheckpointData>, usize)>;
 
+/// Managing and processing checkpoint files in a directory.
+pub(crate) trait LocalRead {
+    /// Path is used as the source for reading checkpoint files.
+    fn path(&self) -> &Path;
+    /// Returns the current checkpoint sequence number.
+    fn current_checkpoint_number(&self) -> CheckpointSequenceNumber;
+    fn update_last_pruned_watermark(&mut self, watermark: CheckpointSequenceNumber);
+    /// Returns `true` if the given checkpoint sequence number exceeds the
+    /// allowed capacity.
+    fn exceeds_capacity(&self, checkpoint_number: CheckpointSequenceNumber) -> bool;
+
+    /// Lists unprocessed checkpoint files in the specified directory.
+    ///
+    /// Scans the checkpoint directory for files whose sequence number is
+    /// greater than or equal to the current checkpoint number. Returns a
+    /// map of sequence numbers to file paths, sorted in ascending order.
+    fn list_unprocessed_checkpoint_files(
+        &self,
+    ) -> IngestionResult<BTreeMap<CheckpointSequenceNumber, PathBuf>> {
+        let mut files = BTreeMap::new();
+        for entry in fs::read_dir(self.path())? {
+            let entry = entry?;
+            let filename = entry.file_name();
+            if let Some(sequence_number) = self.checkpoint_number_from_file_path(&filename) {
+                if sequence_number >= self.current_checkpoint_number() {
+                    files.insert(sequence_number, entry.path());
+                }
+            }
+        }
+        Ok(files)
+    }
+
+    /// Reads and deserializes unprocessed checkpoint files from the directory,
+    /// up to capacity.
+    ///
+    /// Iterates over unprocessed checkpoint files, deserializing each into a
+    /// [`CheckpointData`]. Stops early if the capacity is exceeded, as
+    /// determined by [`LocalRead::exceeds_capacity`], or when
+    /// [`MAX_CHECKPOINTS_IN_PROGRESS`] files have been processed.
+    fn read_local_files(&self) -> IngestionResult<Vec<Arc<CheckpointData>>> {
+        // files are already sorted by sequence number in ascending order
+        let files = self.list_unprocessed_checkpoint_files()?;
+        debug!("unprocessed local files {:?}", files);
+        let mut checkpoints = vec![];
+        for (_, filename) in files.iter().take(MAX_CHECKPOINTS_IN_PROGRESS) {
+            let checkpoint = self.read_checkpoint_file(filename)?;
+            if self.exceeds_capacity(checkpoint.checkpoint_summary.sequence_number) {
+                break;
+            }
+            checkpoints.push(checkpoint);
+        }
+        Ok(checkpoints)
+    }
+
+    /// Reads and deserializes unprocessed checkpoint files with retry and
+    /// capacity check.
+    ///
+    /// This method wraps [`LocalRead::read_local_files`] with an
+    /// exponential backoff retry mechanism to handle transient read errors.
+    /// Retries are performed according to the default
+    /// [`backoff::ExponentialBackoff`] policy.
+    async fn read_local_files_with_retry(&self) -> IngestionResult<Vec<Arc<CheckpointData>>> {
+        let backoff = backoff::ExponentialBackoff::default();
+        backoff::future::retry(backoff, || async {
+            self.read_local_files().map_err(|err| {
+                info!("transient local read error {err:?}");
+                backoff::Error::transient(err)
+            })
+        })
+        .await
+    }
+
+    /// Reads and deserializes a checkpoint file.
+    fn read_checkpoint_file(&self, filename: &Path) -> IngestionResult<Arc<CheckpointData>> {
+        let data = fs::read(filename)?;
+        Blob::from_bytes::<Arc<CheckpointData>>(&data)
+            .map_err(|err| IngestionError::DeserializeCheckpoint(err.to_string()))
+    }
+
+    fn checkpoint_number_from_file_path(
+        &self,
+        file_name: &OsString,
+    ) -> Option<CheckpointSequenceNumber> {
+        file_name
+            .to_str()
+            .and_then(|s| s.rfind('.').map(|pos| &s[..pos]))
+            .and_then(|s| s.parse().ok())
+    }
+
+    /// Cleans the local directory by removing all processed checkpoint files.
+    fn gc_processed_files(&mut self, watermark: CheckpointSequenceNumber) -> IngestionResult<()> {
+        info!("cleaning processed files, watermark is {watermark}");
+        self.update_last_pruned_watermark(watermark);
+        for entry in fs::read_dir(self.path())? {
+            let entry = entry?;
+            let filename = entry.file_name();
+            if let Some(sequence_number) = self.checkpoint_number_from_file_path(&filename) {
+                if sequence_number < watermark {
+                    fs::remove_file(entry.path())?;
+                }
+            }
+        }
+        Ok(())
+    }
+
+    /// Sets up an inotify watcher on the given path and returns the watcher and
+    /// a receiver for notifications.
+    ///
+    /// This function creates the directory if it does not exist, sets up a
+    /// notify watcher, and returns both the watcher and a receiver that
+    /// yields a unit value `()` whenever a filesystem event occurs.
+    fn setup_directory_watcher(&self) -> (notify::RecommendedWatcher, mpsc::Receiver<()>) {
+        let (inotify_sender, inotify_recv) = mpsc::channel(1);
+        std::fs::create_dir_all(self.path()).expect("failed to create a directory");
+        let mut watcher = notify::recommended_watcher(move |res| {
+            if let Err(err) = res {
+                eprintln!("watch error: {:?}", err);
+            }
+            inotify_sender
+                .blocking_send(())
+                .expect("Failed to send inotify update");
+        })
+        .expect("Failed to init inotify");
+
+        watcher
+            .watch(self.path(), RecursiveMode::NonRecursive)
+            .expect("Inotify watcher failed");
+
+        (watcher, inotify_recv)
+    }
+}
+
 #[derive(Debug, Clone, Copy)]
 pub enum ReadSource {
     Local,
@@ -35,120 +167,6 @@ impl Display for ReadSource {
             ReadSource::Remote => write!(f, "remote"),
         }
     }
-}
-
-/// Reads and deserializes unprocessed checkpoint files from the given
-/// directory, up to a capacity limit.
-///
-/// This function scans the specified path for checkpoint files whose sequence
-/// number is greater than or equal to `current_checkpoint_number`. It attempts
-/// to deserialize each file into a [`CheckpointData`], collecting them
-/// into a vector. The process stops early if the provided `exceeds_capacity`
-/// function returns `true` for a checkpoint's sequence number,
-/// or when `MAX_CHECKPOINTS_IN_PROGRESS` files have been processed.
-pub async fn read_local_files_with_capacity_check<F>(
-    path: &Path,
-    current_checkpoint_number: CheckpointSequenceNumber,
-    exceeds_capacity: F,
-) -> IngestionResult<Vec<Arc<CheckpointData>>>
-where
-    F: Fn(CheckpointSequenceNumber) -> bool,
-{
-    // files are already sorted by sequence number in ascending order
-    let files = list_unprocessed_checkpoint_files(path, current_checkpoint_number)?;
-    debug!("unprocessed local files {:?}", files);
-    let mut checkpoints = vec![];
-    for (_, filename) in files.iter().take(MAX_CHECKPOINTS_IN_PROGRESS) {
-        let checkpoint = read_checkpoint_file(filename)?;
-        if exceeds_capacity(checkpoint.checkpoint_summary.sequence_number) {
-            break;
-        }
-        checkpoints.push(checkpoint);
-    }
-    Ok(checkpoints)
-}
-
-/// Reads and deserializes unprocessed checkpoint files from the given
-/// directory with retry and capacity check.
-///
-/// This function  wraps [`read_local_files_with_capacity_check`] with an
-/// exponential backoff retry mechanism to handle transient read errors.
-pub async fn read_local_files_with_retry_and_capacity_check<F>(
-    path: &Path,
-    current_checkpoint_number: CheckpointSequenceNumber,
-    exceeds_capacity: F,
-) -> IngestionResult<Vec<Arc<CheckpointData>>>
-where
-    F: Fn(CheckpointSequenceNumber) -> bool + Copy,
-{
-    let backoff = backoff::ExponentialBackoff::default();
-    backoff::future::retry(backoff, || async {
-        read_local_files_with_capacity_check(path, current_checkpoint_number, exceeds_capacity)
-            .await
-            .map_err(|err| {
-                info!("transient local read error {err:?}");
-                backoff::Error::transient(err)
-            })
-    })
-    .await
-}
-
-/// Lists unprocessed checkpoint files in the specified directory.
-fn list_unprocessed_checkpoint_files(
-    path: &Path,
-    current_checkpoint_number: CheckpointSequenceNumber,
-) -> IngestionResult<BTreeMap<CheckpointSequenceNumber, PathBuf>> {
-    let mut files = BTreeMap::new();
-    for entry in fs::read_dir(path)? {
-        let entry = entry?;
-        let filename = entry.file_name();
-        if let Some(sequence_number) = checkpoint_number_from_file_path(&filename) {
-            if sequence_number >= current_checkpoint_number {
-                files.insert(sequence_number, entry.path());
-            }
-        }
-    }
-    Ok(files)
-}
-
-/// Reads and deserializes a checkpoint file.
-pub fn read_checkpoint_file(filename: &Path) -> IngestionResult<Arc<CheckpointData>> {
-    let data = fs::read(filename)?;
-    Blob::from_bytes::<Arc<CheckpointData>>(&data)
-        .map_err(|err| IngestionError::DeserializeCheckpoint(err.to_string()))
-}
-
-pub fn checkpoint_number_from_file_path(file_name: &OsString) -> Option<CheckpointSequenceNumber> {
-    file_name
-        .to_str()
-        .and_then(|s| s.rfind('.').map(|pos| &s[..pos]))
-        .and_then(|s| s.parse().ok())
-}
-
-/// Sets up an inotify watcher on the given path and returns the watcher and a
-/// receiver for notifications.
-///
-/// This function creates the directory if it does not exist, sets up a notify
-/// watcher, and returns both the watcher and a receiver that yields a unit
-/// value `()` whenever a filesystem event occurs.
-pub fn setup_directory_watcher(path: &Path) -> (notify::RecommendedWatcher, mpsc::Receiver<()>) {
-    let (inotify_sender, inotify_recv) = mpsc::channel(1);
-    std::fs::create_dir_all(path).expect("failed to create a directory");
-    let mut watcher = notify::recommended_watcher(move |res| {
-        if let Err(err) = res {
-            eprintln!("watch error: {:?}", err);
-        }
-        inotify_sender
-            .blocking_send(())
-            .expect("Failed to send inotify update");
-    })
-    .expect("Failed to init inotify");
-
-    watcher
-        .watch(path, RecursiveMode::NonRecursive)
-        .expect("Inotify watcher failed");
-
-    (watcher, inotify_recv)
 }
 
 /// Fetches and deserializes a checkpoint from an object store.

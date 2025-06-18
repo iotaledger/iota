@@ -4,7 +4,6 @@
 
 use std::{
     collections::BTreeMap,
-    fs,
     path::{Path, PathBuf},
     sync::Arc,
     time::Duration,
@@ -30,9 +29,7 @@ use tracing::{debug, error, info};
 use crate::{
     IngestionError, IngestionResult, MAX_CHECKPOINTS_IN_PROGRESS, create_remote_store_client,
     reader::fetch::{
-        CheckpointResult, ReadSource, checkpoint_number_from_file_path, fetch_from_full_node,
-        fetch_from_object_store, read_local_files_with_retry_and_capacity_check,
-        setup_directory_watcher,
+        CheckpointResult, LocalRead, ReadSource, fetch_from_full_node, fetch_from_object_store,
     },
 };
 
@@ -51,6 +48,25 @@ pub struct CheckpointReader {
     exit_receiver: oneshot::Receiver<()>,
     options: ReaderOptions,
     data_limiter: DataLimiter,
+}
+
+impl LocalRead for CheckpointReader {
+    fn exceeds_capacity(&self, checkpoint_number: CheckpointSequenceNumber) -> bool {
+        ((MAX_CHECKPOINTS_IN_PROGRESS as u64 + self.last_pruned_watermark) <= checkpoint_number)
+            || self.data_limiter.exceeds()
+    }
+
+    fn path(&self) -> &Path {
+        &self.path
+    }
+
+    fn current_checkpoint_number(&self) -> CheckpointSequenceNumber {
+        self.current_checkpoint_number
+    }
+
+    fn update_last_pruned_watermark(&mut self, watermark: CheckpointSequenceNumber) {
+        self.last_pruned_watermark = watermark;
+    }
 }
 
 /// Options for configuring how the checkpoint reader fetches new checkpoints.
@@ -95,11 +111,6 @@ enum RemoteStore {
 }
 
 impl CheckpointReader {
-    fn exceeds_capacity(&self, checkpoint_number: CheckpointSequenceNumber) -> bool {
-        ((MAX_CHECKPOINTS_IN_PROGRESS as u64 + self.last_pruned_watermark) <= checkpoint_number)
-            || self.data_limiter.exceeds()
-    }
-
     async fn remote_fetch_checkpoint_internal(
         store: &RemoteStore,
         checkpoint_number: CheckpointSequenceNumber,
@@ -219,12 +230,7 @@ impl CheckpointReader {
     }
 
     async fn sync(&mut self) -> IngestionResult<()> {
-        let mut checkpoints = read_local_files_with_retry_and_capacity_check(
-            &self.path,
-            self.current_checkpoint_number,
-            |seq| self.exceeds_capacity(seq),
-        )
-        .await?;
+        let mut checkpoints = self.read_local_files_with_retry().await?;
 
         let mut read_source = ReadSource::Local;
         if self.remote_store_url.is_some()
@@ -292,25 +298,16 @@ impl CheckpointReader {
     }
 
     pub async fn run(mut self) -> IngestionResult<()> {
-        let (_watcher, mut inotify_recv) = setup_directory_watcher(&self.path);
-        gc_processed_files(
-            &self.path,
-            self.last_pruned_watermark,
-            &mut self.last_pruned_watermark,
-            &mut self.data_limiter,
-        )
-        .expect("Failed to clean the directory");
-
+        let (_watcher, mut inotify_recv) = self.setup_directory_watcher();
+        self.data_limiter.gc(self.last_pruned_watermark);
+        self.gc_processed_files(self.last_pruned_watermark)
+            .expect("Failed to clean the directory");
         loop {
             tokio::select! {
                 _ = &mut self.exit_receiver => break,
                 Some(gc_checkpoint_number) = self.processed_receiver.recv() => {
-                    gc_processed_files(
-                        &self.path,
-                        gc_checkpoint_number,
-                        &mut self.last_pruned_watermark,
-                        &mut self.data_limiter,
-                    ).expect("Failed to clean the directory");
+                    self.data_limiter.gc(gc_checkpoint_number);
+                    self.gc_processed_files(gc_checkpoint_number).expect("Failed to clean the directory");
                 }
                 Ok(Some(_)) | Err(_) = timeout(Duration::from_millis(self.options.tick_interval_ms), inotify_recv.recv())  => {
                     self.sync().await.expect("Failed to read checkpoint files");
@@ -374,26 +371,4 @@ impl DataLimiter {
         self.queue = self.queue.split_off(&watermark);
         self.in_progress = self.queue.values().sum();
     }
-}
-
-/// Cleans the local directory by removing all processed checkpoint files.
-pub fn gc_processed_files(
-    path: &Path,
-    watermark: CheckpointSequenceNumber,
-    last_pruned_watermark: &mut CheckpointSequenceNumber,
-    data_limiter: &mut DataLimiter,
-) -> IngestionResult<()> {
-    info!("cleaning processed files, watermark is {watermark}");
-    data_limiter.gc(watermark);
-    *last_pruned_watermark = watermark;
-    for entry in fs::read_dir(path)? {
-        let entry = entry?;
-        let filename = entry.file_name();
-        if let Some(sequence_number) = checkpoint_number_from_file_path(&filename) {
-            if sequence_number < watermark {
-                fs::remove_file(entry.path())?;
-            }
-        }
-    }
-    Ok(())
 }
