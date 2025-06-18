@@ -3127,15 +3127,23 @@ impl AuthorityPerEpochStore {
         );
 
         // Note that if we do not have a max execution duration, we do not need to
-        // calculate suggested gas price.
-        let mut suggested_gas_price_calculator =
+        // calculate suggested gas price. Also, the calculator is not enabled if
+        // `congestion_control_min_free_execution_slot` is `false`, i.e., the old
+        // Sui's canonical sequencer is used.
+        let mut suggested_gas_price_calculator = if self
+            .protocol_config()
+            .congestion_control_min_free_execution_slot()
+        {
             self.get_max_execution_duration_per_commit()
                 .map(|max_execution_duration_per_commit| {
                     SuggestedGasPriceCalculator::new(
                         max_execution_duration_per_commit,
                         self.protocol_config().max_gas_price(),
                     )
-                });
+                })
+        } else {
+            None
+        };
 
         let mut randomness_state_updated = false;
         for tx in transactions {
