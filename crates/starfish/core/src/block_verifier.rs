@@ -5,6 +5,7 @@
 use std::{collections::BTreeSet, sync::Arc};
 
 use crate::{
+    Transaction,
     block_header::{
         BlockHeaderAPI, BlockRef, BlockTimestampMs, GENESIS_ROUND, SignedBlockHeader,
         VerifiedBlockHeader, genesis_block_headers,
@@ -30,6 +31,8 @@ pub(crate) trait BlockVerifier: Send + Sync + 'static {
         block: &VerifiedBlockHeader,
         ancestors: &[Option<VerifiedBlockHeader>],
     ) -> ConsensusResult<()>;
+    fn check_and_verify_transactions(&self, transactions: &Vec<Transaction>)
+    -> ConsensusResult<()>;
 }
 
 /// `SignedBlockVerifier` checks the validity of a block.
@@ -40,10 +43,7 @@ pub(crate) trait BlockVerifier: Send + Sync + 'static {
 pub(crate) struct SignedBlockVerifier {
     context: Arc<Context>,
     genesis: BTreeSet<BlockRef>,
-    #[expect(dead_code)]
-    transaction_verifier: Arc<dyn TransactionVerifier>, /* Expected to be unused until
-                                                         * transaction verification is
-                                                         * implemented */
+    transaction_verifier: Arc<dyn TransactionVerifier>,
 }
 
 impl SignedBlockVerifier {
@@ -61,10 +61,7 @@ impl SignedBlockVerifier {
             transaction_verifier,
         }
     }
-
-    // TODO: enable this function when including the transactions in data flow
-    #[cfg_attr(not(test), expect(unused))]
-    pub(crate) fn check_transactions(&self, batch: &[&[u8]]) -> ConsensusResult<()> {
+    fn check_transactions(&self, batch: &[&[u8]]) -> ConsensusResult<()> {
         let max_transaction_size_limit =
             self.context.protocol_config.max_transaction_size_bytes() as usize;
         for t in batch {
@@ -188,6 +185,17 @@ impl BlockVerifier for SignedBlockVerifier {
         // TODO: transaction verification is removed from here. It should be done when
         // the transaction data gets available by Data/Transaction Manager
         Ok(())
+    }
+
+    fn check_and_verify_transactions(
+        &self,
+        transactions: &Vec<Transaction>,
+    ) -> ConsensusResult<()> {
+        let batch: Vec<_> = transactions.iter().map(|t| t.data()).collect();
+        self.check_transactions(&batch)?;
+        self.transaction_verifier
+            .verify_batch(&batch)
+            .map_err(|e| ConsensusError::InvalidTransaction(format!("{e:?}")))
     }
 
     fn check_ancestors(

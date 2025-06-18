@@ -614,16 +614,7 @@ mod tests {
     use rand::{SeedableRng, prelude::StdRng, seq::SliceRandom};
     use starfish_config::AuthorityIndex;
 
-    use crate::{
-        block_header::{BlockHeaderAPI, BlockRef, SignedBlockHeader, VerifiedBlockHeader},
-        block_manager::BlockManager,
-        block_verifier::{BlockVerifier, NoopBlockVerifier},
-        context::Context,
-        dag_state::DagState,
-        error::{ConsensusError, ConsensusResult},
-        storage::mem_store::MemStore,
-        test_dag_builder::DagBuilder,
-    };
+    use crate::{block_header::{BlockHeaderAPI, BlockRef, SignedBlockHeader, VerifiedBlockHeader}, block_manager::BlockManager, block_verifier::{BlockVerifier, NoopBlockVerifier}, context::Context, dag_state::DagState, error::{ConsensusError, ConsensusResult}, storage::mem_store::MemStore, test_dag_builder::DagBuilder, Transaction};
 
     #[tokio::test]
     async fn suspend_blocks_with_missing_ancestors() {
@@ -836,6 +827,10 @@ mod tests {
 
     impl BlockVerifier for TestBlockVerifier {
         fn verify(&self, _block: &SignedBlockHeader) -> ConsensusResult<()> {
+            Ok(())
+        }
+
+        fn check_and_verify_transactions(&self, transactions: &Vec<Transaction>)  -> ConsensusResult<()> {
             Ok(())
         }
 
