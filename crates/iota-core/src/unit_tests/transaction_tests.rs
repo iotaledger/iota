@@ -1817,7 +1817,7 @@ async fn test_handle_soft_bundle_certificates_errors() {
     let mut senders = Vec::new();
     let mut gas_objects = Vec::new();
     let mut owned_objects = Vec::new();
-    for _i in 0..10 {
+    for _i in 0..15 {
         let (sender, keypair): (_, AccountKeyPair) = get_key_pair();
         let mut objects = create_gas_objects(2, sender);
         senders.push((sender, keypair));
@@ -1828,6 +1828,7 @@ async fn test_handle_soft_bundle_certificates_errors() {
     let mut protocol_config =
         ProtocolConfig::get_for_version(ProtocolVersion::max(), Chain::Unknown);
     protocol_config.set_max_soft_bundle_size_for_testing(3);
+    protocol_config.set_consensus_max_transactions_in_block_bytes_for_testing(10_000);
     let authority = TestAuthorityBuilder::new()
         .with_reference_gas_price(1000)
         .with_protocol_config(protocol_config)
@@ -1899,6 +1900,7 @@ async fn test_handle_soft_bundle_certificates_errors() {
     let rgp = authority.reference_gas_price_for_testing().unwrap();
 
     // Case 0: submit an empty soft bundle.
+    println!("Case 0: submit an empty soft bundle.");
     {
         let response = client
             .handle_soft_bundle_certificates_v1(
@@ -1919,6 +1921,7 @@ async fn test_handle_soft_bundle_certificates_errors() {
 
     // Case 1: submit a soft bundle with more txs than the limit.
     // The bundle should be rejected.
+    println!("Case 1: submit a soft bundle with more txs than the limit.");
     {
         let mut certificates: Vec<CertifiedTransaction> = vec![];
         for i in 0..5 {
@@ -1969,6 +1972,7 @@ async fn test_handle_soft_bundle_certificates_errors() {
 
     // Case 2: submit a soft bundle with tx containing no shared object.
     // The bundle should be rejected.
+    println!("Case 2: submit a soft bundle with tx containing no shared object.");
     {
         let owned_object_ref = authority
             .get_object(&owned_objects[5].id())
@@ -2015,6 +2019,7 @@ async fn test_handle_soft_bundle_certificates_errors() {
 
     // Case 3: submit a soft bundle with txs of different gas prices.
     // The bundle should be rejected.
+    println!("Case 3: submit a soft bundle with txs of different gas prices.");
     {
         let cert0 = {
             let gas_object_ref = authority
@@ -2102,6 +2107,7 @@ async fn test_handle_soft_bundle_certificates_errors() {
 
     // Case 4: submit a soft bundle with txs whose consensus message has been
     // processed. The bundle should be rejected.
+    println!("Case 4: submit a soft bundle with txs whose consensus message has been processed.");
     {
         let cert0 = {
             let gas_object_ref = authority
@@ -2185,6 +2191,77 @@ async fn test_handle_soft_bundle_certificates_errors() {
             response.unwrap_err(),
             IotaError::UserInput {
                 error: UserInputError::CertificateAlreadyProcessed,
+            }
+        );
+    }
+
+    // Case 5: submit a soft bundle with total tx size exceeding the block size
+    // limit. The bundle should be rejected.
+    println!("Case 5: submit a soft bundle with total tx size exceeding the block size limit.");
+    {
+        let mut certificates: Vec<CertifiedTransaction> = vec![];
+
+        for i in 11..14 {
+            let owned_object_ref = authority
+                .get_object(&owned_objects[i].id())
+                .await
+                .unwrap()
+                .unwrap()
+                .compute_object_reference();
+            let gas_object_ref = authority
+                .get_object(&gas_objects[i].id())
+                .await
+                .unwrap()
+                .unwrap()
+                .compute_object_reference();
+            let sender = &senders[i];
+            let recipient = &senders[i + 1].0;
+
+            // Construct an oversized txn.
+            let pt = {
+                let mut builder = ProgrammableTransactionBuilder::new();
+                // Put a lot of commands in the txn so it's large.
+                for _ in 0..1000 {
+                    builder
+                        .transfer_object(*recipient, owned_object_ref)
+                        .unwrap();
+                }
+                builder.finish()
+            };
+
+            let data = TransactionData::new_programmable(
+                sender.0,
+                vec![gas_object_ref],
+                pt,
+                rgp * TEST_ONLY_GAS_UNIT_FOR_TRANSFER,
+                rgp,
+            );
+
+            let signed = to_sender_signed_transaction(data, &sender.1);
+            certificates.push(signed_tx_into_certificate(signed).await.into());
+        }
+
+        let response = client
+            .handle_soft_bundle_certificates_v1(
+                HandleSoftBundleCertificatesRequestV1 {
+                    certificates,
+                    wait_for_effects: true,
+                    include_events: false,
+                    include_auxiliary_data: false,
+                    include_input_objects: false,
+                    include_output_objects: false,
+                },
+                None,
+            )
+            .await;
+        assert!(response.is_err());
+        assert_matches!(
+            response.unwrap_err(),
+            IotaError::UserInput {
+                error: UserInputError::SoftBundleTooLarge {
+                    size: 25116,
+                    limit: 5000
+                },
             }
         );
     }

@@ -12,14 +12,14 @@ Every IOTA object must have the `key` ability.
 The `store` ability, on the other hand, is optional and provides more flexibility for how objects are managed and transferred.
 Objects with the `store` ability:
 
-- Can be transferred by anyone using the[ `iota::transfer::public_transfer`](../../../../references/framework/iota-framework/transfer.mdx#function-public_transfer) function.
+- Can be transferred by anyone using the[ `iota::transfer::public_transfer`](../../../../references/framework/iota/transfer.mdx#function-public_transfer) function.
 - Can be wrapped in other objects.
 
 However, when creating custom transfer rules,
 it's crucial to note that if an IOTA object `O` does not have the `store` ability,
 the `iota::transfer::public_transfer` function cannot be used to transfer it.
 Instead, the Move module defining `O` exclusively controls how such objects are transferred,
-typically using the [`iota::transfer::transfer`](../../../../references/framework/iota-framework/transfer.mdx#function-transfer) function.
+typically using the [`iota::transfer::transfer`](../../../../references/framework/iota/transfer.mdx#function-transfer) function.
 This allows the module to implement custom transfer functions for `O`,
 which can enforce specific conditions (such as requiring a fee) before a transfer is allowed.
 
@@ -84,7 +84,7 @@ Now, the module provides two custom transfer rules for any object `O`:
 * One that allows transfer of locked objects only to the address `0xCAFE`.
  
 Because `O` lacks the `store` ability,
-these custom rules are the only ways to transfer `O`—the [`iota::transfer::public_transfer`](../../../../references/framework/iota-framework/transfer.mdx#function-public_transfer) function cannot be used.
+these custom rules are the only ways to transfer `O`—the [`iota::transfer::public_transfer`](../../../../references/framework/iota/transfer.mdx#function-public_transfer) function cannot be used.
 
 By defining custom transfer rules, you maintain precise control over how and when your objects can be transferred,
 ensuring that your specific business logic is enforced during these operations.

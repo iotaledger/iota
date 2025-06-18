@@ -22,16 +22,35 @@ export class Window {
     }
 
     public async show() {
-        const { width = 0, left = 0, top = 0 } = await Browser.windows.getLastFocused();
-        const w = await Browser.windows.create({
-            url: this._url,
-            focused: true,
-            width: POPUP_WIDTH,
-            height: POPUP_HEIGHT,
-            type: 'popup',
-            top: top,
-            left: Math.floor(left + width - 450),
-        });
+        const {
+            width = 0,
+            left = 0,
+            top = 0,
+        } = await Browser.windows.getLastFocused().catch(() => ({ width: 0, left: 0, top: 0 }));
+        const w = await Browser.windows
+            .create({
+                url: this._url,
+                focused: true,
+                width: POPUP_WIDTH,
+                height: POPUP_HEIGHT,
+                type: 'popup',
+                top: top,
+                left: Math.floor(left + width - 450),
+            })
+            .catch((e) => {
+                // eslint-disable-next-line no-console
+                console.error('Failed to create window with specified bounds:', e);
+
+                // Fallback to a safe position in the center of the screen
+                // No positioning specified - browser will use default center position
+                return Browser.windows.create({
+                    url: this._url,
+                    focused: true,
+                    width: POPUP_WIDTH,
+                    height: POPUP_HEIGHT,
+                    type: 'popup',
+                });
+            });
         this._id = typeof w.id === 'undefined' ? null : w.id;
         return windowRemovedStream.pipe(
             takeWhile(() => this._id !== null),

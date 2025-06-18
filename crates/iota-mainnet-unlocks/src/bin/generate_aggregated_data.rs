@@ -7,7 +7,7 @@ use std::{
     process::Command,
 };
 
-use anyhow::{Context, Result};
+use anyhow::{Context, Result, bail};
 use chrono::{DateTime, Utc};
 use csv::{Reader, Writer};
 use iota_mainnet_unlocks::store::{INPUT_FILE as OUTPUT_FILE, StillLockedEntry};
@@ -42,7 +42,7 @@ fn clone_repo(tmp_dir: &TempDir) -> Result<PathBuf> {
         .context("failed to execute `git clone`")?;
 
     if !status.success() {
-        anyhow::bail!("`git clone` failed with exit status: {}", status);
+        bail!("`git clone` failed with exit status: {}", status);
     }
 
     Ok(repo_path)
@@ -65,7 +65,7 @@ fn aggregate_unlocks(repo_path: &Path) -> Result<BTreeMap<String, u64>> {
         for result in rdr.records() {
             let record = result?;
             if record.len() < 2 {
-                return Err(anyhow::anyhow!("invalid record: {record:?}"));
+                bail!("invalid record: {record:?}");
             }
 
             let tokens_str = record.get(0).unwrap().trim();

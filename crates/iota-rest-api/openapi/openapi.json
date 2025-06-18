@@ -11,7 +11,7 @@
       "name": "Apache 2.0",
       "url": "https://www.apache.org/licenses/LICENSE-2.0.html"
     },
-    "version": "0.0.0"
+    "version": "unknown"
   },
   "servers": [
     {
@@ -24,7 +24,7 @@
         "tags": [
           "General"
         ],
-        "operationId": "GetNodeInfo",
+        "operationId": "Get NodeInfo",
         "responses": {
           "200": {
             "description": "",
@@ -35,21 +35,26 @@
                 }
               }
             }
+          },
+          "500": {
+            "description": ""
           }
         }
       }
     },
-    "/health": {
+    "/-/health": {
       "get": {
         "tags": [
           "General"
         ],
-        "operationId": "HealthCheck",
+        "operationId": "Health Check",
         "parameters": [
           {
             "in": "query",
             "name": "threshold_seconds",
+            "description": "The threshold, or delta, between the server's system time and the timestamp in the most recently executed checkpoint for which the server is considered to be healthy.\n\nIf not provided, the server will be considered healthy if it can simply fetch the latest checkpoint from its store.",
             "schema": {
+              "description": "The threshold, or delta, between the server's system time and the timestamp in the most recently executed checkpoint for which the server is considered to be healthy.\n\nIf not provided, the server will be considered healthy if it can simply fetch the latest checkpoint from its store.",
               "type": "integer",
               "format": "uint32",
               "minimum": 0.0
@@ -63,6 +68,150 @@
             "content": {
               "text/plain; charset=utf-8": {}
             }
+          },
+          "500": {
+            "description": ""
+          }
+        }
+      }
+    },
+    "/checkpoints": {
+      "get": {
+        "tags": [
+          "Checkpoint"
+        ],
+        "operationId": "List Checkpoints",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "contents",
+            "description": "Request `CheckpointContents` be included in the response",
+            "schema": {
+              "description": "Request `CheckpointContents` be included in the response",
+              "default": false,
+              "type": "boolean"
+            },
+            "style": "form"
+          },
+          {
+            "in": "query",
+            "name": "direction",
+            "description": "The direction to paginate in.\n\nDefaults to `descending` if not provided.",
+            "schema": {
+              "description": "The direction to paginate in.\n\nDefaults to `descending` if not provided.",
+              "allOf": [
+                {
+                  "$ref": "#/components/schemas/Direction"
+                }
+              ]
+            },
+            "style": "form"
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "description": "Page size limit for the response.\n\nDefaults to `50` if not provided with a maximum page size of `100`.",
+            "schema": {
+              "description": "Page size limit for the response.\n\nDefaults to `50` if not provided with a maximum page size of `100`.",
+              "type": "integer",
+              "format": "uint32",
+              "minimum": 0.0
+            },
+            "style": "form"
+          },
+          {
+            "in": "query",
+            "name": "start",
+            "description": "The checkpoint to start listing from.\n\nDefaults to the latest checkpoint if not provided.",
+            "schema": {
+              "description": "The checkpoint to start listing from.\n\nDefaults to the latest checkpoint if not provided.",
+              "type": "integer",
+              "format": "uint64",
+              "minimum": 0.0
+            },
+            "style": "form"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "headers": {
+              "x-iota-cursor": {
+                "style": "simple",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/CheckpointResponse"
+                  }
+                }
+              },
+              "application/bcs": {}
+            }
+          },
+          "410": {
+            "description": ""
+          },
+          "500": {
+            "description": ""
+          }
+        }
+      }
+    },
+    "/checkpoints/{checkpoint}": {
+      "get": {
+        "tags": [
+          "Checkpoint"
+        ],
+        "operationId": "Get Checkpoint",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "checkpoint",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/CheckpointId"
+            },
+            "style": "simple"
+          },
+          {
+            "in": "query",
+            "name": "contents",
+            "description": "Request `CheckpointContents` be included in the response",
+            "schema": {
+              "description": "Request `CheckpointContents` be included in the response",
+              "default": false,
+              "type": "boolean"
+            },
+            "style": "form"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CheckpointResponse"
+                }
+              },
+              "application/bcs": {}
+            }
+          },
+          "404": {
+            "description": ""
+          },
+          "410": {
+            "description": ""
+          },
+          "500": {
+            "description": ""
           }
         }
       }
@@ -268,25 +417,69 @@
         }
       }
     },
-    "/checkpoints": {
+    "/checkpoints/{checkpoint}/full": {
       "get": {
         "tags": [
           "Checkpoint"
         ],
-        "operationId": "ListCheckpoints",
+        "operationId": "Get Full Checkpoint",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "checkpoint",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/CheckpointId"
+            },
+            "style": "simple"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/bcs": {}
+            }
+          },
+          "404": {
+            "description": ""
+          },
+          "410": {
+            "description": ""
+          },
+          "500": {
+            "description": ""
+          }
+        }
+      }
+    },
+    "/checkpoints/full": {
+      "get": {
+        "tags": [
+          "Checkpoint"
+        ],
+        "operationId": "List Full Checkpoints",
         "parameters": [
           {
             "in": "query",
             "name": "direction",
+            "description": "The direction to paginate in.\n\nDefaults to `descending` if not provided.",
             "schema": {
-              "$ref": "#/components/schemas/Direction"
+              "description": "The direction to paginate in.\n\nDefaults to `descending` if not provided.",
+              "allOf": [
+                {
+                  "$ref": "#/components/schemas/Direction"
+                }
+              ]
             },
             "style": "form"
           },
           {
             "in": "query",
             "name": "limit",
+            "description": "Page size limit for the response.\n\nDefaults to `5` if not provided with a maximum page size of `10`.",
             "schema": {
+              "description": "Page size limit for the response.\n\nDefaults to `5` if not provided with a maximum page size of `10`.",
               "type": "integer",
               "format": "uint32",
               "minimum": 0.0
@@ -309,67 +502,14 @@
         "responses": {
           "200": {
             "description": "",
-            "headers": {
-              "x-iota-cursor": {
-                "style": "simple",
-                "schema": {
-                  "type": "string"
-                }
-              }
-            },
             "content": {
-              "application/json": {
-                "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/SignedCheckpointSummary"
-                  }
-                }
-              },
               "application/bcs": {}
             }
           },
           "410": {
             "description": ""
-          }
-        }
-      }
-    },
-    "/checkpoints/{checkpoint}": {
-      "get": {
-        "tags": [
-          "Checkpoint"
-        ],
-        "operationId": "GetCheckpoint",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "checkpoint",
-            "required": true,
-            "schema": {
-              "type": "integer",
-              "format": "uint64",
-              "minimum": 0.0
-            },
-            "style": "simple"
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/SignedCheckpointSummary"
-                }
-              },
-              "application/bcs": {}
-            }
           },
-          "404": {
-            "description": ""
-          },
-          "410": {
+          "500": {
             "description": ""
           }
         }
@@ -725,6 +865,135 @@
         }
       }
     },
+    "/transactions/simulate": {
+      "post": {
+        "tags": [
+          "Transactions"
+        ],
+        "operationId": "SimulateTransaction",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "balance_changes",
+            "description": "Request `BalanceChanges` be included in the Response.",
+            "schema": {
+              "description": "Request `BalanceChanges` be included in the Response.",
+              "default": "false",
+              "type": "boolean"
+            },
+            "style": "form"
+          },
+          {
+            "in": "query",
+            "name": "input_objects",
+            "description": "Request input `Object`s be included in the Response.",
+            "schema": {
+              "description": "Request input `Object`s be included in the Response.",
+              "default": "false",
+              "type": "boolean"
+            },
+            "style": "form"
+          },
+          {
+            "in": "query",
+            "name": "output_objects",
+            "description": "Request output `Object`s be included in the Response.",
+            "schema": {
+              "description": "Request output `Object`s be included in the Response.",
+              "default": "false",
+              "type": "boolean"
+            },
+            "style": "form"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/bcs": {}
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TransactionSimulationResponse"
+                }
+              },
+              "application/bcs": {}
+            }
+          }
+        }
+      }
+    },
+    "/transactions/resolve": {
+      "post": {
+        "tags": [
+          "Transactions"
+        ],
+        "operationId": "ResolveTransaction",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "balance_changes",
+            "description": "Request `BalanceChanges` be included in the Response.",
+            "schema": {
+              "description": "Request `BalanceChanges` be included in the Response.",
+              "default": "false",
+              "type": "boolean"
+            },
+            "style": "form"
+          },
+          {
+            "in": "query",
+            "name": "input_objects",
+            "description": "Request input `Object`s be included in the Response.",
+            "schema": {
+              "description": "Request input `Object`s be included in the Response.",
+              "default": "false",
+              "type": "boolean"
+            },
+            "style": "form"
+          },
+          {
+            "in": "query",
+            "name": "output_objects",
+            "description": "Request output `Object`s be included in the Response.",
+            "schema": {
+              "description": "Request output `Object`s be included in the Response.",
+              "default": "false",
+              "type": "boolean"
+            },
+            "style": "form"
+          },
+          {
+            "in": "query",
+            "name": "simulate",
+            "description": "Request that the fully resolved transaction be simulated and have its results sent back in the response.",
+            "schema": {
+              "description": "Request that the fully resolved transaction be simulated and have its results sent back in the response.",
+              "default": false,
+              "type": "boolean"
+            },
+            "style": "form"
+          }
+        ],
+        "requestBody": {},
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResolveTransactionResponse"
+                }
+              },
+              "application/bcs": {}
+            }
+          }
+        }
+      }
+    },
     "/coins/{coin_type}": {
       "get": {
         "tags": [
@@ -799,9 +1068,9 @@
     "/openapi": {
       "get": {
         "tags": [
-          "OpenApi"
+          "OpenAPI"
         ],
-        "operationId": "OpenApi Explorer",
+        "operationId": "OpenAPI Explorer",
         "responses": {
           "200": {
             "description": "",
@@ -815,7 +1084,7 @@
     "/openapi.json": {
       "get": {
         "tags": [
-          "OpenApi"
+          "OpenAPI"
         ],
         "operationId": "openapi.json",
         "responses": {
@@ -831,7 +1100,7 @@
     "/openapi.yaml": {
       "get": {
         "tags": [
-          "OpenApi"
+          "OpenAPI"
         ],
         "operationId": "openapi.yaml",
         "responses": {
@@ -1093,11 +1362,60 @@
           }
         ]
       },
+      "CheckpointContents": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/CheckpointTransactionInfo"
+        }
+      },
       "CheckpointContentsDigest": {
         "$ref": "#/components/schemas/Digest"
       },
       "CheckpointDigest": {
         "$ref": "#/components/schemas/Digest"
+      },
+      "CheckpointId": {
+        "anyOf": [
+          {
+            "title": "SequenceNumber",
+            "description": "Sequence number or height of a Checkpoint",
+            "examples": [
+              0
+            ],
+            "type": "string",
+            "format": "u64"
+          },
+          {
+            "title": "Digest",
+            "description": "Base58 encoded 32-byte digest of a Checkpoint",
+            "examples": [
+              "4btiuiMPvEENsttpZC7CZ53DruC3MAgfznDbASZ7DR6S"
+            ],
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/CheckpointDigest"
+              }
+            ]
+          }
+        ]
+      },
+      "CheckpointResponse": {
+        "type": "object",
+        "required": [
+          "checkpoint",
+          "signature"
+        ],
+        "properties": {
+          "checkpoint": {
+            "$ref": "#/components/schemas/CheckpointSummary"
+          },
+          "contents": {
+            "$ref": "#/components/schemas/CheckpointContents"
+          },
+          "signature": {
+            "$ref": "#/components/schemas/ValidatorAggregatedSignature"
+          }
+        }
       },
       "CheckpointSummary": {
         "type": "object",
@@ -1163,6 +1481,28 @@
             "description": "CheckpointSummary is not an evolvable structure - it must be readable by any version of the code. Therefore, in order to allow extensions to be added to CheckpointSummary, we allow opaque data to be added to checkpoints which can be deserialized based on the current protocol version.",
             "type": "string",
             "format": "base64"
+          }
+        }
+      },
+      "CheckpointTransactionInfo": {
+        "type": "object",
+        "required": [
+          "effects",
+          "signatures",
+          "transaction"
+        ],
+        "properties": {
+          "effects": {
+            "$ref": "#/components/schemas/TransactionEffectsDigest"
+          },
+          "signatures": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/UserSignature"
+            }
+          },
+          "transaction": {
+            "$ref": "#/components/schemas/TransactionDigest"
           }
         }
       },
@@ -3378,41 +3718,46 @@
         ]
       },
       "NodeInfo": {
+        "description": "Basic information about the state of a Node",
         "type": "object",
         "required": [
           "chain",
           "chain_id",
           "checkpoint_height",
           "epoch",
-          "lowest_available_checkpoint",
-          "lowest_available_checkpoint_objects",
           "software_version",
           "timestamp_ms"
         ],
         "properties": {
           "chain": {
+            "description": "Human readable name of the chain that this Node is on",
             "type": "string"
           },
           "chain_id": {
-            "$ref": "#/components/schemas/CheckpointDigest"
+            "description": "The chain identifier of the chain that this Node is on",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/CheckpointDigest"
+              }
+            ]
           },
           "checkpoint_height": {
-            "description": "Radix-10 encoded 64-bit unsigned integer",
+            "description": "Checkpoint height of the most recently executed checkpoint",
             "type": "string",
             "format": "u64"
           },
           "epoch": {
-            "description": "Radix-10 encoded 64-bit unsigned integer",
+            "description": "Current epoch of the Node based on its highest executed checkpoint",
             "type": "string",
             "format": "u64"
           },
           "lowest_available_checkpoint": {
-            "description": "Radix-10 encoded 64-bit unsigned integer",
+            "description": "The lowest checkpoint for which checkpoints and transaction data is available",
             "type": "string",
             "format": "u64"
           },
           "lowest_available_checkpoint_objects": {
-            "description": "Radix-10 encoded 64-bit unsigned integer",
+            "description": "The lowest checkpoint for which object data is available",
             "type": "string",
             "format": "u64"
           },
@@ -3420,7 +3765,7 @@
             "type": "string"
           },
           "timestamp_ms": {
-            "description": "Radix-10 encoded 64-bit unsigned integer",
+            "description": "Unix timestamp of the most recently executed checkpoint",
             "type": "string",
             "format": "u64"
           }
@@ -3844,6 +4189,21 @@
           }
         }
       },
+      "ResolveTransactionResponse": {
+        "description": "Response type for the execute transaction endpoint",
+        "type": "object",
+        "required": [
+          "transaction"
+        ],
+        "properties": {
+          "simulation": {
+            "$ref": "#/components/schemas/TransactionSimulationResponse"
+          },
+          "transaction": {
+            "$ref": "#/components/schemas/Transaction"
+          }
+        }
+      },
       "Secp256k1PublicKey": {
         "description": "Base64 encoded data",
         "type": "string",
@@ -3876,24 +4236,6 @@
           },
           "signature": {
             "$ref": "#/components/schemas/ValidatorAggregatedSignature"
-          }
-        }
-      },
-      "SignedTransaction": {
-        "type": "object",
-        "required": [
-          "signatures",
-          "transaction"
-        ],
-        "properties": {
-          "signatures": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/UserSignature"
-            }
-          },
-          "transaction": {
-            "$ref": "#/components/schemas/Transaction"
           }
         }
       },
@@ -4415,6 +4757,9 @@
           }
         ]
       },
+      "TransactionEffectsDigest": {
+        "$ref": "#/components/schemas/Digest"
+      },
       "TransactionEvents": {
         "type": "array",
         "items": {
@@ -4738,6 +5083,39 @@
           },
           "transaction": {
             "$ref": "#/components/schemas/Transaction"
+          }
+        }
+      },
+      "TransactionSimulationResponse": {
+        "description": "Response type for the transaction simulation endpoint",
+        "type": "object",
+        "required": [
+          "effects"
+        ],
+        "properties": {
+          "balance_changes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BalanceChange"
+            }
+          },
+          "effects": {
+            "$ref": "#/components/schemas/TransactionEffects"
+          },
+          "events": {
+            "$ref": "#/components/schemas/TransactionEvents"
+          },
+          "input_objects": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Object"
+            }
+          },
+          "output_objects": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Object"
+            }
           }
         }
       },
@@ -5434,7 +5812,7 @@
       "name": "Objects"
     },
     {
-      "name": "OpenApi"
+      "name": "OpenAPI"
     },
     {
       "name": "System"
