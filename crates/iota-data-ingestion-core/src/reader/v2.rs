@@ -122,20 +122,55 @@ impl Default for CheckpointReaderConfig {
     }
 }
 
-struct CheckpointReader {
+/// Internal actor responsible for reading and streaming checkpoints.
+///
+/// `CheckpointReaderActor` is the core background task that manages the logic
+/// for fetching, batching, and streaming checkpoint data from local or remote
+/// sources. It handles checkpoint discovery, garbage collection signals, and
+/// coordinates with remote fetchers as needed.
+///
+/// This struct is intended to be run as an asynchronous task and is not
+/// typically interacted with directly. Instead, users should use
+/// [`CheckpointReader`], which provides a safe and ergonomic API for
+/// interacting with the running actor, such as receiving checkpoints, sending
+/// GC signals, or triggering shutdown.
+///
+/// # Responsibilities
+/// - Periodically scans for new checkpoints from configured sources.
+/// - Streams checkpoints to consumers via channels.
+/// - Handles garbage collection signals to prune processed checkpoints.
+/// - Coordinates with remote fetchers for batch downloads and retries.
+///
+/// # Usage
+/// Users should not construct or manage `CheckpointReader` directly. Instead,
+/// use [`CheckpointReader::new`] to spawn the actor and obtain a handle
+/// for interaction.
+struct CheckpointReaderActor {
+    /// Filesystem path to the local checkpoint directory.
     path: PathBuf,
+    /// How often to check for new downloaded checkpoints.
     tick_interval_ms: u64,
+    /// Start fetch from the current checkpoint sequence.
     current_checkpoint_number: CheckpointSequenceNumber,
+    /// Keeps tracks the last processed checkpoint sequence number, used to
+    /// delete checkpoint files from ingestion path.
     last_pruned_watermark: CheckpointSequenceNumber,
+    /// Channel for sending checkpoints to WorkerPools.
     checkpoint_tx: mpsc::Sender<Arc<CheckpointData>>,
+    /// Sends a garbage collection (GC) signal to prune checkpoint files below
+    /// the specified watermark.
     gc_signal_rx: mpsc::Receiver<CheckpointSequenceNumber>,
+    /// Remote checkpoint reader for fetching checkpoints from the network.
     remote_fetcher: Option<RemoteCheckpointFetcher>,
+    /// Checkpoints fetched from the remote store.
     remote_fetcher_receiver: Option<mpsc::Receiver<CheckpointResult>>,
+    /// Signal when the reader should exit.
     shutdown_rx: oneshot::Receiver<()>,
+    /// Limit the amount of downloaded checkpoints held in memory to avoid OOM.
     data_limiter: DataLimiter,
 }
 
-impl CheckpointReader {
+impl CheckpointReaderActor {
     fn exceeds_capacity(&self, checkpoint_number: CheckpointSequenceNumber) -> bool {
         ((MAX_CHECKPOINTS_IN_PROGRESS as u64 + self.last_pruned_watermark) <= checkpoint_number)
             || self.data_limiter.exceeds()
@@ -251,14 +286,20 @@ impl CheckpointReader {
     }
 }
 
-pub(crate) struct CheckpointReaderHandle {
+/// Public API for interacting with the checkpoint reader actor.
+///
+/// It provides methods to receive streamed checkpoints, send garbage collection
+/// signals, and gracefully shut down the background checkpoint reading task.
+/// Internally, it communicates with a [`CheckpointReaderActor`], which manages
+/// the actual checkpoint fetching and streaming logic.
+pub(crate) struct CheckpointReader {
     handle: JoinHandle<()>,
     shutdown_tx: oneshot::Sender<()>,
     gc_signal_tx: mpsc::Sender<CheckpointSequenceNumber>,
     checkpoint_rx: mpsc::Receiver<Arc<CheckpointData>>,
 }
 
-impl CheckpointReaderHandle {
+impl CheckpointReader {
     pub(crate) async fn new(
         starting_checkpoint_number: CheckpointSequenceNumber,
         config: CheckpointReaderConfig,
@@ -279,7 +320,7 @@ impl CheckpointReaderHandle {
             None => tempfile::tempdir()?.into_path(),
         };
 
-        let reader = CheckpointReader {
+        let reader = CheckpointReaderActor {
             path,
             tick_interval_ms: config.tick_interval_ms,
             current_checkpoint_number: starting_checkpoint_number,
@@ -324,6 +365,11 @@ impl CheckpointReaderHandle {
         })
     }
 
+    /// Gracefully shuts down the checkpoint reader task.
+    ///
+    /// It signals the background checkpoint reader actor to terminate, then
+    /// awaits its completion. Any in-progress checkpoint reading or streaming
+    /// operations will be stopped as part of the shutdown process.
     pub(crate) async fn shutdown(self) -> IngestionResult<()> {
         _ = self.shutdown_tx.send(());
         self.handle.await.map_err(|err| IngestionError::Shutdown {
@@ -455,7 +501,8 @@ impl RemoteCheckpointFetcher {
     /// transient errors.
     ///
     /// All fetch operations are wrapped in a retry mechanism using
-    /// [`fetch_with_retry`] to handle transient errors robustly.
+    /// [`RemoteCheckpointReader::fetch_with_retry`] to handle transient errors
+    /// robustly.
     async fn stream_with_retry_hybrid_historical_store(
         historical_reader: &HistoricalReader,
         live_store: Option<&dyn ObjectStore>,
@@ -645,7 +692,7 @@ impl RemoteCheckpointFetcher {
     fn spawn_checkpoint_fetching_task(
         &self,
         start_checkpoint: CheckpointSequenceNumber,
-    ) -> mpsc::Receiver<IngestionResult<(Arc<CheckpointData>, usize)>> {
+    ) -> mpsc::Receiver<CheckpointResult> {
         let batch_size = self.batch_size;
         let store = self.store.clone();
         let (checkpoint_tx, checkpoint_rx) = mpsc::channel(batch_size);

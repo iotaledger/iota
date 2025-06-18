@@ -12,7 +12,7 @@ use crate::{
     DataIngestionMetrics, IndexerExecutor as IndexerExecutorV1, IngestionError, IngestionResult,
     Worker,
     progress_store::{ExecutorProgress, ProgressStore, ShimProgressStore},
-    reader::v2::{CheckpointReaderConfig, CheckpointReaderHandle},
+    reader::v2::{CheckpointReader, CheckpointReaderConfig},
     worker_pool::{WorkerPool, WorkerPoolStatus},
 };
 
@@ -134,8 +134,7 @@ impl<P: ProgressStore> IndexerExecutor<P> {
     ) -> IngestionResult<ExecutorProgress> {
         let mut reader_checkpoint_number = self.inner.progress_store.min_watermark()?;
 
-        let mut checkpoint_reader =
-            CheckpointReaderHandle::new(reader_checkpoint_number, config).await?;
+        let mut checkpoint_reader = CheckpointReader::new(reader_checkpoint_number, config).await?;
 
         let worker_pools = std::mem::take(&mut self.inner.pools)
             .into_iter()
@@ -194,7 +193,7 @@ impl<P: ProgressStore> IndexerExecutor<P> {
 /// - Await checkpoint reader shutdown.
 async fn components_graceful_shutdown(
     worker_pools: Vec<JoinHandle<()>>,
-    checkpoint_reader: CheckpointReaderHandle,
+    checkpoint_reader: CheckpointReader,
 ) -> IngestionResult<()> {
     for worker_pool in worker_pools {
         worker_pool.await.map_err(|err| IngestionError::Shutdown {
