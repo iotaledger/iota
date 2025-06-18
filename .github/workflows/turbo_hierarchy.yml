@@ -129,6 +129,9 @@ jobs:
       isWalletDashboard: ${{ needs.diff.outputs.isWalletDashboard == 'true' }}
       isEvmBridge: ${{ needs.diff.outputs.isEvmBridge == 'true' }}
       isIscSDK: ${{ needs.diff.outputs.isIscSDK == 'true' }}
+    secrets:
+      EVM_BRIDGE_PREVIEW_DEFAULT_NETWORK: ${{ secrets.EVM_BRIDGE_PREVIEW_DEFAULT_NETWORK }}
+      EVM_BRIDGE_CONFIG: ${{ secrets.EVM_BRIDGE_CONFIG }}
 
   ledgernano:
     if: (!cancelled() && !failure() && needs.diff.outputs.isLedgerjs == 'true' && (github.event.pull_request.draft == false || contains(github.event.pull_request.body, '[run-ci]')))

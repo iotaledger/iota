@@ -46,6 +46,9 @@ jobs:
     if: inputs.isExplorer || inputs.isTypescriptSDK || inputs.isWallet || inputs.isWalletDashboard || inputs.isRpc || github.ref_name == 'develop'
     runs-on: self-hosted-x64
     continue-on-error: ${{ github.ref_name == 'develop' }}
+    env:
+      VITE_EVM_BRIDGE_DEFAULT_NETWORK: ${{ secrets.EVM_BRIDGE_PREVIEW_DEFAULT_NETWORK }}
+      VITE_EVM_BRIDGE_CONFIG: ${{ secrets.EVM_BRIDGE_CONFIG }}
     services:
       postgres:
         image: postgres:15
@@ -165,9 +168,6 @@ jobs:
 
       - name: Build Evm-bridge
         if: inputs.isEvmBridge || inputs.isIscSDK
-        env:
-          VITE_EVM_BRIDGE_DEFAULT_NETWORK: ${{ secrets.EVM_BRIDGE_PREVIEW_DEFAULT_NETWORK }}
-          VITE_EVM_BRIDGE_CONFIG: ${{ secrets.EVM_BRIDGE_CONFIG }}
         run: pnpm evm-bridge build
 
       - name: Prepare evm-bridge e2e tests (downloads wallet artifact dist)
@@ -178,9 +178,6 @@ jobs:
       - name: Run evm-bridge tests
         if: inputs.isEvmBridge || inputs.isIscSDK
         working-directory: ./apps/evm-bridge
-        env:
-          VITE_EVM_BRIDGE_DEFAULT_NETWORK: ${{ secrets.EVM_BRIDGE_PREVIEW_DEFAULT_NETWORK }}
-          VITE_EVM_BRIDGE_CONFIG: ${{ secrets.EVM_BRIDGE_CONFIG }}
         run: DEBUG=pw:webserver xvfb-run --auto-servernum pnpm run test:e2e
 
       - uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # v4.4.3
