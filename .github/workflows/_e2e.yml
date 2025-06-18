@@ -86,7 +86,7 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Install Playwright Browsers
-        run: pnpm dlx playwright@1.46.1 install --with-deps chromium
+        run: pnpm --filter iota-explorer playwright install --with-deps chromium
 
       - name: Set environment variables
         run: |
@@ -96,6 +96,10 @@ jobs:
       - name: Build Evm-bridge
         if: inputs.isEvmBridge || inputs.isIscSDK
         run: pnpm evm-bridge build
+
+      - name: Install Playwright Browsers for Evm-bridge
+        if: inputs.isEvmBridge || inputs.isIscSDK
+        run: pnpm --filter iota-evm-bridge playwright install --with-deps chromium
 
       - name: Prepare evm-bridge e2e tests (downloads wallet artifact dist)
         if: inputs.isEvmBridge || inputs.isIscSDK
