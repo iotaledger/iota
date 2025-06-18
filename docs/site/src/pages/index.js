@@ -125,7 +125,7 @@ export default function Home() {
           <HomeCard title="References" aux heroCardBg={heroCardBg1}>
             <Link
               className={styles.cardLink}
-              to="/ts-sdk/dapp-kit/"
+              to="/developer/ts-sdk/dapp-kit/"
             >
               IOTA dApp Kit
             </Link>

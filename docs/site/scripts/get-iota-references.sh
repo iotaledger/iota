@@ -18,11 +18,11 @@ mkdir -p "../../content/references/framework/"
 cp -Rv docs/generated-docs/framework/* "../../content/references/framework/"
 
 # Fix Sidebar for new route
-sed -i -e "s/generated-docs\/ts-sdk/ts-sdk\/api/g" docs/generated-docs/ts-sdk/typedoc-sidebar.cjs
+sed -i -e "s/generated-docs\/ts-sdk/developer\/ts-sdk\/api/g" docs/generated-docs/ts-sdk/typedoc-sidebar.cjs
 
 # Copy TS SDK docs
-mkdir -p "../../content/ts-sdk/api/"
-cp -Rv docs/generated-docs/ts-sdk/* "../../content/ts-sdk/api/"
+mkdir -p "../../content/developer/ts-sdk/api/"
+cp -Rv docs/generated-docs/ts-sdk/* "../../content/developer/ts-sdk/api/"
 
 # Clean up for the next iteration
 rm -rf generated-docs
@@ -36,11 +36,11 @@ for network in $networks; do
     cp -Rv docs/generated-docs/framework/* "../../content/references/framework/${network}/"
 
     # Fix Sidebar for new route
-    sed -i -e "s/generated-docs\/ts-sdk/ts-sdk\/api\/${network}/g" docs/generated-docs/ts-sdk/typedoc-sidebar.cjs
+    sed -i -e "s/generated-docs\/ts-sdk/developer\/ts-sdk\/api\/${network}/g" docs/generated-docs/ts-sdk/typedoc-sidebar.cjs
 
     # Copy TS SDK docs
-    mkdir -p "../../content/ts-sdk/api/${network}/"
-    cp -Rv docs/generated-docs/ts-sdk/* "../../content/ts-sdk/api/${network}/"
+    mkdir -p "../../content/developer/ts-sdk/api/${network}/"
+    cp -Rv docs/generated-docs/ts-sdk/* "../../content/developer/ts-sdk/api/${network}/"
 
     # Clean up for the next iteration
     rm -rf generated-docs
