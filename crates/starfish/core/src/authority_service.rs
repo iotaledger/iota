@@ -426,21 +426,22 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
             additional_block_headers.push(verified_block_header);
         }
 
-        // Observe headers and the block for the commit votes. When local commit is
+        // 5. Observe headers and the block for the commit votes. When local commit is
         // lagging too much, commit sync loop will trigger fetching.
         for block_header in additional_block_headers.iter() {
             self.commit_vote_monitor.observe_block(block_header);
         }
         self.commit_vote_monitor.observe_block(&verified_block);
 
-        // Reject blocks when local commit index is lagging too far from quorum commit
+        // TODO:: add filtering for already processed blocks/headers
+
+        // 6. Reject blocks when local commit index is lagging too far from quorum
+        //    commit
         // index.
         //
         // IMPORTANT: this must be done after observing votes from the block, otherwise
         // observed quorum commit will no longer progress.
-        //
-        // Since the main issue with too many suspended blocks is memory usage not CPU,
-        // it is ok to reject after block verifications instead of before.
+
         let last_commit_index = self.dag_state.read().last_commit_index();
         let quorum_commit_index = self.commit_vote_monitor.quorum_commit_index();
         // The threshold to ignore block should be larger than commit_sync_batch_size,
@@ -470,8 +471,6 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
             });
         }
 
-        // handle headers
-
         self.context
             .metrics
             .node_metrics
@@ -479,12 +478,18 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
             .with_label_values(&[peer_hostname])
             .inc();
 
+        // 7. Add additional headers from bundle to dag, receive missing ancestors for
+        //    them
+        // Normally, there should be no missing ancestors, as the headers are sent in
+        // order of increasing rounds.
+
         let mut missing_ancestors = self
             .core_dispatcher
             .add_block_headers(additional_block_headers)
             .await
             .map_err(|_| ConsensusError::Shutdown)?;
 
+        // 8. Add block to dag, add its missing ancestors to the set
         missing_ancestors.extend(
             self.core_dispatcher
                 .add_blocks(vec![verified_block])
@@ -492,7 +497,7 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
                 .map_err(|_| ConsensusError::Shutdown)?,
         );
         if !missing_ancestors.is_empty() {
-            // schedule the fetching of them from this peer
+            // 9. schedule the fetching of missing ancestors from this peer
             if let Err(err) = self
                 .synchronizer
                 .fetch_block_headers(missing_ancestors, peer)
