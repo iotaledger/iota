@@ -688,7 +688,7 @@ impl NameCommand {
 
                 handle_transaction_result(res, verbose, async |res| {
                     let entry = get_registry_entry(&domain, &iota_client).await?;
-                    Ok(NameCommandResult::SetTargetAddress {
+                    Ok(NameCommandResult::UnsetTargetAddress {
                         entry,
                         digest: res.digest,
                     })
@@ -1316,6 +1316,10 @@ pub enum NameCommandResult {
         address: IotaAddress,
         digest: TransactionDigest,
     },
+    UnsetTargetAddress {
+        entry: RegistryEntry,
+        digest: TransactionDigest,
+    },
     UnsetUserData {
         key: String,
         record: NameRecord,
@@ -1535,6 +1539,14 @@ impl std::fmt::Display for NameCommandResult {
             } => {
                 writeln!(f, "Successfully unset reverse lookup for {address}")?;
                 write!(f, "Transaction digest: {transaction}")
+            }
+            Self::UnsetTargetAddress {
+                entry,
+                digest: transaction,
+            } => {
+                writeln!(f, "Successfully unset target address for {}", entry.domain)?;
+                format_registry_entry(f, entry)?;
+                write!(f, "\nTransaction digest: {transaction}")
             }
             Self::UnsetUserData {
                 key,
