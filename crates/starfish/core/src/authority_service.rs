@@ -313,8 +313,8 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
 
     async fn handle_subscribe_block_bundles_request(
         &self,
-        _peer: AuthorityIndex,
-        _last_received: Round,
+        peer: AuthorityIndex,
+        last_received: Round,
     ) -> ConsensusResult<BlockBundleStream> {
         fail_point_async!("consensus-rpc-response");
 
@@ -343,11 +343,11 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
         // TODO::deal with possible error in try_from
         Ok(Box::pin(missed_blocks.chain({
             let dag_state = Arc::clone(&self.dag_state);
-            let peer = peer;
 
             broadcasted_blocks.map(move |block| {
                 let mut dag_state_guard = dag_state.write();
-                let block_headers = dag_state_guard.take_unknown_headers_for_authority(peer);
+                let block_headers =
+                    dag_state_guard.take_unknown_headers_for_authority(peer, block.round());
                 let block_bundle = BlockBundle {
                     verified_block: block,
                     verified_headers: block_headers,
@@ -702,7 +702,6 @@ impl SubscriptionCounter {
 /// It yields blocks that are broadcasted after the stream is created.
 type BroadcastedBlockStream = BroadcastStream<VerifiedBlock>;
 
-type BroadcastedBlockBundleStream = BroadcastStream<BlockBundle>;
 /// Adapted from `tokio_stream::wrappers::BroadcastStream`. The main difference
 /// is that this tolerates lags with only logging, without yielding errors.
 struct BroadcastStream<T> {

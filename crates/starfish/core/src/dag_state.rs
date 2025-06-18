@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use std::{
-    cmp::max,
+    cmp::{max, min},
     collections::{BTreeMap, BTreeSet, HashSet, VecDeque},
     mem,
     ops::Bound::{Excluded, Included, Unbounded},
@@ -1122,24 +1122,34 @@ impl DagState {
             .expect("We expect authority index should be valid") = new_map;
     }
 
+    /// Takes a batch of at most MAX_HEADERS_PER_BUNDLE unknown headers for the
+    /// given authority, but only from round smaller than
+    /// round_upper_bound_exclusive. Marks these headers as known to the
+    /// authority.
     pub(crate) fn take_unknown_headers_for_authority(
         &mut self,
         authority_index: AuthorityIndex,
+        round_upper_bound_exclusive: Round,
     ) -> Vec<VerifiedBlockHeader> {
         let mut set =
             mem::take(&mut self.block_headers_not_known_by_authority[authority_index.value()]);
-        let block_refs: Vec<BlockRef> = {
-            if set.len() <= MAX_HEADERS_PER_BUNDLE {
-                mem::take(&mut set).into_iter().collect()
-            } else {
-                let cut_off = *set.iter().nth(MAX_HEADERS_PER_BUNDLE).unwrap();
-                let head = set.split_off(&cut_off);
-                let result = set.into_iter().collect();
-                set = head;
-                result
-            }
+
+        let split_point = {
+            let round_bound = BlockRef::new(
+                round_upper_bound_exclusive,
+                AuthorityIndex::MIN,
+                BlockHeaderDigest::MIN,
+            );
+            let nth_element = set
+                .iter()
+                .nth(MAX_HEADERS_PER_BUNDLE)
+                .map_or(round_bound, |x| *x);
+            min(nth_element, round_bound)
         };
-        self.block_headers_not_known_by_authority[authority_index.value()] = set;
+
+        let remaining = set.split_off(&split_point);
+        let block_refs: Vec<BlockRef> = set.into_iter().collect();
+        self.block_headers_not_known_by_authority[authority_index.value()] = remaining;
         for block_ref in block_refs.iter() {
             let (_, who_knows_given_block) = self.recent_dag_cordial_knowledge
                 [block_ref.author.value()]
