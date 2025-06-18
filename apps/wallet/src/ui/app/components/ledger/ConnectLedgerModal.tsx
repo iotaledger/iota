@@ -5,34 +5,30 @@
 import { ampli } from '_src/shared/analytics/ampli';
 import { useIotaLedgerClient } from '_components';
 import { useState } from 'react';
-import {
-    Button,
-    ButtonType,
-    Dialog,
-    DialogBody,
-    DialogContent,
-    Header,
-    InfoBox,
-    InfoBoxStyle,
-    InfoBoxType,
-} from '@iota/apps-ui-kit';
+import { Button, ButtonType, Dialog, DialogBody, DialogContent, Header } from '@iota/apps-ui-kit';
 import { Link } from 'react-router-dom';
-import { Info } from '@iota/apps-ui-icons';
+import { ArrowTopRight } from '@iota/apps-ui-icons';
 
 interface ConnectLedgerModalProps {
     onClose: () => void;
     onConfirm: () => void;
     onError: (error: unknown) => void;
+    requestLedgerPermissionsFirst?: boolean;
 }
 
-export function ConnectLedgerModal({ onClose, onConfirm, onError }: ConnectLedgerModalProps) {
+export function ConnectLedgerModal({
+    onClose,
+    onConfirm,
+    onError,
+    requestLedgerPermissionsFirst = false,
+}: ConnectLedgerModalProps) {
     const [, setConnectingToLedger] = useState(false);
     const { connectToLedger } = useIotaLedgerClient();
 
     const onContinueClick = async () => {
         try {
             setConnectingToLedger(true);
-            await connectToLedger(true);
+            await connectToLedger(requestLedgerPermissionsFirst);
             onConfirm();
         } catch (error) {
             onError(error);
@@ -61,34 +57,32 @@ export function ConnectLedgerModal({ onClose, onConfirm, onError }: ConnectLedge
                             Connect your ledger to your computer, unlock it, and launch the IOTA
                             app. Click Continue when done.
                         </span>
-                        <InfoBox
-                            title="Make sure you have the latest version"
-                            supportingText="Latest version 0.9.3 (For deprecated devices like the Ledger Nano S, version 0.9.2)"
-                            icon={<Info />}
-                            type={InfoBoxType.Default}
-                            style={InfoBoxStyle.Elevated}
-                        />
-                        <p className="text-center text-body-sm text-neutral-40 dark:text-neutral-60">
-                            You can read more about it{' '}
-                            <Link
-                                to="https://docs.iota.org/about-iota/iota-wallet/how-to/integrate-ledger#install-the-iota-app-on-your-ledger-device"
-                                className="text-primary-30 no-underline dark:text-primary-80"
-                                target="_blank"
-                                rel="noreferrer"
-                            >
-                                here for version 0.9.3
-                            </Link>
-                            , and{' '}
-                            <Link
-                                to="https://docs.iota.org/about-iota/iota-wallet/how-to/integrate-ledger#manually-for-deprecated-devices-such-as-ledger-nano-s"
-                                className="text-primary-30 no-underline dark:text-primary-80"
-                                target="_blank"
-                                rel="noreferrer"
-                            >
-                                here for installing manually version 0.9.2
-                            </Link>
-                            .
-                        </p>
+                        <div className="flex w-full flex-col gap-y-xs rounded-lg bg-primary-90 px-md py-sm text-center dark:bg-primary-10">
+                            <span className="text-title-sm text-neutral-10 dark:text-neutral-92">
+                                Ensure you're using a compatible version of the Ledger IOTA app
+                            </span>
+                            <div className="flex w-full flex-wrap justify-center gap-xs text-body-sm text-primary-30 dark:text-primary-80">
+                                <Link
+                                    to="https://docs.iota.org/about-iota/iota-wallet/how-to/integrate-ledger"
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="flex items-center gap-x-xxs underline"
+                                >
+                                    <span className="shrink-0">Recommended v0.9.3+</span>
+                                    <ArrowTopRight />
+                                </Link>
+                                <Link
+                                    to="https://docs.iota.org/about-iota/iota-wallet/how-to/integrate-ledger#manually-for-deprecated-devices-such-as-ledger-nano-s"
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="flex items-center gap-x-xxs underline"
+                                >
+                                    <span className="shrink-0">Older Devices v0.9.2+</span>
+                                    <ArrowTopRight />
+                                </Link>
+                            </div>
+                        </div>
+
                         <div className="flex items-center justify-center gap-x-1">
                             <span className="text-body-md text-neutral-40 dark:text-neutral-60">
                                 Need more help?

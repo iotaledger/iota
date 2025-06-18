@@ -19,7 +19,7 @@ use tracing::{info, warn};
 
 /// The minimum and maximum protocol versions supported by this build.
 const MIN_PROTOCOL_VERSION: u64 = 1;
-pub const MAX_PROTOCOL_VERSION: u64 = 8;
+pub const MAX_PROTOCOL_VERSION: u64 = 9;
 
 // Record history of protocol version allocations here:
 //
@@ -51,6 +51,9 @@ pub const MAX_PROTOCOL_VERSION: u64 = 8;
 //            Enable the new consensus commit rule for testnet.
 //            Enable min_free_execution_slot for the shared object congestion
 //            tracker in devnet.
+// Version 9: Disable smart ancestor selection for the testnet.
+//            Enable zstd compression for consensus tonic network in mainnet.
+//            Enable passkey auth in multisig for devnet.
 
 #[derive(Copy, Clone, Debug, Hash, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ProtocolVersion(u64);
@@ -270,6 +273,10 @@ struct FeatureFlags {
     // object congestion tracker.
     #[serde(skip_serializing_if = "is_false")]
     congestion_control_min_free_execution_slot: bool,
+
+    // If true, multisig containing passkey sig is accepted.
+    #[serde(skip_serializing_if = "is_false")]
+    accept_passkey_in_multisig: bool,
 }
 
 fn is_true(b: &bool) -> bool {
@@ -1243,6 +1250,10 @@ impl ProtocolConfig {
         self.feature_flags
             .congestion_control_min_free_execution_slot
     }
+
+    pub fn accept_passkey_in_multisig(&self) -> bool {
+        self.feature_flags.accept_passkey_in_multisig
+    }
 }
 
 #[cfg(not(msim))]
@@ -1953,9 +1964,6 @@ impl ProtocolConfig {
                 // version 7 is a new framework version but with no config changes
                 7 => {}
                 8 => {
-                    // TODO: add new consensus related config params to this
-                    // version
-
                     cfg.feature_flags.variant_nodes = true;
 
                     if chain != Chain::Mainnet {
@@ -1981,6 +1989,20 @@ impl ProtocolConfig {
                     // devnet.
                     if chain != Chain::Testnet && chain != Chain::Mainnet {
                         cfg.feature_flags.congestion_control_min_free_execution_slot = true;
+                    }
+                }
+                9 => {
+                    if chain != Chain::Mainnet {
+                        // Disable smart ancestor selection in the testnet and devnet.
+                        cfg.feature_flags.consensus_smart_ancestor_selection = false;
+                    }
+
+                    // Enable zstd compression for consensus
+                    cfg.feature_flags.consensus_zstd_compression = true;
+
+                    // Enable passkey in multisig in devnet.
+                    if chain != Chain::Testnet && chain != Chain::Mainnet {
+                        cfg.feature_flags.accept_passkey_in_multisig = true;
                     }
                 }
                 // Use this template when making changes:
@@ -2123,6 +2145,14 @@ impl ProtocolConfig {
     pub fn set_consensus_round_prober_probe_accepted_rounds(&mut self, val: bool) {
         self.feature_flags
             .consensus_round_prober_probe_accepted_rounds = val;
+    }
+
+    pub fn set_accept_passkey_in_multisig_for_testing(&mut self, val: bool) {
+        self.feature_flags.accept_passkey_in_multisig = val;
+    }
+
+    pub fn set_consensus_smart_ancestor_selection_for_testing(&mut self, val: bool) {
+        self.feature_flags.consensus_smart_ancestor_selection = val;
     }
 }
 
@@ -2272,6 +2302,17 @@ mod test {
 
         prot.set_attr_for_testing("max_arguments".to_string(), "456".to_string());
         assert_eq!(prot.max_arguments(), 456);
+    }
+
+    #[test]
+    #[should_panic(expected = "unsupported version")]
+    fn max_version_test() {
+        // When this does not panic, version higher than MAX_PROTOCOL_VERSION exists.
+        // To fix, bump MAX_PROTOCOL_VERSION or disable this check for the version.
+        let _ = ProtocolConfig::get_for_version_impl(
+            ProtocolVersion::new(MAX_PROTOCOL_VERSION + 1),
+            Chain::Unknown,
+        );
     }
 
     #[test]

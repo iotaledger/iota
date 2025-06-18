@@ -149,6 +149,7 @@ pub const IOTA_MAINNET_URL: &str = "https://api.mainnet.iota.cafe";
 ///
 /// ```rust,no_run
 /// use iota_sdk::IotaClientBuilder;
+///
 /// #[tokio::main]
 /// async fn main() -> Result<(), anyhow::Error> {
 ///     let iota = IotaClientBuilder::default()

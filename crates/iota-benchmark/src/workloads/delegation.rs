@@ -24,8 +24,8 @@ use crate::{
         Gas, GasCoinConfig, WorkloadBuilderInfo, WorkloadParams,
         payload::Payload,
         workload::{
-            ESTIMATED_COMPUTATION_COST, MAX_GAS_FOR_TESTING, STORAGE_COST_PER_COIN, Workload,
-            WorkloadBuilder,
+            ESTIMATED_COMPUTATION_COST, ExpectedFailureType, MAX_GAS_FOR_TESTING,
+            STORAGE_COST_PER_COIN, Workload, WorkloadBuilder,
         },
     },
 };
@@ -88,6 +88,10 @@ impl Payload for DelegationTestPayload {
                     .reference_gas_price,
             ),
         }
+    }
+
+    fn get_failure_type(&self) -> Option<ExpectedFailureType> {
+        None
     }
 }
 

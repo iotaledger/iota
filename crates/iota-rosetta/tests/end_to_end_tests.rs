@@ -261,7 +261,7 @@ async fn test_withdraw_stake() {
     telemetry_subscribers::init_for_testing();
 
     let test_cluster = TestClusterBuilder::new()
-        .with_epoch_duration_ms(15000)
+        .with_epoch_duration_ms(60000)
         .build()
         .await;
     let sender = test_cluster.get_address_0();
@@ -329,8 +329,8 @@ async fn test_withdraw_stake() {
     assert_eq!(1, response.balances.len());
     assert_eq!(1000000000, response.balances[0].value);
 
-    // wait for epoch.
-    tokio::time::sleep(Duration::from_millis(15000)).await;
+    // Trigger epoch change.
+    test_cluster.force_new_epoch().await;
 
     // withdraw all stake
     let ops = serde_json::from_value(json!(

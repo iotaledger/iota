@@ -53,7 +53,7 @@ export function InactiveValidators({
                             </div>
                         </div>
                     </div>
-                    <div className="flex w-1/2 flex-col gap-y-md">
+                    <div className="flex w-full flex-col gap-y-md md:w-1/2">
                         <span className="text-label-lg text-neutral-40 dark:text-neutral-60">
                             Description
                         </span>
@@ -123,7 +123,7 @@ export function ValidatorMeta({ validatorData }: ValidatorMetaProps): JSX.Elemen
                             </div>
                         </div>
                     </div>
-                    <div className="flex w-1/2 flex-col gap-y-md">
+                    <div className="flex w-full flex-col gap-y-md md:w-1/2">
                         <span className="text-label-lg text-neutral-40 dark:text-neutral-60">
                             Description
                         </span>

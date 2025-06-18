@@ -1,5 +1,21 @@
 # @iota/iota-sdk
 
+## 1.2.0
+
+### Minor Changes
+
+-   53d5058: Added iota names rpc methods to IotaClient and also GraphQL queries.
+
+## 1.1.0
+
+### Minor Changes
+
+-   1128809: Add `getGraphQLUrl` shorthand to quickly get the graphql endpoint of the given network
+
+### Patch Changes
+
+-   acc502a: Add IOTA Names interfaces
+
 ## 1.0.1
 
 ### Patch Changes

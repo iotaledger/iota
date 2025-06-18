@@ -8,7 +8,7 @@ use std::{
     sync::Arc,
 };
 
-use anyhow::anyhow;
+use anyhow::bail;
 use eth_iota_bridge::EthIotaBridgeEvents;
 use ethers::{prelude::*, types::Address as EthAddress};
 use iota_json_rpc_types::{
@@ -557,7 +557,7 @@ pub async fn initiate_bridge_iota_to_eth(
     {
         Ok(resp) => {
             if !resp.status_ok().unwrap() {
-                return Err(anyhow!("IOTA TX error"));
+                bail!("IOTA TX error");
             } else {
                 resp
             }
@@ -643,11 +643,11 @@ async fn wait_for_transfer_action_status(
             return Ok(());
         }
         if now.elapsed().as_secs() > 60 {
-            return Err(anyhow!(
+            bail!(
                 "Timeout waiting for token transfer action to be {:?}. chain_id: {chain_id:?}, nonce: {nonce}. Time elapsed: {:?}",
                 status,
                 now.elapsed(),
-            ));
+            );
         }
         tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
     }

@@ -86,7 +86,7 @@ mod tests {
 
     async fn example_func_err() -> anyhow::Result<()> {
         tracing::info!("example_func_err");
-        Err(anyhow::anyhow!(""))
+        anyhow::bail!("")
     }
 
     #[tokio::test]

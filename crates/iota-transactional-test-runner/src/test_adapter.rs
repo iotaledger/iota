@@ -201,7 +201,7 @@ impl AdapterInitConfig {
             custom_validator_account,
             reference_gas_price,
             default_gas_price,
-            objects_snapshot_min_checkpoint_lag,
+            snapshot_config,
             flavor,
             epochs_to_keep,
             data_ingestion_path,
@@ -235,8 +235,6 @@ impl AdapterInitConfig {
         }
 
         let offchain_config = if simulator {
-            let snapshot_config =
-                SnapshotLagConfig::new(objects_snapshot_min_checkpoint_lag, Some(1));
             Some(OffChainConfig {
                 snapshot_config,
                 epochs_to_keep,
@@ -1015,11 +1013,11 @@ impl MoveTestAdapter<'_> for IotaTestAdapter {
                 .await?;
                 assert!(!modules.is_empty());
                 let Some(package_name) = modules.first().unwrap().named_address else {
-                    bail!("Staged modules must have a named address")
+                    bail!("Staged modules must have a named address");
                 };
                 for m in &modules {
                     let Some(named_addr) = &m.named_address else {
-                        bail!("Staged modules must have a named address")
+                        bail!("Staged modules must have a named address");
                     };
                     if named_addr != &package_name {
                         bail!(
@@ -1340,11 +1338,11 @@ impl IotaTestAdapter {
 
         for var_name in unique_vars {
             let Some(value) = variables.get(var_name) else {
-                return Err(anyhow!(
+                bail!(
                     "Unknown variable: {}\nAllowed variable mappings are {:#?}",
                     var_name,
                     variables
-                ));
+                );
             };
 
             let pattern = format!("@{{{}}}", var_name);
@@ -1649,9 +1647,9 @@ impl IotaTestAdapter {
                 } else {
                     format!("Execution Error: {}", error_opt.unwrap())
                 };
-                Err(anyhow::anyhow!(self.stabilize_str(format!(
+                bail!(self.stabilize_str(format!(
                     "Transaction Effects Status: {error}\n{execution_msg}",
-                ))))
+                )))
             }
         }
     }
@@ -1691,9 +1689,9 @@ impl IotaTestAdapter {
         events: IotaTransactionBlockEvents,
     ) -> anyhow::Result<TxnSummary> {
         if let IotaExecutionStatus::Failure { error } = effects.status() {
-            return Err(anyhow::anyhow!(self.stabilize_str(format!(
+            bail!(self.stabilize_str(format!(
                 "Transaction Effects Status: {error}\nExecution Error: {error}",
-            ))));
+            )));
         }
         let mut created_ids: Vec<_> = effects.created().iter().map(|o| o.object_id()).collect();
         let mut mutated_ids: Vec<_> = effects.mutated().iter().map(|o| o.object_id()).collect();
