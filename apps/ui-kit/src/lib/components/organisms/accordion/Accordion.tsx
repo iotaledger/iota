@@ -99,7 +99,8 @@ export function Accordion({
     return (
         <div
             className={cx('accordion-bg rounded-xl', {
-                'accordion-border-color border': !hideBorder,
+                'border border-shader-neutral-light-8 dark:border-shader-neutral-dark-8':
+                    !hideBorder,
             })}
         >
             {children}
