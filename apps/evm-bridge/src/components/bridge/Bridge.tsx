@@ -23,8 +23,8 @@ export function Bridge() {
 
     const formMethods = useForm({
         mode: 'all',
-        // @ts-expect-error Type instantiation is excessively deep
-        resolver: zodResolver(formSchema),
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        resolver: zodResolver(formSchema as any),
     });
 
     return (
