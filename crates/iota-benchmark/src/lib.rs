@@ -13,11 +13,7 @@ pub mod system_state_observer;
 pub mod util;
 pub mod workloads;
 
-use std::{
-    collections::BTreeMap,
-    sync::Arc,
-    time::Duration,
-};
+use std::{collections::BTreeMap, sync::Arc, time::Duration};
 
 use anyhow::bail;
 use async_trait::async_trait;
@@ -39,9 +35,7 @@ use iota_json_rpc_types::{
 };
 use iota_sdk::{IotaClient, IotaClientBuilder, PagedFn};
 use iota_types::{
-    base_types::{
-        AuthorityName, IotaAddress, ObjectID, ObjectRef, SequenceNumber,
-    },
+    base_types::{AuthorityName, IotaAddress, ObjectID, ObjectRef, SequenceNumber},
     committee::{Committee, EpochId},
     crypto::AuthorityStrongQuorumSignInfo,
     effects::{CertifiedTransactionEffects, TransactionEffectsAPI, TransactionEvents},
