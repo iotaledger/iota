@@ -11,7 +11,7 @@
         "prettier:fix": "prettier -w --ignore-unknown --ignore-path=.prettierignore .",
         "lint": "pnpm eslint:check && pnpm prettier:check",
         "lint:fix": "pnpm eslint:fix && pnpm prettier:fix",
-        "test:prepare:L1": "pnpm -w wallet build && pnpm -w evm-bridge build",
+        "test:prepare:L1": "pnpm -w wallet build",
         "test:prepare:L2": "L1=false vite-node scripts/downloadWallet.js",
         "test:prepare": "pnpm test:prepare:L1 && pnpm test:prepare:L2",
         "playwright": "playwright",

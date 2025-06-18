@@ -73,8 +73,8 @@ jobs:
 
       - uses: pnpm/action-setup@fe02b34f77f8bc703788d5817da081398fad5dd2 # v4.0.0
 
-      # - name: Build Iota binary
-      #   run: cargo build --bin iota --features indexer --profile dev
+      - name: Build Iota binary
+        run: cargo build --bin iota --features indexer --profile dev
 
       - name: Install Nodejs
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
@@ -85,38 +85,13 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Install Playwright Browsers
+      - name: Install Explorer Playwright Browsers
         run: pnpm --filter iota-explorer playwright install --with-deps chromium
 
       - name: Set environment variables
         run: |
           echo "VITE_IOTA_BIN=$PWD/target/debug/iota" >> $GITHUB_ENV
           echo "E2E_RUN_LOCAL_NET_CMD=(RUST_BACKTRACE=1 $(echo $PWD/target/debug/iota) start --with-faucet --force-regenesis --with-indexer --with-graphql)" >> $GITHUB_ENV
-
-      - name: Build Evm-bridge
-        if: inputs.isEvmBridge || inputs.isIscSDK
-        run: pnpm evm-bridge build
-
-      - name: Install Playwright Browsers for Evm-bridge
-        if: inputs.isEvmBridge || inputs.isIscSDK
-        run: pnpm --filter iota-evm-bridge playwright install --with-deps chromium
-
-      - name: Prepare evm-bridge e2e tests (downloads wallet artifact dist)
-        if: inputs.isEvmBridge || inputs.isIscSDK
-        working-directory: ./apps/evm-bridge
-        run: pnpm run test:prepare
-
-      - name: Run evm-bridge tests
-        if: inputs.isEvmBridge || inputs.isIscSDK
-        working-directory: ./apps/evm-bridge
-        run: DEBUG=pw:webserver xvfb-run --auto-servernum pnpm run test:e2e
-
-      - uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # v4.4.3
-        if: always()
-        with:
-          name: playwright-report-app
-          path: apps/evm-bridge/playwright-report/
-          retention-days: 30
 
       - name: Run TS SDK e2e tests
         if: inputs.isTypescriptSDK || inputs.isRpc || github.ref_name == 'develop'
@@ -193,4 +168,29 @@ jobs:
         with:
           name: playwright-report-wallet
           path: apps/wallet/playwright-report/
+          retention-days: 30
+
+      - name: Build Evm-bridge
+        if: inputs.isEvmBridge || inputs.isIscSDK
+        run: pnpm evm-bridge build
+
+      - name: Install Playwright Browsers for Evm-bridge
+        if: inputs.isEvmBridge || inputs.isIscSDK
+        run: pnpm --filter ./apps/evm-bridge playwright install --with-deps chromium
+
+      - name: Prepare evm-bridge e2e tests (downloads wallet artifact dist)
+        if: inputs.isEvmBridge || inputs.isIscSDK
+        working-directory: ./apps/evm-bridge
+        run: pnpm run test:prepare
+
+      - name: Run evm-bridge tests
+        if: inputs.isEvmBridge || inputs.isIscSDK
+        working-directory: ./apps/evm-bridge
+        run: DEBUG=pw:webserver xvfb-run --auto-servernum pnpm run test:e2e
+
+      - uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # v4.4.3
+        if: always()
+        with:
+          name: playwright-report-app
+          path: apps/evm-bridge/playwright-report/
           retention-days: 30
