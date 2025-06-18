@@ -177,6 +177,8 @@ test.describe.serial('Deposit then withdraw roundtrip', () => {
         const l1ExtensionUrl = await getExtensionUrl(browserL1);
         await pageWithL1Wallet.goto(l1ExtensionUrl, { waitUntil: 'commit' });
 
-        await expect(pageWithL1Wallet.getByTestId('coin-balance')).toHaveText('6.99');
+        await expect(pageWithL1Wallet.getByTestId('coin-balance')).toHaveText('6.99', {
+            timeout: THREE_MINUTES,
+        });
     });
 });
