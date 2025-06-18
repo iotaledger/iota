@@ -68,17 +68,20 @@ impl SuggestedGasPriceCalculator {
             estimated_execution_duration,
         );
 
-        // TODO: should only consider mutable objects like in bump_object_execution_slots
-        certificate.shared_input_objects().for_each(|object| {
-            self.congestion_info
-                .entry(object.id)
-                .and_modify(|per_object_congestion_info| {
-                    per_object_congestion_info.push(scheduled_transaction_congestion_info);
-                })
-                .or_insert(PerObjectCongestionInfo::from([
-                    scheduled_transaction_congestion_info,
-                ]));
-        });
+        certificate
+            .shared_input_objects()
+            // TODO: should only consider mutable objects like in bump_object_execution_slots?
+            // .filter(|object| object.mutable)
+            .for_each(|object| {
+                self.congestion_info
+                    .entry(object.id)
+                    .and_modify(|per_object_congestion_info| {
+                        per_object_congestion_info.push(scheduled_transaction_congestion_info);
+                    })
+                    .or_insert(PerObjectCongestionInfo::from([
+                        scheduled_transaction_congestion_info,
+                    ]));
+            });
     }
 
     /// Calculate a suggested gas price using single-commit congestion data.
@@ -90,8 +93,9 @@ impl SuggestedGasPriceCalculator {
         estimated_execution_duration: ExecutionTime,
     ) -> u64 {
         let passing_gas_price = certificate
-            // TODO: should only consider mutable objects like in bump_object_execution_slots
             .shared_input_objects()
+            // TODO: should only consider mutable objects like in bump_object_execution_slots?
+            // .filter(|object| object.mutable)
             .filter_map(|object| {
                 self.congestion_info
                     .get(&object.id)
@@ -379,7 +383,7 @@ mod tests {
         // Construct the first certificate with some shared input objects,
         // gas price, estimated execution duration, and update calculator's
         // congestion info for this certificate.
-        let objects_1 = vec![(object_1, true), (object_2, true)];
+        let objects_1 = vec![(object_1, false), (object_2, false)];
         let gas_budget_1 = 1_003_000;
         let gas_price_1 = 1_003;
         let certificate_1 = build_transaction(&objects_1, gas_budget_1, gas_price_1);
