@@ -2360,13 +2360,7 @@ impl CouponHouse {
                 let discount_amount = ((price as u128) * (coupon.amount as u128) / 100) as u64;
                 price - discount_amount
             }
-            1 => {
-                if price >= coupon.amount {
-                    price - coupon.amount
-                } else {
-                    0
-                }
-            }
+            1 => price.saturating_sub(coupon.amount),
             _ => bail!("undefined coupon kind"),
         })
     }
