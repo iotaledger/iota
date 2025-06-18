@@ -2354,7 +2354,7 @@ impl CouponHouse {
         iota_client: &IotaClient,
     ) -> anyhow::Result<u64> {
         for coupon_str in coupons {
-            let coupon = self.get_coupon(coupon_str, &iota_client).await?;
+            let coupon = self.get_coupon(coupon_str, iota_client).await?;
 
             if !coupon.rules.can_stack && coupons.len() > 1 {
                 bail!("coupon '{coupon_str}' cannot stack with the other coupons provided");
