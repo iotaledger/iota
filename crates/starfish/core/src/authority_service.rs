@@ -83,6 +83,7 @@ impl<C: CoreThreadDispatcher> AuthorityService<C> {
 
 #[async_trait]
 impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
+    #[cfg(test)]
     async fn handle_subscribed_block(
         &self,
         peer: AuthorityIndex,
@@ -271,8 +272,8 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
 
     async fn handle_subscribed_block_bundle(
         &self,
-        _peer: AuthorityIndex,
-        _serialized_block_bundle: SerializedBlockBundle,
+        peer: AuthorityIndex,
+        serialized_block_bundle: SerializedBlockBundle,
     ) -> ConsensusResult<()> {
         fail_point_async!("consensus-rpc-response");
 

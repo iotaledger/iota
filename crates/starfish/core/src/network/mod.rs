@@ -70,6 +70,7 @@ pub(crate) type BlockBundleStream = Pin<Box<dyn Stream<Item = SerializedBlockBun
 pub(crate) trait NetworkClient: Send + Sync + Sized + 'static {
     /// Subscribes to blocks from a peer after last_received round.
     // TODO:: remove when block bundles logic is finalized
+    #[allow(dead_code)]
     async fn subscribe_blocks(
         &self,
         peer: AuthorityIndex,
@@ -144,6 +145,7 @@ pub(crate) trait NetworkService: Send + Sync + 'static {
     /// can be trusted to be a valid authority index. But serialized_block
     /// must be verified before its contents are trusted.
     // TODO:: remove when block bundles logic is finalized
+    #[cfg(test)]
     async fn handle_subscribed_block(
         &self,
         peer: AuthorityIndex,
