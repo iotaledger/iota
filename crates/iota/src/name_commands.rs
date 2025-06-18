@@ -538,7 +538,7 @@ impl NameCommand {
 
                 let res = IotaClientCommands::Call {
                     package: iota_names_config.package_address.into(),
-                    module: nft.module_name().to_owned(),
+                    module: nft.controller_module_name().to_owned(),
                     function: "set_target_address".to_owned(),
                     type_args: Default::default(),
                     args: vec![
@@ -672,8 +672,8 @@ impl NameCommand {
                 let iota_names_config = get_iota_names_config(&iota_client).await?;
 
                 let res = IotaClientCommands::Call {
-                    package: nft.package_id(&iota_client).await?,
-                    module: nft.module_name().to_owned(),
+                    package: nft.controller_package_id(&iota_client).await?,
+                    module: nft.controller_module_name().to_owned(),
                     function: "set_target_address".to_owned(),
                     type_args: Default::default(),
                     args: vec![
@@ -1970,7 +1970,7 @@ impl IotaNamesNftProxy {
         }
     }
 
-    async fn package_id(&self, client: &IotaClient) -> anyhow::Result<ObjectID> {
+    async fn controller_package_id(&self, client: &IotaClient) -> anyhow::Result<ObjectID> {
         Ok(match self {
             IotaNamesNftProxy::Domain(_) => {
                 let names_config = get_iota_names_config(client).await?;
@@ -2008,7 +2008,7 @@ impl IotaNamesNftProxy {
         })
     }
 
-    fn module_name(&self) -> &'static str {
+    fn controller_module_name(&self) -> &'static str {
         match self {
             IotaNamesNftProxy::Domain(_) => "controller",
             IotaNamesNftProxy::Subdomain(_) => "subdomain_proxy",
