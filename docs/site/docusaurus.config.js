@@ -131,7 +131,7 @@ const config = {
           "../../sdk/typescript/src/verify"
         ],
         plugin: ["typedoc-plugin-markdown"],
-        out: "../generated-docs/ts-sdk",
+        out: "../generated-docs/developer/ts-sdk",
         githubPages: false,
         readme: "none",
         hideGenerator: true,
@@ -150,7 +150,7 @@ const config = {
           const redirects = [
             {
               from: '/references/ts-sdk',
-              to: '/ts-sdk',
+              to: '/developer/ts-sdk',
             },
           ];
           let paths = [];
@@ -305,31 +305,40 @@ const config = {
           {
             label: "About IOTA",
             to: "about-iota",
+            className: 'navbar-icon-about',
           },
           {
             label: "Developers",
             to: "developer",
+            className: 'navbar-icon-developer',
           },
           {
-            label: "Node Operators",
+            label: "Operators",
             to: "operator",
+            className: 'navbar-icon-operator',
           },
           {
             label: "References",
             to: "references",
+            className: 'navbar-icon-references',
           },
           {
-            label: "TS SDK",
-            to: "ts-sdk/typescript/",
+            label: "Users",
+            to: "users/wallets",
+            className: 'navbar-icon-users',
           },
-          {
-            label: "IOTA Identity",
-            to: "iota-identity",
-          },
-          {
-            label: "IOTA EVM",
-            to: "iota-evm",
-          },
+          // {
+          //   label: "TS SDK",
+          //   to: "ts-sdk/typescript/",
+          // },
+          // {
+          //   label: "IOTA Identity",
+          //   to: "iota-identity",
+          // },
+          // {
+          //   label: "IOTA EVM",
+          //   to: "iota-evm",
+          // },
           {
             type: 'custom-WalletConnectButton',
             position: 'right',
