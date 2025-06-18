@@ -3128,14 +3128,14 @@ impl AuthorityPerEpochStore {
 
         // Note that if we do not have a max execution duration, we do not need to
         // calculate suggested gas price.
-        let mut suggested_gas_price_calculator = self.get_max_execution_duration_per_commit().map(
-            |get_max_execution_duration_per_commit| {
-                SuggestedGasPriceCalculator::new(
-                    self.reference_gas_price(),
-                    get_max_execution_duration_per_commit,
-                )
-            },
-        );
+        let mut suggested_gas_price_calculator =
+            self.get_max_execution_duration_per_commit()
+                .map(|max_execution_duration_per_commit| {
+                    SuggestedGasPriceCalculator::new(
+                        max_execution_duration_per_commit,
+                        self.protocol_config().max_gas_price(),
+                    )
+                });
 
         let mut randomness_state_updated = false;
         for tx in transactions {

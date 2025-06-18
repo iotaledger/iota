@@ -41,18 +41,18 @@ type PerCommitCongestionInfo = HashMap<ObjectID, PerObjectCongestionInfo>;
 /// info from a single consensus commit.
 pub(crate) struct SuggestedGasPriceCalculator {
     congestion_info: PerCommitCongestionInfo,
-    reference_gas_price: u64,
     max_execution_duration_per_commit: ExecutionTime,
+    max_gas_price: u64,
 }
 
 impl SuggestedGasPriceCalculator {
     /// Create a new `SuggestedGasPriceCalculator` with empty shared
     /// object congestion data for a given consensus commit round.
-    pub fn new(reference_gas_price: u64, max_execution_duration_per_commit: ExecutionTime) -> Self {
+    pub fn new(max_execution_duration_per_commit: ExecutionTime, max_gas_price: u64) -> Self {
         Self {
             congestion_info: PerCommitCongestionInfo::new(),
-            reference_gas_price,
             max_execution_duration_per_commit,
+            max_gas_price,
         }
     }
 
@@ -88,51 +88,86 @@ impl SuggestedGasPriceCalculator {
         certificate: &VerifiedExecutableTransaction,
         estimated_execution_duration: ExecutionTime,
     ) -> u64 {
-        for object in certificate.shared_input_objects() {
-            if let Some(per_object_congestion_info) = self.congestion_info.get(&object.id) {
-                // Calculate availablem estimated execution duration for this shared object
-                let available_estimated_execution_duration = self.max_execution_duration_per_commit
-                    - per_object_congestion_info
-                        .iter()
-                        .map(|tx_congestion_info| tx_congestion_info.estimated_execution_duration)
-                        .sum::<ExecutionTime>();
+        let passing_gas_price = certificate
+            .shared_input_objects()
+            .filter_map(|object| {
+                self.congestion_info
+                    .get(&object.id)
+                    // If there is no congestion info for this object, that means none of the
+                    // scheduled transactions touched this object so far, so we can ignore it.
+                    .map(|per_object_congestion_info| {
+                        // Calculate available estimated execution duration for this shared object
+                        let available_estimated_execution_duration = self
+                            .max_execution_duration_per_commit
+                            - per_object_congestion_info
+                                .iter()
+                                .map(|ci| ci.estimated_execution_duration)
+                                .sum::<ExecutionTime>();
 
-                if estimated_execution_duration > available_estimated_execution_duration {
-                    // Certificate's estimated execution duration is larger than the available
-                    // execution duration for this shared object. In other words, this object
-                    // is congested. We need to find the lowest gas price of scheduled
-                    // transaction touching this shared object such that the deferred/cancelled
-                    // certificate's would fully fit, i.e., would be scheduled.
+                        if estimated_execution_duration > available_estimated_execution_duration {
+                            // Certificate's estimated execution duration is larger than the
+                            // available execution duration for this shared object. In other words,
+                            // this object is congested. There must exist the lowest gas price of
+                            // scheduled transaction touching this shared object such that the
+                            // deferred/cancelled certificate's would fully fit, i.e., would be
+                            // scheduled.
 
-                    let mut accum_estimated_execution_duration =
-                        available_estimated_execution_duration;
-                    for tx_congestion_info in per_object_congestion_info.iter().rev() {
-                        accum_estimated_execution_duration +=
-                            tx_congestion_info.estimated_execution_duration;
-                        if accum_estimated_execution_duration >= estimated_execution_duration {
-                            // The accumulated estimated execution duration is sufficient
-                            // to fit this certificate, so we break the loop and take the
-                            // gas price of the corresponding transaction.
-                            break;
+                            let mut passing_gas_price = None;
+                            let mut accum_estimated_execution_duration =
+                                available_estimated_execution_duration;
+
+                            for tx_congestion_info in per_object_congestion_info.iter().rev() {
+                                accum_estimated_execution_duration +=
+                                    tx_congestion_info.estimated_execution_duration;
+                                if accum_estimated_execution_duration
+                                    >= estimated_execution_duration
+                                {
+                                    // The accumulated estimated execution duration is sufficient
+                                    // to fit this certificate, so we take the gas price of the
+                                    // corresponding transaction and break the loop.
+                                    passing_gas_price = Some(tx_congestion_info.gas_price);
+                                    break;
+                                }
+                            }
+
+                            passing_gas_price.unwrap_or_else(|| {
+                                panic!(
+                                    "Could not find the passing gas price for transaction with \
+                                        estimated execution duration of {}, meaning that this \
+                                        transaction alone would not even fit into maximum \
+                                        execution duration per commit {}",
+                                    estimated_execution_duration,
+                                    self.max_execution_duration_per_commit,
+                                )
+                            })
+                        } else {
+                            // This `else` branch means the following: the certificate would
+                            // be scheduled if it only touched this shared object. In other words,
+                            // this shared object alone is not the reason for deferring/cancelling
+                            // this certificate, so we can ignore congestion data for this object.
+
+                            0
                         }
-                    }
-                } else {
-                    // ^ This branch means the certificate would be scheduled if
-                    // it only touched this shared object. In other words, this
-                    // shared object alone is not the reason for
-                    // deferring/cancelling this certificate.
+                    })
+            })
+            // Take max, which means the worst case object (most congested)
+            .max()
+            .expect(
+                "At least one of the shared input objects should have appeared in scheduled \
+                    transactions earlier.",
+            );
 
-                    // None
-                }
-            } else {
-                // If there is no congestion info for this object, that means
-                // none of the scheduled transactions touched this object so
-                // far.
+        assert_ne!(
+            passing_gas_price, 0,
+            "At least one of the shared input objects must have been congested."
+        );
 
-                // None
-            }
-        }
+        // Suggested gas price equals passing_gas_price + 1. We add 1 to make this
+        // transaction would be scheduled if the same commit structure was repeated.
+        let suggested_gas_price = passing_gas_price + 1;
 
-        certificate.transaction_data().gas_price()
+        // Make sure suggested_gas_price is not larger than the maximum possible gas
+        // price.
+        self.max_gas_price.min(suggested_gas_price)
     }
 }
