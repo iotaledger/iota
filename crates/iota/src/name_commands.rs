@@ -535,7 +535,7 @@ impl NameCommand {
                 let iota_names_config = get_iota_names_config(&iota_client).await?;
 
                 let res = IotaClientCommands::Call {
-                    package: iota_names_config.package_address.into(),
+                    package: nft.controller_package_id(&iota_client).await?,
                     module: nft.controller_module_name().to_owned(),
                     function: "set_target_address".to_owned(),
                     type_args: Default::default(),
