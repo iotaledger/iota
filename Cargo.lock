@@ -3939,7 +3939,7 @@ dependencies = [
 [[package]]
 name = "fastcrypto"
 version = "0.1.8"
-source = "git+https://github.com/MystenLabs/fastcrypto?rev=2f502fd8570fe4e9cff36eea5bbd6fef22002898#2f502fd8570fe4e9cff36eea5bbd6fef22002898"
+source = "git+https://github.com/MystenLabs/fastcrypto?rev=69d496c71fb37e3d22fe85e5bbfd4256d61422b9#69d496c71fb37e3d22fe85e5bbfd4256d61422b9"
 dependencies = [
  "aes",
  "aes-gcm",
@@ -3993,7 +3993,7 @@ dependencies = [
 [[package]]
 name = "fastcrypto-derive"
 version = "0.1.3"
-source = "git+https://github.com/MystenLabs/fastcrypto?rev=2f502fd8570fe4e9cff36eea5bbd6fef22002898#2f502fd8570fe4e9cff36eea5bbd6fef22002898"
+source = "git+https://github.com/MystenLabs/fastcrypto?rev=69d496c71fb37e3d22fe85e5bbfd4256d61422b9#69d496c71fb37e3d22fe85e5bbfd4256d61422b9"
 dependencies = [
  "quote",
  "syn 1.0.109",
@@ -4002,7 +4002,7 @@ dependencies = [
 [[package]]
 name = "fastcrypto-tbls"
 version = "0.1.0"
-source = "git+https://github.com/MystenLabs/fastcrypto?rev=2f502fd8570fe4e9cff36eea5bbd6fef22002898#2f502fd8570fe4e9cff36eea5bbd6fef22002898"
+source = "git+https://github.com/MystenLabs/fastcrypto?rev=69d496c71fb37e3d22fe85e5bbfd4256d61422b9#69d496c71fb37e3d22fe85e5bbfd4256d61422b9"
 dependencies = [
  "bcs",
  "digest 0.10.7",
@@ -4021,7 +4021,7 @@ dependencies = [
 [[package]]
 name = "fastcrypto-vdf"
 version = "0.1.0"
-source = "git+https://github.com/MystenLabs/fastcrypto?rev=2f502fd8570fe4e9cff36eea5bbd6fef22002898#2f502fd8570fe4e9cff36eea5bbd6fef22002898"
+source = "git+https://github.com/MystenLabs/fastcrypto?rev=69d496c71fb37e3d22fe85e5bbfd4256d61422b9#69d496c71fb37e3d22fe85e5bbfd4256d61422b9"
 dependencies = [
  "bcs",
  "fastcrypto",
@@ -4038,7 +4038,7 @@ dependencies = [
 [[package]]
 name = "fastcrypto-zkp"
 version = "0.1.3"
-source = "git+https://github.com/MystenLabs/fastcrypto?rev=2f502fd8570fe4e9cff36eea5bbd6fef22002898#2f502fd8570fe4e9cff36eea5bbd6fef22002898"
+source = "git+https://github.com/MystenLabs/fastcrypto?rev=69d496c71fb37e3d22fe85e5bbfd4256d61422b9#69d496c71fb37e3d22fe85e5bbfd4256d61422b9"
 dependencies = [
  "ark-bn254",
  "ark-ec",
