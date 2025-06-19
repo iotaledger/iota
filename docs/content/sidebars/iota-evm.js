@@ -247,7 +247,7 @@ const iotaEvm = [
             {
                 type: 'category',
                 label: 'IOTA EVM',
-                collapsed: false,
+                collapsed: true,
                 link: {
                     type: 'generated-index',
                     title: 'IOTA EVM Tools',
@@ -269,7 +269,7 @@ const iotaEvm = [
             {
                 type: 'category',
                 label: 'IOTA EVM Testnet',
-                collapsed: false,
+                collapsed: true,
                 link: {
                     type: 'generated-index',
                     title: 'IOTA Testnet EVM Tools',
@@ -363,7 +363,7 @@ const iotaEvm = [
             {
                 type: 'category',
                 label: 'How To',
-                collapsed: false,
+                collapsed: true,
                 items: [
                     {
                         type: 'doc',

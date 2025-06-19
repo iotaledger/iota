@@ -518,13 +518,13 @@ const developer = [
         
     type: 'category',
     label: 'IOTA Identity',
-    collapsed: false,
+    collapsed: true,
     items: [
         'developer/iota-identity/index',
     {
         type: 'category',
         label: 'Getting Started',
-        collapsed: false,
+        collapsed: true,
         items: [
             'developer/iota-identity/getting-started/rust',
             'developer/iota-identity/getting-started/wasm',
