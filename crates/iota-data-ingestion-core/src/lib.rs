@@ -25,7 +25,7 @@
 //!    and finalizes system termination.
 
 mod errors;
-pub mod executor;
+mod executor;
 pub mod history;
 mod metrics;
 mod progress_store;
@@ -43,10 +43,7 @@ use std::{
 
 use async_trait::async_trait;
 pub use errors::{IngestionError, IngestionResult};
-pub use executor::{
-    MAX_CHECKPOINTS_IN_PROGRESS,
-    v1::{IndexerExecutor, setup_single_workflow},
-};
+pub use executor::{IndexerExecutor, MAX_CHECKPOINTS_IN_PROGRESS, setup_single_workflow};
 use iota_types::full_checkpoint_content::CheckpointData;
 pub use metrics::DataIngestionMetrics;
 pub use progress_store::{FileProgressStore, ProgressStore, ShimProgressStore};
