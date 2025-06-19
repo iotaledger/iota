@@ -24,7 +24,10 @@ use crate::{
     workloads::{
         Gas, GasCoinConfig, WorkloadBuilderInfo, WorkloadParams,
         payload::Payload,
-        workload::{ESTIMATED_COMPUTATION_COST, STORAGE_COST_PER_COIN, Workload, WorkloadBuilder},
+        workload::{
+            ESTIMATED_COMPUTATION_COST, ExpectedFailureType, STORAGE_COST_PER_COIN, Workload,
+            WorkloadBuilder,
+        },
     },
 };
 
@@ -124,6 +127,10 @@ impl Payload for BatchPaymentTestPayload {
                 .reference_gas_price,
             gas_budget,
         )
+    }
+
+    fn get_failure_type(&self) -> Option<ExpectedFailureType> {
+        None
     }
 }
 

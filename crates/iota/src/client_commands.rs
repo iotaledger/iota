@@ -105,6 +105,8 @@ use crate::{
 #[cfg(test)]
 mod profiler_tests;
 
+static USER_AGENT: &str = concat!(env!("CARGO_PKG_NAME"), "/", env!("CARGO_PKG_VERSION"),);
+
 /// Only to be used within CLI
 pub const GAS_SAFE_OVERHEAD: u64 = 1000;
 
@@ -188,8 +190,9 @@ pub enum IotaClientCommands {
         /// using --serialize-unsigned-transaction.
         #[arg(long)]
         tx_bytes: String,
-        /// A list of Base64 encoded signatures `flag || signature || pubkey`.
-        #[arg(long)]
+        /// A list of Base64 encoded signatures `flag || signature || pubkey`,
+        /// separated by space.
+        #[arg(long, num_args(1..))]
         signatures: Vec<String>,
     },
     /// Execute a combined serialized SenderSignedData string.
@@ -2676,7 +2679,8 @@ pub async fn request_tokens_from_faucet(
     let client = reqwest::Client::new();
     let resp = client
         .post(&url)
-        .header("Content-Type", "application/json")
+        .header(http::header::CONTENT_TYPE, "application/json")
+        .header(http::header::USER_AGENT, USER_AGENT)
         .json(&json_body)
         .send()
         .await?;

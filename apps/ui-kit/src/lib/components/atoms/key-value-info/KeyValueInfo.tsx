@@ -147,7 +147,11 @@ export function KeyValueInfo({
                 <div className="self-center">
                     {copyText && (
                         <ButtonUnstyled onClick={handleCopyClick}>
+<<<<<<< HEAD
                             <Copy className="key-supporting-text-color" />
+=======
+                            <Copy className="key-supporting-text" />
+>>>>>>> tooling/make-ui-kit-multi-theme-compatible
                         </ButtonUnstyled>
                     )}
                 </div>
