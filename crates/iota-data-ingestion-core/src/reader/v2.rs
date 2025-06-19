@@ -284,8 +284,8 @@ impl CheckpointReaderActor {
                     .pipe(futures::stream::iter)
                     .buffered(batch_size);
 
-                while let Some(checkpoint_reuslt) = checkpoint_stream.next().await {
-                    let (checkpoint, size) = checkpoint_reuslt?;
+                while let Some(checkpoint_result) = checkpoint_stream.next().await {
+                    let (checkpoint, size) = checkpoint_result?;
                     self.send_remote_checkpoint_with_capacity_check(checkpoint, size)
                         .await?;
                 }
@@ -305,8 +305,8 @@ impl CheckpointReaderActor {
                             .pipe(futures::stream::iter)
                             .buffered(batch_size);
 
-                        while let Some(checkpoint_reuslt) = checkpoint_stream.next().await {
-                            let (checkpoint, size) = checkpoint_reuslt?;
+                        while let Some(checkpoint_result) = checkpoint_stream.next().await {
+                            let (checkpoint, size) = checkpoint_result?;
                             self.send_remote_checkpoint_with_capacity_check(checkpoint, size)
                                 .await?;
                         }
