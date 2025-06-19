@@ -371,7 +371,7 @@ impl SharedObjectCongestionTracker {
     /// this returns the deferral key and the congested objects responsible for
     /// the deferral.
     pub fn try_schedule(
-        &mut self,
+        &self,
         cert: &VerifiedExecutableTransaction,
         max_execution_duration_per_commit: u64,
         previously_deferred_tx_digests: &HashMap<TransactionDigest, DeferralKey>,
