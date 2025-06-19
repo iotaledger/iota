@@ -242,7 +242,7 @@ jobs:
           echo "iota_tag = $iota_tag"
           trl=$(echo "$iota_tag" | sed -n 's/^[^-]*\(-.*\)/\1/p')
           echo "trl = $trl"
-          previous_tag=$(git tag --sort=-version:refname | grep -E "^v[0-9]+\.[0-9]+\.[0-9]+" | grep -- "$trl" | grep -Fv $iota_tag | head -n 1)
+          previous_tag=$(git tag --sort=-version:refname | grep -E "^v[0-9]+\.[0-9]+\.[0-9]+$trl$" | grep -Fv $iota_tag | head -n 1)
           echo "Previous tag: $previous_tag"
           previous_commit_hash=$(git rev-list -n 1 "${previous_tag}")
           echo "Previous commit hash: $previous_commit_hash"
