@@ -29,7 +29,11 @@ enum ClientType {
 }
 
 #[derive(Hash, Eq, PartialEq, Debug)]
-struct SketchKey(IpAddr, ClientType);
+struct SketchKey {
+    salt: u64,
+    ip_addr: IpAddr,
+    client_type: ClientType,
+}
 
 struct HighestRates {
     direct: BinaryHeap<Reverse<(u64, IpAddr)>>,
@@ -162,11 +166,11 @@ impl TrafficSketch {
     }
 
     fn update_highest_rates(&mut self, key: &SketchKey, rate: f64) {
-        match key.1 {
+        match key.client_type {
             ClientType::Direct => {
                 Self::update_highest_rate(
                     &mut self.highest_rates.direct,
-                    key.0,
+                    key.ip_addr,
                     rate,
                     self.highest_rates.capacity,
                 );
@@ -174,7 +178,7 @@ impl TrafficSketch {
             ClientType::ThroughFullnode => {
                 Self::update_highest_rate(
                     &mut self.highest_rates.proxied,
-                    key.0,
+                    key.ip_addr,
                     rate,
                     self.highest_rates.capacity,
                 );
@@ -327,6 +331,12 @@ pub struct FreqThresholdPolicy {
     sketch: TrafficSketch,
     client_threshold: u64,
     proxied_client_threshold: u64,
+    /// Unique salt to be added to all keys in the sketch. This
+    /// ensures that false positives are not correlated across
+    /// all nodes at the same time. For IOTA validators for example,
+    /// this means that false positives should not prevent the network
+    /// from achieving quorum.
+    salt: u64,
 }
 
 impl FreqThresholdPolicy {
@@ -355,6 +365,7 @@ impl FreqThresholdPolicy {
             sketch,
             client_threshold,
             proxied_client_threshold,
+            salt: rand::random(),
         }
     }
 
@@ -368,7 +379,11 @@ impl FreqThresholdPolicy {
 
     pub fn handle_tally(&mut self, tally: TrafficTally) -> PolicyResponse {
         let block_client = if let Some(source) = tally.direct {
-            let key = SketchKey(source, ClientType::Direct);
+            let key = SketchKey {
+                salt: self.salt,
+                ip_addr: source,
+                client_type: ClientType::Direct,
+            };
             self.sketch.increment_count(&key);
             let req_rate = self.sketch.get_request_rate(&key);
             trace!(
@@ -384,7 +399,11 @@ impl FreqThresholdPolicy {
             None
         };
         let block_proxied_client = if let Some(source) = tally.through_fullnode {
-            let key = SketchKey(source, ClientType::ThroughFullnode);
+            let key = SketchKey {
+                salt: self.salt,
+                ip_addr: source,
+                client_type: ClientType::ThroughFullnode,
+            };
             self.sketch.increment_count(&key);
             if self.sketch.get_request_rate(&key) >= self.proxied_client_threshold as f64 {
                 Some(source)
