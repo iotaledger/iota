@@ -29,7 +29,7 @@ use strum::IntoStaticStr;
 use tap::Pipe;
 use tracing::trace;
 
-use super::{IOTA_BRIDGE_OBJECT_ID, base_types::*, error::*};
+use super::{base_types::*, error::*};
 use crate::{
     IOTA_AUTHENTICATOR_STATE_OBJECT_ID, IOTA_AUTHENTICATOR_STATE_OBJECT_SHARED_VERSION,
     IOTA_CLOCK_OBJECT_ID, IOTA_CLOCK_OBJECT_SHARED_VERSION, IOTA_FRAMEWORK_PACKAGE_ID,
@@ -43,8 +43,7 @@ use crate::{
         IotaSignatureInner, RandomnessRound, Signature, Signer, ToFromBytes, default_hash,
     },
     digests::{
-        CertificateDigest, ChainIdentifier, ConsensusCommitDigest, SenderSignedDataDigest,
-        ZKLoginInputsDigest,
+        CertificateDigest, ConsensusCommitDigest, SenderSignedDataDigest, ZKLoginInputsDigest,
     },
     event::Event,
     execution::SharedInput,
@@ -330,8 +329,6 @@ pub enum EndOfEpochTransactionKind {
     ChangeEpochV2(ChangeEpochV2),
     AuthenticatorStateCreate,
     AuthenticatorStateExpire(AuthenticatorStateExpire),
-    BridgeStateCreate(ChainIdentifier),
-    BridgeCommitteeInit(SequenceNumber),
 }
 
 impl EndOfEpochTransactionKind {
@@ -395,14 +392,6 @@ impl EndOfEpochTransactionKind {
         Self::AuthenticatorStateCreate
     }
 
-    pub fn new_bridge_create(chain_identifier: ChainIdentifier) -> Self {
-        Self::BridgeStateCreate(chain_identifier)
-    }
-
-    pub fn init_bridge_committee(bridge_shared_version: SequenceNumber) -> Self {
-        Self::BridgeCommitteeInit(bridge_shared_version)
-    }
-
     fn input_objects(&self) -> Vec<InputObjectKind> {
         match self {
             Self::ChangeEpoch(_) => {
@@ -427,19 +416,6 @@ impl EndOfEpochTransactionKind {
                     mutable: true,
                 }]
             }
-            Self::BridgeStateCreate(_) => vec![],
-            Self::BridgeCommitteeInit(bridge_version) => vec![
-                InputObjectKind::SharedMoveObject {
-                    id: IOTA_BRIDGE_OBJECT_ID,
-                    initial_shared_version: *bridge_version,
-                    mutable: true,
-                },
-                InputObjectKind::SharedMoveObject {
-                    id: IOTA_SYSTEM_STATE_OBJECT_ID,
-                    initial_shared_version: IOTA_SYSTEM_STATE_OBJECT_SHARED_VERSION,
-                    mutable: true,
-                },
-            ],
         }
     }
 
@@ -460,18 +436,6 @@ impl EndOfEpochTransactionKind {
                 .into_iter(),
             ),
             Self::AuthenticatorStateCreate => Either::Right(iter::empty()),
-            Self::BridgeStateCreate(_) => Either::Right(iter::empty()),
-            Self::BridgeCommitteeInit(bridge_version) => Either::Left(
-                vec![
-                    SharedInputObject {
-                        id: IOTA_BRIDGE_OBJECT_ID,
-                        initial_shared_version: *bridge_version,
-                        mutable: true,
-                    },
-                    SharedInputObject::IOTA_SYSTEM_OBJ,
-                ]
-                .into_iter(),
-            ),
         }
     }
 
@@ -495,25 +459,6 @@ impl EndOfEpochTransactionKind {
                 if !config.enable_jwk_consensus_updates() {
                     return Err(UserInputError::Unsupported(
                         "authenticator state updates not enabled".to_string(),
-                    ));
-                }
-            }
-            Self::BridgeStateCreate(_) => {
-                if !config.enable_bridge() {
-                    return Err(UserInputError::Unsupported(
-                        "bridge not enabled".to_string(),
-                    ));
-                }
-            }
-            Self::BridgeCommitteeInit(_) => {
-                if !config.enable_bridge() {
-                    return Err(UserInputError::Unsupported(
-                        "bridge not enabled".to_string(),
-                    ));
-                }
-                if !config.should_try_to_finalize_bridge_committee() {
-                    return Err(UserInputError::Unsupported(
-                        "should not try to finalize committee yet".to_string(),
                     ));
                 }
             }
