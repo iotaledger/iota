@@ -82,7 +82,7 @@ fn get_registry() -> Result<Registry> {
     let mut samples = Samples::new();
     // 1. Record samples for types with custom deserializers.
     // We want to call
-    // tracer.trace_value(&mut samples, ...)?;
+    // tracer.trace_value(&mut samples, ...).unwrap();
     // with all the base types contained in messages, especially the ones with
     // custom serializers; or involving generics (see [serde_reflection documentation](https://novifinancial.github.io/serde-reflection/serde_reflection/index.html)).
 
