@@ -6,7 +6,7 @@ use std::sync::Arc;
 
 use consensus_core::{TransactionVerifier, ValidationError};
 use eyre::WrapErr;
-use fastcrypto_tbls::dkg;
+use fastcrypto_tbls::dkg_v1;
 use iota_metrics::monitored_scope;
 use iota_types::{
     error::IotaError,
@@ -74,13 +74,13 @@ impl IotaTxValidator {
                     ckpt_batch.push(signature.summary);
                 }
                 ConsensusTransactionKind::RandomnessDkgMessage(_, bytes) => {
-                    if bytes.len() > dkg::DKG_MESSAGES_MAX_SIZE {
+                    if bytes.len() > dkg_v1::DKG_MESSAGES_MAX_SIZE {
                         warn!("batch verification error: DKG Message too large");
                         return Err(IotaError::InvalidDkgMessageSize.into());
                     }
                 }
                 ConsensusTransactionKind::RandomnessDkgConfirmation(_, bytes) => {
-                    if bytes.len() > dkg::DKG_MESSAGES_MAX_SIZE {
+                    if bytes.len() > dkg_v1::DKG_MESSAGES_MAX_SIZE {
                         warn!("batch verification error: DKG Confirmation too large");
                         return Err(IotaError::InvalidDkgMessageSize.into());
                     }
