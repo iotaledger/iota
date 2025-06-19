@@ -12,7 +12,7 @@ teams:
 
 # The Core Contracts
 
-The [core contracts](../../explanations/core-contracts.md) are contracts deployed on every chain and are vital to interact with L1 and the chain itself. They can be called in Solidity through the [ISC Magic Contract](../../references/magic-contract/introduction.md).
+The [core contracts](../../explanations/core-contracts.md) are contracts deployed on every chain and are vital to interact with L1 and the chain itself. They can be called in Solidity through the [ISC Magic Contract](../../references/magic-contract/introduction.mdx).
 
 ## The ISC Magic Contract
 
@@ -48,7 +48,7 @@ ERC20 coin proxy contracts can currently only be registered by ChainAdmin. We ar
 
 :::info Reference Docs
 
-If you need further info about magic contracts interfaces you can check out the [magic contract docs](../../references/magic-contract/introduction.md).
+If you need further info about magic contracts interfaces you can check out the [magic contract docs](../../references/magic-contract/introduction.mdx).
 
 :::
 
