@@ -2,8 +2,8 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { useZodForm } from '@iota/core';
-import { useState } from 'react';
+import { MILLISECONDS_PER_SECOND, useZodForm } from '@iota/core';
+import { useEffect, useState } from 'react';
 import { v4 as uuidV4 } from 'uuid';
 import { z } from 'zod';
 import { useAccountSources, useBackgroundClient } from '_hooks';
@@ -21,6 +21,7 @@ import {
     InputType,
 } from '@iota/apps-ui-kit';
 import { Link } from 'react-router-dom';
+import { AccountTooManyAttemptsError } from '_src/shared/accounts';
 
 const formSchema = z.object({
     password: z.string().nonempty('Required'),
@@ -55,6 +56,45 @@ export function PasswordModalDialog({
         },
         shouldUnregister: true,
     });
+    const [countdownError, setCountdownError] = useState<string | null>(null);
+    const [runLockInterval, setRunLockInterval] = useState<boolean>(true);
+    const backgroundService = useBackgroundClient();
+
+    // Run the lock interval if the popup just got opened again
+    useEffect(() => {
+        if (open && !runLockInterval) {
+            setRunLockInterval(true);
+        }
+    }, [open]);
+
+    useEffect(() => {
+        if (!open || !runLockInterval) return;
+
+        async function checkLockState() {
+            const { remainingTime } = await backgroundService.getLockedState({});
+
+            if (remainingTime <= 0) {
+                // It is unlockable now so we cancel the interval and clear the error
+                setCountdownError(null);
+                setRunLockInterval(false);
+            } else {
+                // Update the error
+                const remainingSeconds = Math.ceil(remainingTime / MILLISECONDS_PER_SECOND);
+                const message = `Too many failed attempts. Please try again in ${remainingSeconds} ${remainingSeconds === 1 ? 'second' : 'seconds'}.`;
+                setCountdownError(message);
+            }
+        }
+
+        const interval = setInterval(() => {
+            checkLockState();
+        }, MILLISECONDS_PER_SECOND);
+
+        checkLockState();
+
+        return () => {
+            clearInterval(interval);
+        };
+    }, [runLockInterval, open]);
 
     const {
         register,
@@ -63,7 +103,6 @@ export function PasswordModalDialog({
         formState: { isSubmitting, isValid },
     } = form;
 
-    const backgroundService = useBackgroundClient();
     const [formID] = useState(() => uuidV4());
     const { data: allAccountsSources } = useAccountSources();
     const hasAccountsSources =
@@ -79,9 +118,18 @@ export function PasswordModalDialog({
             await onSubmit(password);
             reset();
         } catch (e) {
-            setError('password', { message: (e as Error).message }, { shouldFocus: true });
+            if (e instanceof Error) {
+                if (AccountTooManyAttemptsError.is(e)) {
+                    setRunLockInterval(true);
+                } else {
+                    setError('password', { message: e.message }, { shouldFocus: true });
+                }
+            }
         }
     }
+
+    const isConfirmDisabled =
+        !!countdownError || isSubmitting || !isValid || !!form.formState.errors.password?.message;
 
     return (
         <Dialog open={open}>
@@ -96,7 +144,9 @@ export function PasswordModalDialog({
                                     type={InputType.Password}
                                     isVisibilityToggleEnabled
                                     placeholder="Password"
-                                    errorMessage={form.formState.errors.password?.message}
+                                    errorMessage={
+                                        countdownError || form.formState.errors.password?.message
+                                    }
                                     {...register('password')}
                                     name="password"
                                 />
@@ -125,7 +175,7 @@ export function PasswordModalDialog({
                                     <Button
                                         htmlType={ButtonHtmlType.Submit}
                                         type={ButtonType.Primary}
-                                        disabled={isSubmitting || !isValid}
+                                        disabled={isConfirmDisabled}
                                         text={confirmText}
                                         fullWidth
                                     />

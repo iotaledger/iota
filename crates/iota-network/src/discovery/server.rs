@@ -2,13 +2,11 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{
-    collections::HashMap,
-    sync::{Arc, RwLock},
-};
+use std::sync::{Arc, RwLock};
 
 use anemo::{Request, Response};
-use rand::seq::IteratorRandom;
+use iota_config::p2p::AccessType;
+use rand::seq::{IteratorRandom, SliceRandom};
 use serde::{Deserialize, Serialize};
 
 use super::{Discovery, MAX_PEERS_TO_SEND, NodeInfo, SignedNodeInfo, State};
@@ -56,50 +54,28 @@ impl Discovery for Server {
             .clone()
             .ok_or_else(|| anemo::rpc::Status::internal("own_info has not been initialized yet"))?;
 
-        let known_peers = if state.known_peers.len() < MAX_PEERS_TO_SEND {
-            state
-                .known_peers
-                .values()
-                .map(|e| e.inner())
-                .cloned()
-                .collect()
-        } else {
-            let mut rng = rand::thread_rng();
-            // prefer returning peers that we are connected to as they are known-good
-            let mut known_peers = state
-                .connected_peers
-                .keys()
-                .filter_map(|peer_id| state.known_peers.get(peer_id))
-                .map(|info| (info.peer_id, info))
-                .choose_multiple(&mut rng, MAX_PEERS_TO_SEND)
-                .into_iter()
-                .collect::<HashMap<_, _>>();
-
-            if known_peers.len() <= MAX_PEERS_TO_SEND {
-                // Fill the remaining space with other peers, randomly sampling at most
-                // MAX_PEERS_TO_SEND
-                for info in state
-                    .known_peers
-                    .values()
-                    // This randomly samples the iterator stream but the order of elements after
-                    // sampling may not be random, this is ok though since we're just trying to do
-                    // best-effort on sharing info of peers we haven't connected with ourselves.
-                    .choose_multiple(&mut rng, MAX_PEERS_TO_SEND)
-                {
-                    if known_peers.len() >= MAX_PEERS_TO_SEND {
-                        break;
-                    }
-
-                    known_peers.insert(info.peer_id, info);
-                }
-            }
-
-            known_peers
-                .into_values()
-                .map(|e| e.inner())
-                .cloned()
-                .collect()
-        };
+        let mut rng = rand::thread_rng();
+        // Prefer connected peers
+        let mut known_peers = state
+            .known_peers
+            .iter()
+            .filter_map(|(peer_id, peer_info)| {
+                (peer_info.access_type != AccessType::Private
+                    && state.connected_peers.contains_key(peer_id))
+                .then_some(peer_info.inner().clone())
+            })
+            .choose_multiple(&mut rng, MAX_PEERS_TO_SEND);
+        let mut known_not_connected_peers = state
+            .known_peers
+            .iter()
+            .filter_map(|(peer_id, peer_info)| {
+                (peer_info.access_type != AccessType::Private
+                    && !state.connected_peers.contains_key(peer_id))
+                .then_some(peer_info.inner().clone())
+            })
+            .choose_multiple(&mut rng, MAX_PEERS_TO_SEND - known_peers.len());
+        known_peers.append(&mut known_not_connected_peers);
+        known_peers.shuffle(&mut rng);
 
         Ok(Response::new(GetKnownPeersResponseV2 {
             own_info,
