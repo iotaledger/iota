@@ -3121,24 +3121,11 @@ impl AuthorityPerEpochStore {
             }
         );
 
-        // Note that if we do not have a max execution duration, we do not need to
-        // calculate suggested gas price. Also, the calculator is not enabled if
-        // `congestion_control_min_free_execution_slot` is `false`, i.e., the old
-        // Sui's canonical sequencer is used.
-        let mut suggested_gas_price_calculator = if self
-            .protocol_config()
-            .congestion_control_min_free_execution_slot()
-        {
-            self.get_max_execution_duration_per_commit()
-                .map(|max_execution_duration_per_commit| {
-                    SuggestedGasPriceCalculator::new(
-                        max_execution_duration_per_commit,
-                        self.protocol_config().max_gas_price(),
-                    )
-                })
-        } else {
-            None
-        };
+        let mut suggested_gas_price_calculator = SuggestedGasPriceCalculator::new(
+            self.get_max_execution_duration_per_commit(),
+            self.reference_gas_price(),
+            self.protocol_config().max_gas_price(),
+        );
 
         let mut randomness_state_updated = false;
         for tx in transactions {
@@ -3418,7 +3405,7 @@ impl AuthorityPerEpochStore {
         dkg_failed: bool,
         generating_randomness: bool,
         shared_object_congestion_tracker: &mut SharedObjectCongestionTracker,
-        suggested_gas_price_calculator: &mut Option<SuggestedGasPriceCalculator>,
+        suggested_gas_price_calculator: &mut SuggestedGasPriceCalculator,
         authority_metrics: &Arc<AuthorityMetrics>,
     ) -> IotaResult<ConsensusCertificateResult> {
         let _scope = monitored_scope("HandleConsensusTransaction");
@@ -3455,7 +3442,8 @@ impl AuthorityPerEpochStore {
                     // certificate here it means authority is byzantine and sent certificate after
                     // EndOfPublish (or we have some bug in ConsensusAdapter)
                     warn!(
-                        "[Byzantine authority] Authority {:?} sent a new, previously unseen certificate {:?} after it sent EndOfPublish message to consensus",
+                        "[Byzantine authority] Authority {:?} sent a new, previously unseen 
+                            certificate {:?} after it sent EndOfPublish message to consensus",
                         certificate_author.concise(),
                         certificate.digest()
                     );
@@ -3520,50 +3508,28 @@ impl AuthorityPerEpochStore {
                                     ConsensusCertificateResult::Deferred(deferral_key)
                                 } else {
                                     // Cancel the transaction that has been deferred for too long.
-
-                                    let suggested_gas_price = shared_object_congestion_tracker
-                                        .compute_suggested_gas_price(&certificate)
-                                        .expect(
-                                            "cancelled transaction must have at least one shared \
-                                            object and calculated suggested gas price",
-                                        );
-
                                     debug!(
-                                        "Cancelling consensus certificate for transaction {:?} with \
-                                        deferral key {deferral_key:?} due to congestion on \
-                                        objects {congested_objects:?}: actual gas price: \
-                                        {}, suggested gas price: \
-                                        {suggested_gas_price}",
+                                        "Cancelling consensus certificate for transaction {:?} \
+                                            with deferral key {deferral_key:?} due to congestion \
+                                            on objects {congested_objects:?}",
                                         certificate.digest(),
-                                        certificate.transaction_data().gas_price(),
                                     );
 
-                                    if let Some(suggested_gas_price_calculator) =
-                                        suggested_gas_price_calculator
-                                    {
-                                        // Calculate suggested gas price for the cancelled
-                                        // certificate.
-                                        let _suggested_gas_price = suggested_gas_price_calculator
-                                            .calculate_suggested_gas_price(
-                                                &certificate,
-                                                estimated_execution_duration,
-                                            );
+                                    // Calculate suggested gas price for the cancelled
+                                    // certificate.
+                                    let suggested_gas_price = suggested_gas_price_calculator
+                                        .calculate_suggested_gas_price(
+                                            &certificate,
+                                            estimated_execution_duration,
+                                        );
 
-                                        ConsensusCertificateResult::Cancelled((
-                                            certificate,
-                                            CancelConsensusCertificateReason::CongestionOnObjects(
-                                                congested_objects,
-                                                // TODO: _suggested_gas_price
-                                            ),
-                                        ))
-                                    } else {
-                                        ConsensusCertificateResult::Cancelled((
-                                            certificate,
-                                            CancelConsensusCertificateReason::CongestionOnObjects(
-                                                congested_objects,
-                                            ),
-                                        ))
-                                    }
+                                    ConsensusCertificateResult::Cancelled((
+                                        certificate,
+                                        CancelConsensusCertificateReason::CongestionOnObjects {
+                                            congested_objects,
+                                            suggested_gas_price,
+                                        },
+                                    ))
                                 }
                             }
                         };
@@ -3591,14 +3557,8 @@ impl AuthorityPerEpochStore {
                             shared_object_congestion_tracker
                                 .bump_object_execution_slots(&certificate, start_time);
 
-                            if let Some(suggested_gas_price_calculator) =
-                                suggested_gas_price_calculator
-                            {
-                                suggested_gas_price_calculator.update_congestion_info(
-                                    &certificate,
-                                    estimated_execution_duration,
-                                );
-                            }
+                            suggested_gas_price_calculator
+                                .update_congestion_info(&certificate, estimated_execution_duration);
                         }
 
                         Ok(ConsensusCertificateResult::Scheduled {

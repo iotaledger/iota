@@ -41,17 +41,23 @@ type PerCommitCongestionInfo = HashMap<ObjectID, PerObjectCongestionInfo>;
 /// info from a single consensus commit.
 pub(crate) struct SuggestedGasPriceCalculator {
     congestion_info: PerCommitCongestionInfo,
-    max_execution_duration_per_commit: ExecutionTime,
+    max_execution_duration_per_commit: Option<ExecutionTime>,
+    reference_gas_price: u64,
     max_gas_price: u64,
 }
 
 impl SuggestedGasPriceCalculator {
     /// Create a new `SuggestedGasPriceCalculator` with empty shared
     /// object congestion data for a given consensus commit round.
-    pub fn new(max_execution_duration_per_commit: ExecutionTime, max_gas_price: u64) -> Self {
+    pub fn new(
+        max_execution_duration_per_commit: Option<ExecutionTime>,
+        reference_gas_price: u64,
+        max_gas_price: u64,
+    ) -> Self {
         Self {
             congestion_info: PerCommitCongestionInfo::new(),
             max_execution_duration_per_commit,
+            reference_gas_price,
             max_gas_price,
         }
     }
@@ -63,6 +69,12 @@ impl SuggestedGasPriceCalculator {
         certificate: &VerifiedExecutableTransaction,
         estimated_execution_duration: ExecutionTime,
     ) {
+        // If we don't have a max execution duration, we don't need to update
+        // the congestion info as the reference gas price will be suggested.
+        if self.max_execution_duration_per_commit.is_none() {
+            return;
+        }
+
         let scheduled_transaction_congestion_info = ScheduledTransactionCongestionInfo::new(
             certificate.transaction_data().gas_price(),
             estimated_execution_duration,
@@ -93,6 +105,14 @@ impl SuggestedGasPriceCalculator {
         certificate: &VerifiedExecutableTransaction,
         estimated_execution_duration: ExecutionTime,
     ) -> u64 {
+        // If we don't have a max execution duration, suggest the reference gas price.
+        if self.max_execution_duration_per_commit.is_none() {
+            return self.reference_gas_price;
+        }
+
+        let max_execution_duration_per_commit = self
+            .max_execution_duration_per_commit
+            .expect("max_execution_duration_per_commit must be Some at this step");
         let passing_gas_price = certificate
             .shared_input_objects()
             .filter_map(|object| {
@@ -102,12 +122,12 @@ impl SuggestedGasPriceCalculator {
                     // scheduled transactions touched this object so far, so we can ignore it.
                     .map(|per_object_congestion_info| {
                         // Calculate available estimated execution duration for this shared object
-                        let available_estimated_execution_duration = self
-                            .max_execution_duration_per_commit
-                            - per_object_congestion_info
-                                .iter()
-                                .map(|ci| ci.estimated_execution_duration)
-                                .sum::<ExecutionTime>();
+                        let available_estimated_execution_duration =
+                            max_execution_duration_per_commit
+                                - per_object_congestion_info
+                                    .iter()
+                                    .map(|ci| ci.estimated_execution_duration)
+                                    .sum::<ExecutionTime>();
 
                         if estimated_execution_duration > available_estimated_execution_duration {
                             // Certificate's estimated execution duration is larger than the
@@ -141,8 +161,7 @@ impl SuggestedGasPriceCalculator {
                                         estimated execution duration of {}, meaning that this \
                                         transaction alone would not even fit into maximum \
                                         execution duration per commit {}",
-                                    estimated_execution_duration,
-                                    self.max_execution_duration_per_commit,
+                                    estimated_execution_duration, max_execution_duration_per_commit,
                                 )
                             })
                         } else {
@@ -196,13 +215,18 @@ mod tests {
         },
     };
 
+    const REFERENCE_GAS_PRICE: u64 = 1_000;
+
     #[test]
     fn update_congestion_info() {
         let max_execution_duration_per_commit = 10; // not important in this test
 
         let max_gas_price = ProtocolConfig::get_for_max_version_UNSAFE().max_gas_price();
-        let mut suggested_gas_price_calculator =
-            SuggestedGasPriceCalculator::new(max_execution_duration_per_commit, max_gas_price);
+        let mut suggested_gas_price_calculator = SuggestedGasPriceCalculator::new(
+            Some(max_execution_duration_per_commit),
+            REFERENCE_GAS_PRICE,
+            max_gas_price,
+        );
 
         let object_1 = ObjectID::random();
         let object_2 = ObjectID::random();
@@ -335,8 +359,11 @@ mod tests {
         let mut shared_object_congestion_tracker = SharedObjectCongestionTracker::new(mode, true);
 
         let max_gas_price = ProtocolConfig::get_for_max_version_UNSAFE().max_gas_price();
-        let mut suggested_gas_price_calculator =
-            SuggestedGasPriceCalculator::new(max_execution_duration_per_commit, max_gas_price);
+        let mut suggested_gas_price_calculator = SuggestedGasPriceCalculator::new(
+            Some(max_execution_duration_per_commit),
+            REFERENCE_GAS_PRICE,
+            max_gas_price,
+        );
 
         let object_1 = ObjectID::random();
         let object_2 = ObjectID::random();
