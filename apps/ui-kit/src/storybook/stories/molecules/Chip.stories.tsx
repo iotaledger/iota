@@ -5,6 +5,7 @@ import type { Meta, StoryObj } from '@storybook/react';
 
 import { Chip } from '@/components/molecules/chip/Chip';
 import { PlaceholderReplace } from '@iota/apps-ui-icons';
+import { ChipType } from '@/lib';
 
 const meta: Meta<typeof Chip> = {
     component: Chip,
@@ -24,7 +25,8 @@ type Story = StoryObj<typeof meta>;
 
 export const Default: Story = {
     args: {
-        label: 'Label',
+        label: 'Badge',
+        type: ChipType.Default,
     },
     argTypes: {
         label: {
@@ -33,8 +35,8 @@ export const Default: Story = {
         showClose: {
             control: 'boolean',
         },
-        selected: {
-            control: 'boolean',
+        type: {
+            control: 'select',
         },
     },
 };

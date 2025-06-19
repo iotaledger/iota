@@ -1,13 +1,16 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { ChipState } from './chip.enums';
+import { ChipType } from './chip.enums';
 
 export const ROUNDED_CLASS = 'rounded-full';
 
-export const BACKGROUND_CLASSES: Record<ChipState, string> = {
-    [ChipState.Default]: 'bg-transparent',
-    [ChipState.Selected]: 'chip-bg-selected',
+export const BACKGROUND_CLASSES: Record<ChipType, string> = {
+    [ChipType.Default]: 'bg-transparent',
+    [ChipType.Selected]: 'chip-bg-selected',
+    [ChipType.Success]: 'bg-success-surface',
+    [ChipType.Brand]: 'chip-bg-brand',
+    [ChipType.Error]: 'bg-error-surface',
 };
 
 const STATE_LAYER_OUTLINE =
@@ -18,14 +21,19 @@ const STATE_LAYER_BG_CLASSES =
 
 export const STATE_LAYER_CLASSES = `${STATE_LAYER_OUTLINE} ${STATE_LAYER_BG_CLASSES}`;
 
-export const BORDER_CLASSES: Record<ChipState, string> = {
-    [ChipState.Default]: 'chip-border-default',
-    [ChipState.Selected]: 'border-transparent',
+export const BORDER_CLASSES: Record<ChipType, string> = {
+    [ChipType.Default]: 'chip-border-default',
+    [ChipType.Selected]: 'border-transparent',
+    [ChipType.Success]: 'border-success-surface',
+    [ChipType.Brand]: 'chip-border-color-brand',
+    [ChipType.Error]: 'border-error-surface',
 };
-
-export const TEXT_COLOR: Record<ChipState, string> = {
-    [ChipState.Default]: 'chip-text-default',
-    [ChipState.Selected]: 'chip-text-selected',
+export const TEXT_COLOR: Record<ChipType, string> = {
+    [ChipType.Default]: 'chip-text-default',
+    [ChipType.Selected]: 'chip-text-secondary',
+    [ChipType.Success]: 'chip-text-secondary',
+    [ChipType.Brand]: 'chip-text-brand',
+    [ChipType.Error]: 'chip-text-secondary',
 };
 
 export const FOCUS_CLASSES =

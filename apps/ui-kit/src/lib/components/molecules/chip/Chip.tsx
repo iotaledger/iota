@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import cx from 'classnames';
-import { ChipState } from './chip.enums';
+import type { ChipType } from './chip.enums';
 import {
     BORDER_CLASSES,
     BACKGROUND_CLASSES,
@@ -23,10 +23,6 @@ interface ChipProps {
      * Whether to show the close icon
      */
     showClose?: boolean;
-    /**
-     * Whether the chip is selected
-     */
-    selected?: boolean;
     /**
      * Callback when the close icon is clicked
      */
@@ -51,28 +47,31 @@ interface ChipProps {
      * The button is disabled or not.
      */
     disabled?: boolean;
+    /**
+     * The type of the Chip.
+     */
+    type: ChipType;
 }
 
 export function Chip({
     label,
     showClose,
-    selected,
     onClose,
     onClick,
     avatar,
     leadingElement,
     trailingElement,
     disabled,
+    type,
 }: ChipProps) {
-    const chipState = selected ? ChipState.Selected : ChipState.Default;
     return (
         <ButtonUnstyled
             onClick={onClick}
             className={cx(
                 'border transition-all duration-500 ease-in-out disabled:opacity-40',
                 ROUNDED_CLASS,
-                BACKGROUND_CLASSES[chipState],
-                BORDER_CLASSES[chipState],
+                BACKGROUND_CLASSES[type],
+                BORDER_CLASSES[type],
                 FOCUS_CLASSES,
             )}
             disabled={disabled}
@@ -85,7 +84,7 @@ export function Chip({
                     ROUNDED_CLASS,
                     !disabled && STATE_LAYER_CLASSES,
                     showClose ? 'pr-xs' : 'pr-sm',
-                    TEXT_COLOR[chipState],
+                    TEXT_COLOR[type],
                 )}
             >
                 {avatar ?? leadingElement}

@@ -171,10 +171,13 @@
 
     /* CHIP */
     --chip-bg-selected: theme('colors.iota-primary.90');
+    --chip-bg-brand: theme('colors.iota-primary.30');
     --chip-border-default: theme('colors.iota-neutral.70');
     --chip-text-default: theme('colors.iota-neutral.40');
-    --chip-text-selected: theme('colors.iota-neutral.10');
+    --chip-text-secondary: theme('colors.iota-neutral.10');
     --chip-focus-ring: theme('colors.iota-primary.30');
+    --chip-border-color-brand: theme('colors.iota-primary.30');
+    --chip-text-brand: theme('colors.iota-primary.100');
 
     /* DISPLAY STATS */
     --display-stats-bg-default: theme('colors.iota-neutral.96');
@@ -406,10 +409,13 @@
 
     /* CHIP */
     --chip-bg-selected: theme('colors.iota-primary.10');
+    --chip-bg-brand: theme('colors.iota-primary.30');
     --chip-border-default: theme('colors.iota-neutral.40');
     --chip-text-default: theme('colors.iota-neutral.60');
-    --chip-text-selected: theme('colors.iota-neutral.92');
+    --chip-text-secondary: theme('colors.iota-neutral.92');
     --chip-focus-ring: theme('colors.iota-primary.80');
+    --chip-border-color-brand: theme('colors.iota-primary.30');
+    --chip-text-brand: theme('colors.iota-primary.100');
 
     /* DISPLAY STATS */
     --display-stats-bg-default: theme('colors.iota-neutral.10');
@@ -650,10 +656,13 @@
 
     /* CHIP */
     --chip-bg-selected: theme('colors.names-primary.10');
+    --chip-bg-brand: theme('colors.iota-primary.30');
     --chip-border-default: theme('colors.names-neutral.40');
     --chip-text-default: theme('colors.names-neutral.60');
-    --chip-text-selected: theme('colors.names-neutral.92');
+    --chip-text-secondary: theme('colors.names-neutral.92');
     --chip-focus-ring: theme('colors.names-primary.80');
+    --chip-border-color-brand: theme('colors.iota-primary.30');
+    --chip-text-brand: theme('colors.iota-primary.100');
 
     /* DISPLAY STATS */
     --display-stats-bg-default: theme('colors.names-neutral.10');
