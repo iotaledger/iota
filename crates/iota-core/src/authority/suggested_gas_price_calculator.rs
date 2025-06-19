@@ -173,7 +173,7 @@ impl SuggestedGasPriceCalculator {
 
         // Make sure suggested_gas_price is not larger than the maximum possible gas
         // price.
-        self.max_gas_price.min(suggested_gas_price)
+        suggested_gas_price.min(self.max_gas_price)
     }
 }
 
@@ -181,7 +181,7 @@ impl SuggestedGasPriceCalculator {
 mod tests {
     use std::collections::HashMap;
 
-    use iota_protocol_config::PerObjectCongestionControlMode;
+    use iota_protocol_config::{PerObjectCongestionControlMode, ProtocolConfig};
     use iota_types::base_types::ObjectID;
     use rstest::rstest;
 
@@ -196,14 +196,13 @@ mod tests {
         },
     };
 
-    const MAX_GAS_PRICE: u64 = 100_000;
-
     #[test]
     fn update_congestion_info() {
         let max_execution_duration_per_commit = 10; // not important in this test
 
+        let max_gas_price = ProtocolConfig::get_for_max_version_UNSAFE().max_gas_price();
         let mut suggested_gas_price_calculator =
-            SuggestedGasPriceCalculator::new(max_execution_duration_per_commit, MAX_GAS_PRICE);
+            SuggestedGasPriceCalculator::new(max_execution_duration_per_commit, max_gas_price);
 
         let object_1 = ObjectID::random();
         let object_2 = ObjectID::random();
@@ -335,8 +334,9 @@ mod tests {
         // so `assign_min_free_execution_slot` is set to `true`.
         let mut shared_object_congestion_tracker = SharedObjectCongestionTracker::new(mode, true);
 
+        let max_gas_price = ProtocolConfig::get_for_max_version_UNSAFE().max_gas_price();
         let mut suggested_gas_price_calculator =
-            SuggestedGasPriceCalculator::new(max_execution_duration_per_commit, MAX_GAS_PRICE);
+            SuggestedGasPriceCalculator::new(max_execution_duration_per_commit, max_gas_price);
 
         let object_1 = ObjectID::random();
         let object_2 = ObjectID::random();
