@@ -291,7 +291,7 @@
     /* BUTTON */
     --button-bg-color-primary: theme('colors.iota-primary.30');
     --button-bg-color-secondary: theme('colors.iota-neutral.20');
-    --button-bg-color-error: theme('colors.iota-error.10');
+    --button-bg-color-error: theme('colors.iota-error.20');
     --button-border-color-outline: theme('colors.iota-neutral.60');
     --button-text-color-primary: theme('colors.iota-primary.100');
     --button-text-color-neutral: theme('colors.iota-neutral.92');
@@ -616,8 +616,8 @@
     --toggle-label-color: theme('colors.names-neutral.70');
 
     /* TOOLTIP */
-    --tooltip-bg: theme('colors.black');
-    --tooltip-text-color: theme('colors.white');
+    --tooltip-bg: theme('colors.names-neutral.0');
+    --tooltip-text-color: theme('colors.names-neutral.100');
 
     /* VISUAL ASSET CARD */
     --visual-asset-placeholder-bg: theme('colors.names-neutral.10');
