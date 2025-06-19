@@ -41,7 +41,6 @@ url.workspace = true
 
 # internal dependencies
 iota.workspace = true
-iota-bridge.workspace = true
 iota-config.workspace = true
 iota-core.workspace = true
 iota-framework.workspace = true
