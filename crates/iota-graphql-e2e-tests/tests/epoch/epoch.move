@@ -58,5 +58,16 @@
         digest
       }
     }
+    first_checkpoint: checkpoints(first: 1) {
+      nodes {
+        sequenceNumber
+      }
+    }
+    last_checkpoint: checkpoints(last: 1) {
+      nodes {
+        sequenceNumber
+      }
+    }
+    totalCheckpoints
   }
 }

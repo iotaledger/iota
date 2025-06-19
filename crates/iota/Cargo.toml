@@ -21,6 +21,7 @@ aws-sdk-kms = "1.44.0"
 axum.workspace = true
 bcs.workspace = true
 bip32.workspace = true
+blake2 = { version = "0.10", optional = true }
 camino.workspace = true
 chrono = { workspace = true, optional = true }
 clap.workspace = true
@@ -138,6 +139,7 @@ harness = false
 gen-completions = ["dep:clap_complete"]
 indexer = ["dep:iota-indexer", "dep:iota-graphql-rpc"]
 iota-names = [
+  "dep:blake2",
   "dep:chrono",
   "dep:iota-graphql-rpc-client",
   "dep:iota-names",
