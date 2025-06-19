@@ -741,10 +741,9 @@ impl ValidatorProxy for FullNodeProxy {
                 .await
             {
                 Ok(resp) => {
-                    let effects = ExecutionEffects::IotaTransactionBlockEffects(
+                    return Ok(ExecutionEffects::IotaTransactionBlockEffects(
                         resp.effects.expect("effects field should not be None"),
-                    );
-                    return Ok(effects);
+                    ));
                 }
                 Err(err) => {
                     error!(

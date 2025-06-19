@@ -103,7 +103,7 @@ impl Epoch {
         };
 
         Ok(Some(UInt53::from(
-            last - self.stored.first_checkpoint_id as u64,
+            last - self.stored.first_checkpoint_id as u64 + 1,
         )))
     }
 

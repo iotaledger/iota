@@ -5,6 +5,7 @@
 use std::time::Duration;
 
 use anyhow::anyhow;
+use clap::Args;
 use diesel::{
     PgConnection,
     connection::BoxableConnection,
@@ -17,17 +18,28 @@ use crate::errors::IndexerError;
 pub type ConnectionPool = Pool<ConnectionManager<PgConnection>>;
 pub type PoolConnection = PooledConnection<ConnectionManager<PgConnection>>;
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Args, Debug, Clone)]
 pub struct ConnectionPoolConfig {
+    #[arg(long, default_value_t = 100)]
+    #[arg(env = "DB_POOL_SIZE")]
     pub pool_size: u32,
+    #[arg(long, value_parser = parse_duration, default_value = "30")]
+    #[arg(env = "DB_CONNECTION_TIMEOUT")]
     pub connection_timeout: Duration,
+    #[arg(long, value_parser = parse_duration, default_value = "3600")]
+    #[arg(env = "DB_STATEMENT_TIMEOUT")]
     pub statement_timeout: Duration,
 }
 
+fn parse_duration(arg: &str) -> Result<std::time::Duration, std::num::ParseIntError> {
+    let seconds = arg.parse()?;
+    Ok(std::time::Duration::from_secs(seconds))
+}
+
 impl ConnectionPoolConfig {
-    const DEFAULT_POOL_SIZE: u32 = 100;
-    const DEFAULT_CONNECTION_TIMEOUT: u64 = 3600;
-    const DEFAULT_STATEMENT_TIMEOUT: u64 = 3600;
+    pub const DEFAULT_POOL_SIZE: u32 = 100;
+    pub const DEFAULT_CONNECTION_TIMEOUT: u64 = 30;
+    pub const DEFAULT_STATEMENT_TIMEOUT: u64 = 3600;
 
     fn connection_config(&self) -> ConnectionConfig {
         ConnectionConfig {
@@ -51,23 +63,10 @@ impl ConnectionPoolConfig {
 
 impl Default for ConnectionPoolConfig {
     fn default() -> Self {
-        let db_pool_size = std::env::var("DB_POOL_SIZE")
-            .ok()
-            .and_then(|s| s.parse::<u32>().ok())
-            .unwrap_or(Self::DEFAULT_POOL_SIZE);
-        let conn_timeout_secs = std::env::var("DB_CONNECTION_TIMEOUT")
-            .ok()
-            .and_then(|s| s.parse::<u64>().ok())
-            .unwrap_or(Self::DEFAULT_CONNECTION_TIMEOUT);
-        let statement_timeout_secs = std::env::var("DB_STATEMENT_TIMEOUT")
-            .ok()
-            .and_then(|s| s.parse::<u64>().ok())
-            .unwrap_or(Self::DEFAULT_STATEMENT_TIMEOUT);
-
         Self {
-            pool_size: db_pool_size,
-            connection_timeout: Duration::from_secs(conn_timeout_secs),
-            statement_timeout: Duration::from_secs(statement_timeout_secs),
+            pool_size: Self::DEFAULT_POOL_SIZE,
+            connection_timeout: Duration::from_secs(Self::DEFAULT_CONNECTION_TIMEOUT),
+            statement_timeout: Duration::from_secs(Self::DEFAULT_STATEMENT_TIMEOUT),
         }
     }
 }
@@ -117,24 +116,14 @@ impl<T: R2D2Connection + 'static> diesel::r2d2::CustomizeConnection<T, diesel::r
 
 pub fn new_connection_pool(
     db_url: &str,
-    pool_size: Option<u32>,
-) -> Result<ConnectionPool, IndexerError> {
-    let pool_config = ConnectionPoolConfig::default();
-    new_connection_pool_with_config(db_url, pool_size, pool_config)
-}
-
-pub fn new_connection_pool_with_config(
-    db_url: &str,
-    pool_size: Option<u32>,
-    pool_config: ConnectionPoolConfig,
+    config: &ConnectionPoolConfig,
 ) -> Result<ConnectionPool, IndexerError> {
     let manager = ConnectionManager::<PgConnection>::new(db_url);
 
-    let pool_size = pool_size.unwrap_or(pool_config.pool_size);
     Pool::builder()
-        .max_size(pool_size)
-        .connection_timeout(pool_config.connection_timeout)
-        .connection_customizer(Box::new(pool_config.connection_config()))
+        .max_size(config.pool_size)
+        .connection_timeout(config.connection_timeout)
+        .connection_customizer(Box::new(config.connection_config()))
         .build(manager)
         .map_err(|e| {
             IndexerError::PgConnectionPoolInit(format!(
@@ -176,18 +165,9 @@ pub mod setup_postgres {
         prelude::*,
     };
     use diesel_migrations::{EmbeddedMigrations, MigrationHarness, embed_migrations};
-    use prometheus::Registry;
-    use secrecy::ExposeSecret;
-    use tracing::{error, info};
+    use tracing::info;
 
-    use crate::{
-        IndexerConfig,
-        db::{PoolConnection, get_pool_connection, new_connection_pool},
-        errors::IndexerError,
-        indexer::Indexer,
-        metrics::IndexerMetrics,
-        store::{PgIndexerAnalyticalStore, PgIndexerStore},
-    };
+    use crate::{IndexerError, db::PoolConnection};
 
     table! {
         __diesel_schema_migrations (version) {
@@ -324,70 +304,6 @@ pub mod setup_postgres {
         Ok(())
     }
 
-    pub async fn setup(
-        indexer_config: IndexerConfig,
-        registry: Registry,
-    ) -> Result<(), IndexerError> {
-        let db_url_secret = indexer_config.get_db_url().map_err(|e| {
-            IndexerError::PgPoolConnection(format!("Failed parsing database url with error {e:?}"))
-        })?;
-        let db_url = db_url_secret.expose_secret();
-        let blocking_cp = new_connection_pool(db_url, None).inspect_err(|e| {
-            error!("Failed creating Postgres connection pool with error {e:?}");
-        })?;
-        info!("Postgres database connection pool is created at {db_url}");
-        let mut conn = get_pool_connection(&blocking_cp).inspect_err(|e| {
-            error!("Failed getting Postgres connection from connection pool with error {e:?}");
-        })?;
-        let indexer_metrics = IndexerMetrics::new(&registry);
-        iota_metrics::init_metrics(&registry);
-
-        let report_cp = blocking_cp.clone();
-        let report_metrics = indexer_metrics.clone();
-        tokio::spawn(async move {
-            loop {
-                let cp_state = report_cp.state();
-                info!(
-                    "DB connection pool size: {}, with idle conn: {}.",
-                    cp_state.connections, cp_state.idle_connections
-                );
-                report_metrics
-                    .db_conn_pool_size
-                    .set(cp_state.connections as i64);
-                report_metrics
-                    .idle_db_conn
-                    .set(cp_state.idle_connections as i64);
-                tokio::time::sleep(tokio::time::Duration::from_secs(60)).await;
-            }
-        });
-        if indexer_config.fullnode_sync_worker {
-            let store = PgIndexerStore::new(blocking_cp, indexer_metrics.clone());
-            if indexer_config.reset_db {
-                reset_database(&mut conn).map_err(|e| {
-                    let db_err_msg = format!(
-                        "Failed resetting database with url: {:?} and error: {:?}",
-                        db_url, e
-                    );
-                    error!("{}", db_err_msg);
-                    IndexerError::PostgresReset(db_err_msg)
-                })?;
-                info!("Reset Postgres database complete.");
-            } else {
-                conn.run_pending_migrations(MIGRATIONS)
-                    .map_err(|e| anyhow!("Failed to run pending migrations {e}"))?;
-                info!("Database migrations are up to date.");
-            }
-            return Indexer::start_writer(&indexer_config, store, indexer_metrics).await;
-        } else if indexer_config.rpc_server_worker {
-            check_db_migration_consistency(&mut conn)?;
-            return Indexer::start_reader(&indexer_config, &registry, db_url.to_string()).await;
-        } else if indexer_config.analytical_worker {
-            let store = PgIndexerAnalyticalStore::new(blocking_cp);
-            return Indexer::start_analytical_worker(store, indexer_metrics.clone()).await;
-        }
-        Ok(())
-    }
-
     #[cfg(feature = "pg_integration")]
     #[cfg(test)]
     mod tests {
@@ -396,17 +312,14 @@ pub mod setup_postgres {
             pg::Pg,
         };
         use diesel_migrations::MigrationHarness;
-        use secrecy::Secret;
 
         use crate::{
             db::setup_postgres::{self, MIGRATIONS},
             test_utils::TestDatabase,
         };
 
-        fn database_url(db_name: &str) -> Secret<String> {
-            secrecy::Secret::new(format!(
-                "postgres://postgres:postgrespw@localhost:5432/{db_name}"
-            ))
+        fn database_url(db_name: &str) -> String {
+            format!("postgres://postgres:postgrespw@localhost:5432/{db_name}")
         }
 
         // Check that the migration records in the database created from the local
