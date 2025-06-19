@@ -2929,9 +2929,7 @@ impl InputObjects {
         for obj in &self.objects {
             if let ObjectReadResultKind::CancelledTransactionSharedObject(version) = obj.object {
                 contains_cancelled = true;
-                if version == SequenceNumber::CONGESTED
-                    || version == SequenceNumber::RANDOMNESS_UNAVAILABLE
-                {
+                if version.is_congested() || version == SequenceNumber::RANDOMNESS_UNAVAILABLE {
                     // Verify we don't have multiple cancellation reasons.
                     assert!(cancel_reason.is_none() || cancel_reason == Some(version));
                     cancel_reason = Some(version);

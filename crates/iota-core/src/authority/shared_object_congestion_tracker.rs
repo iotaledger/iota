@@ -477,6 +477,12 @@ impl SharedObjectCongestionTracker {
             .max()
             .unwrap_or(0)
     }
+
+    // NOTE: this function will be rewritten anyway in the new sequencer
+    // (see PR #6490), so we simple return the certificate's gas price here.
+    pub fn compute_suggested_gas_price(&self, cert: &VerifiedExecutableTransaction) -> Option<u64> {
+        Some(cert.transaction_data().gas_price())
+    }
 }
 
 #[cfg(test)]

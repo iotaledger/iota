@@ -1236,6 +1236,13 @@ impl From<crate::execution_status::ExecutionFailureStatus> for ExecutionError {
             ExecutionFailureStatus::ExecutionCancelledDueToRandomnessUnavailable => {
                 Self::ExecutionCancelledDueToRandomnessUnavailable
             }
+            ExecutionFailureStatus::ExecutionCancelledDueToSharedObjectCongestionV2 {
+                congested_objects,
+                suggested_gas_price,
+            } => Self::ExecutionCancelledDueToSharedObjectCongestionV2 {
+                congested_objects: congested_objects.0.into_iter().map(Into::into).collect(),
+                suggested_gas_price,
+            },
         }
     }
 }
@@ -1430,6 +1437,15 @@ impl From<ExecutionError> for crate::execution_status::ExecutionFailureStatus {
             ExecutionError::ExecutionCancelledDueToRandomnessUnavailable => {
                 Self::ExecutionCancelledDueToRandomnessUnavailable
             }
+            ExecutionError::ExecutionCancelledDueToSharedObjectCongestionV2 {
+                congested_objects,
+                suggested_gas_price,
+            } => Self::ExecutionCancelledDueToSharedObjectCongestionV2 {
+                congested_objects: crate::execution_status::CongestedObjects(
+                    congested_objects.into_iter().map(Into::into).collect(),
+                ),
+                suggested_gas_price,
+            },
         }
     }
 }

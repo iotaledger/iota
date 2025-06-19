@@ -39,7 +39,7 @@ fn assert_same_object_changes_ignoring_version_and_digest(
             .map(|mut change| {
                 let object_id = change.object_id();
                 // ignore the version and digest for comparison
-                change.mask_for_test(SequenceNumber::MAX, ObjectDigest::MAX);
+                change.mask_for_test(SequenceNumber::MAX_VALID_EXCL, ObjectDigest::MAX);
                 (object_id, change)
             })
             .collect()
