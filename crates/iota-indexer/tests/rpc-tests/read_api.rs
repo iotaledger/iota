@@ -1448,7 +1448,7 @@ fn try_get_past_object_object_deleted() {
         let deleted_version = nft_object_ref.1.next();
 
         let result = client
-            .try_get_object_before_version(nft_object_id, SequenceNumber::MAX)
+            .try_get_object_before_version(nft_object_id, SequenceNumber::MAX_VALID_EXCL)
             .await
             .expect("RPC call should succeed");
 

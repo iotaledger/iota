@@ -431,7 +431,7 @@ async fn test_tto_invalid_receiving_arguments() {
             Box<dyn FnOnce(UserInputError) -> bool>,
         )> = vec![
             (
-                Box::new(|x: ObjectRef| (x.0, SequenceNumber::MAX, x.2)),
+                Box::new(|x: ObjectRef| (x.0, SequenceNumber::MAX_VALID_EXCL, x.2)),
                 Box::new(|err| matches!(err, UserInputError::InvalidSequenceNumber)),
             ),
             (

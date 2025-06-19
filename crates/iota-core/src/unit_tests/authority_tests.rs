@@ -1121,7 +1121,7 @@ async fn test_dry_run_dev_inspect_max_gas_version() {
     let (fullnode, _object_basics) = publish_object_basics(fullnode).await;
     let gas_object = Object::with_id_owner_version_for_testing(
         gas_object_id,
-        SequenceNumber::from_u64(SequenceNumber::MAX.value() - 1),
+        SequenceNumber::from_u64(SequenceNumber::MAX_VALID_EXCL.value() - 1),
         sender,
     );
     let gas_object_ref = gas_object.compute_object_reference();
@@ -1257,7 +1257,7 @@ async fn test_handle_transfer_transaction_with_max_sequence_number() {
     let gas_object_id = ObjectID::random();
     let recipient = dbg_addr(2);
     let authority_state = init_state_with_ids_and_versions(vec![
-        (sender, object_id, SequenceNumber::MAX),
+        (sender, object_id, SequenceNumber::MAX_VALID_EXCL),
         (sender, gas_object_id, SequenceNumber::new()),
     ])
     .await;
@@ -1296,7 +1296,10 @@ async fn test_handle_transfer_transaction_with_max_sequence_number() {
 #[tokio::test]
 async fn test_handle_shared_object_with_max_sequence_number() {
     let (authority, _fullnode, transaction, _, _) =
-        construct_shared_object_transaction_with_sequence_number(Some(SequenceNumber::MAX)).await;
+        construct_shared_object_transaction_with_sequence_number(Some(
+            SequenceNumber::MAX_VALID_EXCL,
+        ))
+        .await;
     let epoch_store = authority.load_epoch_store_one_call_per_task();
     // Submit the transaction and assemble a certificate.
     let response = authority
@@ -6338,6 +6341,8 @@ async fn test_consensus_handler_congestion_control_transaction_cancellation() {
     authority.insert_genesis_objects(&genesis_objects).await;
 
     let mut certificates: Vec<VerifiedCertificate> = vec![];
+    let gas_price_of_non_cancelled_txs = 2_000;
+    let gas_price_of_cancelled_txs = 1_000;
 
     // Create 3 transactions that operate on shared_objects[0]. These transactions
     // will go through eventually.
@@ -6350,7 +6355,7 @@ async fn test_consensus_handler_congestion_control_transaction_cancellation() {
             &gas_object.compute_object_reference(),
             &[&authority],
             12345,
-            Some(2000),
+            Some(gas_price_of_non_cancelled_txs),
             Some(100_000_000),
         )
         .await;
@@ -6372,7 +6377,7 @@ async fn test_consensus_handler_congestion_control_transaction_cancellation() {
         &gas_objects_cancelled_txn[0].compute_object_reference(),
         &[&authority],
         12345,
-        Some(1000),
+        Some(gas_price_of_cancelled_txs),
         Some(100_000_000),
     )
     .await;
@@ -6392,7 +6397,9 @@ async fn test_consensus_handler_congestion_control_transaction_cancellation() {
         scheduled_txns[0].data().transaction_data().kind(),
         TransactionKind::ConsensusCommitPrologueV1(..)
     ));
-    assert!(scheduled_txns[1].data().transaction_data().gas_price() == 2000);
+    assert!(
+        scheduled_txns[1].data().transaction_data().gas_price() == gas_price_of_non_cancelled_txs
+    );
 
     let scheduled_txns = send_batch_consensus_no_execution(&authority, &[], false).await;
     assert_eq!(scheduled_txns.len(), 2);
@@ -6400,7 +6407,9 @@ async fn test_consensus_handler_congestion_control_transaction_cancellation() {
         scheduled_txns[0].data().transaction_data().kind(),
         TransactionKind::ConsensusCommitPrologueV1(..)
     ));
-    assert!(scheduled_txns[1].data().transaction_data().gas_price() == 2000);
+    assert!(
+        scheduled_txns[1].data().transaction_data().gas_price() == gas_price_of_non_cancelled_txs
+    );
 
     // Run consensus round 3. 2 user transactions will come out with 1 transaction
     // being cancelled.
@@ -6424,8 +6433,14 @@ async fn test_consensus_handler_congestion_control_transaction_cancellation() {
         .collect::<HashMap<_, _>>();
     assert_eq!(
         [
-            (shared_objects[0].id(), SequenceNumber::CONGESTED),
-            (shared_objects[1].id(), SequenceNumber::CONGESTED)
+            (
+                shared_objects[0].id(),
+                SequenceNumber::new_congested_with_suggested_gas_price(gas_price_of_cancelled_txs)
+            ),
+            (
+                shared_objects[1].id(),
+                SequenceNumber::new_congested_with_suggested_gas_price(gas_price_of_cancelled_txs)
+            )
         ]
         .into_iter()
         .collect::<HashMap<_, _>>(),
@@ -6456,8 +6471,14 @@ async fn test_consensus_handler_congestion_control_transaction_cancellation() {
     assert_eq!(
         shared_inputs,
         vec![
-            SharedInput::Cancelled((shared_objects[0].id(), SequenceNumber::CONGESTED)),
-            SharedInput::Cancelled((shared_objects[1].id(), SequenceNumber::CONGESTED))
+            SharedInput::Cancelled((
+                shared_objects[0].id(),
+                SequenceNumber::new_congested_with_suggested_gas_price(gas_price_of_cancelled_txs)
+            )),
+            SharedInput::Cancelled((
+                shared_objects[1].id(),
+                SequenceNumber::new_congested_with_suggested_gas_price(gas_price_of_cancelled_txs)
+            ))
         ]
     );
 
@@ -6467,7 +6488,10 @@ async fn test_consensus_handler_congestion_control_transaction_cancellation() {
         cancelled_objects,
         vec![shared_objects[0].id(), shared_objects[1].id()]
     );
-    assert_eq!(cancellation_reason, SequenceNumber::CONGESTED);
+    assert_eq!(
+        cancellation_reason,
+        SequenceNumber::new_congested_with_suggested_gas_price(gas_price_of_cancelled_txs)
+    );
 
     // Consensus commit prologue contains cancelled txn shared object version
     // assignment.
@@ -6478,12 +6502,22 @@ async fn test_consensus_handler_congestion_control_transaction_cancellation() {
             &prologue_txn.consensus_determined_version_assignments,
             ConsensusDeterminedVersionAssignments::CancelledTransactions(assignment)
             if assignment == &vec![(
-                                *cancelled_txn.digest(),
-                                vec![
-                                    (shared_objects[0].id(), SequenceNumber::CONGESTED),
-                                    (shared_objects[1].id(), SequenceNumber::CONGESTED)
-                                ]
-                            )]
+                *cancelled_txn.digest(),
+                vec![
+                    (
+                        shared_objects[0].id(),
+                        SequenceNumber::new_congested_with_suggested_gas_price(
+                            gas_price_of_cancelled_txs
+                        ),
+                    ),
+                    (
+                        shared_objects[1].id(),
+                        SequenceNumber::new_congested_with_suggested_gas_price(
+                            gas_price_of_cancelled_txs
+                        ),
+                    )
+                ]
+            )]
         ));
     } else {
         panic!("First scheduled transaction must be a ConsensusCommitPrologueV1 transaction.");
