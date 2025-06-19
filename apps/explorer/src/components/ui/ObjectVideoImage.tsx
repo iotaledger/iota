@@ -100,6 +100,7 @@ export function ObjectVideoImage({
             />
             <div
                 className={clsx(
+                    'bg-neutral-96 dark:bg-neutral-10',
                     imageStyles({ variant, disablePreview, rounded }),
                     rounded && 'overflow-hidden',
                 )}
