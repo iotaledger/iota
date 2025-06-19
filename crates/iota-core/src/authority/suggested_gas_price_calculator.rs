@@ -70,8 +70,9 @@ impl SuggestedGasPriceCalculator {
 
         certificate
             .shared_input_objects()
-            // TODO: should only consider mutable objects like in bump_object_execution_slots?
-            // .filter(|object| object.mutable)
+            // Only consider shared objects accessed mutably as objects accessed immutably
+            // do not change object's execution slots in the sequencer.
+            .filter(|object| object.mutable)
             .for_each(|object| {
                 self.congestion_info
                     .entry(object.id)
@@ -94,8 +95,6 @@ impl SuggestedGasPriceCalculator {
     ) -> u64 {
         let passing_gas_price = certificate
             .shared_input_objects()
-            // TODO: should only consider mutable objects like in bump_object_execution_slots?
-            // .filter(|object| object.mutable)
             .filter_map(|object| {
                 self.congestion_info
                     .get(&object.id)
@@ -228,17 +227,9 @@ mod tests {
                 gas_price: gas_price_1,
                 estimated_execution_duration: estimated_execution_duration_1,
             }]);
-        let object_2_expected_congestion_info =
-            PerObjectCongestionInfo::from([ScheduledTransactionCongestionInfo {
-                gas_price: gas_price_1,
-                estimated_execution_duration: estimated_execution_duration_1,
-            }]);
         assert_eq!(
             suggested_gas_price_calculator.congestion_info,
-            PerCommitCongestionInfo::from([
-                (object_1, object_1_expected_congestion_info),
-                (object_2, object_2_expected_congestion_info),
-            ]),
+            PerCommitCongestionInfo::from([(object_1, object_1_expected_congestion_info)]),
         );
 
         // Construct the second certificate with some shared input objects,
@@ -257,17 +248,7 @@ mod tests {
                 gas_price: gas_price_1,
                 estimated_execution_duration: estimated_execution_duration_1,
             }]);
-        let object_2_expected_congestion_info = PerObjectCongestionInfo::from([
-            ScheduledTransactionCongestionInfo {
-                gas_price: gas_price_1,
-                estimated_execution_duration: estimated_execution_duration_1,
-            },
-            ScheduledTransactionCongestionInfo {
-                gas_price: gas_price_2,
-                estimated_execution_duration: estimated_execution_duration_2,
-            },
-        ]);
-        let object_3_expected_congestion_info =
+        let object_2_expected_congestion_info =
             PerObjectCongestionInfo::from([ScheduledTransactionCongestionInfo {
                 gas_price: gas_price_2,
                 estimated_execution_duration: estimated_execution_duration_2,
@@ -282,7 +263,6 @@ mod tests {
             PerCommitCongestionInfo::from([
                 (object_1, object_1_expected_congestion_info),
                 (object_2, object_2_expected_congestion_info),
-                (object_3, object_3_expected_congestion_info),
                 (object_4, object_4_expected_congestion_info),
             ]),
         );
@@ -303,31 +283,16 @@ mod tests {
                 gas_price: gas_price_1,
                 estimated_execution_duration: estimated_execution_duration_1,
             }]);
-        let object_2_expected_congestion_info = PerObjectCongestionInfo::from([
-            ScheduledTransactionCongestionInfo {
-                gas_price: gas_price_1,
-                estimated_execution_duration: estimated_execution_duration_1,
-            },
-            ScheduledTransactionCongestionInfo {
-                gas_price: gas_price_2,
-                estimated_execution_duration: estimated_execution_duration_2,
-            },
-        ]);
-        let object_3_expected_congestion_info =
+        let object_2_expected_congestion_info =
             PerObjectCongestionInfo::from([ScheduledTransactionCongestionInfo {
                 gas_price: gas_price_2,
                 estimated_execution_duration: estimated_execution_duration_2,
             }]);
-        let object_4_expected_congestion_info = PerObjectCongestionInfo::from([
-            ScheduledTransactionCongestionInfo {
+        let object_4_expected_congestion_info =
+            PerObjectCongestionInfo::from([ScheduledTransactionCongestionInfo {
                 gas_price: gas_price_2,
                 estimated_execution_duration: estimated_execution_duration_2,
-            },
-            ScheduledTransactionCongestionInfo {
-                gas_price: gas_price_3,
-                estimated_execution_duration: estimated_execution_duration_3,
-            },
-        ]);
+            }]);
         let object_5_expected_congestion_info =
             PerObjectCongestionInfo::from([ScheduledTransactionCongestionInfo {
                 gas_price: gas_price_3,
@@ -338,7 +303,6 @@ mod tests {
             PerCommitCongestionInfo::from([
                 (object_1, object_1_expected_congestion_info),
                 (object_2, object_2_expected_congestion_info),
-                (object_3, object_3_expected_congestion_info),
                 (object_4, object_4_expected_congestion_info),
                 (object_5, object_5_expected_congestion_info),
             ]),
@@ -383,7 +347,7 @@ mod tests {
         // Construct the first certificate with some shared input objects,
         // gas price, estimated execution duration, and update calculator's
         // congestion info for this certificate.
-        let objects_1 = vec![(object_1, false), (object_2, false)];
+        let objects_1 = vec![(object_1, true), (object_2, true)];
         let gas_budget_1 = 1_003_000;
         let gas_price_1 = 1_003;
         let certificate_1 = build_transaction(&objects_1, gas_budget_1, gas_price_1);
