@@ -358,7 +358,7 @@
     /* SECONDARY TEXT */
     --secondary-text-color: theme('colors.iota-neutral.60');
     --secondary-text-error-color: theme('colors.iota-error.90');
-    --secondary-error-bg-color: theme('colors.iota-error.20');
+    --secondary-error-bg-color: theme('colors.iota-error.10');
 
     /* SKELETON */
     --skeleton-bg: theme('colors.iota-neutral.12');
