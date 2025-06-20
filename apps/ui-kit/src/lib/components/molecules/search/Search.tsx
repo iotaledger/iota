@@ -116,7 +116,12 @@ export function Search({
     const showSuggestions = isSuggestionsVisible && suggestions && suggestions.length > 0;
 
     const roundedStyleWithSuggestions = showSuggestions
-        ? 'rounded-t-3xl border-b border-b-transparent'
+        ? cx(
+              'rounded-t-3xl border-b',
+              type === SearchBarType.Outlined
+                  ? '[&:not(.dark_*,.names_*)]:border-b-transparent'
+                  : 'border-b-transparent',
+          )
         : type === SearchBarType.Outlined
           ? 'rounded-3xl border-b'
           : 'rounded-full';
@@ -183,7 +188,7 @@ export function Search({
                 <div
                     ref={suggestionsListRef}
                     className={cx(
-                        'search-suggestion-bg-color absolute left-0 top-full flex w-full flex-col items-center overflow-hidden',
+                        'absolute left-0 top-full flex w-full flex-col items-center overflow-hidden',
                         suggestionsStyle,
                     )}
                 >
@@ -200,9 +205,7 @@ export function Search({
                                 onMouseEnter={() => setSelectedIndex(index)}
                                 className={cx(
                                     'w-full cursor-pointer px-md py-sm',
-                                    selectedIndex === index
-                                        ? 'bg-shader-primary-dark-16 dark:bg-shader-inverted-dark-16'
-                                        : '',
+                                    selectedIndex === index ? 'search-selected-index-bg-color' : '',
                                 )}
                             >
                                 {renderSuggestion(suggestion, index)}
