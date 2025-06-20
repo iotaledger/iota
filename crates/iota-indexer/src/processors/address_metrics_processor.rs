@@ -62,18 +62,6 @@ where
                 ..last_processed_tx_seq + batch_size as i64 + 1)
                 .step_by(step_size)
             {
-                let active_address_store = self.store.clone();
-                persist_tasks.push(tokio::task::spawn_blocking(move || {
-                    active_address_store.persist_active_addresses_in_tx_range(
-                        chunk_start_tx_seq,
-                        chunk_start_tx_seq + step_size as i64,
-                    )
-                }));
-            }
-            for chunk_start_tx_seq in (last_processed_tx_seq + 1
-                ..last_processed_tx_seq + batch_size as i64 + 1)
-                .step_by(step_size)
-            {
                 let address_store = self.store.clone();
                 persist_tasks.push(tokio::task::spawn_blocking(move || {
                     address_store.persist_addresses_in_tx_range(

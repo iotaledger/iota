@@ -32,9 +32,6 @@ COPY Cargo.toml Cargo.lock ./
 RUN cargo build --profile ${PROFILE} \
   --bin iota-node \
   --bin stress \
-  --bin iota-bridge \
-  --bin bridge-indexer \
-  --bin iota-bridge-cli \
   --bin iota-analytics-indexer \
   --bin iota \
   --bin iota-faucet \
@@ -55,9 +52,6 @@ else \
 fi && \
 mv $TARGET_DIR/iota-node ./ && \
 mv $TARGET_DIR/stress ./ && \
-mv $TARGET_DIR/iota-bridge ./ && \
-mv $TARGET_DIR/bridge-indexer ./ && \
-mv $TARGET_DIR/iota-bridge-cli ./ && \
 mv $TARGET_DIR/iota-analytics-indexer ./ && \
 mv $TARGET_DIR/iota ./ && \
 mv $TARGET_DIR/iota-faucet ./ && \
@@ -76,9 +70,6 @@ RUN apt update && apt install -y libpq5 ca-certificates curl git
 
 COPY --from=builder /iota/iota-node /usr/local/bin
 COPY --from=builder /iota/stress /usr/local/bin
-COPY --from=builder /iota/iota-bridge /usr/local/bin
-COPY --from=builder /iota/bridge-indexer /usr/local/bin
-COPY --from=builder /iota/iota-bridge-cli /usr/local/bin
 COPY --from=builder /iota/iota-analytics-indexer /usr/local/bin
 COPY --from=builder /iota/iota /usr/local/bin
 COPY --from=builder /iota/iota-faucet /usr/local/bin

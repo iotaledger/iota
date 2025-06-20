@@ -4,7 +4,7 @@
 
 use std::{ops::Range, path::PathBuf, sync::Arc};
 
-use anyhow::{Result, anyhow};
+use anyhow::{Result, anyhow, bail};
 use arrow_array::Int32Array;
 use clap::*;
 use gcp_bigquery_client::{Client, model::query_request::QueryRequest};
@@ -211,8 +211,8 @@ impl MaxCheckpointReader for SnowflakeMaxCheckpointReader {
                     Ok(-1)
                 }
             }
-            QueryResult::Json(_j) => Err(anyhow!("Unexpected query result")),
-            QueryResult::Empty => Err(anyhow!("Unexpected query result")),
+            QueryResult::Json(_j) => bail!("Unexpected query result"),
+            QueryResult::Empty => bail!("Unexpected query result"),
         }
     }
 }

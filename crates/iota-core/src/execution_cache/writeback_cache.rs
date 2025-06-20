@@ -60,7 +60,6 @@ use iota_macros::fail_point_async;
 use iota_types::{
     accumulator::Accumulator,
     base_types::{EpochId, ObjectID, ObjectRef, SequenceNumber, VerifiedExecutionData},
-    bridge::{Bridge, get_bridge},
     digests::{ObjectDigest, TransactionDigest, TransactionEffectsDigest, TransactionEventsDigest},
     effects::{TransactionEffects, TransactionEvents},
     error::{IotaError, IotaResult, UserInputError},
@@ -477,7 +476,7 @@ impl WritebackCache {
         version: SequenceNumber,
         object: ObjectEntry,
     ) {
-        debug!(?object_id, ?version, ?object, "inserting object entry");
+        trace!(?object_id, ?version, ?object, "inserting object entry");
         fail_point_async!("write_object_entry");
         self.metrics.record_cache_write("object");
 
@@ -1158,15 +1157,32 @@ impl WritebackCache {
                 self.packages.invalidate(object_id);
             }
             self.cached.object_by_id_cache.invalidate(object_id);
+            self.cached.object_cache.invalidate(object_id);
         }
 
         for ObjectKey(object_id, _) in outputs.deleted.iter().chain(outputs.wrapped.iter()) {
             self.cached.object_by_id_cache.invalidate(object_id);
+            self.cached.object_cache.invalidate(object_id);
         }
 
         // Note: individual object entries are removed when
         // clear_state_end_of_epoch_impl is called
         Ok(())
+    }
+
+    fn bulk_insert_genesis_objects_impl(&self, objects: &[Object]) -> IotaResult {
+        self.store.bulk_insert_genesis_objects(objects)?;
+        for obj in objects {
+            self.cached.object_cache.invalidate(&obj.id());
+            self.cached.object_by_id_cache.invalidate(&obj.id());
+        }
+        Ok(())
+    }
+
+    fn insert_genesis_object_impl(&self, object: Object) -> IotaResult {
+        self.cached.object_by_id_cache.invalidate(&object.id());
+        self.cached.object_cache.invalidate(&object.id());
+        self.store.insert_genesis_object(object)
     }
 
     pub fn clear_caches_and_assert_empty(&self) {
@@ -1521,10 +1537,6 @@ impl ObjectCacheRead for WritebackCache {
 
     fn get_iota_system_state_object_unsafe(&self) -> IotaResult<IotaSystemState> {
         get_iota_system_state(self)
-    }
-
-    fn get_bridge_object_unsafe(&self) -> IotaResult<Bridge> {
-        get_bridge(self)
     }
 
     fn get_marker_value(

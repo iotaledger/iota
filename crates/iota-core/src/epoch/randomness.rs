@@ -434,8 +434,7 @@ impl RandomnessManager {
         });
         if !fail_point_skip_sending {
             self.consensus_adapter
-                .submit_to_consensus(&[transaction], &epoch_store)
-                .await?;
+                .submit_to_consensus(&[transaction], &epoch_store)?;
         }
 
         epoch_store
@@ -506,8 +505,7 @@ impl RandomnessManager {
                     });
                     if !fail_point_skip_sending {
                         self.consensus_adapter
-                            .submit_to_consensus(&[transaction], &epoch_store)
-                            .await?;
+                            .submit_to_consensus(&[transaction], &epoch_store)?;
                     }
 
                     let elapsed = self.dkg_start_time.get().map(|t| t.elapsed().as_millis());
