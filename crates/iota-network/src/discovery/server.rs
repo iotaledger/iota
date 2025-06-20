@@ -75,7 +75,6 @@ impl Discovery for Server {
             })
             .choose_multiple(&mut rng, MAX_PEERS_TO_SEND - known_peers.len());
         known_peers.append(&mut known_not_connected_peers);
-        known_peers.shuffle(&mut rng);
 
         Ok(Response::new(GetKnownPeersResponseV2 {
             own_info,
