@@ -14,6 +14,7 @@ export const SEARCH_WRAPPER_STYLE: Record<SearchBarType, string> = {
 };
 
 export const SUGGESTIONS_WRAPPER_STYLE: Record<SearchBarType, string> = {
-    [SearchBarType.Outlined]: 'rounded-b-3xl border-b border-l border-r search-border-color',
+    [SearchBarType.Outlined]:
+        'rounded-b-3xl border-b border-l border-r search-border-color search-suggestion-bg-color',
     [SearchBarType.Filled]: 'rounded-b-3xl search-bg-color-filled',
 };

@@ -18,6 +18,10 @@
         border-color: var(--badge-border-color-primary);
     }
 
+    .badge-border-color-neutral {
+        border-color: var(--badge-border-color-neutral);
+    }
+
     .badge-border-color-soft {
         border-color: var(--badge-border-color-soft);
     }
@@ -57,6 +61,7 @@
     }
 
     .button-border-color-outline {
+        border-width: 1px;
         border-color: var(--button-border-color-outline);
     }
 
@@ -164,6 +169,11 @@
 
     .checkbox-label-disabled {
         @apply group-[.disabled]:cursor-not-allowed;
+    }
+
+    /* DIVIDER */
+    .divider-bg-color {
+        background-color: var(--divider-bg-color);
     }
 
     /* BUTTON SEGMENT */
@@ -472,20 +482,20 @@
     }
 
     .input-border-color-hover {
-        &:hover {
+        &:hover:not(:has(input:focus)) {
             border-color: var(--input-border-hover-color);
+        }
+    }
+
+    .input-border-error-color {
+        .group.errored:not(:has(input:focus)) & {
+            border-color: var(--input-border-error-color);
         }
     }
 
     .input-border-color-focus {
         &:has(input:focus) {
-            border-color: var(--input-border-focus-color) !important;
-        }
-    }
-
-    .input-border-color-error {
-        .group.errored & {
-            border-color: var(--input-border-error-color);
+            border-color: var(--input-border-focus-color);
         }
     }
 
@@ -506,20 +516,20 @@
     }
 
     /* NAVBAR ITEM */
-    .navbar-icon-color {
-        color: var(--navbar-icon-color);
+    .navbar-item-icon-color {
+        color: var(--navbar-item-icon-color);
     }
 
-    .navbar-icon-selected-color {
-        color: var(--navbar-icon-selected-color);
+    .navbar-item-icon-selected-color {
+        color: var(--navbar-item-icon-selected-color);
     }
 
-    .navbar-label-color {
-        color: var(--navbar-label-color);
+    .navbar-item-label-color {
+        color: var(--navbar-item-label-color);
     }
 
-    .navbar-label-selected-color {
-        color: var(--navbar-label-selected-color);
+    .navbar-item-label-selected-color {
+        color: var(--navbar-item-label-selected-color);
     }
 
     /* SEARCH */
@@ -541,6 +551,10 @@
 
     .search-suggestion-bg-color {
         background-color: var(--search-suggestion-bg-color);
+    }
+
+    .search-selected-index-bg-color {
+        background-color: var(--search-selected-index-bg-color);
     }
 
     /* SEGMENTED BUTTON */
@@ -582,6 +596,10 @@
         color: var(--table-cell-supporting-label-color);
     }
 
+    .table-cell-border-color {
+        border-color: var(--table-cell-border-color);
+    }
+
     /* TABLE HEADER CELL */
     .table-header-text-color {
         color: var(--table-header-text-color);
@@ -596,6 +614,10 @@
         color: var(--title-subtitle-color);
     }
 
+    .title-icon-color {
+        color: var(--title-icon-color);
+    }
+
     /* ---------------- ORGANISMS ---------------- */
 
     /* ACCORDION */
@@ -605,6 +627,10 @@
 
     .accordion-icon-color {
         color: var(--accordion-icon-color);
+    }
+
+    .accordion-border-color {
+        border-color: var(--accordion-border-color);
     }
 
     /* DIALOG */
