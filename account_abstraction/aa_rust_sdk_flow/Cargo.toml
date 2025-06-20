@@ -1,0 +1,19 @@
+[package]
+name = "aa_rust_sdk_flow"
+edition = "2024"
+version.workspace = true
+
+[dependencies]
+iota-sdk = { path = "../../crates/iota-sdk"}
+shared-crypto = { path ="../../crates/shared-crypto"}
+iota-move-build = { path ="../../crates/iota-move-build"}
+tokio = { version = "1.2", features = ["full"] }
+anyhow = "1.0"
+reqwest.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+serde_with.workspace = true
+iota-keys.workspace = true
+move-core-types.workspace = true
+bcs.workspace = true
+fastcrypto.workspace = true

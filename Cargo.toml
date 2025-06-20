@@ -59,7 +59,7 @@ exclude = [
   "external-crates/move/crates/test-generation",
   "sdk/move-bytecode-template",
 ]
-members = [
+members = [ "account_abstraction/aa_rust_sdk_flow",
   "consensus/config",
   "consensus/core",
   "consensus/simtests",

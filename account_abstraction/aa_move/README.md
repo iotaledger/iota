@@ -1,3 +1,9 @@
+
+> [!WARNING]
+> The CLI doesn’t support transaction sponsorship.
+  Additionally, it would require significant effort to handle encoding and decoding of signatures, public keys, and transaction bytes. 
+  So, the following steps outline the general flow to provide an overview of the process
+
 1. Multisig Address Creation and Funding
 1.1 Create a Multisignature Address
 Create a multisig address comprising two participants (e.g., Alice and Bob) with a signature threshold of 2.
@@ -72,17 +78,18 @@ Deposit a coin object into the smart account’s balance:
 5. Construct a Withdraw Transaction
 Create a serialized unsigned transaction to withdraw tokens from the smart account (served with Alice’s gas object):
     ```bash
-    /Users/pk/iota client call --package $PACKAGE_ID --module account_abstraction --function withdraw --args $AA $OWNER_CAP 9999999 $RECIPIENT_ADDR --gas $ALICE_GAS_OBJ --gas-budget 1000000 --serialize-unsigned-transaction
+    /Users/pk/iota client call --package $PACKAGE_ID --module account_abstraction --function withdraw --args $AA $OWNER_CAP 9999999 $RECIPIENT_ADDR --gas $ALICE_GAS_OBJ --gas-budget 10000000 --serialize-unsigned-transaction
     ```
     Export the transaction bytes:
     ```bash
     export TX
+    export TX_DIGEST
     ```
 
 6. Submit the Transaction Proposal
 Create a proposed transaction entry point using the serialized unsigned transaction:
     ```bash
-    /Users/pk/iota client call --package $PACKAGE_ID --module tx_flow --function entry_point --args $AA $TX 2
+    /Users/pk/iota client call --package $PACKAGE_ID --module tx_flow --function entry_point --args $AA $TX_DIGEST $TX 2
     ```
     Export the proposed transaction ID:
     ```bash
