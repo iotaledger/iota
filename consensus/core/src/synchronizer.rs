@@ -843,8 +843,8 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> Synchronizer<C
                         }
                     }
 
-                    // Request at least f+1 stake to have replied back.
-                    if context.committee.reached_validity(total_stake) {
+                    // Request at least a quorum of 2f+1 stake to have replied back.
+                    if context.committee.reached_quorum(total_stake) {
                         info!("{} out of {} total stake returned acceptable results for our own last block with highest round {}, with {retries} retries.", total_stake, context.committee.total_stake(), highest_round);
                         break 'main;
                     }
