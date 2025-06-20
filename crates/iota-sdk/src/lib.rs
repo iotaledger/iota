@@ -166,6 +166,7 @@ pub struct IotaClientBuilder {
     ws_url: Option<String>,
     ws_ping_interval: Option<Duration>,
     basic_auth: Option<(String, String)>,
+    tls_config: Option<rustls::ClientConfig>,
 }
 
 impl Default for IotaClientBuilder {
@@ -176,6 +177,7 @@ impl Default for IotaClientBuilder {
             ws_url: None,
             ws_ping_interval: None,
             basic_auth: None,
+            tls_config: None,
         }
     }
 }
@@ -208,6 +210,12 @@ impl IotaClientBuilder {
     /// Set the basic auth credentials for the HTTP client.
     pub fn basic_auth(mut self, username: impl AsRef<str>, password: impl AsRef<str>) -> Self {
         self.basic_auth = Some((username.as_ref().to_string(), password.as_ref().to_string()));
+        self
+    }
+
+    /// Set a TLS configuration for the HTTP client.
+    pub fn tls_config(mut self, config: rustls::ClientConfig) -> Self {
+        self.tls_config = Some(config);
         self
     }
 
@@ -283,6 +291,10 @@ impl IotaClientBuilder {
 
         if let Some(max_concurrent_requests) = self.max_concurrent_requests {
             http_builder = http_builder.max_concurrent_requests(max_concurrent_requests);
+        }
+
+        if let Some(tls_config) = self.tls_config {
+            http_builder = http_builder.with_custom_cert_store(tls_config);
         }
 
         let http = http_builder.build(http)?;

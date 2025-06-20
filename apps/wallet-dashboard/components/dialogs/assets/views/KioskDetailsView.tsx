@@ -5,7 +5,7 @@ import {
     useGetKioskContents,
     getKioskIdFromOwnerCap,
     useNftDetails,
-    NftImage,
+    NFTMediaDisplayCard,
     ExplorerLinkType,
     ViewTxnOnExplorerButton,
     OutlinedCopyButton,
@@ -95,5 +95,5 @@ interface KioskItemProps {
 function KioskItem({ object, address }: KioskItemProps) {
     const { nftName, nftImageUrl } = useNftDetails(object.objectId, address);
 
-    return <NftImage title={nftName} src={nftImageUrl} isHoverable />;
+    return <NFTMediaDisplayCard title={nftName} src={nftImageUrl} isHoverable />;
 }
