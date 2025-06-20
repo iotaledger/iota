@@ -8,8 +8,8 @@
 //!
 //! This will remain private until the versioning scheme is stabilized.
 //!
-//! In cases where the [`rolling`] module is used above, it MUST be used only
-//! in private APIs.
+//! In cases where the [`rolling`] module is used in other modules above, it MUST be used only
+//! in private APIs, or in inner implementations.
 
 pub(crate) mod error;
 pub(crate) mod extract;

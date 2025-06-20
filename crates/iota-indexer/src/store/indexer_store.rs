@@ -18,6 +18,7 @@ use crate::{
         transactions::{OptimisticTransaction, TxGlobalOrder},
         tx_indices::OptimisticTxIndices,
     },
+    rolling::transform::CheckpointObjectChanges,
     types::{
         EventIndex, IndexedCheckpoint, IndexedEvent, IndexedPackage, IndexedTransaction, TxIndex,
     },
@@ -138,4 +139,12 @@ pub trait IndexerStore: Any + Clone + Sync + Send + 'static {
         &self,
         digests: &[Vec<u8>],
     ) -> Result<Vec<Vec<u8>>, IndexerError>;
+}
+
+#[async_trait]
+pub(crate) trait IndexerStoreExt: IndexerStore {
+    async fn persist_checkpoint_objects(
+        &self,
+        objects: Vec<CheckpointObjectChanges>,
+    ) -> Result<(), IndexerError>;
 }

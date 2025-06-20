@@ -7,7 +7,6 @@
 use iota_types::{
     base_types::{ObjectID, ObjectRef},
     digests::TransactionDigest,
-    dynamic_field::DynamicFieldType,
     full_checkpoint_content::CheckpointData,
     messages_checkpoint::CheckpointSequenceNumber,
     object::Object,
@@ -19,18 +18,15 @@ use crate::{
         error::{IndexerError, IndexerResult},
         extract,
     },
+    types::{IndexedDeletedObject, IndexedObject},
 };
 /// Represent an object that is live at a certain snapshot
 /// of the network.
 #[derive(Clone, Debug)]
 pub(crate) struct LiveObject {
-    /// The checkpoint that the objects was mutated in.
-    checkpoint_sequence_number: CheckpointSequenceNumber,
+    pub(crate) indexed_object: IndexedObject,
     /// The transaction that mutated the object.
-    transaction_digest: TransactionDigest,
-    object: Object,
-    /// If the object is a dynamic field, this is the type of the dynamic field.
-    df_kind: Option<DynamicFieldType>,
+    pub(crate) transaction_digest: TransactionDigest,
 }
 
 impl LiveObject {
@@ -40,12 +36,20 @@ impl LiveObject {
         object: Object,
     ) -> IndexerResult<Self> {
         let df_kind = try_extract_df_kind(&object)?;
+        let indexed_object =
+            IndexedObject::from_object(checkpoint_sequence_number, object, df_kind);
         Ok(Self {
-            checkpoint_sequence_number,
+            indexed_object,
             transaction_digest,
-            object,
-            df_kind,
         })
+    }
+
+    pub(crate) fn split(self) -> (IndexedObject, TransactionDigest) {
+        (self.indexed_object, self.transaction_digest)
+    }
+
+    pub(crate) fn object(&self) -> &Object {
+        &self.indexed_object.object
     }
 }
 
@@ -53,12 +57,9 @@ impl LiveObject {
 /// of the network.
 #[derive(Clone, Debug)]
 pub(crate) struct RemovedObject {
-    /// The checkpoint that the objects was mutated in.
-    checkpoint_sequence_number: CheckpointSequenceNumber,
+    pub(crate) indexed_object: IndexedDeletedObject,
     /// The transaction that mutated the object.
-    transaction_digest: TransactionDigest,
-    object_id: ObjectID,
-    object_version: u64,
+    pub(crate) transaction_digest: TransactionDigest,
 }
 
 impl RemovedObject {
@@ -68,12 +69,23 @@ impl RemovedObject {
         object_ref: ObjectRef,
     ) -> Self {
         let (object_id, object_version, _) = object_ref;
-        Self {
+        let indexed_object = IndexedDeletedObject {
             checkpoint_sequence_number,
-            transaction_digest,
             object_id,
             object_version: object_version.into(),
+        };
+        Self {
+            indexed_object,
+            transaction_digest,
         }
+    }
+
+    pub(crate) fn version(&self) -> u64 {
+        self.indexed_object.object_version
+    }
+
+    pub(crate) fn object_id(&self) -> ObjectID {
+        self.indexed_object.object_id
     }
 }
 
@@ -113,7 +125,7 @@ impl TryFrom<&CheckpointData> for CheckpointObjectChanges {
 
 /// Retain the live and removed objects with the largest versions from
 /// a set of consecutive checkpoints.
-pub(crate) fn latest_objects_from_checkpoint_batch(
+pub(crate) fn retain_latest_objects_from_checkpoint_batch(
     checkpoint_batch_object_changes: Vec<CheckpointObjectChanges>,
 ) -> CheckpointObjectChanges {
     use std::collections::HashMap;
@@ -126,43 +138,43 @@ pub(crate) fn latest_objects_from_checkpoint_batch(
         // as we expect that following deletion / mutation has a higher version.
         // Technically, assertions below are not required, double check just in case.
         for mutation in change.changed_objects {
-            let id = mutation.object.id();
-            let version = mutation.object.version();
+            let id = mutation.object().id();
+            let version = mutation.object().version();
 
             if let Some(existing) = deletions.remove(&id) {
                 assert!(
-                    existing.object_version < version.value(),
+                    existing.version() < version.value(),
                     "Mutation version ({version:?}) should be greater than existing deletion version ({:?}) for object {id:?}",
-                    existing.object_version
+                    existing.version()
                 );
             }
 
             if let Some(existing) = mutations.insert(id, mutation) {
                 assert!(
-                    existing.object.version() < version,
+                    existing.object().version() < version,
                     "Mutation version ({version:?}) should be greater than existing mutation version ({:?}) for object {id:?}",
-                    existing.object.version()
+                    existing.object().version()
                 );
             }
         }
         // Handle deleted objects
         for deletion in change.deleted_objects {
-            let id = deletion.object_id;
-            let version = deletion.object_version;
+            let id = deletion.object_id();
+            let version = deletion.version();
 
             if let Some(existing) = mutations.remove(&id) {
                 assert!(
-                    existing.object.version().value() < version,
+                    existing.object().version().value() < version,
                     "Deletion version ({version:?}) should be greater than existing mutation version ({:?}) for object {id:?}",
-                    existing.object.version(),
+                    existing.object().version(),
                 );
             }
 
             if let Some(existing) = deletions.insert(id, deletion) {
                 assert!(
-                    existing.object_version < version,
+                    existing.version() < version,
                     "Deletion version ({version:?}) should be greater than existing deletion version ({:?}) for object {id:?}",
-                    existing.object_version
+                    existing.version()
                 );
             }
         }
