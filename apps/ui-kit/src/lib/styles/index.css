@@ -30,9 +30,9 @@
 :root.light {
     /* COLORS */
     --warning-surface: theme('colors.iota-warning.90');
-    --on-warning: theme('colors.iota-warning.10');
+    --on-warning: theme('colors.iota-warning.20');
     --error-surface: theme('colors.iota-error.90');
-    --on-error: theme('colors.iota-warning.20');
+    --on-error: theme('colors.iota-error.20');
     --success-surface: theme('colors.iota-tertiary.90');
     --on-success: theme('colors.iota-tertiary.20');
     --default-surface: theme('colors.iota-primary.90');
@@ -57,6 +57,7 @@
 
     /* BUTTON */
     --button-bg-color-primary: theme('colors.iota-primary.30');
+    --button-bg-color-disabled-primary: theme('colors.iota-neutral.80');
     --button-bg-color-secondary: theme('colors.iota-neutral.90');
     --button-bg-color-error: theme('colors.iota-error.90');
     --button-border-color-outline: theme('colors.iota-neutral.50');
@@ -264,7 +265,7 @@
 
 :root.dark {
     /* COLORS */
-    --warning-surface: theme('colors.iota-warning.20');
+    --warning-surface: theme('colors.iota-warning.10');
     --on-warning: theme('colors.iota-warning.90');
     --error-surface: theme('colors.iota-error.10');
     --on-error: theme('colors.iota-error.90');
@@ -292,9 +293,10 @@
 
     /* BUTTON */
     --button-bg-color-primary: theme('colors.iota-primary.30');
+    --button-bg-color-disabled-primary: theme('colors.iota-neutral.30');
     --button-bg-color-secondary: theme('colors.iota-neutral.20');
     --button-bg-color-error: theme('colors.iota-error.20');
-    --button-border-color-outline: theme('colors.iota-neutral.60');
+    --button-border-color-outline: theme('colors.iota-neutral.50');
     --button-text-color-primary: theme('colors.iota-primary.100');
     --button-text-color-neutral: theme('colors.iota-neutral.92');
     --button-text-color-error: theme('colors.iota-error.90');
@@ -316,7 +318,7 @@
     --checkbox-border-color-default: theme('colors.iota-neutral.20');
     --checkbox-border-color-checked: theme('colors.iota-primary.30');
     --checkbox-border-color-disabled: theme('colors.iota-neutral.30');
-    --checkbox-border-color-disabled-checked: theme('colors.iota-neutral.40');
+    --checkbox-border-color-disabled-checked: theme('colors.iota-primary.30');
     --checkbox-bg-color-checked: theme('colors.iota-primary.30');
     --checkbox-bg-color-disabled-checked: theme('colors.iota-neutral.40');
     --checkbox-text-color: theme('colors.iota-neutral.60');
@@ -538,6 +540,7 @@
 
     /* BUTTON */
     --button-bg-color-primary: theme('colors.names-primary.30');
+    --button-bg-color-disabled-primary: theme('colors.names-neutral.30');
     --button-bg-color-secondary: theme('colors.names-neutral.20');
     --button-bg-color-error: theme('colors.names-error.20');
     --button-border-color-outline: theme('colors.names-neutral.50');

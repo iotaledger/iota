@@ -52,6 +52,10 @@
         background-color: var(--button-bg-color-primary);
     }
 
+    .button-bg-color-disabled-primary {
+        background-color: var(--button-bg-color-disabled-primary);
+    }
+
     .button-bg-color-secondary {
         background-color: var(--button-bg-color-secondary);
     }
@@ -130,11 +134,11 @@
         border-color: var(--checkbox-border-color-checked);
     }
 
-    .checkbox-border-disabled {
+    .checkbox-border-color-disabled {
         border-color: var(--checkbox-border-color-disabled);
     }
 
-    .checkbox-border-disabled-checked {
+    .checkbox-border-color-disabled-checked {
         border-color: var(--checkbox-border-color-disabled-checked);
     }
 
@@ -142,7 +146,7 @@
         background-color: var(--checkbox-bg-color-checked);
     }
 
-    .checkbox-bg-disabled-checked {
+    .checkbox-bg-color-disabled-checked {
         background-color: var(--checkbox-bg-color-disabled-checked);
     }
 
@@ -203,7 +207,7 @@
     }
 
     .button-segment-underline-hover {
-        @apply hover:before:left-2 hover:before:w-[calc(100%-16px)];
+        @apply hover:before:bottom-[-0.8px] hover:before:left-2 hover:before:w-[calc(100%-16px)];
     }
 
     .button-segment-underline-hover-color {
