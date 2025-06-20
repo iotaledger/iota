@@ -195,7 +195,7 @@ export function AccountsFinderView(): JSX.Element {
         );
     return (
         <>
-            <div className="flex h-full flex-col gap-y-sm">
+            <div className="flex h-full flex-col justify-between">
                 {(hasVestingObjects || hasMigrationObjects) && (
                     <>
                         <OffBalanceAssetsInfo
@@ -204,7 +204,7 @@ export function AccountsFinderView(): JSX.Element {
                             onOpenVestingInfo={() => setDialogVestingOpen(true)}
                             onOpenMigrationInfo={() => setDialogMigrationOpen(true)}
                         />
-                        <span className="text-center text-title-md text-neutral-10 dark:text-neutral-92">
+                        <span className="my-sm text-center text-title-md text-neutral-10 dark:text-neutral-92">
                             Found Assets
                         </span>
                     </>
@@ -244,7 +244,7 @@ export function AccountsFinderView(): JSX.Element {
                         ) : (
                             <>
                                 <Button
-                                    text="Continue"
+                                    text="Close"
                                     type={ButtonType.Secondary}
                                     fullWidth
                                     onClick={() => navigate('/tokens')}
