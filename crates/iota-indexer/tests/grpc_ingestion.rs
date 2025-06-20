@@ -9,7 +9,7 @@ use tokio_util::sync::CancellationToken;
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn test_grpc_checkpoint_ingestion() {
     // Start a test cluster with gRPC enabled
-    let grpc_port = 50051u16;
+    let grpc_port = 50062u16;
     let grpc_addr = format!("127.0.0.1:{}", grpc_port);
     let cluster = TestClusterBuilder::new()
         .with_fullnode_grpc_api_address(grpc_addr.clone())

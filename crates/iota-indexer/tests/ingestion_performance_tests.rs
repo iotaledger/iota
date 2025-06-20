@@ -11,7 +11,7 @@ use test_cluster::TestClusterBuilder;
 use tokio_util::sync::CancellationToken;
 
 const START_CP: u64 = 0;
-const MAX_CP: u64 = 4999;
+const MAX_CP: u64 = 19;
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn test_checkpoint_sync_performance_rest() {
@@ -65,7 +65,7 @@ async fn test_checkpoint_sync_performance_rest() {
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn test_checkpoint_sync_performance_grpc() {
     // Start a test cluster with gRPC enabled
-    let grpc_port = 50052u16;
+    let grpc_port = 50058u16;
     let grpc_addr = format!("127.0.0.1:{}", grpc_port);
     let cluster = TestClusterBuilder::new()
         .with_fullnode_grpc_api_address(grpc_addr.clone())

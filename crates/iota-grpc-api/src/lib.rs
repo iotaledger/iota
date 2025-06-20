@@ -12,7 +12,6 @@ pub mod checkpoint {
 use checkpoint::checkpoint_service_server::CheckpointService;
 use iota_types::storage::RestStateReader;
 pub mod client;
-use async_stream::stream;
 use bcs;
 use iota_types::{
     full_checkpoint_content::CheckpointData,
@@ -22,6 +21,7 @@ use iota_types::{
     },
     messages_checkpoint::CertifiedCheckpointSummary,
 };
+use tracing::{debug, info};
 
 pub struct CheckpointGrpcService {
     pub state_reader: Arc<dyn RestStateReader>,
@@ -141,127 +141,10 @@ where
     T: Send + Sync + 'static,
     F: CheckpointOracle<T> + Clone + Send + Sync + 'static,
 {
-    stream! {
-        let mut rx = tx.subscribe();
-        let start_idx = match (start, end) {
-            (None, None) => oracle.get_latest().unwrap_or(0),
-            _ => start.unwrap_or(0),
-        };
-
-        let mut current = start_idx;
-        let mut last_sent = None;
-
-        // Special case: only end_index provided
-        if start.is_none() && end.is_some() {
-            let idx = end.unwrap();
-            if let Some(item) = oracle.get_item(idx) {
-                yield oracle.ser2(&item);
-                return;
-            }
-            // Wait for it on broadcast
-            loop {
-                match rx.recv().await {
-                    Ok(item) if oracle.get_index(&item) == idx => {
-                        yield oracle.ser2(&item);
-                        return;
-                    }
-                    Ok(_) => continue,
-                    Err(tokio::sync::broadcast::error::RecvError::Lagged(_)) => continue,
-                    Err(_) => return,
-                }
-            }
-        }
-
-        // Historical phase
-        let latest = oracle.get_latest().unwrap_or(current);
-        let stop_at = end.map(|e| latest.min(e)).unwrap_or(latest);
-
-        while current <= stop_at {
-            if let Some(item) = oracle.get_item(current) {
-                let result = oracle.ser2(&item);
-                if let Ok(c) = &result {
-                    last_sent = Some(c.index);
-                    current += 1;
-                }
-                yield result;
-            } else {
-                last_sent = Some(current.saturating_sub(1));
-                break;
-            }
-        }
-
-        if current > stop_at {
-            last_sent = Some(stop_at);
-        }
-
-        // Live phase
-        let mut last_sent_idx = last_sent.unwrap_or(current.saturating_sub(1));
-
-        loop {
-            // Try DB first
-            if let Some(item) = oracle.get_item(last_sent_idx + 1) {
-                let result = oracle.ser2(&item);
-                if let Ok(c) = &result {
-                    tracing::info!("[GAP FILL] Sent missing checkpoint {} from DB (prev last_sent: {})", c.index, last_sent_idx);
-                    last_sent_idx = c.index;
-                } else {
-                    tracing::error!("[GAP FILL ERROR] BCS serialization error for checkpoint {}: {}", last_sent_idx + 1, result.as_ref().unwrap_err());
-                }
-                yield result;
-                continue;
-            }
-
-            // Wait for broadcast
-            match rx.recv().await {
-                Ok(item) => {
-                    let idx = oracle.get_index(&item);
-                    if let Some(end_idx) = end {
-                        if idx > end_idx { return; }
-                    }
-                    if idx == last_sent_idx + 1 {
-                        let result = oracle.ser2(&item);
-                        if result.is_ok() {
-                            last_sent_idx = idx;
-                        }
-                        yield result;
-                    }
-                    // Skip duplicates/out-of-order, continue for gaps
-                }
-                Err(tokio::sync::broadcast::error::RecvError::Lagged(_)) => {
-                    let latest = oracle.get_latest().unwrap_or(last_sent_idx);
-                    let stop_at = end.map(|e| latest.min(e)).unwrap_or(latest);
-                    while last_sent_idx < stop_at {
-                        if let Some(item) = oracle.get_item(last_sent_idx + 1) {
-                            let result = oracle.ser2(&item);
-                            if let Ok(c) = &result {
-                                tracing::info!("[GAP FILL] Sent missing checkpoint {} from DB (prev last_sent: {})", c.index, last_sent_idx);
-                                last_sent_idx = c.index;
-                            }
-                            yield result;
-                        } else {
-                            break;
-                        }
-                    }
-                }
-                Err(_) => return,
-            }
-        }
-    }
-}
-
-fn create_checkpoint_stream2<T, F>(
-    oracle: F,
-    tx: tokio::sync::broadcast::Sender<Arc<T>>,
-    start: Option<u64>,
-    end: Option<u64>,
-) -> impl futures::Stream<Item = CheckpointStreamResult> + Send
-where
-    T: Send + Sync + 'static,
-    F: CheckpointOracle<T> + Clone + Send + Sync + 'static,
-{
     async_stream::try_stream! {
         let mut rx = tx.subscribe();
         let mut latest = oracle.get_latest().unwrap_or(0);
+        debug!("[profile][grpc] Latest checkpoint index: {latest}.");
         let (mut start, end) = match (start, end) {
             (None, None) => (latest, u64::MAX),
             (None, Some(end)) => (end, end),
@@ -275,6 +158,7 @@ where
             if start <= latest {
                 if let Some(item) = oracle.get_item(start) {
                     // TODO: add backfill tracing messages
+                    debug!("[profile][grpc] Fetched checkpoint data for index {start} from DB.");
                     yield oracle.ser2(&item)?;
                     if start == end {
                         break;
@@ -282,14 +166,18 @@ where
                     start += 1;
                     continue;
                 } else {
-                    // report error the the stream and break
-                    Err(Status::internal(format!("Historical checkpoint data missing/pruned: index={start} latest={latest}.")))?;
-                    break;
+                    if start < latest {
+                        Err(Status::internal(format!("Historical checkpoint data missing/pruned: index={start} latest={latest}.")))?;
+                    } else {
+                        // When start == latest, sometimes the checkpoint is not yet available in the DB: switch to live phase (wait for broadcast)
+                        debug!("[profile][grpc] Checkpoint {start} is not yet available in the DB, switching to live phase.");
+                    }
                 }
             }
             // latest < start, live phase
             if let Some(item) = cached.take() {
                 // already have something in cache
+                debug!("[profile][grpc] Using cached checkpoint data for index {start}.");
                 let idx = oracle.get_index(&item);
                 if start == idx {
                     yield oracle.ser2(&item)?;
@@ -304,6 +192,7 @@ where
             // wait for broadcast
             match rx.recv().await {
                 Ok(item) => {
+                    debug!("[profile][grpc] Get checkpoint data for index {} from broadcast channel", oracle.get_index(&item));
                     let idx = oracle.get_index(&item);
                     if start == idx {
                         yield oracle.ser2(&item)?;
@@ -314,6 +203,7 @@ where
                         continue;
                     } else if start < idx {
                         // the item is too fresh, need to fill the gap from history DB
+                        debug!("[profile][grpc] Gap detected, waiting for historical data for index {start} (latest: {latest}).");
                         cached = Some(item);
                     } // else item is too old, just drop it and continue
                 }
@@ -327,6 +217,7 @@ where
                 },
             }
             latest = oracle.get_latest().unwrap_or(start);
+            debug!("[profile][grpc] Updating latest checkpoint index to {latest}.");
         }
     }
 }
@@ -339,7 +230,7 @@ impl CheckpointGrpcService {
     ) -> impl futures::Stream<Item = CheckpointStreamResult> + Send {
         let state_reader = self.state_reader.clone();
         let oracle = Oracle { state_reader };
-        create_checkpoint_stream2(oracle, self.grpc_checkpoint_data_tx.clone(), start, end)
+        create_checkpoint_stream(oracle, self.grpc_checkpoint_data_tx.clone(), start, end)
     }
 
     fn stream_checkpoint_summary(
@@ -349,7 +240,7 @@ impl CheckpointGrpcService {
     ) -> impl futures::Stream<Item = CheckpointStreamResult> + Send {
         let state_reader = self.state_reader.clone();
         let oracle = Oracle { state_reader };
-        create_checkpoint_stream2(oracle, self.grpc_checkpoint_summary_tx.clone(), start, end)
+        create_checkpoint_stream(oracle, self.grpc_checkpoint_summary_tx.clone(), start, end)
     }
 }
 
@@ -380,7 +271,7 @@ impl CheckpointService for CheckpointGrpcService {
         request: Request<checkpoint::EpochRequest>,
     ) -> Result<Response<checkpoint::CheckpointSequenceNumberResponse>, Status> {
         let epoch = request.into_inner().epoch;
-        tracing::info!(
+        info!(
             "get_epoch_first_checkpoint_sequence_number called for epoch {}",
             epoch
         );
@@ -388,7 +279,7 @@ impl CheckpointService for CheckpointGrpcService {
         let latest_seq = match self.state_reader.get_highest_synced_checkpoint() {
             Ok(cp) => *cp.sequence_number(),
             Err(_) => {
-                tracing::info!("No checkpoints found in the system for epoch {}", epoch);
+                info!("No checkpoints found in the system for epoch {}", epoch);
                 return Ok(Response::new(
                     checkpoint::CheckpointSequenceNumberResponse { sequence_number: 0 },
                 ));
@@ -400,10 +291,9 @@ impl CheckpointService for CheckpointGrpcService {
             .get_checkpoint_by_sequence_number(latest_seq)
         {
             if epoch > latest_summary.epoch {
-                tracing::info!(
+                info!(
                     "Requested epoch {} > latest epoch {}",
-                    epoch,
-                    latest_summary.epoch
+                    epoch, latest_summary.epoch
                 );
                 return Ok(Response::new(
                     checkpoint::CheckpointSequenceNumberResponse { sequence_number: 0 },
@@ -421,10 +311,9 @@ impl CheckpointService for CheckpointGrpcService {
 
         let found_seq = self.binary_search_epoch_start(epoch, latest_seq).await;
 
-        tracing::info!(
+        info!(
             "Found first checkpoint for epoch {}: seq={}",
-            epoch,
-            found_seq
+            epoch, found_seq
         );
 
         Ok(Response::new(
@@ -470,10 +359,9 @@ impl CheckpointGrpcService {
     }
 
     async fn find_epoch_start_backwards(&self, target_epoch: u64, start_seq: u64) -> u64 {
-        tracing::debug!(
+        debug!(
             "Finding epoch {} start, searching backwards from seq {}",
-            target_epoch,
-            start_seq
+            target_epoch, start_seq
         );
 
         let mut current_seq = start_seq;
@@ -485,37 +373,31 @@ impl CheckpointGrpcService {
                 .get_checkpoint_by_sequence_number(current_seq)
             {
                 Ok(Some(summary)) => {
-                    tracing::debug!(
+                    debug!(
                         "Checkpoint {} has epoch {}, target epoch {}",
-                        current_seq,
-                        summary.epoch,
-                        target_epoch
+                        current_seq, summary.epoch, target_epoch
                     );
 
                     if summary.epoch == target_epoch {
                         first_seq = current_seq;
                         if current_seq == 0 {
-                            tracing::debug!(
+                            debug!(
                                 "Reached checkpoint 0, stopping search. First seq for epoch {}: {}",
-                                target_epoch,
-                                first_seq
+                                target_epoch, first_seq
                             );
                             break;
                         }
                         current_seq = current_seq - 1;
                     } else {
-                        tracing::debug!(
+                        debug!(
                             "Found different epoch {} at seq {}, stopping search. First seq for epoch {}: {}",
-                            summary.epoch,
-                            current_seq,
-                            target_epoch,
-                            first_seq
+                            summary.epoch, current_seq, target_epoch, first_seq
                         );
                         break;
                     }
                 }
                 _ => {
-                    tracing::debug!("No checkpoint found at seq {}", current_seq);
+                    debug!("No checkpoint found at seq {}", current_seq);
                     if current_seq == 0 {
                         break;
                     }
@@ -524,10 +406,9 @@ impl CheckpointGrpcService {
             }
         }
 
-        tracing::debug!(
+        debug!(
             "Final result: first checkpoint of epoch {} is {}",
-            target_epoch,
-            first_seq
+            target_epoch, first_seq
         );
         first_seq
     }

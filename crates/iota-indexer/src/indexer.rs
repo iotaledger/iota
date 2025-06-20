@@ -73,16 +73,6 @@ impl Indexer {
             .expect("Failed to get latest tx checkpoint sequence number from DB")
             .map(|seq| seq + 1)
             .unwrap_or_default();
-
-        // For gRPC mode, if starting from 0, warn about potential pruning issues
-        let primary_watermark = if primary_watermark == 0 && config.grpc_client_url.is_some() {
-            warn!(
-                "Starting from checkpoint 0 with gRPC - if you see 'Historical checkpoint data missing/pruned' errors, consider setting a higher starting checkpoint or using REST mode for historical sync"
-            );
-            primary_watermark
-        } else {
-            primary_watermark
-        };
         let download_queue_size = env::var("DOWNLOAD_QUEUE_SIZE")
             .unwrap_or_else(|_| DOWNLOAD_QUEUE_SIZE.to_string())
             .parse::<usize>()
