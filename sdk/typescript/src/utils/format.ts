@@ -45,8 +45,7 @@ export function trimOrFormatAddress(address: string): string {
         return address;
     }
 
-    const offset = address.startsWith('0x') ? 2 : 0;
-    const trimmedAddress = `0x${address.slice(offset).replace(/^0+/, '') || '0'}`;
+    const trimmedAddress = trimAddress(address);
 
     if (trimmedAddress.length <= ADDRESS_TRIM_MAX_LENGTH) {
         return trimmedAddress;
