@@ -2,9 +2,9 @@
 // SPDX-License-Identifier: Apache-2.0
 
 export const INPUT_CLASSES =
-    'w-full bg-transparent text-body-lg caret-input-caret-color focus:outline-none focus-visible:outline-none disabled:cursor-not-allowed';
+    'w-full input-caret-color bg-transparent text-body-lg caret-input-caret-color focus:outline-none focus-visible:outline-none disabled:cursor-not-allowed';
 export const INPUT_TEXT_CLASSES = 'input-text-color';
-export const INPUT_PLACEHOLDER_CLASSES = 'placeholder:input-placeholder-color';
+export const INPUT_PLACEHOLDER_CLASSES = 'input-placeholder-color';
 export const INPUT_NUMBER_CLASSES =
     '[appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none disabled:cursor-not-allowed';
 export const BORDER_CLASSES =
