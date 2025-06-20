@@ -35,7 +35,7 @@ export function MigrationDialog({ open, setOpen }: MigrationDialogProps) {
                             subtitle="Migrate your Stardust assets using the IOTA Wallet Dashboard"
                             size={BannerSize.Small}
                         >
-                            <div className="text-primary-30 dark:text-primary-80 flex w-full flex-wrap justify-start gap-xs text-body-sm">
+                            <div className="flex w-full flex-wrap justify-start gap-xs text-body-sm text-primary-30 dark:text-primary-80">
                                 <Link
                                     to="https://docs.iota.org/about-iota/iota-wallet-dashboard/how-to/migration"
                                     target="_blank"
@@ -58,10 +58,10 @@ export function MigrationDialog({ open, setOpen }: MigrationDialogProps) {
                         </Banner>
                         <Panel bgColor="bg-secondary-90 dark:bg-secondary-10">
                             <div className="flex flex-col items-start justify-start gap-xs p-md text-start">
-                                <span className="text-neutral-10 dark:text-neutral-92 text-title-sm">
+                                <span className="text-title-sm text-neutral-10 dark:text-neutral-92">
                                     Step-by-step
                                 </span>
-                                <ol className="text-neutral-40 dark:text-neutral-60 list-decimal space-y-xs pl-md text-body-sm">
+                                <ol className="list-decimal space-y-xs pl-md text-body-sm text-neutral-40 dark:text-neutral-60">
                                     <li>Connect your wallet to the IOTA Wallet Dashboard</li>
                                     <li>Go to the Migration tab in the sidebar</li>
                                     <li>Click Migrate All to review available tokens and NFTs</li>
