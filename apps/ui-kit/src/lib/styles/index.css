@@ -15,7 +15,8 @@
 :root.light,
 :root.dark {
     /* FONTS */
-    --font-family: theme('fontFamily.alliance-no2');
+    --font-family-heading: theme('fontFamily.alliance-no2');
+    --font-family-text: theme('fontFamily.inter');
     --display-lg-font-weight: 500;
     --display-lg-line-height: 120%;
     --display-md-font-weight: 500;
@@ -42,6 +43,7 @@
     /* BADGE */
     --badge-bg-color-neutral: theme('colors.iota-neutral.92');
     --badge-text-color-neutral: theme('colors.iota-neutral.10');
+    --badge-border-color-neutral: theme('colors.iota-neutral.92');
     --badge-bg-color-primary: theme('colors.iota-primary.30');
     --badge-border-color-primary: theme('colors.iota-primary.30');
     --badge-text-color-primary: theme('colors.iota-primary.100');
@@ -85,6 +87,9 @@
     --checkbox-text-color: theme('colors.iota-neutral.40');
     --checkbox-text-color-checked: theme('colors.white');
     --checkbox-label-text-color: theme('colors.iota-neutral.40');
+
+    /* DIVIDER */
+    --divider-bg-color: theme('colors.shader-neutral-light.8');
 
     /* BUTTON SEGMENT */
     --button-segment-text-color-default: theme('colors.iota-neutral.60');
@@ -200,10 +205,10 @@
     --input-visibility-bar-color: rgba(28, 28, 28, 0.6); /* neutral.92 with 60% opacity */
 
     /* NAVBAR ITEM */
-    --navbar-icon-color: theme('colors.iota-neutral.40');
-    --navbar-icon-selected-color: theme('colors.iota-neutral.10');
-    --navbar-label-color: theme('colors.iota-neutral.60');
-    --navbar-label-selected-color: theme('colors.iota-neutral.10');
+    --navbar-item-icon-color: theme('colors.iota-neutral.40');
+    --navbar-item-icon-selected-color: theme('colors.iota-neutral.10');
+    --navbar-item-label-color: theme('colors.iota-neutral.60');
+    --navbar-item-label-selected-color: theme('colors.iota-neutral.10');
 
     /* SEARCH */
     --search-text-color: theme('colors.iota-neutral.10');
@@ -211,6 +216,7 @@
     --search-border-color: theme('colors.iota-neutral.70');
     --search-bg-color-filled: theme('colors.iota-neutral.92');
     --search-suggestion-bg-color: theme('colors.iota-neutral.100');
+    --search-selected-index-bg-color: theme('colors.shader-primary-dark.16');
 
     /* SEGMENTED BUTTON */
     --segmented-filled-bg-color: theme('colors.iota-neutral.96');
@@ -226,6 +232,7 @@
 
     /* TABLE CELL */
     --table-cell-supporting-label-color: theme('colors.iota-neutral.60');
+    --table-cell-border-color: theme('colors.shader-neutral-light.8');
 
     /* TABLE HEADER CELL */
     --table-header-text-color: theme('colors.iota-neutral.10');
@@ -233,12 +240,14 @@
     /* TITLE */
     --title-main-color: theme('colors.iota-neutral.10');
     --title-subtitle-color: theme('colors.iota-neutral.60');
+    --title-icon-color: theme('colors.iota-neutral.60');
 
     /* ---------------- ORGANISMS ---------------- */
 
     /* ACCORDION */
     --accordion-bg: theme('colors.iota-neutral.100');
     --accordion-icon-color: theme('colors.iota-neutral.10');
+    --accordion-border-color: theme('colors.shader-neutral-light.8');
 
     /* DIALOG */
     --dialog-content-bg: theme('colors.iota-primary.100');
@@ -269,6 +278,7 @@
     /* BADGE */
     --badge-bg-color-neutral: theme('colors.iota-neutral.12');
     --badge-text-color-neutral: theme('colors.iota-neutral.92');
+    --badge-border-color-neutral: theme('colors.iota-neutral.12');
     --badge-bg-color-primary: theme('colors.iota-primary.30');
     --badge-border-color-primary: theme('colors.iota-primary.30');
     --badge-text-color-primary: theme('colors.iota-neutral.100');
@@ -312,6 +322,9 @@
     --checkbox-text-color: theme('colors.iota-neutral.60');
     --checkbox-text-color-checked: theme('colors.white');
     --checkbox-label-text-color: theme('colors.iota-neutral.60');
+
+    /* DIVIDER */
+    --divider-bg-color: theme('colors.shader-neutral-dark.8');
 
     /* BUTTON SEGMENT */
     --button-segment-text-color-default: theme('colors.iota-neutral.40');
@@ -427,17 +440,18 @@
     --input-visibility-bar-color: rgba(250, 250, 250, 0.6); /* neutral.10 with 60% opacity */
 
     /* NAVBAR ITEM */
-    --navbar-icon-color: theme('colors.iota-neutral.60');
-    --navbar-icon-selected-color: theme('colors.iota-neutral.92');
+    --navbar-item-icon-color: theme('colors.iota-neutral.60');
+    --navbar-item-icon-selected-color: theme('colors.iota-neutral.92');
+    --navbar-item-label-color: theme('colors.iota-neutral.40');
+    --navbar-item-label-selected-color: theme('colors.iota-neutral.92');
 
-    --navbar-label-color: theme('colors.iota-neutral.40');
-    --navbar-label-selected-color: theme('colors.iota-neutral.92');
     /* SEARCH */
     --search-text-color: theme('colors.iota-neutral.92');
     --search-placeholder-color: theme('colors.iota-neutral.60');
     --search-border-color: theme('colors.iota-neutral.40');
     --search-bg-color-filled: theme('colors.iota-neutral.12');
     --search-suggestion-bg-color: theme('colors.iota-neutral.10');
+    --search-selected-index-bg-color: theme('colors.shader-inverted-dark.16');
 
     /* SEGMENTED BUTTON */
     --segmented-filled-bg-color: theme('colors.iota-neutral.10');
@@ -453,6 +467,7 @@
 
     /* TABLE CELL */
     --table-cell-supporting-label-color: theme('colors.iota-neutral.40');
+    --table-cell-border-color: theme('colors.shader-neutral-dark.8');
 
     /* TABLE HEADER CELL */
     --table-header-text-color: theme('colors.iota-neutral.92');
@@ -460,12 +475,13 @@
     /* TITLE */
     --title-main-color: theme('colors.iota-neutral.92');
     --title-subtitle-color: theme('colors.iota-neutral.40');
-
+    --title-icon-color: theme('colors.iota-neutral.40');
     /* ---------------- ORGANISMS ---------------- */
 
     /* ACCORDION */
     --accordion-bg: theme('colors.iota-neutral.6');
     --accordion-icon-color: theme('colors.iota-neutral.92');
+    --accordion-border-color: theme('colors.shader-neutral-dark.8');
 
     /* DIALOG */
     --dialog-content-bg: theme('colors.iota-neutral.6');
@@ -481,7 +497,8 @@
 }
 
 :root.names {
-    --font-family: theme('fontFamily.roboto-flex');
+    --font-family-heading: theme('fontFamily.roboto-flex');
+    --font-family-text: theme('fontFamily.inter');
     --display-lg-font-weight: 700;
     --display-lg-line-height: 100%;
     --display-md-font-weight: 700;
@@ -507,6 +524,7 @@
     /* BADGE */
     --badge-bg-color-neutral: theme('colors.names-neutral.12');
     --badge-text-color-neutral: theme('colors.names-neutral.92');
+    --badge-border-color-neutral: theme('colors.iota-neutral.12');
     --badge-bg-color-primary: theme('colors.names-primary.30');
     --badge-border-color-primary: theme('colors.names-primary.30');
     --badge-text-color-primary: theme('colors.names-neutral.100');
@@ -550,6 +568,9 @@
     --checkbox-text-color: theme('colors.names-neutral.60');
     --checkbox-text-color-checked: theme('colors.white');
     --checkbox-label-text-color: theme('colors.names-neutral.60');
+
+    /* DIVIDER */
+    --divider-bg-color: theme('colors.shader-neutral-dark.8');
 
     /* BUTTON SEGMENT */
     --button-segment-text-color-default: theme('colors.names-neutral.40');
@@ -663,17 +684,18 @@
     --input-visibility-bar-color: rgba(250, 250, 250, 0.6); /* neutral.10 with 60% opacity */
 
     /* NAVBAR ITEM */
-    --navbar-icon-color: theme('colors.names-neutral.60');
-    --navbar-icon-selected-color: theme('colors.names-neutral.92');
+    --navbar-item-icon-color: theme('colors.names-neutral.60');
+    --navbar-item-icon-selected-color: theme('colors.names-neutral.92');
+    --navbar-item-label-color: theme('colors.names-neutral.40');
+    --navbar-item-label-selected-color: theme('colors.names-neutral.92');
 
-    --navbar-label-color: theme('colors.names-neutral.40');
-    --navbar-label-selected-color: theme('colors.names-neutral.92');
     /* SEARCH */
     --search-text-color: theme('colors.names-neutral.92');
     --search-placeholder-color: theme('colors.names-neutral.60');
     --search-border-color: theme('colors.names-neutral.40');
     --search-bg-color-filled: theme('colors.names-neutral.12');
     --search-suggestion-bg-color: theme('colors.names-neutral.10');
+    --search-selected-index-bg-color: theme('colors.shader-inverted-dark.16');
 
     /* SEGMENTED BUTTON */
     --segmented-filled-bg-color: theme('colors.names-neutral.10');
@@ -689,6 +711,7 @@
 
     /* TABLE CELL */
     --table-cell-supporting-label-color: theme('colors.names-neutral.40');
+    --table-cell-border-color: theme('colors.shader-neutral-dark.8');
 
     /* TABLE HEADER CELL */
     --table-header-text-color: theme('colors.names-neutral.92');
@@ -696,12 +719,14 @@
     /* TITLE */
     --title-main-color: theme('colors.names-neutral.92');
     --title-subtitle-color: theme('colors.names-neutral.40');
+    --title-icon-color: theme('colors.iota-neutral.50');
 
     /* ---------------- ORGANISMS ---------------- */
 
     /* ACCORDION */
     --accordion-bg: theme('colors.iota-neutral.6');
     --accordion-icon-color: theme('colors.iota-neutral.92');
+    --accordion-border-color: theme('colors.shader-neutral-dark.8');
 
     /* DIALOG */
     --dialog-content-bg: theme('colors.iota-neutral.6');

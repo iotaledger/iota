@@ -27,7 +27,7 @@ export function TableCellBase({
     return (
         <td
             className={cx(
-                'h-14 border-b border-shader-neutral-light-8 px-md dark:border-shader-neutral-dark-8',
+                'table-cell-border-color h-14  border-b px-md',
                 { 'last:border-none': hasLastBorderNoneClass },
                 { 'flex items-center justify-center': isContentCentered },
             )}
