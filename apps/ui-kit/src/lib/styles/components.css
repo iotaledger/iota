@@ -476,6 +476,7 @@
     .input-text-color {
         color: var(--input-text-color);
     }
+
     .input-caret-color {
         caret-color: var(--input-caret-color);
     }
@@ -486,10 +487,6 @@
 
     .input-icon-color {
         color: var(--input-icon-color);
-    }
-
-    .input-caret-color {
-        caret-color: var(--input-caret-color);
     }
 
     .input-border-color {
