@@ -547,9 +547,6 @@ pub enum IotaError {
     #[error("Authority Error: {error:?}")]
     GenericAuthority { error: String },
 
-    #[error("Generic Bridge Error: {error:?}")]
-    GenericBridge { error: String },
-
     #[error("Failed to dispatch subscription: {error:?}")]
     FailedToDispatchSubscription { error: String },
 
@@ -647,9 +644,6 @@ pub enum IotaError {
 
     #[error("Failed to read or deserialize system state related data structures on-chain: {0}")]
     IotaSystemStateRead(String),
-
-    #[error("Failed to read or deserialize bridge related data structures on-chain: {0}")]
-    IotaBridgeRead(String),
 
     #[error("Unexpected version error: {0}")]
     UnexpectedVersion(String),

@@ -36,7 +36,7 @@ use crate::{
     drivers::Interval,
     in_memory_wallet::{InMemoryWallet, move_call_pt_impl},
     system_state_observer::{SystemState, SystemStateObserver},
-    workloads::{Gas, GasCoinConfig, payload::Payload},
+    workloads::{Gas, GasCoinConfig, payload::Payload, workload::ExpectedFailureType},
 };
 
 /// Number of vectors to create in LargeTransientRuntimeVectors workload
@@ -196,6 +196,10 @@ impl Payload for AdversarialTestPayload {
                 .as_ref()
                 .expect("Protocol config not in system state"),
         )
+    }
+
+    fn get_failure_type(&self) -> Option<ExpectedFailureType> {
+        None
     }
 }
 

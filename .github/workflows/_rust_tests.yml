@@ -90,12 +90,12 @@ jobs:
       - run: docker restart --time 0 postgres_container
       - run: sleep 5
       - name: rust tests
-        # test using filters, to only include changed crates and all their dependent crates
+        # test using filters, to only include changed crates and all their dependent crates.
         # "CI_IS_EXTERNAL_CRATES" is set "isRust" because we also want to test the external crates when rust code changes.
-        # "RESTART_POSTGRES" are set in the env variables above
+        # "RESTART_POSTGRES" are set in the env variables above.
         run: |
           export CI_IS_RUST=${{ inputs.isRust }}
-          export CI_IS_EXTERNAL_CRATES=${{ inputs.inputs.isRust }}
+          export CI_IS_EXTERNAL_CRATES=${{ inputs.isRust }}
           export CI_IS_PG_INTEGRATION=${{ inputs.isPgIntegration }}
           export CI_IS_MOVE_EXAMPLE_USED_BY_OTHERS=${{ inputs.isMoveExampleUsedByOthers }}
           export TEST_ONLY_CHANGED_CRATES=${{ inputs.testOnlyChangedCrates }}
@@ -148,12 +148,10 @@ jobs:
       - run: docker restart --time 0 postgres_container
       - run: sleep 5
       - name: rust tests
-        # test using filters, to only include changed crates and all their dependent crates
-        # "CI_IS_EXTERNAL_CRATES" is set "isRust" because we also want to test the external crates when rust code changes.
-        # "RESTART_POSTGRES" are set in the env variables above
+        # test using filters, to only include changed crates and all their dependent crates.
+        # "RESTART_POSTGRES" are set in the env variables above.
         run: |
           export CI_IS_RUST=${{ inputs.isRust }}
-          export CI_IS_EXTERNAL_CRATES=${{ inputs.inputs.isRust }}
           export CI_IS_PG_INTEGRATION=${{ inputs.isPgIntegration }}
           export CI_IS_MOVE_EXAMPLE_USED_BY_OTHERS=${{ inputs.isMoveExampleUsedByOthers }}
           export TEST_ONLY_CHANGED_CRATES=${{ inputs.testOnlyChangedCrates }}
@@ -162,12 +160,6 @@ jobs:
             export CI_CHANGED_CRATES="${{ inputs.changedCrates }}"
           else
             unset CI_CHANGED_CRATES
-          fi
-
-          if [ -n "${{ inputs.changedExternalCrates }}" ]; then
-            export CI_CHANGED_EXTERNAL_CRATES="${{ inputs.changedExternalCrates }}"
-          else
-            unset CI_CHANGED_EXTERNAL_CRATES
           fi
 
           ./scripts/ci_tests/rust_tests.sh run_simtests
