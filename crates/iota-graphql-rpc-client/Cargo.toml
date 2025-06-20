@@ -8,9 +8,12 @@ publish = false
 
 [dependencies]
 # external dependencies
-async-graphql = { workspace = true, features = ["dataloader", "apollo_tracing", "tracing", "opentelemetry"] }
-axum.workspace = true
-hyper.workspace = true
+async-graphql = { workspace = true, features = [
+    "dataloader",
+    "apollo_tracing",
+    "tracing",
+    "opentelemetry",
+] }
 reqwest.workspace = true
 serde_json.workspace = true
 thiserror.workspace = true

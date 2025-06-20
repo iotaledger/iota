@@ -5699,7 +5699,6 @@ dependencies = [
  "fs_extra",
  "futures",
  "im",
- "indexmap 2.5.0",
  "iota-archival",
  "iota-authority-aggregation",
  "iota-common",
@@ -5722,7 +5721,6 @@ dependencies = [
  "iota-transaction-checks",
  "iota-types",
  "itertools 0.13.0",
- "jsonrpsee",
  "lru",
  "mockall",
  "moka",
@@ -5768,8 +5766,6 @@ dependencies = [
  "tracing",
  "twox-hash",
  "typed-store",
- "typed-store-derive",
- "zeroize",
 ]
 
 [[package]]
@@ -6260,8 +6256,6 @@ version = "1.4.0-alpha"
 dependencies = [
  "anyhow",
  "async-graphql",
- "axum 0.8.4",
- "hyper 1.4.1",
  "iota-graphql-rpc-headers",
  "reqwest 0.12.7",
  "serde_json",
@@ -7600,7 +7594,6 @@ dependencies = [
  "iota-rest-api",
  "iota-simulator",
  "iota-types",
- "move-bytecode-utils",
  "prometheus",
  "rand 0.8.5",
  "serde",
