@@ -785,6 +785,8 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> Synchronizer<C
 
                 // Get the highest of all the results. Retry until at least `f+1` results have been gathered.
                 let mut highest_round;
+                // Keep track of the received responses to avoid fetching the own block header from same peer
+                let mut received_response = vec![false; context.committee.size()];
                 let mut retries = 0;
                 let mut retry_delay_step = Duration::from_millis(500);
                 'main:loop {
@@ -801,7 +803,8 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> Synchronizer<C
                     let mut results = FuturesUnordered::new();
 
                     for (authority_index, _authority) in context.committee.authorities() {
-                        if authority_index != context.own_index {
+                        // Skip our own index and the ones that have already responded
+                        if authority_index != context.own_index && !received_response[authority_index] {
                             results.push(fetch_own_block(authority_index, Duration::from_millis(0)));
                         }
                     }
@@ -820,6 +823,7 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> Synchronizer<C
                                     Ok(result) => {
                                         match process_blocks(result, authority_index) {
                                             Ok(blocks) => {
+                                                received_response[authority_index] = true;
                                                 let max_round = blocks.into_iter().map(|b|b.round()).max().unwrap_or(0);
                                                 highest_round = highest_round.max(max_round);
 

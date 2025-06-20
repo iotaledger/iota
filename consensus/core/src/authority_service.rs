@@ -579,7 +579,6 @@ impl SubscriptionCounter {
             .subscribed_by
             .with_label_values(&[peer_hostname])
             .set(1);
-
         if counter.count == 1 {
             self.dispatcher
                 .set_subscriber_exists(true)
