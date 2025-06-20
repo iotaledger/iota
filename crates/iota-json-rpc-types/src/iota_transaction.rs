@@ -1772,7 +1772,16 @@ impl IotaProgrammableTransactionBlock {
         value: ProgrammableTransaction,
         package_resolver: Arc<Resolver<impl PackageStore>>,
     ) -> Result<Self, anyhow::Error> {
-        let input_types = package_resolver.pure_input_layouts(&value).await?;
+        // If the pure input layouts cannot be built, we will use `None` for the input
+        // types.
+        let input_types = package_resolver
+            .pure_input_layouts(&value)
+            .await
+            .unwrap_or_else(|e| {
+                tracing::warn!("pure_input_layouts failed: {:?}", e);
+                vec![None; value.inputs.len()]
+            });
+
         let ProgrammableTransaction { inputs, commands } = value;
         Ok(IotaProgrammableTransactionBlock {
             inputs: inputs
