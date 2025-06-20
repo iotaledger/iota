@@ -6518,7 +6518,6 @@ version = "1.4.0-alpha"
 dependencies = [
  "anyhow",
  "bcs",
- "chrono",
  "colored",
  "enum_dispatch",
  "fastcrypto",
@@ -6573,7 +6572,6 @@ dependencies = [
  "bin-version",
  "clap",
  "env_logger",
- "futures",
  "getset",
  "iota-archival",
  "iota-config",
@@ -6584,7 +6582,6 @@ dependencies = [
  "iota-rest-api",
  "iota-sdk 1.4.0-alpha",
  "iota-types",
- "log",
  "move-core-types",
  "object_store 0.10.2",
  "prometheus",
@@ -6960,7 +6957,6 @@ dependencies = [
  "move-package",
  "move-symbol-pool",
  "thiserror 1.0.64",
- "tracing",
 ]
 
 [[package]]
@@ -7301,7 +7297,6 @@ dependencies = [
  "async-trait",
  "base64 0.21.7",
  "bcs",
- "clap",
  "colored",
  "dirs 5.0.1",
  "fastcrypto",
@@ -7792,7 +7787,6 @@ dependencies = [
  "better_any",
  "bincode",
  "byteorder",
- "chrono",
  "consensus-config",
  "coset",
  "criterion",
