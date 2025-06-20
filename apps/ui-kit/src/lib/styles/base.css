@@ -5,7 +5,7 @@
     .text-headline-lg,
     .text-headline-md,
     .text-headline-sm {
-        font-family: var(--font-family);
+        font-family: var(--font-family-heading);
     }
 
     .text-title-lg,
@@ -20,7 +20,7 @@
     .text-label-lg,
     .text-label-md,
     .text-label-sm {
-        font-family: var(--font-family);
+        font-family: var(--font-family-text);
     }
 
     .text-display-lg,
