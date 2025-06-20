@@ -6,7 +6,7 @@ import {
     useNftDetails,
     Collapsible,
     useNFTBasicData,
-    NftImage,
+    NFTMediaDisplayCard,
 } from '@iota/core';
 import { Button, ButtonType, Header, KeyValueInfo } from '@iota/apps-ui-kit';
 import { formatAddress } from '@iota/iota-sdk/utils';
@@ -57,7 +57,11 @@ export function DetailsView({ onClose, asset, onSend, onBack }: DetailsViewProps
             <DialogLayoutBody>
                 <div className="flex w-full flex-col items-center justify-center gap-xs">
                     <div className="w-[172px]">
-                        <NftImage src={nftImageUrl} title={nftName || 'NFT'} isHoverable={false} />
+                        <NFTMediaDisplayCard
+                            src={nftImageUrl}
+                            title={nftName || 'NFT'}
+                            isHoverable={false}
+                        />
                     </div>
                     <ExplorerLink type={ExplorerLinkType.Object} objectID={objectId}>
                         <Button type={ButtonType.Ghost} text="View on Explorer" />
