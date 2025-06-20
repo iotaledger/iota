@@ -35,10 +35,10 @@ export function SupplyIncreaseVestingStakingDialog({
                         <Banner
                             videoSrc={videoSrc}
                             title="Vested Staking"
-                            subtitle="Lorem ipsum dolor sit amet, consectetur adipiscing elit. "
+                            subtitle="Get an overview of your vested tokens and manage them"
                             size={BannerSize.Small}
                         >
-                            <div className="flex w-full flex-wrap justify-start gap-xs text-body-sm text-primary-30 dark:text-primary-80">
+                            <div className="text-primary-30 dark:text-primary-80 flex w-full flex-wrap justify-start gap-xs text-body-sm">
                                 <Link
                                     to="https://docs.iota.org/about-iota/iota-wallet-dashboard/how-to/vesting"
                                     target="_blank"
@@ -60,22 +60,19 @@ export function SupplyIncreaseVestingStakingDialog({
                             </div>
                         </Banner>
                         <Panel bgColor="bg-secondary-90 dark:bg-secondary-10">
-                            <div className="flex flex-col items-start justify-start gap-xs p-md">
-                                <span className="text-title-sm text-neutral-10 dark:text-neutral-92">
+                            <div className="flex flex-col items-start justify-start gap-xs p-md text-start">
+                                <span className="text-neutral-10 dark:text-neutral-92 text-title-sm">
                                     Step-by-step
                                 </span>
-                                <span className="text-body-md text-neutral-40 dark:text-neutral-60">
-                                    1. Lorem ipsum.
-                                </span>
-                                <span className="text-body-md text-neutral-40 dark:text-neutral-60">
-                                    2. Lorem ipsum.
-                                </span>
-                                <span className="text-body-md text-neutral-40 dark:text-neutral-60">
-                                    3. Lorem ipsum.
-                                </span>
-                                <span className="text-body-md text-neutral-40 dark:text-neutral-60">
-                                    4. Lorem ipsum.
-                                </span>
+                                <ol className="text-neutral-40 dark:text-neutral-60 list-decimal space-y-xs pl-md text-body-sm">
+                                    <li>Connect your wallet to the IOTA Wallet Dashboard</li>
+                                    <li>Open the Vesting tab from the sidebar</li>
+                                    <li>Click See All to open the full vesting calendar</li>
+                                    <li>
+                                        Claim tokens as they unlock, or stake them directly from the
+                                        dashboard
+                                    </li>
+                                </ol>
                             </div>
                         </Panel>
                     </div>

@@ -32,10 +32,10 @@ export function MigrationDialog({ open, setOpen }: MigrationDialogProps) {
                         <Banner
                             videoSrc={videoSrc}
                             title="Migration Needed"
-                            subtitle="Lorem ipsum dolor sit amet, consectetur adipiscing elit. "
+                            subtitle="Migrate your Stardust assets using the IOTA Wallet Dashboard"
                             size={BannerSize.Small}
                         >
-                            <div className="flex w-full flex-wrap justify-start gap-xs text-body-sm text-primary-30 dark:text-primary-80">
+                            <div className="text-primary-30 dark:text-primary-80 flex w-full flex-wrap justify-start gap-xs text-body-sm">
                                 <Link
                                     to="https://docs.iota.org/about-iota/iota-wallet-dashboard/how-to/migration"
                                     target="_blank"
@@ -57,22 +57,19 @@ export function MigrationDialog({ open, setOpen }: MigrationDialogProps) {
                             </div>
                         </Banner>
                         <Panel bgColor="bg-secondary-90 dark:bg-secondary-10">
-                            <div className="flex flex-col items-start justify-start gap-xs p-md">
-                                <span className="text-title-sm text-neutral-10 dark:text-neutral-92">
+                            <div className="flex flex-col items-start justify-start gap-xs p-md text-start">
+                                <span className="text-neutral-10 dark:text-neutral-92 text-title-sm">
                                     Step-by-step
                                 </span>
-                                <span className="text-body-md text-neutral-40 dark:text-neutral-60">
-                                    1. Lorem ipsum.
-                                </span>
-                                <span className="text-body-md text-neutral-40 dark:text-neutral-60">
-                                    2. Lorem ipsum.
-                                </span>
-                                <span className="text-body-md text-neutral-40 dark:text-neutral-60">
-                                    3. Lorem ipsum.
-                                </span>
-                                <span className="text-body-md text-neutral-40 dark:text-neutral-60">
-                                    4. Lorem ipsum.
-                                </span>
+                                <ol className="text-neutral-40 dark:text-neutral-60 list-decimal space-y-xs pl-md text-body-sm">
+                                    <li>Connect your wallet to the IOTA Wallet Dashboard</li>
+                                    <li>Go to the Migration tab in the sidebar</li>
+                                    <li>Click Migrate All to review available tokens and NFTs</li>
+                                    <li>
+                                        Confirm the transaction in your wallet to complete the
+                                        migration
+                                    </li>
+                                </ol>
                             </div>
                         </Panel>
                     </div>
