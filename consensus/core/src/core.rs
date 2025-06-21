@@ -66,9 +66,10 @@ pub(crate) struct Core {
     /// dependencies when processing new blocks and accept them or suspend
     /// if we are missing their causal history
     block_manager: BlockManager,
-    /// Whether there is a quorum of 2f+1 subscribers waiting for new blocks proposed by this
-    /// authority. Core stops proposing new blocks when there is not enough
-    /// subscribers, because new proposed blocks will not be sufficiently propagated to the network.
+    /// Whether there is a quorum of 2f+1 subscribers waiting for new blocks
+    /// proposed by this authority. Core stops proposing new blocks when
+    /// there is not enough subscribers, because new proposed blocks will
+    /// not be sufficiently propagated to the network.
     quorum_subscribers_exists: bool,
     /// Estimated delay by round for propagating blocks to a quorum.
     /// Because of the nature of TCP and block streaming, propagation delay is

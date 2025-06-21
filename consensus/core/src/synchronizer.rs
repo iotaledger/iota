@@ -33,7 +33,7 @@ use tracing::{debug, error, info, trace, warn};
 use crate::{
     BlockAPI, CommitIndex, Round,
     authority_service::COMMIT_LAG_MULTIPLIER,
-    block::{BlockRef, SignedBlock, VerifiedBlock},
+    block::{BlockRef, GENESIS_ROUND, SignedBlock, VerifiedBlock},
     block_verifier::BlockVerifier,
     commit_vote_monitor::CommitVoteMonitor,
     context::Context,
@@ -42,7 +42,6 @@ use crate::{
     error::{ConsensusError, ConsensusResult},
     network::NetworkClient,
 };
-use crate::block::GENESIS_ROUND;
 
 /// The number of concurrent fetch blocks requests per authority
 const FETCH_BLOCKS_CONCURRENCY: usize = 5;
@@ -791,7 +790,6 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> Synchronizer<C
                 // Assume that our node is not Byzantine
                 received_response[context.own_index] = true;
                 let mut total_stake = context.committee.stake(context.own_index);
-                
                 let mut retries = 0;
                 let mut retry_delay_step = Duration::from_millis(500);
                 'main:loop {
@@ -1861,7 +1859,7 @@ mod tests {
             )
             .await;
 
-        // For peer 3 we give a block with lowest round 
+        // For peer 3 we give a block with lowest round
         let block_3 = expected_blocks.pop().unwrap();
         network_client
             .stub_fetch_latest_blocks(

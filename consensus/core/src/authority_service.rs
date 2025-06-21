@@ -574,17 +574,19 @@ impl SubscriptionCounter {
         counter.subscriptions_by_authority[peer] += 1;
         let mut total_stake = 0;
         for (authority_index, _) in self.context.committee.authorities() {
-            if counter.subscriptions_by_authority[authority_index] >= 1 || self.context.own_index == authority_index {
-                total_stake += self.context.committee.stake(authority_index);           
+            if counter.subscriptions_by_authority[authority_index] >= 1
+                || self.context.own_index == authority_index
+            {
+                total_stake += self.context.committee.stake(authority_index);
             }
         }
         // Stake of subscriptions before a new peer was subscribed
         let previous_stake = if original_subscription_by_peer == 0 {
             total_stake - self.context.committee.stake(peer)
         } else {
-            total_stake 
+            total_stake
         };
-        
+
         let peer_hostname = &self.context.committee.authority(peer).hostname;
         self.context
             .metrics
@@ -592,8 +594,11 @@ impl SubscriptionCounter {
             .subscribed_by
             .with_label_values(&[peer_hostname])
             .set(1);
-        // If the subscription count reaches quorum, notify the dispatcher and get ready to propose blocks.
-        if !self.context.committee.reached_quorum(previous_stake) && self.context.committee.reached_quorum(total_stake) {
+        // If the subscription count reaches quorum, notify the dispatcher and get ready
+        // to propose blocks.
+        if !self.context.committee.reached_quorum(previous_stake)
+            && self.context.committee.reached_quorum(total_stake)
+        {
             self.dispatcher
                 .set_quorum_subscribers_exists(true)
                 .map_err(|_| ConsensusError::Shutdown)?;
@@ -610,7 +615,9 @@ impl SubscriptionCounter {
         counter.subscriptions_by_authority[peer] -= 1;
         let mut total_stake = 0;
         for (authority_index, _) in self.context.committee.authorities() {
-            if counter.subscriptions_by_authority[authority_index] >= 1 || self.context.own_index == authority_index {
+            if counter.subscriptions_by_authority[authority_index] >= 1
+                || self.context.own_index == authority_index
+            {
                 total_stake += self.context.committee.stake(authority_index);
             }
         }
@@ -618,7 +625,7 @@ impl SubscriptionCounter {
         let previous_stake = if original_subscription_by_peer == 1 {
             total_stake + self.context.committee.stake(peer)
         } else {
-          total_stake
+            total_stake
         };
 
         if counter.subscriptions_by_authority[peer] == 0 {
@@ -630,9 +637,12 @@ impl SubscriptionCounter {
                 .with_label_values(&[peer_hostname])
                 .set(0);
         }
-        
-        // If the subscription count drops below quorum, notify the dispatcher to stop proposing blocks.
-        if self.context.committee.reached_quorum(previous_stake) && !self.context.committee.reached_quorum(total_stake) {
+
+        // If the subscription count drops below quorum, notify the dispatcher to stop
+        // proposing blocks.
+        if self.context.committee.reached_quorum(previous_stake)
+            && !self.context.committee.reached_quorum(total_stake)
+        {
             self.dispatcher
                 .set_quorum_subscribers_exists(false)
                 .map_err(|_| ConsensusError::Shutdown)?;
