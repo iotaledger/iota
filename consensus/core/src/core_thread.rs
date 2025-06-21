@@ -171,7 +171,7 @@ impl CoreThread {
                     let _scope = monitored_scope("CoreThread::loop::set_subscriber_exists");
                     let should_propose_before = self.core.should_propose();
                     let exists = *self.rx_quorum_subscribers_exists.borrow();
-                    self.core.set_subscriber_exists(exists);
+                    self.core.set_quorum_subscribers_exists(exists);
                     if !should_propose_before && self.core.should_propose() {
                         // If core cannot propose before but can propose now, try to produce a new block to ensure liveness,
                         // because block proposal could have been skipped.

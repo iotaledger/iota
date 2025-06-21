@@ -42,6 +42,7 @@ use crate::{
     error::{ConsensusError, ConsensusResult},
     network::NetworkClient,
 };
+use crate::block::GENESIS_ROUND;
 
 /// The number of concurrent fetch blocks requests per authority
 const FETCH_BLOCKS_CONCURRENCY: usize = 5;
@@ -784,9 +785,13 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> Synchronizer<C
                 };
 
                 // Get the highest of all the results. Retry until at least `f+1` results have been gathered.
-                let mut highest_round;
+                let mut highest_round = GENESIS_ROUND;
                 // Keep track of the received responses to avoid fetching the own block header from same peer
                 let mut received_response = vec![false; context.committee.size()];
+                // Assume that our node is not Byzantine
+                received_response[context.own_index] = true;
+                let mut total_stake = context.committee.stake(context.own_index);
+                
                 let mut retries = 0;
                 let mut retry_delay_step = Duration::from_millis(500);
                 'main:loop {
@@ -796,15 +801,12 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> Synchronizer<C
                         break 'main;
                     }
 
-                    let mut total_stake = 0;
-                    highest_round = 0;
-
                     // Ask all the other peers about our last block
                     let mut results = FuturesUnordered::new();
 
                     for (authority_index, _authority) in context.committee.authorities() {
                         // Skip our own index and the ones that have already responded
-                        if authority_index != context.own_index && !received_response[authority_index] {
+                        if !received_response[authority_index] {
                             results.push(fetch_own_block(authority_index, Duration::from_millis(0)));
                         }
                     }
@@ -849,8 +851,10 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> Synchronizer<C
 
                     // Request at least a quorum of 2f+1 stake to have replied back.
                     if context.committee.reached_quorum(total_stake) {
-                        info!("{} out of {} total stake returned acceptable results for our own last block with highest round {}, with {retries} retries.", total_stake, context.committee.total_stake(), highest_round);
+                        info!("A quorum, {} out of {} total stake, returned acceptable results for our own last block with highest round {}, with {retries} retries.", total_stake, context.committee.total_stake(), highest_round);
                         break 'main;
+                    } else {
+                        info!("Only {} out of {} total stake returned acceptable results for our own last block with highest round {}, with {retries} retries.", total_stake, context.committee.total_stake(), highest_round);
                     }
 
                     retries += 1;
@@ -1814,7 +1818,7 @@ mod tests {
         let our_index = AuthorityIndex::new_for_test(0);
 
         // Create some test blocks
-        let mut expected_blocks = (9..=10)
+        let mut expected_blocks = (8..=10)
             .map(|round| VerifiedBlock::new_for_test(TestBlock::new(round, 0).build()))
             .collect::<Vec<_>>();
 
@@ -1826,7 +1830,7 @@ mod tests {
                 vec![block_1.clone()],
                 AuthorityIndex::new_for_test(1),
                 vec![our_index],
-                None,
+                Some(Duration::from_secs(10)),
             )
             .await;
         network_client
@@ -1857,10 +1861,11 @@ mod tests {
             )
             .await;
 
-        // For peer 3 we don't give any block - and it should return an empty vector
+        // For peer 3 we give a block with lowest round 
+        let block_3 = expected_blocks.pop().unwrap();
         network_client
             .stub_fetch_latest_blocks(
-                vec![],
+                vec![block_3.clone()],
                 AuthorityIndex::new_for_test(3),
                 vec![our_index],
                 Some(Duration::from_secs(10)),
@@ -1868,7 +1873,7 @@ mod tests {
             .await;
         network_client
             .stub_fetch_latest_blocks(
-                vec![],
+                vec![block_3],
                 AuthorityIndex::new_for_test(3),
                 vec![our_index],
                 None,
