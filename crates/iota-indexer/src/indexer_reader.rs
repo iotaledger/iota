@@ -2029,30 +2029,34 @@ impl IndexerReader {
         let package_id = coin_struct.address.into();
         let treasury_cap_type = TreasuryCap::type_(coin_struct.clone())
             .to_canonical_string(/* with_prefix */ true);
-        let treasury_cap_obj = *self
-            .package_obj_type_cache
-            .lock()
-            .unwrap()
-            .cache_get_or_set_with(format!("{}{}", package_id, treasury_cap_type), || {
-                get_single_obj_id_from_package_publish(self, package_id, treasury_cap_type.clone())
-                    .unwrap()
-            })
-            .and_then(|treasury_cap_obj_id| self.get_object(&treasury_cap_obj_id, None).transpose());
-        let treasury_cap_obj = match treasury_cap_obj {
-            Some(treasury_cap_obj) => Some(treasury_cap_obj?),
-            None => None,
-        }
+        let cache_key = format!("{}{}", package_id, treasury_cap_type.clone());
 
-        match treasury_cap_obj {
-            Some(treasury_cap_obj_id) => {
-                let treasury_cap_obj_object =
-                    self.get_object(&treasury_cap_obj_id, None)?
-                        .ok_or(IndexerError::Generic(format!(
-                            "Cannot find treasury cap object with id {}",
-                            treasury_cap_obj_id
-                        )))?; // TODO: should this error also cause fallback to coin manager?
-                Ok(TreasuryCap::try_from(treasury_cap_obj_object)?.total_supply)
+        let treasury_cap_obj_id = {
+            let mut cache = self.package_obj_type_cache.lock().unwrap();
+            cache.cache_get(&cache_key).copied()
+        };
+
+        let treasury_cap_obj_id = match treasury_cap_obj_id {
+            Some(id) => id,
+            None => {
+                let fetched = get_single_obj_id_from_package_publish(
+                    self,
+                    package_id,
+                    treasury_cap_type.clone(),
+                )?;
+                let mut cache = self.package_obj_type_cache.lock().unwrap();
+                cache.cache_set(cache_key, fetched);
+                fetched
             }
+        };
+
+        // Try to get the object and its total supply, fallback to CoinManager if not
+        // found.
+        match treasury_cap_obj_id {
+            Some(obj_id) => match self.get_object(&obj_id, None)? {
+                Some(obj) => Ok(TreasuryCap::try_from(obj)?.total_supply),
+                None => self.get_total_supply_from_coin_manager(coin_struct),
+            },
             None => self.get_total_supply_from_coin_manager(coin_struct),
         }
     }
@@ -2065,7 +2069,7 @@ impl IndexerReader {
         let coin_manager_obj =
             self.get_coin_manager_obj(coin_struct)?
                 .ok_or(IndexerError::Generic(format!(
-                    "Cannot find Coin Manager for type {coin_type_str}",
+                    "cannot find `CoinManager` for type {coin_type_str}",
                 )))?;
         Ok(coin_manager_obj.treasury_cap.total_supply)
     }
