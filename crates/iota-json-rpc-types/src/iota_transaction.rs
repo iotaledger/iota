@@ -2461,6 +2461,7 @@ impl Filter<EffectsWithInput> for TransactionFilter {
 
 #[serde_as]
 #[derive(Clone, Debug, JsonSchema, Serialize, Deserialize)]
+#[non_exhaustive]
 pub enum TransactionFilterV2 {
     /// Query by checkpoint.
     Checkpoint(
@@ -2497,58 +2498,63 @@ pub enum TransactionFilterV2 {
     TransactionKindIn(Vec<IotaTransactionKind>),
 }
 
+impl TransactionFilterV2 {
+    fn as_v1(&self) -> Option<TransactionFilter> {
+        match self {
+            TransactionFilterV2::InputObject(o) => Some(TransactionFilter::InputObject(*o)),
+            TransactionFilterV2::ChangedObject(o) => Some(TransactionFilter::ChangedObject(*o)),
+            TransactionFilterV2::FromAddress(a) => Some(TransactionFilter::FromAddress(*a)),
+            TransactionFilterV2::ToAddress(a) => Some(TransactionFilter::ToAddress(*a)),
+            TransactionFilterV2::FromAndToAddress { from, to } => {
+                Some(TransactionFilter::FromAndToAddress {
+                    from: *from,
+                    to: *to,
+                })
+            }
+            TransactionFilterV2::FromOrToAddress { addr } => {
+                Some(TransactionFilter::FromOrToAddress { addr: *addr })
+            }
+            TransactionFilterV2::MoveFunction {
+                package,
+                module,
+                function,
+            } => Some(TransactionFilter::MoveFunction {
+                package: *package,
+                module: module.clone(),
+                function: function.clone(),
+            }),
+            TransactionFilterV2::TransactionKind(kind) => {
+                Some(TransactionFilter::TransactionKind(*kind))
+            }
+            TransactionFilterV2::TransactionKindIn(kinds) => {
+                Some(TransactionFilter::TransactionKindIn(kinds.clone()))
+            }
+            TransactionFilterV2::Checkpoint(checkpoint) => {
+                Some(TransactionFilter::Checkpoint(*checkpoint))
+            }
+            // V2-only variants which do not have a V1 equivalent
+            TransactionFilterV2::WrappedOrDeletedObject(_) => None,
+        }
+    }
+}
+
 impl Filter<EffectsWithInput> for TransactionFilterV2 {
     fn matches(&self, item: &EffectsWithInput) -> bool {
-        let _scope = monitored_scope("TransactionFilter::matches");
+        let _scope = monitored_scope("TransactionFilterV2::matches");
+        if let Some(v1) = self.as_v1() {
+            return v1.matches(item);
+        }
+        // Fallback for new V2-only variants:
         match self {
-            TransactionFilterV2::InputObject(o) => {
-                let Ok(input_objects) = item.input.input_objects() else {
-                    return false;
-                };
-                input_objects.iter().any(|object| object.object_id() == *o)
-            }
-            TransactionFilterV2::ChangedObject(o) => item
-                .effects
-                .mutated()
-                .iter()
-                .any(|oref: &OwnedObjectRef| &oref.reference.object_id == o),
             TransactionFilterV2::WrappedOrDeletedObject(o) => item
                 .effects
                 .wrapped()
                 .iter()
                 .chain(item.effects.deleted())
                 .chain(item.effects.unwrapped_then_deleted())
-                .any(|oref: &IotaObjectRef| &oref.object_id == o),
-            TransactionFilterV2::FromAddress(a) => &item.input.sender() == a,
-            TransactionFilterV2::ToAddress(a) => {
-                let mutated: &[OwnedObjectRef] = item.effects.mutated();
-                mutated.iter().chain(item.effects.unwrapped().iter()).any(|oref: &OwnedObjectRef| {
-                    matches!(oref.owner, Owner::AddressOwner(owner) if owner == *a)
-                })
-            }
-            TransactionFilterV2::FromAndToAddress { from, to } => {
-                Self::FromAddress(*from).matches(item) && Self::ToAddress(*to).matches(item)
-            }
-            TransactionFilterV2::FromOrToAddress { addr } => {
-                Self::FromAddress(*addr).matches(item) || Self::ToAddress(*addr).matches(item)
-            }
-            TransactionFilterV2::MoveFunction {
-                package,
-                module,
-                function,
-            } => item.input.move_calls().into_iter().any(|(p, m, f)| {
-                p == package
-                    && (module.is_none() || matches!(module,  Some(m2) if m2 == &m.to_string()))
-                    && (function.is_none() || matches!(function, Some(f2) if f2 == &f.to_string()))
-            }),
-            TransactionFilterV2::TransactionKind(kind) => {
-                kind == &IotaTransactionKind::from(item.input.kind())
-            }
-            TransactionFilterV2::TransactionKindIn(kinds) => kinds
-                .iter()
-                .any(|kind| kind == &IotaTransactionKind::from(item.input.kind())),
-            // this filter is not supported, RPC will reject it on subscription
-            TransactionFilterV2::Checkpoint(_) => false,
+                .any(|oref| &oref.object_id == o),
+
+            _ => false,
         }
     }
 }

@@ -1246,6 +1246,11 @@ impl IndexerReader {
 
                 ("tx_kinds".into(), query)
             }
+            Some(TransactionFilterKind::V2(_)) => {
+                return Err(IndexerError::InvalidArgument(
+                    "transaction filter is not supported".into(),
+                ));
+            }
             None => {
                 // apply no filter
                 ("transactions".into(), "1 = 1".into())
