@@ -3,11 +3,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use diesel::prelude::*;
-use iota_json_rpc_types::IotaTransactionKind;
-use iota_types::{
-    base_types::{IotaAddress, ObjectID},
-    digests::TransactionDigest,
-};
 
 use crate::{
     schema::{
@@ -17,7 +12,7 @@ use crate::{
         tx_changed_objects, tx_digests, tx_input_objects, tx_kinds, tx_recipients, tx_senders,
         tx_wrapped_or_deleted_objects,
     },
-    types::{TxIndex, TxIndexExt, TxIndexV2},
+    types::{TxIndex, TxIndexV2},
 };
 
 #[derive(QueryableByName)]
@@ -127,23 +122,120 @@ impl TxIndex {
         Vec<StoredTxDigest>,
         Vec<StoredTxKind>,
     ) {
-        split_common_tx_index_base(
-            self.tx_sequence_number,
-            self.tx_kind,
-            self.transaction_digest,
-            self.checkpoint_sequence_number,
-            self.input_objects,
-            self.changed_objects,
-            self.payers,
-            self.sender,
-            self.recipients,
-            self.move_calls,
+        let tx_sequence_number = self.tx_sequence_number as i64;
+        let tx_sender = StoredTxSenders {
+            tx_sequence_number,
+            sender: self.sender.to_vec(),
+        };
+        let tx_recipients = self
+            .recipients
+            .iter()
+            .map(|s| StoredTxRecipients {
+                tx_sequence_number,
+                recipient: s.to_vec(),
+                sender: self.sender.to_vec(),
+            })
+            .collect();
+        let tx_input_objects = self
+            .input_objects
+            .iter()
+            .map(|o| StoredTxInputObject {
+                tx_sequence_number,
+                object_id: bcs::to_bytes(&o).unwrap(),
+                sender: self.sender.to_vec(),
+            })
+            .collect();
+        let tx_changed_objects = self
+            .changed_objects
+            .iter()
+            .map(|o| StoredTxChangedObject {
+                tx_sequence_number,
+                object_id: bcs::to_bytes(&o).unwrap(),
+                sender: self.sender.to_vec(),
+            })
+            .collect();
+
+        let mut packages = Vec::new();
+        let mut packages_modules = Vec::new();
+        let mut packages_modules_funcs = Vec::new();
+
+        for (pkg, pkg_mod, pkg_mod_func) in self
+            .move_calls
+            .iter()
+            .map(|(p, m, f)| (*p, (*p, m.clone()), (*p, m.clone(), f.clone())))
+        {
+            packages.push(pkg);
+            packages_modules.push(pkg_mod);
+            packages_modules_funcs.push(pkg_mod_func);
+        }
+
+        let tx_pkgs = packages
+            .iter()
+            .map(|p| StoredTxPkg {
+                tx_sequence_number,
+                package: p.to_vec(),
+                sender: self.sender.to_vec(),
+            })
+            .collect();
+
+        let tx_mods = packages_modules
+            .iter()
+            .map(|(p, m)| StoredTxMod {
+                tx_sequence_number,
+                package: p.to_vec(),
+                module: m.to_string(),
+                sender: self.sender.to_vec(),
+            })
+            .collect();
+
+        let tx_funs = packages_modules_funcs
+            .iter()
+            .map(|(p, m, f)| StoredTxFun {
+                tx_sequence_number,
+                package: p.to_vec(),
+                module: m.to_string(),
+                func: f.to_string(),
+                sender: self.sender.to_vec(),
+            })
+            .collect();
+
+        let stored_tx_digest = StoredTxDigest {
+            tx_digest: self.transaction_digest.into_inner().to_vec(),
+            tx_sequence_number,
+        };
+
+        let tx_kind = StoredTxKind {
+            tx_kind: self.tx_kind as i16,
+            tx_sequence_number,
+        };
+
+        (
+            vec![tx_sender],
+            tx_recipients,
+            tx_input_objects,
+            tx_changed_objects,
+            tx_pkgs,
+            tx_mods,
+            tx_funs,
+            vec![stored_tx_digest],
+            vec![tx_kind],
         )
     }
 }
 
 impl TxIndexV2 {
-    pub fn split(self: TxIndexV2) -> TxIndexV2Split {
+    pub(crate) fn split(self: TxIndexV2) -> TxIndexV2Split {
+        let tx_wrapped_or_deleted_objects = self
+            .ext
+            .wrapped_or_deleted_objects
+            .into_iter()
+            .map(|o| StoredTxWrappedOrDeletedObject {
+                tx_sequence_number: self.base.tx_sequence_number as i64,
+                object_id: bcs::to_bytes(&o).unwrap(),
+                sender: self.base.sender.to_vec(),
+            })
+            .collect();
+
         let (
             tx_senders,
             tx_recipients,
@@ -154,28 +246,7 @@ impl TxIndexV2 {
             tx_funs,
             tx_digests,
             tx_kinds,
-        ) = split_common_tx_index_base(
-            self.tx_sequence_number,
-            self.tx_kind,
-            self.transaction_digest,
-            self.checkpoint_sequence_number,
-            self.input_objects,
-            self.changed_objects,
-            self.payers,
-            self.sender,
-            self.recipients,
-            self.move_calls,
-        );
-
-        let tx_wrapped_or_deleted_objects = self
-            .wrapped_or_deleted_objects
-            .into_iter()
-            .map(|o| StoredTxWrappedOrDeletedObject {
-                tx_sequence_number: self.tx_sequence_number as i64,
-                object_id: bcs::to_bytes(&o).unwrap(),
-                sender: self.sender.to_vec(),
-            })
-            .collect();
+        ) = self.base.split();
 
         TxIndexV2Split {
             tx_senders,
@@ -192,17 +263,6 @@ impl TxIndexV2 {
     }
 }
 
-impl TxIndexExt {
-    pub fn split(self: TxIndexExt) -> TxIndexExtSplit {
-        match self {
-            TxIndexExt::TxIndexV2(tx_index_v2) => TxIndexExtSplit::TxIndexV2(tx_index_v2.split()),
-        }
-    }
-}
-
-pub(crate) enum TxIndexExtSplit {
-    TxIndexV2(TxIndexV2Split),
-}
 pub(crate) struct TxIndexV2Split {
     pub(crate) tx_senders: Vec<StoredTxSenders>,
     pub(crate) tx_recipients: Vec<StoredTxRecipients>,
@@ -214,125 +274,6 @@ pub(crate) struct TxIndexV2Split {
     pub(crate) tx_funs: Vec<StoredTxFun>,
     pub(crate) tx_digests: Vec<StoredTxDigest>,
     pub(crate) tx_kinds: Vec<StoredTxKind>,
-}
-
-#[expect(clippy::type_complexity)]
-fn split_common_tx_index_base(
-    tx_sequence_number: u64,
-    tx_kind: IotaTransactionKind,
-    transaction_digest: TransactionDigest,
-    _checkpoint_sequence_number: u64,
-    input_objects: Vec<ObjectID>,
-    changed_objects: Vec<ObjectID>,
-    _payers: Vec<IotaAddress>,
-    sender: IotaAddress,
-    recipients: Vec<IotaAddress>,
-    move_calls: Vec<(ObjectID, String, String)>,
-) -> (
-    Vec<StoredTxSenders>,
-    Vec<StoredTxRecipients>,
-    Vec<StoredTxInputObject>,
-    Vec<StoredTxChangedObject>,
-    Vec<StoredTxPkg>,
-    Vec<StoredTxMod>,
-    Vec<StoredTxFun>,
-    Vec<StoredTxDigest>,
-    Vec<StoredTxKind>,
-) {
-    let tx_sequence_number = tx_sequence_number as i64;
-    let tx_sender = StoredTxSenders {
-        tx_sequence_number,
-        sender: sender.to_vec(),
-    };
-    let tx_recipients = recipients
-        .iter()
-        .map(|s| StoredTxRecipients {
-            tx_sequence_number,
-            recipient: s.to_vec(),
-            sender: sender.to_vec(),
-        })
-        .collect();
-    let tx_input_objects = input_objects
-        .iter()
-        .map(|o| StoredTxInputObject {
-            tx_sequence_number,
-            object_id: bcs::to_bytes(&o).unwrap(),
-            sender: sender.to_vec(),
-        })
-        .collect();
-    let tx_changed_objects = changed_objects
-        .iter()
-        .map(|o| StoredTxChangedObject {
-            tx_sequence_number,
-            object_id: bcs::to_bytes(&o).unwrap(),
-            sender: sender.to_vec(),
-        })
-        .collect();
-
-    let mut packages = Vec::new();
-    let mut packages_modules = Vec::new();
-    let mut packages_modules_funcs = Vec::new();
-
-    for (pkg, pkg_mod, pkg_mod_func) in move_calls
-        .iter()
-        .map(|(p, m, f)| (*p, (*p, m.clone()), (*p, m.clone(), f.clone())))
-    {
-        packages.push(pkg);
-        packages_modules.push(pkg_mod);
-        packages_modules_funcs.push(pkg_mod_func);
-    }
-
-    let tx_pkgs = packages
-        .iter()
-        .map(|p| StoredTxPkg {
-            tx_sequence_number,
-            package: p.to_vec(),
-            sender: sender.to_vec(),
-        })
-        .collect();
-
-    let tx_mods = packages_modules
-        .iter()
-        .map(|(p, m)| StoredTxMod {
-            tx_sequence_number,
-            package: p.to_vec(),
-            module: m.to_string(),
-            sender: sender.to_vec(),
-        })
-        .collect();
-
-    let tx_funs = packages_modules_funcs
-        .iter()
-        .map(|(p, m, f)| StoredTxFun {
-            tx_sequence_number,
-            package: p.to_vec(),
-            module: m.to_string(),
-            func: f.to_string(),
-            sender: sender.to_vec(),
-        })
-        .collect();
-
-    let stored_tx_digest = StoredTxDigest {
-        tx_digest: transaction_digest.into_inner().to_vec(),
-        tx_sequence_number,
-    };
-
-    let tx_kind = StoredTxKind {
-        tx_kind: tx_kind as i16,
-        tx_sequence_number,
-    };
-
-    (
-        vec![tx_sender],
-        tx_recipients,
-        tx_input_objects,
-        tx_changed_objects,
-        tx_pkgs,
-        tx_mods,
-        tx_funs,
-        vec![stored_tx_digest],
-        vec![tx_kind],
-    )
 }
 
 #[derive(Queryable, Insertable, Selectable, Debug, Clone, Default)]

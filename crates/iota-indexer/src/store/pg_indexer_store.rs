@@ -43,7 +43,7 @@ use crate::{
         objects::{StoredDeletedObject, StoredHistoryObject, StoredObject, StoredObjectSnapshot},
         packages::StoredPackage,
         transactions::{OptimisticTransaction, StoredTransaction, TxInsertionOrder},
-        tx_indices::{OptimisticTxIndices, TxIndexExtSplit, TxIndexV2Split},
+        tx_indices::{OptimisticTxIndices, TxIndexV2Split},
     },
     on_conflict_do_update, persist_chunk_into_table, read_only_blocking,
     schema::{
@@ -65,7 +65,7 @@ use crate::{
     transactional_blocking_with_retry,
     types::{
         EventIndex, IndexedCheckpoint, IndexedDeletedObject, IndexedEvent, IndexedObject,
-        IndexedPackage, IndexedTransaction, TxIndex, TxIndexExt,
+        IndexedPackage, IndexedTransaction, TxIndex, TxIndexV2,
     },
 };
 
@@ -1176,7 +1176,7 @@ impl PgIndexerStore {
 
     async fn persist_tx_indices_chunk_v2(
         &self,
-        indices: Vec<TxIndexExt>,
+        indices: Vec<TxIndexV2>,
     ) -> Result<(), IndexerError> {
         let guard = self
             .metrics
@@ -1184,12 +1184,7 @@ impl PgIndexerStore {
             .start_timer();
         let len = indices.len();
 
-        let splits: Vec<TxIndexV2Split> = indices
-            .into_iter()
-            .map(|i| match i.split() {
-                TxIndexExtSplit::TxIndexV2(ix) => ix,
-            })
-            .collect();
+        let splits: Vec<TxIndexV2Split> = indices.into_iter().map(|i| i.split()).collect();
 
         let senders: Vec<_> = splits.iter().flat_map(|ix| ix.tx_senders.clone()).collect();
         let recipients: Vec<_> = splits
@@ -2693,7 +2688,7 @@ impl IndexerStore for PgIndexerStore {
 
 #[async_trait]
 impl IndexerStoreExt for PgIndexerStore {
-    async fn persist_tx_indices_ext(&self, indices: Vec<TxIndexExt>) -> Result<(), IndexerError> {
+    async fn persist_tx_indices_v2(&self, indices: Vec<TxIndexV2>) -> Result<(), IndexerError> {
         if indices.is_empty() {
             return Ok(());
         }

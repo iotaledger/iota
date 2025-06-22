@@ -13,7 +13,7 @@ use crate::{
     models::{display::StoredDisplay, obj_indices::StoredObjectVersion},
     types::{
         EventIndex, IndexedCheckpoint, IndexedDeletedObject, IndexedEpochInfo, IndexedEvent,
-        IndexedObject, IndexedPackage, IndexedTransaction, IndexerResult, TxIndex, TxIndexExt,
+        IndexedObject, IndexedPackage, IndexedTransaction, IndexerResult, TxIndex, TxIndexV2,
     },
 };
 
@@ -47,7 +47,7 @@ pub(crate) struct CheckpointDataToCommitV2 {
     pub(crate) transactions: Vec<IndexedTransaction>,
     pub(crate) events: Vec<IndexedEvent>,
     pub(crate) event_indices: Vec<EventIndex>,
-    pub(crate) tx_indices: Vec<TxIndexExt>,
+    pub(crate) tx_indices: Vec<TxIndexV2>,
     pub(crate) display_updates: BTreeMap<String, StoredDisplay>,
     pub(crate) object_changes: TransactionObjectChangesToCommit,
     pub(crate) object_history_changes: TransactionObjectChangesToCommit,

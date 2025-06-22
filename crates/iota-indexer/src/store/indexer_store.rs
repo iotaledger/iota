@@ -20,7 +20,7 @@ use crate::{
     },
     types::{
         EventIndex, IndexedCheckpoint, IndexedEvent, IndexedPackage, IndexedTransaction, TxIndex,
-        TxIndexExt,
+        TxIndexV2,
     },
 };
 
@@ -138,5 +138,5 @@ pub trait IndexerStore: Any + Clone + Sync + Send + 'static {
 
 #[async_trait]
 pub(crate) trait IndexerStoreExt: IndexerStore {
-    async fn persist_tx_indices_ext(&self, indices: Vec<TxIndexExt>) -> Result<(), IndexerError>;
+    async fn persist_tx_indices_v2(&self, indices: Vec<TxIndexV2>) -> Result<(), IndexerError>;
 }

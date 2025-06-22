@@ -352,7 +352,7 @@ impl CheckpointHandler {
     ) -> IndexerResult<(
         Vec<IndexedTransaction>,
         Vec<IndexedEvent>,
-        Vec<TxIndexExt>,
+        Vec<TxIndexV2>,
         Vec<EventIndex>,
         BTreeMap<String, StoredDisplay>,
     )> {
@@ -565,7 +565,7 @@ impl CheckpointHandler {
         metrics: &IndexerMetrics,
     ) -> IndexerResult<(
         IndexedTransaction,
-        TxIndexExt,
+        TxIndexV2,
         Vec<IndexedEvent>,
         Vec<EventIndex>,
         BTreeMap<String, StoredDisplay>,
@@ -688,19 +688,23 @@ impl CheckpointHandler {
             .map(|(p, m, f)| (*<&ObjectID>::clone(p), m.to_string(), f.to_string()))
             .collect();
 
-        let db_tx_indices = TxIndexExt::TxIndexV2(TxIndexV2 {
-            tx_sequence_number,
-            transaction_digest: *tx_digest,
-            checkpoint_sequence_number: checkpoint_seq,
-            input_objects,
-            changed_objects,
-            wrapped_or_deleted_objects,
-            sender,
-            payers,
-            recipients,
-            move_calls,
-            tx_kind: transaction_kind,
-        });
+        let db_tx_indices = TxIndexV2 {
+            base: TxIndex {
+                tx_sequence_number,
+                transaction_digest: *tx_digest,
+                checkpoint_sequence_number: checkpoint_seq,
+                input_objects,
+                changed_objects,
+                sender,
+                payers,
+                recipients,
+                move_calls,
+                tx_kind: transaction_kind,
+            },
+            ext: TxIndexExt {
+                wrapped_or_deleted_objects,
+            },
+        };
 
         Ok((
             db_txn,

@@ -543,28 +543,17 @@ pub struct TxIndex {
 }
 
 #[derive(Debug, Clone)]
-pub(crate) enum TxIndexExt {
-    TxIndexV2(TxIndexV2),
+#[non_exhaustive]
+pub(crate) struct TxIndexExt {
+    /// Objects that were either wrapped immediately after being created,
+    /// deleted, or deleted immediately after being unwrapped.
+    pub(crate) wrapped_or_deleted_objects: Vec<ObjectID>,
 }
 
 #[derive(Debug, Clone)]
 pub(crate) struct TxIndexV2 {
-    pub tx_sequence_number: u64,
-    pub tx_kind: IotaTransactionKind,
-    pub transaction_digest: TransactionDigest,
-    pub checkpoint_sequence_number: u64,
-    pub input_objects: Vec<ObjectID>,
-    /// Objects that were mutated, created and unwrapped objects. In other
-    /// words, all objects that still exist in the object state after this
-    /// transaction.
-    pub changed_objects: Vec<ObjectID>,
-    /// Objects that were either wrapped immediately after being created,
-    /// deleted, or deleted immediately after being unwrapped.
-    pub wrapped_or_deleted_objects: Vec<ObjectID>,
-    pub payers: Vec<IotaAddress>,
-    pub sender: IotaAddress,
-    pub recipients: Vec<IotaAddress>,
-    pub move_calls: Vec<(ObjectID, String, String)>,
+    pub(crate) base: TxIndex,
+    pub(crate) ext: TxIndexExt,
 }
 
 // ObjectChange is not bcs deserializable, IndexedObjectChange is.

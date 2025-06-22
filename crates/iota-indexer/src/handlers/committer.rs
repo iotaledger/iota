@@ -364,7 +364,7 @@ async fn commit_checkpoints_v2<S>(
         let _step_1_guard = metrics.checkpoint_db_commit_latency_step_1.start_timer();
         let mut persist_tasks = vec![
             state.persist_transactions(tx_batch),
-            state.persist_tx_indices_ext(tx_indices_batch),
+            state.persist_tx_indices_v2(tx_indices_batch),
             state.persist_events(events_batch),
             state.persist_event_indices(event_indices_batch),
             state.persist_displays(display_updates_batch),
