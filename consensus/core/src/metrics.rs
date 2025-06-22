@@ -786,3 +786,14 @@ impl NodeMetrics {
         }
     }
 }
+
+// Metrics stored related to the current epoch used to calculate the validator
+// score.
+#[derive(Clone)]
+pub(crate) struct ValidatorScoreMetrics {}
+
+impl ValidatorScoreMetrics {
+    pub(crate) fn new(committee_size: usize) -> Self {
+        Self {}
+    }
+}

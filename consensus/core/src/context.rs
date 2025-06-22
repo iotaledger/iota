@@ -14,8 +14,10 @@ use tokio::time::Instant;
 
 #[cfg(test)]
 use crate::metrics::test_metrics;
-use crate::{block::BlockTimestampMs, metrics::Metrics};
-
+use crate::{
+    block::BlockTimestampMs,
+    metrics::{Metrics, ValidatorScoreMetrics},
+};
 /// Context contains per-epoch configuration and metrics shared by all
 /// components of this authority.
 #[derive(Clone)]
@@ -30,6 +32,8 @@ pub(crate) struct Context {
     pub protocol_config: ProtocolConfig,
     /// Metrics of this authority.
     pub metrics: Arc<Metrics>,
+    /// Metrics used in the validator scoring
+    pub scoring_metrics: ValidatorScoreMetrics,
     /// Access to local clock
     pub clock: Arc<Clock>,
 }
@@ -41,6 +45,7 @@ impl Context {
         parameters: Parameters,
         protocol_config: ProtocolConfig,
         metrics: Arc<Metrics>,
+        scoring_metrics: ValidatorScoreMetrics,
         clock: Arc<Clock>,
     ) -> Self {
         Self {
@@ -49,6 +54,7 @@ impl Context {
             parameters,
             protocol_config,
             metrics,
+            scoring_metrics,
             clock,
         }
     }
@@ -73,6 +79,7 @@ impl Context {
             },
             ProtocolConfig::get_for_max_version_UNSAFE(),
             metrics,
+            ValidatorScoreMetrics::new(committee_size),
             clock,
         );
         (context, keypairs)

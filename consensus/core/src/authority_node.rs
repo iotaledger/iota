@@ -26,7 +26,7 @@ use crate::{
     dag_state::DagState,
     leader_schedule::LeaderSchedule,
     leader_timeout::{LeaderTimeoutTask, LeaderTimeoutTaskHandle},
-    metrics::initialise_metrics,
+    metrics::{ValidatorScoreMetrics, initialise_metrics},
     network::{NetworkClient as _, NetworkManager, tonic_network::TonicManager},
     round_prober::{RoundProber, RoundProberHandle},
     storage::rocksdb_store::RocksDBStore,
@@ -179,12 +179,14 @@ where
         );
         info!("Consensus parameters: {:?}", parameters);
         info!("Consensus committee: {:?}", committee);
+        let committee_size = committee.size();
         let context = Arc::new(Context::new(
             own_index,
             committee,
             parameters,
             protocol_config,
             initialise_metrics(registry),
+            ValidatorScoreMetrics::new(committee_size),
             Arc::new(Clock::new()),
         ));
         let start_time = Instant::now();
