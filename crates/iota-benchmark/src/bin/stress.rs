@@ -183,9 +183,7 @@ async fn main() -> Result<()> {
                             old: &prev_stats,
                         };
                         let cmp_table = cmp.to_table();
-                        eprintln!(
-                            "Benchmark Comparison Report[{prev_benchmark_stats_path}]:"
-                        );
+                        eprintln!("Benchmark Comparison Report[{prev_benchmark_stats_path}]:");
                         eprintln!("{cmp_table}");
                     }
                     if !curr_benchmark_stats_path.is_empty() {

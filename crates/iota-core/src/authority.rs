@@ -3115,8 +3115,7 @@ impl AuthorityState {
                     .perform_index_db_checkpoints_at_epoch_end
                     .unwrap_or(false);
                 let current_epoch = cur_epoch_store.epoch();
-                let epoch_checkpoint_path =
-                    checkpoint_path.join(format!("epoch_{current_epoch}"));
+                let epoch_checkpoint_path = checkpoint_path.join(format!("epoch_{current_epoch}"));
                 self.checkpoint_all_dbs(
                     &epoch_checkpoint_path,
                     cur_epoch_store,

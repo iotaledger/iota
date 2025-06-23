@@ -232,9 +232,7 @@ impl BQMaxCheckpointReader {
         col_id: &str,
     ) -> anyhow::Result<Self> {
         Ok(BQMaxCheckpointReader {
-            query: format!(
-                "SELECT max({col_id}) from `{project_id}.{dataset_id}.{table_id}`"
-            ),
+            query: format!("SELECT max({col_id}) from `{project_id}.{dataset_id}.{table_id}`"),
             client: Client::from_service_account_key_file(key_path).await?,
             project_id: project_id.to_string(),
         })

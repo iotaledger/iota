@@ -150,9 +150,7 @@ impl FaucetClient for RemoteFaucetClient {
             .header("Authorization", auth_header)
             .send()
             .await
-            .unwrap_or_else(|e| {
-                panic!("Failed to talk to remote faucet {status_url:?}: {e:?}")
-            });
+            .unwrap_or_else(|e| panic!("Failed to talk to remote faucet {status_url:?}: {e:?}"));
         let full_bytes = response.bytes().await.unwrap();
         let faucet_response: BatchStatusFaucetResponse = serde_json::from_slice(&full_bytes)
             .map_err(|e| anyhow::anyhow!("json deser failed with bytes {:?}: {e}", full_bytes))

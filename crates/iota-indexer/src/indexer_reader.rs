@@ -763,8 +763,7 @@ impl IndexerReader {
                     IotaObjectDataFilter::StructType(struct_tag) => {
                         let object_type =
                             struct_tag.to_canonical_string(/* with_prefix */ true);
-                        query =
-                            query.filter(objects::object_type.like(format!("{object_type}%")));
+                        query = query.filter(objects::object_type.like(format!("{object_type}%")));
                     }
                     IotaObjectDataFilter::MatchAny(filters) => {
                         let mut condition = "(".to_string();
@@ -1010,9 +1009,7 @@ impl IndexerReader {
                     ),
                     (Some(module), None) => (
                         "tx_calls_mod".into(),
-                        format!(
-                            "package = '\\x{package}'::bytea AND module = '{module}'"
-                        ),
+                        format!("package = '\\x{package}'::bytea AND module = '{module}'"),
                     ),
                     (None, Some(_)) => {
                         return Err(IndexerError::InvalidArgument(
@@ -1059,13 +1056,9 @@ impl IndexerReader {
                 // Need to remove ambiguities for tx_sequence_number column
                 let cursor_clause = if let Some(cursor_tx_seq) = cursor_tx_seq {
                     if is_descending {
-                        format!(
-                            "AND tx_senders.{TX_SEQUENCE_NUMBER_STR} < {cursor_tx_seq}"
-                        )
+                        format!("AND tx_senders.{TX_SEQUENCE_NUMBER_STR} < {cursor_tx_seq}")
                     } else {
-                        format!(
-                            "AND tx_senders.{TX_SEQUENCE_NUMBER_STR} > {cursor_tx_seq}"
-                        )
+                        format!("AND tx_senders.{TX_SEQUENCE_NUMBER_STR} > {cursor_tx_seq}")
                     }
                 } else {
                     "".to_string()

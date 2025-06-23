@@ -159,9 +159,9 @@ impl BlockManager {
                         accepted_blocks.push(block);
                     }
                     TryAcceptResult::Processed => continue,
-                    TryAcceptResult::Suspended(_) | TryAcceptResult::Skipped => panic!(
-                        "Did not expect to suspend or skip a committed block: {block_ref:?}"
-                    ),
+                    TryAcceptResult::Suspended(_) | TryAcceptResult::Skipped => {
+                        panic!("Did not expect to suspend or skip a committed block: {block_ref:?}")
+                    }
                 };
             } else {
                 match self.try_accept_one_block(block) {

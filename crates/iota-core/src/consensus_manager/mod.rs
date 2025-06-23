@@ -202,9 +202,7 @@ impl UpdatableConsensusClient {
             return client;
         }
 
-        panic!(
-            "Timed out after {START_TIMEOUT:?} waiting for Consensus to start!",
-        );
+        panic!("Timed out after {START_TIMEOUT:?} waiting for Consensus to start!",);
     }
 
     pub fn set(&self, client: Arc<dyn ConsensusClient>) {

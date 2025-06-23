@@ -2389,9 +2389,7 @@ async fn update_named_address_mapping(
             && (named_address_mapping.get(&name) != Some(&addr)))
             || name == "iota"
         {
-            panic!(
-                "Invalid init. The named address '{name}' is reserved or duplicated"
-            )
+            panic!("Invalid init. The named address '{name}' is reserved or duplicated")
         }
         named_address_mapping.insert(name, addr);
     }

@@ -23,9 +23,7 @@ impl FullNodeExecuteTransactionTest {
             .get_transaction_with_options(tx_digest, IotaTransactionBlockResponseOptions::new())
             .await
             .unwrap_or_else(|e| {
-                panic!(
-                    "Failed get transaction {tx_digest:?} from fullnode: {e:?}"
-                )
+                panic!("Failed get transaction {tx_digest:?} from fullnode: {e:?}")
             });
     }
 }

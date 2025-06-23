@@ -1387,9 +1387,7 @@ impl IndexStore {
                 })
                 .await
                 .unwrap()
-                .map_err(|e| {
-                    IotaError::Execution(format!("Failed to read balance frm DB: {e:?}"))
-                })
+                .map_err(|e| IotaError::Execution(format!("Failed to read balance frm DB: {e:?}")))
             })
             .await
     }

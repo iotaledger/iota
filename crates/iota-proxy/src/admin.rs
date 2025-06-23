@@ -204,9 +204,7 @@ fn load_private_key(filename: &str) -> rustls::pki_types::PrivateKeyDer<'static>
         }
     }
 
-    panic!(
-        "no keys found in {filename:?} (encrypted keys not supported)"
-    );
+    panic!("no keys found in {filename:?} (encrypted keys not supported)");
 }
 
 /// load the static keys we'll use to allow external non-validator nodes to push

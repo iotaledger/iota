@@ -851,9 +851,7 @@ impl ToolCommand {
                 if let Err(e) =
                     check_completed_snapshot(&snapshot_store_config, epoch_to_download).await
                 {
-                    panic!(
-                        "Aborting snapshot restore: {e}, snapshot may not be uploaded yet"
-                    );
+                    panic!("Aborting snapshot restore: {e}, snapshot may not be uploaded yet");
                 }
 
                 let verify = verify.unwrap_or_default();
@@ -1007,9 +1005,7 @@ impl ToolCommand {
                 if let Err(e) =
                     check_completed_snapshot(&snapshot_store_config, epoch_to_download).await
                 {
-                    panic!(
-                        "Aborting snapshot restore: {e}, snapshot may not be uploaded yet"
-                    );
+                    panic!("Aborting snapshot restore: {e}, snapshot may not be uploaded yet");
                 }
                 download_db_snapshot(
                     &path,

@@ -451,9 +451,7 @@ impl DagState {
             }
             false
         } else {
-            panic!(
-                "Block {block_ref:?} not found in cache to set as committed."
-            );
+            panic!("Block {block_ref:?} not found in cache to set as committed.");
         }
     }
 

@@ -382,8 +382,6 @@ pub fn new_wallet_context_from_cluster(
     );
 
     WalletContext::new(&wallet_config_path, None, None).unwrap_or_else(|e| {
-        panic!(
-            "Failed to init wallet context from path {wallet_config_path:?}, error: {e}"
-        )
+        panic!("Failed to init wallet context from path {wallet_config_path:?}, error: {e}")
     })
 }

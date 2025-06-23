@@ -419,18 +419,18 @@ impl NodeConfig {
     pub fn protocol_key_pair(&self) -> &NetworkKeyPair {
         match self.protocol_key_pair.keypair() {
             IotaKeyPair::Ed25519(kp) => kp,
-            other => panic!(
-                "invalid keypair type: {other:?}, only Ed25519 is allowed for protocol key"
-            ),
+            other => {
+                panic!("invalid keypair type: {other:?}, only Ed25519 is allowed for protocol key")
+            }
         }
     }
 
     pub fn network_key_pair(&self) -> &NetworkKeyPair {
         match self.network_key_pair.keypair() {
             IotaKeyPair::Ed25519(kp) => kp,
-            other => panic!(
-                "invalid keypair type: {other:?}, only Ed25519 is allowed for network key"
-            ),
+            other => {
+                panic!("invalid keypair type: {other:?}, only Ed25519 is allowed for network key")
+            }
         }
     }
 

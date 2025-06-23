@@ -62,9 +62,7 @@ fn get_sync_fp_result(result: Box<dyn std::any::Any + Send + 'static>) {
 fn get_async_fp_result(result: Box<dyn std::any::Any + Send + 'static>) -> BoxFuture<'static, ()> {
     match result.downcast::<BoxFuture<'static, ()>>() {
         Ok(fut) => *fut,
-        Err(err) => panic!(
-            "async failpoint must return BoxFuture<'static, ()> {err:?}"
-        ),
+        Err(err) => panic!("async failpoint must return BoxFuture<'static, ()> {err:?}"),
     }
 }
 

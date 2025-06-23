@@ -992,9 +992,7 @@ pub async fn download_formal_snapshot(
     }
     fs::rename(&path, &new_path)?;
     fs::remove_dir_all(snapshot_dir.clone())?;
-    println!(
-        "Successfully restored state from snapshot at end of epoch {epoch}"
-    );
+    println!("Successfully restored state from snapshot at end of epoch {epoch}");
 
     Ok(())
 }

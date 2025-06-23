@@ -182,9 +182,7 @@ fn make_key_files(
     } else {
         let kp = match key {
             Some(key) => {
-                println!(
-                    "Generated new key file {file_name:?} based on iota.keystore file."
-                );
+                println!("Generated new key file {file_name:?} based on iota.keystore file.");
                 key
             }
             None => {
@@ -253,9 +251,7 @@ impl IotaValidatorCommand {
                             "/dns/{host_name}/tcp/8080/http"
                         ))?,
                         p2p_address: Multiaddr::try_from(format!("/dns/{host_name}/udp/8084"))?,
-                        primary_address: Multiaddr::try_from(format!(
-                            "/dns/{host_name}/udp/8081"
-                        ))?,
+                        primary_address: Multiaddr::try_from(format!("/dns/{host_name}/udp/8081"))?,
                         description,
                         image_url,
                         project_url,
@@ -266,9 +262,7 @@ impl IotaValidatorCommand {
                 let validator_info_file_name = dir.join("validator.info");
                 let validator_info_bytes = serde_yaml::to_string(&validator_info)?;
                 fs::write(validator_info_file_name.clone(), validator_info_bytes)?;
-                println!(
-                    "Generated validator info file: {validator_info_file_name:?}."
-                );
+                println!("Generated validator info file: {validator_info_file_name:?}.");
                 IotaValidatorCommandResponse::MakeValidatorInfo
             }
             IotaValidatorCommand::BecomeCandidate { file, gas_budget } => {

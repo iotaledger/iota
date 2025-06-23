@@ -3172,7 +3172,7 @@ pub(crate) fn parse_display_option(s: &str) -> Result<HashSet<DisplayOption>, St
                 options.insert(option);
             }
             Err(_) => return Err(format!("Invalid display option: {part}")), /* Return error if
-                                                                                * invalid */
+                                                                              * invalid */
         }
     }
 

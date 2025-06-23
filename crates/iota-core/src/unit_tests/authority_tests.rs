@@ -6190,9 +6190,7 @@ async fn test_consensus_handler_per_object_congestion_control(
         DeferralKey::Randomness {
             deferred_from_round,
         } => {
-            panic!(
-                "Expected ConsensusRound, got RandomnessDkg: {deferred_from_round:?}"
-            );
+            panic!("Expected ConsensusRound, got RandomnessDkg: {deferred_from_round:?}");
         }
     }
 
@@ -6252,9 +6250,7 @@ async fn test_consensus_handler_per_object_congestion_control(
         DeferralKey::Randomness {
             deferred_from_round,
         } => {
-            panic!(
-                "Expected ConsensusRound, got RandomnessDkg: {deferred_from_round:?}"
-            );
+            panic!("Expected ConsensusRound, got RandomnessDkg: {deferred_from_round:?}");
         }
     }
 

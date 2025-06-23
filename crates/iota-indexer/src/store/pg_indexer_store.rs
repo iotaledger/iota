@@ -1843,9 +1843,7 @@ impl IndexerStore for PgIndexerStore {
         })
         .await
         .map_err(|e| {
-            IndexerError::PostgresWrite(format!(
-                "Failed to persist optimistic transaction: {e:?}"
-            ))
+            IndexerError::PostgresWrite(format!("Failed to persist optimistic transaction: {e:?}"))
         })??;
 
         info!("Persisted optimistic transaction {insertion_order}");
