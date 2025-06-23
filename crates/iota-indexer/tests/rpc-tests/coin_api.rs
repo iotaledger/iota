@@ -533,6 +533,7 @@ fn get_total_supply() {
         let (result_fullnode, result_indexer) =
             get_total_supply_fullnode_indexer(cluster, client, coin_name.to_string()).await;
 
+        assert!(result_indexer.is_some());
         assert_eq!(result_fullnode, result_indexer);
     });
 }
@@ -555,6 +556,8 @@ fn fullnode_get_total_supply_with_migrated_coin_manager_coins() {
 
         let (result_fullnode, result_indexer) =
             get_total_supply_fullnode_indexer(cluster, client, coin_name.to_string()).await;
+
+        assert!(result_fullnode.is_some());
         assert_eq!(result_fullnode, result_indexer);
 
         let (result_fullnode, result_indexer) = get_total_supply_fullnode_indexer(
@@ -563,6 +566,8 @@ fn fullnode_get_total_supply_with_migrated_coin_manager_coins() {
             immutable_metadata_coin_name.to_string(),
         )
         .await;
+
+        assert!(result_fullnode.is_some());
         assert_eq!(result_fullnode, result_indexer);
     });
 }
@@ -574,6 +579,7 @@ fn indexer_get_total_supply_with_migrated_coin_manager_coins() {
         let (cluster, store, client) = &start_test_cluster_with_read_write_indexer(
             Some("indexer_get_total_supply_with_migrated_coin_manager_coins"),
             None,
+            None
         )
         .await;
 
@@ -610,6 +616,7 @@ fn get_total_supply_with_native_coin_manager_coins() {
         let (cluster, store, client) = &start_test_cluster_with_read_write_indexer(
             Some("get_total_supply_with_native_coin_manager_coins"),
             None,
+            None
         )
         .await;
 
@@ -655,7 +662,9 @@ fn get_total_supply_with_nonexistent_coin() {
 
         let (result_fullnode, result_indexer) =
             get_total_supply_fullnode_indexer(cluster, client, nonexistent_coin).await;
-        assert_eq!(result_indexer, None);
+
+        assert!(result_fullnode.is_none());
+        assert!(result_indexer.is_none());
     });
 }
 
