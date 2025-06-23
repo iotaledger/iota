@@ -26,11 +26,9 @@ jobs:
       - name: Pull speculos docker image
         run: docker pull ghcr.io/ledgerhq/speculos
 
-      - name: Download ledgernano bin
+      - name: Download ledgernano binary
         run: |
-          sudo apt-get install -y gh
-          gh release list --repo https://github.com/iotaledger/ledger-app-iota
-          gh release download --repo https://github.com/iotaledger/ledger-app-iota -p nanos.tar.gz ledger-app-iota-v0.9.2
+          curl -L -o nanos.tar.gz https://github.com/iotaledger/ledger-app-iota/releases/download/ledger-app-iota-v0.9.2/nanos.tar.gz
           tar -xvf nanos.tar.gz
           mv nanos/iota sdk/ledgerjs-hw-app-iota/tests/iota
 
