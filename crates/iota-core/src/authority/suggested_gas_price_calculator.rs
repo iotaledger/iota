@@ -220,7 +220,7 @@ mod tests {
     use super::SuggestedGasPriceCalculator;
     use crate::authority::{
         shared_object_congestion_tracker::{
-            SequencingResult, SharedObjectCongestionTracker,
+            ExecutionTime, SequencingResult, SharedObjectCongestionTracker,
             shared_object_test_utils::build_transaction,
         },
         suggested_gas_price_calculator::{
@@ -230,14 +230,18 @@ mod tests {
 
     const REFERENCE_GAS_PRICE: u64 = 1_000;
 
-    #[test]
-    fn update_congestion_info() {
-        let max_execution_duration_per_commit = 10; // not important in this test
-        let min_free_execution_slot_assigned = true;
-
+    #[rstest]
+    fn update_congestion_info_test(
+        #[values(
+            None,
+            Some(10), // the value is not important in this test
+        )]
+        max_execution_duration_per_commit: Option<ExecutionTime>,
+        #[values(false, true)] min_free_execution_slot_assigned: bool,
+    ) {
         let max_gas_price = ProtocolConfig::get_for_max_version_UNSAFE().max_gas_price();
         let mut suggested_gas_price_calculator = SuggestedGasPriceCalculator::new(
-            Some(max_execution_duration_per_commit),
+            max_execution_duration_per_commit,
             min_free_execution_slot_assigned,
             REFERENCE_GAS_PRICE,
             max_gas_price,
@@ -249,106 +253,167 @@ mod tests {
         let object_4 = ObjectID::random();
         let object_5 = ObjectID::random();
 
-        // Construct the first certificate with some shared input objects,
-        // gas price, estimated execution duration, and update calculator's
-        // congestion info for this certificate.
+        // Construct the first certificate touches shared objects:
+        // - `object_1` by mutable reference,
+        // - `object_2` by immutable reference.
         let objects_1 = vec![(object_1, true), (object_2, false)];
         let gas_budget_1 = 1_003_000; // not important in this test
         let gas_price_1 = 1_003;
         let certificate_1 = build_transaction(&objects_1, gas_budget_1, gas_price_1);
         let estimated_execution_duration_1 = 3;
+        // Update the calculator's congestion info for this certificate.
         suggested_gas_price_calculator
             .update_congestion_info(&certificate_1, estimated_execution_duration_1);
         //
-        let object_1_expected_congestion_info =
-            PerObjectCongestionInfo::from([ScheduledTransactionCongestionInfo {
-                gas_price: gas_price_1,
-                estimated_execution_duration: estimated_execution_duration_1,
-            }]);
-        assert_eq!(
-            suggested_gas_price_calculator.congestion_info,
-            PerCommitCongestionInfo::from([(object_1, object_1_expected_congestion_info)]),
-        );
+        if let Some(_max_execution_duration_per_commit) = max_execution_duration_per_commit {
+            if min_free_execution_slot_assigned {
+                // Note that `object_2` should not appear because it is accessed immutably.
+                let object_1_expected_congestion_info =
+                    PerObjectCongestionInfo::from([ScheduledTransactionCongestionInfo {
+                        gas_price: gas_price_1,
+                        estimated_execution_duration: estimated_execution_duration_1,
+                    }]);
+                assert_eq!(
+                    suggested_gas_price_calculator.congestion_info,
+                    PerCommitCongestionInfo::from([(object_1, object_1_expected_congestion_info)]),
+                );
+            } else {
+                // We don't have `min_free_execution_slot_assigned` set to `true`,
+                // so there is no need in updating the calculator's congestion info.
+                assert_eq!(
+                    suggested_gas_price_calculator.congestion_info,
+                    PerCommitCongestionInfo::new()
+                );
+            }
+        } else {
+            // We don't have max execution duration per commit, so there is no need
+            // in updating the calculator's congestion info.
+            assert_eq!(
+                suggested_gas_price_calculator.congestion_info,
+                PerCommitCongestionInfo::new()
+            );
+        }
 
-        // Construct the second certificate with some shared input objects,
-        // gas price, estimated execution duration, and update calculator's
-        // congestion info for this certificate.
+        // Construct the second certificate touches shared objects:
+        // - `object_2` by mutable reference,
+        // - `object_3` by immutable reference,
+        // - `object_4` by mutable reference.
         let objects_2 = vec![(object_2, true), (object_3, false), (object_4, true)];
         let gas_budget_2 = 1_002_000; // not important in this test
         let gas_price_2 = 1_002;
         let certificate_2 = build_transaction(&objects_2, gas_budget_2, gas_price_2);
         let estimated_execution_duration_2 = 2;
+        // Update the calculator's congestion info for this certificate.
         suggested_gas_price_calculator
             .update_congestion_info(&certificate_2, estimated_execution_duration_2);
         //
-        let object_1_expected_congestion_info =
-            PerObjectCongestionInfo::from([ScheduledTransactionCongestionInfo {
-                gas_price: gas_price_1,
-                estimated_execution_duration: estimated_execution_duration_1,
-            }]);
-        let object_2_expected_congestion_info =
-            PerObjectCongestionInfo::from([ScheduledTransactionCongestionInfo {
-                gas_price: gas_price_2,
-                estimated_execution_duration: estimated_execution_duration_2,
-            }]);
-        let object_4_expected_congestion_info =
-            PerObjectCongestionInfo::from([ScheduledTransactionCongestionInfo {
-                gas_price: gas_price_2,
-                estimated_execution_duration: estimated_execution_duration_2,
-            }]);
-        assert_eq!(
-            suggested_gas_price_calculator.congestion_info,
-            PerCommitCongestionInfo::from([
-                (object_1, object_1_expected_congestion_info),
-                (object_2, object_2_expected_congestion_info),
-                (object_4, object_4_expected_congestion_info),
-            ]),
-        );
+        if let Some(_max_execution_duration_per_commit) = max_execution_duration_per_commit {
+            if min_free_execution_slot_assigned {
+                // Note that `object_3` should not appear because it is accessed immutably.
+                let object_1_expected_congestion_info =
+                    PerObjectCongestionInfo::from([ScheduledTransactionCongestionInfo {
+                        gas_price: gas_price_1,
+                        estimated_execution_duration: estimated_execution_duration_1,
+                    }]);
+                let object_2_expected_congestion_info =
+                    PerObjectCongestionInfo::from([ScheduledTransactionCongestionInfo {
+                        gas_price: gas_price_2,
+                        estimated_execution_duration: estimated_execution_duration_2,
+                    }]);
+                let object_4_expected_congestion_info =
+                    PerObjectCongestionInfo::from([ScheduledTransactionCongestionInfo {
+                        gas_price: gas_price_2,
+                        estimated_execution_duration: estimated_execution_duration_2,
+                    }]);
+                assert_eq!(
+                    suggested_gas_price_calculator.congestion_info,
+                    PerCommitCongestionInfo::from([
+                        (object_1, object_1_expected_congestion_info),
+                        (object_2, object_2_expected_congestion_info),
+                        (object_4, object_4_expected_congestion_info),
+                    ]),
+                );
+            } else {
+                // We don't have `min_free_execution_slot_assigned` set to `true`,
+                // so there is no need in updating the calculator's congestion info.
+                assert_eq!(
+                    suggested_gas_price_calculator.congestion_info,
+                    PerCommitCongestionInfo::new()
+                );
+            }
+        } else {
+            // We don't have max execution duration per commit, so there is no need
+            // in updating the calculator's congestion info.
+            assert_eq!(
+                suggested_gas_price_calculator.congestion_info,
+                PerCommitCongestionInfo::new()
+            );
+        }
 
-        // Construct the third certificate with some shared input objects,
-        // gas price, estimated execution duration, and update calculator's
-        // congestion info for this certificate.
+        // Construct the third certificate touches shared objects:
+        // - `object_4` by immutable reference,
+        // - `object_5` by mutable reference.
         let objects_3 = vec![(object_4, false), (object_5, true)];
         let gas_budget_3 = 1_001_000; // not important in this test
         let gas_price_3 = 1_001;
         let certificate_3 = build_transaction(&objects_3, gas_budget_3, gas_price_3);
         let estimated_execution_duration_3 = 1;
+        // Update the calculator's congestion info for this certificate.
         suggested_gas_price_calculator
             .update_congestion_info(&certificate_3, estimated_execution_duration_3);
         //
-        let object_1_expected_congestion_info =
-            PerObjectCongestionInfo::from([ScheduledTransactionCongestionInfo {
-                gas_price: gas_price_1,
-                estimated_execution_duration: estimated_execution_duration_1,
-            }]);
-        let object_2_expected_congestion_info =
-            PerObjectCongestionInfo::from([ScheduledTransactionCongestionInfo {
-                gas_price: gas_price_2,
-                estimated_execution_duration: estimated_execution_duration_2,
-            }]);
-        let object_4_expected_congestion_info =
-            PerObjectCongestionInfo::from([ScheduledTransactionCongestionInfo {
-                gas_price: gas_price_2,
-                estimated_execution_duration: estimated_execution_duration_2,
-            }]);
-        let object_5_expected_congestion_info =
-            PerObjectCongestionInfo::from([ScheduledTransactionCongestionInfo {
-                gas_price: gas_price_3,
-                estimated_execution_duration: estimated_execution_duration_3,
-            }]);
-        assert_eq!(
-            suggested_gas_price_calculator.congestion_info,
-            PerCommitCongestionInfo::from([
-                (object_1, object_1_expected_congestion_info),
-                (object_2, object_2_expected_congestion_info),
-                (object_4, object_4_expected_congestion_info),
-                (object_5, object_5_expected_congestion_info),
-            ]),
-        );
+        if let Some(_max_execution_duration_per_commit) = max_execution_duration_per_commit {
+            if min_free_execution_slot_assigned {
+                // Note that `object_3` should not appear because it is accessed immutably.
+                let object_1_expected_congestion_info =
+                    PerObjectCongestionInfo::from([ScheduledTransactionCongestionInfo {
+                        gas_price: gas_price_1,
+                        estimated_execution_duration: estimated_execution_duration_1,
+                    }]);
+                let object_2_expected_congestion_info =
+                    PerObjectCongestionInfo::from([ScheduledTransactionCongestionInfo {
+                        gas_price: gas_price_2,
+                        estimated_execution_duration: estimated_execution_duration_2,
+                    }]);
+                let object_4_expected_congestion_info =
+                    PerObjectCongestionInfo::from([ScheduledTransactionCongestionInfo {
+                        gas_price: gas_price_2,
+                        estimated_execution_duration: estimated_execution_duration_2,
+                    }]);
+                let object_5_expected_congestion_info =
+                    PerObjectCongestionInfo::from([ScheduledTransactionCongestionInfo {
+                        gas_price: gas_price_3,
+                        estimated_execution_duration: estimated_execution_duration_3,
+                    }]);
+                assert_eq!(
+                    suggested_gas_price_calculator.congestion_info,
+                    PerCommitCongestionInfo::from([
+                        (object_1, object_1_expected_congestion_info),
+                        (object_2, object_2_expected_congestion_info),
+                        (object_4, object_4_expected_congestion_info),
+                        (object_5, object_5_expected_congestion_info),
+                    ]),
+                );
+            } else {
+                // We don't have `min_free_execution_slot_assigned` set to `true`,
+                // so there is no need in updating the calculator's congestion info.
+                assert_eq!(
+                    suggested_gas_price_calculator.congestion_info,
+                    PerCommitCongestionInfo::new()
+                );
+            }
+        } else {
+            // We don't have max execution duration per commit, so there is no need
+            // in updating the calculator's congestion info.
+            assert_eq!(
+                suggested_gas_price_calculator.congestion_info,
+                PerCommitCongestionInfo::new()
+            );
+        }
     }
 
     #[rstest]
-    fn calculate_suggested_gas_price(
+    fn calculate_suggested_gas_price_test(
         #[values(
             PerObjectCongestionControlMode::TotalTxCount,
             PerObjectCongestionControlMode::TotalGasBudget
