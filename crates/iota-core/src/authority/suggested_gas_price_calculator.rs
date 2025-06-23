@@ -42,6 +42,7 @@ type PerCommitCongestionInfo = HashMap<ObjectID, PerObjectCongestionInfo>;
 pub(crate) struct SuggestedGasPriceCalculator {
     congestion_info: PerCommitCongestionInfo,
     max_execution_duration_per_commit: Option<ExecutionTime>,
+    min_free_execution_slot_assigned: bool,
     reference_gas_price: u64,
     max_gas_price: u64,
 }
@@ -51,12 +52,14 @@ impl SuggestedGasPriceCalculator {
     /// object congestion data for a given consensus commit round.
     pub fn new(
         max_execution_duration_per_commit: Option<ExecutionTime>,
+        min_free_execution_slot_assigned: bool,
         reference_gas_price: u64,
         max_gas_price: u64,
     ) -> Self {
         Self {
             congestion_info: PerCommitCongestionInfo::new(),
             max_execution_duration_per_commit,
+            min_free_execution_slot_assigned,
             reference_gas_price,
             max_gas_price,
         }
@@ -69,9 +72,13 @@ impl SuggestedGasPriceCalculator {
         certificate: &VerifiedExecutableTransaction,
         estimated_execution_duration: ExecutionTime,
     ) {
-        // If we don't have a max execution duration, we don't need to update
-        // the congestion info as the reference gas price will be suggested.
-        if self.max_execution_duration_per_commit.is_none() {
+        // If we don't have a max execution duration or
+        // `min_free_execution_slot_assigned` is false (which realizes
+        // the old Sui's canonical sequencer logic), we don't need to update
+        // the congestion info since the reference gas price will be suggested.
+        if self.max_execution_duration_per_commit.is_none()
+            || !self.min_free_execution_slot_assigned
+        {
             return;
         }
 
@@ -110,9 +117,15 @@ impl SuggestedGasPriceCalculator {
             return self.reference_gas_price;
         }
 
+        // If `min_free_execution_slot_assigned` is false (which realizes
+        // the old Sui's canonical sequencer logic), suggest the reference gas price.
+        if !self.min_free_execution_slot_assigned {
+            return self.reference_gas_price;
+        }
+
         let max_execution_duration_per_commit = self
             .max_execution_duration_per_commit
-            .expect("max_execution_duration_per_commit must be Some at this step");
+            .expect("max_execution_duration_per_commit must not be None at this step");
         let passing_gas_price = certificate
             .shared_input_objects()
             .filter_map(|object| {
@@ -220,10 +233,12 @@ mod tests {
     #[test]
     fn update_congestion_info() {
         let max_execution_duration_per_commit = 10; // not important in this test
+        let min_free_execution_slot_assigned = true;
 
         let max_gas_price = ProtocolConfig::get_for_max_version_UNSAFE().max_gas_price();
         let mut suggested_gas_price_calculator = SuggestedGasPriceCalculator::new(
             Some(max_execution_duration_per_commit),
+            min_free_execution_slot_assigned,
             REFERENCE_GAS_PRICE,
             max_gas_price,
         );
@@ -353,6 +368,7 @@ mod tests {
             PerObjectCongestionControlMode::TotalTxCount => 2,
             PerObjectCongestionControlMode::TotalGasBudget => 3_000_000,
         };
+        let min_free_execution_slot_assigned = true;
 
         // Suggested gas price calculator will not be used in the old sequencer anyway,
         // so `assign_min_free_execution_slot` is set to `true`.
@@ -361,6 +377,7 @@ mod tests {
         let max_gas_price = ProtocolConfig::get_for_max_version_UNSAFE().max_gas_price();
         let mut suggested_gas_price_calculator = SuggestedGasPriceCalculator::new(
             Some(max_execution_duration_per_commit),
+            min_free_execution_slot_assigned,
             REFERENCE_GAS_PRICE,
             max_gas_price,
         );
