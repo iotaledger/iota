@@ -208,7 +208,7 @@
     --input-caret-color: theme('colors.iota-primary.30');
     --input-icon-color: theme('colors.iota-neutral.10');
     --input-copy-icon-color: theme('colors.iota-neutral.60');
-    --input-visibility-bar-color: rgba(28, 28, 28, 0.6); /* neutral.92 with 60% opacity */
+    --input-visibility-bar-color: rgba(227, 234, 246, 0.6); /* neutral.92 with 60% opacity */
 
     /* NAVBAR ITEM */
     --navbar-item-icon-color: theme('colors.iota-neutral.40');
@@ -449,7 +449,7 @@
     --input-caret-color: theme('colors.iota-primary.30');
     --input-icon-color: theme('colors.iota-neutral.92');
     --input-copy-icon-color: theme('colors.iota-neutral.40');
-    --input-visibility-bar-color: rgba(250, 250, 250, 0.6); /* neutral.10 with 60% opacity */
+    --input-visibility-bar-color: rgba(23, 29, 38, 0.6); /* neutral.10 with 60% opacity */
 
     /* NAVBAR ITEM */
     --navbar-item-icon-color: theme('colors.iota-neutral.60');
@@ -699,7 +699,7 @@
     --input-caret-color: theme('colors.iota-primary.30');
     --input-icon-color: theme('colors.names-neutral.92');
     --input-copy-icon-color: theme('colors.names-neutral.40');
-    --input-visibility-bar-color: rgba(250, 250, 250, 0.6); /* neutral.10 with 60% opacity */
+    --input-visibility-bar-color: rgba(24, 27, 49, 0.6); /* neutral.10 with 60% opacity */
 
     /* NAVBAR ITEM */
     --navbar-item-icon-color: theme('colors.names-neutral.60');

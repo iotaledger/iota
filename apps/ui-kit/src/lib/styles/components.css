@@ -229,6 +229,11 @@
         @apply before:border-b before:border-[color:var(--button-segment-underline-selected-color)];
     }
 
+    .button-segment-underline-selected:disabled::before {
+        content: none;
+        display: none;
+    }
+
     /* LOADING INDICATOR */
     .loading-indicator-color {
         color: var(--loading-indicator-color);
