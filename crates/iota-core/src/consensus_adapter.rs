@@ -22,7 +22,7 @@ use futures::{
     pin_mut,
     stream::FuturesUnordered,
 };
-use iota_metrics::{GaugeGuard, GaugeGuardFutureExt, spawn_monitored_task};
+use iota_metrics::{GaugeGuard, GaugeGuardFutureExt, LATENCY_SEC_BUCKETS, spawn_monitored_task};
 use iota_simulator::anemo::PeerId;
 use iota_types::{
     base_types::{AuthorityName, TransactionDigest},
@@ -42,7 +42,9 @@ use prometheus::{
 use tokio::{
     sync::{Semaphore, SemaphorePermit, oneshot},
     task::JoinHandle,
-    time::{self, Duration},
+    time::{
+        Duration, {self},
+    },
 };
 use tracing::{debug, info, trace, warn};
 
@@ -57,11 +59,6 @@ use crate::{
 #[cfg(test)]
 #[path = "unit_tests/consensus_tests.rs"]
 pub mod consensus_tests;
-
-const SEQUENCING_CERTIFICATE_LATENCY_SEC_BUCKETS: &[f64] = &[
-    0.1, 0.25, 0.5, 0.75, 1., 1.25, 1.5, 1.75, 2., 2.25, 2.5, 2.75, 3., 4., 5., 6., 7., 10., 15.,
-    20., 25., 30., 60., 90., 120., 150., 180., 210., 240., 270., 300.,
-];
 
 const SEQUENCING_CERTIFICATE_POSITION_BUCKETS: &[f64] = &[
     0., 1., 2., 3., 5., 10., 15., 20., 25., 30., 50., 100., 150., 200.,
@@ -128,7 +125,7 @@ impl ConsensusAdapterMetrics {
                 "sequencing_acknowledge_latency",
                 "The latency for acknowledgement from sequencing engine. The overall sequencing latency is measured by the sequencing_certificate_latency metric",
                 &["retry", "tx_type"],
-                SEQUENCING_CERTIFICATE_LATENCY_SEC_BUCKETS.to_vec(),
+                LATENCY_SEC_BUCKETS.to_vec(),
                 registry,
             )
             .unwrap(),
@@ -136,7 +133,7 @@ impl ConsensusAdapterMetrics {
                 "sequencing_certificate_latency",
                 "The latency for sequencing a certificate.",
                 &["position", "tx_type", "processed_method"],
-                SEQUENCING_CERTIFICATE_LATENCY_SEC_BUCKETS.to_vec(),
+                LATENCY_SEC_BUCKETS.to_vec(),
                 registry,
             )
             .unwrap(),
@@ -203,9 +200,8 @@ impl ConsensusAdapterMetrics {
 pub type BlockStatusReceiver = oneshot::Receiver<BlockStatus>;
 
 #[mockall::automock]
-#[async_trait::async_trait]
 pub trait SubmitToConsensus: Sync + Send + 'static {
-    async fn submit_to_consensus(
+    fn submit_to_consensus(
         &self,
         transactions: &[ConsensusTransaction],
         epoch_store: &Arc<AuthorityPerEpochStore>,
@@ -1218,9 +1214,8 @@ impl Drop for InflightDropGuard<'_> {
     }
 }
 
-#[async_trait::async_trait]
 impl SubmitToConsensus for Arc<ConsensusAdapter> {
-    async fn submit_to_consensus(
+    fn submit_to_consensus(
         &self,
         transactions: &[ConsensusTransaction],
         epoch_store: &Arc<AuthorityPerEpochStore>,

@@ -506,6 +506,7 @@ async fn test_full_node_sync_flood() {
 }
 
 #[sim_test(check_determinism)]
+#[ignore = "https://github.com/iotaledger/iota/issues/7469"]
 async fn test_full_node_sync_flood_determinism() {
     do_test_full_node_sync_flood().await
 }
