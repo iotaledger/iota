@@ -26,7 +26,6 @@ jobs:
       - name: Pull and tag speculos docker image
         run: |
           docker pull ghcr.io/ledgerhq/speculos
-          docker image tag ghcr.io/ledgerhq/speculos speculos
 
       - name: Download ledgernano bin
         run: |
@@ -37,7 +36,7 @@ jobs:
           mv nanos/iota sdk/ledgerjs-hw-app-iota/tests/iota
 
       - name: Start speculos simulator
-        run: docker run --rm -d -p 5000:5000 -v $(pwd)/sdk/ledgerjs-hw-app-iota/tests:/app speculos --api-port 5000 --display headless /app/iota
+        run: docker run --rm -d -p 5000:5000 -v $(pwd)/sdk/ledgerjs-hw-app-iota/tests:/app ghcr.io/ledgerhq/speculos --api-port 5000 --display headless /app/iota
 
       - name: Run TS SDK ledgernano tests
         run: pnpm --filter @iota/ledgerjs-hw-app-iota test
