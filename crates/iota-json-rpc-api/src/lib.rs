@@ -7,7 +7,6 @@
 //! managing governance-related data, and more.
 
 use anyhow::bail;
-pub use bridge::{BridgeReadApiClient, BridgeReadApiOpenRpc, BridgeReadApiServer};
 pub use coin::{CoinReadApiClient, CoinReadApiOpenRpc, CoinReadApiServer};
 pub use extended::{ExtendedApiClient, ExtendedApiOpenRpc, ExtendedApiServer};
 pub use governance::{GovernanceReadApiClient, GovernanceReadApiOpenRpc, GovernanceReadApiServer};
@@ -32,7 +31,6 @@ pub use transaction_builder::{
 };
 pub use write::{WriteApiClient, WriteApiOpenRpc, WriteApiServer};
 
-mod bridge;
 mod coin;
 mod extended;
 mod governance;

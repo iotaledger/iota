@@ -30,7 +30,6 @@ export class FeaturesController {
             features: {
                 [Feature.RecognizedPackages]: {
                     defaultValue: [
-                        '0xb',
                         '0x2',
                         '0x3',
                         '0x1',
@@ -126,7 +125,6 @@ export class FeaturesController {
             features: {
                 [Feature.RecognizedPackages]: {
                     defaultValue: [
-                        '0xb',
                         '0x2',
                         '0x3',
                         '0x1',

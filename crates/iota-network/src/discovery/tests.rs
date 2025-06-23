@@ -278,15 +278,19 @@ async fn test_access_types() {
     //
     //
     // The topology:
-    //                                      ------------  11 (private, seed: 1,
-    // allowed: 7, 8)                                     /
+    //
+    //    11 (private, seed: 1, allowed: 7, 8)
+    //                             \
     //                       ------ 1 (public) ------
     //                      /                        \
-    //    2 (public, seed: 1, allowed: 7, 8)          3 (private, seed: 1, allowed:
-    // 4+, 5+)       |                                       /             \
-    //       |                 4 (private, allowed: 3+, 5, 6)     5 (private,
-    // allowed: 3, 4+)       |                                        \
-    //       |                                      6 (private, allowed: 4+)
+    //     2 (public, seed: 1, allowed: 7, 8)        |
+    //       |                                       /
+    //       |                          3 (private, seed: 1, allowed: 4+, 5+)
+    //       |                         /             \
+    //       |   4 (private, allowed: 3+, 5, 6) --- 5 (private, allowed: 3, 4+)
+    //       |                         \
+    //       |                       6 (private, allowed: 4+)
+    //       |
     //     7 (private, allowed: 2+, 8+)
     //       |
     //       |
@@ -318,7 +322,7 @@ async fn test_access_types() {
         ..Default::default()
     };
 
-    // None 1, public
+    // Node 1, public
     let (builder_1, network_1, key_1) = set_up_network(default_p2p_config.clone());
 
     let mut config = default_p2p_config.clone();
@@ -516,7 +520,7 @@ async fn test_access_types() {
         ]),
     );
 
-    // Node 1 is connected to everyone. But it does not "know" private nodes except
+    // Node 2 is connected to everyone. But it does not "know" private nodes except
     // the allowlisted ones 7 and 8.
     assert_peers(
         "Node 2",
@@ -580,20 +584,18 @@ async fn test_access_types() {
         HashSet::from_iter(vec![peer_id_1, peer_id_2, peer_id_4, peer_id_9]),
     );
 
-    // Node 11 finds Node 7 via Node 2, and invites Node 7 to connect. Node 7 says
-    // yes.
+    // Node 11 can't find private Node 7 via Node 2.
     assert_peers(
         "Node 7",
         &network_7,
         &state_7,
         HashSet::from_iter(vec![peer_id_2, peer_id_8]),
-        HashSet::from_iter(vec![peer_id_1, peer_id_2, peer_id_8, peer_id_9, peer_id_11]),
         HashSet::from_iter(vec![peer_id_1, peer_id_2, peer_id_8, peer_id_9]),
-        HashSet::from_iter(vec![peer_id_1, peer_id_2, peer_id_8, peer_id_9, peer_id_11]),
+        HashSet::from_iter(vec![peer_id_1, peer_id_2, peer_id_8, peer_id_9]),
+        HashSet::from_iter(vec![peer_id_1, peer_id_2, peer_id_8, peer_id_9]),
     );
 
-    // Node 11 finds Node 8 via Node 2, and invites Node 8 to connect. Node 8 said
-    // No because its `max_concurrent_connections` is 0.
+    // Node 11 can't find private Node 8 via Node 2.
     assert_peers(
         "Node 8",
         &network_8,
@@ -638,9 +640,9 @@ async fn test_access_types() {
         &network_11,
         &state_11,
         HashSet::from_iter(vec![peer_id_1, peer_id_7, peer_id_8]),
-        HashSet::from_iter(vec![peer_id_1, peer_id_2, peer_id_7, peer_id_9]),
-        HashSet::from_iter(vec![peer_id_1, peer_id_2, peer_id_7, peer_id_8, peer_id_9]),
-        HashSet::from_iter(vec![peer_id_1, peer_id_2, peer_id_7, peer_id_9]),
+        HashSet::from_iter(vec![peer_id_1, peer_id_2, peer_id_9]),
+        HashSet::from_iter(vec![peer_id_1, peer_id_2, peer_id_9]),
+        HashSet::from_iter(vec![peer_id_1, peer_id_2, peer_id_9]),
     );
 }
 

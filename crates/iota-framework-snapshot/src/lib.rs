@@ -11,8 +11,8 @@ use std::{
 
 use iota_framework::{SystemPackage, SystemPackageMetadata};
 use iota_types::{
-    BRIDGE_PACKAGE_ID, IOTA_FRAMEWORK_PACKAGE_ID, IOTA_SYSTEM_PACKAGE_ID, MOVE_STDLIB_PACKAGE_ID,
-    STARDUST_PACKAGE_ID, base_types::ObjectID,
+    IOTA_FRAMEWORK_PACKAGE_ID, IOTA_SYSTEM_PACKAGE_ID, MOVE_STDLIB_PACKAGE_ID, STARDUST_PACKAGE_ID,
+    base_types::ObjectID,
 };
 use serde::{Deserialize, Serialize};
 
@@ -73,9 +73,18 @@ const SYSTEM_PACKAGE_PUBLISH_ORDER: &[ObjectID] = &[
     MOVE_STDLIB_PACKAGE_ID,
     IOTA_FRAMEWORK_PACKAGE_ID,
     IOTA_SYSTEM_PACKAGE_ID,
-    BRIDGE_PACKAGE_ID,
     STARDUST_PACKAGE_ID,
 ];
+
+/// Returns the list of system packages in the order they should be published.
+/// If the protocol version is < 9 then include also the bridge package.
+pub fn get_system_package_publish_order(protocol_version: u64) -> Vec<ObjectID> {
+    let mut publish_order = SYSTEM_PACKAGE_PUBLISH_ORDER.to_vec();
+    if protocol_version < 9 {
+        publish_order.insert(3, iota_types::GENESIS_BRIDGE_PACKAGE_ID);
+    }
+    publish_order
+}
 
 pub fn load_bytecode_snapshot_manifest() -> SnapshotManifest {
     let Ok(bytes) = fs::read(manifest_path()) else {
@@ -120,9 +129,10 @@ pub fn load_bytecode_snapshot(protocol_version: u64) -> anyhow::Result<Vec<Syste
         .collect::<anyhow::Result<_>>()?;
 
     // system packages need to be restored in a specific order
-    assert!(snapshots.len() <= SYSTEM_PACKAGE_PUBLISH_ORDER.len());
+    let snapshots_publish_order = get_system_package_publish_order(protocol_version);
+    assert!(snapshots.len() <= snapshots_publish_order.len());
     let mut snapshot_objects = Vec::new();
-    for package_id in SYSTEM_PACKAGE_PUBLISH_ORDER {
+    for package_id in &snapshots_publish_order {
         if let Some(object) = snapshots.remove(package_id) {
             snapshot_objects.push(object);
         }
