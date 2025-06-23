@@ -82,7 +82,7 @@ pub trait ExtendedApi {
 
     /// Return list of transactions for a specified query criteria.
     #[rustfmt::skip]
-    #[method(name = "queryTransactionBlocksV2")]
+    #[method(name = "queryTransactionBlocks")]
     async fn query_transaction_blocks_v2(
         &self,
         /// the transaction query criteria.
