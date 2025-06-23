@@ -8,7 +8,7 @@ import {
     VerifyPasswordModal,
     ConnectLedgerModal,
     useIotaLedgerClient,
-    OffBalanceAssetsInfo,
+    OffBalanceAddressesInfo,
 } from '_components';
 import {
     AccountSourceType,
@@ -198,14 +198,14 @@ export function AccountsFinderView(): JSX.Element {
             <div className="flex h-full flex-col justify-between">
                 {(hasVestingObjects || hasMigrationObjects) && (
                     <>
-                        <OffBalanceAssetsInfo
+                        <OffBalanceAddressesInfo
                             hasVesting={!!hasVestingObjects}
                             hasMigration={!!hasMigrationObjects}
                             onOpenVestingInfo={() => setDialogVestingOpen(true)}
                             onOpenMigrationInfo={() => setDialogMigrationOpen(true)}
                         />
                         <span className="my-sm text-center text-title-md text-neutral-10 dark:text-neutral-92">
-                            Found Assets
+                            Found Addresses
                         </span>
                     </>
                 )}

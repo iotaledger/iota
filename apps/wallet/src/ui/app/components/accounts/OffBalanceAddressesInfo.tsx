@@ -2,34 +2,34 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { Badge, BadgeType, Panel } from '@iota/apps-ui-kit';
-import { MissingAssetsDialog } from '../../pages/home/tokens/MissingAssetsDialog';
+import { MissingFundsDialog } from '../../pages/home/tokens/MissingFundsDialog';
 import { useState } from 'react';
 
-interface OffBalanceAssetsInfoProps {
+interface OffBalanceAddressesInfoProps {
     hasVesting: boolean;
     hasMigration: boolean;
     onOpenVestingInfo(): void;
     onOpenMigrationInfo(): void;
 }
 
-export function OffBalanceAssetsInfo({
+export function OffBalanceAddressesInfo({
     hasVesting,
     hasMigration,
     onOpenVestingInfo,
     onOpenMigrationInfo,
-}: OffBalanceAssetsInfoProps): JSX.Element | null {
-    const [dialogMissingAssetsOpen, setDialogMissingAssetsOpen] = useState(false);
+}: OffBalanceAddressesInfoProps): JSX.Element | null {
+    const [dialogMissingAddressesOpen, setDialogMissingAddressesOpen] = useState(false);
     return (
         <>
             <Panel bgColor="bg-secondary-90 dark:bg-secondary-10">
                 <div className="flex flex-col gap-xs p-md">
                     <span className="text-title-sm text-neutral-10 dark:text-neutral-92">
-                        Off-Balance Assets
+                        Off-Balance Addresses
                     </span>
 
                     <p className="text-body-sm text-neutral-40 dark:text-neutral-60">
-                        Tagged addresses may require manual input to be accurately added and
-                        reflected in your balance.
+                        Tagged addresses may show inaccurate balances due to vesting or migration
+                        that require user action.
                     </p>
 
                     <div className="flex w-full flex-row items-center justify-between">
@@ -45,15 +45,15 @@ export function OffBalanceAssetsInfo({
                                 </button>
                             )}
                         </div>
-                        <button onClick={() => setDialogMissingAssetsOpen(true)}>
+                        <button onClick={() => setDialogMissingAddressesOpen(true)}>
                             <Badge type={BadgeType.Neutral} label="More Info" />
                         </button>
                     </div>
                 </div>
             </Panel>
-            <MissingAssetsDialog
-                open={dialogMissingAssetsOpen}
-                setOpen={(isOpen) => setDialogMissingAssetsOpen(isOpen)}
+            <MissingFundsDialog
+                open={dialogMissingAddressesOpen}
+                setOpen={(isOpen) => setDialogMissingAddressesOpen(isOpen)}
             />
         </>
     );

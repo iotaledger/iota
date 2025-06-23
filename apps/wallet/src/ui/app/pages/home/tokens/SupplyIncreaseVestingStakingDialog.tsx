@@ -29,12 +29,12 @@ export function SupplyIncreaseVestingStakingDialog({
     return (
         <Dialog open={open} onOpenChange={setOpen}>
             <DialogContent containerId="overlay-portal-container">
-                <Header title="Vested Staking" onClose={() => setOpen(false)} titleCentered />
+                <Header title="Vesting" onClose={() => setOpen(false)} titleCentered />
                 <DialogBody>
                     <div className="flex flex-col gap-sm text-center">
                         <Banner
                             videoSrc={videoSrc}
-                            title="Vested Staking"
+                            title="Vesting"
                             subtitle="Get an overview of your vested tokens and manage them"
                             size={BannerSize.Small}
                         >
@@ -48,15 +48,6 @@ export function SupplyIncreaseVestingStakingDialog({
                                     <span className="shrink-0">Docs</span>
                                     <ArrowTopRight />
                                 </Link>
-                                <Link
-                                    to="https://docs.iota.org/about-iota/iota-wallet/FAQ"
-                                    target="_blank"
-                                    rel="noreferrer"
-                                    className="flex items-center gap-x-xxs underline"
-                                >
-                                    <span className="shrink-0">FAQs</span>
-                                    <ArrowTopRight />
-                                </Link>
                             </div>
                         </Banner>
                         <Panel bgColor="bg-secondary-90 dark:bg-secondary-10">
@@ -67,10 +58,10 @@ export function SupplyIncreaseVestingStakingDialog({
                                 <ol className="list-decimal space-y-xs pl-md text-body-sm text-neutral-40 dark:text-neutral-60">
                                     <li>Connect your wallet to the IOTA Wallet Dashboard</li>
                                     <li>Open the Vesting tab from the sidebar</li>
-                                    <li>Click See All to open the full vesting calendar</li>
+                                    <li>Click See All to open the full vesting schedule</li>
                                     <li>
-                                        Claim tokens as they unlock, or stake them directly from the
-                                        dashboard
+                                        Collect tokens as they unlock, or stake them directly from
+                                        the the the the dashboard
                                     </li>
                                 </ol>
                             </div>

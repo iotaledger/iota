@@ -265,7 +265,7 @@ export function TokenDetails() {
                                             {hasSupplyIncreaseVestingObjects ? (
                                                 <OverviewHint
                                                     onClick={() => setDialogVestingOpen(true)}
-                                                    title="Vested Staking"
+                                                    title="Vesting"
                                                     icon={Vesting}
                                                 />
                                             ) : null}

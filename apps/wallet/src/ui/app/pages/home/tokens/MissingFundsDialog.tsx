@@ -5,19 +5,19 @@ import { ArrowTopRight } from '@iota/apps-ui-icons';
 import { Button, Dialog, DialogContent, DialogBody, Header, Panel } from '@iota/apps-ui-kit';
 import { DISCORD_SUPPORT_LINK, Theme, useTheme } from '@iota/core';
 import { Link, useNavigate } from 'react-router-dom';
-import MissingAssetsDarkmode from '_assets/images/missing_assets_darkmode.png';
-import MissingAssets from '_assets/images/missing_assets.png';
+import MissingFundsDarkmode from '_assets/images/missing_funds_darkmode.png';
+import MissingFunds from '_assets/images/missing_funds.png';
 
-interface MissingAssetsDialogProps {
+interface MissingFundsDialogProps {
     open: boolean;
     setOpen: (isOpen: boolean) => void;
 }
 
-export function MissingAssetsDialog({ open, setOpen }: MissingAssetsDialogProps) {
+export function MissingFundsDialog({ open, setOpen }: MissingFundsDialogProps) {
     const { theme } = useTheme();
     const navigate = useNavigate();
 
-    const imgSrc = theme === Theme.Dark ? MissingAssetsDarkmode : MissingAssets;
+    const imgSrc = theme === Theme.Dark ? MissingFundsDarkmode : MissingFunds;
 
     return (
         <Dialog open={open} onOpenChange={setOpen}>
@@ -52,38 +52,31 @@ export function MissingAssetsDialog({ open, setOpen }: MissingAssetsDialogProps)
                         <Panel bgColor="bg-warning-90 dark:bg-warning-20">
                             <div className="flex flex-col items-start justify-start gap-xs p-md text-start">
                                 <span className="text-title-sm text-neutral-10 dark:text-neutral-92">
-                                    Missing assets?
+                                    Missing funds?
                                 </span>
                                 <span className="text-body-sm text-neutral-40 dark:text-neutral-60">
-                                    Some assets may not show up in the balance but are in you
-                                    possession. Other’s require user actions to show up.
+                                    Some addresses are tagged to indicate that their balances may be
+                                    inaccurate, often due to conditions like vesting or pending
+                                    migration that require user action. These funds are still in
+                                    your possession, even if not reflected in the balance.
                                 </span>
                                 <div className="flex w-full flex-wrap justify-start gap-xs text-body-sm text-primary-30 dark:text-primary-80">
                                     <Link
-                                        to="https://docs.iota.org/about-iota/iota-wallet/getting-started#use-the-balance-finder"
+                                        to="https://docs.iota.org/about-iota/iota-wallet-dashboard/how-to/migration"
                                         target="_blank"
                                         rel="noreferrer"
                                         className="flex items-center gap-x-xxs underline"
                                     >
-                                        <span className="shrink-0">Run Balance finder</span>
+                                        <span className="shrink-0">How to migrate</span>
                                         <ArrowTopRight />
                                     </Link>
                                     <Link
-                                        to={DISCORD_SUPPORT_LINK}
+                                        to="https://docs.iota.org/about-iota/iota-wallet-dashboard/how-to/vesting"
                                         target="_blank"
                                         rel="noreferrer"
                                         className="flex items-center gap-x-xxs underline"
                                     >
-                                        <span className="shrink-0">Support</span>
-                                        <ArrowTopRight />
-                                    </Link>
-                                    <Link
-                                        to="https://docs.iota.org/about-iota/iota-wallet/FAQ"
-                                        target="_blank"
-                                        rel="noreferrer"
-                                        className="flex items-center gap-x-xxs underline"
-                                    >
-                                        <span className="shrink-0">FAQs</span>
+                                        <span className="shrink-0">Manage vesting</span>
                                         <ArrowTopRight />
                                     </Link>
                                 </div>

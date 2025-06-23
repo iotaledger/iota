@@ -45,15 +45,6 @@ export function MigrationDialog({ open, setOpen }: MigrationDialogProps) {
                                     <span className="shrink-0">Docs</span>
                                     <ArrowTopRight />
                                 </Link>
-                                <Link
-                                    to="https://docs.iota.org/about-iota/iota-wallet/FAQ"
-                                    target="_blank"
-                                    rel="noreferrer"
-                                    className="flex items-center gap-x-xxs underline"
-                                >
-                                    <span className="shrink-0">FAQs</span>
-                                    <ArrowTopRight />
-                                </Link>
                             </div>
                         </Banner>
                         <Panel bgColor="bg-secondary-90 dark:bg-secondary-10">
@@ -64,7 +55,9 @@ export function MigrationDialog({ open, setOpen }: MigrationDialogProps) {
                                 <ol className="list-decimal space-y-xs pl-md text-body-sm text-neutral-40 dark:text-neutral-60">
                                     <li>Connect your wallet to the IOTA Wallet Dashboard</li>
                                     <li>Go to the Migration tab in the sidebar</li>
-                                    <li>Click Migrate All to review available tokens and NFTs</li>
+                                    <li>
+                                        Click on the Migrate All button to start the asset migration
+                                    </li>
                                     <li>
                                         Confirm the transaction in your wallet to complete the
                                         migration
