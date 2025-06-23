@@ -2540,15 +2540,12 @@ dependencies = [
 name = "consensus-core"
 version = "0.1.0"
 dependencies = [
- "anyhow",
- "arc-swap",
  "async-trait",
  "base64 0.21.7",
  "bcs",
  "bytes",
  "cfg-if",
  "consensus-config",
- "dashmap",
  "enum_dispatch",
  "fastcrypto",
  "futures",
@@ -2565,10 +2562,8 @@ dependencies = [
  "parking_lot 0.12.3",
  "prometheus",
  "prost",
- "quinn-proto",
  "rand 0.8.5",
  "rstest",
- "rustls 0.23.18",
  "serde",
  "shared-crypto",
  "strum_macros 0.26.4",
@@ -5656,7 +5651,6 @@ dependencies = [
  "iota-genesis-common",
  "iota-keys",
  "iota-names",
- "iota-protocol-config",
  "iota-rest-api",
  "iota-types",
  "move-vm-config",
@@ -6662,11 +6656,9 @@ name = "iota-move"
 version = "1.4.0-alpha"
 dependencies = [
  "anyhow",
- "better_any",
  "bin-version",
  "clap",
  "colored",
- "const-str",
  "datatest-stable",
  "futures",
  "git-version",
@@ -6845,11 +6837,9 @@ dependencies = [
  "bcs",
  "bin-version",
  "clap",
- "const-str",
  "fastcrypto",
  "fastcrypto-zkp",
  "futures",
- "git-version",
  "humantime",
  "iota-archival",
  "iota-common",
@@ -6859,7 +6849,6 @@ dependencies = [
  "iota-json-rpc-api",
  "iota-macros",
  "iota-metrics",
- "iota-names",
  "iota-network",
  "iota-network-stack",
  "iota-protocol-config",
@@ -6867,7 +6856,6 @@ dependencies = [
  "iota-simulator",
  "iota-snapshot",
  "iota-storage",
- "iota-tls",
  "iota-types",
  "move-vm-profiler",
  "prometheus",
@@ -6928,7 +6916,6 @@ dependencies = [
  "cynic-codegen",
  "fastcrypto",
  "iota-types",
- "move-core-types",
  "reqwest 0.12.7",
  "serde",
  "serde_json",
@@ -7527,7 +7514,6 @@ dependencies = [
 name = "iota-surfer"
 version = "1.4.0-alpha"
 dependencies = [
- "async-trait",
  "bcs",
  "clap",
  "futures",
@@ -11136,7 +11122,6 @@ version = "1.4.0-alpha"
 dependencies = [
  "anyhow",
  "prometheus",
- "protobuf",
 ]
 
 [[package]]

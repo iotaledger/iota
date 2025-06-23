@@ -18,5 +18,5 @@ iota-types.workspace = true
 
 [package.metadata.cargo-machete]
 ignored = [
-    "tracing", # imported through a declarative macro
+  "tracing", # imported through a declarative macro
 ]

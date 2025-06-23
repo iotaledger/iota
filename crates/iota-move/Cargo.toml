@@ -9,10 +9,8 @@ publish = false
 [dependencies]
 # external dependencies
 anyhow.workspace = true
-better_any = "0.1.1"
 clap.workspace = true
 colored.workspace = true
-const-str.workspace = true
 datatest-stable.workspace = true
 git-version.workspace = true
 insta-cmd = "0.6.0"
