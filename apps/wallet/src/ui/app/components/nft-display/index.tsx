@@ -4,7 +4,7 @@
 
 import { Loading } from '_components';
 import {
-    NftImage,
+    NFTMediaDisplayCard,
     isKioskOwnerToken,
     useGetNFTDisplay,
     useGetObject,
@@ -14,7 +14,7 @@ import {
 import { formatAddress } from '@iota/iota-sdk/utils';
 import { cva } from 'class-variance-authority';
 import type { VariantProps } from 'class-variance-authority';
-import { useResolveVideo, useActiveAddress } from '_hooks';
+import { useActiveAddress } from '_hooks';
 
 const nftDisplayCardStyles = cva('flex flex-nowrap items-center w-full h-full relative', {
     variants: {
@@ -48,8 +48,6 @@ export function NFTDisplayCard({
     const { data: objectData } = useGetObject(objectId);
     const { data: nftMeta, isPending } = useGetNFTDisplay(objectId);
     const nftName = nftMeta?.name || formatAddress(objectId);
-    const nftImageUrl = nftMeta?.imageUrl || '';
-    const video = useResolveVideo(objectData);
     const kioskClient = useKioskClient();
     const isOwnerToken = isKioskOwnerToken(kioskClient.network, objectData);
     const address = useActiveAddress();
@@ -61,11 +59,10 @@ export function NFTDisplayCard({
                     {objectData?.data && isOwnerToken ? (
                         <KioskTile object={objectData} address={address} />
                     ) : (
-                        <NftImage
+                        <NFTMediaDisplayCard
                             title={nftName}
-                            src={nftImageUrl}
+                            src={nftMeta?.imageUrl}
                             isHoverable={isHoverable ?? false}
-                            video={video}
                             icon={icon}
                             onIconClick={onIconClick}
                         />

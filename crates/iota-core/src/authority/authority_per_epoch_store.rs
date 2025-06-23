@@ -1001,16 +1001,6 @@ impl AuthorityPerEpochStore {
         result
     }
 
-    pub fn bridge_exists(&self) -> bool {
-        self.epoch_start_configuration
-            .bridge_obj_initial_shared_version()
-            .is_some()
-    }
-
-    pub fn bridge_committee_initiated(&self) -> bool {
-        self.epoch_start_configuration.bridge_committee_initiated()
-    }
-
     pub fn get_parent_path(&self) -> PathBuf {
         self.parent_path.clone()
     }
