@@ -562,7 +562,7 @@
     --checkbox-bg-color-checked: theme('colors.names-primary.30');
     --checkbox-bg-color-disabled-checked: theme('colors.names-neutral.50');
     --checkbox-text-color: theme('colors.names-neutral.70');
-    --checkbox-text-color-checked: theme('colors.white');
+    --checkbox-text-color-checked: theme('colors.names-neutral.100');
     --checkbox-label-text-color: theme('colors.names-neutral.70');
 
     /* DIVIDER */
