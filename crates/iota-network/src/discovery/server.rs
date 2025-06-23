@@ -6,7 +6,7 @@ use std::sync::{Arc, RwLock};
 
 use anemo::{Request, Response};
 use iota_config::p2p::AccessType;
-use rand::seq::{IteratorRandom, SliceRandom};
+use rand::seq::IteratorRandom;
 use serde::{Deserialize, Serialize};
 
 use super::{Discovery, MAX_PEERS_TO_SEND, NodeInfo, SignedNodeInfo, State};
