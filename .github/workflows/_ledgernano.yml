@@ -23,7 +23,7 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Pull and tag speculos docker image
+      - name: Pull speculos docker image
         run: |
           docker pull ghcr.io/ledgerhq/speculos
 
