@@ -50,15 +50,11 @@ function RadioButton({
                     disabled={isDisabled}
                     className={cx('peer appearance-none disabled:opacity-40')}
                 />
-                <span
-                    className="text-neutral-40
-                    peer-checked:text-primary-30 peer-checked:peer-disabled:text-neutral-40 dark:text-neutral-60 dark:peer-checked:peer-disabled:text-neutral-40 absolute peer-disabled:opacity-40 [&_svg]:h-6 [&_svg]:w-6
-                "
-                >
+                <span className="radio-icon-color peer-checked:radio-icon-checked-color peer-checked:peer-disabled:radio-icon-checked-disabled-color absolute peer-disabled:opacity-40 [&_svg]:h-6 [&_svg]:w-6">
                     <RadioIcon />
                 </span>
             </div>
-            <span className="text-neutral-40 dark:text-neutral-60 inline-flex items-center justify-center text-label-lg group-[.disabled]:text-opacity-40 group-[.disabled]:dark:text-opacity-40">
+            <span className="radio-label-color inline-flex items-center justify-center text-label-lg group-[.disabled]:text-opacity-40 group-[.disabled]:dark:text-opacity-40">
                 {label}
             </span>
         </label>
