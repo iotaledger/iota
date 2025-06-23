@@ -118,10 +118,17 @@ body,
         grid-template-areas:
             'heroImage name'
             'heroImage description'
-            'heroImage objectId'
-            'heroImage type'
+            'objectId type'
             'owner storageRebate'
             'version lastTxBlock';
+    }
+
+    .address-grid-container-top.no-description.no-image {
+        @apply grid grid-cols-2 gap-4;
+        grid-template-areas:
+            'objectId version'
+            'owner type'
+            'lastTxBlock storageRebate';
     }
 
     @screen md {

@@ -38,6 +38,10 @@ interface ButtonSegmentProps {
      * The type of the button.
      */
     type?: ButtonSegmentType;
+    /**
+     * If the button is nested inside a parent button.
+     */
+    isNested?: boolean;
 }
 
 export function ButtonSegment({
@@ -47,6 +51,7 @@ export function ButtonSegment({
     disabled,
     onClick,
     type = ButtonSegmentType.Rounded,
+    isNested = false,
 }: ButtonSegmentProps): React.JSX.Element {
     const isUnderlined = type === ButtonSegmentType.Underlined;
 
@@ -58,9 +63,16 @@ export function ButtonSegment({
 
     const underlined = isUnderlined ? (selected ? UNDERLINED_SELECTED : UNDERLINED) : '';
     const textColors = selected ? TEXT_COLORS_SELECTED : TEXT_COLORS;
-    const padding = isUnderlined ? 'px-lg py-md' : 'px-sm py-[6px]';
+    const padding = isUnderlined ? (isNested ? 'px-md py-sm' : 'px-lg py-md') : 'px-sm py-[6px]';
     const borderRadius = isUnderlined ? '' : 'rounded-full';
-    const textSize = isUnderlined ? 'text-title-md' : 'text-label-lg';
+    const textSize = isNested
+        ? isUnderlined
+            ? 'text-title-sm'
+            : 'text-label-md'
+        : isUnderlined
+          ? 'text-title-md'
+          : 'text-label-lg';
+
     return (
         <ButtonUnstyled
             onClick={onClick}
@@ -79,7 +91,7 @@ export function ButtonSegment({
         >
             <div className={cx('flex flex-row items-center justify-center gap-2', textSize)}>
                 {icon && <span>{icon}</span>}
-                <span className="font-inter">{label}</span>
+                <span className="shrink-0 font-inter">{label}</span>
             </div>
         </ButtonUnstyled>
     );

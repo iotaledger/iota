@@ -8,18 +8,19 @@ use anyhow::Result;
 use async_trait::async_trait;
 use cached::{SizedCache, proc_macro::cached};
 use chrono::DateTime;
-use iota_core::authority::AuthorityState;
+use iota_core::{authority::AuthorityState, jsonrpc_index::TotalBalance};
 use iota_json_rpc_api::{CoinReadApiOpenRpc, CoinReadApiServer, JsonRpcMetrics, cap_page_limit};
 use iota_json_rpc_types::{Balance, CoinPage, IotaCirculatingSupply, IotaCoinMetadata};
 use iota_mainnet_unlocks::MainnetUnlocksStore;
 use iota_metrics::spawn_monitored_task;
 use iota_open_rpc::Module;
 use iota_protocol_config::Chain;
-use iota_storage::{indexes::TotalBalance, key_value_store::TransactionKeyValueStore};
+use iota_storage::key_value_store::TransactionKeyValueStore;
 use iota_types::{
     balance::Supply,
     base_types::{IotaAddress, ObjectID},
     coin::{CoinMetadata, TreasuryCap},
+    coin_manager::CoinManager,
     effects::TransactionEffectsAPI,
     gas_coin::GAS,
     iota_system_state::{
@@ -217,11 +218,40 @@ impl CoinReadApiServer for CoinReadApi {
                 .internal
                 .find_package_object(
                     &coin_struct.address.into(),
-                    CoinMetadata::type_(coin_struct),
+                    CoinMetadata::type_(coin_struct.clone()),
                 )
                 .await
                 .ok();
-            Ok(metadata_object.and_then(|v: Object| v.try_into().ok()))
+            match metadata_object {
+                None => {
+                    let manager_object = self
+                        .internal
+                        .find_package_object(
+                            &coin_struct.address.into(),
+                            CoinManager::type_(coin_struct),
+                        )
+                        .await
+                        .ok();
+
+                    Ok(manager_object.and_then(|v| {
+                        CoinManager::try_from(v).ok().and_then(|m| {
+                            match (m.metadata, m.immutable_metadata) {
+                                (Some(metadata), _) => Some(metadata.into()),
+                                (_, Some(immutable_metadata)) => Some(IotaCoinMetadata {
+                                    decimals: immutable_metadata.decimals,
+                                    name: immutable_metadata.name,
+                                    symbol: immutable_metadata.symbol,
+                                    description: immutable_metadata.description,
+                                    icon_url: immutable_metadata.icon_url,
+                                    id: None,
+                                }),
+                                (None, None) => None,
+                            }
+                        })
+                    }))
+                }
+                Some(metadata_object) => Ok(metadata_object.try_into().ok()),
+            }
         }
         .trace()
         .await
@@ -449,7 +479,7 @@ impl CoinReadInternal for CoinReadInternalImpl {
         one_coin_type_only: bool,
     ) -> RpcInterimResult<CoinPage> {
         let limit = cap_page_limit(limit);
-        self.metrics.get_coins_limit.report(limit as u64);
+        self.metrics.get_coins_limit.observe(limit as f64);
         let state = self.get_state();
         let mut data = spawn_monitored_task!(async move {
             state.get_owned_coins(owner, cursor, limit + 1, one_coin_type_only)
@@ -459,7 +489,9 @@ impl CoinReadInternal for CoinReadInternalImpl {
         let has_next_page = data.len() > limit;
         data.truncate(limit);
 
-        self.metrics.get_coins_result_size.report(data.len() as u64);
+        self.metrics
+            .get_coins_result_size
+            .observe(data.len() as f64);
         self.metrics
             .get_coins_result_size_total
             .inc_by(data.len() as u64);

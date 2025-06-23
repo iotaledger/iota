@@ -12,7 +12,7 @@
       "name": "Apache-2.0",
       "url": "https://raw.githubusercontent.com/iotaledger/iota/main/LICENSE"
     },
-    "version": "1.2.1-rc"
+    "version": "1.3.0-alpha"
   },
   "methods": [
     {
@@ -1301,11 +1301,11 @@
             "name": "Result",
             "value": {
               "minSupportedProtocolVersion": "1",
-              "maxSupportedProtocolVersion": "8",
+              "maxSupportedProtocolVersion": "9",
               "protocolVersion": "6",
               "featureFlags": {
+                "accept_passkey_in_multisig": false,
                 "accept_zklogin_in_multisig": false,
-                "bridge": false,
                 "congestion_control_min_free_execution_slot": false,
                 "consensus_distributed_vote_scoring_strategy": false,
                 "consensus_linearize_subdag_v2": false,
@@ -6320,6 +6320,18 @@
               }
             },
             "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "required": [
+              "Passkey"
+            ],
+            "properties": {
+              "Passkey": {
+                "$ref": "#/components/schemas/PasskeyAuthenticatorAsBytes"
+              }
+            },
+            "additionalProperties": false
           }
         ]
       },
@@ -7360,7 +7372,7 @@
         ]
       },
       "EventID": {
-        "description": "Unique ID of an IOTA Event, the ID is a combination of tx seq number and event seq number, the ID is local to this particular fullnode and will be different from other fullnode.",
+        "description": "Unique ID of an IOTA Event, the ID is a combination of transaction digest and event seq number.",
         "type": "object",
         "required": [
           "eventSeq",
@@ -8033,30 +8045,6 @@
             "properties": {
               "AuthenticatorStateExpire": {
                 "$ref": "#/components/schemas/IotaAuthenticatorStateExpire"
-              }
-            },
-            "additionalProperties": false
-          },
-          {
-            "type": "object",
-            "required": [
-              "BridgeStateCreate"
-            ],
-            "properties": {
-              "BridgeStateCreate": {
-                "$ref": "#/components/schemas/CheckpointDigest"
-              }
-            },
-            "additionalProperties": false
-          },
-          {
-            "type": "object",
-            "required": [
-              "BridgeCommitteeUpdate"
-            ],
-            "properties": {
-              "BridgeCommitteeUpdate": {
-                "$ref": "#/components/schemas/SequenceNumber"
               }
             },
             "additionalProperties": false
@@ -11282,6 +11270,9 @@
             "type": "string"
           }
         }
+      },
+      "PasskeyAuthenticatorAsBytes": {
+        "$ref": "#/components/schemas/Base64"
       },
       "ProtocolConfig": {
         "type": "object",

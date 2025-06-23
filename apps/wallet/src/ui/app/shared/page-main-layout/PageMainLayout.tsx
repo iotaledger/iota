@@ -16,6 +16,7 @@ import { type SerializedUIAccount } from '_src/background/accounts/account';
 import { formatAddress } from '@iota/iota-sdk/utils';
 import { Badge, BadgeType } from '@iota/apps-ui-kit';
 import { isLegacyAccount } from '_src/background/accounts/isLegacyAccount';
+import { isMainAccount } from '_src/background/accounts/isMainAccount';
 
 export const PageMainLayoutContext = createContext<HTMLDivElement | null>(null);
 
@@ -53,6 +54,7 @@ export function PageMainLayout({
                             isLedgerAccount={isLedgerAccount}
                             isLocked={activeAccount?.isLocked}
                             isLegacyAccount={isLegacyAccount(activeAccount)}
+                            isMainAccount={isMainAccount(activeAccount)}
                         />
                     }
                     middleContent={<div ref={setTitlePortalContainer} />}
@@ -85,11 +87,13 @@ function LeftContent({
     isLedgerAccount,
     isLocked,
     isLegacyAccount,
+    isMainAccount,
 }: {
     account: SerializedUIAccount | null;
     isLedgerAccount: boolean | null;
     isLocked?: boolean;
     isLegacyAccount?: boolean;
+    isMainAccount?: boolean;
 }) {
     const accountName = account?.nickname ?? formatAddress(account?.address || '');
     const backgroundColor = isLocked ? 'bg-neutral-90' : 'bg-primary-30';
@@ -111,6 +115,7 @@ function LeftContent({
                 {accountName}
             </span>
             {isLegacyAccount && <Badge type={BadgeType.Neutral} label="Legacy" />}
+            {isMainAccount && <Badge type={BadgeType.PrimarySoft} label="Main" />}
         </Link>
     );
 }

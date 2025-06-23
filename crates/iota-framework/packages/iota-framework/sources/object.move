@@ -41,9 +41,6 @@ const IOTA_RANDOM_ID: address = @0x8;
 /// The hardcoded ID for the singleton DenyList.
 const IOTA_DENY_LIST_OBJECT_ID: address = @0x403;
 
-/// The hardcoded ID for the Bridge Object.
-const IOTA_BRIDGE_ID: address = @0x9;
-
 /// Sender is not @0x0 the system address.
 const ENotSystemAddress: u64 = 0;
 
@@ -134,15 +131,6 @@ public(package) fun randomness_state(): UID {
 public(package) fun iota_deny_list_object_id(): UID {
     UID {
         id: ID { bytes: IOTA_DENY_LIST_OBJECT_ID },
-    }
-}
-
-#[allow(unused_function)]
-/// Create the `UID` for the singleton `Bridge` object.
-/// This should only be called once from `bridge`.
-fun bridge(): UID {
-    UID {
-        id: ID { bytes: IOTA_BRIDGE_ID },
     }
 }
 

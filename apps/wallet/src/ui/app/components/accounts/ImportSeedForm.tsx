@@ -30,7 +30,7 @@ interface ImportSeedFormProps {
 
 export function ImportSeedForm({ onSubmit }: ImportSeedFormProps) {
     const form = useZodForm({
-        mode: 'onTouched',
+        mode: 'onChange',
         schema: formSchema,
     });
     const {

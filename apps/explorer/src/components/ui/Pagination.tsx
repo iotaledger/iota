@@ -58,7 +58,7 @@ export function Pagination({
     onNext,
 }: PaginationProps): JSX.Element {
     return (
-        <div className="flex gap-2">
+        <div className="flex gap-2 self-center md:self-start">
             <Button
                 type={ButtonType.Secondary}
                 size={ButtonSize.Small}

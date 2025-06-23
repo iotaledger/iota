@@ -8,6 +8,8 @@ import {
     NftImage,
     ExplorerLinkType,
     ViewTxnOnExplorerButton,
+    OutlinedCopyButton,
+    toast,
 } from '@iota/core';
 import { Badge, BadgeType, Header, LoadingIndicator } from '@iota/apps-ui-kit';
 import { DialogLayoutBody, DialogLayoutFooter } from '../../layout';
@@ -65,9 +67,21 @@ export function KioskDetailsView({ onClose, asset, onItemClick }: DetailsViewPro
                 </div>
             </DialogLayoutBody>
             <DialogLayoutFooter>
-                <ExplorerLink objectID={objectId} type={ExplorerLinkType.Object}>
-                    <ViewTxnOnExplorerButton digest={objectId} />
-                </ExplorerLink>
+                <div className="flex w-full flex-row gap-x-xs">
+                    <div className="flex w-full [&_a]:w-full">
+                        <ExplorerLink objectID={objectId} type={ExplorerLinkType.Object}>
+                            <ViewTxnOnExplorerButton digest={objectId} />
+                        </ExplorerLink>
+                    </div>
+                    <div className="self-center">
+                        <OutlinedCopyButton
+                            textToCopy={objectId ?? ''}
+                            onCopySuccess={() =>
+                                toast.success('Kiosk Object ID copied to clipboard')
+                            }
+                        />
+                    </div>
+                </div>
             </DialogLayoutFooter>
         </>
     );

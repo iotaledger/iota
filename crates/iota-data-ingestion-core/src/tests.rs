@@ -27,11 +27,12 @@ use iota_types::{
 use prometheus::Registry;
 use rand::{SeedableRng, prelude::StdRng};
 use tempfile::NamedTempFile;
+use tokio::time::timeout;
 use tokio_util::sync::CancellationToken;
 
 use crate::{
     DataIngestionMetrics, FileProgressStore, IndexerExecutor, IngestionError, IngestionResult,
-    ReaderOptions, Reducer, Worker, WorkerPool, progress_store::ExecutorProgress,
+    ProgressStore, ReaderOptions, Reducer, Worker, WorkerPool, progress_store::ExecutorProgress,
 };
 
 async fn add_worker_pool<W: Worker + 'static>(
@@ -326,6 +327,74 @@ async fn graceful_shutdown_faulty_reducer() {
     .await;
     assert!(result.is_ok());
     assert_eq!(result.unwrap().get("test"), Some(&0));
+}
+
+/// Tests the atomicity of FileProgressStore's save operation by simulating a
+/// crash/interruption.
+///
+/// This test attempts to save a new value with a very short timeout, simulating
+/// a crash before the save completes. It verifies that if the save is
+/// interrupted, the original value remains unchanged, demonstrating that
+/// FileProgressStore does not leave the file in a partial or corrupted state
+/// even if the save is not completed.
+#[tokio::test]
+async fn file_progress_store_save_timeout_simulates_crash() {
+    // Setup: create a FileProgressStore with initial data
+    let progress_file = NamedTempFile::new().unwrap();
+    let path = progress_file.path().to_path_buf();
+    let mut store = FileProgressStore::new(path.clone()).await.unwrap();
+
+    // Save an initial value
+    store.save("task1".to_string(), 42).await.unwrap();
+
+    // Confirm the value is present
+    let value = store.load("task1".to_string()).await.unwrap();
+    assert_eq!(value, 42);
+
+    // Attempt to save a new value, but with a very short timeout to simulate a
+    // crash/interruption
+    let result = timeout(
+        Duration::from_nanos(5),
+        store.save("task1".to_string(), 100),
+    )
+    .await;
+
+    // The operation should time out (simulate crash)
+    assert!(result.is_err(), "Save did not time out as expected");
+
+    // The value should still be the old value, as the save was interrupted
+    let value = store.load("task1".to_string()).await.unwrap();
+    assert_eq!(
+        value, 42,
+        "Value should remain unchanged after interrupted save"
+    );
+}
+
+/// Tests the basic save and load functionality of FileProgressStore.
+///
+/// This test saves an initial value, verifies it, then saves a new value and
+/// verifies the update. It demonstrates that FileProgressStore correctly
+/// persists and retrieves checkpoint data.
+#[tokio::test]
+async fn file_progress_store() {
+    // Setup: create a FileProgressStore with initial data
+    let progress_file = NamedTempFile::new().unwrap();
+    let path = progress_file.path().to_path_buf();
+    let mut store = FileProgressStore::new(path.clone()).await.unwrap();
+
+    // Save an initial value
+    store.save("task1".to_string(), 42).await.unwrap();
+
+    // Confirm the value is present
+    let value = store.load("task1".to_string()).await.unwrap();
+    assert_eq!(value, 42);
+
+    // Save a new value
+    store.save("task1".to_string(), 100).await.unwrap();
+
+    // Confirm the value is updated
+    let value = store.load("task1".to_string()).await.unwrap();
+    assert_eq!(value, 100);
 }
 
 fn temp_dir() -> std::path::PathBuf {
