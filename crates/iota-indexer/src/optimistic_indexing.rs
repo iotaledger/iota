@@ -192,7 +192,11 @@ impl OptimisticTransactionExecutor {
                 .optimistic_sequence_number
                 .expect("Optimistic sequence number is always set for data read from DB")
                 .try_into()
-                .unwrap(),
+                .map_err(|e| {
+                    IndexerError::PersistentStorageDataCorruption(format!(
+                        "Failed to convert optimistic sequence number: {e}"
+                    ))
+                })?,
             &self.metrics,
         );
 
