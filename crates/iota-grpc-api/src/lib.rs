@@ -102,7 +102,7 @@ impl CheckpointOracle<GrpcCheckpointData> for Oracle {
     }
     fn get_latest(&self) -> Option<u64> {
         self.state_reader
-            .get_highest_synced_checkpoint()
+            .get_latest_checkpoint()
             .ok()
             .map(|cp| *cp.sequence_number())
     }
@@ -125,7 +125,7 @@ impl CheckpointOracle<GrpcCertifiedCheckpointSummary> for Oracle {
     }
     fn get_latest(&self) -> Option<u64> {
         self.state_reader
-            .get_highest_synced_checkpoint()
+            .get_latest_checkpoint()
             .ok()
             .map(|cp| *cp.sequence_number())
     }
@@ -166,12 +166,7 @@ where
                     start += 1;
                     continue;
                 } else {
-                    if start < latest {
-                        Err(Status::internal(format!("Historical checkpoint data missing/pruned: index={start} latest={latest}.")))?;
-                    } else {
-                        // When start == latest, sometimes the checkpoint is not yet available in the DB: switch to live phase (wait for broadcast)
-                        debug!("[profile][grpc] Checkpoint {start} is not yet available in the DB, switching to live phase.");
-                    }
+                    Err(Status::internal(format!("Historical checkpoint data missing/pruned: index={start} latest={latest}.")))?;
                 }
             }
             // latest < start, live phase
@@ -276,15 +271,11 @@ impl CheckpointService for CheckpointGrpcService {
             epoch
         );
 
-        let latest_seq = match self.state_reader.get_highest_synced_checkpoint() {
-            Ok(cp) => *cp.sequence_number(),
-            Err(_) => {
-                info!("No checkpoints found in the system for epoch {}", epoch);
-                return Ok(Response::new(
-                    checkpoint::CheckpointSequenceNumberResponse { sequence_number: 0 },
-                ));
-            }
-        };
+        let latest_seq = *self
+            .state_reader
+            .get_latest_checkpoint()
+            .unwrap()
+            .sequence_number();
 
         if let Ok(Some(latest_summary)) = self
             .state_reader

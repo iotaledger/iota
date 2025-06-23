@@ -843,8 +843,37 @@ impl IotaNode {
         // --- Create shared checkpoint broadcast channel and buffer for gRPC and
         // checkpoint logic ---
         // TODO: use constant parameter for capacity
-        let (grpc_checkpoint_summary_tx, _) = tokio::sync::broadcast::channel(100);
-        let (grpc_checkpoint_data_tx, _) = tokio::sync::broadcast::channel(100);
+        let (grpc_checkpoint_summary_tx, grpc_checkpoint_data_tx) = if let Some(grpc_api_address) =
+            config.grpc_api_address.clone()
+        {
+            let (summary_tx, _) = tokio::sync::broadcast::channel(100);
+            let (data_tx, _) = tokio::sync::broadcast::channel(100);
+            let addr = grpc_api_address.parse().expect("Invalid gRPC address");
+            let rocks = RocksDbStore::new(
+                cache_traits.clone(),
+                committee_store.clone(),
+                checkpoint_store.clone(),
+            );
+            let rest_read_store = std::sync::Arc::new(RestReadStore::new(state.clone(), rocks));
+            // Use the shared broadcast channel and buffer for gRPC checkpoint streaming
+            let grpc_service =
+                CheckpointGrpcService::new(rest_read_store, summary_tx.clone(), data_tx.clone());
+            tokio::spawn(async move {
+                info!("Starting gRPC server on {addr}");
+                tonic::transport::Server::builder()
+                    .add_service(
+                        checkpoint::checkpoint_service_server::CheckpointServiceServer::new(
+                            grpc_service,
+                        ),
+                    )
+                    .serve(addr)
+                    .await
+                    .expect("gRPC server failed");
+            });
+            (Some(summary_tx), Some(data_tx))
+        } else {
+            (None, None)
+        };
         let validator_components = if state.is_validator(&epoch_store) {
             let (components, _) = futures::join!(
                 Self::construct_validator_components(
@@ -877,13 +906,6 @@ impl IotaNode {
         // setup shutdown channel
         let (shutdown_channel, _) = broadcast::channel::<Option<RunWithRange>>(1);
 
-        // Clone config, committee_store, checkpoint_store, and state for gRPC startup
-        // BEFORE node struct construction
-        let grpc_config = config.clone();
-        let grpc_committee_store = committee_store.clone();
-        let grpc_checkpoint_store = checkpoint_store.clone();
-        let grpc_state = state.clone();
-
         let node = Self {
             config,
             validator_components: Mutex::new(validator_components),
@@ -914,45 +936,16 @@ impl IotaNode {
             auth_agg,
         };
 
-        // --- gRPC API startup (similar to REST API) ---
-        if let Some(grpc_api_address) = grpc_config.grpc_api_address.clone() {
-            let addr = grpc_api_address.parse().expect("Invalid gRPC address");
-            let rocks = RocksDbStore::new(
-                cache_traits.clone(),
-                grpc_committee_store,
-                grpc_checkpoint_store,
-            );
-            let rest_read_store = std::sync::Arc::new(RestReadStore::new(grpc_state, rocks));
-            // Use the shared broadcast channel and buffer for gRPC checkpoint streaming
-            let grpc_service = CheckpointGrpcService::new(
-                rest_read_store,
-                grpc_checkpoint_summary_tx.clone(),
-                grpc_checkpoint_data_tx.clone(),
-            );
-            tokio::spawn(async move {
-                info!("Starting gRPC server on {addr}");
-                tonic::transport::Server::builder()
-                    .add_service(
-                        checkpoint::checkpoint_service_server::CheckpointServiceServer::new(
-                            grpc_service,
-                        ),
-                    )
-                    .serve(addr)
-                    .await
-                    .expect("gRPC server failed");
-            });
-        }
-
         info!("IotaNode started!");
         let node = Arc::new(node);
         let node_copy = node.clone();
-        let grpc_checkpoint_summary_tx = grpc_checkpoint_summary_tx.clone();
-        let grpc_checkpoint_data_tx = grpc_checkpoint_data_tx.clone();
+        let grpc_checkpoint_summary_tx_clone = grpc_checkpoint_summary_tx.clone();
+        let grpc_checkpoint_data_tx_clone = grpc_checkpoint_data_tx.clone();
         spawn_monitored_task!(async move {
             let result = Self::monitor_reconfiguration(
                 node_copy,
-                grpc_checkpoint_summary_tx,
-                grpc_checkpoint_data_tx,
+                grpc_checkpoint_summary_tx_clone,
+                grpc_checkpoint_data_tx_clone,
             )
             .await;
             if let Err(error) = result {
@@ -1694,8 +1687,10 @@ impl IotaNode {
     /// is a validator.
     pub async fn monitor_reconfiguration(
         self: Arc<Self>,
-        grpc_checkpoint_summary_tx: tokio::sync::broadcast::Sender<Arc<CertifiedCheckpointSummary>>,
-        grpc_checkpoint_data_tx: tokio::sync::broadcast::Sender<Arc<CheckpointData>>,
+        grpc_checkpoint_summary_tx: Option<
+            tokio::sync::broadcast::Sender<Arc<CertifiedCheckpointSummary>>,
+        >,
+        grpc_checkpoint_data_tx: Option<tokio::sync::broadcast::Sender<Arc<CheckpointData>>>,
     ) -> Result<()> {
         let checkpoint_executor_metrics =
             CheckpointExecutorMetrics::new(&self.registry_service.default_registry());
@@ -1710,8 +1705,8 @@ impl IotaNode {
                 accumulator.clone(),
                 self.config.checkpoint_executor_config.clone(),
                 checkpoint_executor_metrics.clone(),
-                Some(grpc_checkpoint_summary_tx.clone()),
-                Some(grpc_checkpoint_data_tx.clone()),
+                grpc_checkpoint_summary_tx.clone(),
+                grpc_checkpoint_data_tx.clone(),
             );
 
             let run_with_range = self.config.run_with_range;
