@@ -19,7 +19,7 @@ use crate::{
     DataIngestionMetrics, IngestionError, IngestionResult, ReaderOptions, Worker,
     progress_store::{ExecutorProgress, ProgressStore, ProgressStoreWrapper, ShimProgressStore},
     reader::{
-        v1::CheckpointReader,
+        v1::CheckpointReader as CheckpointReaderV1,
         v2::{CheckpointReader as CheckpointReaderV2, CheckpointReaderConfig},
     },
     worker_pool::{WorkerPool, WorkerPoolStatus},
@@ -27,7 +27,7 @@ use crate::{
 
 pub const MAX_CHECKPOINTS_IN_PROGRESS: usize = 10000;
 
-enum CheckpointReaderVariant {
+enum CheckpointReader {
     V1 {
         checkpoint_recv: mpsc::Receiver<Arc<CheckpointData>>,
         gc_sender: mpsc::Sender<CheckpointSequenceNumber>,
@@ -37,7 +37,7 @@ enum CheckpointReaderVariant {
     V2(CheckpointReaderV2),
 }
 
-impl CheckpointReaderVariant {
+impl CheckpointReader {
     async fn get_checkpoint(&mut self) -> Option<Arc<CheckpointData>> {
         match self {
             Self::V1 {
@@ -220,7 +220,7 @@ impl<P: ProgressStore> IndexerExecutor<P> {
     ) -> IngestionResult<ExecutorProgress> {
         let reader_checkpoint_number = self.progress_store.min_watermark()?;
         let (checkpoint_reader, checkpoint_recv, gc_sender, exit_sender) =
-            CheckpointReader::initialize(
+            CheckpointReaderV1::initialize(
                 path,
                 reader_checkpoint_number,
                 remote_store_url,
@@ -232,7 +232,7 @@ impl<P: ProgressStore> IndexerExecutor<P> {
 
         self.run_executor_loop(
             reader_checkpoint_number,
-            CheckpointReaderVariant::V1 {
+            CheckpointReader::V1 {
                 checkpoint_recv,
                 gc_sender,
                 exit_sender,
@@ -260,7 +260,7 @@ impl<P: ProgressStore> IndexerExecutor<P> {
 
         self.run_executor_loop(
             reader_checkpoint_number,
-            CheckpointReaderVariant::V2(checkpoint_reader),
+            CheckpointReader::V2(checkpoint_reader),
         )
         .await
     }
@@ -269,7 +269,7 @@ impl<P: ProgressStore> IndexerExecutor<P> {
     async fn run_executor_loop(
         &mut self,
         mut reader_checkpoint_number: u64,
-        mut checkpoint_reader: CheckpointReaderVariant,
+        mut checkpoint_reader: CheckpointReader,
     ) -> IngestionResult<ExecutorProgress> {
         let worker_pools = std::mem::take(&mut self.pools)
             .into_iter()

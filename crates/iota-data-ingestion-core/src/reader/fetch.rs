@@ -174,7 +174,7 @@ pub async fn fetch_from_object_store(
     store: &dyn ObjectStore,
     checkpoint_number: CheckpointSequenceNumber,
 ) -> CheckpointResult {
-    let path = ObjectStorePath::from(format!("{}.chk", checkpoint_number));
+    let path = ObjectStorePath::from(format!("{checkpoint_number}.chk"));
     let response = store.get(&path).await?;
     let bytes = response.bytes().await?;
     Ok((

@@ -9,16 +9,15 @@ use std::{
 };
 
 use backoff::backoff::Backoff;
-use futures::{StreamExt, future::OptionFuture};
+use futures::StreamExt;
 use iota_config::{
     node::ArchiveReaderConfig,
     object_storage_config::{ObjectStoreConfig, ObjectStoreType},
 };
 use iota_metrics::spawn_monitored_task;
 use iota_rest_api::CheckpointData;
-use iota_storage::blob::Blob;
 use iota_types::messages_checkpoint::CheckpointSequenceNumber;
-use object_store::{ObjectStore, path::Path as ObjectStorePath};
+use object_store::ObjectStore;
 use serde::{Deserialize, Serialize};
 use tap::Pipe;
 use tokio::{
@@ -35,7 +34,7 @@ use crate::{
     IngestionError, IngestionResult, MAX_CHECKPOINTS_IN_PROGRESS, create_remote_store_client,
     history::reader::HistoricalReader,
     reader::{
-        fetch::{CheckpointResult, LocalRead, ReadSource, fetch_from_full_node},
+        fetch::{LocalRead, ReadSource, fetch_from_full_node, fetch_from_object_store},
         v1::{DataLimiter, ReaderOptions},
     },
 };
@@ -49,13 +48,28 @@ use crate::{
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 pub enum RemoteUrl {
     /// A REST API endpoint for checkpoint data.
+    /// # Example
+    /// ```text
+    /// "http://127.0.0.1:9000/api/v1"
+    /// ```
     Rest(String),
     /// A hybrid source combining historical object store and optional live
     /// object store.
     HybridHistoricalStore {
         /// The URL of the historical object store.
+        ///
+        /// # Example
+        /// ```text
+        /// "https://checkpoints.mainnet.iota.cafe"
+        /// ```
         historical_url: String,
-        /// The URL of the live object store.
+        /// The URL path to the live object store that contains *.chk checkpoint
+        /// files.
+        ///
+        /// # Example
+        /// ```text
+        /// "https://checkpoints.mainnet.iota.cafe/ingestion/live"
+        /// ```
         live_url: Option<String>,
     },
 }
@@ -198,43 +212,28 @@ impl CheckpointReaderActor {
                     > self.current_checkpoint_number)
     }
 
-    /// Fetch a single checkpoint from the live object store.
-    async fn fetch_from_live_object_store(
-        live: &dyn ObjectStore,
-        checkpoint_number: CheckpointSequenceNumber,
-    ) -> CheckpointResult {
-        let path = ObjectStorePath::from(format!("ingestion/live/{checkpoint_number}.chk"));
-        let response = live.get(&path).await?;
-        let bytes = response.bytes().await?;
-        Ok((
-            Blob::from_bytes::<Arc<CheckpointData>>(&bytes)
-                .map_err(|err| IngestionError::DeserializeCheckpoint(err.to_string()))?,
-            bytes.len(),
-        ))
-    }
-
     /// Fetch checkpoints from the historical object store and stream them to a
     /// channel.
-    async fn fetch_from_historical_object_store(
+    async fn fetch_historical(
         &mut self,
         historical_reader: &HistoricalReader,
     ) -> IngestionResult<()> {
+        // Only sync the manifest when needed to avoid unnecessary network calls.
+        // If the requested checkpoint is beyond what's currently available in our
+        // cached manifest, we need to refresh it to check for newer checkpoints.
         if self.current_checkpoint_number > historical_reader.latest_available_checkpoint().await? {
             historical_reader.sync_manifest_once().await?;
+
+            // Verify the requested checkpoint is now available after the manifest refresh.
+            // If it's still not available, the checkpoint hasn't been published yet.
+            if self.current_checkpoint_number
+                > historical_reader.latest_available_checkpoint().await?
+            {
+                return Err(IngestionError::CheckpointNotAvailableYet);
+            }
         }
 
         let manifest = historical_reader.get_manifest().await;
-
-        let latest_available_checkpoint = manifest
-            .next_checkpoint_seq_num()
-            .checked_sub(1)
-            .ok_or_else(|| {
-                IngestionError::HistoryRead("no checkpoint data in the remote store".into())
-            })?;
-
-        if self.current_checkpoint_number > latest_available_checkpoint {
-            return Err(IngestionError::CheckpointNotAvailableYet);
-        }
 
         let files = historical_reader.verify_and_get_manifest_files(manifest)?;
 
@@ -291,16 +290,12 @@ impl CheckpointReaderActor {
                 }
             }
             RemoteStore::HybridHistoricalStore { historical, live } => {
-                if let Err(err) = self.fetch_from_historical_object_store(historical).await {
+                if let Err(err) = self.fetch_historical(historical).await {
                     if matches!(err, IngestionError::CheckpointNotAvailableYet) {
-                        let live = match live {
-                            Some(live) => live,
-                            None => return Err(err),
-                        };
-
+                        let live = live.as_ref().ok_or(err)?;
                         let mut checkpoint_stream = (self.current_checkpoint_number..u64::MAX)
                             .map(|checkpoint_number| {
-                                Self::fetch_from_live_object_store(live, checkpoint_number)
+                                fetch_from_object_store(live, checkpoint_number)
                             })
                             .pipe(futures::stream::iter)
                             .buffered(batch_size);
@@ -334,28 +329,23 @@ impl CheckpointReaderActor {
                 Ok(_) => break,
                 Err(IngestionError::MaxCheckpointsCapacityReached) => break,
                 Err(err) => {
-                    // once reached the tip of the network, the historical reader can take some
-                    // time to issue a new checkpoint file, we reset the
-                    // backoff only in this case.
-                    if matches!(err, IngestionError::CheckpointNotAvailableYet)
-                        && backoff.next_backoff().is_none()
-                    {
-                        info!(
-                            "Resetting backoff, historical reader does not have the requested checkpoint yet"
-                        );
-                        backoff.reset();
-                    };
-
                     match backoff.next_backoff() {
                         Some(duration) => {
                             if !err.to_string().contains("404") {
                                 debug!(
-                                    "remote reader retry in {} ms. Error is {:?}",
+                                    "remote reader retry in {} ms. Error is {err:?}",
                                     duration.as_millis(),
-                                    err
                                 );
                             }
                             tokio::time::sleep(duration).await
+                        }
+                        // once reached the tip of the network, the historical reader can take some
+                        // time to issue a new checkpoint file, we reset the backoff in this case.
+                        None if matches!(err, IngestionError::CheckpointNotAvailableYet) => {
+                            info!(
+                                "Resetting backoff, historical reader does not have the requested checkpoint yet"
+                            );
+                            backoff.reset();
                         }
                         None => {
                             error!("remote reader transient error {:?}", err);
@@ -488,18 +478,18 @@ impl CheckpointReader {
         let (gc_signal_tx, gc_signal_rx) = mpsc::channel(MAX_CHECKPOINTS_IN_PROGRESS);
         let (shutdown_tx, shutdown_rx) = oneshot::channel();
 
-        let remote_store: OptionFuture<_> = config
-            .remote_store_url
-            .map(|url| {
+        let remote_store = if let Some(url) = config.remote_store_url {
+            Some(Arc::new(
                 RemoteStore::new(
                     url,
                     config.reader_options.batch_size,
                     config.reader_options.timeout_secs,
                 )
-            })
-            .into();
-
-        let remote_store = remote_store.await.transpose()?.map(Arc::new);
+                .await?,
+            ))
+        } else {
+            None
+        };
 
         let path = match config.ingestion_path {
             Some(p) => p,
