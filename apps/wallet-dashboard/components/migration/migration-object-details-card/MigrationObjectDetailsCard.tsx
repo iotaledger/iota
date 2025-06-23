@@ -1,7 +1,6 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { ExternalImage } from '@/components';
 import { useGetCurrentEpochStartTimestamp } from '@/hooks';
 import { useGetCurrentEpochEndTimestamp } from '@/hooks/useGetCurrentEpochEndTimestamp';
 import { MIGRATION_OBJECT_WITHOUT_UC_KEY } from '@/lib/constants';
@@ -12,6 +11,7 @@ import {
     CardBody,
     CardImage,
     ImageShape,
+    ImageWithFallback,
     LabelText,
     LabelTextSize,
     Tooltip,
@@ -25,7 +25,6 @@ import {
 } from '@iota/core';
 import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 import { Assets, DataStack, IotaLogoMark, Info } from '@iota/apps-ui-icons';
-import { useState } from 'react';
 
 interface MigrationObjectDetailsCardProps {
     migrationObject: ResolvedObjectTypes;
@@ -56,10 +55,10 @@ export function MigrationObjectDetailsCard({
                     subtitle="Visual Asset"
                     unlockConditionTimestamp={unlockConditionTimestamp}
                     image={
-                        <ExternalImageWithFallback
+                        <ImageWithFallback
                             src={migrationObject.image_url}
                             alt={migrationObject.name}
-                            fallback={<Assets />}
+                            renderFallback={<Assets />}
                         />
                     }
                     isTimelocked={isTimelocked}
@@ -78,19 +77,6 @@ export function MigrationObjectDetailsCard({
         default:
             return null;
     }
-}
-
-interface ExternalImageWithFallbackProps {
-    src: string;
-    alt: string;
-    fallback: React.ReactNode;
-}
-function ExternalImageWithFallback({ src, alt, fallback }: ExternalImageWithFallbackProps) {
-    const [errored, setErrored] = useState(false);
-    function handleError() {
-        setErrored(true);
-    }
-    return !errored ? <ExternalImage src={src} alt={alt} onError={handleError} /> : fallback;
 }
 
 interface MigrationObjectCardProps {
