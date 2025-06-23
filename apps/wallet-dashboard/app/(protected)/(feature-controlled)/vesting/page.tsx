@@ -281,7 +281,7 @@ export default function VestingDashboardPage(): JSX.Element {
                                     type={ImageType.BgSolid}
                                     shape={ImageShape.SquareRounded}
                                 >
-                                    <StarHex className="h-5 w-5 text-primary-30 dark:text-primary-80" />
+                                    <StarHex className="h-5 w-5 text-iota-primary-30 dark:text-iota-primary-80" />
                                 </CardImage>
                                 <CardBody
                                     title={`${formattedAvailableClaiming} ${availableClaimingSymbol}`}
@@ -318,7 +318,7 @@ export default function VestingDashboardPage(): JSX.Element {
                                     type={ImageType.BgSolid}
                                     shape={ImageShape.SquareRounded}
                                 >
-                                    <Calendar className="h-5 w-5 text-primary-30 dark:text-primary-80" />
+                                    <Calendar className="h-5 w-5 text-iota-primary-30 dark:text-iota-primary-80" />
                                 </CardImage>
                                 <CardBody
                                     title={`${formattedNextPayout} ${nextPayoutSymbol}`}

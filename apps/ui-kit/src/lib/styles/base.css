@@ -1,0 +1,88 @@
+@layer base {
+    .text-display-lg,
+    .text-display-md,
+    .text-display-sm,
+    .text-headline-lg,
+    .text-headline-md,
+    .text-headline-sm {
+        font-family: var(--font-family);
+    }
+
+    .text-title-lg,
+    .text-title-md,
+    .text-title-sm,
+    .text-body-lg,
+    .text-body-md,
+    .text-body-sm,
+    .text-body-ds-lg,
+    .text-body-ds-md,
+    .text-body-ds-sm,
+    .text-label-lg,
+    .text-label-md,
+    .text-label-sm {
+        @apply font-inter;
+    }
+
+    .text-display-lg,
+    .text-display-md,
+    .text-display-sm,
+    .text-headline-lg,
+    .text-headline-md,
+    .text-headline-sm,
+    .text-body-ds-lg {
+        font-variant-alternates: 'ss02';
+        font-weight: var(--font-weight);
+        letter-spacing: var(--letter-spacing);
+    }
+
+    .text-label-md {
+        font-variant-alternates: 'ss01';
+    }
+
+    input:-webkit-autofill,
+    input:-webkit-autofill:enabled,
+    input:-webkit-autofill:hover,
+    input:-webkit-autofill:focus {
+        @apply appearance-none !bg-transparent !bg-none;
+        @apply !text-iota-neutral-92 dark:!text-iota-neutral-10;
+        transition: background-color 5000s ease-in-out 0s;
+        -webkit-text-fill-color: theme('colors.iota-neutral.92') !important;
+    }
+
+    :root:not(.dark) {
+        input:-webkit-autofill,
+        input:-webkit-autofill:enabled,
+        input:-webkit-autofill:hover,
+        input:-webkit-autofill:focus {
+            -webkit-text-fill-color: theme('colors.iota-neutral.10') !important;
+        }
+    }
+}
+
+@-moz-document url-prefix() {
+    * {
+        scrollbar-width: thin;
+        scrollbar-color: theme('colors.iota-neutral.30') transparent;
+    }
+
+    :root:not(.dark) {
+        * {
+            scrollbar-color: theme('colors.iota-neutral.80') transparent;
+        }
+    }
+}
+
+@supports selector(::-webkit-scrollbar) {
+    *::-webkit-scrollbar {
+        @apply w-3.5;
+    }
+
+    *::-webkit-scrollbar-track {
+        @apply rounded-xl bg-transparent;
+    }
+
+    *::-webkit-scrollbar-thumb {
+        @apply shadow-[inset_0_0_10px_10px] shadow-iota-neutral-80 dark:shadow-iota-neutral-30;
+        @apply rounded-xl border-4 border-solid border-transparent;
+    }
+}
