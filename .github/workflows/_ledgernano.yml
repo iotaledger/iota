@@ -24,8 +24,7 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Pull speculos docker image
-        run: |
-          docker pull ghcr.io/ledgerhq/speculos
+        run: docker pull ghcr.io/ledgerhq/speculos
 
       - name: Download ledgernano bin
         run: |
