@@ -261,35 +261,46 @@ impl CoinReadApiServer for CoinReadApi {
     async fn get_total_supply(&self, coin_type: String) -> RpcResult<Supply> {
         async move {
             let coin_struct = parse_to_struct_tag(&coin_type)?;
+
             if GAS::is_gas(&coin_struct) {
-                let system_state_summary = IotaSystemStateSummaryV2::try_from(
+                let summary = IotaSystemStateSummaryV2::try_from(
                     self.internal
                         .get_state()
                         .get_system_state()?
                         .into_iota_system_state_summary(),
                 )?;
-                Ok(Supply {
-                    value: system_state_summary.iota_total_supply,
-                })
-            } else {
-                let treasury_cap_object = self
-                    .internal
-                    .find_package_object(
-                        &coin_struct.address.into(),
-                        TreasuryCap::type_(coin_struct.clone()),
-                    )
-                    .await
-                    .ok();
+                return Ok(Supply {
+                    value: summary.iota_total_supply,
+                });
+            }
 
-                if let Some(obj) = treasury_cap_object {
-                    let move_contents = obj.data.try_as_move()
-                        .ok_or_else(|| Error::Unexpected("cannot get move contents from `TreasuryCap` object".to_string()))?
+            // Try to get the total supply directly from the `TreasuryCap` object.
+            let treasury_cap_object = self
+                .internal
+                .find_package_object(
+                    &coin_struct.address.into(),
+                    TreasuryCap::type_(coin_struct.clone()),
+                )
+                .await
+                .ok();
+
+            match treasury_cap_object {
+                Some(obj) => {
+                    let contents = obj
+                        .data
+                        .try_as_move()
+                        .ok_or_else(|| {
+                            Error::Unexpected(
+                                "cannot get move contents from `TreasuryCap` object".to_string(),
+                            )
+                        })?
                         .contents();
-                    let treasury_cap = TreasuryCap::from_bcs_bytes(move_contents)
-                        .map_err(Error::from)?;
-                    Ok(treasury_cap.total_supply)
-                } else {
-                    // Fallback: try CoinManager
+                    let tc = TreasuryCap::from_bcs_bytes(contents).map_err(Error::from)?;
+                    Ok(tc.total_supply)
+                }
+                None => {
+                    // If the `TreasuryCap` object is not found, try to get the total supply from
+                    // the `CoinManager`.
                     let manager_object = self
                         .internal
                         .find_package_object(
@@ -299,15 +310,18 @@ impl CoinReadApiServer for CoinReadApi {
                         .await
                         .ok();
 
-                    manager_object
-                        .and_then(|v| CoinManager::try_from(v).ok())
-                        .map(|m| m.treasury_cap.total_supply)
-                        .ok_or_else(|| Error::Unexpected("total supply not found for coin".to_string()).into())
+                    match manager_object.and_then(|v| CoinManager::try_from(v).ok()) {
+                        Some(mgr) => Ok(mgr.treasury_cap.total_supply),
+                        None => Err(IotaRpcInputError::GenericNotFound(format!(
+                            "total supply not found for coin {}",
+                            coin_type
+                        )))?,
+                    }
                 }
             }
         }
-            .trace()
-            .await
+        .trace()
+        .await
     }
 
     #[instrument(skip(self))]
