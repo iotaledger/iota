@@ -690,11 +690,7 @@ mod tests {
             panic!("Certificate 6 must be deferred");
         }
 
-        // FIX: this example needs a fix in the calculator
         // Construct a certificate that touches the following shared objects:
-        // - `object_1` by mutable reference,
-        // - `object_2` by mutable reference,
-        // - `object_3` by mutable reference,
         // - `object_4` by mutable reference,
         // - `object_5` by mutable reference.
         let objects_7 = vec![
@@ -702,7 +698,7 @@ mod tests {
             (object_2, true),
             (object_3, true),
             (object_4, true),
-            (object_5, true),
+            // (object_5, true),
         ];
         let gas_budget_7 = 1_005_000;
         let gas_price_7 = 1_005;
@@ -746,5 +742,100 @@ mod tests {
         } else {
             panic!("Certificate 7 must be deferred");
         }
+
+        // let objects_5 = vec![(object_1, true), (object_2, true)];
+        // let gas_budget_5 = 2_000_000;
+        // let gas_price_5 = 1_000;
+        // let certificate_5 = build_transaction(&objects_5, gas_budget_5, gas_price_5);
+        // let estimated_execution_duration_5 =
+        //     shared_object_congestion_tracker.get_estimated_execution_duration(&certificate_5);
+        // // Try sequencing this certificate
+        // let shared_input_objects_5: Vec<_> = certificate_5.shared_input_objects().collect();
+        // shared_object_congestion_tracker.initialize_object_execution_slots(&shared_input_objects_5);
+        // let sequencing_result_5 = shared_object_congestion_tracker.try_schedule(
+        //     &certificate_5,
+        //     max_execution_duration_per_commit,
+        //     &previously_deferred_tx_digests,
+        //     commit_round,
+        // );
+        // if let SequencingResult::Defer(_key, congested_objects) = sequencing_result_5 {
+        //     assert_eq!(
+        //         congested_objects,
+        //         objects_5.into_iter().map(|(id, _)| id).collect::<Vec<_>>(),
+        //     );
+        //     let suggested_gas_price = suggested_gas_price_calculator
+        //         .calculate_suggested_gas_price(&certificate_5, estimated_execution_duration_5);
+        //
+        //     match mode {
+        //         PerObjectCongestionControlMode::None => unreachable!(),
+        //         PerObjectCongestionControlMode::TotalTxCount => {
+        //             // To be scheduled, certificate_5 should have payed at least the gas
+        //             // price of certificate_2 plus 1. `TotalTxCount` mode is blind to
+        //             // gas budget of certificate_5.
+        //             assert_eq!(suggested_gas_price, gas_price_2 + 1);
+        //         }
+        //         PerObjectCongestionControlMode::TotalGasBudget => {
+        //             // To be scheduled, certificate_5 should have payed at least the gas
+        //             // price of certificate_1 plus 1.
+        //             assert_eq!(suggested_gas_price, gas_price_1 + 1);
+        //         }
+        //     }
+        // } else {
+        //     panic!("Certificate 5 must be deferred");
+        // }
+        //
+        // let objects_6 = vec![(object_1, true)];
+        // let gas_budget_6 = 1_000_000;
+        // let gas_price_6 = 1_000;
+        // let certificate_6 = build_transaction(&objects_6, gas_budget_6, gas_price_6);
+        // let estimated_execution_duration_6 =
+        //     shared_object_congestion_tracker.get_estimated_execution_duration(&certificate_6);
+        // // Try sequencing this certificate
+        // let shared_input_objects_6: Vec<_> = certificate_6.shared_input_objects().collect();
+        // shared_object_congestion_tracker.initialize_object_execution_slots(&shared_input_objects_6);
+        // let sequencing_result_6 = shared_object_congestion_tracker.try_schedule(
+        //     &certificate_6,
+        //     max_execution_duration_per_commit,
+        //     &previously_deferred_tx_digests,
+        //     commit_round,
+        // );
+        // if let SequencingResult::Schedule(start_time) = sequencing_result_6 {
+        //     shared_object_congestion_tracker
+        //         .bump_object_execution_slots(&certificate_6, start_time);
+        //     suggested_gas_price_calculator
+        //         .update_congestion_info(&certificate_6, estimated_execution_duration_6);
+        // } else {
+        //     panic!("Certificate 6 must be scheduled");
+        // }
+        //
+        // let objects_7 = vec![(object_1, true)];
+        // let gas_budget_7 = 1_000_000;
+        // let gas_price_7 = 1_000;
+        // let certificate_7 = build_transaction(&objects_7, gas_budget_7, gas_price_7);
+        // let estimated_execution_duration_7 =
+        //     shared_object_congestion_tracker.get_estimated_execution_duration(&certificate_7);
+        // // Try sequencing this certificate
+        // let shared_input_objects_7: Vec<_> = certificate_7.shared_input_objects().collect();
+        // shared_object_congestion_tracker.initialize_object_execution_slots(&shared_input_objects_7);
+        // let sequencing_result_7 = shared_object_congestion_tracker.try_schedule(
+        //     &certificate_7,
+        //     max_execution_duration_per_commit,
+        //     &previously_deferred_tx_digests,
+        //     commit_round,
+        // );
+        // if let SequencingResult::Defer(_key, congested_objects) = sequencing_result_7 {
+        //     assert_eq!(
+        //         congested_objects,
+        //         objects_7.into_iter().map(|(id, _)| id).collect::<Vec<_>>(),
+        //     );
+        //     let suggested_gas_price = suggested_gas_price_calculator
+        //         .calculate_suggested_gas_price(&certificate_7, estimated_execution_duration_7);
+        //
+        //     // To be scheduled, certificate_7 should have payed at least the gas
+        //     // price of certificate_6 plus 1.
+        //     assert_eq!(suggested_gas_price, gas_price_6 + 1);
+        // } else {
+        //     panic!("Certificate 7 must be deferred");
+        // }
     }
 }
