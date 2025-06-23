@@ -32,6 +32,7 @@ use iota_types::{
     collection_types::{Entry, LinkedTable, LinkedTableNode, VecMap},
     digests::{ChainIdentifier, TransactionDigest},
     dynamic_field::Field,
+    object::Owner,
 };
 use move_core_types::{
     account_address::AccountAddress,
@@ -583,13 +584,11 @@ impl NameCommand {
                 {
                     bail!("target address is already set to the given value");
                 }
-                let nft = get_proxy_nft_by_name_opt(&domain, context)
-                    .await?
-                    .ok_or_else(|| {
-                        anyhow::anyhow!(
-                            "cannot set target address for leaf subdomain; try removing and recreating the subdomain instead."
-                        )
-                    })?;
+                let Some(nft) = get_proxy_nft_by_id_opt(entry.id, &domain, context).await? else {
+                    bail!(
+                        "cannot set target address for leaf subdomain; try removing and recreating the subdomain instead."
+                    );
+                };
                 let iota_names_config = get_iota_names_config(&iota_client).await?;
 
                 let res = IotaClientCommands::Call {
@@ -724,11 +723,9 @@ impl NameCommand {
                     bail!("target address is already unset");
                 }
 
-                let nft = get_proxy_nft_by_name_opt(&domain, context)
-                    .await?
-                    .ok_or_else(|| {
-                        anyhow::anyhow!("cannot unset target address for leaf subdomain")
-                    })?;
+                let Some(nft) = get_proxy_nft_by_id_opt(entry.id, &domain, context).await? else {
+                    bail!("cannot unset target address for leaf subdomain");
+                };
                 let iota_names_config = get_iota_names_config(&iota_client).await?;
 
                 let res = IotaClientCommands::Call {
@@ -1839,6 +1836,34 @@ async fn get_owned_nfts<T: DeserializeOwned + IotaNamesNft>(
         .collect::<Result<_, _>>()
 }
 
+async fn get_owned_nft_by_id_opt<T: DeserializeOwned + IotaNamesNft>(
+    nft_id: ObjectID,
+    address: Option<IotaAddress>,
+    context: &mut WalletContext,
+) -> anyhow::Result<Option<T>> {
+    let client = context.get_client().await?;
+    let address = get_identity_address(address.map(KeyIdentity::Address), context)?;
+    let Ok(res) = client
+        .read_api()
+        .get_object_with_options(nft_id, IotaObjectDataOptions::bcs_lossless())
+        .await
+    else {
+        return Ok(None);
+    };
+    if !matches!(res.owner(), Some(Owner::AddressOwner(a)) if a == address) {
+        bail!("NFT {nft_id} is not owned by {address}");
+    }
+
+    let data = res.data.expect("missing object data");
+    Ok(Some(
+        data.bcs
+            .expect("missing bcs")
+            .try_as_move()
+            .expect("invalid move type")
+            .deserialize::<T>()?,
+    ))
+}
+
 #[derive(Copy, Clone)]
 pub struct Timestamp(u64);
 
@@ -1907,16 +1932,17 @@ async fn get_proxy_nft_by_name(
     })
 }
 
-async fn get_proxy_nft_by_name_opt(
+async fn get_proxy_nft_by_id_opt(
+    nft_id: ObjectID,
     domain: &Domain,
     context: &mut WalletContext,
 ) -> anyhow::Result<Option<IotaNamesNftProxy>> {
     Ok(if domain.is_sld() {
-        get_owned_nft_by_name_opt(domain, context)
+        get_owned_nft_by_id_opt(nft_id, None, context)
             .await?
             .map(IotaNamesNftProxy::Domain)
     } else {
-        get_owned_nft_by_name_opt(domain, context)
+        get_owned_nft_by_id_opt(nft_id, None, context)
             .await?
             .map(IotaNamesNftProxy::Subdomain)
     })
