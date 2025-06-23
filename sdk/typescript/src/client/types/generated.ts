@@ -107,6 +107,9 @@ export type CompressedSignature =
       }
     | {
           ZkLogin: string;
+      }
+    | {
+          Passkey: string;
       };
 /** Uses an enum to allow for future expansion of the ConsensusDeterminedVersionAssignments. */
 export type ConsensusDeterminedVersionAssignments = {
@@ -389,10 +392,7 @@ export type IotaEventFilter =
     | {
           Or: [IotaEventFilter, IotaEventFilter];
       };
-/**
- * Unique ID of an IOTA Event, the ID is a combination of tx seq number and event seq number, the ID is
- * local to this particular fullnode and will be different from other fullnode.
- */
+/** Unique ID of an IOTA Event, the ID is a combination of transaction digest and event seq number. */
 export interface EventId {
     eventSeq: string;
     txDigest: string;
