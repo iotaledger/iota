@@ -268,10 +268,6 @@
         color: var(--secondary-text-error-color);
     }
 
-    .secondary-error-bg-color {
-        background-color: var(--secondary-error-bg-color);
-    }
-
     /* SKELETON */
     .skeleton-bg {
         background-color: var(--skeleton-bg);
