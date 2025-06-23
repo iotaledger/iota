@@ -189,7 +189,7 @@ pub enum IotaClientCommands {
         #[arg(long)]
         tx_bytes: String,
         /// A list of Base64 encoded signatures `flag || signature || pubkey`.
-        #[arg(long, num_args = 1..)]
+           #[arg(long)]
         signatures: Vec<String>,
     },
     /// Execute a combined serialized SenderSignedData string.
