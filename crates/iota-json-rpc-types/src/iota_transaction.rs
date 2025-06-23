@@ -17,7 +17,7 @@ use iota_types::{
     authenticator_state::ActiveJwk,
     base_types::{EpochId, IotaAddress, ObjectID, ObjectRef, SequenceNumber, TransactionDigest},
     crypto::IotaSignature,
-    digests::{CheckpointDigest, ConsensusCommitDigest, ObjectDigest, TransactionEventsDigest},
+    digests::{ConsensusCommitDigest, ObjectDigest, TransactionEventsDigest},
     effects::{TransactionEffects, TransactionEffectsAPI, TransactionEvents},
     error::{ExecutionError, IotaError, IotaResult},
     event::EventID,
@@ -531,16 +531,6 @@ impl IotaTransactionBlockKind {
                                     },
                                 )
                             }
-                            EndOfEpochTransactionKind::BridgeStateCreate(chain_id) => {
-                                IotaEndOfEpochTransactionKind::BridgeStateCreate(
-                                    (*chain_id.as_bytes()).into(),
-                                )
-                            }
-                            EndOfEpochTransactionKind::BridgeCommitteeInit(
-                                bridge_shared_version,
-                            ) => IotaEndOfEpochTransactionKind::BridgeCommitteeUpdate(
-                                bridge_shared_version,
-                            ),
                         })
                         .collect(),
                 })
@@ -619,14 +609,6 @@ impl IotaTransactionBlockKind {
                                         min_epoch: expire.min_epoch,
                                     },
                                 )
-                            }
-                            EndOfEpochTransactionKind::BridgeStateCreate(id) => {
-                                IotaEndOfEpochTransactionKind::BridgeStateCreate(
-                                    (*id.as_bytes()).into(),
-                                )
-                            }
-                            EndOfEpochTransactionKind::BridgeCommitteeInit(seq) => {
-                                IotaEndOfEpochTransactionKind::BridgeCommitteeUpdate(seq)
                             }
                         })
                         .collect(),
@@ -1670,8 +1652,6 @@ pub enum IotaEndOfEpochTransactionKind {
     ChangeEpochV2(IotaChangeEpochV2),
     AuthenticatorStateCreate,
     AuthenticatorStateExpire(IotaAuthenticatorStateExpire),
-    BridgeStateCreate(CheckpointDigest),
-    BridgeCommitteeUpdate(SequenceNumber),
 }
 
 #[serde_as]
@@ -1792,7 +1772,16 @@ impl IotaProgrammableTransactionBlock {
         value: ProgrammableTransaction,
         package_resolver: Arc<Resolver<impl PackageStore>>,
     ) -> Result<Self, anyhow::Error> {
-        let input_types = package_resolver.pure_input_layouts(&value).await?;
+        // If the pure input layouts cannot be built, we will use `None` for the input
+        // types.
+        let input_types = package_resolver
+            .pure_input_layouts(&value)
+            .await
+            .unwrap_or_else(|e| {
+                tracing::warn!("pure_input_layouts failed: {:?}", e);
+                vec![None; value.inputs.len()]
+            });
+
         let ProgrammableTransaction { inputs, commands } = value;
         Ok(IotaProgrammableTransactionBlock {
             inputs: inputs
@@ -2121,10 +2110,16 @@ impl IotaTypeTag {
     }
 }
 
-impl TryInto<TypeTag> for IotaTypeTag {
+impl AsRef<str> for IotaTypeTag {
+    fn as_ref(&self) -> &str {
+        &self.0
+    }
+}
+
+impl TryFrom<IotaTypeTag> for TypeTag {
     type Error = anyhow::Error;
-    fn try_into(self) -> Result<TypeTag, Self::Error> {
-        parse_iota_type_tag(&self.0)
+    fn try_from(tag: IotaTypeTag) -> Result<Self, Self::Error> {
+        parse_iota_type_tag(&tag.0)
     }
 }
 

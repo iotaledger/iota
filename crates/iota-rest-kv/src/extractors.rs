@@ -7,7 +7,6 @@
 use core::str;
 
 use axum::{
-    async_trait,
     extract::{FromRequestParts, Path},
     http::request::Parts,
 };
@@ -33,7 +32,6 @@ struct RequestParams {
 /// internally into [`RequestParams`] and constructs a [`Key`].
 pub struct ExtractPath(pub Key);
 
-#[async_trait]
 impl<S> FromRequestParts<S> for ExtractPath
 where
     S: Send + Sync,

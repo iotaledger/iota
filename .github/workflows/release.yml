@@ -158,9 +158,17 @@ jobs:
 
       - name: Cargo build for ${{ matrix.os_type }} platform
         shell: bash
-        # Currently building in release mode, but we could also have debug builds for testing
         run: |
-          [ -f ~/.cargo/env ] && source ~/.cargo/env ; cargo build --release --features indexer,gen-completions,tracing
+          [ -f ~/.cargo/env ] && source ~/.cargo/env
+
+          jq -r '.release_binaries | to_entries[] | [.key, (.value | join(","))] | @tsv' ${{ env.BINARY_LIST_FILE }} | while IFS=$'\t' read -r binary features; do
+            echo ">>> Building $binary with features: $features"
+            if [[ -z "$features" ]]; then
+              cargo build --release --bin "$binary"
+            else
+              cargo build --release --bin "$binary" --features "$features"
+            fi
+          done
 
       - name: Rename binaries for ${{ matrix.os_type }}
         shell: bash
@@ -168,7 +176,7 @@ jobs:
           mkdir -p ${{ env.TMP_BUILD_DIR }}
 
           [ ! -f ${{ env.BINARY_LIST_FILE }} ] && echo "${{ env.BINARY_LIST_FILE }} cannot be found" && exit 1
-          for binary in $(cat ${{ env.BINARY_LIST_FILE }} | jq -r '.release_binaries[]'); do
+          jq -r '.release_binaries | keys[]' ${{ env.BINARY_LIST_FILE }} | while read -r binary; do
             export binary=$(echo ${binary} | tr -d $'\r')
             mv ./target/release/${binary}${{ env.extension }} ${{ env.TMP_BUILD_DIR }}/${binary}${{ env.extension }}
           done
@@ -234,7 +242,7 @@ jobs:
           echo "iota_tag = $iota_tag"
           trl=$(echo "$iota_tag" | sed -n 's/^[^-]*\(-.*\)/\1/p')
           echo "trl = $trl"
-          previous_tag=$(git tag --sort=-version:refname | grep -E "^v[0-9]+\.[0-9]+\.[0-9]+" | grep -- "$trl" | grep -Fv $iota_tag | head -n 1)
+          previous_tag=$(git tag --sort=-version:refname | grep -E "^v[0-9]+\.[0-9]+\.[0-9]+$trl$" | grep -Fv $iota_tag | head -n 1)
           echo "Previous tag: $previous_tag"
           previous_commit_hash=$(git rev-list -n 1 "${previous_tag}")
           echo "Previous commit hash: $previous_commit_hash"

@@ -4,6 +4,7 @@
 
 use std::{env, fmt};
 
+use anyhow::{anyhow, bail};
 use fastcrypto::encoding::{Base58, Encoding, Hex};
 use iota_protocol_config::Chain;
 use once_cell::sync::{Lazy, OnceCell};
@@ -376,9 +377,9 @@ impl std::str::FromStr for CheckpointDigest {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let mut result = [0; 32];
-        let buffer = Base58::decode(s).map_err(|e| anyhow::anyhow!(e))?;
+        let buffer = Base58::decode(s).map_err(|e| anyhow!(e))?;
         if buffer.len() != 32 {
-            return Err(anyhow::anyhow!("Invalid digest length. Expected 32 bytes"));
+            bail!("Invalid digest length. Expected 32 bytes");
         }
         result.copy_from_slice(&buffer);
         Ok(CheckpointDigest::new(result))
@@ -461,9 +462,9 @@ impl std::str::FromStr for CheckpointContentsDigest {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let mut result = [0; 32];
-        let buffer = Base58::decode(s).map_err(|e| anyhow::anyhow!(e))?;
+        let buffer = Base58::decode(s).map_err(|e| anyhow!(e))?;
         if buffer.len() != 32 {
-            return Err(anyhow::anyhow!("Invalid digest length. Expected 32 bytes"));
+            bail!("Invalid digest length. Expected 32 bytes");
         }
         result.copy_from_slice(&buffer);
         Ok(CheckpointContentsDigest::new(result))
@@ -637,9 +638,9 @@ impl std::str::FromStr for TransactionDigest {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let mut result = [0; 32];
-        let buffer = Base58::decode(s).map_err(|e| anyhow::anyhow!(e))?;
+        let buffer = Base58::decode(s).map_err(|e| anyhow!(e))?;
         if buffer.len() != 32 {
-            return Err(anyhow::anyhow!("Invalid digest length. Expected 32 bytes"));
+            bail!("Invalid digest length. Expected 32 bytes");
         }
         result.copy_from_slice(&buffer);
         Ok(TransactionDigest::new(result))
@@ -780,9 +781,9 @@ impl std::str::FromStr for TransactionEventsDigest {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let mut result = [0; 32];
-        let buffer = Base58::decode(s).map_err(|e| anyhow::anyhow!(e))?;
+        let buffer = Base58::decode(s).map_err(|e| anyhow!(e))?;
         if buffer.len() != 32 {
-            return Err(anyhow::anyhow!("Invalid digest length. Expected 32 bytes"));
+            bail!("Invalid digest length. Expected 32 bytes");
         }
         result.copy_from_slice(&buffer);
         Ok(Self::new(result))
@@ -838,9 +839,9 @@ impl std::str::FromStr for EffectsAuxDataDigest {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let mut result = [0; 32];
-        let buffer = Base58::decode(s).map_err(|e| anyhow::anyhow!(e))?;
+        let buffer = Base58::decode(s).map_err(|e| anyhow!(e))?;
         if buffer.len() != 32 {
-            return Err(anyhow::anyhow!("Invalid digest length. Expected 32 bytes"));
+            bail!("Invalid digest length. Expected 32 bytes");
         }
         result.copy_from_slice(&buffer);
         Ok(Self::new(result))
@@ -970,9 +971,9 @@ impl std::str::FromStr for ObjectDigest {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let mut result = [0; 32];
-        let buffer = Base58::decode(s).map_err(|e| anyhow::anyhow!(e))?;
+        let buffer = Base58::decode(s).map_err(|e| anyhow!(e))?;
         if buffer.len() != 32 {
-            return Err(anyhow::anyhow!("Invalid digest length. Expected 32 bytes"));
+            bail!("Invalid digest length. Expected 32 bytes");
         }
         result.copy_from_slice(&buffer);
         Ok(ObjectDigest::new(result))

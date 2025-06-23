@@ -29,6 +29,7 @@ use crate::{
     crypto::{CompressedSignature, DefaultHash, PublicKey, SignatureScheme},
     digests::ZKLoginInputsDigest,
     error::IotaError,
+    passkey_authenticator::PasskeyAuthenticator,
     signature::{AuthenticatorTrait, GenericSignature, VerifyParams},
     signature_verification::VerifiedDigestCache,
     zk_login_authenticator::ZkLoginAuthenticator,
@@ -122,6 +123,12 @@ impl AuthenticatorTrait for MultiSig {
             });
         }
 
+        if self.has_passkey_sigs() && !verify_params.accept_passkey_in_multisig {
+            return Err(IotaError::InvalidSignature {
+                error: "Passkey sig not supported inside multisig".to_string(),
+            });
+        }
+
         let mut weight_sum: u16 = 0;
         let message = bcs::to_bytes(&value).expect("Message serialization should not fail");
         let mut hasher = DefaultHash::default();
@@ -187,6 +194,22 @@ impl AuthenticatorTrait for MultiSig {
                             error: "Invalid zklogin authenticator bytes".to_string(),
                         }
                     })?;
+                    authenticator
+                        .verify_claims(
+                            value,
+                            IotaAddress::from(subsig_pubkey),
+                            verify_params,
+                            zklogin_inputs_cache.clone(),
+                        )
+                        .map_err(|e| FastCryptoError::GeneralError(e.to_string()))
+                }
+                CompressedSignature::Passkey(bytes) => {
+                    let authenticator =
+                        PasskeyAuthenticator::from_bytes(&bytes.0).map_err(|_| {
+                            IotaError::InvalidSignature {
+                                error: "Invalid passkey authenticator bytes".to_string(),
+                            }
+                        })?;
                     authenticator
                         .verify_claims(
                             value,
@@ -340,6 +363,12 @@ impl MultiSig {
 
     pub fn get_indices(&self) -> Result<Vec<u8>, IotaError> {
         as_indices(self.bitmap)
+    }
+
+    pub fn has_passkey_sigs(&self) -> bool {
+        self.sigs
+            .iter()
+            .any(|s| matches!(s, CompressedSignature::Passkey(_)))
     }
 }
 

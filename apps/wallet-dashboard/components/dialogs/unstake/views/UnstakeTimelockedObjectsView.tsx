@@ -3,14 +3,10 @@
 
 import { StakeRewardsPanel, ValidatorStakingData } from '@/components';
 import { DialogLayout, DialogLayoutBody, DialogLayoutFooter } from '../../layout';
-import { Validator } from '@iota/core';
+import { ExtendedDelegatedTimelockedStake, Validator } from '@iota/core';
 import { useNewUnstakeTimelockedTransaction } from '@/hooks';
 import { Collapsible, TimeUnit, useFormatCoin, useTimeAgo, toast } from '@iota/core';
-import {
-    ExtendedDelegatedTimelockedStake,
-    TimelockedStakedObjectsGrouped,
-    isSizeExceededError,
-} from '@/lib/utils';
+import { TimelockedStakedObjectsGrouped, isSizeExceededError } from '@/lib/utils';
 import { formatAddress } from '@iota/iota-sdk/utils';
 import {
     Panel,

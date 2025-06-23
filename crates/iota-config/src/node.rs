@@ -78,6 +78,8 @@ pub struct NodeConfig {
     /// endpoint on the same interface as `json` `rpc` server.
     #[serde(default)]
     pub enable_rest_api: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub rest: Option<iota_rest_api::Config>,
 
     /// The address for Prometheus metrics.
     #[serde(default = "default_metrics_address")]
@@ -210,7 +212,7 @@ pub struct NodeConfig {
     #[serde(default)]
     pub indexer_max_subscriptions: Option<usize>,
 
-    #[serde(default)]
+    #[serde(default = "default_transaction_kv_store_config")]
     pub transaction_kv_store_read_config: TransactionKeyValueStoreReadConfig,
 
     // TODO: write config seem to be unused.
@@ -250,18 +252,33 @@ pub struct NodeConfig {
     #[serde(default)]
     pub verifier_signing_config: VerifierSigningConfig,
 
+    /// If a value is set, it determines if writes to DB can stall, which can
+    /// halt the whole process. By default, write stall is enabled on
+    /// validators but not on fullnodes.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub enable_db_write_stall: Option<bool>,
+
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub iota_names_config: Option<IotaNamesConfig>,
 }
 
-#[derive(Clone, Debug, Deserialize, Serialize, Default)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(rename_all = "kebab-case")]
 pub enum ExecutionCacheConfig {
-    #[default]
     PassthroughCache,
     WritebackCache {
+        /// Maximum number of entries in each cache. (There are several
+        /// different caches). If None, the default of 10000 is used.
         max_cache_size: Option<usize>,
     },
+}
+
+impl Default for ExecutionCacheConfig {
+    fn default() -> Self {
+        ExecutionCacheConfig::WritebackCache {
+            max_cache_size: None,
+        }
+    }
 }
 
 #[derive(Clone, Copy, Debug, Deserialize, Serialize)]
@@ -272,10 +289,31 @@ pub enum ServerType {
     Both,
 }
 
-#[derive(Clone, Debug, Deserialize, Serialize, Default)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(rename_all = "kebab-case")]
 pub struct TransactionKeyValueStoreReadConfig {
+    #[serde(default = "default_base_url")]
     pub base_url: String,
+
+    #[serde(default = "default_cache_size")]
+    pub cache_size: u64,
+}
+
+impl Default for TransactionKeyValueStoreReadConfig {
+    fn default() -> Self {
+        Self {
+            base_url: default_base_url(),
+            cache_size: default_cache_size(),
+        }
+    }
+}
+
+fn default_base_url() -> String {
+    "".to_string()
+}
+
+fn default_cache_size() -> u64 {
+    100_000
 }
 
 fn default_jwk_fetch_interval_seconds() -> u64 {
@@ -312,6 +350,10 @@ pub fn default_zklogin_oauth_providers() -> BTreeMap<Chain, BTreeSet<String>> {
     map.insert(Chain::Testnet, providers);
     map.insert(Chain::Unknown, experimental_providers);
     map
+}
+
+fn default_transaction_kv_store_config() -> TransactionKeyValueStoreReadConfig {
+    TransactionKeyValueStoreReadConfig::default()
 }
 
 fn default_authority_store_pruning_config() -> AuthorityStorePruningConfig {
@@ -694,7 +736,10 @@ pub struct AuthorityStorePruningConfig {
     /// modified time is older than `periodic_compaction_threshold_days`
     /// days. That ensures that all sst files eventually go through the
     /// compaction process
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(
+        default = "default_periodic_compaction_threshold_days",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub periodic_compaction_threshold_days: Option<usize>,
     /// number of epochs to keep the latest version of transactions and effects
     /// for
@@ -724,6 +769,10 @@ fn default_smoothing() -> bool {
     cfg!(not(test))
 }
 
+fn default_periodic_compaction_threshold_days() -> Option<usize> {
+    Some(1)
+}
+
 impl Default for AuthorityStorePruningConfig {
     fn default() -> Self {
         Self {
@@ -741,6 +790,10 @@ impl Default for AuthorityStorePruningConfig {
 }
 
 impl AuthorityStorePruningConfig {
+    pub fn set_num_epochs_to_retain(&mut self, num_epochs_to_retain: u64) {
+        self.num_epochs_to_retain = num_epochs_to_retain;
+    }
+
     pub fn set_num_epochs_to_retain_for_checkpoints(&mut self, num_epochs_to_retain: Option<u64>) {
         self.num_epochs_to_retain_for_checkpoints = num_epochs_to_retain;
     }
@@ -912,7 +965,7 @@ fn default_max_transaction_manager_queue_length() -> usize {
 }
 
 fn default_max_transaction_manager_per_object_queue_length() -> usize {
-    100
+    20
 }
 
 impl Default for AuthorityOverloadConfig {

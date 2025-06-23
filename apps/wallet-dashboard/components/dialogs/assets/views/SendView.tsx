@@ -4,7 +4,7 @@
 import {
     AddressInput,
     CoinFormat,
-    NftImage,
+    NFTMediaDisplayCard,
     useAssetGasBudgetEstimation,
     useFormatCoin,
     useNftDetails,
@@ -42,7 +42,11 @@ export function SendView({ objectId, senderAddress, objectType, onClose, onBack 
             <DialogLayoutBody>
                 <div className="flex w-full flex-col items-center justify-center gap-xs">
                     <div className="w-[172px]">
-                        <NftImage src={nftImageUrl} title={nftName || 'NFT'} isHoverable={false} />
+                        <NFTMediaDisplayCard
+                            src={nftImageUrl}
+                            title={nftName || 'NFT'}
+                            isHoverable={false}
+                        />
                     </div>
                     <div className="flex w-full flex-col gap-md">
                         <div className="flex flex-col items-center gap-xxxs">
