@@ -36,9 +36,7 @@ export function Skeleton({
                 widthClass,
                 heightClass,
                 isRounded && 'rounded-full',
-                hasSecondaryColors
-                    ? 'bg-neutral-80 dark:bg-neutral-10'
-                    : 'bg-neutral-90 dark:bg-neutral-12',
+                hasSecondaryColors ? 'skeleton-secondary-bg' : 'skeleton-bg',
             )}
         >
             {children}
