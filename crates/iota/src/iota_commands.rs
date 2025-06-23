@@ -15,10 +15,6 @@ use anyhow::{Context, anyhow, bail, ensure};
 use clap::*;
 use colored::Colorize;
 use fastcrypto::traits::KeyPair;
-use iota_bridge::{
-    config::BridgeCommitteeConfig, iota_client::IotaBridgeClient,
-    iota_transaction_builder::build_committee_register_transaction,
-};
 use iota_config::{
     Config, FULL_NODE_DB_PATH, IOTA_BENCHMARK_GENESIS_GAS_KEYSTORE_FILENAME, IOTA_CLIENT_CONFIG,
     IOTA_FULLNODE_CONFIG, IOTA_GENESIS_FILENAME, IOTA_KEYSTORE_FILENAME, IOTA_NETWORK_CONFIG,
@@ -32,10 +28,7 @@ use iota_graphql_rpc::{
 };
 #[cfg(feature = "indexer")]
 use iota_indexer::test_utils::{IndexerTypeConfig, start_test_indexer};
-use iota_keys::{
-    keypair_file::read_key,
-    keystore::{AccountKeystore, FileBasedKeystore, Keystore},
-};
+use iota_keys::keystore::{AccountKeystore, FileBasedKeystore, Keystore};
 use iota_move::{self, execute_move_command};
 use iota_move_build::IotaPackageHooks;
 use iota_sdk::{
@@ -51,7 +44,7 @@ use iota_swarm_config::{
 };
 use iota_types::{
     base_types::IotaAddress,
-    crypto::{IotaKeyPair, SignatureScheme, ToFromBytes},
+    crypto::{IotaKeyPair, SignatureScheme},
 };
 use move_analyzer::analyzer;
 use move_package::BuildConfig;
@@ -363,17 +356,6 @@ pub enum IotaCommand {
         #[command(subcommand)]
         cmd: name_commands::NameCommand,
     },
-    /// Command to initialize the bridge committee, usually used when
-    /// running local bridge cluster.
-    #[command(name = "bridge-committee-init")]
-    BridgeInitialize {
-        #[arg(long = "network.config")]
-        network_config: Option<PathBuf>,
-        #[arg(long = "client.config")]
-        client_config: Option<PathBuf>,
-        #[arg(long = "bridge_committee.config")]
-        bridge_committee_config_path: PathBuf,
-    },
     /// Tool for Fire Drill
     FireDrill {
         #[command(subcommand)]
@@ -548,86 +530,6 @@ impl IotaCommand {
                 prompt_if_no_config(&config_path, false, true, true)?;
                 let mut context = WalletContext::new(&config_path, None, None)?;
                 cmd.execute(&mut context).await?.print(!json);
-                Ok(())
-            }
-            IotaCommand::BridgeInitialize {
-                network_config,
-                client_config,
-                bridge_committee_config_path,
-            } => {
-                // Load the config of the IOTA authority.
-                let network_config_path = network_config
-                    .clone()
-                    .unwrap_or(iota_config_dir()?.join(IOTA_NETWORK_CONFIG));
-                let network_config: NetworkConfig = PersistedConfig::read(&network_config_path)
-                    .map_err(|err| {
-                        err.context(format!(
-                            "Cannot open IOTA network config file at {:?}",
-                            network_config_path
-                        ))
-                    })?;
-                let bridge_committee_config: BridgeCommitteeConfig =
-                    PersistedConfig::read(&bridge_committee_config_path).map_err(|err| {
-                        err.context(format!(
-                            "Cannot open Bridge Committee config file at {:?}",
-                            bridge_committee_config_path
-                        ))
-                    })?;
-
-                let config_path =
-                    client_config.unwrap_or(iota_config_dir()?.join(IOTA_CLIENT_CONFIG));
-                let mut context = WalletContext::new(&config_path, None, None)?;
-                let rgp = context.get_reference_gas_price().await?;
-                let rpc_url = context.active_env()?.rpc();
-                println!("rpc_url: {}", rpc_url);
-                let iota_bridge_client = IotaBridgeClient::new(rpc_url).await?;
-                let bridge_arg = iota_bridge_client
-                    .get_mutable_bridge_object_arg_must_succeed()
-                    .await;
-                assert_eq!(
-                    network_config.validator_configs().len(),
-                    bridge_committee_config
-                        .bridge_authority_port_and_key_path
-                        .len()
-                );
-                for node_config in network_config.validator_configs() {
-                    let account_kp = node_config.account_key_pair.keypair();
-                    context.add_account(None, account_kp.copy());
-                }
-
-                let context = context;
-                let mut tasks = vec![];
-                for (node_config, (port, key_path)) in network_config
-                    .validator_configs()
-                    .iter()
-                    .zip(bridge_committee_config.bridge_authority_port_and_key_path)
-                {
-                    let account_kp = node_config.account_key_pair.keypair();
-                    let iota_address = IotaAddress::from(&account_kp.public());
-                    let gas_obj_ref = context
-                        .get_one_gas_object_owned_by_address(iota_address)
-                        .await?
-                        .expect("Validator does not own any gas objects");
-                    let kp = match read_key(&key_path, true)? {
-                        IotaKeyPair::Secp256k1(key) => key,
-                        _ => unreachable!("we required secp256k1 key in `read_key`"),
-                    };
-
-                    // build registration tx
-                    let tx = build_committee_register_transaction(
-                        iota_address,
-                        &gas_obj_ref,
-                        bridge_arg,
-                        kp.public().as_bytes().to_vec(),
-                        &format!("http://127.0.0.1:{port}"),
-                        rgp,
-                        1000000000,
-                    )
-                    .unwrap();
-                    let signed_tx = context.sign_transaction(&tx);
-                    tasks.push(context.execute_transaction_must_succeed(signed_tx));
-                }
-                futures::future::join_all(tasks).await;
                 Ok(())
             }
             IotaCommand::FireDrill { fire_drill } => run_fire_drill(fire_drill).await,
