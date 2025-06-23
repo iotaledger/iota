@@ -218,7 +218,7 @@ export function StakeFormComponent({ validatorAddress, epoch, onSuccess }: Stake
                                 placeholder={`0 ${symbol}`}
                                 value={amount}
                                 caption={
-                                    maxAmountTxGasBudget
+                                    minAmountTxGasBudget
                                         ? `${availableBalanceFormatted} ${symbol} Available`
                                         : '--'
                                 }
