@@ -15,7 +15,6 @@ import {
     Validator,
     toast,
     useIsValidatorCommitteeMember,
-    MIN_GAS_BUDGET,
 } from '@iota/core';
 import * as Sentry from '@sentry/react';
 import { ampli } from '_src/shared/analytics/ampli';
@@ -74,14 +73,14 @@ export function StakeFormComponent({ validatorAddress, epoch, onSuccess }: Stake
     // set minimum stake amount to 1 IOTA
     const minimumStake = parseAmount(MIN_NUMBER_IOTA_TO_STAKE.toString(), decimals);
 
-    const { data: maxAmountTransactionData } = useNewStakeTransaction(
+    const { data: minAmountTransactionData } = useNewStakeTransaction(
         validatorAddress,
-        coinBalance - MIN_GAS_BUDGET,
+        minimumStake,
         activeAddress,
     );
 
-    const maxAmountTxGasBudget = BigInt(maxAmountTransactionData?.gasSummary?.budget ?? 0n);
-    const availableBalance = coinBalance - maxAmountTxGasBudget;
+    const minAmountTxGasBudget = BigInt(minAmountTransactionData?.gasSummary?.budget ?? 0n);
+    const availableBalance = coinBalance - minAmountTxGasBudget;
     const [availableBalanceFormatted, symbol] = useFormatCoin({
         balance: availableBalance,
         format: CoinFormat.FULL,
@@ -175,7 +174,7 @@ export function StakeFormComponent({ validatorAddress, epoch, onSuccess }: Stake
         isStakeTokenTransactionLoading ||
         isStakeTokenTransactionPending;
 
-    const gasUnstakeBuffer = maxAmountTxGasBudget * BigInt(2);
+    const gasUnstakeBuffer = minAmountTxGasBudget * BigInt(2);
     const maxSafeAmount = availableBalance - gasUnstakeBuffer;
     const [maxSafeAmountFormatted, maxSafeAmountSymbol] = useFormatCoin({
         balance: maxSafeAmount,
