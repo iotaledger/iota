@@ -315,11 +315,15 @@ pub async fn build_optimistic_json_rpc_server(
         config,
         custom_runtime,
         |mut builder| {
-            let rest_api_client = iota_rest_api::Client::new(config.rpc_client_url.as_str());
             let http_client = get_http_client(config.rpc_client_url.as_str())?;
             builder.register_module(OptimisticWriteApi::new(
                 WriteApi::new(http_client),
-                OptimisticTransactionExecutor::new(rest_api_client, reader, store, metrics),
+                OptimisticTransactionExecutor::new(
+                    config.rpc_client_url.as_str(),
+                    reader,
+                    store,
+                    metrics,
+                ),
             ))?;
             Ok(builder)
         },

@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 use std::{collections::BTreeMap, time::Duration};
 
-use diesel::{RunQueryDsl, sql_query, sql_types};
+use diesel::{OptionalExtension, RunQueryDsl, sql_query, sql_types};
 use downcast::Any;
 use fastcrypto::{encoding::Base64, error::FastCryptoError, traits::ToFromBytes};
 use iota_json_rpc_types::{IotaTransactionBlockResponse, IotaTransactionBlockResponseOptions};
@@ -47,29 +47,30 @@ type TransactionDataToCommit = (
     TransactionObjectChangesToCommit,
 );
 
-pub struct OptimisticTransactionExecutor {
-    fullnode_rest_client: iota_rest_api::Client,
+pub(crate) struct OptimisticTransactionExecutor {
+    rpc_client: iota_rest_api::Client,
     indexer_reader: IndexerReader,
     store: PgIndexerStore,
     metrics: IndexerMetrics,
 }
 
 impl OptimisticTransactionExecutor {
-    pub fn new(
-        fullnode_rest_client: iota_rest_api::Client,
+    pub(crate) fn new(
+        rpc_client_url: &str,
         indexer_reader: IndexerReader,
         store: PgIndexerStore,
         metrics: IndexerMetrics,
     ) -> Self {
+        let rpc_client = iota_rest_api::Client::new(rpc_client_url);
         Self {
-            fullnode_rest_client,
+            rpc_client,
             indexer_reader,
             store,
             metrics,
         }
     }
 
-    pub(crate) async fn execute_and_index_tx_effects(
+    pub(crate) async fn execute_and_index_transaction(
         &self,
         tx_bytes: Base64,
         signatures: Vec<Base64>,
@@ -83,7 +84,7 @@ impl OptimisticTransactionExecutor {
 
         let transaction = Transaction::from_generic_sig_data(tx_data, sigs);
         let response = self
-            .fullnode_rest_client
+            .rpc_client
             .execute_transaction(
                 &ExecuteTransactionQueryParameters {
                     events: true,
@@ -208,7 +209,7 @@ impl OptimisticTransactionExecutor {
 
         let pool = self.indexer_reader.get_pool();
 
-        let mut results: Vec<TxGlobalOrder> = transactional_blocking_with_retry!(
+        transactional_blocking_with_retry!(
             &pool,
             |conn| {
                 sql_query(
@@ -220,12 +221,11 @@ impl OptimisticTransactionExecutor {
                     "#,
                 )
                 .bind::<sql_types::Bytea, _>(&tx_digest_bytes)
-                .load::<TxGlobalOrder>(conn)
+                .get_result::<TxGlobalOrder>(conn)
+                .optional()
             },
             Duration::from_secs(30)
-        )?;
-
-        Ok(results.pop())
+        )
     }
 
     async fn persist_optimistic_tx(
@@ -268,7 +268,7 @@ struct TransactionExtractor<'a> {
 }
 
 impl<'a> TransactionExtractor<'a> {
-    pub fn new(
+    fn new(
         full_tx_data: &'a CheckpointTransaction,
         optimistic_sequence_number: u64,
         metrics: &'a IndexerMetrics,
@@ -331,20 +331,19 @@ impl<'a> TransactionExtractor<'a> {
         .await
     }
 
-    pub async fn to_transaction_data_to_commit(&self) -> IndexerResult<TransactionDataToCommit> {
+    async fn to_transaction_data_to_commit(&self) -> IndexerResult<TransactionDataToCommit> {
         let object_changes = self.get_object_changes()?;
         let (indexed_tx, tx_indices, indexed_events, events_indices, indexed_displays) =
             self.get_indexed_transactions_events_and_displays().await?;
 
         let optimistic_tx = StoredTransaction::from(&indexed_tx).into();
-        let optimistic_tx_indices = Self::optimistic_tx_indices_from_indexed_tx_indices(tx_indices);
+        let optimistic_tx_indices = Self::optimistic_tx_indices(tx_indices);
         let optimistic_events = indexed_events
             .into_iter()
             .map(StoredEvent::from)
             .map(Into::into)
             .collect();
-        let optimistic_event_indices =
-            Self::optimistic_event_indices_from_indexed_event_indices(events_indices);
+        let optimistic_event_indices = Self::optimistic_event_indices(events_indices);
 
         Ok((
             optimistic_tx,
@@ -356,9 +355,7 @@ impl<'a> TransactionExtractor<'a> {
         ))
     }
 
-    fn optimistic_event_indices_from_indexed_event_indices(
-        event_indices: Vec<EventIndex>,
-    ) -> OptimisticEventIndices {
+    fn optimistic_event_indices(event_indices: Vec<EventIndex>) -> OptimisticEventIndices {
         let splits: Vec<_> = event_indices.into_iter().map(|i| i.split()).collect();
 
         OptimisticEventIndices {
@@ -375,7 +372,7 @@ impl<'a> TransactionExtractor<'a> {
         }
     }
 
-    fn optimistic_tx_indices_from_indexed_tx_indices(tx_index: TxIndex) -> OptimisticTxIndices {
+    fn optimistic_tx_indices(tx_index: TxIndex) -> OptimisticTxIndices {
         let (senders, recipients, input_objects, changed_objects, pkgs, mods, funs, _, kinds) =
             tx_index.split();
 
