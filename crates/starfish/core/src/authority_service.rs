@@ -25,7 +25,7 @@ use crate::{
     commit_vote_monitor::CommitVoteMonitor,
     context::Context,
     core_thread::CoreThreadDispatcher,
-    dag_state::DagState,
+    dag_state::{DagState, MAX_HEADERS_PER_BUNDLE},
     error::{ConsensusError, ConsensusResult},
     network::{
         BlockBundle, BlockBundleStream, BlockStream, NetworkService, SerializedBlock,
@@ -400,10 +400,24 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
 
         // 4. Create block headers from bytes from a bundle
 
+        if serialized_block_and_headers.serialized_headers.len() > MAX_HEADERS_PER_BUNDLE {
+            return Err(ConsensusError::TooManyHeadersInABundle {
+                count: serialized_block_and_headers.serialized_headers.len(),
+                limit: MAX_HEADERS_PER_BUNDLE,
+            });
+        }
+
         let mut additional_block_headers = vec![];
         for serialized_header in serialized_block_and_headers.serialized_headers {
             let signed_block_header: SignedBlockHeader = bcs::from_bytes(&serialized_header)
                 .map_err(ConsensusError::MalformedBlockHeader)?;
+            let header_round = signed_block_header.round();
+            if header_round >= verified_block.round() {
+                return Err(ConsensusError::TooBigHeaderRoundInABundle {
+                    header_round,
+                    block_round: verified_block.round(),
+                });
+            }
 
             if let Err(e) = self.block_verifier.verify(&signed_block_header) {
                 self.context
@@ -491,6 +505,9 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
             .map_err(|_| ConsensusError::Shutdown)?;
 
         // 8. Add block to dag, add its missing ancestors to the set
+        // TODO:: consider possible optimization:
+        // first try to accept the block. If it fails, try to find missing ancestors
+        // among additional headers and add only them.
         missing_ancestors.extend(
             self.core_dispatcher
                 .add_blocks(vec![verified_block])
