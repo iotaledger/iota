@@ -583,7 +583,13 @@ impl NameCommand {
                 {
                     bail!("target address is already set to the given value");
                 }
-                let nft = get_proxy_nft_by_name(&domain, context).await?;
+                let nft = get_proxy_nft_by_name_opt(&domain, context)
+                    .await?
+                    .ok_or_else(|| {
+                        anyhow::anyhow!(
+                            "cannot set target address for leaf subdomain; try removing and recreating the subdomain instead."
+                        )
+                    })?;
                 let iota_names_config = get_iota_names_config(&iota_client).await?;
 
                 let res = IotaClientCommands::Call {
@@ -718,7 +724,11 @@ impl NameCommand {
                     bail!("target address is already unset");
                 }
 
-                let nft = get_proxy_nft_by_name(&domain, context).await?;
+                let nft = get_proxy_nft_by_name_opt(&domain, context)
+                    .await?
+                    .ok_or_else(|| {
+                        anyhow::anyhow!("cannot unset target address for leaf subdomain")
+                    })?;
                 let iota_names_config = get_iota_names_config(&iota_client).await?;
 
                 let res = IotaClientCommands::Call {
@@ -1866,15 +1876,24 @@ async fn get_owned_nft_by_name<T: DeserializeOwned + IotaNamesNft>(
     domain: &Domain,
     context: &mut WalletContext,
 ) -> anyhow::Result<T> {
+    get_owned_nft_by_name_opt(domain, context)
+        .await?
+        .ok_or_else(|| anyhow::anyhow!("no matching owned {} found for {domain}", T::TYPE_NAME))
+}
+
+async fn get_owned_nft_by_name_opt<T: DeserializeOwned + IotaNamesNft>(
+    domain: &Domain,
+    context: &mut WalletContext,
+) -> anyhow::Result<Option<T>> {
     let domain = domain.to_string();
 
     for nft in get_owned_nfts::<T>(None, context).await? {
         if nft.domain_name() == domain {
-            return Ok(nft);
+            return Ok(Some(nft));
         }
     }
 
-    bail!("no matching owned {} found for {domain}", T::TYPE_NAME)
+    Ok(None)
 }
 
 async fn get_proxy_nft_by_name(
@@ -1885,6 +1904,21 @@ async fn get_proxy_nft_by_name(
         IotaNamesNftProxy::Domain(get_owned_nft_by_name(domain, context).await?)
     } else {
         IotaNamesNftProxy::Subdomain(get_owned_nft_by_name(domain, context).await?)
+    })
+}
+
+async fn get_proxy_nft_by_name_opt(
+    domain: &Domain,
+    context: &mut WalletContext,
+) -> anyhow::Result<Option<IotaNamesNftProxy>> {
+    Ok(if domain.is_sld() {
+        get_owned_nft_by_name_opt(domain, context)
+            .await?
+            .map(IotaNamesNftProxy::Domain)
+    } else {
+        get_owned_nft_by_name_opt(domain, context)
+            .await?
+            .map(IotaNamesNftProxy::Subdomain)
     })
 }
 
