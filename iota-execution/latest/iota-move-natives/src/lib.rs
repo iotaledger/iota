@@ -75,6 +75,7 @@ use crate::crypto::{
     zklogin::{CheckZkloginIdCostParams, CheckZkloginIssuerCostParams},
 };
 
+mod account;
 mod address;
 mod config;
 mod crypto;
@@ -770,6 +771,11 @@ pub fn make_stdlib_gas_params_for_protocol_config(
 
 pub fn all_natives(silent: bool, protocol_config: &ProtocolConfig) -> NativeFunctionTable {
     let iota_framework_natives: &[(&str, &str, NativeFunction)] = &[
+        (
+            "account",
+            "borrow_asset",
+            make_native!(account::borrow_asset),
+        ),
         ("address", "from_bytes", make_native!(address::from_bytes)),
         ("address", "to_u256", make_native!(address::to_u256)),
         ("address", "from_u256", make_native!(address::from_u256)),

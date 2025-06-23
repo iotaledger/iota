@@ -191,6 +191,7 @@ mod checked {
                 }
             };
             let native_extensions = new_native_extensions(
+                state_view.as_account_asset_resolver(),
                 state_view.as_child_resolver(),
                 input_object_map,
                 !gas_charger.is_unmetered(),

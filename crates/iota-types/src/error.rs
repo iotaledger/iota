@@ -543,6 +543,15 @@ pub enum IotaError {
         given_parent: ObjectID,
         actual_owner: Owner,
     },
+    #[error(
+        "Attempted to access {object} through account {account}, \
+        but it's actual parent is {actual_owner}"
+    )]
+    InvalidAccountAssetObjectAccess {
+        object: ObjectID,
+        account: IotaAddress,
+        actual_owner: Owner,
+    },
 
     #[error("Authority Error: {error:?}")]
     GenericAuthority { error: String },

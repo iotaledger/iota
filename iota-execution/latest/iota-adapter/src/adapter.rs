@@ -15,7 +15,7 @@ mod checked {
         error::{ExecutionError, ExecutionErrorKind, IotaError},
         execution_config_utils::to_binary_config,
         metrics::{BytecodeVerifierMetrics, LimitsMetrics},
-        storage::ChildObjectResolver,
+        storage::{AccountAssetObjectResolver, ChildObjectResolver},
     };
     use iota_verifier::{
         check_for_verifier_timeout, verifier::iota_verify_module_metered_check_timeout_only,
@@ -89,6 +89,7 @@ mod checked {
     /// They are available and mainly used in native function implementations
     /// via `NativeContext` instance.
     pub fn new_native_extensions<'r>(
+        account_assets_resolver: &'r dyn AccountAssetObjectResolver,
         child_resolver: &'r dyn ChildObjectResolver,
         input_objects: BTreeMap<ObjectID, object_runtime::InputObject>,
         is_metered: bool,
@@ -98,6 +99,7 @@ mod checked {
     ) -> NativeContextExtensions<'r> {
         let mut extensions = NativeContextExtensions::default();
         extensions.add(ObjectRuntime::new(
+            account_assets_resolver,
             child_resolver,
             input_objects,
             is_metered,

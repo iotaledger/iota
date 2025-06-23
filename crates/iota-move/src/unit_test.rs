@@ -124,6 +124,7 @@ fn new_testing_object_and_natives_cost_runtime(ext: &mut NativeContextExtensions
 
     ext.add(ObjectRuntime::new(
         store,
+        store,
         BTreeMap::new(),
         false,
         Box::leak(Box::new(ProtocolConfig::get_for_max_version_UNSAFE())), // leak for testing

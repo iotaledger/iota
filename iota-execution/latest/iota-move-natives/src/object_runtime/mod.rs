@@ -2,6 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+pub(crate) mod account_assets_store;
 pub(crate) mod object_store;
 
 use std::{
@@ -22,7 +23,7 @@ use iota_types::{
     id::UID,
     metrics::LimitsMetrics,
     object::{MoveObject, Owner},
-    storage::ChildObjectResolver,
+    storage::{AccountAssetObjectResolver, ChildObjectResolver},
 };
 use move_binary_format::errors::{PartialVMError, PartialVMResult};
 use move_core_types::{
@@ -43,6 +44,7 @@ use tracing::error;
 
 use self::object_store::{ChildObjectEffect, ObjectResult};
 use super::get_object_id;
+use crate::object_runtime::account_assets_store::{AccountAssetsObjectStore, AssetResult};
 
 pub enum ObjectEvent {
     /// Transfer to a new address or object. Or make it shared or immutable.
@@ -100,6 +102,7 @@ pub(crate) struct ObjectRuntimeState {
 
 #[derive(Tid)]
 pub struct ObjectRuntime<'a> {
+    account_assets_object_store: AccountAssetsObjectStore<'a>,
     child_object_store: ChildObjectStore<'a>,
     // inventories for test scenario
     pub(crate) test_inventories: TestInventories,
@@ -132,6 +135,7 @@ impl TestInventories {
 
 impl<'a> ObjectRuntime<'a> {
     pub fn new(
+        account_assets_resolver: &'a dyn AccountAssetObjectResolver,
         object_resolver: &'a dyn ChildObjectResolver,
         input_objects: BTreeMap<ObjectID, InputObject>,
         is_metered: bool,
@@ -159,6 +163,7 @@ impl<'a> ObjectRuntime<'a> {
             }
         }
         Self {
+            account_assets_object_store: AccountAssetsObjectStore::new(account_assets_resolver),
             child_object_store: ChildObjectStore::new(
                 object_resolver,
                 root_version,
@@ -406,6 +411,36 @@ impl<'a> ObjectRuntime<'a> {
             .add_object(parent, child, child_ty, child_move_type, child_value)
     }
 
+    pub(crate) fn get_or_fetch_account_asset(
+        &mut self,
+        account: AccountAddress,
+        asset: ObjectID,
+        asset_ty: &Type,
+        asset_layout: &R::MoveTypeLayout,
+        asset_fully_annotated_layout: &MoveTypeLayout,
+        asset_move_type: MoveObjectType,
+    ) -> PartialVMResult<AssetResult<&mut GlobalValue>> {
+        // TODO: If an object was transferred to the account address in the same
+        // transaction, it should be stored in the `self.state.transfers`
+        // collection. So we need to consider taking it from there instead of fetching
+        // it from the store.
+
+        let res = self
+            .account_assets_object_store
+            .get_or_fetch_account_asset(
+                account,
+                asset,
+                asset_ty,
+                asset_layout,
+                asset_fully_annotated_layout,
+                asset_move_type,
+            )?;
+        Ok(match res {
+            AssetResult::MismatchedType => AssetResult::MismatchedType,
+            AssetResult::Loaded(asset_object) => AssetResult::Loaded(&mut asset_object.value),
+        })
+    }
+
     pub(crate) fn config_setting_unsequenced_read(
         &mut self,
         config_id: ObjectID,
@@ -459,6 +494,9 @@ impl<'a> ObjectRuntime<'a> {
     pub fn finish(mut self) -> Result<RuntimeResults, ExecutionError> {
         let loaded_child_objects = self.loaded_runtime_objects();
         let child_effects = self.child_object_store.take_effects();
+
+        // TODO: take effects from the account assets store.
+
         self.state.finish(loaded_child_objects, child_effects)
     }
 

@@ -21,7 +21,7 @@ use iota_types::{
     id::UID,
     in_memory_storage::InMemoryStorage,
     object::{MoveObject, Object, Owner},
-    storage::ChildObjectResolver,
+    storage::{AccountAssetObjectResolver, ChildObjectResolver},
 };
 use move_binary_format::errors::{PartialVMError, PartialVMResult};
 use move_core_types::{
@@ -86,6 +86,17 @@ impl ChildObjectResolver for InMemoryTestStore {
                 epoch_id,
             )
         })
+    }
+}
+
+impl AccountAssetObjectResolver for InMemoryTestStore {
+    fn read_account_asset(
+        &self,
+        account: &IotaAddress,
+        asset: &ObjectID,
+    ) -> iota_types::error::IotaResult<Option<Object>> {
+        let l: &'static LocalKey<RefCell<InMemoryStorage>> = self.0;
+        l.with_borrow(|store| store.read_account_asset(account, asset))
     }
 }
 

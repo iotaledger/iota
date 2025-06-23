@@ -10,14 +10,14 @@ use move_bytecode_utils::module_cache::GetModule;
 use move_core_types::{language_storage::ModuleId, resolver::ModuleResolver};
 
 use crate::{
-    base_types::{ObjectID, SequenceNumber, VersionNumber},
+    base_types::{IotaAddress, ObjectID, SequenceNumber, VersionNumber},
     committee::EpochId,
     error::{IotaError, IotaResult},
     inner_temporary_store::WrittenObjects,
     object::{Object, Owner},
     storage::{
-        BackingPackageStore, ChildObjectResolver, ObjectStore, PackageObject, get_module,
-        get_module_by_id, load_package_object_from_object_store,
+        AccountAssetObjectResolver, BackingPackageStore, ChildObjectResolver, ObjectStore,
+        PackageObject, get_module, get_module_by_id, load_package_object_from_object_store,
     },
     transaction::{
         InputObjectKind, InputObjects, ObjectReadResult, Transaction, TransactionDataAPI,
@@ -84,6 +84,40 @@ impl ChildObjectResolver for InMemoryStorage {
             return Ok(None);
         }
         Ok(Some(recv_object))
+    }
+}
+
+impl AccountAssetObjectResolver for InMemoryStorage {
+    fn read_account_asset(
+        &self,
+        account: &IotaAddress,
+        asset: &ObjectID,
+    ) -> IotaResult<Option<Object>> {
+        let asset_object = match self.persistent.get(asset).cloned() {
+            None => return Ok(None),
+            Some(obj) => obj,
+        };
+
+        if asset_object.owner != Owner::AddressOwner(*account) {
+            return Err(IotaError::InvalidAccountAssetObjectAccess {
+                object: *asset,
+                account: *account,
+                actual_owner: asset_object.owner,
+            });
+        }
+
+        // TODO: Check if the account address is really Account Abstraction related.
+
+        // TODO: Investigate if we need to check versions.
+
+        // if asset_object.version() > asset_version_upper_bound {
+        //     return Err(IotaError::UnsupportedFeature {
+        //         error: "TODO InMemoryStorage::read_account_asset does not yet support
+        // bounded reads"             .to_owned(),
+        //     });
+        // }
+
+        Ok(Some(asset_object))
     }
 }
 

@@ -20,7 +20,7 @@ use iota_protocol_config::{Chain, ProtocolConfig};
 use iota_sdk::{IotaClient, IotaClientBuilder};
 use iota_types::{
     IOTA_DENY_LIST_OBJECT_ID,
-    base_types::{ObjectID, ObjectRef, SequenceNumber, VersionNumber},
+    base_types::{IotaAddress, ObjectID, ObjectRef, SequenceNumber, VersionNumber},
     committee::EpochId,
     digests::{ObjectDigest, TransactionDigest},
     error::{ExecutionError, IotaError, IotaResult},
@@ -32,13 +32,14 @@ use iota_types::{
     metrics::LimitsMetrics,
     object::{Data, Object, Owner},
     storage::{
-        BackingPackageStore, ChildObjectResolver, ObjectStore, PackageObject, get_module,
-        get_module_by_id,
+        AccountAssetObjectResolver, BackingPackageStore, ChildObjectResolver, ObjectStore,
+        PackageObject, get_module, get_module_by_id,
     },
     transaction::{
         CheckedInputObjects, InputObjectKind, InputObjects, ObjectReadResult, ObjectReadResultKind,
-        SenderSignedData, Transaction, TransactionDataAPI, TransactionKind,
-        TransactionKind::ProgrammableTransaction, VerifiedTransaction,
+        SenderSignedData, Transaction, TransactionDataAPI,
+        TransactionKind::{self, ProgrammableTransaction},
+        VerifiedTransaction,
     },
 };
 use move_binary_format::CompiledModule;
@@ -764,7 +765,7 @@ impl LocalExec {
             .expect("Failed to create gas status")
         };
         let (inner_store, gas_status, effects, result) = executor.execute_transaction_to_effects(
-            &self,
+            self,
             protocol_config,
             metrics.clone(),
             expensive_checks,
@@ -831,7 +832,7 @@ impl LocalExec {
                         executor,
                         &self.clone(),
                         executor.dev_inspect_transaction(
-                            &self,
+                            self,
                             protocol_config,
                             metrics,
                             expensive_checks,
@@ -1964,6 +1965,16 @@ impl ChildObjectResolver for LocalExec {
                 result: res.clone(),
             });
         res
+    }
+}
+
+impl AccountAssetObjectResolver for LocalExec {
+    fn read_account_asset(
+        &self,
+        _account: &IotaAddress,
+        _asset: &ObjectID,
+    ) -> IotaResult<Option<Object>> {
+        todo!()
     }
 }
 

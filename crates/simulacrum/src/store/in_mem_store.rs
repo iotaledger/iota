@@ -18,8 +18,8 @@ use iota_types::{
     },
     object::{Object, Owner},
     storage::{
-        BackingPackageStore, ChildObjectResolver, ObjectStore, PackageObject, get_module,
-        load_package_object_from_object_store,
+        AccountAssetObjectResolver, BackingPackageStore, ChildObjectResolver, ObjectStore,
+        PackageObject, get_module, load_package_object_from_object_store,
     },
     transaction::VerifiedTransaction,
 };
@@ -287,6 +287,40 @@ impl ChildObjectResolver for InMemoryStore {
             return Ok(None);
         }
         Ok(Some(recv_object))
+    }
+}
+
+impl AccountAssetObjectResolver for InMemoryStore {
+    fn read_account_asset(
+        &self,
+        account: &IotaAddress,
+        asset: &ObjectID,
+    ) -> iota_types::error::IotaResult<Option<Object>> {
+        let asset_object = match crate::store::SimulatorStore::get_object(self, asset) {
+            None => return Ok(None),
+            Some(obj) => obj,
+        };
+
+        if asset_object.owner != Owner::AddressOwner(*account) {
+            return Err(IotaError::InvalidAccountAssetObjectAccess {
+                object: *asset,
+                account: *account,
+                actual_owner: asset_object.owner,
+            });
+        }
+
+        // TODO: Check if the account address is really Account Abstraction related.
+
+        // TODO: Investigate if we need to check versions.
+
+        // if asset_object.version() > child_version_upper_bound {
+        //     return Err(IotaError::UnsupportedFeature {
+        //         error: "TODO InMemoryStorage::read_account_asset does not yet support
+        // bounded reads"             .to_owned(),
+        //     });
+        // }
+
+        Ok(Some(asset_object))
     }
 }
 

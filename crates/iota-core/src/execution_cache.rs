@@ -8,7 +8,9 @@ use futures::{FutureExt, future::BoxFuture};
 use iota_common::fatal;
 use iota_config::ExecutionCacheConfig;
 use iota_types::{
-    base_types::{EpochId, ObjectID, ObjectRef, SequenceNumber, VerifiedExecutionData},
+    base_types::{
+        EpochId, IotaAddress, ObjectID, ObjectRef, SequenceNumber, VerifiedExecutionData,
+    },
     digests::{TransactionDigest, TransactionEffectsDigest, TransactionEventsDigest},
     effects::{TransactionEffects, TransactionEvents},
     error::{IotaError, IotaResult, UserInputError},
@@ -16,8 +18,8 @@ use iota_types::{
     messages_checkpoint::CheckpointSequenceNumber,
     object::{Object, Owner},
     storage::{
-        BackingPackageStore, BackingStore, ChildObjectResolver, InputKey, MarkerValue, ObjectKey,
-        ObjectOrTombstone, ObjectStore, PackageObject,
+        AccountAssetObjectResolver, BackingPackageStore, BackingStore, ChildObjectResolver,
+        InputKey, MarkerValue, ObjectKey, ObjectOrTombstone, ObjectStore, PackageObject,
         error::{Error as StorageError, Result as StorageResult},
     },
     transaction::{VerifiedSignedTransaction, VerifiedTransaction},
@@ -817,6 +819,33 @@ macro_rules! implement_storage_traits {
                 }
 
                 Ok(Some(recv_object))
+            }
+        }
+
+        impl AccountAssetObjectResolver for $implementor {
+            fn read_account_asset(
+                &self,
+                account: &IotaAddress,
+                asset: &ObjectID,
+            ) -> iota_types::error::IotaResult<Option<Object>> {
+                // TODO: Check if the account address is really Account Abstraction related.
+
+                // TODO: Investigate if we need to check versions.
+
+                let Some(asset_object) = ObjectStore::get_object(self, asset)? else {
+                    return Ok(None);
+                };
+
+                let account = *account;
+                if asset_object.owner != Owner::AddressOwner(account) {
+                    return Err(IotaError::InvalidAccountAssetObjectAccess {
+                        object: *asset,
+                        account,
+                        actual_owner: asset_object.owner,
+                    });
+                }
+
+                Ok(Some(asset_object))
             }
         }
 

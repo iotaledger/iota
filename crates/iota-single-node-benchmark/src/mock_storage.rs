@@ -10,12 +10,13 @@ use std::{
 use iota_core::authority::authority_per_epoch_store::AuthorityPerEpochStore;
 use iota_storage::package_object_cache::PackageObjectCache;
 use iota_types::{
-    base_types::{EpochId, ObjectID, SequenceNumber, VersionNumber},
+    base_types::{EpochId, IotaAddress, ObjectID, SequenceNumber, VersionNumber},
     error::{IotaError, IotaResult},
     inner_temporary_store::InnerTemporaryStore,
     object::{Object, Owner},
     storage::{
-        BackingPackageStore, ChildObjectResolver, ObjectStore, PackageObject, get_module_by_id,
+        AccountAssetObjectResolver, BackingPackageStore, ChildObjectResolver, ObjectStore,
+        PackageObject, get_module_by_id,
     },
     transaction::{InputObjectKind, InputObjects, ObjectReadResult, TransactionKey},
 };
@@ -164,6 +165,26 @@ impl ChildObjectResolver for InMemoryObjectStore {
         _epoch_id: EpochId,
     ) -> IotaResult<Option<Object>> {
         unimplemented!()
+    }
+}
+
+impl AccountAssetObjectResolver for InMemoryObjectStore {
+    fn read_account_asset(
+        &self,
+        account: &IotaAddress,
+        asset: &ObjectID,
+    ) -> IotaResult<Option<Object>> {
+        Ok(self.get_object(asset).unwrap().and_then(|o| {
+            // TODO: Check if the account address is really Account Abstraction related.
+
+            // TODO: Investigate if we need to check versions.
+
+            if o.owner == Owner::AddressOwner((*account).into()) {
+                Some(o.clone())
+            } else {
+                None
+            }
+        }))
     }
 }
 

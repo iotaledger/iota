@@ -28,8 +28,8 @@ use iota_types::{
     layout_resolver::LayoutResolver,
     object::{Data, Object, Owner},
     storage::{
-        BackingPackageStore, BackingStore, ChildObjectResolver, DenyListResult, PackageObject,
-        Storage,
+        AccountAssetObjectResolver, BackingPackageStore, BackingStore, ChildObjectResolver,
+        DenyListResult, PackageObject, Storage,
     },
     transaction::InputObjects,
 };
@@ -1015,6 +1015,24 @@ impl ChildObjectResolver for TemporaryStore<'_> {
             receive_object_at_version,
             epoch_id,
         )
+    }
+}
+
+impl AccountAssetObjectResolver for TemporaryStore<'_> {
+    fn read_account_asset(
+        &self,
+        account: &IotaAddress,
+        asset: &ObjectID,
+    ) -> IotaResult<Option<Object>> {
+        // TODO: Check the execution results first.
+        // let obj_opt = self.execution_results.written_objects.get(asset);
+        let obj_opt: Option<&Object> = None;
+        if obj_opt.is_some() {
+            Ok(obj_opt.cloned())
+        } else {
+            let _scope = monitored_scope("Execution::read_child_object");
+            self.store.read_account_asset(account, asset)
+        }
     }
 }
 

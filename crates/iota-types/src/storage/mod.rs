@@ -28,7 +28,9 @@ pub use shared_in_memory_store::{SharedInMemoryStore, SingleCheckpointSharedInMe
 pub use write_store::WriteStore;
 
 use crate::{
-    base_types::{ObjectID, ObjectRef, SequenceNumber, TransactionDigest, VersionNumber},
+    base_types::{
+        IotaAddress, ObjectID, ObjectRef, SequenceNumber, TransactionDigest, VersionNumber,
+    },
     committee::EpochId,
     error::{ExecutionError, IotaError, IotaResult},
     execution::{DynamicallyLoadedObjectMetadata, ExecutionResults},
@@ -160,8 +162,8 @@ pub enum ObjectChange {
     Delete(DeleteKindWithOldVersion),
 }
 
-pub trait StorageView: Storage + ChildObjectResolver {}
-impl<T: Storage + ChildObjectResolver> StorageView for T {}
+pub trait StorageView: Storage + ChildObjectResolver + AccountAssetObjectResolver {}
+impl<T: Storage + ChildObjectResolver + AccountAssetObjectResolver> StorageView for T {}
 
 /// An abstraction of the (possibly distributed) store for objects. This
 /// API only allows for the retrieval of objects, not any state changes
@@ -186,6 +188,18 @@ pub trait ChildObjectResolver {
         receiving_object_id: &ObjectID,
         receive_object_at_version: SequenceNumber,
         epoch_id: EpochId,
+    ) -> IotaResult<Option<Object>>;
+}
+
+/// An abstraction of the (possibly distributed) store for Account Abstraction
+/// assets. This API only allows for the retrieval of objects, not any state
+/// changes
+pub trait AccountAssetObjectResolver {
+    /// `asset` must be owned by an Account Abstraction instance.
+    fn read_account_asset(
+        &self,
+        account: &IotaAddress,
+        asset: &ObjectID,
     ) -> IotaResult<Option<Object>>;
 }
 
@@ -556,7 +570,9 @@ impl Display for DeleteKind {
     }
 }
 
-pub trait BackingStore: BackingPackageStore + ChildObjectResolver + ObjectStore {
+pub trait BackingStore:
+    BackingPackageStore + ChildObjectResolver + AccountAssetObjectResolver + ObjectStore
+{
     fn as_object_store(&self) -> &dyn ObjectStore;
 }
 
@@ -564,6 +580,7 @@ impl<T> BackingStore for T
 where
     T: BackingPackageStore,
     T: ChildObjectResolver,
+    T: AccountAssetObjectResolver,
     T: ObjectStore,
 {
     fn as_object_store(&self) -> &dyn ObjectStore {

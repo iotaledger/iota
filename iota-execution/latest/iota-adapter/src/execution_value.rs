@@ -8,7 +8,7 @@ use iota_types::{
     error::{ExecutionError, ExecutionErrorKind, IotaError},
     execution_status::CommandArgumentError,
     object::Owner,
-    storage::{BackingPackageStore, ChildObjectResolver, StorageView},
+    storage::{AccountAssetObjectResolver, BackingPackageStore, ChildObjectResolver, StorageView},
     transfer::Receiving,
 };
 use move_binary_format::file_format::AbilitySet;
@@ -34,6 +34,7 @@ where
 pub trait ExecutionState: StorageView + IotaResolver {
     fn as_iota_resolver(&self) -> &dyn IotaResolver;
     fn as_child_resolver(&self) -> &dyn ChildObjectResolver;
+    fn as_account_asset_resolver(&self) -> &dyn AccountAssetObjectResolver;
 }
 
 impl<T> ExecutionState for T
@@ -46,6 +47,10 @@ where
     }
 
     fn as_child_resolver(&self) -> &dyn ChildObjectResolver {
+        self
+    }
+
+    fn as_account_asset_resolver(&self) -> &dyn AccountAssetObjectResolver {
         self
     }
 }

@@ -121,6 +121,11 @@ public fun supply_mut<T>(treasury: &mut TreasuryCap<T>): &mut Supply<T> {
 
 // === Balance <-> Coin accessors and type morphing ===
 
+/// Public getter for the coin's address
+public fun get_address<T>(self: &Coin<T>): address {
+    self.id.to_address()
+}
+
 /// Public getter for the coin's value
 public fun value<T>(self: &Coin<T>): u64 {
     self.balance.value()
