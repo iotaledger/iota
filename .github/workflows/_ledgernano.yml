@@ -23,22 +23,17 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Install ledgernano dependencies
-        run: |
-          sudo apt-get install -y qemu-user-static
-          sudo apt-get install -y libxcb-xinerama0
-          sudo python3 -m pip install speculos
+      - name: Pull speculos docker image
+        run: docker pull ghcr.io/ledgerhq/speculos
 
-      - name: Download ledgernano bin
+      - name: Download ledgernano binary
         run: |
-          sudo apt-get install -y gh
-          gh release list --repo https://github.com/iotaledger/ledger-app-iota
-          gh release download --repo https://github.com/iotaledger/ledger-app-iota -p nanos.tar.gz ledger-app-iota-v0.9.2
+          curl -L -o nanos.tar.gz https://github.com/iotaledger/ledger-app-iota/releases/download/ledger-app-iota-v0.9.2/nanos.tar.gz
           tar -xvf nanos.tar.gz
           mv nanos/iota sdk/ledgerjs-hw-app-iota/tests/iota
 
       - name: Start speculos simulator
-        run: speculos --api-port 5000 --display headless ./sdk/ledgerjs-hw-app-iota/tests/iota &
+        run: docker run --rm -d -p 5000:5000 -v $(pwd)/sdk/ledgerjs-hw-app-iota/tests:/app ghcr.io/ledgerhq/speculos --api-port 5000 --display headless /app/iota
 
       - name: Run TS SDK ledgernano tests
         run: pnpm --filter @iota/ledgerjs-hw-app-iota test
