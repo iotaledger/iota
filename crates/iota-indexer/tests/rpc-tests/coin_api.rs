@@ -539,7 +539,7 @@ fn get_total_supply() {
 }
 
 #[test]
-#[ignore = "https://github.com/iotaledger/iota/issues/7014"]
+#[ignore = "https://github.com/iotaledger/iota/issues/7507"]
 fn fullnode_get_total_supply_with_migrated_coin_manager_coins() {
     let ApiTestSetup {
         runtime,
