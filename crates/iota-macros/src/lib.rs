@@ -63,8 +63,7 @@ fn get_async_fp_result(result: Box<dyn std::any::Any + Send + 'static>) -> BoxFu
     match result.downcast::<BoxFuture<'static, ()>>() {
         Ok(fut) => *fut,
         Err(err) => panic!(
-            "async failpoint must return BoxFuture<'static, ()> {:?}",
-            err
+            "async failpoint must return BoxFuture<'static, ()> {err:?}"
         ),
     }
 }
@@ -131,8 +130,7 @@ fn clear_fail_point_impl(identifier: &'static str) {
     with_fp_map(move |map| {
         assert!(
             map.remove(identifier).is_some(),
-            "fail point {:?} does not exist",
-            identifier
+            "fail point {identifier:?} does not exist"
         );
     })
 }

@@ -406,7 +406,7 @@ async fn check_locked_object(
     let output = get_object(id, None, None, clients.clone()).await?;
     let output = GroupedObjectOutput::new(output, committee);
     if output.fully_locked {
-        println!("Object {} is fully locked.", id);
+        println!("Object {id} is fully locked.");
         return Ok(());
     }
     let top_record = output.voting_power.first().unwrap();
@@ -414,18 +414,17 @@ async fn check_locked_object(
     let top_record = top_record.0.unwrap();
     if top_record.4.is_none() {
         println!(
-            "Object {} does not seem to be locked by majority of validators (unlocked stake: {})",
-            id, top_record_stake
+            "Object {id} does not seem to be locked by majority of validators (unlocked stake: {top_record_stake})"
         );
         return Ok(());
     }
 
     let tx_digest = top_record.2;
     if !rescue {
-        println!("Object {} is rescueable, top tx: {:?}", id, tx_digest);
+        println!("Object {id} is rescueable, top tx: {tx_digest:?}");
         return Ok(());
     }
-    println!("Object {} is rescueable, trying tx {}", id, tx_digest);
+    println!("Object {id} is rescueable, trying tx {tx_digest}");
     let validator = output
         .grouped_results
         .get(&Some(top_record))
@@ -449,10 +448,10 @@ async fn check_locked_object(
         .await;
     match res {
         Ok(_) => {
-            println!("Transaction executed successfully ({:?})", tx_digest);
+            println!("Transaction executed successfully ({tx_digest:?})");
         }
         Err(e) => {
-            println!("Failed to execute transaction ({:?}): {:?}", tx_digest, e);
+            println!("Failed to execute transaction ({tx_digest:?}): {e:?}");
         }
     }
     Ok(())
@@ -594,7 +593,7 @@ impl ToolCommand {
             }
             ToolCommand::DumpGenesis { genesis } => {
                 let genesis = Genesis::load(genesis)?;
-                println!("{:#?}", genesis);
+                println!("{genesis:#?}");
             }
             ToolCommand::FetchCheckpoint {
                 sequence_number,
@@ -618,8 +617,8 @@ impl ToolCommand {
                         contents,
                     } = resp;
                     println!("Validator: {:?}\n", name.concise());
-                    println!("Checkpoint: {:?}\n", checkpoint);
-                    println!("Content: {:?}\n", contents);
+                    println!("Checkpoint: {checkpoint:?}\n");
+                    println!("Content: {contents:?}\n");
                 }
             }
             ToolCommand::Anemo { args } => {
@@ -853,8 +852,7 @@ impl ToolCommand {
                     check_completed_snapshot(&snapshot_store_config, epoch_to_download).await
                 {
                     panic!(
-                        "Aborting snapshot restore: {}, snapshot may not be uploaded yet",
-                        e
+                        "Aborting snapshot restore: {e}, snapshot may not be uploaded yet"
                     );
                 }
 
@@ -1010,8 +1008,7 @@ impl ToolCommand {
                     check_completed_snapshot(&snapshot_store_config, epoch_to_download).await
                 {
                     panic!(
-                        "Aborting snapshot restore: {}, snapshot may not be uploaded yet",
-                        e
+                        "Aborting snapshot restore: {e}, snapshot may not be uploaded yet"
                     );
                 }
                 download_db_snapshot(
@@ -1080,7 +1077,7 @@ impl ToolCommand {
                 let (agg, _) =
                     AuthorityAggregatorBuilder::from_genesis(&genesis).build_network_clients();
                 let result = agg.process_transaction(transaction, None).await;
-                println!("{:?}", result);
+                println!("{result:?}");
             }
         };
         Ok(())

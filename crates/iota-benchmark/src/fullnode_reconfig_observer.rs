@@ -42,8 +42,7 @@ impl FullNodeReconfigObserver {
                 .await
                 .unwrap_or_else(|e| {
                     panic!(
-                        "Can't create IotaClient with rpc url {fullnode_rpc_url}: {:?}",
-                        e
+                        "Can't create IotaClient with rpc url {fullnode_rpc_url}: {e:?}"
                     )
                 }),
             committee_store,

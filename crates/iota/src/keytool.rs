@@ -515,7 +515,7 @@ impl KeyToolCommand {
 
                     match res {
                         Ok(()) => output.sig_verify_result = "OK".to_string(),
-                        Err(e) => output.sig_verify_result = format!("{:?}", e),
+                        Err(e) => output.sig_verify_result = format!("{e:?}"),
                     };
                 };
 
@@ -719,8 +719,7 @@ impl KeyToolCommand {
                             })
                         }
                         Err(e) => CommandOutput::Error(format!(
-                            "Failed to read keypair at path {:?}, err: {e}",
-                            file
+                            "Failed to read keypair at path {file:?}, err: {e}"
                         )),
                     },
                 }
@@ -1231,7 +1230,7 @@ impl Display for CommandOutput {
                 table.with(Rotate::Left);
                 table.with(tabled::settings::Style::rounded().horizontals([]));
                 table.with(Modify::new(Rows::new(0..)).with(Width::wrap(160).keep_words()));
-                write!(formatter, "{}", table)
+                write!(formatter, "{table}")
             }
             CommandOutput::UpdateAlias(update) => {
                 write!(
@@ -1246,7 +1245,7 @@ impl Display for CommandOutput {
                 let style = tabled::settings::Style::rounded().horizontals([]);
                 table.with(style);
                 table.array_orientation(Orientation::Column);
-                write!(formatter, "{}", table)
+                write!(formatter, "{table}")
             }
         }
     }

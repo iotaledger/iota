@@ -128,7 +128,7 @@ impl PTB {
                 let rendered = build_error_reports(&source_string, errors);
                 eprintln!("Encountered error{suffix} when parsing PTB:");
                 for e in rendered.iter() {
-                    eprintln!("{:?}", e);
+                    eprintln!("{e:?}");
                 }
                 bail!("Could not build PTB due to previous error{suffix}");
             }
@@ -157,7 +157,7 @@ impl PTB {
             eprintln!("Warning{suffix} produced when building PTB:");
             let rendered = build_error_reports(&source_string, warnings);
             for e in rendered.iter() {
-                eprintln!("{:?}", e);
+                eprintln!("{e:?}");
             }
         }
         let ptb = match res {
@@ -166,7 +166,7 @@ impl PTB {
                 eprintln!("Encountered error{suffix} when building PTB:");
                 let rendered = build_error_reports(&source_string, errors);
                 for e in rendered.iter() {
-                    eprintln!("{:?}", e);
+                    eprintln!("{e:?}");
                 }
                 bail!("Could not build PTB due to previous error{suffix}");
             }

@@ -304,7 +304,7 @@ impl MultiSig {
             let index = multisig_pk
                 .get_index(&pk)
                 .ok_or(IotaError::IncorrectSigner {
-                    error: format!("pk does not exist: {:?}", pk),
+                    error: format!("pk does not exist: {pk:?}"),
                 })?;
             if bitmap & (1 << index) != 0 {
                 return Err(IotaError::InvalidSignature {

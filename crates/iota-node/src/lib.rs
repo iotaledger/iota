@@ -450,7 +450,7 @@ impl IotaNode {
         // Check and set the db_corrupted flag
         let db_corrupted_path = &config.db_path().join("status");
         if let Err(err) = check_and_mark_db_corruption(db_corrupted_path) {
-            panic!("Failed to check database corruption: {}", err);
+            panic!("Failed to check database corruption: {err}");
         }
 
         // Initialize metrics to track db usage before creating any stores
@@ -1178,7 +1178,7 @@ impl IotaNode {
             }
             anemo_config.quic = Some(quic_config);
 
-            let server_name = format!("iota-{}", chain_identifier);
+            let server_name = format!("iota-{chain_identifier}");
             let network = Network::bind(config.p2p_config.listen_address)
                 .server_name(&server_name)
                 .private_key(config.network_key_pair().copy().private().0.to_bytes())

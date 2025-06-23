@@ -42,7 +42,7 @@ impl Display for KeyIdentity {
             KeyIdentity::Address(x) => x.to_string(),
             KeyIdentity::Alias(x) => x.to_string(),
         };
-        write!(f, "{}", v)
+        write!(f, "{v}")
     }
 }
 

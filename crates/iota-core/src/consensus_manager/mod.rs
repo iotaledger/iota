@@ -203,8 +203,7 @@ impl UpdatableConsensusClient {
         }
 
         panic!(
-            "Timed out after {:?} waiting for Consensus to start!",
-            START_TIMEOUT,
+            "Timed out after {START_TIMEOUT:?} waiting for Consensus to start!",
         );
     }
 

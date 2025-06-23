@@ -257,11 +257,11 @@ impl IotaClientBuilder {
 
         if let Some((username, password)) = self.basic_auth {
             let auth = base64::engine::general_purpose::STANDARD
-                .encode(format!("{}:{}", username, password));
+                .encode(format!("{username}:{password}"));
             headers.insert(
                 "authorization",
                 // reqwest::header::AUTHORIZATION,
-                HeaderValue::from_str(&format!("Basic {}", auth)).unwrap(),
+                HeaderValue::from_str(&format!("Basic {auth}")).unwrap(),
             );
         }
 

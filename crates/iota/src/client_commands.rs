@@ -956,7 +956,7 @@ impl IotaClientCommands {
                     package_path
                         .canonicalize()
                         .map_err(|e| IotaError::ModulePublishFailure {
-                            error: format!("Failed to canonicalize package path: {}", e),
+                            error: format!("Failed to canonicalize package path: {e}"),
                         })?;
                 let build_config = resolve_lock_file_path(build_config, Some(&package_path))?;
                 let previous_id = if let Some(ref chain_id) = chain_id {
@@ -1083,7 +1083,7 @@ impl IotaClientCommands {
                     package_path
                         .canonicalize()
                         .map_err(|e| IotaError::ModulePublishFailure {
-                            error: format!("Failed to canonicalize package path: {}", e),
+                            error: format!("Failed to canonicalize package path: {e}"),
                         })?;
                 let build_config = resolve_lock_file_path(build_config, Some(&package_path))?;
                 let previous_id = if let Some(ref chain_id) = chain_id {
@@ -2065,7 +2065,7 @@ impl Display for IotaClientCommandResult {
                 let mut table = builder.build();
                 let style = TableStyle::rounded();
                 table.with(style);
-                write!(f, "{}", table)?
+                write!(f, "{table}")?
             }
             IotaClientCommandResult::Balance(coins, with_coins) => {
                 if coins.is_empty() {
@@ -2080,7 +2080,7 @@ impl Display for IotaClientCommandResult {
                     TableStyle::modern().get_horizontal(),
                 )]));
                 table.with(tabled::settings::style::BorderSpanCorrection);
-                write!(f, "{}", table)?;
+                write!(f, "{table}")?;
             }
             IotaClientCommandResult::DynamicFieldQuery(df_refs) => {
                 let df_refs = DynamicFieldOutput {
@@ -2093,7 +2093,7 @@ impl Display for IotaClientCommandResult {
                 let mut table = json_to_table(&json_obj);
                 let style = TableStyle::rounded().horizontals([]);
                 table.with(style);
-                write!(f, "{}", table)?
+                write!(f, "{table}")?
             }
             IotaClientCommandResult::Gas(gas_coins) => {
                 let gas_coins = gas_coins
@@ -2139,7 +2139,7 @@ impl Display for IotaClientCommandResult {
                     ]));
                     table.with(tabled::settings::style::BorderSpanCorrection);
                 }
-                write!(f, "{}", table)?;
+                write!(f, "{table}")?;
             }
             IotaClientCommandResult::NewAddress(new_address) => {
                 let mut builder = TableBuilder::default();
@@ -2185,7 +2185,7 @@ impl Display for IotaClientCommandResult {
                     let json_obj = json!(&object);
                     let mut table = json_to_table(&json_obj);
                     table.with(TableStyle::rounded().horizontals([]));
-                    writeln!(f, "{}", table)?
+                    writeln!(f, "{table}")?
                 }
                 Err(e) => writeln!(f, "Internal error, cannot read the object: {e}")?,
             },
@@ -2199,14 +2199,14 @@ impl Display for IotaClientCommandResult {
                             let json_obj = json!(objs);
                             let mut table = json_to_table(&json_obj);
                             table.with(TableStyle::rounded().horizontals([]));
-                            writeln!(f, "{}", table)?
+                            writeln!(f, "{table}")?
                         }
                         Err(e) => write!(f, "Internal error: {e}")?,
                     }
                 }
             }
             IotaClientCommandResult::TransactionBlock(response) => {
-                write!(writer, "{}", response)?;
+                write!(writer, "{response}")?;
             }
             IotaClientCommandResult::RawObject(raw_object_read) => {
                 let raw_object = match raw_object_read.object() {
@@ -2218,16 +2218,16 @@ impl Display for IotaClientCommandResult {
                             let mut temp = String::new();
                             let mut bcs_bytes = 0usize;
                             for m in &p.module_map {
-                                temp.push_str(&format!("{:?}\n", m));
+                                temp.push_str(&format!("{m:?}\n"));
                                 bcs_bytes += m.1.len()
                             }
-                            format!("{}Number of bytes: {}", temp, bcs_bytes)
+                            format!("{temp}Number of bytes: {bcs_bytes}")
                         }
                         None => "Bcs field is None".to_string().red().to_string(),
                     },
                     Err(err) => format!("{err}").red().to_string(),
                 };
-                writeln!(writer, "{}", raw_object)?;
+                writeln!(writer, "{raw_object}")?;
             }
             IotaClientCommandResult::RemoveAddress(address) => {
                 write!(writer, "Removed address \"{address}\" from keystore.")?
@@ -2250,14 +2250,14 @@ impl Display for IotaClientCommandResult {
                 writeln!(writer, "Client state sync complete.")?;
             }
             IotaClientCommandResult::ChainIdentifier(ci) => {
-                writeln!(writer, "{}", ci)?;
+                writeln!(writer, "{ci}")?;
             }
             IotaClientCommandResult::Switch(response) => {
-                write!(writer, "{}", response)?;
+                write!(writer, "{response}")?;
             }
             IotaClientCommandResult::ActiveAddress(response) => {
                 match response {
-                    Some(r) => write!(writer, "{}", r)?,
+                    Some(r) => write!(writer, "{r}")?,
                     None => write!(writer, "None")?,
                 };
             }
@@ -2281,7 +2281,7 @@ impl Display for IotaClientCommandResult {
                 }
                 let mut table = builder.build();
                 table.with(TableStyle::rounded());
-                write!(f, "{}", table)?
+                write!(f, "{table}")?
             }
             IotaClientCommandResult::VerifySource => {
                 writeln!(writer, "Source verification succeeded!")?;
@@ -2373,7 +2373,7 @@ impl Display for IotaClientCommandResult {
 
                 table.with(tabled::settings::style::BorderSpanCorrection);
 
-                writeln!(f, "{}", table)?;
+                writeln!(f, "{table}")?;
             }
             IotaClientCommandResult::NoOutput => {}
             IotaClientCommandResult::DryRun(response) => {
@@ -2659,7 +2659,7 @@ impl Display for SwitchResponse {
         if let Some(env) = &self.env {
             writeln!(writer, "Active environment switched to [{env}]")?;
         }
-        write!(f, "{}", writer)
+        write!(f, "{writer}")
     }
 }
 
@@ -3171,7 +3171,7 @@ pub(crate) fn parse_display_option(s: &str) -> Result<HashSet<DisplayOption>, St
             Ok(option) => {
                 options.insert(option);
             }
-            Err(_) => return Err(format!("Invalid display option: {}", part)), /* Return error if
+            Err(_) => return Err(format!("Invalid display option: {part}")), /* Return error if
                                                                                 * invalid */
         }
     }

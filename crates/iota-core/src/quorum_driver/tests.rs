@@ -319,8 +319,7 @@ async fn test_quorum_driver_object_locked() -> Result<(), anyhow::Error> {
         assert_eq!(conflicting_txes.iter().next().unwrap().0, tx.digest());
     } else {
         panic!(
-            "expect Err(QuorumDriverError::ObjectsDoubleUsed) but got {:?}",
-            res
+            "expect Err(QuorumDriverError::ObjectsDoubleUsed) but got {res:?}"
         );
     }
 
@@ -360,8 +359,7 @@ async fn test_quorum_driver_object_locked() -> Result<(), anyhow::Error> {
         assert_eq!(conflicting_txes.iter().next().unwrap().0, tx.digest());
     } else {
         panic!(
-            "expect Err(QuorumDriverError::ObjectsDoubleUsed) but got {:?}",
-            res
+            "expect Err(QuorumDriverError::ObjectsDoubleUsed) but got {res:?}"
         )
     }
 
@@ -433,8 +431,7 @@ async fn test_quorum_driver_object_locked() -> Result<(), anyhow::Error> {
         }
     } else {
         panic!(
-            "expect Err(QuorumDriverError::ObjectsDoubleUsed) but got {:?}",
-            res
+            "expect Err(QuorumDriverError::ObjectsDoubleUsed) but got {res:?}"
         )
     }
 
@@ -473,8 +470,7 @@ async fn test_quorum_driver_object_locked() -> Result<(), anyhow::Error> {
         assert_eq!(conflicting_txes.get(tx.digest()).unwrap().1, 5000);
     } else {
         panic!(
-            "expect Err(QuorumDriverError::ObjectsDoubleUsed) but got {:?}",
-            res
+            "expect Err(QuorumDriverError::ObjectsDoubleUsed) but got {res:?}"
         )
     }
 
@@ -556,8 +552,7 @@ async fn test_quorum_driver_object_locked() -> Result<(), anyhow::Error> {
         );
     } else {
         panic!(
-            "expect Err(QuorumDriverError::ObjectsDoubleUsed) but got {:?}",
-            res
+            "expect Err(QuorumDriverError::ObjectsDoubleUsed) but got {res:?}"
         )
     }
 
@@ -631,7 +626,7 @@ async fn test_quorum_driver_handling_overload_and_retry() {
         .await
         .unwrap();
     match timeout(Duration::from_secs(300), ticket).await {
-        Ok(result) => panic!("Process transaction should timeout! {:?}", result),
+        Ok(result) => panic!("Process transaction should timeout! {result:?}"),
         Err(_) => {
             assert_eq!(retry_count.load(Ordering::SeqCst), 10);
             println!("Waiting for txn timed out! This is desired behavior.")

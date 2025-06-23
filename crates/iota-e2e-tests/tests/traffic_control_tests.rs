@@ -179,8 +179,7 @@ async fn test_fullnode_traffic_control_dry_run() -> Result<(), anyhow::Error> {
     let mut txns = batch_make_transfer_transactions(&context, txn_count as usize).await;
     assert!(
         txns.len() >= txn_count as usize,
-        "Expect at least {} txns. Do we generate enough gas objects during genesis?",
-        txn_count,
+        "Expect at least {txn_count} txns. Do we generate enough gas objects during genesis?",
     );
 
     let txn = txns.swap_remove(0);
@@ -288,8 +287,7 @@ async fn test_fullnode_traffic_control_spam_blocked() -> Result<(), anyhow::Erro
     let mut txns = batch_make_transfer_transactions(&context, txn_count as usize).await;
     assert!(
         txns.len() >= txn_count as usize,
-        "Expect at least {} txns. Do we generate enough gas objects during genesis?",
-        txn_count,
+        "Expect at least {txn_count} txns. Do we generate enough gas objects during genesis?",
     );
 
     let txn = txns.swap_remove(0);
@@ -354,8 +352,7 @@ async fn test_fullnode_traffic_control_error_blocked() -> Result<(), anyhow::Err
     let mut txns = batch_make_transfer_transactions(&context, txn_count as usize).await;
     assert!(
         txns.len() >= txn_count as usize,
-        "Expect at least {} txns. Do we generate enough gas objects during genesis?",
-        txn_count,
+        "Expect at least {txn_count} txns. Do we generate enough gas objects during genesis?",
     );
 
     // it should take no more than 4 requests to be added to the blocklist
@@ -405,7 +402,7 @@ async fn test_validator_traffic_control_error_delegated() -> Result<(), anyhow::
     };
     // enable remote firewall delegation
     let firewall_config = RemoteFirewallConfig {
-        remote_fw_url: format!("http://127.0.0.1:{}", port),
+        remote_fw_url: format!("http://127.0.0.1:{port}"),
         delegate_spam_blocking: true,
         delegate_error_blocking: false,
         destination_port: 8080,
@@ -473,7 +470,7 @@ async fn test_fullnode_traffic_control_spam_delegated() -> Result<(), anyhow::Er
     };
     // enable remote firewall delegation
     let firewall_config = RemoteFirewallConfig {
-        remote_fw_url: format!("http://127.0.0.1:{}", port),
+        remote_fw_url: format!("http://127.0.0.1:{port}"),
         delegate_spam_blocking: true,
         delegate_error_blocking: false,
         destination_port: 9000,
@@ -496,8 +493,7 @@ async fn test_fullnode_traffic_control_spam_delegated() -> Result<(), anyhow::Er
     let mut txns = batch_make_transfer_transactions(&context, txn_count as usize).await;
     assert!(
         txns.len() >= txn_count as usize,
-        "Expect at least {} txns. Do we generate enough gas objects during genesis?",
-        txn_count,
+        "Expect at least {txn_count} txns. Do we generate enough gas objects during genesis?",
     );
 
     let txn = txns.swap_remove(0);
@@ -763,8 +759,7 @@ async fn assert_traffic_control_ok(mut test_cluster: TestCluster) -> Result<(), 
     let mut txns = batch_make_transfer_transactions(context, txn_count).await;
     assert!(
         txns.len() >= txn_count,
-        "Expect at least {} txns. Do we generate enough gas objects during genesis?",
-        txn_count,
+        "Expect at least {txn_count} txns. Do we generate enough gas objects during genesis?",
     );
 
     let txn = txns.swap_remove(0);
@@ -832,8 +827,7 @@ async fn assert_validator_traffic_control_dry_run(
     let mut txns = batch_make_transfer_transactions(context, txn_count).await;
     assert!(
         txns.len() >= txn_count,
-        "Expect at least {} txns. Do we generate enough gas objects during genesis?",
-        txn_count,
+        "Expect at least {txn_count} txns. Do we generate enough gas objects during genesis?",
     );
 
     let txn = txns.swap_remove(0);

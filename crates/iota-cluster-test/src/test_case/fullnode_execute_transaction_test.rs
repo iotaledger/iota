@@ -24,8 +24,7 @@ impl FullNodeExecuteTransactionTest {
             .await
             .unwrap_or_else(|e| {
                 panic!(
-                    "Failed get transaction {:?} from fullnode: {:?}",
-                    tx_digest, e
+                    "Failed get transaction {tx_digest:?} from fullnode: {e:?}"
                 )
             });
     }

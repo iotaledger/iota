@@ -365,7 +365,7 @@ impl DBCheckpointHandler {
 
                 // This writes a single "MANIFEST" file which contains a list of all files that
                 // make up a db snapshot
-                write_snapshot_manifest(db_path, &object_store, format!("epoch_{}/", epoch))
+                write_snapshot_manifest(db_path, &object_store, format!("epoch_{epoch}/"))
                     .await?;
                 // Drop marker in the output directory that upload completed successfully
                 let bytes = Bytes::from_static(b"success");

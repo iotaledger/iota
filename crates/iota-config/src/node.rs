@@ -420,8 +420,7 @@ impl NodeConfig {
         match self.protocol_key_pair.keypair() {
             IotaKeyPair::Ed25519(kp) => kp,
             other => panic!(
-                "invalid keypair type: {:?}, only Ed25519 is allowed for protocol key",
-                other
+                "invalid keypair type: {other:?}, only Ed25519 is allowed for protocol key"
             ),
         }
     }
@@ -430,8 +429,7 @@ impl NodeConfig {
         match self.network_key_pair.keypair() {
             IotaKeyPair::Ed25519(kp) => kp,
             other => panic!(
-                "invalid keypair type: {:?}, only Ed25519 is allowed for network key",
-                other
+                "invalid keypair type: {other:?}, only Ed25519 is allowed for network key"
             ),
         }
     }
@@ -1109,7 +1107,7 @@ impl KeyPairWithPath {
                     // loaded.
                     Arc::new(
                         read_keypair_from_file(path).unwrap_or_else(|e| {
-                            panic!("invalid keypair file at path {:?}: {e}", path)
+                            panic!("invalid keypair file at path {path:?}: {e}")
                         }),
                     )
                 }
