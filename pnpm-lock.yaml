@@ -1391,7 +1391,7 @@ importers:
         version: 11.13.0(@emotion/react@11.13.3(@types/react@18.3.9)(react@18.3.1))(@types/react@18.3.9)(react@18.3.1)
       '@graphql-markdown/docusaurus':
         specifier: ^1.24.1
-        version: 1.26.2(@docusaurus/logger@3.7.0)(@docusaurus/types@3.7.0(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(graphql-config@5.1.2(bufferutil@4.0.9)(graphql@16.9.0)(typescript@5.6.2)(utf-8-validate@5.0.10))(graphql@16.9.0)(prettier@3.3.3)(typescript@5.6.2)
+        version: 1.26.2(@docusaurus/logger@3.7.0)(graphql-config@5.1.2(bufferutil@4.0.9)(graphql@16.9.0)(typescript@5.6.2)(utf-8-validate@5.0.10))(graphql@16.9.0)(prettier@3.3.3)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
       '@iota/dapp-kit':
         specifier: workspace:*
         version: link:../../sdk/dapp-kit
@@ -24474,22 +24474,22 @@ snapshots:
       - encoding
       - supports-color
 
-  '@graphql-markdown/core@1.12.0(@graphql-markdown/printer-legacy@1.9.0(graphql@16.9.0)(prettier@3.3.3)(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(graphql-config@5.1.2(graphql@16.9.0)(typescript@5.6.2))(graphql@16.9.0)(prettier@3.3.3)':
+  '@graphql-markdown/core@1.12.0(@graphql-markdown/printer-legacy@1.9.0(graphql@16.9.0)(prettier@3.3.3)(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(graphql-config@5.1.2(bufferutil@4.0.9)(graphql@16.9.0)(typescript@5.6.2)(utf-8-validate@5.0.10))(graphql@16.9.0)(prettier@3.3.3)':
     dependencies:
       '@graphql-markdown/graphql': 1.1.4(graphql@16.9.0)(prettier@3.3.3)
       '@graphql-markdown/logger': 1.0.4
       '@graphql-markdown/utils': 1.7.0(prettier@3.3.3)
     optionalDependencies:
-      '@graphql-markdown/printer-legacy': 1.9.0(@docusaurus/types@3.7.0(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(graphql@16.9.0)(prettier@3.3.3)(typescript@5.6.2)
+      '@graphql-markdown/printer-legacy': 1.9.0(graphql@16.9.0)(prettier@3.3.3)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
       graphql-config: 5.1.2(@types/node@20.16.9)(bufferutil@4.0.9)(graphql@16.9.0)(typescript@5.6.2)(utf-8-validate@5.0.10)
     transitivePeerDependencies:
       - graphql
       - prettier
 
-  '@graphql-markdown/docusaurus@1.26.2(@docusaurus/logger@3.7.0)(graphql-config@5.1.2(graphql@16.9.0)(typescript@5.6.2))(graphql@16.9.0)(prettier@3.3.3)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)':
+  '@graphql-markdown/docusaurus@1.26.2(@docusaurus/logger@3.7.0)(graphql-config@5.1.2(bufferutil@4.0.9)(graphql@16.9.0)(typescript@5.6.2)(utf-8-validate@5.0.10))(graphql@16.9.0)(prettier@3.3.3)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)':
     dependencies:
       '@docusaurus/logger': 3.7.0
-      '@graphql-markdown/core': 1.12.0(@graphql-markdown/printer-legacy@1.9.0(graphql@16.9.0)(prettier@3.3.3)(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(graphql-config@5.1.2(graphql@16.9.0)(typescript@5.6.2))(graphql@16.9.0)(prettier@3.3.3)
+      '@graphql-markdown/core': 1.12.0(@graphql-markdown/printer-legacy@1.9.0(graphql@16.9.0)(prettier@3.3.3)(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(graphql-config@5.1.2(bufferutil@4.0.9)(graphql@16.9.0)(typescript@5.6.2)(utf-8-validate@5.0.10))(graphql@16.9.0)(prettier@3.3.3)
       '@graphql-markdown/logger': 1.0.4
       '@graphql-markdown/printer-legacy': 1.9.0(graphql@16.9.0)(prettier@3.3.3)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
     transitivePeerDependencies:
