@@ -13,7 +13,6 @@ import {
     TitleSize,
 } from '@iota/apps-ui-kit';
 import type { OwnedObjectRef } from '@iota/iota-sdk/client';
-import { onCopySuccess } from '~/lib/utils';
 
 export function UpgradedSystemPackages({ data }: { data: OwnedObjectRef[] }): JSX.Element | null {
     const [isExpanded, setIsExpanded] = useState(true);
@@ -44,7 +43,6 @@ export function UpgradedSystemPackages({ data }: { data: OwnedObjectRef[] }): JS
                                                 <ObjectLink
                                                     objectId={objectId}
                                                     copyText={objectId}
-                                                    onCopySuccess={onCopySuccess}
                                                 />
                                             }
                                         />

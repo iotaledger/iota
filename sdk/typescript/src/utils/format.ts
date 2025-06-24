@@ -31,3 +31,25 @@ export function formatType(type: string) {
     }
     return type;
 }
+
+const ADDRESS_TRIM_MAX_LENGTH = 8;
+
+export function trimAddress(address: string): string {
+    const addr = address.toLowerCase().replace(/^0x/, '');
+    const shortened = addr.replace(/^0+/, '') || '0';
+    return `0x${shortened}`;
+}
+
+export function trimOrFormatAddress(address: string): string {
+    if (address.length <= 6) {
+        return address;
+    }
+
+    const trimmedAddress = trimAddress(address);
+
+    if (trimmedAddress.length <= ADDRESS_TRIM_MAX_LENGTH) {
+        return trimmedAddress;
+    }
+
+    return formatAddress(address);
+}
