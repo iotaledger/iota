@@ -4,17 +4,20 @@
 
 import { Copy } from '@iota/apps-ui-icons';
 import { ButtonUnstyled } from '@iota/apps-ui-kit';
+import { AddressAlias } from '@iota/core';
 import { formatAddress, formatDigest, formatType } from '@iota/iota-sdk/utils';
-import { type ReactNode } from 'react';
+import React, { type ReactNode } from 'react';
 
 import { Link, type LinkProps } from '~/components/ui';
+import { onCopySuccess } from '~/lib';
 
 interface BaseInternalLinkProps extends LinkProps {
+    showAddressAlias?: boolean;
     noTruncate?: boolean;
     label?: string | ReactNode;
+    renderAddressAlias?: (alias: string) => ReactNode;
     queryStrings?: Record<string, string>;
     copyText?: string;
-    onCopySuccess?: (e: React.MouseEvent<HTMLButtonElement>, text: string) => void;
     onCopyError?: (e: unknown, text: string) => void;
 }
 
@@ -29,13 +32,16 @@ function createInternalLink<T extends string>(
         label,
         queryStrings = {},
         copyText,
-        onCopySuccess,
         onCopyError,
+        renderAddressAlias,
+        showAddressAlias = ['address', 'object', 'validator'].includes(base),
         ...props
     }: BaseInternalLinkProps & Record<T, string>) => {
         const truncatedAddress = noTruncate ? id : formatter(id);
         const queryString = new URLSearchParams(queryStrings).toString();
         const queryStringPrefix = queryString ? `?${queryString}` : '';
+
+        const to = `/${base}/${encodeURI(id)}${queryStringPrefix}`;
 
         async function handleCopyClick(event: React.MouseEvent<HTMLButtonElement>) {
             event.stopPropagation();
@@ -45,7 +51,7 @@ function createInternalLink<T extends string>(
             if (copyText) {
                 try {
                     await navigator.clipboard.writeText(copyText);
-                    onCopySuccess?.(event, copyText);
+                    onCopySuccess();
                 } catch (error) {
                     console.error('Failed to copy:', error);
                     onCopyError?.(error, copyText);
@@ -53,12 +59,33 @@ function createInternalLink<T extends string>(
             }
         }
 
+        if (showAddressAlias) {
+            return (
+                <AddressAlias
+                    address={id}
+                    noFormatAddress={noTruncate}
+                    onCopy={copyText ? handleCopyClick : undefined}
+                    renderAddress={(address) => (
+                        <Link
+                            className="text-primary-30 dark:text-primary-80"
+                            variant="mono"
+                            to={to}
+                            {...props}
+                        >
+                            {label || address}
+                        </Link>
+                    )}
+                    renderAlias={renderAddressAlias}
+                />
+            );
+        }
+
         return (
             <div className="flex flex-row items-center gap-x-xxs">
                 <Link
                     className="text-primary-30 dark:text-primary-80"
                     variant="mono"
-                    to={`/${base}/${encodeURI(id)}${queryStringPrefix}`}
+                    to={to}
                     {...props}
                 >
                     {label || truncatedAddress}
