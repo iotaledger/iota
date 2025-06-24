@@ -1147,10 +1147,11 @@ impl DagState {
             min(nth_element, round_bound)
         };
 
-        let remaining = set.split_off(&split_point);
-        let block_refs: Vec<BlockRef> = set.into_iter().collect();
-        self.block_headers_not_known_by_authority[authority_index.value()] = remaining;
-        for block_ref in block_refs.iter() {
+        self.block_headers_not_known_by_authority[authority_index.value()] =
+            set.split_off(&split_point);
+        let mut block_refs: Vec<BlockRef> = vec![];
+        for block_ref in set.into_iter() {
+            block_refs.push(block_ref);
             let (_, who_knows_given_block) = self.recent_dag_cordial_knowledge
                 [block_ref.author.value()]
             .get_mut(&(block_ref.round, block_ref.digest))
