@@ -21,13 +21,13 @@ export const STATE_LAYER_BG_CLASSES =
 
 export const STATE_LAYER_CLASSES = `${STATE_LAYER_OUTLINE} ${STATE_LAYER_BG_CLASSES}`;
 
-export const BACKGROUND_CLASSES_SELECTED: Partial<Record<ChipType, string>> = {
+export const BG_SELECTED_OUTLINE: Partial<Record<ChipType, string>> = {
     [ChipType.Outline]: 'chip-bg-selected-outline',
 };
 
-export const SELECTED_OVERLAY = 'chip-bg-selected-overlay';
+export const BG_SELECTED_OVERLAY = 'chip-bg-selected-overlay';
 
-export const TEXT_COLOR_SELECTED: Partial<Record<ChipType, string>> = {
+export const TEXT_COLOR_SELECTED_OUTLINE: Partial<Record<ChipType, string>> = {
     [ChipType.Outline]: 'chip-text-secondary',
 };
 
