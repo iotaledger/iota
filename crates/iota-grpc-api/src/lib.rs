@@ -143,6 +143,9 @@ where
 {
     async_stream::try_stream! {
         let mut rx = tx.subscribe();
+        // TODO: Modify the latest checkpoint to start from 1.
+        // Note that we do not stream the Genesis checkpoint because its size
+        // can be very big. The genesis checkpoint should be imported directly.
         let mut latest = oracle.get_latest().unwrap_or(0);
         debug!("[profile][grpc] Latest checkpoint index: {latest}.");
         let (mut start, end) = match (start, end) {
