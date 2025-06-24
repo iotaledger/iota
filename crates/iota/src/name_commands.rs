@@ -1855,12 +1855,11 @@ async fn get_owned_nft_by_id<T: DeserializeOwned + IotaNamesNft>(
     }
 
     let data = res.data.expect("missing object data");
-    Ok(data
-        .bcs
+    data.bcs
         .expect("missing bcs")
         .try_as_move()
         .expect("invalid move type")
-        .deserialize::<T>()?)
+        .deserialize::<T>()
 }
 
 #[derive(Copy, Clone)]
