@@ -329,8 +329,7 @@ impl CheckpointReaderActor {
                 Ok(_) => break,
                 Err(IngestionError::MaxCheckpointsCapacityReached) => break,
                 Err(IngestionError::CheckpointNotAvailableYet) => {
-                    info!("historical reader does not have the requested checkpoint yet");
-                    break;
+                    break info!("historical reader does not have the requested checkpoint yet");
                 }
                 Err(err) => match backoff.next_backoff() {
                     Some(duration) => {
@@ -343,8 +342,7 @@ impl CheckpointReaderActor {
                         tokio::time::sleep(duration).await
                     }
                     None => {
-                        error!("remote reader transient error {err:?}");
-                        break;
+                        break error!("remote reader transient error {err:?}");
                     }
                 },
             }
