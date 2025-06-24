@@ -328,31 +328,25 @@ impl CheckpointReaderActor {
             match self.fetch_and_send_to_channel().await {
                 Ok(_) => break,
                 Err(IngestionError::MaxCheckpointsCapacityReached) => break,
-                Err(err) => {
-                    match backoff.next_backoff() {
-                        Some(duration) => {
-                            if !err.to_string().to_lowercase().contains("not found") {
-                                debug!(
-                                    "remote reader retry in {} ms. Error is {err:?}",
-                                    duration.as_millis(),
-                                );
-                            }
-                            tokio::time::sleep(duration).await
-                        }
-                        // once reached the tip of the network, the historical reader can take some
-                        // time to issue a new checkpoint file, we reset the backoff in this case.
-                        None if matches!(err, IngestionError::CheckpointNotAvailableYet) => {
-                            info!(
-                                "Resetting backoff, historical reader does not have the requested checkpoint yet"
-                            );
-                            backoff.reset();
-                        }
-                        None => {
-                            error!("remote reader transient error {err:?}");
-                            break;
-                        }
-                    }
+                Err(IngestionError::CheckpointNotAvailableYet) => {
+                    info!("historical reader does not have the requested checkpoint yet");
+                    break;
                 }
+                Err(err) => match backoff.next_backoff() {
+                    Some(duration) => {
+                        if !err.to_string().to_lowercase().contains("not found") {
+                            debug!(
+                                "remote reader retry in {} ms. Error is {err:?}",
+                                duration.as_millis(),
+                            );
+                        }
+                        tokio::time::sleep(duration).await
+                    }
+                    None => {
+                        error!("remote reader transient error {err:?}");
+                        break;
+                    }
+                },
             }
         }
     }
