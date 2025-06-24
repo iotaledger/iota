@@ -19,7 +19,9 @@ export default function Home() {
         <div
           className={styles.card}
           style={{
-            background: `black url(${heroCardBg}) no-repeat top`,
+            backgroundImage: `url(${heroCardBg})`,
+            backgroundPosition:"top",
+            backgroundRepeat: "no-repeat",
           }}
         >
           {title && <h4 className="h4 text-white">{title}</h4>}
@@ -35,7 +37,7 @@ export default function Home() {
         <div
           className={styles.cardCTA}
           style={{
-            background: `black url(${heroCardBg}) no-repeat top`,
+            backgroundImage: `url(${heroCardBg})`,
           }}
         >
           <div className={styles.cardLinksContainer}>{children}</div>
@@ -55,26 +57,28 @@ export default function Home() {
         <div className={styles.backgroundImage}>
           <div className="w-full mt-24 mb-12 mx-auto">
             <div className={styles.heroText}>
-              <h1 className="text-5xl center-text text-white">
+              <div className={styles.heroTitle}>
+              <h1 className="text-5xl center-text text-black dark:text-white">
                 IOTA Documentation
               </h1>
+              </div>
+               <div className={styles.heroSubtitle}>
               <h2
-                className="h2 text-gray center-text h3"
+                className="h2 text-gray-800 center-text h3 dark:text-gray-400"
                 style={{ fontSize: "16px" }}
               >
                 Discover the power of IOTA through examples, guides, and
                 explanations.
               </h2>
-              <Link
-                to="/developer/getting-started"
-                className="button-cta"
-              >
-                Get started
-              </Link>
+              </div>
             </div>
           </div>
+          <hr className="absolute mt-10 bottom-0 left-0 w-full border-t dark:hidden z-10"
+          style={{ bottom: '-12px'}}
+          />
         </div>
 
+      
         <div className="flex flex-row flex-wrap justify-center gap-2 max-w-[1066px] mx-auto">
           <HomeCard title="About IOTA" heroCardBg={heroCardBg}>
             <Link className={styles.cardLink} to="./about-iota/tokenomics">

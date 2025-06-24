@@ -18,10 +18,16 @@
   padding-top: 2rem;
   width: 400px;
 }
+
+.heroTitle {
+  margin-top: 4rem; 
+}
+
 .backgroundImage {
-  background: black url(../../static/img/index/heroTextBg.svg);
+  position: relative;
+  background: white url(../../static/img/index/heroTextBg_light.svg);
   height: 27rem;
-  margin-top: -10rem;
+  margin-top: -12rem;
   background-position: right;
   background-repeat: no-repeat;
   background-size: 50% 100%;
@@ -83,6 +89,10 @@
     background-size: 75% 100%;
   }
 }
+
+
+
+
 .card,
 .cardCTA {
   height: 480px;
@@ -96,6 +106,192 @@
   background-position: top;
   background-repeat: no-repeat;
   background-size: 101% 60%;
+  background-color: #e3eaf6;
+}
+.cardCTA {
+  height: 100%;
+  justify-content: center;
+  
+}
+
+.cardLinksContainer {
+  display: flex;
+  flex-direction: column;
+  justify-self: flex-end;
+}
+
+.cardLink {
+  display: flex;
+  justify-content: flex-start;
+  border-top: solid 1px var(--iota-line);
+  border-bottom: solid 1px var(--iota-line);
+  padding: 0.5rem 0;
+  color: rgb(97, 154, 239);
+  position: relative;
+}
+
+.cardLink:first-child {
+  border-top: none;
+}
+.cardLink:last-child {
+  border-bottom: none;
+}
+
+.cardLink:after {
+  position: absolute;
+  right: 0;
+  content: url("data:image/svg+xml,%3Csvg width='18' height='19' viewBox='0 0 18 19' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M5 5.5H14V14.5' stroke='%23ABBDCC' stroke-width='2'/%3E%3Cpath d='M14 5.5L3 16.5' stroke='%23ABBDCC' stroke-width='2'/%3E%3C/svg%3E");
+  width: 18px;
+  height: 18px;
+}
+.cardLink:after:hover svg path {
+  stroke: black;
+}
+
+.cardLink:hover {
+  text-decoration: none;
+}
+
+.cardCTALink {
+  display: flex;
+  padding: 0.5rem 0;
+  column-gap: 0.5rem;
+  height: 100%;
+  justify-content: center;
+  align-items: center;
+  color: rgb(97, 154, 239);
+}
+
+.buttons {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+
+
+
+.cardsB {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  row-gap: 0.5rem;
+  column-gap: 0.5rem;
+  max-width: 772px;
+}
+
+.cardB {
+  background-color: #e3eaf6;
+  padding: 1.7rem;
+  font-family: var(--headerFont);
+  font-size: 1.5rem;
+  font-weight: 400;
+  line-height: 1.75rem;
+  letter-spacing: -0.04em;
+  text-align: left;
+  color: black;
+  border-radius: 36px;
+  display: flex;
+  flex-direction: column;
+  row-gap: 1.5rem;
+}
+.cardB svg {
+  width: 32px;
+  height: 32px;
+}
+.cardB span {
+  max-width: 19rem;
+}
+
+
+.sectionHeader {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  row-gap: 2.5rem;
+  margin: 10rem auto 4.5rem auto;
+  padding: 0 1rem;
+}
+
+ .why {
+  display: grid;
+  width: 100%;
+  max-width: var(--iota-max-width-desktop);
+  grid-template-columns: 2fr 4fr;
+  column-gap: 0.5rem;
+  margin: 0 auto;
+  padding: 0 1rem;
+  row-gap: 1rem;
+}
+.whyImgCard {
+  background-color: #e3eaf6;
+  border-radius: 35px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+
+
+
+
+.TwoColParagraph {
+  display: flex;
+  flex-direction: column;
+  max-width: var(--iota-max-width-desktop);
+  margin: 5rem auto;
+  padding: 0 1rem;
+}
+
+.TwoColItem {
+  display: flex;
+  flex-direction: row;
+  justify-content: flex-start;
+  padding: 2.5rem 0;
+  border-bottom: solid 1px var(--iota-gray);
+}
+
+.TwoColItem:last-child {
+  border-bottom: none;
+}
+
+.TwoColItem span {
+  flex: 4;
+  font-family: var(--headerFont);
+  font-size: 2rem;
+  font-weight: 400;
+  line-height: 2.125rem;
+  letter-spacing: -0.04em;
+  text-align: left;
+}
+
+.TwoColItem p {
+  flex: 8;
+  color: var(--iota-gray-80);
+  font-family: Inter;
+  font-size: 1.125rem;
+  font-weight: 500;
+  line-height: 1.6875rem;
+  letter-spacing: -0.02em;
+  text-align: left;
+  margin: 0;
+}
+
+[data-theme='dark']{
+
+  .card,
+.cardCTA {
+  height: 480px;
+  border: 1px solid;
+  border-color: var(--iota-line);
+  display: flex;
+  flex-direction: column;
+  padding: 1.875rem;
+  justify-content: space-between;
+  border-radius: 30px;
+  background-position: top;
+  background-repeat: no-repeat;
+  background-size: 101% 60%;
+  background-color: black;
 }
 .cardCTA {
   height: 100%;
@@ -186,16 +382,8 @@
   max-width: 19rem;
 }
 
-.sectionHeader {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  row-gap: 2.5rem;
-  margin: 10rem auto 4.5rem auto;
-  padding: 0 1rem;
-}
 
-.why {
+  .why {
   display: grid;
   width: 100%;
   max-width: var(--iota-max-width-desktop);
@@ -206,11 +394,92 @@
   row-gap: 1rem;
 }
 .whyImgCard {
-  background-color: black;
+  background-color: rgb(0, 0, 0);
   border-radius: 35px;
   display: flex;
   align-items: center;
   justify-content: center;
+}
+
+ .heroBanner {
+  padding: 4rem 0;
+  text-align: center;
+  position: relative;
+  overflow: hidden;
+}
+.heroText {
+  display: flex;
+  flex-direction: column;
+  row-gap: 2.5rem;
+  margin-top: 10rem;
+  margin-left: 16rem;
+  padding-top: 2rem;
+  width: 400px;
+}
+.backgroundImage {
+  background: black url(../../static/img/index/heroTextBg.svg);
+  height: 27rem;
+  margin-top: -12rem;
+  background-position: right;
+  background-repeat: no-repeat;
+  background-size: 50% 100%;
+  margin-bottom: 2rem;
+}
+@media (max-width: 599px) {
+  .backgroundImage {
+    background-size: 125% 70% !important;
+  }
+}
+
+@media (max-width: 1000px) {
+  .backgroundImage {
+    background-size: 77% 99%;
+  }
+}
+@media (max-width: 1100px) {
+  .backgroundImage {
+    background-size: 75% 100%;
+  }
+}
+@media (max-width: 2000px) {
+  .backgroundImage {
+    background-size: 40% 100%;
+  }
+}
+@media (max-width: 1700px) {
+  .backgroundImage {
+    background-size: 50% 100%;
+  }
+}
+@media (max-width: 800px) {
+  .backgroundImage {
+    background-size: 77% 99%;
+  }
+  .heroText {
+    padding-top: 5rem;
+    padding-left: 4rem;
+  }
+}
+@media (max-width: 1200px) and (min-width: 900px) {
+  .backgroundImage {
+    background-size: 83% 100%;
+  }
+}
+@media (max-width: 1000px) and (min-width: 900px) {
+  .backgroundImage {
+    background-size: 77% 99%;
+  }
+}
+@media (max-width: 899px) and (min-width: 799px) {
+  .backgroundImage {
+    background-size: 94% 107%;
+  }
+}
+
+@media (max-width: 1100px) and (min-width: 1200px) {
+  .backgroundImage {
+    background-size: 75% 100%;
+  }
 }
 
 .TwoColParagraph {
@@ -253,6 +522,8 @@
   letter-spacing: -0.02em;
   text-align: left;
   margin: 0;
+}
+
 }
 
 @media screen and (max-width: 996px) {
