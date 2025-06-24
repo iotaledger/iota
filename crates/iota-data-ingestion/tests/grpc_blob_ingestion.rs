@@ -48,7 +48,7 @@ async fn test_grpc_blob_worker_logic() {
     while let Some(Ok(checkpoint)) = stream.next().await {
         let checkpoint_data: CheckpointData =
             GrpcNodeClient::deserialize_checkpoint_data(&checkpoint)
-                .expect("deserialize checkpoint data");
+                .expect("failed to deserialize checkpoint data");
 
         println!(
             "Streamed full CheckpointData for checkpoint {}",
