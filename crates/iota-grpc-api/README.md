@@ -15,11 +15,11 @@ The `CheckpointService` provides the following RPC endpoints:
 
 ```protobuf
 service CheckpointService {
-  rpc StreamCheckpoints (StreamRequest) returns (stream Checkpoint);
+  rpc StreamCheckpoints (CheckpointStreamRequest) returns (stream Checkpoint);
   rpc GetEpochFirstCheckpointSequenceNumber (EpochRequest) returns (CheckpointSequenceNumberResponse);
 }
 
-message StreamRequest {
+message CheckpointStreamRequest {
   optional uint64 start_index = 1;
   optional uint64 end_index = 2;
   optional bool full = 3;

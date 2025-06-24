@@ -26,7 +26,7 @@ impl GrpcNodeClient {
         end: Option<u64>,
         full: Option<bool>,
     ) -> Result<tonic::Streaming<crate::checkpoint::Checkpoint>, tonic::Status> {
-        let request = crate::checkpoint::StreamRequest {
+        let request = crate::checkpoint::CheckpointStreamRequest {
             start_index: start,
             end_index: end,
             full,

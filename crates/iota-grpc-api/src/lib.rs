@@ -249,7 +249,7 @@ impl CheckpointService for CheckpointGrpcService {
 
     async fn stream_checkpoints(
         &self,
-        request: Request<checkpoint::StreamRequest>,
+        request: Request<checkpoint::CheckpointStreamRequest>,
     ) -> Result<Response<Self::StreamCheckpointsStream>, Status> {
         let req = request.into_inner();
         let start = req.start_index;

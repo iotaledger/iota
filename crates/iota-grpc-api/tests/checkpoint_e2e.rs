@@ -3,7 +3,7 @@
 
 use futures::StreamExt;
 use iota_grpc_api::{
-    checkpoint::{StreamRequest, checkpoint_service_client::CheckpointServiceClient},
+    checkpoint::{CheckpointStreamRequest, checkpoint_service_client::CheckpointServiceClient},
     client::GrpcNodeClient,
 };
 use test_cluster::TestClusterBuilder;
@@ -34,7 +34,7 @@ async fn e2e_stream_checkpoints() {
 
     // Request all checkpoints
     println!("Sending gRPC stream request");
-    let request = Request::new(StreamRequest {
+    let request = Request::new(CheckpointStreamRequest {
         start_index: None,
         end_index: None,
         full: None,

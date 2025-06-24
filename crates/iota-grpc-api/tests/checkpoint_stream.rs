@@ -10,7 +10,7 @@ use std::{
 
 use iota_grpc_api::{
     CheckpointGrpcService,
-    checkpoint::{StreamRequest, checkpoint_service_server::CheckpointService},
+    checkpoint::{CheckpointStreamRequest, checkpoint_service_server::CheckpointService},
 };
 use iota_types::{
     base_types::{IotaAddress, ObjectID},
@@ -342,7 +342,7 @@ async fn test_start_index_only() {
         svc.grpc_checkpoint_data_tx.clone(),
         11,
     );
-    let req = StreamRequest {
+    let req = CheckpointStreamRequest {
         start_index: Some(5),
         end_index: None,
         full: Some(true),
@@ -380,7 +380,7 @@ async fn test_start_and_end_index() {
         svc.grpc_checkpoint_data_tx.clone(),
         100,
     );
-    let req = StreamRequest {
+    let req = CheckpointStreamRequest {
         start_index: Some(3),
         end_index: Some(7),
         full: Some(false),
@@ -418,7 +418,7 @@ async fn test_end_index_only() {
         svc.grpc_checkpoint_data_tx.clone(),
         100,
     );
-    let req = StreamRequest {
+    let req = CheckpointStreamRequest {
         start_index: None,
         end_index: Some(4),
         full: Some(false),
@@ -450,7 +450,7 @@ async fn test_future_end_index_only_full() {
         11,
     );
 
-    let req = StreamRequest {
+    let req = CheckpointStreamRequest {
         start_index: None,
         end_index: Some(100),
         full: Some(true),
@@ -483,7 +483,7 @@ async fn test_future_end_index_only_full() {
 #[tokio::test]
 async fn test_both_indices_omitted() {
     let svc = test_service().await;
-    let req = StreamRequest {
+    let req = CheckpointStreamRequest {
         start_index: None,
         end_index: None,
         full: Some(false),
@@ -539,7 +539,7 @@ async fn test_historical_to_live_gap_fill() {
     let _ = grpc_checkpoint_data_tx.send(Arc::new(GrpcCheckpointData::from(data_150)));
 
     // Client requests from 0 (historical)
-    let req = StreamRequest {
+    let req = CheckpointStreamRequest {
         start_index: Some(0),
         end_index: None,
         full: Some(true),
@@ -596,7 +596,7 @@ async fn test_gap_fill_with_slow_client() {
     });
 
     // Client: slow consumer
-    let req = StreamRequest {
+    let req = CheckpointStreamRequest {
         start_index: Some(0),
         end_index: None,
         full: Some(true),
