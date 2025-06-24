@@ -289,6 +289,83 @@ impl TryFrom<SerializedBlock> for SerializedHeaderAndTransactions {
 }
 
 #[derive(Clone, Debug, PartialEq)]
+pub(crate) struct BlockBundle {
+    pub(crate) verified_block: VerifiedBlock,
+    pub(crate) verified_headers: Vec<VerifiedBlockHeader>,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub(crate) struct SerializedBlockAndHeaders {
+    pub(crate) serialized_block: Bytes,
+    pub(crate) serialized_headers: Vec<Bytes>,
+}
+
+#[derive(Clone, Debug, PartialEq)]
 pub(crate) struct SerializedBlockBundle {
     pub(crate) serialized_block_bundle: Bytes,
+}
+
+impl TryFrom<VerifiedBlock> for SerializedBlockAndHeaders {
+    type Error = ConsensusError;
+    fn try_from(verified_block: VerifiedBlock) -> ConsensusResult<Self> {
+        let (serialized_block_header, serialized_transactions) = verified_block.serialized();
+        let serialized_header_and_transactions = SerializedHeaderAndTransactions {
+            serialized_block_header: serialized_block_header.clone(),
+            serialized_transactions: serialized_transactions.clone(),
+        };
+        let bytes = bcs::to_bytes(&serialized_header_and_transactions)
+            .map_err(ConsensusError::SerializationFailure)?;
+        Ok(Self {
+            serialized_block: Bytes::from(bytes),
+            serialized_headers: vec![],
+        })
+    }
+}
+
+impl TryFrom<BlockBundle> for SerializedBlockAndHeaders {
+    type Error = ConsensusError;
+    fn try_from(block_bundle: BlockBundle) -> ConsensusResult<Self> {
+        let (serialized_block_header, serialized_transactions) =
+            block_bundle.verified_block.serialized();
+        let serialized_header_and_transactions = SerializedHeaderAndTransactions {
+            serialized_block_header: serialized_block_header.clone(),
+            serialized_transactions: serialized_transactions.clone(),
+        };
+        let bytes = bcs::to_bytes(&serialized_header_and_transactions)
+            .map_err(ConsensusError::SerializationFailure)?;
+        let mut serialized_block_headers = vec![];
+        for block_header in block_bundle.verified_headers.into_iter() {
+            serialized_block_headers.push(block_header.serialized().clone());
+        }
+
+        Ok(Self {
+            serialized_block: Bytes::from(bytes),
+            serialized_headers: serialized_block_headers,
+        })
+    }
+}
+
+impl TryFrom<SerializedBlockAndHeaders> for SerializedBlockBundle {
+    type Error = ConsensusError;
+    fn try_from(serialized_block_and_headers: SerializedBlockAndHeaders) -> ConsensusResult<Self> {
+        let bytes = bcs::to_bytes(&serialized_block_and_headers)
+            .map_err(ConsensusError::SerializationFailure)?;
+        Ok(Self {
+            serialized_block_bundle: Bytes::from(bytes),
+        })
+    }
+}
+
+impl TryFrom<VerifiedBlock> for SerializedBlockBundle {
+    type Error = ConsensusError;
+    fn try_from(verified_block: VerifiedBlock) -> ConsensusResult<Self> {
+        SerializedBlockBundle::try_from(SerializedBlockAndHeaders::try_from(verified_block)?)
+    }
+}
+
+impl TryFrom<BlockBundle> for SerializedBlockBundle {
+    type Error = ConsensusError;
+    fn try_from(block_bundle: BlockBundle) -> ConsensusResult<Self> {
+        SerializedBlockBundle::try_from(SerializedBlockAndHeaders::try_from(block_bundle)?)
+    }
 }
