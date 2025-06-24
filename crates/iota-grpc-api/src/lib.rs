@@ -58,12 +58,12 @@ where
     Self: Send + Sync + 'static,
 {
     fn get_index(&self, item: &Arc<T>) -> u64;
-    fn ser(&self, item: &Arc<T>) -> Result<Vec<u8>, bcs::Error>;
+    fn serialize_to_bcs(&self, item: &Arc<T>) -> Result<Vec<u8>, bcs::Error>;
     fn get_item(&self, ix: u64) -> Option<Arc<T>>;
     fn get_latest(&self) -> Option<u64>;
 
-    fn ser2(&self, item: &Arc<T>) -> CheckpointStreamResult {
-        self.ser(item)
+    fn create_checkpoint_response(&self, item: &Arc<T>) -> CheckpointStreamResult {
+        self.serialize_to_bcs(item)
             .map(|data| checkpoint::Checkpoint {
                 index: self.get_index(item),
                 data,
@@ -92,7 +92,7 @@ impl CheckpointOracle<GrpcCheckpointData> for Oracle {
     fn get_index(&self, item: &Arc<GrpcCheckpointData>) -> u64 {
         item.sequence_number()
     }
-    fn ser(&self, item: &Arc<GrpcCheckpointData>) -> Result<Vec<u8>, bcs::Error> {
+    fn serialize_to_bcs(&self, item: &Arc<GrpcCheckpointData>) -> Result<Vec<u8>, bcs::Error> {
         bcs::to_bytes(&**item)
     }
     fn get_item(&self, ix: u64) -> Option<Arc<GrpcCheckpointData>> {
@@ -112,7 +112,10 @@ impl CheckpointOracle<GrpcCertifiedCheckpointSummary> for Oracle {
     fn get_index(&self, item: &Arc<GrpcCertifiedCheckpointSummary>) -> u64 {
         item.sequence_number()
     }
-    fn ser(&self, item: &Arc<GrpcCertifiedCheckpointSummary>) -> Result<Vec<u8>, bcs::Error> {
+    fn serialize_to_bcs(
+        &self,
+        item: &Arc<GrpcCertifiedCheckpointSummary>,
+    ) -> Result<Vec<u8>, bcs::Error> {
         bcs::to_bytes(&**item)
     }
     fn get_item(&self, ix: u64) -> Option<Arc<GrpcCertifiedCheckpointSummary>> {
@@ -162,7 +165,7 @@ where
                 if let Some(item) = oracle.get_item(start) {
                     // TODO: add backfill tracing messages
                     debug!("[profile][grpc] Fetched checkpoint data for index {start} from DB.");
-                    yield oracle.ser2(&item)?;
+                    yield oracle.create_checkpoint_response(&item)?;
                     if start == end {
                         break;
                     }
@@ -178,7 +181,7 @@ where
                 debug!("[profile][grpc] Using cached checkpoint data for index {start}.");
                 let idx = oracle.get_index(&item);
                 if start == idx {
-                    yield oracle.ser2(&item)?;
+                    yield oracle.create_checkpoint_response(&item)?;
                     if start == end {
                         break;
                     }
@@ -193,7 +196,7 @@ where
                     debug!("[profile][grpc] Get checkpoint data for index {} from broadcast channel", oracle.get_index(&item));
                     let idx = oracle.get_index(&item);
                     if start == idx {
-                        yield oracle.ser2(&item)?;
+                        yield oracle.create_checkpoint_response(&item)?;
                         if start == end {
                             break;
                         }
