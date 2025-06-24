@@ -146,6 +146,7 @@ async fn main() -> Result<()> {
                     let mut stream = grpc_client
                         .stream_checkpoints(None, Some(watermark), Some(true))
                         .await?;
+                    let mut current_epoch = 0u64;
                     if let Some(Ok(first_checkpoint)) = stream.next().await {
                         if first_checkpoint.index > watermark {
                             tracing::warn!(
@@ -158,8 +159,25 @@ async fn main() -> Result<()> {
                                 .update_watermark(task_name.clone(), watermark)
                                 .await?;
                         }
+
+                        // Extract the current epoch from the checkpoint data
+                        if let Ok(checkpoint_data) =
+                            iota_grpc_api::client::GrpcNodeClient::deserialize_checkpoint_data(
+                                &first_checkpoint,
+                            )
+                        {
+                            current_epoch = checkpoint_data.checkpoint_summary.epoch;
+                            tracing::info!(
+                                "Extracted current epoch {} from checkpoint {}",
+                                current_epoch,
+                                first_checkpoint.index
+                            );
+                        } else {
+                            tracing::warn!(
+                                "Failed to deserialize checkpoint data, using epoch 0 as fallback"
+                            );
+                        }
                     }
-                    let current_epoch = 0u64;
                     let worker = GrpcBlobWorker::new(
                         remote_store,
                         grpc_url,
