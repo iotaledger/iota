@@ -27,7 +27,10 @@ use crate::{
     core_thread::CoreThreadDispatcher,
     dag_state::DagState,
     error::{ConsensusError, ConsensusResult},
-    network::{BlockStream, NetworkService, SerializedBlock, SerializedHeaderAndTransactions},
+    network::{
+        BlockBundleStream, BlockStream, NetworkService, SerializedBlock, SerializedBlockBundle,
+        SerializedHeaderAndTransactions,
+    },
     stake_aggregator::{QuorumThreshold, StakeAggregator},
     storage::Store,
     synchronizer::SynchronizerHandle,
@@ -266,6 +269,14 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
         Ok(())
     }
 
+    async fn handle_subscribed_block_bundles(
+        &self,
+        _peer: AuthorityIndex,
+        _serialized_block_bundle: SerializedBlockBundle,
+    ) -> ConsensusResult<()> {
+        unimplemented!("Unimplemented")
+    }
+
     async fn handle_subscribe_blocks(
         &self,
         peer: AuthorityIndex,
@@ -298,6 +309,14 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
         Ok(Box::pin(missed_blocks.chain(
             broadcasted_blocks.map(|block| SerializedBlock::try_from(block).unwrap()),
         )))
+    }
+
+    async fn handle_subscribe_block_bundles_request(
+        &self,
+        _peer: AuthorityIndex,
+        _last_received: Round,
+    ) -> ConsensusResult<BlockBundleStream> {
+        unimplemented!("Unimplemented")
     }
 
     async fn handle_fetch_block_headers(
@@ -758,7 +777,7 @@ mod tests {
         core_thread::tests::MockCoreThreadDispatcher,
         dag_state::DagState,
         error::ConsensusResult,
-        network::{BlockStream, NetworkClient, NetworkService, SerializedBlock},
+        network::{BlockBundleStream, BlockStream, NetworkClient, NetworkService, SerializedBlock},
         storage::mem_store::MemStore,
         synchronizer::Synchronizer,
         test_dag_builder::DagBuilder,
@@ -775,6 +794,15 @@ mod tests {
             _last_received: Round,
             _timeout: Duration,
         ) -> ConsensusResult<BlockStream> {
+            unimplemented!("Unimplemented")
+        }
+
+        async fn subscribe_block_bundles(
+            &self,
+            _peer: AuthorityIndex,
+            _last_received: Round,
+            _timeout: Duration,
+        ) -> ConsensusResult<BlockBundleStream> {
             unimplemented!("Unimplemented")
         }
 

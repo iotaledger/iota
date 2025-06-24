@@ -27,7 +27,8 @@ use tower_http::trace::{DefaultMakeSpan, DefaultOnFailure, TraceLayer};
 use tracing::{debug, error, info, trace, warn};
 
 use super::{
-    BlockStream, NetworkClient, NetworkService, SerializedBlock,
+    BlockBundleStream, BlockStream, NetworkClient, NetworkService, SerializedBlock,
+    SerializedBlockBundle,
     metrics_layer::{MetricsCallbackMaker, MetricsResponseCallback, SizedRequest, SizedResponse},
     tonic_gen::{
         consensus_service_client::ConsensusServiceClient,
@@ -121,6 +122,42 @@ impl NetworkClient for TonicClient {
                 match b {
                     Ok(response) => Some(SerializedBlock {
                         serialized_block: response.vec_serialized_blocks,
+                    }),
+                    Err(e) => {
+                        debug!("Network error received from {}: {e:?}", peer);
+                        None
+                    }
+                }
+            });
+        let rate_limited_stream =
+            tokio_stream::StreamExt::throttle(stream, self.context.parameters.min_round_delay / 2)
+                .boxed();
+        Ok(rate_limited_stream)
+    }
+
+    async fn subscribe_block_bundles(
+        &self,
+        peer: AuthorityIndex,
+        last_received: Round,
+        timeout: Duration,
+    ) -> ConsensusResult<BlockBundleStream> {
+        let mut client = self.get_client(peer, timeout).await?;
+        // TODO: add sampled block acknowledgments for latency measurements.
+        let request = Request::new(stream::once(async move {
+            SubscribeBlockBundlesRequest {
+                last_received_round: last_received,
+            }
+        }));
+        let response = client.subscribe_block_bundles(request).await.map_err(|e| {
+            ConsensusError::NetworkRequest(format!("subscribe_block_bundles failed: {e:?}"))
+        })?;
+        let stream = response
+            .into_inner()
+            .take_while(|b| futures::future::ready(b.is_ok()))
+            .filter_map(move |b| async move {
+                match b {
+                    Ok(response) => Some(SerializedBlockBundle {
+                        serialized_block_bundle: response.serialized_block_bundle,
                     }),
                     Err(e) => {
                         debug!("Network error received from {}: {e:?}", peer);
@@ -520,6 +557,50 @@ impl<S: NetworkService> ConsensusService for TonicServiceProxy<S> {
             .map(|serialized_block| {
                 Ok(SubscribeBlocksResponse {
                     vec_serialized_blocks: serialized_block.serialized_block,
+                })
+            });
+        let rate_limited_stream =
+            tokio_stream::StreamExt::throttle(stream, self.context.parameters.min_round_delay / 2)
+                .boxed();
+        Ok(Response::new(rate_limited_stream))
+    }
+
+    type SubscribeBlockBundlesStream =
+        Pin<Box<dyn Stream<Item = Result<SubscribeBlockBundlesResponse, tonic::Status>> + Send>>;
+
+    async fn subscribe_block_bundles(
+        &self,
+        request: Request<Streaming<SubscribeBlockBundlesRequest>>,
+    ) -> Result<Response<Self::SubscribeBlockBundlesStream>, tonic::Status> {
+        let Some(peer_index) = request
+            .extensions()
+            .get::<PeerInfo>()
+            .map(|p| p.authority_index)
+        else {
+            return Err(tonic::Status::internal("PeerInfo not found"));
+        };
+        let mut request_stream = request.into_inner();
+        let first_request = match request_stream.next().await {
+            Some(Ok(r)) => r,
+            Some(Err(e)) => {
+                debug!(
+                    "subscribe_block_bundles() request from {} failed: {e:?}",
+                    peer_index
+                );
+                return Err(tonic::Status::invalid_argument("Request error"));
+            }
+            None => {
+                return Err(tonic::Status::invalid_argument("Missing request"));
+            }
+        };
+        let stream = self
+            .service
+            .handle_subscribe_block_bundles_request(peer_index, first_request.last_received_round)
+            .await
+            .map_err(|e| tonic::Status::internal(format!("{e:?}")))?
+            .map(|serialized_block_bundle| {
+                Ok(SubscribeBlockBundlesResponse {
+                    serialized_block_bundle: serialized_block_bundle.serialized_block_bundle,
                 })
             });
         let rate_limited_stream =
@@ -1092,13 +1173,16 @@ impl ResponseHandler for MetricsResponseCallback {
 
 /// Network message types.
 #[derive(Clone, prost::Message)]
-pub(crate) struct SendBlockRequest {
-    #[prost(bytes = "bytes", repeated, tag = "1")]
-    vec_serialized_blocks: Vec<Bytes>,
+pub(crate) struct SubscribeBlockBundlesRequest {
+    #[prost(uint32, tag = "1")]
+    last_received_round: Round,
 }
 
 #[derive(Clone, prost::Message)]
-pub(crate) struct SendBlockResponse {}
+pub(crate) struct SubscribeBlockBundlesResponse {
+    #[prost(bytes = "bytes", tag = "1")]
+    serialized_block_bundle: Bytes,
+}
 
 #[derive(Clone, prost::Message)]
 pub(crate) struct SubscribeBlocksRequest {

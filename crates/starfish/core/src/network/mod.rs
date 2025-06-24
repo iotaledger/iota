@@ -56,6 +56,9 @@ mod tonic_tls;
 
 /// A stream of serialized filtered blocks returned over the network.
 pub(crate) type BlockStream = Pin<Box<dyn Stream<Item = SerializedBlock> + Send>>;
+/// A stream of serialized blocks with additional information such as headers or
+/// shards.
+pub(crate) type BlockBundleStream = Pin<Box<dyn Stream<Item = SerializedBlockBundle> + Send>>;
 
 /// Network client for communicating with peers.
 ///
@@ -72,6 +75,15 @@ pub(crate) trait NetworkClient: Send + Sync + Sized + 'static {
         last_received: Round,
         timeout: Duration,
     ) -> ConsensusResult<BlockStream>;
+
+    /// Subscribes to blocks from a peer after last_received round.
+    #[allow(dead_code)]
+    async fn subscribe_block_bundles(
+        &self,
+        peer: AuthorityIndex,
+        last_received: Round,
+        timeout: Duration,
+    ) -> ConsensusResult<BlockBundleStream>;
 
     /// Fetches serialized `SerializedBlocks` from a peer. It also might
     /// return additional ancestor blocks of the requested blocks according
@@ -136,6 +148,16 @@ pub(crate) trait NetworkService: Send + Sync + 'static {
         serialized_block: SerializedBlock,
     ) -> ConsensusResult<()>;
 
+    /// Handles the block and headers sent from the peer via subscription
+    /// stream. Peer value can be trusted to be a valid authority index. But
+    /// serialized_block must be verified before its contents are trusted.
+    #[allow(dead_code)]
+    async fn handle_subscribed_block_bundles(
+        &self,
+        peer: AuthorityIndex,
+        serialized_block_bundle: SerializedBlockBundle,
+    ) -> ConsensusResult<()>;
+
     /// Handles the subscription request from the peer.
     /// A stream of newly proposed blocks is returned to the peer.
     /// The stream continues until the end of epoch, peer unsubscribes, or a
@@ -145,6 +167,16 @@ pub(crate) trait NetworkService: Send + Sync + 'static {
         peer: AuthorityIndex,
         last_received: Round,
     ) -> ConsensusResult<BlockStream>;
+
+    /// Handles the subscription request from the peer.
+    /// A stream of newly proposed blocks with additional data (headers or
+    /// shards) is returned to the peer. The stream continues until the end
+    /// of epoch, peer unsubscribes, or a network error / crash occurs.
+    async fn handle_subscribe_block_bundles_request(
+        &self,
+        peer: AuthorityIndex,
+        last_received: Round,
+    ) -> ConsensusResult<BlockBundleStream>;
 
     /// Handles the request to fetch block headers by references from the peer.
     async fn handle_fetch_block_headers(
@@ -254,4 +286,9 @@ impl TryFrom<SerializedBlock> for SerializedHeaderAndTransactions {
     fn try_from(serialized_block: SerializedBlock) -> ConsensusResult<Self> {
         bcs::from_bytes(&serialized_block.serialized_block).map_err(ConsensusError::MalformedBlock)
     }
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub(crate) struct SerializedBlockBundle {
+    pub(crate) serialized_block_bundle: Bytes,
 }
