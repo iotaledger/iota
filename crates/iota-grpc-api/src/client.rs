@@ -6,7 +6,7 @@ tonic::include_proto!("iota.grpc");
 use iota_types::grpc::{CertifiedCheckpointSummary, CheckpointData};
 use tonic::transport::Channel;
 
-use crate::checkpoint::checkpoint_service_client::CheckpointServiceClient;
+use crate::{BcsConvertible, checkpoint::checkpoint_service_client::CheckpointServiceClient};
 
 /// Enum representing the content of a checkpoint, either full data or summary.
 pub enum CheckpointContent {
@@ -52,64 +52,27 @@ impl GrpcNodeClient {
         Ok(response.into_inner().sequence_number)
     }
 
-    /// Deserialize checkpoint data from the gRPC stream, handling versioned
-    /// types. Uses the is_full field from the checkpoint to determine the
-    /// correct deserialization method.
-    fn deserialize_checkpoint_data(
-        checkpoint: &crate::checkpoint::Checkpoint,
-    ) -> Result<
-        iota_types::full_checkpoint_content::CheckpointData,
-        Box<dyn std::error::Error + Send + Sync>,
-    > {
-        // First try to deserialize as versioned data
-        match bcs::from_bytes::<CheckpointData>(&checkpoint.data) {
-            Ok(versioned) => versioned
-                .into_v1()
-                .ok_or_else(|| "Unsupported checkpoint data version".into()),
-            Err(_) => {
-                // Fallback: try direct deserialization for backward compatibility
-                bcs::from_bytes::<iota_types::full_checkpoint_content::CheckpointData>(
-                    &checkpoint.data,
-                )
-                .map_err(|e| format!("Failed to deserialize checkpoint data: {}", e).into())
-            }
-        }
-    }
-
-    /// Deserialize checkpoint summary from the gRPC stream, handling versioned
-    /// types. Uses the is_full field from the checkpoint to determine the
-    /// correct deserialization method.
-    fn deserialize_checkpoint_summary(
-        checkpoint: &crate::checkpoint::Checkpoint,
-    ) -> Result<
-        iota_types::messages_checkpoint::CertifiedCheckpointSummary,
-        Box<dyn std::error::Error + Send + Sync>,
-    > {
-        // First try to deserialize as versioned summary
-        match bcs::from_bytes::<CertifiedCheckpointSummary>(&checkpoint.data) {
-            Ok(versioned) => versioned
-                .into_v1()
-                .ok_or_else(|| "Unsupported checkpoint summary version".into()),
-            Err(_) => {
-                // Fallback: try direct deserialization for backward compatibility
-                bcs::from_bytes::<iota_types::messages_checkpoint::CertifiedCheckpointSummary>(
-                    &checkpoint.data,
-                )
-                .map_err(|e| format!("Failed to deserialize checkpoint summary: {}", e).into())
-            }
-        }
-    }
-
     /// Auto-deserialize checkpoint based on the is_full field.
     /// Returns either checkpoint data or summary depending on the checkpoint
     /// type.
     pub fn deserialize_checkpoint(
         checkpoint: &crate::checkpoint::Checkpoint,
     ) -> Result<CheckpointContent, Box<dyn std::error::Error + Send + Sync>> {
+        let bcs_data = checkpoint
+            .bcs_data
+            .as_ref()
+            .ok_or("Missing BCS data in checkpoint")?;
+
         if checkpoint.is_full {
-            Self::deserialize_checkpoint_data(checkpoint).map(CheckpointContent::Data)
+            let checkpoint_data = CheckpointData::from_bcs(&bcs_data.data)?
+                .into_v1()
+                .ok_or("Unsupported checkpoint data version")?;
+            Ok(CheckpointContent::Data(checkpoint_data))
         } else {
-            Self::deserialize_checkpoint_summary(checkpoint).map(CheckpointContent::Summary)
+            let checkpoint_summary = CertifiedCheckpointSummary::from_bcs(&bcs_data.data)?
+                .into_v1()
+                .ok_or("Unsupported checkpoint summary version")?;
+            Ok(CheckpointContent::Summary(checkpoint_summary))
         }
     }
 }

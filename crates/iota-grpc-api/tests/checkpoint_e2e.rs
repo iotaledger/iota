@@ -151,7 +151,9 @@ async fn test_get_epoch_first_checkpoint_sequence_number() {
                         "[gRPC] Failed to deserialize checkpoint at index {}: {:?}",
                         cp.index, e
                     );
-                    println!("[gRPC] Raw checkpoint data: {:?}", cp.data);
+                    if let Some(bcs_data) = &cp.bcs_data {
+                        println!("[gRPC] Raw checkpoint data: {:?}", bcs_data.data);
+                    }
                     break;
                 }
             },

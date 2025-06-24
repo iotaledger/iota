@@ -22,6 +22,49 @@ use iota_types::{
 };
 use tracing::{debug, info};
 
+/// Generic trait for BCS serialization/deserialization
+pub trait BcsConvertible {
+    fn to_bcs(&self) -> Result<Vec<u8>, bcs::Error>;
+    fn from_bcs(data: &[u8]) -> Result<Self, bcs::Error>
+    where
+        Self: Sized;
+}
+
+impl BcsConvertible for GrpcCheckpointData {
+    fn to_bcs(&self) -> Result<Vec<u8>, bcs::Error> {
+        bcs::to_bytes(self)
+    }
+
+    fn from_bcs(data: &[u8]) -> Result<Self, bcs::Error> {
+        // First try to deserialize as versioned data
+        match bcs::from_bytes::<GrpcCheckpointData>(data) {
+            Ok(versioned) => Ok(versioned),
+            Err(_) => {
+                // Fallback: try direct deserialization for backward compatibility
+                bcs::from_bytes::<CheckpointData>(data).map(GrpcCheckpointData::from)
+            }
+        }
+    }
+}
+
+impl BcsConvertible for GrpcCertifiedCheckpointSummary {
+    fn to_bcs(&self) -> Result<Vec<u8>, bcs::Error> {
+        bcs::to_bytes(self)
+    }
+
+    fn from_bcs(data: &[u8]) -> Result<Self, bcs::Error> {
+        // First try to deserialize as versioned summary
+        match bcs::from_bytes::<GrpcCertifiedCheckpointSummary>(data) {
+            Ok(versioned) => Ok(versioned),
+            Err(_) => {
+                // Fallback: try direct deserialization for backward compatibility
+                bcs::from_bytes::<CertifiedCheckpointSummary>(data)
+                    .map(|summary| GrpcCertifiedCheckpointSummary::from(summary))
+            }
+        }
+    }
+}
+
 pub struct CheckpointGrpcService {
     pub state_reader: Arc<dyn RestStateReader>,
     pub grpc_checkpoint_summary_tx:
@@ -53,19 +96,18 @@ type CheckpointStreamResult = Result<checkpoint::Checkpoint, Status>;
 // intended as an abstractoin for Arc<dyn RestStateReader>.
 trait CheckpointOracle<T>
 where
-    T: Send + Sync + 'static,
+    T: Send + Sync + 'static + BcsConvertible,
     Self: Send + Sync + 'static,
 {
     fn get_index(&self, item: &Arc<T>) -> u64;
-    fn serialize_to_bcs(&self, item: &Arc<T>) -> Result<Vec<u8>, bcs::Error>;
     fn get_item(&self, ix: u64) -> Option<Arc<T>>;
     fn get_latest(&self) -> Option<u64>;
 
     fn create_checkpoint_response(&self, item: &Arc<T>, is_full: bool) -> CheckpointStreamResult {
-        self.serialize_to_bcs(item)
+        item.to_bcs()
             .map(|data| checkpoint::Checkpoint {
                 index: self.get_index(item),
-                data,
+                bcs_data: Some(checkpoint::BcsData { data }),
                 is_full,
             })
             .map_err(|e| Status::internal(format!("BCS serialization error: {e}")))
@@ -92,9 +134,6 @@ impl CheckpointOracle<GrpcCheckpointData> for Oracle {
     fn get_index(&self, item: &Arc<GrpcCheckpointData>) -> u64 {
         item.sequence_number()
     }
-    fn serialize_to_bcs(&self, item: &Arc<GrpcCheckpointData>) -> Result<Vec<u8>, bcs::Error> {
-        bcs::to_bytes(&**item)
-    }
     fn get_item(&self, ix: u64) -> Option<Arc<GrpcCheckpointData>> {
         get_full_checkpoint_data(&self.state_reader, ix)
             .map(GrpcCheckpointData::from)
@@ -111,12 +150,6 @@ impl CheckpointOracle<GrpcCheckpointData> for Oracle {
 impl CheckpointOracle<GrpcCertifiedCheckpointSummary> for Oracle {
     fn get_index(&self, item: &Arc<GrpcCertifiedCheckpointSummary>) -> u64 {
         item.sequence_number()
-    }
-    fn serialize_to_bcs(
-        &self,
-        item: &Arc<GrpcCertifiedCheckpointSummary>,
-    ) -> Result<Vec<u8>, bcs::Error> {
-        bcs::to_bytes(&**item)
     }
     fn get_item(&self, ix: u64) -> Option<Arc<GrpcCertifiedCheckpointSummary>> {
         self.state_reader
@@ -142,7 +175,7 @@ fn create_checkpoint_stream<T, F>(
     is_full: bool,
 ) -> impl futures::Stream<Item = CheckpointStreamResult> + Send
 where
-    T: Send + Sync + 'static,
+    T: Send + Sync + 'static + BcsConvertible,
     F: CheckpointOracle<T> + Clone + Send + Sync + 'static,
 {
     async_stream::try_stream! {

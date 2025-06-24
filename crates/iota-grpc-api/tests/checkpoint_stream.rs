@@ -9,7 +9,7 @@ use std::{
 };
 
 use iota_grpc_api::{
-    CheckpointGrpcService,
+    BcsConvertible, CheckpointGrpcService,
     checkpoint::{CheckpointStreamRequest, checkpoint_service_server::CheckpointService},
 };
 use iota_types::{
@@ -465,9 +465,12 @@ async fn test_future_end_index_only_full() {
     while let Some(res) = stream.next().await {
         match res {
             Ok(cp) => {
-                let checkpoint_data = match bcs::from_bytes::<GrpcCheckpointData>(&cp.data) {
+                let bcs_data = cp.bcs_data.as_ref().expect("BCS data should be present");
+                let checkpoint_data = match GrpcCheckpointData::from_bcs(&bcs_data.data) {
                     Ok(versioned) => versioned.into_v1().expect("Expected V1 data"),
-                    Err(_) => bcs::from_bytes::<CheckpointData>(&cp.data).expect("bcs decode"),
+                    Err(_) => {
+                        bcs::from_bytes::<CheckpointData>(&bcs_data.data).expect("bcs decode")
+                    }
                 };
                 result.push(checkpoint_data.checkpoint_summary.sequence_number);
                 break;
@@ -552,9 +555,10 @@ async fn test_historical_to_live_gap_fill() {
     let mut received = Vec::new();
     // Collect up to 151 checkpoints
     while let Some(Ok(cp)) = stream.next().await {
-        let checkpoint_data = match bcs::from_bytes::<GrpcCheckpointData>(&cp.data) {
+        let bcs_data = cp.bcs_data.as_ref().expect("BCS data should be present");
+        let checkpoint_data = match GrpcCheckpointData::from_bcs(&bcs_data.data) {
             Ok(versioned) => versioned.into_v1().expect("Expected V1 data"),
-            Err(_) => bcs::from_bytes::<CheckpointData>(&cp.data).expect("bcs decode"),
+            Err(_) => bcs::from_bytes::<CheckpointData>(&bcs_data.data).expect("bcs decode"),
         };
         received.push(checkpoint_data.checkpoint_summary.sequence_number);
         if checkpoint_data.checkpoint_summary.sequence_number == 150 {
@@ -608,9 +612,10 @@ async fn test_gap_fill_with_slow_client() {
         .into_inner();
     let mut received = Vec::new();
     while let Some(Ok(cp)) = stream.next().await {
-        let checkpoint_data = match bcs::from_bytes::<GrpcCheckpointData>(&cp.data) {
+        let bcs_data = cp.bcs_data.as_ref().expect("BCS data should be present");
+        let checkpoint_data = match GrpcCheckpointData::from_bcs(&bcs_data.data) {
             Ok(versioned) => versioned.into_v1().expect("Expected V1 data"),
-            Err(_) => bcs::from_bytes::<CheckpointData>(&cp.data).expect("bcs decode"),
+            Err(_) => bcs::from_bytes::<CheckpointData>(&bcs_data.data).expect("bcs decode"),
         };
         received.push(checkpoint_data.checkpoint_summary.sequence_number);
         tokio::time::sleep(Duration::from_millis(500)).await; // slow down the client
