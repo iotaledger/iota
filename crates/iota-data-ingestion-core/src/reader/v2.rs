@@ -331,7 +331,7 @@ impl CheckpointReaderActor {
                 Err(err) => {
                     match backoff.next_backoff() {
                         Some(duration) => {
-                            if !err.to_string().contains("404") {
+                            if !err.to_string().to_lowercase().contains("not found") {
                                 debug!(
                                     "remote reader retry in {} ms. Error is {err:?}",
                                     duration.as_millis(),
