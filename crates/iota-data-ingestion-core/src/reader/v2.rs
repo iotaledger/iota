@@ -114,6 +114,7 @@ impl RemoteStore {
                 };
                 let historical = HistoricalReader::new(config)
                     .inspect_err(|e| error!("Unable to instantiate historical reader: {e}"))?;
+                historical.sync_manifest_once().await?;
 
                 let live = live_url
                     .map(|url| create_remote_store_client(url, Default::default(), timeout_secs))
@@ -208,8 +209,7 @@ impl CheckpointReaderActor {
     fn should_fetch_from_remote(&self, checkpoints: &[Arc<CheckpointData>]) -> bool {
         self.remote_store.is_some()
             && (checkpoints.is_empty()
-                || checkpoints[0].checkpoint_summary.sequence_number
-                    > self.current_checkpoint_number)
+                || self.is_checkpoint_ahead(&checkpoints[0], self.current_checkpoint_number))
     }
 
     /// Fetch checkpoints from the historical object store and stream them to a
@@ -348,7 +348,7 @@ impl CheckpointReaderActor {
                             backoff.reset();
                         }
                         None => {
-                            error!("remote reader transient error {:?}", err);
+                            error!("remote reader transient error {err:?}");
                             break;
                         }
                     }
@@ -378,13 +378,18 @@ impl CheckpointReaderActor {
 
     /// Sends a batch of local checkpoints to the channel in order.
     ///
-    /// Each checkpoint is sent sequentially. If sending fails, returns the
-    /// error immediately.
+    /// Each checkpoint is sent sequentially until a gap is detected (i.e., a
+    /// checkpoint with a sequence number greater than the current
+    /// checkpoint number). If a gap is found, the function breaks early. If
+    /// sending fails, returns the error immediately.
     async fn send_local_checkpoints_to_channel(
         &mut self,
         checkpoints: Vec<Arc<CheckpointData>>,
     ) -> IngestionResult<()> {
         for checkpoint in checkpoints {
+            if self.is_checkpoint_ahead(&checkpoint, self.current_checkpoint_number) {
+                break;
+            }
             self.send_checkpoint_to_channel(checkpoint).await?;
         }
         Ok(())
@@ -419,11 +424,12 @@ impl CheckpointReaderActor {
         let mut remote_source = ReadSource::Local;
         let checkpoints = self.read_local_files_with_retry().await?;
         let should_fetch_from_remote = self.should_fetch_from_remote(&checkpoints);
-        self.send_local_checkpoints_to_channel(checkpoints).await?;
 
         if should_fetch_from_remote {
             remote_source = ReadSource::Remote;
             self.fetch_and_send_to_channel_with_retry().await;
+        } else {
+            self.send_local_checkpoints_to_channel(checkpoints).await?;
         }
 
         info!(

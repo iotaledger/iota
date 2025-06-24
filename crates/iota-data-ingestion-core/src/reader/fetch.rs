@@ -26,12 +26,26 @@ pub type CheckpointResult = IngestionResult<(Arc<CheckpointData>, usize)>;
 pub(crate) trait LocalRead {
     /// Path is used as the source for reading checkpoint files.
     fn path(&self) -> &Path;
+
     /// Returns the current checkpoint sequence number.
     fn current_checkpoint_number(&self) -> CheckpointSequenceNumber;
+
     fn update_last_pruned_watermark(&mut self, watermark: CheckpointSequenceNumber);
+
     /// Returns `true` if the given checkpoint sequence number exceeds the
     /// allowed capacity.
     fn exceeds_capacity(&self, checkpoint_number: CheckpointSequenceNumber) -> bool;
+
+    /// Returns `true` if the checkpoint's sequence number is ahead of the
+    /// expected sequence number, indicating a gap in the processed
+    /// checkpoints.
+    fn is_checkpoint_ahead(
+        &self,
+        checkpoint: &CheckpointData,
+        expected_sequence_number: CheckpointSequenceNumber,
+    ) -> bool {
+        checkpoint.checkpoint_summary.sequence_number > expected_sequence_number
+    }
 
     /// Lists unprocessed checkpoint files in the specified directory.
     ///

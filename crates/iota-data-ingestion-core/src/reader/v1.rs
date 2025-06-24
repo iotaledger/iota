@@ -252,6 +252,11 @@ impl CheckpointReader {
             checkpoints.len(),
         );
         for checkpoint in checkpoints {
+            if matches!(read_source, ReadSource::Local)
+                && self.is_checkpoint_ahead(&checkpoint, self.current_checkpoint_number)
+            {
+                break;
+            }
             assert_eq!(
                 checkpoint.checkpoint_summary.sequence_number,
                 self.current_checkpoint_number
