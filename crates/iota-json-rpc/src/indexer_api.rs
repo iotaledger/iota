@@ -333,7 +333,7 @@ impl<R: ReadApiServer> IndexerApiServer for IndexerApi<R> {
             .map(|f| {
                 f.as_v1().ok_or_else(|| {
                     Error::UserInput(UserInputError::Unsupported(
-                        "wrapped or deleted object filter is not supported".to_string(),
+                        "transaction filter is not supported".to_string(),
                     ))
                 })
             })
