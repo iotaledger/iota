@@ -180,9 +180,11 @@
     --display-stats-bg-default: theme('colors.iota-neutral.96');
     --display-stats-bg-highlight: theme('colors.iota-primary.30');
     --display-stats-bg-secondary: theme('colors.iota-secondary.90');
+
     --display-stats-text-default: theme('colors.iota-neutral.10');
     --display-stats-text-highlight: theme('colors.iota-neutral.100');
     --display-stats-text-secondary: theme('colors.iota-neutral.10');
+
     --display-stats-icon-color: theme('colors.iota-neutral.10');
     --display-stats-copy-icon-color: theme('colors.iota-neutral.60');
 
@@ -417,9 +419,11 @@
     --display-stats-bg-default: theme('colors.iota-neutral.10');
     --display-stats-bg-highlight: theme('colors.iota-primary.80');
     --display-stats-bg-secondary: theme('colors.iota-secondary.10');
+
     --display-stats-text-default: theme('colors.iota-neutral.92');
     --display-stats-text-highlight: theme('colors.iota-primary.10');
     --display-stats-text-secondary: theme('colors.iota-neutral.92');
+
     --display-stats-icon-color: theme('colors.iota-neutral.92');
     --display-stats-copy-icon-color: theme('colors.iota-neutral.40');
 
@@ -734,6 +738,8 @@
     --dialog-content-bg: theme('colors.names-neutral.6');
     --dialog-title-color: theme('colors.names-neutral.92');
     --dialog-body-color: theme('colors.names-neutral.70');
+    --dialog-outline: 1px solid theme('colors.names-neutral.20');
+    --dialog-overlay-bg: theme('colors.names-neutral.0/0.72');
 
     /* NAVBAR */
     --navbar-icon-color: theme('colors.names-neutral.92');
@@ -741,8 +747,4 @@
 
     /* TABLE */
     --table-text-color: theme('colors.names-neutral.70');
-
-    /* DIALOG */
-    --dialog-outline: 1px solid theme('colors.names-neutral.20');
-    --dialog-overlay-bg: theme('colors.names-neutral.0/0.72');
 }

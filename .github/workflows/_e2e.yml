@@ -25,6 +25,17 @@ on:
       isWalletDashboard:
         type: boolean
         required: false
+      isEvmBridge:
+        type: boolean
+        required: false
+      isIscSDK:
+        type: boolean
+        required: false
+    secrets:
+      EVM_BRIDGE_PREVIEW_DEFAULT_NETWORK:
+        required: true
+      EVM_BRIDGE_CONFIG:
+        required: true
 
 concurrency:
   group: e2e-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
@@ -32,6 +43,8 @@ concurrency:
 
 env:
   RUST_LOG: warn
+  VITE_EVM_BRIDGE_DEFAULT_NETWORK: ${{ secrets.EVM_BRIDGE_PREVIEW_DEFAULT_NETWORK }}
+  VITE_EVM_BRIDGE_CONFIG: ${{ secrets.EVM_BRIDGE_CONFIG }}
 
 jobs:
   # Run e2e test against localnet built on the develop branch
@@ -72,7 +85,7 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Install Playwright Browsers
+      - name: Install Explorer Playwright Browsers
         run: pnpm --filter iota-explorer playwright install --with-deps chromium
 
       - name: Set environment variables
@@ -155,4 +168,29 @@ jobs:
         with:
           name: playwright-report-wallet
           path: apps/wallet/playwright-report/
+          retention-days: 30
+
+      - name: Build Evm-bridge
+        if: inputs.isEvmBridge || inputs.isIscSDK || inputs.isTypescriptSDK || github.ref_name == 'develop'
+        run: pnpm evm-bridge build
+
+      - name: Install Playwright Browsers for Evm-bridge
+        if: inputs.isEvmBridge || inputs.isIscSDK || inputs.isTypescriptSDK || github.ref_name == 'develop'
+        run: pnpm --filter ./apps/evm-bridge playwright install --with-deps chromium
+
+      - name: Prepare evm-bridge e2e tests (downloads wallet artifact dist)
+        if: inputs.isEvmBridge || inputs.isIscSDK || inputs.isTypescriptSDK || github.ref_name == 'develop'
+        working-directory: ./apps/evm-bridge
+        run: pnpm run test:prepare
+
+      - name: Run evm-bridge tests
+        if: inputs.isEvmBridge || inputs.isIscSDK || inputs.isTypescriptSDK || github.ref_name == 'develop'
+        working-directory: ./apps/evm-bridge
+        run: DEBUG=pw:webserver xvfb-run --auto-servernum pnpm run test:e2e
+
+      - uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # v4.4.3
+        if: always()
+        with:
+          name: playwright-report-evm-bridge
+          path: apps/evm-bridge/playwright-report/
           retention-days: 30
