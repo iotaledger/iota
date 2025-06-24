@@ -301,7 +301,7 @@
     --button-bg-color-disabled-primary: theme('colors.iota-neutral.30');
     --button-bg-color-secondary: theme('colors.iota-neutral.20');
     --button-bg-color-error: theme('colors.iota-error.20');
-    --button-border-color-outline: theme('colors.iota-neutral.50');
+    --button-border-color-outline: theme('colors.iota-neutral.60');
     --button-text-color-primary: theme('colors.iota-primary.100');
     --button-text-color-neutral: theme('colors.iota-neutral.92');
     --button-text-color-error: theme('colors.iota-error.90');
