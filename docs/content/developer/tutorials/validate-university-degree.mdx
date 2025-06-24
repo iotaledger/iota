@@ -106,7 +106,7 @@ cd digitally_validate_degree
 ```bash
 cargo build
 ```
-# Step 1: Issuer Creates a Verifiable Credential
+## Step 1: Issuer Creates a Verifiable Credential
 Run the following to simulate the university issuing a VC:
 
 ```bash
@@ -120,7 +120,7 @@ This will:
 - Sign it as a JWT
 - Print the VC JWT (copy this for the next step)
 
-# Step 2: Holder Creates a Verifiable Presentation
+## Step 2: Holder Creates a Verifiable Presentation
 
 Alice receives the VC and creates a VP to send to the IOTA Foundation.
 
@@ -135,7 +135,7 @@ This will:
 - Sign it with Alice’s key
 - Print the VP JWT
 
-# Step 3: Verifier Validates the Verifiable Presentation
+## Step 3: Verifier Validates the Verifiable Presentation
 
 The IOTA Foundation (verifier) now checks the authenticity and validity of the VP.
 
@@ -151,19 +151,12 @@ This will:
 
 If valid, the output will confirm a successful validation.
 
-src/
-│   ├── issuer.rs      # Creates DID and issues credential
-│   ├── holder.rs      # Accepts VC and creates signed VP
-│   └── verifier.rs    # Validates the VP and VC
-├── utils.rs          # Shared utilities for identity creation and storage
-└── main.rs           # Placeholder entry point
 
+## References
 
-# References
+- [IOTA Identity Docs](https://docs.iota.org/iota-identity)
 
-- IOTA Identity Docs
-
-- W3C VC Data Model
+- [W3C VC Data Model](https://www.w3.org/TR/vc-data-model-2.0/)
 
 
 
