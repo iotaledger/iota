@@ -796,7 +796,7 @@ impl CheckpointHandler {
 
 /// If `o` is a dynamic `Field<K, V>`, determine whether it represents a Dynamic
 /// Field or a Dynamic Object Field based on its type.
-fn try_extract_df_kind(o: &Object) -> IndexerResult<Option<DynamicFieldType>> {
+pub(crate) fn try_extract_df_kind(o: &Object) -> IndexerResult<Option<DynamicFieldType>> {
     // Skip if not a move object
     let Some(move_object) = o.data.try_as_move() else {
         return Ok(None);

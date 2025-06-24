@@ -311,7 +311,6 @@ fn test_query_transaction_blocks_pagination() -> Result<(), anyhow::Error> {
         indexer_wait_for_object(client, coin_to_split.0, coin_to_split.1).await;
         let iota_client = cluster.wallet.get_client().await.unwrap();
 
-        let mut tx_responses = vec![];
         for _ in 0..5 {
             let tx_data = iota_client
                 .transaction_builder()
@@ -327,16 +326,12 @@ fn test_query_transaction_blocks_pagination() -> Result<(), anyhow::Error> {
                     tx_bytes,
                     signatures,
                     Some(IotaTransactionBlockResponseOptions::new().with_effects()),
-                    Some(ExecuteTransactionRequestType::WaitForLocalExecution),
+                    Some(ExecuteTransactionRequestType::WaitForEffectsCert),
                 )
                 .await?;
 
-            tx_responses.push(res)
+            indexer_wait_for_transaction(res.digest, store, client).await;
         }
-
-        let tx_res = tx_responses.pop().unwrap();
-
-        indexer_wait_for_transaction(tx_res.digest, store, client).await;
 
         let objects = client
             .get_owned_objects(

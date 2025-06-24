@@ -100,7 +100,15 @@ async fn main() -> Result<(), IndexerError> {
                 check_db_migration_consistency(&mut pool_conn)?;
             }
 
-            Indexer::start_reader(&json_rpc_config, &registry, connection_pool).await?;
+            let store = PgIndexerStore::new(connection_pool.clone(), indexer_metrics.clone());
+            Indexer::start_reader(
+                &json_rpc_config,
+                store,
+                &registry,
+                connection_pool,
+                indexer_metrics,
+            )
+            .await?;
         }
         Command::AnalyticalWorker => {
             let store = PgIndexerAnalyticalStore::new(connection_pool);
