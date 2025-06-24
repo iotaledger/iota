@@ -63,8 +63,10 @@ pub const MAX_PROTOCOL_VERSION: u64 = 10;
 //             Switch to distributed vote scoring in consensus for mainnet.
 //             Enable the new consensus commit rule for mainnet.
 //             Enable consensus garbage collection for mainnet with GC depth set
-//             to 60 rounds
+//             to 60 rounds.
 //             Enable batching in synchronizer for testnet
+//             Enable Identifier input validation.
+
 #[derive(Copy, Clone, Debug, Hash, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ProtocolVersion(u64);
 
@@ -287,6 +289,10 @@ struct FeatureFlags {
     // If true, enabled batched block sync in consensus.
     #[serde(skip_serializing_if = "is_false")]
     consensus_batched_block_sync: bool,
+
+    // Validate identifier inputs separately
+    #[serde(skip_serializing_if = "is_false")]
+    validate_identifier_inputs: bool,
 }
 
 fn is_true(b: &bool) -> bool {
@@ -1263,6 +1269,10 @@ impl ProtocolConfig {
     pub fn consensus_batched_block_sync(&self) -> bool {
         self.feature_flags.consensus_batched_block_sync
     }
+
+    pub fn validate_identifier_inputs(&self) -> bool {
+        self.feature_flags.validate_identifier_inputs
+    }
 }
 
 #[cfg(not(msim))]
@@ -2046,6 +2056,8 @@ impl ProtocolConfig {
                         // Enable batched block sync in devnet and testnet.
                         cfg.feature_flags.consensus_batched_block_sync = true;
                     }
+
+                    cfg.feature_flags.validate_identifier_inputs = true;
                 }
                 // Use this template when making changes:
                 //
