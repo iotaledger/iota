@@ -2343,7 +2343,7 @@ async fn get_object_from_bcs<T: DeserializeOwned>(
         return Err(RpcError::IotaObjectResponse(error));
     }
 
-    deserialize_move_object_from_bcs::<T>(object_response).map_err(|e| RpcError::Any(e.into()))
+    Ok(deserialize_move_object_from_bcs::<T>(object_response)?)
 }
 
 fn deserialize_move_object_from_bcs<T: DeserializeOwned>(
