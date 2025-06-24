@@ -791,7 +791,7 @@ impl<'a> LayerBuilder<'a> {
                 let verified_transactions = VerifiedTransactions::new(
                     transactions,
                     block_header.reference(),
-                    commitment.clone(),
+                    commitment,
                     serialized_transactions,
                 );
 

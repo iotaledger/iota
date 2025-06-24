@@ -237,7 +237,7 @@ impl CommitObserver {
                         )
                     });
 
-                    last_sent_commit_index = last_sent_commit_index + 1;
+                    last_sent_commit_index += 1;
                 }
             }
 
