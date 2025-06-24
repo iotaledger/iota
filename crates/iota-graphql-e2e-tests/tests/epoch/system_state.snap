@@ -102,7 +102,7 @@ Response: {
       "epochId": 4,
       "systemStateVersion": 2,
       "storageFund": {
-        "totalObjectStorageRebates": "15306400",
+        "totalObjectStorageRebates": "15610400",
         "nonRefundableBalance": "0"
       }
     }
@@ -117,7 +117,7 @@ Response: {
       "epochId": 3,
       "systemStateVersion": 2,
       "storageFund": {
-        "totalObjectStorageRebates": "15610400",
+        "totalObjectStorageRebates": "14630000",
         "nonRefundableBalance": "0"
       }
     }
@@ -147,7 +147,7 @@ Response: {
       "epochId": 1,
       "systemStateVersion": 2,
       "storageFund": {
-        "totalObjectStorageRebates": "14630000",
+        "totalObjectStorageRebates": "0",
         "nonRefundableBalance": "0"
       }
     }
@@ -162,7 +162,7 @@ Response: {
       "epochId": 4,
       "systemStateVersion": 2,
       "storageFund": {
-        "totalObjectStorageRebates": "15306400",
+        "totalObjectStorageRebates": "15610400",
         "nonRefundableBalance": "0"
       }
     }
