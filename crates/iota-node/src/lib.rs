@@ -75,6 +75,7 @@ use iota_core::{
     transaction_orchestrator::TransactionOrchestrator,
     validator_tx_finalizer::ValidatorTxFinalizer,
 };
+use iota_grpc_api::{CheckpointGrpcService, checkpoint};
 use iota_json_rpc::{
     JsonRpcServerBuilder, coin_api::CoinReadApi, governance_api::GovernanceReadApi,
     indexer_api::IndexerApi, move_utils::MoveUtils, read_api::ReadApi,
@@ -146,9 +147,6 @@ use crate::metrics::{GrpcMetrics, IotaNodeMetrics};
 pub mod admin;
 mod handle;
 pub mod metrics;
-
-// Add at the top, after other use statements
-use iota_grpc_api::{CheckpointGrpcService, checkpoint};
 
 pub struct ValidatorComponents {
     validator_server_handle: SpawnOnce,
@@ -231,9 +229,7 @@ pub struct IotaNode {
     _discovery: discovery::Handle,
     state_sync_handle: state_sync::Handle,
     randomness_handle: randomness::Handle,
-    // Expose this because we want to directly stream checkpoints from the
-    // CheckpointStore. Might be a temporary solution.
-    pub checkpoint_store: Arc<CheckpointStore>,
+    checkpoint_store: Arc<CheckpointStore>,
     accumulator: Mutex<Option<Arc<StateAccumulator>>>,
     connection_monitor_status: Arc<ConnectionMonitorStatus>,
 
