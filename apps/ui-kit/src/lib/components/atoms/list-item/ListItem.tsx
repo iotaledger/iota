@@ -66,7 +66,7 @@ export function ListItem({
                 tabIndex={0}
                 onKeyDown={handleKeyDown}
                 className={cx(
-                    'relative flex flex-row items-center justify-between px-md py-sm text-neutral-10 dark:text-neutral-92',
+                    'text-neutral-10 dark:text-neutral-92 relative flex flex-row items-center justify-between px-md py-sm',
                     !isDisabled && onClick ? 'cursor-pointer' : 'cursor-default',
                     {
                         'bg-shader-primary-dark-16 dark:bg-shader-inverted-dark-16': isHighlighted,

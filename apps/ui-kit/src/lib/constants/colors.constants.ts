@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 export const IOTA_PRIMITIVES_COLOR_PALETTE = {
-    primary: {
+    'iota-primary': {
         '0': '#000000',
         '10': '#061244',
         '20': '#182b8a',
@@ -15,7 +15,7 @@ export const IOTA_PRIMITIVES_COLOR_PALETTE = {
         '90': '#d5e8ff',
         '100': '#ffffff',
     },
-    secondary: {
+    'iota-secondary': {
         '0': '#000000',
         '10': '#051631',
         '20': '#17345f',
@@ -28,7 +28,7 @@ export const IOTA_PRIMITIVES_COLOR_PALETTE = {
         '90': '#dde9f7',
         '100': '#ffffff',
     },
-    tertiary: {
+    'iota-tertiary': {
         '0': '#000000',
         '10': '#071f22',
         '20': '#18393b',
@@ -41,7 +41,7 @@ export const IOTA_PRIMITIVES_COLOR_PALETTE = {
         '90': '#c2f1f4',
         '100': '#ffffff',
     },
-    error: {
+    'iota-error': {
         '0': '#000000',
         '10': '#330009',
         '20': '#610012',
@@ -54,7 +54,7 @@ export const IOTA_PRIMITIVES_COLOR_PALETTE = {
         '90': '#ffd9e0',
         '100': '#ffffff',
     },
-    neutral: {
+    'iota-neutral': {
         '0': '#000000',
         '4': '#0a0f17',
         '6': '#0f141c',
@@ -73,7 +73,7 @@ export const IOTA_PRIMITIVES_COLOR_PALETTE = {
         '98': '#f8fafc',
         '100': '#ffffff',
     },
-    warning: {
+    'iota-warning': {
         '10': '#422C00',
         '20': '#2D1E00',
         '60': '#BE8F32',

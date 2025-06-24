@@ -661,6 +661,9 @@ importers:
       '@storybook/addon-links':
         specifier: ^7.1.0
         version: 7.6.20(react@18.3.1)
+      '@storybook/addon-themes':
+        specifier: ^7.6.20
+        version: 7.6.20
       '@storybook/blocks':
         specifier: ^7.1.0
         version: 7.6.20(@types/react-dom@18.3.0)(@types/react@18.3.9)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
@@ -7577,6 +7580,9 @@ packages:
 
   '@storybook/addon-outline@7.6.20':
     resolution: {integrity: sha512-TdsIQZf/TcDsGoZ1XpO+9nBc4OKqcMIzY4SrI8Wj9dzyFLQ37s08gnZr9POci8AEv62NTUOVavsxcafllkzqDQ==}
+
+  '@storybook/addon-themes@7.6.20':
+    resolution: {integrity: sha512-GYEeukzoZ//BpFqICUEYOlsjiKHoRVT+odxtQMHGFIbpkc+Ba4hgU/KQip/fNeb6gUEPeJx66IFOm2b1gmxxIA==}
 
   '@storybook/addon-toolbars@7.6.20':
     resolution: {integrity: sha512-5Btg4i8ffWTDHsU72cqxC8nIv9N3E3ObJAc6k0llrmPBG/ybh3jxmRfs8fNm44LlEXaZ5qrK/petsXX3UbpIFg==}
@@ -28113,6 +28119,10 @@ snapshots:
   '@storybook/addon-outline@7.6.20':
     dependencies:
       '@storybook/global': 5.0.0
+      ts-dedent: 2.2.0
+
+  '@storybook/addon-themes@7.6.20':
+    dependencies:
       ts-dedent: 2.2.0
 
   '@storybook/addon-toolbars@7.6.20': {}
