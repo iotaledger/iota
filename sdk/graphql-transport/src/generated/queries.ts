@@ -3138,9 +3138,15 @@ export type MoveStructTypeParameter = {
 /** Represents concrete types (no type parameters, no references). */
 export type MoveType = {
   __typename?: 'MoveType';
-  /** The abilities this concrete type has. */
+  /**
+   * The abilities this concrete type has. Returns no abilities if the type
+   * is invalid.
+   */
   abilities: Array<MoveAbility>;
-  /** Structured representation of the "shape" of values that match this type. */
+  /**
+   * Structured representation of the "shape" of values that match this type.
+   * May return MoveTypeLayout::InvalidType for malformed types.
+   */
   layout: Scalars['MoveTypeLayout']['output'];
   /** Flat representation of the type signature, as a displayable string. */
   repr: Scalars['String']['output'];

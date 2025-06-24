@@ -13,7 +13,7 @@ use diesel::{
     sql_types::{BigInt as SqlBigInt, Nullable, Text},
 };
 use iota_indexer::types::OwnerType;
-use iota_types::{TypeTag, parse_iota_type_tag};
+use iota_types::TypeTag;
 use serde::{Deserialize, Serialize};
 
 use crate::{
@@ -195,10 +195,9 @@ impl TryFrom<StoredBalance> for Balance {
 
         let coin_object_count = count.map(|c| UInt53::from(c as u64));
 
-        let coin_type = MoveType::new(
-            parse_iota_type_tag(&coin_type)
-                .map_err(|e| Error::Internal(format!("Failed to parse coin type: {e}")))?,
-        );
+        let coin_type = TypeTag::from_str(&coin_type)
+            .map_err(|e| Error::Internal(format!("Failed to parse coin type: {e}")))?
+            .into();
 
         Ok(Balance {
             coin_type,
