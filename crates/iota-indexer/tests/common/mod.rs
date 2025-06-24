@@ -15,8 +15,9 @@ use iota_indexer::{
     db::{ConnectionPoolConfig, new_connection_pool},
     errors::IndexerError,
     indexer::Indexer,
+    metrics::IndexerMetrics,
     store::{PgIndexerStore, indexer_store::IndexerStore},
-    test_utils::{DBInitHook, IndexerTypeConfig, db_url, start_test_indexer},
+    test_utils::{DBInitHook, IndexerTypeConfig, db_url, create_pg_store, start_test_indexer},
 };
 use iota_json_rpc_api::ReadApiClient;
 use iota_json_rpc_types::{IotaTransactionBlockResponseOptions, TransactionBlockBytes};
@@ -293,8 +294,13 @@ fn start_indexer_reader(fullnode_rpc_url: impl Into<String>, database_name: Opti
 
     let registry = prometheus::Registry::default();
     init_metrics(&registry);
+    let metrics = IndexerMetrics::new(&registry);
 
-    tokio::spawn(async move { Indexer::start_reader(&config, &registry, pool).await });
+    let store = create_pg_store(&db_url, false);
+
+    tokio::spawn(
+        async move { Indexer::start_reader(&config, store, &registry, pool, metrics).await },
+    );
     port
 }
 
