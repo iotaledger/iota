@@ -54,6 +54,10 @@ async fn test_grpc_blob_worker_logic() {
             "Streamed full CheckpointData for checkpoint {}",
             checkpoint.index
         );
+
+        // Assert the checkpoint index is 4 before processing
+        assert_eq!(checkpoint.index, 4, "Should have streamed checkpoint 4");
+
         println!("Checkpoint data: {:?}", checkpoint_data);
 
         let checkpoint_data_arc = std::sync::Arc::new(checkpoint_data.clone());
@@ -62,8 +66,6 @@ async fn test_grpc_blob_worker_logic() {
             .await
             .expect("worker should process checkpoint without error");
 
-        // Assert the checkpoint index is 4 before processing
-        assert_eq!(checkpoint.index, 4, "Should have streamed checkpoint 4");
         break;
     }
 }
