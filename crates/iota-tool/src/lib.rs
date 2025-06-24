@@ -113,7 +113,7 @@ async fn make_clients(
         .await?;
 
     for committee_member in state.iter_committee_members() {
-        let net_addr = Multiaddr::try_from(committee_member.net_address).unwrap();
+        let net_addr = Multiaddr::try_from(committee_member.net_address.clone()).unwrap();
         // TODO: Enable TLS on this interface with below config, once support is rolled
         // out to validators.
         // ```
