@@ -16,7 +16,8 @@ use tokio::{
 use tokio_util::sync::CancellationToken;
 
 use crate::{
-    DataIngestionMetrics, IngestionError, IngestionResult, ReaderOptions, Worker,
+    DataIngestionMetrics, DataSource, GrpcCheckpointReader, IngestionError, IngestionResult,
+    ReaderOptions, Worker,
     progress_store::{ExecutorProgress, ProgressStore, ProgressStoreWrapper, ShimProgressStore},
     reader::CheckpointReader,
     worker_pool::{WorkerPool, WorkerPoolStatus},
@@ -150,6 +151,67 @@ impl<P: ProgressStore> IndexerExecutor<P> {
         self.progress_store.load(task_name).await
     }
 
+    /// Run executor with a specified data source.
+    ///
+    /// # Error
+    ///
+    /// Returns an [`IngestionError::EmptyWorkerPool`] if no worker pool was
+    /// registered.
+    pub async fn run_with_data_source(
+        self,
+        data_source: DataSource,
+        reader_options: ReaderOptions,
+    ) -> IngestionResult<ExecutorProgress> {
+        match data_source {
+            DataSource::Local(path) => self.run(path, None, vec![], reader_options).await,
+            DataSource::Remote {
+                store_url,
+                store_options,
+            } => {
+                self.run(
+                    tempfile::tempdir()?.into_path(),
+                    Some(store_url),
+                    store_options,
+                    reader_options,
+                )
+                .await
+            }
+            DataSource::Grpc { url } => self.run_with_grpc(url, reader_options).await,
+        }
+    }
+
+    /// Run executor with gRPC data source.
+    async fn run_with_grpc(
+        mut self,
+        grpc_url: String,
+        _reader_options: ReaderOptions,
+    ) -> IngestionResult<ExecutorProgress> {
+        let reader_checkpoint_number = self.progress_store.min_watermark()?;
+        let (grpc_reader, checkpoint_recv, exit_sender) = GrpcCheckpointReader::initialize(
+            grpc_url,
+            reader_checkpoint_number,
+            self.token.child_token(),
+        );
+
+        let grpc_reader_handle = spawn_monitored_task!(grpc_reader.run());
+
+        let worker_pools = std::mem::take(&mut self.pools)
+            .into_iter()
+            .map(|pool| spawn_monitored_task!(pool))
+            .collect::<Vec<JoinHandle<()>>>();
+
+        let mut worker_pools_shutdown_signals = vec![];
+
+        self.execute_pools(
+            checkpoint_recv,
+            worker_pools,
+            &mut worker_pools_shutdown_signals,
+            exit_sender,
+            grpc_reader_handle,
+        )
+        .await
+    }
+
     /// Main executor loop.
     ///
     /// # Error
@@ -181,6 +243,83 @@ impl<P: ProgressStore> IndexerExecutor<P> {
             .collect::<Vec<JoinHandle<()>>>();
 
         let mut worker_pools_shutdown_signals = vec![];
+
+        self.execute_pools_with_gc(
+            checkpoint_recv,
+            worker_pools,
+            &mut worker_pools_shutdown_signals,
+            exit_sender,
+            checkpoint_reader_handle,
+            gc_sender,
+        )
+        .await
+    }
+
+    /// Common execution logic for worker pools without garbage collection.
+    async fn execute_pools(
+        mut self,
+        mut checkpoint_recv: mpsc::Receiver<Arc<CheckpointData>>,
+        worker_pools: Vec<JoinHandle<()>>,
+        worker_pools_shutdown_signals: &mut Vec<String>,
+        exit_sender: oneshot::Sender<()>,
+        reader_handle: JoinHandle<IngestionResult<()>>,
+    ) -> IngestionResult<ExecutorProgress> {
+        let mut reader_checkpoint_number = self.progress_store.min_watermark()?;
+
+        loop {
+            tokio::select! {
+                Some(worker_pool_progress_msg) = self.pool_status_receiver.recv() => {
+                    match worker_pool_progress_msg {
+                        WorkerPoolStatus::Running((task_name, watermark)) => {
+                            self.progress_store.save(task_name.clone(), watermark).await.map_err(|err| IngestionError::ProgressStore(err.to_string()))?;
+                            let seq_number = self.progress_store.min_watermark()?;
+                            if seq_number > reader_checkpoint_number {
+                                reader_checkpoint_number = seq_number;
+                            }
+                            self.metrics.data_ingestion_checkpoint.with_label_values(&[&task_name]).set(watermark as i64);
+                        }
+                        WorkerPoolStatus::Shutdown(worker_pool_name) => {
+                            // Track worker pools that have initiated shutdown.
+                            worker_pools_shutdown_signals.push(worker_pool_name);
+                        }
+                    }
+                }
+                // Only process new checkpoints while system is running (token not cancelled).
+                // The guard prevents accepting new work during shutdown while allowing existing work to complete for other branches.
+                Some(checkpoint) = checkpoint_recv.recv(), if !self.token.is_cancelled() => {
+                    for sender in &self.pool_senders {
+                        sender.send(checkpoint.clone()).await.map_err(|_| {
+                            IngestionError::Channel(
+                                "unable to send new checkpoint to worker pool, receiver half closed"
+                                    .to_owned(),
+                            )
+                        })?;
+                    }
+                }
+            }
+
+            // Once all workers pools have signaled completion, start the graceful shutdown
+            // process.
+            if worker_pools_shutdown_signals.len() == self.pool_senders.len() {
+                break components_graceful_shutdown(worker_pools, exit_sender, reader_handle)
+                    .await?;
+            }
+        }
+
+        Ok(self.progress_store.stats())
+    }
+
+    /// Common execution logic for worker pools with garbage collection.
+    async fn execute_pools_with_gc(
+        mut self,
+        mut checkpoint_recv: mpsc::Receiver<Arc<CheckpointData>>,
+        worker_pools: Vec<JoinHandle<()>>,
+        worker_pools_shutdown_signals: &mut Vec<String>,
+        exit_sender: oneshot::Sender<()>,
+        reader_handle: JoinHandle<IngestionResult<()>>,
+        gc_sender: mpsc::Sender<CheckpointSequenceNumber>,
+    ) -> IngestionResult<ExecutorProgress> {
+        let mut reader_checkpoint_number = self.progress_store.min_watermark()?;
 
         loop {
             tokio::select! {
@@ -223,12 +362,8 @@ impl<P: ProgressStore> IndexerExecutor<P> {
             // Once all workers pools have signaled completion, start the graceful shutdown
             // process.
             if worker_pools_shutdown_signals.len() == self.pool_senders.len() {
-                break components_graceful_shutdown(
-                    worker_pools,
-                    exit_sender,
-                    checkpoint_reader_handle,
-                )
-                .await?;
+                break components_graceful_shutdown(worker_pools, exit_sender, reader_handle)
+                    .await?;
             }
         }
 

@@ -19,6 +19,7 @@ futures.workspace = true
 notify.workspace = true
 object_store.workspace = true
 prometheus.workspace = true
+prost.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 tap.workspace = true
@@ -27,11 +28,13 @@ thiserror.workspace = true
 tokio = { workspace = true, features = ["full"] }
 tokio-stream.workspace = true
 tokio-util.workspace = true
+tonic.workspace = true
 tracing.workspace = true
 url.workspace = true
 
 # internal dependencies
 iota-config.workspace = true
+iota-grpc-api.workspace = true
 iota-metrics.workspace = true
 iota-protocol-config.workspace = true
 iota-rest-api.workspace = true
