@@ -39,6 +39,17 @@ fn build_tonic_services(out_dir: &Path) {
         )
         .method(
             tonic_build::manual::Method::builder()
+                .name("subscribe_block_bundles")
+                .route_name("SubscribeBlockBundles")
+                .input_type("crate::network::tonic_network::SubscribeBlockBundlesRequest")
+                .output_type("crate::network::tonic_network::SubscribeBlockBundlesResponse")
+                .codec_path(codec_path)
+                .server_streaming()
+                .client_streaming()
+                .build(),
+        )
+        .method(
+            tonic_build::manual::Method::builder()
                 .name("fetch_block_headers")
                 .route_name("FetchBlockHeaders")
                 .input_type("crate::network::tonic_network::FetchBlockHeadersRequest")

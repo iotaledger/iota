@@ -240,7 +240,7 @@ mod test {
         commit::CommitRange,
         error::ConsensusResult,
         network::{
-            BlockStream, SerializedBlock, SerializedHeaderAndTransactions,
+            BlockBundleStream, BlockStream, SerializedBlock, SerializedHeaderAndTransactions,
             test_network::TestService,
         },
         storage::mem_store::MemStore,
@@ -274,6 +274,15 @@ mod test {
             })
             .take(10);
             Ok(Box::pin(block_stream))
+        }
+
+        async fn subscribe_block_bundles(
+            &self,
+            _peer: AuthorityIndex,
+            _last_received: Round,
+            _timeout: Duration,
+        ) -> ConsensusResult<BlockBundleStream> {
+            unimplemented!("Unimplemented")
         }
 
         async fn fetch_blocks(
