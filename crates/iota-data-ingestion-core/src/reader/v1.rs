@@ -114,7 +114,7 @@ impl CheckpointReader {
     async fn remote_fetch_checkpoint_internal(
         store: &RemoteStore,
         checkpoint_number: CheckpointSequenceNumber,
-    ) -> IngestionResult<(Arc<CheckpointData>, usize)> {
+    ) -> CheckpointResult {
         match store {
             RemoteStore::ObjectStore(store) => {
                 fetch_from_object_store(store, checkpoint_number).await
@@ -132,7 +132,7 @@ impl CheckpointReader {
     async fn remote_fetch_checkpoint(
         store: &RemoteStore,
         checkpoint_number: CheckpointSequenceNumber,
-    ) -> IngestionResult<(Arc<CheckpointData>, usize)> {
+    ) -> CheckpointResult {
         let mut backoff = backoff::ExponentialBackoff::default();
         backoff.max_elapsed_time = Some(Duration::from_secs(60));
         backoff.initial_interval = Duration::from_millis(100);
@@ -158,9 +158,7 @@ impl CheckpointReader {
         }
     }
 
-    fn start_remote_fetcher(
-        &mut self,
-    ) -> mpsc::Receiver<IngestionResult<(Arc<CheckpointData>, usize)>> {
+    fn start_remote_fetcher(&mut self) -> mpsc::Receiver<CheckpointResult> {
         let batch_size = self.options.batch_size;
         let start_checkpoint = self.current_checkpoint_number;
         let (sender, receiver) = mpsc::channel(batch_size);
@@ -254,6 +252,11 @@ impl CheckpointReader {
             checkpoints.len(),
         );
         for checkpoint in checkpoints {
+            if matches!(read_source, ReadSource::Local)
+                && self.is_checkpoint_ahead(&checkpoint, self.current_checkpoint_number)
+            {
+                break;
+            }
             assert_eq!(
                 checkpoint.checkpoint_summary.sequence_number,
                 self.current_checkpoint_number
