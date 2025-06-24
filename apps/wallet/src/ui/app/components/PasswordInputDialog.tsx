@@ -68,7 +68,7 @@ export function PasswordInputDialog({
             {({ isSubmitting, isValid, errors }) => (
                 <Form
                     className={classNames('flex flex-1 flex-col flex-nowrap items-center gap-7.5', {
-                        'bg-neutral-100 dark:bg-neutral-6': background,
+                        'bg-iota-neutral-100 dark:bg-iota-neutral-6': background,
                         'px-5 pt-10': spacing,
                     })}
                 >
@@ -81,7 +81,7 @@ export function PasswordInputDialog({
                             errorMessage={errors.password}
                         />
                         <div className="mt-4 text-center">
-                            <span className="text-body-md text-neutral-40 dark:text-neutral-60">
+                            <span className="text-body-md text-iota-neutral-40 dark:text-iota-neutral-60">
                                 This is the password you currently use to lock and unlock your IOTA
                                 wallet.
                             </span>

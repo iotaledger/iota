@@ -34,10 +34,10 @@ export function SupplyIncreaseVestingStakingDialog({
                     <div className="flex flex-col gap-lg text-center">
                         <img src={imgSrc} alt="Supply Increase Vesting Staking" />
                         <div className="flex flex-col items-center justify-center gap-y-sm pb-md">
-                            <span className="text-headline-sm text-neutral-10 dark:text-neutral-92">
+                            <span className="text-headline-sm text-iota-neutral-10 dark:text-iota-neutral-92">
                                 Vested Staking Available
                             </span>
-                            <span className="max-w-56 text-body-md text-neutral-40 dark:text-neutral-60">
+                            <span className="max-w-56 text-body-md text-iota-neutral-40 dark:text-iota-neutral-60">
                                 Earn rewards by staking your vested tokens
                             </span>
                         </div>

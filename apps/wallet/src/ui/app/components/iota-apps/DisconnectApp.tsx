@@ -96,7 +96,7 @@ export function DisconnectApp({
                                 ) : (
                                     <SummaryListItem
                                         icon={
-                                            <CircleEmitter className="h-5 w-5 text-neutral-10 dark:text-neutral-92" />
+                                            <CircleEmitter className="h-5 w-5 text-iota-neutral-10 dark:text-iota-neutral-92" />
                                         }
                                         text={
                                             connectedAccounts[0]

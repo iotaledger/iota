@@ -24,7 +24,7 @@ export interface LoadingIndicatorProps {
 }
 
 export function LoadingIndicator({
-    color = 'text-primary-30 dark:text-primary-80',
+    color = 'text-primary',
     size = 'w-5 h-5',
     text,
     testId,
