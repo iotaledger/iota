@@ -7,6 +7,7 @@ use account_abstraction::account_abstraction::SmartAccount;
 use iota::dynamic_object_field as dof;
 use iota::ed25519;
 use iota::hex::decode;
+use iota::vec_set::{Self, VecSet};
 
 const EInvalidSignature: u64 = 3;
 
@@ -15,7 +16,7 @@ public struct SignedTx has key, store {
     id: UID,
     tx_digest: vector<u8>,
     tx_bytes: vector<u8>,
-    verified_signatures: vector<vector<u8>>,
+    verified_signatures: VecSet<vector<u8>>,
 }
 
 /// Holds the raw bytes of the proposed transaction with signatures and their threshold
@@ -23,7 +24,7 @@ public struct ProposedTx has key, store {
     id: UID,
     tx_digest: vector<u8>,
     tx_bytes: vector<u8>,
-    signatures: vector<vector<u8>>,
+    signatures: VecSet<vector<u8>>,
     threshold: u64,
 }
 
@@ -39,7 +40,7 @@ public fun entry_point(
         id: object::new(ctx),
         tx_digest: proposed_tx_digest,
         tx_bytes: proposed_tx_bytes,
-        signatures: vector::empty(),
+        signatures: vec_set::empty(),
         threshold,
     };
     let proposed_tx_id = *proposed_tx.id.as_inner();
@@ -60,11 +61,14 @@ public fun sign_proposed_tx(
     ctx: &mut TxContext,
 ) {
     let proposed_tx: &mut ProposedTx = dof::borrow_mut(smart_account.id_mut(), tx_id);
-    assert!(ed25519::ed25519_verify(&decode(pure_signature), &pk, &proposed_tx.tx_digest), EInvalidSignature);    
-    
-    proposed_tx.signatures.push_back(pure_signature);
+    assert!(
+        ed25519::ed25519_verify(&decode(pure_signature), &pk, &proposed_tx.tx_digest),
+        EInvalidSignature,
+    );
 
-    if (proposed_tx.threshold == proposed_tx.signatures.length()) {
+    proposed_tx.signatures.insert(pure_signature);
+
+    if (proposed_tx.threshold == proposed_tx.signatures.size()) {
         let signed_tx = SignedTx {
             id: object::new(ctx),
             tx_digest: proposed_tx.tx_digest,

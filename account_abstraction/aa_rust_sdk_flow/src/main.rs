@@ -41,23 +41,14 @@ async fn main() -> Result<(), anyhow::Error> {
 
     // Path to local keystore(use your own)
     // For instance - /Users/user/.iota/iota_config/iota.keystore
-    let keystore =
-        FileBasedKeystore::new(&PathBuf::from("***"))?;
+    let keystore = FileBasedKeystore::new(&PathBuf::from("***"))?;
     println!("Iota local network version: {}", iota_client.api_version());
 
     // Hardcoded user and contract addresses (you have to pass your own addresses)
-    let multisig_addr = IotaAddress::from_str(
-        "***",
-    )?;
-    let alice_addr = IotaAddress::from_str(
-        "***",
-    )?;
-    let bob_addr = IotaAddress::from_str(
-        "***",
-    )?;
-    let coin_recipient_addr = IotaAddress::from_str(
-        "***",
-    )?;
+    let multisig_addr = IotaAddress::from_str("***")?;
+    let alice_addr = IotaAddress::from_str("***")?;
+    let bob_addr = IotaAddress::from_str("***")?;
+    let coin_recipient_addr = IotaAddress::from_str("***")?;
 
     // Generate multisig public key
     let alice_pub_key = keystore.get_key(&alice_addr)?.public();
@@ -70,6 +61,7 @@ async fn main() -> Result<(), anyhow::Error> {
     request_tokens(&iota_client, bob_addr).await?;
 
     // Publish the Account Abstraction (AA) package
+    // For instance as a publisher we use Alice address.
     let aa_package = publish_account_abstraction_package(
         &iota_client,
         alice_addr,
@@ -192,8 +184,7 @@ async fn main() -> Result<(), anyhow::Error> {
         )
         .await?;
 
-    print!("\n Withdraw signature exectuion info: ");
-    println!("{}", transaction_response);
+    print!("\n Withdraw signature execution info: {transaction_response}");
 
     // Verify recipient received expected amount
     assert!(
@@ -201,6 +192,6 @@ async fn main() -> Result<(), anyhow::Error> {
         "Recipient did not receive expected balance"
     );
 
-    println!("Recipient has received - {}", withdraw_amount);
+    println!("Recipient has received - {withdraw_amount}");
     Ok(())
 }

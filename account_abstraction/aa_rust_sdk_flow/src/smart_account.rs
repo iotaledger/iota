@@ -44,7 +44,7 @@ pub async fn publish_account_abstraction_package(
     keystore: &FileBasedKeystore,
 ) -> Result<IotaTransactionBlockResponse> {
     // Build the Move package from source
-    let compiled_package = compile_package("../aa_move")?;
+    let compiled_package = compile_package("../../aa_move")?;
 
     // Get multisig_addr coin for payment
     let multisig_addr_gas_coin = get_coin(iota_client, multisig_addr).await?;
@@ -102,7 +102,7 @@ pub async fn publish_account_abstraction_package(
 pub async fn init_smart_account(
     iota_client: &IotaClient,
     package_id: ObjectID,
-    alice_addr: IotaAddress,
+    publisher_addr: IotaAddress,
     multisig_addr: IotaAddress,
     keystore: &FileBasedKeystore,
 ) -> Result<IotaTransactionBlockResponse> {
@@ -113,7 +113,7 @@ pub async fn init_smart_account(
     let arguments = vec![ptb_builder.pure(multisig_addr)?];
     ptb_builder.command(Command::move_call(
         package_id,
-        module.clone(),
+        module,
         function,
         vec![],
         arguments,
@@ -124,20 +124,20 @@ pub async fn init_smart_account(
 
     let gas_price = iota_client.read_api().get_reference_gas_price().await?;
 
-    let alice_coin = get_coin(iota_client, alice_addr).await?;
+    let publisher_coin = get_coin(iota_client, publisher_addr).await?;
 
-    println!("\n *** Alice gas coin ***");
-    println!("{alice_coin:?}");
+    println!("\n *** Publisher gas coin ***");
+    println!("{publisher_coin:?}");
 
     let tx_data = TransactionData::new_programmable(
-        alice_addr,
-        vec![alice_coin.object_ref()],
+        publisher_addr,
+        vec![publisher_coin.object_ref()],
         ptb,
         GAS_BUDGET,
         gas_price,
     );
 
-    let sig = keystore.sign_secure(&alice_addr, &tx_data, Intent::iota_transaction())?;
+    let sig = keystore.sign_secure(&publisher_addr, &tx_data, Intent::iota_transaction())?;
 
     Ok(iota_client
         .quorum_driver_api()
@@ -185,11 +185,8 @@ pub async fn make_deposit_to_smart_account(
     package_id: ObjectID,
     smart_account_obj: ObjectRef,
 ) -> Result<()> {
-    let alice_coin = iota_client
-        .coin_read_api()
-        .get_coins(alice_addr, None, None, None)
-        .await?;
-    let alice_gas_coin_for_deposit = alice_coin.data.into_iter().next().unwrap().object_ref();
+    let alice_coin = get_coin(iota_client, alice_addr).await?;
+    let alice_gas_coin_for_deposit = alice_coin.object_ref();
 
     println!("\n *** Alice gas coin for deposit***");
     println!("{alice_gas_coin_for_deposit:?}");
@@ -260,7 +257,7 @@ pub async fn prepare_withdraw_tx_data(
     alice_addr: IotaAddress,
     multisig_addr: IotaAddress,
     package_id: ObjectID,
-    smart_accoint_obj: ObjectRef,
+    smart_account_obj: ObjectRef,
     owner_cap_obj: ObjectRef,
     coin_recipient_addr: IotaAddress,
     withdraw_amount: u64,
@@ -270,8 +267,8 @@ pub async fn prepare_withdraw_tx_data(
     let function = Identifier::new("withdraw").map_err(|e| anyhow!(e))?;
     let arguments = vec![
         ptb_builder.obj(ObjectArg::SharedObject {
-            id: smart_accoint_obj.0,
-            initial_shared_version: smart_accoint_obj.1,
+            id: smart_account_obj.0,
+            initial_shared_version: smart_account_obj.1,
             mutable: true,
         })?,
         ptb_builder.obj(ObjectArg::ImmOrOwnedObject(owner_cap_obj))?,
@@ -280,7 +277,7 @@ pub async fn prepare_withdraw_tx_data(
     ];
     ptb_builder.command(Command::move_call(
         package_id,
-        module.clone(),
+        module,
         function,
         vec![],
         arguments,
