@@ -77,6 +77,7 @@ pub(crate) trait NetworkClient: Send + Sync + Sized + 'static {
     ) -> ConsensusResult<BlockStream>;
 
     /// Subscribes to blocks from a peer after last_received round.
+    #[allow(dead_code)]
     async fn subscribe_block_bundles(
         &self,
         peer: AuthorityIndex,
@@ -150,6 +151,7 @@ pub(crate) trait NetworkService: Send + Sync + 'static {
     /// Handles the block and headers sent from the peer via subscription
     /// stream. Peer value can be trusted to be a valid authority index. But
     /// serialized_block must be verified before its contents are trusted.
+    #[allow(dead_code)]
     async fn handle_subscribed_block_bundles(
         &self,
         peer: AuthorityIndex,
