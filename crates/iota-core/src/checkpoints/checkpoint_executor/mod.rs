@@ -55,7 +55,7 @@ use iota_types::{
 use itertools::izip;
 use tap::{TapFallible, TapOptional};
 use tokio::{
-    sync::{broadcast, broadcast::error::RecvError},
+    sync::broadcast::{self, error::RecvError},
     task::JoinHandle,
     time::timeout,
 };
