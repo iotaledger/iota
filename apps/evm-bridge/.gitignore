@@ -1,0 +1,8 @@
+node_modules/
+/test-results/
+/playwright-report/
+/blob-report/
+/playwright/.cache/
+/wallet-dist-L1
+/wallet-dist-L2
+

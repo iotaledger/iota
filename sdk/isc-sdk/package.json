@@ -1,0 +1,57 @@
+{
+    "name": "@iota/isc-sdk",
+    "author": "IOTA Foundation <info@iota.org>",
+    "version": "0.0.0",
+    "description": "ISC SDK for interacting with IOTA Smart Contracts.",
+    "type": "commonjs",
+    "license": "Apache-2.0",
+    "main": "./dist/cjs/index.js",
+    "module": "./dist/esm/index.js",
+    "types": "./dist/cjs/index.d.ts",
+    "exports": {
+        ".": {
+            "import": "./dist/esm/index.js",
+            "require": "./dist/cjs/index.js"
+        }
+    },
+    "scripts": {
+        "clean": "rm -rf tsconfig.tsbuildinfo ./dist",
+        "build": "build-package",
+        "eslint:check": "eslint --max-warnings=0 \"./src/**/*.{js,ts}\"",
+        "eslint:fix": "pnpm eslint:check --fix",
+        "prettier:check": "prettier -c --ignore-unknown --ignore-path=.prettierignore .",
+        "prettier:fix": "prettier -w --ignore-unknown --ignore-path=.prettierignore .",
+        "lint": "pnpm eslint:check && pnpm prettier:check",
+        "lint:fix": "pnpm eslint:fix && pnpm prettier:fix",
+        "run:example": "tsx",
+        "test": "vitest"
+    },
+    "dependencies": {
+        "@iota/bcs": "workspace:*",
+        "@iota/dapp-kit": "workspace:*",
+        "@iota/iota-sdk": "workspace:*",
+        "@noble/hashes": "^1.4.0"
+    },
+    "devDependencies": {
+        "@iota/build-scripts": "workspace:*",
+        "@types/node": "^20.14.10",
+        "dotenv": "^16.4.5",
+        "ethers": "^6.13.5",
+        "tsx": "^3.12.7",
+        "typescript": "^5.5.3",
+        "vite": "^5.4.12",
+        "vite-plugin-dts": "^4.3.0",
+        "vitest": "^2.1.9",
+        "zod": "^3.21.4"
+    },
+    "lint-staged": {
+        "src/**/*.{ts,js,mjs}": [
+            "eslint --fix",
+            "prettier --write"
+        ],
+        "examples/**/*.{ts,js,mjs}": [
+            "eslint --fix",
+            "prettier --write"
+        ]
+    }
+}
