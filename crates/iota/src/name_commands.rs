@@ -908,6 +908,7 @@ impl AuctionCommand {
                 let auction_package_address = get_auction_package_address(&iota_client).await?;
                 let auction_house = get_auction_house(&iota_client, &graphql_client).await?;
 
+                // Checking if the auction does not exist or has been already claimed
                 let _ = auction_house.get_auction(&domain, &iota_client).await?;
 
                 let mut args = vec![
