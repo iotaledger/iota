@@ -575,6 +575,11 @@ impl NameCommand {
                 opts,
             } => {
                 let entry = get_registry_entry(&domain, &iota_client).await?;
+                if entry.name_record.is_leaf_record() {
+                    bail!(
+                        "cannot set target address for leaf subdomain; try removing and recreating the subdomain instead."
+                    );
+                }
                 let new_address =
                     get_identity_address(new_address.map(KeyIdentity::Address), context)?;
                 if entry
@@ -584,11 +589,7 @@ impl NameCommand {
                 {
                     bail!("target address is already set to the given value");
                 }
-                let Some(nft) = get_proxy_nft_by_id_opt(entry.id, &domain, context).await? else {
-                    bail!(
-                        "cannot set target address for leaf subdomain; try removing and recreating the subdomain instead."
-                    );
-                };
+                let nft = get_proxy_nft_by_id(entry.id, &domain, context).await?;
                 let iota_names_config = get_iota_names_config(&iota_client).await?;
 
                 let res = IotaClientCommands::Call {
@@ -719,13 +720,14 @@ impl NameCommand {
                 verbose,
             } => {
                 let entry = get_registry_entry(&domain, &iota_client).await?;
+                if entry.name_record.is_leaf_record() {
+                    bail!("cannot unset target address for leaf subdomain");
+                }
                 if entry.name_record.target_address.is_none() {
                     bail!("target address is already unset");
                 }
 
-                let Some(nft) = get_proxy_nft_by_id_opt(entry.id, &domain, context).await? else {
-                    bail!("cannot unset target address for leaf subdomain");
-                };
+                let nft = get_proxy_nft_by_id(entry.id, &domain, context).await?;
                 let iota_names_config = get_iota_names_config(&iota_client).await?;
 
                 let res = IotaClientCommands::Call {
@@ -1836,32 +1838,29 @@ async fn get_owned_nfts<T: DeserializeOwned + IotaNamesNft>(
         .collect::<Result<_, _>>()
 }
 
-async fn get_owned_nft_by_id_opt<T: DeserializeOwned + IotaNamesNft>(
+async fn get_owned_nft_by_id<T: DeserializeOwned + IotaNamesNft>(
     nft_id: ObjectID,
     address: Option<IotaAddress>,
     context: &mut WalletContext,
-) -> anyhow::Result<Option<T>> {
+) -> anyhow::Result<T> {
     let client = context.get_client().await?;
     let address = get_identity_address(address.map(KeyIdentity::Address), context)?;
-    let Ok(res) = client
+    let res = client
         .read_api()
         .get_object_with_options(nft_id, IotaObjectDataOptions::bcs_lossless())
         .await
-    else {
-        return Ok(None);
-    };
+        .map_err(|_| anyhow::anyhow!("no owned {} found for {nft_id}", T::TYPE_NAME))?;
     if !matches!(res.owner(), Some(Owner::AddressOwner(a)) if a == address) {
         bail!("NFT {nft_id} is not owned by {address}");
     }
 
     let data = res.data.expect("missing object data");
-    Ok(Some(
-        data.bcs
-            .expect("missing bcs")
-            .try_as_move()
-            .expect("invalid move type")
-            .deserialize::<T>()?,
-    ))
+    Ok(data
+        .bcs
+        .expect("missing bcs")
+        .try_as_move()
+        .expect("invalid move type")
+        .deserialize::<T>()?)
 }
 
 #[derive(Copy, Clone)]
@@ -1932,19 +1931,15 @@ async fn get_proxy_nft_by_name(
     })
 }
 
-async fn get_proxy_nft_by_id_opt(
+async fn get_proxy_nft_by_id(
     nft_id: ObjectID,
     domain: &Domain,
     context: &mut WalletContext,
-) -> anyhow::Result<Option<IotaNamesNftProxy>> {
+) -> anyhow::Result<IotaNamesNftProxy> {
     Ok(if domain.is_sld() {
-        get_owned_nft_by_id_opt(nft_id, None, context)
-            .await?
-            .map(IotaNamesNftProxy::Domain)
+        IotaNamesNftProxy::Domain(get_owned_nft_by_id(nft_id, None, context).await?)
     } else {
-        get_owned_nft_by_id_opt(nft_id, None, context)
-            .await?
-            .map(IotaNamesNftProxy::Subdomain)
+        IotaNamesNftProxy::Subdomain(get_owned_nft_by_id(nft_id, None, context).await?)
     })
 }
 
