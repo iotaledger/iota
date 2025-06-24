@@ -910,14 +910,22 @@ impl AuctionCommand {
                 mut opts,
             } => {
                 let auction_package_address = get_auction_package_address(&iota_client).await?;
-                let auction_house_id =
-                    get_auction_house_id(auction_package_address, &graphql_client).await?;
+                let auction_house = get_auction_house(&iota_client, &graphql_client).await?;
+
+                if auction_house
+                    .get_auction(&domain, &iota_client)
+                    .await
+                    .is_err()
+                {
+                    bail!("auction for \"{domain}\" does not exist or has already been claimed");
+                }
 
                 let mut args = vec![
                     "--move-call iota::tx_context::sender".to_string(),
                     "--assign sender".to_string(),
                     format!(
-                        "--move-call {auction_package_address}::auction::claim @{auction_house_id} '{domain}' @{IOTA_CLOCK_OBJECT_ID}",
+                        "--move-call {auction_package_address}::auction::claim @{} '{domain}' @{IOTA_CLOCK_OBJECT_ID}",
+                        auction_house.id
                     ),
                     "--assign nft".to_string(),
                     "--transfer-objects [nft] sender".to_string(),
@@ -939,12 +947,14 @@ impl AuctionCommand {
                 })
                 .await?
             }
-            Self::Metadata { domain } => NameCommandResult::AuctionMetadata(
-                get_auction_house(&iota_client, &graphql_client)
-                    .await?
-                    .get_auction(&domain, &iota_client)
-                    .await?,
-            ),
+            Self::Metadata { domain } => {
+                let auction_house = get_auction_house(&iota_client, &graphql_client).await?;
+                let Ok(auction) = auction_house.get_auction(&domain, &iota_client).await else {
+                    bail!("auction for \"{domain}\" does not exist or has already been claimed")
+                };
+
+                NameCommandResult::AuctionMetadata(auction)
+            }
             Self::Start {
                 domain,
                 amount,
