@@ -317,12 +317,14 @@ describe('passkey signer E2E testing', () => {
         expect(isValid).toBe(true);
     });
 
-    it.skip('should verify a transaction from a real passkey output', async () => {
+    it('should verify a transaction from a real passkey output', async () => {
         // generated test vector from a real iphone passkey output from browser app
-        // todo: needs data from deployed passkey poc app
-
-        const sig = fromB64('');
-        const txBytes = fromB64('');
+        const sig = fromB64(
+            'BiVJlg3liA6MaHQ0Fw9kdmBbj+SuuaKGMseZXPO6gx2XYx0AAAAAhgF7InR5cGUiOiJ3ZWJhdXRobi5nZXQiLCJjaGFsbGVuZ2UiOiJCUG9qdmNZOWJKRnNqZjJoa0lJX0dndWp0U0dNNlFRVW51Unk0VXhuRVp3Iiwib3JpZ2luIjoiaHR0cDovL2xvY2FsaG9zdDo1MTczIiwiY3Jvc3NPcmlnaW4iOmZhbHNlfWIC6iBZUmJCLqIIGi0pBiEDz+bklP3wAa/dI1d2A6MdJbpY5Ro5io1JsFcAo1TRlr8l4HSOIdmzRTl5Z6eTRtuwwAJOdot913xL+tExR8gymQe0uMmQWyuJgpM5kFcbHcVSmQ==',
+        );
+        const txBytes = fromB64(
+            'AAACAAgA8gUqAQAAAAAgxq0ACYa04TM9hVVLt1TRC4TycqR68k5AXNm7tAj38/ECAgABAQAAAQECAAABAQD0fqgf0aEoRcV3KtZGQhTJMLfkefcZUZm0FRv/o1CTSwKaP3c5GMVBY9ug8cgXS75q669v+5xLW+4KLFe1o+t4ClQ1AAAAAAAAIFnu374V6vCwfuDoQZ4di/jEzJgdUrOim0IpwVoDGluXq/FTzylxGxwQe0NAhJUaccqdd6Jlngv52iiewuhaHM9TNQAAAAAAACA3nRRejhjqviL59EEWo4Hp+GR1EL2rHlK9RLApwUwBqvR+qB/RoShFxXcq1kZCFMkwt+R59xlRmbQVG/+jUJNL6AMAAAAAAADgbzwAAAAAAAA=',
+        );
         const parsed = parseSerializedPasskeySignature(sig);
         expect(parsed.signatureScheme).toEqual('Passkey');
         const pubkey = new PasskeyPublicKey(parsed.publicKey);
