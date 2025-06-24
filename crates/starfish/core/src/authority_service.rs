@@ -413,17 +413,33 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
                 .map_err(ConsensusError::MalformedBlockHeader)?;
             let header_round = signed_block_header.round();
             if header_round >= verified_block.round() {
-                return Err(ConsensusError::TooBigHeaderRoundInABundle {
+                let e = Err(ConsensusError::TooBigHeaderRoundInABundle {
                     header_round,
                     block_round: verified_block.round(),
                 });
+                self.context
+                    .metrics
+                    .node_metrics
+                    .invalid_header_in_a_bundle
+                    .with_label_values(&[
+                        peer_hostname.as_str(),
+                        "handle_subscribed_block_bundle",
+                        "invalid round in header",
+                    ])
+                    .inc();
+                info!(
+                    "Invalid additional block header from {}: {}",
+                    peer,
+                    e.as_ref().unwrap_err()
+                );
+                return e;
             }
 
             if let Err(e) = self.block_verifier.verify(&signed_block_header) {
                 self.context
                     .metrics
                     .node_metrics
-                    .invalid_blocks
+                    .invalid_header_in_a_bundle
                     .with_label_values(&[
                         peer_hostname.as_str(),
                         "handle_subscribed_block_bundle",
