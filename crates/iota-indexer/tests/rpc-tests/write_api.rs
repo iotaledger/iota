@@ -433,7 +433,7 @@ fn test_repeatedly_update_display() {
 
 async fn update_display_object(
     address: IotaAddress,
-    addres_kp: &AccountKeyPair,
+    address_kp: &AccountKeyPair,
     client: &HttpClient,
     display_object_id: &ObjectID,
     display_obj_type_tag: TypeTag,
@@ -443,7 +443,7 @@ async fn update_display_object(
     execute_move_call(
         client,
         address,
-        addres_kp,
+        address_kp,
         IOTA_FRAMEWORK_PACKAGE_ID,
         "display".to_string(),
         "edit".to_string(),
@@ -460,7 +460,7 @@ async fn update_display_object(
 
 async fn bump_display_object_version(
     address: IotaAddress,
-    addres_kp: &AccountKeyPair,
+    address_kp: &AccountKeyPair,
     client: &HttpClient,
     display_object_id: &ObjectID,
     display_obj_type_tag: TypeTag,
@@ -468,7 +468,7 @@ async fn bump_display_object_version(
     execute_move_call(
         client,
         address,
-        addres_kp,
+        address_kp,
         IOTA_FRAMEWORK_PACKAGE_ID,
         "display".to_string(),
         "update_version".to_string(),
@@ -562,7 +562,7 @@ async fn increment_counter(
 
 async fn create_new_bear(
     address: IotaAddress,
-    addres_kp: &AccountKeyPair,
+    address_kp: &AccountKeyPair,
     client: &HttpClient,
     package_id: &ObjectID,
     name: &str,
@@ -593,7 +593,7 @@ async fn create_new_bear(
 
     let tx_builder = TestTransactionBuilder::new(address, gas, 1000);
     let tx_data = tx_builder.programmable(pt).build();
-    let signed_transaction = to_sender_signed_transaction(tx_data, addres_kp);
+    let signed_transaction = to_sender_signed_transaction(tx_data, address_kp);
     let (tx_bytes, signatures) = signed_transaction.to_tx_bytes_and_signatures();
 
     let res = client
@@ -629,12 +629,12 @@ async fn deploy_basics_pkg(
 
 async fn deploy_bear_pkg(
     address: IotaAddress,
-    addres_kp: &AccountKeyPair,
+    address_kp: &AccountKeyPair,
     client: &HttpClient,
 ) -> (IotaTransactionBlockResponse, ObjectID) {
     deploy_package(
         address,
-        addres_kp,
+        address_kp,
         client,
         "../../examples/trading/contracts/demo",
     )
