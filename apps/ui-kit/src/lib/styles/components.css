@@ -432,6 +432,34 @@
         border-color: var(--chip-border-color-brand);
     }
 
+    .chip-bg-selected-overlay {
+        background-color: var(--chip-bg-selected-overlay);
+    }
+
+    .chip-outline-color {
+        outline-color: var(--chip-outline-color);
+    }
+
+    .chip-outline-color-hover {
+        outline-color: var(--chip-outline-color-hover);
+    }
+
+    .chip-outline-color-active {
+        outline-color: var(--chip-outline-color-active);
+    }
+
+    .chip-bg-color-hover {
+        background-color: var(--chip-bg-color-hover);
+    }
+
+    .chip-bg-color-active {
+        background-color: var(--chip-bg-color-active);
+    }
+
+    .chip-bg-color-focus {
+        background-color: var(--chip-bg-color-focus);
+    }
+
     /* DISPLAY STATS */
     .display-stats-bg-default {
         background-color: var(--display-stats-bg-default);

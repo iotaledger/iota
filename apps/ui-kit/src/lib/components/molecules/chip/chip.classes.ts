@@ -13,11 +13,11 @@ export const BACKGROUND_CLASSES: Record<ChipType, string> = {
     [ChipType.Error]: 'bg-error-surface',
 };
 
-const STATE_LAYER_OUTLINE =
-    'outline outline-1 outline-transparent hover:outline-shader-primary-light-8 active:outline-shader-primary-light-12 dark:hover:outline-shader-primary-dark-8 dark:active:outline-shader-primary-dark-12';
+export const STATE_LAYER_OUTLINE =
+    'outline outline-1 hover:chip-outline-color-hover active:chip-outline-color-active';
 
-const STATE_LAYER_BG_CLASSES =
-    'hover:bg-shader-primary-light-8 active:bg-shader-primary-light-12 dark:hover:bg-shader-primary-dark-8 dark:active:bg-shader-primary-dark-12 focus:bg-shader-primary-light-12 dark:focus:bg-shader-primary-dark-12';
+export const STATE_LAYER_BG_CLASSES =
+    'hover:chip-bg-color-hover active:chip-bg-color-active focus:chip-bg-color-focus';
 
 export const STATE_LAYER_CLASSES = `${STATE_LAYER_OUTLINE} ${STATE_LAYER_BG_CLASSES}`;
 
@@ -25,7 +25,7 @@ export const BACKGROUND_CLASSES_SELECTED: Partial<Record<ChipType, string>> = {
     [ChipType.Outline]: 'chip-bg-selected-outline',
 };
 
-export const SELECTED_OVERLAY = 'outline-shader-primary-dark-16 bg-shader-primary-dark-16';
+export const SELECTED_OVERLAY = 'chip-bg-selected-overlay';
 
 export const TEXT_COLOR_SELECTED: Partial<Record<ChipType, string>> = {
     [ChipType.Outline]: 'chip-text-secondary',

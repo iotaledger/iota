@@ -179,6 +179,15 @@
     --chip-focus-ring: theme('colors.iota-primary.30');
     --chip-border-color-brand: theme('colors.iota-primary.30');
     --chip-text-brand: theme('colors.iota-primary.100');
+    --chip-bg-selected-overlay: theme('colors.shader-primary-light.16');
+
+    --chip-outline-color: theme('colors.shader-primary-light.16');
+    --chip-outline-color-hover: theme('colors.shader-primary-light.8');
+    --chip-outline-color-active: theme('colors.shader-primary-light.12');
+
+    --chip-bg-color-hover: theme('colors.shader-primary-light.8');
+    --chip-bg-color-active: theme('colors.shader-primary-light.12');
+    --chip-bg-color-focus: theme('colors.shader-primary-light.12');
 
     /* DISPLAY STATS */
     --display-stats-bg-default: theme('colors.iota-neutral.96');
@@ -418,6 +427,15 @@
     --chip-focus-ring: theme('colors.iota-primary.80');
     --chip-border-color-brand: theme('colors.iota-primary.30');
     --chip-text-brand: theme('colors.iota-primary.100');
+    --chip-bg-selected-overlay: theme('colors.shader-primary-dark.16');
+
+    --chip-outline-color: theme('colors.shader-primary-dark.16');
+    --chip-outline-color-hover: theme('colors.shader-primary-dark.8');
+    --chip-outline-color-active: theme('colors.shader-primary-dark.12');
+
+    --chip-bg-color-hover: theme('colors.shader-primary-dark.8');
+    --chip-bg-color-active: theme('colors.shader-primary-dark.12');
+    --chip-bg-color-focus: theme('colors.shader-primary-dark.12');
 
     /* DISPLAY STATS */
     --display-stats-bg-default: theme('colors.iota-neutral.10');
@@ -666,6 +684,15 @@
     --chip-focus-ring: theme('colors.names-primary.80');
     --chip-border-color-brand: theme('colors.iota-primary.30');
     --chip-text-brand: theme('colors.iota-primary.100');
+    --chip-bg-selected-overlay: theme('colors.shader-primary-dark.16');
+
+    --chip-outline-color: theme('colors.shader-primary-dark.16');
+    --chip-outline-color-hover: theme('colors.shader-primary-dark.8');
+    --chip-outline-color-active: theme('colors.shader-primary-dark.12');
+
+    --chip-bg-color-hover: theme('colors.shader-primary-dark.8');
+    --chip-bg-color-active: theme('colors.shader-primary-dark.12');
+    --chip-bg-color-focus: theme('colors.shader-primary-dark.12');
 
     /* DISPLAY STATS */
     --display-stats-bg-default: theme('colors.names-neutral.10');

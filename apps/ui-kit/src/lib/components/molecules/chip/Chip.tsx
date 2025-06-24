@@ -2,7 +2,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import cx from 'classnames';
-// import { ChipState } from './chip.enums';
 import { ChipType } from './chip.enums';
 import {
     BORDER_CLASSES,
@@ -13,7 +12,6 @@ import {
     FOCUS_CLASSES,
     TEXT_COLOR_SELECTED,
     BACKGROUND_CLASSES_SELECTED,
-    // BORDER_CLASSES_SELECTED,
     SELECTED_OVERLAY,
 } from './chip.classes';
 import { ButtonUnstyled } from '@/components/atoms/button';
@@ -21,7 +19,7 @@ import { Close } from '@iota/apps-ui-icons';
 
 interface ChipProps {
     label: string;
-    type: ChipType;
+    type?: ChipType;
     selected?: boolean;
     disabled?: boolean;
     showClose?: boolean;
@@ -34,7 +32,7 @@ interface ChipProps {
 
 export function Chip({
     label,
-    type,
+    type = ChipType.Outline,
     selected,
     disabled,
     showClose,
@@ -45,6 +43,10 @@ export function Chip({
     trailingElement,
 }: ChipProps) {
     const isOutlineSelected = type === ChipType.Outline && selected;
+    const outlineStyle =
+        (type === ChipType.Outline && selected) || (type !== ChipType.Outline && !selected)
+            ? 'outline-transparent'
+            : 'chip-outline-color';
 
     return (
         <ButtonUnstyled
@@ -68,8 +70,8 @@ export function Chip({
                     showClose ? 'pr-xs' : 'pr-sm',
                     ROUNDED_CLASS,
                     isOutlineSelected ? TEXT_COLOR_SELECTED[ChipType.Outline] : TEXT_COLOR[type],
+                    outlineStyle,
                     !disabled && STATE_LAYER_CLASSES,
-                    selected && !disabled && 'relative z-0',
                     selected && !disabled && type !== ChipType.Outline && SELECTED_OVERLAY,
                 )}
             >

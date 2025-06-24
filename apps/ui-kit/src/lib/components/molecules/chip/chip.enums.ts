@@ -8,8 +8,3 @@ export enum ChipType {
     Brand = 'brand',
     Error = 'error',
 }
-
-export enum ChipState {
-    Default = 'default',
-    Selected = 'selected',
-}

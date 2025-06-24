@@ -25,7 +25,7 @@ type Story = StoryObj<typeof meta>;
 
 export const Default: Story = {
     args: {
-        label: 'Badge',
+        label: 'Label',
         type: ChipType.Outline,
     },
     argTypes: {
