@@ -447,9 +447,8 @@ impl CheckpointExecutor {
     ) {
         if let Some(tx) = &self.grpc_checkpoint_summary_tx {
             let summary = CertifiedCheckpointSummary::from(checkpoint.clone());
-            let versioned_summary = GrpcCertifiedCheckpointSummary::from(summary);
-            let arc_summary = Arc::new(versioned_summary);
-            let _ = tx.send(arc_summary);
+            let versioned_summary = Arc::new(GrpcCertifiedCheckpointSummary::from(summary));
+            let _ = tx.send(versioned_summary);
         }
         if let Some(data_tx) = &self.grpc_checkpoint_data_tx {
             let checkpoint_data = crate::checkpoints::checkpoint_executor::data_ingestion_handler::load_checkpoint_data(
@@ -459,9 +458,8 @@ impl CheckpointExecutor {
                 self.checkpoint_store.clone(),
                 all_tx_digests,
             ).expect("Failed to load full CheckpointData");
-            let versioned_data = GrpcCheckpointData::from(checkpoint_data);
-            let full_data = Arc::new(versioned_data);
-            let _ = data_tx.send(full_data);
+            let versioned_data = Arc::new(GrpcCheckpointData::from(checkpoint_data));
+            let _ = data_tx.send(versioned_data);
         }
     }
 
