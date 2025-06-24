@@ -168,7 +168,7 @@ impl Indexer {
                         .map(|seq| seq + 1)
                         .unwrap_or_default();
 
-                    warn!(
+                    info!(
                         "[gRPC][Indexer] Starting/resuming from checkpoint {}",
                         current_watermark
                     );
@@ -182,7 +182,7 @@ impl Indexer {
                     .await
                     {
                         Ok(()) => {
-                            warn!("[gRPC][Indexer] Stream completed normally");
+                            info!("[gRPC][Indexer] Stream completed normally");
                             break;
                         }
                         Err(e) => {
@@ -350,7 +350,7 @@ pub async fn run_grpc_checkpoint_workerpool_ingestion(
     let mut client = GrpcNodeClient::connect(&grpc_url)
         .await
         .map_err(|e| IndexerError::Generic(format!("Failed to connect to gRPC: {e}")))?;
-    warn!(
+    info!(
         "[gRPC][Indexer] starting stream from watermark {} (WorkerPool mode)",
         start_watermark
     );
