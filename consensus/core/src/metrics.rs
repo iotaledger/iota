@@ -2,8 +2,12 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::sync::Arc;
+use std::sync::{
+    Arc,
+    atomic::{AtomicU64, Ordering},
+};
 
+use consensus_config::AuthorityIndex;
 use prometheus::{
     Histogram, HistogramVec, IntCounter, IntCounterVec, IntGauge, IntGaugeVec, Registry,
     exponential_buckets, register_histogram_vec_with_registry, register_histogram_with_registry,
@@ -135,6 +139,10 @@ pub(crate) struct NodeMetrics {
     pub(crate) network_excluded_ancestors_sent_to_fetch: IntCounterVec,
     pub(crate) network_excluded_ancestors_count_by_authority: IntCounterVec,
     pub(crate) invalid_blocks: IntCounterVec,
+    pub(crate) semantically_invalid_blocks: IntCounterVec,
+    pub(crate) syntactically_invalid_blocks: IntCounterVec,
+    pub(crate) equivocating_rounds_by_authority: IntCounterVec,
+    pub(crate) missing_proposals_by_authority: IntCounterVec,
     pub(crate) rejected_blocks: IntCounterVec,
     pub(crate) rejected_future_blocks: IntCounterVec,
     pub(crate) subscribed_blocks: IntCounterVec,
@@ -429,6 +437,30 @@ impl NodeMetrics {
                 "invalid_blocks",
                 "Number of invalid blocks per peer authority",
                 &["authority", "source", "error"],
+                registry,
+            ).unwrap(),
+            semantically_invalid_blocks: register_int_counter_vec_with_registry!(
+                "semantically_invalid_blocks",
+                "Number of semantically invalid blocks per peer authority",
+                &["authority", "source", "error"],
+                registry,
+             ).unwrap(),
+             syntactically_invalid_blocks: register_int_counter_vec_with_registry!(
+                "syntactically_invalid_blocks",
+                "Number of syntactically invalid blocks per peer authority",
+                &["authority", "source", "error"],
+                registry,
+            ).unwrap(),
+            equivocating_rounds_by_authority: register_int_counter_vec_with_registry!(
+                "equivocating_rounds_by_authority",
+                "Registers the number of rounds when the authority sent an equivocating block.",
+                &["authority"],
+                registry,
+            ).unwrap(),
+            missing_proposals_by_authority: register_int_counter_vec_with_registry!(
+                "missing_proposals_by_authority",
+                "Registers the number of blocks that an authority failed to send.",
+                &["authority"],
                 registry,
             ).unwrap(),
             rejected_blocks: register_int_counter_vec_with_registry!(
@@ -790,10 +822,49 @@ impl NodeMetrics {
 // Metrics stored related to the current epoch used to calculate the validator
 // score.
 #[derive(Clone)]
-pub(crate) struct ValidatorScoreMetrics {}
+pub(crate) struct ValidatorScoreMetrics {
+    // Each entry in the vector corresponds to a counter relative to an active validator, indexed
+    // by AuthorityIndex. For each of those validators, we count the number of times that a
+    // semantically invalid block signed by the validator was already verified in the epoch.
+    #[allow(dead_code)]
+    pub(crate) semantically_invalid_blocks: Arc<Vec<AtomicU64>>,
+    // Each entry in the vector corresponds to a counter relative to an active validator, indexed
+    // by AuthorityIndex. For each of those validators, we count the number of syntactically
+    // invalid blocks sent by the validator that were already handled in the epoch.
+    pub(crate) syntactically_invalid_blocks: Arc<Vec<AtomicU64>>,
+    // Each entry in the vector corresponds to a counter relative to an active validator, indexed
+    // by AuthorityIndex. For each of those validators, we count the number of blocks that the
+    // validator failed to propose.
+    pub(crate) missing_proposals_by_authority: Arc<Vec<AtomicU64>>,
+    // Each entry in the vector corresponds to a counter relative to an active validator, indexed
+    // by AuthorityIndex. For each of those validators, we count the number of rounds
+    // they sent equivocating blocks.
+    pub(crate) equivocating_rounds: Arc<Vec<AtomicU64>>,
+}
 
 impl ValidatorScoreMetrics {
     pub(crate) fn new(committee_size: usize) -> Self {
-        Self {}
+        let mut semantically_invalid_blocks_inner = vec![];
+        semantically_invalid_blocks_inner.resize_with(committee_size, || AtomicU64::new(0));
+
+        let mut syntactically_invalid_blocks_inner = vec![];
+        syntactically_invalid_blocks_inner.resize_with(committee_size, || AtomicU64::new(0));
+
+        let mut missing_proposals_by_authority_inner = vec![];
+        missing_proposals_by_authority_inner.resize_with(committee_size, || AtomicU64::new(0));
+
+        let mut equivocating_rounds_inner = vec![];
+        equivocating_rounds_inner.resize_with(committee_size, || AtomicU64::new(0));
+
+        Self {
+            semantically_invalid_blocks: Arc::new(semantically_invalid_blocks_inner),
+            syntactically_invalid_blocks: Arc::new(syntactically_invalid_blocks_inner),
+            missing_proposals_by_authority: Arc::new(missing_proposals_by_authority_inner),
+            equivocating_rounds: Arc::new(equivocating_rounds_inner),
+        }
+    }
+
+    pub(crate) fn update_semantically_invalid_blocks(&self, validator: AuthorityIndex) {
+        self.semantically_invalid_blocks[validator.value()].fetch_add(1, Ordering::Relaxed);
     }
 }
