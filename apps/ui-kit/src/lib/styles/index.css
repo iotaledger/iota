@@ -170,7 +170,8 @@
     --card-body-subtitle-color: theme('colors.iota-neutral.40');
 
     /* CHIP */
-    --chip-bg-selected: theme('colors.iota-primary.90');
+    --chip-bg-selected-outline: theme('colors.iota-primary.90');
+    --chip-bg-elevated: theme('colors.iota-primary.90');
     --chip-bg-brand: theme('colors.iota-primary.30');
     --chip-border-default: theme('colors.iota-neutral.70');
     --chip-text-default: theme('colors.iota-neutral.40');
@@ -408,7 +409,8 @@
     --card-body-subtitle-color: theme('colors.iota-neutral.60');
 
     /* CHIP */
-    --chip-bg-selected: theme('colors.iota-primary.10');
+    --chip-bg-selected-outline: theme('colors.iota-primary.10');
+    --chip-bg-elevated: theme('colors.iota-primary.10');
     --chip-bg-brand: theme('colors.iota-primary.30');
     --chip-border-default: theme('colors.iota-neutral.40');
     --chip-text-default: theme('colors.iota-neutral.60');
@@ -655,7 +657,8 @@
     --card-body-subtitle-color: theme('colors.names-neutral.60');
 
     /* CHIP */
-    --chip-bg-selected: theme('colors.names-primary.10');
+    --chip-bg-selected-outline: theme('colors.names-primary.10');
+    --chip-bg-elevated: theme('colors.names-neutral.12');
     --chip-bg-brand: theme('colors.iota-primary.30');
     --chip-border-default: theme('colors.names-neutral.40');
     --chip-text-default: theme('colors.names-neutral.60');

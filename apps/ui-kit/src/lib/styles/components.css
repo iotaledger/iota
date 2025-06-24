@@ -396,8 +396,12 @@
 
     /* CHIP */
 
-    .chip-bg-selected {
-        background-color: var(--chip-bg-selected);
+    .chip-bg-selected-outline {
+        background-color: var(--chip-bg-selected-outline);
+    }
+
+    .chip-bg-elevated {
+        background-color: var(--chip-bg-elevated);
     }
 
     .chip-border-default {

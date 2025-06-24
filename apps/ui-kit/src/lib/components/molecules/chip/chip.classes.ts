@@ -6,8 +6,8 @@ import { ChipType } from './chip.enums';
 export const ROUNDED_CLASS = 'rounded-full';
 
 export const BACKGROUND_CLASSES: Record<ChipType, string> = {
-    [ChipType.Default]: 'bg-transparent',
-    [ChipType.Selected]: 'chip-bg-selected',
+    [ChipType.Outline]: 'bg-transparent',
+    [ChipType.Elevated]: 'chip-bg-elevated',
     [ChipType.Success]: 'bg-success-surface',
     [ChipType.Brand]: 'chip-bg-brand',
     [ChipType.Error]: 'bg-error-surface',
@@ -21,16 +21,26 @@ const STATE_LAYER_BG_CLASSES =
 
 export const STATE_LAYER_CLASSES = `${STATE_LAYER_OUTLINE} ${STATE_LAYER_BG_CLASSES}`;
 
+export const BACKGROUND_CLASSES_SELECTED: Partial<Record<ChipType, string>> = {
+    [ChipType.Outline]: 'chip-bg-selected-outline',
+};
+
+export const SELECTED_OVERLAY = 'outline-shader-primary-dark-16 bg-shader-primary-dark-16';
+
+export const TEXT_COLOR_SELECTED: Partial<Record<ChipType, string>> = {
+    [ChipType.Outline]: 'chip-text-secondary',
+};
+
 export const BORDER_CLASSES: Record<ChipType, string> = {
-    [ChipType.Default]: 'chip-border-default',
-    [ChipType.Selected]: 'border-transparent',
+    [ChipType.Outline]: 'chip-border-default',
+    [ChipType.Elevated]: 'border-transparent',
     [ChipType.Success]: 'border-success-surface',
     [ChipType.Brand]: 'chip-border-color-brand',
     [ChipType.Error]: 'border-error-surface',
 };
 export const TEXT_COLOR: Record<ChipType, string> = {
-    [ChipType.Default]: 'chip-text-default',
-    [ChipType.Selected]: 'chip-text-secondary',
+    [ChipType.Outline]: 'chip-text-default',
+    [ChipType.Elevated]: 'chip-text-secondary',
     [ChipType.Success]: 'chip-text-secondary',
     [ChipType.Brand]: 'chip-text-brand',
     [ChipType.Error]: 'chip-text-secondary',
