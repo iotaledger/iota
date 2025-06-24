@@ -27,7 +27,7 @@ async fn test_checkpoint_sync_performance_rest() {
     // Prepare DB and indexer
     let db_url = "postgres://postgres:postgrespw@localhost:5432/iota_indexer_perf_rest".to_string();
     let rpc_url = cluster.rpc_url().to_string();
-    let (store, handle) = start_test_indexer(
+    let (store, handle, _cancel) = start_test_indexer(
         db_url.clone(),
         true,
         None,
@@ -173,7 +173,7 @@ async fn test_checkpoint_sync_performance_file() {
 
     // Now start the indexer with the populated checkpoint directory
     let db_url = "postgres://postgres:postgrespw@localhost:5432/iota_indexer_perf_file".to_string();
-    let (store, handle) = iota_indexer::test_utils::start_test_indexer(
+    let (store, handle, _cancel) = iota_indexer::test_utils::start_test_indexer(
         db_url.clone(),
         true,
         None,

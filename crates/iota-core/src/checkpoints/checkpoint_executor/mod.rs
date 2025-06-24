@@ -40,6 +40,7 @@ use iota_types::{
     effects::{TransactionEffects, TransactionEffectsAPI},
     error::IotaResult,
     executable_transaction::VerifiedExecutableTransaction,
+    full_checkpoint_content::CheckpointData,
     grpc::{
         CertifiedCheckpointSummary as GrpcCertifiedCheckpointSummary,
         CheckpointData as GrpcCheckpointData,

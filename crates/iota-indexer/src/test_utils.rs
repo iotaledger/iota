@@ -12,7 +12,9 @@ use tokio_util::sync::CancellationToken;
 
 use crate::{
     IndexerMetrics,
-    config::{IngestionConfig, IotaNamesOptions, PruningOptions, SnapshotLagConfig},
+    config::{
+        IngestionConfig, IngestionSources, IotaNamesOptions, PruningOptions, SnapshotLagConfig,
+    },
     db::{ConnectionPool, ConnectionPoolConfig, PoolConnection, new_connection_pool},
     errors::IndexerError,
     indexer::Indexer,
@@ -140,6 +142,7 @@ pub async fn start_test_indexer_impl(
                 iota_names_options: IotaNamesOptions::default(),
                 rpc_address: reader_mode_rpc_url.parse().unwrap(),
                 rpc_client_url: rpc_url,
+                grpc_client_url: None,
             };
             let pool = store.blocking_cp();
             tokio::spawn(async move { Indexer::start_reader(&config, &registry, pool).await })
@@ -195,18 +198,18 @@ pub async fn start_test_indexer_grpc(
     data_ingestion_path: Option<PathBuf>,
     cancel: CancellationToken,
 ) -> (PgIndexerStore, JoinHandle<Result<(), IndexerError>>) {
-    let config = IndexerConfig {
-        db_url: Some(db_url.clone().into()),
-        grpc_client_url: Some(grpc_url),
-        reset_db,
-        fullnode_sync_worker: true,
-        rpc_server_worker: false,
-        data_ingestion_path,
+    let config = IngestionConfig {
+        sources: IngestionSources {
+            data_ingestion_path,
+            remote_store_url: None,
+            rpc_client_url: None,
+            grpc_client_url: Some(grpc_url.parse().expect("Invalid gRPC URL")),
+        },
         ..Default::default()
     };
 
-    let store = create_pg_store(config.get_db_url().unwrap(), reset_db);
-    if config.reset_db {
+    let store = create_pg_store(&db_url, reset_db);
+    if reset_db {
         crate::db::reset_database(&mut store.blocking_cp().get().unwrap()).unwrap();
     }
     if let Some(db_init_hook) = db_init_hook {
@@ -221,7 +224,11 @@ pub async fn start_test_indexer_grpc(
             store_clone,
             indexer_metrics,
             SnapshotLagConfig::default(),
-            None,
+            PruningOptions {
+                epochs_to_keep: std::env::var("EPOCHS_TO_KEEP")
+                    .map(|s| s.parse::<u64>().ok())
+                    .unwrap_or_else(|_e| None),
+            },
             cancel,
         )
         .await

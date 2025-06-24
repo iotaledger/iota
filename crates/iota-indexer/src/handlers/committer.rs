@@ -7,7 +7,7 @@ use std::collections::{BTreeMap, HashMap};
 use iota_types::messages_checkpoint::CheckpointSequenceNumber;
 use tap::tap::TapFallible;
 use tokio_util::sync::CancellationToken;
-use tracing::{error, info, instrument, warn};
+use tracing::{error, info, instrument};
 
 use super::{CheckpointDataToCommit, EpochToCommit};
 use crate::{metrics::IndexerMetrics, store::IndexerStore, types::IndexerResult};
@@ -217,7 +217,6 @@ async fn commit_checkpoints<S>(
         last_checkpoint_seq,
         tx_count,
     );
-
     metrics
         .latest_tx_checkpoint_sequence_number
         .set(last_checkpoint_seq as i64);

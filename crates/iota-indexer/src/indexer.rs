@@ -73,18 +73,6 @@ impl Indexer {
             .expect("Failed to get latest tx checkpoint sequence number from DB")
             .map(|seq| seq + 1)
             .unwrap_or_default();
-        let download_queue_size = env::var("DOWNLOAD_QUEUE_SIZE")
-            .unwrap_or_else(|_| DOWNLOAD_QUEUE_SIZE.to_string())
-            .parse::<usize>()
-            .expect("Invalid DOWNLOAD_QUEUE_SIZE");
-        let ingestion_reader_timeout_secs = env::var("INGESTION_READER_TIMEOUT_SECS")
-            .unwrap_or_else(|_| INGESTION_READER_TIMEOUT_SECS.to_string())
-            .parse::<u64>()
-            .expect("Invalid INGESTION_READER_TIMEOUT_SECS");
-        let data_limit = std::env::var("CHECKPOINT_PROCESSING_BATCH_DATA_LIMIT")
-            .unwrap_or(CHECKPOINT_PROCESSING_BATCH_DATA_LIMIT.to_string())
-            .parse::<usize>()
-            .unwrap();
         let extra_reader_options = ReaderOptions {
             batch_size: config.checkpoint_download_queue_size,
             timeout_secs: config.checkpoint_download_timeout,
@@ -120,52 +108,8 @@ impl Indexer {
             store.persist_protocol_configs_and_feature_flags(chain_id)?;
         }
 
-        let mut executor = IndexerExecutor::new(
-            ShimIndexerProgressStore::new(vec![
-                ("primary".to_string(), primary_watermark),
-                ("object_snapshot".to_string(), object_snapshot_watermark),
-            ]),
-            1,
-            DataIngestionMetrics::new(&Registry::new()),
-            cancel.child_token(),
-        );
-        let worker = new_handlers(store, metrics, primary_watermark, cancel.clone()).await?;
-        let worker_pool = WorkerPool::new(
-            worker,
-            "primary".to_string(),
-            config.checkpoint_download_queue_size,
-            Default::default(),
-        );
-
-        executor.register(worker_pool).await?;
-
-        let worker_pool = WorkerPool::new(
-            object_snapshot_worker,
-            "object_snapshot".to_string(),
-            config.checkpoint_download_queue_size,
-            Default::default(),
-        );
-        executor.register(worker_pool).await?;
-        info!("Starting data ingestion executor...");
-        executor
-            .run(
-                config
-                    .sources
-                    .data_ingestion_path
-                    .clone()
-                    .unwrap_or(tempfile::tempdir().unwrap().into_path()),
-                config
-                    .sources
-                    .remote_store_url
-                    .as_ref()
-                    .map(|url| url.as_str().to_owned()),
-                vec![],
-                extra_reader_options,
-            )
-            .await?;
-
         // Branch: gRPC or REST.
-        if let Some(grpc_url) = &config.grpc_client_url {
+        if let Some(grpc_url) = &config.sources.grpc_client_url {
             println!(
                 "Using gRPC checkpoint ingestion from {} (with WorkerPool)",
                 grpc_url
@@ -178,7 +122,7 @@ impl Indexer {
                 cancel.clone(),
             )
             .await?;
-            let concurrency = download_queue_size;
+            let concurrency = config.checkpoint_download_queue_size;
             let (tx, rx) = tokio::sync::mpsc::channel::<Arc<CheckpointData>>(concurrency);
             let worker_pool = WorkerPool::new(
                 worker,
@@ -187,10 +131,6 @@ impl Indexer {
                 Default::default(),
             );
 
-            // Fix: Use unbounded channel to prevent backpressure blocking
-            // The key issue was that gRPC flow had no one reading from
-            // pool_status_receiver, causing WorkerPool to block after
-            // MAX_CHECKPOINTS_IN_PROGRESS (~10000) updates
             let (pool_status_sender, mut pool_status_receiver) = tokio::sync::mpsc::channel(100);
 
             // Spawn task to consume progress updates (prevents blocking)
@@ -234,7 +174,7 @@ impl Indexer {
                     );
 
                     match run_grpc_checkpoint_workerpool_ingestion(
-                        grpc_url_owned.clone(),
+                        grpc_url_owned.clone().to_string(),
                         tx.clone(),
                         current_watermark,
                         cancel.clone(),
@@ -285,10 +225,12 @@ impl Indexer {
             info!(
                 "Using REST checkpoint ingestion from {}",
                 config
+                    .sources
                     .remote_store_url
                     .as_ref()
-                    .unwrap_or(&config.rpc_client_url)
+                    .unwrap_or(&config.sources.rpc_client_url.as_ref().unwrap())
             );
+
             let mut executor = IndexerExecutor::new(
                 ShimIndexerProgressStore::new(vec![
                     ("primary".to_string(), primary_watermark),
@@ -302,7 +244,7 @@ impl Indexer {
             let worker_pool = WorkerPool::new(
                 worker,
                 "primary".to_string(),
-                download_queue_size,
+                config.checkpoint_download_queue_size,
                 Default::default(),
             );
 
@@ -311,7 +253,7 @@ impl Indexer {
             let worker_pool = WorkerPool::new(
                 object_snapshot_worker,
                 "object_snapshot".to_string(),
-                download_queue_size,
+                config.checkpoint_download_queue_size,
                 Default::default(),
             );
             executor.register(worker_pool).await?;
@@ -319,10 +261,15 @@ impl Indexer {
             executor
                 .run(
                     config
+                        .sources
                         .data_ingestion_path
                         .clone()
                         .unwrap_or(tempfile::tempdir().unwrap().into_path()),
-                    config.remote_store_url.clone(),
+                    config
+                        .sources
+                        .remote_store_url
+                        .as_ref()
+                        .map(|url| url.as_str().to_owned()),
                     vec![],
                     extra_reader_options,
                 )

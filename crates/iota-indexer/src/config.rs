@@ -103,6 +103,9 @@ pub struct JsonRpcConfig {
 
     #[clap(long)]
     pub rpc_client_url: String,
+
+    #[clap(long)]
+    pub grpc_client_url: Option<String>,
 }
 
 #[derive(Args, Debug, Default, Clone)]
@@ -116,6 +119,9 @@ pub struct IngestionSources {
 
     #[arg(long)]
     pub rpc_client_url: Option<Url>,
+
+    #[arg(long)]
+    pub grpc_client_url: Option<Url>,
 }
 
 #[derive(Args, Debug, Clone)]
@@ -256,6 +262,8 @@ pub mod deprecated {
         pub db_name: Option<String>,
         #[arg(long, default_value = "http://0.0.0.0:9000", global = true)]
         pub rpc_client_url: String,
+        #[arg(long, default_value = None, global = true)]
+        pub grpc_client_url: Option<String>,
         #[arg(long, default_value = Some("http://0.0.0.0:9000/api/v1"), global = true)]
         pub remote_store_url: Option<String>,
         #[arg(long, default_value = "0.0.0.0", global = true)]
@@ -340,6 +348,7 @@ pub mod deprecated {
                 db_port: None,
                 db_name: None,
                 rpc_client_url: "http://127.0.0.1:9000".to_string(),
+                grpc_client_url: None,
                 remote_store_url: Some("http://127.0.0.1:9000/api/v1".to_string()),
                 client_metric_host: "0.0.0.0".to_string(),
                 client_metric_port: 9184,
@@ -435,6 +444,7 @@ pub mod deprecated {
                         old_conf.rpc_server_port,
                     ),
                     rpc_client_url: old_conf.rpc_client_url,
+                    grpc_client_url: old_conf.grpc_client_url,
                 })
             } else if old_conf.fullnode_sync_worker {
                 Command::Indexer {
@@ -445,6 +455,9 @@ pub mod deprecated {
                                 url.parse().expect("Remote Store URL should be correct")
                             }),
                             rpc_client_url: Some(rpc_client_url_parsed),
+                            grpc_client_url: old_conf
+                                .grpc_client_url
+                                .map(|url| url.parse().expect("GRPC Client url should be valid")),
                         },
                         checkpoint_download_queue_size: download_queue_size,
                         checkpoint_download_timeout: ingestion_reader_timeout_secs,

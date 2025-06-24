@@ -288,6 +288,7 @@ fn start_indexer_reader(fullnode_rpc_url: impl Into<String>, database_name: Opti
         iota_names_options: IotaNamesOptions::default(),
         rpc_address: SocketAddr::new(DEFAULT_INDEXER_IP.parse().unwrap(), port),
         rpc_client_url: fullnode_rpc_url.into(),
+        grpc_client_url: None,
     };
 
     let pool = new_connection_pool(
