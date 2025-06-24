@@ -15,7 +15,7 @@ use iota_sdk::{
         programmable_transaction_builder::ProgrammableTransactionBuilder,
         quorum_driver_types::ExecuteTransactionRequestType,
         signature::GenericSignature,
-        transaction::{Command, GasData, ObjectArg, Transaction, TransactionData, TransactionKind},
+        transaction::{Command, ObjectArg, Transaction, TransactionData},
     },
 };
 use move_core_types::language_storage::StructTag;
@@ -44,7 +44,7 @@ pub async fn publish_account_abstraction_package(
     keystore: &FileBasedKeystore,
 ) -> Result<IotaTransactionBlockResponse> {
     // Build the Move package from source
-    let compiled_package = compile_package("../../aa_move")?;
+    let compiled_package = compile_package("../aa_move")?;
 
     // Get multisig_addr coin for payment
     let multisig_addr_gas_coin = get_coin(iota_client, multisig_addr).await?;
@@ -292,16 +292,13 @@ pub async fn prepare_withdraw_tx_data(
         .await?;
     let alice_gas_coin_for_sponsoring = &alice_gas_coin.data[2];
 
-    let gas_data = GasData {
-        payment: vec![alice_gas_coin_for_sponsoring.object_ref()],
-        owner: alice_addr,
-        price: gas_price,
-        budget: GAS_BUDGET,
-    };
-    let withdraw_tx_data = TransactionData::new_with_gas_data(
-        TransactionKind::programmable(ptb),
+    let withdraw_tx_data = TransactionData::new_programmable_allow_sponsor(
         multisig_addr,
-        gas_data.clone(),
+        vec![alice_gas_coin_for_sponsoring.object_ref()],
+        ptb,
+        GAS_BUDGET,
+        gas_price,
+        alice_addr,
     );
 
     // Hash the transaction with its intent to produce a digest
