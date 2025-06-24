@@ -574,6 +574,11 @@ impl NameCommand {
                 opts,
             } => {
                 let entry = get_registry_entry(&domain, &iota_client).await?;
+                if entry.name_record.is_leaf_record() {
+                    bail!(
+                        "cannot set target address for leaf subdomain; try removing and recreating the subdomain instead."
+                    );
+                }
                 let new_address =
                     get_identity_address(new_address.map(KeyIdentity::Address), context)?;
                 if entry
@@ -714,6 +719,9 @@ impl NameCommand {
                 verbose,
             } => {
                 let entry = get_registry_entry(&domain, &iota_client).await?;
+                if entry.name_record.is_leaf_record() {
+                    bail!("cannot unset target address for leaf subdomain");
+                }
                 if entry.name_record.target_address.is_none() {
                     bail!("target address is already unset");
                 }
