@@ -2026,54 +2026,58 @@ impl IndexerReader {
     }
 
     fn get_total_supply(&self, coin_struct: StructTag) -> Result<Supply, IndexerError> {
-        // First, try to get the total supply directly from the `TreasuryCap` object.
-        let tc_supply = {
-            let package_id = coin_struct.address.into();
-            let treasury_cap_type = TreasuryCap::type_(coin_struct.clone())
-                .to_canonical_string(/* with_prefix */ true);
-            let cache_key = format!("{}{}", package_id, treasury_cap_type);
+        if let Some(supply) = self.get_treasury_cap_total_supply(&coin_struct)? {
+            return Ok(supply);
+        }
+        if let Some(supply) = self.get_coin_manager_total_supply(&coin_struct)? {
+            return Ok(supply);
+        }
+        Err(IndexerError::Generic(format!(
+            "Cannot find treasury cap or coin manager for coin type: {}",
+            coin_struct.to_canonical_string(/* with_prefix */ true)
+        )))
+    }
 
-            let mut cache = self
-                .package_obj_type_cache
-                .lock()
-                .inspect_err(|e| tracing::error!("package_obj_type_cache poisoned: {:?}", e))
-                .map_err(|_| IndexerError::Generic("failed to acquire cache lock".into()))?;
+    fn get_treasury_cap_total_supply(
+        &self,
+        coin_struct: &StructTag,
+    ) -> Result<Option<Supply>, IndexerError> {
+        let package_id = coin_struct.address.into();
+        let treasury_cap_type = TreasuryCap::type_(coin_struct.clone())
+            .to_canonical_string(/* with_prefix */ true);
+        let cache_key = format!("{}{}", package_id, treasury_cap_type);
 
-            let maybe_id = if let Some(&id) = cache.cache_get(&cache_key) {
-                id
-            } else {
-                let fetched = get_single_obj_id_from_package_publish(
-                    self,
-                    package_id,
-                    treasury_cap_type.clone(),
-                )?;
-                cache.cache_set(cache_key.clone(), fetched);
-                fetched
-            };
+        let mut cache = self
+            .package_obj_type_cache
+            .lock()
+            .inspect_err(|e| tracing::error!("package_obj_type_cache poisoned: {:?}", e))
+            .map_err(|_| IndexerError::Generic("failed to acquire cache lock".into()))?;
 
-            maybe_id
-                .and_then(|id| self.get_object(&id, None).ok().flatten())
-                .and_then(|obj| TreasuryCap::try_from(obj).ok())
-                .map(|tc| tc.total_supply)
+        let maybe_id = if let Some(&id) = cache.cache_get(&cache_key) {
+            id
+        } else {
+            let fetched = get_single_obj_id_from_package_publish(
+                self,
+                package_id,
+                treasury_cap_type.clone(),
+            )?;
+            cache.cache_set(cache_key.clone(), fetched);
+            fetched
         };
 
-        if let Some(supply) = tc_supply {
-            return Ok(supply);
-        }
+        Ok(maybe_id
+            .and_then(|id| self.get_object(&id, None).ok().flatten())
+            .and_then(|obj| TreasuryCap::try_from(obj).ok())
+            .map(|tc| tc.total_supply))
+    }
 
-        // If the `TreasuryCap` object is not found, try to get the total supply from
-        // the `CoinManager`.
-        if let Some(supply) = self
+    fn get_coin_manager_total_supply(
+        &self,
+        coin_struct: &StructTag,
+    ) -> Result<Option<Supply>, IndexerError> {
+        Ok(self
             .get_coin_manager_obj(coin_struct.clone())?
-            .map(|mgr| mgr.treasury_cap.total_supply)
-        {
-            return Ok(supply);
-        }
-
-        Err(IndexerError::Generic(format!(
-            "total supply not found for coin {}",
-            coin_struct.to_canonical_string(true),
-        )))
+            .map(|mgr| mgr.treasury_cap.total_supply))
     }
 
     pub fn get_consistent_read_range(&self) -> Result<(i64, i64), IndexerError> {
