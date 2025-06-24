@@ -75,7 +75,7 @@
     /* KEY VALUE */
     --key-supporting-text-color: theme('colors.iota-neutral.60');
     --key-value-hover-text-color: theme('colors.iota-neutral.10');
-    --key-tooltip-text-color: theme('colors.iota-neutral.40');
+    --key-value-key-text-color: theme('colors.iota-neutral.40');
 
     /* CHECKBOX */
     --checkbox-border-color-default: theme('colors.iota-neutral.80');
@@ -258,6 +258,10 @@
 
     /* TABLE */
     --table-text-color: theme('colors.iota-neutral.40');
+
+    /* DIALOG */
+    --dialog-outline: none;
+    --dialog-overlay-bg: theme('colors.shader-neutral-light.48');
 }
 
 :root.dark {
@@ -308,7 +312,7 @@
     /* KEY VALUE */
     --key-supporting-text-color: theme('colors.iota-neutral.40');
     --key-value-hover-text-color: theme('colors.iota-neutral.92');
-    --key-tooltip-text-color: theme('colors.iota-neutral.60');
+    --key-value-key-text-color: theme('colors.iota-neutral.60');
 
     /* CHECKBOX */
     --checkbox-border-color-default: theme('colors.iota-neutral.20');
@@ -490,6 +494,10 @@
 
     /* TABLE */
     --table-text-color: theme('colors.iota-neutral.60');
+
+    /* DIALOG */
+    --dialog-outline: none;
+    --dialog-overlay-bg: theme('colors.shader-neutral-light.48');
 }
 
 :root.names {
@@ -520,7 +528,7 @@
     /* BADGE */
     --badge-bg-color-neutral: theme('colors.names-neutral.12');
     --badge-text-color-neutral: theme('colors.names-neutral.92');
-    --badge-border-color-neutral: theme('colors.iota-neutral.12');
+    --badge-border-color-neutral: theme('colors.names-neutral.12');
     --badge-bg-color-primary: theme('colors.names-primary.30');
     --badge-border-color-primary: theme('colors.names-primary.30');
     --badge-text-color-primary: theme('colors.names-neutral.100');
@@ -550,9 +558,9 @@
     --label-text-secondary-neutral: theme('colors.names-neutral.50');
 
     /* KEY VALUE */
-    --key-supporting-text-color: theme('colors.iota-neutral.50');
+    --key-supporting-text-color: theme('colors.names-neutral.50');
     --key-value-hover-text-color: theme('colors.iota-neutral.92');
-    --key-tooltip-text-color: theme('colors.iota-neutral.60');
+    --key-value-key-text-color: theme('colors.names-neutral.70');
 
     /* CHECKBOX */
     --checkbox-border-color-default: theme('colors.names-neutral.20');
@@ -712,8 +720,8 @@
 
     /* TITLE */
     --title-main-color: theme('colors.names-neutral.92');
-    --title-subtitle-color: theme('colors.names-neutral.40');
-    --title-icon-color: theme('colors.iota-neutral.50');
+    --title-subtitle-color: theme('colors.names-neutral.50');
+    --title-icon-color: theme('colors.names-neutral.50');
 
     /* ---------------- ORGANISMS ---------------- */
 
@@ -733,4 +741,8 @@
 
     /* TABLE */
     --table-text-color: theme('colors.names-neutral.70');
+
+    /* DIALOG */
+    --dialog-outline: 1px solid theme('colors.names-neutral.20');
+    --dialog-overlay-bg: theme('colors.names-neutral.0/0.72');
 }

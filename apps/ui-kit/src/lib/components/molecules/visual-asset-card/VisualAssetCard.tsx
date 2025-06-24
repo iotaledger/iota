@@ -67,7 +67,7 @@ export function VisualAssetCard({
             {isCustomAsset && assetProps.renderAsset}
 
             {isHoverable && (
-                <div className="absolute left-0 top-0 h-full w-full bg-cover bg-center bg-no-repeat group-hover:bg-shader-neutral-light-48 group-hover:transition group-hover:duration-300 group-hover:ease-in-out group-hover:dark:bg-shader-primary-dark-48" />
+                <div className="absolute left-0 top-0 h-full w-full bg-cover bg-center bg-no-repeat group-hover:bg-shader-neutral-light-48 group-hover:transition group-hover:duration-300 group-hover:ease-in-out group-hover:names:bg-shader-inverted-light-48 group-hover:dark:bg-shader-primary-dark-48" />
             )}
             {isHoverable && onIconClick && (
                 <ButtonUnstyled
