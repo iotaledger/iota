@@ -95,7 +95,7 @@ impl Pruner {
                 }
                 info!("Pruning epoch {}", epoch);
                 if let Err(err) = self.store.prune_epoch(epoch).await {
-                    error!("Failed to prune epoch {}: {}", epoch, err);
+                    error!("Failed to prune epoch {epoch}: {err}");
                     break;
                 };
                 self.metrics.last_pruned_epoch.set(epoch as i64);
