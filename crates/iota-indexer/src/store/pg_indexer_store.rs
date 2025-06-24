@@ -11,7 +11,7 @@ use std::{
 
 use async_trait::async_trait;
 use diesel::{
-    ExpressionMethods, OptionalExtension, QueryDsl, RunQueryDsl, SelectableHelper,
+    ExpressionMethods, OptionalExtension, PgConnection, QueryDsl, RunQueryDsl,
     dsl::{max, min},
     sql_types::{Array, BigInt, Bytea, Nullable, SmallInt, Text},
     upsert::excluded,
@@ -46,17 +46,15 @@ use crate::{
         packages::StoredPackage,
         transactions::{
             CheckpointTxGlobalOrder, IndexStatus, OptimisticTransaction, StoredTransaction,
-            TxGlobalOrder,
         },
         tx_indices::OptimisticTxIndices,
     },
     on_conflict_do_update, on_conflict_do_update_with_condition, persist_chunk_into_table,
-    read_only_blocking,
+    persist_chunk_into_table_in_existing_connection, read_only_blocking,
     rolling::transform::{
         CheckpointObjectChanges, LiveObject, RemovedObject,
         retain_latest_objects_from_checkpoint_batch,
     },
-    run_query_async,
     schema::{
         chain_identifier, checkpoints, display, epochs, event_emit_module, event_emit_package,
         event_senders, event_struct_instantiation, event_struct_module, event_struct_name,
@@ -72,7 +70,6 @@ use crate::{
         tx_changed_objects, tx_digests, tx_global_order, tx_input_objects, tx_kinds, tx_recipients,
         tx_senders,
     },
-    spawn_read_only_blocking,
     store::{
         IndexerStore, IndexerStoreExt,
         pg_partition_manager::{EpochPartitionData, PgPartitionManager},
@@ -316,20 +313,9 @@ impl PgIndexerStore {
     ) -> Result<(), IndexerError> {
         transactional_blocking_with_retry!(
             &self.blocking_cp,
-            |conn| {
-                on_conflict_do_update_with_condition!(
-                    display::table,
-                    display_updates.values().collect::<Vec<_>>(),
-                    display::object_type,
-                    (
-                        display::id.eq(excluded(display::id)),
-                        display::version.eq(excluded(display::version)),
-                        display::bcs.eq(excluded(display::bcs)),
-                    ),
-                    excluded(display::version).gt(display::version),
-                    conn
-                );
-                Ok::<(), IndexerError>(())
+            {
+                let value = display_updates.values().collect::<Vec<_>>();
+                |conn| self.persist_displays_in_existing_transaction(conn, value)
             },
             PG_DB_COMMIT_SLEEP_DURATION
         )?;
@@ -507,35 +493,46 @@ impl PgIndexerStore {
         transactional_blocking_with_retry!(
             &self.blocking_cp,
             |conn| {
-                on_conflict_do_update!(
-                    objects::table,
+                self.persist_object_mutation_chunk_in_existing_transaction(
+                    conn,
                     mutated_object_mutation_chunk.clone(),
-                    objects::object_id,
-                    (
-                        objects::object_id.eq(excluded(objects::object_id)),
-                        objects::object_version.eq(excluded(objects::object_version)),
-                        objects::object_digest.eq(excluded(objects::object_digest)),
-                        objects::owner_type.eq(excluded(objects::owner_type)),
-                        objects::owner_id.eq(excluded(objects::owner_id)),
-                        objects::object_type.eq(excluded(objects::object_type)),
-                        objects::serialized_object.eq(excluded(objects::serialized_object)),
-                        objects::coin_type.eq(excluded(objects::coin_type)),
-                        objects::coin_balance.eq(excluded(objects::coin_balance)),
-                        objects::df_kind.eq(excluded(objects::df_kind)),
-                    ),
-                    conn
-                );
-                Ok::<(), IndexerError>(())
+                )
             },
             PG_DB_COMMIT_SLEEP_DURATION
         )
         .tap_ok(|_| {
             let elapsed = guard.stop_and_record();
-            info!(elapsed, "Deleted {} chunked objects", len);
+            info!(elapsed, "Persisted {} chunked objects", len);
         })
         .tap_err(|e| {
             tracing::error!("Failed to persist object mutations with error: {}", e);
         })
+    }
+
+    fn persist_object_mutation_chunk_in_existing_transaction(
+        &self,
+        conn: &mut PgConnection,
+        mutated_object_mutation_chunk: Vec<StoredObject>,
+    ) -> Result<(), IndexerError> {
+        on_conflict_do_update!(
+            objects::table,
+            mutated_object_mutation_chunk,
+            objects::object_id,
+            (
+                objects::object_id.eq(excluded(objects::object_id)),
+                objects::object_version.eq(excluded(objects::object_version)),
+                objects::object_digest.eq(excluded(objects::object_digest)),
+                objects::owner_type.eq(excluded(objects::owner_type)),
+                objects::owner_id.eq(excluded(objects::owner_id)),
+                objects::object_type.eq(excluded(objects::object_type)),
+                objects::serialized_object.eq(excluded(objects::serialized_object)),
+                objects::coin_type.eq(excluded(objects::coin_type)),
+                objects::coin_balance.eq(excluded(objects::coin_balance)),
+                objects::df_kind.eq(excluded(objects::df_kind)),
+            ),
+            conn
+        );
+        Ok::<(), IndexerError>(())
     }
 
     fn persist_object_deletion_chunk(
@@ -550,21 +547,10 @@ impl PgIndexerStore {
         transactional_blocking_with_retry!(
             &self.blocking_cp,
             |conn| {
-                diesel::delete(
-                    objects::table.filter(
-                        objects::object_id.eq_any(
-                            deleted_objects_chunk
-                                .iter()
-                                .map(|o| o.object_id.clone())
-                                .collect::<Vec<_>>(),
-                        ),
-                    ),
+                self.persist_object_deletion_chunk_in_existing_transaction(
+                    conn,
+                    deleted_objects_chunk.clone(),
                 )
-                .execute(conn)
-                .map_err(IndexerError::from)
-                .context("Failed to write object deletion to PostgresDB")?;
-
-                Ok::<(), IndexerError>(())
             },
             PG_DB_COMMIT_SLEEP_DURATION
         )
@@ -575,6 +561,28 @@ impl PgIndexerStore {
         .tap_err(|e| {
             tracing::error!("Failed to persist object deletions with error: {}", e);
         })
+    }
+
+    fn persist_object_deletion_chunk_in_existing_transaction(
+        &self,
+        conn: &mut PgConnection,
+        deleted_objects_chunk: Vec<StoredDeletedObject>,
+    ) -> Result<(), IndexerError> {
+        diesel::delete(
+            objects::table.filter(
+                objects::object_id.eq_any(
+                    deleted_objects_chunk
+                        .iter()
+                        .map(|o| o.object_id.clone())
+                        .collect::<Vec<_>>(),
+                ),
+            ),
+        )
+        .execute(conn)
+        .map_err(IndexerError::from)
+        .context("Failed to write object deletion to PostgresDB")?;
+
+        Ok::<(), IndexerError>(())
     }
 
     fn backfill_objects_snapshot_chunk(
@@ -1868,6 +1876,31 @@ impl IndexerStore for PgIndexerStore {
         Ok(())
     }
 
+    fn persist_objects_in_existing_transaction(
+        &self,
+        conn: &mut PgConnection,
+        object_changes: Vec<TransactionObjectChangesToCommit>,
+    ) -> Result<(), IndexerError> {
+        if object_changes.is_empty() {
+            return Ok(());
+        }
+
+        let (indexed_mutations, indexed_deletions) = retain_latest_indexed_objects(object_changes);
+        let object_mutations = indexed_mutations
+            .into_iter()
+            .map(StoredObject::from)
+            .collect::<Vec<_>>();
+        let object_deletions = indexed_deletions
+            .into_iter()
+            .map(StoredDeletedObject::from)
+            .collect::<Vec<_>>();
+
+        self.persist_object_mutation_chunk_in_existing_transaction(conn, object_mutations)?;
+        self.persist_object_deletion_chunk_in_existing_transaction(conn, object_deletions)?;
+
+        Ok(())
+    }
+
     async fn persist_objects_snapshot(
         &self,
         object_changes: Vec<TransactionObjectChangesToCommit>,
@@ -2041,55 +2074,13 @@ impl IndexerStore for PgIndexerStore {
         Ok(())
     }
 
-    async fn persist_optimistic_transaction(
+    fn persist_optimistic_transaction_in_existing_transaction(
         &self,
+        conn: &mut PgConnection,
         transaction: OptimisticTransaction,
     ) -> Result<(), IndexerError> {
-        let sequence_number = transaction.sequence_number;
-
-        self.spawn_blocking_task(move |this| {
-            transactional_blocking_with_retry!(
-                &this.blocking_cp,
-                |conn| {
-                    insert_or_ignore_into!(optimistic_transactions::table, &transaction, conn);
-                    Ok::<(), IndexerError>(())
-                },
-                PG_DB_COMMIT_SLEEP_DURATION
-            )
-            .tap_err(|e| {
-                tracing::error!("Failed to persist transactions with error: {}", e);
-            })
-        })
-        .await
-        .map_err(|e| {
-            IndexerError::PostgresWrite(format!(
-                "Failed to persist optimistic transaction: {:?}",
-                e
-            ))
-        })??;
-
-        info!("Persisted optimistic transaction {sequence_number}");
+        insert_or_ignore_into!(optimistic_transactions::table, &transaction, conn);
         Ok(())
-    }
-
-    async fn get_transactions_with_global_order(
-        &self,
-        digests: &[Vec<u8>],
-    ) -> Result<Vec<Vec<u8>>, IndexerError> {
-        let digests = digests.to_vec();
-
-        let pool = self.blocking_cp.clone();
-        let indexing_status = run_query_async!(&pool, move |conn| {
-            tx_global_order::table
-                .select(TxGlobalOrder::as_select())
-                .filter(tx_global_order::tx_digest.eq_any(&digests))
-                .load::<TxGlobalOrder>(conn)
-        })
-        .context("Failed reading tx indexing status from PostgresDB")?
-        .into_iter()
-        .map(|tgo| tgo.tx_digest)
-        .collect();
-        Ok(indexing_status)
     }
 
     async fn persist_events(&self, events: Vec<IndexedEvent>) -> Result<(), IndexerError> {
@@ -2122,30 +2113,18 @@ impl IndexerStore for PgIndexerStore {
         Ok(())
     }
 
-    async fn persist_optimistic_events(
+    fn persist_optimistic_events_in_existing_transaction(
         &self,
+        conn: &mut PgConnection,
         events: Vec<OptimisticEvent>,
     ) -> Result<(), IndexerError> {
         if events.is_empty() {
             return Ok(());
         }
 
-        self.spawn_blocking_task(move |this| {
-            persist_chunk_into_table!(optimistic_events::table, events, &this.blocking_cp)
-        })
-        .await
-        .map_err(|e| {
-            tracing::error!(
-                "Failed to join persist_chunk_into_table in persist_optimistic_events: {e}"
-            );
-            IndexerError::from(e)
-        })?
-        .map_err(|e| {
-            IndexerError::PostgresWrite(format!(
-                "Failed to persist all optimistic events chunks: {:?}",
-                e
-            ))
-        })
+        persist_chunk_into_table_in_existing_connection!(optimistic_events::table, events, conn);
+
+        Ok(())
     }
 
     async fn persist_displays(
@@ -2158,6 +2137,31 @@ impl IndexerStore for PgIndexerStore {
 
         self.spawn_blocking_task(move |this| this.persist_display_updates(display_updates))
             .await?
+    }
+
+    fn persist_displays_in_existing_transaction(
+        &self,
+        conn: &mut PgConnection,
+        display_updates: Vec<&StoredDisplay>,
+    ) -> Result<(), IndexerError> {
+        if display_updates.is_empty() {
+            return Ok(());
+        }
+
+        on_conflict_do_update_with_condition!(
+            display::table,
+            display_updates,
+            display::object_type,
+            (
+                display::id.eq(excluded(display::id)),
+                display::version.eq(excluded(display::version)),
+                display::bcs.eq(excluded(display::bcs)),
+            ),
+            excluded(display::version).gt(display::version),
+            conn
+        );
+
+        Ok(())
     }
 
     async fn persist_packages(&self, packages: Vec<IndexedPackage>) -> Result<(), IndexerError> {
@@ -2204,8 +2208,9 @@ impl IndexerStore for PgIndexerStore {
         Ok(())
     }
 
-    async fn persist_optimistic_event_indices(
+    fn persist_optimistic_event_indices_in_existing_transaction(
         &self,
+        conn: &mut PgConnection,
         indices: OptimisticEventIndices,
     ) -> Result<(), IndexerError> {
         let OptimisticEventIndices {
@@ -2218,77 +2223,48 @@ impl IndexerStore for PgIndexerStore {
             optimistic_event_struct_instantiations,
         } = indices;
 
-        let mut futures = vec![];
-        futures.push(self.spawn_blocking_task(move |this| {
-            persist_chunk_into_table!(
-                optimistic_event_emit_package::table,
-                optimistic_event_emit_packages,
-                &this.blocking_cp
-            )
-        }));
+        persist_chunk_into_table_in_existing_connection!(
+            optimistic_event_emit_package::table,
+            optimistic_event_emit_packages,
+            conn
+        );
 
-        futures.push(self.spawn_blocking_task(move |this| {
-            persist_chunk_into_table!(
-                optimistic_event_emit_module::table,
-                optimistic_event_emit_modules,
-                &this.blocking_cp
-            )
-        }));
+        persist_chunk_into_table_in_existing_connection!(
+            optimistic_event_emit_module::table,
+            optimistic_event_emit_modules,
+            conn
+        );
 
-        futures.push(self.spawn_blocking_task(move |this| {
-            persist_chunk_into_table!(
-                optimistic_event_senders::table,
-                optimistic_event_senders,
-                &this.blocking_cp
-            )
-        }));
+        persist_chunk_into_table_in_existing_connection!(
+            optimistic_event_senders::table,
+            optimistic_event_senders,
+            conn
+        );
 
-        futures.push(self.spawn_blocking_task(move |this| {
-            persist_chunk_into_table!(
-                optimistic_event_struct_package::table,
-                optimistic_event_struct_packages,
-                &this.blocking_cp
-            )
-        }));
+        persist_chunk_into_table_in_existing_connection!(
+            optimistic_event_struct_package::table,
+            optimistic_event_struct_packages,
+            conn
+        );
 
-        futures.push(self.spawn_blocking_task(move |this| {
-            persist_chunk_into_table!(
-                optimistic_event_struct_module::table,
-                optimistic_event_struct_modules,
-                &this.blocking_cp
-            )
-        }));
+        persist_chunk_into_table_in_existing_connection!(
+            optimistic_event_struct_module::table,
+            optimistic_event_struct_modules,
+            conn
+        );
 
-        futures.push(self.spawn_blocking_task(move |this| {
-            persist_chunk_into_table!(
-                optimistic_event_struct_name::table,
-                optimistic_event_struct_names,
-                &this.blocking_cp
-            )
-        }));
+        persist_chunk_into_table_in_existing_connection!(
+            optimistic_event_struct_name::table,
+            optimistic_event_struct_names,
+            conn
+        );
 
-        futures.push(self.spawn_blocking_task(move |this| {
-            persist_chunk_into_table!(
-                optimistic_event_struct_instantiation::table,
-                optimistic_event_struct_instantiations,
-                &this.blocking_cp
-            )
-        }));
+        persist_chunk_into_table_in_existing_connection!(
+            optimistic_event_struct_instantiation::table,
+            optimistic_event_struct_instantiations,
+            conn
+        );
 
-        futures::future::try_join_all(futures)
-            .await
-            .map_err(|e| {
-                tracing::error!("Failed to join optimistic event indices futures: {e}");
-                IndexerError::from(e)
-            })?
-            .into_iter()
-            .collect::<Result<Vec<_>, _>>()
-            .map_err(|e| {
-                IndexerError::PostgresWrite(format!(
-                    "Failed to persist all optimistic event indices: {e:?}",
-                ))
-            })?;
-        info!("Persisted optimistic event indices");
         Ok(())
     }
 
@@ -2327,8 +2303,9 @@ impl IndexerStore for PgIndexerStore {
         Ok(())
     }
 
-    async fn persist_optimistic_tx_indices(
+    fn persist_optimistic_tx_indices_in_existing_transaction(
         &self,
+        conn: &mut PgConnection,
         indices: OptimisticTxIndices,
     ) -> Result<(), IndexerError> {
         let OptimisticTxIndices {
@@ -2342,65 +2319,50 @@ impl IndexerStore for PgIndexerStore {
             optimistic_tx_kinds: kinds,
         } = indices;
 
-        let mut futures = vec![];
-        futures.push(self.spawn_blocking_task(move |this| {
-            persist_chunk_into_table!(optimistic_tx_senders::table, senders, &this.blocking_cp)
-        }));
+        persist_chunk_into_table_in_existing_connection!(
+            optimistic_tx_senders::table,
+            senders,
+            conn
+        );
 
-        futures.push(self.spawn_blocking_task(move |this| {
-            persist_chunk_into_table!(
-                optimistic_tx_recipients::table,
-                recipients,
-                &this.blocking_cp
-            )
-        }));
+        persist_chunk_into_table_in_existing_connection!(
+            optimistic_tx_recipients::table,
+            recipients,
+            conn
+        );
 
-        futures.push(self.spawn_blocking_task(move |this| {
-            persist_chunk_into_table!(
-                optimistic_tx_input_objects::table,
-                input_objects,
-                &this.blocking_cp
-            )
-        }));
+        persist_chunk_into_table_in_existing_connection!(
+            optimistic_tx_input_objects::table,
+            input_objects,
+            conn
+        );
 
-        futures.push(self.spawn_blocking_task(move |this| {
-            persist_chunk_into_table!(
-                optimistic_tx_changed_objects::table,
-                changed_objects,
-                &this.blocking_cp
-            )
-        }));
+        persist_chunk_into_table_in_existing_connection!(
+            optimistic_tx_changed_objects::table,
+            changed_objects,
+            conn
+        );
 
-        futures.push(self.spawn_blocking_task(move |this| {
-            persist_chunk_into_table!(optimistic_tx_calls_pkg::table, pkgs, &this.blocking_cp)
-        }));
+        persist_chunk_into_table_in_existing_connection!(
+            optimistic_tx_calls_pkg::table,
+            pkgs,
+            conn
+        );
 
-        futures.push(self.spawn_blocking_task(move |this| {
-            persist_chunk_into_table!(optimistic_tx_calls_mod::table, mods, &this.blocking_cp)
-        }));
+        persist_chunk_into_table_in_existing_connection!(
+            optimistic_tx_calls_mod::table,
+            mods,
+            conn
+        );
 
-        futures.push(self.spawn_blocking_task(move |this| {
-            persist_chunk_into_table!(optimistic_tx_calls_fun::table, funs, &this.blocking_cp)
-        }));
+        persist_chunk_into_table_in_existing_connection!(
+            optimistic_tx_calls_fun::table,
+            funs,
+            conn
+        );
 
-        futures.push(self.spawn_blocking_task(move |this| {
-            persist_chunk_into_table!(optimistic_tx_kinds::table, kinds, &this.blocking_cp)
-        }));
+        persist_chunk_into_table_in_existing_connection!(optimistic_tx_kinds::table, kinds, conn);
 
-        futures::future::try_join_all(futures)
-            .await
-            .map_err(|e| {
-                tracing::error!("Failed to join optimistic tx indices futures: {e}");
-                IndexerError::from(e)
-            })?
-            .into_iter()
-            .collect::<Result<Vec<_>, _>>()
-            .map_err(|e| {
-                IndexerError::PostgresWrite(format!(
-                    "Failed to persist all optimistic tx indices: {e:?}",
-                ))
-            })?;
-        info!("Persisted optimistic tx indices");
         Ok(())
     }
 
