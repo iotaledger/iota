@@ -39,7 +39,7 @@ export function CardBody({
                 })}
             >
                 <div
-                    className={cx('font-inter text-title-md text-neutral-10 dark:text-neutral-92', {
+                    className={cx('text-neutral-10 dark:text-neutral-92 font-inter text-title-md', {
                         truncate: isTextTruncated,
                     })}
                 >
@@ -60,7 +60,7 @@ export function CardBody({
             </div>
             {subtitle && (
                 <div
-                    className={cx('font-inter text-body-md text-neutral-40 dark:text-neutral-60', {
+                    className={cx('text-neutral-40 dark:text-neutral-60 font-inter text-body-md', {
                         truncate: isTextTruncated,
                     })}
                 >

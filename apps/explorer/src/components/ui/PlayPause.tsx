@@ -50,11 +50,11 @@ export function PlayPause({ paused, onChange, animate }: PlayPauseProps): JSX.El
         <ButtonUnstyled
             aria-label={paused ? 'Paused' : 'Playing'}
             onClick={onChange}
-            className="relative cursor-pointer border-none bg-transparent p-xxs text-neutral-40 dark:text-neutral-60"
+            className="relative cursor-pointer border-none bg-transparent p-xxs text-iota-neutral-40 dark:text-iota-neutral-60"
         >
             {isAnimating && (
                 <motion.svg
-                    className="absolute left-1/2 top-1/2 h-full w-full -translate-x-1/2 -translate-y-1/2 -rotate-90 text-primary-60"
+                    className="absolute left-1/2 top-1/2 h-full w-full -translate-x-1/2 -translate-y-1/2 -rotate-90 text-iota-primary-60"
                     viewBox="0 0 16 16"
                 >
                     <motion.circle

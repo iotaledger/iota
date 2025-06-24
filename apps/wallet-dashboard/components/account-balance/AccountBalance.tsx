@@ -68,12 +68,12 @@ export function AccountBalance() {
                             )}
                             <span
                                 data-testid="balance-amount"
-                                className="text-headline-lg text-neutral-10 dark:text-neutral-92"
+                                className="text-headline-lg text-iota-neutral-10 dark:text-iota-neutral-92"
                             >
                                 {formatted} {symbol}
                             </span>
                             {fiatBalance && (
-                                <span className="text-body-md text-neutral-10 dark:text-neutral-92">
+                                <span className="text-body-md text-iota-neutral-10 dark:text-iota-neutral-92">
                                     {fiatBalance}
                                 </span>
                             )}
