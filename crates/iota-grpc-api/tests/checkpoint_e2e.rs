@@ -129,8 +129,8 @@ async fn test_get_epoch_first_checkpoint_sequence_number() {
     let mut all_epochs = vec![];
     while let Some(res) = stream.next().await {
         match res {
-            Ok(cp) => match GrpcNodeClient::deserialize_checkpoint_summary(&cp) {
-                Ok(summary) => {
+            Ok(cp) => match GrpcNodeClient::deserialize_checkpoint(&cp) {
+                Ok(iota_grpc_api::client::CheckpointContent::Summary(summary)) => {
                     let epoch = summary.data().epoch;
                     println!("Checkpoint index: {}, epoch: {}", cp.index, epoch);
                     all_indices.push(cp.index);
@@ -139,9 +139,16 @@ async fn test_get_epoch_first_checkpoint_sequence_number() {
                         break;
                     }
                 }
+                Ok(iota_grpc_api::client::CheckpointContent::Data(_)) => {
+                    println!(
+                        "[gRPC] Expected checkpoint summary but received data at index {}",
+                        cp.index
+                    );
+                    break;
+                }
                 Err(e) => {
                     println!(
-                        "[gRPC] Failed to deserialize checkpoint summary at index {}: {:?}",
+                        "[gRPC] Failed to deserialize checkpoint at index {}: {:?}",
                         cp.index, e
                     );
                     println!("[gRPC] Raw checkpoint data: {:?}", cp.data);
@@ -194,8 +201,14 @@ async fn test_stream_full_checkpoint_data() {
         .await
         .unwrap();
     if let Some(Ok(cp)) = stream.next().await {
-        let checkpoint_data = GrpcNodeClient::deserialize_checkpoint_data(&cp)
-            .expect("Failed to deserialize checkpoint data");
+        let checkpoint_data = match GrpcNodeClient::deserialize_checkpoint(&cp)
+            .expect("Failed to deserialize checkpoint")
+        {
+            iota_grpc_api::client::CheckpointContent::Data(data) => data,
+            iota_grpc_api::client::CheckpointContent::Summary(_) => {
+                panic!("Expected data, got summary")
+            }
+        };
         assert_eq!(checkpoint_data.checkpoint_summary.sequence_number, 2);
     } else {
         panic!("No checkpoint data returned");

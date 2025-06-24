@@ -29,4 +29,6 @@ message Checkpoint {
   uint64 index = 1;
   // BCS-encoded CertifiedCheckpointSummary (default) or CheckpointData (if full=true)
   bytes data = 2;
+  // Indicates whether data contains full CheckpointData (true) or just CertifiedCheckpointSummary (false)
+  bool is_full = 3;
 } 

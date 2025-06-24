@@ -8,6 +8,11 @@ use tonic::transport::Channel;
 
 use crate::checkpoint::checkpoint_service_client::CheckpointServiceClient;
 
+/// Enum representing the content of a checkpoint, either full data or summary.
+pub enum CheckpointContent {
+    Data(iota_types::full_checkpoint_content::CheckpointData),
+    Summary(iota_types::messages_checkpoint::CertifiedCheckpointSummary),
+}
 /// Shared gRPC client for checkpoint streaming.
 pub struct GrpcNodeClient {
     client: CheckpointServiceClient<Channel>,
@@ -48,8 +53,9 @@ impl GrpcNodeClient {
     }
 
     /// Deserialize checkpoint data from the gRPC stream, handling versioned
-    /// types
-    pub fn deserialize_checkpoint_data(
+    /// types. Uses the is_full field from the checkpoint to determine the
+    /// correct deserialization method.
+    fn deserialize_checkpoint_data(
         checkpoint: &crate::checkpoint::Checkpoint,
     ) -> Result<
         iota_types::full_checkpoint_content::CheckpointData,
@@ -71,8 +77,9 @@ impl GrpcNodeClient {
     }
 
     /// Deserialize checkpoint summary from the gRPC stream, handling versioned
-    /// types
-    pub fn deserialize_checkpoint_summary(
+    /// types. Uses the is_full field from the checkpoint to determine the
+    /// correct deserialization method.
+    fn deserialize_checkpoint_summary(
         checkpoint: &crate::checkpoint::Checkpoint,
     ) -> Result<
         iota_types::messages_checkpoint::CertifiedCheckpointSummary,
@@ -90,6 +97,19 @@ impl GrpcNodeClient {
                 )
                 .map_err(|e| format!("Failed to deserialize checkpoint summary: {}", e).into())
             }
+        }
+    }
+
+    /// Auto-deserialize checkpoint based on the is_full field.
+    /// Returns either checkpoint data or summary depending on the checkpoint
+    /// type.
+    pub fn deserialize_checkpoint(
+        checkpoint: &crate::checkpoint::Checkpoint,
+    ) -> Result<CheckpointContent, Box<dyn std::error::Error + Send + Sync>> {
+        if checkpoint.is_full {
+            Self::deserialize_checkpoint_data(checkpoint).map(CheckpointContent::Data)
+        } else {
+            Self::deserialize_checkpoint_summary(checkpoint).map(CheckpointContent::Summary)
         }
     }
 }

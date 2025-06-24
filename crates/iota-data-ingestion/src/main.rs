@@ -161,17 +161,25 @@ async fn main() -> Result<()> {
                         }
 
                         // Extract the current epoch from the checkpoint data
-                        if let Ok(checkpoint_data) =
-                            iota_grpc_api::client::GrpcNodeClient::deserialize_checkpoint_data(
+                        if let Ok(checkpoint_content) =
+                            iota_grpc_api::client::GrpcNodeClient::deserialize_checkpoint(
                                 &first_checkpoint,
                             )
                         {
-                            current_epoch = checkpoint_data.checkpoint_summary.epoch;
-                            tracing::info!(
-                                "Extracted current epoch {} from checkpoint {}",
-                                current_epoch,
-                                first_checkpoint.index
-                            );
+                            if let iota_grpc_api::client::CheckpointContent::Data(checkpoint_data) =
+                                checkpoint_content
+                            {
+                                current_epoch = checkpoint_data.checkpoint_summary.epoch;
+                                tracing::info!(
+                                    "Extracted current epoch {} from checkpoint {}",
+                                    current_epoch,
+                                    first_checkpoint.index
+                                );
+                            } else {
+                                tracing::warn!(
+                                    "Checkpoint contains summary instead of data, using epoch 0 as fallback"
+                                );
+                            }
                         } else {
                             tracing::warn!(
                                 "Failed to deserialize checkpoint data, using epoch 0 as fallback"

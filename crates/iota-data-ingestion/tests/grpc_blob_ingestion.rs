@@ -47,8 +47,14 @@ async fn test_grpc_blob_worker_logic() {
         .expect("stream");
     while let Some(Ok(checkpoint)) = stream.next().await {
         let checkpoint_data: CheckpointData =
-            GrpcNodeClient::deserialize_checkpoint_data(&checkpoint)
-                .expect("failed to deserialize checkpoint data");
+            match GrpcNodeClient::deserialize_checkpoint(&checkpoint)
+                .expect("failed to deserialize checkpoint")
+            {
+                iota_grpc_api::client::CheckpointContent::Data(data) => data,
+                iota_grpc_api::client::CheckpointContent::Summary(_) => {
+                    panic!("Expected data, got summary")
+                }
+            };
 
         println!(
             "Streamed full CheckpointData for checkpoint {}",

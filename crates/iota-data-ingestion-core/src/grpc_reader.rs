@@ -154,14 +154,18 @@ impl GrpcCheckpointReader {
                 }
             };
 
-            let checkpoint_data: CheckpointData =
-                match GrpcNodeClient::deserialize_checkpoint_data(&cp) {
-                    Ok(data) => data,
-                    Err(e) => {
-                        warn!("[gRPC] BCS decode error: {e}");
-                        continue;
-                    }
-                };
+            let checkpoint_data: CheckpointData = match GrpcNodeClient::deserialize_checkpoint(&cp)
+            {
+                Ok(iota_grpc_api::client::CheckpointContent::Data(data)) => data,
+                Ok(iota_grpc_api::client::CheckpointContent::Summary(_)) => {
+                    warn!("[gRPC] Expected checkpoint data but received summary, skipping");
+                    continue;
+                }
+                Err(e) => {
+                    warn!("[gRPC] BCS decode error: {e}");
+                    continue;
+                }
+            };
 
             if let Err(_e) = self.checkpoint_sender.send(Arc::new(checkpoint_data)).await {
                 warn!("[gRPC] WorkerPool channel closed");

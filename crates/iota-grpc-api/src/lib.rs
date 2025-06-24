@@ -61,11 +61,12 @@ where
     fn get_item(&self, ix: u64) -> Option<Arc<T>>;
     fn get_latest(&self) -> Option<u64>;
 
-    fn create_checkpoint_response(&self, item: &Arc<T>) -> CheckpointStreamResult {
+    fn create_checkpoint_response(&self, item: &Arc<T>, is_full: bool) -> CheckpointStreamResult {
         self.serialize_to_bcs(item)
             .map(|data| checkpoint::Checkpoint {
                 index: self.get_index(item),
                 data,
+                is_full,
             })
             .map_err(|e| Status::internal(format!("BCS serialization error: {e}")))
     }
@@ -138,6 +139,7 @@ fn create_checkpoint_stream<T, F>(
     tx: tokio::sync::broadcast::Sender<Arc<T>>,
     start: Option<u64>,
     end: Option<u64>,
+    is_full: bool,
 ) -> impl futures::Stream<Item = CheckpointStreamResult> + Send
 where
     T: Send + Sync + 'static,
@@ -164,7 +166,7 @@ where
                 if let Some(item) = oracle.get_item(start) {
                     // TODO: add backfill tracing messages
                     debug!("[profile][grpc] Fetched checkpoint data for index {start} from DB.");
-                    yield oracle.create_checkpoint_response(&item)?;
+                    yield oracle.create_checkpoint_response(&item, is_full)?;
                     if start == end {
                         break;
                     }
@@ -180,7 +182,7 @@ where
                 debug!("[profile][grpc] Using cached checkpoint data for index {start}.");
                 let idx = oracle.get_index(&item);
                 if start == idx {
-                    yield oracle.create_checkpoint_response(&item)?;
+                    yield oracle.create_checkpoint_response(&item, is_full)?;
                     if start == end {
                         break;
                     }
@@ -195,7 +197,7 @@ where
                     debug!("[profile][grpc] Get checkpoint data for index {} from broadcast channel", oracle.get_index(&item));
                     let idx = oracle.get_index(&item);
                     if start == idx {
-                        yield oracle.create_checkpoint_response(&item)?;
+                        yield oracle.create_checkpoint_response(&item, is_full)?;
                         if start == end {
                             break;
                         }
@@ -230,7 +232,13 @@ impl CheckpointGrpcService {
     ) -> impl futures::Stream<Item = CheckpointStreamResult> + Send {
         let state_reader = self.state_reader.clone();
         let oracle = Oracle { state_reader };
-        create_checkpoint_stream(oracle, self.grpc_checkpoint_data_tx.clone(), start, end)
+        create_checkpoint_stream(
+            oracle,
+            self.grpc_checkpoint_data_tx.clone(),
+            start,
+            end,
+            true,
+        )
     }
 
     fn stream_checkpoint_summary(
@@ -240,7 +248,13 @@ impl CheckpointGrpcService {
     ) -> impl futures::Stream<Item = CheckpointStreamResult> + Send {
         let state_reader = self.state_reader.clone();
         let oracle = Oracle { state_reader };
-        create_checkpoint_stream(oracle, self.grpc_checkpoint_summary_tx.clone(), start, end)
+        create_checkpoint_stream(
+            oracle,
+            self.grpc_checkpoint_summary_tx.clone(),
+            start,
+            end,
+            false,
+        )
     }
 }
 
