@@ -273,7 +273,9 @@ function ObjectChangeEntriesCardFooter({
 }: ObjectChangeEntriesCardFooterProps): JSX.Element {
     return (
         <div className="flex flex-wrap justify-between px-md--rs py-sm--rs">
-            <span className="text-body-md text-iota-neutral-40 dark:text-iota-neutral-60">Owner</span>
+            <span className="text-body-md text-iota-neutral-40 dark:text-iota-neutral-60">
+                Owner
+            </span>
             <div className="flex flex-col gap-xxs">
                 {ownerType === 'AddressOwner' && (
                     <AddressLink address={ownerAddress} copyText={ownerAddress} />
