@@ -9264,6 +9264,7 @@ dependencies = [
  "ref-cast",
  "serde",
  "serde_bytes",
+ "serde_with",
  "thiserror 1.0.64",
  "uint",
 ]

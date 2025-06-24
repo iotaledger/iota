@@ -14,9 +14,7 @@ use crate::{
     IOTA_FRAMEWORK_PACKAGE_ID,
     base_types::{IotaAddress, ObjectID, ObjectRef},
     move_package::PACKAGE_MODULE_NAME,
-    transaction::{
-        Argument, CallArg, Command, ObjectArg, ProgrammableMoveCall, ProgrammableTransaction,
-    },
+    transaction::{Argument, CallArg, Command, ObjectArg, ProgrammableTransaction},
 };
 
 #[derive(PartialEq, Eq, Hash)]
@@ -173,13 +171,13 @@ impl ProgrammableTransactionBuilder {
         type_arguments: Vec<TypeTag>,
         arguments: Vec<Argument>,
     ) -> Argument {
-        self.command(Command::MoveCall(Box::new(ProgrammableMoveCall {
+        self.command(Command::move_call(
             package,
             module,
             function,
             type_arguments,
             arguments,
-        })))
+        ))
     }
 
     pub fn publish_upgradeable(
@@ -192,14 +190,13 @@ impl ProgrammableTransactionBuilder {
 
     pub fn publish_immutable(&mut self, modules: Vec<Vec<u8>>, dep_ids: Vec<ObjectID>) {
         let cap = self.publish_upgradeable(modules, dep_ids);
-        self.commands
-            .push(Command::MoveCall(Box::new(ProgrammableMoveCall {
-                package: IOTA_FRAMEWORK_PACKAGE_ID,
-                module: PACKAGE_MODULE_NAME.to_owned(),
-                function: ident_str!("make_immutable").to_owned(),
-                type_arguments: vec![],
-                arguments: vec![cap],
-            })));
+        self.commands.push(Command::move_call(
+            IOTA_FRAMEWORK_PACKAGE_ID,
+            PACKAGE_MODULE_NAME.to_owned(),
+            ident_str!("make_immutable").to_owned(),
+            vec![],
+            vec![cap],
+        ));
     }
 
     pub fn upgrade(
