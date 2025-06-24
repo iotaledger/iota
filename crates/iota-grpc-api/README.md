@@ -13,31 +13,7 @@ The `CheckpointService` provides the following RPC endpoints:
 
 ### Proto
 
-```protobuf
-service CheckpointService {
-  rpc StreamCheckpoints (CheckpointStreamRequest) returns (stream Checkpoint);
-  rpc GetEpochFirstCheckpointSequenceNumber (EpochRequest) returns (CheckpointSequenceNumberResponse);
-}
-
-message CheckpointStreamRequest {
-  optional uint64 start_index = 1;
-  optional uint64 end_index = 2;
-  optional bool full = 3;
-}
-
-message EpochRequest {
-  uint64 epoch = 1;
-}
-
-message CheckpointSequenceNumberResponse {
-  uint64 sequence_number = 1;
-}
-
-message Checkpoint {
-  uint64 index = 1;
-  bytes data = 2;
-}
-```
+See the full protobuf schema in [`checkpoint.proto`](proto/checkpoint.proto).
 
 ### Streaming Range Logic
 
