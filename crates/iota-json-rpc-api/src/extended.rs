@@ -3,11 +3,11 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use iota_json_rpc_types::{
-    AddressMetrics, EpochInfo, EpochMetricsPage, EpochPage, IotaTransactionBlockResponseQueryV2,
-    MoveCallMetrics, NetworkMetrics, ParticipationMetrics, TransactionBlocksPage,
+    AddressMetrics, EpochInfo, EpochMetricsPage, EpochPage, MoveCallMetrics, NetworkMetrics,
+    ParticipationMetrics,
 };
 use iota_open_rpc_macros::open_rpc;
-use iota_types::{digests::TransactionDigest, iota_serde::BigInt};
+use iota_types::iota_serde::BigInt;
 use jsonrpsee::{core::RpcResult, proc_macros::rpc};
 
 /// Methods served exclusively by the indexer, supporting queries using refined
@@ -79,19 +79,4 @@ pub trait ExtendedApi {
     /// Exclusively served by the indexer.
     #[method(name = "getParticipationMetrics")]
     async fn get_participation_metrics(&self) -> RpcResult<ParticipationMetrics>;
-
-    /// Return list of transactions for a specified query criteria.
-    #[rustfmt::skip]
-    #[method(name = "queryTransactionBlocks")]
-    async fn query_transaction_blocks_v2(
-        &self,
-        /// the transaction query criteria.
-        query: IotaTransactionBlockResponseQueryV2,
-        /// An optional paging cursor. If provided, the query will start from the next item after the specified cursor. Default to start from the first item if not specified.
-        cursor: Option<TransactionDigest>,
-        /// Maximum item returned per page, default to QUERY_MAX_RESULT_LIMIT if not specified.
-        limit: Option<usize>,
-        /// query result ordering, default to false (ascending order), oldest record first.
-        descending_order: Option<bool>,
-    ) -> RpcResult<TransactionBlocksPage>;
 }

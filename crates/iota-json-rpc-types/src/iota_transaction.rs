@@ -2499,7 +2499,7 @@ pub enum TransactionFilterV2 {
 }
 
 impl TransactionFilterV2 {
-    fn as_v1(&self) -> Option<TransactionFilter> {
+    pub fn as_v1(&self) -> Option<TransactionFilter> {
         match self {
             TransactionFilterV2::InputObject(o) => Some(TransactionFilter::InputObject(*o)),
             TransactionFilterV2::ChangedObject(o) => Some(TransactionFilter::ChangedObject(*o)),

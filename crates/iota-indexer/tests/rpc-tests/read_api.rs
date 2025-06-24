@@ -8,9 +8,7 @@ use iota_indexer::{
     models::transactions::StoredTransaction, store::package_resolver::IndexerStorePackageResolver,
     test_utils::TestDatabase,
 };
-use iota_json_rpc_api::{
-    ExtendedApiClient, IndexerApiClient, ReadApiClient, TransactionBuilderClient,
-};
+use iota_json_rpc_api::{IndexerApiClient, ReadApiClient, TransactionBuilderClient};
 use iota_json_rpc_types::{
     CheckpointId, IotaGetPastObjectRequest, IotaObjectDataOptions, IotaObjectRef,
     IotaObjectResponse, IotaObjectResponseQuery, IotaPastObjectResponse,
