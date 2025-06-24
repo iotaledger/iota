@@ -299,6 +299,16 @@ pub mod setup_postgres {
                     "The next applied migration `{applied_migration:?}` diverges from the local migration `{local_migration:?}`",
                 )));
             }
+            // let store = PgIndexerStore::new(blocking_cp,
+            // indexer_metrics.clone());
+            // return Indexer::start_reader(
+            //     &indexer_config,
+            //     store,
+            //     &registry,
+            //     db_url.to_string(),
+            //     indexer_metrics,
+            // )
+            // .await;
         }
         Ok(())
     }
