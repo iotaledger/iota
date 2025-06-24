@@ -40,7 +40,7 @@ async fn test_grpc_blob_worker_logic() {
     );
 
     // Connect to the gRPC endpoint and get the first available checkpoint
-    let mut grpc_client = GrpcNodeClient::connect(&grpc_url).await.expect("connect");
+    let mut grpc_client = GrpcNodeClient::connect(&grpc_url).await.expect("failed to connect grpc client");
     let mut stream = grpc_client
         .stream_checkpoints(None, Some(4), Some(true))
         .await
