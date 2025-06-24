@@ -1,0 +1,173 @@
+---
+description: Tutorial on Validating a University Degree using IOTA Identity
+tags:
+ - explanation
+ - tutorial
+ - rust
+---
+
+# University Degree Verification Using IOTA Identity (Rust CLI Tutorial)
+
+This step-by-step tutorial demonstrates how to issue, present, and verify academic credentials using [IOTA Identity](https://github.com/iotaledger/identity) in Rust. It is designed as a fully CLI-driven example for verifying university degrees using decentralized identifiers (DIDs), verifiable credentials (VCs), and verifiable presentations (VPs).
+
+```mermaid
+sequenceDiagram
+    participant University as University of Oslo (Issuer)
+    participant Alice as Alice (Holder)
+    participant IOTA as IOTA Foundation (Verifier)
+
+    University->>University: Create DID
+    Alice->>Alice: Create DID
+
+    University->>University: Create VC for Alice
+    University->>University: Sign VC as JWT
+    University-->>Alice: Send VC JWT
+
+    Alice->>Alice: Create VP using VC JWT
+    Alice->>Alice: Sign VP with challenge
+    Alice-->>IOTA: Send VP JWT
+
+    IOTA->>IOTA: Extract holder + issuer DIDs
+    IOTA->>University: Resolve DID
+    IOTA->>Alice: Resolve DID
+    IOTA->>IOTA: Validate VP signature
+    IOTA->>IOTA: Validate VC inside VP
+    IOTA-->>IOTA: Output "VP successfully validated"
+```
+
+## Understanding the Core Concepts Before We Code
+
+Before diving into the code, let's solidify our understanding of the fundamental building blocks:
+
+## 1. Decentralized Identifier (DID)
+
+Imagine your online identity today. It's often scattered across various platforms (Google, Facebook, banks), and you don't truly own it. Centralized entities control your data.
+
+**DID (Decentralized Identifier)** flips this on its head.
+
+- **What it is**: A DID is a globally unique, persistent identifier that you (or an entity like a university or device) own and control, without needing a central authority. It's like having your own, unforgeable digital address on the internet.
+- **How it works**: Each DID has a corresponding DID Document, which is a public document published on a decentralized ledger (like the IOTA Tangle in this case). This document contains:
+    - **Public Keys**: Cryptographic keys that allow others to verify signatures made by the DID owner or encrypt messages for them.
+    - **Service Endpoints**: Information about how to interact with the DID owner (e.g., communication channels).
+- **Self-Sovereignty**: The core idea is that you have "self-sovereignty" over your identity. You decide what information to share, with whom, and when.
+
+In our project:
+
+- The **University** will have a DID (as the **Issuer**).
+- The **Student** will have a DID (as the **Holder**).
+- These DIDs are anchored and publicly discoverable on the **IOTA**.
+
+## 2. Verifiable Credential (VC)
+
+Think of a physical diploma or driver's license. It's a statement issued by a trusted entity about you. A Verifiable Credential is the digital, cryptographically secure version of this.
+
+- **What it is**: A digital data format that represents a set of claims made by an Issuer about a Subject.
+- **Key Components**:
+    - **Issuer**: The entity that issues the credential (e.g., "University of Oslow"). They digitally sign the VC.
+    - **Holder**: The entity to whom the credential is issued (e.g., "Alice"). They receive and store the VC.
+    - **Subject**: The entity about whom the claims are made (usually the Holder, but can be someone else).
+    - **Claims**: The actual information being attested to (e.g., "Alice has a Bachelor's Degree in Computer Science from University of Oslow, GPA 4.0, issued on 2025-06-23").
+- **Verifiability**: Because the VC is cryptographically signed by the Issuer's DID, anyone can cryptographically verify:
+    - That the VC was indeed issued by the stated Issuer.
+    - That the VC has not been tampered with since its issuance.
+
+In our project:
+
+- The **University** issues a VC stating that Alice has a "Bachelor of Science and Arts" degree.
+- The **student**, Alice, becomes the Holder of this VC.
+
+## 3. Verifiable Presentation (VP)
+
+Now, imagine you need to prove you have a degree (your physical diploma) to an employer. You don't hand them your entire educational history; you just show them the diploma. A Verifiable Presentation is the digital equivalent.
+
+- What it is: A container for one or more Verifiable Credentials, created and signed by the Holder.
+- Purpose: To enable the Holder to selectively disclose specific VCs (or parts of VCs) to a Verifier, while proving they are the legitimate owner of those credentials.
+- Key Aspect: Selective Disclosure: You might have many VCs in your digital wallet (driver's license, passport, health records). When a Verifier asks for proof of age, you create a VP containing only your age claim from your driver's license, not your entire medical history.
+- Challenge-Response: Often, a Verifier will issue a "challenge" (a random string) that the Holder must include in their signed VP. This prevents "replay attacks" where an attacker tries to reuse a previously valid VP.
+
+In our project:
+
+- Alice (the Holder) wants to prove her degree to a potential employer (the Verifier).
+- She creates a VP, embedding her "University Degree Credential" (the VC) inside it.
+- She then signs this VP with her own DID, proving that she is the legitimate holder of that degree.
+- The Verifier will check Alice's signature on the VP and then verify the VC inside against the University's DID.
+
+# Getting Started
+
+## 1. Clone the Repository
+
+```bash
+git clone https://github.com/your-name/digitally_validate_degree.git
+cd digitally_validate_degree
+```
+
+## 2. Build the Project
+
+```bash
+cargo build
+```
+# Step 1: Issuer Creates a Verifiable Credential
+Run the following to simulate the university issuing a VC:
+
+```bash
+cargo run --bin issuer
+```
+
+This will:
+
+- Create a DID for the University of Oslo
+- Create a credential for Alice (name, degree, GPA)
+- Sign it as a JWT
+- Print the VC JWT (copy this for the next step)
+
+# Step 2: Holder Creates a Verifiable Presentation
+
+Alice receives the VC and creates a VP to send to the IOTA Foundation.
+
+```bash
+cargo run --bin holder -- --vc "<PASTE_VC_JWT_HERE>"
+```
+
+This will:
+
+- Generate Alice’s DID
+- Wrap the VC in a presentation
+- Sign it with Alice’s key
+- Print the VP JWT
+
+# Step 3: Verifier Validates the Verifiable Presentation
+
+The IOTA Foundation (verifier) now checks the authenticity and validity of the VP.
+
+```bash
+cargo run --bin verifier -- --vp "<PASTE_VP_JWT_HERE>"
+```
+This will:
+
+- Extract Alice’s DID from the VP
+- Validate the signature and challenge
+- Resolve all involved DIDs (holder + issuer)
+- Validate the original credential
+
+If valid, the output will confirm a successful validation.
+
+src/
+│   ├── issuer.rs      # Creates DID and issues credential
+│   ├── holder.rs      # Accepts VC and creates signed VP
+│   └── verifier.rs    # Validates the VP and VC
+├── utils.rs          # Shared utilities for identity creation and storage
+└── main.rs           # Placeholder entry point
+
+
+# References
+
+- IOTA Identity Docs
+
+- W3C VC Data Model
+
+
+
+
+
+
+
