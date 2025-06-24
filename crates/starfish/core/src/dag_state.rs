@@ -3,8 +3,9 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use std::{
-    cmp::max,
+    cmp::{max, min},
     collections::{BTreeMap, BTreeSet, HashSet, VecDeque},
+    mem,
     ops::Bound::{Excluded, Included, Unbounded},
     panic,
     sync::Arc,
@@ -36,6 +37,7 @@ use crate::{
 /// block.
 // TODO: make it derivable from the protocol parameters
 pub(crate) const MAX_TRANSACTIONS_ACK_DEPTH: Round = 50;
+const MAX_HEADERS_PER_BUNDLE: usize = 10;
 
 /// DagState provides the API to write and read accepted blocks from the DAG.
 /// Only uncommitted and last committed blocks are cached in memory.
@@ -1118,6 +1120,48 @@ impl DagState {
             .recent_dag_cordial_knowledge
             .get_mut(authority_index)
             .expect("We expect authority index should be valid") = new_map;
+    }
+
+    /// Takes a batch of at most MAX_HEADERS_PER_BUNDLE unknown headers for the
+    /// given authority, but only from round smaller than
+    /// round_upper_bound_exclusive. Marks these headers as known to the
+    /// authority.
+    pub(crate) fn take_unknown_headers_for_authority(
+        &mut self,
+        authority_index: AuthorityIndex,
+        round_upper_bound_exclusive: Round,
+    ) -> Vec<VerifiedBlockHeader> {
+        let mut set =
+            mem::take(&mut self.block_headers_not_known_by_authority[authority_index.value()]);
+
+        let split_point = {
+            let round_bound = BlockRef::new(
+                round_upper_bound_exclusive,
+                AuthorityIndex::MIN,
+                BlockHeaderDigest::MIN,
+            );
+            let nth_element = set
+                .iter()
+                .nth(MAX_HEADERS_PER_BUNDLE)
+                .map_or(round_bound, |x| *x);
+            min(nth_element, round_bound)
+        };
+
+        self.block_headers_not_known_by_authority[authority_index.value()] =
+            set.split_off(&split_point);
+        let mut block_refs: Vec<BlockRef> = vec![];
+        for block_ref in set.into_iter() {
+            block_refs.push(block_ref);
+            let (_, who_knows_given_block) = self.recent_dag_cordial_knowledge
+                [block_ref.author.value()]
+            .get_mut(&(block_ref.round, block_ref.digest))
+            .expect("We expect block ref to be in recent dag cordial knowledge");
+            who_knows_given_block.insert(authority_index);
+        }
+        self.get_block_headers(&block_refs)
+            .into_iter()
+            .map(|opt| opt.expect("All headers should be in DagState or on disk"))
+            .collect()
     }
 
     pub(crate) fn take_commit_votes(&mut self, limit: usize) -> Vec<CommitVote> {

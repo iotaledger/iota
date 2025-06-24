@@ -28,8 +28,8 @@ use crate::{
     dag_state::DagState,
     error::{ConsensusError, ConsensusResult},
     network::{
-        BlockBundleStream, BlockStream, NetworkService, SerializedBlock, SerializedBlockBundle,
-        SerializedHeaderAndTransactions,
+        BlockBundle, BlockBundleStream, BlockStream, NetworkService, SerializedBlock,
+        SerializedBlockBundle, SerializedHeaderAndTransactions,
     },
     stake_aggregator::{QuorumThreshold, StakeAggregator},
     storage::Store,
@@ -313,10 +313,48 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
 
     async fn handle_subscribe_block_bundles_request(
         &self,
-        _peer: AuthorityIndex,
-        _last_received: Round,
+        peer: AuthorityIndex,
+        last_received: Round,
     ) -> ConsensusResult<BlockBundleStream> {
-        unimplemented!("Unimplemented")
+        fail_point_async!("consensus-rpc-response");
+
+        let dag_state = self.dag_state.read();
+        // Find recent own blocks that have not been received by the peer.
+        // If last_received is a valid and more blocks have been proposed since then,
+        // this call is guaranteed to return at least some recent blocks, which
+        // will help with liveness.
+        // TODO:: do we need to add some headers here?
+        let missed_blocks = stream::iter(
+            dag_state
+                .get_cached_blocks(self.context.own_index, last_received + 1)
+                .into_iter()
+                // TODO::deal with possible error in try_from
+                .map(|block| SerializedBlockBundle::try_from(block).unwrap()),
+        );
+
+        let broadcasted_blocks = BroadcastedBlockStream::new(
+            peer,
+            self.rx_block_broadcaster.resubscribe(),
+            self.subscription_counter.clone(),
+        );
+
+        // Return a stream of blocks that first yields missed blocks as requested, then
+        // new blocks.
+        // TODO::deal with possible error in try_from
+        Ok(Box::pin(missed_blocks.chain({
+            let dag_state = Arc::clone(&self.dag_state);
+
+            broadcasted_blocks.map(move |block| {
+                let mut dag_state_guard = dag_state.write();
+                let block_headers =
+                    dag_state_guard.take_unknown_headers_for_authority(peer, block.round());
+                let block_bundle = BlockBundle {
+                    verified_block: block,
+                    verified_headers: block_headers,
+                };
+                SerializedBlockBundle::try_from(block_bundle).unwrap()
+            })
+        })))
     }
 
     async fn handle_fetch_block_headers(
