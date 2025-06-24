@@ -845,7 +845,7 @@ mod tests {
         core_thread::tests::MockCoreThreadDispatcher,
         dag_state::DagState,
         error::ConsensusResult,
-        network::{BlockStream, NetworkClient},
+        network::{BlockBundleStream, BlockStream, NetworkClient},
         storage::mem_store::MemStore,
     };
 
@@ -860,6 +860,15 @@ mod tests {
             _last_received: Round,
             _timeout: Duration,
         ) -> ConsensusResult<BlockStream> {
+            unimplemented!("Unimplemented")
+        }
+
+        async fn subscribe_block_bundles(
+            &self,
+            _peer: AuthorityIndex,
+            _last_received: Round,
+            _timeout: Duration,
+        ) -> ConsensusResult<BlockBundleStream> {
             unimplemented!("Unimplemented")
         }
 

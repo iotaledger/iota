@@ -13,7 +13,9 @@ use crate::{
     block_header::{BlockRef, VerifiedBlockHeader},
     commit::{CommitRange, TrustedCommit},
     error::ConsensusResult,
-    network::{BlockStream, NetworkService, SerializedBlock},
+    network::{
+        BlockBundleStream, BlockStream, NetworkService, SerializedBlock, SerializedBlockBundle,
+    },
 };
 
 pub(crate) struct TestService {
@@ -55,6 +57,14 @@ impl NetworkService for Mutex<TestService> {
         Ok(())
     }
 
+    async fn handle_subscribed_block_bundles(
+        &self,
+        _peer: AuthorityIndex,
+        _serialized_block_bundle: SerializedBlockBundle,
+    ) -> ConsensusResult<()> {
+        unimplemented!("Unimplemented")
+    }
+
     async fn handle_subscribe_blocks(
         &self,
         peer: AuthorityIndex,
@@ -70,6 +80,14 @@ impl NetworkService for Mutex<TestService> {
             .cloned()
             .collect::<Vec<_>>();
         Ok(Box::pin(stream::iter(own_blocks)))
+    }
+
+    async fn handle_subscribe_block_bundles_request(
+        &self,
+        _peer: AuthorityIndex,
+        _last_received: Round,
+    ) -> ConsensusResult<BlockBundleStream> {
+        unimplemented!("Unimplemented");
     }
 
     async fn handle_fetch_block_headers(
