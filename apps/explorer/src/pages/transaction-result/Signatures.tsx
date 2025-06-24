@@ -38,7 +38,6 @@ function SignaturePanel({ title, signature: data }: SignaturePanelProps): JSX.El
                     <AddressLink
                         address={'address' in data ? data.address : data.publicKey.toIotaAddress()}
                         copyText={'address' in data ? data.address : data.publicKey.toIotaAddress()}
-                        onCopySuccess={onCopySuccess}
                     />
                 }
                 fullwidth

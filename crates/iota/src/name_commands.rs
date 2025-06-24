@@ -574,6 +574,11 @@ impl NameCommand {
                 opts,
             } => {
                 let entry = get_registry_entry(&domain, &iota_client).await?;
+                if entry.name_record.is_leaf_record() {
+                    bail!(
+                        "cannot set target address for leaf subdomain; try removing and recreating the subdomain instead."
+                    );
+                }
                 let new_address =
                     get_identity_address(new_address.map(KeyIdentity::Address), context)?;
                 if entry
@@ -714,6 +719,9 @@ impl NameCommand {
                 verbose,
             } => {
                 let entry = get_registry_entry(&domain, &iota_client).await?;
+                if entry.name_record.is_leaf_record() {
+                    bail!("cannot unset target address for leaf subdomain");
+                }
                 if entry.name_record.target_address.is_none() {
                     bail!("target address is already unset");
                 }
@@ -2113,12 +2121,21 @@ struct RenewalConfig {
 
 impl PricingConfig {
     pub fn get_price(&self, label: &str) -> anyhow::Result<u64> {
-        for Entry::<Range, u64> { key, value } in &self.pricing.contents {
+        for Entry { key, value } in &self.pricing.contents {
             if key.contains(label.chars().count() as u64) {
                 return Ok(*value);
             }
         }
-        bail!("no pricing config for label length")
+        bail!(
+            "segment length {} (`{label}`) is outside of allowed ranges [{}]",
+            label.len(),
+            self.pricing
+                .contents
+                .iter()
+                .map(|c| format!("{}..={}", c.key.0, c.key.1))
+                .collect::<Vec<_>>()
+                .join(", ")
+        )
     }
 }
 
