@@ -2113,12 +2113,21 @@ struct RenewalConfig {
 
 impl PricingConfig {
     pub fn get_price(&self, label: &str) -> anyhow::Result<u64> {
-        for Entry::<Range, u64> { key, value } in &self.pricing.contents {
+        for Entry { key, value } in &self.pricing.contents {
             if key.contains(label.chars().count() as u64) {
                 return Ok(*value);
             }
         }
-        bail!("no pricing config for label length")
+        bail!(
+            "segment length {} (`{label}`) is outside of allowed ranges [{}]",
+            label.len(),
+            self.pricing
+                .contents
+                .iter()
+                .map(|c| format!("{}..={}", c.key.0, c.key.1))
+                .collect::<Vec<_>>()
+                .join(", ")
+        )
     }
 }
 
