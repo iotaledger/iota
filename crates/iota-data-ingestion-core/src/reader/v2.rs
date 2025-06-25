@@ -63,8 +63,8 @@ pub enum RemoteUrl {
         /// "https://checkpoints.mainnet.iota.cafe"
         /// ```
         historical_url: String,
-        /// The URL path to the live object store that contains *.chk checkpoint
-        /// files.
+        /// The URL path to the live object store that contains `*.chk`
+        /// checkpoint files.
         ///
         /// # Example
         /// ```text
