@@ -19,14 +19,14 @@ use iota_sdk::{
 
 use crate::{
     faucet::request_tokens,
-    sig_utils::restore_signagure_bytes_to_generic,
+    sig_utils::{build_multisig, restore_signagure_bytes_to_generic},
     signed_tx::SignedTx,
     smart_account::{
-        init_smart_account, make_deposit_to_smart_account, prepare_withdraw_tx_data,
-        publish_account_abstraction_package, smart_account_data,
+        delete_smart_account, init_smart_account, make_deposit_to_smart_account,
+        prepare_withdraw_tx_data, publish_account_abstraction_package, smart_account_data,
     },
     tx_flow::{propose_tx_to_smart_account, sign_proposed_tx},
-    utils::{check_recipient_balance, package_id},
+    utils::{THRESHOLD, check_recipient_balance, package_id},
 };
 mod faucet;
 mod sig_utils;
@@ -49,11 +49,6 @@ async fn main() -> Result<(), anyhow::Error> {
     let alice_addr = IotaAddress::from_str("***")?;
     let bob_addr = IotaAddress::from_str("***")?;
     let coin_recipient_addr = IotaAddress::from_str("***")?;
-
-    // Generate multisig public key
-    let alice_pub_key = keystore.get_key(&alice_addr)?.public();
-    let bob_pub_key = keystore.get_key(&bob_addr)?.public();
-    let multisig_pub_key = MultiSigPublicKey::new(vec![alice_pub_key, bob_pub_key], vec![1, 2], 2)?;
 
     // Request faucet coins for all parties involved
     request_tokens(&iota_client, multisig_addr).await?;
@@ -91,10 +86,15 @@ async fn main() -> Result<(), anyhow::Error> {
     println!("OwnerCap ID: {}", owner_cap_object.0);
 
     // Deposit tokens to the smart account from Alice
+    // This function includes two transactions:
+    // one for depositing (transferring tokens to the smart account)
+    // and one for receiving the transferred tokens.
     make_deposit_to_smart_account(
         &iota_client,
         &keystore,
         alice_addr,
+        bob_addr,
+        multisig_addr,
         package_id,
         smart_account_object,
     )
@@ -102,7 +102,7 @@ async fn main() -> Result<(), anyhow::Error> {
 
     // Prepare a withdrawal transaction from the smart account to an external
     // recipient
-    let withdraw_amount = 1_000_000u128;
+    let withdraw_amount = 1_000_005u128;
     let (withdraw_digest, withdraw_tx_data) = prepare_withdraw_tx_data(
         &iota_client,
         alice_addr,
@@ -158,33 +158,33 @@ async fn main() -> Result<(), anyhow::Error> {
 
     // Reconstruct and validate the multisignature from the verified individual
     // signatures
-    let tx_data = bcs::from_bytes::<TransactionData>(&signed_tx.tx_bytes)?;
+    let withdraw_tx_data = bcs::from_bytes::<TransactionData>(&signed_tx.tx_bytes)?;
+
     let alice_signature = restore_signagure_bytes_to_generic(
         &keystore,
         alice_addr,
         &signed_tx.verified_signatures[0],
     )?;
-    let bob_signature =
-        restore_signagure_bytes_to_generic(&keystore, bob_addr, &signed_tx.verified_signatures[1])?;
 
-    let multisig: GenericSignature = MultiSig::combine(
-        vec![alice_signature.clone(), bob_signature.clone()],
-        multisig_pub_key,
-    )?
-    .into();
+    let sigs: Vec<GenericSignature> = vec![
+        alice_signature.clone(),
+        restore_signagure_bytes_to_generic(&keystore, bob_addr, &signed_tx.verified_signatures[1])?,
+    ];
+
+    let multisig = build_multisig(&keystore, &[alice_addr, bob_addr], &[1, 2], THRESHOLD, sigs)?;
 
     // Execute the final withdrawal transaction using the both multisignature and
     // alice signature
-    let transaction_response = iota_client
+    let withdraw_tx_response = iota_client
         .quorum_driver_api()
         .execute_transaction_block(
-            Transaction::from_generic_sig_data(tx_data, vec![multisig, alice_signature]),
+            Transaction::from_generic_sig_data(withdraw_tx_data, vec![multisig, alice_signature]),
             IotaTransactionBlockResponseOptions::full_content(),
             ExecuteTransactionRequestType::WaitForLocalExecution,
         )
         .await?;
 
-    print!("\n Withdraw signature execution info: {transaction_response}");
+    print!("\n Withdraw signature execution info: {withdraw_tx_response}");
 
     // Verify recipient received expected amount
     assert!(
@@ -193,5 +193,22 @@ async fn main() -> Result<(), anyhow::Error> {
     );
 
     println!("Recipient has received - {withdraw_amount}");
+
+    // Deletiton of Smart Account initiated by Bob and approved by Alice
+
+    let delete_sm_tx_resp = delete_smart_account(
+        &iota_client,
+        package_id,
+        multisig_addr,
+        bob_addr,
+        alice_addr,
+        smart_account_object,
+        owner_cap_object.0,
+        &keystore,
+    )
+    .await?;
+
+    print!("\n Delete Smart Contract Transaction: {delete_sm_tx_resp}");
+
     Ok(())
 }

@@ -6,12 +6,14 @@ use fastcrypto::hash::HashFunction;
 use iota_keys::keystore::{AccountKeystore, FileBasedKeystore};
 use iota_sdk::{
     IotaClient,
-    rpc_types::{IotaTransactionBlockResponse, IotaTransactionBlockResponseOptions, ObjectChange},
+    rpc_types::{
+        IotaObjectDataOptions, IotaTransactionBlockResponse, IotaTransactionBlockResponseOptions,
+        ObjectChange,
+    },
     types::{
         Identifier,
         base_types::{IotaAddress, ObjectID, ObjectRef},
         crypto::DefaultHash,
-        multisig::{MultiSig, MultiSigPublicKey},
         programmable_transaction_builder::ProgrammableTransactionBuilder,
         quorum_driver_types::ExecuteTransactionRequestType,
         signature::GenericSignature,
@@ -21,7 +23,10 @@ use iota_sdk::{
 use move_core_types::language_storage::StructTag;
 use shared_crypto::intent::{Intent, IntentMessage};
 
-use crate::utils::{GAS_BUDGET, compile_package, get_coin};
+use crate::{
+    sig_utils::build_multisig,
+    utils::{GAS_BUDGET, THRESHOLD, compile_package, get_coin},
+};
 
 const AA_MODULE_NAME: &str = "account_abstraction";
 
@@ -57,30 +62,20 @@ pub async fn publish_account_abstraction_package(
             compiled_package.get_package_bytes(false),
             compiled_package.get_dependency_storage_package_ids(),
             multisig_addr_gas_coin.coin_object_id,
-            100000000,
+            GAS_BUDGET,
         )
         .await?;
 
-    // Create individual signatures
-    let alice_sig: GenericSignature = keystore
-        .sign_secure(&alice_addr, &tx_data, Intent::iota_transaction())?
-        .into();
-    let bob_sig: GenericSignature = keystore
-        .sign_secure(&bob_addr, &tx_data, Intent::iota_transaction())?
-        .into();
+    let sigs: Vec<GenericSignature> = vec![
+        keystore
+            .sign_secure(&alice_addr, &tx_data, Intent::iota_transaction())?
+            .into(),
+        keystore
+            .sign_secure(&bob_addr, &tx_data, Intent::iota_transaction())?
+            .into(),
+    ];
 
-    // Construct multisig public key and aggregate signature
-    let multisig_pub_key = MultiSigPublicKey::new(
-        vec![
-            keystore.get_key(&alice_addr)?.public(),
-            keystore.get_key(&bob_addr)?.public(),
-        ],
-        vec![1, 2],
-        2,
-    )?;
-
-    let multisig: GenericSignature =
-        MultiSig::combine(vec![alice_sig, bob_sig], multisig_pub_key)?.into();
+    let multisig = build_multisig(keystore, &[alice_addr, bob_addr], &[1, 2], THRESHOLD, sigs)?;
 
     // Deployment of the Account Abstraction (AA) Package via Multisig:
     let transaction_response = iota_client
@@ -107,32 +102,24 @@ pub async fn init_smart_account(
     keystore: &FileBasedKeystore,
 ) -> Result<IotaTransactionBlockResponse> {
     let mut ptb_builder = ProgrammableTransactionBuilder::new();
-    let module = Identifier::new(AA_MODULE_NAME)?;
-    let function = Identifier::new("init_multisig_aa")?;
-
-    let arguments = vec![ptb_builder.pure(multisig_addr)?];
+    let args = vec![ptb_builder.pure(multisig_addr)?];
     ptb_builder.command(Command::move_call(
         package_id,
-        module,
-        function,
+        Identifier::new(AA_MODULE_NAME)?,
+        Identifier::new("init_multisig_smart_account")?,
         vec![],
-        arguments,
+        args,
     ));
 
-    // build the transaction block by calling finish on the ptb
-    let ptb = ptb_builder.finish();
-
     let gas_price = iota_client.read_api().get_reference_gas_price().await?;
-
     let publisher_coin = get_coin(iota_client, publisher_addr).await?;
 
-    println!("\n *** Publisher gas coin ***");
-    println!("{publisher_coin:?}");
+    println!("\nPublisher gas coin - {publisher_coin:?}");
 
     let tx_data = TransactionData::new_programmable(
         publisher_addr,
         vec![publisher_coin.object_ref()],
-        ptb,
+        ptb_builder.finish(),
         GAS_BUDGET,
         gas_price,
     );
@@ -154,84 +141,70 @@ pub async fn init_smart_account(
 pub fn smart_account_data(
     smart_account_tx: IotaTransactionBlockResponse,
 ) -> Result<(ObjectRef, ObjectRef)> {
-    let aa_name = Identifier::new("SmartAccount")?;
-    let owner_cap_name = Identifier::new("OwnerCap")?;
     let created = smart_account_tx
         .object_changes
-        .as_ref()
         .ok_or_else(|| anyhow!("No object changes found"))?;
-
-    let find_object = |name: &Identifier| -> Option<ObjectRef> {
-        created.iter().find_map(|change| match change {
-            ObjectChange::Created {
-                object_type: StructTag { name: n, .. },
-                ..
-            } if n == name => Some(change.object_ref()),
-            _ => None,
-        })
+    let find_ref = |name: &str| -> Result<ObjectRef> {
+        let id = Identifier::new(name)?;
+        created
+            .iter()
+            .find_map(|obj_change| match obj_change {
+                ObjectChange::Created {
+                    object_type: StructTag { name: n, .. },
+                    ..
+                } if n == &id => Some(obj_change.object_ref()),
+                _ => None,
+            })
+            .ok_or_else(|| anyhow!("{name} not found"))
     };
-
-    let smart_account = find_object(&aa_name).ok_or_else(|| anyhow!("SmartAccount not found"))?;
-    let owner_cap = find_object(&owner_cap_name).ok_or_else(|| anyhow!("OwnerCap not found"))?;
-
-    Ok((smart_account, owner_cap))
+    Ok((find_ref("SmartAccount")?, find_ref("OwnerCap")?))
 }
 
-/// Submits a deposit transaction into a SmartAccount using Alice's gas coin.
+/// Submits a deposit transaction into a SmartAccount.
+/// Receives the sent coin in place.
 pub async fn make_deposit_to_smart_account(
     iota_client: &IotaClient,
     keystore: &FileBasedKeystore,
-    alice_addr: IotaAddress,
+    depositor_addr: IotaAddress,
+    approver_addr: IotaAddress,
+    multisig_addr: IotaAddress,
     package_id: ObjectID,
     smart_account_obj: ObjectRef,
 ) -> Result<()> {
-    let alice_coin = get_coin(iota_client, alice_addr).await?;
-    let alice_gas_coin_for_deposit = alice_coin.object_ref();
+    let depositor_coin = get_coin(iota_client, depositor_addr).await?;
+    let depositor_gas_coin_for_deposit = depositor_coin.object_ref();
 
-    println!("\n *** Alice gas coin for deposit***");
-    println!("{alice_gas_coin_for_deposit:?}");
+    println!("\n Depositor's gas coin for deposit - {depositor_gas_coin_for_deposit:?}");
 
     let mut ptb_builder = ProgrammableTransactionBuilder::new();
-    let module = Identifier::new(AA_MODULE_NAME)?;
-    let function = Identifier::new("deposit")?;
 
-    let arguments = vec![
-        ptb_builder.obj(ObjectArg::SharedObject {
-            id: smart_account_obj.0,
-            initial_shared_version: smart_account_obj.1,
-            mutable: true,
-        })?,
-        ptb_builder.obj(ObjectArg::ImmOrOwnedObject(alice_gas_coin_for_deposit))?,
-    ];
-    ptb_builder.command(Command::move_call(
-        package_id,
-        module,
-        function,
-        vec![],
-        arguments,
-    ));
+    // Deposit some coins to the smart account
+    ptb_builder.transfer_object(smart_account_obj.0.into(), depositor_gas_coin_for_deposit)?;
 
-    let ptb = ptb_builder.finish();
     let gas_price = iota_client.read_api().get_reference_gas_price().await?;
 
-    let alice_coin = iota_client
+    let depositor_coin = iota_client
         .coin_read_api()
-        .select_coins(alice_addr, None, 1, vec![alice_gas_coin_for_deposit.0])
+        .select_coins(
+            depositor_addr,
+            None,
+            1,
+            vec![depositor_gas_coin_for_deposit.0],
+        )
         .await?;
-    let alice_gas_coin = alice_coin.first().unwrap();
+    let depositor_gas_coin = depositor_coin.first().unwrap();
 
-    println!("\n *** Alice gas coin for gas payment ***");
-    println!("{alice_gas_coin:?}");
+    println!("\n Depositor's gas coin for gas payment - {depositor_gas_coin:?}");
 
     let tx_data = TransactionData::new_programmable(
-        alice_addr,
-        vec![alice_gas_coin.object_ref()],
-        ptb,
+        depositor_addr,
+        vec![depositor_gas_coin.object_ref()],
+        ptb_builder.finish(),
         GAS_BUDGET,
         gas_price,
     );
 
-    let signature = keystore.sign_secure(&alice_addr, &tx_data, Intent::iota_transaction())?;
+    let signature = keystore.sign_secure(&depositor_addr, &tx_data, Intent::iota_transaction())?;
 
     let transaction_response = iota_client
         .quorum_driver_api()
@@ -242,8 +215,91 @@ pub async fn make_deposit_to_smart_account(
         )
         .await?;
 
-    print!("\n Deposit tx info: ");
-    println!("{}", transaction_response);
+    print!("\n Deposit tokens tx info: {transaction_response}");
+
+    let mut ptb_builder = ProgrammableTransactionBuilder::new();
+
+    let depositor_gas_coin_for_deposit = iota_client
+        .read_api()
+        .get_object_with_options(
+            depositor_gas_coin_for_deposit.0,
+            IotaObjectDataOptions::default().with_bcs(),
+        )
+        .await?
+        .data
+        .ok_or_else(|| anyhow!("Depositor's gas coin for deposit object data is missing"))?;
+
+    let arguments = vec![
+        ptb_builder.obj(ObjectArg::SharedObject {
+            id: smart_account_obj.0,
+            initial_shared_version: smart_account_obj.1,
+            mutable: true,
+        })?,
+        ptb_builder.obj(ObjectArg::Receiving(
+            depositor_gas_coin_for_deposit.object_ref(),
+        ))?,
+    ];
+    ptb_builder.command(Command::move_call(
+        package_id,
+        Identifier::new(AA_MODULE_NAME)?,
+        Identifier::new("receive_deposit")?,
+        vec![],
+        arguments,
+    ));
+
+    let gas_price = iota_client.read_api().get_reference_gas_price().await?;
+
+    let depositor_coin = iota_client
+        .coin_read_api()
+        .select_coins(
+            depositor_addr,
+            None,
+            1,
+            vec![depositor_gas_coin_for_deposit.object_id],
+        )
+        .await?;
+    let depositor_gas_coin = depositor_coin.first().unwrap();
+
+    let receive_tx_data = TransactionData::new_programmable_allow_sponsor(
+        multisig_addr,
+        vec![depositor_gas_coin.object_ref()],
+        ptb_builder.finish(),
+        GAS_BUDGET,
+        gas_price,
+        depositor_addr,
+    );
+
+    let depositor_sig: GenericSignature = keystore
+        .sign_secure(
+            &depositor_addr,
+            &receive_tx_data,
+            Intent::iota_transaction(),
+        )?
+        .into();
+    let sigs: Vec<GenericSignature> = vec![
+        depositor_sig.clone(),
+        keystore
+            .sign_secure(&approver_addr, &receive_tx_data, Intent::iota_transaction())?
+            .into(),
+    ];
+    let multisig = build_multisig(
+        keystore,
+        &[depositor_addr, approver_addr],
+        &[1, 2],
+        THRESHOLD,
+        sigs,
+    )?;
+
+    let transaction_response = iota_client
+        .quorum_driver_api()
+        .execute_transaction_block(
+            Transaction::from_generic_sig_data(receive_tx_data, vec![multisig, depositor_sig]),
+            IotaTransactionBlockResponseOptions::full_content(),
+            ExecuteTransactionRequestType::WaitForLocalExecution,
+        )
+        .await?;
+
+    print!("\n Receiving tokens tx info: {transaction_response}");
 
     Ok(())
 }
@@ -263,8 +319,6 @@ pub async fn prepare_withdraw_tx_data(
     withdraw_amount: u64,
 ) -> Result<(Vec<u8>, TransactionData)> {
     let mut ptb_builder = ProgrammableTransactionBuilder::new();
-    let module = Identifier::new(AA_MODULE_NAME).map_err(|e| anyhow!(e))?;
-    let function = Identifier::new("withdraw").map_err(|e| anyhow!(e))?;
     let arguments = vec![
         ptb_builder.obj(ObjectArg::SharedObject {
             id: smart_account_obj.0,
@@ -273,17 +327,17 @@ pub async fn prepare_withdraw_tx_data(
         })?,
         ptb_builder.obj(ObjectArg::ImmOrOwnedObject(owner_cap_obj))?,
         ptb_builder.pure(withdraw_amount)?,
-        ptb_builder.pure(coin_recipient_addr)?,
     ];
-    ptb_builder.command(Command::move_call(
+    let coin = ptb_builder.programmable_move_call(
         package_id,
-        module,
-        function,
+        Identifier::new(AA_MODULE_NAME)?,
+        Identifier::new("withdraw")?,
         vec![],
         arguments,
-    ));
+    );
 
-    let ptb = ptb_builder.finish();
+    ptb_builder.transfer_arg(coin_recipient_addr, coin);
+
     let gas_price = iota_client.read_api().get_reference_gas_price().await?;
 
     let alice_gas_coin = iota_client
@@ -295,7 +349,7 @@ pub async fn prepare_withdraw_tx_data(
     let withdraw_tx_data = TransactionData::new_programmable_allow_sponsor(
         multisig_addr,
         vec![alice_gas_coin_for_sponsoring.object_ref()],
-        ptb,
+        ptb_builder.finish(),
         GAS_BUDGET,
         gas_price,
         alice_addr,
@@ -308,4 +362,90 @@ pub async fn prepare_withdraw_tx_data(
     let digest = hasher.finalize().digest.to_vec();
 
     Ok((digest, withdraw_tx_data))
+}
+
+/// Calls the `delete_multisig_smart_account` function to delete a SmartAccount
+/// and OwnerCap objects.
+/// It returns the remained balance as coin and transfer it to the initiator.
+pub async fn delete_smart_account(
+    iota_client: &IotaClient,
+    package_id: ObjectID,
+    multisig_addr: IotaAddress,
+    initiator_addr: IotaAddress,
+    approver_addr: IotaAddress,
+    smart_account_obj: ObjectRef,
+    owner_cap_obj_id: ObjectID,
+    keystore: &FileBasedKeystore,
+) -> Result<IotaTransactionBlockResponse> {
+    let mut ptb_builder = ProgrammableTransactionBuilder::new();
+
+    // Get an up-to-date owner_cap object (with the last version)
+    let owner_cap_obj = iota_client
+        .read_api()
+        .get_object_with_options(owner_cap_obj_id, IotaObjectDataOptions::new().with_bcs())
+        .await?
+        .data
+        .ok_or(anyhow!("Owner cap object not found"))?;
+
+    let arguments = vec![
+        ptb_builder.obj(ObjectArg::SharedObject {
+            id: smart_account_obj.0,
+            initial_shared_version: smart_account_obj.1,
+            mutable: true,
+        })?,
+        ptb_builder.obj(ObjectArg::ImmOrOwnedObject(owner_cap_obj.object_ref()))?,
+    ];
+
+    let coin = ptb_builder.programmable_move_call(
+        package_id,
+        Identifier::new(AA_MODULE_NAME)?,
+        Identifier::new("delete_multisig_smart_account")?,
+        vec![],
+        arguments,
+    );
+
+    ptb_builder.transfer_arg(initiator_addr, coin);
+
+    let gas_price = iota_client.read_api().get_reference_gas_price().await?;
+
+    let initiator_coin = get_coin(iota_client, initiator_addr).await?;
+
+    println!("\n Initiator gas coin  - {initiator_addr:?}");
+
+    let delete_sm_tx = TransactionData::new_programmable_allow_sponsor(
+        multisig_addr,
+        vec![initiator_coin.object_ref()],
+        ptb_builder.finish(),
+        GAS_BUDGET,
+        gas_price,
+        initiator_addr,
+    );
+
+    let initiator_sig: GenericSignature = keystore
+        .sign_secure(&initiator_addr, &delete_sm_tx, Intent::iota_transaction())?
+        .into();
+
+    let sigs: Vec<GenericSignature> = vec![
+        keystore
+            .sign_secure(&approver_addr, &delete_sm_tx, Intent::iota_transaction())?
+            .into(),
+        initiator_sig.clone(),
+    ];
+
+    let multisig = build_multisig(
+        keystore,
+        &[approver_addr, initiator_addr],
+        &[1, 2],
+        THRESHOLD,
+        sigs,
+    )?;
+
+    Ok(iota_client
+        .quorum_driver_api()
+        .execute_transaction_block(
+            Transaction::from_generic_sig_data(delete_sm_tx, vec![multisig, initiator_sig]),
+            IotaTransactionBlockResponseOptions::full_content(),
+            ExecuteTransactionRequestType::WaitForLocalExecution,
+        )
+        .await?)
 }

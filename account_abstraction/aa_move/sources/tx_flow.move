@@ -20,6 +20,10 @@ public struct SignedTx has key, store {
 }
 
 /// Holds the raw bytes of the proposed transaction with signatures and their threshold
+/// Currently, we store both `tx_digest` and `tx_bytes`:
+/// - `tx_digest` is needed to verify the signature
+/// - `tx_bytes` is required to execute the transaction later
+/// Theoretically, we could extract the digest from tx_bytes on-chain, but we’re skipping this step for the prototype.
 public struct ProposedTx has key, store {
     id: UID,
     tx_digest: vector<u8>,

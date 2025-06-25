@@ -1,8 +1,9 @@
 
 > [!WARNING]
-> The CLI doesn’t support transaction sponsorship.
+> TThe IOTA CLI currently does not support transaction sponsorship.
   Additionally, it would require significant effort to handle encoding and decoding of signatures, public keys, and transaction bytes. 
-  So, the following steps outline the general flow to provide an overview of the process
+  So, the following steps outline the general flow to provide an overview of the process.
+  For full-fledged flow, please use an [SDK example](../aa_rust_sdk_flow/)
 
 1. Multisig Address Creation and Funding
 1.1 Create a Multisignature Address
@@ -61,7 +62,7 @@ Use the IOTA faucet to fund the generated multisig address:
 3. Initialize the Smart Account
 Invoke the smart account initialization function:
     ```bash
-     /Users/pk/iota client call --package $PACKAGE_ID --module account_abstraction --function init_multisig_aa --args $MULTISIG_ADDR
+     /Users/pk/iota client call --package $PACKAGE_ID --module account_abstraction --function init_multisig_smart_account --args $MULTISIG_ADDR
     ```
     Export the resulting required values as:
     ```bash
@@ -72,13 +73,20 @@ Invoke the smart account initialization function:
 4. Deposit Coins into the Smart Account
 Deposit a coin object into the smart account’s balance:
     ```bash
-    /Users/pk/iota client call --package $PACKAGE_ID --module account_abstraction --function deposit --args $AA $SOME_COIN_OBJ
+     /Users/pk/iota client transfer --to $AA --object-id $SOME_COIN_OBJ
     ```
 
-5. Construct a Withdraw Transaction
+5. Receive Coins for the Smart Account
+Receive a coin object into the smart account’s balance(**Sponsorship also required**):
+    ```bash
+      /Users/pk/iota client call --package $PACKAGE_ID --module account_abstraction --function receive_deposit --args $AA $SOME_COIN_OBJ 
+    ```
+
+6. Construct a Withdraw Transaction
 Create a serialized unsigned transaction to withdraw tokens from the smart account (served with Alice’s gas object):
     ```bash
-    /Users/pk/iota client call --package $PACKAGE_ID --module account_abstraction --function withdraw --args $AA $OWNER_CAP 9999999 $RECIPIENT_ADDR --gas $ALICE_GAS_OBJ --gas-budget 10000000 --serialize-unsigned-transaction
+    /Users/pk/iota client ptb --move-call $PACKAGE_ID::account_abstraction::withdraw @$AA @$OWNER_CAP 9999999 --assign withdraw_coin \
+    --move-call 0x2::transfer::public_transfer $SOME_COIN_OBJ @$RECIPIENT_ADDR
     ```
     Export the transaction bytes:
     ```bash
@@ -86,7 +94,7 @@ Create a serialized unsigned transaction to withdraw tokens from the smart accou
     export TX_DIGEST
     ```
 
-6. Submit the Transaction Proposal
+7. Submit the Transaction Proposal
 Create a proposed transaction entry point using the serialized unsigned transaction:
     ```bash
     /Users/pk/iota client call --package $PACKAGE_ID --module tx_flow --function entry_point --args $AA $TX_DIGEST $TX 2
@@ -96,7 +104,29 @@ Create a proposed transaction entry point using the serialized unsigned transact
     export PROPOSED_TX_ID
     ```
 
-7. Sign the Transaction Proposal
+
+> [!WARNING]
+> The following steps involve manual processing of base64 signatures into raw components.
+
+8. Sign the Transaction Proposal
+Here actually we have to extract the pure signature(signature bytes with the prefix flag and the public_key suffix).
+For instance we have a signature in base64 format:
+```bash
+AFhSeMS6tVuwJ9nzFDFLJLR3oEyKqmx1deaszpT5BU5IyLkUKDNDhUuoP329EDlwBhU7bEhXd+hX3M35n8CkFwqdUQKrysRzJaY8a9kivajuYiHD1lPTJOQtx9Tjxuv3Bg==
+```
+You need to decode it into hex:
+```bash 00585278c4bab55bb027d9f314314b24b477a04c8aaa6c7575e6acce94f9054e48c8b914283343854ba83f7dbd10397006153b6c485777e857dccdf99fc0a4170a9d5102abcac47325a63c6bd922bda8ee6221c3d653d324e42dc7d4e3c6ebf706
+```
+Then you need to split this into 3 parts:
+The first byte (2 chars) = 00 -> this is the flag
+then 64 bytes (128 chars) - this is the REAL signature
+```bash
+585278c4bab55bb027d9f314314b24b477a04c8aaa6c7575e6acce94f9054e48c8b914283343854ba83f7dbd10397006153b6c485777e857dccdf99fc0a4170a
+``` 
+the last 32 bytes (64 chars)is the public key used to sign, a repetition of Alice's publicBase64Key (no flag) encoded in hex:
+```bash
+9d5102abcac47325a63c6bd922bda8ee6221c3d653d324e42dc7d4e3c6ebf706
+```
 Sign the transaction independently by both Alice and Bob:
     ```bash
     /Users/pk/iota keytool sign --address $ALICE_ADDR --data $TX
@@ -104,23 +134,25 @@ Sign the transaction independently by both Alice and Bob:
     ```
     Export their signatures:
     ```bash
-    export SIGN1
-    export SIGN2
+    export PURE_SIGN1
+    export PURE_SIGN2
     ```
 
-8. Register the Signatures On-chain
+9. Register the Signatures On-chain
 Submit the signed transaction proposals:
     ```bash
-    /Users/pk/iota client ptb --move-call $PACKAGE_ID::tx_flow::sign_proposed_tx @$AA @$PROPOSED_TX_ID '"$ALICE_PUBLIC_KEY"' '"$SIGN1"'
-    /Users/pk/iota client ptb --move-call $PACKAGE_ID::tx_flow::sign_proposed_tx @$AA @$PROPOSED_TX_ID '"$BOB_PUBLIC_KEY"' '"$SIGN2"'
+    /Users/pk/iota client ptb --move-call $PACKAGE_ID::tx_flow::sign_proposed_tx @$AA @$PROPOSED_TX_ID '"$ALICE_PUBLIC_KEY"' '"$PURE_SIGN1"'
+    /Users/pk/iota client ptb --move-call $PACKAGE_ID::tx_flow::sign_proposed_tx @$AA @$PROPOSED_TX_ID '"$BOB_PUBLIC_KEY"' '"$PURE_SIGN2"'
     ```
     Extract the fully signed transaction object and export it:
     ```bash
     export SIGNED_TX
     ```
 
-9. Combine Verified Signatures
-Extract verified individual signatures and create a final multisignature:
+10. Combine Verified Signatures
+Here, we need to extract the 'pure' verified signatures and reconstruct the full signature by adding the prefix flag and public key suffix. Then, export them as $VERIFIED_SIGN1 and $VERIFIED_SIGN2.
+
+Create a final multisignature:
     ```bash
     /Users/pk/iota keytool multi-sig-combine-partial-sig --pks $ALICE_PUBLIC_KEY $BOB_PUBLIC_KEY --weights 1 2 --threshold 2 --sigs $VERIFIED_SIGN1 $VERIFIED_SIGN2
     ```
@@ -129,8 +161,9 @@ Extract verified individual signatures and create a final multisignature:
     export TX_MULTISIG
     ```
 
-10. Execute the Final Transaction
-Execute the multisigned transaction on-chain:
+11. Execute the Final Transaction(**Actually, this step doesn’t work in the CLI, because— as mentioned above— the CLI doesn’t support sponsorship logic. However, we need it here since ALICE is the sponsor and initiator of this transaction.**)
+Expected call:
     ```bash
-    /Users/pk/iota client execute-signed-tx --tx-bytes $SIGNED_TX --signatures $TX_MULTISIG
+    /Users/pk/iota client execute-signed-tx --tx-bytes $SIGNED_TX --signatures $TX_MULTISIG $ALICE_SIG
     ```
+Instead, you must use the IOTA SDK (Rust) to sponsor and execute this transaction.

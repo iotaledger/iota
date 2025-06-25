@@ -7,7 +7,11 @@ use fastcrypto::{
     traits::ToFromBytes,
 };
 use iota_keys::keystore::{AccountKeystore, FileBasedKeystore};
-use iota_sdk::types::{base_types::IotaAddress, signature::GenericSignature};
+use iota_sdk::types::{
+    base_types::IotaAddress,
+    multisig::{MultiSig, MultiSigPublicKey},
+    signature::GenericSignature,
+};
 
 /// Reconstructs a `GenericSignature` from a hex-encoded pure signature string.
 ///
@@ -61,4 +65,21 @@ pub fn extract_pure_signature(signature: &GenericSignature) -> String {
         .skip(flag_prefix)
         .take(pure_signature_length)
         .collect()
+}
+
+/// Helper to construct a multisig from two signers (with weighted threshold).
+pub fn build_multisig(
+    keystore: &FileBasedKeystore,
+    signers: &[IotaAddress],
+    weights: &[u8],
+    threshold: u16,
+    signatures: Vec<GenericSignature>,
+) -> Result<GenericSignature> {
+    let public_keys = signers
+        .iter()
+        .map(|addr| keystore.get_key(addr).map(|k| k.public()))
+        .collect::<Result<Vec<_>, _>>()?;
+
+    let multisig_key = MultiSigPublicKey::new(public_keys, weights.to_vec(), threshold)?;
+    Ok(MultiSig::combine(signatures, multisig_key)?.into())
 }

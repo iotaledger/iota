@@ -20,7 +20,7 @@ use shared_crypto::intent::Intent;
 
 use crate::{
     sig_utils::extract_pure_signature,
-    utils::{GAS_BUDGET, get_coin},
+    utils::{GAS_BUDGET, THRESHOLD, get_coin},
 };
 
 const TX_MODULE_NAME: &str = "tx_flow";
@@ -44,11 +44,8 @@ pub async fn propose_tx_to_smart_account(
     smart_account_object: ObjectRef,
 ) -> Result<ObjectRef> {
     let mut ptb_builder = ProgrammableTransactionBuilder::new();
-    let module = Identifier::new(TX_MODULE_NAME)?;
-    let function = Identifier::new("entry_point")?;
 
     let withdraw_tx_bytes = bcs::to_bytes(&withdraw_tx_data).unwrap();
-    let threshold = 2u64;
     let arguments = vec![
         ptb_builder.obj(ObjectArg::SharedObject {
             id: smart_account_object.0,
@@ -57,17 +54,15 @@ pub async fn propose_tx_to_smart_account(
         })?,
         ptb_builder.pure(digest)?,
         ptb_builder.pure(withdraw_tx_bytes)?,
-        ptb_builder.pure(threshold)?,
+        ptb_builder.pure(THRESHOLD as u64)?,
     ];
     ptb_builder.command(Command::move_call(
         package_id,
-        module.clone(),
-        function,
+        Identifier::new(TX_MODULE_NAME)?,
+        Identifier::new("entry_point")?,
         vec![],
         arguments,
     ));
-
-    let ptb = ptb_builder.finish();
 
     let gas_price = iota_client.read_api().get_reference_gas_price().await?;
 
@@ -75,7 +70,7 @@ pub async fn propose_tx_to_smart_account(
     let tx_data = TransactionData::new_programmable(
         alice_addr,
         vec![alice_gas_coin.object_ref()],
-        ptb,
+        ptb_builder.finish(),
         GAS_BUDGET,
         gas_price,
     );
@@ -159,14 +154,13 @@ pub async fn sign_proposed_tx(
         arguments,
     ));
 
-    let ptb = ptb_builder.finish();
     let gas_price = iota_client.read_api().get_reference_gas_price().await?;
 
     let alice_gas_coin = get_coin(iota_client, addr).await?;
     let tx_data = TransactionData::new_programmable(
         addr,
         vec![alice_gas_coin.object_ref()],
-        ptb,
+        ptb_builder.finish(),
         GAS_BUDGET,
         gas_price,
     );
