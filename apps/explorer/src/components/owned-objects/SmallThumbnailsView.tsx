@@ -8,7 +8,6 @@ import { formatAddress } from '@iota/iota-sdk/utils';
 import { Info, Loader } from '@iota/apps-ui-icons';
 import { type ReactNode } from 'react';
 import { ObjectLink, ObjectVideoImage } from '~/components/ui';
-import { useResolveVideo } from '~/hooks/useResolveVideo';
 import { parseObjectType, trimStdLibPrefix } from '~/lib/utils';
 
 interface SmallThumbnailsViewProps {
@@ -43,7 +42,6 @@ function SmallThumbnailsViewLoading({ limit }: { limit: number }): JSX.Element {
 }
 
 function SmallThumbnail({ obj }: { obj: IotaObjectResponse }): JSX.Element {
-    const video = useResolveVideo(obj);
     const displayMeta = obj.data?.display?.data;
     const src = displayMeta?.image_url || '';
     const name = displayMeta?.name ?? displayMeta?.description ?? '--';
@@ -53,13 +51,13 @@ function SmallThumbnail({ obj }: { obj: IotaObjectResponse }): JSX.Element {
     return (
         <div className="flex items-center gap-md">
             <ObjectVideoImage
-                fadeIn
                 disablePreview
                 title={name}
                 subtitle={type}
                 src={src}
-                video={video}
                 variant="xs"
+                disableVideoControls
+                disableAutoPlay
             />
             <div className="flex min-w-0 flex-col flex-nowrap gap-xxs">
                 <span className="text-label-md text-neutral-10 dark:text-neutral-92">{name}</span>

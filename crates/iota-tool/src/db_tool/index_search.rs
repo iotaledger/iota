@@ -5,7 +5,7 @@
 use std::{fmt::Debug, path::PathBuf, str::FromStr};
 
 use anyhow::{anyhow, bail};
-use iota_storage::IndexStoreTables;
+use iota_core::jsonrpc_index::IndexStoreTables;
 use iota_types::{
     Identifier, TypeTag,
     base_types::{IotaAddress, ObjectID, TxSequenceNumber},

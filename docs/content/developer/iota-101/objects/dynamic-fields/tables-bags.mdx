@@ -11,11 +11,11 @@ import questions from '/json/developer/iota-101/objects/dynamic-fields/tables-ba
 [Dynamic fields](dynamic-fields.mdx) in IOTA allow developers to extend existing objects by adding or removing fields on-the-fly.
 However, deleting an object that still has dynamic fields, especially non-drop fields, can lead to issues, particularly with on-chain collections holding numerous key-value pairs. 
 To mitigate this, IOTA offers specialized collections—
-[`Table`](../../../../references/framework/iota-framework/table.mdx) and 
-[`Bag`](../../../../references/framework/iota-framework/bag.mdx)—built on dynamic fields but equipped with mechanisms to count entries and prevent accidental deletion when non-empty.
+[`Table`](../../../../references/framework/iota/table.mdx) and 
+[`Bag`](../../../../references/framework/iota/bag.mdx)—built on dynamic fields but equipped with mechanisms to count entries and prevent accidental deletion when non-empty.
 
-IOTA also offers [`ObjectTable`](../../../../references/framework/iota-framework/object_table.mdx)
-and [`ObjectBag`](../../../../references/framework/iota-framework/object_bag.mdx) for scenarios
+IOTA also offers [`ObjectTable`](../../../../references/framework/iota/object_table.mdx)
+and [`ObjectBag`](../../../../references/framework/iota/object_bag.mdx) for scenarios
 requiring visibility of stored objects, accessible via their ID in external storage.
 
 ## Tables
@@ -32,16 +32,16 @@ public fun new<K: copy + drop + store, V: store>(
 }
 ```
 
-A [`Table<K, V>`](../../../../references/framework/iota-framework/table.mdx) is a homogeneous map where all keys
+A [`Table<K, V>`](../../../../references/framework/iota/table.mdx) is a homogeneous map where all keys
 (`K`) and values (`V`) share the same type. 
-These tables are created using [`iota::table::new`](../../../../references/framework/iota-framework/table.mdx#function-new),
+These tables are created using [`iota::table::new`](../../../../references/framework/iota/table.mdx#function-new),
 which requires a mutable transaction context (`&mut TxContext`).
 Because `Table` itself is an object, it can be transferred, shared, or wrapped like any other object.
 
 :::tip `ObjectTable`
 
 For a version of `Table` that preserves object visibility,
-see [`iota::object_table::ObjectTable`](../../../../references/framework/iota-framework/object_table.mdx#resource-objecttable).
+see [`iota::object_table::ObjectTable`](../../../../references/framework/iota/object_table.mdx#struct-objecttable).
 
 :::
 
@@ -57,13 +57,13 @@ public fun new(ctx: &mut TxContext): Bag;
 }
 ```
 
-Unlike `Table`, [`Bag`](../../../../references/framework/iota-framework/bag.mdx) is a heterogeneous map capable of holding key-value pairs of different types.
+Unlike `Table`, [`Bag`](../../../../references/framework/iota/bag.mdx) is a heterogeneous map capable of holding key-value pairs of different types.
 Because of this flexibility, `Bag` does not use type parameters. As with `Table`, creating a `Bag` requires a mutable transaction context (`&mut TxContext`) to generate an ID.
 
 :::tip Object Bag
 
 For an object-preserving version of `Bag`,
-see [`iota::object_bag::ObjectBag`](../../../../references/framework/iota-framework/object_bag.mdx#resource-objectbag).
+see [`iota::object_bag::ObjectBag`](../../../../references/framework/iota/object_bag.mdx#struct-objectbag).
 
 :::
 
