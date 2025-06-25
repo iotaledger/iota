@@ -67,7 +67,7 @@ function createInternalLink<T extends string>(
                     onCopy={copyText ? handleCopyClick : undefined}
                     renderAddress={(address) => (
                         <Link
-                            className="text-primary-30 dark:text-primary-80"
+                            className="text-iota-primary-30 dark:text-iota-primary-80"
                             variant="mono"
                             to={to}
                             {...props}
