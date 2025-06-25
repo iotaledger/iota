@@ -251,7 +251,6 @@ impl Core {
         self
     }
 
-    // TODO: modify to deal with transaction data
     /// Processes the provided blocks and accepts them if possible when their
     /// causal history exists. The method also uses the input bool variable if
     /// this call is known to be about not old blocks. The method returns:
@@ -275,13 +274,13 @@ impl Core {
             .node_metrics
             .core_add_blocks_batch_size
             .observe(blocks.len() as f64);
-        let (accepted_blocks, missing_block_refs) =
+        let (accepted_blocks_headers, missing_block_refs) =
             self.block_manager.try_accept_blocks(blocks, live);
 
-        if !accepted_blocks.is_empty() {
+        if !accepted_blocks_headers.is_empty() {
             debug!(
-                "Accepted blocks: {}",
-                accepted_blocks
+                "Accepted block headers: {}",
+                accepted_blocks_headers
                     .iter()
                     .map(|b| b.reference().to_string())
                     .join(",")
@@ -364,26 +363,22 @@ impl Core {
 
     // Adds the certified commits that have been synced via the commit syncer. We
     // are using the commit info in order to skip running the decision
-    // rule and immediately commit the corresponding leaders and sub dags. Pay
-    // attention that no block acceptance is happening here, but rather
-    // internally in the `try_commit` method which ensures that everytime only the
-    // blocks corresponding to the certified commits that are about to
-    // be committed are accepted.
+    // rule and immediately commit the corresponding leaders and sub dags.
     #[tracing::instrument(skip_all)]
     pub(crate) fn add_certified_commits(
         &mut self,
         certified_commits: CertifiedCommits,
     ) -> ConsensusResult<BTreeSet<BlockRef>> {
         let _scope = monitored_scope("Core::add_certified_commits");
-        let blocks = certified_commits
+        let block_headers = certified_commits
             .commits()
             .iter()
             .flat_map(|commit| commit.blocks())
             .cloned()
             .collect::<Vec<_>>();
 
-        // Add blocks in certified commits to the block manager.
-        self.add_blocks(blocks, false)
+        // Add block headers in certified commits to the block manager.
+        self.add_block_headers(block_headers)
     }
 
     /// If needed, signals a new clock round and sets up leader timeout.

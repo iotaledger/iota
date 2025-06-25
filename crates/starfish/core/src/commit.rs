@@ -19,8 +19,8 @@ use starfish_config::{AuthorityIndex, DIGEST_LENGTH, DefaultHashFunction};
 
 use crate::{
     block_header::{
-        BlockHeaderAPI, BlockRef, BlockTimestampMs, Round, Slot, VerifiedBlock,
-        VerifiedBlockHeader, VerifiedTransactions,
+        BlockHeaderAPI, BlockRef, BlockTimestampMs, Round, Slot, VerifiedBlockHeader,
+        VerifiedTransactions,
     },
     leader_scoring::ReputationScores,
     storage::Store,
@@ -251,22 +251,22 @@ impl CertifiedCommits {
 #[derive(Clone, Debug)]
 pub(crate) struct CertifiedCommit {
     commit: Arc<TrustedCommit>,
-    verifier_blocks: Vec<VerifiedBlock>,
+    verified_block_headers: Vec<VerifiedBlockHeader>,
 }
 
 impl CertifiedCommit {
     pub(crate) fn new_certified(
         commit: TrustedCommit,
-        verified_blocks: Vec<VerifiedBlock>,
+        verified_block_headers: Vec<VerifiedBlockHeader>,
     ) -> Self {
         Self {
             commit: Arc::new(commit),
-            verifier_blocks: verified_blocks,
+            verified_block_headers,
         }
     }
 
-    pub fn blocks(&self) -> &[VerifiedBlock] {
-        &self.verifier_blocks
+    pub fn blocks(&self) -> &[VerifiedBlockHeader] {
+        &self.verified_block_headers
     }
 }
 

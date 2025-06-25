@@ -60,12 +60,12 @@ pub(crate) enum ConsensusError {
     UnexpectedGenesisBlockHeaderRequested,
 
     #[error(
-        "Expected {requested} but received {received_blocks} blocks from authority {authority}"
+        "Expected {requested} but received {received_block_headers} block headers from authority {authority}"
     )]
-    UnexpectedNumberOfBlocksFetched {
+    UnexpectedNumberOfBlockHeadersFetched {
         authority: AuthorityIndex,
         requested: usize,
-        received_blocks: usize,
+        received_block_headers: usize,
     },
 
     #[error("Unexpected block returned while fetching missing blocks")]
