@@ -17,8 +17,9 @@ use iota_json_rpc_types::{
     DryRunTransactionBlockResponse, DynamicFieldPage, IotaData, IotaGetPastObjectRequest,
     IotaMoveNormalizedModule, IotaObjectDataOptions, IotaObjectResponse, IotaObjectResponseQuery,
     IotaPastObjectResponse, IotaTransactionBlockEffects, IotaTransactionBlockResponse,
-    IotaTransactionBlockResponseOptions, IotaTransactionBlockResponseQuery, ObjectsPage,
-    ProtocolConfigResponse, TransactionBlocksPage, TransactionFilter,
+    IotaTransactionBlockResponseOptions, IotaTransactionBlockResponseQuery,
+    IotaTransactionBlockResponseQueryV2, ObjectsPage, ProtocolConfigResponse,
+    TransactionBlocksPage, TransactionFilter,
 };
 use iota_types::{
     base_types::{IotaAddress, ObjectID, SequenceNumber, TransactionDigest},
@@ -515,10 +516,27 @@ impl ReadApi {
         limit: impl Into<Option<usize>>,
         descending_order: bool,
     ) -> IotaRpcResult<TransactionBlocksPage> {
+        let query_v2 = IotaTransactionBlockResponseQueryV2 {
+            filter: query.filter.as_ref().map(|f| f.as_v2()),
+            options: query.options,
+        };
+        self.query_transaction_blocks_v2(query_v2, cursor, limit, descending_order)
+            .await
+    }
+
+    /// Get filtered transaction blocks information.
+    /// Results are paginated.
+    pub async fn query_transaction_blocks_v2(
+        &self,
+        query: IotaTransactionBlockResponseQueryV2,
+        cursor: impl Into<Option<TransactionDigest>>,
+        limit: impl Into<Option<usize>>,
+        descending_order: bool,
+    ) -> IotaRpcResult<TransactionBlocksPage> {
         Ok(self
             .api
             .http
-            .query_transaction_blocks(query, cursor.into(), limit.into(), Some(descending_order))
+            .query_transaction_blocks_v2(query, cursor.into(), limit.into(), Some(descending_order))
             .await?)
     }
 

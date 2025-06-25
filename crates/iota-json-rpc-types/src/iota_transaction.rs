@@ -2410,6 +2410,42 @@ pub enum TransactionFilter {
     TransactionKindIn(Vec<IotaTransactionKind>),
 }
 
+impl TransactionFilter {
+    pub fn as_v2(&self) -> TransactionFilterV2 {
+        match self {
+            TransactionFilter::InputObject(o) => TransactionFilterV2::InputObject(*o),
+            TransactionFilter::ChangedObject(o) => TransactionFilterV2::ChangedObject(*o),
+            TransactionFilter::FromAddress(a) => TransactionFilterV2::FromAddress(*a),
+            TransactionFilter::ToAddress(a) => TransactionFilterV2::ToAddress(*a),
+            TransactionFilter::FromAndToAddress { from, to } => {
+                TransactionFilterV2::FromAndToAddress {
+                    from: *from,
+                    to: *to,
+                }
+            }
+            TransactionFilter::FromOrToAddress { addr } => {
+                TransactionFilterV2::FromOrToAddress { addr: *addr }
+            }
+            TransactionFilter::MoveFunction {
+                package,
+                module,
+                function,
+            } => TransactionFilterV2::MoveFunction {
+                package: *package,
+                module: module.clone(),
+                function: function.clone(),
+            },
+            TransactionFilter::TransactionKind(kind) => TransactionFilterV2::TransactionKind(*kind),
+            TransactionFilter::TransactionKindIn(kinds) => {
+                TransactionFilterV2::TransactionKindIn(kinds.clone())
+            }
+            TransactionFilter::Checkpoint(checkpoint) => {
+                TransactionFilterV2::Checkpoint(*checkpoint)
+            }
+        }
+    }
+}
+
 impl Filter<EffectsWithInput> for TransactionFilter {
     fn matches(&self, item: &EffectsWithInput) -> bool {
         let _scope = monitored_scope("TransactionFilter::matches");
