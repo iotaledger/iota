@@ -82,7 +82,7 @@
     }
 
     *::-webkit-scrollbar-thumb {
-        @apply shadow-[inset_0_0_10px_10px] shadow-iota-neutral-80 dark:shadow-iota-neutral-30;
+        @apply shadow-[inset_0_0_10px_10px] shadow-iota-neutral-80 names:shadow-iota-neutral-30 dark:shadow-iota-neutral-30;
         @apply rounded-xl border-4 border-solid border-transparent;
     }
 }

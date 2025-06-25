@@ -1,14 +1,14 @@
 import { IotaClient } from '@iota/iota-sdk/client';
 import { requestIotaFromFaucetV0 } from '@iota/iota-sdk/faucet';
 import { Ed25519Keypair } from '@iota/iota-sdk/keypairs/ed25519';
-import { CONFIG } from './config';
+import { CONFIG } from './config.js';
 import {
     AccountsContractMethod,
     CoreContract,
     EvmRpcClient,
     getHname,
     IscTransaction,
-} from '../src';
+} from '../src/index.js';
 import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 
 const { L1, L2 } = CONFIG;
