@@ -18,7 +18,7 @@ export default function App() {
                         <div className="flex-1 pb-2xl flex flex-col items-center md:items-start justify-center">
                             <div className="flex flex-col max-md:items-center max-md:text-center md:flex-col gap-10 pb-[72px] ">
                                 <DirectionalArrowsSvg />
-                                <h1 className="text-display-md text-balance text-neutral-10 dark:text-neutral-92 max-w-lg">
+                                <h1 className="text-display-md text-balance text-iota-neutral-10 dark:text-iota-neutral-92 max-w-lg">
                                     {TITLE}
                                 </h1>
                             </div>

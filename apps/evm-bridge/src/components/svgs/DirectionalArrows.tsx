@@ -6,7 +6,7 @@ export function DirectionalArrowsSvg(props: React.SVGProps<SVGSVGElement>) {
                 height={64}
                 fill="currentColor"
                 rx={8}
-                className="text-primary-90 dark:text-primary-10"
+                className="text-iota-primary-90 dark:text-iota-primary-10"
             />
             <path
                 fill="#3131FF"
@@ -14,7 +14,7 @@ export function DirectionalArrowsSvg(props: React.SVGProps<SVGSVGElement>) {
             />
             <path
                 fill="currentColor"
-                className="dark:text-neutral-92 text-neutral-10"
+                className="dark:text-iota-neutral-92 text-iota-neutral-10"
                 d="M23.002 38.881h3.724v-1.62l-3.711-3.642h3.382V21.52l7.627 8.163v-5.297l-6.918-6.97.007-.007L24.722 15l-.007.007-.008-.007-2.39 2.41.006.006-6.918 6.97v4.848l7.61-7.696V33.62h-.013v5.262Z"
             />
         </svg>

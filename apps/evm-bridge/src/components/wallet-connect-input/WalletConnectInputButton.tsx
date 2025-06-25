@@ -20,7 +20,9 @@ export function WalletConnectInput({ label, isDestination, isLayer1 }: ConnectIn
                 isDestination ? 'flex-col-reverse' : 'flex-col',
             )}
         >
-            <span className="text-label-lg text-neutral-40 dark:text-neutral-60">{label}</span>
+            <span className="text-label-lg text-iota-neutral-40 dark:text-iota-neutral-60">
+                {label}
+            </span>
 
             {!!isLayer1 && <ConnectModal trigger={<WalletConnectionInputButton />} />}
             {!isLayer1 && <WalletConnectionInputButton onClick={openConnectModal} />}
@@ -36,9 +38,9 @@ export const WalletConnectionInputButton = forwardRef<
             type="button"
             ref={ref}
             {...props}
-            className="group w-full px-md py-sm rounded-lg border border-neutral-80 hover:border-primary-60 dark:hover:border-primary-80 dark:border-neutral-60 focus:border-primary-30 focus:dark:border-primary-80"
+            className="group w-full px-md py-sm rounded-lg border border-iota-neutral-80 hover:border-iota-primary-60 dark:hover:border-iota-primary-80 dark:border-iota-neutral-60 focus:border-iota-primary-30 focus:dark:border-iota-primary-80"
         >
-            <div className="flex flex-row items-center justify-between gap-x-sm w-full group-hover:opacity-80 dark:text-neutral-92 text-neutral-12 dark:group-hover:text-primary-80 group-hover:text-primary-40">
+            <div className="flex flex-row items-center justify-between gap-x-sm w-full group-hover:opacity-80 dark:text-iota-neutral-92 text-iota-neutral-12 dark:group-hover:text-iota-primary-80 group-hover:text-iota-primary-40">
                 <span className="text-start text-title-md leading-6">Connect Wallet</span>
                 <LinkIcon className="h-6 w-6 " />
             </div>
