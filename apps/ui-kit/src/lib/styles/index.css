@@ -121,7 +121,7 @@
 
     /* SECONDARY TEXT */
     --secondary-text-color: theme('colors.iota-neutral.40');
-    --secondary-text-error-color: theme('colors.iota-error.30');
+    --secondary-text-error-color: theme('colors.iota-error.20');
 
     /* SKELETON */
     --skeleton-bg: theme('colors.iota-neutral.90');
@@ -360,7 +360,7 @@
 
     /* SECONDARY TEXT */
     --secondary-text-color: theme('colors.iota-neutral.60');
-    --secondary-text-error-color: theme('colors.iota-error.80');
+    --secondary-text-error-color: theme('colors.iota-error.90');
 
     /* SKELETON */
     --skeleton-bg: theme('colors.iota-neutral.12');
