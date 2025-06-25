@@ -279,7 +279,7 @@ const DestinationInput = forwardRef<HTMLInputElement, InputProps>(function Desti
                 className="absolute bottom-0 right-0 group state-layer flex items-center px-xs rounded-full"
                 testId="toggle-receiver-address-input"
             >
-                <span className="text-body-md text-neutral-40 dark:text-neutral-60">
+                <span className="text-body-md text-iota-neutral-40 dark:text-iota-neutral-60">
                     {isManualInput ? 'Connect a wallet' : 'Enter manually'}
                 </span>
             </ButtonUnstyled>

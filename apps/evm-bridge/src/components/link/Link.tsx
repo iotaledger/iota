@@ -7,9 +7,9 @@ interface LinkProps extends PickedLinkProps {
 
 const LINK_STYLES = {
     primary:
-        'text-primary-30 dark:text-primary-80 hover:text-primary-50 dark:hover:text-primary-60',
+        'text-iota-primary-30 dark:text-iota-primary-80 hover:text-iota-primary-50 dark:hover:text-iota-primary-60',
     secondary:
-        'text-neutral-40 dark:text-neutral-60 hover:text-neutral-60 dark:hover:text-neutral-40',
+        'text-iota-neutral-40 dark:text-iota-neutral-60 hover:text-iota-neutral-60 dark:hover:text-iota-neutral-40',
 };
 
 const BASE_STYLES = 'transition-colors duration-150 text-body-md';
