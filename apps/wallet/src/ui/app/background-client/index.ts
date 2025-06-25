@@ -29,7 +29,7 @@ import {
 import { type SignedMessage, type SignedTransaction } from '_src/ui/app/walletSigner';
 import type { AppDispatch } from '_store';
 import { type IotaTransactionBlockResponse } from '@iota/iota-sdk/client';
-import { toB64 } from '@iota/iota-sdk/utils';
+import { toBase64 } from '@iota/iota-sdk/utils';
 import { type QueryKey } from '@tanstack/react-query';
 import { lastValueFrom, map, take } from 'rxjs';
 import { growthbook } from '../experimentation/featureGating';
@@ -161,7 +161,7 @@ export class BackgroundClient {
                 createMessage<MethodPayload<'signData'>>({
                     type: 'method-payload',
                     method: 'signData',
-                    args: { data: toB64(data), id: addressOrID },
+                    args: { data: toBase64(data), id: addressOrID },
                 }),
             ).pipe(
                 take(1),

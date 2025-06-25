@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { toB64 } from '@iota/bcs';
+import { toBase64 } from '@iota/bcs';
 
 import { bcs } from '../../bcs/index.js';
 import type { IotaObjectRef } from '../../bcs/types.js';
@@ -270,7 +270,7 @@ export class ParallelTransactionExecutor {
 
             return {
                 digest: results.digest,
-                effects: toB64(effectsBytes),
+                effects: toBase64(effectsBytes),
                 data: results,
             };
         } catch (error) {

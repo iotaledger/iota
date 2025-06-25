@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { fromB64, toB58 } from '@iota/bcs';
+import { fromBase64, toBase58 } from '@iota/bcs';
 import { bcs } from '@iota/iota-sdk/bcs';
 import type {
     IotaArgument,
@@ -50,7 +50,7 @@ export function mapGraphQLTransactionBlockToRpcTransactionBlock(
         ...(options?.showRawEffects
             ? {
                   rawEffects: transactionBlock.effects?.bcs
-                      ? Array.from(fromB64(transactionBlock.effects?.bcs))
+                      ? Array.from(fromBase64(transactionBlock.effects?.bcs))
                       : undefined,
               }
             : {}),
@@ -77,7 +77,9 @@ export function mapGraphQLTransactionBlockToRpcTransactionBlock(
                   transaction:
                       transactionBlock.rawTransaction &&
                       mapTransactionBlockToInput(
-                          bcs.SenderSignedData.parse(fromB64(transactionBlock.rawTransaction))[0],
+                          bcs.SenderSignedData.parse(
+                              fromBase64(transactionBlock.rawTransaction),
+                          )[0],
                       ),
               }
             : {}),
@@ -220,7 +222,7 @@ function mapTransactionInput(input: typeof bcs.CallArg.$inferType): IotaCallArg 
     if (input.Pure) {
         return {
             type: 'pure',
-            value: bcs.string().parse(fromB64(input.Pure.bytes)),
+            value: bcs.string().parse(fromBase64(input.Pure.bytes)),
         };
     }
 
@@ -346,13 +348,13 @@ function mapTransactionArgument(arg: typeof bcs.Argument.$inferType): IotaArgume
     throw new Error(`Unknown argument type ${arg}`);
 }
 
-const OBJECT_DIGEST_DELETED = toB58(Uint8Array.from({ length: 32 }, () => 99));
-const OBJECT_DIGEST_WRAPPED = toB58(Uint8Array.from({ length: 32 }, () => 88));
-const OBJECT_DIGEST_ZERO = toB58(Uint8Array.from({ length: 32 }, () => 0));
+const OBJECT_DIGEST_DELETED = toBase58(Uint8Array.from({ length: 32 }, () => 99));
+const OBJECT_DIGEST_WRAPPED = toBase58(Uint8Array.from({ length: 32 }, () => 88));
+const OBJECT_DIGEST_ZERO = toBase58(Uint8Array.from({ length: 32 }, () => 0));
 const ADDRESS_ZERO = normalizeIotaAddress('0x0');
 
 export function mapEffects(data: string): IotaTransactionBlockResponse['effects'] {
-    const effects = bcs.TransactionEffects.parse(fromB64(data));
+    const effects = bcs.TransactionEffects.parse(fromBase64(data));
 
     type InferredOwner = Exclude<(typeof ObjectOut)['$inferType']['ObjectWrite'], undefined>[1];
 

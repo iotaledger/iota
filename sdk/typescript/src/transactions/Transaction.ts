@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import type { SerializedBcs } from '@iota/bcs';
-import { fromB64, isSerializedBcs } from '@iota/bcs';
+import { fromBase64, isSerializedBcs } from '@iota/bcs';
 import type { InferInput } from 'valibot';
 import { is, parse } from 'valibot';
 
@@ -147,7 +147,7 @@ export class Transaction {
         const tx = new Transaction();
 
         tx.#data = TransactionDataBuilder.fromKindBytes(
-            typeof serialized === 'string' ? fromB64(serialized) : serialized,
+            typeof serialized === 'string' ? fromBase64(serialized) : serialized,
         );
 
         return tx;
@@ -166,7 +166,7 @@ export class Transaction {
             newTransaction.#data = new TransactionDataBuilder(transaction.getData());
         } else if (typeof transaction !== 'string' || !transaction.startsWith('{')) {
             newTransaction.#data = TransactionDataBuilder.fromBytes(
-                typeof transaction === 'string' ? fromB64(transaction) : transaction,
+                typeof transaction === 'string' ? fromBase64(transaction) : transaction,
             );
         } else {
             newTransaction.#data = TransactionDataBuilder.restore(JSON.parse(transaction));
